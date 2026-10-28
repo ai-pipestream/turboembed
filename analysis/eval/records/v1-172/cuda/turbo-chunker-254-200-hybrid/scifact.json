@@ -1,10 +1,37 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-28T01:42:50Z",
+  "recorded_at": "2026-10-28T08:42:39Z",
   "provenance": {
-    "commit": "16e74c040898d961d0c50e4e9bf1412f1722f86c",
+    "commit": "0d58e8629e85345b5c585c4beffa39b66a63c248",
     "pushed_to": [
-      "origin/claude/172-dump-cuts"
+      "origin/argon/1535-scrub-opennlp-docs",
+      "origin/argon/1536-analysis-features",
+      "origin/argon/1542-sentiment-untangle",
+      "origin/claude/1461-cpu",
+      "origin/claude/1461-cuda",
+      "origin/claude/1461-levelzero",
+      "origin/claude/1461-levelzero-f16",
+      "origin/claude/1461-metal-fastest",
+      "origin/claude/1461-metal-gated",
+      "origin/claude/project-thread-kve6ul-1495",
+      "origin/claude/project-thread-kve6ul-1527",
+      "origin/codex/1511-stop-opennlp-models",
+      "origin/cursor/1530-geo",
+      "origin/cursor/1530-glossary",
+      "origin/cursor/1530-hunspell",
+      "origin/cursor/1530-normalize",
+      "origin/cursor/1530-numeric",
+      "origin/cursor/1530-pii",
+      "origin/cursor/1530-stem",
+      "origin/cursor/1530-stopword",
+      "origin/cursor/1531-sweep",
+      "origin/gh-readonly-queue/main/pr-1560-b71d4ee0191c64e18856732dce472664604f496b",
+      "origin/gh-readonly-queue/main/pr-1576-922ce746b847e1c12ab643ae1da9db06f68be190",
+      "origin/kimi/1533-corpus-readers",
+      "origin/kimi/1540-namefind-cleanup",
+      "origin/main",
+      "origin/muse/1512-server-wiring",
+      "origin/muse/1521-peer-benchmark"
     ],
     "machine": {
       "arch": "rtx4080super",
@@ -34,7 +61,7 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
       "opennlp:subwords"
     ],
@@ -119,10 +146,10 @@
   },
   "metrics": {
     "queries": 300,
-    "ndcg_at_10": 0.6923844943018133,
+    "ndcg_at_10": 0.6906551933819762,
     "recall": {
-      "at_1": 0.54,
-      "at_5": 0.7686666666666666,
+      "at_1": 0.5366666666666666,
+      "at_5": 0.767,
       "at_10": 0.8282222222222221,
       "at_100": 0.955
     },
@@ -722,7 +749,7 @@
       },
       {
         "query": "36",
-        "ndcg_at_10": 0.41443699955334395
+        "ndcg_at_10": 0.39564672360221187
       },
       {
         "query": "362",
@@ -994,7 +1021,7 @@
       },
       {
         "query": "628",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.5
       },
       {
         "query": "636",
@@ -1332,24 +1359,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 121.48681,
-      "chunking_ms": 43.525405999999926,
-      "embedding_ms": 1878.2476980000001,
-      "retrieval_ms": 310.60157300000003
+      "analysis_ms": 613.462654,
+      "chunking_ms": 144.3052000000012,
+      "embedding_ms": 2253.4151229999998,
+      "retrieval_ms": 886.52578
     },
-    "tokens_embedded": 1650543,
-    "chunks": 9126,
+    "tokens_embedded": 1650474,
+    "chunks": 9134,
     "chunk_bytes": {
       "min": 93,
-      "p50": 782,
+      "p50": 781,
       "p90": 1047,
-      "max": 1462
+      "max": 1584
     },
     "chunk_tokens": {
       "min": 27,
       "p50": 179,
       "p90": 231,
-      "max": 330
+      "max": 356
     }
   }
 }

@@ -1,10 +1,37 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-28T01:43:04Z",
+  "recorded_at": "2026-10-28T08:43:05Z",
   "provenance": {
-    "commit": "16e74c040898d961d0c50e4e9bf1412f1722f86c",
+    "commit": "0d58e8629e85345b5c585c4beffa39b66a63c248",
     "pushed_to": [
-      "origin/claude/172-dump-cuts"
+      "origin/argon/1535-scrub-opennlp-docs",
+      "origin/argon/1536-analysis-features",
+      "origin/argon/1542-sentiment-untangle",
+      "origin/claude/1461-cpu",
+      "origin/claude/1461-cuda",
+      "origin/claude/1461-levelzero",
+      "origin/claude/1461-levelzero-f16",
+      "origin/claude/1461-metal-fastest",
+      "origin/claude/1461-metal-gated",
+      "origin/claude/project-thread-kve6ul-1495",
+      "origin/claude/project-thread-kve6ul-1527",
+      "origin/codex/1511-stop-opennlp-models",
+      "origin/cursor/1530-geo",
+      "origin/cursor/1530-glossary",
+      "origin/cursor/1530-hunspell",
+      "origin/cursor/1530-normalize",
+      "origin/cursor/1530-numeric",
+      "origin/cursor/1530-pii",
+      "origin/cursor/1530-stem",
+      "origin/cursor/1530-stopword",
+      "origin/cursor/1531-sweep",
+      "origin/gh-readonly-queue/main/pr-1560-b71d4ee0191c64e18856732dce472664604f496b",
+      "origin/gh-readonly-queue/main/pr-1576-922ce746b847e1c12ab643ae1da9db06f68be190",
+      "origin/kimi/1533-corpus-readers",
+      "origin/kimi/1540-namefind-cleanup",
+      "origin/main",
+      "origin/muse/1512-server-wiring",
+      "origin/muse/1521-peer-benchmark"
     ],
     "machine": {
       "arch": "rtx4080super",
@@ -34,7 +61,7 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
       "opennlp:subwords"
     ],
@@ -123,9 +150,9 @@
   },
   "metrics": {
     "queries": 300,
-    "ndcg_at_10": 0.6913383200057607,
+    "ndcg_at_10": 0.6921321216486177,
     "recall": {
-      "at_1": 0.5439999999999999,
+      "at_1": 0.5473333333333333,
       "at_5": 0.7593333333333333,
       "at_10": 0.8222222222222222,
       "at_100": 0.955
@@ -626,7 +653,7 @@
       },
       {
         "query": "237",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 1.0
       },
       {
         "query": "238",
@@ -998,7 +1025,7 @@
       },
       {
         "query": "628",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.5
       },
       {
         "query": "636",
@@ -1034,7 +1061,7 @@
       },
       {
         "query": "684",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 1.0
       },
       {
         "query": "690",
@@ -1336,24 +1363,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 119.226418,
-      "chunking_ms": 3677.799986,
-      "embedding_ms": 1873.531603,
-      "retrieval_ms": 311.98708200000004
+      "analysis_ms": 409.392361,
+      "chunking_ms": 5522.621384000001,
+      "embedding_ms": 2192.491677,
+      "retrieval_ms": 1082.769556
     },
-    "tokens_embedded": 3367087,
-    "chunks": 9141,
+    "tokens_embedded": 3365757,
+    "chunks": 9143,
     "chunk_bytes": {
-      "min": 68,
-      "p50": 786,
+      "min": 93,
+      "p50": 784,
       "p90": 1060,
-      "max": 1462
+      "max": 1584
     },
     "chunk_tokens": {
-      "min": 23,
-      "p50": 181,
+      "min": 27,
+      "p50": 180,
       "p90": 236,
-      "max": 330
+      "max": 356
     }
   }
 }

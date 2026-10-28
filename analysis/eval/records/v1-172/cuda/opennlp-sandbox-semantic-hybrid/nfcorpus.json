@@ -1,10 +1,37 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-28T01:44:07Z",
+  "recorded_at": "2026-10-28T08:45:07Z",
   "provenance": {
-    "commit": "16e74c040898d961d0c50e4e9bf1412f1722f86c",
+    "commit": "0d58e8629e85345b5c585c4beffa39b66a63c248",
     "pushed_to": [
-      "origin/claude/172-dump-cuts"
+      "origin/argon/1535-scrub-opennlp-docs",
+      "origin/argon/1536-analysis-features",
+      "origin/argon/1542-sentiment-untangle",
+      "origin/claude/1461-cpu",
+      "origin/claude/1461-cuda",
+      "origin/claude/1461-levelzero",
+      "origin/claude/1461-levelzero-f16",
+      "origin/claude/1461-metal-fastest",
+      "origin/claude/1461-metal-gated",
+      "origin/claude/project-thread-kve6ul-1495",
+      "origin/claude/project-thread-kve6ul-1527",
+      "origin/codex/1511-stop-opennlp-models",
+      "origin/cursor/1530-geo",
+      "origin/cursor/1530-glossary",
+      "origin/cursor/1530-hunspell",
+      "origin/cursor/1530-normalize",
+      "origin/cursor/1530-numeric",
+      "origin/cursor/1530-pii",
+      "origin/cursor/1530-stem",
+      "origin/cursor/1530-stopword",
+      "origin/cursor/1531-sweep",
+      "origin/gh-readonly-queue/main/pr-1560-b71d4ee0191c64e18856732dce472664604f496b",
+      "origin/gh-readonly-queue/main/pr-1576-922ce746b847e1c12ab643ae1da9db06f68be190",
+      "origin/kimi/1533-corpus-readers",
+      "origin/kimi/1540-namefind-cleanup",
+      "origin/main",
+      "origin/muse/1512-server-wiring",
+      "origin/muse/1521-peer-benchmark"
     ],
     "machine": {
       "arch": "rtx4080super",
@@ -34,7 +61,7 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
       "opennlp:subwords"
     ],
@@ -87,12 +114,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.32036363666462947,
+    "ndcg_at_10": 0.32339820540463765,
     "recall": {
-      "at_1": 0.060758326068887133,
-      "at_5": 0.1282318885041648,
-      "at_10": 0.15907758588373713,
-      "at_100": 0.29721254113446943
+      "at_1": 0.06115491443917368,
+      "at_5": 0.12769583108358448,
+      "at_10": 0.16108540011161473,
+      "at_100": 0.29769697940301704
     },
     "span": null,
     "per_query": [
@@ -102,7 +129,7 @@
       },
       {
         "query": "PLAIN-1018",
-        "ndcg_at_10": 0.4368897419958061
+        "ndcg_at_10": 0.5113553108118986
       },
       {
         "query": "PLAIN-102",
@@ -134,7 +161,7 @@
       },
       {
         "query": "PLAIN-1109",
-        "ndcg_at_10": 0.7257345305446319
+        "ndcg_at_10": 0.7353797772725617
       },
       {
         "query": "PLAIN-1119",
@@ -154,7 +181,7 @@
       },
       {
         "query": "PLAIN-1151",
-        "ndcg_at_10": 0.06362078819895171
+        "ndcg_at_10": 0.0
       },
       {
         "query": "PLAIN-1161",
@@ -190,7 +217,7 @@
       },
       {
         "query": "PLAIN-123",
-        "ndcg_at_10": 0.16315118788953184
+        "ndcg_at_10": 0.08948744797499744
       },
       {
         "query": "PLAIN-1236",
@@ -206,11 +233,11 @@
       },
       {
         "query": "PLAIN-1275",
-        "ndcg_at_10": 0.4440973278132557
+        "ndcg_at_10": 0.4537425745411855
       },
       {
         "query": "PLAIN-1288",
-        "ndcg_at_10": 0.6468562235661909
+        "ndcg_at_10": 0.6402900881481708
       },
       {
         "query": "PLAIN-1299",
@@ -234,7 +261,7 @@
       },
       {
         "query": "PLAIN-1342",
-        "ndcg_at_10": 0.28323251649726616
+        "ndcg_at_10": 0.3340514446642156
       },
       {
         "query": "PLAIN-1353",
@@ -262,7 +289,7 @@
       },
       {
         "query": "PLAIN-1419",
-        "ndcg_at_10": 0.4818998405251556
+        "ndcg_at_10": 0.5572998242663684
       },
       {
         "query": "PLAIN-1429",
@@ -274,7 +301,7 @@
       },
       {
         "query": "PLAIN-1441",
-        "ndcg_at_10": 0.5645441593704201
+        "ndcg_at_10": 0.6313419460517601
       },
       {
         "query": "PLAIN-1453",
@@ -298,7 +325,7 @@
       },
       {
         "query": "PLAIN-1506",
-        "ndcg_at_10": 0.2489083270225946
+        "ndcg_at_10": 0.20483424751859086
       },
       {
         "query": "PLAIN-1516",
@@ -306,11 +333,11 @@
       },
       {
         "query": "PLAIN-1527",
-        "ndcg_at_10": 0.6975961695061491
+        "ndcg_at_10": 0.6812060741152737
       },
       {
         "query": "PLAIN-153",
-        "ndcg_at_10": 0.732019623444576
+        "ndcg_at_10": 0.7326390044625197
       },
       {
         "query": "PLAIN-1537",
@@ -338,7 +365,7 @@
       },
       {
         "query": "PLAIN-1601",
-        "ndcg_at_10": 0.5837154733670049
+        "ndcg_at_10": 0.5769706247040591
       },
       {
         "query": "PLAIN-1611",
@@ -358,7 +385,7 @@
       },
       {
         "query": "PLAIN-165",
-        "ndcg_at_10": 0.45492213981125973
+        "ndcg_at_10": 0.45708483435214753
       },
       {
         "query": "PLAIN-1656",
@@ -366,7 +393,7 @@
       },
       {
         "query": "PLAIN-1667",
-        "ndcg_at_10": 0.7975167679274937
+        "ndcg_at_10": 0.7136540102475308
       },
       {
         "query": "PLAIN-1679",
@@ -386,7 +413,7 @@
       },
       {
         "query": "PLAIN-1721",
-        "ndcg_at_10": 0.6489315753318465
+        "ndcg_at_10": 0.6325414799409712
       },
       {
         "query": "PLAIN-1731",
@@ -426,7 +453,7 @@
       },
       {
         "query": "PLAIN-1817",
-        "ndcg_at_10": 0.5326208815196265
+        "ndcg_at_10": 0.5352543167750639
       },
       {
         "query": "PLAIN-1827",
@@ -462,11 +489,11 @@
       },
       {
         "query": "PLAIN-1897",
-        "ndcg_at_10": 0.19342640361727081
+        "ndcg_at_10": 0.20438239758848611
       },
       {
         "query": "PLAIN-1909",
-        "ndcg_at_10": 0.7100226348397882
+        "ndcg_at_10": 0.5264282969545138
       },
       {
         "query": "PLAIN-1919",
@@ -502,7 +529,7 @@
       },
       {
         "query": "PLAIN-1995",
-        "ndcg_at_10": 0.13886244387355454
+        "ndcg_at_10": 0.22009176629808017
       },
       {
         "query": "PLAIN-2",
@@ -510,7 +537,7 @@
       },
       {
         "query": "PLAIN-2009",
-        "ndcg_at_10": 0.12647135138382856
+        "ndcg_at_10": 0.19958818982773852
       },
       {
         "query": "PLAIN-2019",
@@ -522,7 +549,7 @@
       },
       {
         "query": "PLAIN-2040",
-        "ndcg_at_10": 0.6785038377365556
+        "ndcg_at_10": 0.7421246259355073
       },
       {
         "query": "PLAIN-2051",
@@ -534,7 +561,7 @@
       },
       {
         "query": "PLAIN-207",
-        "ndcg_at_10": 0.5919268187287083
+        "ndcg_at_10": 0.5801476231864474
       },
       {
         "query": "PLAIN-2071",
@@ -550,7 +577,7 @@
       },
       {
         "query": "PLAIN-2102",
-        "ndcg_at_10": 0.857980942822373
+        "ndcg_at_10": 0.9216017310213247
       },
       {
         "query": "PLAIN-2113",
@@ -558,7 +585,7 @@
       },
       {
         "query": "PLAIN-2124",
-        "ndcg_at_10": 0.43231813227099475
+        "ndcg_at_10": 0.5326208815196265
       },
       {
         "query": "PLAIN-2134",
@@ -598,7 +625,7 @@
       },
       {
         "query": "PLAIN-2220",
-        "ndcg_at_10": 0.38334277998463445
+        "ndcg_at_10": 0.35256832412172806
       },
       {
         "query": "PLAIN-2230",
@@ -650,7 +677,7 @@
       },
       {
         "query": "PLAIN-2332",
-        "ndcg_at_10": 0.3159817773843634
+        "ndcg_at_10": 0.2941924851321473
       },
       {
         "query": "PLAIN-2343",
@@ -670,11 +697,11 @@
       },
       {
         "query": "PLAIN-238",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.06362078819895171
       },
       {
         "query": "PLAIN-2386",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.14279514403613733
       },
       {
         "query": "PLAIN-2396",
@@ -706,7 +733,7 @@
       },
       {
         "query": "PLAIN-248",
-        "ndcg_at_10": 0.14465249243306436
+        "ndcg_at_10": 0.15176219107803537
       },
       {
         "query": "PLAIN-2480",
@@ -714,15 +741,15 @@
       },
       {
         "query": "PLAIN-2490",
-        "ndcg_at_10": 0.3501342980342043
+        "ndcg_at_10": 0.484639723517314
       },
       {
         "query": "PLAIN-2500",
-        "ndcg_at_10": 0.14684304092455927
+        "ndcg_at_10": 0.13521046138463966
       },
       {
         "query": "PLAIN-2510",
-        "ndcg_at_10": 0.6789383992791421
+        "ndcg_at_10": 0.677349900037948
       },
       {
         "query": "PLAIN-2520",
@@ -734,11 +761,11 @@
       },
       {
         "query": "PLAIN-2540",
-        "ndcg_at_10": 0.3748097563975521
+        "ndcg_at_10": 0.48440934550671244
       },
       {
         "query": "PLAIN-2550",
-        "ndcg_at_10": 0.1352670475837051
+        "ndcg_at_10": 0.1296831420200403
       },
       {
         "query": "PLAIN-2560",
@@ -750,7 +777,7 @@
       },
       {
         "query": "PLAIN-2580",
-        "ndcg_at_10": 0.1789929435906871
+        "ndcg_at_10": 0.1997656022839887
       },
       {
         "query": "PLAIN-259",
@@ -762,15 +789,15 @@
       },
       {
         "query": "PLAIN-2600",
-        "ndcg_at_10": 0.3029889465606805
+        "ndcg_at_10": 0.28289429037163205
       },
       {
         "query": "PLAIN-2610",
-        "ndcg_at_10": 0.43417548066792183
+        "ndcg_at_10": 0.43735247915031
       },
       {
         "query": "PLAIN-2620",
-        "ndcg_at_10": 0.034715610968388634
+        "ndcg_at_10": 0.039199134489337664
       },
       {
         "query": "PLAIN-2630",
@@ -778,15 +805,15 @@
       },
       {
         "query": "PLAIN-2640",
-        "ndcg_at_10": 0.5341669876671638
+        "ndcg_at_10": 0.5713831779428208
       },
       {
         "query": "PLAIN-2650",
-        "ndcg_at_10": 0.15850703974098102
+        "ndcg_at_10": 0.1681522864689108
       },
       {
         "query": "PLAIN-2660",
-        "ndcg_at_10": 0.1584091525685025
+        "ndcg_at_10": 0.1610425878239398
       },
       {
         "query": "PLAIN-2670",
@@ -818,7 +845,7 @@
       },
       {
         "query": "PLAIN-2730",
-        "ndcg_at_10": 0.27678341351764024
+        "ndcg_at_10": 0.20153107765734432
       },
       {
         "query": "PLAIN-2740",
@@ -834,7 +861,7 @@
       },
       {
         "query": "PLAIN-2770",
-        "ndcg_at_10": 0.33265196931078317
+        "ndcg_at_10": 0.331291990211964
       },
       {
         "query": "PLAIN-2780",
@@ -862,7 +889,7 @@
       },
       {
         "query": "PLAIN-2830",
-        "ndcg_at_10": 0.27511096828801057
+        "ndcg_at_10": 0.31939394323979897
       },
       {
         "query": "PLAIN-2840",
@@ -894,7 +921,7 @@
       },
       {
         "query": "PLAIN-291",
-        "ndcg_at_10": 0.4985723557253838
+        "ndcg_at_10": 0.5036067026046991
       },
       {
         "query": "PLAIN-2910",
@@ -906,7 +933,7 @@
       },
       {
         "query": "PLAIN-2930",
-        "ndcg_at_10": 0.41292330192811727
+        "ndcg_at_10": 0.415081693065718
       },
       {
         "query": "PLAIN-2940",
@@ -994,7 +1021,7 @@
       },
       {
         "query": "PLAIN-3171",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.0521442648465579
       },
       {
         "query": "PLAIN-3181",
@@ -1002,7 +1029,7 @@
       },
       {
         "query": "PLAIN-3191",
-        "ndcg_at_10": 0.07037133610231527
+        "ndcg_at_10": 0.1517388482950092
       },
       {
         "query": "PLAIN-320",
@@ -1010,7 +1037,7 @@
       },
       {
         "query": "PLAIN-3201",
-        "ndcg_at_10": 0.2501737101839677
+        "ndcg_at_10": 0.21963511689850063
       },
       {
         "query": "PLAIN-3211",
@@ -1042,7 +1069,7 @@
       },
       {
         "query": "PLAIN-3281",
-        "ndcg_at_10": 0.2531204573537867
+        "ndcg_at_10": 0.20877271093718403
       },
       {
         "query": "PLAIN-3292",
@@ -1054,7 +1081,7 @@
       },
       {
         "query": "PLAIN-3302",
-        "ndcg_at_10": 0.0521442648465579
+        "ndcg_at_10": 0.10644692083071648
       },
       {
         "query": "PLAIN-3312",
@@ -1070,7 +1097,7 @@
       },
       {
         "query": "PLAIN-3332",
-        "ndcg_at_10": 0.25485577322474995
+        "ndcg_at_10": 0.33098094959690405
       },
       {
         "query": "PLAIN-3342",
@@ -1090,7 +1117,7 @@
       },
       {
         "query": "PLAIN-3382",
-        "ndcg_at_10": 0.5446015463612878
+        "ndcg_at_10": 0.5658064997797513
       },
       {
         "query": "PLAIN-3392",
@@ -1102,11 +1129,11 @@
       },
       {
         "query": "PLAIN-3412",
-        "ndcg_at_10": 0.26414003318500273
+        "ndcg_at_10": 0.3109560242778273
       },
       {
         "query": "PLAIN-3422",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.034019538049805745
       },
       {
         "query": "PLAIN-3432",
@@ -1126,7 +1153,7 @@
       },
       {
         "query": "PLAIN-3462",
-        "ndcg_at_10": 0.505281180403894
+        "ndcg_at_10": 0.49443639978675324
       },
       {
         "query": "PLAIN-3472",
@@ -1162,11 +1189,11 @@
       },
       {
         "query": "PLAIN-44",
-        "ndcg_at_10": 0.13541537781717633
+        "ndcg_at_10": 0.13982054982942418
       },
       {
         "query": "PLAIN-441",
-        "ndcg_at_10": 0.923326910223412
+        "ndcg_at_10": 0.9333168256517765
       },
       {
         "query": "PLAIN-457",
@@ -1186,7 +1213,7 @@
       },
       {
         "query": "PLAIN-499",
-        "ndcg_at_10": 0.2489083270225946
+        "ndcg_at_10": 0.18340980524840012
       },
       {
         "query": "PLAIN-510",
@@ -1250,7 +1277,7 @@
       },
       {
         "query": "PLAIN-660",
-        "ndcg_at_10": 0.8643145546088337
+        "ndcg_at_10": 0.8572048559638628
       },
       {
         "query": "PLAIN-671",
@@ -1258,7 +1285,7 @@
       },
       {
         "query": "PLAIN-68",
-        "ndcg_at_10": 0.5549491112215222
+        "ndcg_at_10": 0.6246530735121465
       },
       {
         "query": "PLAIN-681",
@@ -1302,7 +1329,7 @@
       },
       {
         "query": "PLAIN-78",
-        "ndcg_at_10": 0.04929175392995458
+        "ndcg_at_10": 0.12853939940815376
       },
       {
         "query": "PLAIN-782",
@@ -1326,11 +1353,11 @@
       },
       {
         "query": "PLAIN-838",
-        "ndcg_at_10": 0.7671708088082307
+        "ndcg_at_10": 0.7767471075223497
       },
       {
         "query": "PLAIN-850",
-        "ndcg_at_10": 0.5637884576902256
+        "ndcg_at_10": 0.6300426811446146
       },
       {
         "query": "PLAIN-872",
@@ -1338,7 +1365,7 @@
       },
       {
         "query": "PLAIN-882",
-        "ndcg_at_10": 0.7222954974312066
+        "ndcg_at_10": 0.727329844310522
       },
       {
         "query": "PLAIN-892",
@@ -1358,7 +1385,7 @@
       },
       {
         "query": "PLAIN-924",
-        "ndcg_at_10": 0.6090726157997783
+        "ndcg_at_10": 0.6618313225363274
       },
       {
         "query": "PLAIN-934",
@@ -1370,7 +1397,7 @@
       },
       {
         "query": "PLAIN-956",
-        "ndcg_at_10": 0.5964984284535195
+        "ndcg_at_10": 0.5278432933752526
       },
       {
         "query": "PLAIN-966",
@@ -1382,7 +1409,7 @@
       },
       {
         "query": "PLAIN-987",
-        "ndcg_at_10": 0.23463936301137822
+        "ndcg_at_10": 0.18154179253735267
       },
       {
         "query": "PLAIN-997",
@@ -1392,23 +1419,23 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 92.666442,
-      "chunking_ms": 2590.033687,
-      "embedding_ms": 1399.415718,
-      "retrieval_ms": 262.89043699999996
+      "analysis_ms": 394.550949,
+      "chunking_ms": 4159.105576,
+      "embedding_ms": 1894.1268839999998,
+      "retrieval_ms": 703.7804610000001
     },
-    "tokens_embedded": 2529864,
-    "chunks": 22192,
+    "tokens_embedded": 2526498,
+    "chunks": 21626,
     "chunk_bytes": {
-      "min": 2,
-      "p50": 160,
-      "p90": 547,
+      "min": 3,
+      "p50": 164,
+      "p90": 560,
       "max": 2435
     },
     "chunk_tokens": {
       "min": 4,
-      "p50": 36,
-      "p90": 128,
+      "p50": 37,
+      "p90": 131,
       "max": 732
     }
   }

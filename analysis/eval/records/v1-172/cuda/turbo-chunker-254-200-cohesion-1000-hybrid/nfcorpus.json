@@ -1,10 +1,37 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-28T01:43:10Z",
+  "recorded_at": "2026-10-28T08:43:15Z",
   "provenance": {
-    "commit": "16e74c040898d961d0c50e4e9bf1412f1722f86c",
+    "commit": "0d58e8629e85345b5c585c4beffa39b66a63c248",
     "pushed_to": [
-      "origin/claude/172-dump-cuts"
+      "origin/argon/1535-scrub-opennlp-docs",
+      "origin/argon/1536-analysis-features",
+      "origin/argon/1542-sentiment-untangle",
+      "origin/claude/1461-cpu",
+      "origin/claude/1461-cuda",
+      "origin/claude/1461-levelzero",
+      "origin/claude/1461-levelzero-f16",
+      "origin/claude/1461-metal-fastest",
+      "origin/claude/1461-metal-gated",
+      "origin/claude/project-thread-kve6ul-1495",
+      "origin/claude/project-thread-kve6ul-1527",
+      "origin/codex/1511-stop-opennlp-models",
+      "origin/cursor/1530-geo",
+      "origin/cursor/1530-glossary",
+      "origin/cursor/1530-hunspell",
+      "origin/cursor/1530-normalize",
+      "origin/cursor/1530-numeric",
+      "origin/cursor/1530-pii",
+      "origin/cursor/1530-stem",
+      "origin/cursor/1530-stopword",
+      "origin/cursor/1531-sweep",
+      "origin/gh-readonly-queue/main/pr-1560-b71d4ee0191c64e18856732dce472664604f496b",
+      "origin/gh-readonly-queue/main/pr-1576-922ce746b847e1c12ab643ae1da9db06f68be190",
+      "origin/kimi/1533-corpus-readers",
+      "origin/kimi/1540-namefind-cleanup",
+      "origin/main",
+      "origin/muse/1512-server-wiring",
+      "origin/muse/1521-peer-benchmark"
     ],
     "machine": {
       "arch": "rtx4080super",
@@ -34,7 +61,7 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
       "opennlp:subwords"
     ],
@@ -123,12 +150,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.3416214228900241,
+    "ndcg_at_10": 0.3406535542497424,
     "recall": {
-      "at_1": 0.05675350086513437,
-      "at_5": 0.13558293811418723,
-      "at_10": 0.1702744753667155,
-      "at_100": 0.3189033224084818
+      "at_1": 0.05643407484911392,
+      "at_5": 0.1357129422689592,
+      "at_10": 0.17012704797470607,
+      "at_100": 0.3177126007491253
     },
     "span": null,
     "per_query": [
@@ -246,7 +273,7 @@
       },
       {
         "query": "PLAIN-1288",
-        "ndcg_at_10": 0.7600791051976192
+        "ndcg_at_10": 0.7542686714597936
       },
       {
         "query": "PLAIN-1299",
@@ -394,11 +421,11 @@
       },
       {
         "query": "PLAIN-165",
-        "ndcg_at_10": 0.4514950829293673
+        "ndcg_at_10": 0.44881795569127914
       },
       {
         "query": "PLAIN-1656",
-        "ndcg_at_10": 0.07336392209936005
+        "ndcg_at_10": 0.06943122193677727
       },
       {
         "query": "PLAIN-1667",
@@ -486,7 +513,7 @@
       },
       {
         "query": "PLAIN-1867",
-        "ndcg_at_10": 0.11838279295536291
+        "ndcg_at_10": 0.13743816645714543
       },
       {
         "query": "PLAIN-1877",
@@ -502,7 +529,7 @@
       },
       {
         "query": "PLAIN-1909",
-        "ndcg_at_10": 0.6051399156371955
+        "ndcg_at_10": 0.6325414799409712
       },
       {
         "query": "PLAIN-1919",
@@ -570,7 +597,7 @@
       },
       {
         "query": "PLAIN-207",
-        "ndcg_at_10": 0.456899187845258
+        "ndcg_at_10": 0.4636440365082036
       },
       {
         "query": "PLAIN-2071",
@@ -746,11 +773,11 @@
       },
       {
         "query": "PLAIN-2480",
-        "ndcg_at_10": 0.3369225896420676
+        "ndcg_at_10": 0.23814276159606287
       },
       {
         "query": "PLAIN-2490",
-        "ndcg_at_10": 0.4798697255120404
+        "ndcg_at_10": 0.482922821804591
       },
       {
         "query": "PLAIN-2500",
@@ -770,7 +797,7 @@
       },
       {
         "query": "PLAIN-2540",
-        "ndcg_at_10": 0.5805912852240307
+        "ndcg_at_10": 0.42310263931835645
       },
       {
         "query": "PLAIN-2550",
@@ -814,7 +841,7 @@
       },
       {
         "query": "PLAIN-2640",
-        "ndcg_at_10": 0.6287292920844109
+        "ndcg_at_10": 0.6351208961051616
       },
       {
         "query": "PLAIN-2650",
@@ -850,7 +877,7 @@
       },
       {
         "query": "PLAIN-2720",
-        "ndcg_at_10": 0.40348266660099286
+        "ndcg_at_10": 0.4131279133289227
       },
       {
         "query": "PLAIN-2730",
@@ -1014,7 +1041,7 @@
       },
       {
         "query": "PLAIN-3131",
-        "ndcg_at_10": 0.3632120304243473
+        "ndcg_at_10": 0.3744879309109653
       },
       {
         "query": "PLAIN-3141",
@@ -1082,7 +1109,7 @@
       },
       {
         "query": "PLAIN-3292",
-        "ndcg_at_10": 0.6359945104423163
+        "ndcg_at_10": 0.5269773863784452
       },
       {
         "query": "PLAIN-33",
@@ -1094,7 +1121,7 @@
       },
       {
         "query": "PLAIN-3312",
-        "ndcg_at_10": 0.20318659517103482
+        "ndcg_at_10": 0.2017241392528985
       },
       {
         "query": "PLAIN-332",
@@ -1106,7 +1133,7 @@
       },
       {
         "query": "PLAIN-3332",
-        "ndcg_at_10": 0.6978285002181911
+        "ndcg_at_10": 0.6999868913557917
       },
       {
         "query": "PLAIN-3342",
@@ -1146,7 +1173,7 @@
       },
       {
         "query": "PLAIN-3432",
-        "ndcg_at_10": 0.23440650992329987
+        "ndcg_at_10": 0.23758350840568812
       },
       {
         "query": "PLAIN-344",
@@ -1154,7 +1181,7 @@
       },
       {
         "query": "PLAIN-3442",
-        "ndcg_at_10": 0.05013355137207787
+        "ndcg_at_10": 0.04691422406821018
       },
       {
         "query": "PLAIN-3452",
@@ -1274,11 +1301,11 @@
       },
       {
         "query": "PLAIN-623",
-        "ndcg_at_10": 0.3030820301798826
+        "ndcg_at_10": 0.2999050316974944
       },
       {
         "query": "PLAIN-634",
-        "ndcg_at_10": 0.31488013066763093
+        "ndcg_at_10": 0.33013764944712026
       },
       {
         "query": "PLAIN-645",
@@ -1310,7 +1337,7 @@
       },
       {
         "query": "PLAIN-711",
-        "ndcg_at_10": 0.2984900352767555
+        "ndcg_at_10": 0.2934556883974402
       },
       {
         "query": "PLAIN-721",
@@ -1398,7 +1425,7 @@
       },
       {
         "query": "PLAIN-934",
-        "ndcg_at_10": 0.6036081270984908
+        "ndcg_at_10": 0.5747915663739762
       },
       {
         "query": "PLAIN-946",
@@ -1406,7 +1433,7 @@
       },
       {
         "query": "PLAIN-956",
-        "ndcg_at_10": 0.6110191504983019
+        "ndcg_at_10": 0.6136525857537393
       },
       {
         "query": "PLAIN-966",
@@ -1428,24 +1455,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 84.447947,
-      "chunking_ms": 2593.6545019999994,
-      "embedding_ms": 1388.659246,
-      "retrieval_ms": 224.303719
+      "analysis_ms": 505.54882999999995,
+      "chunking_ms": 4003.2623710000007,
+      "embedding_ms": 1636.021671,
+      "retrieval_ms": 667.828499
     },
-    "tokens_embedded": 2521276,
-    "chunks": 6833,
+    "tokens_embedded": 2520398,
+    "chunks": 6836,
     "chunk_bytes": {
       "min": 54,
       "p50": 794,
-      "p90": 1052,
+      "p90": 1051,
       "max": 1510
     },
     "chunk_tokens": {
       "min": 14,
       "p50": 182,
       "p90": 235,
-      "max": 358
+      "max": 435
     }
   }
 }

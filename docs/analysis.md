@@ -4631,15 +4631,15 @@ numerics in the vectors, not the chunker. The Intel NPU leg is #1480.
 With turbo-sentdetect's rule splitter as the sentence default (#1568,
 in place of the 2.5.4-trained OpenNLP model), the CPU and Level Zero
 records were rerun at main `0d58e862`; they replace those two backends'
-directories above, and the CUDA and Metal directories stay at
-`16e74c04` with the old splitter until they are rerun. The gate still
-FAILs everywhere, with the same shape (sets below the floor, CPU and
-Level Zero alike):
+directories above, as do the CUDA records (RTX 4080 SUPER, same
+commit), and the Metal directory stays at `16e74c04` with the old
+splitter until it is rerun. The gate still FAILs everywhere, with the
+same shape (sets below the floor, CPU, Level Zero and CUDA alike):
 
 | Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
 | :--- | :--- | :--- | :--- |
-| structure-cost hybrid (v1) | FAIL, 0 gains; `scifact` -1.34, `qasper` -0.95 | FAIL, 0 gains; `arguana` -0.68 | FAIL, 2 gains; `qasper` -1.34 (Level Zero -1.30) |
-| cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.20, `qasper` -0.74 | FAIL, 0 gains; `arguana` -0.77 | FAIL, 2 gains; `qasper` -1.12 (Level Zero -1.09) |
+| structure-cost hybrid (v1) | FAIL, 0 gains; `scifact` -1.34, `qasper` -0.95 | FAIL, 0 gains; `arguana` -0.68 (CUDA -0.55) | FAIL, 2 gains; `qasper` -1.34 (Level Zero -1.30, CUDA -1.32) |
+| cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.20, `qasper` -0.74 | FAIL, 0 gains; `arguana` -0.77 (CUDA -0.59) | FAIL, 2 gains; `qasper` -1.12 (Level Zero -1.09, CUDA -1.10) |
 
 v1's nDCG@10 is `69.07` / `34.22` / `51.49` / `37.64` (scifact,
 nfcorpus, arguana, qasper). Both turbo-chunker pipelines cut every
@@ -4648,7 +4648,14 @@ documents differ). Every Level Zero record matches the CPU's query for
 query except the sandbox semantic chunker's on qasper, where 2 of 1451
 queries differ with the same chunk count and chunk sizes; that chunker
 cuts on sentence-vector thresholds and writes no cut dump, so its cuts
-were not compared.
+were not compared. Both turbo-chunker pipelines also cut every document
+the same on CUDA as on the CPU (0 documents differ). CUDA's records
+have the CPU's chunk counts on every pipeline and set; their nDCG@10
+differs from the CPU's on `arguana` (up to 0.24 points, 36 to 62 of 1406
+queries), `nfcorpus` (up to 0.06, 2 to 4 of 323) and, for the sandbox
+semantic chunker, on 1 `qasper` query: CUDA's numerics in the vectors,
+as at `16e74c04`. These are correctness records; the 4080 was shared
+with other work while they ran.
 
 ### Structure in the chunker
 
