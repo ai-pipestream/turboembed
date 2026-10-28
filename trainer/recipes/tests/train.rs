@@ -106,7 +106,10 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     assert_eq!(r.commit, "test");
     assert!(!r.corpus.recorded);
     let enc = r.encoder.as_ref().unwrap();
-    assert_eq!((enc.backend.as_str(), enc.hidden), ("cpu", 32));
+    assert_eq!((enc.backend.as_str(), enc.hidden, enc.layers), ("cpu", 32, Some(2)));
+    // The data's 48 sentences of five words, train and dev both read.
+    assert_eq!(r.timing_s.feature_words, 2 * 48 * 5);
+    assert!(r.timing_s.words_per_s().is_some_and(|w| w > 0.0));
     let head = r.head.clone().unwrap();
     assert_eq!(head.layer, "turboembed:entities");
     assert_eq!(head.labels, ["O", "B-HumanSettlement", "B-OtherPER"]);
@@ -195,6 +198,89 @@ fn a_baseline_run_needs_no_encoder_and_refuses_an_existing_out() {
     assert!(String::from_utf8_lossy(&o.stderr).contains("already there"));
     for d in [data, out] {
         fs::remove_dir_all(d).unwrap();
+    }
+}
+
+/// Runs of `args` started together, each given `out`: exactly one
+/// succeeds, every other is refused for the directory, and what the
+/// winner wrote is whole and its receipt's.
+fn race(args: &[&str], out: &Path, runs: usize) -> Receipt {
+    let children: Vec<_> = (0..runs)
+        .map(|_| {
+            Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+                .args(args)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap()
+        })
+        .collect();
+    let outs: Vec<_> = children.into_iter().map(|c| c.wait_with_output().unwrap()).collect();
+    let won = outs.iter().filter(|o| o.status.success()).count();
+    assert_eq!(
+        won,
+        1,
+        "{:?}",
+        outs.iter().map(|o| String::from_utf8_lossy(&o.stderr).into_owned()).collect::<Vec<_>>()
+    );
+    for o in outs.iter().filter(|o| !o.status.success()) {
+        assert_eq!(o.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&o.stderr).contains("already there"), "{}", String::from_utf8_lossy(&o.stderr));
+    }
+    let r: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    let mut listed: Vec<String> = r.outputs.iter().map(|f| f.path.clone()).collect();
+    for f in &r.outputs {
+        let bytes = fs::read(out.join(&f.path)).unwrap();
+        assert_eq!((bytes.len() as u64, turbo::bundle::sha256_hex(&bytes)), (f.size, f.sha256.clone()), "{}", f.path);
+    }
+    listed.push("receipt.json".into());
+    listed.sort();
+    let mut on_disk: Vec<String> =
+        fs::read_dir(out).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    on_disk.sort();
+    assert_eq!(on_disk, listed, "only the winner's files");
+    r
+}
+
+#[test]
+fn of_runs_racing_for_one_out_exactly_one_writes() {
+    let data = scratch("race-data");
+    corpus(&data);
+    let out = scratch("race-baseline");
+    let (d, o) = (data.to_str().unwrap(), out.to_str().unwrap());
+    let base = ["baseline", "--corpus", "multiconer2-en", "--dir", d, "--out", o, "--unrecorded-corpus"];
+    race(&base, &out, 6);
+    let first = out;
+    let out = scratch("race-train");
+    let o = out.to_str().unwrap();
+    let bundle = tiny();
+    let b = bundle.to_str().unwrap();
+    let train = [
+        "train",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        d,
+        "--bundle",
+        b,
+        "--out",
+        o,
+        "--unrecorded-corpus",
+        "--epochs",
+        "2",
+        "--commit",
+        "test",
+    ];
+    let r = race(&train, &out, 3);
+    assert!(r.head.is_some());
+    // A run refused after its claim leaves no directory behind.
+    let gone = scratch("race-refused");
+    let g = gone.to_str().unwrap();
+    let bad = run(&["train", "--corpus", "multiconer2-en", "--dir", d, "--bundle", "/nonexistent", "--out", g]);
+    assert_eq!(bad.status.code(), Some(2));
+    assert!(!gone.exists());
+    for p in [data, first, out] {
+        fs::remove_dir_all(p).unwrap();
     }
 }
 
