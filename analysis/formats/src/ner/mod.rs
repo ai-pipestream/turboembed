@@ -11,6 +11,12 @@
 //! | MUC-6 | [`MucReader`], [`MucSamples`] for a directory | `MucNameSampleStream` | `muc6` ([`Muc6Names`], one file) |
 //! | brat standoff | [`brat::BratParser`], [`brat::BratSamples`] for a directory | `BratNameSampleStream` | none: a corpus is a directory of files |
 //!
+//! Three kept corpora (#1533) have readers here with no OpenNLP stream
+//! behind them: WNUT-17 ([`WnutReader`]), MultiCoNER v2
+//! ([`MulticonerReader`]) and LitBank ([`LitBankReader`]). Their formats
+//! are pinned in each reader's documentation, and their errors carry no
+//! JVM message.
+//!
 //! The readers take decoded text ([`crate::decode`]); OpenNLP reads each of
 //! these corpora as UTF-8, and the census lists in the encoding the
 //! dictionary tool is given (UTF-8 unless told otherwise). Tokens are
@@ -71,8 +77,11 @@ mod census;
 mod evalita;
 mod formats;
 mod germeval;
+mod litbank;
 mod muc;
+mod multiconer2;
 mod tokens;
+mod wnut17;
 
 use std::fmt;
 
@@ -83,8 +92,11 @@ pub use census::CensusReader;
 pub use evalita::{EvalitaLanguage, EvalitaReader, EvalitaTypes};
 pub use formats::{BioNlpNames, EvalitaNames, GermEvalNames, Muc6Names};
 pub use germeval::{GermEvalLayer, GermEvalReader, GermEvalTypes};
+pub use litbank::{LITBANK_TYPES, LitBankError, LitBankReader};
 pub use muc::{MUC_TYPES, MUC6_FORMAT, MucReader, MucSamples, muc_files};
+pub use multiconer2::{MulticonerError, MulticonerReader};
 pub use tokens::{NewlineSentences, RuleTokenizer, SentenceSpans, TokenSpans};
+pub use wnut17::{WNUT17_TYPES, WnutError, WnutReader};
 
 use crate::error::FormatError;
 use crate::ner::brat::BratCause;
