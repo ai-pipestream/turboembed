@@ -2,9 +2,9 @@
 
 Peer and turbo records scored by `turbo-eval analysis` against the
 UD English-EWT test file: `spacy-en-ewt-test.json`,
-`spacy-lg-en-ewt-test.json`, `stanza-en-ewt-test.json`,
-`wtpsplit-en-ewt-test.json`, `trankit-en-ewt-test.json`, and
-`turbo-sat-en-ewt-test.json`.
+`spacy-lg-en-ewt-test.json`, `spacy-trf-en-ewt-test.json`,
+`stanza-en-ewt-test.json`, `wtpsplit-en-ewt-test.json`,
+`trankit-en-ewt-test.json`, and `turbo-sat-en-ewt-test.json`.
 
 ## Inputs and pins
 
@@ -27,6 +27,14 @@ UD English-EWT test file: `spacy-en-ewt-test.json`,
   on sentences and UPOS here (and NER once entity inputs land); the
   remaining columns stay in the JSON for completeness under the
   label-scheme caveat below.
+- Peer: spaCy 3.8.7 with `en_core_web_trf` 3.8.0 on CPU torch 2.6.0
+  (curated-transformers 0.1.1), in the pinned container at
+  `analysis/eval/reference/peers/spacy-trf/` (local image id at
+  record time
+  `sha256:bd8fb6da4c3c2dc05f9477be3adc78be4ed5b332bb1552f45e0f2bcd2fe7a286`).
+  Predictions SHA-256:
+  `9c617b026c9b1489fda5e9653e17cd238d67c18ede50fbb1a3ceb5c0e5fa1126`.
+  Sentences 85.41 F1, UPOS 92.96, under the same comparison rule.
 - Peer: Stanza 1.10.1 with the English default models
   (`tokenize,mwt,pos,lemma,depparse`) on CPU torch 2.6.0, in the
   pinned container built from `analysis/eval/reference/peers/stanza/`
@@ -100,6 +108,9 @@ docker build --build-arg MODEL=en_core_web_lg --build-arg MODEL_VERSION=3.8.0 \
   -t turbo-peer-spacy:3.8.7-lg-3.8.0 analysis/eval/reference/peers/spacy
 docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
   turbo-peer-spacy:3.8.7-lg-3.8.0 /gold/en_ewt-ud-test.conllu /out/spacy-lg.conllu en_core_web_lg
+docker build -t turbo-peer-spacy:3.8.7-trf-3.8.0 analysis/eval/reference/peers/spacy-trf
+docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
+  turbo-peer-spacy:3.8.7-trf-3.8.0 /gold/en_ewt-ud-test.conllu /out/spacy-trf.conllu en_core_web_trf
 turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
   --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
   --pred spacy-3.8.7-en_core_web_sm-3.8.0=<out-dir>/spacy-sm.conllu \
