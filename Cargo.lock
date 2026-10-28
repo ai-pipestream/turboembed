@@ -2810,10 +2810,8 @@ name = "turbo-train"
 version = "0.1.0"
 dependencies = [
  "turbo-calibration",
- "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
- "turbo-sentdetect",
  "turbo-sequence",
  "turbo-unicode",
 ]

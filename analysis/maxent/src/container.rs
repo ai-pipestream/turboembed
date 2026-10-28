@@ -1,14 +1,7 @@
-//! An OpenNLP model file: a zip holding `manifest.properties` and the
-//! model's artifacts, such as `token.model` (the classifier) and
-//! `abbreviations.dictionary`.
+//! Disabled classical model container.
 //!
-//! OpenNLP's `BaseModel` requires the manifest to hold `OpenNLP-Version`,
-//! `Component-Name` and `Language`, and refuses a model whose version
-//! does not parse or whose major number is not between 0 and 3 (the fork
-//! this crate follows accepts 0, which its preview releases use). Opening
-//! a file here checks the same. Which
-//! component a model is for, and what its other properties mean, is for
-//! the component reading it to check.
+//! The public constructors return Error::Disabled before filesystem access or
+//! archive parsing. The type remains until dependent ports are deleted.
 
 use std::borrow::Cow;
 use std::path::Path;
