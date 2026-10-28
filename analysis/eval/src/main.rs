@@ -42,6 +42,12 @@ usage:
   turbo-eval gate <candidate-dir> <baseline-dir>
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
+  turbo-eval chunk-gate <candidate-dir> <windows-dir> [<baseline-dir> ...]
+      the chunker gate (#172): on the sets with judged evidence, span
+      recall@10 and contained@10 above the sentence-windows reference with
+      fewer spans cut through; on every set, nDCG@10 never significantly
+      more than half a point under the best baseline; exit status 1 when
+      it fails, 2 on an error
   turbo-eval cuts <a-dir> <b-dir>
       compare two directories of cut dumps (run --dump-cuts), one per set,
       document by document; each differing cut is printed with both runs'
@@ -134,6 +140,15 @@ fn run(args: &[String]) -> Result<ExitCode> {
                 print!("{s}");
             }
             Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+        }
+        Some("chunk-gate") if args.len() >= 3 => {
+            let read = |p: &String| turbo_eval::run::read_records(Path::new(p));
+            let (cand, windows) = (read(&args[1])?, read(&args[2])?);
+            let others = args[3..].iter().map(read).collect::<Result<Vec<_>>>()?;
+            let others: Vec<&[_]> = others.iter().map(Vec::as_slice).collect();
+            let report = turbo_eval::chunk_gate::chunk_gate(&cand, &windows, &others)?;
+            println!("{report}");
+            Ok(if report.pass { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
