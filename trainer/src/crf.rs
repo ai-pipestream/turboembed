@@ -36,7 +36,9 @@ fn logsumexp(v: impl Iterator<Item = f64> + Clone) -> f64 {
 /// The loss -log p(gold | emit) for one sequence, emit [n, labels], and
 /// its gradients added to `demit` [n, labels] and `grad`. A gold
 /// sequence the lattice forbids is refused: the scheme would never decode
-/// it, so it cannot be a training target.
+/// it, so it cannot be a training target. So are a lattice, parameters,
+/// scores or gradients of another label count or length, and nonfinite
+/// scores or parameters.
 pub fn nll<R: Real>(
     p: Params<R>,
     allowed: &Allowed,
@@ -47,6 +49,20 @@ pub fn nll<R: Real>(
     grad: Grad<R>,
 ) -> Result<f64> {
     let n = gold.len();
+    let cells = n.checked_mul(labels);
+    let shaped = allowed.labels() == labels
+        && labels > 0
+        && cells == Some(emit.len())
+        && cells == Some(demit.len())
+        && labels.checked_mul(labels).is_some_and(|l2| p.transitions.len() == l2 && grad.transitions.len() == l2)
+        && [p.start.len(), p.end.len(), grad.start.len(), grad.end.len()].iter().all(|&l| l == labels);
+    if !shaped {
+        return Err(invalid(format!("crf: the lattice, parameters, scores or gradients are not over {labels} labels")));
+    }
+    let finite = |v: &[R]| v.iter().all(|x| x.to_f64().is_finite());
+    if !finite(emit) || !finite(p.transitions) || !finite(p.start) || !finite(p.end) {
+        return Err(invalid("crf: a score or parameter is not finite"));
+    }
     if n == 0 {
         return Ok(0.0);
     }
@@ -122,5 +138,9 @@ pub fn nll<R: Real>(
         }
         grad.transitions[y[t - 1] * labels + y[t]] -= R::ONE;
     }
-    Ok(log_z - gold_score)
+    let loss = log_z - gold_score;
+    if !loss.is_finite() {
+        return Err(invalid("crf: the loss is not finite"));
+    }
+    Ok(loss)
 }

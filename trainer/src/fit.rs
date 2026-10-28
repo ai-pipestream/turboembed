@@ -54,10 +54,12 @@ pub struct Report {
 }
 
 /// Accuracy (SCHEME_TAGS) or exact span F1 (BIO, BILOU) of `tagger` on
-/// `examples`, decoded by the core exactly as at inference.
+/// `examples`, decoded by the core exactly as at inference. Refuses an
+/// example without exactly one gold label in range per feature row.
 pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     let spec = tagger.spec();
     let hidden = tagger.hidden();
+    check_examples(examples, hidden, spec.labels.len())?;
     let (mut right, mut total, mut found, mut gold_n) = (0usize, 0usize, 0usize, 0usize);
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
@@ -86,6 +88,20 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     })
 }
 
+/// Each example has `hidden` features per gold label and every label is
+/// one of `labels`.
+fn check_examples(examples: &[Example], hidden: usize, labels: usize) -> Result<()> {
+    for (i, e) in examples.iter().enumerate() {
+        let rows = e.labels.len().checked_mul(hidden);
+        if hidden == 0 || rows != Some(e.features.len()) || e.labels.iter().any(|&l| l as usize >= labels) {
+            return Err(invalid(format!(
+                "trainer: example {i} does not have {hidden} features per gold label, each label one of {labels}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Trains a head for `spec` over features `hidden` wide on `train`,
 /// keeping the weights that scored best on `dev`.
 pub fn fit(
@@ -100,13 +116,8 @@ pub fn fit(
             "trainer: an empty training set, or a zero batch, epoch count, or a warmup outside [0, 1)",
         ));
     }
-    for (i, e) in train.iter().chain(dev).enumerate() {
-        if e.features.len() != e.labels.len() * hidden || e.labels.iter().any(|&l| l as usize >= spec.labels.len()) {
-            return Err(invalid(format!(
-                "trainer: example {i} does not fit {hidden} features per word and its labels"
-            )));
-        }
-    }
+    check_examples(train, hidden, spec.labels.len())?;
+    check_examples(dev, hidden, spec.labels.len())?;
     let mut rng = Rng::new(c.seed);
     let mut model = Tagger::<f32>::new(spec, hidden, &mut rng)?;
     let steps_per_epoch = train.len().div_ceil(c.batch) as u64;
@@ -119,8 +130,8 @@ pub fn fit(
         total,
         ..Settings::default()
     };
-    let shapes: Vec<usize> = model.params.iter().map(Vec::len).collect();
-    let mut opt = AdamW::new(settings, &shapes);
+    let shapes: Vec<usize> = model.params().iter().map(Vec::len).collect();
+    let mut opt = AdamW::new(settings, &shapes)?;
     let decay = model.decays();
     let mut order: Vec<usize> = (0..train.len()).collect();
     let mut work = Work::default();
@@ -141,20 +152,20 @@ pub fn fit(
             }
             let scale = 1.0 / n as f32;
             grads.iter_mut().flatten().for_each(|g| *g *= scale);
-            opt.step(&mut model.params, &mut grads, &decay);
+            model.step(&mut opt, &mut grads, &decay)?;
         }
         report.train_loss.push(if words == 0 { 0.0 } else { loss / words as f64 });
         let s = score(&model.to_token_tagger()?, dev)?;
         report.dev.push(s);
         if best.as_ref().is_none_or(|(b, _)| s > *b) {
-            best = Some((s, model.params.clone()));
+            best = Some((s, model.params().to_vec()));
             report.best_epoch = epoch;
         } else if c.patience > 0 && epoch - report.best_epoch >= c.patience as usize {
             break;
         }
     }
     if let Some((_, params)) = best {
-        model.params = params;
+        model.set_params(params)?;
     }
     Ok((model, report))
 }
