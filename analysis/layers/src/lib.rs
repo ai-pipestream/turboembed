@@ -64,6 +64,7 @@ pub use tables::{
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use vector_codes::{CodeKind, VectorCodes};
 pub use wordnet::{
     ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
 };
@@ -164,5 +165,6 @@ pub mod tables;
 mod temporal;
 mod times;
 pub mod unit;
+mod vector_codes;
 mod wordnet;
 mod words;

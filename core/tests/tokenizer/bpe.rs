@@ -130,7 +130,7 @@ fn fixture(name: &str, m: serde_json::Value, path: &std::path::Path) -> Fixture 
 
 /// The core against upstream on the tokenizer file at `path`: ids,
 /// spans and decode.
-fn check(name: &str, m: serde_json::Value, path: &std::path::Path) {
+pub fn check(name: &str, m: serde_json::Value, path: &std::path::Path) {
     let prefixed = m["tokenizer"]["bpe"]["add_prefix_space"] == true;
     let specials: Vec<i32> =
         m["tokenizer"]["special_tokens"].as_array().unwrap().iter().map(|s| s["id"].as_i64().unwrap() as i32).collect();

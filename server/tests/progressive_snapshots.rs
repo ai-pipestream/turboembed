@@ -25,7 +25,7 @@ fn seed() -> Document {
     let text = "# Heading\n\n".to_owned() + &"Café grew. ".repeat(4096);
     let a = Analyzer::builder()
         .step(Bound::new(NormalizeStep::new(UnicodeForm::nfc())).write(0, "nfc"))
-        .step(Bound::new(NewlineDetector::default()).read(0, "nfc").write(0, "nfc"))
+        .step(Bound::new(NewlineDetector::new()).read(0, "nfc").write(0, "nfc"))
         .step(Bound::new(UntypedWordTokenizer::default()).read(0, "nfc").read(1, "nfc"))
         .build()
         .unwrap();

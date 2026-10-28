@@ -104,6 +104,65 @@ extern "C" {
 #define TURBO_DEBERTA_RELATIVE_LN_BIAS       5
 #define TURBO_DEBERTA_EMBEDDING_TENSORS      6
 
+/* Where each tensor of a ModernBERT encoder (TURBO_FAMILY_MODERNBERT) sits
+ * in turbo_backend_model.tensors: these embedding tensors first, then each
+ * layer's, so layer l's tensor r is at TURBO_MODERNBERT_EMBEDDING_TENSORS
+ * + l * TURBO_MODERNBERT_LAYER_TENSORS + r. No tensor has a bias, and every
+ * norm is LayerNorm with a weight alone. Each layer is pre-norm:
+ * x += attn_out(attention(qkv(attn_ln(x)))), then
+ * x += ffn_out(act(y[0..i]) * y[i..2i]) for y = ffn_in(ffn_ln(x)) and i
+ * intermediate (upstream's `input, gate = Wi(x).chunk(2)`); final_norm follows
+ * the last layer. Layer 0 has no attn_ln: its entry's data is NULL and
+ * bytes 0, and its attention reads x. */
+#define TURBO_MODERNBERT_WORD_EMBEDDINGS        0   /* [vocab_size, hidden] */
+#define TURBO_MODERNBERT_EMBEDDINGS_LN_WEIGHT   1
+#define TURBO_MODERNBERT_FINAL_NORM_WEIGHT      2
+#define TURBO_MODERNBERT_EMBEDDING_TENSORS      3
+
+#define TURBO_MODERNBERT_ATTN_LN_WEIGHT   0   /* layer 0: absent */
+#define TURBO_MODERNBERT_QKV_WEIGHT       1   /* [3 * hidden, hidden]: Q's rows, K's, V's */
+#define TURBO_MODERNBERT_ATTN_OUT_WEIGHT  2   /* [hidden, hidden] */
+#define TURBO_MODERNBERT_FFN_LN_WEIGHT    3
+#define TURBO_MODERNBERT_FFN_IN_WEIGHT    4   /* [2 * intermediate, hidden]: the activated half's
+                                                 rows, then the linear half's */
+#define TURBO_MODERNBERT_FFN_OUT_WEIGHT   5   /* [hidden, intermediate] */
+#define TURBO_MODERNBERT_LAYER_TENSORS    6
+
+/* Where each tensor of a nomic-bert encoder (TURBO_FAMILY_NOMIC_BERT) sits:
+ * these embedding tensors first (word plus token type, then LayerNorm; no
+ * position table), then each layer's, so layer l's tensor r is at
+ * TURBO_NOMIC_EMBEDDING_TENSORS + l * TURBO_NOMIC_LAYER_TENSORS + r. Each
+ * layer is post-norm, as BERT's: x = attn_ln(x + attn_out(attention(qkv(x)))),
+ * then x = ffn_ln(x + ffn_out(act(ffn_gate(x)) * ffn_up(x))). The
+ * projections have no bias; the LayerNorms have one. */
+#define TURBO_NOMIC_WORD_EMBEDDINGS        0   /* [vocab_size, hidden] */
+#define TURBO_NOMIC_TOKEN_TYPE_EMBEDDINGS  1   /* [token_types, hidden] */
+#define TURBO_NOMIC_EMBEDDINGS_LN_WEIGHT   2
+#define TURBO_NOMIC_EMBEDDINGS_LN_BIAS     3
+#define TURBO_NOMIC_EMBEDDING_TENSORS      4
+
+#define TURBO_NOMIC_QKV_WEIGHT       0   /* [3 * hidden, hidden]: Q's rows, K's, V's */
+#define TURBO_NOMIC_ATTN_OUT_WEIGHT  1   /* [hidden, hidden] */
+#define TURBO_NOMIC_ATTN_LN_WEIGHT   2
+#define TURBO_NOMIC_ATTN_LN_BIAS     3
+#define TURBO_NOMIC_FFN_GATE_WEIGHT  4   /* [intermediate, hidden]: fc12, the activated half */
+#define TURBO_NOMIC_FFN_UP_WEIGHT    5   /* [intermediate, hidden]: fc11, the linear half */
+#define TURBO_NOMIC_FFN_OUT_WEIGHT   6   /* [hidden, intermediate] */
+#define TURBO_NOMIC_FFN_LN_WEIGHT    7
+#define TURBO_NOMIC_FFN_LN_BIAS      8
+#define TURBO_NOMIC_LAYER_TENSORS    9
+
+/* The rotary families' encoder parts, in turbo_backend_model's mlp,
+ * activation and norm. A gated MLP is out(act(gate x) * up x), GeGLU
+ * with GELU (erf) and SwiGLU with SiLU (x * sigmoid(x)). */
+#define TURBO_MLP_DENSE            1
+#define TURBO_MLP_GATED            2
+#define TURBO_ACTIVATION_GELU_ERF  1
+#define TURBO_ACTIVATION_SILU      2
+#define TURBO_NORM_LAYER           1   /* LayerNorm, weight and bias */
+#define TURBO_NORM_LAYER_NO_BIAS   2   /* LayerNorm, weight alone */
+#define TURBO_NORM_RMS             3
+
 /* Where each tensor of a static model sits in turbo_backend_model.tensors.
  * A row's vector is computed from its tokens alone, with no encoder
  * (docs/static.md): each live token's table row (the
@@ -130,6 +189,10 @@ extern "C" {
 #define TURBO_FAMILY_DEBERTA_V2 4 /* DeBERTa-v2/v3 shared-key disentangled attention over
                                      log-bucketed relative positions, no absolute positions
                                      or token types: TURBO_DEBERTA_* */
+#define TURBO_FAMILY_MODERNBERT 5 /* rotary positions, alternating sliding-window and full
+                                     attention, gated MLP, pre-norm: TURBO_MODERNBERT_* */
+#define TURBO_FAMILY_NOMIC_BERT 6 /* rotary positions, gated MLP, post-norm, token types:
+                                     TURBO_NOMIC_* */
 
 /* An artifact's format, as docs/bundle.md's artifacts[].format names it.
  * turbo_backend.formats has bit TURBO_FORMAT_BIT(f) set for each format f
@@ -284,6 +347,30 @@ typedef struct turbo_backend_model {
      * reads them only when struct_size covers them. */
     uint8_t     artifact_sha256[32];
     uint8_t     artifact2_sha256[32];
+    /* The rotary families' (TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT)
+     * fields, 0 and NULL for every other family. A backend reads them only
+     * when struct_size covers them, and refuses a rotary family when it
+     * does not. Positions are each row's own column indices. */
+    double      rope_global_theta;  /* the rotary base on full-attention layers */
+    double      rope_local_theta;   /* on sliding-window layers; the global one without them */
+    const float *rope_table;        /* the core's cos/sin table, [2 (global, local)]
+                                       [2 (cos, sin)][max_positions][rope_pairs] F32: entry
+                                       (p, i) is cos or sin of p * theta^(-2i / head width)
+                                       as transformers computes it: the exponent, the inverse
+                                       frequency and the angle each rounded to F32, then cos
+                                       and sin of that angle, within 2 ULP of upstream's (an
+                                       F64 angle would differ from upstream's by up to 4e-4 at
+                                       position 8192). Column i of a head rotates with column
+                                       i + rope_pairs (rotate_half) */
+    uint32_t    rope_pairs;         /* half a head's width */
+    uint32_t    mlp;                /* TURBO_MLP_* */
+    uint32_t    activation;         /* TURBO_ACTIVATION_* */
+    uint32_t    norm;               /* TURBO_NORM_* */
+    uint32_t    attention_window;   /* a sliding-window layer's total width: query i reads
+                                       keys j with |i - j| <= attention_window / 2; 0 for
+                                       every layer full */
+    uint32_t    global_every;       /* layer l is full iff l % global_every == 0; 0 with
+                                       attention_window 0 */
 } turbo_backend_model;
 
 /* A session as session_open receives it: turbo_session_desc's fields with
@@ -332,6 +419,13 @@ typedef struct turbo_backend_embed_rows {
                                     normalization, goes through the head, its sums in F64,
                                     and the run's output is [count, head_out]; output_dim is
                                     then head_out and normalize NONE. 0 everywhere else */
+    uint32_t       taps;         /* 0 or 1: the final layer's states. T > 1 on a range write
+                                    (turbo_embed_write_layer_ranges): each range pooled from
+                                    each of the last T layers, the run's output [T, count,
+                                    output_dim], the last block the final layer's. The core
+                                    passes T > 1 only to a backend and family that take it;
+                                    head is then 0 and T * count at most max_ranges */
+    uint32_t       reserved;     /* 0 */
 } turbo_backend_embed_rows;
 
 /* What a run produced and what it cost: turbo_result_info's fields that

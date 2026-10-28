@@ -32,7 +32,6 @@ import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.WhitespaceTokenizer;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.PlainTextByLineStream;
-import opennlp.tools.util.WhitespaceMode;
 
 /**
  * The golden of one of OpenNLP's sentence, language or document corpus streams over a file of the
@@ -45,7 +44,7 @@ import opennlp.tools.util.WhitespaceMode;
  * ({@code irish-}); {@code LeipzigLanguageSampleStream} behind {@code SampleShuffleStream} and
  * {@code SampleSkipStream} over a bundled directory, with two sets of parameters
  * ({@code leipzig-}); and {@code TwentyNewsgroupSampleStream} over a bundled directory with the
- * whitespace tokenizer (also in the legacy whitespace mode) and the simple tokenizer
+ * whitespace tokenizer and the simple tokenizer
  * ({@code newsgroups-}). The bundles are described in {@link MascGolden}. The streams and the
  * document parsers whose constructors or methods are package-private are reached by reflection.
  *
@@ -130,20 +129,17 @@ final class CorporaGolden implements AnnotatorGolden {
   }
 
   private final Kind kind;
-  private final WhitespaceMode whitespace;
 
-  private CorporaGolden(Kind kind, WhitespaceMode whitespace) {
+  private CorporaGolden(Kind kind) {
     this.kind = kind;
-    this.whitespace = whitespace;
   }
 
-  /** Every run, and the 20 Newsgroups whitespace tokenizer in the legacy whitespace mode too. */
+  /** Every run. */
   static List<CorporaGolden> all() {
     List<CorporaGolden> runs = new ArrayList<>();
     for (Kind k : Kind.values()) {
-      runs.add(new CorporaGolden(k, WhitespaceMode.UNICODE));
+      runs.add(new CorporaGolden(k));
     }
-    runs.add(new CorporaGolden(Kind.NEWSGROUPS_WHITESPACE, WhitespaceMode.LEGACY));
     return runs;
   }
 
@@ -183,7 +179,6 @@ final class CorporaGolden implements AnnotatorGolden {
       c.put("tokenizer", kind == Kind.NEWSGROUPS_SIMPLE ? "simple" : "whitespace");
       c.put("dataDir", newsgroupsDir().toString());
     }
-    c.putAll(Whitespace.config(whitespace));
     return c;
   }
 
@@ -199,7 +194,7 @@ final class CorporaGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return kind.dir + Whitespace.dirSuffix(whitespace);
+    return kind.dir;
   }
 
   private static Path newsgroupsDir() {
@@ -316,7 +311,7 @@ final class CorporaGolden implements AnnotatorGolden {
       }
       MascGolden.writeBundle(input, root);
       Path dir = root;
-      return Whitespace.in(whitespace, () -> read(input, dir));
+      return read(input, dir);
     } catch (IOException e) {
       throw new IllegalStateException(input.inputId() + ": the corpus could not be written", e);
     } finally {

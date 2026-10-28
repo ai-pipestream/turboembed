@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import opennlp.tools.util.WhitespaceMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -36,7 +35,7 @@ class LatticeGoldenTest {
   @Test
   void theDirectoryNamesTheRunAndTheManifestIsItsHash(@TempDir Path tmp) throws IOException {
     Path dir = dictionary(tmp.resolve("tiny-dic"), StandardCharsets.UTF_8);
-    LatticeGolden g = LatticeGolden.load(dir, WhitespaceMode.UNICODE, Set.of("s"));
+    LatticeGolden g = LatticeGolden.load(dir, Set.of("s"));
     assertEquals("lattice", g.annotator());
     assertEquals("tiny-dic", g.modelDir());
     assertEquals("opennlp.tools.tokenize.lattice.LatticeTokenizer", g.annotatorClass());
@@ -49,15 +48,11 @@ class LatticeGoldenTest {
     }
     assertEquals(new ModelRef("tiny-dic", Sha.sha512(m.toString().getBytes(StandardCharsets.UTF_8))),
         g.models().get(0));
-    LatticeGolden legacy = LatticeGolden.load(dir, WhitespaceMode.LEGACY, Set.of("s"));
-    assertEquals("tiny-dic+legacy", legacy.modelDir());
-    assertEquals(Map.of("whitespace", "legacy"), legacy.config());
   }
 
   @Test
   void theMorphemesHaveByteSpansAndFeatures(@TempDir Path tmp) throws IOException, AnnotatorException {
-    LatticeGolden g = LatticeGolden.load(dictionary(tmp.resolve("d"), StandardCharsets.UTF_8),
-        WhitespaceMode.UNICODE, Set.of("s"));
+    LatticeGolden g = LatticeGolden.load(dictionary(tmp.resolve("d"), StandardCharsets.UTF_8), Set.of("s"));
     List<Layer> layers = g.layers(input("東京 峠x"));
     assertEquals(2, layers.size());
     assertEquals("opennlp:tokens", layers.get(0).id());
@@ -76,7 +71,7 @@ class LatticeGoldenTest {
     Charset eucJp = Charset.forName("EUC-JP");
     Path original = dictionary(tmp.resolve("orig"), eucJp);
     Path copy = dictionary(tmp.resolve("orig.utf8"), StandardCharsets.UTF_8);
-    LatticeGolden g = LatticeGolden.loadRecoded(original, eucJp, copy, WhitespaceMode.UNICODE, Set.of("s"));
+    LatticeGolden g = LatticeGolden.loadRecoded(original, eucJp, copy, Set.of("s"));
     assertEquals(2, g.models().size());
     assertEquals("orig", g.modelDir());
     assertEquals("orig.utf8", g.models().get(1).fileName());
@@ -84,14 +79,14 @@ class LatticeGoldenTest {
     assertEquals(2, g.layers(input("東京都")).get(0).rows());
     Files.writeString(copy.resolve("a.csv"), "東,0,0,6001,名詞\n京都,0,0,3000,名詞\n", StandardCharsets.UTF_8);
     assertThrows(IllegalStateException.class,
-        () -> LatticeGolden.loadRecoded(original, eucJp, copy, WhitespaceMode.UNICODE, Set.of("s")));
+        () -> LatticeGolden.loadRecoded(original, eucJp, copy, Set.of("s")));
   }
 
   @Test
   void aMissingTemplateIsTheAnnotatorsError(@TempDir Path tmp) throws IOException {
     Path dir = dictionary(tmp.resolve("d"), StandardCharsets.UTF_8);
     Files.writeString(dir.resolve("unk.def"), "KANJI,0,0,8000,名詞\n", StandardCharsets.UTF_8);
-    LatticeGolden g = LatticeGolden.load(dir, WhitespaceMode.UNICODE, Set.of("s"));
+    LatticeGolden g = LatticeGolden.load(dir, Set.of("s"));
     AnnotatorException e = assertThrows(AnnotatorException.class, () -> g.layers(input("東x")));
     assertEquals("java.lang.IllegalStateException", e.exceptionClass());
   }
