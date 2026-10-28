@@ -2793,6 +2793,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-tagger"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-tokenize"
 version = "0.1.0"
 dependencies = [
