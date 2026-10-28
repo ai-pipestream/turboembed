@@ -34,7 +34,7 @@ fn ranges_are_owned_after_write_for_text_tokens_and_ranges() {
     let text = ["a b c"];
     let tok = Tok::create(&f.dir).unwrap();
     let row = tok.row(text[0], None).unwrap();
-    let tokens = Tokens::new(&[row.clone()], 0);
+    let tokens = Tokens::new(std::slice::from_ref(&row), 0);
     let ranges = [range(0, 0, row.len() as u32)];
     for kind in 0..3 {
         let write = |o: &turbo_embed_options| match kind {
@@ -132,32 +132,39 @@ fn codes_cover_more_ranges_than_batch_at_unaligned_binary_widths() {
 
 #[test]
 fn quantized_result_exports_the_same_native_host_address_it_maps() {
-    let (_f, l) = model("probe-native-code-export");
+    let (f, l) = model("probe-native-code-export");
     let s = Session::create(l.m, None).unwrap();
-    let mut failures = Vec::new();
-    for q in [TURBO_QUANTIZE_NONE, TURBO_QUANTIZE_INT8, TURBO_QUANTIZE_UBINARY] {
-        let ranges: Vec<_> = [-1.0; 8].into_iter().chain([1.0; 8]).collect();
-        let o = options(q, 8, if q == TURBO_QUANTIZE_INT8 { &ranges } else { &[] });
-        s.write_text(&["a b"], Some(&o)).unwrap();
-        let r = s.run().unwrap();
-        let mut buffer = ptr::null_mut();
-        let mut err = new_error();
-        assert_eq!(unsafe { turbo_result_buffer(r.0, &mut buffer, &mut err) }, 0);
-        let mut host = ptr::null_mut();
-        assert_eq!(unsafe { turbo_buffer_host_ptr(buffer, &mut host, &mut err) }, 0);
-        let mut native: turbo_native_handle = unsafe { std::mem::zeroed() };
-        native.struct_size = size_of::<turbo_native_handle>() as u32;
-        let rc = unsafe { turbo_buffer_export(buffer, TURBO_HANDLE_HOST_PTR, &mut native, &mut err) };
-        unsafe { turbo_buffer_release(buffer) };
-        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
-        let matches = native.handle == host as usize as u64;
-        eprintln!(
-            "quantization={q} export_status={rc} exported_is_null={} matches_mapped_host={matches}",
-            native.handle == 0
-        );
-        if !matches {
-            failures.push(q);
+    let tok = Tok::create(&f.dir).unwrap();
+    let row = tok.row("a b", None).unwrap();
+    let tokens = Tokens::new(std::slice::from_ref(&row), 0);
+    let ranges = [range(0, 0, row.len() as u32)];
+    for kind in 0..3 {
+        for q in [TURBO_QUANTIZE_NONE, TURBO_QUANTIZE_INT8, TURBO_QUANTIZE_UBINARY] {
+            let calibration: Vec<_> = [-1.0; 8].into_iter().chain([1.0; 8]).collect();
+            let o = options(q, 8, if q == TURBO_QUANTIZE_INT8 { &calibration } else { &[] });
+            match kind {
+                0 => s.write_text(&["a b"], Some(&o)),
+                1 => s.write_tokens(&tokens.batch(), Some(&o)),
+                _ => s.write_ranges(&tokens.batch(), &ranges, Some(&o)),
+            }
+            .unwrap();
+            let r = s.run().unwrap();
+            let expected = read(&r);
+            let mut buffer = ptr::null_mut();
+            let mut err = new_error();
+            assert_eq!(unsafe { turbo_result_buffer(r.0, &mut buffer, &mut err) }, 0);
+            drop(r);
+            let mut host = ptr::null_mut();
+            assert_eq!(unsafe { turbo_buffer_host_ptr(buffer, &mut host, &mut err) }, 0);
+            let mut native: turbo_native_handle = unsafe { std::mem::zeroed() };
+            native.struct_size = size_of::<turbo_native_handle>() as u32;
+            assert_eq!(unsafe { turbo_buffer_export(buffer, TURBO_HANDLE_HOST_PTR, &mut native, &mut err) }, 0);
+            assert_eq!(native.handle, host as usize as u64, "write {kind}, quantization {q}");
+            assert_eq!((native.kind, native.aux, native.offset), (TURBO_HANDLE_HOST_PTR, 0, 0));
+            assert_eq!(unsafe { std::slice::from_raw_parts(native.handle as *const u8, expected.len()) }, expected);
+            let rc = unsafe { turbo_buffer_export(buffer, TURBO_HANDLE_DMABUF_FD, &mut native, &mut err) };
+            assert_eq!(rc, turbo::status::UNSUPPORTED);
+            unsafe { turbo_buffer_release(buffer) };
         }
     }
-    assert!(failures.is_empty(), "native host addresses differ for quantization selectors {failures:?}");
 }

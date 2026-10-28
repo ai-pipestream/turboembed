@@ -32,31 +32,38 @@ fn required(var: &str) -> bool {
 #[test]
 fn required_device_selection_cannot_skip() {
     let mut skipped_requirements = Vec::new();
-    for selector in [None, Some("cpu"), Some("unknown"), Some("metal")] {
-        let mut child = std::process::Command::new(std::env::current_exe().unwrap());
-        child.args(["--exact", "device_codes_are_the_codes_of_the_same_devices_f32_vectors", "--nocapture"]);
-        child.env_remove("TURBO_TEST_DEVICE");
-        for (_, var) in BACKENDS {
-            child.env_remove(format!("TURBO_TEST_REQUIRE_{var}"));
-        }
-        if let Some(selector) = selector {
-            child.env("TURBO_TEST_DEVICE", selector);
-        }
-        let out = child.env("TURBO_TEST_REQUIRE_CUDA", "1").output().unwrap();
-        if out.status.success() {
-            skipped_requirements.push(selector);
+    for (index, (_, required_var)) in BACKENDS.iter().enumerate() {
+        let other_backend = BACKENDS[(index + 1) % BACKENDS.len()].0;
+        for selector in [None, Some("cpu"), Some("unknown"), Some(other_backend)] {
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+            child.args(["--exact", "device_codes_are_the_codes_of_the_same_devices_f32_vectors", "--nocapture"]);
+            child.env_remove("TURBO_TEST_DEVICE");
+            for (_, var) in BACKENDS {
+                child.env_remove(format!("TURBO_TEST_REQUIRE_{var}"));
+            }
+            if let Some(selector) = selector {
+                child.env("TURBO_TEST_DEVICE", selector);
+            }
+            let out = child.env(format!("TURBO_TEST_REQUIRE_{required_var}"), "1").output().unwrap();
+            if out.status.success() {
+                skipped_requirements.push((required_var, selector));
+            }
         }
     }
-    assert!(skipped_requirements.is_empty(), "required CUDA coverage skipped for {skipped_requirements:?}");
+    assert!(skipped_requirements.is_empty(), "required device coverage skipped for {skipped_requirements:?}");
 }
 
 /// The backend TURBO_TEST_DEVICE names, if it lists a device; None after
 /// saying the test is skipped.
 fn backend(test: &str) -> Option<&'static str> {
-    let Ok(want) = std::env::var("TURBO_TEST_DEVICE") else {
-        for (_, var) in BACKENDS {
-            assert!(!required(var), "{test}: TURBO_TEST_REQUIRE_{var}=1 and TURBO_TEST_DEVICE is not set");
-        }
+    let selected = std::env::var("TURBO_TEST_DEVICE").ok();
+    for (name, var) in BACKENDS {
+        assert!(
+            !required(var) || selected.as_deref() == Some(name),
+            "{test}: TURBO_TEST_REQUIRE_{var}=1 requires TURBO_TEST_DEVICE={name}, got {selected:?}"
+        );
+    }
+    let Some(want) = selected else {
         println!("{test}: skipped: TURBO_TEST_DEVICE is not set");
         return None;
     };
@@ -93,6 +100,20 @@ fn take(r: Outcome) -> (turbo_result_info, Vec<u8>) {
     let mut err = new_error();
     let rc = unsafe { turbo_result_read(r.0, out.as_mut_ptr().cast(), info.bytes, ptr::null_mut(), &mut err) };
     assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+    if matches!(info.dtype, TURBO_DTYPE_I8 | TURBO_DTYPE_U8) {
+        let mut buffer = ptr::null_mut();
+        assert_eq!(unsafe { turbo_result_buffer(r.0, &mut buffer, &mut err) }, 0);
+        let mut host = ptr::null_mut();
+        assert_eq!(unsafe { turbo_buffer_host_ptr(buffer, &mut host, &mut err) }, 0);
+        let mut native: turbo_native_handle = unsafe { std::mem::zeroed() };
+        native.struct_size = size_of::<turbo_native_handle>() as u32;
+        assert_eq!(unsafe { turbo_buffer_export(buffer, TURBO_HANDLE_HOST_PTR, &mut native, &mut err) }, 0);
+        assert_eq!(native.handle, host as usize as u64, "quantized codes export their core-owned host memory");
+        assert_eq!(unsafe { std::slice::from_raw_parts(native.handle as *const u8, out.len()) }, out);
+        let rc = unsafe { turbo_buffer_export(buffer, TURBO_HANDLE_DMABUF_FD, &mut native, &mut err) };
+        assert_eq!(rc, turbo::status::UNSUPPORTED);
+        unsafe { turbo_buffer_release(buffer) };
+    }
     (info, out)
 }
 
