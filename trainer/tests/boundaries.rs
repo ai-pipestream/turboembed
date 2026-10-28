@@ -117,10 +117,33 @@ fn an_overflowing_loss_leaves_the_gradients_as_they_were() {
 
     let s = spec(&["A", "B"], Scheme::Tags, Decode::Crf);
     let (_, lattice) = allowed(s.scheme, &s.labels).unwrap();
-    let (start, end, tr) = (vec![f64::MAX; 2], vec![0.0; 2], vec![0.0; 4]);
+    // Scores a common offset does not explain: [MAX, -MAX] against label 1.
+    let (start, end, tr) = (vec![0.0; 2], vec![0.0; 2], vec![0.0; 4]);
     let p = crf::Params { transitions: &tr, start: &start, end: &end };
     let (mut gt, mut gs, mut ge, mut de) = (vec![7.0; 4], vec![7.0; 2], vec![7.0; 2], vec![7.0; 2]);
     let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
-    assert!(crf::nll(p, &lattice, &[f64::MAX, f64::MAX], &[0], 2, &mut de, g).is_err());
+    assert!(crf::nll(p, &lattice, &[f64::MAX, -f64::MAX], &[1], 2, &mut de, g).is_err());
     assert!([&gt, &gs, &ge, &de].iter().all(|v| v.iter().all(|&x| x == 7.0)), "{gt:?} {gs:?} {ge:?} {de:?}");
+}
+
+#[test]
+fn a_common_score_offset_changes_neither_loss_nor_gradient() {
+    let (_, two) = allowed(Scheme::Tags, &["A".to_string(), "B".to_string()]).unwrap();
+    for offset in [0.0f32, 1e20, -1e20, 3e38] {
+        let emit = [offset, offset];
+        let mut d = vec![0.0f32; 2];
+        let l = xent::loss(&emit, &[0], 2, &mut d).unwrap();
+        assert!((l - std::f64::consts::LN_2).abs() < 1e-12 && d == [-0.5, 0.5], "xent at {offset}: {l} {d:?}");
+
+        // The same offset on the emissions, the start and end scores, and
+        // the transitions, over two words.
+        let (tr, st, en) = (vec![offset; 4], vec![offset; 2], vec![offset; 2]);
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) = (vec![0.0f32; 4], vec![0.0; 2], vec![0.0; 2], vec![0.0; 4]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        let l = crf::nll(p, &two, &[offset; 4], &[0, 1], 2, &mut de, g).unwrap();
+        assert!((l - 4f64.ln()).abs() < 1e-12, "crf at {offset}: {l}");
+        assert_eq!((de, gs, ge), (vec![-0.5, 0.5, 0.5, -0.5], vec![-0.5, 0.5], vec![0.5, -0.5]), "crf at {offset}");
+        assert_eq!(gt, [0.25, -0.75, 0.25, 0.25], "crf at {offset}");
+    }
 }

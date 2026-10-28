@@ -86,3 +86,33 @@ fn the_longest_schedule_does_not_overflow() {
     let w = AdamW::<f64>::new(Settings { warmup: u64::MAX - 1, ..s }, &[1]).unwrap();
     assert_eq!(w.rate(u64::MAX), 1.0);
 }
+
+#[test]
+fn an_update_that_does_not_fit_the_weights_type_changes_nothing() {
+    // A finite f64 step that overflows f32.
+    let s = Settings { lr: f64::MAX, clip: 0.0, weight_decay: 0.0, ..Settings::default() };
+    let mut o = AdamW::<f32>::new(s, &[1]).unwrap();
+    let (mut p, mut g) = (vec![vec![1.0f32]], vec![vec![1.0f32]]);
+    assert!(o.step(&mut p, &mut g, &[false]).is_err());
+    assert_eq!((p[0][0], g[0][0]), (1.0, 1.0));
+
+    // A second moment past f32's range: refused, and the optimizer then
+    // steps exactly as an untouched one does.
+    let s = Settings { clip: 0.0, ..Settings::default() };
+    let mut o = AdamW::<f32>::new(s, &[1]).unwrap();
+    let untouched = AdamW::<f32>::new(s, &[1]).unwrap();
+    let mut p = vec![vec![1.0f32]];
+    assert!(o.step(&mut p, &mut [vec![1e30]], &[false]).is_err());
+    assert_eq!(p[0][0], 1.0);
+    let (mut a, mut b) = (vec![vec![1.0f32]], vec![vec![1.0f32]]);
+    o.step(&mut a, &mut [vec![0.5]], &[false]).unwrap();
+    let mut fresh = untouched;
+    fresh.step(&mut b, &mut [vec![0.5]], &[false]).unwrap();
+    assert_eq!(a, b);
+    // A clipped refusal leaves the gradients unscaled.
+    let s = Settings { lr: f64::MAX, clip: 1.0, weight_decay: 0.0, ..Settings::default() };
+    let mut o = AdamW::<f32>::new(s, &[2]).unwrap();
+    let mut g = vec![vec![3.0f32, 4.0]];
+    assert!(o.step(&mut [vec![1.0, 1.0]], &mut g, &[false]).is_err());
+    assert_eq!(g[0], [3.0, 4.0]);
+}

@@ -71,26 +71,35 @@ pub fn nll<R: Real>(
     if y.iter().any(|&g| g >= labels) {
         return Err(invalid(format!("crf: a gold label is past the {labels} labels")));
     }
-    let e = |t: usize, j: usize| emit[t * labels + j].to_f64();
+    // Every path takes one emission a word, one start, one end and one
+    // transition a step, so each of those is centred on its largest
+    // value: the loss and marginals are unchanged, and a large common
+    // offset cannot swallow the normaliser.
+    let top = |v: &[R]| v.iter().map(|x| x.to_f64()).fold(f64::NEG_INFINITY, f64::max);
+    let shift: Vec<f64> = (0..n).map(|t| top(&emit[t * labels..][..labels])).collect();
+    let (s0, s1, st) = (top(p.start), top(p.end), top(p.transitions));
+    let e = |t: usize, j: usize| emit[t * labels + j].to_f64() - shift[t];
+    let start = |j: usize| p.start[j].to_f64() - s0;
+    let end = |j: usize| p.end[j].to_f64() - s1;
     let tr = |a: usize, b: usize| {
-        if allowed.may_follow(a, b) { p.transitions[a * labels + b].to_f64() } else { f64::NEG_INFINITY }
+        if allowed.may_follow(a, b) { p.transitions[a * labels + b].to_f64() - st } else { f64::NEG_INFINITY }
     };
     let legal =
         allowed.may_start(y[0]) && allowed.may_end(y[n - 1]) && y.windows(2).all(|w| allowed.may_follow(w[0], w[1]));
     if !legal {
         return Err(invalid("crf: the gold sequence is one the scheme forbids"));
     }
-    let mut gold_score = p.start[y[0]].to_f64() + p.end[y[n - 1]].to_f64();
+    let mut gold_score = start(y[0]) + end(y[n - 1]);
     for t in 0..n {
         gold_score += e(t, y[t]);
         if t > 0 {
-            gold_score += p.transitions[y[t - 1] * labels + y[t]].to_f64();
+            gold_score += tr(y[t - 1], y[t]);
         }
     }
     let mut alpha = vec![f64::NEG_INFINITY; n * labels];
     for (j, a) in alpha[..labels].iter_mut().enumerate() {
         if allowed.may_start(j) {
-            *a = p.start[j].to_f64() + e(0, j);
+            *a = start(j) + e(0, j);
         }
     }
     for t in 1..n {
@@ -103,7 +112,7 @@ pub fn nll<R: Real>(
     let mut beta = vec![f64::NEG_INFINITY; n * labels];
     for j in 0..labels {
         if allowed.may_end(j) {
-            beta[(n - 1) * labels + j] = p.end[j].to_f64();
+            beta[(n - 1) * labels + j] = end(j);
         }
     }
     for t in (0..n - 1).rev() {
