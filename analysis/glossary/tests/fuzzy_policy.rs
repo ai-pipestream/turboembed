@@ -81,3 +81,43 @@ fn fuzzy_tokens_cover_multiple_words_and_disabled_policy_is_compatible() {
     assert_eq!(base_hash, hash(same));
     assert_ne!(base_hash, hash(changed));
 }
+
+#[test]
+fn exact_match_wins_over_fuzzy_match_on_the_same_span() {
+    let mut g = Glossary::new();
+    g.push("cat", "cat").unwrap();
+    g.push("bat", "bat").unwrap();
+    let matcher = TokenMatcher::new_with_fuzzy_policy(&g, TokenValue::Text, analyze, policy(1, false)).unwrap();
+    let mut out = Vec::new();
+    matcher.find("bat", &tokens("bat"), None, &mut out).unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].entry.0, 1);
+
+    let mut g = Glossary::new();
+    g.push("Kathryn", "Kathryn").unwrap();
+    g.push("Catherine", "Catherine").unwrap();
+    let matcher = TokenMatcher::new_with_fuzzy_policy(&g, TokenValue::Text, analyze, policy(0, true)).unwrap();
+    let mut out = Vec::new();
+    matcher.find("Catherine", &tokens("Catherine"), None, &mut out).unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].entry.0, 1);
+}
+
+#[test]
+fn fuzzy_matching_cannot_edit_across_token_boundaries() {
+    let policy = FuzzyMatchPolicy::new(2, 2, false, 0.1).unwrap();
+    let mut g = Glossary::new();
+    g.push("ab-cd", "ab cd").unwrap();
+    let matcher = TokenMatcher::new_with_fuzzy_policy(&g, TokenValue::Text, analyze, policy).unwrap();
+    let mut out = Vec::new();
+    matcher.find("abcd", &tokens("abcd"), None, &mut out).unwrap();
+    assert!(out.is_empty());
+
+    let policy = FuzzyMatchPolicy::new(0, 4, true, 0.1).unwrap();
+    let mut g = Glossary::new();
+    g.push("short-parts", "Ka th").unwrap();
+    let matcher = TokenMatcher::new_with_fuzzy_policy(&g, TokenValue::Text, analyze, policy).unwrap();
+    let mut out = Vec::new();
+    matcher.find("Ca th", &tokens("Ca th"), None, &mut out).unwrap();
+    assert!(out.is_empty());
+}

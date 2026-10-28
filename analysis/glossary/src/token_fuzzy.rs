@@ -62,6 +62,7 @@ impl TokenFuzzy {
         let mut hits = Vec::new();
         let mut candidates = Vec::new();
         let mut keys = Vec::new();
+        let exact: Vec<IxRange<Tokens>> = out.iter().map(|m| m.tokens).collect();
         for start in 0..tokens.spans.len() {
             query.clear();
             for end in start + 1..=(start + self.max_tokens).min(tokens.spans.len()) {
@@ -84,11 +85,15 @@ impl TokenFuzzy {
                 }
                 candidates.sort_unstable();
                 candidates.dedup();
+                let range = IxRange::new(start as u32, end as u32);
+                if exact.contains(&range) {
+                    continue;
+                }
                 for &index in &candidates {
                     let candidate = &self.entries[index as usize];
-                    if self.policy.score(&query, candidate).is_some() {
+                    if score_tokens(&query, candidate, self.policy) {
                         out.push(PhraseMatch {
-                            tokens: IxRange::new(start as u32, end as u32),
+                            tokens: range,
                             label: Label(0),
                             phrase: PhraseId(self.phrase_ids[index as usize]),
                         });
@@ -97,6 +102,13 @@ impl TokenFuzzy {
             }
         }
     }
+}
+
+fn score_tokens(query: &str, candidate: &str, policy: FuzzyMatchPolicy) -> bool {
+    let query: Vec<&str> = query.split('\0').collect();
+    let candidate: Vec<&str> = candidate.split('\0').collect();
+    query.len() == candidate.len()
+        && query.iter().zip(candidate).all(|(&query, candidate)| policy.score(query, candidate).is_some())
 }
 
 fn phonetic_keys(text: &str, out: &mut Vec<PhoneticKey>) {
