@@ -1,13 +1,7 @@
-//! The sample streams OpenNLP reads from a MASC corpus: part-of-speech,
-//! token, sentence and name samples.
+//! Streaming typed part-of-speech, token, sentence and name samples from MASC.
 //!
-//! Each reader has OpenNLP's `read`, which returns `Ok(None)` at the end
-//! and fails where the Java stream throws, `reset`, and an iterator over
-//! the same reads that ends at the end of the corpus. OpenNLP's streams
-//! leave their document null at the end, so a `read` after the end throws
-//! `NullPointerException` ([`MascError::NullDocument`]); the sentence
-//! stream ends that way after its last sample unless that sample was
-//! full. The iterators end there too, rather than yield that error.
+//! Every reader supports explicit reads, reset and iteration. Iterators stop
+//! cleanly at the end of the corpus; direct reads retain their typed errors.
 
 use std::borrow::Cow;
 
@@ -238,36 +232,15 @@ impl<'c> Iterator for MascPosReader<'c> {
     }
 }
 
-/// What the token reader does with a sentence it cannot make a sample
-/// of: one whose text is empty or that has an empty token.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub enum EmptySentence {
-    /// As OpenNLP: the sentence and every sentence after it in the same
-    /// `read` are skipped, so the read ends the corpus.
-    #[default]
-    EndsCorpus,
-    /// The sentence alone is skipped and counted
-    /// ([`MascTokenReader::skipped`]); the read goes on with the next
-    /// sentence. Not what OpenNLP does: a training recipe that should not
-    /// lose the rest of a corpus to one such sentence uses it.
-    Skipped,
-}
-
-/// `MascTokenSampleStream`: a token sample per sentence of the documents
-/// with Penn tags, of the text from the start of the sentence's first
-/// token to the end of its last.
+/// A token sample per nonempty Penn-tokenized sentence.
 ///
-/// A sentence whose text is empty (it has no tokens) or that has an
-/// empty token is skipped, and so is every sentence after it in the same
-/// `read`: the stream's flag for a sentence found is set once before its
-/// loop and never again, so the read goes on to the end of the corpus and
-/// returns the end. [`MascTokenReader::with_empty_sentences`] can skip
-/// such a sentence alone instead.
+/// The sample covers the first token through the last, and each token also
+/// retains its exact source span. Empty sentences and empty tokens are skipped
+/// and counted without discarding the rest of the corpus.
 #[derive(Clone, Debug)]
 pub struct MascTokenReader<'c> {
     cursor: Cursor<'c>,
     done: bool,
-    empty: EmptySentence,
     skipped: usize,
 }
 
@@ -276,39 +249,23 @@ impl<'c> MascTokenReader<'c> {
     ///
     /// [`MascError::NoDocuments`] when no document has Penn tags.
     pub fn new(corpus: &'c MascCorpus) -> Result<MascTokenReader<'c>, MascError> {
-        MascTokenReader::with_empty_sentences(corpus, EmptySentence::EndsCorpus)
-    }
-
-    /// A reader that treats a sentence without a sample as `empty` says.
-    ///
-    /// # Errors
-    ///
-    /// [`MascError::NoDocuments`] when no document has Penn tags.
-    pub fn with_empty_sentences(
-        corpus: &'c MascCorpus,
-        empty: EmptySentence,
-    ) -> Result<MascTokenReader<'c>, MascError> {
         let mut cursor = Cursor::new(corpus);
         cursor.first_where(MascDocument::has_penn_tags, MascStream::Tokens)?;
-        Ok(MascTokenReader { cursor, done: false, empty, skipped: 0 })
+        Ok(MascTokenReader { cursor, done: false, skipped: 0 })
     }
 
-    /// The sentences skipped alone so far under
-    /// [`EmptySentence::Skipped`]; always 0 under
-    /// [`EmptySentence::EndsCorpus`].
+    /// The empty sentences skipped so far.
     pub fn skipped(&self) -> usize {
         self.skipped
     }
 
-    /// `read`.
+    /// Reads the next valid token sample.
     ///
     /// # Errors
     ///
-    /// What `read` throws: tokens out of order so that the text runs
-    /// backwards, a token starts before the first or ends after the last,
-    /// a document without tokens after a reset, or a read after the end.
+    /// Returns an error for backwards or out-of-bounds token spans, an
+    /// untokenized document after a reset, or a read after the end.
     pub fn read(&mut self) -> Result<Option<MascSample<TokenSample<'c>>>, MascError> {
-        let mut found = true;
         loop {
             let Some((d, s)) = self.cursor.next_sentence_where(MascDocument::has_penn_tags)? else {
                 return Ok(None);
@@ -318,7 +275,6 @@ impl<'c> MascTokenReader<'c> {
             let text = doc.token_text(sentence)?;
             let tokens = sentence.tokens().unwrap_or_default();
             let offset = text.map_or(0, |(_, first)| first);
-            // getTokensSpans: each token less the first token's start
             let mut units = Vec::with_capacity(tokens.len());
             for t in tokens {
                 let start = i64::from(t.start) - i64::from(offset);
@@ -328,13 +284,7 @@ impl<'c> MascTokenReader<'c> {
                 units.push((start, i64::from(t.end) - i64::from(offset)));
             }
             if text.is_none_or(|(span, _)| span.is_empty()) || units.iter().any(|&(start, end)| end - start == 0) {
-                if self.empty == EmptySentence::Skipped {
-                    self.skipped += 1;
-                    continue;
-                }
-                found = false;
-            }
-            if !found {
+                self.skipped += 1;
                 continue;
             }
             let Some((text_span, _)) = text else {
@@ -356,8 +306,7 @@ impl<'c> MascTokenReader<'c> {
         }
     }
 
-    /// `reset`: back to the first document, whether it has Penn tags or
-    /// not.
+    /// Returns to the first document and clears the skipped-sentence count.
     pub fn reset(&mut self) {
         self.cursor.reset();
         self.done = false;

@@ -27,12 +27,11 @@ use turbo_analysis::Span;
 
 use super::{ConlluReader, Sentence, Tagset};
 use crate::error::FormatError;
-use crate::native::token::parse_text;
 use crate::sample::lemma::LemmaSample;
 use crate::sample::pos::PosSample;
 use crate::sample::sentence::SentenceSample;
 use crate::sample::token::{SPLIT_MARKER, SplitMarker, TokenSample};
-use crate::source::Piece;
+use crate::source::{Piece, whitespace_tokens};
 
 /// Reads part-of-speech samples from CoNLL-U.
 #[derive(Clone, Debug)]
@@ -201,6 +200,37 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
     parse_text(piece, SplitMarker::default(), to_source, sentence.source)
 }
 
+/// Parses `text` as the token format parses a line: each
+/// whitespace-separated piece with its `marker` markers removed, one
+/// space after each piece, and a token per part between markers.
+/// `to_source` maps the span of each token in `text` (offset by the
+/// piece's span) to its bytes in the source.
+fn parse_text<'a>(
+    text: Piece<'_>,
+    marker: SplitMarker<'_>,
+    to_source: impl Fn(Span) -> Span,
+    source: Span,
+) -> Result<TokenSample<'a>, FormatError> {
+    // Each piece is followed by one space where the text has at least one
+    // whitespace character or its end, so no token ends past the text's
+    // length and the `u32` offsets below cannot overflow.
+    let mut out = String::with_capacity(text.text.len() + 1);
+    let mut tokens = Vec::new();
+    let mut sources = Vec::new();
+    for piece in whitespace_tokens(text) {
+        let mut at = 0;
+        for part in piece.text.split(marker.as_str()) {
+            let start = out.len() as u32;
+            out.push_str(part);
+            tokens.push(Span::new(start, out.len() as u32));
+            sources.push(to_source(piece.slice(at, at + part.len()).span));
+            at += part.len() + marker.as_str().len();
+        }
+        out.push(' ');
+    }
+    TokenSample::new(Cow::Owned(out), tokens, sources, source)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,7 +249,9 @@ mod tests {
         );
         let pos: Vec<PosSample<'_>> = ConlluPosReader::new(&src, Tagset::X).unwrap().map(Result::unwrap).collect();
         assert_eq!(pos.len(), 2);
-        assert_eq!(pos[0].to_string(), "a_x e__ b_y");
+        let tagged: Vec<String> =
+            pos[0].tokens().iter().zip(pos[0].tags()).map(|(t, g)| format!("{}_{}", t.as_str(), g.as_str())).collect();
+        assert_eq!(tagged.join(" "), "a_x e__ b_y");
         assert!(pos[1].is_empty());
         let lemmas: Vec<LemmaSample<'_>> =
             ConlluLemmaReader::new(&src, Tagset::U).unwrap().map(Result::unwrap).collect();
@@ -260,7 +292,7 @@ mod tests {
         );
         let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
         assert_eq!(s.text(), "Vamos al mar. ");
-        assert_eq!(s.to_string(), "Vamos al mar<SPLIT>.");
+        assert_eq!(s.tokens(), [Span::new(0, 5), Span::new(6, 8), Span::new(9, 12), Span::new(12, 13)]);
         let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
         assert_eq!(sources, ["Vamos", "al", "mar", "."]);
     }

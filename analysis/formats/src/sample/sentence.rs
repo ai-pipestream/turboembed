@@ -1,7 +1,6 @@
 //! Sentence samples: `opennlp.tools.sentdetect.SentenceSample`.
 
 use std::borrow::Cow;
-use std::fmt;
 
 use turbo_analysis::Span;
 
@@ -9,11 +8,8 @@ use crate::error::FormatError;
 
 /// A document and the sentences in it.
 ///
-/// The document is the sample's own text: the sentence format joins the
-/// sentences of a paragraph with a space after each, and a converted
-/// sample joins detokenized sentences with nothing between them. Each
-/// sentence has its span in that text and the span of the source it came
-/// from.
+/// The document is the sample's own text. Each sentence has its span in
+/// that text and the span of the source it came from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SentenceSample<'a> {
     document: Cow<'a, str>,
@@ -76,25 +72,5 @@ impl<'a> SentenceSample<'a> {
     /// The text of sentence `i`.
     pub fn sentence(&self, i: usize) -> &str {
         &self.document[self.sentences[i].range()]
-    }
-}
-
-/// `SentenceSample.toString`, the sentence format's paragraph: each
-/// sentence on its own line, ending with a line feed, with a carriage
-/// return in it written `<CR>` and a line feed `<LF>`.
-impl fmt::Display for SentenceSample<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for &span in &self.sentences {
-            let text = &self.document[span.range()];
-            let mut rest = text;
-            while let Some(at) = rest.find(['\r', '\n']) {
-                f.write_str(&rest[..at])?;
-                f.write_str(if rest.as_bytes()[at] == b'\r' { "<CR>" } else { "<LF>" })?;
-                rest = &rest[at + 1..];
-            }
-            f.write_str(rest)?;
-            f.write_str("\n")?;
-        }
-        Ok(())
     }
 }

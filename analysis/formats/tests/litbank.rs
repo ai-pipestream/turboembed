@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 
 use turbo_analysis::Span;
+use turbo_formats::NameSample;
 use turbo_formats::ner::{LITBANK_TYPES, LitBankError, LitBankReader, NewlineSentences, RuleTokenizer, SentenceSpans};
 use turbo_tokenize::TokenizerOptions;
 
@@ -19,8 +20,24 @@ fn reader<'a>(text: &'a str, ann: &'a str) -> LitBankReader<'a, RuleTokenizer> {
     LitBankReader::new(text, ann, sentences, tokenizer, None).unwrap()
 }
 
-fn read(text: &str, ann: &str) -> Vec<Result<String, String>> {
-    reader(text, ann).map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string())).collect()
+/// The sample's shape: whether it clears adaptive data, its token texts
+/// and its names.
+type Shape<'a> = (bool, Vec<String>, Vec<(u32, u32, Option<&'a str>)>);
+
+fn shape<'a>(s: &NameSample<'a>) -> Shape<'a> {
+    (
+        s.clear_adaptive_data(),
+        s.tokens().iter().map(|t| t.as_str().to_owned()).collect(),
+        s.names().iter().map(|n| (n.start, n.end, n.kind)).collect(),
+    )
+}
+
+fn strings(items: &[&str]) -> Vec<String> {
+    items.iter().map(|s| (*s).to_owned()).collect()
+}
+
+fn read<'a>(text: &'a str, ann: &'a str) -> Vec<Result<Shape<'a>, String>> {
+    reader(text, ann).map(|r| r.map(|s| shape(&s)).map_err(|e| e.to_string())).collect()
 }
 
 #[test]
@@ -28,18 +45,15 @@ fn reads_a_document_a_sentence_per_line() {
     assert_eq!(
         read(TEXT, ANN),
         [
-            "\n<START:PER> Ada <END> went to <START:GPE> London <END> .",
-            "<START:PER> Bob <END> left <START:GPE> Paris <END> .",
+            Ok((true, strings(&["Ada", "went", "to", "London", "."]), vec![(0, 1, Some("PER")), (3, 4, Some("GPE"))])),
+            Ok((false, strings(&["Bob", "left", "Paris", "."]), vec![(0, 1, Some("PER")), (2, 3, Some("GPE"))])),
         ]
-        .into_iter()
-        .map(|s| Ok(s.to_owned()))
-        .collect::<Vec<_>>()
     );
     let samples: Vec<_> = reader(TEXT, ANN).map(|r| r.unwrap()).collect();
     assert!(samples[0].clear_adaptive_data(), "the first sample of a document clears adaptive data");
     assert!(!samples[1].clear_adaptive_data());
-    let names: Vec<_> = samples[0].names().iter().map(|n| n.java_string()).collect();
-    assert_eq!(names, ["[0..1) PER", "[3..4) GPE"]);
+    let names: Vec<_> = samples[0].names().iter().map(|n| (n.start, n.end, n.kind)).collect();
+    assert_eq!(names, [(0, 1, Some("PER")), (3, 4, Some("GPE"))]);
     let london = samples[0].tokens()[3].span;
     assert_eq!(&TEXT[london.range()], "London");
     for t in samples[0].tokens() {
@@ -58,10 +72,16 @@ fn offsets_count_utf16_code_units() {
     // unit 8 and byte 11, and the emoji is units 5..7, bytes 6..10.
     let text = "café \u{1F600} New";
     let ann = concat!("T1\tLOC 8 11\tNew\n", "T2\tMISC 5 7\t\u{1F600}\n");
-    assert_eq!(read(text, ann), [Ok("\ncafé <START:MISC> \u{1F600} <END> <START:LOC> New <END>".to_owned())]);
+    assert_eq!(
+        read(text, ann),
+        [Ok((true, strings(&["café", "\u{1F600}", "New"]), vec![(1, 2, Some("MISC")), (2, 3, Some("LOC"))]))]
+    );
     let sample = reader(text, ann).next().unwrap().unwrap();
     assert_eq!(&text[sample.tokens()[1].span.range()], "\u{1F600}");
-    assert_eq!(sample.names().iter().map(|n| n.java_string()).collect::<Vec<_>>(), ["[1..2) MISC", "[2..3) LOC"]);
+    assert_eq!(
+        sample.names().iter().map(|n| (n.start, n.end, n.kind)).collect::<Vec<_>>(),
+        [(1, 2, Some("MISC")), (2, 3, Some("LOC"))]
+    );
 }
 
 #[test]
@@ -154,4 +174,15 @@ fn lines_that_are_not_text_bound_are_passed_over() {
     let sample = reader(TEXT, ann).next().unwrap().unwrap();
     let kinds: Vec<_> = sample.names().iter().map(|n| n.kind.unwrap()).collect();
     assert_eq!(kinds, ["PER", "GPE"]);
+}
+
+#[test]
+fn nested_and_duplicate_names_keep_only_the_outermost_annotation() {
+    let text = "Ada Lovelace";
+    let ann = concat!("T55\tPER 0 12\tAda Lovelace\n", "T3\tPER 0 3\tAda\n", "T4\tGPE 0 12\tAda Lovelace\n",);
+    let sample = reader(text, ann).next().unwrap().unwrap();
+    assert_eq!(sample.names().len(), 1);
+    assert_eq!(sample.names()[0].kind, Some("PER"));
+    assert_eq!((sample.names()[0].start, sample.names()[0].end), (0, 2));
+    assert_eq!(&text[sample.tokens()[0].span.start as usize..sample.tokens()[1].span.end as usize], text);
 }

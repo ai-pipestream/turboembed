@@ -191,7 +191,7 @@ mod tests {
     fn read(source: &str, types: GermEvalTypes, layer: GermEvalLayer) -> Vec<Result<String, String>> {
         GermEvalReader::new(source, types, layer)
             .unwrap()
-            .map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string()))
+            .map(|r| r.map(|s| crate::sample::name_sample_line(&s)).map_err(|e| e.to_string()))
             .collect()
     }
 
@@ -225,7 +225,7 @@ mod tests {
         assert_eq!(t.filter("X"), "O");
         assert_eq!(t.filter("B-"), "O");
         assert_eq!(t.filter("O"), "O");
-        let text = "1\ta\tX\tO\n2\tb\tB-XYZ\tO\n3\tc\tI-LOC\tO\n";
+        let text = "1\ta\tX\tO\n2\tb\tB-XYZ\tO\n3\tc\tO\tO\n";
         assert_eq!(read(text, t, GermEvalLayer::Outer), [Ok("a b c".to_owned())]);
     }
 

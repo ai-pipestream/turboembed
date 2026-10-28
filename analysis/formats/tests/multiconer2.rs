@@ -1,142 +1,116 @@
-//! Focused tests for the MultiCoNER v2 kept-corpus reader of issue #1533.
+//! Focused tests for the MultiCoNER v2 CoNLL reader of issue #1533.
 //!
-//! Every fixture here is original, written for these tests.
+//! Every fixture here is original, written for these tests in the released
+//! corpus's `token _ _ TAG` form.
 
-use turbo_formats::ner::{MulticonerError, MulticonerReader};
+use turbo_formats::NameSample;
+use turbo_formats::error::FormatError;
+use turbo_formats::ner::{MULTICONER_TYPES, MulticonerReader};
 
-fn read(source: &str) -> Vec<Result<String, String>> {
-    MulticonerReader::new(source).unwrap().map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string())).collect()
+/// The sample's shape: whether it clears adaptive data, its token texts
+/// and its names.
+type Shape<'a> = (bool, Vec<String>, Vec<(u32, u32, Option<&'a str>)>);
+
+fn shape<'a>(s: &NameSample<'a>) -> Shape<'a> {
+    (
+        s.clear_adaptive_data(),
+        s.tokens().iter().map(|t| t.as_str().to_owned()).collect(),
+        s.names().iter().map(|n| (n.start, n.end, n.kind)).collect(),
+    )
+}
+
+fn strings(items: &[&str]) -> Vec<String> {
+    items.iter().map(|s| (*s).to_owned()).collect()
+}
+
+fn read(source: &str) -> Vec<Result<Shape<'_>, String>> {
+    MulticonerReader::new(source).unwrap().map(|r| r.map(|s| shape(&s)).map_err(|e| e.to_string())).collect()
 }
 
 #[test]
-fn reads_a_row_and_keeps_the_source_bytes() {
-    let line =
-        "{\"tokens\": [\"John\", \"works\", \"at\", \"Siemens\"], \"ner_tags\": [\"B-PER\", \"O\", \"O\", \"B-ORG\"]}";
-    let sample = MulticonerReader::new(line).unwrap().next().unwrap().unwrap();
-    assert_eq!(sample.to_string(), "<START:PER> John <END> works at <START:ORG> Siemens <END>");
-    assert!(!sample.clear_adaptive_data());
-    assert_eq!(&line[sample.source().range()], line);
-    let john = sample.tokens()[0].span;
-    assert_eq!(&line[john.range()], "John");
-    for t in sample.tokens() {
-        assert!(t.is_borrowed() && &line[t.span.range()] == t.as_str());
-    }
-    assert_eq!(sample.names().iter().map(|n| n.java_string()).collect::<Vec<_>>(), ["[0..1) PER", "[3..4) ORG"]);
-}
-
-#[test]
-fn keys_may_come_in_either_order() {
-    let line = "{\"ner_tags\": [\"O\", \"B-LOC\"], \"tokens\": [\"café\", \"Lisboa\"]}";
-    assert_eq!(read(line), [Ok("café <START:LOC> Lisboa <END>".to_owned())]);
-}
-
-#[test]
-fn an_escaped_token_holds_its_decoded_text_and_the_raw_span() {
-    // "café" by a \u cut, a quote by \" and the emoji by a surrogate pair.
-    let line =
-        "{\"tokens\": [\"caf\\u00e9\", \"x\\\"y\", \"\\uD83D\\uDE00\"], \"ner_tags\": [\"B-PER\", \"I-PER\", \"O\"]}";
-    let sample = MulticonerReader::new(line).unwrap().next().unwrap().unwrap();
-    let texts: Vec<&str> = sample.tokens().iter().map(|t| t.as_str()).collect();
-    assert_eq!(texts, ["café", "x\"y", "\u{1F600}"]);
-    for t in sample.tokens() {
-        assert!(!t.is_borrowed(), "an escaped token holds a text of its own");
-    }
-    // the spans name the raw content the tokens were decoded from
-    assert_eq!(&line[sample.tokens()[0].span.range()], "caf\\u00e9");
-    assert_eq!(&line[sample.tokens()[2].span.range()], "\\uD83D\\uDE00");
-    assert_eq!(sample.to_string(), "<START:PER> café x\"y <END> \u{1F600}");
-}
-
-#[test]
-fn i_tags_start_names_and_a_type_change_splits_them() {
-    // IOB2 as Conll03NameSampleStream reads it: an `I-` with no name open
-    // starts one, and an `I-` of another type closes the open name
-    let line = "{\"tokens\": [\"a\", \"b\", \"c\", \"d\"], \"ner_tags\": [\"I-PER\", \"I-LOC\", \"B-ORG\", \"I-ORG\"]}";
-    assert_eq!(read(line), [Ok("<START:PER> a <END> <START:LOC> b <END> <START:ORG> c d <END>".to_owned())]);
-}
-
-#[test]
-fn a_row_that_is_not_the_pinned_form_is_refused() {
-    // an unknown key
-    let err = MulticonerReader::new("{\"tokens\": [\"a\"], \"ner_tags\": [\"O\"], \"lang\": \"en\"}")
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap_err();
-    assert!(matches!(err, MulticonerError::Syntax { line: 1, .. }));
-    assert!(err.to_string().contains("the key tokens or ner_tags"), "{err}");
-    // a duplicated key
-    let err = MulticonerReader::new("{\"tokens\": [\"a\"], \"tokens\": [\"b\"], \"ner_tags\": [\"O\"]}")
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap_err();
-    assert!(err.to_string().contains("each key once"), "{err}");
-    // a missing key
-    let err = MulticonerReader::new("{\"tokens\": [\"a\"]}").unwrap().next().unwrap().unwrap_err();
-    assert!(err.to_string().contains("the keys tokens and ner_tags"), "{err}");
-    // garbage after the object, and an empty line
-    let err =
-        MulticonerReader::new("{\"tokens\": [\"a\"], \"ner_tags\": [\"O\"]} x").unwrap().next().unwrap().unwrap_err();
-    assert!(err.to_string().contains("the end of the line"), "{err}");
-    let err = MulticonerReader::new("\n").unwrap().next().unwrap().unwrap_err();
-    assert!(err.to_string().contains("an object"), "{err}");
-    // a non-string value
-    let err = MulticonerReader::new("{\"tokens\": [1], \"ner_tags\": [\"O\"]}").unwrap().next().unwrap().unwrap_err();
-    assert!(err.to_string().contains("a string"), "{err}");
-}
-
-#[test]
-fn bad_strings_are_refused_with_their_cut() {
-    // a bad escape, a bad \u cut, a lone surrogate half and an unescaped
-    // control character
-    for (token, what) in [
-        ("\"a\\qb\"", "one of the escapes"),
-        ("\"\\uZZZZ\"", "four hexadecimal digits"),
-        ("\"\\uD83D\"", "a whole surrogate pair"),
-        ("\"a\tb\"", "no unescaped control character"),
-    ] {
-        let line = format!("{{\"tokens\": [{token}], \"ner_tags\": [\"O\"]}}");
-        let err = MulticonerReader::new(&line).unwrap().next().unwrap().unwrap_err();
-        assert!(err.to_string().contains(what), "{err} for {token}");
-    }
-}
-
-#[test]
-fn a_tag_with_an_escape_is_not_a_plain_name_tag() {
-    let line = "{\"tokens\": [\"a\"], \"ner_tags\": [\"B\\u002dPER\"]}";
-    let err = MulticonerReader::new(line).unwrap().next().unwrap().unwrap_err();
-    assert!(err.to_string().contains("a plain name tag"), "{err}");
-}
-
-#[test]
-fn lengths_must_match_and_a_row_needs_a_token() {
-    let err = MulticonerReader::new("{\"tokens\": [\"a\", \"b\"], \"ner_tags\": [\"O\"]}")
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap_err();
-    assert!(matches!(err, MulticonerError::Lengths { line: 1, tokens: 2, tags: 1 }));
-    let err = MulticonerReader::new("{\"tokens\": [], \"ner_tags\": []}").unwrap().next().unwrap().unwrap_err();
-    assert!(matches!(err, MulticonerError::Empty { line: 1 }));
-}
-
-#[test]
-fn a_bad_tag_fails_its_row_and_the_read_goes_on() {
+fn reads_the_released_conll_form_and_document_headers() {
     let source = concat!(
-        "{\"tokens\": [\"a\"], \"ner_tags\": [\"Q\"]}\n",
-        "{\"tokens\": [\"b\", \"c\"], \"ner_tags\": [\"B-LOC\", \"I-LOC\"]}\n",
+        "# id f5458a3a-cd23-4df4-8384-4e23fe33a66b\tdomain=en\n",
+        "doris _ _ B-Artist\n",
+        "day _ _ I-Artist\n",
+        "included _ _ O\n",
+        "album _ _ B-MusicalWork\n",
+        "billy _ _ I-MusicalWork\n",
+        "\n",
+        "# id second\n",
+        "acme _ _ B-ORG\n",
     );
-    assert_eq!(read(source), [Err("Invalid tag: Q".to_owned()), Ok("<START:LOC> b c <END>".to_owned()),]);
-    let err =
-        MulticonerReader::new("{\"tokens\": [\"a\"], \"ner_tags\": [\"B-\"]}").unwrap().next().unwrap().unwrap_err();
-    assert!(matches!(err, MulticonerError::InvalidTag { tag, .. } if tag == "B-"));
+    assert_eq!(
+        read(source),
+        [
+            Ok((
+                true,
+                strings(&["doris", "day", "included", "album", "billy"]),
+                vec![(0, 2, Some("Artist")), (3, 5, Some("MusicalWork"))],
+            )),
+            Ok((true, strings(&["acme"]), vec![(0, 1, Some("ORG"))])),
+        ]
+    );
+    let samples: Vec<_> = MulticonerReader::new(source).unwrap().map(|s| s.unwrap()).collect();
+    assert!(samples[0].clear_adaptive_data() && samples[1].clear_adaptive_data());
+    let names: Vec<_> = samples[0].names().iter().map(|n| (n.start, n.end, n.kind)).collect();
+    assert_eq!(names, [(0, 2, Some("Artist")), (3, 5, Some("MusicalWork"))]);
+    assert_eq!(&source[samples[0].tokens()[3].span.range()], "album");
+    for token in samples[0].tokens() {
+        assert!(token.is_borrowed());
+    }
 }
 
 #[test]
-fn supplementary_characters_are_one_token_of_four_bytes() {
-    let line = "{\"tokens\": [\"\u{1F600} face\"], \"ner_tags\": [\"O\"]}";
-    let sample = MulticonerReader::new(line).unwrap().next().unwrap().unwrap();
-    assert_eq!(sample.tokens()[0].as_str(), "\u{1F600} face");
-    assert_eq!(&line[sample.tokens()[0].span.range()], "\u{1F600} face");
+fn every_fine_grained_type_is_kept_as_written() {
+    assert_eq!(MULTICONER_TYPES.len(), 36);
+    for kind in MULTICONER_TYPES {
+        let source = format!("token _ _ B-{kind}\n");
+        let sample = MulticonerReader::new(&source).unwrap().next().unwrap().unwrap();
+        assert_eq!(sample.names()[0].kind, Some(kind));
+    }
+}
+
+#[test]
+fn iob_boundaries_follow_the_shared_rule() {
+    let source =
+        concat!("a _ _ O\n", "b _ _ B-Artist\n", "c _ _ I-Artist\n", "d _ _ O\n", "e _ _ B-ORG\n", "f _ _ I-ORG\n",);
+    let sample = MulticonerReader::new(source).unwrap().next().unwrap().unwrap();
+    let names: Vec<_> = sample.names().iter().map(|n| (n.start, n.end, n.kind)).collect();
+    assert_eq!(names, [(1, 3, Some("Artist")), (4, 6, Some("ORG"))]);
+}
+
+#[test]
+fn tokens_keep_multi_byte_and_supplementary_source_spans() {
+    let source = "caf\u{e9} \u{1f600} _ _ B-Facility\n";
+    let sample = MulticonerReader::new(source).unwrap().next().unwrap().unwrap();
+    assert_eq!(&source[sample.tokens()[0].span.range()], "caf\u{e9} \u{1f600}");
+    assert_eq!(sample.names()[0].kind, Some("Facility"));
+}
+
+#[test]
+fn malformed_rows_are_refused_at_their_line() {
+    for source in
+        ["token B-Artist\n", "token _ _ B-Artist _ _ O\n", " _ _ B-Artist\n", "token _ _ \n", "token _ _ B Artist\n"]
+    {
+        let error = MulticonerReader::new(source).unwrap().next().unwrap().unwrap_err();
+        assert!(matches!(error, FormatError::MulticonerFields { line: 1, .. }), "{error:?} for {source:?}");
+    }
+}
+
+#[test]
+fn unknown_types_and_invalid_continuations_are_refused() {
+    let error = MulticonerReader::new("token _ _ B-NotAType\n").unwrap().next().unwrap().unwrap_err();
+    assert!(matches!(error, FormatError::UnknownNameType { .. }));
+    let error = MulticonerReader::new("token _ _ I-Artist\n").unwrap().next().unwrap().unwrap_err();
+    assert!(matches!(error, FormatError::UnexpectedNameContinuation { .. }));
+    let error = MulticonerReader::new("a _ _ B-Artist\nb _ _ I-ORG\n").unwrap().next().unwrap().unwrap_err();
+    assert!(matches!(error, FormatError::NameTypeMismatch { .. }));
+}
+
+#[test]
+fn empty_input_and_a_final_unterminated_sentence_are_handled() {
+    assert_eq!(MulticonerReader::new("").unwrap().count(), 0);
+    let sample = MulticonerReader::new("token _ _ O").unwrap().next().unwrap().unwrap();
+    assert!(sample.names().is_empty());
 }

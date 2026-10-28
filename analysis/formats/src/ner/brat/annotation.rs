@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::error::FormatError;
-use crate::masc::java::parse_int;
+use crate::masc::text::parse_int;
 use crate::ner::NerError;
 use crate::source::{Lines, Piece, java_trim, split_fields, utf16_cut, whitespace_tokens};
 

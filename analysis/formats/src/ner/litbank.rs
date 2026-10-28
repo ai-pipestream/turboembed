@@ -1,9 +1,8 @@
 //! The LitBank kept-corpus reader (issue #1533).
 //!
-//! LitBank, the corpus of 210 English-language novels with named entity
-//! annotations, keeps its documents as pairs of files: the document's text
-//! and a standoff annotation file in the pinned brat form, one text-bound
-//! annotation per line (with the tabs shown as spaces):
+//! LitBank holds samples of 100 works of English-language fiction with named
+//! entity annotations. Each document pairs its text with a standoff file in
+//! the pinned brat form, one text-bound annotation per line:
 //!
 //! ```text
 //! T1  PER 0 3  Ada
@@ -11,30 +10,24 @@
 //! ```
 //!
 //! The id and the `TYPE START END` field are separated from the covered
-//! text by tabs. Offsets count UTF-16 code units, as Java reads them and as
-//! the house brat reader of this module reads them, and are converted to
-//! UTF-8 byte spans here; a boundary inside a surrogate pair, or outside
-//! the text, is refused rather than guessed. A covered text must be exactly
-//! the text's bytes at the span, with no leading or trailing whitespace,
-//! and a name must start and end where tokens of its sentence start and
-//! end. There is no OpenNLP stream for LitBank: the reader follows the
-//! conventions of the ported readers of this module, but its errors are its
-//! own and carry no JVM message.
+//! text by tabs. Offsets count UTF-16 code units and are converted to UTF-8
+//! byte spans; a boundary inside a surrogate pair or outside the text is
+//! refused. Covered text must match the span exactly, without padding, and
+//! a name must start and end at token boundaries. The reader has typed
+//! errors and does not use a JVM oracle.
 //!
 //! # What is pinned here
 //!
-//! - Only text-bound annotations are names. Lines whose id starts with
-//!   another letter, and notes, are passed over.
-//! - A text-bound annotation has exactly three tab-separated fields and a
-//!   single `START END` pair: the `;`-separated fragments of general brat
-//!   are refused, as are relations, attributes, events and equivalences,
-//!   which LitBank's entity files do not use.
-//! - The text is split into sentences and tokens by the given
-//!   [`SentenceSpans`] and [`TokenSpans`], as the brat reader of this
-//!   module takes them. A name that crosses a sentence boundary, or that no
-//!   sentence holds, is refused or passed over rather than re-cut.
-//! - The first sample of a document clears adaptive data, as the first
-//!   sample of a brat document does.
+//! - Only text-bound annotations are names. Notes, relations, attributes,
+//!   events and equivalences are passed over, and `;`-separated fragments
+//!   are refused.
+//! - Nested annotations are kept only at their outermost level: an entity
+//!   strictly inside another is skipped, and a later duplicate of the same
+//!   span is skipped, because `NameSample` cannot hold overlapping names.
+//! - The text is split by the given [`SentenceSpans`] and [`TokenSpans`]. A
+//!   name that crosses a sentence boundary or is not on token boundaries
+//!   is refused rather than re-cut.
+//! - The first sample of a document clears adaptive data.
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -334,7 +327,29 @@ fn entities<'a>(
         }
         out.push(Entity { start: from, end: to, kind, id, line: line_no });
     }
-    Ok(out)
+    Ok(top_level(out))
+}
+
+/// Keeps only outermost entities: a name strictly inside another, or a
+/// later duplicate of one span, is not a separate `NameSample` name.
+fn top_level(entities: Vec<Entity<'_>>) -> Vec<Entity<'_>> {
+    let mut out = Vec::new();
+    'candidate: for (i, entity) in entities.iter().enumerate() {
+        for (j, other) in entities.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            let nested = other.start <= entity.start
+                && other.end >= entity.end
+                && (other.start < entity.start || other.end > entity.end);
+            let duplicate = j < i && other.start == entity.start && other.end == entity.end;
+            if nested || duplicate {
+                continue 'candidate;
+            }
+        }
+        out.push(entity.clone());
+    }
+    out
 }
 
 impl<'a, T: TokenSpans> Iterator for LitBankReader<'a, T> {

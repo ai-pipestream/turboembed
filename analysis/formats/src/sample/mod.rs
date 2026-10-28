@@ -1,12 +1,9 @@
-//! The training and evaluation samples of OpenNLP's components.
+//! The typed training and evaluation samples.
 //!
-//! Each type holds what its OpenNLP class holds, and the bytes of the
-//! source each part came from: a token, tag or lemma is a
-//! [`Field`](crate::Field) of the source text, and a sample made of
-//! text of its own (a token or sentence sample) keeps the source span of
-//! each token or sentence beside its span in that text. `Display` writes
-//! a sample as its OpenNLP class's `toString` does, which is the sample's
-//! line (or lines) in the format OpenNLP reads it from.
+//! Each type holds the parts of one sample: a token, tag or lemma is a
+//! [`Field`](crate::Field) of the source text, and a sample made of text
+//! of its own (a token or sentence sample) keeps the source span of each
+//! token or sentence beside its span in that text.
 //!
 //! The samples borrow the source text, so the text outlives them; a
 //! reader holds the text and gives out samples that point into it.
@@ -29,36 +26,39 @@ pub use pos::PosSample;
 pub use sentence::SentenceSample;
 pub use token::{SPLIT_MARKER, SplitMarker, TokenSample};
 
-use turbo_analysis::Span;
-
-use crate::source::Field;
-
-/// A sample that is a sentence of tokens read from a source: the name and
-/// part-of-speech samples, which the conversion streams turn into token
-/// and sentence samples.
-pub trait TokenizedSample<'a> {
-    fn tokens(&self) -> &[Field<'a>];
-
-    /// The bytes of the source the sample was read from.
-    fn source(&self) -> Span;
-}
-
-impl<'a> TokenizedSample<'a> for NameSample<'a> {
-    fn tokens(&self) -> &[Field<'a>] {
-        NameSample::tokens(self)
+/// The name format's line for a sample, for reader tests: an empty line
+/// first when the sample clears adaptive data, then the tokens separated
+/// by spaces with `<START:type>` and `<END>` around the names.
+#[cfg(test)]
+pub(crate) fn name_sample_line(sample: &NameSample<'_>) -> String {
+    let mut out = String::new();
+    if sample.clear_adaptive_data() {
+        out.push('\n');
     }
-
-    fn source(&self) -> Span {
-        NameSample::source(self)
+    let tokens = sample.tokens();
+    for (i, token) in tokens.iter().enumerate() {
+        let i = i as u32;
+        for name in sample.names() {
+            if name.start == i {
+                match name.kind {
+                    None => out.push_str("<START> "),
+                    Some(k) => out.push_str(&format!("<START:{k}> ")),
+                }
+            }
+            if name.end == i {
+                out.push_str("<END> ");
+            }
+        }
+        out.push_str(token.as_str());
+        out.push(' ');
     }
-}
-
-impl<'a> TokenizedSample<'a> for PosSample<'a> {
-    fn tokens(&self) -> &[Field<'a>] {
-        PosSample::tokens(self)
+    if tokens.len() > 1 {
+        out.pop();
     }
-
-    fn source(&self) -> Span {
-        PosSample::source(self)
+    for name in sample.names() {
+        if name.end as usize == tokens.len() {
+            out.push_str(" <END>");
+        }
     }
+    out
 }

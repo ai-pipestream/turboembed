@@ -1,7 +1,5 @@
 //! Part-of-speech samples: `opennlp.tools.postag.POSSample`.
 
-use std::fmt;
-
 use turbo_analysis::Span;
 
 use crate::error::FormatError;
@@ -28,18 +26,6 @@ impl<'a> PosSample<'a> {
         Ok(PosSample { tokens, tags, source })
     }
 
-    /// A sample of token and tag pairs, read from `source`.
-    pub(crate) fn from_pairs(pairs: impl Iterator<Item = (Field<'a>, Field<'a>)>, source: Span) -> PosSample<'a> {
-        let (tokens, tags) = pairs.unzip();
-        PosSample { tokens, tags, source }
-    }
-
-    /// A sample with no tokens, at `source`: what `WordTagSampleStream`
-    /// returns in place of a line it cannot read.
-    pub fn empty(source: Span) -> PosSample<'a> {
-        PosSample { tokens: Vec::new(), tags: Vec::new(), source }
-    }
-
     pub fn tokens(&self) -> &[Field<'a>] {
         &self.tokens
     }
@@ -60,19 +46,5 @@ impl<'a> PosSample<'a> {
 
     pub fn is_empty(&self) -> bool {
         self.tokens.is_empty()
-    }
-}
-
-/// `POSSample.toString`, the word and tag format's line: `token_tag`
-/// pairs separated by single spaces.
-impl fmt::Display for PosSample<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, (token, tag)) in self.tokens.iter().zip(&self.tags).enumerate() {
-            if i > 0 {
-                f.write_str(" ")?;
-            }
-            write!(f, "{}_{}", token.text, tag.text)?;
-        }
-        Ok(())
     }
 }

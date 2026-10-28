@@ -34,24 +34,23 @@ fn the_shorter_of_two_overlapping_names_is_marked() {
 }
 
 #[test]
-fn overlapping_names_can_survive() {
-    // next to each other, the right copy is marked
+fn only_the_longest_of_each_overlap_survives() {
     let kept = remove_overlaps(&[name(0, 2), name(0, 2)]).unwrap();
     assert_eq!(spans(&kept), [(0, 2)]);
-    // a shorter name before the copies crosses both and is marked twice,
-    // so the walk moves the right index past the copies without
-    // comparing them with each other; both stay, and `NameSample`
-    // refuses them
     let kept = remove_overlaps(&[name(0, 2), name(1, 4), name(1, 4), name(9, 10)]).unwrap();
-    assert_eq!(spans(&kept), [(1, 4), (1, 4), (9, 10)]);
-    // the same with two names of one start but different ends, which a
-    // `HashMap` of entity ids can order shorter first
+    assert_eq!(spans(&kept), [(1, 4), (9, 10)]);
     let kept = remove_overlaps(&[name(0, 2), name(1, 5), name(1, 6), name(20, 21)]).unwrap();
-    assert_eq!(spans(&kept), [(1, 5), (1, 6), (20, 21)]);
+    assert_eq!(spans(&kept), [(1, 6), (20, 21)]);
 }
 
 #[test]
-fn a_name_ends_one_past_a_token_only_when_past_the_end_so_far() {
+fn a_disjoint_pair_does_not_hide_an_overlap_in_the_suffix() {
+    let kept = remove_overlaps(&[name(0, 1), name(2, 3), name(2, 4)]).unwrap();
+    assert_eq!(spans(&kept), [(0, 1), (2, 4)]);
+}
+
+#[test]
+fn a_name_covers_every_linked_token_regardless_of_edge_order() {
     let doc = |penn: &str, ne: &str| {
         let text = b"a b c d e";
         let seg = br#"<graph><region xml:id="seg-r0" anchors="0 1"/><region xml:id="seg-r1" anchors="2 3"/><region xml:id="seg-r2" anchors="4 5"/><region xml:id="seg-r3" anchors="6 7"/><region xml:id="seg-r4" anchors="8 9"/></graph>"#;
@@ -82,24 +81,16 @@ fn a_name_ends_one_past_a_token_only_when_past_the_end_so_far() {
         spans(doc(&penn, &ne).sentences()[0].names())
     };
     assert_eq!(names(&[3]), [(3, 4)]);
-    // tokens 3 and 4: 4 is not past the end 4 the token 3 gave
-    assert_eq!(names(&[3, 4]), [(3, 4)]);
+    assert_eq!(names(&[3, 4]), [(3, 5)]);
     assert_eq!(names(&[1, 3]), [(1, 4)]);
-    // the first token alone is empty
-    assert_eq!(names(&[0]), [(0, 0)]);
+    assert_eq!(names(&[0]), [(0, 1)]);
     assert_eq!(names(&[4, 2]), [(2, 5)]);
-    // Listed first to last, an even number of tokens loses the last
-    // and an odd number is whole.
-    assert_eq!(names(&[1, 2, 3, 4]), [(1, 4)]);
+    assert_eq!(names(&[1, 2, 3, 4]), [(1, 5)]);
     assert_eq!(names(&[2, 3, 4]), [(2, 5)]);
-    // Listed last to first, as MASC lists most entities, the first
-    // token visited sets the end.
     assert_eq!(names(&[4, 3]), [(3, 5)]);
     assert_eq!(names(&[4, 3, 2, 1]), [(1, 5)]);
-    // At the sentence's start the token 0 does not move the end from
-    // 0, so the parity flips; last to first is whole there too.
     assert_eq!(names(&[0, 1]), [(0, 2)]);
-    assert_eq!(names(&[0, 1, 2]), [(0, 2)]);
+    assert_eq!(names(&[0, 1, 2]), [(0, 3)]);
     assert_eq!(names(&[2, 1, 0]), [(0, 3)]);
 }
 
@@ -197,8 +188,7 @@ fn an_entity_spans_its_first_token_to_one_past_its_last_and_none_is_removed() {
         ]
     );
     assert!(first[0].is_contiguous() && !first[2].is_contiguous());
-    // OpenNLP's names of the same sentence lose most of this.
-    assert_ne!(spans(doc.sentences()[0].names()), [(0, 2), (0, 1), (2, 5), (4, 5)]);
+    assert_eq!(spans(doc.sentences()[0].names()), [(0, 2), (2, 5)]);
     assert_eq!(doc.sentences()[1].entities(), [entity(0, 1, Some("location"), &[0]), entity(1, 2, None, &[1])]);
 }
 

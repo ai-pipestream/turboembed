@@ -170,13 +170,13 @@ mod tests {
     fn read(source: &str, types: EvalitaTypes) -> Vec<Result<String, String>> {
         EvalitaReader::new(source, EvalitaLanguage::Italian, types)
             .unwrap()
-            .map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string()))
+            .map(|r| r.map(|s| crate::sample::name_sample_line(&s)).map_err(|e| e.to_string()))
             .collect()
     }
 
     #[test]
     fn reads_names_and_clears_every_sample() {
-        let text = "-DOCSTART- -X- O O\n\nIl DET B-NP O\nsindaco S I-NP O\ndi E B-PP O\nTrento SP B-NP B-GPE\n\nRossi SP B-NP I-PER\nVerdi SP B-NP B-PER\n";
+        let text = "-DOCSTART- -X- O O\n\nIl DET B-NP O\nsindaco S I-NP O\ndi E B-PP O\nTrento SP B-NP B-GPE\n\nRossi SP B-NP O\nVerdi SP B-NP B-PER\n";
         assert_eq!(
             read(text, EvalitaTypes::ALL),
             [

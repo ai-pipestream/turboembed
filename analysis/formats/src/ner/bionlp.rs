@@ -138,12 +138,15 @@ mod tests {
     use super::*;
 
     fn read(source: &str, types: BioNlpTypes) -> Vec<Result<String, String>> {
-        BioNlpReader::new(source, types).unwrap().map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string())).collect()
+        BioNlpReader::new(source, types)
+            .unwrap()
+            .map(|r| r.map(|s| crate::sample::name_sample_line(&s)).map_err(|e| e.to_string()))
+            .collect()
     }
 
     #[test]
     fn reads_abstracts_and_names() {
-        let text = "###MEDLINE:1\n\nBinding\tO\nof\tO\np50\tB-protein\nand\tI-DNA\n.\tO\n \nIL-2\tB-DNA\n";
+        let text = "###MEDLINE:1\n\nBinding\tO\nof\tO\np50\tB-protein\nand\tI-protein\n.\tO\n \nIL-2\tB-DNA\n";
         assert_eq!(
             read(text, BioNlpTypes::ALL),
             [Ok("\nBinding of <START:protein> p50 and <END> .".to_owned()), Ok("<START:DNA> IL-2  <END>".to_owned())]

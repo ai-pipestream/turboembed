@@ -27,7 +27,7 @@ pub use self::span::{DetokenizerEvaluator, SentenceDetectorEvaluator, TokenizerE
 use super::measure::{FMeasure, LabeledSpan, Mean};
 use crate::error::FormatError;
 use crate::sample::chunk::phrase_spans;
-use crate::sample::name::{DEFAULT_NAME_TYPE, java_list};
+use crate::sample::name::{DEFAULT_NAME_TYPE, token_list};
 use crate::sample::{ChunkSample, DocumentSample, LanguageSample, LemmaSample, Name, NameSample, PosSample};
 use crate::source::Field;
 
@@ -76,24 +76,6 @@ pub enum EvalError {
     /// The reference or predicted chunk tags have no phrases
     /// (`getPhrasesAsSpanList` throws).
     Phrases(FormatError),
-}
-
-impl EvalError {
-    /// The class of the exception Java throws, or `None` for a refusal
-    /// of this port's own (a chunk tag that splits a surrogate pair,
-    /// [`FormatError::SplitsSurrogatePair`]).
-    pub fn java_class(&self) -> Option<&'static str> {
-        match self {
-            EvalError::IndexOutOfBounds { .. } => Some("java.lang.ArrayIndexOutOfBoundsException"),
-            EvalError::TagCount { .. }
-            | EvalError::ArrayLengths { .. }
-            | EvalError::TokenOutOfText { .. }
-            | EvalError::SentenceOutOfText { .. } => Some("java.lang.IllegalArgumentException"),
-            EvalError::OverlappingNames { .. } => Some("java.lang.RuntimeException"),
-            EvalError::TrimOutOfText { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
-            EvalError::Phrases(e) => e.java_class(),
-        }
-    }
 }
 
 fn span_string(span: Span) -> String {
@@ -246,13 +228,13 @@ impl NameFinderEvaluator {
         let mut predictions: Vec<LabeledSpan<'_>> = predicted.iter().map(LabeledSpan::from).collect();
         self.fmeasure.update(&references, &predictions);
         let mut sorted: Vec<&Name<'_>> = predicted.iter().collect();
-        sorted.sort_by(|a, b| a.java_cmp(b));
+        sorted.sort_by(|a, b| a.compare(b));
         for pair in sorted.windows(2) {
             if pair[1].start < pair[0].end {
                 return Err(EvalError::OverlappingNames {
-                    first: pair[0].java_string(),
-                    second: pair[1].java_string(),
-                    sentence: java_list(reference.tokens().iter().map(Field::as_str)),
+                    first: pair[0].description(),
+                    second: pair[1].description(),
+                    sentence: token_list(reference.tokens().iter().map(Field::as_str)),
                 });
             }
         }

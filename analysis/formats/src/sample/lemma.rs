@@ -1,7 +1,5 @@
 //! Lemma samples: `opennlp.tools.lemmatizer.LemmaSample`.
 
-use std::fmt;
-
 use turbo_analysis::Span;
 
 use crate::error::FormatError;
@@ -62,16 +60,5 @@ impl<'a> LemmaSample<'a> {
 
     pub fn is_empty(&self) -> bool {
         self.tokens.is_empty()
-    }
-}
-
-/// `LemmaSample.toString`: a `token<TAB>tag<TAB>lemma` line per token,
-/// each ending with a line feed.
-impl fmt::Display for LemmaSample<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for ((token, tag), lemma) in self.tokens.iter().zip(&self.tags).zip(&self.lemmas) {
-            writeln!(f, "{}\t{}\t{}", token.text, tag.text, lemma.text)?;
-        }
-        Ok(())
     }
 }

@@ -4,11 +4,9 @@ use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use turbo_jvm::hash_map::put_order;
-
 use super::annotation::{BratAnnotation, Parsed, parse_annotations};
 use crate::error::FormatError;
-use crate::masc::java::decode_utf8;
+use crate::masc::text::decode_utf8;
 use crate::source::check_len;
 
 /// A brat document (`BratDocument`): a text and its annotations.
@@ -62,9 +60,7 @@ impl BratDocument {
                 annotations[i].note = n.note;
             }
         }
-        let (order, _) = put_order(annotations.iter().map(|a| a.id.as_str()));
-        let mut slots: Vec<Option<BratAnnotation>> = annotations.into_iter().map(Some).collect();
-        let annotations = order.into_iter().map(|i| slots[i].take().expect("each key once")).collect();
+        annotations.sort_by(|a, b| crate::source::compare_utf16(&a.id, &b.id));
         Ok(BratDocument { id, text, annotations })
     }
 
@@ -251,7 +247,7 @@ pub fn brat_documents(dir: &Path, recursive: bool) -> io::Result<Vec<PathBuf>> {
         let mut entries: Vec<(String, PathBuf)> = std::fs::read_dir(&dir)?
             .map(|e| e.map(|e| (e.file_name().to_string_lossy().into_owned(), e.path())))
             .collect::<io::Result<_>>()?;
-        entries.sort_by(|a, b| turbo_jvm::chars::compare(&a.0, &b.0));
+        entries.sort_by(|a, b| crate::source::compare_utf16(&a.0, &b.0));
         for (name, path) in entries {
             if path.is_file() {
                 if let Some(base) = name.strip_suffix(".ann") {

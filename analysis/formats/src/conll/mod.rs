@@ -4,15 +4,13 @@
 //! conversion streams token and sentence samples).
 //!
 //! CoNLL-2000 chunks need no reader of their own: OpenNLP's native chunk
-//! format is CoNLL-2000's three space-separated columns, read by
-//! [`crate::native::ChunkReader`] (`ChunkSampleStream`, registered as the
-//! chunker's default format).
+//! format is CoNLL-2000's three space-separated columns.
 //!
-//! | Format | Reader | OpenNLP | Registry name |
-//! |---|---|---|---|
-//! | CoNLL-2002 names (Dutch, Spanish) | [`Conll02Reader`] | `Conll02NameSampleStream` | `conll02` |
-//! | CoNLL-2003 names (English, German) | [`Conll03Reader`] | `Conll03NameSampleStream` | `conll03` |
-//! | CoNLL-X part-of-speech tags | [`ConllXPosReader`] | `ConllXPOSSampleStream` | `conllx` |
+//! | Format | Reader | OpenNLP |
+//! |---|---|---|
+//! | CoNLL-2002 names (Dutch, Spanish) | [`Conll02Reader`] | `Conll02NameSampleStream` |
+//! | CoNLL-2003 names (English, German) | [`Conll03Reader`] | `Conll03NameSampleStream` |
+//! | CoNLL-X part-of-speech tags | [`ConllXPosReader`] | `ConllXPOSSampleStream` |
 //!
 //! The readers take decoded text ([`crate::decode`]): OpenNLP reads
 //! CoNLL-2002 as ISO-8859-1 ([`crate::Encoding::Latin1`]) and the others

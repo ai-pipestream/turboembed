@@ -285,14 +285,14 @@ mod tests {
     fn read02(source: &str, language: Conll02Language, types: EntityTypes) -> Vec<Result<String, String>> {
         Conll02Reader::new(source, language, types)
             .unwrap()
-            .map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string()))
+            .map(|r| r.map(|s| crate::sample::name_sample_line(&s)).map_err(|e| e.to_string()))
             .collect()
     }
 
     fn read03(source: &str, language: Conll03Language, types: EntityTypes) -> Vec<Result<String, String>> {
         Conll03Reader::new(source, language, types)
             .unwrap()
-            .map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string()))
+            .map(|r| r.map(|s| crate::sample::name_sample_line(&s)).map_err(|e| e.to_string()))
             .collect()
     }
 

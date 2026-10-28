@@ -1,7 +1,5 @@
 //! Chunk samples: `opennlp.tools.chunker.ChunkSample`.
 
-use std::fmt;
-
 use turbo_analysis::Span;
 
 use crate::error::FormatError;
@@ -138,15 +136,4 @@ pub fn phrase_spans(tags: &[&str]) -> Result<Vec<(u32, u32, usize)>, FormatError
         phrases.push((start, tags.len() as u32, cut));
     }
     Ok(phrases)
-}
-
-/// `ChunkSample.toString`: a `token tag chunk` line per token, separated
-/// by single spaces, each ending with a line feed.
-impl fmt::Display for ChunkSample<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for ((token, tag), chunk) in self.tokens.iter().zip(&self.tags).zip(&self.chunks) {
-            writeln!(f, "{} {} {}", token.text, tag.text, chunk.text)?;
-        }
-        Ok(())
-    }
 }

@@ -25,11 +25,9 @@
 //! - A row has exactly two tab-separated fields; a row of any other count
 //!   is refused, and the read ends at its line with the tokens before it
 //!   lost, as a bad line ends a read in the ported readers.
-//! - IOB is read as the shared `bio_names` helper of this module reads it:
-//!   a name starts at a `B-` tag and grows with each `I-` tag, whatever its
-//!   type, until an `O` or the next `B-`; an `I-` with no name open is read
-//!   as `O`. The type of a name is its `B-` tag after the prefix; the types
-//!   of `I-` tags are never checked.
+//! - IOB is strict: a name starts at `B-` and continues only through `I-`
+//!   tags of the same type. An orphaned or mismatched continuation is an
+//!   error at its line.
 //! - The corpus marks no document starts, so no sample clears adaptive
 //!   data.
 //! - Every offset is a UTF-8 byte offset into the source. A token is the
@@ -40,9 +38,10 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
+use super::{Tag, bio_names};
 use crate::error::FormatError;
 use crate::sample::{Name, NameSample};
-use crate::source::{Field, Line, Lines, Piece};
+use crate::source::{Field, Line, Lines, split_fields};
 
 /// The six name types of the WNUT-17 task: `corporation`, `creative-work`,
 /// `group`, `location`, `person` and `product`.
@@ -79,34 +78,6 @@ impl fmt::Display for WnutError {
 
 impl std::error::Error for WnutError {}
 
-/// `StringUtil.split` with limit 0: the pieces between every `separator`,
-/// with the empty pieces at the end removed.
-fn split(field: Piece<'_>, separator: char) -> Vec<Piece<'_>> {
-    if field.text.is_empty() {
-        return vec![field];
-    }
-    let mut out = Vec::new();
-    let mut start = 0;
-    for (i, c) in field.text.char_indices() {
-        if c == separator {
-            out.push(field.slice(start, i));
-            start = i + c.len_utf8();
-        }
-    }
-    out.push(field.slice(start, field.text.len()));
-    while out.last().is_some_and(|f| f.text.is_empty()) {
-        out.pop();
-    }
-    out
-}
-
-/// A name tag and the line it is on.
-#[derive(Copy, Clone, Debug)]
-struct Tag<'a> {
-    text: &'a str,
-    line: u32,
-}
-
 /// The lines of a sentence read so far.
 #[derive(Default)]
 struct Sentence<'a> {
@@ -135,54 +106,6 @@ impl<'a> Sentence<'a> {
         NameSample::new(self.tokens.clone(), names, false, source, self.first_line)
             .map_err(|e| WnutError::Sample { line: self.first_line, source: e })
     }
-}
-
-/// The name of tokens `begin..end` whose first tag is `tags[begin]`: the
-/// type is the tag after its two-character prefix, which must be one of
-/// [`WNUT17_TYPES`].
-fn extract(tags: &[Tag<'_>], begin: usize, end: i64) -> Result<Name<'static>, WnutError> {
-    let tag = tags[begin];
-    let kind = &tag.text[2..];
-    let kind = WNUT17_TYPES
-        .iter()
-        .copied()
-        .find(|known| *known == kind)
-        .ok_or_else(|| WnutError::UnknownType { line: tag.line, kind: kind.to_owned() })?;
-    let end = u32::try_from(end).expect("an open name ends after its first token");
-    Name::new(begin as u32, end, Some(kind)).map_err(|e| WnutError::Sample { line: tag.line, source: e })
-}
-
-/// The names of a WNUT-17 sentence: a name starts at a `B-` tag and grows
-/// with each `I-` tag, whatever its type, until `O` or the next `B-`; an
-/// `I-` with no name open is read as `O`.
-fn wnut_names(tags: &[Tag<'_>]) -> Result<Vec<Name<'static>>, WnutError> {
-    let mut names = Vec::new();
-    let mut begin: Option<usize> = None;
-    // an `I-` with no name open moves this on from -1; the next `B-` sets
-    // it again, so that does not show
-    let mut end: i64 = -1;
-    for (i, t) in tags.iter().enumerate() {
-        if t.text.starts_with("B-") {
-            if let Some(b) = begin {
-                names.push(extract(tags, b, end)?);
-            }
-            begin = Some(i);
-            end = i as i64 + 1;
-        } else if t.text.starts_with("I-") {
-            end += 1;
-        } else if t.text == "O" {
-            if let Some(b) = begin.take() {
-                names.push(extract(tags, b, end)?);
-                end = -1;
-            }
-        } else {
-            return Err(WnutError::InvalidTag { line: t.line, tag: t.text.to_owned() });
-        }
-    }
-    if let Some(b) = begin {
-        names.push(extract(tags, b, end)?);
-    }
-    Ok(names)
 }
 
 /// Reads name samples from a WNUT-17 file: a sentence per block of lines,
@@ -220,7 +143,7 @@ impl<'a> Iterator for WnutReader<'a> {
                     break;
                 }
                 sentence.cover(&line);
-                let fields = split(line.piece, '\t');
+                let fields = split_fields(line.piece, '\t');
                 if fields.len() != 2 {
                     let text = line.text().to_owned();
                     return Some(Err(WnutError::Fields { line: line.number, count: fields.len(), text }));
@@ -229,7 +152,22 @@ impl<'a> Iterator for WnutReader<'a> {
                 sentence.tags.push(Tag { text: fields[1].text, line: line.number });
             }
             if !sentence.tokens.is_empty() {
-                let names = wnut_names(&sentence.tags);
+                let names = bio_names(
+                    &sentence.tags,
+                    |tag| tag,
+                    |text, line| {
+                        WNUT17_TYPES
+                            .iter()
+                            .copied()
+                            .find(|known| *known == text)
+                            .ok_or_else(|| FormatError::UnknownNameType { line, kind: text.to_owned() })
+                    },
+                );
+                let names = names.map_err(|e| match e {
+                    FormatError::UnknownNameType { line, kind } => WnutError::UnknownType { line, kind },
+                    FormatError::InvalidNameTag { line, tag } => WnutError::InvalidTag { line, tag },
+                    other => WnutError::Sample { line: sentence.first_line, source: other },
+                });
                 return Some(sentence.sample(names));
             }
             if at_end {

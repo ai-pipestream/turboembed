@@ -27,10 +27,8 @@
 //! The other columns are the multiword line's own. Empty nodes (ids like
 //! `8.1`) are word lines like any other.
 //!
-//! The sample readers are in [`samples`]. [`dependency`] reads
-//! dependency samples and [`coref`] documents with CorefUD coreference;
-//! neither goes through [`ConlluReader`], as their Java streams read the
-//! lines themselves.
+//! The sample readers are in [`samples`]. [`dependency`] reads dependency
+//! samples directly from the source lines rather than through [`ConlluReader`].
 //!
 //! # What OpenNLP does here
 //!
@@ -52,7 +50,6 @@
 //! - An error in a sentence discards the whole sentence, and reading goes
 //!   on with the next.
 
-pub mod coref;
 pub mod dependency;
 pub mod document;
 pub mod node_ids;
@@ -66,7 +63,6 @@ use turbo_analysis::Span;
 use crate::error::FormatError;
 use crate::source::{Field, Line, Lines, Piece, java_trim, split_fields};
 
-pub use coref::{ConlluCorefReader, CorefDocument};
 pub use dependency::ConlluDependencyReader;
 pub use document::write_document_conllu;
 pub use samples::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader};
