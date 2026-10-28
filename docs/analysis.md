@@ -4463,17 +4463,14 @@ runs them on any machine:
   the CPU runs the weights it was compiled from. Without both variables
   the test prints that it was skipped. On a Hailo machine:
   `TURBO_TEST_VECTORS_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=hailo cargo test --release -p turbo-analysis-embed --features turbo/hailo --test vectors_bundle -- --nocapture`.
-- `analysis/embed/tests/sentence_vectors_dl.rs` compares the sentence
-  vector step with OpenNLP's `SentenceVectorsDL` on the
-  `sentvectors/all-minilm-l6-v2-mean` goldens (analysis/goldens-tool/README.md),
-  given an all-MiniLM-L6-v2 bundle in `TURBO_TEST_MINILM_BUNDLE`. Each
-  sentence of the goldens is embedded as a document of its own. The
-  step's vector averages the sentence's own pieces, where the golden's
-  averages the whole row, [CLS] and [SEP] included, so the two are held to
-  a cosine of 0.91, which the shortest sentences set (the lowest of the 57
-  is 0.919, the mean 0.983). The mean over the whole row, computed with the
-  encoder, is held to 0.999999 (the lowest is 0.9999999999984): the
-  tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
+- `analysis/embed/tests/sentence_vectors_native.rs` runs the native rule
+  sentence detector, subword annotator and sentence-vector step on the
+  generated local tiny-BERT fixture. It checks exact source byte spans,
+  empty and whitespace inputs, Unicode and CRLF handling, all 32 vector
+  components against the crate-local native snapshot within 2e-6, and
+  unit norms. No downloaded model, retired sentence model, or JVM output
+  is used. This is an integration regression test, not a trained-model
+  accuracy or external-peer parity result.
 - `analysis/embed/src/calibrate/` (`mod.rs`, and `kept.rs` for the kept
   form) decides where the sentence vector step runs: on a device or on the
   CPU, for each window and batch. `Calibration::measure` runs the step
