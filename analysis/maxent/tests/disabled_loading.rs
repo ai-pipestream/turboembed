@@ -13,3 +13,9 @@ fn disabled_loader_does_not_read_the_requested_path() {
     let error = ModelFile::read("model-loading-disabled-do-not-open.bin").unwrap_err();
     assert!(error.to_string().starts_with("OpenNLP model loading is disabled"), "{error}");
 }
+
+#[test]
+fn raw_classical_model_reader_cannot_bypass_archive_retirement() {
+    let error = turbo_maxent::MaxentModel::read(b"not a model").unwrap_err();
+    assert!(error.to_string().starts_with("OpenNLP model loading is disabled"), "{error}");
+}
