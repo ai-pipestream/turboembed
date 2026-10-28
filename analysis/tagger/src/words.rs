@@ -19,7 +19,8 @@
 //! same pieces ([`WordEncoder::reads`]): made by this bundle's model, per
 //! word token, by a WordPiece tokenizer, each piece inside its token, and
 //! every token starting and ending where a BERT pre-tokenizer word does
-//! (`turbo::tokenizer::pre_words`). WordPiece reads each such word on its
+//! under this tokenizer's own normalizer settings
+//! (`Tokenizer::wordpiece_words`). WordPiece reads each such word on its
 //! own, so its pieces are the token's own; a token that starts inside a
 //! word gets continuation pieces (`##ffa` for `ffa` in `unaffable`) that
 //! the token alone would not. Other subwords of this model are passed
@@ -30,7 +31,7 @@ use std::path::Path;
 use turbo::bundle::Bundle;
 use turbo::manifest::{PromptRole, Truncation, WordPooling};
 use turbo::status::{Error, INVALID_ARGUMENT, Result};
-use turbo::tokenizer::{Encode, Tokenizer, pre_words};
+use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::turbo_token_range;
 use turbo_analysis::{Execution, Ix, Layer as _, View};
 use turbo_analysis_embed::{Encoder, EncoderOptions, Rows};
@@ -132,7 +133,8 @@ impl WordEncoder {
         }
         // Every token on pre-tokenizer word bounds, so WordPiece read it
         // as a word of its own.
-        let words = pre_words(view.text());
+        // Under this tokenizer's own normalizer settings.
+        let Some(words) = self.tokenizer.wordpiece_words(view.text()) else { return Ok(false) };
         let (mut starts, mut ends): (Vec<usize>, Vec<usize>) = words.into_iter().unzip();
         starts.sort_unstable();
         ends.sort_unstable();
