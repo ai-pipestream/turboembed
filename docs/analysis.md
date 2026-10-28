@@ -59,9 +59,9 @@ layers over them (`server/src/analysis.rs`, docs/grpc-analysis.md).
 | `turbo-langspan` | `analysis/langspan/` | Language by span (code switching): script runs, then OpenNLP's language detector model scoring words and clauses, written as `turbo:language-spans` with the document summary in `opennlp:language` ([langdetect.md](langdetect.md), "Language by span") |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
-| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer, the phrase chunker, the language detector, the sentiment detector (`SentimentEventStream` and the `SentimentModel` file, [sentiment.md](sentiment.md)) and the chunking and tree-insertion constituency parsers (their `ParserEventStream`s, `Parser.train`, the `ParserModel` file, `ParserEvaluator` and `ParserCrossValidator`): `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream`, `ChunkerEventStream` and `LanguageDetectorEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel`, `ChunkerModel` and `LanguageDetectorModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize` and `turbo-parser`; "Training the components" below |
+| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer, the phrase chunker, the language detector, the sentiment detector (`SentimentEventStream` and the `SentimentModel` file, [sentiment.md](sentiment.md)) and the chunking and tree-insertion constituency parsers (their `ParserEventStream`s, `Parser.train`, the `ParserModel` file, `ParserEvaluator` and `ParserCrossValidator`): `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream`, `ChunkerEventStream` and `LanguageDetectorEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel`, `ChunkerModel` and `LanguageDetectorModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order). Its own crate because `turbo-formats` depends on `turbo-tokenize` and `turbo-parser`; "Training the components" below |
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
-| `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the OntoNotes name, parse and part-of-speech readers and the French Treebank parse reader (`turbo_parser::Parse` trees), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora`, `ontonotes`, `frenchtreebank` and `evaluate` goldens |
+| `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the OntoNotes name, parse and part-of-speech readers and the French Treebank parse reader (`turbo_parser::Parse` trees), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component; true positives are a multiset intersection, so recall is at most 1). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora`, `ontonotes`, `frenchtreebank` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`); and the `CHUNKING` and `TREEINSERT` bottom-up parsers: reading a `ParserModel` file, the context generators, the shared search of `AbstractBottomUpParser`, `ParserTool.parseLine` and `ParserAnnotator` (the `Phrases` layer). Training the parsers is `turbo-train-components`. `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-coref` | `analysis/coref/` | OpenNLP's coreference resolver: mention detection from entities, noun phrases (chunks or parse phrases) and pronouns, the precision-ordered sieves (speaker, exact, relaxed, acronym, person name, the strict and relaxed head sieves, pronoun match), the pair classifier and mention ranker read from a `CorefModel` file, word vectors for head similarity (or trained from a corpus by the skip-gram and CBOW `Word2VecTrainer`) and token vectors for span features, `CorefAnnotator` writing `opennlp:mentions` (`Mentions`), the chains as `Groups<Mentions>` and the antecedent links as `Edges<Mentions, Mentions>` tagged with the deciding sieve, the pairwise and ranking trainers, and `CorefScorer` (MUC, B-cubed, CEAF-m, CEAF-e, mention detection and the CoNLL average); [coref.md](coref.md) |
 | `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
@@ -847,6 +847,7 @@ fields mean bumps its `SCHEMA`.
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
+| `VectorCodes<L>` | `turbo:vector-codes<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
 | `Edges<From, To>` | `turbo:edges<From, To>` | the document (indexes `From` and `To`) | `turbo-analysis` |
@@ -1114,8 +1115,36 @@ all three and writes both from the same windows. They can share one
 loaded model (`Arc<VectorAnnotator>`). `VectorsProvider` offers them to
 a registry as `vectors`, the spec's location being the bundle directory
 and its options `layers` (`sentences`, `chunks`, `both`, `levels`),
-`device`, `precision` and `prompt`. `LevelVectors`, for `levels`, is
-described under "Levels" below.
+`device`, `precision`, `prompt` and `output_dim`. `LevelVectors`, for
+`levels`, is described under "Levels" below.
+
+### Narrower vectors and codes
+
+`VectorOptions::output_dim` (the provider's `output_dim`) cuts the
+sentence, chunk and level vectors to a width the bundle declares in
+`embed.output_dims` (Matryoshka), as `turbo_embed_options.output_dim`
+does in the core: every item is pooled at the model's dim, cut to its
+first `output_dim` values, then normalized as the bundle says. `0`, the
+default, is the model's dim. A width over the dim is refused as
+`TURBO_E_INVALID_ARGUMENT`, one the bundle does not declare as
+`TURBO_E_UNSUPPORTED_OPTION`, when the annotator is opened. A cut
+changes the step's configuration hash; the full width keeps the hash it
+had before the option. Per-token vectors (`SubwordVectors`) are never
+cut. `VectorAnnotator::dim` is the width written and `hidden_dim` the
+encoder's.
+
+`VectorCodesStep<L>` reads `L` and `Vectors<L>` and writes
+`VectorCodes<L>` (`turbo:vector-codes<L>`): each row as int8 codes or
+packed sign bits, with the core's `turbo::quantize`, in the layout
+docs/embeddings.md gives under "Narrower vectors" (sentence-transformers'
+`quantize_embeddings`). int8 takes the caller's `[2, dim]` ranges, the
+minimums then the maximums, calibrated on vectors of the same model and
+width; ranges are never taken from the documents being coded, and
+ranges of another width fail the document. The layer keeps the vectors'
+`empty` list and model. `VectorCodesProvider` offers it as
+`vector-codes`, with options `codes` (`ubinary`, the default, or
+`int8`) and `layers` (`chunks`, the default, or `sentences`); for int8
+the spec's location is a file of `2 * dim` little-endian f32 values.
 
 The subwords must be the same bundle's pieces (the layer's model is
 compared) and every layer must be in the subwords' view; a document
@@ -2680,7 +2709,7 @@ file's bytes being the text, and each golden is
 annotator (`sentdetect`, `tokenize`, `detokenize`, `langdetect`, ...),
 run and input. The run directory is the first model file's name without
 `.bin` (or `.xml` for a dictionary), with `+` and the names of the run's
-options appended when it has any (`+legacy`, `+keep-new-lines`,
+options appended when it has any (`+keep-new-lines`,
 `+alphanumeric`, `+english-dictionary`); a run without a model names
 itself there (`simple`, `whitespace`, `uax29`, `newline`, or a
 normalizer's name). `turbo_goldens::data_dir()`
@@ -2710,9 +2739,7 @@ other. Then one header record per line, a keyword and its fields:
 - `config <key> <value>`: zero or more, one per option the annotator
   was run with, sorted by key, each key once, so two goldens of one class
   run with different options are told apart. Key and value are `str`
-  fields, escaped as below. The keys written now are `whitespace`
-  (`legacy` for a run in OpenNLP's legacy `WhitespaceMode`; the default
-  mode writes no record), `keepNewLines` (`true`),
+  fields, escaped as below. The keys written now are `keepNewLines` (`true`),
   `useAlphaNumericOptimization` (`true`) with `alphaNumericPattern` (the
   pattern the tokenizer uses), `splitMarker` (the detokenizer's marker)
   and the normalizers' options.
@@ -3304,121 +3331,6 @@ checking every entry but the timestamps against the JVM's file;
 `analysis/parser/tests/goldens/treebank.rs` compares the dictionary and
 generator runs and the parses of the JVM's models.
 
-The `ud` module holds the recipes of the eighteen published
-`opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens,pos,lemmas}-1.3-2.5.4.bin`
-models as typed data: the treebank (`UniversalDependencies/UD_*` at
-release 2.16, its `train` file, size and digests, CC BY-SA 4.0), the
-component, the factory the 2.5.4 trainer tool builds and the training
-parameters recovered from the published models (`MAXENT`, 300 iterations,
-cutoff 5, 12 training partitions) with OpenNLP 2.5.4's whitespace definition, the
-universal tag set and the publisher's time zone. The treebanks are CC
-BY-SA, so the recipes fetch them through `turbo-zoo` by digest after the
-licence is accepted and never check them in; `ud::datasets()` is their
-zoo index, and a published model not under `TURBO_GOLDENS_MODELS` is
-fetched through the zoo's built-in index. The reproduction is
-`analysis/train-components/tests/reproduce.rs`, ignored by default:
-
-```text
-cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes
-cargo run -p turbo-goldens-tool -- fetch-models <dir>
-TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
-```
-
-It reports per model whether the event checksum, manifest and ZIP entry
-names agree, and compares the model entry byte for byte. The published
-models require **300 iterations and 12 training partitions**, while the
-committed `ud-train.conf` says 150 and 4. The recipes now use 300 and 12;
-`CONF_ITERATIONS` and `CONF_THREADS` preserve the committed settings.
-
-The last-bit residual was caused by the partition count, not the Rust
-arithmetic or a data change. GIS sums events within each partition and
-then combines the partial sums in partition order. Changing the number
-of partitions changes floating-point grouping. Thread scheduling does not.
-The original OpenNLP 2.5.4 CLI with 4 partitions reproduces the previous
-Rust English sentence entry exactly (SHA-256
-`3502c0d12a9b228e6d7bcfdab29c2a9cbcf56074e4443565e7f5bdf6e7683789`).
-With 12 it matches the published entry exactly. Counts 1, 2, 3, 6, 8,
-16, 24, 32, 48 and 64 did not match. The 4-partition run on JDK 25 also
-produced the same residual as the pinned JDK 21 run.
-
-The original CLI was run in the pinned goldens container's Temurin
-21.0.12.1+1, using the release JAR ahead of any fork code (the classpath
-contained only the release and SLF4J). Inputs were the digest-checked
-UD r2.16 English EWT training file, SHA-256
-`3fb78e2b55482c8ee00caa653af436c88c9e5bc9a73ce26e4ae3ddc79d2b7e7b`,
-and the same tokenizer, sentence, POS and lemma defaults as the recipes.
-The CLI's English entries match the published ones at 12 partitions:
-
-| Component | Model entry bytes | Entry SHA-256 |
-| --- | ---: | --- |
-| Sentence | 24452 | `675b37c8c75162c0ad0546099c2e923e356db7318e91fdab254ec16e302024c6` |
-| Tokens | 519655 | `c6202d54abfa652a2ba50153cd3087320f5871e498f5b72e1a6b15133eccf1c8` |
-| POS | 1620749 | `8ef3da3d3aeefe589cd44e8a4fbdcc961e36e6446a9007a04db1378fcaf3d97e` |
-| Lemmas | 899284 | `41dc851fbd9a789062c6e8a80a1e56f2b0b11bd63ee6cc11b4b24f0ffeaacc47` |
-
-Release inputs from Maven Central (SHA-256):
-
-- [opennlp-tools 2.5.4](https://repo.maven.apache.org/maven2/org/apache/opennlp/opennlp-tools/2.5.4/):
-  `5efedb26d0e97e53707a8d2f0e2e28f05fcf654fce2a33f8bfe11c2d4c2a4fe9`.
-- The matching sources JAR:
-  `34921ed6fc85a1e87b4d2996e989d9a941162618712e35f927b790138eed273e`.
-- [slf4j-api 2.0.17](https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.17/):
-  `7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832`.
-- [slf4j-simple 2.0.17](https://repo.maven.apache.org/maven2/org/slf4j/slf4j-simple/2.0.17/):
-  `ddfea59ac074c6d3e24ac2c38622d2d963895e17f70b38ed4bdae4d780be6964`.
-
-To repeat the release CLI comparison, put those runtime JARs in a local
-`jars` directory and set `TREEBANK` to the verified English EWT file:
-
-```sh
-printf 'Algorithm=MAXENT\nIterations=300\nCutoff=5\nThreads=12\n' > train.conf
-java -cp 'jars/*' opennlp.tools.cmdline.CLI SentenceDetectorTrainer.conllu \
-  -params train.conf -lang en -model en-sentence.bin -sentencesPerSample 10 \
-  -data "$TREEBANK" -encoding UTF-8
-```
-
-For the other components, replace the tool with `TokenizerTrainer.conllu`,
-`POSTaggerTrainer.conllu` or `LemmatizerTrainerME.conllu`, choose a distinct
-output file, and omit `-sentencesPerSample 10`. Compare the uncompressed
-`sent.model`, `token.model`, `pos.model` or `lemmatizer.model` entries.
-The CLI writes a new manifest timestamp; the Rust reproduction reuses the
-published timestamp to compare the manifest too. ZIP container bytes are
-not an equality gate because the runtimes use different compression.
-No corpus text or generated model is committed.
-
-The reproduction test now requires exact equality rather than the former
-`1e-12` tolerance, and a filter selecting no models fails.
-
-The full release run reproduced all 18 models in 2,687 seconds. An independent
-ZIP-entry comparison also found identical names, order and bytes for all
-entries, including each manifest. The table gives the uncompressed model
-entry digests. The final strict test additionally passed for the English
-sentence model; forcing 4 partitions made it fail, and an empty model filter
-failed as intended. The full training run used the same 12-partition code
-before its tolerance assertion was replaced; its exact-match count and the
-independent byte comparison establish exact equality for all 18 outputs.
-
-| Published model | Entry | Bytes | SHA-256 |
-| --- | --- | ---: | --- |
-| `opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 1401630 | `d956fc98e8af4be8bc1bffb4bb34f4800ca5346c7ee6b479182c21b182dcf221` |
-| `opennlp-de-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 1775723 | `0d7b88d4c7acb2ce31919d6310bb713b781a37b70df156a2685b21f9c3065664` |
-| `opennlp-de-ud-gsd-sentence-1.3-2.5.4` | `sent.model` | 19119 | `efd004c77cb65b07241caa9d4b4a7d81b163240e2c8e434f5c01e14975dda416` |
-| `opennlp-de-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 872136 | `af256135459e85168aa21ac37ff9a9a05a9e9350a519ad8fc7266c7583646d4c` |
-| `opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | `lemmatizer.model` | 899284 | `41dc851fbd9a789062c6e8a80a1e56f2b0b11bd63ee6cc11b4b24f0ffeaacc47` |
-| `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `pos.model` | 1620749 | `8ef3da3d3aeefe589cd44e8a4fbdcc961e36e6446a9007a04db1378fcaf3d97e` |
-| `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `sent.model` | 24452 | `675b37c8c75162c0ad0546099c2e923e356db7318e91fdab254ec16e302024c6` |
-| `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `token.model` | 519655 | `c6202d54abfa652a2ba50153cd3087320f5871e498f5b72e1a6b15133eccf1c8` |
-| `opennlp-es-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 1743916 | `f5f16256bf99b2cfcf3b2f97d9081a7ec6b57f6f4531689306023a93ec4f9059` |
-| `opennlp-es-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 2430222 | `5338cf23eba3b2317005559375354278df5feb2b7aaf19be8787b5597565a400` |
-| `opennlp-es-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 908469 | `343209c259a6b884c44a1ca0bb51e3cb936933b586f76c428cc0b6eb20297dcd` |
-| `opennlp-fr-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 1555405 | `3cf426c999fe050f3f8762f378020edeefd322e9827862386372701a5916176a` |
-| `opennlp-fr-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 2180689 | `eaed1b2c2ccbf56cea093c4a8dcc168f56e1a6366674bdb7699d18933519b338` |
-| `opennlp-fr-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 906232 | `40fd826bd1561be799eb9d82c93ea7be52bc26f3bbee5fed9f521654283ab4d8` |
-| `opennlp-pt-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 3183448 | `b4db1eae86f657f63cb5210beefc0b73ddd2c79f550b23584529283664fc0862` |
-| `opennlp-pt-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 1776578 | `26090fd13e28959c9069bde6b9403da50ea3b56a2b1125be7d05bb5d01df4496` |
-| `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `sent.model` | 23994 | `c079b542da8aaa40d64cbfa0d8052f6f16903784f4bbaf88deab65deabd21bad` |
-| `opennlp-pt-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 669251 | `f7dc70bdd9c1a397bacbab18e59464235eeb7d224a8b31a8e46cb214ac4b27dd` |
-
 
 ## Generating golden files (being retired under #1509; delete when #1530 lands)
 
@@ -3773,11 +3685,11 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   platform's terms. The places count every document read, so no other
   document changes side, and the card lists the documents left out.
 - The training: the factory defaults and the released MASC settings
-  (GIS, 300 iterations, cutoff 5, 4 partitions, OpenNLP 2.5.4's
-  whitespace, 10 sentences per sentence detector sample, the default
+  (GIS, 300 iterations, cutoff 5, 4 partitions, Unicode `White_Space`
+  as whitespace, 10 sentences per sentence detector sample, the default
   feature generator descriptor and no tag dictionary for the tagger). The
-  sentence detector and the tokenizer differ from their UD 1.3
-  references in data and training partitions (the references use 12). The tagger's reference was trained
+  sentence detector and the tokenizer are scored against their UD 1.3
+  references, which were trained on other data. The tagger's reference was trained
   otherwise (its manifest records OpenNLP 1.5.0, 100 iterations and
   cutoff 5, and it holds a tag dictionary and no feature generator
   descriptor), so its gate compares data and settings together. The
@@ -3930,8 +3842,7 @@ files, and its recipe's component and language.
 - The split: UD's own, trained on `train` and gated on `test`, `dev`
   not read. The training keeps the released UD 2.16 settings (GIS, 300
   iterations, cutoff 5, 4 partitions) with the factory defaults of the
-  treebank's language. OpenNLP UD 1.3 reproduction separately uses 12
-  partitions. The samples are those of OpenNLP's CoNLL-U streams, except
+  treebank's language and Unicode `White_Space` as whitespace. The samples are those of OpenNLP's CoNLL-U streams, except
   that the tagger's and lemmatizer's leave out empty nodes, which are
   not words of the text.
 - The gate: against the OpenNLP UD 1.3 model for the language and
@@ -4018,11 +3929,9 @@ lowercased token), so both models get wrong the test tokens whose lemma
 has one: from 7.14 percent of the Portuguese ones to 12.12 percent of
 the Italian ones, and 1 Finnish token. The native class format now learns those lemmas; the linked case evaluation
 reports the new results. The Catalan references are OpenNLP's models of the same
-treebank: the sentence detector and tokenizer recipes make OpenNLP's
-events exactly and their models differ from the references only in the
-last bits of some parameters, so those gates check that the recipes
-reproduce OpenNLP's models, and the tagger and lemmatizer are trained on
-OpenNLP's samples less the treebank's 4,999 empty nodes. The others are
+treebank, so those gates compare models trained on the same data; the
+tagger and lemmatizer are trained on OpenNLP's samples less the
+treebank's 4,999 empty nodes. The others are
 trained on another treebank of the language, so a gap there can come
 from the treebanks' annotation as well as from the models, which favours
 the candidate.
@@ -4346,11 +4255,10 @@ are under `analysis/eval/records/<pipeline>/<set>.json`.
 `Pipeline` runs over one set (`set::LoadedSet`) in four timed stages:
 
 1. Analysis: each document's text as a document in the source view,
-   with `opennlp:sentences` (an OpenNLP maxent model, by default the
-   English UD EWT model `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin`, read
-   from the directory `TURBO_GOLDENS_MODELS` names or
-   `target/turbo-goldens/models`, where `turbo-goldens fetch-models`
-   downloads it; or one sentence per line),
+   with `opennlp:sentences` (by default `turbo-sentdetect`'s rule
+   splitter for English, which needs no model file; `--sentences
+   rules:<tag>` for another language, `newline` for one sentence per
+   line, or the path of a maxent sentence model),
    `turbo:structure` (plain text by default, Markdown, or none) and the
    embedder's `opennlp:subwords`. Every chunk span is a byte range of
    the set's own text, the offsets span judgements use.
@@ -4379,7 +4287,9 @@ embedder was given (chunks, queries and any sentences a chunker
 embedded, counted on the rows as run, after any cut), the chunk count,
 and the chunk lengths in bytes of the source and in the embedder's
 tokens, overhead included and before any cut. The record's analyzer
-list names the sentence model by file name and SHA-256.
+list names the sentence splitter: the rule splitter by its annotator
+id, language, version and configuration hash, a maxent model by file
+name and SHA-256.
 
 ### Chunkers
 
@@ -4738,7 +4648,12 @@ the model and the reference, the OpenNLP model for the same task, are
 scored on the same held-out samples, each sample as counts (true
 positives, predictions and references for an F-measure; correct and
 total tokens for an accuracy), and a set's score is that of its summed
-counts, as OpenNLP's `FMeasure` and `Mean` add them up. A paired
+counts, as OpenNLP's `FMeasure` and `Mean` add them up. The true
+positives are standard evaluation: a multiset intersection of predicted
+and held-out spans, so a repeated prediction matches at most one
+reference and recall is at most 1. OpenNLP's own `countTruePositives`,
+which counts a repeated prediction once per equal reference, is not
+reproduced. A paired
 bootstrap draws the samples with replacement, 10,000 times from
 `JavaRandom` seeded with 154 (the draws of `significance::bootstrap`),
 and scores both models on each draw. The gate is a non-inferiority
@@ -4799,6 +4714,56 @@ lemmatizer's lemmas are recorded as a tag scoring with no mapping: the
 tokens left out are those whose gold lemma class (the edit script from
 the token to its lemma) gives the lemma while no class of the reference
 does, and `check` refuses a lemmatizer's record with tag mappings.
+
+### Encoder audit and optional Granite download
+
+The licence audit does not establish a permissive training lineage for
+all-MiniLM-L6-v2, BGE or Potion (docs/licences.md).
+`ibm-granite/granite-embedding-30m-english` is an optional local encoder:
+Apache-2.0 weights, CC BY-SA training inputs, and web-scraped and
+IBM-internal text with no auditable grant. The recipe requires explicit
+user acceptance as described in docs/zoo.md ("Granite requires an
+explicit download decision"). Granite weights and generated Granite
+bundles are excluded from TurboEmbed releases; automatic download is
+not authorized.
+
+Granite is a 6-layer, 384-wide RoBERTa with CLS pooling, available by name
+through `bundle/recipes/granite-embedding-30m-english.json`. Bundle make
+converts the BF16 checkpoint to F32 for CPU MODEL precision.
+
+The gate is the document chunker with dense retrieval on CPU at
+MODEL precision, the three records side by side
+(`analysis/eval/records/granite-embedding-30m-document`,
+`all-minilm-l6-v2-document` and `potion-base-8m-document`, one commit
+for all three). nDCG@10:
+
+| set | granite-embedding-30m-english | all-MiniLM-L6-v2 | potion-base-8M |
+| --- | ---: | ---: | ---: |
+| scifact | 0.7172 | 0.6402 | 0.4914 |
+| nfcorpus | 0.3282 | 0.3094 | 0.2305 |
+| arguana | 0.5562 | 0.5015 | 0.3625 |
+| qasper | 0.2767 | 0.2519 | 0.1970 |
+| mean | 0.4696 | 0.4258 | 0.3204 |
+
+Granite leads the incumbent on every set, by 0.019 to 0.077, at the
+same size and depth (its BPE tokenizer embeds about 28 percent more
+tokens on scifact; the records carry the embedding walls, measured
+on a shared machine). New work may select it after explicit user acceptance. The historic records keep all-MiniLM-L6-v2 as their reference
+embedder, and the static tier is unchanged: potion stays local-only.
+
+An in-house alternative was measured first and is not shipped:
+`turbo-train-recipes static-embed` initializes a static table from
+BERT-base-uncased's token embeddings (centered, PCA-reduced,
+SIF-scaled) and contrastive-trains it. The command reserves new `.stage`
+and `.init` directories beside its output; it rejects existing scratch
+paths instead of deleting or overwriting them. Choose a new output name
+for another run. The untrained table scores
+0.3354 on scifact under this gate; training on token-dropout views
+scored 0.2842, and on adjacent FineWeb sentences 0.2718 at 400 steps
+and 0.2381 at 2,000 gentler steps. Adjacent-sentence alignment
+pressure on a mean-pooled table degrades the geometry the
+initialization carries, so the trainer ships as tooling with a
+measured negative result, and no model is taken from it.
 
 ### The sets
 

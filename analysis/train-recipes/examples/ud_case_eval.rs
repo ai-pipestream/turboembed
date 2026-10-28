@@ -9,8 +9,8 @@ use turbo_formats::LemmaSample;
 use turbo_lemmatizer::{LemmaEncoding, LemmatizerModel, MaxentLemmatizer, TokenTag, edit_script::lowercase_units};
 use turbo_maxent::ModelFile;
 use turbo_postag::{PosModel, PosTagger};
-use turbo_train_components::ud::Component;
-use turbo_train_recipes::ud::{self, UD_RECIPES, native};
+
+use turbo_train_recipes::ud::{self, Component, UD_RECIPES, native};
 use turbo_zoo::Sha256;
 
 #[derive(Default)]

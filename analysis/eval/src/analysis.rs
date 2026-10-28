@@ -9,76 +9,109 @@
 
 use std::path::Path;
 
-use turbo_analysis::{Document, Key, Provenance, Span, Spans, ViewId};
+use turbo_analysis::{Annotator, Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Sentences, Structure};
-use turbo_maxent::ModelFile;
-use turbo_sentdetect::{SentenceDetector, SentenceModel, WhitespaceMode, newline_spans};
+use turbo_sat::{SatAnnotator, SatOptions};
+use turbo_sentdetect::{RuleSentenceDetector, newline_spans};
 use turbo_structure::Syntax;
 
 use crate::Result;
 use crate::embedder::Embedder;
 
+/// The rule splitter with no unpunctuated-script fallback; the field is
+/// private so no model or device can be attached to it.
+pub struct RuleSentences(RuleSentenceDetector);
+
 /// Where the sentences come from.
 pub enum Sentencer {
+    /// The rule splitter of `turbo-sentdetect` for a language: UAX #29
+    /// with the language's tailorings and abbreviation inventory. It
+    /// needs no model file, and it is the default. Built only by
+    /// [`Sentencer::rules`], so it never has a model-backed fallback and
+    /// its record name (language, version, configuration hash) says all
+    /// that decides its spans.
+    Rules(RuleSentences),
     /// One sentence per line that is not blank (OpenNLP's
     /// `NewlineSentenceDetector`).
     Newline,
-    /// An OpenNLP maxent sentence model (`SentenceDetectorME`).
-    Maxent {
-        detector: SentenceDetector,
-        /// The model file's name, without its directory.
-        file: String,
-        sha256: String,
-    },
+    /// The SaT model tier over a sealed bundle, named explicitly with
+    /// `--sentences sat`; never the default and never a fallback.
+    Sat { annotator: Box<SatAnnotator> },
 }
 
 impl Sentencer {
-    /// The maxent detector with the model file at `path`, in OpenNLP
-    /// 3.x's whitespace mode, with the bundled abbreviation inventory of
-    /// the model's language.
-    pub fn maxent(path: &Path) -> Result<Sentencer> {
-        let at = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
-        let file = ModelFile::read(path).map_err(|e| at(&e))?;
-        let sha256 = file.sha256().to_hex();
-        let model = SentenceModel::open(file).map_err(|e| at(&e))?;
-        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        Ok(Sentencer::Maxent { detector: SentenceDetector::new(model, WhitespaceMode::Unicode), file: name, sha256 })
+    /// The rule splitter for the BCP 47 language tag `tag`.
+    pub fn rules(tag: &str) -> Sentencer {
+        Sentencer::Rules(RuleSentences(RuleSentenceDetector::new(tag)))
+    }
+
+    /// The SaT annotator over the bundle directory at `path`.
+    pub fn sat(path: &Path, options: &SatOptions) -> Result<Sentencer> {
+        let annotator = SatAnnotator::open(path, options).map_err(|e| format!("{}: {e}", path.display()))?;
+        Ok(Sentencer::Sat { annotator: Box::new(annotator) })
     }
 
     fn name(&self) -> String {
         match self {
-            Sentencer::Newline => "opennlp:sentences newline".into(),
-            // The JVM's spans unless the detector has an abbreviation
-            // inventory, whose hash then names it too.
-            Sentencer::Maxent { detector, file, sha256 } if detector.is_jvm_parity() => {
-                format!("opennlp:sentences maxent {file} sha256 {sha256}")
-            }
-            Sentencer::Maxent { detector, file, sha256 } => format!(
-                "opennlp:sentences maxent {file} sha256 {sha256} abbreviations {:016x}",
-                detector.abbreviations().config_hash()
+            Sentencer::Rules(RuleSentences(d)) => format!(
+                "{} {} version {} config {:016x}",
+                RuleSentenceDetector::ID,
+                d.splitter.language().rules_code(),
+                RuleSentenceDetector::VERSION,
+                d.config_hash()
             ),
+            Sentencer::Newline => "opennlp:sentences newline".into(),
+            Sentencer::Sat { annotator } => {
+                let model = annotator.model();
+                let execution = annotator.execution();
+                match (model, execution) {
+                    (Some(model), Some(execution)) => format!(
+                        "turbo:sat {} revision {} sha256 {} backend {} precision {} config {:016x}",
+                        model.id,
+                        model.revision,
+                        model.sha256,
+                        execution.backend,
+                        execution.precision,
+                        annotator.config_hash()
+                    ),
+                    _ => "turbo:sat unknown".into(),
+                }
+            }
         }
     }
 
-    fn spans(&self, text: &str) -> Spans<Sentences> {
+    pub(crate) fn spans(&self, text: &str) -> Result<Spans<Sentences>> {
         let mut spans = Spans::new(ViewId::SOURCE);
         match self {
-            Sentencer::Newline => {
+            Sentencer::Rules(RuleSentences(d)) => {
                 let mut out = Vec::new();
-                newline_spans(text, WhitespaceMode::Unicode, &mut out);
+                d.splitter.try_split(text, &mut out).map_err(|e| e.to_string())?;
                 out.into_iter().for_each(|s| {
                     spans.push(s);
                 });
             }
-            Sentencer::Maxent { detector, .. } => {
+            Sentencer::Newline => {
                 let mut out = Vec::new();
-                detector.detect(text, &mut out);
-                out.into_iter().for_each(|(s, _)| {
+                newline_spans(text, &mut out);
+                out.into_iter().for_each(|s| {
+                    spans.push(s);
+                });
+            }
+            Sentencer::Sat { annotator } => {
+                let (token_spans, scores) = annotator
+                    .scores(&[text])
+                    .into_iter()
+                    .next()
+                    .ok_or("turbo:sat scored no text")?
+                    .map_err(|e| e.to_string())?;
+                let mut out = Vec::new();
+                annotator.sentences(text, &token_spans, &scores, &mut out);
+                out.into_iter().for_each(|s| {
                     spans.push(s);
                 });
             }
         }
-        spans
+        Ok(spans)
     }
 }
 
@@ -110,7 +143,7 @@ impl Analysis {
         }
         let mut doc = Document::new(text);
         let fail = |e: turbo_analysis::Error| e.to_string();
-        doc.add(&Key::DEFAULT, Sentences { spans: self.sentences.spans(text) }, Provenance::by("turbo-eval"))
+        doc.add(&Key::DEFAULT, Sentences { spans: self.sentences.spans(text)? }, Provenance::by("turbo-eval"))
             .map_err(fail)?;
         if let Some(syntax) = self.structure {
             let s: Structure = turbo_structure::detect(text, syntax, ViewId::SOURCE);
@@ -137,25 +170,41 @@ mod tests {
     use crate::embedder::stub::Stub;
 
     #[test]
-    fn the_maxent_model_splits_sentences_and_is_named_by_its_hash() {
-        let Some(path) = turbo_goldens::published_model("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin") else {
-            return;
+    fn the_rule_splitter_splits_sentences_and_is_named_by_its_configuration() {
+        let a = Analysis { sentences: Sentencer::rules("en"), structure: Some(Syntax::Plain) };
+        let text = "Dr. Smith arrived at 5 p.m. on Monday. Dogs bark at night.";
+        let doc = a.analyze(text, &Stub::new(&["dogs"])).unwrap();
+        let s: Vec<&str> = doc.get::<Sentences>().unwrap().spans.iter().map(|(_, s)| &text[s.range()]).collect();
+        assert_eq!(s, ["Dr. Smith arrived at 5 p.m. on Monday.", "Dogs bark at night."]);
+        assert!(doc.get::<Structure>().is_some());
+        let names = a.names();
+        let config = RuleSentenceDetector::new("en").config_hash();
+        assert_eq!(
+            names[0],
+            format!("turbo-sentdetect:rules en version {} config {config:016x}", RuleSentenceDetector::VERSION)
+        );
+        assert_ne!(names[0], Sentencer::rules("de").name());
+        assert_eq!(names[0], Sentencer::rules("en").name());
+        assert_eq!(names[1..], ["turbo:structure plain", "opennlp:subwords"]);
+    }
+
+    #[test]
+    fn the_sat_tier_splits_with_the_tiny_bundle_and_names_its_backend() {
+        let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-sat-bundle");
+        let a = Analysis {
+            sentences: Sentencer::sat(&bundle, &SatOptions::default()).unwrap(),
+            structure: Some(Syntax::Plain),
         };
-        let a = Analysis { sentences: Sentencer::maxent(&path).unwrap(), structure: Some(Syntax::Plain) };
         let text = "Cats purr all day. Dogs bark at night.";
         let doc = a.analyze(text, &Stub::new(&["cats"])).unwrap();
-        let s: Vec<&str> = doc.get::<Sentences>().unwrap().spans.iter().map(|(_, s)| &text[s.range()]).collect();
-        assert_eq!(s, ["Cats purr all day.", "Dogs bark at night."]);
-        assert!(doc.get::<Structure>().is_some());
-        // The SHA-256 of the file in analysis/sentdetect/tests/models/README.md.
+        let sentences = doc.get::<Sentences>().unwrap();
+        assert!(!sentences.spans.is_empty());
+        for (_, s) in sentences.spans.iter() {
+            assert!(s.start < s.end && s.end as usize <= text.len());
+            assert!(text.is_char_boundary(s.start as usize) && text.is_char_boundary(s.end as usize));
+        }
         let names = a.names();
-        let parity = "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 \
-                      4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8";
-        let inventory = turbo_sentdetect::AbbreviationInventory::english().config_hash();
-        assert_eq!(names[0], format!("{parity} abbreviations {inventory:016x}"));
-        let Sentencer::Maxent { detector, file, sha256 } = a.sentences else { unreachable!() };
-        let jvm = Sentencer::Maxent { detector: detector.with_jvm_parity(), file, sha256 };
-        assert_eq!(jvm.name(), parity);
-        assert_eq!(names[1..], ["turbo:structure plain", "opennlp:subwords"]);
+        assert!(names[0].contains("turboembed/tiny-sat"), "{}", names[0]);
+        assert!(names[0].contains("backend cpu"), "{}", names[0]);
     }
 }

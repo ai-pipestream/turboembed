@@ -3,7 +3,6 @@ use super::{ConlluDependencyReader, ConlluWordReader, Tagset};
 use crate::sample::dependency::{DependencySample, DependencyTree};
 use crate::source::Field;
 use turbo_analysis::{Span, ViewId};
-use turbo_unicode::WhitespaceMode;
 
 /// A CoNLL-U multi-word token, indexing syntactic words with a zero-based,
 /// half-open range. `form.span` addresses the original CoNLL-U source.
@@ -49,22 +48,19 @@ impl ConlluDependencySample {
     /// view, including the FORM fields of range rows. Callers mapping into a
     /// reconstructed text view can replace `view` and the view spans explicitly.
     /// Empty-node rows remain outside the basic dependency tree.
-    pub fn read_sentence(source: &str, tagset: Tagset, mode: WhitespaceMode, view: ViewId) -> Result<Self, String> {
+    pub fn read_sentence(source: &str, tagset: Tagset, view: ViewId) -> Result<Self, String> {
         if source.len() > u32::MAX as usize {
             return Err("source too long".into());
         }
-        let mut reader = ConlluDependencyReader::new(source, tagset, mode).map_err(|e| e.to_string())?;
+        let mut reader = ConlluDependencyReader::new(source, tagset).map_err(|e| e.to_string())?;
         let sample = reader.next().ok_or("no dependency sentence")?.map_err(|e| e.to_string())?;
         if reader.next().is_some() || !reader.skipped().is_empty() || !reader.node_id_issues().is_empty() {
             return Err("expected one valid dependency sentence".into());
         }
         let own = |f: &Field<'_>| Field::made(f.as_str().to_owned(), f.span);
-        let tree = DependencyTree::new(
-            sample.tree().heads().to_vec(),
-            sample.tree().relations().iter().map(own).collect(),
-            mode,
-        )
-        .map_err(|e| e.to_string())?;
+        let tree =
+            DependencyTree::new(sample.tree().heads().to_vec(), sample.tree().relations().iter().map(own).collect())
+                .map_err(|e| e.to_string())?;
         let word_spans = sample.tokens().iter().map(|f| f.span).collect();
         let owned = DependencySample::new(
             sample.tokens().iter().map(own).collect(),

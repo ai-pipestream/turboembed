@@ -190,3 +190,36 @@ fn an_openvino_ir_is_two_files_at_a_fixed_shape() {
     assert!(e.contains("DTYPE_F16 OpenVINO IR"), "{e}");
     fs::remove_dir_all(d).unwrap();
 }
+
+/// A checkpoint stored in BF16, which no backend computes in at MODEL
+/// precision, is written as F32 weights: the recipe's one conversion
+/// casts on its way from the upstream file, and no other dtype is made.
+#[test]
+fn weights_may_be_cast_to_f32_from_the_upstream_checkpoint() {
+    let path = root().join("bundle/recipes/granite-embedding-30m-english.json");
+    let r = Recipe::load(&path).unwrap();
+    let c = convert::conversions(&r).unwrap();
+    assert_eq!(
+        c,
+        vec![convert::Conversion {
+            name: "weights-f32".into(),
+            file: "weights/model.safetensors".into(),
+            file2: None,
+            from: String::new(),
+            from_file: "model.safetensors".into(),
+            from_upstream: true,
+            script: convert::BIN_TO_SAFETENSORS,
+            container: None,
+            inputs: vec![],
+            args: vec!["float32".to_owned()],
+        }]
+    );
+    let mut r: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    r["manifest"]["artifacts"][0]["produced_by"]["dtype"] = json!("DTYPE_F16");
+    let d = scratch("weights-cast");
+    let p = d.join("recipe.json");
+    fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
+    let e = Recipe::load(&p).map(|r| convert::conversions(&r).unwrap()).unwrap_err();
+    assert!(e.contains("DTYPE_F32, the one cast"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}

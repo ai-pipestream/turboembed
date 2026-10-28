@@ -1,0 +1,7 @@
+load_error	
+unsupported	2
+FOO	3
+BAR	6
+words	2
+cat	cat	cat	st:cat
+cats	cat	cat	st:cat fl:S

@@ -1,0 +1,95 @@
+load_error	
+unsupported	0
+words	92
+ház	ház	ház	st:ház po:noun ts:NOM al:házak
+házak	ház	ház	st:ház po:noun ts:PLUR ts:NOM
+házban	ház	ház	st:ház po:noun ts:NOM al:házak is:INE
+házakban	ház	ház	st:ház po:noun ts:PLUR ts:NOM is:PLUR is:INE
+házaiban	ház	ház	st:ház po:noun ts:PLUR ts:NOM is:PLUR is:POSS_SG_3 is:INE
+Ház	ház	ház	st:ház po:noun ts:NOM al:házak
+HÁZ	ház	ház	st:ház po:noun ts:NOM al:házak
+kert	kert	kert	st:kert po:noun ts:NOM
+kertek	kert	kert	st:kert po:noun ts:NOM is:PLUR is:NOM
+kertben	kert	kert	st:kert po:noun ts:NOM is:INE
+ajtó	ajtó	ajtó	st:ajtó po:noun ts:NOM al:ajtaj
+ajtók	ajtó	ajtó	st:ajtó po:noun ts:NOM al:ajtaj is:PLUR is:NOM
+ajtókat	ajtó	ajtó	st:ajtó po:noun ts:NOM al:ajtaj is:PLUR is:ACC
+almafa	almafa	almafa	st:almafa po:noun ts:NOM hy:4
+almafák	almafa	almafa	st:almafa po:noun ts:NOM hy:4 is:PLUR is:NOM
+almafákon	almafa	almafa	st:almafa po:noun ts:NOM hy:4 is:PLUR is:SUE
+kerékpár	kerékpár	kerékpár	st:kerékpár po:noun ts:NOM hy:5
+kerékpárút	kerékpárút	kerékpárútkerékpár	st:kerékpárút po:noun ts:NOM al:kerékpárutak hy:5st:kerékpár po:noun ts:NOM hy:5 is:jÚ_PROPERTY_adj ts:NOM is:ACC
+kerékpárutak	kerékpárút	kerékpárút	st:kerékpárút po:noun ts:PLUR ts:NOM hy:5
+e-mail	e-mail	e-mail	st:e-mail po:noun ts:NOM ph:í-mél
+e-mailek	e-mail	e-mail	st:e-mail po:noun ts:NOM ph:í-mél is:PLUR is:NOM
+Budapest	Budapest	Budapest	st:Budapest po:noun_prs ts:NOM hy:4
+budapesti	Budapest	Budapest	fl:" st:Budapest po:noun_prs ts:NOM hy:4 is:i_PLACE/TIME_adj ts:NOM
+BUDAPEST	Budapest	Budapest	st:Budapest po:noun_prs ts:NOM hy:4
+Budapesten	Budapest	Budapest	st:Budapest po:noun_prs ts:NOM hy:4 is:SUE
+legnagyobb	nagy	nagy	ip:leg_SUPERLATIVE_adj st:nagy po:adj is:bb_COMPARATIVE_adj ts:NOM
+legeslegnagyobb	nagy	nagy	ip:legesleg_SUPERLATIVE_adj st:nagy po:adj is:bb_COMPARATIVE_adj ts:NOM
+számítógép	számítógép	számítógép	st:számítógép po:noun ts:NOM hy:7
+számítógépes	számítógépes	számítógépes	st:számítógép po:noun ts:NOM hy:7 ds:s_OCCUPATION_noun ts:NOMst:számítógép po:noun ts:NOM hy:7 ds:s_ATTRIBUTE_adj ts:NOM
+számítógépek	számítógép	számítógép	st:számítógép po:noun ts:NOM hy:7 is:PLUR is:NOM
+országgyűlés	országgyűlés	országgyűlés	st:országgyűlés po:noun ts:NOM hy:or-szág|gyű-lés
+országgyűlési	országgyűlés	országgyűlés	st:országgyűlés po:noun ts:NOM hy:or-szág|gyű-lés is:i_PLACE/TIME_adj ts:NOM
+tűzoltó	tűzoltó	tűzoltó	st:tűzoltó po:noun ts:NOM hy:3
+tűzoltók	tűzoltó	tűzoltó	st:tűzoltó po:noun ts:NOM hy:3 is:PLUR is:NOM
+ötvenhét	ötvenhét	ötvenhéthét	st:ötvenhét po:adj_num ts:NOM al:ötvenheten al:ötvenhetek al:ötvenhetedik hy:5po:adj_num pa:ötven st:hét po:noun ts:NOM al:nagyheti al:heti al:heten al:hetek al:hetediki al:hetedike al:hetedik al:heted al:hete al:hetek al:hetek al:hete al:hetek al:hetedpo:adj_num pa:ötven st:hét po:adj_num ts:NOM al:nagyheti al:heti al:heten al:hetek al:hetediki al:hetedike al:hetedik al:heted al:hete al:hetek al:hetek al:hete al:hetek al:heted
+huszonegy	huszonegy	huszonegyegy	st:huszonegy po:adj_num ts:NOM al:huszonegyen al:huszonegyediki al:huszonegyedike al:huszonegyedik hy:6po:adj_num pa:huszon st:egy po:adj_num ts:NOM al:első al:elseji al:elseje al:egyen al:egyedik al:egyed
+kétezer-huszonöt	kétezer	kétezerhuszonötöt	pa:kétezer st:kétezer po:adj_num ts:NOM al:kétezres al:kétezren al:kétezrek al:kétezredik al:kétezred al:egyezredik al:egyezred hy:3 pa:huszonöt st:huszonöt po:adj_num ts:NOM al:huszonötödiki al:huszonötödike al:huszonötödik al:huszonöten hy:6pa:kétezer st:kétezer po:adj_num ts:NOM al:kétezres al:kétezren al:kétezrek al:kétezredik al:kétezred al:egyezredik al:egyezred hy:3 pa:huszonöt po:adj_num pa:huszon st:öt po:adj_num ts:NOM al:ötük al:ötödiki al:ötödike al:ötödik al:ötöd al:öten al:ötöd
+Kossuth-díj	Kossuth	Kossuthdíj	pa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díj st:díj po:noun ts:NOM al:díjak
+Kossuth-díjas	Kossuth	Kossuthdíjas	pa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díjas st:díjas po:adj ts:NOMpa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díjas st:díj po:noun ts:PLUR ts:NOM ds:s_OCCUPATION_noun ts:NOMpa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díjas st:díj po:noun ts:PLUR ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+MTA-tag	MTA	MTAtag	pa:MTA st:MTA po:abr ts:NOM al:MTA-vá al:MTA-val al:MTA-s al:MTA-i al:MTA- pa:tag st:tag po:noun ts:NOM
+MTA-tagok	MTA	MTAtag	pa:MTA st:MTA po:abr ts:NOM al:MTA-vá al:MTA-val al:MTA-s al:MTA-i al:MTA- pa:tagok st:tag po:noun ts:NOM is:PLUR is:NOM
+bor-szőlő	bor	borszőlő	pa:bor st:bor po:noun ts:NOM pa:szőlő st:szőlő po:noun ts:NOM al:szőlej al:szől
+szép	szép	szép	st:szép po:adj ts:NOM al:szépen al:szebbik al:szebben al:szebb
+szebb	szép	szép	st:szép po:adj is:bb_COMPARATIVE_adj ts:NOM
+legszebb	szép	szép	ip:leg_SUPERLATIVE_adj st:szép po:adj is:bb_COMPARATIVE_adj ts:NOM
+megy	megy	megy	st:megy po:vrb is:PRES_INDIC_INDEF_SG_3 al:menés al:megyen al:mész al:mégy al:menvén al:menve al:mentünk al:mentél al:mentetek al:mentem al:mentek al:mentek al:ment al:mennünk al:mennétek al:mennénk al:mennének al:mennél al:mennék al:menniük al:menniök al:mennie al:menni al:mennetek al:mennem al:mennek al:menned al:menne al:menjünk al:menjél al:menjetek al:menjenek al:menjen al:menjek al:menj al:mehet al:megyünk al:megyek al:menő al:ment
+ment	megy	megyment	st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentetst:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentetst:megy po:vrb ds:tt_PASTPART_adj ts:NOM al:mentetst:ment po:adj ts:NOM al:mentet
+menni	megy	megy	st:megy po:vrb is:ni_INFINITIVE_inf
+jön	jön	jön	st:jön po:vrb is:PRES_INDIC_INDEF_SG_3 al:jövünk al:jövök al:jövés al:jöve al:jöttünk al:jöttünk al:jöttük al:jöttötök al:jöttöm al:jöttök al:jöttöd al:jöttél al:jöttetek al:jöttem al:jöttek al:jötte al:jött al:jössz al:jönnünk al:jönnötök al:jönnöm al:jönnöd al:jönnétek al:jönnénk al:jönnének al:jönnél al:jönnék al:jönniük al:jönniök al:jönnie al:jönni al:jönnek al:jönne al:jöjjünk al:jöjjön al:jöjjél al:jöjjetek al:jöjjenek al:jöjjek al:jöjj al:jővén al:jőve al:jőni al:jőnek al:jő al:gyerünk al:gyertek al:gyere al:jöhet al:jövő al:jött al:İzmiri
+jött	jön	jönjött	st:jön po:vrb is:PAST_INDIC_INDEF_SG_3st:jön po:vrb ds:tt_PASTPART_adj ts:NOMst:jött po:adj ts:NOM
+jönni	jön	jön	st:jön po:vrb is:ni_INFINITIVE_inf
+van	van	van	st:van po:vrb is:PRES_INDIC_INDEF_SG_3 al:levés al:lehetőség al:lehetetlenség al:voltál al:voltunk al:voltatok al:voltam al:voltak al:volt al:volnék al:volnátok al:volnánk al:volnának al:volnál al:volna al:vannak al:vagyunk al:vagytok al:vagyok al:vagy al:odalehet al:meglehet al:leszünk al:lesztek al:lesznek al:leszel al:leszek al:lesz al:lennünk al:lennétek al:lennénk al:lennének al:lennél al:lennék al:lenniük al:lenniök al:lennie al:lenni al:lennetek al:lennem al:lenned al:lenne al:lehet al:legyünk al:legyél al:legyetek al:legyenek al:legyen al:legyek al:kilehet al:hátralehet al:ellehet al:lévő al:levő al:lehető al:lehetetlen al:İzmiri
+volt	volt	voltvan	st:volt po:noun ts:NOMst:van po:vrb is:PAST_INDIC_INDEF_SG_3st:volt po:adj ts:NOM
+lesz	van	van	st:van po:vrb is:FUTURE_INDIC_INDEF_SG_3 al:lettünk al:lettél al:lettetek al:lettem al:lettek al:lett
+és	és	és	st:és po:con
+vagy	van	vanvagy	st:van po:vrb is:PRES_INDIC_INDEF_SG_2st:vagy po:con
+hogy	hogy	hogy	st:hogy po:advst:hogy po:con
+nem	nem	nem	st:nem po:noun ts:NOMst:nem po:neg
+magyar	magyar	magyar	st:magyar po:noun ts:NOMst:magyar
+magyarul	magyar	magyar	st:magyar po:noun ts:NOM is:ESS
+Magyarország	Magyarország	Magyarország	st:Magyarország po:noun_prs ts:NOM hy:6
+magyarországi	Magyarország	Magyarország	fl:" st:Magyarország po:noun_prs ts:NOM hy:6 is:i_PLACE/TIME_adj ts:NOM
+egészségügyi	egészségügyi	egészségügyiegészségügy	st:egészségügyi po:adj ts:NOM hy:8st:egészségügy po:noun ts:NOM hy:8 is:i_PLACE/TIME_adj ts:NOM
+egészségügy	egészségügy	egészségügy	st:egészségügy po:noun ts:NOM hy:8
+kormány	kormány	kormány	st:kormány po:noun ts:NOM
+kormányzat	kormányzat	kormányzat	st:kormányzat po:noun ts:NOM
+kormányfő	kormányfő	kormányfő	st:kormányfő po:noun ts:NOM hy:7
+miniszterelnök	miniszterelnök	miniszterelnök	st:miniszterelnök po:noun ts:NOM hy:9
+miniszterelnökség	miniszter	miniszterelnökség	pa:miniszter st:miniszter po:noun ts:NOM pa:elnökség st:elnökség po:noun ts:NOM
+rendőr	rendőr	rendőr	st:rendőr po:noun ts:NOM hy:4
+rendőrség	rendőrség	rendőrség	st:rendőrség po:noun ts:NOM hy:4
+rendőrségi	rendőrség	rendőrség	st:rendőrség po:noun ts:NOM hy:4 is:i_PLACE/TIME_adj ts:NOM
+vasútállomás	vasútállomás	vasútállomás	st:vasútállomás po:noun ts:NOM hy:vas|út||állomás
+vasútállomások	vasútállomás	vasútállomás	st:vasútállomás po:noun ts:NOM hy:vas|út||állomás is:PLUR is:NOM
+pályaudvar	pályaudvar	pályaudvar	st:pályaudvar po:noun ts:NOM hy:5
+fővárosi	fővárosi	fővárosifőváros	st:fővárosi po:adj ts:NOM hy:2st:főváros po:noun ts:NOM hy:2 is:i_PLACE/TIME_adj ts:NOM
+főváros	főváros	főváros	st:főváros po:noun ts:NOM hy:2
+Duna-part	Duna-part	Duna-part	st:Duna-part po:noun_prs ts:NOM
+Balaton-felvidék	Balaton-felvidék	Balaton-felvidék	st:Balaton-felvidék po:noun_prs ts:NOM hy:Balaton-fel|vidék
+almáspite	almáspite	almáspite	
+szilvás	szilvás	szilvás	st:szilva po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOMst:szilva po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+körte	körte	körte	st:körte po:noun ts:NOM
+körtefa	körtefa	körtefa	st:körtefa po:noun ts:NOM hy:5
+körtefák	körtefa	körtefa	st:körtefa po:noun ts:NOM hy:5 is:PLUR is:NOM
+tehenek	tehén	tehén	st:tehén po:noun ts:PLUR ts:NOM
+tehén	tehén	tehén	st:tehén po:noun ts:NOM al:tehenek
+lovak	ló	ló	st:ló po:noun ts:PLUR ts:NOM
+ló	ló	ló	st:ló po:noun ts:NOM al:lovak
+kutyák	kutya	kutya	st:kutya po:noun ts:NOM is:PLUR is:NOM
+kutya	kutya	kutya	st:kutya po:noun ts:NOM
+macskák	macska	macska	st:macska po:noun ts:NOM is:PLUR is:NOM
+macska	macska	macska	st:macska po:noun ts:NOM

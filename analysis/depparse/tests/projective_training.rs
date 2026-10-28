@@ -3,7 +3,6 @@ use turbo_analysis_layers::Words;
 use turbo_depparse::*;
 use turbo_formats::conllu::{ConlluDependencySample, Tagset};
 use turbo_train::TrainingParameters;
-use turbo_unicode::WhitespaceMode;
 
 #[test]
 fn plain_training_rejects_crossing_trees_and_default_training_keeps_them() {
@@ -11,7 +10,6 @@ fn plain_training_rejects_crossing_trees_and_default_training_keeps_them() {
         ConlluDependencySample::read_sentence(
             include_str!("data/ud-en-nonprojective.conllu"),
             Tagset::U,
-            WhitespaceMode::Unicode,
             ViewId::SOURCE,
         )
         .unwrap(),

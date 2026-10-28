@@ -6,10 +6,14 @@
 mod heads;
 mod place;
 mod roles;
+mod rotary;
 
 pub use heads::{classifier_tensors, mlm_tensors, projection_tensors};
 pub use roles::{
     BERT_EMBEDDING_ROLES, BERT_LAYER_ROLES, DEBERTA_EMBEDDING_ROLES, Expected, bert_tensors, embedding_tensors,
+};
+pub use rotary::{
+    MODERNBERT_EMBEDDING_ROLES, MODERNBERT_LAYER_ROLES, NOMIC_EMBEDDING_ROLES, NOMIC_LAYER_ROLES, absent,
 };
 
 use std::ffi::c_void;
@@ -17,8 +21,8 @@ use std::ffi::c_void;
 use serde::Serialize;
 
 use crate::backend::{
-    TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC, TURBO_STATIC_TENSORS,
-    format_bit, turbo_backend_model, turbo_backend_tensor,
+    TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT, TURBO_FAMILY_ROBERTA,
+    TURBO_FAMILY_STATIC, TURBO_STATIC_TENSORS, format_bit, turbo_backend_model, turbo_backend_tensor,
 };
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
@@ -28,6 +32,7 @@ use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Resul
 
 use place::place_static;
 pub(crate) use place::{Placed, place};
+use rotary::Rotary;
 
 /// The manifest's name for an enum value, as it is written there.
 fn enum_name(v: impl Serialize) -> String {
@@ -116,8 +121,20 @@ pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
 
 /// Whether the backend named `backend` holds a model of TURBO_FAMILY_*
 /// `family`: only the CPU, CUDA, Level Zero and Metal have a DeBERTa-v2
-/// encoder so far, and any other would refuse the family at model_load.
+/// encoder so far, and only the CPU and Metal a ModernBERT or nomic-bert
+/// one; any other would refuse the family at model_load.
 pub fn runs_family(backend: &str, family: u32) -> Result<()> {
+    // Only the CPU and Metal have a rotary encoder so far (#1461).
+    if matches!(family, TURBO_FAMILY_MODERNBERT | TURBO_FAMILY_NOMIC_BERT) {
+        if matches!(backend, "cpu" | "metal") {
+            return Ok(());
+        }
+        let name = if family == TURBO_FAMILY_MODERNBERT { "FAMILY_MODERNBERT" } else { "FAMILY_NOMIC_BERT" };
+        return Err(Error::new(
+            UNSUPPORTED,
+            format!("{name}: the {backend} backend has no encoder for it yet; use cpu or metal"),
+        ));
+    }
     if family != TURBO_FAMILY_DEBERTA_V2 || matches!(backend, "cpu" | "cuda" | "levelzero" | "metal") {
         return Ok(());
     }
@@ -137,9 +154,15 @@ fn family(a: &Architecture) -> u32 {
         (Family::Bert, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_BERT,
         (Family::Roberta, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_ROBERTA,
         (Family::DebertaV2, Activation::GeluErf, PositionEmbedding::Relative) => TURBO_FAMILY_DEBERTA_V2,
-        (Family::Bert | Family::Roberta, _, PositionEmbedding::Relative)
-        | (Family::DebertaV2, _, PositionEmbedding::Absolute) => {
-            unreachable!("validate_positions pairs each family with its position embedding")
+        (Family::Modernbert, Activation::GeluErf, PositionEmbedding::Rotary) => TURBO_FAMILY_MODERNBERT,
+        (Family::NomicBert, Activation::Silu, PositionEmbedding::Rotary) => TURBO_FAMILY_NOMIC_BERT,
+        (Family::Bert | Family::Roberta | Family::DebertaV2, Activation::Silu, _)
+        | (Family::Bert | Family::Roberta, _, PositionEmbedding::Relative | PositionEmbedding::Rotary)
+        | (Family::DebertaV2, _, PositionEmbedding::Absolute | PositionEmbedding::Rotary)
+        | (Family::Modernbert, Activation::Silu, _)
+        | (Family::NomicBert, Activation::GeluErf, _)
+        | (Family::Modernbert | Family::NomicBert, _, PositionEmbedding::Absolute | PositionEmbedding::Relative) => {
+            unreachable!("validate_positions pairs each family with its activation and position embedding")
         }
     }
 }
@@ -174,6 +197,8 @@ pub struct Weights {
     artifact2: Option<AlignedBytes>,
     /// The manifest's SHA-256 of those two files, zero where absent.
     digests: [[u8; 32]; 2],
+    /// A rotary family's fields and cos/sin table; None for every other.
+    rotary: Option<Rotary>,
     /// TURBO_FORMAT_*, TURBO_INPUT_*, TURBO_OUTPUT_*, TURBO_DTYPE_* or 0,
     /// fixed_seq and fixed_batch, as the manifest gives the artifact.
     shape: [u32; 6],
@@ -211,6 +236,7 @@ impl Weights {
                 artifact: None,
                 artifact2: None,
                 digests: [[0; 32]; 2],
+                rotary: None,
                 shape: [art.format.value(), art.graph_input.value(), art.graph_output.value(), 0, 0, 0],
             });
         }
@@ -254,6 +280,11 @@ impl Weights {
                 let files = ta.files.iter().map(|f| bundle.read_verified_aligned(f)).collect::<Result<Vec<_>>>()?;
                 let (mut tensors, dtype) = place(ta, &files, &expected)?;
                 tensors.truncate(encoder_len);
+                let mut tensors: Vec<Option<Placed>> = tensors.into_iter().map(Some).collect();
+                if let Some(slot) = absent(a.family).filter(|_| t == index) {
+                    rotary::check_absent(ta, &files, a)?;
+                    tensors.insert(slot, None);
+                }
                 (files, tensors, dtype)
             }
             None => (Vec::new(), Vec::new(), 0),
@@ -269,7 +300,7 @@ impl Weights {
         }
         Ok(Weights {
             files,
-            tensors: tensors.into_iter().map(Some).collect(),
+            tensors,
             dtype,
             family: family(a),
             arch: [a.layers, a.hidden, a.heads, a.intermediate, a.vocab_size, a.max_positions, a.token_types],
@@ -286,6 +317,7 @@ impl Weights {
             },
             artifact,
             artifact2,
+            rotary: Rotary::of(a)?,
             shape: [
                 art.format.value(),
                 art.graph_input.value(),
@@ -339,7 +371,7 @@ impl Weights {
             Some(a) => (a.as_ptr() as *const c_void, a.len() as u64),
             None => (std::ptr::null(), 0),
         };
-        turbo_backend_model {
+        let mut d = turbo_backend_model {
             struct_size: size_of::<turbo_backend_model>() as u32,
             family: self.family,
             dtype: self.dtype,
@@ -371,7 +403,20 @@ impl Weights {
             max_relative_positions: self.relative[1],
             artifact_sha256: self.digests[0],
             artifact2_sha256: self.digests[1],
+            rope_global_theta: 0.0,
+            rope_local_theta: 0.0,
+            rope_table: std::ptr::null(),
+            rope_pairs: 0,
+            mlp: 0,
+            activation: 0,
+            norm: 0,
+            attention_window: 0,
+            global_every: 0,
+        };
+        if let Some(r) = &self.rotary {
+            r.describe(&mut d);
         }
+        d
     }
 
     /// The dtype turbo_model_info reports: the compute dtype the
@@ -416,58 +461,4 @@ impl Weights {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use super::*;
-
-    #[test]
-    fn weights_load_rejects_out_of_bounds_artifact_index() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
-        let bundle = Bundle::open(&dir).expect("tiny-bert-bundle opens");
-        let err = match Weights::load(&bundle, bundle.manifest.artifacts.len()) {
-            Ok(_) => panic!("out-of-bounds artifact index must fail"),
-            Err(e) => e,
-        };
-        assert_eq!(err.code, INVALID_ARGUMENT);
-    }
-
-    #[test]
-    fn only_the_cpu_runs_a_banded_model() {
-        assert!(runs_band("cpu", 16).is_ok());
-        for b in ["cuda", "metal", "levelzero", "npu", "hailo"] {
-            assert!(runs_band(b, 0).is_ok());
-            let e = runs_band(b, 16).err().unwrap();
-            assert_eq!(e.code, UNSUPPORTED);
-            assert!(
-                e.message.contains(&format!("the {b} backend has no limited-lookahead attention")),
-                "{}",
-                e.message
-            );
-        }
-    }
-
-    #[test]
-    fn only_the_cpu_cuda_levelzero_and_metal_run_a_deberta_model() {
-        for b in ["cpu", "cuda", "levelzero", "metal"] {
-            assert!(runs_family(b, TURBO_FAMILY_DEBERTA_V2).is_ok());
-        }
-        for b in ["npu", "hailo"] {
-            assert!(runs_family(b, crate::backend::TURBO_FAMILY_BERT).is_ok());
-            let e = runs_family(b, TURBO_FAMILY_DEBERTA_V2).err().unwrap();
-            assert_eq!(e.code, UNSUPPORTED);
-            assert!(e.message.contains(&format!("the {b} backend has no DeBERTa-v2 encoder")), "{}", e.message);
-        }
-    }
-
-    /// A backend keys on the digest the manifest recorded, so it must be
-    /// the bytes sha256sum prints, and never a partial parse.
-    #[test]
-    fn a_manifest_digest_is_its_bytes_or_all_zero() {
-        let hex = turbo_sha256::sha256(b"weights").to_hex();
-        assert_eq!(digest(&hex), turbo_sha256::sha256(b"weights").0);
-        for bad in ["", &hex[..62], &hex.to_uppercase(), &format!("{}zz", &hex[..62])] {
-            assert_eq!(digest(bad), [0; 32], "{bad:?}");
-        }
-    }
-}
+mod tests;

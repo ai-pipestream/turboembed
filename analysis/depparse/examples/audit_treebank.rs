@@ -3,7 +3,6 @@ use turbo_analysis::ViewId;
 use turbo_analysis_layers::Words;
 use turbo_depparse::{ArcStandardState, DependencySample, SwapOracle, Transition};
 use turbo_formats::conllu::{ConlluDependencySample, Tagset, words::ConlluWordReader};
-use turbo_unicode::WhitespaceMode;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     for path in std::env::args().skip(1) {
         let input = std::fs::read_to_string(&path)?;
@@ -15,7 +14,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let sample = DependencySample::<Words>::from_conllu(ConlluDependencySample::read_sentence(
                 &input[span.start as usize..span.end as usize],
                 Tagset::U,
-                WhitespaceMode::Unicode,
                 ViewId::SOURCE,
             )?)?;
             sentences += 1;
