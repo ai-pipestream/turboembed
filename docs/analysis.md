@@ -62,11 +62,11 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-stopword` | `analysis/stopword/` | Multilingual stopword lists across 11 languages and `StopwordAnnotator` writing `Stopwords` (`turbo:stopwords`) |
 | `turbo-glossary` | `analysis/glossary/` | CSV and TBX 2/3 glossary readers, Aho-Corasick character matcher, zero-copy double-array `MappedGlossaryMatcher`, and token/stem matcher writing `GlossaryTerms` (`turbo:glossary-terms`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | Byte-level, SentencePiece, and word-bounded BPE vocabulary trainers ([bpe-trainer.md](bpe-trainer.md)) |
-| `turbo-zoo` | `analysis/zoo/` | Signed model manifest registry (`zoo.toml`), SHA-256 verification, license-tier gating (`Permissive` vs `AcceptFirst`), and atomic cache layout ([zoo.md](zoo.md)) |
+| `turbo-zoo` | `analysis/zoo/` | JSON model and lexicon catalog (`analysis/zoo/index/zoo.json`) with artifact byte-length, SHA-256, and SHA-512 content-digest verification, license-tier gating (`Permissive` vs `AcceptFirst`), and atomic cache layout ([zoo.md](zoo.md)) |
 
 ## Document, views, and alignments (`analysis/core/src/doc/mod.rs`)
 
-A `Document` owns the source UTF-8 text (`View::ORIGINAL`, key `Key::DEFAULT`)
+A `Document` owns the source UTF-8 text (`ViewId::SOURCE`, key `Key::DEFAULT`)
 and a typed map of named views and columnar layers.
 
 ### Derived views and `ViewBuilder`
@@ -77,7 +77,7 @@ writes into a `ViewBuilder` (`analysis/core/src/doc/view.rs`), recording each
 inserted, deleted, or replaced span as an edit run. The resulting `View`
 carries an `Alignment` table that maps UTF-8 byte offsets and half-open spans
 bidirectionally between the derived view and its parent view (and transitively
-back to `View::ORIGINAL`) in $O(\log E)$ time over $E$ edit runs.
+back to `ViewId::SOURCE`) in $O(\log E)$ time over $E$ edit runs.
 
 Every character boundary in a derived view maps cleanly to the source character
 span it came from, so downstream annotators can run on normalized or masked
@@ -115,17 +115,16 @@ Every analysis output implements `Layer` (`analysis/core/src/layer.rs`):
 
 ## Annotators, pipelines, and registry (`analysis/core/src/annotate.rs`)
 
-An annotator implements `Annotator` with typed `In` (`Inputs`) and `Out`
-(`Outputs`) tuples:
+An annotator implements `Annotator` with typed `Reads` and `Writes` tuples:
 
 ```rust
 use turbo_analysis::{Analyzer, Document};
 use turbo_sentdetect::RuleSentenceDetector;
-use turbo_tokenize::Uax29Tokenizer;
+use turbo_tokenize::WordTokenizer;
 
 let analyzer = Analyzer::builder()
-    .add(RuleSentenceDetector::english())
-    .add(Uax29Tokenizer::new())
+    .add(RuleSentenceDetector::new("en"))
+    .add(WordTokenizer::new())
     .build()?;
 
 let mut docs = vec![Document::new("Dr. Smith arrived at 5 p.m. He brought two samples.")];
@@ -136,7 +135,7 @@ for res in analyzer.run(&mut docs) {
 
 When `Analyzer::builder().build()` constructs a pipeline, it verifies that
 every required input key `(LayerName, instance_name)` is produced by an earlier
-step (or is the initial `View::ORIGINAL`), rejecting missing dependencies with
+step (or is the initial `ViewId::SOURCE`), rejecting missing dependencies with
 a typed error before any document is processed. Named layer and view instances
 (`Key::<Entities>::named("pii")`, `Key::<View>::named("normalized")`) allow
 multiple recognizers or views of the same Rust type to coexist in one

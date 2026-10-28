@@ -1,7 +1,7 @@
 # Sentence and token segmentation (`turbo-sentdetect`, `turbo-sat`, `turbo-tokenize`)
 
 Sentence segmentation and tokenization turn a `View` into the `Sentences`
-(`turbo:sentences`) and `Tokens` (`turbo:tokens`) layers in
+(`opennlp:sentences`) and `Tokens` (`opennlp:tokens`) layers in
 `turbo-analysis-layers`. All offsets are UTF-8 byte offsets on character
 boundaries into the view they annotate.
 
@@ -45,19 +45,19 @@ For unpunctuated, ASR, or noisy conversational text where punctuation rules
 under-segment, `SatSentenceDetector` (`analysis/sat/src/lib.rs`) runs a
 12-layer XLM-RoBERTa token-classification encoder with a LoRA adapter to score
 each token's sentence-boundary probability and emits `Sentences`
-(`turbo:sentences`) with per-sentence confidence scores (`SatConfidence`).
+(`opennlp:sentences`) with per-sentence confidence scores (`SatConfidence`).
 
 ## Tokenization (`turbo-tokenize`)
 
 `turbo-tokenize` (`analysis/tokenize/`) segments a `View` (or each sentence in
-`Sentences`) into `Tokens` (`turbo:tokens`), and optionally writes
+`Sentences`) into `Tokens` (`opennlp:tokens`), and optionally writes
 morphological readings into `TokenReadings` (`turbo:token-readings`):
 
 | Tokenizer | Module | Description |
 |---|---|---|
 | `WhitespaceTokenizer` | `analysis/tokenize/src/whitespace.rs` | Splits on Unicode `White_Space` runs |
 | `SimpleTokenizer` | `analysis/tokenize/src/simple.rs` | Splits on transitions between alphabetic, numeric, whitespace, and punctuation character classes |
-| `Uax29Tokenizer` | `analysis/tokenize/src/uax29/mod.rs` | Unicode Standard Annex #29 word-boundary segmenter with `WordType` classification |
+| `WordTokenizer` / `UntypedWordTokenizer` | `analysis/tokenize/src/uax29/mod.rs` | Unicode Standard Annex #29 word-boundary segmenter with `WordType` classification |
 | `TokenizerME` | `analysis/tokenize/src/me/mod.rs` | Maximum-entropy boundary classifier inside whitespace-delimited tokens with an alphanumeric skip optimization |
 | `UnigramTokenizer` | `analysis/tokenize/src/unigram/mod.rs` | Dictionary-plus-Viterbi unigram word segmenter with out-of-vocabulary character HMM for Chinese (`cmn`) |
 | `LatticeTokenizer` | `analysis/tokenize/src/lattice/mod.rs` | Double-array trie + connection-cost matrix Viterbi morphological tokenizer for Japanese (`jpn`), emitting `Tokens` and `TokenReadings` |

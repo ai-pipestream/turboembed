@@ -3,14 +3,20 @@
 
 use std::path::Path;
 
-/// Single allowlist of `docs/` and `README.md` paths or directory prefixes
-/// permitted to mention `opennlp`, paired with the reason for each entry.
+/// Single allowlist of exact `docs/` and `README.md` file paths permitted to
+/// mention `opennlp`, paired with the reason for each entry. Directory prefixes
+/// are not permitted so newly added files under `docs/receipts/` or
+/// `docs/beyond-opennlp/` are still checked.
 pub const ALLOWLIST: &[(&str, &str)] = &[
     ("docs/licences.md", "Upstream Apache-2.0 and corpus licence attributions"),
     ("docs/reference-inventory.md", "Pinned reference inventory table"),
     ("docs/analysis-features.md", "Feature checklist mapping table (#1536)"),
-    ("docs/beyond-opennlp/", "External library survey notes"),
-    ("docs/receipts/", "Historical benchmark and parity receipts"),
+    ("docs/beyond-opennlp/other-languages.md", "External library survey notes"),
+    ("docs/beyond-opennlp/rust-crates.md", "External Rust crate survey notes"),
+    ("docs/receipts/crf-726/README.md", "Historical CRF #726 benchmark receipt"),
+    ("docs/receipts/masc-427-v2/README.md", "Historical MASC #427 benchmark receipt"),
+    ("docs/receipts/progressive-snapshot-adoption-1249.md", "Historical progressive snapshot #1249 receipt"),
+    ("docs/receipts/unigram-984/README.md", "Historical unigram #984 benchmark receipt"),
     ("analysis/depparse/tests/apache/README.md", "Apache-2.0 dependency fixture attribution"),
     ("analysis/depparse/tests/data/README.md", "Dependency test corpus attribution"),
     ("analysis/depparse/tests/feedforward/data/README.md", "Feedforward dependency fixture attribution"),
@@ -34,13 +40,22 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ("analysis/train-components/README.md", "Legacy train-components crate slated for removal under #1530"),
 ];
 
+/// Wire protocol and layer identifiers in source code that currently carry an
+/// `opennlp` prefix and may be cited in backticks in contract documentation.
+const WIRE_IDENTIFIERS: &[&str] =
+    &["`opennlp:sentences`", "`opennlp:tokens`", "`opennlp:subwords`", "`opennlp-dictionary-xml`"];
+
 fn is_allowlisted(rel: &str) -> bool {
-    ALLOWLIST.iter().any(|&(entry, _)| if entry.ends_with('/') { rel.starts_with(entry) } else { rel == entry })
+    ALLOWLIST.iter().any(|&(entry, _)| rel == entry)
 }
 
 fn contains_opennlp(bytes: &[u8]) -> bool {
+    let mut text = String::from_utf8_lossy(bytes).into_owned();
+    for &wire_id in WIRE_IDENTIFIERS {
+        text = text.replace(wire_id, "");
+    }
     const NEEDLE: &[u8; 7] = b"opennlp";
-    bytes.windows(NEEDLE.len()).any(|w| w.eq_ignore_ascii_case(NEEDLE))
+    text.as_bytes().windows(NEEDLE.len()).any(|w| w.eq_ignore_ascii_case(NEEDLE))
 }
 
 fn collect_candidates(root: &Path, dir: &Path, out: &mut Vec<String>) {
@@ -55,6 +70,7 @@ fn collect_candidates(root: &Path, dir: &Path, out: &mut Vec<String>) {
             }
             collect_candidates(root, &path, out);
         } else if path.is_file()
+            && rel_str.ends_with(".md")
             && (rel_str.starts_with("docs/") || rel_str == "README.md" || rel_str.ends_with("/README.md"))
         {
             out.push(rel_str);
@@ -85,6 +101,7 @@ pub fn violations(root: &Path) -> (usize, Vec<String>) {
 fn allowlist_entries_all_carry_a_non_empty_reason() {
     for &(entry, reason) in ALLOWLIST {
         assert!(!entry.trim().is_empty(), "empty allowlist path entry");
+        assert!(!entry.ends_with('/'), "directory prefix {entry} is not permitted in ALLOWLIST");
         assert!(!reason.trim().is_empty(), "allowlist entry {entry} has no reason");
     }
 }
@@ -104,11 +121,12 @@ fn docs_and_readmes_have_no_unlisted_opennlp_mentions() {
 #[test]
 fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
     let dir = crate::common::scratch("opennlp-mentions");
-    std::fs::create_dir_all(dir.join("docs")).unwrap();
+    std::fs::create_dir_all(dir.join("docs/receipts")).unwrap();
     std::fs::create_dir_all(dir.join("analysis/sample")).unwrap();
     std::fs::write(dir.join("README.md"), "# Workspace\nClean root README.\n").unwrap();
     std::fs::write(dir.join("docs/licences.md"), "Apache OpenNLP attribution is allowlisted.\n").unwrap();
-    std::fs::write(dir.join("docs/guide.md"), "Pure Rust guide with no external parity claim.\n").unwrap();
+    std::fs::write(dir.join("docs/guide.md"), "Wire contract layer `opennlp:tokens` is permitted.\n").unwrap();
+    std::fs::write(dir.join("docs/receipts/new-api.md"), "Unlisted OpenNLP compatibility claim.\n").unwrap();
     std::fs::write(
         dir.join("analysis/sample/README.md"),
         "This fixture mentions OpenNLP without being on the allowlist.\n",
@@ -116,6 +134,6 @@ fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
     .unwrap();
 
     let (seen, found) = violations(&dir);
-    assert_eq!(seen, 4);
-    assert_eq!(found, vec!["analysis/sample/README.md".to_owned()]);
+    assert_eq!(seen, 5);
+    assert_eq!(found, vec!["analysis/sample/README.md".to_owned(), "docs/receipts/new-api.md".to_owned()]);
 }

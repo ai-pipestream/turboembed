@@ -8,9 +8,11 @@ the lexicon, rule, and vector-head sentiment suite described in
 
 ## Architecture and module layout
 
-The default build of `turbo-doccat` does not depend on `turbo-maxent`. It is
-organized around typed layers in `turbo-analysis-layers` and
-backend-agnostic scorer traits:
+`turbo_doccat::scorers` has no direct imports of classical linear-model types
+(`turbo-maxent` remains an optional direct dependency behind `classical` and a
+transitive dependency via `turbo-formats`, `turbo-sequence`, and `turbo-train`
+pending the deletion work in `#1532`). The crate is organized around typed
+layers in `turbo-analysis-layers` and backend-agnostic scorer traits:
 
 - **Shared category layer (`Categories`, `SpanCategorizable`)**:
   `Categories` (`turbo:categories`) stores the ranked category distribution for
@@ -22,7 +24,8 @@ backend-agnostic scorer traits:
   `AspectCategoryScorer` decouple rule and lexicon annotators from the neural
   embedding heads in `turbo-analysis-embed`, and re-export the sentiment and
   pragmatics layer types (`Opinions`, `Aspects`, `EmotionLayer`, `Incivility`,
-  `Pragmatics`) without pulling in classical linear-model dependencies.
+  `Pragmatics`) with no direct imports of `SentimentModel`, `SentimentMe`, or
+  `turbo-maxent`.
 - **Multi-label linear categorization (`turbo_doccat::multilabel`)**:
   one-vs-rest linear heads (`MultiLabelDoccatModel`, `MultiLabelCategorizer`,
   `MultiLabelSpanCategorizer`) with per-label threshold calibration
@@ -41,8 +44,10 @@ backend-agnostic scorer traits:
   `selection`, `calibrated`)**:
   `BagOfWordsFeatureGenerator`, `NGramFeatureGenerator`,
   `EmojiFeatureGenerator`, chi-square and mutual-information feature selection
-  (`FeatureSelection`), and post-hoc probability calibration
-  (`TemperatureScaling`, `IsotonicCalibration`, `CalibratedCategorizer`).
+  (`SelectionMetric::Chi2`, `SelectionMetric::MutualInformation`), and post-hoc
+  probability calibration (`CalibratedCategorizer` over
+  `turbo_calibration::Transform::{Temperature, Isotonic}` and
+  `turbo_calibration::metrics::reliability`).
 - **Classical single-label categorizers (`classical` Cargo feature, off by
   default)**:
   `DocumentCategorizerME`, `DoccatModel`, `SpanCategorizer`, `SvmCategorizer`,
@@ -212,14 +217,16 @@ transformer model (`DlSequenceScorer`):
   `NGramFeatureGenerator` (`ng=:<t_1>:...:<t_k>`), and `EmojiFeatureGenerator`
   (`emoji=<token>`).
 - **Feature selection (`turbo_doccat::selection`)**:
-  `FeatureSelection` and `DoccatTrainer` rank candidate features by
-  `SelectionMetric::ChiSquare` or `SelectionMetric::MutualInformation` before
-  model fitting, tested in `analysis/doccat/src/selection.rs`.
+  `SelectionConfig`, `select_features`, and `rank_features` rank candidate
+  features by `SelectionMetric::Chi2` or `SelectionMetric::MutualInformation`
+  before model fitting, tested in `analysis/doccat/src/selection.rs`.
 - **Probability calibration (`turbo_doccat::calibrated`)**:
   `CalibratedCategorizer` wraps single-label probability distributions with
-  post-hoc `TemperatureScaling` or per-class `IsotonicCalibration` (pool
-  adjacent violators), accompanied by `expected_calibration_error` (ECE) and
-  `brier_score`. Tested in `analysis/doccat/tests/calibrated.rs`.
+  `turbo_calibration::Calibration` (`Transform::Temperature`,
+  `Transform::Isotonic`, `Transform::Platt`, or `Transform::Identity`, fitted via
+  `turbo_train::calibration`), accompanied by
+  `turbo_calibration::metrics::reliability` returning `Reliability` (`ece` and
+  `brier`). Tested in `analysis/doccat/tests/calibrated.rs`.
 
 ## Classical single-label categorizers (`classical` feature)
 

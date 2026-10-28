@@ -102,47 +102,24 @@ would close the gap. No feature or scoring defect was found in this check.
 The POS gate stays closed; the lemma fix does not justify publishing that POS
 model.
 
-## Reproduction and provenance
+## Historical reproduction protocol
 
-The in-tree `ud_native_lemmas` example reproduces the native-v1 protocol:
-GIS, 300 iterations, cutoff 5 and four fixed partitions, with the native
-case-preserving factory. It accepts canonical source lemma recipe ids and
-writes distinct `lemmas-native-v1-local` output ids. The existing `ud`
-command and every released recipe id retain compatibility training. Neither
-the native ids nor their cards are registered as published recipes.
+The measurements in this document were recorded using the historical
+`ud_native_lemmas` and `ud_case_eval` evaluation harnesses prior to the
+classical model retirement in `#1511` (`#1557`). Those harnesses ran GIS
+(300 iterations, cutoff 5, four fixed partitions) with the native
+case-preserving factory over `turbo-es-ud-ancora-2.16-lemmas-1` and
+`turbo-it-ud-markit-2.16-lemmas-1`, writing `lemmas-native-v1-local` output
+ids and comparing them against saved lowercase baseline models.
 
-Fetch through the existing licence-aware zoo command. The native command
-checks every selected treebank's licence and file digests, reference digest,
-sample coverage and output directory before training. It runs the same
-held-out/reference gate with unchanged limits and retains its report even
-when it fails. The card records the actual four-partition protocol. Use a
-saved lowercase baseline model directory for the comparison.
-
-```sh
-cargo run --locked --release -p turbo-train-recipes -- fetch-ud --home data
-cargo run --locked --release -p turbo-train-recipes --example ud_native_lemmas -- \
-  data/artifacts references native-models turbo-es-ud-ancora-2.16-lemmas-1
-cargo run --locked --release -p turbo-train-recipes --example ud_case_eval -- \
-  data/artifacts native-models lowercase-models references es
-
-# For the Italian diagnosis, train its native lemma and existing POS recipe.
-cargo run --locked --release -p turbo-train-recipes --example ud_native_lemmas -- \
-  data/artifacts references native-models turbo-it-ud-markit-2.16-lemmas-1
-cargo run --locked --release -p turbo-train-recipes -- ud \
-  --treebanks data/artifacts --references references --out native-models \
-  --recipe turbo-it-ud-markit-2.16-pos-1
-cargo run --locked --release -p turbo-train-recipes --example ud_case_eval -- \
-  data/artifacts native-models lowercase-models references it
-```
-
-The Italian POS command exits unsuccessfully because its gate fails,
-while retaining the gate report. `ud_case_eval` emits aggregate counts and
-SHA-256 values only. No corpus text, model binaries or raw per-sample records
-are committed here. The Portuguese text rights remain unsettled and its
-artifact publication guard remains in place. Italian VIT reference weights are
+The Italian POS recipe exited unsuccessfully when its held-out/reference gate
+failed while retaining the gate report. `ud_case_eval` emitted aggregate counts
+and SHA-256 values only; no corpus text, model binaries, or raw per-sample
+records are committed here. The Portuguese text rights remain unsettled and its
+artifact publication guard remains in place. Italian VIT reference weights were
 used locally for evaluation under their existing restricted terms.
 
-The in-tree native command was rerun on the complete Spanish AnCora split:
+The historical native command run on the complete Spanish AnCora split produced:
 14,287 training samples, 442,892 events and 1,721 held-out samples, with no
 skipped sentences. Its 1,923,528-byte package reproduces the recorded
 `cc96098192bfce38e11d67cd186b98c7595c94ed9590f52ab6efd70c5f822cd0` digest.

@@ -50,7 +50,7 @@ with `INTERNAL` a file changed behind its back.
 | `glossary-mapped` | `turbo-glossary` `MappedGlossaryMatcher` | glossary entries |
 | `plain-word-list` | one word or phrase a line, UTF-8 | non-blank lines |
 | `headword-definition-tsv` | a headword, a tab and a definition a line, UTF-8 | headwords |
-| `dictionary-xml` | `turbo-maxent` `Dictionary` | dictionary entries |
+| `opennlp-dictionary-xml` | `turbo-maxent` `Dictionary` | dictionary entries |
 | `pos-tag-dictionary-xml` | `turbo-sequence` `TagDictionary` | words |
 | `lemmatizer-dictionary` | `turbo-lemmatizer` `DictionaryLemmatizer` | word and tag pairs |
 | `wordnet-lmf-xml` | `turbo-wordnet` `WnLmfReader` | lexical entries |

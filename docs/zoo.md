@@ -170,30 +170,29 @@ is in that form and a test keeps it there.
   "zoo_version": 1,
   "artifacts": [
     {
-      "id": "turbo-es-ud-ancora-2.16-sentence-1",
-      "kind": "KIND_MODEL",
-      "component": "COMPONENT_SENTENCE_DETECTOR",
-      "language": "es",
-      "format": "FORMAT_ZIP",
-      "version": "2.16-1",
-      "license": "Apache-2.0",
-      "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
+      "id": "symspell-frequency-dictionary-en-82-765",
+      "kind": "KIND_LEXICON",
+      "language": "en",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
       "trained_on": [
         {
-          "name": "UD_Spanish-AnCora r2.16",
-          "license": "CC-BY-4.0",
-          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md"
+          "name": "Google Books Ngram data",
+          "license": "CC-BY-3.0",
+          "license_terms": "https://storage.googleapis.com/books/ngrams/books/datasetsv2.html"
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on UD_Spanish-AnCora r2.16 (CC-BY-4.0, https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md).",
+      "attribution": "SymSpell frequency lists by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE), compiled as the intersection of Google Books Ngram data (CC-BY-3.0, https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) with SCOWL (http://wordlist.aspell.net/).",
       "files": [
         {
-          "path": "turbo-es-ud-ancora-2.16-sentence-1.bin",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-sentence-1.bin",
-          "size": 20061,
-          "sha256": "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
-          "sha512": "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191"
+          "path": "frequency_dictionary_en_82_765.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell/frequency_dictionary_en_82_765.txt",
+          "size": 1332881,
+          "sha256": "c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b",
+          "sha512": "c89ad6785ba97e6179049e7033dc2b9c1f7d000982b24c12bfb66841c7b5344a96b7b2d6bbfa8c679bf081ffdb1da9a41fa50c2a9bf7d7aef6a02181d48c04e7"
         }
       ]
     }

@@ -100,23 +100,20 @@ The recovery test fails on the original implementation.
 
 After adding the zero-step guard, all 4 models were trained again on the
 full corpus. Every model SHA-256 matched the earlier completed run. The
-CRF recipe exits with failure after writing all per-type and overall gate
-records because the accuracy gates fail. This is a measured rejection,
+CRF recipe exited with failure after writing all per-type and overall gate
+records because the accuracy gates failed. This was a measured rejection,
 not a training crash or a unit-test failure.
 
-Use the examples with caller-supplied local inputs and output directories:
+The historical CRF training and comparison examples (`crf_namefind` and
+`crf_compare_dl`) were retired with the classical model loader in `#1511`
+(`#1557`). For neural predictions on held-out JSON records, `turbo-namefind-dl`
+provides the `masc_predict` example:
 
 ```sh
-cargo run --locked --release -p turbo-train-recipes --example crf_namefind -- MASC_DIRECTORY REFERENCES OUTPUT
 cargo run --locked --release -p turbo-namefind-dl --example masc_predict -- BUNDLE OUTPUT/person/held-out.json PREDICTIONS_JSON
-cargo run --locked --release -p turbo-train-recipes --example crf_compare_dl -- MASC_DIRECTORY OUTPUT PREDICTIONS_JSON
 ```
 
-`REFERENCES` contains the digest-checked 1.5 English person,
-location, organization and date reference models. The first command refuses an
-existing per-type output directory. The prediction command refuses an
-existing output file. The comparison command writes reports and returns
-success when report generation succeeds, even when a reported gate fails;
-publication must inspect the gate decisions. Keep model files, held-out
-inputs and prediction records local. The committed receipt contains
+The historical comparison used digest-checked 1.5 English person, location,
+organization, and date reference models; model files, held-out inputs, and
+prediction records were kept local, and the committed receipt contains
 aggregate evidence and corpus-relative document identifiers only.
