@@ -33,6 +33,19 @@ fn logsumexp(v: impl Iterator<Item = f64> + Clone) -> f64 {
     m + v.map(|x| (x - m).exp()).sum::<f64>().ln()
 }
 
+/// exp(v) normalized to sum to one, worked from v's maximum, so no large
+/// common score rounds the normalizer away; all zero when v is all -inf.
+fn softmax(v: &mut [f64]) {
+    let m = v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if m == f64::NEG_INFINITY {
+        v.fill(0.0);
+        return;
+    }
+    v.iter_mut().for_each(|x| *x = (*x - m).exp());
+    let z: f64 = v.iter().sum();
+    v.iter_mut().for_each(|x| *x /= z);
+}
+
 /// The loss -log p(gold | emit) for one sequence, emit [n, labels], and
 /// its gradients added to `demit` [n, labels] and `grad`. A gold
 /// sequence the lattice forbids is refused: the scheme would never decode
@@ -124,7 +137,13 @@ pub fn nll<R: Real>(
     }
     // Every gradient is worked out before any is written, so a refusal
     // leaves the caller's sums whole.
-    let marginal = |t: usize, j: usize| (alpha[t * labels + j] + beta[t * labels + j] - log_z).exp();
+    // Each place's marginals are normalized over that place on its own:
+    // every place's alpha + beta sums to Z, but taking log Z from one
+    // place and subtracting it at another loses the normalizer when the
+    // scores are large (codex: [0, 1e20, 1e20] gave marginals [0, 1, 1]).
+    let mut marginals: Vec<f64> = alpha.iter().zip(&beta).map(|(a, b)| a + b).collect();
+    marginals.chunks_mut(labels).for_each(softmax);
+    let marginal = |t: usize, j: usize| marginals[t * labels + j];
     let mut d_emit = vec![0.0f64; n * labels];
     for t in 0..n {
         for j in 0..labels {
@@ -135,19 +154,16 @@ pub fn nll<R: Real>(
     let d_start: Vec<f64> = (0..labels).map(|j| marginal(0, j) - if y[0] == j { 1.0 } else { 0.0 }).collect();
     let d_end: Vec<f64> = (0..labels).map(|j| marginal(n - 1, j) - if y[n - 1] == j { 1.0 } else { 0.0 }).collect();
     let mut d_tr = vec![0.0f64; labels * labels];
+    let mut pair = vec![f64::NEG_INFINITY; labels * labels];
     for t in 1..n {
         for a in 0..labels {
-            let from = alpha[(t - 1) * labels + a];
-            if from == f64::NEG_INFINITY {
-                continue;
-            }
             for b in 0..labels {
-                let s = from + tr(t, a, b) + e(t, b) + beta[t * labels + b] - log_z;
-                if s > f64::NEG_INFINITY {
-                    d_tr[a * labels + b] += s.exp();
-                }
+                pair[a * labels + b] = alpha[(t - 1) * labels + a] + tr(t, a, b) + e(t, b) + beta[t * labels + b];
             }
         }
+        // As the nodes: normalized over this step's pairs on their own.
+        softmax(&mut pair);
+        d_tr.iter_mut().zip(&pair).for_each(|(d, &p)| *d += p);
         d_tr[y[t - 1] * labels + y[t]] -= 1.0;
     }
     if ![&d_emit, &d_start, &d_end, &d_tr].iter().all(|v| v.iter().all(|x| x.is_finite())) {
