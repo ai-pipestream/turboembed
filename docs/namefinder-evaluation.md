@@ -77,7 +77,7 @@ error was **0** for `per`, **0** for `org`, and **0** for `loc`, below the
 required `1e-9`. Agreement is checked before the native result is written;
 it is not inferred from matching aggregate F1.
 
-These are accuracy measurements for the three legacy single-type models,
+These are accuracy measurements for the three classical single-type models,
 not a combined four-type CoNLL score. No `misc` model, cross-finder merge,
 label remapping, training, tuning or threshold selection was performed.
 The low recall, especially for organizations, occurs in both runtimes.
@@ -92,7 +92,7 @@ must match the table before comparing results. Preserve document boundaries
 so adaptive features reset in the same places.
 
 Local evaluation was approved under the CoNLL-2003 entry in
-[licences.md](licences.md). The corpus and the legacy model binaries remain
+[licences.md](licences.md). The corpus and the classical model binaries remain
 external inputs. Only hashes, counts and aggregate metrics are included in
 this report; no Reuters text, gold/predicted span records, or workstation
 paths are committed. The raw comparison records are local scratch output,

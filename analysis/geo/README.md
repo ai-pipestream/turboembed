@@ -11,4 +11,4 @@ Offline gazetteer entity extraction (`GeoEntityLinker`) and forward/reverse geoc
 ## Testing, Accuracy, and Speed
 
 - **Test suite**: Covered by `analysis/geo/tests/bundled.rs`, `analysis/geo/tests/loaders.rs`, `analysis/geo/tests/mention_admission.rs`, `analysis/geo/tests/names.rs`, `analysis/geo/tests/overlay.rs`, and `analysis/geo/tests/snapshot.rs`.
-- **Accuracy and speed**: Memory-mapped `TRBGEO\x01\x00` lookup runs in zero-copy read-only slices with $O(1)$ exact-hash lookup and bounded candidate scoring. See `analysis/geo/data/README.md` for gazetteer provenance and licensing.
+- **Accuracy and speed**: Memory-mapped `TRBGEO\x01\x00` lookup runs in zero-copy read-only slices with $O(1)$ exact-hash lookup and bounded candidate scoring. `GeoEntityLinker::link_mentions` builds each document's candidate Geohash context once (`analysis/geo/src/linker/context.rs`, `analysis/geo/src/linker/geohash.rs`, timed by `analysis/geo/examples/linker_bench.rs`). See `analysis/geo/data/README.md` for gazetteer provenance and licensing.

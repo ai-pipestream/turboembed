@@ -137,13 +137,13 @@ carets, angle brackets and backslashes. New training escapes every relation
 consistently, including projective sentences. MaxEnt stores
 `Turbo-Dependency-Label-Encoding` in its manifest; native neural ZIP version 3
 stores `label_encoding` in its configuration. Unknown modes are refused, and
-legacy Java export refuses encoded models because that format has no mode field.
+Java-stream export refuses encoded models because that format has no mode field.
 Native versions 1 and 2 remain readable; conversion is optional.
 
 The eight original `models-ud-depparse-2.16-1` artifacts predate these fields.
 Their complete SHA-256 values, from their published cards, are listed in
 `analysis/depparse/src/encoding.rs`. Only those exact files automatically use
-`LegacyPseudo` decoding. A repackaged or modified unmarked file defaults to
+historical pseudo-projective decoding. A repackaged or modified unmarked file defaults to
 plain labels; it is not identified by its transitions, filename or language.
 The published bytes and their evaluated predictions are unchanged. New model
 serialization records the selected mode explicitly, including when converting
@@ -164,7 +164,7 @@ transitions and ordinary `Plain` labels. `train` remains pseudo-projective;
 `train_projective` remains the strict projective-only API. SWAP moves parser
 buffer indexes, not source tokens or spans. The monotonic pair rule and an
 `n(n+1)` action bound ensure termination. Existing models without SWAP retain
-their transition choices. Neural SWAP models cannot export to the legacy Java
+their transition choices. Neural SWAP models cannot export to the raw Java
 format; native conversion preserves the transitions and label mode.
 
 The CLI defaults to pseudo-projective training without a mode flag. It accepts

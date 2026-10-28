@@ -15,7 +15,7 @@ own Rust trainers; rule components are ours; each component is judged
 against spaCy, Stanza and other current stacks on held-out data, never
 against Java output. Two standing assumptions govern this direction
 (#1509): JVM goldens are no longer the test oracle (no new code may load
-a legacy `.bin` model, reproduce Java platform behaviour or use JVM
+a classical `.bin` model, reproduce Java platform behaviour or use JVM
 output as an oracle), and English syntax models trained on Universal
 Dependencies English EWT (CC BY-SA 4.0) ship in the accept-first
 download tier because every English UD treebank carries a ShareAlike or
@@ -28,14 +28,14 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | Crate | Path | Contents |
 |---|---|---|
 | `turbo-analysis` | `analysis/core/` | `Document`, `View`, `ViewBuilder`, bidirectional UTF-8 `Alignment` tables, `Layer`, `Key`, `KeyId`, `Provenance`, `Annotator`, `Analyzer`, `Registry`, and binary `DocumentGraph` export/import |
-| `turbo-analysis-layers` | `analysis/layers/` | Shared columnar layers: `Sentences`, `Paragraphs`, `Tokens`, `TokenReadings`, `Subwords`, `PosTags`, `Lemmas`, `Entities`, `Chunks`, `ChunkTags`, `Dependencies`, `Phrases`, `Numbers`, `Money`, `Quantities`, `Temporals`, `DocumentDate`, `Regions`, `Times`, `Ordinals`, `Pii`, `Language`, `LanguageSpans`, `Categories`, `Sentiment`, `CorefClusters`, `CorefMentions`, `Keywords`, `GrammarIssues`, `TextQuality`, `SpellingSuggestions`, `EmojiMentions`, `SocialEntities`, `EmbeddedAssets`, `EncodingArtifacts`, `BoilerplateRegions`, `NoiseRegions`, `GeoLocations`, `WordNetSenses`, `LexicalExpansions`, `Vectors<L>`, `Levels`, `Groups<L>`, `Edges<From, To>`, `Confidence<L>`, `Evidence<L>`, and `Matches` |
+| `turbo-analysis-layers` | `analysis/layers/` | Shared columnar layers: `Sentences`, `Paragraphs`, `Tokens`, `TokenReadings`, `Subwords`, `PosTags`, `Lemmas`, `Entities`, `Chunks`, `ChunkTags`, `Dependencies`, `Phrases`, `Numbers`, `Money`, `Quantities`, `Temporals`, `DocumentDate`, `Regions`, `Times`, `Ordinals`, `Pii`, `Language`, `LanguageSpans`, `Categories`, `Sentiment`, `CorefClusters`, `CorefMentions`, `Keywords`, `GrammarIssues`, `TextQuality`, `SpellingSuggestions`, `EmojiMentions`, `SocialEntities`, `EmbeddedAssets`, `EncodingArtifacts`, `BoilerplateRegions`, `NoiseRegions`, `GeoLocations`, `WordNetSenses`, `LexicalExpansions`, `Vectors<L>`, `VectorCodes<L>`, `Levels`, `Groups<L>`, `Edges<From, To>`, `Confidence<L>`, `Evidence<L>`, and `Matches` |
 | `turbo-chunker` | `analysis/chunker/` | Boundary-aware retrieval chunking (`Chunker`), hierarchical `Levels`, and per-chunk, per-section, and per-document term statistics and BM25 scoring ([chunker-text-signals.md](chunker-text-signals.md)) |
 | `turbo-group` | `analysis/group/` | MinHash/SimHash sketches, near-duplicate grouping, version links inside a document and across a batch, and structural boilerplate detection |
 | `turbo-vector-index` | `analysis/vector-index/` | Exact in-memory vector index over rows of one embedding space: top-$k$ by dot product or cosine, TurboQuant 2-to-4-bit quantized storage (feature `turboquant`), and MaxSim late interaction over token vectors ([turboquant.md](turboquant.md)) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Schwartz-Hearst abbreviation and acronym definition extraction (`turbo:abbreviations`), short-to-long-form edges, and Ab3P MED1250 evaluation |
 | `turbo-matcher` | `analysis/matcher/` | Automaton token-pattern matcher (`Matcher`), token-trie phrase matcher (`PhraseMatcher`), and `SpanRuler` writing named `turbo:matches` instances |
-| `turbo-analysis-embed` | `analysis/embed/` | Shared transformer encoder pass as analysis steps: subword tokenization, pooled sentence and chunk vectors, and multi-task sequence/token classification heads (`BundleSequenceScorer`) |
+| `turbo-analysis-embed` | `analysis/embed/` | Shared transformer encoder pass as analysis steps: subword tokenization, pooled sentence, chunk, and level vectors with optional Matryoshka `VectorOptions::output_dim` truncation, `VectorCodesStep<L>` writing `VectorCodes<L>` (`turbo:vector-codes<L>`) as `int8` or packed `ubinary` codes, and multi-task sequence/token classification heads (`BundleSequenceScorer`) |
 | `turbo-sat` | `analysis/sat/` | Neural Segment Any Text (`SatSentenceDetector`) over a 12-layer XLM-RoBERTa encoder with LoRA adapter, snapping boundary cuts to grapheme cluster boundaries ([neural-annotators.md](neural-annotators.md)) |
 | `turbo-sentdetect` | `analysis/sentdetect/` | `ParagraphSplitter`, `RuleSentenceDetector`, `InventorySentenceDetector`, `NewlineSentenceDetector`, and `SentenceDetectorME` ([segmentation.md](segmentation.md)) |
 | `turbo-tokenize` | `analysis/tokenize/` | `WhitespaceTokenizer`, `SimpleTokenizer`, `Uax29Tokenizer`, `TokenizerME`, Chinese `UnigramTokenizer` ([unigram-chinese.md](unigram-chinese.md)), Japanese `LatticeTokenizer`, Southeast Asian `ComplexScriptTokenizer`, and `DictionaryDetokenizer` ([segmentation.md](segmentation.md)) |
@@ -62,6 +62,7 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-stopword` | `analysis/stopword/` | Multilingual stopword lists across 11 languages and `StopwordAnnotator` writing `Stopwords` (`turbo:stopwords`) |
 | `turbo-glossary` | `analysis/glossary/` | CSV and TBX 2/3 glossary readers, Aho-Corasick character matcher, zero-copy double-array `MappedGlossaryMatcher`, and token/stem matcher writing `GlossaryTerms` (`turbo:glossary-terms`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | Byte-level, SentencePiece, and word-bounded BPE vocabulary trainers ([bpe-trainer.md](bpe-trainer.md)) |
+| `turbo-formats` | `analysis/formats/` | Corpus readers and evaluation scorers: Universal Dependencies CoNLL-U (`analysis/formats/src/conllu/` with byte-identical round trips), CoNLL-2003, GermEval 2014, WNUT-17, and MultiCoNER v2 NER (`analysis/formats/src/ner/`), LitBank brat entity and coreference standoff (`analysis/formats/src/ner/brat/`), MASC 3.0.0 standoff (`analysis/formats/src/masc/`), pinned dataset recipes (`analysis/formats/recipes/`), and precision/recall/$F_1$ evaluators (`analysis/formats/src/evaluate/`) |
 | `turbo-zoo` | `analysis/zoo/` | JSON model and lexicon catalog (`analysis/zoo/index/zoo.json`) with artifact byte-length, SHA-256, and SHA-512 content-digest verification, license-tier gating (`Permissive` vs `AcceptFirst`), and atomic cache layout ([zoo.md](zoo.md)) |
 
 ## Document, views, and alignments (`analysis/core/src/doc/mod.rs`)
@@ -158,7 +159,25 @@ for zero-loss transport across gRPC (`server/src/analysis.rs`,
   round-tripping.
 - **Component accuracy and throughput**: each analysis crate documents its
   held-out evaluation benchmarks (UD English EWT and multilingual treebanks,
-  CoNLL-2003 / OntoNotes NER, SIGHAN Bakeoff CWS, Ab3P MED1250 abbreviations,
+  CoNLL-2003 / GermEval 2014 / MultiCoNER v2 NER, LitBank brat entity and
+  coreference, SIGHAN Bakeoff CWS, Ab3P MED1250 abbreviations,
   Recognizers-Text grammar suites, MASC and RFC/Wikipedia PII partitions) and
   CPU throughput measurements in its companion guide under `docs/` and crate
   `README.md`.
+
+### Encoder audit and optional Granite download
+
+The licence audit does not establish a permissive training lineage for
+`all-MiniLM-L6-v2`, `BAAI/bge-base-en-v1.5`, or `minishlab/potion-base-8M`
+([licences.md](licences.md)). `ibm-granite/granite-embedding-30m-english` is an
+optional local encoder (`bundle/recipes/granite-embedding-30m-english.json`):
+Apache-2.0 weights, CC BY-SA training inputs, and web-scraped and IBM-internal
+text requiring explicit user acceptance ([zoo.md](zoo.md), "Granite requires an
+explicit download decision"). Under the document-chunker dense retrieval gate on
+CPU at `MODEL` precision (`analysis/eval/records/granite-embedding-30m-document`,
+`all-minilm-l6-v2-document`, and `potion-base-8m-document`), Granite leads
+`all-MiniLM-L6-v2` on all four BEIR sets (`scifact` `0.7172` vs `0.6402`,
+`nfcorpus` `0.3282` vs `0.3094`, `arguana` `0.5562` vs `0.5015`, `qasper`
+`0.2767` vs `0.2519`, mean nDCG@10 `0.4696` vs `0.4258`). `turbo-train-recipes
+static-embed` ships as experimental tooling for static embedding table
+initialization and contrastive training (`0.3354` untrained on `scifact`).

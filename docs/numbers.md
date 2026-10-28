@@ -91,9 +91,7 @@ Offsets are UTF-8 byte offsets into the view, on character boundaries.
 By default, `NumberScanner`, `QuantityExtractor`, `MoneyExtractor`, and
 `parse` accept the extended groupings, exponents, and non-ASCII `Nd`
 digit scripts listed above. A strict ASCII-only `LatinUs`/`LatinEu` mode
-is also available for legacy fixture suites (`analysis/numeric/tests/goldens.rs`,
-`analysis/numeric/tests/quantity_goldens.rs`, and
-`analysis/numeric/tests/money_goldens.rs`).
+is also available for ASCII-only fixture suites.
 
 Candidate scanning uses a bounded AVX2 byte prefilter when available, with
 non-ASCII candidates confirmed by the existing Unicode digit classifier.
@@ -137,5 +135,4 @@ Boundary edge-case rules:
 `analysis/numeric/tests/scanner.rs` and `analysis/numeric/tests/extended_numbers.rs`
 test `NumberScanner` across `LatinUs` and `LatinEu` notations, Indian,
 thin-space, apostrophe, and Arabic-Indic groupings, scientific notation,
-and region-aware fallback. `analysis/numeric/tests/goldens.rs` checks the
-`num` fixture set in both notations.
+and region-aware fallback, alongside the `num` snapshot suite in both notations.

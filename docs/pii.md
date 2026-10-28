@@ -244,7 +244,7 @@ Every fixture is synthetic. Where a test or corpus fixture would otherwise
 hold a value that could be real, it uses documented test values or
 synthetic specimens:
 
-- The legacy Bitcoin addresses of the golden corpora
+- The P2PKH (`1...`) Bitcoin addresses of the test corpora
   (`analysis/pii/tests/data/golden-true-positives.tsv`,
   `analysis/pii/tests/data/golden-false-positives.txt`) and of the crypto
   tests are made up: a version byte over a hash of a fixed string, with
@@ -254,7 +254,7 @@ synthetic specimens:
   names by `example.com`.
 - An SSN known to have been published in an advertisement is left out.
 
-`analysis/pii/tests/goldens.rs` and `analysis/pii/tests/rewrite_goldens.rs`
+`analysis/pii/tests/rewrite_audit.rs` and the crate's snapshot suites
 verify pack detection, masking, `MaskedView` edits, pseudonymization,
 HMAC tokenization, and audit reports across the 61-document `pii` fixture
 set.

@@ -122,8 +122,7 @@ Edge-case rules:
   `€5 kg` give no quantity. A custom unit that is a currency code (`USD`)
   is never a quantity, since `5 USD` is money.
 
-`analysis/numeric/tests/quantity_extract.rs`,
-`analysis/numeric/tests/quantity_normalize.rs`, and
-`analysis/numeric/tests/quantity_goldens.rs` test extraction, SI base-unit
-normalization, money-exclusion precedence, and the `quantity` fixture set
+`analysis/numeric/tests/quantity_extract.rs` and
+`analysis/numeric/tests/quantity_normalize.rs` test extraction, SI base-unit
+normalization, money-exclusion precedence, and the `quantity` snapshot suite
 in both `LatinUs` and `LatinEu` notations.

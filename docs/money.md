@@ -195,6 +195,5 @@ Default extraction rules:
 `analysis/numeric/tests/money_convert.rs`, and
 `analysis/numeric/tests/money_rates.rs` test extraction, regional symbol
 disambiguation, weight-context exclusions, ECB rate parsing, and fixed-date
-and dated currency conversion. `analysis/numeric/tests/money_goldens.rs`
-checks the `money` and `money-convert` fixture sets in both `LatinUs` and
-`LatinEu` notations.
+and dated currency conversion, alongside the `money` and `money-convert`
+snapshot suites in both `LatinUs` and `LatinEu` notations.

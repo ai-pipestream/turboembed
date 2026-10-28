@@ -155,6 +155,5 @@ Default extraction behavior:
 `analysis/numeric/tests/temporal_relative.rs`,
 `analysis/numeric/tests/temporal_timestamp.rs`, and
 `analysis/numeric/tests/temporal_annotate.rs` test absolute and relative
-mentions, timestamps, dateline selection, and `DocumentDateSelector`.
-`analysis/numeric/tests/temporal_goldens.rs` checks the `temporal` fixture
-set in both `dateline` and `fixed` reference modes.
+mentions, timestamps, dateline selection, `DocumentDateSelector`, and the
+`temporal` snapshot suite in both `dateline` and `fixed` reference modes.

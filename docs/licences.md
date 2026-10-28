@@ -31,9 +31,9 @@ Dependencies treebank, and the treebank decides the class.
 ## OpenNLP UD models 1.3 (fetchable)
 
 Published at <https://archive.apache.org/dist/opennlp/models/ud-models-1.3/>
-under Apache-2.0 (its README), trained by OpenNLP 2.5.4 on UD 2.16.
+under Apache-2.0 (its README), trained on UD 2.16.
 Each treebank has four models: `sentence`, `tokens`, `pos` and `lemmas`,
-named `opennlp-<lang>-ud-<treebank>-<model>-1.3-2.5.4.bin`; that name
+named by language, treebank, and model type in the 1.3 release; that name
 without `.bin` is the zoo id. Every file's size, SHA-256 and SHA-512 in
 the index were computed from the file fetched on 2026-10-14 and matched
 against the `.sha256` and `.sha512` files published beside it.
@@ -402,7 +402,9 @@ later as further lexicon entries behind the same
 | [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) | language detection (English) | ODC-By 1.0 | permissive | as FineWeb-2's row | here |
 | [Tatoeba](https://tatoeba.org/en/downloads) | language detection | CC BY 2.0 FR | permissive | by default; a sentence is CC BY 2.0 FR, CC0 1.0 or has no licence (tatoeba2 at commit 0fbb4506: `docs/database/tables/sentences.sql`, `src/Lib/Licenses.php`). `sentences_detailed.csv` holds the sentences with a licence and `sentences_CC0.csv` the CC0 1.0 ones, so each sentence's licence is read from the two, which relies on Tatoeba having exactly these two sentence licences (recording a run re-checks it); the language detector recipe (`analysis/train-recipes`, #429) keeps the CC BY 2.0 FR ones only and leaves out the CC0 ones, as #429 asks. CC BY 2.0 FR asks for the authors to be credited, and Tatoeba's terms accept the addresses of the sentences used: the model ships with `training-sentences.txt`, the ids of the sentences it was trained on, each at `https://tatoeba.org/sentences/show/<id>`. The zoo names the licence `LicenseRef-CC-BY-2.0-FR` (SPDX has no identifier for it). The export of 2026-10-10 was read on GitHub's runners (downloads.tatoeba.org refused the machine the recipe was written on); on 2026-10-15 the three tatoeba2 files had not changed since 2025-10-28 at the latest, so the export was written with the two sentence licences. It is kept unchanged as release `data-tatoeba-2026-10-10` of this repository, as Tatoeba replaces its export each week | here, the licence rules; the export of 2026-10-10 (`analysis/train-recipes` README, "Full run") |
 | [WNUT-17](https://noisy-text.github.io/2017/emerging-rare-entities.html) | NER | CC BY 4.0 | permissive, pending | its text comes from Twitter, Reddit and YouTube; platform terms need a look before it is used | plan |
-| Other UD treebanks (the plan counts 280 of 359 in UD 2.18; not recounted here), including English EWT, German GSD and HDT, French GSD, Dutch Alpino | sentence, token, POS, lemma | CC BY-SA (3.0 or 4.0) | share-alike | check each treebank's README at the release used | plan; the ones above here |
+| [LitBank](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8) | English brat entity and coreference evaluation and training (`analysis/formats/recipes/litbank.recipe`) | CC BY 4.0 annotations over public-domain Project Gutenberg fiction (David Bamman, Sejal Popat, and Sheng Shen, NAACL 2019 / LREC 2020) | permissive | pinned at commit `3e50db0ffc033d7ccbb94f4d88f6b99210328ed8` (`30,172,625`-byte archive, SHA-256 `0e881d887c167b2b196a3e887f88484a7ae64af2dda4ea5e41c660591f002cf6`, `README.md` SHA-256 `10e740b0beb5482490c0dc4eabd0c79a31eb881fa895c18b49993cd9e31af268`) | here, 2026-10-28 |
+| [UD_English-EWT r2.16](https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/LICENSE.txt) | English sentence, token, POS, lemma, and dependency training and evaluation (`analysis/formats/recipes/ud-english-ewt.recipe`) | CC BY-SA 4.0 (annotations and corpus compilation by Natalia Silveira, Timothy Dozat, Marie-Catherine de Marneffe, Samuel Bowman, Miriam Connor, John Bauer, and Chris Manning; underlying LDC2012T13 English Web Treebank texts carry Stanford/Google/Yahoo/UPenn notices in `LICENSE.txt`) | share-alike (`accept-first` tier for models trained on it per #1509) | `en_ewt-ud-train.conllu` (`14,203,025` bytes, SHA-256 `3fb78e2b55482c8ee00caa653af436c88c9e5bc9a73ce26e4ae3ddc79d2b7e7b`), `LICENSE.txt` (`SHA-256` `b3d1b0f4c6ae151f7eb78738f46ebd5ee140f8a7f76501ba26af123140d35ae7`) | here, 2026-10-28 |
+| Other UD treebanks (the plan counts 280 of 359 in UD 2.18; not recounted here), including German GSD and HDT, French GSD, Dutch Alpino | sentence, token, POS, lemma | CC BY-SA (3.0 or 4.0) | share-alike | check each treebank's README at the release used | plan; the ones above here |
 | [UniMorph](https://unimorph.github.io/) | lemmas | mostly CC BY-SA 3.0, some LGPL-LR | share-alike | check per language | plan |
 | [Few-NERD](https://huggingface.co/datasets/DFKI-SLT/few-nerd) | NER | CC BY-SA 4.0 | share-alike | | plan |
 | [Universal NER](https://www.universalner.org/) | NER | CC BY-SA 4.0 | share-alike | except its Tagalog-Ugnayan subset, which is non-commercial (local-only) | plan |
@@ -602,8 +604,7 @@ data):
 | UD 1.3 `pl-ud-pdb-*` | [UD_Polish-PDB r2.16](https://github.com/UniversalDependencies/UD_Polish-PDB/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | here |
 | UD 1.3 `uk-ud-iu-*` | [UD_Ukrainian-IU r2.16](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | here |
 
-`opennlp-it-ud-vit-pos-1.3-2.5.4.bin` and
-`opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin` are used only as the references
+The Italian UD 1.3 `it-ud-vit-pos` and `it-ud-vit-lemmas` models are used only as the references
 of the Italian UD recipes' gates in `turbo-train-recipes` (#415). They
 are read from a directory the user names, checked against the size and
 SHA-256 the recipes record (`ud::IT_UD_VIT_POS`, `ud::IT_UD_VIT_LEMMAS`),

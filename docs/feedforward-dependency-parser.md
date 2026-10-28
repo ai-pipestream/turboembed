@@ -35,14 +35,14 @@ reference's simple lowercase mapping plus contextual final sigma. Reserved
 
 ## Model files
 
-`from_bytes` accepts legacy Java raw streams, current Apache models and Turbo
+`from_bytes` accepts raw Java streams, current Apache models and Turbo
 ZIP versions 1, 2 and 3. Readers reject invalid counts, dimensions, duplicate
 symbols/IDs, non-finite parameters, invalid transitions and trailing network
 bytes. Float arrays are allocated after their bytes and aggregate count have
 been checked. Limits remain 2 million vocabulary rows, 100,000 outcomes,
 embedding width 4,096, hidden width 65,536 and 100 million float values.
 
-- Legacy fork: `from_java_bytes` / `to_java_bytes` read and write
+- Raw stream format: `from_java_bytes` / `to_java_bytes` read and write
   `ONLP-FFDP-1`, with Java modified-UTF strings and 14/14/8 cube features.
   Export refuses expanded/ReLU models and default beams other than 1.
   This export does not write the current Apache format.
@@ -54,7 +54,7 @@ embedding width 4,096, hidden width 65,536 and 100 million float values.
   settings fail explicitly. Native allocation limits still apply.
 - Native: `to_bytes` writes Turbo ZIP version 3. It records layout,
   activation and default beam, and uses length-prefixed UTF-8 vocabulary
-  strings, including keys beyond legacy `writeUTF`'s 65,535-byte limit.
+  strings, including keys beyond `writeUTF`'s 65,535-byte limit.
   The version 1 reader remains supported with its original default beam 1.
   Both versions require unique, recognized entries and valid configuration;
   uncompressed entry sizes are capped before decompression.

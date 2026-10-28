@@ -1,13 +1,13 @@
 # Case-preserving lemma recipes
 
 Issue #954 changes newly trained lemma models to retain annotated case. Published
-legacy models still use their original decoder. The legacy factory
-selects that format explicitly for reproduction and golden comparisons; `new` selects
+lowercase models still use their original decoder. The lowercase factory
+selects that format explicitly for reproduction and baseline comparisons; `new` selects
 `turbo.lemmatizer.CaseSensitiveV1`. A runtime without that factory refuses the native
 model rather than decoding its classes incorrectly.
 
 The existing `models-ud-2.16-1` release and its recipe ids retain the
-legacy factory and original model bytes. The native models measured below
+lowercase factory and original model bytes. The native models measured below
 are local evaluation artifacts, not replacements for that release. Publishing
 native UD models requires new model ids, a release tag and index entries.
 
@@ -154,7 +154,7 @@ Local native id: `turbo-es-ud-ancora-2.16-lemmas-native-v1-local`.
 - Train: `79e7463700e75bdf921c85b6e04495af118462a2b032bbff590fb82aa6ad8d5d`
 - Test: `2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b`
 - Native model: `cc96098192bfce38e11d67cd186b98c7595c94ed9590f52ab6efd70c5f822cd0`
-- Legacy model: `e00c951c6f60b5907f15ffa475a6a013483ba2b8c370cfc261c1c70114e70c61`
+- Lowercase baseline model: `e00c951c6f60b5907f15ffa475a6a013483ba2b8c370cfc261c1c70114e70c61`
 - Reference model: `d9970825f87e95fbc4c54e7c35cb2af141a29fd65f21908d86e29ef9af2da914`
 
 ### Catalan AnCora
@@ -165,7 +165,7 @@ Local native id: `turbo-ca-ud-ancora-2.16-lemmas-native-v1-local`.
 - Train: `bb5d06fb14336bae2c3aa64aa7e65afe183295a4669ce4f45bf0ed57c18ccccd`
 - Test: `f68ff102b9bf8bc197be3262a1caf25682683c4db4c648663c7a791bfbfa115f`
 - Native model: `d680446b4d783397402a990683eaa6de8fe69b122f8dfa876107166852ca517b`
-- Legacy model: `86f07881a6f325253b7e285b915aecbf88d7b2fc1d280b6d4032ea9689ff3cf1`
+- Lowercase baseline model: `86f07881a6f325253b7e285b915aecbf88d7b2fc1d280b6d4032ea9689ff3cf1`
 - Reference model: `b8d537720f11a79b3429e1957404dc1bf7fcaf838ca79cc097d6d634e388f094`
 
 ### Portuguese Porttinari
@@ -176,7 +176,7 @@ Local native id: `turbo-pt-ud-porttinari-2.16-lemmas-native-v1-local`.
 - Train: `d9d3d76ac9ac8cb569c42a698cc60721e088db7c7e90401582aab68aa9ca85d3`
 - Test: `08e51c3687f2800ea45445cb48c7030832984c316b1c39757606499b8e7577b9`
 - Native model: `b161884b824a46202405e5e0858c08db194bf8c25b8cb4eb977de81623ffef47`
-- Legacy model: `65c23e16a75c48d33d96d1311432a86218a3ba3cff7eabb75eb2bcb1752d1d91`
+- Lowercase baseline model: `65c23e16a75c48d33d96d1311432a86218a3ba3cff7eabb75eb2bcb1752d1d91`
 - Reference model: `279f23d9d0a2ed0828d13e812f2db1220070b8f6692ee82af44f7e0d6c2fcf6c`
 
 ### Finnish FTB
@@ -187,7 +187,7 @@ Local native id: `turbo-fi-ud-ftb-2.16-lemmas-native-v1-local`.
 - Train: `0cc04932f18613c4491ace06f597b7b8caed36e557168b9b6ef154da7ae2d71b`
 - Test: `3aca7fbd727846c0955e9db581571a0fca89d46f825ee7f2a32fab1ea0bc31ba`
 - Native model: `b174f29c45e860f127318bba3484861dfc291f14c09b659b6e1f9b50d8ace75a`
-- Legacy model: `9650fcdeb459cea1565175cdf37ee1a8d90306414f287b5205e1e25b421b6278`
+- Lowercase baseline model: `9650fcdeb459cea1565175cdf37ee1a8d90306414f287b5205e1e25b421b6278`
 - Reference model: `d9ef61db782abc1a60285445a228b4aacda7dee7b853aae02740fe1979e4d268`
 
 ### Italian MarkIT
@@ -198,7 +198,7 @@ Local native id: `turbo-it-ud-markit-2.16-lemmas-native-v1-local`.
 - Train: `4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6`
 - Test: `9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc`
 - Native model: `41f4ad8d45199e8e515050b72d15964c036d03200c436576eea8dfc400d67983`
-- Legacy model: `5ba6ea4a0310397f68e92ef3a86dbd03ebad3f0dbb096f4737122c5c0a68c69a`
+- Lowercase baseline model: `5ba6ea4a0310397f68e92ef3a86dbd03ebad3f0dbb096f4737122c5c0a68c69a`
 - Reference model: `10b25bc4506af3a5f06e56b9e1058aecccb3021e5d08902a1fa1ee33606510c7`
 
 Dataset releases and terms: [Spanish AnCora](https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16),
