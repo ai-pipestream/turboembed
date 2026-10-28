@@ -4529,8 +4529,10 @@ break, up to 116k tokens, which were one truncated chunk and cost v1
 1.46 points of nDCG@10 against fixed-tokens-200. Records at
 `8051f4d7` (gate reports from `957dc00a`, byte-identical to `e28b80d0`'s), six sets, under
 `analysis/eval/records/v1-clauses-172/<backend>/<name>/`, with the gate
-and cut reports in `reports/`. On the CPU, Level Zero (Arc Pro B70) and CUDA (RTX 4080 SUPER) the
-evidence numbers are the same; the floors that differ are qasper's (CPU
+and cut reports in `reports/`. On the CPU, Level Zero (Arc Pro B70), CUDA (RTX 4080 SUPER) and Metal
+(Apple M2; its records at `e28b80d0`, which differs from `8051f4d7` only
+in the gate's code, not in chunking or scoring) the evidence numbers
+are the same, and Metal's floors are the CPU's; the floors that differ are qasper's (CPU
 -1.31, Level Zero -1.27, CUDA -1.29) and, on CUDA, arguana (-0.57) and
 nfcorpus (+0.34):
 
@@ -4543,14 +4545,14 @@ nfcorpus (+0.34):
 | arguana | | | | -0.68 (-0.16), CUDA -0.57 (-0.02), fixed-tokens |
 | nfcorpus | | | | +0.39 (+0.99), CUDA +0.34 (+0.93), sentence windows |
 
-The gate PASSes on all three backends, and the cohesion-1000 variant
+The gate PASSes on all four backends, and the cohesion-1000 variant
 (`--cohesion 1000 --clauses`) passes too. Both pipelines cut every
-document of the six sets the same on the CPU, Level Zero and CUDA (`turbo-eval
+document of the six sets the same on the CPU, Level Zero, CUDA and Metal (`turbo-eval
 cuts`, every chunk's full range; a `--clauses` run's chunks are compared
 by range alone, since its cuts inside a sentence have no margin to
 price). CUDA's nDCG@10 differs from the CPU's only from its vectors'
 numerics (arguana on up to 58 of 1406 queries, nfcorpus on up to 4),
-with the same chunks. Metal records at the same commit follow. Sentence
+with the same chunks. Metal matches the CPU query for query. Sentence
 windows stays the eval default until they do.
 
 ### Structure in the chunker

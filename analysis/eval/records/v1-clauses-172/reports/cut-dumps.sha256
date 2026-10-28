@@ -34,3 +34,15 @@ a37a7879671beec64982db454dc052ccf959c14fc39e15334f6ca3d56956d0b2  59484229  cuda
 b87497655a6611448230d5a681da139b45a022c03659a5479b205258104271a3  44807638  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/nfcorpus.cuts
 5da5838c16432d40d6e5b627aa5d7001e51ea1bdf14f036a9f35a18ce7dc3fab  75641121  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/qasper.cuts
 2d8768e726ed14ddc56342049573dce434d6b2dff2471114773d6d851b48aea1  59531303  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/scifact.cuts
+b04b47c115ac3aeb1f3810b50d638b4dba5b1cbdac248644c6af95330fd91ca5  78148867  metal/turbo-chunker-254-200-clauses-hybrid/arguana.cuts
+4010129153e7e5edacebe3fd6de7abef170b73f5c540c9fd6921bd1e0f1d8ed5  14583170  metal/turbo-chunker-254-200-clauses-hybrid/conteb-squad.cuts
+a77fad5e99698c80d75f5f8399191c85413cea6dc7210002a3566d3e4b3d8248  570570544  metal/turbo-chunker-254-200-clauses-hybrid/gutenqa.cuts
+41d1594270bdab08f0f4ef85e4a0ca7f06fb58091fef1af47bbe4feb630ebe43  44774454  metal/turbo-chunker-254-200-clauses-hybrid/nfcorpus.cuts
+5c06595167db073548c6b412b4bde6217024bb0bbfbca220df7cd2566ef5f444  75563650  metal/turbo-chunker-254-200-clauses-hybrid/qasper.cuts
+dfbb33d33f55e3dd2f3e213f31f95aebe022daa7da58eb02a0b19830287886c4  59484209  metal/turbo-chunker-254-200-clauses-hybrid/scifact.cuts
+c8e6992f8ac13bc612849ca07e541041cd8e85f08c804a57c4cd020cc54012ae  78230600  metal/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/arguana.cuts
+09d5d73911f31e4c054af2a1ca1cc0bb863a8371a11332106bc7de2596553dad  14601880  metal/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/conteb-squad.cuts
+7e95c14abe04679187191b29ccc9429131c3746557418e06dccd96da3695f818  570757071  metal/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/gutenqa.cuts
+2bb68a14f9cff5b6e95f44f3e37e929e66288c4bd54147809671877ea27deab3  44807618  metal/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/nfcorpus.cuts
+3ab403f9bf2bc333e6519462a31113a51304aa3b729eabaa23856356e47582b5  75641101  metal/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/qasper.cuts
+37b770a976a3c6dc72470e1e70c1779eb9114eed256b2f6108314374030c3c40  59531283  metal/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/scifact.cuts
