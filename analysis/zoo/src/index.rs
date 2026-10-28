@@ -11,10 +11,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::error::ZooError;
 use crate::licence::{Licence, LicenceClass, Requirement};
 
-/// The index this crate carries: the OpenNLP 1.3 UD models trained on
-/// permissive and share-alike treebanks. docs/licences.md lists them, and
-/// the published models the index leaves out: the refused ones, and the
-/// local-only ones trained on non-commercial treebanks.
+/// The index of neural models, heads, lexicons and datasets carried by this crate.
+/// Retired OpenNLP model archives are not accepted, including in custom indices.
 pub const BUILTIN: &str = include_str!("../index/zoo.json");
 
 /// The only `zoo_version` this build reads.
@@ -73,7 +71,7 @@ constant_enum! {
 constant_enum! {
     /// How an artifact's files are read.
     Format, "a format" {
-        /// An OpenNLP model archive (`.bin`), as `BaseModel` writes it.
+        /// Retired archive identifier. Index parsing refuses this format.
         OpennlpModel => "FORMAT_OPENNLP_MODEL",
         Safetensors => "FORMAT_SAFETENSORS",
         Conllu => "FORMAT_CONLLU",
@@ -339,6 +337,12 @@ impl Index {
         let mut artifacts = Vec::new();
         let mut refused = Vec::new();
         for a in file.artifacts {
+            if a.format == Format::OpennlpModel {
+                return Err(ZooError::Index(format!(
+                    "{}: FORMAT_OPENNLP_MODEL is retired; use a supported neural model or head",
+                    a.id
+                )));
+            }
             if !ids.insert(a.id.clone()) {
                 return Err(ZooError::Index(format!("{}: listed twice", a.id)));
             }

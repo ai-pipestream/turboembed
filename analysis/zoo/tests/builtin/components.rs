@@ -12,22 +12,9 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::EntityExtractor), ["urchade-gliner-small-v2.1"]);
     assert_eq!(ids("mul", Component::EntityExtractor), ["urchade-gliner-multi-v2.1"]);
     assert_eq!(ids("en", Component::ZeroShotCategorizer), ["cross-encoder-nli-minilm2-l6-h768"]);
-    assert_eq!(
-        ids("es", Component::DependencyParser),
-        ["turbo-es-ud-ancora-2.16-depparse-maxent-1", "turbo-es-ud-ancora-2.16-depparse-feedforward-1"]
-    );
-    assert_eq!(
-        ids("ca", Component::DependencyParser),
-        ["turbo-ca-ud-ancora-2.16-depparse-maxent-1", "turbo-ca-ud-ancora-2.16-depparse-feedforward-1"]
-    );
-    assert_eq!(
-        ids("fi", Component::DependencyParser),
-        ["turbo-fi-ud-ftb-2.16-depparse-maxent-1", "turbo-fi-ud-ftb-2.16-depparse-feedforward-1"]
-    );
-    assert_eq!(
-        ids("it", Component::DependencyParser),
-        ["turbo-it-ud-markit-2.16-depparse-maxent-1", "turbo-it-ud-markit-2.16-depparse-feedforward-1"]
-    );
+    for language in ["es", "ca", "fi", "it"] {
+        assert!(ids(language, Component::DependencyParser).is_empty());
+    }
     assert_eq!(
         ids("en", Component::DocumentCategorizer),
         [
@@ -40,21 +27,14 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
         ]
     );
     // The tokenizers are fetched by id beside their models: no component,
-    // so OpenNLP's lookup never takes one for a tokenizer model.
+    // so component lookup does not confuse a tokenizer asset with a model.
     assert!(index.list().iter().filter(|a| a.id.as_str().ends_with("-tokenizer")).all(|a| a.component.is_none()));
 }
 
 #[test]
-fn find_within_keeps_the_classes_asked_for_least_restrictive_first() {
+fn retired_tasks_are_absent_and_neural_licence_filters_remain() {
     let index = Index::builtin();
-    let ids = |at_most| {
-        let found = index.find_within("en", Component::SentenceDetector, at_most);
-        found.iter().map(|a| a.id.as_str().to_owned()).collect::<Vec<_>>()
-    };
-    assert_eq!(ids(LicenceClass::Permissive), ["turbo-en-masc-3.0.0-sentence-1"]);
-    let all = ids(LicenceClass::ShareAlike);
-    assert_eq!(all, ["turbo-en-masc-3.0.0-sentence-1", "opennlp-en-ud-ewt-sentence-1.3-2.5.4"]);
-    assert_eq!(index.find("en", Component::SentenceDetector).count(), 2);
+    assert!(index.find("en", Component::SentenceDetector).next().is_none());
     assert!(index.find_within("en", Component::ExtractiveQa, LicenceClass::Permissive).is_empty());
     // Trained on SNLI and MultiNLI, both share-alike.
     assert!(index.find_within("en", Component::ZeroShotCategorizer, LicenceClass::Permissive).is_empty());

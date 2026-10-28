@@ -2,7 +2,10 @@
 
 `turbo-doccat` (`analysis/doccat/`) and `turbo-analysis-embed`
 (`analysis/embed/`) implement polarity, aspect, emotion, incivility, and
-pragmatics analysis across lexicon, rule, and vector-head stages:
+pragmatics analysis across lexicon, rule, and vector-head stages. The OpenNLP
+`SentimentME` archive loader and its JVM training comparisons are disabled under
+#1511; no current recipe should train an OpenNLP archive or fetch one to enable
+sentiment:
 
 - **Scorer traits and layer types (`turbo_doccat::scorers`)**:
   `PragmaticsVectorScorer`, `EmotionVectorScorer`, `IncivilityVectorScorer`, and
@@ -47,10 +50,11 @@ pragmatics analysis across lexicon, rule, and vector-head stages:
   gated behind the off-by-default `classical` Cargo feature pending `#1526` and
   `#1532`.
 
-Dataset, lexicon and checkpoint permissions are recorded in the
+Dataset, lexicon and checkpoint permissions remain recorded in the
 [complex sentiment licence audit](licences.md#complex-sentiment-licence-audit-326).
 It distinguishes shipped material, local evaluation and candidates awaiting
-source permissions.
+source permissions. Historical maxent parity results do not establish native
+head accuracy.
 
 ## Lexicon and negation sentiment baseline (`LexiconSentiment`, #320)
 

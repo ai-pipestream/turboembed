@@ -12,10 +12,11 @@ fn svm() -> SvmCategorizer {
     SvmCategorizer::new(SvmDoccatModel::from_text(model, side).unwrap()).unwrap()
 }
 
-fn svm_ngram() -> SvmCategorizer {
+fn svm_ngram(max_gram: usize) -> SvmCategorizer {
     let model = "svm_type c_svc\nkernel_type linear\nnr_class 2\ntotal_sv 2\nrho 0.10\nlabel 0 1\nprobA -1.5\nprobB 0.0\nnr_sv 1 1\nSV\n1.0 1:1.0\n-1.0 2:1.0\n";
-    let side = "svm-doccat 1\nlanguage\teng\nweighting\tBINARY\nselection\tNONE\t-1\nscaling\tnone\ngenerator\tngram\t1\t2\ncategory\t0\tpos\ncategory\t1\tneg\nfeature\t1\t1.0\t0.0\t1.0\tng=good\nfeature\t2\t1.0\t0.0\t1.0\tng=bad\n";
-    SvmCategorizer::new(SvmDoccatModel::from_text(model, side).unwrap()).unwrap()
+    let side = "svm-doccat 1\nlanguage\teng\nweighting\tBINARY\nselection\tNONE\t-1\nscaling\tnone\ngenerator\tngram\t1\t2\ncategory\t0\tpos\ncategory\t1\tneg\nfeature\t1\t1.0\t0.0\t1.0\tng=:good\nfeature\t2\t1.0\t0.0\t1.0\tng=:good:bad\n";
+    let side = side.replace("generator\tngram\t1\t2", &format!("generator\tngram\t1\t{max_gram}"));
+    SvmCategorizer::new(SvmDoccatModel::from_text(model, &side).unwrap()).unwrap()
 }
 
 fn tokens(text: &str) -> Tokens {
@@ -81,7 +82,7 @@ fn wrong_domain_or_producer_cannot_bind() {
     );
     assert!(
         CalibratedCategorizer::new(
-            svm_ngram(),
+            svm_ngram(2),
             a,
             "reviews",
             Policy { coverage: 0.9, max_set_size: 2, min_confidence: 0.0 }
@@ -113,26 +114,30 @@ fn heldout<C: CalibratableCategorizer>(cat: C) {
     let (c, cy) = generate(123, 301);
     let (t, ty) = generate(998, 1000);
     let id = identity(&cat, "synthetic-reviews").unwrap();
-    let a = fit(
-        id.clone(),
-        Method::Temperature,
-        Samples { split: "fit", probabilities: &f, gold: &fy },
-        Samples { split: "conformal", probabilities: &c, gold: &cy },
-    )
-    .unwrap();
-    let p = turbo_calibration::Predictor::new(a, &id, Policy { coverage: 0.99, max_set_size: 2, min_confidence: 0.0 })
+    for method in [Method::Temperature, Method::Platt, Method::Isotonic] {
+        let a = fit(
+            id.clone(),
+            method,
+            Samples { split: "fit", probabilities: &f, gold: &fy },
+            Samples { split: "conformal", probabilities: &c, gold: &cy },
+        )
         .unwrap();
-    let predictions: Vec<_> = t.iter().map(|r| p.predict(r).unwrap()).collect();
-    let before = metrics::reliability(&t, &ty, 10).unwrap();
-    let after =
-        metrics::reliability(&predictions.iter().map(|r| r.calibrated.clone()).collect::<Vec<_>>(), &ty, 10).unwrap();
-    let coverage = metrics::coverage(&predictions, &ty).unwrap();
-    assert!(after.ece < before.ece, "{before:?} {after:?}");
-    assert!((coverage.set_coverage - 0.99).abs() <= 0.03);
-    println!(
-        "{}: ECE {:.6} -> {:.6}; Brier {:.6} -> {:.6}; coverage {:.6}",
-        id.model, before.ece, after.ece, before.brier, after.brier, coverage.set_coverage
-    );
+        let p =
+            turbo_calibration::Predictor::new(a, &id, Policy { coverage: 0.99, max_set_size: 2, min_confidence: 0.0 })
+                .unwrap();
+        let predictions: Vec<_> = t.iter().map(|r| p.predict(r).unwrap()).collect();
+        let before = metrics::reliability(&t, &ty, 10).unwrap();
+        let after =
+            metrics::reliability(&predictions.iter().map(|r| r.calibrated.clone()).collect::<Vec<_>>(), &ty, 10)
+                .unwrap();
+        let coverage = metrics::coverage(&predictions, &ty).unwrap();
+        assert!(after.ece < before.ece, "{before:?} {after:?}");
+        assert!((coverage.set_coverage - 0.99).abs() <= 0.03);
+        println!(
+            "{}: ECE {:.6} -> {:.6}; Brier {:.6} -> {:.6}; coverage {:.6}",
+            id.model, before.ece, after.ece, before.brier, after.brier, coverage.set_coverage
+        );
+    }
 }
 
 #[test]
@@ -142,12 +147,30 @@ fn heldout_receipts_for_categorizer() {
 
 #[test]
 fn producer_feature_configuration_is_bound() {
-    let cat = svm();
+    // Both producers use identical SVM bytes and feature vocabulary. Only
+    // the maximum n-gram length changes, so binding must identify that setting.
+    let cat = svm_ngram(1);
     let original = identity(&cat, "reviews").unwrap();
-    let changed = svm_ngram();
+    let changed = svm_ngram(2);
     let expected = identity(&changed, "reviews").unwrap();
+    assert_eq!(original.model, expected.model);
+    assert_eq!(original.revision, expected.revision);
+    assert_eq!(original.labels, expected.labels);
     assert_ne!(original.sha256, expected.sha256);
+    let mut scratch = svm::Scratch::new();
+    let unigram = cat.categorize(&["good", "bad"], &mut scratch).to_vec();
+    let bigram = changed.categorize(&["good", "bad"], &mut scratch);
+    assert_ne!(unigram, bigram, "the changed bound must affect real producer probabilities");
     assert!(artifact(&cat).bind(&expected).is_err());
+    assert!(
+        CalibratedCategorizer::new(
+            changed,
+            artifact(&cat),
+            "reviews",
+            Policy { coverage: 0.9, max_set_size: 2, min_confidence: 0.0 },
+        )
+        .is_err()
+    );
 }
 
 #[test]

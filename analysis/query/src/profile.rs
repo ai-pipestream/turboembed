@@ -10,7 +10,6 @@ use turbo_analysis_layers::{Date, DateTime, Entities, NumberNotation, Times, Tok
 use turbo_chunker::terms::{IndexedTerms, TermForm, Vocabulary};
 use turbo_geo::{BundledGazetteer, Gazetteer};
 use turbo_glossary::{Case, Glossary, GlossaryAnnotator, GlossaryMatcher, TextMatcher};
-use turbo_langspan::SpanDetector;
 use turbo_namefind::{BuiltIn, DictionaryNameFinder, RegexNameFinder, TokenNameFinder};
 use turbo_numeric::{MoneyExtractor, TemporalExtractor};
 
@@ -38,7 +37,6 @@ pub struct QueryProfileBuilder {
     glossary: Option<(Arc<Glossary>, Case)>,
     dictionary_finder: Option<DictionaryNameFinder>,
     regex_finder: Option<(RegexNameFinder, bool)>,
-    span_detector_factory: Option<Box<dyn Fn() -> SpanDetector + Send + Sync>>,
 }
 
 impl Default for QueryProfileBuilder {
@@ -54,7 +52,7 @@ impl QueryProfileBuilder {
     /// - [`NumberNotation::LatinUs`],
     /// - [`BundledGazetteer`] place resolution,
     /// - built-in regex entity patterns (`EMAIL`, `URL`, `USA_PHONE_NUM`, `MGRS`, `DEGREES_MIN_SEC_LAT_LON`),
-    /// - built-in multi-language [`SpanDetector`].
+    /// - model-free [`turbo_langspan::ScriptDetector`].
     pub fn new() -> Self {
         let gaz = shared_bundled_gazetteer();
         let installer: GeoStepInstaller = Box::new(move |builder: SequentialBuilder| install_geo_steps(builder, gaz));
@@ -67,7 +65,6 @@ impl QueryProfileBuilder {
             glossary: None,
             dictionary_finder: None,
             regex_finder: Some((RegexNameFinder::defaults(&BuiltIn::ALL), true)),
-            span_detector_factory: None,
         }
     }
 
@@ -144,24 +141,9 @@ impl QueryProfileBuilder {
         self
     }
 
-    /// Supplies a custom factory for constructing the [`SpanDetector`] used by
-    /// both the query analyzer and the paired document analyzer.
-    pub fn with_span_detector_factory<F>(mut self, factory: F) -> Self
-    where
-        F: Fn() -> SpanDetector + Send + Sync + 'static,
-    {
-        self.span_detector_factory = Some(Box::new(factory));
-        self
-    }
-
     /// Builds the configured [`QueryAnalysisProfile`].
     pub fn build(mut self) -> Result<QueryAnalysisProfile, Error> {
-        let fast_ascii_en =
-            self.span_detector_factory.is_none() && matches!(self.default_language.as_str(), "en" | "eng");
-        let make_span_detector = || match &self.span_detector_factory {
-            Some(f) => QuerySpanDetector::new(f(), false),
-            None => QuerySpanDetector::new(default_span_detector(), fast_ascii_en),
-        };
+        let make_span_detector = || QuerySpanDetector::new(default_span_detector());
 
         let document_analyzer = install_lexical_backbone(
             SequentialBuilder::new(),

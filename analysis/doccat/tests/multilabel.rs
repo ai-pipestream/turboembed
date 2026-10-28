@@ -227,6 +227,19 @@ fn the_entry_bytes_round_trip_and_truncation_errors() {
 }
 
 #[test]
+fn native_entry_round_trips_calibrated_thresholds_and_identity() {
+    let model = hand_built_model().with_thresholds(vec![0.3, 0.7]).unwrap();
+    let bytes = model.write().unwrap();
+    let opened = MultiLabelDoccatModel::open(&bytes).unwrap();
+    assert_eq!(opened.thresholds(), [0.3, 0.7]);
+    assert_eq!(opened.max_labels(), None);
+    assert_eq!(opened.label(1), Some("finance"));
+    assert_eq!(opened.scores(&["stock"]), model.scores(&["stock"]));
+    assert_eq!(opened.model_ref(), model.model_ref());
+    assert_eq!(opened.write().unwrap(), bytes);
+}
+
+#[test]
 fn f_beta_conventions_and_macro_f1() {
     assert_eq!(precision_recall(0, 0, 3), (1.0, 0.0), "nothing predicted is precision 1");
     assert_eq!(precision_recall(0, 2, 0), (0.0, 1.0), "no positive is recall 1");
