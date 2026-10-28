@@ -8,6 +8,7 @@
 use turbo::head::crf::Allowed;
 use turbo::status::{Result, invalid};
 
+use crate::logspace::{logsumexp, softmax};
 use crate::real::Real;
 
 /// The CRF's parameters: transitions [from, to], start and end [labels].
@@ -25,34 +26,18 @@ pub struct Grad<'a, R> {
     pub end: &'a mut [R],
 }
 
-fn logsumexp(v: impl Iterator<Item = f64> + Clone) -> f64 {
-    let m = v.clone().fold(f64::NEG_INFINITY, f64::max);
-    if m == f64::NEG_INFINITY {
-        return m;
-    }
-    m + v.map(|x| (x - m).exp()).sum::<f64>().ln()
-}
-
-/// exp(v) normalized to sum to one, worked from v's maximum, so no large
-/// common score rounds the normalizer away; all zero when v is all -inf.
-fn softmax(v: &mut [f64]) {
-    let m = v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    if m == f64::NEG_INFINITY {
-        v.fill(0.0);
-        return;
-    }
-    v.iter_mut().for_each(|x| *x = (*x - m).exp());
-    let z: f64 = v.iter().sum();
-    v.iter_mut().for_each(|x| *x /= z);
-}
+/// How far, at one place, a score may sit from the gold path's own score
+/// there (see [`nll`]); trained heads sit within tens.
+pub const SCORE_RANGE: f64 = 1e6;
 
 /// The loss -log p(gold | emit) for one sequence, emit [n, labels], and
 /// its gradients added to `demit` [n, labels] and `grad`. A gold
 /// sequence the lattice forbids is refused: the scheme would never decode
 /// it, so it cannot be a training target. So are a lattice, parameters,
 /// scores or gradients of another label count or length, nonfinite
-/// scores or parameters, and a loss or gradient that overflows. A
-/// refusal leaves `demit` and `grad` as they were.
+/// scores or parameters, a score more than [`SCORE_RANGE`] from the gold
+/// path's at its place, and a loss or gradient that overflows. A refusal
+/// leaves `demit` and `grad` as they were.
 pub fn nll<R: Real>(
     p: Params<R>,
     allowed: &Allowed,
@@ -104,6 +89,23 @@ pub fn nll<R: Real>(
     if !legal {
         return Err(invalid("crf: the gold sequence is one the scheme forbids"));
     }
+    // The range the sums are exact enough over. A score the gold path's
+    // does not cancel, more than SCORE_RANGE from it, would leave log Z
+    // and the marginals carrying f64 rounding as large as the normaliser
+    // they need (a path count's log next to 1e20), so it is refused
+    // rather than trained on. Forbidden places are never summed.
+    let mut far = (0..n).any(|t| (0..labels).any(|j| e(t, j).abs() > SCORE_RANGE));
+    far |= (0..labels).any(|j| {
+        (allowed.may_start(j) && start(j).abs() > SCORE_RANGE) || (allowed.may_end(j) && end(j).abs() > SCORE_RANGE)
+    });
+    far |= (1..n)
+        .any(|t| (0..labels).any(|a| (0..labels).any(|b| allowed.may_follow(a, b) && tr(t, a, b).abs() > SCORE_RANGE)));
+    if far {
+        return Err(invalid(format!(
+            "crf: a score is more than {SCORE_RANGE:e} from the gold path's at its place; log-space sums would round \
+             away the normaliser"
+        )));
+    }
     let mut alpha = vec![f64::NEG_INFINITY; n * labels];
     for (j, a) in alpha[..labels].iter_mut().enumerate() {
         if allowed.may_start(j) {
@@ -142,7 +144,9 @@ pub fn nll<R: Real>(
     // place and subtracting it at another loses the normalizer when the
     // scores are large (codex: [0, 1e20, 1e20] gave marginals [0, 1, 1]).
     let mut marginals: Vec<f64> = alpha.iter().zip(&beta).map(|(a, b)| a + b).collect();
-    marginals.chunks_mut(labels).for_each(softmax);
+    marginals.chunks_mut(labels).for_each(|row| {
+        softmax(row);
+    });
     let marginal = |t: usize, j: usize| marginals[t * labels + j];
     let mut d_emit = vec![0.0f64; n * labels];
     for t in 0..n {
