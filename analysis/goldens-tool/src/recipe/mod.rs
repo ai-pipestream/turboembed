@@ -130,7 +130,8 @@ pub const INPUT_SETS: [&str; 48] = [
     "doccat",
     "doccat-train",
     "conllu",
-    "corpora",];
+    "corpora",
+];
 
 /// The arguments the driver passes to the generator after the fixed ones
 /// (the inputs, models and output directories and the commit, which the
@@ -195,7 +196,8 @@ pub const ANNOTATORS: [&str; 53] = [
     "doccat",
     "conllu",
     "corpora",
-    "postag-neural",];
+    "postag-neural",
+];
 
 /// The annotators with runs that ask a maxent model for their decisions:
 /// each golden of theirs whose header names a model has a decision point
