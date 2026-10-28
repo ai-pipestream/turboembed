@@ -138,7 +138,7 @@ fn sentence_lists_tile_gold_documents_or_are_refused() {
 #[test]
 fn the_rule_sentencer_scores_the_joined_gold_text() {
     let gold = parse_conllu(GOLD).unwrap();
-    let scores = score_sentencer("turbo-rule", &gold, &Sentencer::rule()).unwrap();
+    let scores = score_sentencer("turbo-rule", &gold, &Sentencer::rules("en")).unwrap();
     assert_eq!(scores.sentences.score, 100.0);
     assert!(scores.tokens.is_none());
     assert!(scores.throughput_sentences_per_second.is_some_and(|t| t > 0.0));
