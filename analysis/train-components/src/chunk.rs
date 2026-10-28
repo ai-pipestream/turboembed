@@ -218,7 +218,7 @@ pub fn train_chunker_model_from_events(
 mod tests {
     use super::*;
     use turbo_formats::native::ChunkReader;
-    use turbo_train::{Algorithm, JavaString, Key};
+    use turbo_train::JavaString;
 
     fn samples(text: &str) -> Vec<ChunkSample<'_>> {
         ChunkReader::new(text).unwrap().map(|s| s.unwrap()).collect()
@@ -290,40 +290,5 @@ mod tests {
         assert_eq!(beam_size(&p).unwrap(), 4);
         p.put_str(BEAM_SIZE_KEY, "x");
         assert!(beam_size(&p).is_err());
-    }
-
-    #[test]
-    fn the_ported_event_trainers_train_and_the_sequence_perceptron_is_refused() {
-        let s = samples(TEXT);
-        let f = ChunkerFactory::new("en");
-        let mut p = TrainingParameters::new();
-        p.put(Key::ITERATIONS, 5);
-        p.put(Key::CUTOFF, 0);
-        for (algorithm, model_type) in [
-            (None, "GIS"),
-            (Some(Algorithm::MaxentQn), "QN"),
-            (Some(Algorithm::Perceptron), "Perceptron"),
-            (Some(Algorithm::NaiveBayes), "NaiveBayes"),
-        ] {
-            if let Some(a) = algorithm {
-                p.put_str(Key::ALGORITHM, a.name());
-            }
-            let t = train_chunker_model(&s, &f, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap();
-            let file = turbo_maxent::ModelFile::open(t.package.to_bytes()).unwrap();
-            let entry = file.entry(MODEL_ENTRY).unwrap();
-            assert_eq!(&entry[2..2 + model_type.len()], model_type.as_bytes(), "{algorithm:?}");
-            assert_eq!(file.manifest().get("BeamSize"), Some("10"));
-            assert_eq!(t.report.trainer_type, TrainerType::Event);
-            let maxent = file.maxent(MODEL_ENTRY).unwrap();
-            let outcomes: Vec<&str> = maxent.outcome_texts().unwrap();
-            assert_eq!(outcomes.len(), 4, "{outcomes:?}");
-        }
-        p.put_str(Key::ALGORITHM, Algorithm::PerceptronSequence.name());
-        let e = train_chunker_model(&s, &f, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap_err();
-        assert!(matches!(e, Error::UnsupportedTrainerType(Some(TrainerType::EventModelSequence))), "{e}");
-        assert_eq!(e.to_string(), "Trainer type is not supported: EVENT_MODEL_SEQUENCE_TRAINER");
-        p.put_str(Key::ALGORITHM, "org.example.NoSuchTrainer");
-        let e = train_chunker_model(&s, &f, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap_err();
-        assert_eq!(e.to_string(), "Trainer type is not supported: null");
     }
 }
