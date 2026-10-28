@@ -2517,11 +2517,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
+ "turbo-matcher",
  "turbo-sequence",
- "turbo-train",
  "turbo-unicode",
 ]
 
