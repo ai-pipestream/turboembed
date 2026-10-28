@@ -106,17 +106,7 @@ impl Tokenizer {
                 }
             }
             (None, Some(u), _) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
-            (None, None, Some(b)) => {
-                // A normalized token would be matched in the NFC text,
-                // which the core does not do.
-                if let Some(s) = t.special_tokens.iter().find(|s| b.nfc && s.normalized) {
-                    return Err(invalid(format!(
-                        "tokenizer.special_tokens: {:?} is normalized, and the core matches no token after NFC",
-                        s.content
-                    )));
-                }
-                Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?)
-            }
+            (None, None, Some(b)) => Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?),
             (None, None, None) => {
                 let spec = t.sentencepiece.as_ref().expect("validated");
                 let sp = SentencePiece::parse(&bytes).map_err(|e| invalid(format!("{file}: {}", e.message)))?;
@@ -141,7 +131,8 @@ impl Tokenizer {
                 Kind::SentencePiece(Box::new(sp))
             }
         };
-        let vocab_size = kind.vocab_size();
+        let matched = load_added::matched(file, &json, t, &kind)?;
+        let vocab_size = matched.vocab_size;
         let table = m
             .architecture
             .as_ref()
@@ -153,110 +144,16 @@ impl Tokenizer {
             return Err(invalid(format!("{file}: {vocab_size} vocabulary entries, {block}.vocab_size is {rows}")));
         }
 
-        // Every special token is in the vocabulary under its id, and the
-        // added tokens upstream matches in raw text are exactly these.
-        for s in &t.special_tokens {
-            if kind.id(&s.content) != Some(s.id) {
-                return Err(invalid(format!("{file}: model.vocab has no {:?} with id {}", s.content, s.id)));
-            }
-        }
-        let added = json["added_tokens"].as_array().map(Vec::as_slice).unwrap_or_default();
-        let sentencepiece = matches!(kind, Kind::SentencePiece(_));
-        let mut seen_added = std::collections::HashSet::with_capacity(added.len());
-        for (i, a) in added.iter().enumerate() {
-            let content = a["content"].as_str().unwrap_or_default();
-            if !seen_added.insert(content) {
-                return Err(invalid(format!("{file}: added_tokens[{i}] duplicates {content:?}")));
-            }
-            let Some(s) = t.special_tokens.iter().find(|s| s.content == content) else {
-                return Err(invalid(format!(
-                    "{file}: added_tokens[{i}] {content:?} is not a special token in manifest.json"
-                )));
-            };
-            if a["special"] != true
-                || a["id"] != s.id
-                || a["normalized"] != s.normalized
-                || a["lstrip"] != s.lstrip
-                || a["rstrip"] != s.rstrip
-                || a["single_word"] != s.single_word
-            {
-                return Err(invalid(format!(
-                    "{file}: added_tokens[{i}] {content:?} is matched differently from what manifest.json says"
-                )));
-            }
-        }
-        if !sentencepiece && added.len() != t.special_tokens.len() {
-            return Err(invalid(format!(
-                "{file}: {} added_tokens, manifest.json has {} special tokens",
-                added.len(),
-                t.special_tokens.len()
-            )));
-        }
-
         let id_of = |content: &str| t.special_tokens.iter().find(|s| s.content == content).map(|s| s.id as i32);
         let role = |r: SpecialRole| t.special_tokens.iter().find(|s| s.role == r).map_or(-1, |s| s.id as i32);
-        // The library matches no special token in the text: a control
-        // piece written there is its characters.
-        let mut specials: Vec<Special> = t
-            .special_tokens
-            .iter()
-            .filter(|s| !s.normalized && !sentencepiece)
-            .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
-            .collect();
-        specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
-        // Whitespace around a normalized special token is dropped by the
-        // pre-tokenizer either way, so lstrip and rstrip change no id.
-        let mut normalized_specials: Vec<Special> = match &kind {
-            Kind::WordPiece { normalizer, ascii, .. } => t
-                .special_tokens
-                .iter()
-                .filter(|s| s.normalized)
-                .map(|s| Special {
-                    content: normalized(normalizer, ascii, &s.content),
-                    id: s.id as i32,
-                    lstrip: s.lstrip,
-                    single_word: s.single_word,
-                })
-                .filter(|s| !s.content.is_empty())
-                .collect(),
-            // No normalizer: a normalized token is its content, matched
-            // in each piece the raw tokens leave, after them as upstream.
-            Kind::Bpe(_) => t
-                .special_tokens
-                .iter()
-                .filter(|s| s.normalized)
-                .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
-                .collect(),
-            Kind::Unigram(u) => t
-                .special_tokens
-                .iter()
-                .filter(|s| s.normalized)
-                .map(|s| Special {
-                    content: u.normalize(&s.content),
-                    id: s.id as i32,
-                    lstrip: s.lstrip,
-                    single_word: false,
-                })
-                .collect(),
-            Kind::SentencePiece(_) => Vec::new(),
-        };
-        normalized_specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
-        let mut special_starts = [false; 256];
-        for s in &specials {
-            if let Some(&b) = s.content.as_bytes().first() {
-                special_starts[b as usize] = true;
-            }
-        }
-        let mut normalized_starts = [false; 256];
-        for s in &normalized_specials {
-            if let Some(&b) = s.content.as_bytes().first() {
-                normalized_starts[b as usize] = true;
-            }
-        }
         let stat = m.static_embedding.as_ref().map(|_| StaticRules { median_chars: kind.median_chars() });
+        let sentencepiece = matches!(kind, Kind::SentencePiece(_));
         let decoder = if sentencepiece { Decoder::SentencePiece } else { Decoder::parse(&json["decoder"]) };
         let mut pieces = vec![Box::<str>::from(""); vocab_size as usize];
         kind.each_piece(|piece, id| pieces[id as usize] = piece.into());
+        for (id, piece) in matched.pieces {
+            pieces[id as usize] = piece.into();
+        }
         let e = m.encoder();
         let rerank = m.rerank.clone().or_else(|| {
             let a = m.architecture.as_ref()?;
@@ -282,10 +179,9 @@ impl Tokenizer {
         Ok(Tokenizer {
             rerank,
             kind,
-            specials,
-            normalized_specials,
-            special_starts,
-            normalized_starts,
+            raw: matched.raw,
+            normalized: matched.normalized,
+            vocab_size,
             template: t.template.iter().map(|s| if s == "$TEXT" { None } else { id_of(s) }).collect(),
             truncation: t.truncation,
             max_seq: m.static_embedding.as_ref().map_or(e.max_seq, |st| st.max_length),
@@ -298,7 +194,7 @@ impl Tokenizer {
             stat,
             decoder,
             pieces,
-            special_ids: t.special_tokens.iter().map(|s| s.id as i32).collect(),
+            special_ids: matched.special_ids,
             sha256: crate::bundle::sha256_hex(&bytes),
             manifest_sha256: bundle.manifest_sha256.clone(),
         })
