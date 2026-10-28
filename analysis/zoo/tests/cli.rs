@@ -180,7 +180,7 @@ fn show_prints_attribution_for_builtin_entries() {
     for (id, expected) in [
         (
             "turbo-en-masc-3.0.0-aspect-sentiment-1",
-            "attribution: Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus",
+            "attribution: Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations",
         ),
         ("fastino-gliner2-base-v1", "attribution: fastino/gliner2-base-v1 at f9634218e53580c56edf0de97ca1a7d3f1c2354e"),
     ] {
