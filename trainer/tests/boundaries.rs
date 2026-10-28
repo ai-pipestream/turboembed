@@ -147,3 +147,32 @@ fn a_common_score_offset_changes_neither_loss_nor_gradient() {
         assert_eq!(gt, [0.25, -0.75, 0.25, 0.25], "crf at {offset}");
     }
 }
+
+/// Codex's cases: large start and end scores that cancel along every
+/// legal path, and a large start score only a forbidden path could take.
+/// Neither may swallow the normaliser.
+#[test]
+fn large_scores_that_cancel_or_are_forbidden_leave_the_loss_whole() {
+    let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let (_, tags) = allowed(Scheme::Tags, &names(&["A", "B"])).unwrap();
+    let (_, bio) = allowed(Scheme::Bio, &names(&["O", "B-X", "I-X"])).unwrap();
+    // Lattice, start, end, emissions, and the start, end and emission
+    // gradients wanted.
+    type Case<'a> = (&'a turbo::head::crf::Allowed, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>);
+    let cases: [Case; 3] = [
+        (&tags, vec![1e20, 0.0], vec![0.0, 1e20], vec![0.0; 2], vec![-0.5, 0.5]),
+        (&tags, vec![0.0, 1e20], vec![1e20, 0.0], vec![0.0; 2], vec![-0.5, 0.5]),
+        (&bio, vec![0.0, 0.0, 1e20], vec![0.0; 3], vec![0.0; 3], vec![-0.5, 0.5, 0.0]),
+    ];
+    for (k, (lattice, st, en, emit, want)) in cases.into_iter().enumerate() {
+        let labels = st.len();
+        let tr = vec![0.0f32; labels * labels];
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) =
+            (vec![0.0f32; labels * labels], vec![0.0; labels], vec![0.0; labels], vec![0.0; labels]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        let l = crf::nll(p, lattice, &emit, &[0], labels, &mut de, g).unwrap();
+        assert!((l - std::f64::consts::LN_2).abs() < 1e-12, "case {k}: loss {l}");
+        assert_eq!((&de, &gs, &ge), (&want, &want, &want), "case {k}");
+    }
+}
