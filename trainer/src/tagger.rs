@@ -10,12 +10,13 @@
 use turbo::head::TokenTagger;
 use turbo::head::crf::{Allowed, allowed};
 use turbo::head::tagger::tensors;
-use turbo::manifest::{Decode, HeadSpec};
+use turbo::manifest::{Decode, HeadKind, HeadSpec};
 use turbo::status::{Result, invalid};
 
+use crate::adapter::{self, Shape};
 use crate::real::Real;
 use crate::rng::Rng;
-use crate::{crf, linear, lstm, xent};
+use crate::{crf, linear, xent};
 
 /// The weights of one head, `params[i]` named `names[i]`.
 #[derive(Debug, Clone)]
@@ -30,9 +31,7 @@ pub struct Tagger<R> {
 /// The activations of one sequence, kept for backward.
 #[derive(Debug, Default)]
 pub struct Work<R> {
-    /// Each adapter layer's output [n, 2h].
-    layers: Vec<Vec<R>>,
-    caches: Vec<lstm::Cache<R>>,
+    adapter: adapter::Work<R>,
     scores: Vec<R>,
     dscores: Vec<R>,
 }
@@ -70,6 +69,9 @@ impl<R: Real> Tagger<R> {
     pub fn with_params(spec: &HeadSpec, hidden: usize, params: Vec<Vec<R>>) -> Result<Self> {
         // A head no bundle could carry is never trained.
         spec.validate("head")?;
+        if spec.kind != HeadKind::TokenTagger {
+            return Err(invalid(format!("trainer: head {:?} is not a token tagger", spec.name)));
+        }
         let shapes = tensors(spec, hidden);
         let fits = params.len() == shapes.len()
             && shapes.iter().zip(&params).all(|((_, s), p)| s.iter().product::<u64>() as usize == p.len());
@@ -99,13 +101,9 @@ impl<R: Real> Tagger<R> {
         self.params.iter().map(|p| vec![R::ZERO; p.len()]).collect()
     }
 
-    fn adapter(&self) -> (usize, usize) {
-        self.spec.adapter.map_or((0, 0), |a| (a.bilstm.layers as usize, a.bilstm.hidden as usize))
-    }
-
-    fn dir(&self, k: usize, d: usize) -> lstm::Dir<'_, R> {
-        let i = 6 * k + 3 * d;
-        lstm::Dir { w: &self.params[i], u: &self.params[i + 1], b: &self.params[i + 2], reverse: d == 1 }
+    fn shape(&self) -> Shape {
+        let (layers, h) = self.spec.adapter.map_or((0, 0), |a| (a.bilstm.layers as usize, a.bilstm.hidden as usize));
+        Shape { hidden: self.hidden, layers, h }
     }
 
     /// The label scores [n, labels] of features [n, hidden], kept in `w`.
@@ -114,24 +112,12 @@ impl<R: Real> Tagger<R> {
             return Err(invalid(format!("trainer: {} features are not rows of {}", features.len(), self.hidden)));
         }
         let n = features.len() / self.hidden;
-        let (layers, h) = self.adapter();
-        w.layers.resize_with(layers, Vec::new);
-        w.caches.resize_with(2 * layers, lstm::Cache::default);
-        let mut width = self.hidden;
-        for k in 0..layers {
-            let mut out = std::mem::take(&mut w.layers[k]);
-            out.clear();
-            out.resize(n * 2 * h, R::ZERO);
-            let x = if k == 0 { features } else { &w.layers[k - 1] };
-            for d in 0..2 {
-                lstm::forward(self.dir(k, d), x, width, h, &mut out, 2 * h, d * h, &mut w.caches[2 * k + d]);
-            }
-            w.layers[k] = out;
-            width = 2 * h;
-        }
+        let shape = self.shape();
+        adapter::forward(shape, &self.params, features, &mut w.adapter);
+        let (layers, width) = (shape.layers, shape.width());
         let labels = self.spec.labels.len();
         let o = 6 * layers;
-        let x = if layers == 0 { features } else { &w.layers[layers - 1] };
+        let x = adapter::output(features, &w.adapter);
         w.scores.clear();
         w.scores.resize(n * labels, R::ZERO);
         linear::forward(&self.params[o], &self.params[o + 1], x, width, labels, &mut w.scores);
@@ -146,12 +132,11 @@ impl<R: Real> Tagger<R> {
             return Err(invalid(format!("trainer: {} gold labels for {n} words", gold.len())));
         }
         let labels = self.spec.labels.len();
-        let (layers, h) = self.adapter();
-        let o = 6 * layers;
+        let shape = self.shape();
+        let o = 6 * shape.layers;
         w.dscores.clear();
         w.dscores.resize(n * labels, R::ZERO);
         let loss = match self.spec.decode {
-            Decode::Argmax => xent::loss(&w.scores, gold, labels, &mut w.dscores)?,
             Decode::Crf => {
                 let p = crf::Params {
                     transitions: &self.params[o + 2],
@@ -162,27 +147,15 @@ impl<R: Real> Tagger<R> {
                 let g = crf::Grad { transitions: t, start: s, end: e };
                 crf::nll(p, &self.allowed, &w.scores, gold, labels, &mut w.dscores, g)?
             }
+            _ => xent::loss(&w.scores, gold, labels, &mut w.dscores)?,
         };
-        let width = if layers == 0 { self.hidden } else { 2 * h };
-        let x = if layers == 0 { features } else { &w.layers[layers - 1] };
+        let (layers, width) = (shape.layers, shape.width());
+        let x = adapter::output(features, &w.adapter);
         let mut dx = vec![R::ZERO; if layers == 0 { 0 } else { n * width }];
         let [dw, db] = grads.get_disjoint_mut([o, o + 1]).expect("distinct");
         let dxo = if layers == 0 { None } else { Some(&mut dx[..]) };
         linear::backward(&self.params[o], x, &w.dscores, width, labels, dw, db, dxo);
-        for k in (0..layers).rev() {
-            let inp = if k == 0 { self.hidden } else { 2 * h };
-            let x = if k == 0 { features } else { &w.layers[k - 1] };
-            // The encoder is frozen: layer 0's input gradient is not needed,
-            // but computing it costs one product and keeps one code path.
-            let mut dprev = vec![R::ZERO; n * inp];
-            for d in 0..2 {
-                let i = 6 * k + 3 * d;
-                let [gw, gu, gb] = grads.get_disjoint_mut([i, i + 1, i + 2]).expect("distinct");
-                let g = lstm::Grad { w: gw, u: gu, b: gb };
-                lstm::backward(self.dir(k, d), x, inp, h, &dx, 2 * h, d * h, &w.caches[2 * k + d], g, &mut dprev);
-            }
-            dx = dprev;
-        }
+        adapter::backward(shape, &self.params, features, dx, grads, &w.adapter);
         Ok(loss)
     }
 }
