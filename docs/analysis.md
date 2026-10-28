@@ -4529,12 +4529,13 @@ break, up to 116k tokens, which were one truncated chunk and cost v1
 1.46 points of nDCG@10 against fixed-tokens-200. Records at
 `8051f4d7` (gate reports from `957dc00a`, byte-identical to `e28b80d0`'s), six sets, under
 `analysis/eval/records/v1-clauses-172/<backend>/<name>/`, with the gate
-and cut reports in `reports/`. On the CPU and Level Zero (Arc Pro B70),
-alike:
+and cut reports in `reports/`. On the CPU and Level Zero (Arc Pro B70);
+the evidence numbers are the same on both, and the one floor that
+differs is qasper's (CPU -1.31, Level Zero -1.27):
 
 | Set | recall@10 vs sw-5 | contained@10 vs sw-5 | evidence cut through, v1 / sw-5 | nDCG@10 vs best baseline, mean (high end) |
 | :--- | ---: | ---: | ---: | ---: |
-| qasper | +5.68 (+4.44..+6.95) | +13.78 (+12.05..+15.56) | 7.7% / 51.0% | -1.31 (-0.01), sandbox semantic |
+| qasper | +5.68 (+4.44..+6.95) | +13.78 (+12.05..+15.56) | 7.7% / 51.0% | -1.31 (-0.01) CPU, -1.27 (+0.02) Level Zero, sandbox semantic |
 | gutenqa | +10.80 (+9.11..+12.52) | +12.05 (+10.18..+13.92) | 5.8% / 9.0% | +0.01 (+0.44), fixed-tokens |
 | conteb-squad | reported: 98% short | | 0.1% / 0.2% | -0.68 (+0.08), sandbox semantic |
 | scifact | | | | -1.34 (-0.03), sentence windows |
