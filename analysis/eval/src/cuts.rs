@@ -72,6 +72,8 @@ impl Header {
 fn codecs() -> Codecs {
     let mut c = Codecs::new();
     turbo_analysis_layers::export::register_codecs(&mut c);
+    // The clause cuts a `--clauses` run splits over-budget sentences by.
+    turbo_chunker::export::register_codecs(&mut c);
     c
 }
 

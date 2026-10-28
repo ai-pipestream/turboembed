@@ -175,3 +175,16 @@ fn an_unfinished_dump_leaves_no_file() {
     dump(&d, "s", "cpu", &c);
     fs::remove_dir_all(d).unwrap();
 }
+
+#[test]
+fn a_clauses_run_dumps_and_compares() {
+    let (a, b) = (dir("clauses-a"), dir("clauses-b"));
+    let c = TurboChunker { clauses: true, ..chunker(Costs::default()) };
+    dump(&a, "s", "cpu", &c);
+    dump(&b, "s", "levelzero", &c);
+    let sets = compare_dirs(&a, &b).unwrap();
+    assert!(sets[0].is_identical(), "{}", sets[0]);
+    for d in [a, b] {
+        fs::remove_dir_all(d).unwrap();
+    }
+}
