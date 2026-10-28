@@ -25,10 +25,37 @@ name: models-fineweb
 # `turbo-train-recipes fineweb-ranges` says what to fetch next. It keeps
 # them as an artifact, to be committed, and trains on them as a run whose
 # model is not a release.
+#
+# That pull request run is an opt-in integration test, off by default:
+# it trains only while the pull request carries the label `ci:models`
+# (or when the workflow is run by hand on its branch), so agent pushes
+# do not hold the training runners. A push to main that changes the
+# same paths always trains and checks. The required check `check` is
+# ci.yml's and does not wait on this workflow, so a pull request without
+# the label still merges through the queue (.github/runner/README.md,
+# "Model training runs").
 
 on:
   workflow_dispatch:
+  # Opt-in integration test on a pull request: the training job runs
+  # only while the pull request carries the label `ci:models`, so a
+  # push to a pull request without it trains nothing. Adding the label
+  # starts a run; pushes after it run again.
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - ".github/workflows/models-fineweb.yml"
+      - ".github/workflows/models-publish.yml"
+      - "analysis/train-recipes/**"
+      - "analysis/train-components/**"
+      - "analysis/train/**"
+      - "analysis/eval/**"
+      - "analysis/zstd/**"
+      - "analysis/langdetect/**"
+      - "analysis/zoo/index/zoo.json"
+  # Every merge to main that changes these paths trains and checks.
+  push:
+    branches: [main]
     paths:
       - ".github/workflows/models-fineweb.yml"
       - ".github/workflows/models-publish.yml"
@@ -43,13 +70,17 @@ on:
 permissions:
   contents: read
 
-# A new push to a pull request cancels the training still going on its
-# older head; a run by hand is never cancelled. The training job runs
+# A new push to a labelled pull request cancels the training still going
+# on its older head; a run by hand is never cancelled. On main the run
+# going is never cancelled, and only the newest push waits behind it
+# (GitHub keeps one pending run per group). A run started by some other
+# label gets a group of its own, so it skips without cancelling the
+# training. The training job runs
 # on the runners TURBO_TRAIN_LINUX names, apart from the ci lanes so a
 # training run of up to three hours does not hold their runners;
 # publishing is hosted.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || (github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'ci:models') && github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -62,6 +93,12 @@ env:
 
 jobs:
   fineweb:
+    # On a pull request, only with the label `ci:models`, and not again
+    # when some other label is added (see `on:` and `concurrency:`).
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'ci:models') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:models'))
     runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_TRAIN_LINUX && fromJSON(vars.TURBO_TRAIN_LINUX) || 'ubuntu-24.04' }}
     timeout-minutes: 180
     outputs:
