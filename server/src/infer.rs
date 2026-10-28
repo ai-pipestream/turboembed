@@ -323,6 +323,8 @@ pub fn options(params: &HashMap<String, InferParameter>) -> Result<turbo_embed_o
         normalize: v[3],
         pooling: v[4],
         output_dim: v[5],
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     })
 }
 

@@ -25,6 +25,8 @@ pub fn embed_options() -> turbo_embed_options {
         normalize: 0,
         pooling: 0,
         output_dim: 0,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     }
 }
 

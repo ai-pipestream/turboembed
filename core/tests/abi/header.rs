@@ -131,6 +131,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_embed_options", "normalize", offset_of!(turbo_embed_options, normalize)),
         ("turbo_embed_options", "pooling", offset_of!(turbo_embed_options, pooling)),
         ("turbo_embed_options", "output_dim", offset_of!(turbo_embed_options, output_dim)),
+        ("turbo_embed_options", "quantization", offset_of!(turbo_embed_options, quantization)),
+        ("turbo_embed_options", "int8_ranges", offset_of!(turbo_embed_options, int8_ranges)),
         ("turbo_token_batch", "batch", offset_of!(turbo_token_batch, batch)),
         ("turbo_token_batch", "seq", offset_of!(turbo_token_batch, seq)),
         ("turbo_token_batch", "row_stride", offset_of!(turbo_token_batch, row_stride)),

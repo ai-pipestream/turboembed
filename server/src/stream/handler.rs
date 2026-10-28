@@ -102,6 +102,8 @@ pub(crate) fn options(o: Option<&AnalyzeOptions>) -> Result<turbo::turbo_embed_o
         normalize: pick("normalize", o.normalize, names::NORMALIZE)?,
         pooling: pick("pooling", o.pooling, names::POOLING)?,
         output_dim: o.output_dim,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     })
 }
 

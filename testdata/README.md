@@ -180,6 +180,18 @@
     the library gives on every text, one line per text as the
     docstring of `goldens.py` writes it. `core/tests/sentencepiece.rs`
     makes the same edits.
+- `quantize/sentence-transformers-145ef47d.txt`: int8 and ubinary codes
+  for synthetic f32 rows (widths 1, 7, 8, 9 and 64, six rows each, with
+  rows below every minimum, above every maximum, on a bucket edge and of
+  +0 and -0, and a dimension whose minimum is its maximum), with explicit
+  ranges, as the expressions of sentence-transformers' `quantize_embeddings`
+  (`sentence_transformers/util/quantization.py` at
+  `145ef47d5a4bcb9c88ab5e0684e14a4222ef408f`, Apache-2.0) give them under
+  numpy 2.5.3. Each line is the width, then hex of the row's
+  little-endian f32 values, of the `[2, dim]` ranges, of the int8 codes
+  and of the ubinary codes. `quantize/regenerate.py` writes it
+  (`python3 -I regenerate.py`); `core/src/quantize/tests.rs` holds the
+  core's codes to it.
 
 Everything here is about 9.8 MB, 4 MB of it the tiny
 BERT bundle's weights, 2 MB the SentencePiece models and goldens,
