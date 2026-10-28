@@ -10,5 +10,5 @@ Multi-token terminology and glossary span extraction (`GlossaryAnnotator`, `Glos
 
 ## Testing, Accuracy, and Speed
 
-- **Test suite**: Verified by unit and integration tests in `analysis/glossary/src/lib.rs`, `analysis/glossary/tests/pipeline.rs`, `analysis/glossary/tests/round_trip.rs`, `analysis/glossary/tests/mapped.rs`, and `analysis/glossary/tests/mapped_alloc.rs`.
+- **Test suite**: Verified by unit and integration tests in `analysis/glossary/src/lib.rs`, `analysis/glossary/tests/snapshots.rs`, `analysis/glossary/tests/pipeline.rs`, `analysis/glossary/tests/round_trip.rs`, `analysis/glossary/tests/mapped.rs`, and `analysis/glossary/tests/mapped_alloc.rs`.
 - **Accuracy and speed**: Deterministic $O(n)$ token-stream traversal over prefix tries with zero per-document heap allocations on misses.

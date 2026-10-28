@@ -43,6 +43,9 @@ turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
 turbo-vector-index = { path = "../analysis/vector-index", features = ["turboquant"] }
 turbo-query = { path = "../analysis/query" }
 turbo-sentdetect = { path = "../analysis/sentdetect" }
+turbo-sat = { path = "../analysis/sat" }
+turbo-pii = { path = "../analysis/pii" }
+turbo-numeric = { path = "../analysis/numeric" }
 turbo-stem = { path = "../analysis/stem" }
 # The vocabulary store's readers: each upload is parsed by the crate that
 # owns its format, and the learner counts UAX #29 words.

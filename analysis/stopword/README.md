@@ -10,5 +10,5 @@ Multilingual stopword filtering (`StopwordFilter`, `StopwordList`, `StopwordAnno
 
 ## Testing, Accuracy, and Speed
 
-- **Test suite**: Covered by `analysis/stopword/src/lib.rs`, `analysis/stopword/tests/pipeline.rs`, and snapshot and property suites verifying language coverage, case folding, and pipeline annotation.
+- **Test suite**: Covered by `analysis/stopword/src/lib.rs`, `analysis/stopword/tests/lists.rs`, `analysis/stopword/tests/codes.rs`, `analysis/stopword/tests/properties.rs`, and `analysis/stopword/tests/pipeline.rs` verifying language coverage, case folding, and pipeline annotation.
 - **Accuracy and speed**: Allocation-free hash-set lookup per token.

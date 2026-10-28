@@ -10,5 +10,5 @@ Deterministic algorithmic stemmers (`Stemmer` trait) for English and multilingua
 
 ## Testing, Accuracy, and Speed
 
-- **Test suite**: Verified against the official Snowball and Porter vocabulary fixtures in `analysis/stem/tests/snowball_vocabulary.rs`, `analysis/stem/tests/pipeline.rs`, and the crate's snapshot and property suites.
+- **Test suite**: Verified against the official Snowball and Porter vocabulary fixtures in `analysis/stem/tests/snowball_vocabulary.rs`, `analysis/stem/tests/snapshots.rs`, `analysis/stem/tests/pipeline.rs`, and `analysis/stem/tests/properties.rs`.
 - **Accuracy and speed**: Zero-regex slice state machines operating in a single forward/backward pass at multi-million words per second on CPU.
