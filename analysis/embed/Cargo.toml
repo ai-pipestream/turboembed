@@ -24,6 +24,7 @@ turbo-doccat = { path = "../doccat" }
 turbo-coref = { path = "../coref" }
 
 [dev-dependencies]
+turbo-pins = { path = "../pins" }
 # Native sentence boundaries for the mandatory sentence-vector snapshot.
 turbo-sentdetect = { path = "../sentdetect" }
 # The tests build the levels with the chunker crate's builder.
