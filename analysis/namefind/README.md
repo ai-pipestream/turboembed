@@ -39,4 +39,6 @@ times the five built-in patterns and one token pattern over the ASCII
 sentences of the fixture.
 
 The CRF finder (`crf.rs`) and the CRF span calibration (`calibrated.rs`)
-read the CRF model package through `turbo-sequence`'s model-file type.
+decode caller-provided numerical scores through `turbo-sequence`'s typed
+`EntityDecoder`. The caller supplies each sentence's parameters and binds
+the score-source hash and model provenance; this crate reads no model archive.
