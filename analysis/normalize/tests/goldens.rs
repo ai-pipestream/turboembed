@@ -304,6 +304,42 @@ fn every_normalizer_has_a_snapshot_for_every_input() {
     }
 }
 
+/// Every divergence names a `###` section of `docs/normalizers.md` that
+/// records a "Differences from OpenNLP" paragraph.
+#[test]
+fn every_divergence_names_a_documented_difference() {
+    let doc = std::fs::read_to_string(root().join("../../../docs/normalizers.md")).expect("docs/normalizers.md");
+    let tables: &[&[Divergence]] = &[
+        QUOTE,
+        BULLET,
+        ELLIPSIS,
+        INVISIBLE,
+        DEHYPHENATION,
+        EMOJI,
+        BOUNDED_URL,
+        ENGLISH_CONTRACTION,
+        SYMBOL_JOINER,
+        CONFUSABLE_SKELETON,
+        CASE_FOLD_TR,
+        DEFAULT_CHAIN,
+    ];
+    let mut named = 0usize;
+    for d in tables.iter().flat_map(|t| t.iter()) {
+        let heading = d
+            .section
+            .strip_prefix("docs/normalizers.md, \"")
+            .and_then(|h| h.strip_suffix('"'))
+            .unwrap_or_else(|| panic!("{}: section {:?}", d.input, d.section));
+        let marker = format!("\n### {heading}\n");
+        let at = doc.find(&marker).unwrap_or_else(|| panic!("{}: no heading {heading:?}", d.input));
+        let body = &doc[at + marker.len()..];
+        let body = &body[..body.find("\n#").unwrap_or(body.len())];
+        assert!(body.contains("Differences from OpenNLP"), "{}: {heading:?} records no difference", d.input);
+        named += 1;
+    }
+    assert!(named >= 20, "{named} divergences");
+}
+
 #[path = "goldens/cases.rs"]
 mod cases;
 #[path = "goldens/divergences.rs"]
