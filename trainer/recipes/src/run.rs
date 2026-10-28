@@ -8,7 +8,7 @@ use std::path::Path;
 
 use turbo::head::TokenTagger;
 use turbo::head::tagger::{Work, tensors};
-use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
+use turbo::manifest::{Adapter, Bilstm, Decode, HashEmbed, HeadKind, HeadSpec, Scheme, WordPooling};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Example;
 
@@ -26,11 +26,16 @@ pub struct HeadOptions {
     pub crf: bool,
     /// BiLSTM adapter (hidden, layers), or none.
     pub bilstm: Option<(u32, u32)>,
+    /// Hashed word-identity embeddings, or none.
+    pub hash: Option<HashEmbed>,
 }
+
+/// spaCy's tok2vec rows for NORM, PREFIX, SUFFIX and SHAPE.
+pub const HASH_ROWS: [u32; 4] = [5000, 1000, 2500, 2500];
 
 impl Default for HeadOptions {
     fn default() -> Self {
-        HeadOptions { pooling: WordPooling::First, crf: false, bilstm: None }
+        HeadOptions { pooling: WordPooling::First, crf: false, bilstm: None, hash: None }
     }
 }
 
@@ -55,7 +60,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         adapter: o.bilstm.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode: if o.crf { Decode::Crf } else { Decode::Argmax },
         biaffine: None,
-        hash_embed: None,
+        hash_embed: o.hash,
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),
     };
@@ -63,8 +68,8 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
     Ok(spec)
 }
 
-/// Training examples of `sentences`: each sentence's word features and
-/// label indices. A sentence with a label `labels` lacks is left out, and
+/// Training examples of `sentences`: each sentence's word features,
+/// label indices and words. A sentence with a label `labels` lacks is left out, and
 /// counted.
 ///
 /// # Errors
@@ -93,7 +98,11 @@ pub fn examples(
         left_out += chunk.len() - kept.len();
         let words: Vec<Vec<&str>> = kept.iter().map(|(s, _)| s.words.iter().map(String::as_str).collect()).collect();
         let features = enc.features(&words, pooling).map_err(|e| Error(e.message))?;
-        out.extend(features.into_iter().zip(kept).map(|(features, (_, labels))| Example { features, labels }));
+        out.extend(features.into_iter().zip(kept).map(|(features, (s, labels))| Example {
+            features,
+            labels,
+            forms: s.words.clone(),
+        }));
     }
     Ok((out, left_out))
 }
@@ -110,10 +119,10 @@ pub fn predict(enc: &mut WordEncoder, tagger: &TokenTagger, sentences: &[Sentenc
     let mut out = Vec::with_capacity(sentences.len());
     for chunk in sentences.chunks(PREDICT_CHUNK) {
         let words: Vec<Vec<&str>> = chunk.iter().map(|s| s.words.iter().map(String::as_str).collect()).collect();
-        for (f, s) in enc.features(&words, pooling).map_err(|e| Error(e.message))?.iter().zip(chunk) {
-            let ids: Vec<u32> = (0..s.words.len() as u32).collect();
-            tagger.scores(f, &ids, &mut scores, &mut work).map_err(|e| Error(e.message))?;
-            tagger.decode(&scores, s.words.len(), &mut tags).map_err(|e| Error(e.message))?;
+        for (f, forms) in enc.features(&words, pooling).map_err(|e| Error(e.message))?.iter().zip(&words) {
+            let ids: Vec<u32> = (0..forms.len() as u32).collect();
+            tagger.scores_forms(f, &ids, Some(forms), &mut scores, &mut work).map_err(|e| Error(e.message))?;
+            tagger.decode(&scores, forms.len(), &mut tags).map_err(|e| Error(e.message))?;
             out.push(tags.iter().map(|&t| tagger.labels()[t as usize].clone()).collect());
         }
     }

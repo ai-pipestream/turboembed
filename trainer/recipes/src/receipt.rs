@@ -69,6 +69,9 @@ pub struct ConfigRecord {
     pub clip: f64,
     pub warmup: f64,
     pub patience: u32,
+    /// How far under the best a dev score may fall and hold level.
+    #[serde(default)]
+    pub tolerance: f64,
     /// The first this many training sentences, or every one when 0.
     pub max_train: usize,
     /// Dev sentences left out of early stopping because training never

@@ -45,14 +45,19 @@ fn run(args: &[&str]) -> std::process::Output {
 }
 
 fn train(data: &Path, out: &Path) -> Receipt {
-    let o = run(&[
+    train_with(data, out, &[])
+}
+
+fn train_with(data: &Path, out: &Path, extra: &[&str]) -> Receipt {
+    let bundle = tiny();
+    let mut args = vec![
         "train",
         "--corpus",
         "multiconer2-en",
         "--dir",
         data.to_str().unwrap(),
         "--bundle",
-        tiny().to_str().unwrap(),
+        bundle.to_str().unwrap(),
         "--out",
         out.to_str().unwrap(),
         "--unrecorded-corpus",
@@ -65,7 +70,9 @@ fn train(data: &Path, out: &Path) -> Receipt {
         "0.01",
         "--commit",
         "test",
-    ]);
+    ];
+    args.extend_from_slice(extra);
+    let o = run(&args);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap()
 }
@@ -130,6 +137,40 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     assert_eq!(fs::read(again.join("head.safetensors")).unwrap(), bytes, "one seed, one head");
     assert_eq!(r2.eval, r.eval);
     for d in [data, out, again] {
+        fs::remove_dir_all(d).unwrap();
+    }
+}
+
+#[test]
+fn a_hashed_head_trains_with_its_tables_and_the_core_reads_its_forms() {
+    let data = scratch("data-hash");
+    corpus(&data);
+    let out = scratch("out-hash");
+    let r = train_with(&data, &out, &["--hash-embed", "4", "--hash-rows", "16,8,8,8", "--tolerance", "0.01"]);
+    let head = r.head.clone().unwrap();
+    assert_eq!(head.hash_embed, Some(turbo::manifest::HashEmbed { dim: 4, rows: [16, 8, 8, 8] }));
+    assert_eq!(r.config.as_ref().unwrap().tolerance, 0.01);
+    let t = read_safetensors(&fs::read(out.join("head.safetensors")).unwrap());
+    for f in ["norm", "prefix", "suffix", "shape"] {
+        assert!(t.iter().any(|(k, _, _)| *k == format!("heads.ner.hash.{f}")), "{f}");
+    }
+    let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.ner.{s}")).map(|(_, _, v)| v.clone());
+    assert!(TokenTagger::from_tensors(&head, 32, &get).unwrap().reads_forms());
+    let bad = run(&[
+        "train",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        "x",
+        "--bundle",
+        "x",
+        "--out",
+        "x",
+        "--hash-rows",
+        "1,2",
+    ]);
+    assert!(!bad.status.success());
+    for d in [data, out] {
         fs::remove_dir_all(d).unwrap();
     }
 }

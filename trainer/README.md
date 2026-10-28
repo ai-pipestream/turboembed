@@ -18,7 +18,9 @@ What is here:
 - `adamw`: AdamW with global-norm clipping, linear warmup and linear
   decay, decoupled weight decay on matrices only.
 - `tagger`: a `HEAD_TOKEN_TAGGER` in training, seeded init, loss and
-  gradients on one sequence, export to the core's `TokenTagger`.
+  gradients on one sequence, export to the core's `TokenTagger`. With a
+  `hash_embed` it reads each word's text, hashed as the core hashes it,
+  and learns the four feature tables (an `Example`'s `forms`).
 - `adapter`: the BiLSTM adapter forward and back, shared by both heads.
 - `parser`: a `HEAD_BIAFFINE_PARSER` in training (#1514): the core's
   forward (root vector, LeakyReLU MLPs, arc and relation biaffines), the
@@ -29,7 +31,10 @@ What is here:
 - `fit`: the loop. Seeded shuffles, minibatch gradients summed in a
   fixed order, dev scoring through the core's own inference path
   (accuracy, or exact span F1 under BIO and BILOU), early stopping that
-  keeps the best weights. Two runs with one seed give identical bytes.
+  keeps the best weights. `EarlyStop` is armed only after warmup, and a
+  dev score within `tolerance` of the best holds the run going; the
+  defaults are 60 epochs, patience 6, tolerance 0.001. Two runs with one
+  seed give identical bytes.
 
 Corpora, scoring, receipts and the `turbo-train-head` command are in
 `trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle

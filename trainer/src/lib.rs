@@ -26,7 +26,7 @@ mod shapes;
 pub mod tagger;
 pub mod xent;
 
-pub use fit::{Config, Example, Report, fit};
+pub use fit::{Config, EarlyStop, Example, Report, fit};
 pub use fit_parse::{ParseExample, fit_parser};
 pub use parser::Parser;
 pub use real::Real;

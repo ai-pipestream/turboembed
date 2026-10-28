@@ -6,7 +6,8 @@
 //! turbo-train-head baseline --corpus <id> --dir <corpus dir> --out <dir> [--unrecorded-corpus]
 //! turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
 //!     [--device cpu|cuda|levelzero|metal] [--precision model|exact] [--pooling first|mean] [--crf]
-//!     [--bilstm <hidden>x<layers>] [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N]
+//!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
+//!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
 //!     [--max-train N] [--commit <sha>] [--unrecorded-corpus]
 //! ```
 //!
@@ -17,14 +18,14 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
-use turbo::manifest::WordPooling;
+use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
 use turbo_trainer_recipes::corpus::{Corpus, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
-use turbo_trainer_recipes::run::{HeadOptions, examples, named, predict, spec, write};
+use turbo_trainer_recipes::run::{HASH_ROWS, HeadOptions, examples, named, predict, spec, write};
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 const RESAMPLES: usize = 1000;
@@ -157,6 +158,16 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             Some((parse(h)?, parse(l)?))
         }
     };
+    let hash_dim: Option<u32> =
+        a.value("--hash-embed")?.map(|v| v.parse()).transpose().map_err(|_| Error("--hash-embed <dim>".into()))?;
+    let rows = match a.value("--hash-rows")? {
+        None => HASH_ROWS,
+        Some(v) => {
+            let r: Vec<u32> = v.split(',').map(str::parse).collect::<std::result::Result<_, _>>().unwrap_or_default();
+            r.try_into().map_err(|_| Error(format!("--hash-rows {v:?}: four counts, comma separated")))?
+        }
+    };
+    let hash = hash_dim.map(|dim| HashEmbed { dim, rows });
     let d = Config::default();
     let c = Config {
         seed: a.parsed("--seed", d.seed)?,
@@ -164,6 +175,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         batch: a.parsed("--batch", d.batch)?,
         lr: a.parsed("--lr", d.lr)?,
         patience: a.parsed("--patience", d.patience)?,
+        tolerance: a.parsed("--tolerance", d.tolerance)?,
         ..d
     };
     let max_train: usize = a.parsed("--max-train", 0)?;
@@ -173,7 +185,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let t = Instant::now();
     let corpus = read_corpus(corpus_id, dir, unrecorded)?;
     let read = t.elapsed().as_secs_f64();
-    let head = spec(&corpus, &HeadOptions { pooling, crf, bilstm })?;
+    let head = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
@@ -230,6 +242,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             clip: c.clip,
             warmup: c.warmup,
             patience: c.patience,
+            tolerance: c.tolerance,
             max_train,
             dev_left_out,
         }),

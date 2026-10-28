@@ -48,8 +48,8 @@ pub fn values(seed: u64, n: usize, scale: f32) -> Vec<f32> {
         .collect()
 }
 
-/// The tiny bundle with both heads' tensors, seeded, and `edit` applied
-/// to the manifest.
+/// The tiny bundle with `edit` applied to its manifest and the tensors
+/// of every head the edited manifest names, seeded.
 pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("turbo-tagger-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
@@ -62,8 +62,11 @@ pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
     let mut header: serde_json::Map<String, Value> = serde_json::from_slice(&src[8..8 + n]).unwrap();
     header.remove("__metadata__");
     let mut data = src[8 + n..].to_vec();
+    let mut m: Value = serde_json::from_slice(&fs::read(tiny().join("manifest.json")).unwrap()).unwrap();
+    m["heads"] = heads();
+    edit(&mut m);
     let mut seed = 1;
-    for h in heads().as_array().unwrap() {
+    for h in m["heads"].as_array().unwrap() {
         let spec: HeadSpec = serde_json::from_value(h.clone()).unwrap();
         for (suffix, shape) in tensors(&spec, 32) {
             let count = shape.iter().product::<u64>() as usize;
@@ -71,6 +74,11 @@ pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
             data.extend(values(seed, count, 0.8).iter().flat_map(|v| v.to_le_bytes()));
             seed += 1;
             let name = format!("{}.{suffix}", spec.tensor_prefix);
+            if header.contains_key(&name) {
+                // A head sharing another's tensors.
+                data.truncate(start);
+                continue;
+            }
             header.insert(name, json!({"dtype": "F32", "shape": shape, "data_offsets": [start, data.len()]}));
         }
     }
@@ -81,9 +89,6 @@ pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
     weights.extend(data);
     fs::create_dir_all(dir.join("weights")).unwrap();
     fs::write(dir.join("weights/model.safetensors"), &weights).unwrap();
-    let mut m: Value = serde_json::from_slice(&fs::read(tiny().join("manifest.json")).unwrap()).unwrap();
-    m["heads"] = heads();
-    edit(&mut m);
     let files = m["files"].as_array_mut().unwrap();
     let w = files.iter_mut().find(|f| f["path"] == "weights/model.safetensors").unwrap();
     w["size"] = json!(weights.len());

@@ -12,12 +12,21 @@ use crate::adamw::{AdamW, Settings};
 use crate::rng::Rng;
 use crate::tagger::{Tagger, Work};
 
-/// One training sequence: per-word features [words, hidden] and a gold
-/// label index per word.
+/// One training sequence: per-word features [words, hidden], a gold
+/// label index per word, and each word's text, which a head with a
+/// `hash_embed` reads (empty for a head that reads none).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Example {
     pub features: Vec<f32>,
     pub labels: Vec<u32>,
+    pub forms: Vec<String>,
+}
+
+impl Example {
+    /// The forms as the heads take them: None when there are none.
+    pub fn forms(&self) -> Option<Vec<&str>> {
+        (!self.forms.is_empty()).then(|| self.forms.iter().map(String::as_str).collect())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -31,13 +40,64 @@ pub struct Config {
     pub clip: f64,
     /// The share of all steps spent warming up, in [0, 1).
     pub warmup: f64,
-    /// Epochs without a better dev score before stopping; 0 never stops early.
+    /// Epochs after warmup without a dev score within `tolerance` of the
+    /// best before stopping; 0 never stops early.
     pub patience: u32,
+    /// How far under the best a dev score may fall and still count as
+    /// holding level for `patience`; the best weights are kept only on a
+    /// strictly better score.
+    pub tolerance: f64,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { seed: 1, epochs: 20, batch: 16, lr: 2e-3, weight_decay: 0.01, clip: 5.0, warmup: 0.1, patience: 3 }
+        Config {
+            seed: 1,
+            epochs: 60,
+            batch: 16,
+            lr: 2e-3,
+            weight_decay: 0.01,
+            clip: 5.0,
+            warmup: 0.1,
+            patience: 6,
+            tolerance: 1e-3,
+        }
+    }
+}
+
+/// Early stopping on the dev score: armed only once warmup is over, so a
+/// plateau while the rate is still rising never stops a run, and a score
+/// within `tolerance` of the best holds the run going.
+#[derive(Debug, Clone)]
+pub struct EarlyStop {
+    warm: usize,
+    patience: usize,
+    tolerance: f64,
+    best: Option<f64>,
+    /// The last epoch whose score held level.
+    level: usize,
+}
+
+impl EarlyStop {
+    /// For a run of `c`: warmup is its first `ceil(warmup * epochs)` epochs.
+    pub fn new(c: &Config) -> EarlyStop {
+        let warm = (c.warmup * c.epochs as f64).ceil() as usize;
+        EarlyStop { warm, patience: c.patience as usize, tolerance: c.tolerance, best: None, level: 0 }
+    }
+
+    /// Takes epoch `epoch`'s dev score; returns whether it is the best yet
+    /// (keep these weights) and whether to stop after it.
+    pub fn update(&mut self, epoch: usize, score: f64) -> (bool, bool) {
+        let better = self.best.is_none_or(|b| score > b);
+        if better {
+            self.best = Some(score);
+        }
+        if better || self.best.is_some_and(|b| score >= b - self.tolerance) {
+            self.level = epoch;
+        }
+        // Warmup epochs neither count against patience nor run it down.
+        let since = epoch.saturating_sub(self.level.max(self.warm.saturating_sub(1)));
+        (better, self.patience > 0 && epoch >= self.warm && since >= self.patience)
     }
 }
 
@@ -59,14 +119,14 @@ pub struct Report {
 pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     let spec = tagger.spec();
     let hidden = tagger.hidden();
-    check_examples(examples, hidden, spec.labels.len())?;
+    check_examples(examples, hidden, spec.labels.len(), tagger.reads_forms())?;
     let (mut right, mut total, mut found, mut gold_n) = (0usize, 0usize, 0usize, 0usize);
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
         let n = e.features.len() / hidden;
         let words: Vec<u32> = (0..n as u32).collect();
         debug_assert!(!words.contains(&NO_WORD));
-        tagger.scores(&e.features, &words, &mut scores, &mut work)?;
+        tagger.scores_forms(&e.features, &words, e.forms().as_deref(), &mut scores, &mut work)?;
         tagger.decode(&scores, n, &mut tags)?;
         if spec.scheme == Scheme::Tags {
             right += tags.iter().zip(&e.labels).filter(|(a, b)| a == b).count();
@@ -124,7 +184,8 @@ impl Model for Tagger<f32> {
         Tagger::decays(self)
     }
     fn loss(&self, e: &Example, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
-        Ok((Tagger::loss(self, &e.features, &e.labels, grads, w)?, e.labels.len()))
+        let forms = e.forms();
+        Ok((Tagger::loss_forms(self, &e.features, forms.as_deref(), &e.labels, grads, w)?, e.labels.len()))
     }
     fn score(&self, dev: &[Example]) -> Result<f64> {
         score(&self.to_token_tagger()?, dev)
@@ -146,22 +207,36 @@ pub(crate) fn settings(c: &Config, examples: usize) -> Settings {
 
 /// Refuses settings no run can use.
 pub(crate) fn check_config(c: &Config, examples: usize) -> Result<()> {
-    if examples == 0 || c.batch == 0 || c.epochs == 0 || !(0.0..1.0).contains(&c.warmup) {
+    if examples == 0
+        || c.batch == 0
+        || c.epochs == 0
+        || !(0.0..1.0).contains(&c.warmup)
+        || !(c.tolerance >= 0.0 && c.tolerance.is_finite())
+    {
         return Err(invalid(
-            "trainer: an empty training set, or a zero batch, epoch count, or a warmup outside [0, 1)",
+            "trainer: an empty training set, a zero batch or epoch count, a warmup outside [0, 1), or a \
+             tolerance not finite and at least 0",
         ));
     }
     Ok(())
 }
 
-/// Each example has `hidden` features per gold label and every label is
-/// one of `labels`.
-fn check_examples(examples: &[Example], hidden: usize, labels: usize) -> Result<()> {
+/// Each example has `hidden` features per gold label, every label is
+/// one of `labels`, and, when the head reads them (`forms`), a form per
+/// label.
+fn check_examples(examples: &[Example], hidden: usize, labels: usize, forms: bool) -> Result<()> {
     for (i, e) in examples.iter().enumerate() {
         let rows = e.labels.len().checked_mul(hidden);
         if hidden == 0 || rows != Some(e.features.len()) || e.labels.iter().any(|&l| l as usize >= labels) {
             return Err(invalid(format!(
                 "trainer: example {i} does not have {hidden} features per gold label, each label one of {labels}"
+            )));
+        }
+        if forms && e.forms.len() != e.labels.len() {
+            return Err(invalid(format!(
+                "trainer: example {i} has {} forms for {} words; the head reads each word's text",
+                e.forms.len(),
+                e.labels.len()
             )));
         }
     }
@@ -184,7 +259,8 @@ pub(crate) fn train<M: Model>(
     let mut order: Vec<usize> = (0..train.len()).collect();
     let mut work = M::Work::default();
     let mut report = Report { train_loss: Vec::new(), dev: Vec::new(), best_epoch: 0 };
-    let mut best: Option<(f64, Vec<Vec<f32>>)> = None;
+    let mut best: Option<Vec<Vec<f32>>> = None;
+    let mut stop = EarlyStop::new(c);
     for epoch in 0..c.epochs as usize {
         rng.shuffle(&mut order);
         let (mut loss, mut words) = (0.0, 0usize);
@@ -207,14 +283,16 @@ pub(crate) fn train<M: Model>(
         report.train_loss.push(if words == 0 { 0.0 } else { loss / words as f64 });
         let s = model.score(dev)?;
         report.dev.push(s);
-        if best.as_ref().is_none_or(|(b, _)| s > *b) {
-            best = Some((s, model.params().to_vec()));
+        let (better, done) = stop.update(epoch, s);
+        if better {
+            best = Some(model.params().to_vec());
             report.best_epoch = epoch;
-        } else if c.patience > 0 && epoch - report.best_epoch >= c.patience as usize {
+        }
+        if done {
             break;
         }
     }
-    if let Some((_, params)) = best {
+    if let Some(params) = best {
         model.set_params(params)?;
     }
     Ok((model, report))
@@ -230,8 +308,9 @@ pub fn fit(
     c: &Config,
 ) -> Result<(Tagger<f32>, Report)> {
     check_config(c, train.len())?;
-    check_examples(train, hidden, spec.labels.len())?;
-    check_examples(dev, hidden, spec.labels.len())?;
+    let forms = spec.hash_embed.is_some();
+    check_examples(train, hidden, spec.labels.len(), forms)?;
+    check_examples(dev, hidden, spec.labels.len(), forms)?;
     let mut rng = Rng::new(c.seed);
     let model = Tagger::<f32>::new(spec, hidden, &mut rng)?;
     self::train(model, &mut rng, train, dev, c)
