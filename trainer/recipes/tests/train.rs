@@ -256,3 +256,58 @@ fn unknown_commands_corpora_and_arguments_are_refused() {
         assert!(String::from_utf8_lossy(&o.stderr).contains(msg), "{args:?}: {}", String::from_utf8_lossy(&o.stderr));
     }
 }
+
+/// A one-word sentence of `word` labelled `label` in MultiCoNER's format.
+fn sentence(i: usize, word: &str, label: &str) -> String {
+    format!("# id {i}\tdomain=en\n{word} _ _ {label}\n\n")
+}
+
+#[test]
+fn the_baseline_learns_from_the_sentences_the_model_is_given() {
+    // The second training sentence alone teaches "x" its name; --max-train
+    // 1 withholds it from the model, so it is withheld from the baseline.
+    let data = scratch("max-train-data");
+    fs::create_dir_all(data.join("EN-English")).unwrap();
+    let train = sentence(0, "a", "O") + &sentence(1, "x", "B-OtherPER");
+    let test = sentence(0, "x", "B-OtherPER");
+    fs::write(data.join("EN-English/en_train.conll"), train).unwrap();
+    for f in ["en_dev", "en_test"] {
+        fs::write(data.join(format!("EN-English/{f}.conll")), &test).unwrap();
+    }
+    let d = data.to_str().unwrap();
+    let bundle = tiny();
+    let train_out = |out: &Path, max: &str| {
+        let o = out.to_str().unwrap();
+        let args = [
+            "train",
+            "--corpus",
+            "multiconer2-en",
+            "--dir",
+            d,
+            "--bundle",
+            bundle.to_str().unwrap(),
+            "--out",
+            o,
+            "--unrecorded-corpus",
+            "--epochs",
+            "1",
+            "--max-train",
+            max,
+        ];
+        let r = run(&args);
+        assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+        serde_json::from_slice::<Receipt>(&fs::read(out.join("receipt.json")).unwrap()).unwrap()
+    };
+    let one = scratch("max-train-1");
+    let r = train_out(&one, "1");
+    // Given only "a O", the baseline can only say O: no span is found.
+    assert_eq!(r.eval.baseline.score(), 0.0);
+    let cmp = r.eval.comparison.as_ref().unwrap();
+    assert_eq!(cmp.baseline, 0.0, "the comparison pairs the model with that baseline");
+    // Given both sentences, it names "x".
+    let all = scratch("max-train-all");
+    assert_eq!(train_out(&all, "0").eval.baseline.score(), 1.0);
+    for d in [data, one, all] {
+        fs::remove_dir_all(d).unwrap();
+    }
+}

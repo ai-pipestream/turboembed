@@ -23,7 +23,7 @@ use turbo::manifest::WordPooling;
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
-use turbo_trainer_recipes::corpus::{Corpus, Task};
+use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{HeadOptions, examples, named, predict, spec, write};
@@ -99,7 +99,7 @@ fn run(argv: Vec<String>) -> Result<()> {
             let c = read_corpus(&corpus_id, &dir, unrecorded)?;
             let read = t.elapsed().as_secs_f64();
             let t = Instant::now();
-            let base = baseline(&c);
+            let base = baseline(&c.splits.train, &c.splits.test);
             let receipt = Receipt {
                 schema: SCHEMA.into(),
                 command: argv.clone(),
@@ -200,7 +200,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let tagger = model.to_token_tagger().map_err(|e| Error(e.message))?;
     let test = &corpus.splits.test;
     let predicted = predict(&mut enc, &tagger, test)?;
-    let base = baseline(&corpus);
+    let base = baseline(train_set, test);
     let seen = Seen::of(train_set);
     let task: Task = corpus.record.task;
     let eval = EvalRecord {
@@ -247,10 +247,11 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     finish(out, receipt)
 }
 
-/// The majority baseline's labels for the test split.
-fn baseline(c: &Corpus) -> Vec<Vec<String>> {
-    let m = Majority::train(&c.splits.train);
-    c.splits.test.iter().map(|s| m.predict(&s.words)).collect()
+/// The labels for `test` of the majority baseline learned from `train`,
+/// the sentences the model is given, so the two compare on equal data.
+fn baseline(train: &[Sentence], test: &[Sentence]) -> Vec<Vec<String>> {
+    let m = Majority::train(train);
+    test.iter().map(|s| m.predict(&s.words)).collect()
 }
 
 fn encoder_record(bundle: &Path, enc: &WordEncoder) -> Result<EncoderRecord> {
