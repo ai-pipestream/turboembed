@@ -221,6 +221,9 @@ impl<R: Real> Parser<R> {
         if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
             return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
         }
+        if features.iter().any(|v| !v.to_f64().is_finite()) {
+            return Err(invalid("trainer: a parser feature is not finite"));
+        }
         let n = self.forward(features, w)?;
         let labels = self.spec.labels.len();
         if heads.len() != n || rels.len() != n {
@@ -235,15 +238,21 @@ impl<R: Real> Parser<R> {
         let rows = n + 1;
         let shape = self.shape();
         let (width, o) = (shape.width(), 6 * shape.layers);
+        // Gradients gather here and reach `grads` only when every one,
+        // and the loss, is finite, so a refused sentence leaves them as
+        // they were.
+        let mut local = self.zero_grads();
         let mut total = 0f64;
-        // Arc cross-entropy over every head but the word itself.
+        // Arc cross-entropy over every head but the word itself, centred
+        // on the largest score (as `xent::loss`), so a large common offset
+        // does not swallow the normaliser.
         let mut darcs = vec![R::ZERO; n * rows];
         for d in 1..rows {
             let row = &w.arcs[(d - 1) * rows..][..rows];
             let m = (0..rows).filter(|&h| h != d).map(|h| row[h].to_f64()).fold(f64::NEG_INFINITY, f64::max);
             let z: f64 = (0..rows).filter(|&h| h != d).map(|h| (row[h].to_f64() - m).exp()).sum();
             let g = heads[d - 1] as usize;
-            total += m + z.ln() - row[g].to_f64();
+            total += z.ln() - (row[g].to_f64() - m);
             for h in (0..rows).filter(|&h| h != d) {
                 let p = (row[h].to_f64() - m).exp() / z;
                 darcs[(d - 1) * rows + h] = R::from_f64(p - if h == g { 1.0 } else { 0.0 });
@@ -264,7 +273,7 @@ impl<R: Real> Parser<R> {
         }
         {
             let u = &self.params[o + 9];
-            let du = &mut grads[o + 9];
+            let du = &mut local[o + 9];
             for h in 0..rows {
                 for i in 0..=a {
                     let g = dproj[h * (a + 1) + i];
@@ -299,8 +308,8 @@ impl<R: Real> Parser<R> {
             let mx = scores.iter().map(|v| v.to_f64()).fold(f64::NEG_INFINITY, f64::max);
             let z: f64 = scores.iter().map(|v| (v.to_f64() - mx).exp()).sum();
             let g = rels[d - 1] as usize;
-            total += mx + z.ln() - scores[g].to_f64();
-            let dw = &mut grads[o + 10];
+            total += z.ln() - (scores[g].to_f64() - mx);
+            let dw = &mut local[o + 10];
             for (l, s) in scores.iter().enumerate() {
                 let gl = R::from_f64((s.to_f64() - mx).exp() / z - if l == g { 1.0 } else { 0.0 });
                 let m = &wr[l * k * k..][..k * k];
@@ -329,14 +338,22 @@ impl<R: Real> Parser<R> {
                 }
             }
             let (wi, bi) = (o + 1 + 2 * kk, o + 2 + 2 * kk);
-            let [dw, db] = grads.get_disjoint_mut([wi, bi]).expect("distinct");
+            let [dw, db] = local.get_disjoint_mut([wi, bi]).expect("distinct");
             linear::backward(&self.params[wi], &w.nodes, &dviews[kk], width, out, dw, db, Some(&mut dnodes));
         }
-        for (g, d) in grads[o].iter_mut().zip(&dnodes[..width]) {
+        for (g, d) in local[o].iter_mut().zip(&dnodes[..width]) {
             *g += *d;
         }
         if shape.layers > 0 {
-            adapter::backward(shape, &self.params, features, dnodes[width..].to_vec(), grads, &w.adapter);
+            adapter::backward(shape, &self.params, features, dnodes[width..].to_vec(), &mut local, &w.adapter);
+        }
+        if !total.is_finite() || !local.iter().flatten().all(|v| v.to_f64().is_finite()) {
+            return Err(invalid("trainer: the parser's loss or a gradient is not finite"));
+        }
+        for (g, l) in grads.iter_mut().zip(local) {
+            for (a, b) in g.iter_mut().zip(l) {
+                *a += b;
+            }
         }
         Ok(total)
     }
