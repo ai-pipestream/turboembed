@@ -4208,11 +4208,10 @@ are under `analysis/eval/records/<pipeline>/<set>.json`.
 `Pipeline` runs over one set (`set::LoadedSet`) in four timed stages:
 
 1. Analysis: each document's text as a document in the source view,
-   with `opennlp:sentences` (an OpenNLP maxent model, by default the
-   English UD EWT model `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin`, read
-   from the directory `TURBO_GOLDENS_MODELS` names or
-   `target/turbo-goldens/models`, where `turbo-goldens fetch-models`
-   downloads it; or one sentence per line),
+   with `opennlp:sentences` (by default `turbo-sentdetect`'s rule
+   splitter for English, which needs no model file; `--sentences
+   rules:<tag>` for another language, `newline` for one sentence per
+   line, or the path of a maxent sentence model),
    `turbo:structure` (plain text by default, Markdown, or none) and the
    embedder's `opennlp:subwords`. Every chunk span is a byte range of
    the set's own text, the offsets span judgements use.
@@ -4241,7 +4240,9 @@ embedder was given (chunks, queries and any sentences a chunker
 embedded, counted on the rows as run, after any cut), the chunk count,
 and the chunk lengths in bytes of the source and in the embedder's
 tokens, overhead included and before any cut. The record's analyzer
-list names the sentence model by file name and SHA-256.
+list names the sentence splitter: the rule splitter by its annotator
+id, language, version and configuration hash, a maxent model by file
+name and SHA-256.
 
 ### Chunkers
 
