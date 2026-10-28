@@ -413,8 +413,8 @@ remaining 17 kinds are evaluated on project-authored operational memos
 
 ### External prose partition (whole third-party documents)
 
-A separately scored partition of seventeen whole third-party documents
-(`442,815` bytes, `119` gold mentions,
+A separately scored partition of nineteen whole third-party documents
+(`455,475` bytes, `125` gold mentions,
 `precision_and_recall_on_external_prose`, gold in
 `analysis/pii/tests/data/human-eval/labels-external.tsv`, provenance in
 that directory's `README.md`): RFC 7519, RFC 5737, RFC 3849 and RFC 7042
@@ -428,20 +428,22 @@ number" (the last three carry no gold: no licensed source found so
 far prints a complete specimen of their kind, so they measure
 precision on identifier-dense prose with recall N/A), the BIP-173
 and BIP-350 specification texts (BSD-2-Clause) with ERC-55
-(CC0-1.0) at pinned source commits, and the Everything curl URL
-authentication chapter (CC BY 4.0).
+(CC0-1.0) at pinned source commits, the Everything curl URL
+authentication chapter (CC BY 4.0), and two AWS documentation
+chapters (CC BY-SA 4.0) at pinned awsdocs commits.
 These rows never pool with the mixed set above.
 
 | Kind | Source partition | true | false | missed | precision | recall |
 |---|---|---:|---:|---:|---:|---:|
 | `aba-routing` | external (Wikipedia routing wikitext) | 4 | 0 | 4 | 1.000 | 0.500 |
+| `aws-access-key` | external (AWS EKS and Rekognition documentation chapters) | 4 | 0 | 0 | 1.000 | 1.000 |
 | `btc-address` | external (BIP-173, BIP-350 mediawiki) | 8 | 0 | 3 | 1.000 | 0.727 |
 | `ca-sin` | external (Wikipedia SIN wikitext) | 0 | 0 | 2 | N/A | 0.000 |
 | `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042, BIP-173, BIP-350, ERC-55) | 22 | 2 | 1 | 0.917 | 0.957 |
 | `eth-address` | external (ERC-55 markdown) | 14 | 0 | 0 | 1.000 | 1.000 |
 | `iban` | external (Wikipedia IBAN wikitext) | 4 | 0 | 0 | 1.000 | 1.000 |
 | `imei` | external (Wikipedia IMEI wikitext) | 0 | 0 | 2 | N/A | 0.000 |
-| `ipv4` | external (RFC 5737) | 8 | 3 | 0 | 0.727 | 1.000 |
+| `ipv4` | external (RFC 5737, AWS Rekognition CloudTrail chapter) | 10 | 3 | 0 | 0.769 | 1.000 |
 | `ipv6` | external (RFC 3849) | 3 | 0 | 0 | 1.000 | 1.000 |
 | `jwt` | external (RFC 7519) | 0 | 0 | 2 | N/A | 0.000 |
 | `mac` | external (RFC 7042) | 29 | 0 | 0 | 1.000 | 1.000 |
@@ -449,7 +451,7 @@ These rows never pool with the mixed set above.
 | `url-credential` | external (Everything curl URL authentication chapter) | 1 | 0 | 0 | 1.000 | 1.000 |
 | `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 2 | 3 | 0.333 | 0.250 |
 | `us-ssn` | external (Wikipedia SSN wikitext) | 3 | 0 | 0 | 1.000 | 1.000 |
-| **all kinds** | **external (`119` gold; false mentions of kinds without gold included)** | **102** | **33** | **17** | **0.756** | **0.857** |
+| **all kinds** | **external (`125` gold; false mentions of kinds without gold included)** | **108** | **33** | **17** | **0.766** | **0.864** |
 
 Zero prediction or gold support makes the corresponding precision or
 recall **N/A**, including the card recall when no card is gold-labelled.
@@ -522,18 +524,18 @@ What the external false positives and misses are:
 
 #968 remains open with its original acceptance requirements. Independent
 human-written prose coverage with positive occurrences has not been
-established for `card`, `us-itin`, `de-steuer-id`, `aws-access-key`
-and `github-token`: the ITIN, Steuer-ID and Payment card number
+established for `card`, `us-itin`, `de-steuer-id` and
+`github-token`: the ITIN, Steuer-ID and Payment card number
 articles and IRS Publication 1915 print format patterns and
 algorithms but no complete specimen, so those documents establish
 precision evidence only, and no licensed source with a full
-`aws-access-key` or `github-token` specimen has been found yet.
+`github-token` specimen has been found yet.
 The external partition above establishes coverage for
-`aba-routing`, `btc-address`, `ca-sin`, `email`, `eth-address`,
-`iban`, `imei`, `ipv4`, `ipv6`, `jwt` (recall `0.000` on the
-signed/unsecured subset, which is display-wrapped), `mac`,
-`uk-nhs`, `url-credential`, `us-ssn`, and further third-party
-`phone`; the `btc-address` and `eth-address` coverage is the whole
+`aba-routing`, `aws-access-key`, `btc-address`, `ca-sin`, `email`,
+`eth-address`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt` (recall
+`0.000` on the signed/unsecured subset, which is display-wrapped),
+`mac`, `uk-nhs`, `url-credential`, `us-ssn`, and further
+third-party `phone`; the `btc-address` and `eth-address` coverage is the whole
 BIP-173, BIP-350 and ERC-55 specification texts, superseding the
 adapted summaries as the crypto evidence.
 
