@@ -21,6 +21,7 @@ fn spec(decode: Decode, adapter: Option<(u32, u32)>) -> HeadSpec {
         word_pooling: WordPooling::First,
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
+        biaffine: None,
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),
     }
