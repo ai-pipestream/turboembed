@@ -49,14 +49,14 @@ published file names: `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin` and
 `opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin`, as `cargo run -p
 turbo-goldens-tool -- fetch-models <dir>` writes them and checked against
 the zoo's SHA-256, and `en-pos-maxent.bin`, downloaded by hand from
-<https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin> and checked
+<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-pos-maxent.bin> and checked
 against the size and SHA-256 the recipe records (5,696,197 bytes,
 `645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`),
 `en-chunker.bin`, downloaded by hand from
-<https://opennlp.sourceforge.net/models-1.5/en-chunker.bin> and checked
+<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin> and checked
 the same way (2,560,304 bytes,
 `7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`), and
-the four name finders of the same page, checked the same way
+the four name finders of the 1.5 models, checked the same way
 (`namefind::EN_NER_*`):
 
 | File | Size | SHA-256 |
@@ -291,7 +291,8 @@ status is 1 when a gate fails and 2 on an error.
   token at a sentence's start as empty, and a sentence of two or more
   names mostly keeps one of them or none (its removal of overlapping
   names compares a name with itself, and can also keep names that
-  overlap, which `NameSample` then refuses). What it keeps of a name of
+  overlap, which `NameSample` then refuses; turbo-formats'
+  `MascNameReader` keeps every name the removal does not remove, #1496). What it keeps of a name of
   several tokens depends on the order the entity file lists them
   (`MascSentence.java:217` moves the end to one past a token only when
   the token is past the end so far, which is already one past a token):

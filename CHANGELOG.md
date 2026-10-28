@@ -41,6 +41,10 @@ gRPC service) build against. Everything below is new.
   arm64 (metal and cpu), Linux aarch64 (cpu) and Windows x86_64 (cpu),
   each with the library, the headers and the server (docs/release.md).
 - This changelog, and the compatibility policy in docs/release.md.
+- The ModernBERT and nomic-bert families in the bundle format and
+  `turbo_backend.h`: rotary positions, sliding-window attention, gated
+  MLPs and bias-free norms, with the core's cos/sin table appended to
+  `turbo_backend_model`; no backend runs them yet (#1493).
 
 ### Not in this release yet
 
