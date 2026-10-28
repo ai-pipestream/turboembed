@@ -17,9 +17,3 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-matcher = { path = "../matcher" }
 # The Java Character.toLowerCase mapping, for case-insensitive dictionaries.
 turbo-unicode = { path = "../unicode" }
-# The CRF model package the CRF annotators read (turbo-sequence's model
-# file type; dropped when the CRF package reader moves off it).
-turbo-maxent = { path = "../maxent" }
-
-[dev-dependencies]
-turbo-train = { path = "../train" }

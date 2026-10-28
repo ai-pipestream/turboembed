@@ -1,6 +1,7 @@
-//! Name finders that need no model: `DictionaryNameFinder`,
-//! `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, and the
-//! merge of several finders' names.
+//! Name finders that need no model archive: `DictionaryNameFinder`,
+//! `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, the
+//! merge of several finders' names, and CRF annotators decoding
+//! caller-provided numerical scores with explicit provenance.
 //!
 //! Each finder reads a text view and its `opennlp:tokens` and writes
 //! `opennlp:entities`: token ranges, UTF-8 byte spans of the view, entity
@@ -22,6 +23,10 @@
 //!   several recognizers merged under an [`EntityMergePolicy`], with their
 //!   evidence.
 //! - [`annotate`]: the two finders as analysis steps.
+//! - [`crf`]: [`CrfNameAnnotator`], decoding caller-provided numerical CRF
+//!   scores through the typed entity schema of `turbo-sequence`.
+//! - [`calibrated`][]: [`CalibratedCrfNameAnnotator`](calibrated::CalibratedCrfNameAnnotator)
+//!   and its calibration identity, span marginals with an abstaining policy.
 //!
 //! # Regular expressions
 //!
@@ -73,8 +78,7 @@
 pub mod annotate;
 pub mod calibrated;
 pub mod crf;
-mod entity_kinds;
-pub use crf::{CrfNameAnnotator, CrfNameFinder, CrfNameSequence, CrfSequenceModel};
+pub use crf::{CrfNameAnnotator, CrfSentenceScores};
 pub mod builtin;
 pub mod consensus;
 pub mod dictionary;

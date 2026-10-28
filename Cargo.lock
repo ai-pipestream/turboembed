@@ -2507,9 +2507,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-calibration",
  "turbo-matcher",
- "turbo-maxent",
  "turbo-sequence",
- "turbo-train",
  "turbo-unicode",
 ]
 
