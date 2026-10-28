@@ -105,6 +105,7 @@ blobs/sha256/3c520dec8d833a3594b15567d1de0c8c039a571c728fbf2a6247d4fa885a64b4  b
 blobs/sha256/1c3b7bc10bd32729227801704b9e22f9a333b50bd899e4494dc3e7d49f3afb21  bundle  sentence-transformers/all-MiniLM-L6-v2 revision 3 (RTX 4080 machine)
 blobs/sha256/8dc4c5f58d474c5714b2b5c33782a8ce8d14033c0b13336c9400301cff254842  bundle  BAAI/bge-m3 revision 1 (RTX 4080 machine)
 blobs/sha256/c38aa631f6b5a02f8f198ec6e9bbed4e98b8a3e7437032898950245458192c70  bundle  BAAI/bge-m3 revision 2 (RTX 4080 machine)
+blobs/sha256/304af82a43ff1ffebf7e24f49636911e4597857a46d9c085595ce98d7856169a  bundle  FacebookAI/xlm-roberta-base revision 1, from bundle/recipes/xlm-roberta-base.json (RTX 4080 machine)
 blobs/sha256/1956a158b18b776704b5a15f7ebf1b0181f070a81163ac6955e0d50ac3c144c5  bundle  gliner2-base-v1 encoder bundle (fastino/gliner2-base-v1) (B70 machine)
 blobs/sha256/5e7f64fdadc68e8fd4710ca2b903213871a8e80f6496e6d8120294562a071b34  bundle  gliner-small-v2.1 encoder bundle (urchade/gliner_small-v2.1) (B70 machine)
 blobs/sha256/c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506  bundle  SaT 1l-sm, xlm-roberta tokenizer bundle (B70 machine)
