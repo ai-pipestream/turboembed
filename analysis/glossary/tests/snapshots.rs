@@ -147,7 +147,6 @@ fn tsv_unescape_fields_round_trip() {
     }
 }
 
-
 fn write_snap(run: &str, id: &str, kind: &str, body: &str) {
     let path = snapshots().join(run).join(format!("{id}.{kind}"));
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -166,17 +165,12 @@ fn check_or_bless(bless: bool, run: &str, id: &str, kind: &str, got: &str) {
     }
     let want = read_snap(run, id, kind);
     assert_eq!(got, want, "{run}/{id}.{kind}");
-    // Field-level unescape round-trip: every TSV field in the snapshot must
-    // survive escape(unescape(field)) so render_tsv is not compared only to itself.
+    // Snapshot fields must already be in canonical escape form.
     if kind.ends_with(".tsv") {
         for (side, body) in [("got", got), ("want", want.as_str())] {
             for (li, line) in body.lines().enumerate() {
                 for (fi, field) in line.split('\t').enumerate() {
-                    assert_eq!(
-                        escape(&unescape(field)),
-                        *field,
-                        "{run}/{id}.{kind} {side} line {li} field {fi}"
-                    );
+                    assert_eq!(escape(&unescape(field)), *field, "{run}/{id}.{kind} {side} line {li} field {fi}");
                 }
             }
         }
@@ -279,12 +273,7 @@ fn matchers_match_the_snapshots() {
     let mut total_hits = 0usize;
     for run in ["exact", "ignore-case", "whitespace+ignore-case", "analyzed", "composite"] {
         for id in texts {
-            let body = if bless {
-                // After bless, files were just written.
-                read_snap(run, id, "matches.tsv")
-            } else {
-                read_snap(run, id, "matches.tsv")
-            };
+            let body = read_snap(run, id, "matches.tsv");
             total_hits += body.lines().filter(|l| !l.is_empty()).count();
         }
     }
