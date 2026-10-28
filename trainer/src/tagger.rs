@@ -218,7 +218,8 @@ impl<R: Real> Tagger<R> {
     }
 
     /// The loss of one sequence against `gold`, and its gradients added
-    /// to `grads` (shaped as [`zero_grads`](Self::zero_grads) gives).
+    /// to `grads` (shaped as [`zero_grads`](Self::zero_grads) gives);
+    /// gradients of any other shape are refused before anything runs.
     pub fn loss(&self, features: &[R], gold: &[u32], grads: &mut [Vec<R>], w: &mut Work<R>) -> Result<f64> {
         self.loss_forms(features, None, gold, grads, w)
     }
@@ -233,6 +234,9 @@ impl<R: Real> Tagger<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
+            return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
+        }
         let n = self.forward_forms(features, forms, w)?;
         if gold.len() != n {
             return Err(invalid(format!("trainer: {} gold labels for {n} words", gold.len())));
