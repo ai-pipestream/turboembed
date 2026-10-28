@@ -2,7 +2,6 @@
 //! record per set, or compare two directories of records with the gate
 //! (docs/analysis.md, "Evaluation").
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -13,6 +12,9 @@ use turbo_analysis_layers::VectorKind;
 use turbo_chunker::terms::Bm25;
 use turbo_chunker::{Budget, Cohesion, Costs, Drift, WeighBoundaries};
 use turbo_eval::Result;
+
+mod opts;
+use opts::Opts;
 use turbo_eval::analysis::{Analysis, Sentencer};
 use turbo_eval::chunkers::{
     Chunker, FixedTokens, LevelChunker, Retrieve, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument,
@@ -44,11 +46,7 @@ usage:
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
   turbo-eval chunk-gate <candidate-dir> <windows-dir> [<baseline-dir> ...]
-      the chunker gate (#172): on the sets with judged evidence, span
-      recall@10 and contained@10 above the sentence-windows reference with
-      fewer spans cut through; on every set, nDCG@10 never significantly
-      more than half a point under the best baseline; exit status 1 when
-      it fails, 2 on an error
+      the chunker gate on evidence with an nDCG@10 floor (chunk_gate.rs)
   turbo-eval cuts <a-dir> <b-dir>
       compare two directories of cut dumps (run --dump-cuts), one per set;
       exit status 1 when any cut differs, 2 on an error
@@ -173,52 +171,6 @@ fn fetch_cmd(args: &[String]) -> Result<()> {
         println!("{name}: fetched and checked in {}", cache.join(name).display());
     }
     Ok(())
-}
-
-/// `--name value` pairs and bare `--flag`s.
-struct Opts(BTreeMap<String, Option<String>>);
-
-const FLAGS: [&str; 2] = ["--drift", "--clauses"];
-
-impl Opts {
-    fn parse(args: &[String]) -> Result<Opts> {
-        let mut m = BTreeMap::new();
-        let mut it = args.iter();
-        while let Some(a) = it.next() {
-            if !a.starts_with("--") {
-                return Err(format!("{a}: not an option\n{USAGE}"));
-            }
-            let v = if FLAGS.contains(&a.as_str()) {
-                None
-            } else {
-                Some(it.next().ok_or_else(|| format!("{a} needs a value"))?.clone())
-            };
-            if m.insert(a.clone(), v).is_some() {
-                return Err(format!("{a} is given twice"));
-            }
-        }
-        Ok(Opts(m))
-    }
-
-    fn take(&mut self, name: &str) -> Option<String> {
-        self.0.remove(name).flatten()
-    }
-
-    fn need(&mut self, name: &str) -> Result<String> {
-        self.take(name).ok_or_else(|| format!("{name} is required\n{USAGE}"))
-    }
-
-    fn flag(&mut self, name: &str) -> bool {
-        self.0.remove(name).is_some()
-    }
-
-    fn parsed<T: std::str::FromStr>(&mut self, name: &str) -> Result<Option<T>> {
-        self.take(name).map(|v| v.parse().map_err(|_| format!("{name} {v}: not a valid value"))).transpose()
-    }
-
-    fn required<T: std::str::FromStr>(&mut self, name: &str) -> Result<T> {
-        self.parsed(name)?.ok_or_else(|| format!("{name} is required\n{USAGE}"))
-    }
 }
 
 fn device(s: &str) -> Device {
