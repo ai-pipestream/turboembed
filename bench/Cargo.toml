@@ -46,3 +46,6 @@ npu = ["turbo/npu"]
 metal = ["turbo/metal"]
 # Native Hailo hardware evidence; the vendor runner is separate.
 hailo = ["turbo/hailo"]
+
+[dev-dependencies]
+turbo-pins = { path = "../analysis/pins" }

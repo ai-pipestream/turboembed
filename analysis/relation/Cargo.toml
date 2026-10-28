@@ -24,6 +24,7 @@ turbo-matcher = { path = "../matcher" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
+turbo-pins = { path = "../pins" }
 # Packages the GLiNER2 encoder for the parity tests, as `turbo-bundle
 # deberta-convert` does, and fetches the real checkpoint by digest.
 turbo-bundle = { path = "../../bundle" }

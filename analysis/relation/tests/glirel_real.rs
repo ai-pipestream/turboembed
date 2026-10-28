@@ -40,7 +40,7 @@ fn model() -> GlirelRelations {
     let tokenizer = zoo.fetch_with(TOKENIZER, &user, accepted).unwrap().dir.clone();
     let entry = index.get(ID).unwrap();
     let checkpoint = match std::env::var_os("TURBO_GLIREL_CHECKPOINT") {
-        Some(dir) => PathBuf::from(dir),
+        Some(dir) => turbo_pins::require(PathBuf::from(dir)),
         None => zoo
             .fetch_with(ID, &user, accepted)
             .unwrap_or_else(|e| panic!("{e}; accept the licence with `turbo-zoo accept CC-BY-NC-SA-4.0` first"))
