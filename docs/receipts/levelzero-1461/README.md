@@ -6,7 +6,7 @@ merged in, which carries main at `b649bd652fb455d1c285abe5d930fc1cfc0dab11`). De
 (Machine B), Level Zero, release builds, `TURBO_TEST_REQUIRE_LEVELZERO=1`.
 These are correctness runs, not timings: the box's three b70 CI runners
 were running jobs on the same device, and the host's one-minute load
-average was 63.3 to 83.2 (each log's first and last lines give it).
+average was 47.79 to 57.58 (each log's first and last lines give it).
 
 ## Runs
 
