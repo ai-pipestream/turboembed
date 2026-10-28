@@ -6,7 +6,7 @@ Named-entity recognition (`TokenNameFinder` trait, `Name`) combining determinist
 
 - **`TokenNameFinder` trait and `Document` annotators (`analysis/namefind/src/lib.rs`, `analysis/namefind/src/annotate.rs`)**: Defines the `TokenNameFinder` interface returning typed token spans (`Name`) with entity type labels and probability scores, with `DictionaryNameFinder` and `RegexNameFinder` implementing `Annotator` directly to emit the `Entities` layer on `Document`.
 - **Deterministic dictionary, builtin, and pattern finders (`analysis/namefind/src/dictionary.rs`, `analysis/namefind/src/builtin.rs`, `analysis/namefind/src/regex_finder.rs`)**: Multi-token dictionary matching (`DictionaryNameFinder`) and direct bytecode/scanner pattern matching (`BuiltIn`, `JavaRegex`, `analysis/namefind/src/java_regex/mod.rs`) for closed-set entities and identifiers.
-- **Multi-finder span merging and calibration (`analysis/namefind/src/merge.rs`, `analysis/namefind/src/consensus.rs`, `analysis/namefind/src/calibrated.rs`)**: Resolves overlapping entity predictions across finders via `MergeEntities` (`drop_overlapping_spans`), `ConsensusEntityMerger` (`EntityMergePolicy`), or calibrated scoring.
+- **Multi-finder span merging and calibration (`analysis/namefind/src/merge.rs`, `analysis/namefind/src/consensus.rs`, `analysis/namefind/src/calibrated.rs`)**: Resolves overlapping entity predictions across finders via `MergeEntities` (`drop_overlapping`, `merge`), `ConsensusEntityMerger` (`EntityMergePolicy`), or calibrated scoring.
 
 ## Testing, Accuracy, and Speed
 
