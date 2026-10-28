@@ -84,6 +84,11 @@ checks it.
   cached file is fetched again; a symlink in the cache is refused; the
   index parser requires `attribution` whenever a licence asks for it and
   rejects every malformed field.
+- `tests/sources.rs`: a content-addressed store keeps a file under its
+  SHA-256 and serves it by that alone, unpacked even when the index
+  serves it compressed, and refuses a symlink or other bytes; sources
+  are tried in order and only an answer that verifies is kept; the
+  licence is checked before any source is asked.
 - `tests/cli.rs`: before recording an acceptance, `turbo-zoo accept`
   shows the text's address and, for local-only terms, what the terms
   allow apart from this project's policy, which accepting agrees to; it
