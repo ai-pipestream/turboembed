@@ -159,9 +159,10 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
     let Some(comment) = &sentence.text else {
         return Err(FormatError::NoSentenceText { line: sentence.line });
     };
-    // The text with the markers, and for each of its bytes the source byte
-    // it is, or none for a marker's byte.
-    let mut text = comment.as_str().to_owned();
+    // Search only the original comment, never the text with markers. The
+    // marker map below is only for projecting token spans back to it.
+    let raw = comment.as_str();
+    let mut text = raw.to_owned();
     let base = comment.span.start;
     let mut origin: Vec<Option<u32>> = (base..comment.span.end).map(Some).collect();
     let mut search = 0;
@@ -170,7 +171,7 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
             continue;
         }
         let form = word.form.as_str();
-        let Some(at) = text[search..].find(form).map(|i| search + i) else {
+        let Some(at) = raw[search..].find(form).map(|i| search + i) else {
             return Err(FormatError::TokenNotInText {
                 line: word.line,
                 token: form.to_owned(),
@@ -179,7 +180,7 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
             });
         };
         search = at + form.len();
-        if let Some(c) = text[search..].chars().next()
+        if let Some(c) = raw[search..].chars().next()
             && !turbo_unicode::whitespace::is_whitespace(c as u32)
         {
             text.insert_str(search, SPLIT_MARKER);
@@ -265,21 +266,29 @@ mod tests {
     }
 
     #[test]
-    fn a_form_can_be_found_inside_a_marker() {
-        // After `a` the text is `a<SPLIT>b`, and `SPLIT` is found inside the
-        // marker; `b` is found after it.
+    fn literal_split_forms_are_not_matched_to_inserted_markers() {
+        let src = format!(
+            "# text = <SPLIT> <SPLIT>\n{}{}",
+            line("1", "<SPLIT>", "_", "_", "_"),
+            line("2", "<SPLIT>", "_", "_", "_")
+        );
+        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
+        assert_eq!(s.text(), "  ");
+        assert!(s.sources().iter().all(|span| span.is_empty()));
+    }
+
+    #[test]
+    fn a_form_is_not_found_inside_a_marker() {
+        // After `a` the output is `a<SPLIT>b`, but the source has no
+        // `SPLIT` token: a match inside the inserted marker is rejected.
         let src = format!(
             "# text = ab\n{}{}{}",
             line("1", "a", "_", "_", "_"),
             line("2", "SPLIT", "_", "_", "_"),
             line("3", "b", "_", "_", "_")
         );
-        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
-        assert_eq!(s.text(), "a<SPLIT>b ");
-        let tokens: Vec<&str> = (0..s.tokens().len()).map(|i| s.token(i)).collect();
-        assert_eq!(tokens, ["a<SPLIT", ">b"]);
-        let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
-        assert_eq!(sources, ["a", "b"]);
+        let err = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap_err();
+        assert!(matches!(err, FormatError::TokenNotInText { .. }));
     }
 
     #[test]
