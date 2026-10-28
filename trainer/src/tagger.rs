@@ -209,7 +209,6 @@ impl<R: Real> Tagger<R> {
         w.dscores.clear();
         w.dscores.resize(n * labels, R::ZERO);
         let loss = match self.spec.decode {
-            Decode::Argmax => xent::loss(&w.scores, gold, labels, &mut w.dscores)?,
             Decode::Crf => {
                 let p = crf::Params {
                     transitions: &self.params[o + 2],
@@ -220,6 +219,7 @@ impl<R: Real> Tagger<R> {
                 let g = crf::Grad { transitions: t, start: s, end: e };
                 crf::nll(p, &self.allowed, &w.scores, gold, labels, &mut w.dscores, g)?
             }
+            _ => xent::loss(&w.scores, gold, labels, &mut w.dscores)?,
         };
         let width = if layers == 0 { self.hidden } else { 2 * h };
         let x = if layers == 0 { features } else { &w.layers[layers - 1] };
