@@ -41,7 +41,10 @@ impl Annotator for DictionaryNameFinder {
             sum = sum.wrapping_add(h.finish());
         }
         let mut h = Fnv::default();
-        (sum, self.dictionary().is_case_sensitive(), self.kinds().len()).hash(&mut h);
+        (sum, self.dictionary().is_case_sensitive()).hash(&mut h);
+        for kind in self.types() {
+            kind.hash(&mut h);
+        }
         h.finish()
     }
 }

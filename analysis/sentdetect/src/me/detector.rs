@@ -6,7 +6,7 @@ use std::sync::Arc;
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Confidence, Sentences};
 use turbo_maxent::best_outcome;
-use turbo_unicode::{WhitespaceMode, java::code_point as java};
+use turbo_unicode::java::code_point as java;
 
 use crate::context::{Limits, Lookup, SdContext, Walks};
 use crate::eos::Position;
@@ -14,7 +14,7 @@ use crate::features::Features;
 use crate::inventory::{AbbreviationInventories, AbbreviationInventory, Verdict};
 use crate::me::model::SentenceModel;
 use crate::scan::{decode, find_whitespace, skip_whitespace, trim};
-use crate::{check_len, fold_hash, mode_hash};
+use crate::{WHITESPACE_HASH, check_len, fold_hash};
 
 /// What became of a candidate the model was asked about.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -66,10 +66,6 @@ impl Scratch {
 #[derive(Clone, Debug)]
 pub struct SentenceDetector {
     model: Arc<SentenceModel>,
-    /// The whitespace definition of the context features. It must be the
-    /// one the model was trained with; OpenNLP's models are trained in the
-    /// mode of their OpenNLP version, `Unicode` for 3.x.
-    pub whitespace: WhitespaceMode,
     /// Consulted when the model says split; the bundled inventory of the
     /// model's language by default.
     inventory: AbbreviationInventory,
@@ -81,10 +77,10 @@ impl SentenceDetector {
     /// every class for English, none for a language without one. Use
     /// [`with_jvm_parity`](Self::with_jvm_parity) to split exactly as
     /// `SentenceDetectorME` does.
-    pub fn new(model: impl Into<Arc<SentenceModel>>, whitespace: WhitespaceMode) -> SentenceDetector {
+    pub fn new(model: impl Into<Arc<SentenceModel>>) -> SentenceDetector {
         let model = model.into();
         let inventory = AbbreviationInventories::for_language(model.language());
-        SentenceDetector { model, whitespace, inventory }
+        SentenceDetector { model, inventory }
     }
 
     /// The same detector with no abbreviation inventory: its spans,
@@ -163,7 +159,7 @@ impl SentenceDetector {
     ) {
         let model = &*self.model;
         let maxent = model.maxent();
-        let ctx = SdContext::new(model.eos(), model.abbreviations(), self.whitespace, limits);
+        let ctx = SdContext::new(model.eos(), model.abbreviations(), limits);
         let Scratch { enders, features, probs, lookup, window, starts, start_probs } = scratch;
         let scanned = model.eos().positions(text, enders);
         let mut walks = Walks::new();
@@ -187,7 +183,7 @@ impl SentenceDetector {
             // is always the Unicode set, as in the Java.
             if let Some(next) = enders.get(i + 1) {
                 let through = next.byte as usize + decode(bytes, next.byte as usize).1;
-                if find_whitespace(text, after, through, WhitespaceMode::Unicode) == through {
+                if find_whitespace(text, after, through) == through {
                     let upper = after < bytes.len() && {
                         let cp = decode(bytes, after).0;
                         cp < 0x1_0000 && java::is_upper_case(cp)
@@ -232,13 +228,13 @@ impl SentenceDetector {
                 let from = if model.use_token_end() {
                     if !(ws_from <= after && after <= ws_at) {
                         ws_from = after;
-                        ws_at = find_whitespace(text, after, text.len(), WhitespaceMode::Unicode);
+                        ws_at = find_whitespace(text, after, text.len());
                     }
                     ws_at
                 } else {
                     after
                 };
-                starts.push(skip_whitespace(text, from, text.len(), WhitespaceMode::Unicode) as u32);
+                starts.push(skip_whitespace(text, from, text.len()) as u32);
                 start_probs.push(probs[best]);
             }
             index = Position { byte: after as u32, unit: cint.unit + 1 };
@@ -249,7 +245,7 @@ impl SentenceDetector {
         // dropped with its probability. The text after the last start is a
         // last sentence with probability 1.
         let mut push = |start: usize, end: usize, p: f64| {
-            if let Some((s, e)) = trim(text, start, end, WhitespaceMode::Unicode) {
+            if let Some((s, e)) = trim(text, start, end) {
                 out.push((Span::new(s as u32, e as u32), p));
             }
         };
@@ -293,10 +289,11 @@ impl Annotator for SentenceDetector {
         Some(self.model.model_ref().clone())
     }
 
-    /// The whitespace mode, and the abbreviation inventory when there is
-    /// one; in JVM parity mode the hash is what it was before inventories.
+    /// The whitespace definition, and the abbreviation inventory when
+    /// there is one; in JVM parity mode the hash is what it was before
+    /// inventories.
     fn config_hash(&self) -> u64 {
-        let h = mode_hash(self.whitespace);
+        let h = WHITESPACE_HASH;
         if self.inventory.is_unset() { h } else { fold_hash(h, self.inventory.config_hash()) }
     }
 }
