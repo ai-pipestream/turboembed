@@ -414,9 +414,6 @@ final class Runs {
     annotators.addAll(TagFormatGolden.all(models, fixtures));
     // The name finders without a model and the merge of overlapping names (turbo-namefind).
     annotators.addAll(NameFindGolden.all(fixtures));
-    // The Hunspell stemmer of the compatibility branch over the published and the fixture
-    // dictionaries (turbo-hunspell).
-    annotators.addAll(HunspellGolden.all(models, fixtures));
     // The glossary matchers over the fixture glossary, and the glossary readers.
 
     // The SVM document categorizer (turbo-doccat): models trained on the svm-doccat-train corpora,
