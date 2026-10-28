@@ -1810,3 +1810,8 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void rotary_attentio
         ctx[at + d] = c;
     }
 }
+
+/* src narrowed to F16 into dst, n values. */
+__kernel void rotary_narrow(__global const float *src, ulong n, __global half *dst) {
+    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = convert_half(src[i]);
+}

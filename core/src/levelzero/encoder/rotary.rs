@@ -13,16 +13,20 @@
 //! of it, with the local base; final_norm follows the last layer.
 //! nomic-bert is post-norm in BERT's order, every layer global.
 //!
-//! The session computes in F32, at MODEL and EXACT: the linear layers run
-//! on linear_sg (or linear, for widths not a multiple of 16). FASTEST is
-//! refused, as for DeBERTa-v2, never run in F32 in its place.
+//! At MODEL and EXACT the session computes in F32, the linear layers on
+//! linear_sg (or linear, for widths not a multiple of 16). At FASTEST,
+//! where the widths are multiples of the XMX kernels' steps (xmx below),
+//! the linear layers run on the matrix engines from F16 activations and
+//! weights with F32 sums, and everything between them stays F32; with
+//! other widths FASTEST computes in F32, as the BERT path does, and the
+//! session says which in its compute dtype.
 
 use std::ffi::c_void;
 
 use super::kernels::Kernels;
+use super::model::{Model, Weights};
 use super::session::Session;
 use super::*;
-use crate::TURBO_PRECISION_FASTEST;
 use crate::backend::{
     TURBO_ACTIVATION_GELU_ERF, TURBO_ACTIVATION_SILU, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT,
     TURBO_MLP_GATED, TURBO_MODERNBERT_ATTN_LN_WEIGHT, TURBO_MODERNBERT_ATTN_OUT_WEIGHT,
@@ -35,12 +39,22 @@ use crate::backend::{
     TURBO_NOMIC_LAYER_TENSORS, TURBO_NOMIC_QKV_WEIGHT, TURBO_NOMIC_TOKEN_TYPE_EMBEDDINGS, TURBO_NOMIC_WORD_EMBEDDINGS,
     TURBO_NORM_LAYER, TURBO_NORM_LAYER_NO_BIAS, turbo_backend_model,
 };
-use crate::levelzero::gpu::{Arg, Context, Kernel, Queue, Res, fail, fail_field};
-use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED, UNSUPPORTED_OPTION};
+use crate::levelzero::gpu::{Arg, Context, Kernel, Queue, Res, fail};
+use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED};
 
 /// Whether `family` is one of the rotary families.
 pub(super) fn is(family: u32) -> bool {
     matches!(family, TURBO_FAMILY_MODERNBERT | TURBO_FAMILY_NOMIC_BERT)
+}
+
+/// The family's name in the load's log line.
+pub(super) fn family_name(family: u32) -> &'static str {
+    match family {
+        crate::backend::TURBO_FAMILY_DEBERTA_V2 => "DeBERTa-v2",
+        TURBO_FAMILY_MODERNBERT => "ModernBERT",
+        TURBO_FAMILY_NOMIC_BERT => "nomic-bert",
+        _ => "BERT",
+    }
 }
 
 /// The tensors the description must hold.
@@ -105,22 +119,6 @@ pub(super) fn check_load(d: &turbo_backend_model) -> Res<()> {
     Ok(())
 }
 
-/// Ok unless the session asks for FASTEST, which this backend has no F16
-/// rotary path for yet.
-pub(super) fn check_precision(family: u32, precision: u32) -> Res<()> {
-    if precision == TURBO_PRECISION_FASTEST {
-        let name = if family == TURBO_FAMILY_MODERNBERT { "FAMILY_MODERNBERT" } else { "FAMILY_NOMIC_BERT" };
-        return Err(fail_field(
-            UNSUPPORTED_OPTION,
-            3,
-            format!(
-                "precision: FASTEST on {name}: the levelzero backend runs this encoder in F32 alone; ask for MODEL or EXACT"
-            ),
-        ));
-    }
-    Ok(())
-}
-
 /// The bytes of the core's cos/sin table.
 pub(super) fn table_bytes(d: &turbo_backend_model) -> usize {
     4 * d.max_positions as usize * d.rope_pairs as usize * size_of::<f32>()
@@ -147,6 +145,7 @@ pub(super) fn upload_table(c: &Context, d: &turbo_backend_model) -> Res<*mut c_v
 
 /// The rotary kernels, one set per session.
 pub(super) struct RotaryKernels {
+    narrow: Kernel,
     embed: Kernel,
     norm: Kernel,
     add: Kernel,
@@ -163,6 +162,7 @@ impl RotaryKernels {
 
     pub(super) fn new(c: &Context) -> Res<RotaryKernels> {
         Ok(RotaryKernels {
+            narrow: c.kernel("rotary_narrow", [WIDE, 1, 1])?,
             embed: c.kernel("rotary_embed", [BLOCK, 1, 1])?,
             norm: c.kernel("rotary_norm", [BLOCK, 1, 1])?,
             add: c.kernel("rotary_add", [WIDE, 1, 1])?,
@@ -177,6 +177,81 @@ impl RotaryKernels {
 /// the query's head and the row's scores.
 pub(super) fn attention_local(seq: u32, head_dim: u32) -> u64 {
     4 * (head_dim as u64 + seq as u64)
+}
+
+/// Each layer's feed-forward input as one [2 * intermediate, hidden]
+/// weight, the activated rows first: ModernBERT's Wi as stored, and for
+/// nomic-bert its gate (fc12) and up (fc11) copied side by side into one
+/// allocation, returned (null for ModernBERT).
+pub(super) fn fuse(m: &Model, tensors: &[u64]) -> Res<*mut c_void> {
+    let d = &m.desc;
+    if d.family == TURBO_FAMILY_MODERNBERT {
+        return Ok(std::ptr::null_mut());
+    }
+    let c = m.ctx();
+    let (h, i, layers) = (d.hidden as usize, d.intermediate as usize, d.layers as usize);
+    let one = i * h * 4;
+    let fused = c.alloc_device(layers * 2 * one)?;
+    let (emb, per) = bases(d);
+    let copied = (|| {
+        let mut q = c.lock_queue()?;
+        let appended = (|| {
+            for l in 0..layers {
+                let t = |r: u32| tensors[(emb + l as u32 * per + r) as usize];
+                let dst = fused as usize + l * 2 * one;
+                for (k, r) in [TURBO_NOMIC_FFN_GATE_WEIGHT, TURBO_NOMIC_FFN_UP_WEIGHT].into_iter().enumerate() {
+                    // SAFETY: both are device allocations of these sizes.
+                    unsafe { c.copy(&mut q, (dst + k * one) as *mut c_void, t(r) as usize as *const c_void, one)? };
+                }
+            }
+            Ok(())
+        })();
+        let synced = c.sync(&mut q);
+        appended?;
+        synced
+    })();
+    if let Err(e) = copied {
+        c.free(fused, "the fused feed-forward inputs");
+        return Err(e);
+    }
+    Ok(fused)
+}
+
+/// Layer l's feed-forward input, [2 * intermediate, hidden] F32.
+fn ffn_in(d: &turbo_backend_model, w: &Weights, l: u32) -> u64 {
+    let (emb, per) = bases(d);
+    if d.family == TURBO_FAMILY_MODERNBERT {
+        w.tensors[(emb + l * per + TURBO_MODERNBERT_FFN_IN_WEIGHT) as usize]
+    } else {
+        w.fused as u64 + l as u64 * 2 * d.intermediate as u64 * d.hidden as u64 * 4
+    }
+}
+
+/// Each layer's four weights for Model::transposed, as the BERT path
+/// orders them: where each is in F32, and its outputs and inputs.
+pub(super) fn parts(d: &turbo_backend_model, w: &Weights) -> Vec<(u64, u64, u64)> {
+    let (h, i) = (d.hidden as u64, d.intermediate as u64);
+    let (emb, per) = bases(d);
+    let modern = d.family == TURBO_FAMILY_MODERNBERT;
+    let t = |l: u32, r: u32| w.tensors[(emb + l * per + r) as usize];
+    (0..d.layers)
+        .flat_map(|l| {
+            let (qkv, out, ffn_out) = if modern {
+                (TURBO_MODERNBERT_QKV_WEIGHT, TURBO_MODERNBERT_ATTN_OUT_WEIGHT, TURBO_MODERNBERT_FFN_OUT_WEIGHT)
+            } else {
+                (TURBO_NOMIC_QKV_WEIGHT, TURBO_NOMIC_ATTN_OUT_WEIGHT, TURBO_NOMIC_FFN_OUT_WEIGHT)
+            };
+            [(t(l, qkv), 3 * h, h), (t(l, out), h, h), (ffn_in(d, w, l), 2 * i, h), (t(l, ffn_out), h, i)]
+        })
+        .collect()
+}
+
+/// Whether a session at FASTEST runs the linear layers in F16 on the
+/// matrix engines: where the widths are multiples of the XMX kernels'
+/// steps, as the BERT path decides; else it computes in F32.
+pub(super) fn xmx(d: &turbo_backend_model) -> bool {
+    let step = DPAS_K.max(DPAS_TN);
+    d.hidden.is_multiple_of(step) && d.intermediate.is_multiple_of(step)
 }
 
 impl Session {
@@ -197,8 +272,38 @@ impl Session {
         let t = |r: u32| w[r as usize];
         let lw = |l: u32, r: u32| w[(emb + l * per + r) as usize];
         let n = tokens as u64 * h as u64;
-        // A linear layer without a bias, y = x W^T, x [tokens, n_in].
-        let linear = |q: &mut Queue, x: u64, weight: u64, n_in: u32, n_out: u32, y: u64, what: &str| -> Res<()> {
+        // A linear layer without a bias, y = x W^T, x [tokens, n_in] F32:
+        // at FASTEST on the matrix engines from x narrowed to F16 in xh
+        // and layer l's F16 weight `which`, with F32 sums; else in F32.
+        let linear = |q: &mut Queue,
+                      x: u64,
+                      (l, which, weight): (u32, usize, u64),
+                      n_in: u32,
+                      n_out: u32,
+                      y: u64,
+                      what: &str|
+         -> Res<()> {
+            if let (Some(kd), Some(half)) = (&k.linear_dpas, &self.half) {
+                let m = tokens as u64 * n_in as u64;
+                rk.narrow.launch(c, q, what, &[Ptr(x), U64(m), Ptr(self.xh)], [elementwise_groups(m), 1, 1])?;
+                let (tm, tn, wm, wn, kernel) = if tokens <= FEW_TOKENS_DPAS {
+                    (FEW_TM, DPAS_TN, FEW_WM, FEW_WN, &kd[2])
+                } else {
+                    let (tm, tn, wm, wn) = k.dpas;
+                    (tm, tn, wm, wn, &kd[0])
+                };
+                let args = [
+                    Ptr(self.xh),
+                    Ptr(half.layers[l as usize][which]),
+                    Ptr(0),
+                    Ptr(y),
+                    I32(tokens as i32),
+                    I32(n_out as i32),
+                    I32(n_in as i32),
+                    I32(0),
+                ];
+                return kernel.launch(c, q, what, &args, [n_out.div_ceil(tn * wn), tokens.div_ceil(tm * wm), 1]);
+            }
             let args = [
                 Ptr(x),
                 Ptr(weight),
@@ -262,11 +367,7 @@ impl Session {
         let half = d.max_positions as u64 * d.rope_pairs as u64 * 4;
         let table = self.model().rope as u64;
         let scale = 1.0 / (head_dim as f32).sqrt();
-        let (ffn_gate, ffn_up, ld) = if modern {
-            (self.ffn, self.ffn + n_i as u64 * 4, 2 * n_i)
-        } else {
-            (self.ffn, self.ffn + tokens as u64 * n_i as u64 * 4, n_i)
-        };
+        let act = if d.activation == TURBO_ACTIVATION_SILU { 2 } else { 1 };
         for l in 0..layers.min(d.layers) {
             let global = d.global_every == 0 || l.is_multiple_of(d.global_every);
             let cos = table + if global { 0 } else { 2 * half };
@@ -280,7 +381,7 @@ impl Session {
                 self.x
             };
             let qkv_w = lw(l, if modern { TURBO_MODERNBERT_QKV_WEIGHT } else { TURBO_NOMIC_QKV_WEIGHT });
-            linear(q, src, qkv_w, h, 3 * h, self.qkv, "the query, key and value projection")?;
+            linear(q, src, (l, 0, qkv_w), h, 3 * h, self.qkv, "the query, key and value projection")?;
             let pairs = tokens as u64 * 2 * (h as u64 / 2);
             let args = [
                 Ptr(self.qkv),
@@ -306,31 +407,23 @@ impl Session {
             ];
             rk.attention.launch(c, q, "attention", &args, [self.longest, d.heads, batch])?;
             let out_w = lw(l, if modern { TURBO_MODERNBERT_ATTN_OUT_WEIGHT } else { TURBO_NOMIC_ATTN_OUT_WEIGHT });
-            linear(q, self.att, out_w, h, h, self.tmp, "the attention output projection")?;
+            linear(q, self.att, (l, 1, out_w), h, h, self.tmp, "the attention output projection")?;
             add(q, "the attention residual")?;
-            if modern {
+            let src = if modern {
                 norm(q, self.x, self.xn, lw(l, TURBO_MODERNBERT_FFN_LN_WEIGHT), 0, "the feed-forward norm")?;
-                linear(
-                    q,
-                    self.xn,
-                    lw(l, TURBO_MODERNBERT_FFN_IN_WEIGHT),
-                    h,
-                    2 * n_i,
-                    self.ffn,
-                    "the feed-forward input",
-                )?;
+                self.xn
             } else {
                 let (nw, nb) = (lw(l, TURBO_NOMIC_ATTN_LN_WEIGHT), lw(l, TURBO_NOMIC_ATTN_LN_BIAS));
                 norm(q, self.x, self.x, nw, nb, "the attention LayerNorm")?;
-                linear(q, self.x, lw(l, TURBO_NOMIC_FFN_GATE_WEIGHT), h, n_i, ffn_gate, "the feed-forward gate")?;
-                linear(q, self.x, lw(l, TURBO_NOMIC_FFN_UP_WEIGHT), h, n_i, ffn_up, "the feed-forward up projection")?;
-            }
-            let act = if d.activation == TURBO_ACTIVATION_SILU { 2 } else { 1 };
+                self.x
+            };
+            let wi = (l, 2, ffn_in(d, &self.weights, l));
+            linear(q, src, wi, h, 2 * n_i, self.ffn, "the feed-forward input")?;
             let args = [
-                Ptr(ffn_gate),
-                I32(ld as i32),
-                Ptr(ffn_up),
-                I32(ld as i32),
+                Ptr(self.ffn),
+                I32(2 * n_i as i32),
+                Ptr(self.ffn + n_i as u64 * 4),
+                I32(2 * n_i as i32),
                 Ptr(self.mid),
                 I32(n_i as i32),
                 I32(tokens as i32),
@@ -339,7 +432,7 @@ impl Session {
             let gated = tokens as u64 * n_i as u64;
             rk.gated.launch(c, q, "the gated activation", &args, [elementwise_groups(gated), 1, 1])?;
             let out_w = lw(l, if modern { TURBO_MODERNBERT_FFN_OUT_WEIGHT } else { TURBO_NOMIC_FFN_OUT_WEIGHT });
-            linear(q, self.mid, out_w, n_i, h, self.tmp, "the feed-forward output")?;
+            linear(q, self.mid, (l, 3, out_w), n_i, h, self.tmp, "the feed-forward output")?;
             add(q, "the feed-forward residual")?;
             if !modern {
                 let (nw, nb) = (lw(l, TURBO_NOMIC_FFN_LN_WEIGHT), lw(l, TURBO_NOMIC_FFN_LN_BIAS));
