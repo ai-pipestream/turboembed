@@ -38,8 +38,10 @@ trains on those sentences and FineWeb-2 and FineWeb text, with
 `training-sentences.txt` and `training-documents.txt`, at their
 addresses in its release `models-tatoeba-fineweb-2026-10-10-1`.
 It also lists two published neural checkpoints at their Hugging Face
-revisions: `fastino-gliner2-base-v1` (Apache-2.0, the GLiNER2 relation
-scorer's, docs/gliner2-relations.md), and `jackboyla-glirel-large-v0`
+revisions: `fastino-gliner2-base-v1` (Apache-2.0 weights, local-only by
+its unreleased training data, fetched after the user accepts its card's
+terms and never bundled; the GLiNER2 relation scorer's,
+docs/gliner2-relations.md), and `jackboyla-glirel-large-v0`
 (CC BY-NC-SA 4.0, local-only, `FORMAT_PYTORCH`), which the zoo fetches
 from its publisher's own address only for a user who has accepted that
 licence. Nothing in this repository bundles or ships it. Its tokenizer,
