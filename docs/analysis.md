@@ -4629,12 +4629,12 @@ points on `arguana` and 0.04 on `nfcorpus`, with the same chunks: its
 numerics in the vectors, not the chunker. The Intel NPU leg is #1480.
 
 With turbo-sentdetect's rule splitter as the sentence default (#1568,
-in place of the 2.5.4-trained OpenNLP model), the CPU and Level Zero
-records were rerun at main `0d58e862`; they replace those two backends'
-directories above, as do the CUDA records (RTX 4080 SUPER, same
-commit), and the Metal directory stays at `16e74c04` with the old
-splitter until it is rerun. The gate still FAILs everywhere, with the
-same shape (sets below the floor, CPU, Level Zero and CUDA alike):
+in place of the 2.5.4-trained OpenNLP model), every record above was
+rerun at main `0d58e862` on all four backends, and these replace the
+`16e74c04` records and reports in the same directories. The gate still
+FAILs on every backend, with the same verdicts (the sets below the
+floor; CPU, Level Zero and Metal number for number, CUDA where it
+differs):
 
 | Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
 | :--- | :--- | :--- | :--- |
@@ -4642,20 +4642,18 @@ same shape (sets below the floor, CPU, Level Zero and CUDA alike):
 | cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.20, `qasper` -0.74 | FAIL, 0 gains; `arguana` -0.77 (CUDA -0.59) | FAIL, 2 gains; `qasper` -1.12 (Level Zero -1.09, CUDA -1.10) |
 
 v1's nDCG@10 is `69.07` / `34.22` / `51.49` / `37.64` (scifact,
-nfcorpus, arguana, qasper). Both turbo-chunker pipelines cut every
-document the same on the CPU and Level Zero (`turbo-eval cuts`, 0
-documents differ). Every Level Zero record matches the CPU's query for
-query except the sandbox semantic chunker's on qasper, where 2 of 1451
-queries differ with the same chunk count and chunk sizes; that chunker
-cuts on sentence-vector thresholds and writes no cut dump, so its cuts
-were not compared. Both turbo-chunker pipelines also cut every document
-the same on CUDA as on the CPU (0 documents differ). CUDA's records
-have the CPU's chunk counts on every pipeline and set; their nDCG@10
-differs from the CPU's on `arguana` (up to 0.24 points, 36 to 62 of 1406
-queries), `nfcorpus` (up to 0.06, 2 to 4 of 323) and, for the sandbox
-semantic chunker, on 1 `qasper` query: CUDA's numerics in the vectors,
-as at `16e74c04`. These are correctness records; the 4080 was shared
-with other work while they ran.
+nfcorpus, arguana, qasper) on the CPU. Both turbo-chunker pipelines cut
+every document of the four sets the same on the CPU, Level Zero, CUDA
+and Metal (`turbo-eval cuts` against the CPU's dumps: structure-cost
+55854 shared cuts, cohesion 57804, 0 documents differ). Metal matches
+the CPU query for query on every record; Level Zero on every record but
+the sandbox semantic chunker's on qasper (2 of 1451 queries differ, same
+chunk count and sizes); CUDA differs on up to 62 of arguana's 1406
+queries (v1 +0.18 points, cohesion +0.24), with the same cuts, so from
+its vectors' numerics. The sandbox semantic chunker cuts on
+sentence-vector thresholds and writes no cut dump; on Metal its arguana
+run has one chunk fewer than the CPU's (49147 against 49148) with the
+same per-query scores.
 
 ### Structure in the chunker
 
