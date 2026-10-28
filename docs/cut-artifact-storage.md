@@ -11,7 +11,12 @@ and `Precision`. Storage controls streaming reads, staged writes, publication,
 listing and deletion through logical `ArtifactKey` names and `StorageError`.
 The cut codec supplies names such as `scifact.cuts`; the backend has no format
 extension policy. The first backend, `TemporaryFileStore`, stages in the chosen
-local directory. Its completed files persist until explicitly deleted.
+local directory. Each application chooses that directory explicitly through
+`TemporaryFileStore::new(directory)` or the CLI `--dump-cuts <directory>`.
+Both staging and committed files stay there; there is no global temporary
+directory fallback. Applications using distinct directories can reuse logical
+keys without sharing bytes, listings or deletion. Completed files persist
+until explicitly deleted.
 Cache storage and document export have separate lifecycle requirements; no
 S3, database, repository service, Git or Parquet implementation is provided.
 

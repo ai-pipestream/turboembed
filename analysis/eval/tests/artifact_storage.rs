@@ -114,3 +114,32 @@ fn local_staging_and_published_files_are_private_regular_files() {
     assert_eq!(store.list().unwrap(), vec![key()]);
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn applications_choose_isolated_directories_for_the_same_logical_key() {
+    let (a_dir, a) = store("application-a");
+    let (b_dir, b) = store("application-b");
+    for (dir, store, value) in [(&a_dir, &a, b"app-a"), (&b_dir, &b, b"app-b")] {
+        let mut pending = store.begin(&key()).unwrap();
+        let staging: Vec<_> = fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
+        assert_eq!(staging.len(), 1);
+        assert_eq!(staging[0].parent(), Some(dir.as_path()));
+        assert!(staging[0].file_name().unwrap().to_str().unwrap().ends_with(".partial"));
+        assert!(store.list().unwrap().is_empty());
+        pending.write_all(value).unwrap();
+        pending.finalize().unwrap();
+        assert_eq!(store.list().unwrap(), vec![key()]);
+        let mut opened = Vec::new();
+        store.open(&key()).unwrap().read_to_end(&mut opened).unwrap();
+        assert_eq!(opened, value);
+    }
+    assert_eq!(fs::read(a_dir.join(key().as_str())).unwrap(), b"app-a");
+    assert_eq!(fs::read(b_dir.join(key().as_str())).unwrap(), b"app-b");
+    a.delete(&key()).unwrap();
+    assert!(a.list().unwrap().is_empty());
+    assert!(matches!(a.open(&key()), Err(StorageError::NotFound(_))));
+    assert_eq!(b.list().unwrap(), vec![key()]);
+    assert_eq!(fs::read(b_dir.join(key().as_str())).unwrap(), b"app-b");
+    fs::remove_dir_all(a_dir).unwrap();
+    fs::remove_dir_all(b_dir).unwrap();
+}
