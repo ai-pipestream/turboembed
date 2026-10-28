@@ -1,7 +1,7 @@
 use turbo_eval::analysis::Sentencer;
 use turbo_eval::analysis_bench::{
-    command, parse_conllu, parse_lang_gold, parse_lang_pred, parse_sentence_list, score_conllu, score_language,
-    score_sentence_list, score_sentencer, script_fallback_predictions,
+    command, parse_conllu, parse_lang_gold, parse_lang_pred, parse_ner_gold, parse_ner_pred, parse_sentence_list,
+    score_conllu, score_language, score_ner, score_sentence_list, score_sentencer, script_fallback_predictions,
 };
 use turbo_eval::sha::{sha256, to_hex};
 
@@ -198,6 +198,68 @@ fn the_language_command_writes_a_record() {
     assert_eq!(record["gold_sha256"], digest);
     assert_eq!(record["texts"], 2);
     assert_eq!(record["systems"][0]["language"]["score"], 100.0);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn entity_spans_score_exactly_and_shapes_are_checked() {
+    let gold = parse_ner_gold(concat!(
+        "# a header comment\n",
+        "Ada\tB-person\n",
+        "Lovelace\tI-person\n",
+        "met\tO\n",
+        "Acme\tB-corporation\n",
+        "\n",
+        "Paris\tB-location\n",
+        "sleeps\tO\n",
+    ))
+    .unwrap();
+    assert_eq!(gold.len(), 2);
+    let perfect = parse_ner_pred("B-person\nI-person\nO\nB-corporation\n\nB-location\nO\n", &gold).unwrap();
+    assert_eq!(score_ner("self", &gold, &perfect, 0).entities.score, 100.0);
+
+    // A split person span and a missed corporation: 1 of 3 spans right.
+    let flawed = parse_ner_pred("B-person\nO\nO\nO\n\nB-location\nO\n", &gold).unwrap();
+    let scores = score_ner("flawed", &gold, &flawed, 0);
+    assert_eq!(scores.entities.correct, 1);
+    assert_eq!(scores.entities.selected, 2);
+    assert_eq!(scores.entities.target, 3);
+    assert_eq!(scores.per_type.iter().find(|t| t.kind == "location").unwrap().score, 100.0);
+    assert_eq!(scores.per_type.iter().find(|t| t.kind == "person").unwrap().score, 0.0);
+
+    let err = parse_ner_pred("B-person\n", &gold).unwrap_err();
+    assert!(err.contains("predicted sentences"), "{err}");
+    assert!(parse_ner_gold("Ada\tX-person\n").is_err());
+}
+
+#[test]
+fn the_entity_command_writes_a_record() {
+    let dir = std::env::temp_dir().join(format!("turbo-eval-ner-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let gold_text = "Ada\tB-person\nruns\tO\n";
+    let gold = dir.join("gold.tsv");
+    std::fs::write(&gold, gold_text).unwrap();
+    let pred = dir.join("pred.tsv");
+    std::fs::write(&pred, "B-person\nO\n").unwrap();
+    let digest = to_hex(&sha256(gold_text.as_bytes()));
+    let out = dir.join("record.json");
+    command(&[
+        "--ner-gold".into(),
+        gold.to_string_lossy().into_owned(),
+        "--sha256".into(),
+        digest.clone(),
+        "--out".into(),
+        out.to_string_lossy().into_owned(),
+        "--ner-pred".into(),
+        format!("peer={}", pred.display()),
+        "--resamples".into(),
+        "0".into(),
+    ])
+    .unwrap();
+    let record: serde_json::Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
+    assert_eq!(record["gold_sha256"], digest);
+    assert_eq!(record["systems"][0]["entities"]["score"], 100.0);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

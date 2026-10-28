@@ -18,10 +18,9 @@
 //! gold sentence with a token the alignment could not match is counted
 //! under `token_mismatch_sentences`.
 //!
-//! Entities are not scored by this mode yet: their records land with
-//! the MultiCoNER/WNUT inputs, and a CoNLL-U system block names them
-//! `not_run` rather than inventing a score. Language is scored by the
-//! `--lang-gold` form of the same command (see `language`).
+//! A CoNLL-U system block names entities `not_run`: entity scoring
+//! lives in the `--ner-gold` form (see `ner`), and language scoring
+//! in the `--lang-gold` form (see `language`).
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -36,11 +35,13 @@ use crate::analysis::Sentencer;
 
 mod align;
 mod language;
+mod ner;
 use crate::model_gate::{Counts, Measure};
 use crate::random::JavaRandom;
 use crate::sha::{sha256, to_hex};
 use crate::significance::percentile;
 pub use language::{LangGold, parse_lang_gold, parse_lang_pred, score_language, script_fallback_predictions};
+pub use ner::{parse_ner_gold, parse_ner_pred, score_ner};
 
 /// The fixed bootstrap seed of every analysis record.
 pub const BOOTSTRAP_SEED: i64 = 42;
@@ -347,6 +348,9 @@ pub struct AnalysisRecord {
 pub fn command(args: &[String]) -> Result<()> {
     if args.iter().any(|a| a == "--lang-gold") {
         return language::language_command(args);
+    }
+    if args.iter().any(|a| a == "--ner-gold") {
+        return ner::ner_command(args);
     }
     let mut gold_path = None;
     let mut want_sha = None;
