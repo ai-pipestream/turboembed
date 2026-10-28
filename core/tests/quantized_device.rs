@@ -83,7 +83,7 @@ fn check(backend: &str, what: &str, mut write: impl FnMut(&turbo_embed_options) 
     // quantized runs take the staging path; metal's are shared memory.
     let placed = if backend == "metal" { TURBO_PLACE_SHARED } else { TURBO_PLACE_DEVICE };
     assert_eq!(fi.placement, placed, "{what}: the f32 result's placement");
-    let flat: Vec<f32> = fbytes.chunks_exact(4).map(|b| f32::from_le_bytes(b.try_into().unwrap())).collect();
+    let flat: Vec<f32> = fbytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
     let (batch, dim) = (fi.batch as usize, w as usize);
     assert_eq!(flat.len(), batch * dim, "{what}");
     let rows: Vec<&[f32]> = flat.chunks(dim).collect();

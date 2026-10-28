@@ -83,7 +83,7 @@ pub fn rows(q: Quantization, x: &[f32], dim: usize, ranges: &[f32], out: &mut [u
     for (row, o) in x.chunks_exact(dim).zip(out.chunks_exact_mut(width)) {
         match q {
             Quantization::F32 => {
-                for (b, v) in o.chunks_exact_mut(4).zip(row) {
+                for (b, v) in o.as_chunks_mut::<4>().0.iter_mut().zip(row) {
                     b.copy_from_slice(&v.to_le_bytes());
                 }
             }
