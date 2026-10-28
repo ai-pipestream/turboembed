@@ -407,27 +407,32 @@ fn fuzzy_index_sublinear_lookup_scales_from_10k_to_160k_aliases() {
         assert_eq!(c10[0].kb_id, c160[0].kb_id);
     }
 
-    let t0 = Instant::now();
-    for _ in 0..10 {
-        for q in queries {
-            let _ = std::hint::black_box(prov_10k.generate_candidates(q, None, 5, 0.88));
+    // Best of five rounds per catalog, interleaved after a warm-up pass, so
+    // load on a shared runner hits both sizes alike. A linear scan grows
+    // sixteenfold with the catalog; the index stays well under 4.5x. There is
+    // no absolute per-query ceiling: a loaded runner measured 4.7 ms/query on
+    // the 10k catalog, so a millisecond bound timed the neighbours instead.
+    let lookups = |prov: &CatalogProvider| {
+        for _ in 0..10 {
+            for q in queries {
+                let _ = std::hint::black_box(prov.generate_candidates(q, None, 5, 0.88));
+            }
         }
+    };
+    lookups(&prov_10k);
+    lookups(&prov_160k);
+    let (mut elapsed_10k, mut elapsed_160k) = (std::time::Duration::MAX, std::time::Duration::MAX);
+    for _ in 0..5 {
+        let t0 = Instant::now();
+        lookups(&prov_10k);
+        elapsed_10k = elapsed_10k.min(t0.elapsed());
+        let t1 = Instant::now();
+        lookups(&prov_160k);
+        elapsed_160k = elapsed_160k.min(t1.elapsed());
     }
-    let elapsed_10k = t0.elapsed();
-
-    let t1 = Instant::now();
-    for _ in 0..10 {
-        for q in queries {
-            let _ = std::hint::black_box(prov_160k.generate_candidates(q, None, 5, 0.88));
-        }
-    }
-    let elapsed_160k = t1.elapsed();
-
-    // 16x more aliases should stay well below 4x wall-clock time (and < 2ms per query even in debug mode)
-    let per_query_160k_ms = elapsed_160k.as_secs_f64() * 1000.0 / 40.0;
     assert!(
-        per_query_160k_ms < 5.0 && elapsed_160k.as_secs_f64() <= (elapsed_10k.as_secs_f64() * 4.5).max(0.05),
-        "expected sublinear fuzzy lookup scaling: 10k={elapsed_10k:?}, 160k={elapsed_160k:?} ({per_query_160k_ms:.3} ms/query)"
+        elapsed_160k.as_secs_f64() <= (elapsed_10k.as_secs_f64() * 4.5).max(0.05),
+        "expected sublinear fuzzy lookup scaling: 10k={elapsed_10k:?}, 160k={elapsed_160k:?}"
     );
 
     // Short and transposed aliases ("abcd" vs "acbd", "nyx" vs "nxy", "meta" vs "mtea")
