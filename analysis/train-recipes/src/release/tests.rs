@@ -296,3 +296,17 @@ fn no_references_file_lists_the_retired_opennlp_host() {
         }
     }
 }
+
+/// Recipe `RecordedReference` URLs must not point at the retired
+/// `opennlp.sourceforge.net` host either: namefind and other MASC gates
+/// read those addresses when fetching a reference by hand.
+#[test]
+fn no_recipe_reference_uses_the_retired_opennlp_host() {
+    for release in MODELS_RELEASES {
+        for reference in release.recipe_references() {
+            if let Reference::Recorded(rec) = reference {
+                assert!(!rec.url.contains("://opennlp.sourceforge.net/"), "{}: {}", rec.id, rec.url);
+            }
+        }
+    }
+}

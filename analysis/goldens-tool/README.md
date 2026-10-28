@@ -67,7 +67,8 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   and checks each one's SHA-512 against the value published beside it on
   downloads.apache.org. A model already there with the right hash is kept.
   With `--local` it also downloads the OpenNLP 1.5 English models
-  (`LOCAL_MODELS` in `src/recipe/models.rs`) from opennlp.sourceforge.net, which
+  (`LOCAL_MODELS` in `src/recipe/models.rs`) from SourceForge's OpenNLP file
+  area (`downloads.sourceforge.net/project/opennlp/models-1.5`), which
   publishes no hash beside them: the recipe has the SHA-512 of the files
   whose SHA-256 the sequence crate's README lists. Their training corpora
   are LDC corpora or undocumented, so the `ci` workflow does not fetch

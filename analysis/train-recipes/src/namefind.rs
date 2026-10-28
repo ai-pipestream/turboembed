@@ -100,7 +100,7 @@ pub use self::samples::{NameSamples, read_samples};
 pub const EN_NER_PERSON: RecordedReference = RecordedReference {
     id: "opennlp-en-ner-person-1.5",
     file: "en-ner-person.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-person.bin",
+    url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-ner-person.bin",
     size: 5_207_953,
     sha256: "687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4",
 };
@@ -109,7 +109,7 @@ pub const EN_NER_PERSON: RecordedReference = RecordedReference {
 pub const EN_NER_LOCATION: RecordedReference = RecordedReference {
     id: "opennlp-en-ner-location-1.5",
     file: "en-ner-location.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-location.bin",
+    url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-ner-location.bin",
     size: 5_110_658,
     sha256: "8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b",
 };
@@ -118,7 +118,7 @@ pub const EN_NER_LOCATION: RecordedReference = RecordedReference {
 pub const EN_NER_ORGANIZATION: RecordedReference = RecordedReference {
     id: "opennlp-en-ner-organization-1.5",
     file: "en-ner-organization.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-organization.bin",
+    url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-ner-organization.bin",
     size: 5_297_172,
     sha256: "0136c12afe1ac357142260c39bb879b7c9d121e41024114db5a6455b4fd5ba00",
 };
@@ -127,7 +127,7 @@ pub const EN_NER_ORGANIZATION: RecordedReference = RecordedReference {
 pub const EN_NER_DATE: RecordedReference = RecordedReference {
     id: "opennlp-en-ner-date-1.5",
     file: "en-ner-date.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-date.bin",
+    url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-ner-date.bin",
     size: 5_030_307,
     sha256: "1207030923852e1c244919d8f15d9e78c217323728fcf909029abd1703967855",
 };
@@ -377,7 +377,7 @@ mod tests {
             let Reference::Recorded(rec) = r.reference else { panic!("{}: a recorded reference", r.model_id) };
             assert_eq!(rec.file, format!("en-ner-{}.bin", r.kind()));
             assert_eq!(rec.id, format!("opennlp-en-ner-{}-1.5", r.kind()));
-            assert_eq!(rec.url, format!("https://opennlp.sourceforge.net/models-1.5/{}", rec.file));
+            assert_eq!(rec.url, format!("https://downloads.sourceforge.net/project/opennlp/models-1.5/{}", rec.file));
             assert_eq!(r.task(), Task::NameFinder);
         }
         // MASC's `org` is the reference's `organization`.

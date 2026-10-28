@@ -141,7 +141,7 @@ the second for failing their gates).
 | Model | Trained on | Licence of the data | Reason | Checked |
 |---|---|---|---|---|
 | `langdetect-183.bin` | Leipzig corpora ([model README](https://archive.apache.org/dist/opennlp/models/langdetect/1.8.3/README.txt), [corpora](https://wortschatz.uni-leipzig.de/en/download)) | conflicting: one source says CC BY, another CC BY-NC | terms not confirmed (`LicenseRef-Unconfirmed`) | plan; README here |
-| 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
+| 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](https://downloads.sourceforge.net/project/opennlp/models-1.5/)) | LDC | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
 | 1.5 `en-pos-maxent` | not published (the OpenNLP 1.5.1 test plan heads its regression-training section "(private) English data", which may not describe these models) | none stated | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
 | 1.5 `en-pos-perceptron` | not published (as `en-pos-maxent`) | none stated | proprietary | plan |
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
@@ -152,7 +152,7 @@ trains on them, and the zoo does not list them. The `ci` workflow
 (`ci.yml`) does not fetch them. The `models` workflow
 (`.github/workflows/models.yml`), which runs the recipes' gates before
 it publishes their models, downloads them from
-<https://opennlp.sourceforge.net/models-1.5/>, checks them against the
+<https://downloads.sourceforge.net/project/opennlp/models-1.5/>, checks them against the
 SHA-256s `analysis/train-recipes/masc-references.txt` lists, and keeps
 them in the repository's GitHub Actions cache. GitHub restores that
 cache only in this repository's workflow runs, and it cannot be

@@ -102,31 +102,31 @@ pub const MODELS: [Model; 13] = [
 pub const LOCAL_MODELS: [Model; 5] = [
     Model {
         file: "en-pos-maxent.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin",
+        url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-pos-maxent.bin",
         sha512: "7810d7e7c24ed1c6a202dad64ed021310ee62cf324ee866e2e63bf8054199716\
                  2bb5fa2da91fdcfddda39ee275efcdbde738647274d586ba8896940a0467d6cc",
     },
     Model {
         file: "en-pos-perceptron.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-perceptron.bin",
+        url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-pos-perceptron.bin",
         sha512: "01d296d8dc7fdc5e7e93ef8c415e9af752e04d7ce77008b5a864f14cd1a5e53b\
                  2d22fc9b7cbd37ecaa814c6b7a83f2f22fdf531dac2a6784fae723d6ab173e03",
     },
     Model {
         file: "en-chunker.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-chunker.bin",
+        url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin",
         sha512: "43e83ac9b1b9b0e52d7813e6f4ed2fb3b94dd4146d9b36028795c273ad6ef191\
                  68f1ad5ced3ca11f1b91f81f6fa1324d2070c96342cf538eccadc957a0721730",
     },
     Model {
         file: "en-ner-person.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-person.bin",
+        url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-ner-person.bin",
         sha512: "c62b3460527f103ea1e9b8e0b794822ceb0536b03a843e0ca86f9ae559c1cca0\
                  a4fa03e81ecfec468628be3ee09c17adef08cd460214bd10bb089326427eb04c",
     },
     Model {
         file: "en-ner-location.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-location.bin",
+        url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-ner-location.bin",
         sha512: "f75be6fb88a18ad3bb6f196a72931fa259091cf22e4c05230aace4aa990a6340\
                  d83937c00431165704fe6762a030fe944bae157f4d4a914c4a01deefc52f61b3",
     },

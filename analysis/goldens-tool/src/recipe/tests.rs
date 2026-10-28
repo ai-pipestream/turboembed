@@ -39,6 +39,20 @@ fn every_model_has_a_file_an_https_url_and_a_sha512() {
     assert!(is_lower_hex(crate::pooled::POOLED_SHA512, 128));
 }
 
+/// `opennlp.sourceforge.net/models-1.5` 404s (#1565). The 1.5 models are
+/// fetched from SourceForge's project file area; keep LOCAL_MODELS there and
+/// refuse the retired host so differential `fetch-models --local` stays live.
+#[test]
+fn local_opennlp_1_5_models_use_the_sourceforge_file_area() {
+    const BASE: &str = "https://downloads.sourceforge.net/project/opennlp/models-1.5/";
+    for m in &LOCAL_MODELS {
+        assert!(!m.url.contains("://opennlp.sourceforge.net/"), "{}", m.url);
+        assert!(m.url.starts_with(BASE), "{} must start with {BASE}", m.url);
+        assert_eq!(m.url, format!("{BASE}{}", m.file));
+        assert!(is_lower_hex(m.sha512, 128), "{}: {}", m.file, m.sha512);
+    }
+}
+
 #[test]
 fn the_generator_opens_the_pooled_model_the_tool_derives() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
