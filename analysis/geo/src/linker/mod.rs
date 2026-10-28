@@ -254,22 +254,16 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
             // An enabled policy broadens retrieval to surface edit and
             // phonetic candidates, then re-scores each hit with the policy
             // over the entry's names; the policy confidence replaces the
-            // retrieval score and is never multiplied by it.
+            // retrieval score, is never multiplied by it, and the
+            // retrieval-limit cap is applied only after the policy ranking.
             let hits = if self.fuzzy_policy.is_enabled() {
                 let hits = self.gazetteer.lookup_fuzzy(
                     surface,
                     &self.fuzzy,
                     policy::POLICY_RETRIEVAL_MIN_SIMILARITY,
-                    policy::broadened_limit(retrieval_limit),
+                    policy::broadened_limit(),
                 );
-                hits.into_iter()
-                    .filter_map(|(entry, sim)| {
-                        let score = policy::score_entry(&self.fuzzy_policy, surface, &entry)
-                            .or_else(|| (sim >= 1.0).then_some(1.0))?;
-                        Some((entry, score))
-                    })
-                    .take(retrieval_limit)
-                    .collect()
+                policy::score_and_retain(&self.fuzzy_policy, surface, hits, retrieval_limit)
             } else {
                 self.gazetteer.lookup_fuzzy(surface, &self.fuzzy, min_sim, retrieval_limit)
             };
@@ -278,6 +272,9 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
             for (idx, (entry_view, sim)) in hits.into_iter().enumerate() {
                 let owned = entry_view.to_entry();
                 hashes.push(encode_geohash(owned.location(), self.geohash.precision()));
+                // `hits` is in policy-ranked order when the policy is enabled
+                // and in raw retrieval order when it is disabled, so the rank
+                // weight always follows the order the candidates ranked in.
                 let rank_weight = 1.0 / (1.0 + idx as f64);
                 if let Some(code) = owned.region_code() {
                     cand_country_signals

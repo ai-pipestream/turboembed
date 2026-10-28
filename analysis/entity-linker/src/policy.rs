@@ -20,9 +20,11 @@ const POLICY_RETRIEVAL_THRESHOLD: f64 = 0.0;
 
 /// Policy-aware candidate generation for a [`KbProvider`]: delegates exactly
 /// to [`KbProvider::generate_candidates`] when the policy is disabled, and
-/// otherwise broadens retrieval, re-scores each candidate's `matched_alias`
-/// with the policy, drops the ones the policy does not admit, and keeps the
-/// deterministic ranking order.
+/// otherwise broadens retrieval past `max_candidates` so the policy sees
+/// every candidate it could admit, re-scores each candidate's
+/// `matched_alias` with the policy, drops the ones the policy does not
+/// admit, ranks by the policy confidence, and only then applies the
+/// `max_candidates` cap.
 pub(crate) fn generate_with_policy<P: KbProvider + ?Sized>(
     provider: &P,
     mention_text: &str,
@@ -35,7 +37,7 @@ pub(crate) fn generate_with_policy<P: KbProvider + ?Sized>(
         return provider.generate_candidates(mention_text, query_vector, max_candidates, fuzzy_threshold);
     }
     let mut candidates =
-        provider.generate_candidates(mention_text, query_vector, max_candidates, POLICY_RETRIEVAL_THRESHOLD);
+        provider.generate_candidates(mention_text, query_vector, usize::MAX, POLICY_RETRIEVAL_THRESHOLD);
     score_and_retain(&fuzzy_policy, mention_text, &mut candidates);
     candidates.truncate(max_candidates);
     candidates

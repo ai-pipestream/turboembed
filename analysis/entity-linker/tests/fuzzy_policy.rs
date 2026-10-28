@@ -1,5 +1,7 @@
 use turbo_analysis::Annotator;
-use turbo_entity_linker::{CatalogProvider, EntityLinker, KbEntity, KbProvider, KnowledgeBase, LinkerConfig};
+use turbo_entity_linker::{
+    CatalogProvider, EntityLinker, KbEntity, KbProvider, KnowledgeBase, LinkerConfig, fold_alias, jaro_winkler,
+};
 use turbo_matcher::FuzzyMatchPolicy;
 
 fn policy(distance: u8, phonetic: bool) -> FuzzyMatchPolicy {
@@ -83,4 +85,46 @@ fn similarity_one_does_not_bypass_policy_unless_the_alias_is_fold_exact() {
     let hits = SimilarityOneProvider.generate_candidates_with_policy("Kathryn", None, 8, 1.0, policy(1, false));
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].matched_alias, "KATHRYN");
+}
+
+#[test]
+fn entity_policy_surfaces_phonetic_match_below_raw_similarity_decoys() {
+    // "Kathryn" is a phonetic match for "Catherine" (policy 0.9) but only a
+    // moderate raw Jaro-Winkler match (about 0.757), while "Kathy" (0.943)
+    // and "Kath" (0.914) rank higher on raw similarity yet the phonetic-only
+    // policy does not admit them. With max_candidates = 2, raw-similarity
+    // truncation alone would keep only the two decoys and the policy pass
+    // would return nothing; the broadened retrieval must surface
+    // "Catherine" and rank it first.
+    let kathryn = fold_alias("Kathryn");
+    let jw_catherine = jaro_winkler(&kathryn, &fold_alias("Catherine"));
+    assert!(jaro_winkler(&kathryn, &fold_alias("Kathy")) > jw_catherine);
+    assert!(jaro_winkler(&kathryn, &fold_alias("Kath")) > jw_catherine);
+
+    let mut entities =
+        vec![KbEntity::new("E1", "Catherine").with_alias("Catherine", 1.0).with_types(["PERSON"]).with_prior(1.0)];
+    for i in 0..40 {
+        let alias = format!("Kathy{i}");
+        entities.push(
+            KbEntity::new(format!("Z{i}"), alias.clone()).with_alias(alias, 1.0).with_types(["PERSON"]).with_prior(0.5),
+        );
+    }
+    entities.extend([
+        KbEntity::new("E2", "Kathy").with_alias("Kathy", 1.0).with_types(["PERSON"]).with_prior(1.0),
+        KbEntity::new("E3", "Kath").with_alias("Kath", 1.0).with_types(["PERSON"]).with_prior(1.0),
+    ]);
+    let provider = CatalogProvider::new(KnowledgeBase::from_entities("test", entities).unwrap());
+
+    // Disabled policy keeps the raw-similarity behavior exactly: the two
+    // decoys fill the cap.
+    let disabled = provider.generate_candidates("Kathryn", None, 2, 0.8);
+    assert_eq!(disabled.len(), 2);
+    assert!(disabled.iter().all(|candidate| candidate.matched_alias != "Catherine"));
+
+    let hits = provider.generate_candidates_with_policy("Kathryn", None, 2, 1.0, policy(0, true));
+    assert!(!hits.is_empty(), "phonetic match must survive over non-admitted raw-similarity decoys");
+    assert!(hits.iter().any(|candidate| candidate.kb_id == "E1"), "{hits:?}");
+    let catherine = hits.iter().find(|candidate| candidate.kb_id == "E1").unwrap();
+    assert_eq!(catherine.matched_alias, "Catherine");
+    assert!((catherine.match_similarity - 0.9).abs() < 1e-5);
 }
