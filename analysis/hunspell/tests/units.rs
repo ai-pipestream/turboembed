@@ -16,12 +16,10 @@ fn stems(d: &Dictionary, word: &str) -> Vec<String> {
     Stemmer::new(d).stems(word)
 }
 
-/// Closest pure-Rust stand-in for "suggest apache for apach": with a tiny
-/// dictionary that lists `apache`, the correct form stems to itself while
-/// the truncated misspelling yields no reading; affixed forms keep the
-/// entry stem first.
+/// Listed forms stem to themselves; a truncated misspelling yields no
+/// reading; an affixed form keeps the entry stem first.
 #[test]
-fn suggest_returns_apache_for_apach_and_sorts_closest_first() {
+fn listed_forms_stem_and_truncations_do_not() {
     let d = load("SET UTF-8\n", "2\napache\napple\n");
     assert_eq!(stems(&d, "apache"), ["apache"]);
     assert!(stems(&d, "apach").is_empty());
@@ -51,21 +49,16 @@ fn check_handles_circumfix_and_forbidden_and_needaffix() {
 
 #[test]
 fn compound_rule_accepts_two_part_word_and_rejects_single_only() {
-    let d = load(
-        "COMPOUNDMIN 1\nCOMPOUNDRULE 1\nCOMPOUNDRULE AB\n",
-        "2\nfoo/A\nbar/B\n",
-    );
+    let d = load("COMPOUNDMIN 1\nCOMPOUNDRULE 1\nCOMPOUNDRULE AB\n", "2\nfoo/A\nbar/B\n");
     let s = Stemmer::new(&d);
     assert!(!s.stems("foobar").is_empty(), "two-part compound must be accepted: {:?}", s.stems("foobar"));
-    // Without compound flags that allow standing alone, single parts still
-    // stem as ordinary entries; reject a three-letter mash that is not a
-    // listed entry and does not satisfy the two-flag rule.
+    // COMPOUNDRULE AB matches exactly one A then one B; a third part does not.
+    assert!(s.stems("foobarbar").is_empty(), "three-part mash must be rejected: {:?}", s.stems("foobarbar"));
     assert!(s.stems("fo").is_empty());
-    assert!(s.stems("foobarbar").is_empty() || !s.stems("foobar").is_empty());
 }
 
 #[test]
-fn annotator_attaches_stems_and_spelling_layers() {
+fn annotator_attaches_a_stem_per_token() {
     let aff = b"SET UTF-8\nSFX S Y 1\nSFX S 0 s .\n";
     let dic = b"1\nwalk/S\n";
     let dict = Dictionary::from_bytes(aff, dic, LoadMode::Strict).unwrap();
