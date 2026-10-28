@@ -161,10 +161,11 @@ impl ModelsRelease {
     }
 
     /// The references of the recipes that train its models, in the order
-    /// of its models: for the web language detector, its gates' reference
-    /// and then the model it is compared with.
+    /// of its models, leaving out the MASC recipes that have none: for the
+    /// web language detector, its gates' reference and then the model it is
+    /// compared with.
     pub(super) fn recipe_references(&self) -> Vec<Reference> {
-        let masc = self.recipes().into_iter().map(|r| r.reference());
+        let masc = self.recipes().into_iter().filter_map(|r| r.reference().ok());
         let ud = self.ud_recipes().into_iter().map(|r| r.reference);
         let language = self.language_recipes().into_iter().map(|r| r.reference);
         let web = self.web_language_recipes().into_iter().flat_map(|r| [r.tatoeba.reference, r.compared]);

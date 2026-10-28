@@ -26,9 +26,23 @@ fn the_base_image_is_pinned_by_a_sha256_digest() {
     assert!(is_lower_hex(hex, 64), "{BASE_IMAGE_DIGEST}");
 }
 
+/// OpenNLP 1.5 models are not fetched or run (#1509): no model of the
+/// recipe and no file the generator names is one of them.
+#[test]
+fn no_opennlp_1_5_model_is_fetched_or_run() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    let retired = ["en-pos-maxent", "en-pos-perceptron", "en-chunker", "en-ner-", "models-1.5"];
+    for name in retired {
+        assert!(!runs.contains(name), "Runs.java names {name}");
+        for m in MODELS.iter().chain(std::iter::once(&POOLING_SOURCE)) {
+            assert!(!m.file.contains(name) && !m.url.contains(name), "{} names {name}", m.url);
+        }
+    }
+}
+
 #[test]
 fn every_model_has_a_file_an_https_url_and_a_sha512() {
-    for m in MODELS.iter().chain(&LOCAL_MODELS) {
+    for m in MODELS.iter() {
         assert!(is_lower_hex(m.sha512, 128), "{}: {}", m.file, m.sha512);
         assert!(m.url.starts_with("https://"), "{}", m.url);
         assert!(m.url.ends_with(&format!("/{}", m.file)), "{} does not end in {}", m.url, m.file);
@@ -171,7 +185,6 @@ fn the_generator_opens_the_same_model_and_fixture_files() {
         .collect();
     for file in MODELS
         .iter()
-        .chain(&LOCAL_MODELS)
         .map(|m| m.file)
         .chain(FIXTURES.iter().map(|f| opened(f.file)))
         .chain(dictionaries)

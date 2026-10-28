@@ -11,7 +11,7 @@ usage: turbo-goldens <command>
 
   image                          build the generator's container image and print its id
   fetch-models <dir> [--local]   download the models into <dir> and check their SHA-512; --local also
-                                 downloads the OpenNLP 1.5 models, which CI does not fetch
+                                 downloads the export the pooled sentence vector model is made from
   generate [--out <dir>] [--models <dir>]
                                  run the generator in the container; write the goldens and their decision
                                  point dumps into analysis/goldens/data or <dir>

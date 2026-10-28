@@ -52,9 +52,7 @@ final class TagDictionaryGolden implements AnnotatorGolden {
       out.add(new TagDictionaryGolden(ModelFile.read(fixtures.resolve(name)), false, true));
     }
     out.add(new TagDictionaryGolden(ModelFile.read(fixtures.resolve(Runs.POS_FIXTURE)), true, true));
-    for (String name : List.of(Runs.POS_MODEL_EN, Runs.POS_MODEL_EN_15_MAXENT, Runs.POS_MODEL_EN_15_PERCEPTRON)) {
-      out.add(new TagDictionaryGolden(ModelFile.read(models.resolve(name)), true, false));
-    }
+    out.add(new TagDictionaryGolden(ModelFile.read(models.resolve(Runs.POS_MODEL_EN)), true, false));
     return out;
   }
 

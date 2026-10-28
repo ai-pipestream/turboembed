@@ -4,8 +4,8 @@
 
 use crate::command::run;
 use crate::recipe::{
-    CORPORA, DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, LOCAL_MODELS, MODELS, Model,
-    POOLING_SOURCE, UTF8_COPY_SUFFIX,
+    CORPORA, DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, MODELS, Model, POOLING_SOURCE,
+    UTF8_COPY_SUFFIX,
 };
 use crate::sha512::{Sha512, hex};
 use std::fs::{self, File};
@@ -18,7 +18,8 @@ use std::process::Command;
 pub enum Models {
     /// [`MODELS`], the ones CI fetches.
     Published,
-    /// [`MODELS`] and [`LOCAL_MODELS`], every model the generator loads.
+    /// [`MODELS`] and [`POOLING_SOURCE`], from which the pooled copy the
+    /// generator loads is derived.
     WithLocal,
 }
 
@@ -30,10 +31,6 @@ pub enum Models {
 /// differs is reported and left for the caller to look at.
 pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let local: &[Model] = match which {
-        Models::Published => &[],
-        Models::WithLocal => &LOCAL_MODELS,
-    };
     let source: &[Model] = match which {
         Models::Published => &[],
         Models::WithLocal => std::slice::from_ref(&POOLING_SOURCE),
@@ -41,7 +38,7 @@ pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
     let hunspell: Vec<Model> =
         HUNSPELL_FILES.iter().map(|f| Model { file: f.file, url: f.url, sha512: f.sha512 }).collect();
     let corpora: Vec<Model> = CORPORA.iter().map(|c| Model { file: c.file, url: c.url, sha512: c.sha512 }).collect();
-    for m in MODELS.iter().chain(local).chain(source).chain(&hunspell).chain(&corpora) {
+    for m in MODELS.iter().chain(source).chain(&hunspell).chain(&corpora) {
         let target = dir.join(m.file);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
@@ -172,7 +169,7 @@ pub fn dictionary_files(dir: &Path) -> Result<Vec<String>, String> {
 /// Checks that every model, Hunspell dictionary file and training corpus
 /// the generator loads is in `dir` with the recipe's SHA-512.
 pub fn check_all(dir: &Path) -> Result<(), String> {
-    MODELS.iter().chain(&LOCAL_MODELS).try_for_each(|m| check(&dir.join(m.file), m))?;
+    MODELS.iter().try_for_each(|m| check(&dir.join(m.file), m))?;
     HUNSPELL_FILES
         .iter()
         .try_for_each(|f| check(&dir.join(f.file), &Model { file: f.file, url: f.url, sha512: f.sha512 }))?;

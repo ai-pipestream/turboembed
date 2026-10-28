@@ -12,6 +12,14 @@ and integrity checks remain active, subject to their original licence policy.
 The retained `masc-references.txt` is historical input provenance, not an active
 model download or loading requirement.
 
+No OpenNLP 1.5 model (`en-pos-maxent.bin`, `en-pos-perceptron.bin`,
+`en-chunker.bin`, `en-ner-*.bin`) is a reference any more (#1509,
+2026-10-28): none is fetched, pinned, scored or run, and the MASC tagger,
+chunker and name finder recipes have no reference model
+(`Error::NoReference`). MASC gates compare with the gold labels, majority
+baselines and spaCy or Stanza only. Where the historical sections below
+name those models, they record past runs.
+
 The sections below preserve historical recipes, dataset hashes, split rules
 and evaluation results. Their classical commands are no longer runnable in
 current builds; their JVM/model comparison results are not current acceptance
@@ -41,9 +49,9 @@ their cards record `"whitespace": "legacy"`; a card written now records
 |---|---|
 | `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split, and the Twitter genre left out of it |
 | `segmentation` | The English sentence detector and tokenizer recipes: training on the split's training documents, the held-out samples, scoring a model with OpenNLP's evaluators, the gate against the OpenNLP English UD model |
-| `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, the gate against OpenNLP's English Penn tagger (`en-pos-maxent.bin`, OpenNLP 1.5) |
-| `chunk` | The English chunker recipe, the same way: training on MASC's noun and verb chunks as `ChunkerME.train` trains with its defaults, the held-out samples, scoring the chunk types both models give with `ChunkerEvaluator`, the gate against OpenNLP's English chunker (`en-chunker.bin`, OpenNLP 1.5) |
-| `namefind` | The English name finder recipes, one per MASC entity type (person, location, organization, date): training as `NameFinderME.train` does with its defaults on MASC's named entities as the entity file links them to Penn tokens, the held-out samples, scoring with `TokenNameFinderEvaluator`, the gate against OpenNLP 1.5's English name finder of the same type (`en-ner-<type>.bin`) |
+| `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, no reference model (#1509) |
+| `chunk` | The English chunker recipe, the same way: training on MASC's noun and verb chunks as `ChunkerME.train` trains with its defaults, the held-out samples, scoring the chunk types both models give with `ChunkerEvaluator`, no reference model (#1509) |
+| `namefind` | The English name finder recipes, one per MASC entity type (person, location, organization, date): training as `NameFinderME.train` does with its defaults on MASC's named entities as the entity file links them to Penn tokens, the held-out samples, scoring with `TokenNameFinderEvaluator`, no reference model (#1509) |
 | `spans` | A held-out unit's counts from the `FMeasure` OpenNLP's evaluator keeps for it, both models' counts paired, and the span types a gate of typed spans (names, chunks) scores and renames |
 | `card` | The model card, the model's directory (model, `card.json`, `gate.json`) and its permissive zoo entry, made only for a card whose gate against its recipe's reference (by id and SHA-256) passed on the recorded release |
 | `treebank` | The CC BY 4.0 UD treebanks at release 2.16: each repository's `LICENSE.txt`, `README.md` and `train`, `dev` and `test` files with their sizes and digests, the licence check, the zoo dataset entry and fetch |
@@ -67,23 +75,8 @@ cargo run --release -p turbo-train-recipes -- zoo-index --models <dir> --release
 published file names: `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin` and
 `opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin`, as `cargo run -p
 turbo-goldens-tool -- fetch-models <dir>` writes them and checked against
-the zoo's SHA-256, and `en-pos-maxent.bin`, downloaded by hand from
-<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-pos-maxent.bin> and checked
-against the size and SHA-256 the recipe records (5,696,197 bytes,
-`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`),
-`en-chunker.bin`, downloaded by hand from
-<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin> and checked
-the same way (2,560,304 bytes,
-`7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`), and
-the four name finders of the 1.5 models, checked the same way
-(`namefind::EN_NER_*`):
-
-| File | Size | SHA-256 |
-|---|---|---|
-| `en-ner-person.bin` | 5,207,953 bytes | `687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4` |
-| `en-ner-location.bin` | 5,110,658 bytes | `8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b` |
-| `en-ner-organization.bin` | 5,297,172 bytes | `0136c12afe1ac357142260c39bb879b7c9d121e41024114db5a6455b4fd5ba00` |
-| `en-ner-date.bin` | 5,030,307 bytes | `1207030923852e1c244919d8f15d9e78c217323728fcf909029abd1703967855` |
+the zoo's SHA-256. The tagger, chunker and name finder recipes read no
+reference model (#1509).
 
 `--recipe` runs only the recipes named by the trained model's id; without
 it every recipe runs. The recipes run in the order of the table below,
@@ -103,12 +96,12 @@ status is 1 when a gate fails and 2 on an error.
 |---|---|---|---|
 | `turbo-en-masc-3.0.0-sentence-1` | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | MASC sentence samples of 10 sentences | F-measure of sentence spans |
 | `turbo-en-masc-3.0.0-tokens-1` | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | MASC Penn tokens, one sample per sentence | F-measure of token spans |
-| `turbo-en-masc-3.0.0-pos-1` | `opennlp-en-pos-maxent-1.5` (`en-pos-maxent.bin`) | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
-| `turbo-en-masc-3.0.0-chunks-1` | `opennlp-en-chunker-1.5` (`en-chunker.bin`) | MASC Penn tokens, their `msd` tags and chunk tags of MASC's noun chunks (`NP`) and verb chunks (`VP`), one sample per sentence | F-measure of `NP` and `VP` chunks, one unit per sentence |
-| `turbo-en-masc-3.0.0-ner-person-1` | `opennlp-en-ner-person-1.5` (`en-ner-person.bin`) | MASC Penn tokens and the `person` entities, one sample per sentence | F-measure of `person` names, one unit per sentence |
-| `turbo-en-masc-3.0.0-ner-location-1` | `opennlp-en-ner-location-1.5` (`en-ner-location.bin`) | the same, `location` | F-measure of `location` names |
-| `turbo-en-masc-3.0.0-ner-organization-1` | `opennlp-en-ner-organization-1.5` (`en-ner-organization.bin`) | the same, MASC's `org` renamed `organization` | F-measure of `organization` names |
-| `turbo-en-masc-3.0.0-ner-date-1` | `opennlp-en-ner-date-1.5` (`en-ner-date.bin`) | the same, `date` | F-measure of `date` names |
+| `turbo-en-masc-3.0.0-pos-1` | none (#1509) | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
+| `turbo-en-masc-3.0.0-chunks-1` | none (#1509) | MASC Penn tokens, their `msd` tags and chunk tags of MASC's noun chunks (`NP`) and verb chunks (`VP`), one sample per sentence | F-measure of `NP` and `VP` chunks, one unit per sentence |
+| `turbo-en-masc-3.0.0-ner-person-1` | none (#1509) | MASC Penn tokens and the `person` entities, one sample per sentence | F-measure of `person` names, one unit per sentence |
+| `turbo-en-masc-3.0.0-ner-location-1` | none (#1509) | the same, `location` | F-measure of `location` names |
+| `turbo-en-masc-3.0.0-ner-organization-1` | none (#1509) | the same, MASC's `org` renamed `organization` | F-measure of `organization` names |
+| `turbo-en-masc-3.0.0-ner-date-1` | none (#1509) | the same, `date` | F-measure of `date` names |
 
 - Split: the documents in the reader's order (each directory's headers
   by name); positions 9, 19, 29 and so on are held out, one in ten. No

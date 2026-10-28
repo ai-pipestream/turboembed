@@ -55,6 +55,10 @@ pub enum Error {
     /// is not the one the zoo's index or the recipe records, or its size
     /// is not the one the recipe records.
     ReferenceDigest { id: String, expected: String, found: String },
+    /// A recipe with no reference model was asked for one: the MASC
+    /// tagger, chunker and name finders, whose OpenNLP 1.5 references are
+    /// not fetched or scored (#1509).
+    NoReference { recipe: &'static str },
     /// The split leaves one side without a sample for the recipe.
     EmptySplit { what: &'static str },
     /// A treebank whose licence check refuses it.
@@ -154,6 +158,9 @@ impl fmt::Display for Error {
             ),
             Error::ReferenceDigest { id, expected, found } => {
                 write!(f, "reference model {id}: SHA-256 {found}, expected {expected}")
+            }
+            Error::NoReference { recipe } => {
+                write!(f, "{recipe} has no reference model: OpenNLP 1.5 models are not fetched or scored (#1509)")
             }
             Error::EmptySplit { what } => write!(f, "the split leaves no {what}"),
             Error::Licence { treebank, reason } => {

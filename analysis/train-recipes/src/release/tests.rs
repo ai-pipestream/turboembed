@@ -65,3 +65,30 @@ fn masc_references_do_not_use_the_retired_download_host() {
         assert!(!line.contains("://opennlp.sourceforge.net/"), "{line}");
     }
 }
+
+/// No OpenNLP 1.5 model is fetched or scored (#1509): the MASC tagger,
+/// chunker and name finders have no reference model, no reference a
+/// release reads is one, and masc-references.txt lists none.
+#[test]
+fn no_masc_recipe_or_listed_reference_is_an_opennlp_1_5_model() {
+    for recipe in crate::RECIPES {
+        match recipe {
+            crate::Recipe::Segmentation(_) => assert!(recipe.reference().is_ok(), "{}", recipe.model_id()),
+            _ => match recipe.reference() {
+                Err(Error::NoReference { recipe: id }) => assert_eq!(id, recipe.model_id()),
+                other => panic!("{}: {other:?}", recipe.model_id()),
+            },
+        }
+    }
+    let retired = ["models-1.5", "en-pos-maxent", "en-chunker", "en-ner-", "-1.5"];
+    for release in MODELS_RELEASES {
+        for reference in release.recipe_references() {
+            assert!(!retired.iter().any(|r| reference.id().contains(r)), "{}: {}", release.tag, reference.id());
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let listed = std::fs::read_to_string(root.join("masc-references.txt")).unwrap();
+    for line in listed.lines().filter(|l| !l.starts_with('#')) {
+        assert!(!retired.iter().any(|r| line.contains(r)), "{line}");
+    }
+}
