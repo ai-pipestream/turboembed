@@ -6,4 +6,5 @@
 //! and the n-gram language decoder have been removed under #1511.
 
 mod script_only;
+pub mod scripts;
 pub use script_only::ScriptDetector;

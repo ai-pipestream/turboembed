@@ -4,8 +4,9 @@
 //! enough that a local layer's window leaves keys out (the tiny ModernBERT's
 //! window is 8, its positions 64, and its layer 0 is global and 1 and 2
 //! local); each bundle's reference vectors through the conformance check;
-//! repeated runs giving the same bits; a left-padded row finite; and
-//! FASTEST refused.
+//! repeated runs giving the same bits; a left-padded row finite. FASTEST,
+//! F16 on the tiny bundles' widths, reaches the sealed references and the
+//! CPU at cosine 0.999 with every forced kernel choice.
 //!
 //! Built with the `metal` feature only, on macOS: the tests run on the
 //! first metal device, and say they were skipped when the backend lists
@@ -213,21 +214,23 @@ fn the_tiny_bundles_match_their_references() {
     }
 }
 
-/// Five runs of the same rows give the same bits.
+/// Five runs of the same rows give the same bits, at MODEL and FASTEST.
 #[test]
 fn repeated_runs_give_the_same_bits() {
     let _t = turn();
     let Some(_) = device("repeated_runs_give_the_same_bits") else { return };
     for (name, vocab, typed) in [("tiny-modernbert-bundle", 1200, false), ("tiny-nomic-bundle", 30528, true)] {
         let (g, _c) = both(name);
-        let s = Session::create(g.m, Some(&session_desc(8, 64, TURBO_PRECISION_MODEL))).unwrap();
-        let t = rows(&[64, 17, 40, 1], &[], &[(0, 5)], vocab, typed);
-        let bits = |v: Vec<Vec<f32>>| v.into_iter().flatten().map(f32::to_bits).collect::<Vec<u32>>();
-        s.write_tokens(&t.batch(), None).unwrap();
-        let first = bits(s.run().unwrap().rows());
-        for run in 1..5 {
+        for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+            let s = Session::create(g.m, Some(&session_desc(8, 64, precision))).unwrap();
+            let t = rows(&[64, 17, 40, 1], &[], &[(0, 5)], vocab, typed);
+            let bits = |v: Vec<Vec<f32>>| v.into_iter().flatten().map(f32::to_bits).collect::<Vec<u32>>();
             s.write_tokens(&t.batch(), None).unwrap();
-            assert_eq!(bits(s.run().unwrap().rows()), first, "{name}: run {run}");
+            let first = bits(s.run().unwrap().rows());
+            for run in 1..5 {
+                s.write_tokens(&t.batch(), None).unwrap();
+                assert_eq!(bits(s.run().unwrap().rows()), first, "{name}: precision {precision}: run {run}");
+            }
         }
     }
 }
@@ -253,16 +256,82 @@ fn a_left_padded_row_stays_finite() {
     assert!(d < BOUND, "{d:e}");
 }
 
-/// FASTEST is refused, naming the precision and the family; it never runs
-/// in F32 in its place.
+/// The lowest cosine FASTEST must reach, against the sealed reference and
+/// the CPU at MODEL.
+const FASTEST_COSINE: f64 = 0.999;
+
+/// The lowest cosine of any row of two runs.
+fn least_cosine(a: &[Vec<f32>], b: &[Vec<f32>]) -> f64 {
+    assert_eq!(a.len(), b.len());
+    a.iter().zip(b).map(|(x, y)| cosine(x, y)).fold(1.0, f64::min)
+}
+
+/// FASTEST computes in F16 on both tiny bundles (their widths, 32 and 48,
+/// take the F16 kernels) and reaches the sealed reference vectors at the
+/// F16 floor, cosine 0.999, through the conformance check.
 #[test]
-fn fastest_is_refused_on_a_rotary_model() {
+fn fastest_matches_the_sealed_references() {
     let _t = turn();
-    let Some(_) = device("fastest_is_refused_on_a_rotary_model") else { return };
-    for (name, family) in [("tiny-modernbert-bundle", "FAMILY_MODERNBERT"), ("tiny-nomic-bundle", "FAMILY_NOMIC_BERT")]
-    {
+    let Some(_) = device("fastest_matches_the_sealed_references") else { return };
+    for name in ["tiny-modernbert-bundle", "tiny-nomic-bundle"] {
         let (g, _c) = both(name);
-        let e = Session::create(g.m, Some(&session_desc(4, 64, TURBO_PRECISION_FASTEST))).err().unwrap();
-        assert!(e.is(status::UNSUPPORTED_OPTION, &format!("FASTEST on {family}")), "{e:?}");
+        let s = Session::create(g.m, Some(&session_desc(8, 64, TURBO_PRECISION_FASTEST))).unwrap();
+        assert_eq!(s.info().compute_dtype, TURBO_DTYPE_F16, "{name}");
+        drop(s);
+        conformance::check(&bundle(name), metal, TURBO_PRECISION_FASTEST);
     }
+}
+
+/// Every F16 tiling of the linear layers and both F16 attention kernels,
+/// forced, on rows past the window: each row within FASTEST_COSINE of the
+/// CPU at MODEL.
+#[test]
+fn every_fastest_kernel_choice_matches_the_cpu() {
+    let _t = turn();
+    let Some(_) = device("every_fastest_kernel_choice_matches_the_cpu") else { return };
+    for (name, vocab, typed) in [("tiny-modernbert-bundle", 1200, false), ("tiny-nomic-bundle", 30528, true)] {
+        let (g, c) = both(name);
+        let cs = Session::create(c.m, Some(&session_desc(8, 64, TURBO_PRECISION_MODEL))).unwrap();
+        // Enough tokens that the tiled kernels run, not the small one.
+        let t = rows(&[64, 64, 64, 50, 40, 33, 17, 1], &[], &[(0, 5)], vocab, typed);
+        cs.write_tokens(&t.batch(), None).unwrap();
+        let want = cs.run().unwrap().rows();
+        for tile in ["h32", "h64", "h128", "h32n32", "h64n32", "auto"] {
+            for attn in ["staged", "registers"] {
+                turbo::metal::use_choices(Some(&format!("linear={tile};attn={attn}")));
+                let made = Session::create(g.m, Some(&session_desc(8, 64, TURBO_PRECISION_FASTEST)));
+                turbo::metal::use_choices(None);
+                let gs = made.unwrap_or_else(|e| panic!("{name}: linear={tile};attn={attn}: {e:?}"));
+                let line = field(&gs.info().choices);
+                assert!(line.starts_with(&format!("linear={tile};attn={attn}")), "{name}: {line}");
+                gs.write_tokens(&t.batch(), None).unwrap();
+                let got = gs.run().unwrap().rows();
+                assert!(got.iter().flatten().all(|v| v.is_finite()), "{name}: {tile}, {attn}: not finite");
+                let cos = least_cosine(&got, &want);
+                let sum: f64 = got.iter().flatten().map(|&v| v as f64).sum();
+                println!("{name}: {line}: 1 - least cosine {:.3e}, checksum {sum:.9}", 1.0 - cos);
+                assert!(cos >= FASTEST_COSINE, "{name}: {tile}, {attn}: cosine {cos}");
+            }
+        }
+    }
+}
+
+/// The left-padded row at FASTEST: every value finite, each row within
+/// FASTEST_COSINE of the CPU at MODEL.
+#[test]
+fn a_left_padded_row_stays_finite_at_fastest() {
+    let _t = turn();
+    let Some(_) = device("a_left_padded_row_stays_finite_at_fastest") else { return };
+    let (g, c) = both("tiny-modernbert-bundle");
+    let gs = Session::create(g.m, Some(&session_desc(8, 64, TURBO_PRECISION_FASTEST))).unwrap();
+    let cs = Session::create(c.m, Some(&session_desc(8, 64, TURBO_PRECISION_MODEL))).unwrap();
+    let t = rows(&[17, 5, 40, 9, 1], &[3], &[], 1200, false);
+    let o = options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
+    gs.write_tokens(&t.batch(), Some(&o)).unwrap();
+    let got = gs.run().unwrap().rows();
+    assert!(got.iter().flatten().all(|v| v.is_finite()), "a value is not finite: {got:?}");
+    cs.write_tokens(&t.batch(), Some(&o)).unwrap();
+    let cos = least_cosine(&got, &cs.run().unwrap().rows());
+    println!("a_left_padded_row_stays_finite_at_fastest: 1 - least cosine {:.3e}", 1.0 - cos);
+    assert!(cos >= FASTEST_COSINE, "{cos}");
 }
