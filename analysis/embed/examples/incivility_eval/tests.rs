@@ -169,7 +169,7 @@ fn score_unit_interleaved_timing_receipt() {
 #[ignore = "requires the actual published Civil Comments MiniLM head"]
 fn tuned_dev_metrics_match_the_selected_configuration_on_published_head() {
     let path = std::env::var("TURBO_INCIVILITY_HEAD").expect("download the published MiniLM TIVH head");
-    let bytes = std::fs::read(path).unwrap();
+    let bytes = std::fs::read(turbo_pins::require(path)).unwrap();
     assert_eq!(Sha256::of(&bytes).to_string(), "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba");
     let head = IncivilityVectorHead::from_bytes(&bytes).unwrap();
     let annotator = IncivilityAnnotator::new().with_vector_scorer(Arc::new(head));
