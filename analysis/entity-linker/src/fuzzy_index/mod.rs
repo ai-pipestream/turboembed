@@ -8,46 +8,18 @@ use crate::similarity::{
     KeySketch, LenFilterBounds, QueryFilterCtx, compute_char_mask, length_bounds, passes_sketch_prefilter,
 };
 
+mod work;
+
+pub use work::FuzzyLookupWork;
+
 /// Maximum postings scanned from a single feature list before triggering the lossless window scan.
 const BASE_FEATURE_SCAN: usize = 2_048;
 /// Total posting scan budget across rarest-first feature lists before triggering the lossless window scan.
 const TOTAL_POSTING_BUDGET: usize = 12_288;
-/// Maximum candidates verified from the posting path before triggering the lossless window scan.
+/// Maximum candidates verified from posting slices before triggering the lossless window scan.
 const BASE_FUZZY_VERIFY: usize = 256;
 /// Maximum key length (in characters) indexed in the short-key 1-delete / anagram table.
 const SHORT_KEY_MAX_CHARS: usize = 8;
-
-/// Deterministic work counters for one [`FuzzyAliasIndex::for_each_candidate`] call.
-///
-/// Wall-clock time is not part of these counters: CI runners share hosts, so
-/// scaling assertions use inverted-index probe work instead of elapsed time.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FuzzyLookupWork {
-    /// Entries read from inverted posting lists (length-window slices).
-    pub postings_scanned: usize,
-    /// Keys verified and visited from the posting path (sketch prefilter passed).
-    pub posting_candidates_verified: usize,
-    /// Keys examined in the lossless length-window fallback (O(1) sketch filters).
-    pub window_keys_considered: usize,
-    /// Keys visited from the window fallback after sketch filtering.
-    pub window_candidates_visited: usize,
-}
-
-impl FuzzyLookupWork {
-    /// Inverted-index probe work: postings scanned plus posting-path verifies.
-    ///
-    /// The window fallback is a lossless escape hatch when posting budgets
-    /// saturate; its cost is mostly O(1) sketch filters per key in a length
-    /// band, so sublinear scaling is asserted on this posting-path total.
-    pub fn index_probe_units(self) -> usize {
-        self.postings_scanned.saturating_add(self.posting_candidates_verified)
-    }
-
-    /// Every key passed to the visit callback (posting path or window).
-    pub fn candidates_visited(self) -> usize {
-        self.posting_candidates_verified.saturating_add(self.window_candidates_visited)
-    }
-}
 
 type PostingList = Vec<(u16, u32)>;
 type TrigramKey = ([char; 3], u8);
@@ -362,10 +334,14 @@ impl FuzzyAliasIndex {
 
         slices.sort_unstable_by_key(|s| s.len());
 
+        // Slice admission budget of its own: the token-dice and short-key
+        // visits above count into the reported work but must not consume
+        // it, or slices the walk would scan fall to the window (#1626).
+        let mut verified_count = 0usize;
         for slice in slices {
             if slice.len() <= BASE_FEATURE_SCAN
                 && work.postings_scanned.saturating_add(slice.len()) <= TOTAL_POSTING_BUDGET
-                && work.posting_candidates_verified < BASE_FUZZY_VERIFY
+                && verified_count < BASE_FUZZY_VERIFY
             {
                 work.postings_scanned = work.postings_scanned.saturating_add(slice.len());
                 for &(_, k_idx) in slice {
@@ -377,6 +353,7 @@ impl FuzzyAliasIndex {
                     let sk = &self.sketches_by_idx[k_idx as usize];
                     if passes_sketch_prefilter(sk, &q_ctx, running_cutoff) {
                         visited[word] |= bit;
+                        verified_count += 1;
                         work.posting_candidates_verified += 1;
                         visit(k_idx, &mut running_cutoff);
                     }
@@ -503,46 +480,4 @@ fn extract_short_signatures(chars: &[char], out: &mut Vec<String>) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn index_of(keys: &[&str]) -> FuzzyAliasIndex {
-        let owned: Vec<String> = keys.iter().map(|s| (*s).to_owned()).collect();
-        FuzzyAliasIndex::build(&owned)
-    }
-
-    #[test]
-    fn lookup_work_is_zero_for_empty_query_or_empty_index() {
-        let empty = FuzzyAliasIndex::build(&[]);
-        assert_eq!(empty.for_each_candidate("apple", 0.88, |_, _| {}), FuzzyLookupWork::default());
-        let idx = index_of(&["apple inc", "barack obama"]);
-        assert_eq!(idx.for_each_candidate("", 0.88, |_, _| {}), FuzzyLookupWork::default());
-    }
-
-    #[test]
-    fn lookup_work_counts_postings_and_visits_for_a_near_match() {
-        let idx = index_of(&["apple incorporated", "apple computer", "barack obama", "synthetic entity 000001"]);
-        let mut visited = 0usize;
-        let work = idx.for_each_candidate("aple incorporated", 0.88, |_, _| {
-            visited += 1;
-        });
-        assert_eq!(work.candidates_visited(), visited);
-        assert!(work.postings_scanned > 0, "expected posting scans, got {work:?}");
-        assert!(work.index_probe_units() >= work.posting_candidates_verified);
-        // A second identical lookup must report the same deterministic counters.
-        let again = idx.for_each_candidate("aple incorporated", 0.88, |_, _| {});
-        assert_eq!(again, work);
-    }
-
-    #[test]
-    fn lookup_work_index_probe_units_add_postings_and_posting_verifies() {
-        let w = FuzzyLookupWork {
-            postings_scanned: 10,
-            posting_candidates_verified: 3,
-            window_keys_considered: 100,
-            window_candidates_visited: 7,
-        };
-        assert_eq!(w.index_probe_units(), 13);
-        assert_eq!(w.candidates_visited(), 10);
-    }
-}
+mod tests;
