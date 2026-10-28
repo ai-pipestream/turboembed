@@ -71,30 +71,25 @@ pub fn nll<R: Real>(
     if y.iter().any(|&g| g >= labels) {
         return Err(invalid(format!("crf: a gold label is past the {labels} labels")));
     }
-    // Every path takes one emission a word, one start, one end and one
-    // transition a step, so each of those is centred on its largest
-    // value: the loss and marginals are unchanged, and a large common
-    // offset cannot swallow the normaliser.
-    let top = |v: &[R]| v.iter().map(|x| x.to_f64()).fold(f64::NEG_INFINITY, f64::max);
-    let shift: Vec<f64> = (0..n).map(|t| top(&emit[t * labels..][..labels])).collect();
-    let (s0, s1, st) = (top(p.start), top(p.end), top(p.transitions));
-    let e = |t: usize, j: usize| emit[t * labels + j].to_f64() - shift[t];
-    let start = |j: usize| p.start[j].to_f64() - s0;
-    let end = |j: usize| p.end[j].to_f64() - s1;
-    let tr = |a: usize, b: usize| {
-        if allowed.may_follow(a, b) { p.transitions[a * labels + b].to_f64() - st } else { f64::NEG_INFINITY }
+    // Every path takes one start, one emission a word, one transition a
+    // step and one end, so each is measured from the gold path's own at
+    // that place: each path's score is then its score less the gold's,
+    // the gold path scores exactly 0, and the loss is log Z alone. No
+    // large score the gold path shares, nor one only a forbidden path
+    // could take, swallows the normaliser.
+    let at = |t: usize, j: usize| emit[t * labels + j].to_f64();
+    let e = |t: usize, j: usize| at(t, j) - at(t, y[t]);
+    let start = |j: usize| p.start[j].to_f64() - p.start[y[0]].to_f64();
+    let end = |j: usize| p.end[j].to_f64() - p.end[y[n - 1]].to_f64();
+    let raw = |a: usize, b: usize| p.transitions[a * labels + b].to_f64();
+    // Into word t, from 1.
+    let tr = |t: usize, a: usize, b: usize| {
+        if allowed.may_follow(a, b) { raw(a, b) - raw(y[t - 1], y[t]) } else { f64::NEG_INFINITY }
     };
     let legal =
         allowed.may_start(y[0]) && allowed.may_end(y[n - 1]) && y.windows(2).all(|w| allowed.may_follow(w[0], w[1]));
     if !legal {
         return Err(invalid("crf: the gold sequence is one the scheme forbids"));
-    }
-    let mut gold_score = start(y[0]) + end(y[n - 1]);
-    for t in 0..n {
-        gold_score += e(t, y[t]);
-        if t > 0 {
-            gold_score += tr(y[t - 1], y[t]);
-        }
     }
     let mut alpha = vec![f64::NEG_INFINITY; n * labels];
     for (j, a) in alpha[..labels].iter_mut().enumerate() {
@@ -105,7 +100,7 @@ pub fn nll<R: Real>(
     for t in 1..n {
         for b in 0..labels {
             let prev = &alpha[(t - 1) * labels..][..labels];
-            let s = logsumexp((0..labels).map(|a| prev[a] + tr(a, b)));
+            let s = logsumexp((0..labels).map(|a| prev[a] + tr(t, a, b)));
             alpha[t * labels + b] = s + e(t, b);
         }
     }
@@ -118,11 +113,12 @@ pub fn nll<R: Real>(
     for t in (0..n - 1).rev() {
         for a in 0..labels {
             let next = &beta[(t + 1) * labels..][..labels];
-            beta[t * labels + a] = logsumexp((0..labels).map(|b| tr(a, b) + e(t + 1, b) + next[b]));
+            beta[t * labels + a] = logsumexp((0..labels).map(|b| tr(t + 1, a, b) + e(t + 1, b) + next[b]));
         }
     }
     let log_z = logsumexp((0..labels).map(|j| alpha[(n - 1) * labels + j] + beta[(n - 1) * labels + j]));
-    let loss = log_z - gold_score;
+    // The gold path's score is 0.
+    let loss = log_z;
     if !loss.is_finite() {
         return Err(invalid("crf: the loss is not finite"));
     }
@@ -146,7 +142,7 @@ pub fn nll<R: Real>(
                 continue;
             }
             for b in 0..labels {
-                let s = from + tr(a, b) + e(t, b) + beta[t * labels + b] - log_z;
+                let s = from + tr(t, a, b) + e(t, b) + beta[t * labels + b] - log_z;
                 if s > f64::NEG_INFINITY {
                     d_tr[a * labels + b] += s.exp();
                 }
