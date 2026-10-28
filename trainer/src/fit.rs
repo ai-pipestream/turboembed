@@ -43,17 +43,16 @@ pub struct Config {
     pub clip: f64,
     /// The share of all steps spent warming up, in [0, 1).
     pub warmup: f64,
-    /// Epochs after warmup without a dev score within `tolerance` of the
-    /// best before stopping; 0 never stops early.
+    /// Epochs after warmup without a dev score more than `tolerance`
+    /// above the last one that counted before stopping; 0 never stops
+    /// early.
     pub patience: u32,
-    /// How far under the best a dev score may fall and still count as
-    /// holding level for `patience`: a score holds level when it is
-    /// better than `best - tolerance`. So under the default 0.001 an equal
-    /// score holds level, and a run whose dev score sits flat (often a
-    /// small dev set's accuracy) runs to `epochs`, the learning rate
-    /// still decaying; under 0 only a better score holds, and a flat run
-    /// stops after `patience` epochs. The best weights are kept only on a
-    /// strictly better score.
+    /// How much a dev score must gain over the last score that counted to
+    /// count as progress for `patience` (Keras's `min_delta`): under the
+    /// default 0.001 a run whose dev score creeps or sits flat stops after
+    /// `patience` epochs; under 0 any better score counts. The best
+    /// weights are kept on every strictly better score, whether or not it
+    /// counted.
     pub tolerance: f64,
     /// Threads a batch's examples are spread over; 0 takes every core.
     /// The weights a run gives do not depend on it.
@@ -82,15 +81,18 @@ impl Default for Config {
 }
 
 /// Early stopping on the dev score: armed only once warmup is over, so a
-/// plateau while the rate is still rising never stops a run, and a score
-/// within `tolerance` of the best holds the run going.
+/// plateau while the rate is still rising never stops a run, and only a
+/// gain of more than `tolerance` over the last score that counted resets
+/// patience.
 #[derive(Debug, Clone)]
 pub struct EarlyStop {
     warm: usize,
     patience: usize,
     tolerance: f64,
+    /// The best score yet, whose weights are kept.
     best: Option<f64>,
-    /// The last epoch whose score held level.
+    /// The last score that counted as progress, and its epoch.
+    counted: Option<f64>,
     level: usize,
 }
 
@@ -98,7 +100,7 @@ impl EarlyStop {
     /// For a run of `c`: warmup is its first `ceil(warmup * epochs)` epochs.
     pub fn new(c: &Config) -> EarlyStop {
         let warm = (c.warmup * c.epochs as f64).ceil() as usize;
-        EarlyStop { warm, patience: c.patience as usize, tolerance: c.tolerance, best: None, level: 0 }
+        EarlyStop { warm, patience: c.patience as usize, tolerance: c.tolerance, best: None, counted: None, level: 0 }
     }
 
     /// Takes epoch `epoch`'s dev score; returns whether it is the best yet
@@ -108,8 +110,8 @@ impl EarlyStop {
         if better {
             self.best = Some(score);
         }
-        if better || self.best.is_some_and(|b| score > b - self.tolerance) {
-            self.level = epoch;
+        if self.counted.is_none_or(|c| score > c + self.tolerance) {
+            (self.counted, self.level) = (Some(score), epoch);
         }
         // Warmup epochs neither count against patience nor run it down.
         let since = epoch.saturating_sub(self.level.max(self.warm.saturating_sub(1)));

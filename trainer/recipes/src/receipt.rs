@@ -74,7 +74,7 @@ pub struct ConfigRecord {
     pub clip: f64,
     pub warmup: f64,
     pub patience: u32,
-    /// How far under the best a dev score may fall and hold level.
+    /// The gain over the last counted dev score that resets patience.
     #[serde(default)]
     pub tolerance: f64,
     /// Threads a batch ran on, 0 for every core; the weights do not

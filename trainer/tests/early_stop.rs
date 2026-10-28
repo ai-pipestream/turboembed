@@ -1,5 +1,6 @@
-//! Early stopping: never armed during warmup, a score within tolerance of
-//! the best holds the run going, and patience counts only after warmup.
+//! Early stopping: never armed during warmup, only a gain of more than
+//! the tolerance resets patience, every better score is kept, and
+//! patience counts only after warmup.
 
 use turbo_trainer::{Config, EarlyStop};
 
@@ -32,24 +33,31 @@ fn a_plateau_during_warmup_does_not_stop_the_run() {
 }
 
 #[test]
-fn a_score_within_tolerance_holds_but_only_a_better_one_is_kept() {
+fn a_gain_inside_the_tolerance_is_kept_but_does_not_reset_patience() {
     let c = Config { epochs: 20, patience: 2, warmup: 0.0, tolerance: 1e-3, ..Config::default() };
-    let scores = [0.5, 0.9, 0.8995, 0.8999, 0.8992, 0.9001, 0.8, 0.8];
-    assert_eq!(run(&c, &scores), (Some(7), 5));
+    let scores = [0.5, 0.9, 0.9005, 0.9008, 0.8];
+    assert_eq!(run(&c, &scores), (Some(3), 3), "creeping gains stop the run; the best of them is kept");
     let strict = Config { tolerance: 0.0, ..c };
-    assert_eq!(run(&strict, &scores), (Some(3), 1));
+    assert_eq!(run(&strict, &scores), (None, 3));
+    // Gains that add up past the tolerance count from the last one that
+    // counted, not from each epoch before.
+    assert_eq!(run(&c, &[0.5, 0.9, 0.9006, 0.9012, 0.8, 0.8]), (Some(5), 3));
 }
 
 #[test]
-fn an_equal_score_holds_level_under_a_tolerance_and_stops_a_run_without_one() {
-    // Intended: under the default tolerance a flat dev score is not a
-    // decline, and the run goes on to its epoch cap while the rate
-    // decays; a tolerance of 0 asks for classic patience, where only a
-    // better score holds and a flat run stops.
-    let c = Config { epochs: 10, patience: 1, warmup: 0.0, tolerance: 1e-3, ..Config::default() };
-    assert_eq!(run(&c, &[0.9, 0.9, 0.9, 0.9]), (None, 0));
-    assert_eq!(run(&Config { tolerance: 0.0, ..c }, &[0.9, 0.9, 0.9, 0.9]), (Some(1), 0));
-    assert_eq!(run(&Config { tolerance: 0.0, ..c }, &[0.9, 0.91, 0.92, 0.92]), (Some(3), 2));
+fn a_flat_or_jittering_dev_score_stops_the_run() {
+    // The 4080 run B case: dev flat at about 0.9733 from epoch 22 of 60,
+    // moving by less than the tolerance, ran on under the old rule.
+    let c = Config { epochs: 60, patience: 6, warmup: 0.1, ..Config::default() };
+    let mut scores: Vec<f64> = (0..22).map(|e| 0.90 + 0.0033 * e as f64).collect();
+    let flat = [0.9733, 0.9731, 0.9736, 0.9734, 0.9729, 0.9737, 0.9735, 0.9733, 0.9738, 0.9732];
+    scores.extend(flat);
+    let (stopped, best) = run(&c, &scores);
+    assert_eq!(stopped, Some(28), "six epochs without a gain past 0.001 after epoch 22");
+    assert_eq!(scores[best], 0.9737);
+    let p = Config { epochs: 10, patience: 1, warmup: 0.0, ..Config::default() };
+    assert_eq!(run(&p, &[0.9, 0.9, 0.9, 0.9]), (Some(1), 0));
+    assert_eq!(run(&Config { tolerance: 0.0, ..p }, &[0.9, 0.91, 0.92, 0.92]), (Some(3), 2));
 }
 
 #[test]
