@@ -2,6 +2,7 @@
 members = [
     "core",
     "bundle",
+    "trainer",
     "bench",
     "server",
     "demo",

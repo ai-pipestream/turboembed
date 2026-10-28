@@ -323,6 +323,7 @@ release.md.
 | `core/` | `libturbo` (crate `turbo`): runtime, bundle loader, tokenizers, sessions, heads, CPU and NPU backends in `core/src`, and the CUDA, Level Zero, Metal and Hailo backends in their own directories |
 | `include/turbo/` | the C header and the backend interface |
 | `bundle/` | `turbo-bundle`, recipes, and the conversion containers |
+| `trainer/` | `turbo-trainer`: training of bundle heads in Rust (#1518) |
 | `bench/` | `turbo-bench`, reference and peer programs, and the repository hygiene tests |
 | `benchmarks/records/` | committed benchmark records |
 | `server/` | `turbo-kserve` and its protos |
