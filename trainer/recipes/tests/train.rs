@@ -437,3 +437,38 @@ fn the_baseline_learns_from_the_sentences_the_model_is_given() {
         fs::remove_dir_all(d).unwrap();
     }
 }
+
+#[test]
+fn a_bilstm_head_waits_longer_before_it_stops() {
+    let data = scratch("patience-data");
+    corpus(&data);
+    let (d, b) = (data.to_str().unwrap(), tiny());
+    let patience = |out: &Path, extra: &[&str]| {
+        let mut args = vec![
+            "train",
+            "--corpus",
+            "multiconer2-en",
+            "--dir",
+            d,
+            "--bundle",
+            b.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--unrecorded-corpus",
+            "--epochs",
+            "1",
+        ];
+        args.extend(extra);
+        let o = run(&args);
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+        let r: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+        r.config.unwrap().patience
+    };
+    let outs = [scratch("patience-linear"), scratch("patience-bilstm"), scratch("patience-given")];
+    assert_eq!(patience(&outs[0], &[]), turbo_trainer::Config::default().patience);
+    assert_eq!(patience(&outs[1], &["--bilstm", "4x1"]), 15);
+    assert_eq!(patience(&outs[2], &["--bilstm", "4x1", "--patience", "3"]), 3);
+    for p in outs.into_iter().chain([data]) {
+        fs::remove_dir_all(p).unwrap();
+    }
+}
