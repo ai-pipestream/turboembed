@@ -87,9 +87,11 @@ typedef struct turbo_runtime   turbo_runtime;   /* the library, its devices */
 typedef struct turbo_context   turbo_context;   /* one device, its memory   */
 typedef struct turbo_buffer    turbo_buffer;    /* memory on host or device */
 typedef struct turbo_model     turbo_model;     /* a bundle loaded on a context */
-typedef struct turbo_session   turbo_session;   /* inputs, one run at a time */
-typedef struct turbo_result    turbo_result;    /* outputs of one run       */
-typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
+typedef struct turbo_session         turbo_session;         /* inputs, one run at a time */
+typedef struct turbo_result          turbo_result;          /* outputs of one run       */
+typedef struct turbo_tokenizer       turbo_tokenizer;       /* the bundle's tokenizer   */
+typedef struct turbo_analyzer        turbo_analyzer;        /* in-process text analysis */
+typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans and graph */
 
 /* ---- Status codes ------------------------------------------------------ */
 
@@ -303,6 +305,10 @@ const char *turbo_version(void);
  * "TURBO_E_CAPACITY" for 771, and "TURBO_E_UNKNOWN" for a code this file
  * does not define. The string is static. */
 const char *turbo_status_name(int32_t code);
+/* The message written by the most recent failing C ABI call on the calling
+ * thread, or "" when the most recent call on this thread succeeded. Valid
+ * until the next C ABI call on the same thread. */
+const char *turbo_last_error_message(void);
 
 int32_t turbo_runtime_device_count(turbo_runtime *rt, uint32_t *out, turbo_error *err);
 int32_t turbo_runtime_device_info(turbo_runtime *rt, uint32_t index, turbo_device_info *out, turbo_error *err);
@@ -723,6 +729,109 @@ int32_t turbo_result_read(turbo_result *r, void *dst, uint64_t capacity, uint64_
 int32_t turbo_result_buffer(turbo_result *r, turbo_buffer **out, turbo_error *err);
 
 void    turbo_result_release(turbo_result *r);
+
+/* ---- Analysis ---------------------------------------------------------- */
+
+/* Optional model paths for an in-process analysis pipeline. desc may be NULL
+ * or have empty turbo_text fields to use the built-in English rules,
+ * dictionaries, and fixture models. */
+typedef struct turbo_analyzer_desc {
+    uint32_t   struct_size;
+    uint32_t   flags;
+    turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
+    turbo_text sent_model_path;   /*2: optional OpenNLP sentence model .bin path */
+    turbo_text tok_model_path;    /*3: optional OpenNLP tokenizer model .bin path */
+    turbo_text pos_model_path;    /*4: optional OpenNLP POS model .bin path */
+    turbo_text lemma_model_path;  /*5: optional OpenNLP lemmatizer model/dict path */
+    turbo_text ner_model_path;    /*6: optional OpenNLP TokenNameFinder .bin path */
+} turbo_analyzer_desc;
+
+/* One span in an analysis result, with bi-directional UTF-8 byte, UTF-16
+ * code-unit, and Unicode scalar (codepoint) offsets into the source text,
+ * plus token-index bounds [token_start, token_end), a label slice
+ * [label_offset, label_offset + label_len) into the result's string pool,
+ * and the model probability or confidence score. */
+typedef struct turbo_span {
+    uint32_t byte_start;
+    uint32_t byte_end;
+    uint32_t utf16_start;
+    uint32_t utf16_end;
+    uint32_t codepoint_start;
+    uint32_t codepoint_end;
+    uint32_t token_start;
+    uint32_t token_end;
+    uint32_t label_offset;
+    uint32_t label_len;
+    double   prob;
+} turbo_span;
+
+int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **out, turbo_error *err);
+void    turbo_analyzer_release(turbo_analyzer *a);
+
+/* Detect sentence spans in UTF-8 text. Each span's label in the string pool
+ * is the covered sentence substring. */
+int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text text,
+                                        turbo_analysis_result **out, turbo_error *err);
+
+/* Tokenize UTF-8 text. Each span's label in the string pool is the token
+ * surface string; token_start is the token index and token_end is
+ * token_start + 1. */
+int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
+                                turbo_analysis_result **out, turbo_error *err);
+
+/* Tag a pre-tokenized sequence of count tokens. Produces count spans where
+ * each span's label is the POS tag and prob is the tag probability. */
+int32_t turbo_analyzer_pos_tag(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                               turbo_analysis_result **out, turbo_error *err);
+
+/* Lemmatize count (token, pos_tag) pairs. Produces count spans where each
+ * span's label is the resolved lemma and prob is the lemma confidence. */
+int32_t turbo_analyzer_lemmatize(turbo_analyzer *a, const turbo_text *tokens,
+                                 const turbo_text *tags, uint32_t count,
+                                 turbo_analysis_result **out, turbo_error *err);
+
+/* Find named-entity and PII spans over a pre-tokenized sequence of count
+ * tokens. Each span reports [token_start, token_end), its entity type label
+ * in the string pool, and its probability. */
+int32_t turbo_analyzer_find_tokens(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                                   turbo_analysis_result **out, turbo_error *err);
+
+/* Find named-entity and PII spans directly in UTF-8 text, populating byte,
+ * UTF-16, codepoint, and token offsets on every span. */
+int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
+                                 turbo_analysis_result **out, turbo_error *err);
+
+/* Run the full multi-layer analysis pipeline over UTF-8 text and serialize
+ * the binary DocumentGraph ("TGRF" wire format) into the result's graph
+ * buffer, while also populating token and entity spans. */
+int32_t turbo_analyzer_analyze_graph(turbo_analyzer *a, turbo_text text,
+                                     turbo_analysis_result **out, turbo_error *err);
+
+/* Validate a binary DocumentGraph ("TGRF") buffer and decode its sentence,
+ * token, and entity spans against the source UTF-8 text. */
+int32_t turbo_analyzer_inspect_graph(turbo_analyzer *a, turbo_text text,
+                                     const uint8_t *graph_bytes, uint64_t graph_len,
+                                     turbo_analysis_result **out, turbo_error *err);
+
+/* Borrow the result's span array (*spans may be NULL when *count is 0). */
+int32_t turbo_analysis_result_spans(const turbo_analysis_result *r,
+                                    const turbo_span **spans, uint32_t *count,
+                                    turbo_error *err);
+
+/* Borrow the result's contiguous UTF-8 string pool (*pool may be NULL when
+ * *bytes is 0). Every span's [label_offset, label_offset + label_len) slices
+ * this pool. */
+int32_t turbo_analysis_result_strings(const turbo_analysis_result *r,
+                                      const char **pool, uint64_t *bytes,
+                                      turbo_error *err);
+
+/* Borrow the result's serialized DocumentGraph ("TGRF") wire buffer (*data
+ * may be NULL when *bytes is 0). */
+int32_t turbo_analysis_result_graph(const turbo_analysis_result *r,
+                                    const uint8_t **data, uint64_t *bytes,
+                                    turbo_error *err);
+
+void    turbo_analysis_result_release(turbo_analysis_result *r);
 
 #ifdef __cplusplus
 }
