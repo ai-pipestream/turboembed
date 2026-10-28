@@ -83,3 +83,17 @@ fn records_without_integrity_are_refused() {
     let e = chunk_gate(&[old], &windows, &[]).unwrap_err();
     assert!(e.contains("before #172's gate"), "{e}");
 }
+
+#[test]
+fn a_candidate_cannot_excuse_a_set_by_keeping_its_documents_whole() {
+    // The candidate keeps 90% of judged documents in one or two chunks and
+    // loses the evidence; the reference splits them (10% short). The set
+    // stays gated, and the gate fails.
+    let cand = [rec("qasper", 0.37, Some((0.10, 0.05, 0.60, 0.9))), rec("gutenqa", 0.9, Some((0.70, 0.66, 0.05, 0.0)))];
+    let windows =
+        [rec("qasper", 0.37, Some((0.17, 0.07, 0.51, 0.1))), rec("gutenqa", 0.9, Some((0.60, 0.57, 0.09, 0.0)))];
+    let r = chunk_gate(&cand, &windows, &[]).unwrap();
+    let q = r.evidence.iter().find(|e| e.set == "qasper").unwrap();
+    assert!(q.gated && !q.pass, "{r}");
+    assert!(!r.pass, "{r}");
+}

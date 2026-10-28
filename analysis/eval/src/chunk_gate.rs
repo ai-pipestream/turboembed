@@ -9,7 +9,9 @@
 //!
 //! - **Evidence**, on every set with span judgements where chunking has
 //!   something to decide (under `SHORT_SHARE` of its judged documents are
-//!   one or two chunks): the candidate's span recall@10 and contained@10
+//!   one or two chunks under the candidate or under the reference,
+//!   whichever splits more, so a candidate cannot excuse a set by keeping
+//!   its documents whole): the candidate's span recall@10 and contained@10
 //!   each beat the reference baseline (sentence windows) with the 95
 //!   percent paired bootstrap interval above `EVIDENCE_LOW`, and it cuts
 //!   through fewer judged spans than the reference. At least one such set
@@ -40,6 +42,8 @@ pub struct Evidence {
     pub set: String,
     /// Whether the set is gated (else reported only).
     pub gated: bool,
+    /// The smaller of the candidate's and the reference's shares of
+    /// judged documents in one or two chunks.
     pub short_documents: f64,
     pub recall: Bootstrap,
     pub contained: Bootstrap,
@@ -112,12 +116,16 @@ pub fn chunk_gate(
                     .map_err(|e| format!("set {set}: {e}"))
             };
             let (recall, contained) = (pq(|q| q.recall)?, pq(|q| q.contained)?);
-            let gated = ci.short_documents < SHORT_SHARE;
+            // Gated unless both chunkers leave most judged documents in one
+            // or two chunks: the candidate alone cannot demote a set by
+            // keeping its documents whole.
+            let short = ci.short_documents.min(wi.short_documents);
+            let gated = short < SHORT_SHARE;
             let pass = recall.low > EVIDENCE_LOW && contained.low > EVIDENCE_LOW && ci.split < wi.split;
             report.evidence.push(Evidence {
                 set: set.into(),
                 gated,
-                short_documents: ci.short_documents,
+                short_documents: short,
                 recall,
                 contained,
                 split: (ci.split, wi.split),
