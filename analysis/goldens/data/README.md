@@ -779,8 +779,61 @@ repertoire, which JDK 21 implements. `normalize/<name>/norm/<id>.golden`
 holds a `turbo:view` layer with the edits OpenNLP's normalizer `<name>`
 made to `inputs/norm/<id>.txt`; see `analysis/goldens-tool/README.md`.
 
+## Number goldens
 
+`inputs/num/` holds 60 short texts written for number scanning: US and EU
+grouping and decimals, values that read differently in the two notations
+(`1.234`), invalid grouping, repeated separators, `k`/`m`/`bn` suffixes and
+`thousand` to `trillion` words with different spaces before them,
+exponents, negatives with and without a sign boundary, thin space,
+no-break space, apostrophe and Arabic separators between digits, numbers
+next to letters, underscores and combining marks, non-ASCII digits (which
+are not scanned), 40 digit numbers, zero with a fraction, texts that end
+in a separator, and prose in several languages. Every character is in the
+Unicode 15.0 repertoire. `numbers/<notation>/num/<id>.golden` holds the
+`turbo:numbers` layer for `inputs/num/<id>.txt` in `latin-us` or
+`latin-eu`; see `analysis/goldens-tool/README.md`. Only the `numbers`
+annotator runs on this set, and it has no dumps.
 
+## Money goldens
+
+`inputs/money/` holds 64 short texts written for money extraction:
+currency symbols before and after the amount, ISO codes and English
+currency words, `k`/`M`/`bn` suffixes and scale words, negative amounts
+and the places a minus sign does not count, US and European notation and
+amounts that read differently in each, invalid and Indian grouping,
+several amounts per text, near misses (percent, bare numbers, `HK$50`,
+letters running into the amount, dates and identifiers) and non-ASCII text
+around the amounts (German, French, Russian, Japanese and Chinese, Arabic,
+Hindi and Thai, emoji, combining marks, non-ASCII digits).
+`conversion-*.txt` hold mixes of currencies for the conversion goldens.
+
+`rates/ecb-snapshot.csv` is the rate table the conversions use: a small
+hand made file in the format of the ECB's `eurofxref-hist.csv` (newest
+row first, one column per currency, `N/A` for no quote) with columns USD,
+JPY, GBP, CHF, CNY, INR and RUB and 12 weekdays from 2026-03-02 to
+2026-03-17. The values are invented. The ECB publishes the real series
+at <https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html>;
+it may be reused with the source acknowledged.
+
+`money/<notation>/money/<id>.golden` and
+`money-convert/<notation>/money/<id>.golden` both hold the
+layer `turbo:money`; see
+`analysis/goldens-tool/README.md`. Only the two money annotators run on
+the set, and they have no dumps.
+
+## Quantity goldens
+
+`inputs/quantity/` holds 61 short texts written for quantity extraction:
+the default units (length, mass, volume, time, speed, frequency, power,
+data) attached to the number or after one space, units that are case
+sensitive or read only by their first token, percentages and the word
+`percent`, negative values and the places a minus does not count, US and
+European notation and grouping, scale markers and exponents that are not
+read, amounts that money extraction takes first, and non-ASCII text around
+the values. `quantity/<notation>/quantity/<id>.golden` holds the layer
+`turbo:quantities`; see `analysis/goldens-tool/README.md`. Only the
+quantity annotator runs on the set, and it has no dumps.
 
 ## PII goldens
 
