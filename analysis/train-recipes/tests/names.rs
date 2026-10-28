@@ -89,22 +89,21 @@ fn gapped_names_are_kept_and_overlaps_and_other_types_are_left_out_and_counted()
 
 /// OpenNLP's `MascNamedEntitySampleStream` on the test corpus, whose
 /// entity files list each entity's tokens first to last: `that week`
-/// loses `week`, a name of one token at a sentence's start is empty, a
-/// sentence of two or more names here keeps only its first (the removal
-/// of overlapping names compares a name with itself), and every sentence
-/// clears the adaptive data; the recipes read the entities as the file
-/// links them.
+/// loses `week`, a name of one token at a sentence's start is empty, and
+/// every sentence clears the adaptive data; the recipes read the entities
+/// as the file links them. OpenNLP's removal of overlapping names would
+/// also keep only the first name of these sentences (it compares a name
+/// with itself); the port keeps every name that overlaps no other (#1496).
 #[test]
 fn the_recipes_read_whole_names_where_opennlp_s_stream_drops_their_last_token() {
     let root = temp_dir("names-opennlp");
     write_document(&root.join("written/news"), "a", SENTENCES, &[2, 6, 7]);
     let corpus = MascCorpus::read(&root).unwrap();
     let opennlp: Vec<NameSample<'_>> = MascNameReader::new(&corpus).unwrap().map(|s| s.unwrap().sample).collect();
-    // `that week`, two tokens listed first to last, has lost `week`, and
-    // then the overlap removal drops it.
-    assert_eq!(names(&opennlp[0]), ["5 6 location"]);
-    assert_eq!(names(&opennlp[1]), ["0 0 person"]);
-    assert_eq!(names(&opennlp[2]), ["1 2 person"]);
+    // `that week`, two tokens listed first to last, has lost `week`.
+    assert_eq!(names(&opennlp[0]), ["5 6 location", "6 7 date"]);
+    assert_eq!(names(&opennlp[1]), ["0 0 person", "6 7 person"]);
+    assert_eq!(names(&opennlp[2]), ["1 2 person", "4 5 person", "6 7 date", "9 10 date"]);
     assert!(opennlp.iter().all(NameSample::clear_adaptive_data));
 
     let (dates, _, _) = read(&corpus, &DATE);

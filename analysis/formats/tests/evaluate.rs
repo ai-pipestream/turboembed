@@ -27,7 +27,6 @@ use turbo_formats::native::{
 };
 use turbo_formats::{Field, FormatError};
 use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
-use turbo_unicode::WhitespaceMode;
 
 const U32: ColumnType = ColumnType::U32;
 const F64: ColumnType = ColumnType::F64;
@@ -155,16 +154,12 @@ fn remap(span: Span, from: &str, to: &str) -> Span {
 }
 
 fn rebuild(run: &str, input: &str) -> Rebuilt {
-    let (kind, mode) = match run.strip_suffix("+legacy") {
-        Some(k) => (k, WhitespaceMode::Legacy),
-        None => (run, WhitespaceMode::Unicode),
-    };
-    let unicode = WhitespaceMode::Unicode;
+    let kind = run;
     let mut out = Rebuilt::default();
     match kind {
         "pos" => {
             let mut e = PosEvaluator::default();
-            for (i, (r, p)) in pairs(WordTagReader::new(input, unicode).unwrap()).iter().enumerate() {
+            for (i, (r, p)) in pairs(WordTagReader::new(input).unwrap()).iter().enumerate() {
                 out.verdict(i, e.evaluate(r, &texts(p.tags())));
                 out.accuracy(i, e.word_accuracy(), e.word_count());
             }
@@ -185,7 +180,7 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
         }
         "token" => {
             let mut e = TokenizerEvaluator::default();
-            for (i, (r, p)) in pairs(TokenReader::new(input, unicode).unwrap()).iter().enumerate() {
+            for (i, (r, p)) in pairs(TokenReader::new(input).unwrap()).iter().enumerate() {
                 let predicted: Vec<Span> = p.tokens().iter().map(|&s| remap(s, p.text(), r.text())).collect();
                 out.verdict(i, e.evaluate(r, &predicted));
                 out.fmeasure(i, e.fmeasure());
@@ -193,7 +188,7 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
             }
         }
         "sentence" => {
-            let mut e = SentenceDetectorEvaluator::new(mode);
+            let mut e = SentenceDetectorEvaluator::new();
             for (i, (r, p)) in pairs(SentenceReader::new(input).unwrap()).iter().enumerate() {
                 let predicted: Vec<Span> =
                     p.sentences().iter().map(|&s| remap(s, p.document(), r.document())).collect();
@@ -203,7 +198,7 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
         }
         "doccat" => {
             let mut e = DocumentCategorizerEvaluator::default();
-            for (i, (r, p)) in pairs(DocumentReader::new(input, unicode).unwrap()).iter().enumerate() {
+            for (i, (r, p)) in pairs(DocumentReader::new(input).unwrap()).iter().enumerate() {
                 out.verdict(i, Ok(e.evaluate(r, p.category.as_str())));
                 out.accuracy(i, e.accuracy(), e.document_count());
             }
@@ -216,7 +211,7 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
             }
         }
         "cross-validation" => {
-            let count = WordTagReader::new(input, unicode).unwrap().count();
+            let count = WordTagReader::new(input).unwrap().count();
             for partitions in 1..=4 {
                 for fold in CrossValidation::new(count, partitions) {
                     for (part, places) in [("train", &fold.training), ("test", &fold.test)] {
@@ -278,7 +273,7 @@ fn every_evaluator_golden_matches() {
 #[test]
 fn the_name_pairs_count_a_repeated_prediction_once() {
     let input = std::fs::read_to_string(turbo_goldens::data_dir().join("inputs/formats/pairs-name-basic.txt")).unwrap();
-    let pairs = pairs(NameReader::new(&input, WhitespaceMode::Unicode).unwrap());
+    let pairs = pairs(NameReader::new(&input).unwrap());
     // (true positives, predictions, references) after each pair.
     let running = [(1, 2, 2), (2, 3, 3), (3, 5, 4), (3, 6, 4), (3, 6, 4), (3, 7, 6), (4, 9, 8)];
     // (true positives, predictions, references) of each pair alone.

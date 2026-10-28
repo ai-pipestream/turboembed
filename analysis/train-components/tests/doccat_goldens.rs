@@ -42,7 +42,6 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Key as Param, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::doccat::train_doccat;
-use turbo_unicode::WhitespaceMode;
 
 /// The command that writes the goldens.
 const GENERATE: &str = "cargo run -p turbo-goldens-tool -- generate";
@@ -114,10 +113,7 @@ fn corpus(g: &Golden) -> Option<String> {
 /// The samples of `text`, one per line, as `DocumentSampleStream` reads
 /// them over `PlainTextByLineStream`.
 fn samples<'a>(at: &str, text: &'a str) -> Vec<DocumentSample<'a>> {
-    DocumentReader::new(text, WhitespaceMode::Unicode)
-        .unwrap()
-        .map(|s| s.unwrap_or_else(|e| panic!("{at}: {e}")))
-        .collect()
+    DocumentReader::new(text).unwrap().map(|s| s.unwrap_or_else(|e| panic!("{at}: {e}"))).collect()
 }
 
 /// Counts over every run.

@@ -274,3 +274,36 @@ fn unpunctuated_scripts_are_one_sentence_per_paragraph() {
     assert_eq!(th("วันนี้อากาศดี ฉันจะไปตลาด"), ["วันนี้อากาศดี ฉันจะไปตลาด"]);
     assert_eq!(th("วันนี้อากาศดี\n\nฉันจะไปตลาด"), ["วันนี้อากาศดี", "ฉันจะไปตลาด"]);
 }
+
+#[test]
+fn a_large_document_does_not_pin_its_buffers_to_the_thread() {
+    use super::scratch::{RETAINED, retained_capacity};
+    let text = "One sentence here. ".repeat(20_000);
+    let splitter = RuleSplitter::new("en");
+    let (got, kept) = std::thread::scope(|s| {
+        s.spawn(|| {
+            let mut out = Vec::new();
+            splitter.try_split(&text, &mut out).unwrap();
+            (out, retained_capacity())
+        })
+        .join()
+        .unwrap()
+    });
+    let mut want = Vec::new();
+    splitter.split_with(&text, &mut RuleScratch::default(), &mut want);
+    assert_eq!(got, want);
+    assert_eq!(got.len(), 20_000);
+    assert!(kept <= RETAINED, "the thread kept a buffer of {kept} elements");
+}
+
+#[test]
+fn a_split_nested_in_another_uses_its_own_buffers() {
+    let splitter = RuleSplitter::new("en");
+    let (mut outer, mut inner) = (Vec::new(), Vec::new());
+    super::scratch::with_rule_scratch(|scratch| {
+        splitter.try_split("Inner one. Inner two.", &mut inner).unwrap();
+        splitter.split_rules_only("Outer one. Outer two.", scratch, &mut outer);
+    });
+    assert_eq!(inner, [Span::new(0, 10), Span::new(11, 21)]);
+    assert_eq!(outer, [Span::new(0, 10), Span::new(11, 21)]);
+}

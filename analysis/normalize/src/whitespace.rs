@@ -149,7 +149,7 @@ fn next_member(text: &str, from: usize) -> Option<(usize, char)> {
         let b = bytes[i];
         match b {
             0x00..=0x7F => {
-                if turbo_unicode::whitespace::WhitespaceMode::Unicode.is_ascii_whitespace(b) {
+                if turbo_unicode::whitespace::is_ascii_whitespace(b) {
                     return Some((i, b as char));
                 }
                 i += 1;

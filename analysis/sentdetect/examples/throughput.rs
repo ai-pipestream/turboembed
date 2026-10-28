@@ -2,7 +2,7 @@
 //!
 //! - `rules`: the newline and paragraph detectors on 10 MB of synthetic
 //!   text (a few repeated lines, mostly ASCII with some accented and CJK
-//!   text, a blank line after every fourth), in both whitespace modes.
+//!   text, a blank line after every fourth).
 //! - `maxent`: the maxent detector with the published English model on
 //!   10 MB of synthetic English (a paragraph of varied sentences,
 //!   repeated), once all ASCII, which the context generator
@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{Scratch, SentenceDetector, SentenceModel, WhitespaceMode, newline_spans, paragraph_spans};
+use turbo_sentdetect::{Scratch, SentenceDetector, SentenceModel, newline_spans, paragraph_spans};
 
 const TEN_MB: usize = 10 << 20;
 
@@ -60,7 +60,7 @@ fn main() {
         let file = ModelFile::read(&path)
             .unwrap_or_else(|e| panic!("{}: {e} (download it with turbo-goldens-tool fetch-models)", path.display()));
         let model = SentenceModel::open(file).expect("a sentence model");
-        let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
+        let detector = SentenceDetector::new(model);
         if wants("maxent") {
             maxent(&detector, "ASCII", &repeat(PARAGRAPH, TEN_MB), 5);
             maxent(&detector, "non-ASCII", &repeat(&PARAGRAPH.replace("the car", "the caf\u{e9}"), TEN_MB), 5);
@@ -92,20 +92,17 @@ fn rules() {
     }
     let mb = text.len() as f64 / (1024.0 * 1024.0);
     let mut out = Vec::new();
-    for (name, run) in [
-        ("newline", newline_spans as fn(&str, WhitespaceMode, &mut Vec<_>)),
-        ("paragraph", paragraph_spans as fn(&str, WhitespaceMode, &mut Vec<_>)),
-    ] {
-        for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-            let mut best = f64::INFINITY;
-            for _ in 0..10 {
-                out.clear();
-                let t = Instant::now();
-                run(black_box(&text), mode, &mut out);
-                best = best.min(t.elapsed().as_secs_f64());
-            }
-            println!("{name:9} {mode:?}: {mb:.1} MB, {} spans, {:.0} MB/s", out.len(), mb / best);
+    for (name, run) in
+        [("newline", newline_spans as fn(&str, &mut Vec<_>)), ("paragraph", paragraph_spans as fn(&str, &mut Vec<_>))]
+    {
+        let mut best = f64::INFINITY;
+        for _ in 0..10 {
+            out.clear();
+            let t = Instant::now();
+            run(black_box(&text), &mut out);
+            best = best.min(t.elapsed().as_secs_f64());
         }
+        println!("{name:9}: {mb:.1} MB, {} spans, {:.0} MB/s", out.len(), mb / best);
     }
 }
 

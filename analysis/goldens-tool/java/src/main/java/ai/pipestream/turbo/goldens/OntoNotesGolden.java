@@ -21,14 +21,13 @@ import opennlp.tools.parser.Parse;
 import opennlp.tools.postag.POSSample;
 import opennlp.tools.formats.convert.ParseToPOSSampleStream;
 import opennlp.tools.util.ObjectStream;
-import opennlp.tools.util.WhitespaceMode;
 
 /**
  * The goldens of OpenNLP's OntoNotes readers ({@code opennlp.tools.formats.ontonotes}) over the
  * {@code ontonotes} input set, each input a bundle of a corpus directory (written out as
  * {@link MascGolden#writeBundle} writes it). The streams are made by the {@code ontonotes} factories
  * of the registry, given the directory as {@code -ontoNotesDir}: the name samples of the
- * {@code .name} files ({@code names}, also with the legacy whitespace, {@code names+legacy}), the
+ * {@code .name} files ({@code names}), the
  * parses of the {@code .parse} files ({@code parse}) and the part-of-speech samples made of them
  * ({@code pos}). The {@code lines} run reads the {@code .parse} files with a
  * {@code DocumentToLineStream}, as the parse factory does before it parses them.
@@ -67,19 +66,16 @@ final class OntoNotesGolden implements AnnotatorGolden {
   }
 
   private final Kind kind;
-  private final WhitespaceMode whitespace;
 
-  private OntoNotesGolden(Kind kind, WhitespaceMode whitespace) {
+  private OntoNotesGolden(Kind kind) {
     this.kind = kind;
-    this.whitespace = whitespace;
   }
 
   static List<OntoNotesGolden> all() {
     List<OntoNotesGolden> runs = new ArrayList<>();
     for (Kind k : Kind.values()) {
-      runs.add(new OntoNotesGolden(k, WhitespaceMode.UNICODE));
+      runs.add(new OntoNotesGolden(k));
     }
-    runs.add(new OntoNotesGolden(Kind.NAMES, WhitespaceMode.LEGACY));
     return runs;
   }
 
@@ -105,7 +101,7 @@ final class OntoNotesGolden implements AnnotatorGolden {
 
   @Override
   public Map<String, String> config() {
-    return Whitespace.config(whitespace);
+    return Map.of();
   }
 
   @Override
@@ -115,7 +111,7 @@ final class OntoNotesGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return kind.dir + Whitespace.dirSuffix(whitespace);
+    return kind.dir;
   }
 
   /** The factory's filter: the files with the run's suffix, and the directories. */
@@ -146,7 +142,7 @@ final class OntoNotesGolden implements AnnotatorGolden {
       root = Files.createTempDirectory("ontonotes-golden");
       MascGolden.writeBundle(input, root);
       Path dir = root;
-      return Whitespace.in(whitespace, () -> read(input, dir));
+      return read(input, dir);
     } catch (IOException e) {
       throw new IllegalStateException(input.inputId() + ": the corpus could not be written", e);
     } finally {

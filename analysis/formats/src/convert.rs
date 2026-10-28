@@ -174,7 +174,6 @@ mod tests {
     use super::*;
     use crate::native::WordTagReader;
     use turbo_tokenize::detok::{DetokenizerDictionary, DictionaryOperation};
-    use turbo_unicode::WhitespaceMode;
 
     fn dictionary() -> DetokenizerDictionary {
         let mut d = DetokenizerDictionary::new();
@@ -189,9 +188,7 @@ mod tests {
         let d = dictionary();
         let src = "a_X (_X b_X -_X c_X ._X";
         let samples: Vec<TokenSample<'_>> =
-            ToTokenSamples::new(WordTagReader::new(src, WhitespaceMode::Unicode).unwrap(), Detokenizer::new(&d))
-                .map(Result::unwrap)
-                .collect();
+            ToTokenSamples::new(WordTagReader::new(src).unwrap(), Detokenizer::new(&d)).map(Result::unwrap).collect();
         assert_eq!(samples[0].text(), "a (b-c.");
         assert_eq!(samples[0].to_string(), "a (<SPLIT>b<SPLIT>-<SPLIT>c<SPLIT>.");
         let sources: Vec<&str> = samples[0].sources().iter().map(|s| &src[s.range()]).collect();
@@ -202,7 +199,7 @@ mod tests {
     fn sentence_chunks_drop_the_sample_after_a_full_chunk() {
         let d = dictionary();
         let src = "a_X ._X\nb_X\nc_X\nd_X\ne_X\n";
-        let reader = WordTagReader::new(src, WhitespaceMode::Unicode).unwrap();
+        let reader = WordTagReader::new(src).unwrap();
         let two = ChunkSize::Samples(std::num::NonZeroUsize::new(2).unwrap());
         let samples: Vec<SentenceSample<'_>> =
             ToSentenceSamples::new(reader, Detokenizer::new(&d), two).map(Result::unwrap).collect();
@@ -210,7 +207,7 @@ mod tests {
         // c is read after the first chunk is full and dropped.
         assert_eq!(docs, ["a.b", "de"]);
         assert_eq!(samples[0].to_string(), "a.\nb\n");
-        let reader = WordTagReader::new(src, WhitespaceMode::Unicode).unwrap();
+        let reader = WordTagReader::new(src).unwrap();
         let all: Vec<_> = ToSentenceSamples::new(reader, Detokenizer::new(&d), ChunkSize::All).collect();
         assert_eq!(all.len(), 1);
         assert_eq!(all[0].as_ref().unwrap().document(), "a.bcde");

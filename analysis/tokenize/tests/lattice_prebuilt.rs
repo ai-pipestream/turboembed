@@ -3,10 +3,10 @@ mod common;
 use std::sync::Arc;
 use turbo_analysis::Annotator;
 use turbo_tokenize::lattice::{DictionaryLimits, PrebuiltImage};
-use turbo_tokenize::{LatticeTokenizer, MecabDictionary, WhitespaceMode};
+use turbo_tokenize::{LatticeTokenizer, MecabDictionary};
 
 fn source() -> MecabDictionary {
-    MecabDictionary::load(common::fixtures_dir().join("mecab-fixture-ja"), WhitespaceMode::Unicode).unwrap()
+    MecabDictionary::load(common::fixtures_dir().join("mecab-fixture-ja")).unwrap()
 }
 fn read(bytes: &[u8]) -> Result<MecabDictionary, turbo_tokenize::lattice::PrebuiltError> {
     MecabDictionary::from_prebuilt(PrebuiltImage::copy_from(bytes), Default::default())
@@ -33,11 +33,10 @@ fn round_trip_identity_and_shared_storage() {
     let image = PrebuiltImage::copy_from(&bytes);
     let loaded = MecabDictionary::from_prebuilt(image.clone(), Default::default()).unwrap();
     assert_eq!(loaded.sha256(), dictionary.sha256());
-    assert_eq!(loaded.whitespace(), dictionary.whitespace());
     assert_eq!(loaded.lexicon_len(), dictionary.lexicon_len());
     assert_eq!(loaded.to_prebuilt().unwrap(), bytes);
-    let tokenizer = LatticeTokenizer::new(loaded.clone(), WhitespaceMode::Unicode);
-    let expected = LatticeTokenizer::new(dictionary, WhitespaceMode::Unicode);
+    let tokenizer = LatticeTokenizer::new(loaded.clone());
+    let expected = LatticeTokenizer::new(dictionary);
     assert_eq!(tokenizer.model(), expected.model());
     assert_eq!(tokenizer.config_hash(), expected.config_hash());
     let start = image.bytes().as_ptr() as usize;
@@ -63,14 +62,31 @@ fn round_trip_identity_and_shared_storage() {
 }
 
 #[test]
-fn load_accepts_both_forms_and_checks_the_packed_mode() {
+fn load_accepts_both_forms() {
     let path = std::env::temp_dir().join(format!("turbo-lattice-{}.bin", std::process::id()));
     let dictionary = source();
     dictionary.write_prebuilt(&path).unwrap();
-    let loaded = MecabDictionary::load(&path, WhitespaceMode::Unicode).unwrap();
+    let loaded = MecabDictionary::load(&path).unwrap();
     assert_eq!(loaded.sha256(), dictionary.sha256());
-    assert!(MecabDictionary::load(&path, WhitespaceMode::Legacy).is_err());
     std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn the_header_holds_the_unicode_whitespace_policy_and_any_other_is_refused() {
+    use turbo_tokenize::lattice::PrebuiltError;
+    let bytes = source().to_prebuilt().unwrap();
+    // The policy word at offset 16 is 1, Unicode White_Space.
+    assert_eq!(u32::from_le_bytes(bytes[16..20].try_into().unwrap()), 1);
+    // 0 was the retired legacy policy; it and every other value are refused
+    // with a typed error, even with a valid checksum.
+    for policy in [0, 2, u32::MAX] {
+        match read(&change(&bytes, 16, policy)) {
+            Err(PrebuiltError::UnsupportedWhitespace(p)) => assert_eq!(p, policy),
+            other => panic!("policy {policy}: {other:?}"),
+        }
+    }
+    let e = read(&change(&bytes, 16, 0)).unwrap_err();
+    assert_eq!(e.to_string(), "prebuilt dictionary: whitespace policy 0 is not supported (1, Unicode White_Space, is)");
 }
 
 #[test]
@@ -137,7 +153,7 @@ fn mutated_runtime_tables_never_panic() {
         let mut changed = bytes.clone();
         changed[at] ^= 1 << (i % 8);
         if let Ok(dictionary) = read(&signed(changed)) {
-            let tokenizer = LatticeTokenizer::new(dictionary, WhitespaceMode::Unicode);
+            let tokenizer = LatticeTokenizer::new(dictionary);
             let _ = tokenizer.analyze("東京都に行く。ABC１２３𠮷野家", &mut Vec::new());
         }
     }

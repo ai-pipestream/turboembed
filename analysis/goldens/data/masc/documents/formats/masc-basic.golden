@@ -37,8 +37,9 @@ layer	turbo:masc-tokens	document	17	sentence:u32	start:u32	end:u32	id:u32	pos:st
 5	15	18	4	CD	two	0	4
 5	18	19	5	.	.	0	5
 end	turbo:masc-tokens
-layer	turbo:masc-names	document	1	sentence:u32	start:u32	end:u32	type:str	nulls:u32
+layer	turbo:masc-names	document	2	sentence:u32	start:u32	end:u32	type:str	nulls:u32
 2	3	4	location	0
+2	4	5	date	0
 end	turbo:masc-names
 layer	turbo:masc-stream	document	3	path:str
 weather0.hdr

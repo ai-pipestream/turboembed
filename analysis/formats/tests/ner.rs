@@ -21,7 +21,7 @@ use turbo_formats::ner::{
 };
 use turbo_formats::sample::NameSample;
 use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
-use turbo_tokenize::{TokenizerOptions, WhitespaceMode};
+use turbo_tokenize::TokenizerOptions;
 
 mod bundle;
 use bundle::write_bundle;
@@ -185,7 +185,7 @@ fn rebuild(run: &str, input: &str, scratch: &Path) -> Rebuilt {
             out.layer("turbo:brat-config-errors");
             for name in confs {
                 let text = String::from_utf8(std::fs::read(scratch.join(&name)).unwrap()).unwrap();
-                match AnnotationConfiguration::parse(&text, WhitespaceMode::Unicode) {
+                match AnnotationConfiguration::parse(&text) {
                     Ok(c) => {
                         for (kind, class) in c.types() {
                             let row = vec![name.clone(), kind.to_owned(), class.java_name().to_owned()];
@@ -199,9 +199,8 @@ fn rebuild(run: &str, input: &str, scratch: &Path) -> Rebuilt {
                 }
             }
         }
-        "brat-whitespace" | "brat-simple" | "brat-recursive-person-location" | "brat-whitespace+legacy" => {
-            let mode = if run.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
-            let options = TokenizerOptions { whitespace: mode, keep_newlines: false };
+        "brat-whitespace" | "brat-simple" | "brat-recursive-person-location" => {
+            let options = TokenizerOptions { keep_newlines: false };
             let tokenizer =
                 if run == "brat-simple" { RuleTokenizer::Simple(options) } else { RuleTokenizer::Whitespace(options) };
             let recursive = run == "brat-recursive-person-location";
@@ -212,9 +211,9 @@ fn rebuild(run: &str, input: &str, scratch: &Path) -> Rebuilt {
             std::fs::create_dir_all(scratch).unwrap();
             write_bundle(input, scratch);
             let config = std::fs::read_to_string(scratch.join("annotation.conf")).unwrap();
-            AnnotationConfiguration::parse(&config, mode).unwrap();
-            let documents = read_brat_corpus(scratch, recursive, mode).unwrap();
-            let parser = BratParser::new(NewlineSentences(mode), tokenizer, types, mode).unwrap();
+            AnnotationConfiguration::parse(&config).unwrap();
+            let documents = read_brat_corpus(scratch, recursive).unwrap();
+            let parser = BratParser::new(NewlineSentences, tokenizer, types).unwrap();
             let corpus = scratch.to_str().unwrap().to_owned();
             let samples = drain_with(BratSamples::new(&documents, &parser), &mut out, |m| {
                 m.replace(&corpus, "<corpus>").replace(std::path::MAIN_SEPARATOR, "/")
@@ -225,13 +224,12 @@ fn rebuild(run: &str, input: &str, scratch: &Path) -> Rebuilt {
                 &mut out,
             );
         }
-        "muc6-whitespace" | "muc6-simple" | "muc6-whitespace+legacy" => {
-            let mode = if run.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
-            let options = TokenizerOptions { whitespace: mode, keep_newlines: false };
+        "muc6-whitespace" | "muc6-simple" => {
+            let options = TokenizerOptions { keep_newlines: false };
             let tokenizer =
                 if run == "muc6-simple" { RuleTokenizer::Simple(options) } else { RuleTokenizer::Whitespace(options) };
             let documents = muc_documents(input, scratch);
-            let samples = drain(MucSamples::new(documents.iter().map(String::as_str), &tokenizer, mode), &mut out);
+            let samples = drain(MucSamples::new(documents.iter().map(String::as_str), &tokenizer), &mut out);
             names_in(&documents.iter().map(String::as_str).collect::<Vec<_>>(), &samples, &mut out);
         }
         "germeval-outer" | "germeval-inner" | "germeval-outer-loc-misc" => {
