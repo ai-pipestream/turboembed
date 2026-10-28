@@ -132,6 +132,14 @@ copy of the recipe.
 | `bge-large-en-v1.5.json` | BAAI/bge-large-en-v1.5 | 512 | `onnx-f16`, `openvino-f16` (NPU) |
 | `bge-m3.json` | BAAI/bge-m3 | 512 | `onnx-f16`; the weights are converted from the PyTorch checkpoint |
 | `bge-m3-8192.json` | BAAI/bge-m3 | 8192 | the same, at `max_batch` 8 |
+| `modernbert-base.json` | answerdotai/ModernBERT-base | 8192 | none (`weights-f32` only, the upstream F32 safetensors); the masked-language-model checkpoint, served as mean pooling of `final_norm`'s output: a conformance target and a base for heads, not a trained embedding |
+| `nomic-embed-text-v1.5.json` | nomic-ai/nomic-embed-text-v1.5 | 8192 | none (`weights-f32` only); trained to 2048 tokens and served to 8192 with the unscaled rotary table, as upstream's `n_positions` gives; prefixes `search_query: ` and `search_document: `; not normalized (ask for L2 at run time) |
+
+The two rotary recipes (#1461) are made by path, and no backend runs
+their families yet: the bundles open, tokenize and match their reference
+ids, and the vectors wait for the CPU encoder. Their references carry
+cases of 6827 and 7051 tokens and one cut at 8192, and a case that
+meets ModernBERT's added tokens.
 
 The ONNX files are for the reference programs and the converters; the
 library never executes them.
