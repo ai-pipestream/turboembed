@@ -1,6 +1,6 @@
 """Write Trankit CoNLL-U predictions for the raw text of a gold CoNLL-U file.
 
-Usage: predict.py GOLD.conllu OUT.conllu
+Usage: predict.py GOLD.conllu OUT.conllu [TRANKIT_LANG]
 
 Documents are taken from `# newdoc` groups, their `# text` sentences
 joined with one space, so the peer tokenizes and segments sentences
@@ -43,10 +43,11 @@ def words_of(sentence):
 
 def main():
     gold, out = sys.argv[1], sys.argv[2]
-    nlp = Pipeline("english", cache_dir="/trankit-cache", gpu=False)
+    lang = sys.argv[3] if len(sys.argv) > 3 else "english"
+    nlp = Pipeline(lang, cache_dir="/trankit-cache", gpu=False)
     print(json.dumps({
         "trankit": importlib.metadata.version("trankit"),
-        "lang": "english",
+        "lang": lang,
         "embedding": "xlm-roberta-base",
     }), file=sys.stderr)
     with open(out, "w", encoding="utf-8") as f:

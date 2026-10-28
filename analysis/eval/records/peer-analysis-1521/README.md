@@ -140,6 +140,22 @@ records): es 86.71 LAS, rule sentences 97.19; ca 87.63, rule 99.64;
 fi 60.06 cross-treebank, rule 82.19; it 77.93, rule 87.56 against
 Stanza's own 72.90 sentence F1 on MarkIT.
 
+Trankit records so far on the same splits (`trankit-fi-ftb-test.json`,
+`trankit-it-markit-test.json`): one pinned image per language from
+`analysis/eval/reference/peers/trankit/` with `TRANKIT_LANG` set
+(finnish image
+`sha256:1390e26ed600ed2c48e05b3c0a767cc71438d9b50fa6ea74b3aaf44a9682d644`,
+italian image
+`sha256:7854ecc137aee9f7b4967c07592041ed43e1263c5c878d0f62bfd614bf60de99`;
+prediction SHA-256s fi
+`f20892ea65cadf2c2e2aa6d2fba666bdba00a402fc4dc012879118ec40fa970f`,
+it
+`992ea3e6abf9e8f9c700f7eddd85961b183d1feaf6c093e7285131b57da3dbad`).
+Finnish: sentences 95.97, LAS 63.85, with the same FTB XPOS
+convention gap as Stanza (5.91). Italian: sentences 99.70, LAS
+82.06; the segmentation gap against Stanza on MarkIT is the model,
+not the protocol, since both peers saw the same joined text.
+
 ## Reproduce
 
 ```sh
@@ -180,6 +196,12 @@ turbo-eval analysis --gold <gold-dir>/es_ancora-ud-test.conllu \
   --sha256 679f1c05ca654aa26801c80319df45f8f97606718fb534b91755b48f3e67fa6f \
   --pred stanza-1.10.1-es=<out-dir>/stanza-es.conllu \
   --sentences rule --out <new-record>.json
+
+# Multilingual Trankit (per language; fi shown)
+docker build --build-arg TRANKIT_LANG=finnish \
+  -t turbo-peer-trankit:1.1.2-finnish analysis/eval/reference/peers/trankit
+docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
+  turbo-peer-trankit:1.1.2-finnish /gold/fi_ftb-ud-test.conllu /out/trankit-fi.conllu finnish
 ```
 
 Recorded 2026-10-28 under load average about 31 to 36 (accuracy

@@ -1,8 +1,8 @@
 # Pinned Trankit peer for the analysis benchmark (#1521). Trankit
 # 1.1.2 requires torch <= 2.0.1, which has no wheels for current
 # Python, so the base is a digest-pinned Python 3.10 and the rest of
-# the set is pinned to era-consistent versions. The English pipeline
-# (xlm-roberta-base embedding) is baked in at build time.
+# the set is pinned to era-consistent versions. The TRANKIT_LANG
+# pipeline (xlm-roberta-base embedding) is baked in at build time.
 FROM python@sha256:6ff506466f8b1e981719b468cc0023b8ef000b983cdec0eafe119d01f379e31d
 
 ARG TRANKIT_VERSION=1.1.2
@@ -26,14 +26,15 @@ RUN pip install --no-cache-dir \
 # its downloader would have produced (unzip plus the .downloaded
 # marker), and the warm-up run below proves the pipeline loads it.
 ARG TRANKIT_MIRROR_REVISION=1add34e3909949dbb98523ed6cfcb4e9393e2c8e
+ARG TRANKIT_LANG=english
 RUN python -c "\
 import urllib.request, zipfile, os; \
-d='/trankit-cache/xlm-roberta-base/english'; os.makedirs(d, exist_ok=True); \
-url='https://huggingface.co/uonlp/trankit/resolve/${TRANKIT_MIRROR_REVISION}/models/v1.0.0/xlm-roberta-base/english.zip'; \
-z=os.path.join(d,'english.zip'); urllib.request.urlretrieve(url, z); \
+d='/trankit-cache/xlm-roberta-base/${TRANKIT_LANG}'; os.makedirs(d, exist_ok=True); \
+url='https://huggingface.co/uonlp/trankit/resolve/${TRANKIT_MIRROR_REVISION}/models/v1.0.0/xlm-roberta-base/${TRANKIT_LANG}.zip'; \
+z=os.path.join(d,'${TRANKIT_LANG}.zip'); urllib.request.urlretrieve(url, z); \
 zipfile.ZipFile(z).extractall(d); os.remove(z); \
-open(os.path.join(d,'english.downloaded'),'w').close()"
-RUN python -c "from trankit import Pipeline; Pipeline('english', cache_dir='/trankit-cache', gpu=False)('One. Two.')"
+open(os.path.join(d,'${TRANKIT_LANG}.downloaded'),'w').close()"
+RUN python -c "from trankit import Pipeline; Pipeline('${TRANKIT_LANG}', cache_dir='/trankit-cache', gpu=False)('One. Two.')"
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 
 COPY predict.py /predict.py
