@@ -32,7 +32,7 @@
 //! end of each token.
 
 use turbo_jvm::chars::compare as java_order;
-use turbo_tokenize::{TokenizerOptions, WhitespaceMode, whitespace_spans};
+use turbo_tokenize::{TokenizerOptions, whitespace_spans};
 
 use crate::byte_level::ById;
 use crate::merger::Merger;
@@ -45,7 +45,7 @@ mod jvm;
 pub const END_OF_WORD: &str = "</w>";
 
 /// OpenNLP's `WhitespaceTokenizer.INSTANCE` in its default mode.
-const WHITESPACE: TokenizerOptions = TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: false };
+const WHITESPACE: TokenizerOptions = TokenizerOptions { keep_newlines: false };
 
 /// Which of the pairs with the highest count is merged.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

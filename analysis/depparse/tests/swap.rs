@@ -2,13 +2,11 @@ use turbo_analysis::{Ix, ViewId};
 use turbo_analysis_layers::{Tokens, Words};
 use turbo_depparse::{ArcStandardOracle, ArcStandardState, DependencyGraph, DependencySample, SwapOracle, Transition};
 use turbo_formats::conllu::{ConlluDependencySample, Tagset};
-use turbo_unicode::WhitespaceMode;
 
 #[test]
 fn swap_oracle_preserves_a_real_crossing_tree_and_source_fields() {
     let text = include_str!("data/ud-en-nonprojective.conllu");
-    let sample =
-        ConlluDependencySample::read_sentence(text, Tagset::U, WhitespaceMode::Unicode, ViewId::SOURCE).unwrap();
+    let sample = ConlluDependencySample::read_sentence(text, Tagset::U, ViewId::SOURCE).unwrap();
     let sample = DependencySample::<Words>::from_conllu(sample).unwrap();
     assert!(!sample.graph().is_projective());
     let stream = turbo_depparse::DependencyEventStream::generate_swap(std::slice::from_ref(&sample)).unwrap();

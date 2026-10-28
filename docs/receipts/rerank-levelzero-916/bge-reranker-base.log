@@ -1,0 +1,8 @@
+commit e6a9693f203a8307578c7278afedf56087a5c005; 2026-10-28T00:17:21Z; load before 17.54 23.93 19.50 13/4435 3133148
+B70 compute clients: none; B70 runner build/test processes: 0
+command: target/release/turbo-bench rerank --bundle <bundles>/bge-reranker-base --questions <SQuAD 2.0 dev-v2.0.json, sha256 80a5225e...> --device levelzero --precision exact --no-tei
+levelzero Intel(R) Arc(TM) Pro B70 Graphics: 64 requests of 16 passages: p50 2536.9 ms a pass, 403.6 pairs/s
+benchmarks/rerank/b70.levelzero.rerank.exact.bge-reranker-base-dce186f3.e6a9693f203a.json
+exit 0
+load after 30.04 25.67 20.38 50/4519 3196960
+B70 engines during the run: gnome-shell ccs 0.0% rcs 0.2%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 

@@ -12,7 +12,7 @@ use turbo_unicode::hf::{
 };
 use turbo_unicode::normalize::Form;
 
-use crate::tokenizer::Span;
+use crate::tokenizer::{Added, Piece, Sink, Span, covering};
 
 /// The parts of `s` NFC can change, by byte range: each run of
 /// characters that are not ASCII, with the ASCII character before it,
@@ -165,6 +165,25 @@ pub(super) fn keep(text: String, sources: Vec<Span>) {
     }
     if sources.capacity() <= KEPT {
         SOURCES.set(sources);
+    }
+}
+
+impl super::Bpe {
+    /// `encode` for a piece NFC changes, with added tokens matched in its
+    /// NFC, as upstream matches its normalized added tokens; a token's
+    /// span covers the sources of its bytes.
+    pub(crate) fn encode_added<S: Sink>(&self, text: &str, base: usize, piece: &str, added: &Added, out: &mut S) {
+        let (mut normalized, mut sources) = buffers();
+        aligned(piece, base, &mut normalized, S::SPANS.then_some(&mut sources));
+        let n = normalized.as_str();
+        added.split(n, |p| match p {
+            Piece::Text(r) => {
+                let from = if S::SPANS { &sources[r.clone()] } else { &[] };
+                self.encode_normalized(text, &n[r], from, out);
+            }
+            Piece::Token(s, at) => out.push(s.id, || covering(text, &sources[at..at + s.content.len()])),
+        });
+        keep(normalized, sources);
     }
 }
 

@@ -53,6 +53,20 @@ pub trait Chunker {
     fn chunk_vectors(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<(Vec<Span>, Option<Vec<f32>>)> {
         Ok((self.chunk(doc, embedder)?, None))
     }
+
+    /// The budget the optimizer priced chunks with, for a chunker whose
+    /// cuts can be dumped (`crate::cuts`); None for one that runs no
+    /// optimizer.
+    fn cut_budget(&self) -> Option<turbo_chunker::Budget> {
+        None
+    }
+
+    /// The chunks, and the document the optimizer cut with its
+    /// `Sentences`, `Boundaries` and `Chunks`, for a cut dump.
+    fn chunk_cut(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<(Vec<Span>, Document)> {
+        let _ = (doc, embedder);
+        Err(format!("{}: its cuts cannot be dumped", self.name()))
+    }
 }
 
 pub(crate) fn setting(name: &str, value: impl Display) -> Setting {
