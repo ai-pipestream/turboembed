@@ -87,7 +87,7 @@ final class SentenceDump implements AnnotatorDump {
   public Run run(Input input) throws AnnotatorException {
     List<Layer> layers;
     try {
-      layers = SentenceGolden.layers(detector, golden.whitespace(), input);
+      layers = SentenceGolden.layers(detector, input);
     } catch (AnnotatorException e) {
       // What the model was asked before the annotator threw belongs to no dump.
       recorder.discard();

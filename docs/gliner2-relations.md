@@ -9,7 +9,9 @@ extracts relations on its own, as the reference does.
 The checkpoint is `fastino/gliner2-base-v1` at
 `f9634218e53580c56edf0de97ca1a7d3f1c2354e` (Apache-2.0). The zoo lists it
 as `fastino-gliner2-base-v1` and fetches it by digest; it is the
-default. GLiREL's checkpoints and code are CC BY-NC-SA 4.0
+default relation scorer, but local-only by its training data (unreleased,
+GPT-4o labelled; docs/licences.md, decision 2026-10-28): fetched from its
+publisher only after the user accepts its card's terms, never bundled. GLiREL's checkpoints and code are CC BY-NC-SA 4.0
 (docs/licences.md). The zoo lists `jackboyla/glirel-large-v0` as the
 local-only `jackboyla-glirel-large-v0`, fetched only after the user runs
 `turbo-zoo accept CC-BY-NC-SA-4.0`, and docs/glirel-relations.md runs it.
@@ -102,8 +104,9 @@ fixture and time the passes on both, interleaved.
 `requirements.txt`) writes both fixtures; only fixture production uses
 Python.
 
-- `analysis/relation/tests/gliner2_reduced.rs`: the encoder and heads sliced to width 32,
-  as the encoder fixture slices it, on fixed token sequences, against
+- `analysis/relation/tests/gliner2_reduced.rs`: seeded random weights in the
+  checkpoint's shapes, the encoder core/tests/fixtures/deberta's and the heads
+  at width 32 (no checkpoint value), on fixed token sequences, against
   GLiNER2's own layer classes: count logits, counts, queries and span
   logits within 2e-5. It runs in every test run.
 - `analysis/relation/tests/gliner2_real.rs`: the full checkpoint, fetched through the zoo

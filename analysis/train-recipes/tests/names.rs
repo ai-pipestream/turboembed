@@ -1,12 +1,11 @@
 //! The name recipes' reader on documents written in MASC's layout: the
 //! names it keeps, those it leaves out and counts, the entities in no
-//! sentence, where a sample clears the adaptive data, and how its names
-//! differ from those OpenNLP's MASC stream reads.
+//! sentence, and where a sample clears the adaptive data.
 
 mod common;
 
 use common::{SENTENCES, temp_dir, write_document};
-use turbo_formats::masc::{MascCorpus, MascNameReader};
+use turbo_formats::masc::MascCorpus;
 use turbo_formats::{Field, NameSample};
 use turbo_train_recipes::card::NamesCard;
 use turbo_train_recipes::namefind::{DATE, LOCATION, NameRecipe, ORGANIZATION, PERSON, read_samples};
@@ -87,26 +86,12 @@ fn gapped_names_are_kept_and_overlaps_and_other_types_are_left_out_and_counted()
     std::fs::remove_dir_all(&root).unwrap();
 }
 
-/// OpenNLP's `MascNamedEntitySampleStream` on the test corpus, whose
-/// entity files list each entity's tokens first to last: `that week`
-/// loses `week`, a name of one token at a sentence's start is empty, a
-/// sentence of two or more names here keeps only its first (the removal
-/// of overlapping names compares a name with itself), and every sentence
-/// clears the adaptive data; the recipes read the entities as the file
-/// links them.
+/// Every name retains all linked source tokens.
 #[test]
-fn the_recipes_read_whole_names_where_opennlp_s_stream_drops_their_last_token() {
-    let root = temp_dir("names-opennlp");
+fn the_recipes_read_whole_names_and_clear_adaptive_data_per_document() {
+    let root = temp_dir("names-whole");
     write_document(&root.join("written/news"), "a", SENTENCES, &[2, 6, 7]);
     let corpus = MascCorpus::read(&root).unwrap();
-    let opennlp: Vec<NameSample<'_>> = MascNameReader::new(&corpus).unwrap().map(|s| s.unwrap().sample).collect();
-    // `that week`, two tokens listed first to last, has lost `week`, and
-    // then the overlap removal drops it.
-    assert_eq!(names(&opennlp[0]), ["5 6 location"]);
-    assert_eq!(names(&opennlp[1]), ["0 0 person"]);
-    assert_eq!(names(&opennlp[2]), ["1 2 person"]);
-    assert!(opennlp.iter().all(NameSample::clear_adaptive_data));
-
     let (dates, _, _) = read(&corpus, &DATE);
     assert_eq!(words(&dates[0])[6..8], ["that", "week"]);
     assert_eq!(names(&dates[0]), ["6 8 date"]);
@@ -132,30 +117,13 @@ const ORDERS: &[&str] = &[
     "Ann/NNP Mary/NNP Lee/NNP left/VBD ~./. | person 2 1 0",
 ];
 
-/// What OpenNLP's stream keeps of a name depends on the order the entity
-/// file lists its tokens (`MascSentence.java:217`): listed last to first,
-/// as MASC lists 8,770 of its 9,068 entities of several tokens, a name is
-/// whole; listed first to last, a name of an even number of tokens loses
-/// its last token and one of an odd number is whole, but at a sentence's
-/// start the parity flips. The recipes read every name whole.
+/// Entity links retain their whole name regardless of token-link order.
 #[test]
-fn opennlp_s_stream_keeps_a_name_whole_in_masc_s_order_and_by_parity_in_the_other() {
+fn entity_link_order_does_not_drop_tokens_from_names() {
     let root = temp_dir("names-orders");
     write_document(&root.join("written/news"), "a", ORDERS, &[0, 1, 2, 3, 4, 5]);
     let corpus = MascCorpus::read(&root).unwrap();
-    let opennlp: Vec<Vec<String>> = MascNameReader::new(&corpus).unwrap().map(|s| names(&s.unwrap().sample)).collect();
     let one = |s: &str| vec![s.to_owned()];
-    assert_eq!(
-        opennlp,
-        [
-            one("2 4 person"),
-            one("2 3 person"),
-            one("2 5 person"),
-            one("0 2 person"),
-            one("0 2 person"),
-            one("0 3 person")
-        ]
-    );
     let (persons, _, _) = read(&corpus, &PERSON);
     let ours: Vec<Vec<String>> = persons.iter().map(names).collect();
     assert_eq!(

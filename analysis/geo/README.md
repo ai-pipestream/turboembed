@@ -59,6 +59,21 @@ cargo run --release -p turbo-geo --example load_report -- geonames all.txt all.s
 rows as `allCountries.txt` and a similar spread of alternate names and
 scripts, for when the real file is not at hand.
 
+## Linking cost
+
+`GeoEntityLinker::link_mentions` builds a document's context once: every
+candidate's Geohash with its centre (each distinct hash decoded once), and
+small ids for mention keys and candidate hash lists, which each mention's
+scoring borrows instead of copying. Mentions with the same key and candidate
+hashes share one Geohash scoring. `examples/linker_bench.rs` times it on made
+up documents of 10, 100 and 1000 mentions with the allocations of one run,
+the peak resident set and a checksum of every score's bits, which two builds
+can compare:
+
+```
+cargo run --release -p turbo-geo --example linker_bench -- 5
+```
+
 ## Names in running text
 
 `name_image` (on `InMemoryGazetteer`, `BundledGazetteer`, `GeoNamesGazetteer`,

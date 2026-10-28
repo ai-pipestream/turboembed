@@ -1,7 +1,6 @@
 //! Exact source-coordinate GFM and ASCII grids, without changing block detection.
 use turbo_analysis::{Annotator, Error, Layer, Refs, Span, View, ViewId};
 use turbo_analysis_layers::{Block, ColumnAlign, TableCell, Tables};
-use turbo_unicode::WhitespaceMode;
 
 use crate::{Syntax, detect, line::Lines};
 
@@ -37,7 +36,7 @@ pub(super) fn cell_limit(width: usize, rows: usize, remaining: usize) -> Result<
 
 pub(super) fn trim(text: &str, start: usize, end: usize) -> Span {
     let source = &text[start..end];
-    let inner = WhitespaceMode::Unicode.trim(source);
+    let inner = turbo_unicode::whitespace::trim(source);
     let first = if inner.is_empty() { start } else { start + inner.as_ptr() as usize - source.as_ptr() as usize };
     Span::new(first as u32, (first + inner.len()) as u32)
 }

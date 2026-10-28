@@ -208,14 +208,13 @@ the spans and probabilities the JVM recorded with it.
 
 ## liblinear trainer
 
-`liblinear::train_events` is the liblinear add-on of the OpenNLP addons:
-`new LiblinearTrainer(params)`, `init` and `train`, with the logistic
-regression solvers of liblinear-java ported in the module, the model's
-`eval`, and its serialized form (`liblinear::format`). Only the solvers
-whose models the add-on can score are ported. `docs/liblinear.md` lists
-the add-on's quirks, the tolerances and the measured agreement with the
-JVM; `tests/liblinear_goldens.rs` compares with the `train-liblinear`
-goldens.
+The native liblinear solvers, direct scoring, checked construction and text
+serialization remain pending the training-stack migration in #1532. The OpenNLP
+binary-envelope reader (`liblinear::format::read`) returns `ModelError::Disabled`
+before decoding. This closes an independent loading path outside `ModelFile`.
+Tests cover native learned cues, probability arithmetic, text round trips,
+malformed text and refusal of the retired envelope. They do not load an Apache
+model or use JVM output as expected results.
 
 ## OpenNLP behaviour worth knowing
 
