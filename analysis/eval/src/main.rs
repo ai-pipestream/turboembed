@@ -47,6 +47,9 @@ usage:
       compare two directories of cut dumps (run --dump-cuts), one per set,
       document by document; each differing cut is printed with both runs'
       margins; exit status 1 when any cut differs, 2 on an error
+  turbo-eval analysis --gold <file.conllu> --sha256 <hex> --out <file>
+      [--pred <name=file.conllu> ...] [--sentences rule|sat]
+      peer analysis scores on a SHA-pinned CoNLL-U test file (#1521)
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
@@ -135,6 +138,7 @@ fn run(args: &[String]) -> Result<ExitCode> {
             }
             Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
+        Some("analysis") => turbo_eval::analysis_bench::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
             println!("{report}");

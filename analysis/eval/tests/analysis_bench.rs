@@ -1,0 +1,106 @@
+use turbo_eval::analysis::Sentencer;
+use turbo_eval::analysis_bench::{command, parse_conllu, score_conllu, score_sentencer};
+use turbo_eval::sha::{sha256, to_hex};
+
+const GOLD: &str = concat!(
+    "# text = Cats purr.\n",
+    "1\tCats\tcat\tNOUN\tNN\tNumber=Plur\t2\tnsubj\t_\t_\n",
+    "2\tpurr\tpurr\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+    "3\t.\t.\tPUNCT\t.\t_\t2\tpunct\t_\t_\n",
+    "\n",
+    "# text = Dogs bark.\n",
+    "1-2\tDogs\t_\t_\t_\t_\t_\t_\t_\t_\n",
+    "1\tDogs\tdog\tNOUN\tNN\tNumber=Plur\t2\tnsubj\t_\t_\n",
+    "2\tbark\tbark\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+    "3\t.\t.\tPUNCT\t.\t_\t2\tpunct\t_\t_\n",
+);
+
+#[test]
+fn parse_skips_multiword_ranges_and_keeps_sentence_text() {
+    let gold = parse_conllu(GOLD).unwrap();
+    assert_eq!(gold.len(), 2);
+    assert_eq!(gold[0].text.as_deref(), Some("Cats purr."));
+    assert_eq!(gold[1].tokens.len(), 3);
+    assert_eq!(gold[1].tokens[0].form, "Dogs");
+}
+
+#[test]
+fn malformed_rows_are_refused_with_the_line_number() {
+    let err = parse_conllu("1\tCats\tcat\n").unwrap_err();
+    assert!(err.contains("line 1"), "{err}");
+    assert!(err.contains("expected 10"), "{err}");
+}
+
+#[test]
+fn a_perfect_prediction_scores_one_hundred_everywhere() {
+    let gold = parse_conllu(GOLD).unwrap();
+    let scores = score_conllu("self", &gold, &gold, 20);
+    assert_eq!(scores.sentences.score, 100.0);
+    assert_eq!(scores.tokens.unwrap().score, 100.0);
+    assert_eq!(scores.upos.unwrap().score, 100.0);
+    assert_eq!(scores.las.unwrap().score, 100.0);
+    assert_eq!(scores.token_mismatch_sentences, 0);
+    assert!(scores.entities.is_none());
+}
+
+#[test]
+fn field_errors_and_token_mismatches_are_counted_not_aligned_away() {
+    let gold = parse_conllu(GOLD).unwrap();
+    let mut pred = gold.clone();
+    pred[0].tokens[0].upos = "PROPN".into();
+    pred[0].tokens[0].head = Some(0);
+    pred[1].tokens.remove(1);
+    let scores = score_conllu("altered", &gold, &pred, 0);
+    assert_eq!(scores.token_mismatch_sentences, 1);
+    // Fields count only in aligned sentences: sentence one has one UPOS
+    // and one head error; the mismatched second sentence contributes zero.
+    assert_eq!(scores.upos.unwrap().correct, 2);
+    assert_eq!(scores.uas.as_ref().unwrap().correct, 2);
+    assert!(scores.uas.unwrap().low.is_none(), "no resamples were requested");
+}
+
+#[test]
+fn the_rule_sentencer_scores_the_joined_gold_text() {
+    let gold = parse_conllu(GOLD).unwrap();
+    let scores = score_sentencer("turbo-rule", &gold, &Sentencer::rule()).unwrap();
+    assert_eq!(scores.sentences.score, 100.0);
+    assert!(scores.tokens.is_none());
+    assert!(scores.throughput_sentences_per_second.is_some_and(|t| t > 0.0));
+}
+
+#[test]
+fn the_command_writes_a_record_and_refuses_a_wrong_pin() {
+    let dir = std::env::temp_dir().join(format!("turbo-eval-analysis-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let gold = dir.join("gold.conllu");
+    std::fs::write(&gold, GOLD).unwrap();
+    let digest = to_hex(&sha256(GOLD.as_bytes()));
+    let out = dir.join("record.json");
+    let args = |sha: &str| {
+        vec![
+            "--gold".into(),
+            gold.to_string_lossy().into_owned(),
+            "--sha256".into(),
+            sha.into(),
+            "--out".into(),
+            out.to_string_lossy().into_owned(),
+            "--pred".into(),
+            format!("gold-as-pred={}", gold.display()),
+            "--sentences".into(),
+            "rule".into(),
+            "--resamples".into(),
+            "10".into(),
+        ]
+    };
+    let err = command(&args("00")).unwrap_err();
+    assert!(err.contains("sha256"), "{err}");
+
+    command(&args(&digest)).unwrap();
+    let record: serde_json::Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
+    assert_eq!(record["gold_sha256"], digest);
+    assert_eq!(record["sentences"], 2);
+    assert_eq!(record["systems"].as_array().unwrap().len(), 2);
+    assert_eq!(record["systems"][0]["upos"]["score"], 100.0);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
