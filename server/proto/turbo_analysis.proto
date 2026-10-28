@@ -586,6 +586,17 @@ message AnalyzeOptions
   // Sliding-window stride in subword pieces for
   // ANALYZE_OUTPUT_TOKEN_VECTORS; 0 uses half the window width.
   uint32 token_stride = 9;
+
+  // TURBO_QUANTIZE_*: 0 or TURBO_QUANTIZE_NONE is f32, TURBO_QUANTIZE_INT8
+  // and TURBO_QUANTIZE_UBINARY the codes turbo.h defines.
+  // ANALYZE_OUTPUT_VECTORS only.
+  uint32 quantization = 10;
+
+  // For TURBO_QUANTIZE_INT8 alone, and then required: [2, width] f32 in
+  // row-major order, each dimension's minimum, then each one's maximum,
+  // where width is output_dim or the model's dim. Documents batch together
+  // only with documents giving the same table.
+  repeated float int8_ranges = 11;
 }
 
 // One document to analyze: its client correlation id, the served model's
@@ -650,9 +661,13 @@ message AnalyzeVectors
   // Values per row; over 0.
   uint32 dim = 3;
 
-  // dim x 4 little-endian f32, row-major: exactly the row the
-  // single-document call answers with.
+  // The row the single-document call answers with for the same text
+  // and options: dim x 4 little-endian f32, or as quantization says,
+  // dim int8 codes or (dim + 7) / 8 bytes of packed sign bits.
   bytes data = 4;
+
+  // TURBO_QUANTIZE_* of data: what the document asked for, 0 as given.
+  uint32 quantization = 5;
 }
 
 // Why one document failed: the turbo status the refusal carries, as the

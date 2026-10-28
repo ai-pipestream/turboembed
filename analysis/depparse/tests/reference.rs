@@ -3,7 +3,6 @@ use turbo_analysis::{Ix, ViewId};
 use turbo_analysis_layers::{Tokens, Words};
 use turbo_depparse::*;
 use turbo_formats::conllu::{ConlluDependencySample, Tagset};
-use turbo_unicode::WhitespaceMode;
 
 fn fields<'a>(lines: &mut impl Iterator<Item = &'a str>, kind: &str) -> Vec<&'a str> {
     let mut row = lines.next().unwrap().split('\t');
@@ -68,8 +67,7 @@ fn ud_samples_keep_offsets_ranges_and_fields_through_graph_and_layer() {
     let mut multiwords = 0;
     for source in [include_str!("data/ud-en.conllu"), include_str!("data/ud-es.conllu")] {
         for block in source.trim_end().split("\n\n") {
-            let data = ConlluDependencySample::read_sentence(block, Tagset::U, WhitespaceMode::Unicode, ViewId::SOURCE)
-                .unwrap();
+            let data = ConlluDependencySample::read_sentence(block, Tagset::U, ViewId::SOURCE).unwrap();
             multiwords += data.multiword_tokens.len();
             for (word, span) in data.sample.tokens().iter().zip(&data.word_spans) {
                 assert_eq!(&block[span.range()], word.as_str());

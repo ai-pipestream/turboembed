@@ -7,8 +7,7 @@
 //! holds the formats of one kind under their names. OpenNLP's registry is
 //! one map from sample class to format name to factory, with untyped
 //! parameters parsed from the command line; here each kind has its own
-//! registry, a format's parameters are fields of the format value, and
-//! the only parameter every format shares is in [`ReadOptions`].
+//! registry, and a format's parameters are fields of the format value.
 //!
 //! [`Registry::with_native`] holds OpenNLP's own format of the kind under
 //! [`OPENNLP_FORMAT`]. The conversion formats need a detokenizer
@@ -31,8 +30,6 @@
 mod formats;
 
 use std::fmt;
-
-use turbo_unicode::WhitespaceMode;
 
 pub use self::formats::{
     Conll02Names, Conll03Names, ConllXPos, ConllXSentences, ConllXTokens, ConlluDependencies, ConlluLemmas, ConlluPos,
@@ -100,22 +97,13 @@ kinds! {
 /// A stream of samples of kind `K` read from a source text.
 pub type Samples<'a, K> = Box<dyn Iterator<Item = Result<<K as SampleKind>::Sample<'a>, FormatError>> + 'a>;
 
-/// The options every format is opened with.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct ReadOptions {
-    /// What splits whitespace-separated lines, for the formats that split
-    /// them (`WhitespaceTokenizer`, which follows OpenNLP's process-wide
-    /// `WhitespaceMode`).
-    pub whitespace: WhitespaceMode,
-}
-
 /// A format samples of kind `K` are read from.
 pub trait Format<K: SampleKind>: Send + Sync {
     /// The name the format is registered under.
     fn name(&self) -> &str;
 
     /// The samples of `source`.
-    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, K>, FormatError>;
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, K>, FormatError>;
 }
 
 /// A format name registered twice.
@@ -202,9 +190,9 @@ impl<K: SampleKind> Registry<K> {
     }
 
     /// The samples of `source` in the format named `name`.
-    pub fn open<'a>(&'a self, name: &str, source: &'a str, options: ReadOptions) -> Result<Samples<'a, K>, OpenError> {
+    pub fn open<'a>(&'a self, name: &str, source: &'a str) -> Result<Samples<'a, K>, OpenError> {
         let format = self.get(name).ok_or_else(|| OpenError::Unknown { kind: K::JAVA_CLASS, name: name.into() })?;
-        format.open(source, options).map_err(OpenError::Format)
+        format.open(source).map_err(OpenError::Format)
     }
 }
 
@@ -229,7 +217,7 @@ impl<K: NativeFormat> Default for Registry<K> {
 
 /// OpenNLP's own format of a kind, read by `$reader`.
 macro_rules! native {
-    ($($(#[$doc:meta])* $format:ident: $kind:ident => |$source:ident, $options:ident| $open:expr;)*) => {$(
+    ($($(#[$doc:meta])* $format:ident: $kind:ident => |$source:ident| $open:expr;)*) => {$(
         $(#[$doc])*
         #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
         pub struct $format;
@@ -239,7 +227,7 @@ macro_rules! native {
                 OPENNLP_FORMAT
             }
 
-            fn open<'a>(&'a self, $source: &'a str, $options: ReadOptions) -> Result<Samples<'a, $kind>, FormatError> {
+            fn open<'a>(&'a self, $source: &'a str) -> Result<Samples<'a, $kind>, FormatError> {
                 Ok(Box::new($open?))
             }
         }
@@ -254,19 +242,19 @@ macro_rules! native {
 
 native! {
     /// The name format ([`NameReader`]).
-    NativeNames: NameSamples => |source, options| NameReader::new(source, options.whitespace);
+    NativeNames: NameSamples => |source| NameReader::new(source);
     /// The word and tag format ([`WordTagReader`]).
-    NativePos: PosSamples => |source, options| WordTagReader::new(source, options.whitespace);
+    NativePos: PosSamples => |source| WordTagReader::new(source);
     /// The lemma format ([`LemmaReader`]).
-    NativeLemmas: LemmaSamples => |source, _options| LemmaReader::new(source);
+    NativeLemmas: LemmaSamples => |source| LemmaReader::new(source);
     /// The chunk format ([`ChunkReader`]).
-    NativeChunks: ChunkSamples => |source, _options| ChunkReader::new(source);
+    NativeChunks: ChunkSamples => |source| ChunkReader::new(source);
     /// The token format with `<SPLIT>` ([`TokenReader`]).
-    NativeTokens: TokenSamples => |source, options| TokenReader::new(source, options.whitespace);
+    NativeTokens: TokenSamples => |source| TokenReader::new(source);
     /// The sentence format ([`SentenceReader`]).
-    NativeSentences: SentenceSamples => |source, _options| SentenceReader::new(source);
+    NativeSentences: SentenceSamples => |source| SentenceReader::new(source);
     /// The document category format ([`DocumentReader`]).
-    NativeDocuments: DocumentSamples => |source, options| DocumentReader::new(source, options.whitespace);
+    NativeDocuments: DocumentSamples => |source| DocumentReader::new(source);
     /// The language format ([`LanguageReader`]).
-    NativeLanguages: LanguageSamples => |source, _options| LanguageReader::new(source);
+    NativeLanguages: LanguageSamples => |source| LanguageReader::new(source);
 }

@@ -47,11 +47,10 @@ fn duplicates_affect_training_values_but_not_presence_ranking() {
 #[test]
 fn trainer_prepares_selected_bow_and_ngram_events() {
     use turbo_doccat::{BuiltinFeatureGenerator, NGramFeatureGenerator};
-    let samples: Vec<_> =
-        DocumentReader::new("a\tred fox\na\tred fox\nb\tblue bird\nb\tblue bird\n", Default::default())
-            .unwrap()
-            .map(Result::unwrap)
-            .collect();
+    let samples: Vec<_> = DocumentReader::new("a\tred fox\na\tred fox\nb\tblue bird\nb\tblue bird\n")
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
     let factory =
         DoccatFactory::with_feature_generators(vec![BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::default())]);
     let trainer = DoccatTrainer::new(factory)

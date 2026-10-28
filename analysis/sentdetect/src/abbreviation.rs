@@ -6,10 +6,10 @@
 //! start of the current segment. The split is refused when such an entry:
 //!
 //! - starts at the segment start and ends exactly at the candidate, or
-//! - starts right after whitespace (`Character.isWhitespace`, whatever the
-//!   whitespace mode), an apostrophe (`'`, `` ` ``, U+00B4) or an opening
-//!   round bracket. An entry starting at the segment start is judged by
-//!   its own first character instead, as the Java does.
+//! - starts right after whitespace (`Character.isWhitespace`), an
+//!   apostrophe (`'`, `` ` ``, U+00B4) or an opening round bracket. An
+//!   entry starting at the segment start is judged by its own first
+//!   character instead, as the Java does.
 //!
 //! Only the first token of a multi-token entry counts, as in the Java, so
 //! an entry `et al.` is indexed as `et`, and "We x et. Then" is not split
