@@ -61,7 +61,7 @@ pub fn pipeline(bundle: &Path, places: &[&str]) -> Result<Analyzer, String> {
         .collect();
     let dictionary = turbo_namefind::Dictionary::from_entries(
         false,
-        places.iter().zip(entries).map(|(place, tokens)| ((*place).to_owned(), tokens)),
+        entries.into_iter().map(|tokens| ("location".to_owned(), tokens)),
     );
     let drift = Drift { window: NonZeroU32::new(2).expect("not zero"), ..Drift::default() };
     Analyzer::builder()
