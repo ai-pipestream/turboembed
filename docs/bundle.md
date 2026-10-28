@@ -337,6 +337,8 @@ router.
 `heads` lists the task heads a bundle carries beside its encoder, so
 one encoder pass serves several tasks (part of speech, entities,
 morphology) and each head is a few small tensors, not a second model.
+`turbo-tagger`'s `MultiTask` runs them that way: each window read once,
+every head decoding from the same states (analysis/tagger/README.md).
 A head runs on the host from the last layer's hidden states, whichever
 device ran the encoder, the way the classifier and the sparse head do.
 Its weights live in a `FORMAT_SAFETENSORS` artifact and are named by the
@@ -356,6 +358,7 @@ so any number of heads fit one artifact.
 | `hash_embed` | Optional, `HEAD_TOKEN_TAGGER` only: `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
 | `biaffine` | A parser's MLP widths, `arc` and `rel`, each 1 to 4096; required for `HEAD_BIAFFINE_PARSER`, refused for any other kind. A parser's `scheme` is `SCHEME_TAGS` and its labels are the dependency relations. |
 | `pos_input` | A lemmatizer's optional tag input: `head` names a `SCHEME_TAGS` token tagger head of the same bundle with `labels` labels, and the lemmatizer reads each word's decoded tag as a learned `dim`-wide embedding (1 to 1024) beside the word vector. Refused for any other kind. A lemmatizer's `scheme` is `SCHEME_TAGS` and its labels are edit trees, each written as `turbo::head::edit_tree::EditTree::label` writes it. |
+| `license_class` | Optional: the class (as `model.license_class` names classes, docs/zoo.md) of the strictest licence among the corpora the head was trained on. The bundle's tier (`Manifest::license_tier`) is the strictest of `model.license_class` and every head's, so a permissive encoder with a head trained on CC BY-SA data is `CLASS_SHARE_ALIKE`. Refused when `model.license_class` is not recorded, since the tier would leave the encoder out. |
 | `artifact` | The name of the `FORMAT_SAFETENSORS` artifact holding the tensors, as `from` and `host_weights` name artifacts. |
 | `tensor_prefix` | Each tensor is named `<tensor_prefix>.<suffix>`. |
 

@@ -17,11 +17,11 @@ use turbo::bundle::Bundle;
 use turbo::head::{EditTreeLemmatizer, TokenTagger, lemmatizer, tagger};
 use turbo::manifest::HeadKind;
 use turbo::status::Error as CoreError;
-use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Refs, View};
+use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Layer, ModelRef, Refs, View};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Lemmas, Sentences, Strs, Subwords, Tokens};
 
-use crate::annotate::{HeadRunner, find_head, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, refuse};
 use crate::words::WordEncoder;
 
 /// A lemma lookup that overrides the head where it has an answer.
@@ -135,42 +135,8 @@ impl Lemmatizer {
         pos: Option<&[Vec<f32>]>,
         forms: &[Vec<&str>],
     ) -> Result<Vec<Vec<String>>, CoreError> {
-        let hidden = self.head.hidden();
-        let (mut scores, mut tags, mut trees) = (Vec::new(), Vec::new(), Vec::new());
-        let (mut tw, mut lw) = (tagger::Work::default(), lemmatizer::Work::default());
-        let mut out = Vec::with_capacity(head.len());
-        for (s, f) in head.iter().enumerate() {
-            let n = f.len() / hidden;
-            let ids: Vec<u32> = (0..n as u32).collect();
-            let words = &forms[s];
-            if words.len() != n {
-                return Err(refuse(format!("{} forms for {n} words", words.len())));
-            }
-            let tagged = match &self.pos {
-                Some(t) => {
-                    let pf = pos.map_or(f, |p| &p[s]);
-                    // A hashed tag head reads each word's text too.
-                    t.scores_forms(pf, &ids, Some(words), &mut scores, &mut tw)?;
-                    t.decode(&scores, n, &mut tags)?;
-                    Some(&tags[..])
-                }
-                None => None,
-            };
-            self.head.scores(f, &ids, tagged, &mut scores, &mut lw)?;
-            self.head.decode(&scores, words, &mut trees)?;
-            let mut lemmas = self.head.lemmas(&trees, words)?;
-            if let Some(d) = &self.dictionary {
-                let labels = self.pos.as_ref().map(TokenTagger::labels);
-                for (k, lemma) in lemmas.iter_mut().enumerate() {
-                    let tag = labels.zip(tagged).map(|(l, t)| l[t[k] as usize].as_str());
-                    if let Some(listed) = d.lookup.lemma(words[k], tag) {
-                        *lemma = listed;
-                    }
-                }
-            }
-            out.push(lemmas);
-        }
-        Ok(out)
+        let dictionary = self.dictionary.as_ref().map(|d| d.lookup.as_ref());
+        lemmas_with(&self.head, self.pos.as_ref(), dictionary, head, pos, forms)
     }
 
     /// The lemma layer over every token of the view, the pieces from
@@ -187,23 +153,9 @@ impl Lemmatizer {
         let mut read = |pooling| words.token_features(view, tokens, &seqs, subwords, pooling);
         let (head, pos) = self.features(&mut read)?;
         drop(words);
-        let text = view.text();
-        let forms: Vec<Vec<&str>> = seqs
-            .iter()
-            .map(|s| s.iter().map(|&i| &text[tokens.spans.get(Ix::new(i as u32)).range()]).collect())
-            .collect();
+        let forms = forms_of(view, tokens, &seqs);
         let lemmas = self.lemmas_of(&head, pos.as_deref(), &forms).map_err(|e| e.to_string())?;
-        let mut of: Vec<Option<String>> = vec![None; tokens.spans.len()];
-        for (s, l) in seqs.iter().zip(lemmas) {
-            for (&i, lemma) in s.iter().zip(l) {
-                of[i] = Some(lemma);
-            }
-        }
-        let mut lemma = Strs::default();
-        for l in of {
-            lemma.push(&l.ok_or("a token lies outside every sentence")?);
-        }
-        Ok(Lemmas { lemma })
+        lemma_layer(tokens, &seqs, lemmas)
     }
 }
 
@@ -235,4 +187,68 @@ impl Annotator for Lemmatizer {
             .str(dictionary)
             .finish()
     }
+}
+
+/// Each sequence's lemmas by `lem`, from its features (`pos` the
+/// `pos_tagger`'s, when it pools words another way), `forms` its words' text;
+/// `dictionary` over the head where it lists a lemma.
+pub(crate) fn lemmas_with(
+    lem: &EditTreeLemmatizer,
+    pos_tagger: Option<&TokenTagger>,
+    dictionary: Option<&dyn LemmaDictionary>,
+    head: &[Vec<f32>],
+    pos: Option<&[Vec<f32>]>,
+    forms: &[Vec<&str>],
+) -> Result<Vec<Vec<String>>, CoreError> {
+    let hidden = lem.hidden();
+    let (mut scores, mut tags, mut trees) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut tw, mut lw) = (tagger::Work::default(), lemmatizer::Work::default());
+    let mut out = Vec::with_capacity(head.len());
+    for (s, f) in head.iter().enumerate() {
+        let n = f.len() / hidden;
+        let ids: Vec<u32> = (0..n as u32).collect();
+        let words = &forms[s];
+        if words.len() != n {
+            return Err(refuse(format!("{} forms for {n} words", words.len())));
+        }
+        let tagged = match pos_tagger {
+            Some(t) => {
+                let pf = pos.map_or(f, |p| &p[s]);
+                // A hashed tag head reads each word's text too.
+                t.scores_forms(pf, &ids, Some(words), &mut scores, &mut tw)?;
+                t.decode(&scores, n, &mut tags)?;
+                Some(&tags[..])
+            }
+            None => None,
+        };
+        lem.scores(f, &ids, tagged, &mut scores, &mut lw)?;
+        lem.decode(&scores, words, &mut trees)?;
+        let mut lemmas = lem.lemmas(&trees, words)?;
+        if let Some(d) = dictionary {
+            let labels = pos_tagger.map(TokenTagger::labels);
+            for (k, lemma) in lemmas.iter_mut().enumerate() {
+                let tag = labels.zip(tagged).map(|(l, t)| l[t[k] as usize].as_str());
+                if let Some(listed) = d.lemma(words[k], tag) {
+                    *lemma = listed;
+                }
+            }
+        }
+        out.push(lemmas);
+    }
+    Ok(out)
+}
+
+/// The lemma layer from each sequence's lemmas.
+pub(crate) fn lemma_layer(tokens: &Tokens, seqs: &[Vec<usize>], lemmas: Vec<Vec<String>>) -> Result<Lemmas, String> {
+    let mut of: Vec<Option<String>> = vec![None; tokens.spans.len()];
+    for (s, l) in seqs.iter().zip(lemmas) {
+        for (&i, lemma) in s.iter().zip(l) {
+            of[i] = Some(lemma);
+        }
+    }
+    let mut lemma = Strs::default();
+    for l in of {
+        lemma.push(&l.ok_or("a token lies outside every sentence")?);
+    }
+    Ok(Lemmas { lemma })
 }

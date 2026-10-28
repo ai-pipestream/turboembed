@@ -111,7 +111,7 @@ impl HeadRunner {
     pub fn decode(&self, sequences: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
         let pooling = self.tagger.spec().word_pooling;
         let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, pooling)?;
-        self.decode_features(&features, sequences)
+        decode_with(&self.tagger, &features, sequences)
     }
 
     /// Each sequence of `tokens` decoded, its pieces from `subwords` when
@@ -127,40 +127,8 @@ impl HeadRunner {
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
         let features = words.token_features(view, tokens, seqs, subwords, pooling)?;
         drop(words);
-        let text = view.text();
-        let forms: Vec<Vec<&str>> = seqs
-            .iter()
-            .map(|s| s.iter().map(|&i| &text[tokens.spans.get(Ix::new(i as u32)).range()]).collect())
-            .collect();
-        self.decode_features(&features, &forms).map_err(|e| e.to_string())
-    }
-
-    /// Each sequence decoded from its word features and its words' text,
-    /// which a head with a `hash_embed` reads.
-    fn decode_features(&self, features: &[Vec<f32>], forms: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
-        let (mut scores, mut work) = (Vec::new(), Work::default());
-        let labels = self.tagger.labels().len();
-        let hidden = self.tagger.hidden();
-        let mut out = Vec::with_capacity(features.len());
-        for (f, forms) in features.iter().zip(forms) {
-            let n = f.len() / hidden;
-            let words: Vec<u32> = (0..n as u32).collect();
-            self.tagger.scores_forms(f, &words, Some(forms), &mut scores, &mut work)?;
-            let mut tags = Vec::new();
-            self.tagger.decode(&scores, n, &mut tags)?;
-            let prob = tags
-                .iter()
-                .enumerate()
-                .map(|(w, &t)| {
-                    let row = &scores[w * labels..][..labels];
-                    let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64;
-                    let z: f64 = row.iter().map(|&v| (v as f64 - m).exp()).sum();
-                    (row[t as usize] as f64 - m).exp() / z
-                })
-                .collect();
-            out.push(Decoded { tags, prob });
-        }
-        Ok(out)
+        let forms = forms_of(view, tokens, seqs);
+        decode_with(&self.tagger, &features, &forms).map_err(|e| e.to_string())
     }
 
     /// The token indices of each sequence of `tokens`, in order: by the
@@ -224,18 +192,7 @@ impl HeadRunner {
     ) -> Result<PosTags, String> {
         let seqs = Self::sequences(view, tokens, sentences)?;
         let decoded = self.decode_tokens(view, tokens, &seqs, subwords)?;
-        let n = tokens.spans.len();
-        let (mut tags, mut prob) = (vec![Tag(0); n], vec![0.0; n]);
-        let mut seen = vec![false; n];
-        for (s, d) in seqs.iter().zip(&decoded) {
-            for (k, &i) in s.iter().enumerate() {
-                (tags[i], prob[i], seen[i]) = (Tag(d.tags[k] as u16), d.prob[k], true);
-            }
-        }
-        if seen.iter().any(|s| !s) {
-            return Err("a token lies outside every sentence".into());
-        }
-        Ok(PosTags { tagset: tagset.clone(), tags, prob: Some(prob) })
+        pos_layer(tokens, &seqs, &decoded, tagset)
     }
 
     /// The entities `head` marks: each span from its first word's start
@@ -251,26 +208,7 @@ impl HeadRunner {
     ) -> Result<Entities, String> {
         let seqs = Self::sequences(view, tokens, sentences)?;
         let decoded = self.decode_tokens(view, tokens, &seqs, subwords)?;
-        let mut out = Entities {
-            spans: Spans::new(view.id()),
-            tokens: Vec::new(),
-            kind: Vec::new(),
-            kinds: kinds.clone(),
-            score: Vec::new(),
-        };
-        for (s, d) in seqs.iter().zip(&decoded) {
-            for w in self.tagger.spans(&d.tags).map_err(|e| e.to_string())? {
-                let (a, b) = (s[w.start as usize], s[w.end as usize - 1]);
-                let start = tokens.spans.get(Ix::new(a as u32)).start;
-                let end = tokens.spans.get(Ix::new(b as u32)).end;
-                out.spans.push(Span::new(start, end));
-                out.tokens.push(IxRange::new(a as u32, b as u32 + 1));
-                out.kind.push(Tag(w.kind as u16));
-                let p = &d.prob[w.start as usize..w.end as usize];
-                out.score.push(p.iter().sum::<f64>() / p.len() as f64);
-            }
-        }
-        Ok(out)
+        entity_layer(&self.tagger, view, tokens, &seqs, &decoded, kinds)
     }
 
     pub fn model(&self) -> &ModelRef {
@@ -290,4 +228,92 @@ impl HeadRunner {
     pub fn scheme(&self) -> Scheme {
         self.tagger.spec().scheme
     }
+}
+
+/// Each sequence decoded by `tagger` from its word features and its
+/// words' text, which a head with a `hash_embed` reads.
+pub(crate) fn decode_with(tagger: &TokenTagger, features: &[Vec<f32>], forms: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
+    let (mut scores, mut work) = (Vec::new(), Work::default());
+    let labels = tagger.labels().len();
+    let hidden = tagger.hidden();
+    let mut out = Vec::with_capacity(features.len());
+    for (f, forms) in features.iter().zip(forms) {
+        let n = f.len() / hidden;
+        let words: Vec<u32> = (0..n as u32).collect();
+        tagger.scores_forms(f, &words, Some(forms), &mut scores, &mut work)?;
+        let mut tags = Vec::new();
+        tagger.decode(&scores, n, &mut tags)?;
+        let prob = tags
+            .iter()
+            .enumerate()
+            .map(|(w, &t)| {
+                let row = &scores[w * labels..][..labels];
+                let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64;
+                let z: f64 = row.iter().map(|&v| (v as f64 - m).exp()).sum();
+                (row[t as usize] as f64 - m).exp() / z
+            })
+            .collect();
+        out.push(Decoded { tags, prob });
+    }
+    Ok(out)
+}
+
+/// The part-of-speech layer from each sequence's decoded tags.
+pub(crate) fn pos_layer(
+    tokens: &Tokens,
+    seqs: &[Vec<usize>],
+    decoded: &[Decoded],
+    tagset: &Arc<TagSet>,
+) -> Result<PosTags, String> {
+    let n = tokens.spans.len();
+    let (mut tags, mut prob) = (vec![Tag(0); n], vec![0.0; n]);
+    let mut seen = vec![false; n];
+    for (s, d) in seqs.iter().zip(decoded) {
+        for (k, &i) in s.iter().enumerate() {
+            (tags[i], prob[i], seen[i]) = (Tag(d.tags[k] as u16), d.prob[k], true);
+        }
+    }
+    if seen.iter().any(|s| !s) {
+        return Err("a token lies outside every sentence".into());
+    }
+    Ok(PosTags { tagset: tagset.clone(), tags, prob: Some(prob) })
+}
+
+/// The entity layer from each sequence's decoded labels: each span from
+/// its first word's start to its last word's end, scored by the mean of
+/// its words' probabilities.
+pub(crate) fn entity_layer(
+    tagger: &TokenTagger,
+    view: &View,
+    tokens: &Tokens,
+    seqs: &[Vec<usize>],
+    decoded: &[Decoded],
+    kinds: &Arc<TagSet>,
+) -> Result<Entities, String> {
+    let mut out = Entities {
+        spans: Spans::new(view.id()),
+        tokens: Vec::new(),
+        kind: Vec::new(),
+        kinds: kinds.clone(),
+        score: Vec::new(),
+    };
+    for (s, d) in seqs.iter().zip(decoded) {
+        for w in tagger.spans(&d.tags).map_err(|e| e.to_string())? {
+            let (a, b) = (s[w.start as usize], s[w.end as usize - 1]);
+            let start = tokens.spans.get(Ix::new(a as u32)).start;
+            let end = tokens.spans.get(Ix::new(b as u32)).end;
+            out.spans.push(Span::new(start, end));
+            out.tokens.push(IxRange::new(a as u32, b as u32 + 1));
+            out.kind.push(Tag(w.kind as u16));
+            let p = &d.prob[w.start as usize..w.end as usize];
+            out.score.push(p.iter().sum::<f64>() / p.len() as f64);
+        }
+    }
+    Ok(out)
+}
+
+/// Each sequence's words' text.
+pub(crate) fn forms_of<'v>(view: &'v View, tokens: &Tokens, seqs: &[Vec<usize>]) -> Vec<Vec<&'v str>> {
+    let text = view.text();
+    seqs.iter().map(|s| s.iter().map(|&i| &text[tokens.spans.get(Ix::new(i as u32)).range()]).collect()).collect()
 }

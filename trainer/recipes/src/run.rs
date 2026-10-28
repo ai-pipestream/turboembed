@@ -62,6 +62,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         biaffine: None,
         pos_input: None,
         hash_embed: o.hash,
+        license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),
     };
