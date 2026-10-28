@@ -19,6 +19,7 @@ fn spec() -> HeadSpec {
         adapter: None,
         decode: Decode::Mst,
         biaffine: Some(Biaffine { arc: 1, rel: 1 }),
+        pos_input: None,
         hash_embed: None,
         artifact: "weights".into(),
         tensor_prefix: "review".into(),
