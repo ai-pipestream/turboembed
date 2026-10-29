@@ -75,6 +75,17 @@ The turbo-zoo image runs the server this way, with the demo page in
 front of it and, through `docker-compose.zoo.yml`, RustFS as its store
 (docs/zoo-container.md).
 
+## Prefetch
+
+`--catalog-prefetch permissive` (or `TURBO_KSERVE_CATALOG_PREFETCH`)
+installs every permissive artifact the index lists, in the background
+from the start, one after another, through `--catalog-store` when one
+is set. Each install takes the same free disk check and verified fetch
+as `InstallModel` and holds the artifact's read-through gate, so a read
+that arrives meanwhile waits for it. A failure is logged and the next
+artifact is tried. Artifacts that need an acceptance are never
+prefetched. It needs `--catalog-dir`.
+
 ## Listing
 
 `ListModelCatalog` takes optional filters, `kind` (`KIND_LEXICON`, as

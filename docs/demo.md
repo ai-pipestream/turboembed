@@ -375,6 +375,14 @@ for any refused call.
   streams its stages and files into a progress bar.
   `ListLicenceAcceptances` lists the terms accepted, with when and on
   which artifact's page, each with `RevokeLicenceAcceptance` (write).
+  An artifact whose licence, or any data it was trained on, is
+  non-commercial (`CC-BY-NC-*`) says "Non-commercial use only" beside
+  its licence. Once the user may have an artifact, a Save button per
+  file reads it through `ReadModelFile` (a read, the same stream the
+  library reads), hashes it as it arrives, and hands the browser the
+  file only when its size and SHA-256 are the ones the catalog lists
+  (demo/web/src/tabs/download.ts). The file is held in the page's
+  memory until it is saved.
   Without `--user`, or on a server without `--admin`, the tab says it
   is read-only and shows no controls. `ListInstalledModels`.
   `ListTeachers`, `TrainStaticModel` (write) streaming each stage with

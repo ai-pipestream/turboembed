@@ -99,6 +99,7 @@ async fn main() -> ExitCode {
     let serve = Serve {
         admin: args.admin,
         zoo: args.zoo,
+        prefetch: args.catalog_prefetch,
         vocabulary: args.vocabulary_dir.map(PathBuf::from),
         catalog,
         training: args.training_dir.map(PathBuf::from),

@@ -123,11 +123,18 @@ pub(crate) struct CatalogService {
 }
 
 impl CatalogService {
-    pub(crate) fn new(catalog: Option<Catalog>, admin: bool, zoo: bool) -> CatalogService {
+    /// With `prefetch`, every permissive artifact is installed in the
+    /// background from now on (through.rs).
+    pub(crate) fn new(catalog: Option<Catalog>, admin: bool, zoo: bool, prefetch: bool) -> CatalogService {
+        let through = zoo.then(through::Fetching::default);
+        if prefetch && let Some(c) = &catalog {
+            let (c, gates) = (c.clone(), through.clone().unwrap_or_default());
+            tokio::task::spawn_blocking(move || through::prefetch(&c, &gates));
+        }
         CatalogService {
             catalog,
             admin,
-            through: zoo.then(through::Fetching::default),
+            through,
             installing: Arc::new(AtomicBool::new(false)),
             accepting: Arc::new(Mutex::new(())),
         }

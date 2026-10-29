@@ -96,6 +96,10 @@ if [[ $code != 401 ]]; then
     echo "a page call with no token answered HTTP $code, not 401" >&2
     exit 1
 fi
+# With the token, the page acts for the image's default user.
+curl --noproxy '*' --silent --show-error --fail --request POST --header 'content-type: application/proto' \
+    --header "authorization: Bearer $TURBO_DEMO_TOKEN" --data-binary '' \
+    "$page/turbo.training.v1.TurboCatalogService/ListLicenceAcceptances" | grep -aq zoo
 
 # The image alone with the page on HTTPS turns healthy: the health check
 # follows the page's scheme. The certificate is made for this run.

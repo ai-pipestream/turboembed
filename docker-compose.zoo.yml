@@ -55,6 +55,8 @@ services:
     environment:
       <<: *store
       TURBO_DEMO_TOKEN: ${TURBO_DEMO_TOKEN:-}
+      TURBO_DEMO_USER: ${TURBO_DEMO_USER:-zoo}
+      TURBO_KSERVE_CATALOG_PREFETCH: ${TURBO_ZOO_PREFETCH:-}
     ports:
       - "${TURBO_ZOO_BIND:-0.0.0.0}:${TURBO_ZOO_PAGE_PORT:-8080}:8080"
       - "${TURBO_ZOO_BIND:-0.0.0.0}:${TURBO_ZOO_GRPC_PORT:-8081}:8081"
