@@ -90,8 +90,8 @@ pub fn attachment(parser: &BiaffineParser, examples: &[ParseExample]) -> Result<
 impl Model for Parser<f32> {
     type Example = ParseExample;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        Parser::params(self)
+    fn params(&self) -> Vec<Vec<f32>> {
+        Parser::params(self).to_vec()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         Parser::set_params(self, params)

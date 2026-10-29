@@ -106,8 +106,8 @@ fn check<'a>(examples: impl Iterator<Item = &'a LemmaExample>, hidden: usize, ta
 impl Model for Lemmatizer<f32> {
     type Example = Prepared;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        Lemmatizer::params(self)
+    fn params(&self) -> Vec<Vec<f32>> {
+        Lemmatizer::params(self).to_vec()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         Lemmatizer::set_params(self, params)

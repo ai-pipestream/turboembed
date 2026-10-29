@@ -100,6 +100,12 @@ impl<R: Real> Tagger<R> {
         &mut self.params[i]
     }
 
+    /// Every tensor, to step in place: each keeps its length, as
+    /// [`set_params`](Self::set_params) checks.
+    pub fn params_mut(&mut self) -> &mut [Vec<R>] {
+        &mut self.params
+    }
+
     /// Replaces every weight, refused unless each tensor keeps its length.
     pub fn set_params(&mut self, params: Vec<Vec<R>>) -> Result<()> {
         let lens: Vec<usize> = self.params.iter().map(Vec::len).collect();

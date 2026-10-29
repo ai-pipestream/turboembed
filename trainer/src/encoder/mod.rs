@@ -9,24 +9,26 @@
 //! R1 heads hold theirs, so `AdamW` steps them as it does a head's: the
 //! word table, the embedding norm, the final norm, then six a layer
 //! (attention norm, QKV, output, MLP norm, MLP in, MLP out); with
-//! adapters, eight more a layer (A and B for each projection) after
-//! them. With adapters the base is frozen: its gradients are not
-//! computed, and `trainable` marks only the adapters.
+//! adapters, eight more a layer that has them (A and B for each
+//! projection) after them. With adapters the base is frozen: its
+//! gradients are neither computed nor stored (`grads` leaves those slots
+//! empty), and `trainable` marks only the adapters. Adapters go on every
+//! layer (`with_lora`) or on the top ones (`with_lora_top`), as #1519
+//! starts.
 //!
-//! One sequence at a time, on one thread, with the probabilities of
-//! every head kept: the reference the later legs (batches, CUDA,
-//! checkpointing, bf16) are held to. No sum is split, so a run gives the
-//! same bytes every time.
+//! One sequence at a time, on one thread; attention recomputes its
+//! probabilities in backward rather than keeping them. No sum is split,
+//! so a run gives the same bytes every time. Batches, threads and the
+//! training loop are in `tuned`; the later legs (CUDA, bf16) are held to
+//! this one.
 
-use std::collections::BTreeMap;
-
-use turbo::manifest::TensorRole;
 use turbo::status::{Result, invalid};
 
 use crate::real::Real;
 use crate::rng::Rng;
 
 pub mod attention;
+mod export;
 pub mod gated;
 mod layer;
 mod load;
@@ -34,7 +36,9 @@ pub mod lora;
 pub mod math;
 pub mod matmul;
 pub mod norm;
+pub mod pool;
 pub mod rope;
+pub mod tuned;
 
 pub use layer::Work as LayerWork;
 
@@ -130,6 +134,8 @@ pub struct Encoder<R: Real> {
     vocab: usize,
     params: Vec<Vec<R>>,
     lora: Option<Lora>,
+    /// The first layer with adapters.
+    lora_from: usize,
     /// Whether the base weights take no gradient (with adapters).
     frozen: bool,
     table: rope::Table<R>,
@@ -178,7 +184,7 @@ impl<R: Real> Encoder<R> {
     pub fn assemble(geo: Geometry, vocab: usize, params: Vec<Vec<R>>) -> Result<Self> {
         geo.check()?;
         let table = rope::Table::new(geo.global_theta, geo.local_theta, geo.max_positions, geo.d())?;
-        let e = Encoder { geo, vocab, params, lora: None, frozen: false, table, empty: Vec::new() };
+        let e = Encoder { geo, vocab, params, lora: None, lora_from: 0, frozen: false, table, empty: Vec::new() };
         let want = e.shapes();
         if e.params.len() != want.len() || e.params.iter().zip(&want).any(|(p, n)| p.len() != *n) {
             return Err(invalid("encoder: the weights do not fit the geometry"));
@@ -189,16 +195,28 @@ impl<R: Real> Encoder<R> {
         Ok(e)
     }
 
-    /// Adds seeded adapters of `lora` to every projection and freezes
-    /// the base.
-    pub fn with_lora(mut self, lora: Lora, rng: &mut Rng) -> Result<Self> {
+    /// Adds seeded adapters of `lora` to every projection of every layer
+    /// and freezes the base.
+    pub fn with_lora(self, lora: Lora, rng: &mut Rng) -> Result<Self> {
+        let layers = self.geo.layers;
+        self.with_lora_top(lora, layers, rng)
+    }
+
+    /// Adds seeded adapters of `lora` to every projection of the top
+    /// `top` layers (1 to all of them) and freezes the base, the lower
+    /// layers included.
+    pub fn with_lora_top(mut self, lora: Lora, top: usize, rng: &mut Rng) -> Result<Self> {
         if self.lora.is_some() {
             return Err(invalid("encoder: already has adapters"));
         }
         if lora.rank == 0 || !(lora.alpha.is_finite() && lora.alpha > 0.0) {
             return Err(invalid("encoder: an adapter needs a rank of at least 1 and a positive alpha"));
         }
-        for _ in 0..self.geo.layers {
+        if top == 0 || top > self.geo.layers {
+            return Err(invalid(format!("encoder: adapters on {top} layers, of 1 to {}", self.geo.layers)));
+        }
+        self.lora_from = self.geo.layers - top;
+        for _ in self.lora_from..self.geo.layers {
             for which in layer::PROJECTIONS {
                 let (inp, out) = self.widths(which);
                 let (a, b) = lora::init(inp, out, lora.rank, rng);
@@ -210,11 +228,22 @@ impl<R: Real> Encoder<R> {
         Ok(self)
     }
 
+    /// The adapters of layer `l`, when it has them.
+    pub(super) fn adapter(&self, l: usize) -> Option<Lora> {
+        self.lora.filter(|_| l >= self.lora_from)
+    }
+
     /// The slots of adapter A and B of projection `which` of layer `l`.
-    fn lora_slots(&self, l: usize, which: usize) -> (usize, usize) {
+    pub(super) fn lora_slots(&self, l: usize, which: usize) -> (usize, usize) {
         let p = layer::PROJECTIONS.iter().position(|&w| w == which).expect("a projection");
-        let a = BASE + PER_LAYER * self.geo.layers + 8 * l + 2 * p;
+        debug_assert!(l >= self.lora_from);
+        let a = BASE + PER_LAYER * self.geo.layers + 8 * (l - self.lora_from) + 2 * p;
         (a, a + 1)
+    }
+
+    /// How many slots the base takes; the adapters follow.
+    pub(super) fn base_slots(&self) -> usize {
+        BASE + PER_LAYER * self.geo.layers
     }
 
     /// Each base slot's element count.
@@ -244,6 +273,18 @@ impl<R: Real> Encoder<R> {
         self.lora
     }
 
+    /// The first layer with adapters (every layer below it is frozen
+    /// base alone); the layer count without adapters.
+    pub fn lora_from(&self) -> usize {
+        if self.lora.is_some() { self.lora_from } else { self.geo.layers }
+    }
+
+    /// Whether the base weights take no gradient (the encoder has
+    /// adapters).
+    pub fn frozen(&self) -> bool {
+        self.frozen
+    }
+
     /// The weights in slot order: the base, then the adapters.
     pub fn params(&self) -> &[Vec<R>] {
         &self.params
@@ -267,21 +308,34 @@ impl<R: Real> Encoder<R> {
         Ok(())
     }
 
-    /// Zero gradients shaped as the weights.
+    /// Zero gradients shaped as the weights, but for the base's slots of
+    /// a frozen encoder, which take no gradient and stay empty.
     pub fn grads(&self) -> Vec<Vec<R>> {
-        self.params.iter().map(|p| vec![R::ZERO; p.len()]).collect()
+        let base = self.base_slots();
+        let len = |s: usize, p: &Vec<R>| if self.frozen && s < base { 0 } else { p.len() };
+        self.params.iter().enumerate().map(|(s, p)| vec![R::ZERO; len(s, p)]).collect()
+    }
+
+    /// Whether `g` is shaped as [`grads`](Self::grads) gives it.
+    pub(super) fn shaped(&self, g: &[Vec<R>]) -> bool {
+        let base = self.base_slots();
+        g.len() == self.params.len()
+            && g.iter()
+                .zip(&self.params)
+                .enumerate()
+                .all(|(s, (a, b))| a.len() == b.len() || (self.frozen && s < base && a.is_empty()))
     }
 
     /// Which slots the optimizer moves: every one, or the adapters alone
     /// when the base is frozen.
     pub fn trainable(&self) -> Vec<bool> {
-        let base = BASE + PER_LAYER * self.geo.layers;
+        let base = self.base_slots();
         (0..self.params.len()).map(|s| !self.frozen || s >= base).collect()
     }
 
     /// Which slots take weight decay: the matrices, not the norms.
     pub fn decay(&self) -> Vec<bool> {
-        let base = BASE + PER_LAYER * self.geo.layers;
+        let base = self.base_slots();
         (0..self.params.len())
             .map(|s| s == WORD || s >= base || (s >= BASE && !matches!((s - BASE) % PER_LAYER, ATTN_NORM | FFN_NORM)))
             .collect()
@@ -327,7 +381,7 @@ impl<R: Real> Encoder<R> {
         if n == 0 || dout.len() != n * h {
             return Err(invalid("encoder: the gradient is not shaped as the last forward's states"));
         }
-        if g.len() != self.params.len() || g.iter().zip(&self.params).any(|(a, b)| a.len() != b.len()) {
+        if !self.shaped(g) {
             return Err(invalid("encoder: the gradients are not shaped as the weights"));
         }
         let last: &[R] = w.layers.last().map_or(&w.x0, |l| &l.x_out);
@@ -349,47 +403,5 @@ impl<R: Real> Encoder<R> {
             }
         }
         Ok(())
-    }
-
-    /// The base weights with the adapters folded in, W + s B A, in slot
-    /// order: what a bundle carries.
-    pub fn merged(&self) -> Vec<Vec<R>> {
-        let base = BASE + PER_LAYER * self.geo.layers;
-        let mut out: Vec<Vec<R>> = self.params[..base].to_vec();
-        let Some(a) = self.lora else {
-            return out;
-        };
-        for l in 0..self.geo.layers {
-            for which in layer::PROJECTIONS {
-                let (inp, _) = self.widths(which);
-                let (sa, sb) = self.lora_slots(l, which);
-                let (ma, mb) = (&self.params[sa], &self.params[sb]);
-                for (wo, bo) in out[slot(l, which)].chunks_exact_mut(inp).zip(mb.chunks_exact(a.rank)) {
-                    for (&b, ar) in bo.iter().zip(ma.chunks_exact(inp)) {
-                        for (w, &av) in wo.iter_mut().zip(ar) {
-                            *w += a.scale::<R>() * b * av;
-                        }
-                    }
-                }
-            }
-        }
-        out
-    }
-
-    /// The merged weights as f32 tensors named by `names` (a bundle
-    /// artifact's `tensor_names`, with `{layer}`), shaped as the core
-    /// reads them: what a bundle's weights file holds.
-    pub fn named(&self, names: &BTreeMap<TensorRole, String>) -> Result<Vec<Named>> {
-        let (h, i) = (self.geo.hidden as u64, self.geo.intermediate as u64);
-        let merged = self.merged();
-        let mut out = Vec::new();
-        for (role, layer, s, shape) in load::roles(self.geo.layers, self.vocab as u64, h, i) {
-            if role == TensorRole::AttnLnWeight && layer == Some(0) {
-                continue;
-            }
-            let name = load::name(names, role, layer)?;
-            out.push((name, shape, merged[s].iter().map(|v| v.to_f64() as f32).collect()));
-        }
-        Ok(out)
     }
 }
