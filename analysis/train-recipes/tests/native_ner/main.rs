@@ -85,14 +85,30 @@ fn generated_encoder_cpu_smoke_trains_deterministically_and_keeps_unicode_offset
     let root = Scratch::new("smoke");
     corpus(&root.0);
     let data = prepare(&root.0).unwrap();
-    let config = Config { epochs: 35, batch: 8, lr: 0.03, weight_decay: 0.0, patience: 0, ..Config::default() };
+    let config = Config {
+        threads: 2,
+        lanes: 2,
+        epochs: 35,
+        batch: 8,
+        lr: 0.03,
+        weight_decay: 0.0,
+        patience: 0,
+        ..Config::default()
+    };
     let first = fit_cpu(&data, &tiny(), &config).unwrap();
     let again = fit_cpu(&data, &tiny(), &config).unwrap();
     let bytes =
         |m: &turbo_trainer::Tagger<f32>| m.params().iter().flatten().flat_map(|v| v.to_le_bytes()).collect::<Vec<_>>();
     assert_eq!(bytes(&first.model), bytes(&again.model));
     assert_eq!(first.identity, again.identity);
-    assert_eq!(first.report, again.report);
+    // Wall time is now part of Report; only the learned result is deterministic.
+    assert_eq!(first.report.train_loss, again.report.train_loss);
+    assert_eq!(first.report.dev, again.report.dev);
+    assert_eq!(first.report.best_epoch, again.report.best_epoch);
+    for report in [&first.report, &again.report] {
+        assert_eq!(report.epoch_seconds.len(), report.dev.len());
+        assert!(report.epoch_seconds.iter().all(|t| t.is_finite() && *t >= 0.0));
+    }
     assert!(first.report.train_loss.first() > first.report.train_loss.last(), "{:?}", first.report);
     assert_eq!(first.report.dev[first.report.best_epoch], 1.0, "{:?}", first.report);
     assert_eq!(

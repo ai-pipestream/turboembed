@@ -113,6 +113,8 @@ pub fn trained_bundle(model: &Tagger<f32>, out: &Path) {
     fs::write(out.join("weights/model.safetensors"), &weights).unwrap();
     let mut m: serde_json::Value = serde_json::from_slice(&fs::read(base.join("manifest.json")).unwrap()).unwrap();
     m["heads"] = json!([spec]);
+    // This generated tiny encoder and this generated corpus are project fixtures.
+    m["model"]["license_class"] = json!(turbo::manifest::LicenseClass::Permissive);
     // The base fixture has historical source labels; this test does not
     // use those labels as pretrained-model provenance or quality evidence.
     for f in m["files"].as_array_mut().unwrap() {

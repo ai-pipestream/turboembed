@@ -23,6 +23,7 @@ pub mod eval;
 pub mod fit_cache;
 pub mod masc_pos;
 pub mod multiconer;
+pub mod ner_peer;
 pub mod peer;
 pub mod receipt;
 pub mod run;
@@ -30,6 +31,7 @@ pub mod safetensors;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_heads;
+pub mod wnut17;
 
 /// An error, as the message the command prints.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,7 +50,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The corpora the trainer reads, by id: MASC, MultiCoNER, and a tag
 /// corpus for each column of each UD treebank.
 pub fn corpora() -> Vec<String> {
-    let mut all = vec![masc_pos::ID.to_owned(), multiconer::ID.to_owned()];
+    let mut all = vec![masc_pos::ID.to_owned(), multiconer::ID.to_owned(), wnut17::ID.to_owned()];
     all.extend(ud::corpus_ids());
     all
 }
@@ -61,6 +63,7 @@ pub fn corpora() -> Vec<String> {
 pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<corpus::Corpus> {
     match id {
         masc_pos::ID => masc_pos::read(dir, unrecorded),
+        wnut17::ID => wnut17::read(dir, unrecorded),
         multiconer::ID => multiconer::read(dir, unrecorded),
         _ => match ud::find(id) {
             Some((bank, column)) => ud::read(&bank, column, dir, unrecorded),
