@@ -72,7 +72,10 @@ docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo:/zoo \
 
 Any `turbo-kserve` flag after the image name is passed to the server
 (docs/grpc.md, Flags), and the `TURBO_KSERVE_*` and `TURBO_DEMO_*`
-variables work as they do for each binary. The image sets these:
+variables work as they do for each binary. The exceptions are the
+server's listen address and TLS: the page and the health check dial
+`http://127.0.0.1:8081`, so keep `--listen` and the `--tls-*` flags as
+the image sets them (Who can do what, below). The image sets these:
 
 | Variable | Value |
 |---|---|
@@ -98,10 +101,15 @@ network in the clear; serve the page with `TURBO_DEMO_TLS_CERT` and
 `TURBO_DEMO_TLS_KEY` off a trusted network. gRPC on port 8081 needs no
 token. In zoo mode any caller records an acceptance, and the user a
 request names is the caller's own word (docs/grpc-catalog.md, Zoo
-mode). That suits a personal or LAN zoo. A shared zoo turns on mutual
-TLS with `TURBO_KSERVE_TLS_CERT`, `TURBO_KSERVE_TLS_KEY` and
-`TURBO_KSERVE_TLS_CLIENT_CA`, so that only holders of a client
-certificate reach it.
+mode). That suits a personal or LAN zoo.
+
+The image does not yet support the server's own TLS or mutual TLS. The
+page and the health check reach the server over plain gRPC on
+loopback, so setting `TURBO_KSERVE_TLS_CERT`, `TURBO_KSERVE_TLS_KEY` or
+`TURBO_KSERVE_TLS_CLIENT_CA` leaves the page failing every call and the
+container unhealthy (#1686). Until then, a shared zoo publishes 8081
+only on a trusted network, or behind a proxy that terminates TLS and
+checks client certificates itself.
 
 ## The smoke test
 
