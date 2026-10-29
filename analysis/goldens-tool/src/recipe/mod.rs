@@ -82,7 +82,7 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 45] = [
+pub const INPUT_SETS: [&str; 43] = [
     "en",
     "multi",
     "num",
@@ -111,8 +111,6 @@ pub const INPUT_SETS: [&str; 45] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "langdetect",
     "sequence",
     "descriptor-errors",
@@ -141,7 +139,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 49] = [
+pub const ANNOTATORS: [&str; 47] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -176,8 +174,6 @@ pub const ANNOTATORS: [&str; 49] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "string-pattern",
     "features",
     "codec",
