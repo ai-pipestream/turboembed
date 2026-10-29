@@ -137,7 +137,7 @@ fn a_score_past_f32_is_refused_not_returned() {
     for (name, v) in &mut w {
         // Each label's row reads [first, last, width 0, width 1].
         match name.as_str() {
-            "out.weight" => v.chunks_exact_mut(4).for_each(|r| r.copy_from_slice(&[1e20, -1e20, 0.0, 0.0])),
+            "out.weight" => v.as_chunks_mut::<4>().0.iter_mut().for_each(|r| *r = [1e20, -1e20, 0.0, 0.0]),
             _ => v.fill(0.0),
         }
     }
