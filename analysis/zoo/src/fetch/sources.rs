@@ -154,7 +154,9 @@ impl Sources {
     /// layout they share, filled as it reads.
     /// A file that cannot be kept (a read-only store, a full disk) is
     /// still handed over. Only one store keeps; a second call replaces the
-    /// first as the keeper and leaves it in the list as a plain source.
+    /// first as the keeper and leaves it in the list as a plain source. The
+    /// keeper is passed over for an artifact whose class may not be
+    /// redistributed ([`crate::LicenceClass::may_redistribute`]).
     pub fn then_keep<S>(mut self, name: impl Into<String>, store: S) -> Sources
     where
         S: Transport + Keep + Clone + Send + Sync + 'static,
@@ -192,9 +194,16 @@ impl Transport for Sources {
         Err(none_had(failed))
     }
 
+    /// The keeping store neither serves nor keeps an artifact whose class
+    /// may not be redistributed (`LocalOnly`, `Refused`): such a file comes
+    /// only from the sources after it, and no copy is made of it.
     fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
+        let keep = self.keep.as_ref().filter(|_| artifact.class.may_redistribute());
         let mut failed = Vec::new();
         for (at, (name, s)) in self.sources.iter().enumerate() {
+            if keep.is_none() && self.keep.as_ref().is_some_and(|(k, _)| *k == at) {
+                continue;
+            }
             let bytes = match s.get_file(artifact, file) {
                 Ok(b) => b,
                 Err(e) => {
@@ -204,7 +213,7 @@ impl Transport for Sources {
             };
             match unpack(artifact, file, bytes).and_then(|b| verify(artifact, file, &b).map(|()| b)) {
                 Ok(b) => {
-                    if let Some((_, store)) = self.keep.as_ref().filter(|(k, _)| *k != at) {
+                    if let Some((_, store)) = keep.filter(|(k, _)| *k != at) {
                         // Kept when it can be; the file is handed over either way.
                         let _ = store.keep(&b);
                     }

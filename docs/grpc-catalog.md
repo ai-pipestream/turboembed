@@ -23,7 +23,10 @@ store lacks it, and the store then keeps it once it verifies. So
 servers that share one bucket fetch each file from its origin once, and
 a store seeded ahead (`aws s3 sync`) serves installs with no outside
 fetch. The bucket's credentials are the `AWS_*` variables the AWS tools
-read. A file the store cannot keep is still installed.
+read. A file the store cannot keep is still installed. A
+`CLASS_LOCAL_ONLY` artifact never goes through the store: it is fetched
+from its publisher on each install and never kept there, since the class
+allows no copy beyond the cache it is installed into.
 
 ## The service
 
