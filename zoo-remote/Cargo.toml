@@ -19,11 +19,15 @@ tonic = { version = "0.14", default-features = false, features = ["transport", "
 tonic-prost = "0.14"
 
 [features]
-default = ["tls"]
+default = ["tls", "s3"]
 # grpcs://: TLS with the public web roots (the webpki roots ureq trusts)
 # or a private CA. Without it the crate builds with no TLS stack, which
 # the arm64 check in CI needs, and a grpcs:// address is refused.
 tls = ["tonic/tls-ring", "tonic/tls-webpki-roots"]
+# s3://: an S3 bucket (AWS, RustFS, MinIO) holding blobs/sha256/<hex>.
+# Its HTTPS stack also reaches ring, so the arm64 check leaves it out too.
+# The bucket itself is turbo-zoo's S3Bucket, over its HTTPS transport.
+s3 = ["turbo-zoo/http"]
 
 [build-dependencies]
 # Compiles the server's turbo_training.proto without protoc, as the

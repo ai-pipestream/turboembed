@@ -342,7 +342,7 @@ release.md.
 | `analysis/core`, `analysis/layers` | the document model, views, alignments and shared layer types |
 | `analysis/unicode`, `analysis/encoding`, `analysis/zstd`, `analysis/normalize` | text input and normalization |
 | `analysis/structure`, `analysis/sentdetect`, `analysis/sat`, `analysis/tokenize`, `analysis/langdetect`, `analysis/langspan` | structure, segmentation and language |
-| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/parser`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | OpenNLP ports |
+| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | OpenNLP ports |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
 | `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |

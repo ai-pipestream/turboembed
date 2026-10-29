@@ -189,7 +189,7 @@ pub struct UdRecipe {
     pub model_id: &'static str,
     pub treebank: Treebank,
     pub component: Component,
-    /// The model the recipe is gated against; `None` for lemmatizers.
+    /// The model the recipe is gated against; `None` for taggers and lemmatizers.
     pub reference: Option<Reference>,
 }
 
@@ -219,7 +219,7 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Tokens,
         Some(Retired("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
     ),
-    recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, Some(Retired("opennlp-es-ud-gsd-pos-1.3-2.5.4"))),
+    recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, None),
     recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, None),
     recipe(
         "turbo-ca-ud-ancora-2.16-sentence-1",
@@ -233,7 +233,7 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Tokens,
         Some(Retired("opennlp-ca-ud-ancora-tokens-1.3-2.5.4")),
     ),
-    recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, Some(Retired("opennlp-ca-ud-ancora-pos-1.3-2.5.4"))),
+    recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, None),
     recipe("turbo-ca-ud-ancora-2.16-lemmas-1", CATALAN_ANCORA, Lemmas, None),
     recipe(
         "turbo-pt-ud-porttinari-2.16-sentence-1",
@@ -247,16 +247,11 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Tokens,
         Some(Retired("opennlp-pt-ud-gsd-tokens-1.3-2.5.4")),
     ),
-    recipe(
-        "turbo-pt-ud-porttinari-2.16-pos-1",
-        PORTUGUESE_PORTTINARI,
-        Pos,
-        Some(Retired("opennlp-pt-ud-gsd-pos-1.3-2.5.4")),
-    ),
+    recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, None),
     recipe("turbo-pt-ud-porttinari-2.16-lemmas-1", PORTUGUESE_PORTTINARI, Lemmas, None),
-    recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Some(Retired("opennlp-fi-ud-tdt-pos-1.3-2.5.4"))),
+    recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, None),
     recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, None),
-    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Some(Retired("opennlp-it-ud-vit-pos-1.3-2.5.4"))),
+    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, None),
     recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, None),
 ];
 
@@ -390,11 +385,14 @@ mod tests {
     }
 
     #[test]
-    fn ud_lemma_recipes_have_no_reference() {
+    fn ud_pos_and_lemma_recipes_have_no_reference() {
         for recipe in UD_RECIPES {
-            if recipe.component == Component::Lemmas {
+            if matches!(recipe.component, Component::Pos | Component::Lemmas) {
                 assert_eq!(recipe.reference, None, "{}", recipe.model_id);
                 assert!(matches!(recipe.reference(), Err(Error::NoReference { recipe: id }) if id == recipe.model_id));
+                if recipe.component == Component::Pos {
+                    assert_eq!(recipe.tagger().unwrap().reference, None, "{}", recipe.model_id);
+                }
             } else {
                 assert!(recipe.reference().is_ok(), "{}", recipe.model_id);
             }

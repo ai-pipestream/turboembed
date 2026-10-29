@@ -22,6 +22,8 @@ turbo-analysis-embed = { path = "../../analysis/embed" }
 # tag reader. These pins outlive the maxent recipes (plan B17).
 turbo-train-recipes = { path = "../../analysis/train-recipes" }
 turbo-formats = { path = "../../analysis/formats" }
+# The zoo's licence classes, which a head's corpus licence maps to.
+turbo-zoo = { path = "../../analysis/zoo", default-features = false }
 # The receipt.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

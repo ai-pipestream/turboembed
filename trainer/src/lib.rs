@@ -24,6 +24,7 @@ pub mod lemma;
 pub mod linear;
 pub mod logspace;
 pub mod lstm;
+pub mod mix;
 pub mod parser;
 pub mod real;
 pub mod rng;
@@ -32,8 +33,8 @@ pub mod tagger;
 pub mod xent;
 
 pub use fit::{Config, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
-pub use fit_lemma::{LemmaExample, fit_lemmatizer, mine_trees};
-pub use fit_parse::{ParseExample, fit_parser};
+pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};
+pub use fit_parse::{ParseExample, fit_parser, fit_parser_with};
 pub use lemma::Lemmatizer;
 pub use parser::Parser;
 pub use real::Real;

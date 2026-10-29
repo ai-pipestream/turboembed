@@ -82,7 +82,7 @@ jobs:
       # through ureq or rustls, whose build script needs an aarch64 C
       # compiler the runner does not have. The server is checked without
       # catalog-http, its one way to ureq, and the zoo client without
-      # tls; the docling example's server client depends on the server
+      # tls or s3; the docling example's server client depends on the server
       # with default features. turbo-trainer-recipes reaches ureq through
       # turbo-train-recipes and turbo-eval.
       - name: check (aarch64)

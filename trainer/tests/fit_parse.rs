@@ -23,6 +23,7 @@ fn spec(decode: Decode) -> HeadSpec {
         biaffine: Some(Biaffine { arc: 16, rel: 8 }),
         pos_input: None,
         hash_embed: None,
+        license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "deps".into(),
     }

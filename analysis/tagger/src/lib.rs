@@ -4,12 +4,14 @@
 //! [`EntityTagger`] the entity layer, [`DependencyParser`] the
 //! dependency layer and [`Lemmatizer`] the lemma layer, each from the
 //! head that names that layer, or from a head named outright.
+//! [`MultiTask`] writes several of those layers from one encoder pass.
 //!
 //! The encoder pools each word's pieces on the device (words.rs); the
 //! head scores and decodes on the host, the same on every backend.
 
 pub mod annotate;
 pub mod lemma;
+pub mod multi;
 pub mod parse;
 pub mod words;
 
@@ -24,6 +26,7 @@ use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tokens};
 
 pub use annotate::HeadRunner;
 pub use lemma::{LemmaDictionary, Lemmatizer};
+pub use multi::MultiTask;
 pub use parse::DependencyParser;
 pub use words::WordEncoder;
 

@@ -45,16 +45,20 @@ impl Default for HeadOptions {
     }
 }
 
-/// The head a corpus trains: `pos` on `turboembed:pos` for tags,
-/// `ner` on `turboembed:entities` for BIO, over the corpus's labels.
+/// The head a corpus trains (`crate::head`): `pos` on `turboembed:pos`
+/// for MASC, `ner` on `turboembed:entities` for BIO, a UD column's own
+/// head for a treebank column, over the corpus's labels,
+/// carrying the class of the corpus's licence (`CorpusRecord::class`).
 ///
 /// # Errors
 ///
-/// A head the core would refuse.
+/// A head the core would refuse, or a corpus licence the zoo does not
+/// know or refuses.
 pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
-    let (name, layer, scheme) = match corpus.record.task {
-        Task::Tags => ("pos", "turboembed:pos", Scheme::Tags),
-        Task::Bio => ("ner", "turboembed:entities", Scheme::Bio),
+    let (name, layer) = crate::head(&corpus.record.id, corpus.record.task);
+    let scheme = match corpus.record.task {
+        Task::Tags => Scheme::Tags,
+        Task::Bio => Scheme::Bio,
     };
     let spec = HeadSpec {
         name: name.into(),
@@ -68,6 +72,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         biaffine: None,
         pos_input: None,
         hash_embed: o.hash,
+        license_class: Some(corpus.record.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),
     };
