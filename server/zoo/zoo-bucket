@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Makes the bucket TURBO_KSERVE_CATALOG_STORE names (s3://bucket/prefix)
+# at AWS_ENDPOINT_URL_S3 or AWS_ENDPOINT_URL, signed with
+# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (docs/zoo-container.md). A
+# bucket that is already there is fine. It waits up to a minute for the
+# store to answer. docker-compose.zoo.yml runs it once before the zoo.
+set -euo pipefail
+
+store=${TURBO_KSERVE_CATALOG_STORE:?set TURBO_KSERVE_CATALOG_STORE to s3://bucket/prefix}
+if [[ $store != s3://* ]]; then
+    echo "zoo-bucket: $store is not s3://bucket/prefix" >&2
+    exit 2
+fi
+bucket=${store#s3://}
+bucket=${bucket%%/*}
+endpoint=${AWS_ENDPOINT_URL_S3:-${AWS_ENDPOINT_URL:?set AWS_ENDPOINT_URL}}
+region=${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}
+: "${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID}" "${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY}"
+
+# S3 wants the payload's SHA-256 named; older curl leaves it out.
+empty=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+for ((attempt = 0; attempt < 60; attempt++)); do
+    # The keys go to curl on its standard input, never on a command line.
+    code=$(printf 'user = "%s:%s"\n' "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" |
+        curl --disable --noproxy '*' --config - --silent --output /dev/null --write-out '%{http_code}' \
+            --max-time 5 --aws-sigv4 "aws:amz:$region:s3" --header "x-amz-content-sha256: $empty" \
+            --request PUT "$endpoint/$bucket") || code=000
+    case $code in
+        200) echo "zoo-bucket: made $bucket"; exit 0 ;;
+        409) echo "zoo-bucket: $bucket is already there"; exit 0 ;;
+        000 | 5*) sleep 1 ;;
+        *) echo "zoo-bucket: making $bucket at $endpoint answered HTTP $code" >&2; exit 1 ;;
+    esac
+done
+echo "zoo-bucket: $endpoint did not answer in a minute" >&2
+exit 1
