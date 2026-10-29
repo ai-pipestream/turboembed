@@ -9,10 +9,10 @@
 //! text, hashed as the core hashes it (`turbo::head::hash_embed`), and
 //! learns its tables.
 
-use turbo::head::TokenTagger;
 use turbo::head::crf::{Allowed, allowed};
 use turbo::head::hash_embed::{self, SEEDS};
 use turbo::head::tagger::tensors;
+use turbo::head::{SentenceBoundary, TokenSplitter, TokenTagger};
 use turbo::manifest::{Decode, HeadSpec};
 use turbo::status::{Result, invalid};
 
@@ -295,7 +295,20 @@ impl Tagger<f32> {
     /// A sentence boundary or token split head scores through the same
     /// tagger (`TokenTagger::scoring_words`); its own type decodes.
     pub fn to_token_tagger(&self) -> Result<TokenTagger> {
-        let get = |s: &str| self.names.iter().position(|n| n == s).map(|i| self.params[i].clone());
-        TokenTagger::scoring_words(&self.spec, self.hidden, &get)
+        TokenTagger::scoring_words(&self.spec, self.hidden, &|s| self.tensor(s))
+    }
+
+    /// The core's sentence boundary head over these weights.
+    pub fn to_boundary(&self) -> Result<SentenceBoundary> {
+        SentenceBoundary::from_tensors(&self.spec, self.hidden, &|s| self.tensor(s))
+    }
+
+    /// The core's token split head over these weights.
+    pub fn to_splitter(&self) -> Result<TokenSplitter> {
+        TokenSplitter::from_tensors(&self.spec, self.hidden, &|s| self.tensor(s))
+    }
+
+    fn tensor(&self, suffix: &str) -> Option<Vec<f32>> {
+        self.names.iter().position(|n| n == suffix).map(|i| self.params[i].clone())
     }
 }

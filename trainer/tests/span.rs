@@ -114,3 +114,45 @@ fn a_trained_classifier_finds_the_runs_and_the_core_agrees() {
     let (again, _) = fit_spans(&s, HIDDEN, &data(1, 160), &data(2, 40), &c).unwrap();
     assert_eq!(again.params(), trained.params(), "the same seed gives the same bytes");
 }
+
+/// A zero BiLSTM of width 1 over one feature, and output weights of 1e38
+/// for X and -1e38 for Y: the adapter's input weight gradients are the
+/// output gradient (about 1e38) times the feature.
+fn steep() -> Spans<f32> {
+    let mut model = Spans::<f32>::new(&spec(Decode::SpansNested, 1), 1, &mut Rng::new(5)).unwrap();
+    for t in 0..model.params().len() {
+        let out = model.names()[t].ends_with("out.weight");
+        let w = model.param_mut(t);
+        let cols = w.len() / 3;
+        for (k, v) in w.iter_mut().enumerate() {
+            *v = if out { [0.0, 1e38, -1e38][k / cols] } else { 0.0 };
+        }
+    }
+    model
+}
+
+#[test]
+fn an_adapter_gradient_past_f32_is_refused_and_leaves_gradients_alone() {
+    let model = steep();
+    let mut grads = model.zero_grads();
+    assert!(model.loss(&[1e38], &[gs(0, 0, 1)], &mut grads, &mut Work::default()).is_err());
+    assert!(grads.iter().flatten().all(|&g| g == 0.0));
+    // The same weights over a feature of 1e-3 add finite gradients.
+    model.loss(&[1e-3], &[gs(0, 0, 1)], &mut grads, &mut Work::default()).unwrap();
+    assert!(grads.iter().flatten().all(|g| g.is_finite()));
+    assert!(grads.iter().flatten().any(|g| g.abs() > 1e33));
+}
+
+#[test]
+fn a_sum_past_f32_is_refused_before_any_gradient_is_stored() {
+    let model = steep();
+    let mut local = model.zero_grads();
+    model.loss(&[1e-3], &[gs(0, 0, 1)], &mut local, &mut Work::default()).unwrap();
+    // Stored gradients of f32::MAX with each local gradient's sign: the
+    // large ones would overflow when added.
+    let mut grads: Vec<Vec<f32>> =
+        local.iter().map(|t| t.iter().map(|&g| if g < 0.0 { -f32::MAX } else { f32::MAX }).collect()).collect();
+    let before = grads.clone();
+    assert!(model.loss(&[1e-3], &[gs(0, 0, 1)], &mut grads, &mut Work::default()).is_err());
+    assert_eq!(grads, before, "nothing is stored when one sum overflows");
+}

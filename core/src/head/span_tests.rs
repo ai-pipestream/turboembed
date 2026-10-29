@@ -129,3 +129,38 @@ fn a_span_classifier_needs_its_shape_o_and_a_span_decode() {
     tagger.span = Some(SpanShape { max_words: 2, width_dim: 2 });
     assert!(tagger.validate("h").is_err());
 }
+
+#[test]
+fn a_score_past_f32_is_refused_not_returned() {
+    let s = span_spec(Decode::SpansNested, 1);
+    let mut w = weights(&s, 1, &mut Rng(3));
+    for (name, v) in &mut w {
+        // Each label's row reads [first, last, width 0, width 1].
+        match name.as_str() {
+            "out.weight" => v.chunks_exact_mut(4).for_each(|r| r.copy_from_slice(&[1e20, -1e20, 0.0, 0.0])),
+            _ => v.fill(0.0),
+        }
+    }
+    let h = head(&s, 1, &w);
+    let (mut scores, mut work, mut sw) = (Vec::new(), Work::default(), SpanWork::default());
+    let words = [NO_WORD, 0, NO_WORD];
+    assert!(h.scores(&[0.0, 1e20, 0.0], &words, None, &mut scores, &mut work, &mut sw).is_err());
+    // The same weights over a feature of normal scale score.
+    assert_eq!(h.scores(&[0.0, 1e-3, 0.0], &words, None, &mut scores, &mut work, &mut sw).unwrap(), 1);
+    assert!(scores.iter().all(|v| v.is_finite()));
+}
+
+#[test]
+fn a_margin_past_f32_is_refused_and_a_huge_length_is_an_error() {
+    let h = decoder(Decode::SpansFlat);
+    let max = f32::MAX;
+    // Spans (0,0) (0,1) (1,1) of 2 words: both PER margins overflow.
+    let rows = [[-max, max / 2.0, 0.0], [-max, max, 0.0], [0.0, 0.0, 0.0]];
+    let mut out = Vec::new();
+    assert!(h.decode(rows.as_flattened(), 2, &mut out).is_err());
+    let fine = [[0.0, 1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 0.0]];
+    h.decode(fine.as_flattened(), 2, &mut out).unwrap();
+    assert_eq!(out, [sp(0, 1, 1, 2.0)]);
+    assert!(h.decode(&[], usize::MAX, &mut out).is_err());
+    assert_eq!(h.span_count(usize::MAX), usize::MAX);
+}

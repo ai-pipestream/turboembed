@@ -134,7 +134,7 @@ impl SpanClassifier {
 
     /// The number of spans a sequence of `n` words has.
     pub fn span_count(&self, n: usize) -> usize {
-        (1..=self.max_words.min(n)).map(|width| n + 1 - width).sum()
+        (1..=self.max_words.min(n)).fold(0usize, |t, width| t.saturating_add(n - width + 1))
     }
 
     /// The label scores [spans, labels] of one sequence into `out`, spans
@@ -168,6 +168,10 @@ impl SpanClassifier {
                 out.extend((0..labels).map(|l| s[l] + e[l] + wd[l]));
             }
         }
+        // A start or end projection past f32 makes a sum infinite or NaN.
+        if out.iter().any(|v| !v.is_finite()) {
+            return Err(Error::new(INVALID_ARGUMENT, "a span score is not finite"));
+        }
         Ok(n)
     }
 
@@ -176,6 +180,9 @@ impl SpanClassifier {
     /// then last.
     pub fn decode(&self, scores: &[f32], n: usize, out: &mut Vec<Span>) -> Result<()> {
         let labels = self.spec.labels.len();
+        if n > u32::MAX as usize {
+            return Err(Error::new(INVALID_SHAPE, format!("{n} words is past the word index limit")));
+        }
         if Some(scores.len()) != self.span_count(n).checked_mul(labels) {
             return Err(Error::new(INVALID_SHAPE, format!("{} span scores for {n} words", scores.len())));
         }
@@ -189,12 +196,12 @@ impl SpanClassifier {
                 let Some(row) = rows.next() else { break };
                 let best = (0..labels).fold(0, |b, l| if row[l] > row[b] { l } else { b });
                 if best != self.none {
-                    out.push(Span {
-                        first: i as u32,
-                        last: j as u32,
-                        label: best as u32,
-                        margin: row[best] - row[self.none],
-                    });
+                    // Two margins past f32 would tie at infinity.
+                    let margin = row[best] - row[self.none];
+                    if !margin.is_finite() {
+                        return Err(Error::new(INVALID_ARGUMENT, "a span margin is past f32"));
+                    }
+                    out.push(Span { first: i as u32, last: j as u32, label: best as u32, margin });
                 }
             }
         }
