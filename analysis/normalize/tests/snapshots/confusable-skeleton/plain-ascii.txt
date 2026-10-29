@@ -1,0 +1,7 @@
+===OUT===
+This line needs no change at all.
+Neither does this second one, with punctuation: cornrnas, colons; and (brackets).
+
+===EDITS===
+84	85	rn
+85	86	rn

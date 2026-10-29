@@ -182,17 +182,24 @@ pub const TAG_FORMAT: PosTagFormat = PosTagFormat::Custom;
 /// [`Error::ClassesOutsideReference`](crate::error::Error::ClassesOutsideReference)).
 pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 5, of: 100 };
 
-/// One model trained on a treebank and its reference.
+/// One model trained on a treebank and its reference, if any.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UdRecipe {
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
     pub treebank: Treebank,
     pub component: Component,
-    pub reference: Reference,
+    /// The model the recipe's model is gated against; `None` for the
+    /// part-of-speech taggers since #1646 retired the OpenNLP UD POS models.
+    pub reference: Option<Reference>,
 }
 
-const fn recipe(model_id: &'static str, treebank: Treebank, component: Component, reference: Reference) -> UdRecipe {
+const fn recipe(
+    model_id: &'static str,
+    treebank: Treebank,
+    component: Component,
+    reference: Option<Reference>,
+) -> UdRecipe {
     UdRecipe { model_id, treebank, component, reference }
 }
 
@@ -205,53 +212,68 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         "turbo-es-ud-ancora-2.16-sentence-1",
         SPANISH_ANCORA,
         Sentences,
-        Retired("opennlp-es-ud-gsd-sentence-1.3-2.5.4"),
+        Some(Retired("opennlp-es-ud-gsd-sentence-1.3-2.5.4")),
     ),
-    recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, Retired("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
-    recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, Retired("opennlp-es-ud-gsd-pos-1.3-2.5.4")),
-    recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, Retired("opennlp-es-ud-gsd-lemmas-1.3-2.5.4")),
+    recipe(
+        "turbo-es-ud-ancora-2.16-tokens-1",
+        SPANISH_ANCORA,
+        Tokens,
+        Some(Retired("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
+    ),
+    recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, None),
+    recipe(
+        "turbo-es-ud-ancora-2.16-lemmas-1",
+        SPANISH_ANCORA,
+        Lemmas,
+        Some(Retired("opennlp-es-ud-gsd-lemmas-1.3-2.5.4")),
+    ),
     recipe(
         "turbo-ca-ud-ancora-2.16-sentence-1",
         CATALAN_ANCORA,
         Sentences,
-        Retired("opennlp-ca-ud-ancora-sentence-1.3-2.5.4"),
+        Some(Retired("opennlp-ca-ud-ancora-sentence-1.3-2.5.4")),
     ),
     recipe(
         "turbo-ca-ud-ancora-2.16-tokens-1",
         CATALAN_ANCORA,
         Tokens,
-        Retired("opennlp-ca-ud-ancora-tokens-1.3-2.5.4"),
+        Some(Retired("opennlp-ca-ud-ancora-tokens-1.3-2.5.4")),
     ),
-    recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, Retired("opennlp-ca-ud-ancora-pos-1.3-2.5.4")),
+    recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, None),
     recipe(
         "turbo-ca-ud-ancora-2.16-lemmas-1",
         CATALAN_ANCORA,
         Lemmas,
-        Retired("opennlp-ca-ud-ancora-lemmas-1.3-2.5.4"),
+        Some(Retired("opennlp-ca-ud-ancora-lemmas-1.3-2.5.4")),
     ),
     recipe(
         "turbo-pt-ud-porttinari-2.16-sentence-1",
         PORTUGUESE_PORTTINARI,
         Sentences,
-        Retired("opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
+        Some(Retired("opennlp-pt-ud-gsd-sentence-1.3-2.5.4")),
     ),
     recipe(
         "turbo-pt-ud-porttinari-2.16-tokens-1",
         PORTUGUESE_PORTTINARI,
         Tokens,
-        Retired("opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
+        Some(Retired("opennlp-pt-ud-gsd-tokens-1.3-2.5.4")),
     ),
-    recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, Retired("opennlp-pt-ud-gsd-pos-1.3-2.5.4")),
+    recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, None),
     recipe(
         "turbo-pt-ud-porttinari-2.16-lemmas-1",
         PORTUGUESE_PORTTINARI,
         Lemmas,
-        Retired("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4"),
+        Some(Retired("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4")),
     ),
-    recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Retired("opennlp-fi-ud-tdt-pos-1.3-2.5.4")),
-    recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Retired("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4")),
-    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Retired("opennlp-it-ud-vit-pos-1.3-2.5.4")),
-    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, Retired("opennlp-it-ud-vit-lemmas-1.3-2.5.4")),
+    recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, None),
+    recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Some(Retired("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4"))),
+    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, None),
+    recipe(
+        "turbo-it-ud-markit-2.16-lemmas-1",
+        ITALIAN_MARKIT,
+        Lemmas,
+        Some(Retired("opennlp-it-ud-vit-lemmas-1.3-2.5.4")),
+    ),
 ];
 
 /// The samples of one component read from one CoNLL-U file, borrowed
@@ -381,5 +403,18 @@ mod tests {
         let text = TreebankText { train: conllu.to_owned(), test: conllu.to_owned() };
         assert!(matches!(UD_RECIPES[0].check_data(&text, b"not a model"), Err(Error::Model(_))));
         assert!(matches!(UD_RECIPES[1].check_data(&text, b"not a model"), Err(Error::Model(_))));
+    }
+
+    #[test]
+    fn ud_pos_recipes_have_no_reference() {
+        for r in UD_RECIPES {
+            if r.component == Component::Pos {
+                assert_eq!(r.reference, None, "{}", r.model_id);
+                assert!(matches!(r.reference(), Err(Error::NoReference { recipe }) if recipe == r.model_id));
+                assert_eq!(r.tagger().unwrap().reference, None, "{}", r.model_id);
+            } else {
+                assert!(r.reference().is_ok(), "{}", r.model_id);
+            }
+        }
     }
 }

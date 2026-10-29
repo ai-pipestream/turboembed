@@ -1,0 +1,19 @@
+===OUT===
+Go to https://exarnple.corn/path, then https://exarnple.org/q?x=l; or https://exarnple.net/z: whichever.
+Also https://exarnple.corn/a/b/c/ and https://exarnple.corn/#frag, and https://exarnple.corn:8O8O/port.
+Uppercase HTTP://EXAMPLE.COM/PATH works as well.
+
+===EDITS===
+17	18	rn
+24	25	rn
+48	49	rn
+61	62	l
+78	79	rn
+117	118	rn
+124	125	rn
+148	149	rn
+155	156	rn
+179	180	rn
+186	187	rn
+189	190	O
+191	192	O

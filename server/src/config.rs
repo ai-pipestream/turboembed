@@ -176,6 +176,9 @@ pub struct Args {
     /// built-in one.
     pub catalog_dir: Option<String>,
     pub catalog_index: Option<String>,
+    /// The store the catalog reads first and fills: `file:///dir` or
+    /// `s3://bucket/prefix`.
+    pub catalog_store: Option<String>,
     /// The directory static models are trained into, made when absent.
     pub training_dir: Option<String>,
     /// Optional TLS and mutual-TLS (mTLS) certificates for the gRPC listener.
@@ -222,6 +225,7 @@ pub const ENV_MAX_STREAM_BYTES: &str = "TURBO_KSERVE_MAX_STREAM_BYTES";
 pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
+pub const ENV_CATALOG_STORE: &str = "TURBO_KSERVE_CATALOG_STORE";
 pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
 pub const ENV_SINK_ENDPOINT: &str = "TURBO_KSERVE_SINK_ENDPOINT";
 pub const ENV_SINK_QUEUE_ITEMS: &str = "TURBO_KSERVE_SINK_QUEUE_ITEMS";
@@ -233,12 +237,12 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE]] \
+[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
-TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
+TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
 TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
 
@@ -305,7 +309,7 @@ impl Args {
         let mut admin = None;
         let mut vocabulary_dir = None;
         let (mut sink_endpoint, mut sink_items, mut sink_bytes) = (None, None, None);
-        let (mut catalog_dir, mut catalog_index) = (None, None);
+        let (mut catalog_dir, mut catalog_index, mut catalog_store) = (None, None, None);
         let mut training_dir = None;
         let mut bundle_dir = None;
         let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
@@ -347,6 +351,7 @@ impl Args {
                 "--sink-queue-bytes" => once(&flag, value()?, &mut sink_bytes)?,
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
+                "--catalog-store" => once(&flag, value()?, &mut catalog_store)?,
                 "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
                 "--tls-cert" => path_once(&flag, value()?, &mut tls_cert)?,
                 "--tls-key" => path_once(&flag, value()?, &mut tls_key)?,
@@ -420,8 +425,12 @@ impl Args {
         catalog_dir = catalog_dir.or_else(|| env(ENV_CATALOG_DIR).filter(|v| !v.is_empty()));
         catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
         training_dir = training_dir.or_else(|| env(ENV_TRAINING_DIR).filter(|v| !v.is_empty()));
+        catalog_store = catalog_store.or_else(|| env(ENV_CATALOG_STORE).filter(|v| !v.is_empty()));
         if catalog_index.is_some() && catalog_dir.is_none() {
             return Err("--catalog-index needs --catalog-dir".into());
+        }
+        if catalog_store.is_some() && catalog_dir.is_none() {
+            return Err("--catalog-store needs --catalog-dir".into());
         }
         let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
         let sink = sink(
@@ -461,6 +470,7 @@ impl Args {
             sink,
             catalog_dir,
             catalog_index,
+            catalog_store,
             training_dir,
             tls,
             metrics_listen,

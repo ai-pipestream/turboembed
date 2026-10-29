@@ -12,7 +12,6 @@ fn the_commit_is_forty_hex_digits() {
     assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
     assert!(is_lower_hex(LIBLINEAR_ADDON_COMMIT, 40), "{LIBLINEAR_ADDON_COMMIT}");
     assert!(is_lower_hex(NEURAL_POSTAG_COMMIT, 40), "{NEURAL_POSTAG_COMMIT}");
-    assert!(is_lower_hex(HUNSPELL_COMMIT, 40), "{HUNSPELL_COMMIT}");
     assert!(is_lower_hex(CONLLU_DEPENDENCY_COMMIT, 40), "{CONLLU_DEPENDENCY_COMMIT}");
     assert!(is_lower_hex(COREF_ADDONS_COMMIT, 40), "{COREF_ADDONS_COMMIT}");
     assert!(is_lower_hex(HUNSPELL_DICTIONARIES_COMMIT, 40), "{HUNSPELL_DICTIONARIES_COMMIT}");
@@ -98,10 +97,7 @@ fn the_dockerfile_pins_the_same_base_image_and_commit() {
     assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
     let patterns = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
     assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
-    assert!(dockerfile.contains(&format!("\nARG HUNSPELL_COMMIT={HUNSPELL_COMMIT}\n")));
     assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
-    let profiles = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
-    assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
     assert!(dockerfile.contains(&format!("\nARG LIBLINEAR_ADDON_COMMIT={LIBLINEAR_ADDON_COMMIT}\n")));
     let liblinear = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
     assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));
@@ -148,6 +144,11 @@ fn runs_java_does_not_register_hunspell_goldens() {
     let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
     assert!(!golden.is_file(), "{} must stay deleted", golden.display());
+    let readme = include_str!("../../README.md");
+    assert!(
+        !readme.contains("hunspellJar"),
+        "the README must not pass the removed Hunspell bridge jar to the generator"
+    );
 }
 
 #[test]
@@ -222,7 +223,6 @@ fn the_generator_names_the_same_input_sets() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
     for set in INPUT_SETS.iter().filter(|s| {
         ![
-            NORMALIZER_INPUT_SET,
             NUMBER_INPUT_SET,
             MONEY_INPUT_SET,
             QUANTITY_INPUT_SET,
@@ -255,11 +255,8 @@ fn the_generator_and_the_entrypoint_take_the_generator_args() {
 }
 
 #[test]
-fn the_dumped_annotators_and_the_normalizer_set_are_in_the_recipe() {
+fn the_dumped_annotators_are_in_the_recipe() {
     assert!(DUMPED_ANNOTATORS.iter().all(|a| ANNOTATORS.contains(a)));
-    assert!(INPUT_SETS.contains(&NORMALIZER_INPUT_SET));
-    let normalizer = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/NormalizerGolden.java");
-    assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
 }
 
 #[test]

@@ -15,6 +15,7 @@ fn chunker(costs: Costs) -> TurboChunker {
         costs,
         signals: Signals::Structure,
         cohesion: None,
+        clauses: false,
     }
 }
 
@@ -173,6 +174,50 @@ fn an_unfinished_dump_leaves_no_file() {
     // A later run is not refused by it.
     dump(&d, "s", "cpu", &c);
     fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_clauses_run_dumps_and_compares() {
+    let (a, b) = (dir("clauses-a"), dir("clauses-b"));
+    let c = TurboChunker { clauses: true, ..chunker(Costs::default()) };
+    dump(&a, "s", "cpu", &c);
+    dump(&b, "s", "levelzero", &c);
+    let sets = compare_dirs(&a, &b).unwrap();
+    assert!(sets[0].is_identical(), "{}", sets[0]);
+    for d in [a, b] {
+        fs::remove_dir_all(d).unwrap();
+    }
+}
+
+#[test]
+fn a_sentence_split_by_clauses_compares_by_ranges() {
+    // One sentence of 30 words over a budget of 12: --clauses cuts inside
+    // it, where the margin comparison (which needs chunks on sentence
+    // boundaries) cannot price; the dumps still compare, by full ranges.
+    let text = format!("{}\n", (0..30).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" "));
+    let c = TurboChunker {
+        budget: Budget { max: 12, target: 10, size_weight: 1000, overhead: 2 },
+        clauses: true,
+        ..chunker(Costs::default())
+    };
+    let write = |d: &Path, backend: &str| {
+        let mut e = Stub::new(&["w1"]);
+        let doc = analyzed(&text, &e, None);
+        let (spans, cut) = c.chunk_cut(&doc, &mut e).unwrap();
+        assert!(spans.len() >= 3);
+        let mut w = Writer::create(d, &header("s", backend, &c)).unwrap();
+        w.document("d1", &cut).unwrap();
+        w.finish().unwrap();
+    };
+    let (a, b) = (dir("split-a"), dir("split-b"));
+    write(&a, "cpu");
+    write(&b, "levelzero");
+    let sets = compare_dirs(&a, &b).unwrap();
+    assert!(sets[0].is_identical(), "{}", sets[0]);
+    assert!(sets[0].matched >= 3);
+    for d in [a, b] {
+        fs::remove_dir_all(d).unwrap();
+    }
 }
 
 #[test]
