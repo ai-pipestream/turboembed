@@ -449,8 +449,12 @@ async fn a_store_neither_serves_nor_keeps_a_local_only_artifact() {
     let index = Arc::new(Index::parse(json.as_bytes()).unwrap());
     let catalog = Catalog { home: home.0.clone(), index, transport: Arc::new(list) };
     let (s, mut c) = start_with(Serve { admin: true, catalog: Some(catalog), ..Serve::default() }).await;
-    let accept =
-        RecordLicenceAcceptanceRequest { user: "alice".into(), licence: "CC-BY-NC-4.0".into(), terms: "".into() };
+    let accept = RecordLicenceAcceptanceRequest {
+        user: "alice".into(),
+        licence: "CC-BY-NC-4.0".into(),
+        terms: "".into(),
+        ..Default::default()
+    };
     c.record_licence_acceptance(accept).await.unwrap();
     // The store's copy is passed over: the file comes from its publisher.
     let Some(Update::Installed(m)) = install(&mut c, "alice", "nc").await.unwrap().pop() else { panic!() };
