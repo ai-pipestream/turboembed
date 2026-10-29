@@ -3,6 +3,8 @@
 //! category's probability as its raw score; a record naming a model the
 //! document did not run is refused.
 
+#![cfg(feature = "classical")]
+
 use turbo_analysis::export::{export, import};
 use turbo_analysis::{Analyzer, Document, Evidence, EvidenceError, EvidenceStep, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Categories, Tokens};

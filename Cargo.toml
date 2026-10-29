@@ -73,6 +73,7 @@ members = [
     "analysis/vector-index",
     "analysis/wordnet",
     "analysis/hunspell",
+    "analysis/pins",
     "analysis/zoo",
     "analysis/zstd",
 ]

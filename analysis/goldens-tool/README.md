@@ -2,7 +2,15 @@
 
 The golden files in `analysis/goldens/data` record what OpenNLP 3.x
 computes on the JVM for fixed inputs and models. This directory holds
-everything that makes them:
+everything that makes them.
+
+The generator's runs open OpenNLP 2.5 models (the UD 1.3 models built
+with OpenNLP 2.5.4 and `langdetect-183.bin`), which are no longer fetched
+or pinned (#1509), so `generate`, `verify` and `fuzz` refuse to run
+(`models::GENERATOR_RETIRED`) and the nightly differential workflow is
+deleted. The checked in goldens stay until #1532 removes those runs and
+their goldens; the Rust tests still read them.
+
 
 - `java/`: the generator, a Maven project that depends only on the OpenNLP
   runtime, the OpenNLP formats module and the `numeric` module of the OpenNLP addons. It carries
@@ -23,8 +31,8 @@ everything that makes them:
   detector, the tokenizer, the part-of-speech tagger, the maxent
   lemmatizer, the chunker and the language detector): every context the annotator gave
   the model and every outcome probability `eval` returned. `PosAccuracy` is a second main class, run by
-  hand, that scores a part-of-speech model on a CoNLL-U file
-  (`analysis/postag/README.md`).
+  hand, that scored the UD English part-of-speech model on a CoNLL-U file;
+  that model is no longer fetched (#1509).
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
   at a pinned commit, builds the runtime and the formats module with the
@@ -63,18 +71,12 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
 
 - `image` builds the container image, tags it with the OpenNLP commit and
   prints its id.
-- `fetch-models <dir>` downloads the published models into `<dir>` with `curl`
-  and checks each one's SHA-512 against the value published beside it on
-  downloads.apache.org. A model already there with the right hash is kept.
-  With `--local` it also downloads the OpenNLP 1.5 English models
-  (`LOCAL_MODELS` in `src/recipe/models.rs`) from opennlp.sourceforge.net, which
-  publishes no hash beside them: the recipe has the SHA-512 of the files
-  whose SHA-256 the sequence crate's README lists. Their training corpora
-  are LDC corpora or undocumented, so the `ci` workflow does not fetch
-  them (the `models` workflow fetches `en-pos-maxent.bin` and
-  `en-chunker.bin`, only to score them in the MASC release's gates);
-  `generate`, `verify` and `fuzz` always do, since the generator runs
-  them.
+- `fetch-models <dir>` downloads no OpenNLP model: the UD 1.3 models built
+  with OpenNLP 2.5.4, `langdetect-183.bin` and the OpenNLP 1.5 models are
+  not fetched, pinned or run anywhere in this repository (#1509), so the
+  generator's runs that open them cannot run until #1532 removes them.
+  With `--local` it also downloads the all-MiniLM-L6-v2 export
+  (`POOLING_SOURCE`) the pooled sentence vector model is derived from.
   It also fetches LibreOffice's `en_US`, `de_DE_frami` and `hu_HU` Hunspell
   dictionaries (`HUNSPELL_FILES`) into `<dir>/hunspell/`, each checked
   against the SHA-512 in the recipe.
@@ -217,9 +219,9 @@ a directory with the same model run without them, and its options are
 | `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
 | `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
 | `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
-| `beam` (`BeamSearch` as `POSTaggerME`, `ChunkerME` and `NameFinderME` wire it) | `pos-fixture`, `pos-fixture+default-context`, `chunker-fixture`, `ner-bio-fixture`, `ner-bilou-fixture`, `ner-qn-fixture`, `ner-qn-fixture+fresh-sums` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`; `en-pos-maxent`, `en-pos-perceptron`, `en-chunker`, `en-ner-person`, `en-ner-location` (OpenNLP 1.5) | `sequence` (the `sentences` input) | `kind` |
-| `tag-dictionary` (`POSDictionary`) | `tags`, `tags-cases`, `tags-exact`, `pos-fixture` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron` | `sequence` (the `sentences` input) | |
-| `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
+| `beam` (`BeamSearch` as `POSTaggerME`, `ChunkerME` and `NameFinderME` wire it) | `pos-fixture`, `pos-fixture+default-context`, `chunker-fixture`, `ner-bio-fixture`, `ner-bilou-fixture`, `ner-qn-fixture`, `ner-qn-fixture+fresh-sums` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `sequence` (the `sentences` input) | `kind` |
+| `tag-dictionary` (`POSDictionary`) | `tags`, `tags-cases`, `tags-exact`, `pos-fixture` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `sequence` (the `sentences` input) | |
+| `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
 | `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
 | `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
 | `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |

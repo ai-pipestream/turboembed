@@ -308,6 +308,7 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
     use std::collections::BTreeMap;
     use std::sync::Arc;
     use turbo_doccat::features::PatternMode;
+    #[cfg(feature = "classical")]
     use turbo_doccat::multilabel::package_multilabel_model;
     use turbo_doccat::multilabel::{MultiLabelSample, MultiLabelTrainingParameters, train_multilabel};
     use turbo_doccat::{DoccatFactory, DoccatFeatureGenerator, NGramFeatureGenerator};
@@ -357,6 +358,7 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
     let custom_cg = DoccatContextGenerator::from_custom(vec![Arc::new(CustomGen)]);
     let with_custom = trained.with_context_generator(custom_cg.clone());
     assert!(with_custom.write().is_err(), "write must fail when custom generators are present");
+    #[cfg(feature = "classical")]
     assert!(
         package_multilabel_model(&with_custom, 1_700_000_000_000).is_err(),
         "package_multilabel_model must fail when custom generators are present"

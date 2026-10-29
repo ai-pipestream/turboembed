@@ -7,11 +7,19 @@ layer is its own Rust type, so reading one gives that type with its own
 fields. Annotators declare the layer types they read and write, and the
 compiler holds them to it.
 
-It is the base the chunker is built on, and the base OpenNLP 3.x is to
-be rewritten on, as add-ons: OpenNLP is the reference, and the Rust side
-follows it on its own schedule. The crates are Rust only; the
-gRPC server serves analysis documents and layers over them
-(`server/src/analysis.rs`, docs/grpc-analysis.md).
+It is the base the chunker and the analysis pipeline are built on.
+OpenNLP 3.0, its add-ons and the sandbox are a feature checklist;
+learned components are heads on one shared encoder pass trained with our
+own Rust trainers; rule components are ours; each component is judged
+against spaCy, Stanza and other current stacks on held-out data, never
+against Java output. Two standing assumptions govern this direction
+(#1509): JVM goldens are no longer the test oracle (no new code may load
+an OpenNLP model, reproduce Java platform behaviour or use JVM output as
+an oracle), and English syntax models trained on Universal Dependencies
+English EWT (CC BY-SA 4.0) ship in the accept-first download tier because
+every English UD treebank carries a ShareAlike or non-commercial licence.
+The crates are Rust only; the gRPC server serves analysis documents and
+layers over them (`server/src/analysis.rs`, docs/grpc-analysis.md).
 
 ## Crates
 
@@ -52,7 +60,7 @@ gRPC server serves analysis documents and layers over them
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer, the phrase chunker, the language detector, the sentiment detector (`SentimentEventStream` and the `SentimentModel` file, [sentiment.md](sentiment.md)) and the chunking and tree-insertion constituency parsers (their `ParserEventStream`s, `Parser.train`, the `ParserModel` file, `ParserEvaluator` and `ParserCrossValidator`): `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream`, `ChunkerEventStream` and `LanguageDetectorEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel`, `ChunkerModel` and `LanguageDetectorModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order). Its own crate because `turbo-formats` depends on `turbo-tokenize` and `turbo-parser`; "Training the components" below |
-| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
+| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, the sentence detector's and tokenizer's gates against the OpenNLP English UD models (the tagger, chunker and name finders have no reference model: no OpenNLP 1.5 model is fetched or scored, #1509); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the OntoNotes name, parse and part-of-speech readers and the French Treebank parse reader (`turbo_parser::Parse` trees), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component; true positives are a multiset intersection, so recall is at most 1). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora`, `ontonotes`, `frenchtreebank` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`); and the `CHUNKING` and `TREEINSERT` bottom-up parsers: reading a `ParserModel` file, the context generators, the shared search of `AbstractBottomUpParser`, `ParserTool.parseLine` and `ParserAnnotator` (the `Phrases` layer). Training the parsers is `turbo-train-components`. `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-coref` | `analysis/coref/` | OpenNLP's coreference resolver: mention detection from entities, noun phrases (chunks or parse phrases) and pronouns, the precision-ordered sieves (speaker, exact, relaxed, acronym, person name, the strict and relaxed head sieves, pronoun match), the pair classifier and mention ranker read from a `CorefModel` file, word vectors for head similarity (or trained from a corpus by the skip-gram and CBOW `Word2VecTrainer`) and token vectors for span features, `CorefAnnotator` writing `opennlp:mentions` (`Mentions`), the chains as `Groups<Mentions>` and the antecedent links as `Edges<Mentions, Mentions>` tagged with the deciding sieve, the pairwise and ranking trainers, and `CorefScorer` (MUC, B-cubed, CEAF-m, CEAF-e, mention detection and the CoNLL average); [coref.md](coref.md) |
@@ -62,6 +70,7 @@ gRPC server serves analysis documents and layers over them
 | `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `MentionPolicy`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. A gazetteer's match keys can also be written as one mapped automaton image (`name_image`), which `NameFinder` reads in place to find the gazetteer's names in running text and `NameAnnotator` writes as location entities for the geocoder and the linker. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
 | `turbo-entity-linker` | `analysis/entity-linker/` | Generic entity disambiguation and linking (`EntityLinker`, `LinkerConfig`, `LinkerWeights`) against pluggable `KbProvider` backends (`CatalogProvider` over `KnowledgeBase` CSV/TSV catalogs and binary snapshots with optional `VectorIndex` nearest-neighbor retrieval, `GazetteerProvider` over `turbo-geo` gazetteers, `WordNetProvider` over `turbo-wordnet` synsets, and `GlossaryProvider` over `turbo-glossary-layers` glossaries), scoring alias and popularity priors, NER entity-type compatibility, local and document context overlap, and document-level coherence with coreference cluster propagation (`Groups<Mentions>`, `Groups<Entities>`), writing `LinkedEntities` (`turbo:linked_entities`) aligned to `Entities` with explicit `NilReason` and `nil_cluster` assignments |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate, the four-arm SPLATE retrieval cascade study ([splate.md](splate.md)) and the `turbo-eval` binary (Evaluation, below) |
+| `turbo-pins` | `analysis/pins/` | The SHA-256 pin of every model a test, evaluation or record loads (`models.txt`, keys `blobs/sha256/<hex>`), with the zoo index and the score-only reference lists counted as pins; `require` refuses a model given by path that is not pinned, and its tree test fails on an unpinned checked-in bundle, record bundle, recipe file or model-path variable (#1621) |
 | `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
 
 They need nothing beyond the standard library and each other, except
@@ -77,7 +86,9 @@ layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
 
-## JVM parity
+## JVM parity (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** JVM output and Java platform parity are no longer the test oracle. No new code may depend on `turbo-jvm` or reproduce Java platform quirks.
 
 Some of OpenNLP's results depend on the Java platform rather than on
 OpenNLP, and `turbo-jvm` reproduces those parts exactly, so a port can
@@ -2681,7 +2692,9 @@ in nDCG@10 points):
   local vector pools all of it, which is +30.77 on gutenqa's books but
   -1.91 on qasper and -1.60 on arguana.
 
-## Golden files
+## Golden files (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** JVM goldens are no longer the test oracle. Do not add new `.golden` files or `turbo-goldens` comparisons; this section is removed when #1530 deletes `analysis/goldens`.
 
 An annotator that ports an OpenNLP component is checked against what
 OpenNLP 3.x computes on the JVM. The JVM runs once, from a recorded
@@ -3024,7 +3037,9 @@ A `turbo:view` block is not loaded. A view golden is only compared with
 the view a Rust normalizer makes, so `load_document` on one gives the
 source text alone, for the normalizer to run on.
 
-## Classical training status
+## Training goldens (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** Classical OpenNLP trainer goldens are being retired alongside `turbo-train`, `turbo-train-components` and `turbo-goldens` (#1529, #1530).
 
 The OpenNLP archive readers and classical model commands are disabled under
 #1511. GIS/QN/perceptron archive round trips, component training against JVM
@@ -3041,7 +3056,9 @@ The earlier training-format inventory is available in
 [the pre-removal document](https://github.com/ai-pipestream/turboembed/blob/c71fba1a642e7221d0054528b5ee4fb183b4fd43/docs/analysis.md#training-goldens)
 for historical interpretation, not as instructions for current builds.
 
-## Generating golden files
+## Generating golden files (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** The JVM golden generator (`analysis/goldens-tool`) is frozen and slated for deletion in #1530.
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`
 (crate `turbo-goldens-tool` in `analysis/goldens-tool`). It builds a
@@ -3191,7 +3208,9 @@ least one row cuts a character, so every other golden is as it was.
 `analysis/goldens/data/inputs/en/emoji-split.txt` and the
 `inputs/surrogate` set are such inputs for the tokenizer models.
 
-## Decision point dumps
+## Decision point dumps (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** Maxent decision point dumps (`.dump`) are frozen and slated for deletion with `analysis/goldens` in #1530.
 
 Beside each golden of `sentdetect`, `tokenize`, `postag`, `lemmatize`, `chunk`
 and `langdetect` that names a model and has no error record,
@@ -3510,6 +3529,11 @@ A failing input is reproduced from its id alone: `s2-01234` is
 come along; every input of a seed is a fixed function of its index).
 After a fix, the candidate file is checked in as an input of the set the
 `.report` names, and `turbo-goldens generate` gives it a golden.
+
+The nightly JVM differential workflow is deleted, and `fuzz`, `generate`
+and `verify` refuse to run: the generator's runs open OpenNLP 2.5 models,
+which are no longer fetched (#1509), and #1532 removes those runs and
+their goldens.
 
 The generator build preserves the pinned fork's SNAPSHOT artifacts instead
 of updating them from Apache's snapshot repository. It records the installed
