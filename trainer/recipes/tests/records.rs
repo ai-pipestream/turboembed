@@ -78,3 +78,16 @@ fn the_head_row_clears_the_gate_on_the_recorded_release() {
     let text = serde_json::to_string(&head).unwrap().to_lowercase();
     assert!(!text.contains("opennlp") && !text.contains("/work/"), "no OpenNLP row, no host paths");
 }
+
+#[test]
+fn committed_receipts_name_no_machine() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("records/masc-pos-1649");
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let name = entry.unwrap().file_name().into_string().unwrap();
+        if name.ends_with(".json") {
+            let r = receipt(&name);
+            assert!(["cloud-container", "rtx-4080-machine"].contains(&r.host.as_str()), "{name}: host {}", r.host);
+            assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
+        }
+    }
+}

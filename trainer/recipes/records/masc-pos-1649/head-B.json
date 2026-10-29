@@ -25,7 +25,7 @@
     "masc-pos-B"
   ],
   "commit": "e352cf36596232584b05496538b3b9b08c37efdb",
-  "host": "krick",
+  "host": "rtx-4080-machine",
   "unix_time": 1793238384,
   "corpus": {
     "id": "masc-pos",
