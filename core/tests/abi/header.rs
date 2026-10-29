@@ -392,5 +392,8 @@ fn the_token_head_layout_is_the_one_proposed() {
     assert_eq!(offset_of!(turbo_backend_model, global_every), 252);
     assert_eq!(size_of::<turbo_backend_model>(), 256);
     assert_eq!(offset_of!(turbo_backend_embed_rows, head), 52);
-    assert_eq!(size_of::<turbo_backend_embed_rows>(), 56);
+    // taps was appended after head (#1616), with a reserved field so the
+    // struct has no padding.
+    assert_eq!(offset_of!(turbo_backend_embed_rows, taps), 56);
+    assert_eq!(size_of::<turbo_backend_embed_rows>(), 64);
 }

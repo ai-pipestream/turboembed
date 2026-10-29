@@ -433,6 +433,11 @@ impl Weights {
         self.family
     }
 
+    /// The encoder layers the model runs.
+    pub fn layers(&self) -> u32 {
+        self.arch[0]
+    }
+
     /// Whether the model is a static one (TURBO_FAMILY_STATIC).
     pub fn is_static(&self) -> bool {
         self.family == TURBO_FAMILY_STATIC

@@ -9,14 +9,13 @@
 //!   English UD models on the same held-out samples, and gated by
 //!   `turbo_eval::model_gate`.
 //! - [`postag`]: the English part-of-speech tagger trained on MASC's Penn
-//!   tags, gated the same way against OpenNLP 1.5's Penn tagger
-//!   (`en-pos-maxent.bin`).
+//!   tags, with no reference model (no OpenNLP 1.5 model is fetched or
+//!   scored, #1509).
 //! - [`chunk`]: the English chunker trained on MASC's noun and verb
-//!   chunks, gated on those two chunk types against OpenNLP 1.5's
-//!   chunker (`en-chunker.bin`).
+//!   chunks, with no reference model.
 //! - [`namefind`]: English name finders trained on MASC's named entities,
-//!   one per type (person, location, organization, date), each gated
-//!   against OpenNLP 1.5's name finder of that type.
+//!   one per type (person, location, organization, date), with no
+//!   reference model.
 //! - [`spans`]: a held-out unit's counts from OpenNLP's `FMeasure`, both
 //!   models' counts paired, and the types a gate of typed spans scores.
 //! - [`card`]: the model card kept beside the gate record, and the
@@ -222,18 +221,28 @@ impl Recipe {
     }
 
     /// The model the recipe's model is gated against.
-    pub fn reference(&self) -> Reference {
-        match self {
-            Recipe::Segmentation(r) => Reference::Zoo(r.reference_id),
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NoReference`] for a recipe with none: the tagger, the
+    /// chunker and the name finders.
+    pub fn reference(&self) -> Result<Reference> {
+        let reference = match self {
+            Recipe::Segmentation(r) => Some(Reference::Retired(r.reference_id)),
             Recipe::Pos(r) => r.reference,
             Recipe::Chunk(r) => r.reference,
             Recipe::Name(r) => r.reference,
-        }
+        };
+        reference.ok_or(Error::NoReference { recipe: self.model_id() })
     }
 
     /// The id the gate record names the reference by.
-    pub fn reference_id(&self) -> &'static str {
-        self.reference().id()
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NoReference`] for a recipe with none.
+    pub fn reference_id(&self) -> Result<&'static str> {
+        Ok(self.reference()?.id())
     }
 
     /// The gate's task.
@@ -397,18 +406,19 @@ impl Recipe {
     ///
     /// # Errors
     ///
-    /// A zoo id the index does not list.
+    /// [`Error::NoReference`], or a zoo id the index does not list.
     pub fn reference_file(&self) -> Result<String> {
-        self.reference().file()
+        self.reference()?.file()
     }
 
     /// Checks that `bytes` are the reference model ([`Reference::check`]).
     ///
     /// # Errors
     ///
-    /// [`Error::ReferenceDigest`] for other bytes.
+    /// [`Error::NoReference`], or [`Error::ReferenceDigest`] for other
+    /// bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        self.reference().check(bytes)
+        self.reference()?.check(bytes)
     }
 }
 

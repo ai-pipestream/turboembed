@@ -20,8 +20,9 @@ struct Prepared {
 
 pub fn run() {
     let root = PathBuf::from(std::env::var_os("TURBO_MASC_ROOT").expect("TURBO_MASC_ROOT names MASC's data directory"));
-    let bundle =
-        PathBuf::from(std::env::var_os("TURBO_MINILM_BUNDLE").expect("TURBO_MINILM_BUNDLE names the MiniLM bundle"));
+    let bundle = turbo_pins::require(PathBuf::from(
+        std::env::var_os("TURBO_MINILM_BUNDLE").expect("TURBO_MINILM_BUNDLE names the MiniLM bundle"),
+    ));
     let corpus = load(&root);
     assert!(corpus.len() >= 20, "expected at least 20 usable MASC documents, got {}", corpus.len());
     let release_dir = std::env::var_os("TURBO_ASPECT_HEAD");
@@ -29,7 +30,10 @@ pub fn run() {
         release_dir.is_some() != std::env::var_os("TURBO_ASPECT_OUT").is_some(),
         "choose release verification OR explicit training output"
     );
-    if release_dir.is_some() {
+    if let Some(dir) = &release_dir {
+        for name in ["aspect-bio-1.thead", "aspect-polarity-1.thead"] {
+            turbo_pins::require(Path::new(dir).join(name));
+        }
         release::validate_population(&corpus, corpus.len() * 4 / 5).unwrap();
     }
     let subwords = SubwordAnnotator::open(&bundle).unwrap();

@@ -88,6 +88,72 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     })
 }
 
+/// What the training loop needs of a head in training.
+pub(crate) trait Model: Sized {
+    type Example;
+    type Work: Default;
+    fn params(&self) -> &[Vec<f32>];
+    /// Replaces every weight; refused unless each tensor keeps its length.
+    fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()>;
+    /// One optimizer step on the weights.
+    fn step(&mut self, opt: &mut AdamW<f32>, grads: &mut [Vec<f32>], decay: &[bool]) -> Result<f64>;
+    fn zero_grads(&self) -> Vec<Vec<f32>>;
+    fn decays(&self) -> Vec<bool>;
+    /// The example's loss, its gradients added to `grads`, and its words.
+    fn loss(&self, e: &Self::Example, grads: &mut [Vec<f32>], w: &mut Self::Work) -> Result<(f64, usize)>;
+    /// The dev score through the core's inference path; higher is better.
+    fn score(&self, dev: &[Self::Example]) -> Result<f64>;
+}
+
+impl Model for Tagger<f32> {
+    type Example = Example;
+    type Work = Work<f32>;
+    fn params(&self) -> &[Vec<f32>] {
+        Tagger::params(self)
+    }
+    fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
+        Tagger::set_params(self, params)
+    }
+    fn step(&mut self, opt: &mut AdamW<f32>, grads: &mut [Vec<f32>], decay: &[bool]) -> Result<f64> {
+        Tagger::step(self, opt, grads, decay)
+    }
+    fn zero_grads(&self) -> Vec<Vec<f32>> {
+        Tagger::zero_grads(self)
+    }
+    fn decays(&self) -> Vec<bool> {
+        Tagger::decays(self)
+    }
+    fn loss(&self, e: &Example, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
+        Ok((Tagger::loss(self, &e.features, &e.labels, grads, w)?, e.labels.len()))
+    }
+    fn score(&self, dev: &[Example]) -> Result<f64> {
+        score(&self.to_token_tagger()?, dev)
+    }
+}
+
+/// The settings `c` turned into the optimizer's, for `examples` a epoch.
+pub(crate) fn settings(c: &Config, examples: usize) -> Settings {
+    let total = examples.div_ceil(c.batch) as u64 * c.epochs as u64;
+    Settings {
+        lr: c.lr,
+        weight_decay: c.weight_decay,
+        clip: c.clip,
+        warmup: (total as f64 * c.warmup) as u64,
+        total,
+        ..Settings::default()
+    }
+}
+
+/// Refuses settings no run can use.
+pub(crate) fn check_config(c: &Config, examples: usize) -> Result<()> {
+    if examples == 0 || c.batch == 0 || c.epochs == 0 || !(0.0..1.0).contains(&c.warmup) {
+        return Err(invalid(
+            "trainer: an empty training set, or a zero batch, epoch count, or a warmup outside [0, 1)",
+        ));
+    }
+    Ok(())
+}
+
 /// Each example has `hidden` features per gold label and every label is
 /// one of `labels`.
 fn check_examples(examples: &[Example], hidden: usize, labels: usize) -> Result<()> {
@@ -102,39 +168,21 @@ fn check_examples(examples: &[Example], hidden: usize, labels: usize) -> Result<
     Ok(())
 }
 
-/// Trains a head for `spec` over features `hidden` wide on `train`,
-/// keeping the weights that scored best on `dev`.
-pub fn fit(
-    spec: &HeadSpec,
-    hidden: usize,
-    train: &[Example],
-    dev: &[Example],
+/// The loop: seeded shuffles, minibatch gradients summed in a fixed
+/// order and scaled per word, AdamW, dev scoring each epoch, early
+/// stopping, the best weights kept.
+pub(crate) fn train<M: Model>(
+    mut model: M,
+    rng: &mut Rng,
+    train: &[M::Example],
+    dev: &[M::Example],
     c: &Config,
-) -> Result<(Tagger<f32>, Report)> {
-    if train.is_empty() || c.batch == 0 || c.epochs == 0 || !(0.0..1.0).contains(&c.warmup) {
-        return Err(invalid(
-            "trainer: an empty training set, or a zero batch, epoch count, or a warmup outside [0, 1)",
-        ));
-    }
-    check_examples(train, hidden, spec.labels.len())?;
-    check_examples(dev, hidden, spec.labels.len())?;
-    let mut rng = Rng::new(c.seed);
-    let mut model = Tagger::<f32>::new(spec, hidden, &mut rng)?;
-    let steps_per_epoch = train.len().div_ceil(c.batch) as u64;
-    let total = steps_per_epoch * c.epochs as u64;
-    let settings = Settings {
-        lr: c.lr,
-        weight_decay: c.weight_decay,
-        clip: c.clip,
-        warmup: (total as f64 * c.warmup) as u64,
-        total,
-        ..Settings::default()
-    };
+) -> Result<(M, Report)> {
     let shapes: Vec<usize> = model.params().iter().map(Vec::len).collect();
-    let mut opt = AdamW::new(settings, &shapes)?;
+    let mut opt = AdamW::new(settings(c, train.len()), &shapes)?;
     let decay = model.decays();
     let mut order: Vec<usize> = (0..train.len()).collect();
-    let mut work = Work::default();
+    let mut work = M::Work::default();
     let mut report = Report { train_loss: Vec::new(), dev: Vec::new(), best_epoch: 0 };
     let mut best: Option<(f64, Vec<Vec<f32>>)> = None;
     for epoch in 0..c.epochs as usize {
@@ -142,9 +190,11 @@ pub fn fit(
         let (mut loss, mut words) = (0.0, 0usize);
         for batch in order.chunks(c.batch) {
             let mut grads = model.zero_grads();
-            let n: usize = batch.iter().map(|&i| train[i].labels.len()).sum();
+            let mut n = 0;
             for &i in batch {
-                loss += model.loss(&train[i].features, &train[i].labels, &mut grads, &mut work)?;
+                let (l, k) = model.loss(&train[i], &mut grads, &mut work)?;
+                loss += l;
+                n += k;
             }
             words += n;
             if n == 0 {
@@ -155,7 +205,7 @@ pub fn fit(
             model.step(&mut opt, &mut grads, &decay)?;
         }
         report.train_loss.push(if words == 0 { 0.0 } else { loss / words as f64 });
-        let s = score(&model.to_token_tagger()?, dev)?;
+        let s = model.score(dev)?;
         report.dev.push(s);
         if best.as_ref().is_none_or(|(b, _)| s > *b) {
             best = Some((s, model.params().to_vec()));
@@ -168,4 +218,21 @@ pub fn fit(
         model.set_params(params)?;
     }
     Ok((model, report))
+}
+
+/// Trains a head for `spec` over features `hidden` wide on `train`,
+/// keeping the weights that scored best on `dev`.
+pub fn fit(
+    spec: &HeadSpec,
+    hidden: usize,
+    train: &[Example],
+    dev: &[Example],
+    c: &Config,
+) -> Result<(Tagger<f32>, Report)> {
+    check_config(c, train.len())?;
+    check_examples(train, hidden, spec.labels.len())?;
+    check_examples(dev, hidden, spec.labels.len())?;
+    let mut rng = Rng::new(c.seed);
+    let model = Tagger::<f32>::new(spec, hidden, &mut rng)?;
+    self::train(model, &mut rng, train, dev, c)
 }

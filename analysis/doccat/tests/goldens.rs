@@ -16,6 +16,8 @@
 //! - Probabilities are within 1e-9: Platt's sigmoid calls `Math.exp` for
 //!   every kernel, and the pairwise coupling iterates on what it returns.
 
+#![cfg(feature = "classical")]
+
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::{Analyzer, Document, Key};

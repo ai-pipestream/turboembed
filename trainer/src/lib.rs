@@ -13,17 +13,23 @@
 //! on more than one thread, so two runs give identical bytes.
 
 pub mod adamw;
+pub mod adapter;
 pub mod crf;
 pub mod fit;
+pub mod fit_parse;
 pub mod langid;
 pub mod linear;
 pub mod logspace;
 pub mod lstm;
+pub mod parser;
 pub mod real;
 pub mod rng;
+mod shapes;
 pub mod tagger;
 pub mod xent;
 
 pub use fit::{Config, Example, Report, fit};
+pub use fit_parse::{ParseExample, fit_parser};
+pub use parser::Parser;
 pub use real::Real;
 pub use tagger::Tagger;

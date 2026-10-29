@@ -6,8 +6,11 @@
 use std::collections::BTreeMap;
 
 use turbo_formats::DocumentSample;
-use turbo_train::{DataIndex, Event, IndexParams, JavaString, TrainingParameters};
+#[cfg(feature = "classical")]
+use turbo_train::{DataIndex, IndexParams, TrainingParameters};
+use turbo_train::{Event, JavaString};
 
+#[cfg(feature = "classical")]
 use crate::error::DoccatError;
 use crate::features::{BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator};
 use crate::model::{FACTORY_NAME, FEATURE_GENERATORS_KEY};
@@ -123,6 +126,7 @@ where
 
 /// Builds the [`DataIndex`] that `DocumentCategorizerME.train` constructs for
 /// `events` and `params`.
+#[cfg(feature = "classical")]
 pub fn doccat_index(events: &[Event], params: &TrainingParameters) -> Result<DataIndex, DoccatError> {
     Ok(DataIndex::index(events, &IndexParams::from_training_parameters(params)?)?)
 }

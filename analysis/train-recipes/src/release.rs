@@ -135,9 +135,9 @@ impl ModelsRelease {
     }
 
     /// The references of the recipes that train its models, in the order
-    /// of its models.
+    /// of its models, leaving out the MASC recipes that have none.
     pub(super) fn recipe_references(&self) -> Vec<Reference> {
-        let masc = self.recipes().into_iter().map(|r| r.reference());
+        let masc = self.recipes().into_iter().filter_map(|r| r.reference().ok());
         let ud = self.ud_recipes().into_iter().map(|r| r.reference);
         masc.chain(ud).collect()
     }
@@ -239,6 +239,8 @@ pub fn references(release: &ModelsRelease) -> Result<Vec<(String, String)>> {
         let url = match reference {
             Reference::Zoo(id) => Index::builtin().get(id)?.files[0].url.as_str().to_owned(),
             Reference::Recorded(r) => r.url.to_owned(),
+            // Not fetched or pinned (#1509): nothing to list.
+            Reference::Retired(_) => continue,
         };
         let pair = (reference.sha256()?, url);
         if !pairs.contains(&pair) {
