@@ -50,20 +50,23 @@ pub const MASC_MODELS: ModelsRelease = ModelsRelease {
 };
 
 /// The release that publishes the models of the UD recipes that passed
-/// their gates and may be shipped: Spanish and Catalan AnCora's sentence,
-/// token and POS models and Finnish FTB's tagger. Portuguese Porttinari's
-/// are not in it, as the rights to its text are not settled, nor Italian
-/// MarkIT's, which failed their gates. Lemma models were retired under #1647.
+/// their gates and may be shipped: Spanish and Catalan AnCora's four and
+/// Finnish FTB's tagger and lemmatizer. Portuguese Porttinari's are not
+/// in it, as the rights to its text are not settled, nor Italian
+/// MarkIT's, which failed their gates.
 pub const UD_MODELS: ModelsRelease = ModelsRelease {
     tag: "models-ud-2.16-1",
     models: &[
         "turbo-es-ud-ancora-2.16-sentence-1",
         "turbo-es-ud-ancora-2.16-tokens-1",
         "turbo-es-ud-ancora-2.16-pos-1",
+        "turbo-es-ud-ancora-2.16-lemmas-1",
         "turbo-ca-ud-ancora-2.16-sentence-1",
         "turbo-ca-ud-ancora-2.16-tokens-1",
         "turbo-ca-ud-ancora-2.16-pos-1",
+        "turbo-ca-ud-ancora-2.16-lemmas-1",
         "turbo-fi-ud-ftb-2.16-pos-1",
+        "turbo-fi-ud-ftb-2.16-lemmas-1",
     ],
 };
 

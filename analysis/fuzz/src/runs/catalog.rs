@@ -6,7 +6,7 @@ use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
-use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
+use super::tagging::{Chunker, FIXTURE_CHUNKERS, Tagger};
 use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
@@ -227,8 +227,6 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "unigram" => Unigram::open(base, &options, res),
         "lattice" => Lattice::open(base, &options, res),
         "postag" => Tagger::open(base, &options, res),
-        "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
-        "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
         "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),

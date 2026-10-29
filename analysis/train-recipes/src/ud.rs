@@ -196,11 +196,11 @@ const fn recipe(model_id: &'static str, treebank: Treebank, component: Component
     UdRecipe { model_id, treebank, component, reference }
 }
 
-use Component::{Pos, Sentence as Sentences, Tokens};
+use Component::{Lemmas, Pos, Sentence as Sentences, Tokens};
 use Reference::Retired;
 
 /// The recipes, by treebank, in the order the binary runs them.
-pub const UD_RECIPES: [UdRecipe; 11] = [
+pub const UD_RECIPES: [UdRecipe; 16] = [
     recipe(
         "turbo-es-ud-ancora-2.16-sentence-1",
         SPANISH_ANCORA,
@@ -209,6 +209,7 @@ pub const UD_RECIPES: [UdRecipe; 11] = [
     ),
     recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, Retired("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
     recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, Retired("opennlp-es-ud-gsd-pos-1.3-2.5.4")),
+    recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, Retired("opennlp-es-ud-gsd-lemmas-1.3-2.5.4")),
     recipe(
         "turbo-ca-ud-ancora-2.16-sentence-1",
         CATALAN_ANCORA,
@@ -223,6 +224,12 @@ pub const UD_RECIPES: [UdRecipe; 11] = [
     ),
     recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, Retired("opennlp-ca-ud-ancora-pos-1.3-2.5.4")),
     recipe(
+        "turbo-ca-ud-ancora-2.16-lemmas-1",
+        CATALAN_ANCORA,
+        Lemmas,
+        Retired("opennlp-ca-ud-ancora-lemmas-1.3-2.5.4"),
+    ),
+    recipe(
         "turbo-pt-ud-porttinari-2.16-sentence-1",
         PORTUGUESE_PORTTINARI,
         Sentences,
@@ -235,8 +242,16 @@ pub const UD_RECIPES: [UdRecipe; 11] = [
         Retired("opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
     ),
     recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, Retired("opennlp-pt-ud-gsd-pos-1.3-2.5.4")),
+    recipe(
+        "turbo-pt-ud-porttinari-2.16-lemmas-1",
+        PORTUGUESE_PORTTINARI,
+        Lemmas,
+        Retired("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4"),
+    ),
     recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Retired("opennlp-fi-ud-tdt-pos-1.3-2.5.4")),
+    recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Retired("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4")),
     recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Retired("opennlp-it-ud-vit-pos-1.3-2.5.4")),
+    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, Retired("opennlp-it-ud-vit-lemmas-1.3-2.5.4")),
 ];
 
 /// The samples of one component read from one CoNLL-U file, borrowed
