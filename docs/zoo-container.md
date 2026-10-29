@@ -91,7 +91,7 @@ the image sets them (Who can do what, below). The image sets these:
 | `TURBO_KSERVE_ZOO` | `1` |
 | `TURBO_DEMO_LISTEN` | `0.0.0.0:8080` |
 | `TURBO_DEMO_SERVER` | `http://127.0.0.1:8081` |
-| `TURBO_DEMO_ALLOW` | `RecordLicenceAcceptance` and `InstallModel` |
+| `TURBO_DEMO_ALLOW` | `RecordLicenceAcceptance`, `RevokeLicenceAcceptance` and `InstallModel` |
 
 ## What runs in the image
 

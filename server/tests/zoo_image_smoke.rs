@@ -65,8 +65,12 @@ async fn a_running_zoo_image_reads_accepted_models_through_its_store() {
             let e = read(&mut c, user, a.id.as_str(), first.path.as_str()).await.unwrap_err();
             assert_eq!(e.code(), Code::FailedPrecondition, "{e:?}");
             assert!(e.message().contains(&a.license.to_string()), "{e:?}");
-            let req =
-                RecordLicenceAcceptanceRequest { user: user.into(), licence: a.license.to_string(), terms: "".into() };
+            let req = RecordLicenceAcceptanceRequest {
+                user: user.into(),
+                licence: a.license.to_string(),
+                artifact_id: a.id.to_string(),
+                ..Default::default()
+            };
             c.record_licence_acceptance(req).await.unwrap();
         }
         for f in &a.files {
