@@ -1,6 +1,8 @@
 //! The LIBSVM text model reader and the predictor on hand-written models,
 //! whose decision values and probabilities follow from LIBSVM's formulas.
 
+#![cfg(feature = "classical")]
+
 use turbo_doccat::svm::libsvm::{self, Kernel, PredictScratch, SvmType};
 use turbo_doccat::svm::{File, LineError, ModelError};
 
