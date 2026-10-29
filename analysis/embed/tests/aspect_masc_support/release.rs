@@ -163,6 +163,7 @@ mod tests {
         };
         load(Path::new(&dir), &model).unwrap();
         for name in ["aspect-bio-1.thead", "aspect-polarity-1.thead"] {
+            turbo_pins::require(Path::new(&dir).join(name));
             let mut bytes = std::fs::read(Path::new(&dir).join(name)).unwrap();
             bytes[0] ^= 1;
             assert!(validate_head(&bytes, name, &model).is_err());

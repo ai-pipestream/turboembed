@@ -166,13 +166,23 @@ constant uint EPILOGUE_BIAS_GELU = 2;
 // trigonometry here: y1 = x1 cos - x2 sin, y2 = x2 cos + x1 sin.
 constant uint EPILOGUE_ROPE = 3;
 // GATED_*: columns col (the activated gate) and col + 1 (the linear up)
-// make column col / 2 of y, n / 2 wide: act(gate) * up.
+// make column col / 2 of y, n / 2 wide: act(gate) * up, clamped to F16's
+// finite range when y is F16 (#1602).
 constant uint EPILOGUE_GATED_GELU = 4;
 constant uint EPILOGUE_GATED_SILU = 5;
 // RESIDUAL: y += the product, y the residual stream.
 constant uint EPILOGUE_RESIDUAL = 6;
 
+// F16's largest finite magnitude: a gated MLP's middle product past it
+// saturates when stored in F16 rather than rounding to infinity.
+constant float F16_MAX = 65504.0f;
+
 float silu(float v) { return v / (1.0f + exp(-v)); }
+
+template <typename YT>
+YT gated_out(float v) {
+    return sizeof(YT) == 2 ? YT(clamp(v, -F16_MAX, F16_MAX)) : YT(v);
+}
 
 // A lane's two outputs, row `row` and columns col and col + 1 (col even)
 // of y [m, n], through the epilogue in F32, rounded to y's type last:
@@ -202,10 +212,10 @@ void store_pair(device YT *y, uint row, uint col, float v0, float v1, uint layer
         }
         break;
     case EPILOGUE_GATED_GELU:
-        y[ulong(row) * (n / 2) + col / 2] = YT(gelu(v0) * v1);
+        y[ulong(row) * (n / 2) + col / 2] = gated_out<YT>(gelu(v0) * v1);
         return;
     case EPILOGUE_GATED_SILU:
-        y[ulong(row) * (n / 2) + col / 2] = YT(silu(v0) * v1);
+        y[ulong(row) * (n / 2) + col / 2] = gated_out<YT>(silu(v0) * v1);
         return;
     case EPILOGUE_RESIDUAL:
         v0 = float(y[ulong(row) * n + col]) + v0;

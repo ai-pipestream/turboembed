@@ -77,7 +77,7 @@ const SENTENCE: &str = "Barack Obama met Angela Merkel in Berlin on 3 May 2015 t
                         while Apple announced a new iPhone in Cupertino .";
 
 fn env_path(name: &str) -> PathBuf {
-    PathBuf::from(std::env::var(name).unwrap_or_else(|_| panic!("{name} names the directory")))
+    turbo_pins::require(PathBuf::from(std::env::var(name).unwrap_or_else(|_| panic!("{name} names the directory"))))
 }
 
 fn options() -> EncoderOptions {
