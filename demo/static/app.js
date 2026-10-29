@@ -8028,7 +8028,13 @@ function textSha256(text) {
   return new Sha256().update(new TextEncoder().encode(text)).hex();
 }
 function address(text) {
-  if (!text.startsWith("https://")) return el("code", { text });
+  let secure = false;
+  try {
+    secure = new URL(text).protocol === "https:";
+  } catch {
+    secure = false;
+  }
+  if (!secure) return el("code", { text });
   return el("a", { href: text, target: "_blank", rel: "noopener noreferrer", text });
 }
 function termsBlock(e, t, w, accepted) {

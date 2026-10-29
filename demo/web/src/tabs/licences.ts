@@ -35,9 +35,15 @@ export function textSha256(text: string): string {
   return new Sha256().update(new TextEncoder().encode(text)).hex();
 }
 
-/** A terms address as a link when it is https, else as text. */
+/** A terms address as a link when it is an https URL, else as text. */
 function address(text: string): Child {
-  if (!text.startsWith("https://")) return el("code", { text });
+  let secure = false;
+  try {
+    secure = new URL(text).protocol === "https:";
+  } catch {
+    secure = false;
+  }
+  if (!secure) return el("code", { text });
   return el("a", { href: text, target: "_blank", rel: "noopener noreferrer", text });
 }
 
