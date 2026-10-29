@@ -202,6 +202,44 @@ so these rows are the off-the-shelf peer bar on a hard split, not
 tuned WNUT systems. There is no turbo entity row yet: that waits on
 an entity bundle and label policy.
 
+## Language: FLORES+ (harness ready, record pending dataset access)
+
+Language records use the `--lang-gold` form on a fixed subset of
+the FLORES+ devtest split (openlanguagedata/flores_plus revision
+`1147e2dc59f37fbb5c22fd8478770de02cd399f9`, CC BY-SA 4.0,
+evaluation only; the files are never committed, see
+`docs/licences.md`). The subset is the 73 ISO 639-3 codes both
+FLORES+ devtest and lingua 2.2.0 cover, one languoid per code, at
+macrolanguage grain where the code splits differ (Mandarin
+`cmn_Hans` is gold `zho`, `arb_Arab` is `arb`, `pes` is `fas`,
+`ekk` is `est`, `lvs` is `lav`, `khk_Cyrl` is `mon`, `zsm` is
+`msa`, `swh` is `swa`, `azj` is `aze`, `als` is `sqi`). FLORES+ has
+no Latin file and its `fil_Latn` is Filipino, not Tagalog, so
+lingua's `lat` and `tgl` have no gold row.
+`analysis/eval/reference/peers/flores/convert_gold.py` holds the
+file map and writes `flores-plus-devtest-73.tsv` (`code<TAB>text`,
+sorted by code then sentence id), printing every input digest and
+the converted file's SHA-256 for the record's `--sha256` pin.
+
+Peer: lingua 2.2.0 (`lingua-language-detector`, Apache-2.0), all
+75 languages in accurate mode as shipped, in the pinned container
+at `analysis/eval/reference/peers/lingua/`. Its Arabic code `ara`
+is written as gold `arb` (its Arabic is Modern Standard Arabic);
+every other code is written as lingua names it. Ours: the
+script-based fallback (`--script-fallback`), a closed-set baseline
+over the gold label set. Both are the rows #1525's language model
+gate compares against, with gold labels and the majority baseline;
+no OpenNLP model is a peer or a target here.
+
+No language record is committed yet: the dataset download is gated
+on accepting the FLORES+ terms, and the Hugging Face account on
+the recording machine is not on the authorized list (the file
+resolve answer is 403, checked 2026-10-28). The converter, the
+lingua image and the scoring command below are verified end to end
+on synthetic inputs; the record `language-flores-plus-devtest.json`
+lands with its numbers as soon as access is granted, without any
+code change. Nothing in this section is a measured accuracy.
+
 ## Reproduce
 
 ```sh
@@ -248,6 +286,18 @@ docker build --build-arg TRANKIT_LANG=finnish \
   -t turbo-peer-trankit:1.1.2-finnish analysis/eval/reference/peers/trankit
 docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
   turbo-peer-trankit:1.1.2-finnish /gold/fi_ftb-ud-test.conllu /out/trankit-fi.conllu finnish
+
+# Language on FLORES+ devtest (after the dataset terms are accepted;
+# <flores-dir> holds the devtest .jsonl files at the pinned revision)
+python3 analysis/eval/reference/peers/flores/convert_gold.py \
+  <flores-dir> <out-dir>/flores-plus-devtest-73.tsv
+docker build -t turbo-peer-lingua:2.2.0 analysis/eval/reference/peers/lingua
+docker run --rm --network none -v <out-dir>:/out \
+  turbo-peer-lingua:2.2.0 /out/flores-plus-devtest-73.tsv /out/lingua.txt
+turbo-eval analysis --lang-gold <out-dir>/flores-plus-devtest-73.tsv \
+  --sha256 <digest printed by convert_gold.py> \
+  --lang-pred lingua-2.2.0=<out-dir>/lingua.txt \
+  --script-fallback --out <new-record>.json
 ```
 
 Recorded 2026-10-28 under load average about 31 to 36 (accuracy

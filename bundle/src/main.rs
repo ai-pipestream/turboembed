@@ -19,11 +19,9 @@ usage:
   turbo-bundle glirel-convert <pytorch_model.bin> <base-config.json> <spm.model> <repo> <revision> <license> <new-dir>
       write a GLiREL checkpoint as the native scorer's package: the encoder,
       the heads and glirel.json
-  turbo-bundle postag-convert <model.bin> <license> <new-dir>
-      write a BiLSTM(-CRF) part-of-speech model (ONLP-BLPT-1 to -5) as a
-      bundle: F32 and F16 safetensors, vocabularies and a manifest
-  turbo-bundle postag-verify <directory> [<model.bin>]
-      check a part-of-speech bundle's digests, and that it came from model.bin
+  turbo-bundle postag-verify <directory>
+      check a native part-of-speech bundle's provenance and digests
+      (archive conversion is retired; native exporters use postag::export)
   turbo-bundle torch-convert <checkpoint.bin> <new.safetensors>
       write a torch.save checkpoint's F32 tensors as safetensors, reading
       its pickle as data without running it
@@ -75,14 +73,12 @@ fn run(args: &[&str]) -> Result<()> {
             (repo, revision, license),
             Path::new(out),
         ),
-        ["postag-convert", bin, license, out] => {
-            let bytes = std::fs::read(bin).map_err(|e| format!("{bin}: {e}"))?;
-            turbo_bundle::postag::convert(&bytes, license, Path::new(out))
+        ["postag-convert", ..] => {
+            Err("postag-convert is retired under #1511; use postag::export with native parameters".into())
         }
-        ["postag-verify", dir] => turbo_bundle::postag::verify(Path::new(dir), None).map(|_| ()),
-        ["postag-verify", dir, bin] => {
-            let bytes = std::fs::read(bin).map_err(|e| format!("{bin}: {e}"))?;
-            turbo_bundle::postag::verify(Path::new(dir), Some(&bytes)).map(|_| ())
+        ["postag-verify", dir] => turbo_bundle::postag::verify(Path::new(dir)).map(|_| ()),
+        ["postag-verify", _, ..] => {
+            Err("postag-verify archive comparison is retired under #1511; pass only a native bundle directory".into())
         }
         ["gliner-verify", dir] => turbo_gliner::package::Manifest::load(Path::new(dir)).map(|_| ()),
         ["deberta-convert", config, weights, prefix, repo, revision, license, out] => {

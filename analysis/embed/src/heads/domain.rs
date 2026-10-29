@@ -6,6 +6,7 @@ use turbo_analysis_layers::{
     Chunks, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget, Pragmatics,
     PragmaticsItem, Sentences, Tokens, Vectors,
 };
+use turbo_doccat::scorers::PragmaticsVectorScorer;
 
 use super::{ClassifierHead, HeadMode};
 
@@ -230,7 +231,7 @@ impl ClassifierHead {
     }
 }
 
-impl turbo_doccat::sentiment::pragmatics::PragmaticsVectorScorer for ClassifierHead {
+impl PragmaticsVectorScorer for ClassifierHead {
     fn score_sentence_vector(&self, vec: &[f32]) -> Result<f64, String> {
         self.score_pragmatics_vector(vec)
     }

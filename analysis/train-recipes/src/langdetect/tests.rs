@@ -49,14 +49,15 @@ fn the_recipe_trains_with_the_parameters_langdetect_183_was_most_likely_trained_
     let theirs = turbo_train_components::langdetect::default_training_parameters();
     assert_eq!(ours, theirs);
     assert_eq!(LANGDETECT.reference.id(), "opennlp-langdetect-183");
-    assert!(turbo_zoo::Index::builtin().get(LANGDETECT_183.id).is_err(), "the zoo does not list the reference");
+    assert!(turbo_zoo::Index::builtin().get(LANGDETECT_183.id()).is_err(), "the zoo does not list the reference");
+    assert!(matches!(LANGDETECT_183.sha256(), Err(Error::RetiredReference { .. })), "langdetect-183 is not pinned");
     let id: turbo_zoo::ArtifactId = MODEL_ID.parse().unwrap();
     assert_eq!(id.as_str(), MODEL_ID);
     assert!(ZOO_LANGUAGE.parse::<turbo_zoo::Language>().is_ok());
 }
 
 #[test]
-fn language_card_artifact_validates_component_and_language() {
+fn no_language_card_is_publishable_while_its_reference_is_retired() {
     let sha256 = "0".repeat(64);
     let sha512 = "0".repeat(128);
     let export_file = ExportFile { name: "a.tar.bz2".to_owned(), size: 1, sha256: sha256.clone() };
@@ -115,8 +116,8 @@ fn language_card_artifact_validates_component_and_language() {
         held_out: LanguageHeldOutCard { samples: 1, reference_mappings: Vec::new() },
         gate: GateCard {
             record: GATE_FILE.to_owned(),
-            reference: LANGDETECT_183.id.to_owned(),
-            reference_sha256: LANGDETECT_183.sha256.to_owned(),
+            reference: LANGDETECT_183.id().to_owned(),
+            reference_sha256: "0".repeat(64),
             candidate_tag_format: None,
             reference_tag_format: None,
             candidate_score: 1.0,
@@ -128,82 +129,8 @@ fn language_card_artifact_validates_component_and_language() {
     };
     let url_m = "https://example.org/model.bin";
     let url_s = "https://example.org/training-sentences.txt";
-    assert!(card.artifact(url_m, url_s).is_ok());
-
-    let mut bad_comp = card.clone();
-    bad_comp.component = turbo_zoo::Component::Pos;
-    assert!(matches!(bad_comp.artifact(url_m, url_s), Err(Error::InvalidCard { field: "component", .. })));
-
-    let mut bad_lang = card;
-    bad_lang.language = "en".to_owned();
-    assert!(matches!(bad_lang.artifact(url_m, url_s), Err(Error::InvalidCard { field: "language", .. })));
-}
-
-#[test]
-fn gate_resets_per_language_correct_counts_on_repeated_calls() {
-    const PAIRS: [LanguagePair; 2] =
-        [LanguagePair { tatoeba: "eng", reference: &["eng"] }, LanguagePair { tatoeba: "fra", reference: &["fra"] }];
-    let recipe = LanguageRecipe {
-        model_id: MODEL_ID,
-        reference: Reference::Recorded(LANGDETECT_183),
-        languages: &PAIRS,
-        split: Split { seed: 1, held_out: 1, max_training: 2, min_sentences: 2 },
-        iterations: 5,
-        cutoff: 0,
-    };
-    let mut held_out = Vec::new();
-    for i in 0..15u32 {
-        held_out.push(Sample { language: 0, id: 10 + i, text: "Hello world in English.".into() });
-        held_out.push(Sample { language: 1, id: 30 + i, text: "Bonjour le monde en francais.".into() });
-    }
-    let mut plan = Plan {
-        training: vec![
-            Sample { language: 0, id: 1, text: "Hello world in English.".into() },
-            Sample { language: 1, id: 2, text: "Bonjour le monde en francais.".into() },
-        ],
-        held_out,
-        languages: vec![
-            LanguageCount {
-                tatoeba: "eng".to_owned(),
-                reference: vec!["eng".to_owned()],
-                sentences: 16,
-                licence_left_out: 0,
-                duplicates: 0,
-                training: 1,
-                held_out: 15,
-                candidate_correct: 99,
-                reference_correct: 99,
-            },
-            LanguageCount {
-                tatoeba: "fra".to_owned(),
-                reference: vec!["fra".to_owned()],
-                sentences: 16,
-                licence_left_out: 0,
-                duplicates: 0,
-                training: 1,
-                held_out: 15,
-                candidate_correct: 99,
-                reference_correct: 99,
-            },
-        ],
-        excluded: Vec::new(),
-        records: 32,
-        no_language: 0,
-        other_languages: 0,
-        cc0_records: 0,
-        cc0_differing: 0,
-        cc0_not_in_detailed: 0,
-    };
-    let trained = recipe.train(&plan).unwrap();
-    recipe.gate(&trained.bytes, &trained.bytes, &mut plan, "set", "0").unwrap();
-    let first: Vec<(usize, usize)> =
-        plan.languages.iter().map(|l| (l.candidate_correct, l.reference_correct)).collect();
-    for l in &plan.languages {
-        assert!(l.candidate_correct <= l.held_out);
-        assert!(l.reference_correct <= l.held_out);
-    }
-    recipe.gate(&trained.bytes, &trained.bytes, &mut plan, "set", "0").unwrap();
-    let second: Vec<(usize, usize)> =
-        plan.languages.iter().map(|l| (l.candidate_correct, l.reference_correct)).collect();
-    assert_eq!(first, second);
+    // The gate read langdetect-183, an OpenNLP 2.5 artifact that is not
+    // pinned (#1509), so the card cannot show it was gated against it;
+    // #1532 removes the gate.
+    assert!(matches!(card.artifact(url_m, url_s), Err(Error::RetiredReference { id: "opennlp-langdetect-183" })));
 }
