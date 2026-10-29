@@ -181,11 +181,13 @@ impl Annotator for DependencyChunker {
 
     fn annotate(&self, (view, tokens, tags, deps): Refs<'_, Self>) -> Result<(PhraseChunks,), Error> {
         let n = crate::pattern_chunker::validate_tokens_and_tags(Self::ID, view, tokens, tags)?;
-        if deps.head.len() != n {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("{} dependencies for {n} tokens", deps.head.len()),
-            });
+        let refuse = |detail: String| Err(Error::Annotator { annotator: Self::ID, detail });
+        if deps.head.len() != n || deps.relation.len() != n {
+            return refuse(format!("{} heads and {} relations for {n} tokens", deps.head.len(), deps.relation.len()));
+        }
+        if let Some((i, h)) = deps.head.iter().enumerate().find_map(|(i, h)| h.filter(|h| h.get() >= n).map(|h| (i, h)))
+        {
+            return refuse(format!("head {} of token {i} is past the {n} tokens", h.get()));
         }
         let text = view.text();
         let (starts, ends) = tokens.spans.columns();

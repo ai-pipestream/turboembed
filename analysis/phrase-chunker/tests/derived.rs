@@ -1,7 +1,9 @@
 //! Noun and verb chunks read off UD parses written here by hand, and the
 //! annotator over a document.
 
-use turbo_phrase_chunker::{ChunkKind, derive};
+use turbo_analysis::{Annotator, Document, Ix, Key, Provenance, Span, Spans, View, ViewId};
+use turbo_analysis_layers::{Dependencies, PhraseChunks, PosTags, TagSet, Tokens};
+use turbo_phrase_chunker::{ChunkKind, DependencyChunker, derive};
 
 /// `(word, tag, head counted from 1 with 0 the root, relation)` rows.
 fn chunks(rows: &[(&str, &str, usize, &str)]) -> Vec<(String, &'static str)> {
@@ -92,4 +94,91 @@ fn a_dependent_across_a_gap_is_left_out() {
     assert_eq!(chunks(&rows), [("dog".into(), "NP")]);
     assert_eq!(ChunkKind::Verb.label(), "VP");
     assert!(chunks(&[]).is_empty());
+}
+
+/// A document of `rows` (word, Penn tag, head from 1 with 0 the root,
+/// relation), the words joined by single spaces, and their parse. The
+/// parse is kept out of the document, which refuses a bad one on `add`, so
+/// the annotator's own checks can be reached.
+fn document(rows: &[(&str, &str, usize, &str)]) -> (Document, Dependencies) {
+    let text = rows.iter().map(|r| r.0).collect::<Vec<_>>().join(" ");
+    let mut doc = Document::new(text.as_str());
+    let mut spans = Spans::new(ViewId::SOURCE);
+    let mut at = 0u32;
+    for r in rows {
+        spans.push(Span::new(at, at + r.0.len() as u32));
+        at += r.0.len() as u32 + 1;
+    }
+    let (tag_col, rel_col): (Vec<&str>, Vec<&str>) = rows.iter().map(|r| (r.1, r.3)).unzip();
+    fn distinct<'a>(col: &[&'a str]) -> Vec<&'a str> {
+        let mut v = Vec::new();
+        for &x in col {
+            if !v.contains(&x) {
+                v.push(x);
+            }
+        }
+        v
+    }
+    let (tags, rels) = (distinct(&tag_col), distinct(&rel_col));
+    let tagset = TagSet::new("penn", &tags);
+    let relations = TagSet::new("UD", &rels);
+    let pos = PosTags { tags: tag_col.iter().map(|t| tagset.tag(t).unwrap()).collect(), tagset, prob: None };
+    let deps = Dependencies {
+        head: rows.iter().map(|r| r.2.checked_sub(1).map(|h| Ix::new(h as u32))).collect(),
+        relation: rel_col.iter().map(|r| relations.tag(r).unwrap()).collect(),
+        relations,
+    };
+    doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test")).unwrap();
+    doc.add(&Key::<PosTags>::DEFAULT, pos, Provenance::by("test")).unwrap();
+    (doc, deps)
+}
+
+fn annotate(doc: &Document, deps: &Dependencies) -> Result<PhraseChunks, turbo_analysis::Error> {
+    let inputs = (doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), doc.get::<PosTags>().unwrap(), deps);
+    DependencyChunker::default().annotate(inputs).map(|(chunks,)| chunks)
+}
+
+const BARKED: [(&str, &str, usize, &str); 5] = [
+    ("The", "DT", 3, "det"),
+    ("big", "JJ", 3, "amod"),
+    ("dog", "NN", 5, "nsubj"),
+    ("has", "VBZ", 5, "aux"),
+    ("barked", "VBN", 0, "root"),
+];
+
+#[test]
+fn the_annotator_writes_chunks_over_a_document() {
+    let (mut doc, deps) = document(&BARKED);
+    let chunks = annotate(&doc, &deps).unwrap();
+    // The same parse read back from the document gives the same chunks.
+    doc.add(&Key::<Dependencies>::DEFAULT, deps, Provenance::by("test")).unwrap();
+    let again = annotate(&doc, doc.get::<Dependencies>().unwrap()).unwrap();
+    assert_eq!(again.tokens, chunks.tokens);
+    let text = doc.get::<View>().unwrap().text();
+    let (starts, ends) = chunks.spans.columns();
+    let got: Vec<(&str, &str, (usize, usize))> = (0..chunks.spans.len())
+        .map(|i| {
+            let r = chunks.tokens[i];
+            (
+                &text[starts[i] as usize..ends[i] as usize],
+                chunks.kinds.label(chunks.kind[i]),
+                (r.start.get(), r.end.get()),
+            )
+        })
+        .collect();
+    assert_eq!(got, [("The big dog", "NP", (0, 3)), ("has barked", "VP", (3, 5))]);
+}
+
+#[test]
+fn the_annotator_refuses_a_head_past_the_tokens_and_a_short_parse() {
+    let mut rows = BARKED;
+    rows[1].2 = 9;
+    let (doc, deps) = document(&rows);
+    let err = annotate(&doc, &deps).err().expect("refused").to_string();
+    assert!(err.contains("head 8 of token 1 is past the 5 tokens"), "{err}");
+
+    let (doc, mut deps) = document(&BARKED);
+    deps.relation.pop();
+    let err = annotate(&doc, &deps).err().expect("refused").to_string();
+    assert!(err.contains("5 heads and 4 relations for 5 tokens"), "{err}");
 }
