@@ -392,14 +392,19 @@ mod tests {
     }
 
     #[test]
-    fn ud_pos_recipes_have_no_reference() {
+    fn ud_token_and_pos_recipes_have_no_reference() {
         for r in UD_RECIPES {
-            if r.component == Component::Pos {
+            if matches!(r.component, Component::Tokens | Component::Pos) {
                 assert_eq!(r.reference, None, "{}", r.model_id);
                 assert!(matches!(r.reference(), Err(Error::NoReference { recipe }) if recipe == r.model_id));
-                assert_eq!(r.tagger().unwrap().reference, None, "{}", r.model_id);
             } else {
                 assert!(r.reference().is_ok(), "{}", r.model_id);
+            }
+            if r.component == Component::Pos {
+                assert_eq!(r.tagger().unwrap().reference, None, "{}", r.model_id);
+            }
+            if r.component == Component::Tokens {
+                assert_eq!(r.segmentation().unwrap().reference_id, None, "{}", r.model_id);
             }
         }
     }
