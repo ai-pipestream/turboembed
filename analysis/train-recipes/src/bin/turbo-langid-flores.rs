@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let correct = correct(&model, &examples);
     let receipt = serde_json::json!({
         "dataset": "FLORES+",
-        "revision": FLORES_PLUS_REVISION,
+        "revision_claim": FLORES_PLUS_REVISION,
         "model_sha256": model_sha256,
         "gold_sha256": gold_sha256,
         "texts": examples.len(),

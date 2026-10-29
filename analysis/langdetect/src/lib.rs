@@ -1,6 +1,6 @@
 //! Document language detection: the historical `LanguageDetectorME` port
 //! ([`LanguageModel`], [`ContextGenerator`], [`ProbingContext`] and
-//! [`LanguageDetector`], with parity details in docs/langdetect.md), and
+//! [`LanguageDetector`], with historical notes in docs/langdetect.md), and
 //! the native hashed character n-gram classifier with script priors
 //! ([`NgramModel`], #1525).
 
