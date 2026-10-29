@@ -42,5 +42,13 @@ fn query_uses_trained_language_evidence() {
     assert_eq!(evidence.best_code, "eng");
     assert_eq!(evidence.spans.len(), 1);
     assert_eq!(evidence.spans[0].code, "eng");
+    assert_eq!(evidence.spans[0].script, Script::Latin);
+    assert_eq!(evidence.spans[0].span, turbo_analysis::Span::new(0, 11));
     assert!(evidence.spans[0].confidence > 0.99);
+    let evidence = profile.analyze("  hello! ").unwrap().language.unwrap();
+    assert_eq!(evidence.spans[0].span, turbo_analysis::Span::new(2, 7));
+    assert_eq!(evidence.spans[0].script, Script::Latin);
+    for text in ["1234", "   ", "!!"] {
+        assert!(profile.analyze(text).unwrap().language.is_none(), "no letters: {text:?}");
+    }
 }

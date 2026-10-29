@@ -21,6 +21,11 @@ pub struct NativeOutcome {
 
 /// Trains a loadable language identification model on `(text, language)` pairs.
 pub fn train_langid(samples: &[(String, String)], languages: &[String], model_ref: ModelRef) -> Result<NgramModel> {
+    for (_, language) in samples {
+        if !languages.contains(language) {
+            return Err(Error::Model(format!("sample has unknown language code {language:?}")));
+        }
+    }
     let config = Config::default();
     let examples: Vec<Example> = samples
         .iter()
@@ -92,5 +97,14 @@ mod tests {
         let loaded = NgramModel::from_bytes(&std::fs::read(&path).unwrap(), model_ref).unwrap();
         assert_eq!(loaded.predict("hello"), Some("eng"));
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn unknown_language_is_an_error() {
+        let samples = vec![("hello".to_owned(), "eng".to_owned())];
+        let languages = vec!["deu".to_owned()];
+        let model_ref = ModelRef { id: "test-langid".into(), revision: "1".into(), sha256: "0".into() };
+        let error = train_langid(&samples, &languages, model_ref).unwrap_err();
+        assert!(error.to_string().contains("unknown language code \"eng\""));
     }
 }
