@@ -170,6 +170,11 @@ impl NgramModel {
         indexed.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
         indexed.into_iter().take(k).map(|(i, score)| (self.languages[i].as_str(), score)).collect()
     }
+
+    /// Returns the language with the highest score, or `None` for empty text.
+    pub fn best(&self, text: &str) -> Option<(&str, f32)> {
+        self.top_k(text, 1).first().copied()
+    }
 }
 
 /// A coarse script class for language priors.
