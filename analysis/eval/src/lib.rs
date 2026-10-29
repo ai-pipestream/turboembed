@@ -46,6 +46,7 @@ pub mod analysis_bench;
 pub mod artifact;
 pub mod cascade;
 pub mod cascade_latency;
+pub mod chunk_gate;
 pub mod chunkers;
 pub mod cost;
 pub mod cuts;

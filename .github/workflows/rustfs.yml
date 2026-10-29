@@ -1,0 +1,46 @@
+name: RustFS
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rustfs.yml'
+      - 'scripts/test-rustfs.sh'
+      - 'zoo-remote/**'
+      - 'analysis/zoo/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/rustfs.yml'
+      - 'scripts/test-rustfs.sh'
+      - 'zoo-remote/**'
+      - 'analysis/zoo/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+  schedule:
+    - cron: '41 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rustfs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  rustfs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: RustFS integration
+        run: bash scripts/test-rustfs.sh

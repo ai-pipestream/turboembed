@@ -191,6 +191,7 @@ impl Pipeline {
         }
 
         // Bookkeeping for the record, outside every timed stage.
+        let integrity = set.spans.as_ref().map(|r| crate::spans::integrity(r, &set_ids(set), &doc_of, &spans));
         let ids: Vec<String> = set.docs.iter().map(|d| d.id.clone()).collect();
         let chunk_bytes: Vec<u64> = spans.iter().map(|s| (s.end - s.start) as u64).collect();
         let count = spans.len() as u64;
@@ -229,7 +230,7 @@ impl Pipeline {
         };
         let doc_scores = evaluate(&run, &set.qrels)?;
         let span_scores = set.spans.as_ref().map(|r| evaluate_spans(&chunks, r)).transpose()?;
-        let metrics = Metrics::new(&doc_scores, span_scores.as_ref())?;
+        let metrics = Metrics::new(&doc_scores, span_scores.as_ref(), integrity)?;
         let cost = Cost {
             wall: StageTimes { analysis_ms, chunking_ms, embedding_ms, retrieval_ms },
             tokens_embedded: embedder.tokens,
@@ -285,6 +286,10 @@ impl Pipeline {
         r.check()?;
         Ok(r)
     }
+}
+
+fn set_ids(set: &LoadedSet) -> Vec<String> {
+    set.docs.iter().map(|d| d.id.clone()).collect()
 }
 
 /// The dense ranking: every chunk (unless the chunker pooled its

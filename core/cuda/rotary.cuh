@@ -26,8 +26,13 @@ __device__ __forceinline__ void rope_pair(const GemmArgs &g, int t, int c, float
     v1 = __fadd_rn(__fmul_rn(x2, cs), __fmul_rn(x1, sn));
 }
 
+/* F16's largest finite magnitude: a gated MLP's middle product past it
+ * saturates when stored in F16 rather than rounding to infinity (#1632). */
+constexpr float F16_MAX = 65504.0f;
+
 /* act(gate) * up for a gated epilogue EPI; GELU by erff at an F32 output
- * whichever GELU it names. */
+ * whichever GELU it names. At an F16 output the product is clamped to
+ * [-F16_MAX, F16_MAX], as Metal's is (#1617); a NaN stays NaN. */
 template <int EPI, typename TOut> __device__ __forceinline__ float gated_of(float gate, float up) {
     float a;
     if constexpr (EPI == EPI_GATED_SILU)
@@ -36,7 +41,9 @@ template <int EPI, typename TOut> __device__ __forceinline__ float gated_of(floa
         a = gelu_tanh(gate);
     else
         a = gelu(gate);
-    return a * up;
+    const float v = a * up;
+    if constexpr (sizeof(TOut) == 2) return v > F16_MAX ? F16_MAX : v < -F16_MAX ? -F16_MAX : v;
+    return v;
 }
 
 /* Whether EPI writes the QKV product head-major. */

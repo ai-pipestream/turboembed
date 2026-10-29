@@ -410,7 +410,7 @@ another way overrides it (#1613).
   file a later source serves, once it verifies, so the next read is
   local. A file it cannot keep is still handed over.
 - `S3Bucket` (the `http` feature) is an S3 bucket or prefix, on AWS or
-  an S3-compatible store such as RustFS or MinIO, in the same
+  an S3-compatible store such as RustFS, in the same
   `<prefix>/blobs/sha256/<hex>` layout: a file is read with one GET and
   kept with one PUT, each signed with AWS Signature Version 4 (computed
   over `sha2`, no AWS SDK), or unsigned for a public bucket.

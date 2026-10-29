@@ -34,9 +34,9 @@ full-corpus results, model hashes and the Italian gate diagnosis.
 
 ## Models
 
-The published OpenNLP UD 1.3 lemmatizers (English EWT, German GSD, built
-with OpenNLP 2.5.4) are OpenNLP 2.5 artifacts, which are not fetched,
-pinned or run (#1509); #1532 removes the JVM goldens that still name them.
+The OpenNLP UD lemma models and their golden files were retired under #1647.
+Lemmatization now uses our edit-tree head and crate-local dictionary snapshots
+(`analysis/lemmatizer/tests/dictionary_snapshot.rs`).
 
 The dictionary the dictionary lemmatizer's tests run,
 `lemmatizer-dictionary.txt`, is made for this project and checked in as one of
@@ -45,26 +45,8 @@ directory's README describes it).
 
 ## Golden files
 
-`tests/golden.rs` compares both lemmatizers with files a JVM running OpenNLP
-wrote, made by the golden generator (`analysis/goldens-tool`,
-`LemmaGolden.java` and `DictionaryLemmaGolden.java`). Each golden holds the
-sentences, tokens and part-of-speech tags the JVM's own sentence detector,
-tokenizer and tagger made, and the lemma each lemmatizer gave each token. The
-test loads the JVM's tokens and tags as golden layers and runs the lemmatizer
-on them, so what is compared is the lemmatization alone: lemmas exactly and,
-for the maxent lemmatizer, probabilities bit for bit.
-
-| Run | Model | Input sets | What it covers |
-|---|---|---|---|
-| `lemmatize/opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | the published English model (see Models) | `en`, `multi`, `edge` | 1,304 tokens, 181 of them with a class other than `O` |
-| `lemmatize/opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | the published German model | `edge` | 465 tokens, 45 changed |
-| `lemmatize-dictionary/lemmatizer-dictionary` | `analysis/goldens/data/fixtures/lemmatizer-dictionary.txt` | `en`, `multi`, `edge` | 1,304 tokens, 130 found in the dictionary, the rest `O`; entries with several lemmas, with a capital letter (never found), listed twice, with an empty lemma field and with fields after the lemma |
-
-Beside each maxent golden is a decision point dump, every context the beam
-search asked the model about with the probability of every lemma class; the
-test runs the search with a recording context generator and checks the
-contexts feature by feature, in the JVM's order, and the probabilities bit for
-bit.
+The old OpenNLP lemma goldens were removed under #1647. Dictionary
+lemmatization is covered by crate-local snapshot tests.
 
 The `lemma-fixture-rust` model has two classes that delete the two units of
 an emoji at the end of a token (`Smile😀` to `smile`, `ok👍` to `ok`), so each
