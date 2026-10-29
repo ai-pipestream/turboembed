@@ -143,7 +143,7 @@ fn names_a_model(var: &str) -> bool {
 
 /// Sources that read such a variable and need no turbo_pins call, each for
 /// the reason given.
-const EXEMPT: [(&str, &str); 5] = [
+const EXEMPT: [(&str, &str); 4] = [
     ("server/src/config.rs", "the server's own configuration of the bundles it serves, not a test"),
     ("core/tests/sentencepiece.rs", "pins each model it reads by SHA-512 in FETCHED and checks it at load"),
     (
@@ -153,10 +153,6 @@ const EXEMPT: [(&str, &str); 5] = [
     (
         "analysis/postag/tests/bilstm_ewt.rs",
         "trains the model it then scores when TURBO_BILSTM_MODEL does not exist yet; the model is its own output",
-    ),
-    (
-        "analysis/embed/tests/heads.rs",
-        "1,954 lines, over the size rule, so left untouched here; #1635 splits it and pins TURBO_MINILM_BUNDLE",
     ),
 ];
 

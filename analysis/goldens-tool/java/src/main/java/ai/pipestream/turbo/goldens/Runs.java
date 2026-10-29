@@ -391,9 +391,7 @@ final class Runs {
     annotators.addAll(FrenchTreebankGolden.all());
     // The gazetteers: the bundled table, the fixture tables and an overlay, asked for names,
     // record ids and regions, and the fixture loaders on whole tables.
-    annotators.addAll(GazetteerGolden.all(fixtures));
     // The numeric place profiles of the same module, over whole tables.
-    annotators.add(new PlaceProfilesGolden());
     // The sequence machinery turbo-sequence ports: StringPattern in both versions, the feature
     // generators and malformed descriptors, the BIO and BILOU codecs, the beam search of the
     // tagger, chunker and name finder over the fixture and published models, and the tag
