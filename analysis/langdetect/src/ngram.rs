@@ -150,6 +150,15 @@ impl NgramModel {
             scores.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))?;
         if *score >= threshold { Some(self.languages[i].as_str()) } else { None }
     }
+
+    /// Returns the confidence of the most likely language.
+    pub fn confidence(&self, text: &str) -> Option<f32> {
+        if text.trim().is_empty() {
+            return None;
+        }
+        let scores = self.scores(text);
+        scores.iter().copied().reduce(f32::max)
+    }
 }
 
 /// A coarse script class for language priors.
