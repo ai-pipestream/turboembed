@@ -2090,9 +2090,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-formats",
- "turbo-jvm",
- "turbo-maxent",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2841,7 +2838,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-depparse",
  "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",
