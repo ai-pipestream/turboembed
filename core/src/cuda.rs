@@ -41,6 +41,15 @@ unsafe extern "C" {
         max_diff: *mut f64,
         max_ref: *mut f64,
     ) -> i32;
+    fn turbo_cuda_quantize(
+        ordinal: u32,
+        quantization: u32,
+        x: *const f32,
+        ranges: *const f32,
+        rows: i32,
+        dim: i32,
+        out: *mut u8,
+    ) -> i32;
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_has_cublas() -> i32;
     fn turbo_cuda_use_tile(tile: i32);
@@ -162,6 +171,25 @@ pub enum Tile {
     /// 16 at two stages over eight warps of 32 x 64; the FMA kernel's
     /// 128 x 64 for F16 operands.
     Kt = 21,
+}
+
+/// int8 or ubinary codes of host F32 rows on device `ordinal`, bit for bit
+/// with [`crate::quantize`]. `quantization` is `TURBO_QUANTIZE_INT8` or
+/// `TURBO_QUANTIZE_UBINARY`; `ranges` is `[2, dim]` for int8. Built only
+/// with `internals`.
+#[cfg(feature = "internals")]
+pub fn quantize(
+    ordinal: u32,
+    quantization: u32,
+    x: &[f32],
+    ranges: &[f32],
+    rows: i32,
+    dim: i32,
+    out: &mut [u8],
+) -> Result<(), i32> {
+    let ranges_ptr = if quantization == crate::TURBO_QUANTIZE_INT8 { ranges.as_ptr() } else { std::ptr::null() };
+    let rc = unsafe { turbo_cuda_quantize(ordinal, quantization, x.as_ptr(), ranges_ptr, rows, dim, out.as_mut_ptr()) };
+    if rc == 0 { Ok(()) } else { Err(rc) }
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random

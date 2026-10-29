@@ -341,7 +341,7 @@ enum Kernel {
     NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
     GEMM_H32N32 = GEMM_H128 + 4, GEMM_H64N32 = GEMM_H32N32 + 4, GEMM_H32N32A = GEMM_H64N32 + 4,
     GEMM_SMALL_H = GEMM_H32N32A + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128, ATTENTION_HR128, DEBERTA_EMBED,
-    DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP, ROTARY_EMBED, LAYER_NORM_INTO, PACK_ROWS,
+    DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP, ROTARY_EMBED, LAYER_NORM_INTO, PACK_ROWS, QUANTIZE_INT8, QUANTIZE_UBINARY,
     KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
@@ -355,7 +355,7 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "gemm_h32n32a_ff",  "gemm_h32n32a_fh", "gemm_h32n32a_hf", "gemm_h32n32a_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16",
     "attention_h128",   "attention_hr128", "deberta_embed",  "deberta_layer_norm_rows", "deberta_relative",
-    "deberta_attention", "lstm_project",   "lstm_step",       "rotary_embed",    "layer_norm_into", "pack_rows"};
+    "deberta_attention", "lstm_project",   "lstm_step",       "rotary_embed",    "layer_norm_into", "pack_rows", "quantize_int8", "quantize_ubinary"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -697,6 +697,67 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
         return TURBO_OK;
     });
 }
+
+/* int8 or ubinary codes of the first rows * dim F32 values of buf, into
+ * the leading bytes of the same buffer, matching core/src/quantize.rs. */
+int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
+                        turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        Buffer *b = static_cast<Buffer *>(buf);
+        if (rows == 0 || dim == 0) return TURBO_OK;
+        if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "quantization %u is not TURBO_QUANTIZE_INT8 or UBINARY",
+                          quantization);
+        if (quantization == TURBO_QUANTIZE_INT8 && !int8_ranges)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "int8_ranges is NULL");
+        if (!b->mtl)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "buffer_quantize needs a Metal buffer");
+        const uint64_t floats = (uint64_t)rows * (uint64_t)dim;
+        const uint64_t code_bytes =
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (uint64_t)rows * ((uint64_t)dim + 7) / 8;
+        if (b->bytes < floats * 4)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT,
+                          "buffer of %llu bytes is under the %llu F32 values to quantize",
+                          (unsigned long long)b->bytes, (unsigned long long)floats);
+        Context *c = b->ctx;
+        std::lock_guard<std::mutex> g(c->lock);
+        id<MTLBuffer> codes = new_buffer(c->device, code_bytes, MTLResourceStorageModeShared);
+        if (!codes)
+            return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes of codes", (unsigned long long)code_bytes);
+        id<MTLBuffer> ranges = nil;
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            const uint64_t rb = (uint64_t)dim * 2 * 4;
+            ranges = new_buffer(c->device, rb, MTLResourceStorageModeShared);
+            if (!ranges)
+                return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes of int8_ranges", (unsigned long long)rb);
+            memcpy(ranges.contents, int8_ranges, rb);
+        }
+        id<MTLCommandBuffer> cb = [c->queue commandBuffer];
+        id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+        const uint k = quantization == TURBO_QUANTIZE_INT8 ? QUANTIZE_INT8 : QUANTIZE_UBINARY;
+        [enc setComputePipelineState:c->kernels->k[k]];
+        [enc setBuffer:b->mtl offset:b->offset atIndex:0];
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            [enc setBuffer:ranges offset:0 atIndex:1];
+            [enc setBuffer:codes offset:0 atIndex:2];
+            [enc setBytes:&rows length:sizeof rows atIndex:3];
+            [enc setBytes:&dim length:sizeof dim atIndex:4];
+            [enc dispatchThreads:MTLSizeMake(floats, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        } else {
+            [enc setBuffer:codes offset:0 atIndex:1];
+            [enc setBytes:&rows length:sizeof rows atIndex:2];
+            [enc setBytes:&dim length:sizeof dim atIndex:3];
+            [enc dispatchThreads:MTLSizeMake(code_bytes, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        }
+        [enc endEncoding];
+        id<MTLBlitCommandEncoder> blit = [cb blitCommandEncoder];
+        [blit copyFromBuffer:codes sourceOffset:0 toBuffer:b->mtl destinationOffset:b->offset size:code_bytes];
+        [blit endEncoding];
+        TRY(finish(cb, err, "buffer_quantize"));
+        return TURBO_OK;
+    });
+}
+
 
 // ---- Models --------------------------------------------------------------------
 //
@@ -2606,10 +2667,70 @@ const turbo_backend turbo_metal_backend = {
     embed_write_ranges,
     0,
     0,
+    buffer_quantize,
 };
 
 /* Every allocation this backend has made in the process, host and device,
  * for the tests that hold a warm run to none. */
+
+/* Host F32 rows quantized on the device, codes back on the host. */
+int32_t turbo_metal_quantize(uint32_t ordinal, uint32_t quantization, const float *x, const float *ranges, int32_t rows,
+                             int32_t dim, uint8_t *out) {
+    try {
+        if (rows <= 0 || dim <= 0) return TURBO_OK;
+        if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
+            return TURBO_E_INVALID_ARGUMENT;
+        if (quantization == TURBO_QUANTIZE_INT8 && !ranges) return TURBO_E_INVALID_ARGUMENT;
+        id<MTLDevice> d = device(ordinal);
+        if (!d) return TURBO_E_INVALID_ARGUMENT;
+        const Kernels *ks = nullptr;
+        turbo_error err{};
+        if (kernels_for(ordinal, &ks, &err) != TURBO_OK) return err.code ? err.code : TURBO_E_RUNTIME;
+        id<MTLCommandQueue> q = [d newCommandQueue];
+        if (!q) return TURBO_E_RUNTIME;
+        const size_t floats = (size_t)rows * (size_t)dim;
+        const size_t code_bytes =
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (size_t)rows * ((size_t)dim + 7) / 8;
+        id<MTLBuffer> bx = new_buffer(d, floats * 4, MTLResourceStorageModeShared);
+        id<MTLBuffer> bc = new_buffer(d, code_bytes, MTLResourceStorageModeShared);
+        if (!bx || !bc) return TURBO_E_OUT_OF_MEMORY;
+        memcpy(bx.contents, x, floats * 4);
+        id<MTLBuffer> br = nil;
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            br = new_buffer(d, (size_t)dim * 2 * 4, MTLResourceStorageModeShared);
+            if (!br) return TURBO_E_OUT_OF_MEMORY;
+            memcpy(br.contents, ranges, (size_t)dim * 2 * 4);
+        }
+        id<MTLCommandBuffer> cb = [q commandBuffer];
+        id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+        const uint32_t urows = (uint32_t)rows, udim = (uint32_t)dim;
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            [enc setComputePipelineState:ks->k[QUANTIZE_INT8]];
+            [enc setBuffer:bx offset:0 atIndex:0];
+            [enc setBuffer:br offset:0 atIndex:1];
+            [enc setBuffer:bc offset:0 atIndex:2];
+            [enc setBytes:&urows length:sizeof urows atIndex:3];
+            [enc setBytes:&udim length:sizeof udim atIndex:4];
+            [enc dispatchThreads:MTLSizeMake(floats, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        } else {
+            [enc setComputePipelineState:ks->k[QUANTIZE_UBINARY]];
+            [enc setBuffer:bx offset:0 atIndex:0];
+            [enc setBuffer:bc offset:0 atIndex:1];
+            [enc setBytes:&urows length:sizeof urows atIndex:2];
+            [enc setBytes:&udim length:sizeof udim atIndex:3];
+            [enc dispatchThreads:MTLSizeMake(code_bytes, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        }
+        [enc endEncoding];
+        [cb commit];
+        [cb waitUntilCompleted];
+        if (cb.error) return TURBO_E_RUNTIME;
+        memcpy(out, bc.contents, code_bytes);
+        return TURBO_OK;
+    } catch (...) {
+        return TURBO_E_INTERNAL;
+    }
+}
+
 void turbo_metal_allocations(uint64_t *host, uint64_t *device) {
     *host = host_total.load(std::memory_order_relaxed);
     *device = device_total.load(std::memory_order_relaxed);

@@ -166,10 +166,11 @@ sentence-transformers' `quantize_embeddings` makes
   `cast_to_b1x8_gt` packs the same bits). faiss' `fvecs2bitvecs` packs
   `x >= 0` from the low bit up: its codes and these differ, so do not
   mix them in one index.
-- The core quantizes on the host, after the backend's run, so the codes
-  are the same on every backend for the same f32 vectors. A device's
-  vectors come back as F32 first (counted in `d2h_bytes`); the saving on
-  a device today is in what is stored and sent, not in the bus.
+- When the backend offers `buffer_quantize` (CUDA, Level Zero, Metal), the
+  codes are made on the device and only those bytes cross the bus (counted
+  in `d2h_bytes`); otherwise the core copies the vectors back as F32 first
+  and quantizes on the host. Either path yields the same codes for the
+  same f32 vectors (`core/src/quantize.rs`).
 
 ```mermaid
 sequenceDiagram

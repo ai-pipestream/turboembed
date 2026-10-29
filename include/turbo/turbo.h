@@ -758,9 +758,11 @@ int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_err
 /* The output of a run is one block, the vectors: [batch, dim] values of
  * turbo_result_info.dtype, packed row-major, turbo_result_info.bytes long.
  * Packed bits (U8) are [batch, (dim + 7) / 8] bytes, and dim still counts
- * dimensions. A quantized result is in host memory: the core quantizes a
- * device's vectors after copying them back as F32, which the first such
- * run's host_allocs and every such run's d2h_bytes count.
+ * dimensions. A quantized result is in host memory. When the backend
+ * offers buffer_quantize, the codes are made on the device and only those
+ * bytes are counted in d2h_bytes; otherwise the core copies the vectors
+ * back as F32 first (counted in d2h_bytes, and the first such run's
+ * host_allocs) and quantizes them on the host.
  * After turbo_embed_write_ranges, batch is the count of ranges written and
  * a row is a range's vector. */
 

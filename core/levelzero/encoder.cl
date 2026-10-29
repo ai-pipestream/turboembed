@@ -1652,3 +1652,39 @@ __kernel void lstm_step(__global const float *proj, __global const long *index, 
     state_out[at] = st;
     out[row * width + (long)k * h + j] = st;
 }
+
+
+/* int8 and ubinary codes, bit for bit with core/src/quantize.rs. out is a
+ * separate buffer so the write never races the read of x. */
+__kernel void quantize_int8(__global const float *x, __global const float *ranges, __global char *out, int rows,
+                            int dim) {
+    const size_t n = (size_t)rows * (size_t)dim;
+    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
+        const int d = (int)(i % (size_t)dim);
+        const float lo = ranges[d];
+        const float hi = ranges[(size_t)dim + (size_t)d];
+        float step = (hi - lo) / 255.0f;
+        if (step == 0.0f) step = 1.0f;
+        float q = floor((x[i] - lo) / step);
+        q = clamp(q, 0.0f, 255.0f);
+        const int qi = isnan(q) ? 0 : (int)q;
+        out[i] = (char)(qi - 128);
+    }
+}
+
+__kernel void quantize_ubinary(__global const float *x, __global uchar *out, int rows, int dim) {
+    const int row_bytes = (dim + 7) / 8;
+    const size_t n = (size_t)rows * (size_t)row_bytes;
+    for (size_t bi = get_global_id(0); bi < n; bi += get_global_size(0)) {
+        const int r = (int)(bi / (size_t)row_bytes);
+        const int b = (int)(bi % (size_t)row_bytes);
+        __global const float *row = x + (size_t)r * (size_t)dim;
+        const int base = b * 8;
+        uchar byte = 0;
+        for (int i = 0; i < 8; i++) {
+            const int d = base + i;
+            if (d < dim && row[d] > 0.0f) byte = (uchar)(byte | (0x80u >> i));
+        }
+        out[bi] = byte;
+    }
+}

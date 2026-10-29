@@ -69,3 +69,31 @@ fn ranges_are_refused_by_reason() {
     assert!(check_int8_ranges(&[2.0, 1.0]).unwrap_err().contains("minimum 2 is over its maximum 1"));
     check_int8_ranges(&[1.0, 1.0]).unwrap();
 }
+
+#[test]
+fn nan_and_inf_int8_buckets() {
+    // NaN clamps to NaN and casts to the bottom bucket; +inf clamps to 255.
+    let ranges = [0.0f32, 0.0, 1.0, 1.0];
+    let mut out = [0u8; 2];
+    int8_row(&[f32::NAN, f32::INFINITY], &ranges, &mut out);
+    assert_eq!(out.map(|b| b as i8), [-128, 127]);
+}
+
+#[test]
+fn ubinary_pads_a_short_last_byte_with_zero() {
+    let mut out = [0xffu8; 1];
+    ubinary_row(&[1.0f32, -1.0, 1.0], &mut out);
+    assert_eq!(out, [0b1010_0000]);
+}
+
+#[test]
+fn int8_tie_at_step_boundary_floors() {
+    // min 0, max 255, step 1: 1.0 floors to 1 -> code -127; the exact
+    // midpoint between buckets is never a tie under floor.
+    let ranges = [0.0f32, 255.0];
+    let mut out = [0u8; 1];
+    int8_row(&[1.0], &ranges, &mut out);
+    assert_eq!(out[0] as i8, -127);
+    int8_row(&[1.999], &ranges, &mut out);
+    assert_eq!(out[0] as i8, -127);
+}
