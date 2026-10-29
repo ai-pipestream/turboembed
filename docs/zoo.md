@@ -433,7 +433,8 @@ A zoo server keeps its files in such a store with
 `--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
 (docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
 its first read, so a library pointed at it with `grpc(s)://` needs no
-separate install step. `turbo-zoo-remote` (top-level `zoo-remote/`)
+separate install step. docs/zoo-container.md packs that server, the
+page and a RustFS store into one `docker compose`. `turbo-zoo-remote` (top-level `zoo-remote/`)
 adds the library's remote sources: a zoo server over `grpc://` or
 `grpcs://`, an S3 bucket over `s3://`, and the `TURBO_ZOO_SOURCE` list
 that names them.

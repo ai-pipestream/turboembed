@@ -69,6 +69,10 @@ users. It needs `--catalog-dir`, and the server may start with no
 Without `--zoo` a read of a file not installed is refused, and an
 install is an admin's step.
 
+The turbo-zoo image runs the server this way, with the demo page in
+front of it and, through `docker-compose.zoo.yml`, RustFS as its store
+(docs/zoo-container.md).
+
 ## Listing
 
 `ListModelCatalog` takes optional filters, `kind` (`KIND_LEXICON`, as
