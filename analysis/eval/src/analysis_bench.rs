@@ -37,6 +37,7 @@ mod align;
 mod conllu;
 mod language;
 mod ner;
+mod tokenize;
 use crate::model_gate::{Counts, Measure};
 use crate::random::JavaRandom;
 use crate::sha::{sha256, to_hex};
@@ -44,6 +45,7 @@ use crate::significance::percentile;
 pub use conllu::{ConlluSentence, ConlluToken, parse_conllu};
 pub use language::{LangGold, parse_lang_gold, parse_lang_pred, score_language, script_fallback_predictions};
 pub use ner::{parse_ner_gold, parse_ner_pred, score_ner};
+pub use tokenize::{TokenizerTier, score_tokenizer};
 
 /// The fixed bootstrap seed of every analysis record.
 pub const BOOTSTRAP_SEED: i64 = 42;
@@ -106,7 +108,7 @@ fn bootstrap(units: &[Counts], measure: Measure, resamples: u32) -> (f64, f64) {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SystemScores {
     pub system: String,
-    pub sentences: MetricScore,
+    pub sentences: Option<MetricScore>,
     pub tokens: Option<MetricScore>,
     pub upos: Option<MetricScore>,
     pub xpos: Option<MetricScore>,
@@ -219,7 +221,7 @@ pub fn score_conllu(system: &str, gold: &[ConlluSentence], pred: &[ConlluSentenc
     let accuracy = |idx: usize| Some(MetricScore::of(pooled(idx), Measure::Accuracy, Some(&slot(idx)), resamples));
     SystemScores {
         system: system.to_string(),
-        sentences: MetricScore::of(sent_counts, Measure::FMeasure, None, resamples),
+        sentences: Some(MetricScore::of(sent_counts, Measure::FMeasure, None, resamples)),
         tokens: Some(MetricScore::of(pooled(0), Measure::FMeasure, Some(&slot(0)), resamples)),
         upos: accuracy(1),
         xpos: accuracy(2),
@@ -253,7 +255,7 @@ pub fn score_sentencer(system: &str, gold: &[ConlluSentence], sentencer: &Senten
     let elapsed = started.elapsed().as_secs_f64();
     Ok(SystemScores {
         system: system.to_string(),
-        sentences: MetricScore::of(counts, Measure::FMeasure, None, 0),
+        sentences: Some(MetricScore::of(counts, Measure::FMeasure, None, 0)),
         tokens: None,
         upos: None,
         xpos: None,
@@ -297,6 +299,7 @@ pub fn command(args: &[String]) -> Result<()> {
     let mut out = None;
     let mut preds: Vec<(String, String)> = Vec::new();
     let mut sents: Vec<(String, String)> = Vec::new();
+    let mut tokenizers: Vec<TokenizerTier> = Vec::new();
     let mut system_name = "turbo".to_string();
     let mut sentences = None;
     let mut sat_bundle = None;
@@ -323,6 +326,7 @@ pub fn command(args: &[String]) -> Result<()> {
                 let (name, path) = v.split_once('=').ok_or("--sents needs NAME=PATH")?;
                 sents.push((name.to_string(), path.to_string()));
             }
+            "--tokenize" => tokenizers.push(TokenizerTier::parse(&value(&mut it)?)?),
             other => return Err(format!("analysis: unknown option {other}")),
         }
     }
@@ -366,8 +370,11 @@ pub fn command(args: &[String]) -> Result<()> {
         };
         systems.push(score_sentencer(&system_name, &gold, &sentencer)?);
     }
+    for tier in &tokenizers {
+        systems.push(score_tokenizer(tier.system_name(), &gold, *tier, resamples)?);
+    }
     if systems.is_empty() {
-        return Err("analysis needs at least one --pred, --sents or --sentences system".into());
+        return Err("analysis needs at least one --pred, --sents, --sentences or --tokenize system".into());
     }
 
     let record = AnalysisRecord {
@@ -383,6 +390,7 @@ pub fn command(args: &[String]) -> Result<()> {
             "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted".into(),
             "uas/las: punctuation included".into(),
             "bootstrap: per-document pooled resampling for token-aligned metrics".into(),
+            "tokens (tokenizer tiers): UAX #29 segments of the per-document space-joined # text with whitespace-only segments dropped, or Unicode White_Space runs for the whitespace baseline; no gold segmentation reaches a tier".into(),
         ],
         systems,
     };

@@ -171,6 +171,38 @@ Spanish: sentences 99.71, LAS 83.43. Catalan: sentences 99.88, LAS
 gold XPOS is the EAGLES tagset, so XPOS scores exactly 0.00 there;
 that is a tagset difference, not a tagging failure.
 
+## Tokenizers: word segmentation (#1645)
+
+The `turbo-tokenize-<split>-test.json` records score our own
+tokenizers (the `--tokenize` tiers of `turbo-eval analysis`) on the
+same five pinned splits and by the same form alignment as the peer
+systems above: each tier receives only the per-document space-joined
+`# text`. `turbo-uax29` is UAX #29 word segments with
+whitespace-only segments dropped, so punctuation segments stand as
+words, as UD counts them; `turbo-whitespace` is the deterministic
+baseline of Unicode `White_Space` runs. Token F1 in points, as
+scored by this bench (the peer numbers are the `tokens` scores of
+the records named above, not the UD scorer's):
+
+| split | gold words | turbo-uax29 | turbo-whitespace | spaCy | Stanza | Trankit |
+|---|---:|---:|---:|---:|---:|---:|
+| en-ewt | 25094 | 88.84 | 77.57 | 97.44 | 99.11 | 98.42 |
+| es-ancora | 53622 | 95.83 | 78.02 | - | 99.94 | 97.00 |
+| ca-ancora | 59610 | 88.52 | 70.69 | - | 99.96 | 95.47 |
+| fi-ftb | 16286 | 98.31 | 99.77 | - | 99.77 | 99.50 |
+| it-markit | 10196 | 87.60 | 91.24 | - | 99.41 | 99.75 |
+
+Reading notes: the peers tokenize with models trained on UD-style
+segmentation, so the gap to a rule segmenter is the price of
+contractions and clitics UD splits and UAX #29 keeps whole (and, in
+the other direction, of punctuation clusters UAX #29 splits). Where
+the gold segmentation is itself whitespace-oriented (fi-ftb), the
+whitespace baseline beats UAX #29 and matches Stanza's bench score;
+it-markit goes the same way. The fi-ftb and it-markit test files are
+single documents for this scorer, so their bootstrap intervals
+degenerate to the point score. The token-split head's row lands
+here when a trained bundle exists; MASC token F1 is still owed.
+
 ## Entities: WNUT-17
 
 Entity records use the `--ner-gold` form on the WNUT-17 test split
@@ -313,6 +345,12 @@ turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
   --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
   --system turbo-sat-1l-sm-cpu --sentences sat \
   --sat-bundle <sat-1l-sm-bundle-dir> --out <new-record>.json
+
+# Tokenizer tiers on the same five splits (en shown; the other pins
+# are in the inputs table above and in each record)
+turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
+  --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
+  --tokenize uax29 --tokenize whitespace --out <new-record>.json
 
 # Multilingual Stanza (per language; es shown)
 docker build --build-arg STANZA_LANG=es \

@@ -197,7 +197,7 @@ pub fn score_sentence_list(system: &str, gold: &[ConlluSentence], peer: &[Vec<St
     }
     Ok(SystemScores {
         system: system.to_string(),
-        sentences: MetricScore::of(counts, Measure::FMeasure, None, 0),
+        sentences: Some(MetricScore::of(counts, Measure::FMeasure, None, 0)),
         tokens: None,
         upos: None,
         xpos: None,
