@@ -334,6 +334,7 @@ release.md.
 | `include/turbo/` | the C header and the backend interface |
 | `bundle/` | `turbo-bundle`, recipes, and the conversion containers |
 | `trainer/` | `turbo-trainer`: training of bundle heads in Rust (#1518) |
+| `trainer/recipes` | `turbo-trainer-recipes`: pinned corpora (MASC Penn POS, MultiCoNER v2 English), the majority baseline, receipts, and the `turbo-train-head` command (#1518) |
 | `bench/` | `turbo-bench`, reference and peer programs, and the repository hygiene tests |
 | `benchmarks/records/` | committed benchmark records |
 | `server/` | `turbo-kserve` and its protos |
