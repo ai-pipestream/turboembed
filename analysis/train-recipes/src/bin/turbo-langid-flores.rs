@@ -20,7 +20,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let model = NgramModel::from_bytes(&model_bytes, model_ref)?;
     let source = std::str::from_utf8(&gold_bytes)?;
     let examples = read_gold(source)?;
+    let started = std::time::Instant::now();
     let correct = correct(&model, &examples);
+    let elapsed_seconds = started.elapsed().as_secs_f64();
     let receipt = serde_json::json!({
         "dataset": "FLORES+",
         "revision_claim": FLORES_PLUS_REVISION,
@@ -29,6 +31,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         "texts": examples.len(),
         "correct": correct,
         "accuracy": correct as f64 / examples.len() as f64,
+        "elapsed_seconds": elapsed_seconds,
+        "texts_per_second": examples.len() as f64 / elapsed_seconds.max(f64::EPSILON),
     });
     println!("{}", serde_json::to_string_pretty(&receipt)?);
     Ok(())

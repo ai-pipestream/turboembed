@@ -29,5 +29,7 @@ fn flores_command_loads_a_model_and_scores_every_row() {
     assert_eq!(receipt["correct"], 1);
     assert_eq!(receipt["accuracy"], 0.5);
     assert_eq!(receipt["revision_claim"], turbo_train_recipes::flores::FLORES_PLUS_REVISION);
+    assert!(receipt["elapsed_seconds"].as_f64().unwrap() >= 0.0);
+    assert!(receipt["texts_per_second"].as_f64().unwrap() > 0.0);
     std::fs::remove_dir_all(dir).unwrap();
 }
