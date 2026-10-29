@@ -7,6 +7,15 @@
 # When either process ends, the other is stopped and the container exits
 # with the first one's status.
 set -euo pipefail
+# These settings must also be visible to Docker's independent health process.
+for arg in "$@"; do
+    case "$arg" in
+        --listen|--listen=*|--tls-*)
+            echo 'zoo-start: configure listener and TLS through TURBO_KSERVE_* environment variables' >&2
+            exit 2 ;;
+    esac
+done
+source "$(dirname "${BASH_SOURCE[0]}")/zoo-env"
 
 if [[ -z "${TURBO_DEMO_TOKEN:-}" && -z "${TURBO_DEMO_TOKEN_FILE:-}" ]]; then
     TURBO_DEMO_TOKEN=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
