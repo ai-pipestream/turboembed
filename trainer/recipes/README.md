@@ -8,6 +8,7 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | `masc-pos` | MASC 3.0.0, Penn tags (CC BY 3.0 US) | tags | corpus digest of the extracted release (`turbo_train_recipes::masc::RELEASE`) | test: the recipes' held-out documents (every tenth, Twitter genre left out), so numbers compare with the MASC tagger's gate; dev: every tenth training-side document |
 | `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
 | `ud-en-ewt-upos`, `ud-en-ewt-xpos`, `ud-en-ewt-feats` | UD English EWT r2.18 (commit `b7711cce`), one corpus a column, read as syntactic words (CC BY-SA 4.0: share-alike, as MultiCoNER) | tags, heads `upos` on `turboembed:pos`, `xpos`, `feats` | size and SHA-256 of each file (`ud::EN_EWT`) | the release's own train, dev and test; the test file is the one the spaCy, Stanza and Trankit peer records score |
+| `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the last five CC BY-SA 4.0, share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
 
 A directory that is not the recorded release is refused unless the run
 passes `--unrecorded-corpus`, and its receipt then says
@@ -17,6 +18,18 @@ release tag:
 ```text
 for f in en_ewt-ud-train.conllu en_ewt-ud-dev.conllu en_ewt-ud-test.conllu; do
   curl -sSO https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/r2.18/$f
+done
+```
+
+The r2.16 treebanks the same way, each from its repository at `r2.16`
+(`UD_Spanish-AnCora`, `UD_Catalan-AnCora`, `UD_Finnish-FTB`,
+`UD_Italian-MarkIT`, `UD_Portuguese-Porttinari`, `UD_German-GSD`,
+`UD_French-GSD`, `UD_Dutch-Alpino`, `UD_Russian-GSD`, `UD_Portuguese-GSD`),
+the `<code>_<bank>-ud-{train,dev,test}.conllu` files the repository holds:
+
+```text
+for f in de_gsd-ud-train.conllu de_gsd-ud-dev.conllu de_gsd-ud-test.conllu; do
+  curl -sSO https://raw.githubusercontent.com/UniversalDependencies/UD_German-GSD/r2.16/$f
 done
 ```
 

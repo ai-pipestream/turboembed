@@ -78,6 +78,7 @@ pub fn record(
         dev: counts(&splits.dev),
         test: counts(&splits.test),
         skipped: 0,
+        recipe_only: bank.recipe_only,
     }
 }
 
