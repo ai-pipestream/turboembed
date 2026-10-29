@@ -19,7 +19,11 @@ turbo-stopword-layers = { path = "../stopword-layers" }
 turbo-unicode = { path = "../unicode" }
 # The detokenizer the conversion streams rebuild text with.
 turbo-tokenize = { path = "../tokenize" }
+# Domain vocabulary stopwords and stems.
+turbo-stopword = { path = "../stopword" }
+turbo-stem = { path = "../stem" }
 
 [dev-dependencies]
+turbo-glossary = { path = "../glossary" }
 turbo-normalize = { path = "../normalize" }
 turbo-structure = { path = "../structure" }

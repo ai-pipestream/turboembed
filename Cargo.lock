@@ -2206,7 +2206,10 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-glossary",
  "turbo-normalize",
+ "turbo-stem",
+ "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",

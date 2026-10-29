@@ -16,11 +16,13 @@ pub mod doc_export;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
+pub mod legal;
 pub mod masc;
 pub mod ner;
 pub mod recipes;
 pub mod sample;
 pub mod source;
+pub mod vocabulary;
 pub(crate) mod xml;
 
 pub use encoding::{DecodeError, Encoding, decode};

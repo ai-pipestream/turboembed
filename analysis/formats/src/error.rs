@@ -7,11 +7,14 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
+use crate::legal::LegalError;
 use crate::ner::NerError;
 
 /// A sample a reader cannot read, or a sample value that cannot be built.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormatError {
+    /// A legal corpus document that is malformed or incomplete.
+    Legal(LegalError),
     /// A `<START>` tag inside a name: `NameSample.parse` throws an
     /// `IOException`. `context` is the tag with up to two parts of the
     /// line before and after it, the tag marked with `###`.
@@ -175,6 +178,7 @@ impl fmt::Display for FormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use FormatError::*;
         match self {
+            Legal(e) => e.fmt(f),
             Ner(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
