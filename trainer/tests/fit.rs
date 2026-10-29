@@ -21,6 +21,7 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         word_pooling: WordPooling::First,
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
+        biaffine: None,
         artifact: "weights".into(),
         tensor_prefix: "toy".into(),
     }

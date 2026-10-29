@@ -3,6 +3,8 @@
 //! cases of OpenNLP's `DocumentCategorizerSVMTest` and
 //! `DocumentCategorizerSVMEdgeCaseTest` that do not train.
 
+#![cfg(feature = "classical")]
+
 use turbo_analysis::{Analyzer, Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Categories, Tokens};
 use turbo_doccat::svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};

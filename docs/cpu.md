@@ -62,6 +62,18 @@ bit. The ranges are split into tasks of several ranges each on the
 session's threads; each range is summed whole by one task, so the
 vectors are the same bits on any number of threads.
 
+`turbo_embed_write_layer_ranges` pools the same ranges from each of the
+last L layers in one pass (#1616): after each of those layers but the
+last, its states are pooled as the final ones are into the run's next
+block of vectors, and the last block is the plain range write's, bit for
+bit. A ModernBERT's final_norm is applied to each earlier layer's states
+in the normalized-rows buffer first, as it is to the last, so every block
+is on the final states' scale; a BERT, RoBERTa or nomic-bert layer's
+states are pooled where the layer leaves them. Block k is the same bits a
+model cut after layer L - layers + k + 1 writes for the ranges
+(`core/src/cpu/encoder/taps_tests.rs`). The DeBERTa encoder and static models read
+only the final layer.
+
 For a static model, a range's vector is the mean of the table rows of
 its live tokens, times their weights where the model has them: the sum
 a row's mean pooling makes, over the range's tokens alone, rounded and
