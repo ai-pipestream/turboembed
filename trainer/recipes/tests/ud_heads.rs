@@ -257,6 +257,17 @@ fn metadata(bytes: &[u8]) -> Value {
     header["__metadata__"].clone()
 }
 
+/// A trainer process killed and reaped when the test lets go of it, so a
+/// failed assertion leaves no run of 100000 epochs behind.
+struct Reaped(std::process::Child);
+
+impl Drop for Reaped {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 #[test]
 fn a_ud_run_stopped_midway_keeps_its_best_head_so_far() {
     let data = scratch("stop-data");
@@ -268,19 +279,21 @@ fn a_ud_run_stopped_midway_keeps_its_best_head_so_far() {
         args.extend(["--bundle", bundle.to_str().unwrap(), "--out", out.to_str().unwrap(), "--unrecorded-corpus"]);
         args.extend(["--epochs", "100000", "--patience", "0", "--batch", "8", "--commit", "test"]);
         args.extend(extra);
-        let mut child = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
-            .args(&args)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .unwrap();
+        let mut child = Reaped(
+            Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+                .args(&args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .unwrap(),
+        );
         let start = std::time::Instant::now();
         while !out.join("head.safetensors").is_file() {
             assert!(start.elapsed().as_secs() < 120, "{command}: no checkpoint within two minutes");
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-        child.kill().unwrap();
-        child.wait().unwrap();
+        child.0.kill().unwrap();
+        child.0.wait().unwrap();
         // What is left is whole: the spec, and a head the core loads that
         // names the epoch and dev score it is from; no receipt.
         let head: HeadSpec = serde_json::from_slice(&fs::read(out.join("head.json")).unwrap()).unwrap();
