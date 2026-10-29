@@ -120,6 +120,7 @@ pub(super) fn train(
         corpus: record,
         encoder: Some(encoder),
         head: Some(spec),
+        peer: None,
         config: Some(ConfigRecord {
             seed: c.seed,
             epochs: c.epochs,

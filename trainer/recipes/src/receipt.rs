@@ -28,6 +28,9 @@ pub struct Receipt {
     pub encoder: Option<EncoderRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub head: Option<HeadSpec>,
+    /// The peer system scored in place of a head, for a `peer` receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer: Option<crate::peer::PeerRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<ConfigRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
