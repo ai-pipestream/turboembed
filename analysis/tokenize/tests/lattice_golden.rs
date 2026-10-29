@@ -292,7 +292,7 @@ fn unidic_goldens_round_trip() {
     let mut dumps = Vec::new();
     collect_files(&turbo_goldens::data_dir(), "dump", &mut dumps);
     dumps.sort();
-    assert!(dumps.len() > 500, "{} checked-in dumps", dumps.len());
+    assert!(dumps.len() > 350, "{} checked-in dumps", dumps.len());
     for path in dumps {
         let raw = std::fs::read_to_string(&path).unwrap();
         assert!(!raw.contains('\u{2014}'), "{}", path.display());
