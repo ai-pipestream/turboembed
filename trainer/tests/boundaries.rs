@@ -20,8 +20,10 @@ fn spec(labels: &[&str], scheme: Scheme, decode: Decode) -> HeadSpec {
         adapter: None,
         decode,
         biaffine: None,
+        pos_input: None,
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),
+        hash_embed: None,
     }
 }
 
@@ -67,7 +69,7 @@ fn the_losses_refuse_mismatched_shapes_and_nonfinite_scores() {
 }
 
 fn one_example() -> Vec<Example> {
-    vec![Example { features: vec![1.0], labels: vec![1] }]
+    vec![Example { features: vec![1.0], labels: vec![1], forms: Vec::new() }]
 }
 
 #[test]
@@ -84,11 +86,11 @@ fn score_refuses_gold_that_does_not_match_the_words() {
     let s = spec(&["A", "B"], Scheme::Tags, Decode::Argmax);
     let t = Tagger::<f32>::with_params(&s, 1, vec![vec![0.0, 0.0], vec![1.0, 0.0]]).unwrap();
     let core = t.to_token_tagger().unwrap();
-    let extra = [Example { features: vec![1.0], labels: vec![0, 1] }];
+    let extra = [Example { features: vec![1.0], labels: vec![0, 1], forms: Vec::new() }];
     assert!(turbo_trainer::fit::score(&core, &extra).is_err());
-    let out_of_range = [Example { features: vec![1.0], labels: vec![2] }];
+    let out_of_range = [Example { features: vec![1.0], labels: vec![2], forms: Vec::new() }];
     assert!(turbo_trainer::fit::score(&core, &out_of_range).is_err());
-    let fine = [Example { features: vec![1.0], labels: vec![0] }];
+    let fine = [Example { features: vec![1.0], labels: vec![0], forms: Vec::new() }];
     assert_eq!(turbo_trainer::fit::score(&core, &fine).unwrap(), 1.0);
 }
 
@@ -104,6 +106,25 @@ fn one_step_and_short_schedules_move_every_trained_weight() {
             assert!(a.iter().zip(b).all(|(x, y)| x != y), "{epochs} epochs: tensor {i} {a:?} -> {b:?}");
         }
     }
+}
+
+#[test]
+fn attachment_refuses_gold_that_does_not_match_the_words() {
+    use turbo::manifest::Biaffine;
+    use turbo_trainer::fit_parse::{ParseExample, attachment};
+    use turbo_trainer::parser::Parser;
+    let mut s = spec(&["root", "dep"], Scheme::Tags, Decode::Mst);
+    s.kind = HeadKind::BiaffineParser;
+    s.biaffine = Some(Biaffine { arc: 2, rel: 2 });
+    assert!(Parser::<f32>::new(&s, 0, &mut Rng::new(1)).is_err(), "zero width");
+    let p = Parser::<f32>::new(&s, 1, &mut Rng::new(1)).unwrap();
+    let core = p.to_core().unwrap();
+    let short = [ParseExample { features: vec![1.0, 2.0], heads: vec![0], rels: vec![0] }];
+    assert!(attachment(&core, &short).is_err());
+    let own_head = [ParseExample { features: vec![1.0], heads: vec![1], rels: vec![0] }];
+    assert!(attachment(&core, &own_head).is_err());
+    let fine = [ParseExample { features: vec![1.0], heads: vec![0], rels: vec![0] }];
+    assert_eq!(attachment(&core, &fine).unwrap().words, 1);
 }
 
 #[test]

@@ -146,7 +146,7 @@ impl BiaffineParser {
     /// takes them. Returns n. Keeps the relation views in `w`.
     pub fn arcs(&self, states: &[f32], words: &[u32], out: &mut Vec<f32>, w: &mut Work) -> Result<usize> {
         out.clear();
-        let n = self.reader.read(states, words, &mut w.words)?;
+        let n = self.reader.read(states, words, None, &mut w.words)?;
         w.n = n;
         if n == 0 {
             return Ok(0);

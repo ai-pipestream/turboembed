@@ -2,7 +2,10 @@
 //! `levelzero`, `cuda`, `metal`; the CPU when it is not set), at the
 //! precision TURBO_TEST_PRECISION names (model, or exact), against the
 //! CPU: every word feature and every label score within 1e-4, the decoded
-//! tags and entities the same. The encoder loads on the device itself,
+//! tags and entities the same; for the parser head every arc and
+//! relation score within 1e-4 of its size (at least 1), the trees and
+//! relations the same; for the lemmatizer head every tree score within
+//! 1e-4 and the lemmas the same. The encoder loads on the device itself,
 //! and the run asserts the backend it reports. With
 //! TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO or
 //! TURBO_TEST_REQUIRE_METAL set, the test fails unless it runs there.
@@ -15,7 +18,7 @@ use turbo::head::tagger::Work;
 use turbo_analysis::{Annotator, Document, Key, Layer, View};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_analysis_layers::{Entities, PosTags};
-use turbo_tagger::{EntityTagger, HeadRunner, PosTagger, WordEncoder};
+use turbo_tagger::{DependencyParser, EntityTagger, HeadRunner, Lemmatizer, PosTagger, WordEncoder};
 
 const BOUND: f32 = 1e-4;
 
@@ -108,4 +111,115 @@ fn the_device_reads_words_and_tags_as_the_cpu() {
     let (a,) = ed.annotate((view, &toks, None, None)).unwrap();
     let (b,) = ec.annotate((view, &toks, None, None)).unwrap();
     assert_eq!((a.tokens, a.kind), (b.tokens, b.kind));
+}
+
+/// The largest difference of `a` from `b`, each over the size of `b` (at
+/// least 1): a biaffine score is a product of two views, so its error
+/// grows with it.
+fn max_relative(a: &[f32], b: &[f32]) -> f32 {
+    assert_eq!(a.len(), b.len());
+    a.iter().zip(b).map(|(x, y)| (x - y).abs() / y.abs().max(1.0)).fold(0.0, f32::max)
+}
+
+#[test]
+fn the_device_parses_as_the_cpu() {
+    let o = options();
+    if let Some(b) = required() {
+        assert!(!matches!(o.device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
+    }
+    let dir = bundle("device-parse", |_| {});
+    let mut device = WordEncoder::open(&dir, &o).unwrap();
+    let execution = device.execution().clone();
+    if let Some(b) = required() {
+        assert_eq!(execution.backend, b, "the session runs on the backend required");
+    }
+    let mut cpu = WordEncoder::open(&dir, &EncoderOptions::default()).unwrap();
+    let deps = DependencyParser::open(&dir, None, &EncoderOptions::default()).unwrap();
+    let p = deps.parser();
+    let seqs = sequences();
+    let pooling = p.spec().word_pooling;
+    let (on_device, on_cpu) = (device.features(&seqs, pooling).unwrap(), cpu.features(&seqs, pooling).unwrap());
+    let (mut worst_arc, mut worst_rel) = (0f32, 0f32);
+    for (s, (d, c)) in seqs.iter().zip(on_device.iter().zip(&on_cpu)) {
+        let ids: Vec<u32> = (0..s.len() as u32).collect();
+        let (mut wd, mut wc) = (turbo::head::parser::Work::default(), turbo::head::parser::Work::default());
+        let (mut ad, mut ac, mut hd, mut hc) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let n = p.arcs(d, &ids, &mut ad, &mut wd).unwrap();
+        p.arcs(c, &ids, &mut ac, &mut wc).unwrap();
+        worst_arc = worst_arc.max(max_relative(&ad, &ac));
+        p.decode(&ad, n, &mut hd).unwrap();
+        p.decode(&ac, n, &mut hc).unwrap();
+        assert_eq!(hd, hc, "{s:?}");
+        let (mut rd, mut rc) = (Vec::new(), Vec::new());
+        p.relations(&hc, &mut rd, &wd).unwrap();
+        p.relations(&hc, &mut rc, &wc).unwrap();
+        worst_rel = worst_rel.max(max_relative(&rd, &rc));
+    }
+    eprintln!(
+        "parser device {} ({}): max arc score diff {worst_arc:e}, max relation score diff {worst_rel:e} (relative)",
+        execution.backend, execution.device
+    );
+    assert!(worst_arc <= BOUND && worst_rel <= BOUND, "{worst_arc} {worst_rel}");
+
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let on = DependencyParser::open(&dir, None, &o).unwrap();
+    assert_eq!(on.execution().unwrap().backend, execution.backend);
+    let (a,) = on.annotate((view, &toks, None, None)).unwrap();
+    let (b,) = deps.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!((a.head, a.relation), (b.head, b.relation));
+}
+
+#[test]
+fn the_device_lemmatizes_as_the_cpu() {
+    let o = options();
+    if let Some(b) = required() {
+        assert!(!matches!(o.device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
+    }
+    let dir = bundle("device-lemma", |_| {});
+    let mut device = WordEncoder::open(&dir, &o).unwrap();
+    let execution = device.execution().clone();
+    if let Some(b) = required() {
+        assert_eq!(execution.backend, b, "the session runs on the backend required");
+    }
+    let mut cpu = WordEncoder::open(&dir, &EncoderOptions::default()).unwrap();
+    let cpu_lem = Lemmatizer::open(&dir, None, &EncoderOptions::default()).unwrap();
+    let (head, pos) = (cpu_lem.head(), cpu_lem.pos().unwrap());
+    let seqs = sequences();
+    let (hp, pp) = (head.spec().word_pooling, pos.spec().word_pooling);
+    let (hd, hc) = (device.features(&seqs, hp).unwrap(), cpu.features(&seqs, hp).unwrap());
+    let (pd, pc) = (device.features(&seqs, pp).unwrap(), cpu.features(&seqs, pp).unwrap());
+    let mut worst = 0f32;
+    for (k, s) in seqs.iter().enumerate() {
+        let ids: Vec<u32> = (0..s.len() as u32).collect();
+        let tags = |f: &[f32]| {
+            let (mut sc, mut t) = (Vec::new(), Vec::new());
+            pos.scores(f, &ids, &mut sc, &mut Work::default()).unwrap();
+            pos.decode(&sc, s.len(), &mut t).unwrap();
+            t
+        };
+        let (td, tc) = (tags(&pd[k]), tags(&pc[k]));
+        assert_eq!(td, tc, "{s:?}");
+        let mut lw = turbo::head::lemmatizer::Work::default();
+        let (mut sd, mut sc) = (Vec::new(), Vec::new());
+        head.scores(&hd[k], &ids, Some(&tc), &mut sd, &mut lw).unwrap();
+        head.scores(&hc[k], &ids, Some(&tc), &mut sc, &mut lw).unwrap();
+        worst = worst.max(max_diff(&sd, &sc));
+        let (mut trd, mut trc) = (Vec::new(), Vec::new());
+        head.decode(&sd, s, &mut trd).unwrap();
+        head.decode(&sc, s, &mut trc).unwrap();
+        assert_eq!(trd, trc, "{s:?}");
+    }
+    eprintln!("lemmatizer device {} ({}): max tree score diff {worst:e}", execution.backend, execution.device);
+    assert!(worst <= BOUND, "{worst}");
+
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let on = Lemmatizer::open(&dir, None, &o).unwrap();
+    assert_eq!(on.execution().unwrap().backend, execution.backend);
+    let (a,) = on.annotate((view, &toks, None, None)).unwrap();
+    let (b,) = cpu_lem.annotate((view, &toks, None, None)).unwrap();
+    assert!(a.lemma.iter().eq(b.lemma.iter()));
 }

@@ -44,6 +44,33 @@ impl Encoder {
         self.run(ranges.len() as u32, out)
     }
 
+    /// `run_ranges` from each of the encoder's last `layers` layers in one
+    /// pass (`turbo_embed_write_layer_ranges`): into `out`, `[layers,
+    /// ranges.len(), dim]`, block k from layer L - layers + k + 1 of the
+    /// model's L, the last block what `run_ranges` gives. `layers` times
+    /// the ranges is at most the session's max_ranges.
+    pub fn run_layer_ranges(
+        &mut self,
+        rows: &Rows,
+        ranges: &[turbo_token_range],
+        layers: u32,
+        out: &mut Vec<f32>,
+    ) -> Result<(), Error> {
+        let o = options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
+        let mut err = new_error();
+        let n = ranges.len() as u32;
+        let rc = unsafe {
+            turbo_embed_write_layer_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, layers, &o, &mut err)
+        };
+        check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
+        #[cfg(test)]
+        {
+            self.runs.0 += 1;
+            self.runs.1 += rows.len() as usize;
+        }
+        self.run(n.saturating_mul(layers), out)
+    }
+
     /// The row path, for comparing a range with its row: a mean-pooled
     /// vector per row into `out`, normalized when `l2`.
     pub fn run_rows(&mut self, rows: &Rows, l2: bool, out: &mut Vec<f32>) -> Result<(), Error> {

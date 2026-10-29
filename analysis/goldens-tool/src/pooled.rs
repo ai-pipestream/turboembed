@@ -19,7 +19,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-/// The upstream export, as `LOCAL_MODELS` names it.
+/// The upstream export, as `POOLING_SOURCE` names it.
 pub const SOURCE: &str = "all-minilm-l6-v2.onnx";
 
 /// The derived copy, as the generator's `Runs.SENTENCE_VECTORS_ONNX` names it.

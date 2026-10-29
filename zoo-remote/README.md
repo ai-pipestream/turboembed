@@ -13,7 +13,7 @@ use turbo_zoo_remote::{ENV_SOURCE, sources};
 let spec = std::env::var(ENV_SOURCE).unwrap_or_else(|_| "origin".into());
 let source = sources(&spec, &user, Http::new())?;
 let zoo = Zoo::new(Index::builtin(), cache_dir, Policy::default(), &source);
-let fetched = zoo.fetch("opennlp-en-ud-ewt-sentence-1.3-2.5.4", &user, &acceptances)?;
+let fetched = zoo.fetch("segment-any-text-sat-3l", &user, &acceptances)?;
 ```
 
 `TURBO_ZOO_SOURCE` takes a comma-separated list of sources:
