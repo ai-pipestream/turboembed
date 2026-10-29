@@ -175,6 +175,20 @@ impl NgramModel {
     pub fn best(&self, text: &str) -> Option<(&str, f32)> {
         self.top_k(text, 1).first().copied()
     }
+
+    /// Returns all languages with scores above a threshold.
+    pub fn above_threshold(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
+        if text.trim().is_empty() {
+            return Vec::new();
+        }
+        let scores = self.scores(text);
+        scores
+            .iter()
+            .enumerate()
+            .filter(|(_, score)| **score >= threshold)
+            .map(|(i, score)| (self.languages[i].as_str(), *score))
+            .collect()
+    }
 }
 
 /// A coarse script class for language priors.
