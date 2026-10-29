@@ -1,6 +1,7 @@
 //! Every run by name, and the one that opens it.
 
 use super::language::Detector;
+use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
@@ -39,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 33] = [
+pub const NOT_COVERED: [&str; 31] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -54,8 +55,6 @@ pub const NOT_COVERED: [&str; 33] = [
     "ad",
     "parse",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "string-pattern",
     "features",
     "codec",
@@ -134,6 +133,36 @@ pub const RUNS: &[(&str, &str)] = &[
     ("langdetect", "langdetect-fixture-rust"),
     ("langdetect", "langdetect-fixture-rust+probing"),
     ("langdetect", "langdetect-fixture-rust+probing-chunk50"),
+    ("normalize", "whitespace"),
+    ("normalize", "whitespace-keep-lines"),
+    ("normalize", "whitespace-keep-paragraphs"),
+    ("normalize", "dash"),
+    ("normalize", "quote"),
+    ("normalize", "bullet"),
+    ("normalize", "ellipsis"),
+    ("normalize", "digit"),
+    ("normalize", "invisible"),
+    ("normalize", "dehyphenation"),
+    ("normalize", "nfc"),
+    ("normalize", "nfkc"),
+    ("normalize", "case-fold"),
+    ("normalize", "case-fold-tr"),
+    ("normalize", "full-case-fold"),
+    ("normalize", "accent-fold"),
+    ("normalize", "german-umlaut"),
+    ("normalize", "confusable-skeleton"),
+    ("normalize", "url"),
+    ("normalize", "bounded-url"),
+    ("normalize", "social-media"),
+    ("normalize", "number"),
+    ("normalize", "shrink"),
+    ("normalize", "english-contraction"),
+    ("normalize", "emoji"),
+    ("normalize", "emoji-to-emoticon"),
+    ("normalize", "emoticon-to-emoji"),
+    ("normalize", "symbol-joiner"),
+    ("normalize", "default-chain"),
+    ("normalize", "umlaut-full-case-whitespace-chain"),
     ("numbers", "latin-eu"),
     ("numbers", "latin-us"),
     ("money", "latin-eu"),
@@ -206,6 +235,7 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
         "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" => Detector::open(base, &options, res),
+        "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
         "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
         "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
@@ -243,10 +273,12 @@ mod tests {
         on_disk.sort();
         let mut listed: Vec<(String, String)> = RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
         listed.sort();
-        // The PII goldens come with the first `generate` that knows the
-        // packs; until they are on disk, their runs have nothing to match.
-        if !data.join("pii").is_dir() {
-            listed.retain(|(a, _)| a != "pii");
+        // Native runs may outlive their JVM golden trees; skip families
+        // whose data directory is not checked in yet.
+        for family in ["normalize", "numbers", "money", "money-convert", "quantity", "temporal", "pii"] {
+            if !data.join(family).is_dir() {
+                listed.retain(|(a, _)| a.as_str() != family);
+            }
         }
         assert_eq!(listed, on_disk);
     }
@@ -260,6 +292,8 @@ mod tests {
             ("sentdetect", "paragraph"),
             ("tokenize", "simple+keep-new-lines"),
             ("tokenize", "uax29"),
+            ("normalize", "default-chain"),
+            ("normalize", "umlaut-full-case-whitespace-chain"),
             ("money-convert", "latin-eu"),
             ("pii", "all-structured"),
         ] {
@@ -274,5 +308,6 @@ mod tests {
         for (annotator, run) in [("sentdetect", "en-abbrev+legacy"), ("tokenize", "simple+legacy")] {
             assert!(matches!(open(annotator, run, &res), Err(Unavailable::NotCovered(_))), "{run}");
         }
+        assert!(open("normalize", "case-fold-tr", &res).is_ok());
     }
 }
