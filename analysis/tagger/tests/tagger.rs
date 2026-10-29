@@ -180,3 +180,26 @@ fn a_head_names_its_layer_in_the_turboembed_namespace() {
     assert!(same_layer("turboembed:pos", "turboembed:pos"));
     assert!(!same_layer("turboembed:pos", Entities::ID));
 }
+
+#[test]
+fn a_hashed_head_reads_each_tokens_text() {
+    let dir = bundle("hashed", |m| m["heads"][0]["hash_embed"] = json!({"dim": 4, "rows": [16, 8, 8, 8]}));
+    let pos = PosTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let (tags,) = pos.annotate((view, &toks, None, None)).unwrap();
+
+    let words: Vec<&str> = TEXT.split(' ').collect();
+    let run = HeadRunner::open(&dir, None, PosTags::ID, &EncoderOptions::default()).unwrap();
+    assert!(run.tagger().reads_forms());
+    let mut enc = WordEncoder::open(&dir, &EncoderOptions::default()).unwrap();
+    let f = enc.features(std::slice::from_ref(&words), WordPooling::Mean).unwrap().remove(0);
+    let ids: Vec<u32> = (0..words.len() as u32).collect();
+    let (mut scores, mut out) = (Vec::new(), Vec::new());
+    assert!(run.tagger().scores(&f, &ids, &mut scores, &mut Work::default()).is_err(), "the text is required");
+    run.tagger().scores_forms(&f, &ids, Some(&words), &mut scores, &mut Work::default()).unwrap();
+    run.tagger().decode(&scores, words.len(), &mut out).unwrap();
+    assert_eq!(tags.tags.iter().map(|t| t.0 as u32).collect::<Vec<_>>(), out);
+    assert_eq!(run.decode(&[words]).unwrap()[0].tags, out);
+}

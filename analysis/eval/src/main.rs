@@ -2,7 +2,6 @@
 //! record per set, or compare two directories of records with the gate
 //! (docs/analysis.md, "Evaluation").
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -13,6 +12,9 @@ use turbo_analysis_layers::VectorKind;
 use turbo_chunker::terms::Bm25;
 use turbo_chunker::{Budget, Cohesion, Costs, Drift, WeighBoundaries};
 use turbo_eval::Result;
+
+mod opts;
+use opts::Opts;
 use turbo_eval::analysis::{Analysis, Sentencer};
 use turbo_eval::chunkers::{
     Chunker, FixedTokens, LevelChunker, Retrieve, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument,
@@ -43,6 +45,8 @@ usage:
   turbo-eval gate <candidate-dir> <baseline-dir>
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
+  turbo-eval chunk-gate <candidate-dir> <windows-dir> [<baseline-dir> ...]
+      the chunker gate on evidence with an nDCG@10 floor (chunk_gate.rs)
   turbo-eval cuts <a-dir> <b-dir>
       compare two directories of cut dumps (run --dump-cuts), one per set;
       exit status 1 when any cut differs, 2 on an error
@@ -103,9 +107,11 @@ chunkers:
                   [--min-sentences <n>] [--max-sentences <n>]
       the sandbox's semantic chunker; unset values take its defaults
   --chunker turbo-chunker --max <n> --target <n> [--size-weight <n>]
-                  [--drift] [--cohesion <weight>]
+                  [--drift] [--cohesion <weight>] [--clauses]
       turbo-chunker's optimizer on the structure's costs (size weight
       default 1000), with drift weighed in and a cohesion term when given
+      and, with --clauses, sentences over --max split at clause
+      punctuation and then by token windows
     [--level <l>] [--level-vectors <v>]
       retrieve the units of one level of the chunker's levels: chunk,
       section (each section, and each chunk outside every section) or
@@ -134,6 +140,7 @@ fn run(args: &[String]) -> Result<ExitCode> {
             sets.iter().for_each(|s| print!("{s}"));
             Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
+        Some("chunk-gate") => turbo_eval::chunk_gate::command(&args[1..]),
         Some("analysis") => turbo_eval::analysis_bench::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
@@ -164,52 +171,6 @@ fn fetch_cmd(args: &[String]) -> Result<()> {
         println!("{name}: fetched and checked in {}", cache.join(name).display());
     }
     Ok(())
-}
-
-/// `--name value` pairs and bare `--flag`s.
-struct Opts(BTreeMap<String, Option<String>>);
-
-const FLAGS: [&str; 1] = ["--drift"];
-
-impl Opts {
-    fn parse(args: &[String]) -> Result<Opts> {
-        let mut m = BTreeMap::new();
-        let mut it = args.iter();
-        while let Some(a) = it.next() {
-            if !a.starts_with("--") {
-                return Err(format!("{a}: not an option\n{USAGE}"));
-            }
-            let v = if FLAGS.contains(&a.as_str()) {
-                None
-            } else {
-                Some(it.next().ok_or_else(|| format!("{a} needs a value"))?.clone())
-            };
-            if m.insert(a.clone(), v).is_some() {
-                return Err(format!("{a} is given twice"));
-            }
-        }
-        Ok(Opts(m))
-    }
-
-    fn take(&mut self, name: &str) -> Option<String> {
-        self.0.remove(name).flatten()
-    }
-
-    fn need(&mut self, name: &str) -> Result<String> {
-        self.take(name).ok_or_else(|| format!("{name} is required\n{USAGE}"))
-    }
-
-    fn flag(&mut self, name: &str) -> bool {
-        self.0.remove(name).is_some()
-    }
-
-    fn parsed<T: std::str::FromStr>(&mut self, name: &str) -> Result<Option<T>> {
-        self.take(name).map(|v| v.parse().map_err(|_| format!("{name} {v}: not a valid value"))).transpose()
-    }
-
-    fn required<T: std::str::FromStr>(&mut self, name: &str) -> Result<T> {
-        self.parsed(name)?.ok_or_else(|| format!("{name} is required\n{USAGE}"))
-    }
 }
 
 fn device(s: &str) -> Device {
@@ -279,7 +240,8 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder, model: (&Path, &Device, Precis
                 Signals::Structure
             };
             let cohesion = o.parsed("--cohesion")?.map(|weight| Cohesion { weight });
-            let chunker = TurboChunker { budget, costs: Costs::default(), signals, cohesion };
+            let clauses = o.flag("--clauses");
+            let chunker = TurboChunker { budget, costs: Costs::default(), signals, cohesion, clauses };
             let level = match o.take("--level").as_deref() {
                 None => None,
                 Some("chunk") => Some(Retrieve::Chunk),

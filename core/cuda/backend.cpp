@@ -2220,20 +2220,23 @@ int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
         g.w = weight(l, TURBO_BERT_FFN_OUT_WEIGHT);
         g.n = h;
         g.k = inter;
-        g.bias = prod16 ? layer(l, TURBO_BERT_FFN_OUT_BIAS) : nullptr;
+        // The F32 product (layer_epilogue), whatever product16 says, from a
+        // tile summing in F32 (canonical_tile) (#1632): the middle product
+        // reaches F16's 65504 at its clamp, and a sum of such terms can pass it.
+        g.bias = nullptr;
         g.out = s.part;
-        TRY_CUDA(gemm_as(GEMM_FFN2, prod16 ? EPI_BIAS : EPI_PLAIN, g), "the MLP's output");
+        TRY_CUDA(gemm_as(GEMM_FFN2, layer_epilogue(GEMM_FFN2, false, sh), g), "the MLP's output");
         if (modern && l + 1 < d.layers)
-            TRY_CUDA(add_norm_into(st, s.x, s.part, prod16 ? part16 : nullptr,
+            TRY_CUDA(add_norm_into(st, s.x, s.part, nullptr,
                                    layer(l + 1, TURBO_BERT_ATTN_LN_WEIGHT), zero, eps, info, h,
                                    half ? nullptr : s.xn, half ? s.x16 : nullptr, plan),
                      "the MLP residual and the next attention norm");
         else if (modern)
-            TRY_CUDA(add_layer_norm(st, s.x, s.part, prod16 ? part16 : nullptr, zero, w[ROTARY_FINAL_NORM], zero, eps,
+            TRY_CUDA(add_layer_norm(st, s.x, s.part, nullptr, zero, w[ROTARY_FINAL_NORM], zero, eps,
                                     info, h, nullptr, false, plan),
                      "the MLP residual and the final norm");
         else
-            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, prod16 ? part16 : nullptr,
+            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, nullptr,
                                     layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                                     layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the MLP LayerNorm");
