@@ -20,8 +20,10 @@ const TEXT_GZ: [u8; 29] = [
     0x5c, 0x00, 0x3b, 0x7c, 0x8a, 0xdf, 0x12, 0x00, 0x00, 0x00,
 ];
 const SA: &[u8] = b"a share-alike word list\n";
+const NC: &[u8] = b"a non-commercial checkpoint\n";
 
-/// A permissive file served gzip compressed, and a share-alike one.
+/// A permissive file served gzip compressed, a share-alike one and a
+/// local-only one.
 fn index() -> Index {
     let artifact = |id: &str, licence: &str, class: &str, bytes: &[u8], download: String| {
         format!(
@@ -41,9 +43,15 @@ fn index() -> Index {
         Sha256::of(&TEXT_GZ)
     );
     let json = format!(
-        r#"{{"zoo_version": 1, "artifacts": [{}, {}]}}"#,
+        r#"{{"zoo_version": 1, "artifacts": [{}, {}, {}]}}"#,
         artifact("hello", "Apache-2.0", "CLASS_PERMISSIVE", TEXT, gz),
         artifact("sa", "CC-BY-SA-4.0", "CLASS_SHARE_ALIKE", SA, String::new()),
+        artifact("nc", "CC-BY-NC-4.0", "CLASS_LOCAL_ONLY", NC, String::new())
+            .replace(
+                r#""class": "CLASS_LOCAL_ONLY""#,
+                r#""class": "CLASS_LOCAL_ONLY", "origin": "https://example.org/nc""#
+            )
+            .replace("https://example.org/nc.txt", "https://example.org/nc/nc.txt"),
     );
     Index::parse(json.as_bytes()).unwrap()
 }
@@ -257,4 +265,27 @@ fn the_keeping_store_keeps_what_later_sources_serve_once_it_verifies() {
     fs::write(&file_root, b"not a directory").unwrap();
     let blocked = Sources::new().then_keep("local", Blobs::new(&file_root)).then("remote", Remote(asked.clone()));
     assert_eq!(blocked.get_file(a, f).unwrap(), TEXT);
+}
+
+#[test]
+fn the_keeping_store_neither_serves_nor_keeps_a_local_only_file() {
+    let (store, empty) = (Dir::new("local-only"), Dir::new("local-only-empty"));
+    let index = index();
+    let (a, f) = file_of(&index, "nc");
+    // The store already holds a copy: it is not read, the origin is asked.
+    Blobs::new(&store.0).put(NC).unwrap();
+    let asked = AtomicUsize::new(0);
+    let origin = Always(NC.to_vec(), asked);
+    let list = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", origin);
+    assert_eq!(list.get_file(a, f).unwrap(), NC);
+    // An origin that is down is not covered for by the store's copy.
+    let down = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", Down);
+    let e = down.get_file(a, f).unwrap_err();
+    assert!(e.starts_with("origin: ") && !e.contains("store"), "{e}");
+    // Fetched from the origin, nothing is kept.
+    let fresh = Sources::new()
+        .then_keep("store", Blobs::new(&empty.0))
+        .then("origin", Always(NC.to_vec(), AtomicUsize::new(0)));
+    assert_eq!(fresh.get_file(a, f).unwrap(), NC);
+    assert!(!Blobs::new(&empty.0).path(&f.sha256).exists(), "no copy of a local-only file");
 }
