@@ -25,9 +25,9 @@ use std::sync::{Arc, OnceLock};
 
 use turbo_analysis::{Annotator, Bound, Error, Ix, IxRange, Key, Layer, ModelRef, Refs, Span, Tag, TagSet, View};
 use turbo_analysis_layers::{Categories, Dependencies, Opinion, Opinions, Polarity, Sentences, Tokens};
-use turbo_maxent::sha256;
 use turbo_normalize::emoji::opennlp_annotation;
 use turbo_normalize_layers::Emoji;
+use turbo_sha256::sha256;
 
 /// Empirically derived mean sentiment intensity rating increase for booster words.
 pub const B_INCR: f64 = 0.293;

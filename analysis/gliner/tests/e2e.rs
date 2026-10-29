@@ -13,7 +13,7 @@ type Entity = ((usize, usize, usize), f32, f32);
 fn setup() -> (Arc<Model>, Value) {
     let root = std::env::var("GLINER_PACKAGE").expect("GLINER_PACKAGE");
     let reference = std::env::var("GLINER_E2E_REFERENCE").expect("GLINER_E2E_REFERENCE");
-    let model = Arc::new(Manifest::load(Path::new(&root)).unwrap());
+    let model = Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
     (model, serde_json::from_slice(&std::fs::read(reference).unwrap()).unwrap())
 }
 fn schema(r: &Value, mode: Decode) -> ExtractionSchema {

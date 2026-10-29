@@ -1,5 +1,7 @@
 //! Context extraction and factory naming for the classical sentiment factories.
 
+#![cfg(feature = "classical")]
+
 use turbo_doccat::sentiment::{EMOJI_FACTORY, SentimentFactory, TOKEN_FACTORY};
 
 #[test]
