@@ -13,7 +13,9 @@ image=${TURBO_ZOO_IMAGE:-turbo-zoo:ci}
 project="turbo-zoo-smoke-$$"
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/turbo-zoo-smoke.XXXXXXXX")
 compose() { docker compose -p "$project" -f docker-compose.zoo.yml -f "$scratch/smoke.yml" "$@"; }
+tls=""
 cleanup() {
+    if [[ -n "$tls" ]]; then docker rm -f "$tls" >/dev/null 2>&1 || true; fi
     if [[ -f "$scratch/smoke.yml" ]]; then
         compose logs --no-color zoo bucket 2>/dev/null | tail -n 50 || true
         compose down -v --remove-orphans >/dev/null 2>&1 || true
@@ -92,6 +94,26 @@ code=$(curl --noproxy '*' --silent --output /dev/null --write-out '%{http_code}'
     --header 'content-type: application/proto' "$page/turbo.training.v1.TurboCatalogService/ListModelCatalog")
 if [[ $code != 401 ]]; then
     echo "a page call with no token answered HTTP $code, not 401" >&2
+    exit 1
+fi
+
+# The image alone with the page on HTTPS turns healthy: the health check
+# follows the page's scheme. The certificate is made for this run.
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=zoo.test \
+    -keyout "$scratch/page.key" -out "$scratch/page.crt" 2>/dev/null
+chmod a+r "$scratch/page.key" "$scratch/page.crt"
+tls=$(docker run -d -e TURBO_DEMO_TLS_CERT=/tls/page.crt -e TURBO_DEMO_TLS_KEY=/tls/page.key \
+    -v "$scratch/page.crt:/tls/page.crt:ro" -v "$scratch/page.key:/tls/page.key:ro" "$image")
+health=starting
+for ((attempt = 0; attempt < 90; attempt++)); do
+    health=$(docker inspect -f '{{.State.Health.Status}}' "$tls")
+    if [[ $health != starting ]]; then break; fi
+    sleep 1
+done
+docker rm -f "$tls" >/dev/null
+tls=""
+if [[ $health != healthy ]]; then
+    echo "the zoo with the page on HTTPS is $health, not healthy" >&2
     exit 1
 fi
 echo "zoo image smoke: ok"

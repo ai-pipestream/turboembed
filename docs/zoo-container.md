@@ -11,11 +11,17 @@ every file by size, SHA-256 and SHA-512, exactly as it checks a
 download from anywhere else.
 
 The image holds no model. A model is fetched from its origin the first
-time a user who is permitted to have it reads it or installs it. It is
-then kept in the zoo's store, so the next reader gets the stored copy.
-A share-alike, non-commercial or other accept-first model therefore
-reaches a person only after they accept its terms, never as part of the
-image.
+time a user who is permitted to have it reads it or installs it, and
+then served from the zoo's cache. A share-alike, non-commercial or other
+accept-first model therefore reaches a person only after they accept its
+terms, never as part of the image.
+
+A redistributable model is also kept in the zoo's store, so another zoo
+sharing the bucket, or this one after its cache is gone, reads the
+stored copy. A `CLASS_LOCAL_ONLY` model is never put in the store or
+read from it, whoever has accepted it: its class allows no copy beyond
+the cache it is installed into, so each zoo fetches it from its
+publisher (docs/grpc-catalog.md).
 
 ## With RustFS: docker compose
 
@@ -23,8 +29,9 @@ image.
 
 - RustFS, an S3-compatible store, pinned by digest;
 - `bucket`, which makes the store's bucket once;
-- `zoo`, the image itself, which keeps every model it fetches in that
-  bucket under `blobs/sha256/<hex>` (docs/zoo.md, Stores).
+- `zoo`, the image itself, which keeps every redistributable model it
+  fetches in that bucket under `blobs/sha256/<hex>` (docs/zoo.md,
+  Stores).
 
 ```
 export TURBO_ZOO_S3_ACCESS_KEY=... TURBO_ZOO_S3_SECRET_KEY=...
@@ -91,8 +98,11 @@ the image sets them (Who can do what, below). The image sets these:
 The entrypoint, `zoo-start` (server/zoo/zoo-start), starts `turbo-kserve`
 and `turbo-kserve-demo` side by side. When either one ends, it stops the
 other, so the container ends and its restart policy applies. The image
-runs as user 10001. Its health check passes once the server answers
-SERVING (`turbo-kserve health`) and the page answers.
+runs as user 10001. Its health check, `zoo-health`, passes once the
+server answers SERVING (`turbo-kserve health`) and the page answers on
+the port `TURBO_DEMO_LISTEN` names, over HTTPS when `TURBO_DEMO_TLS_CERT`
+is set. It checks liveness on loopback, so it does not check the page
+certificate's name, which is the zoo's own host.
 
 ## Who can do what
 
@@ -125,6 +135,8 @@ read returns has therefore come through the store.
 - each file reads through from the store and verifies.
 
 The script also checks that the page is served and that the page's
-calls need the token. The `Zoo image` workflow
+calls need the token. Then it runs the image alone with the page on
+HTTPS, using a certificate made for the run, and waits for Docker to
+report the container healthy. The `Zoo image` workflow
 (.github/workflows/zoo-image.yml) builds the image and runs the script
 whenever the image, the catalog or the demo changes.

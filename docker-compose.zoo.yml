@@ -1,7 +1,8 @@
 # The self-contained model zoo (docs/zoo-container.md): the turbo-zoo
 # image (server/Dockerfile.zoo) serving the model catalog over gRPC and the
 # page that browses, accepts and installs models, with RustFS as the
-# content-addressed store every fetched model is kept in.
+# content-addressed store every redistributable model it fetches is kept
+# in (a local-only model never is).
 #
 #   export TURBO_ZOO_S3_ACCESS_KEY=... TURBO_ZOO_S3_SECRET_KEY=...
 #   export TURBO_DEMO_TOKEN=...      # optional: else the zoo logs one
@@ -10,8 +11,7 @@
 # The page is on port 8080 and gRPC (TURBO_ZOO_SOURCE=grpc://HOST:8081) on
 # 8081, both on every interface of the host unless TURBO_ZOO_BIND names
 # one. No model is in either image; each is fetched from its origin the
-# first time a user it is permitted to reads or installs it, then kept in
-# the bucket.
+# first time a user it is permitted to reads or installs it.
 
 name: turbo-zoo
 

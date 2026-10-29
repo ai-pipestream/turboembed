@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --locked --release -p turbo-kserve -p turbo-kserve-demo; \
     mkdir -p /out/bin /out/licenses; \
     cp target/release/turbo-kserve target/release/turbo-kserve-demo /out/bin/; \
-    cp server/zoo/zoo-start server/zoo/zoo-bucket /out/bin/; \
+    cp server/zoo/zoo-start server/zoo/zoo-bucket server/zoo/zoo-health /out/bin/; \
     cp LICENSE /out/licenses/LICENSE; \
     cp NOTICE /out/licenses/NOTICE
 
@@ -72,6 +72,7 @@ USER 10001:10001
 VOLUME ["/zoo"]
 EXPOSE 8080 8081
 STOPSIGNAL SIGTERM
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["sh", "-c", "turbo-kserve health && curl -fsS -o /dev/null http://127.0.0.1:8080/"]
+# The server answers SERVING and the page answers, over HTTPS when the
+# page serves it (server/zoo/zoo-health).
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 CMD ["zoo-health"]
 ENTRYPOINT ["zoo-start"]
