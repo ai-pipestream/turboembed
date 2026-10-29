@@ -100,6 +100,39 @@ mod tests {
     }
 
     #[test]
+    fn planned_training_counts_tatoeba_and_web_examples() {
+        use crate::fineweb::WebSample;
+        use crate::langdetect::Sample;
+        use std::borrow::Cow;
+
+        let sample = |language, text| Sample { language, id: 1, text: Cow::Borrowed(text) };
+        let plan = Plan {
+            training: vec![sample(19, "hello"), sample(17, "hallo"), sample(19, "hello"), sample(17, "hallo")],
+            held_out: vec![sample(19, "hello"), sample(17, "hallo")],
+            languages: Vec::new(),
+            excluded: Vec::new(),
+            records: 0,
+            no_language: 0,
+            other_languages: 0,
+            cc0_records: 0,
+            cc0_differing: 0,
+            cc0_not_in_detailed: 0,
+        };
+        let web_sample =
+            |language, text: &str| WebSample { language, file: 0, row: 0, id: "web".into(), window: text.into() };
+        let web = WebPlan {
+            training: vec![web_sample(19, "hello online")],
+            held_out: vec![web_sample(19, "hello online")],
+            files: Vec::new(),
+        };
+        let model_ref = ModelRef { id: "test-langid".into(), revision: "1".into(), sha256: "0".into() };
+        let outcome = train_planned(&plan, Some(&web), model_ref).unwrap();
+        assert_eq!(outcome.training, 5);
+        assert_eq!(outcome.held_out, 3);
+        assert_eq!(outcome.correct, 3);
+    }
+
+    #[test]
     fn unknown_language_is_an_error() {
         let samples = vec![("hello".to_owned(), "eng".to_owned())];
         let languages = vec!["deu".to_owned()];
