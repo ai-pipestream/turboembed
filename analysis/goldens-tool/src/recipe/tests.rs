@@ -146,6 +146,11 @@ fn runs_java_does_not_register_hunspell_goldens() {
     let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
     assert!(!golden.is_file(), "{} must stay deleted", golden.display());
+    let readme = include_str!("../../README.md");
+    assert!(
+        !readme.contains("hunspellJar"),
+        "the README must not pass the removed Hunspell bridge jar to the generator"
+    );
 }
 
 #[test]

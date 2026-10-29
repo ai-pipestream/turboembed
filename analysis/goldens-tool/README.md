@@ -1504,7 +1504,7 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
 cargo run -p turbo-goldens-tool -- fetch-models <models dir> --local
-java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -Dturbo.goldens.hunspellJar=<hunspell.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 
