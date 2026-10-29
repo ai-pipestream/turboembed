@@ -119,19 +119,32 @@ impl Transport for Blobs {
 /// names what each one said.
 pub struct Sources {
     sources: Vec<(String, Box<dyn Transport + Send + Sync>)>,
+    /// The store [`Sources::then_keep`] added, and its place in the list.
+    keep: Option<(usize, Blobs)>,
 }
 
 impl Sources {
     /// No source yet; [`Sources::then`] adds them in the order they are
     /// tried.
     pub fn new() -> Sources {
-        Sources { sources: Vec::new() }
+        Sources { sources: Vec::new(), keep: None }
     }
 
     /// `source`, named `name` in errors, tried after those added before.
     pub fn then(mut self, name: impl Into<String>, source: impl Transport + Send + Sync + 'static) -> Sources {
         self.sources.push((name.into(), Box::new(source)));
         self
+    }
+
+    /// `store`, tried here in order like any source, which also keeps
+    /// every file a later source serves once it verifies: a library's own
+    /// copy, in the layout a zoo server's store uses, filled as it reads.
+    /// A file that cannot be kept (a read-only store, a full disk) is
+    /// still handed over. Only one store keeps; a second call replaces the
+    /// first as the keeper and leaves it in the list as a plain source.
+    pub fn then_keep(mut self, name: impl Into<String>, store: Blobs) -> Sources {
+        self.keep = Some((self.sources.len(), store.clone()));
+        self.then(name, store)
     }
 
     pub fn len(&self) -> usize {
@@ -165,7 +178,7 @@ impl Transport for Sources {
 
     fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
         let mut failed = Vec::new();
-        for (name, s) in &self.sources {
+        for (at, (name, s)) in self.sources.iter().enumerate() {
             let bytes = match s.get_file(artifact, file) {
                 Ok(b) => b,
                 Err(e) => {
@@ -174,7 +187,13 @@ impl Transport for Sources {
                 }
             };
             match unpack(artifact, file, bytes).and_then(|b| verify(artifact, file, &b).map(|()| b)) {
-                Ok(b) => return Ok(b),
+                Ok(b) => {
+                    if let Some((_, store)) = self.keep.as_ref().filter(|(k, _)| *k != at) {
+                        // Kept when it can be; the file is handed over either way.
+                        let _ = store.put(&b);
+                    }
+                    return Ok(b);
+                }
                 Err(e) => failed.push(format!("{name}: {e}")),
             }
         }
