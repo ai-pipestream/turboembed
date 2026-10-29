@@ -3191,7 +3191,7 @@ See [temporal.md](temporal.md#golden-files).
 `PiiAnnotator`'s order, with the columns `start`, `end` (UTF-8 byte
 offsets), `type` (`PiiMention.type()`) and `normalized`. The `annotator`
 line names `opennlp.tools.pii.PiiPacks` and the factory method, and the
-`config pack` record names the pack. See [pii.md](pii.md#golden-files).
+`config pack` record names the pack. See [pii.md](pii.md#snapshot-tests).
 
 `pii-rewrite/<pack>/pii/<id>.golden` holds what OpenNLP makes of those
 mentions under a fixed test key (`config key`): the masked text's edits as
@@ -3199,7 +3199,7 @@ mentions under a fixed test key (`config key`): the masked text's edits as
 one mask byte per UTF-8 byte), the text with every mention masked, the
 numbered and keyed rewrites or the exception each threw, their labels, and
 the audit report by type and as text. `analysis/goldens-tool/README.md`
-lists the columns. See [pii.md](pii.md#golden-files).
+lists the columns. See [pii.md](pii.md#snapshot-tests).
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,
