@@ -125,7 +125,8 @@ fn real_rerank_bundles_on_levelzero_match_their_reference_and_the_cpu_path() {
     };
     let Some(_) = gpu_device(test) else { return };
     for dir in dirs.split(',').filter(|d| !d.is_empty()) {
-        let dir = Path::new(dir);
+        let dir = turbo_pins::require(dir);
+        let dir = dir.as_path();
         let bundle = Bundle::open(dir).unwrap();
         let bytes = bundle.read_verified(&bundle.manifest.reference.file).unwrap();
         let reference = File::parse("rerank", &bytes).unwrap().get("scores", Dtype::F32, 2).unwrap().f32s();

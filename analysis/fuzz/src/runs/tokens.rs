@@ -363,9 +363,9 @@ impl Lattice {
         let dir = if dictionary.starts_with("mecab-fixture-") {
             res.fixture(dictionary)?
         } else if dictionary.starts_with("mecab-ipadic-") {
-            res.model(&format!("{dictionary}.utf8"))?
+            res.dictionary(&format!("{dictionary}.utf8"))?
         } else {
-            res.model(dictionary)?
+            res.dictionary(dictionary)?
         };
         let loaded = MecabDictionary::load(&dir).map_err(|e| broken(format!("{}: {e}", dir.display())))?;
         Ok(Box::new(Lattice { tokenizer: LatticeTokenizer::new(loaded) }))
