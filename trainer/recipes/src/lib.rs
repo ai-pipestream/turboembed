@@ -25,6 +25,7 @@ pub mod receipt;
 pub mod run;
 pub mod safetensors;
 pub mod ud;
+pub mod ud_banks;
 pub mod ud_heads;
 
 /// An error, as the message the command prints.

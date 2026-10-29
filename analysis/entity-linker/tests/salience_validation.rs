@@ -9,8 +9,7 @@ mod tests {
         Budget, ChunkEntities, ChunkEntityHeaders, Chunker, Costs, HeaderPolicy, SalienceHeaders, StructureBoundaries,
     };
     use turbo_entity_linker::{EntityConsolidator, EntitySalienceAnnotator, SalienceConfig};
-    use turbo_maxent::Dictionary;
-    use turbo_namefind::DictionaryNameFinder;
+    use turbo_namefind::{Dictionary, DictionaryNameFinder};
     use turbo_normalize::{NormalizeStep, UnicodeForm};
     use turbo_sentdetect::NewlineDetector;
     use turbo_tokenize::{SimpleTokenizer, TokenizerOptions};
@@ -25,12 +24,15 @@ mod tests {
     fn pipeline_named(text: &str, config: SalienceConfig, named: bool) -> Document {
         let (entity_name, document_name, salience_name) =
             if named { ("names", "document", "salience") } else { ("", "", "") };
-        let dictionary = Dictionary::read("<dictionary case_sensitive='true'><entry><token>Acme</token></entry><entry><token>Beta</token></entry></dictionary>".as_bytes()).unwrap();
+        let dictionary = Dictionary::from_entries(
+            true,
+            [("ORG".to_owned(), vec!["Acme".to_owned()]), ("ORG".to_owned(), vec!["Beta".to_owned()])],
+        );
         let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
         let analyzer = Analyzer::builder()
             .add(NewlineDetector::new())
             .add(SimpleTokenizer::new(TokenizerOptions::default()))
-            .step(Bound::new(DictionaryNameFinder::new(dictionary, "ORG")).write(0, entity_name))
+            .step(Bound::new(DictionaryNameFinder::new(dictionary).unwrap()).write(0, entity_name))
             .step(Bound::new(EntityConsolidator::new()).read(1, entity_name).write(0, document_name))
             .step(
                 Bound::new(EntitySalienceAnnotator::with_config(config)).read(1, document_name).write(0, salience_name),

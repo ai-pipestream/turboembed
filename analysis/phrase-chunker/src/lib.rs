@@ -4,6 +4,9 @@
 //! its probability per token, and `opennlp:chunks`, the phrases those
 //! tags make, each a run of tokens with its kind.
 //!
+//! [`DependencyChunker`] reads noun and verb chunks off a dependency
+//! parse instead (#1650), with no chunker model at all.
+//!
 //! [`ChunkerModel`] opens a `ChunkerModel` file and [`PhraseChunker`]
 //! runs the beam search over the tagged tokens of each sentence
 //! (`ChunkerME.chunk`), then reads the phrases off the tags as
@@ -47,6 +50,7 @@
 //!   nothing; it is refused when the model is opened.
 
 pub mod chunker;
+pub mod derived;
 pub mod error;
 pub mod model;
 pub mod pattern;
@@ -54,6 +58,7 @@ pub mod pattern_chunker;
 pub mod phrases;
 
 pub use chunker::PhraseChunker;
+pub use derived::{ChunkKind, DependencyChunker, Derived, derive};
 pub use error::{ModelError, PhraseError};
 pub use model::{COMPONENT_NAME, ChunkerModel, FACTORY};
 pub use pattern::{PatternError, TagCond, TagPatternRule, TokenMatcher, WordCond};

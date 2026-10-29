@@ -8,7 +8,7 @@ use std::time::Instant;
 use turbo::manifest::Biaffine;
 use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::WordEncoder;
-use turbo_trainer::{fit_lemmatizer, fit_parser, mine_trees};
+use turbo_trainer::{fit_lemmatizer_with, fit_parser_with, mine_trees};
 use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::eval::{Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
@@ -17,7 +17,7 @@ use turbo_trainer_recipes::ud::{TREEBANKS, read_treebank};
 use turbo_trainer_recipes::ud_heads::*;
 use turbo_trainer_recipes::{Error, Result, safetensors};
 
-use super::{Args, Opts, RESAMPLES, encoder_record, finish, options};
+use super::{Args, Opts, RESAMPLES, encoder_record, finish, options, saved_any};
 
 /// spaCy's default: a tree must come up this often in training.
 const MIN_TREE_FREQ: usize = 3;
@@ -40,7 +40,8 @@ pub(super) fn train(
         .ok_or_else(|| Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
     let min_freq: usize = a.parsed("--min-tree-freq", MIN_TREE_FREQ)?;
     let biaffine = Biaffine { arc: a.parsed("--arc", ARC)?, rel: a.parsed("--rel", REL)? };
-    let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
+    let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
+        options(&mut a)?;
     a.done()?;
     if crf || hash.is_some() {
         return Err(Error(format!("{} heads take neither --crf nor --hash-embed", head.suffix())));
@@ -72,21 +73,43 @@ pub(super) fn train(
     let features_s = t.elapsed().as_secs_f64();
     let feature_words = splits.train.iter().chain(&splits.dev).map(|s| s.words.len() as u64).sum();
 
+    // Each better dev score publishes a checkpoint, as `train` does: the
+    // spec once, then the head with the epoch and dev score it is from,
+    // each replaced by one rename; from the first one on, the directory
+    // stays if the run stops.
     let t = Instant::now();
+    let spec_json = serde_json::to_vec_pretty(&spec).expect("a head spec serializes");
+    let dir = out.path.clone();
+    let mut saved = false;
+    let mut save = |tensors: Vec<(String, Vec<f32>)>, epoch: usize, dev: f64| -> Result<()> {
+        if !saved {
+            replace(&dir, "head.json", &spec_json)?;
+            saved = true;
+        }
+        let at = [(CHECKPOINT_EPOCH, epoch.to_string()), (CHECKPOINT_DEV, dev.to_string())];
+        replace(&dir, "head.safetensors", &safetensors::write_with(&named(head, &spec, hidden, tensors), &at))?;
+        Ok(())
+    };
     let err = |e: turbo::status::Error| Error(e.message);
-    let (tensors, model, report, dev_left_out) = match head {
+    let fitted = match head {
         UdHead::Lemma => {
             let (tr, dv) = (lemma_examples(&splits.train, train_f), lemma_examples(&splits.dev, dev_f));
-            let (m, r) = fit_lemmatizer(&spec, hidden, tr, dv, &c).map_err(err)?;
-            (m.tensors(), Model::Lemma(Box::new(m.to_core().map_err(err)?)), r, 0)
+            fit_lemmatizer_with(&spec, hidden, tr, dv, &c, &mut |m, e, d| {
+                save(m.tensors(), e, d).map_err(|x| turbo::status::invalid(x.0))
+            })
+            .and_then(|(m, r)| Ok((m.tensors(), Model::Lemma(Box::new(m.to_core()?)), r, 0)))
         }
         UdHead::Deps => {
             let (tr, _) = parse_examples(&splits.train, train_f, &spec.labels);
             let (dv, left) = parse_examples(&splits.dev, dev_f, &spec.labels);
-            let (m, r) = fit_parser(&spec, hidden, &tr, &dv, &c).map_err(err)?;
-            (m.tensors(), Model::Parser(Box::new(m.to_core().map_err(err)?)), r, left)
+            fit_parser_with(&spec, hidden, &tr, &dv, &c, &mut |m, e, d| {
+                save(m.tensors(), e, d).map_err(|x| turbo::status::invalid(x.0))
+            })
+            .and_then(|(m, r)| Ok((m.tensors(), Model::Parser(Box::new(m.to_core()?)), r, left)))
         }
     };
+    out.keep = out.keep || saved_any(&dir);
+    let (tensors, model, report, dev_left_out) = fitted.map_err(err)?;
     let trained = t.elapsed().as_secs_f64();
 
     let t = Instant::now();
@@ -109,7 +132,6 @@ pub(super) fn train(
     let best = report.best_epoch;
     let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
     let weights = safetensors::write_with(&named(head, &spec, hidden, tensors), &at);
-    let spec_json = serde_json::to_vec_pretty(&spec).expect("a head spec serializes");
     let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
     let receipt = Receipt {
         schema: SCHEMA.into(),

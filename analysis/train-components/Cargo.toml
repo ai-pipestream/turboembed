@@ -26,7 +26,7 @@ turbo-lemmatizer = { path = "../lemmatizer" }
 # JVM's hash map order.
 turbo-langdetect = { path = "../langdetect" }
 # The sentiment detector's context generators and model file names.
-turbo-doccat = { path = "../doccat" }
+turbo-doccat = { path = "../doccat", features = ["classical"] }
 # The abbreviation dictionary the context generators look up, dictionary
 # XML, and the model files the cross validators read back.
 turbo-maxent = { path = "../maxent" }

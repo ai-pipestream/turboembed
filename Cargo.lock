@@ -1825,6 +1825,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2110,6 +2111,7 @@ dependencies = [
  "turbo-normalize",
  "turbo-normalize-layers",
  "turbo-sequence",
+ "turbo-sha256",
  "turbo-train",
  "turbo-unicode",
  "turbo-zoo",
@@ -2146,6 +2148,7 @@ dependencies = [
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-matcher",
  "turbo-maxent",
  "turbo-namefind",
  "turbo-normalize",
@@ -2252,8 +2255,10 @@ dependencies = [
  "turbo-glossary-layers",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-matcher",
  "turbo-normalize",
  "turbo-numeric",
+ "turbo-sha256",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -2516,11 +2521,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
+ "turbo-matcher",
  "turbo-sequence",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2966,6 +2968,20 @@ dependencies = [
  "turbo-maxent",
  "turbo-zstd",
  "ureq",
+]
+
+[[package]]
+name = "turbo-zoo-remote"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protox",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "turbo-kserve",
+ "turbo-zoo",
 ]
 
 [[package]]

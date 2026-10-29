@@ -5,7 +5,7 @@
 //! Each treebank is pinned by release tag, commit and the size and
 //! SHA-256 of its train, dev and test files, and fetched by the command
 //! in the recipes' readme, never checked in. Every English UD treebank
-//! is CC BY-SA or NC, so a head trained on one is share-alike: offered
+//! is CC BY-SA or NC, so a head trained on an English one is share-alike: offered
 //! for download once a user accepts, never in a default bundle.
 //!
 //! A tag task is a corpus of its own, `<treebank>-<column>`
@@ -35,6 +35,9 @@ pub struct Treebank {
     pub train: Pin,
     pub dev: Pin,
     pub test: Pin,
+    /// The treebank's text rights are not settled, so a head trained on
+    /// it is local-only whatever its licence (`CorpusRecord::recipe_only`).
+    pub recipe_only: bool,
 }
 
 /// UD English EWT r2.18. Its test file is the one the peer records under
@@ -67,10 +70,14 @@ pub const EN_EWT: Treebank = Treebank {
         size: 1_900_101,
         sha256: "fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a",
     },
+    recipe_only: false,
 };
 
+pub use crate::ud_banks::*;
+
 /// The treebanks the trainer reads.
-pub const TREEBANKS: [Treebank; 1] = [EN_EWT];
+pub const TREEBANKS: [Treebank; 11] =
+    [EN_EWT, ES_ANCORA, CA_ANCORA, FI_FTB, IT_MARKIT, PT_PORTTINARI, DE_GSD, FR_GSD, NL_ALPINO, RU_GSD, PT_GSD];
 
 /// The columns a tag head trains on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,9 +135,10 @@ pub struct UdSentence {
 ///
 /// # Errors
 ///
-/// Text that is not UTF-8, a sentence the CoNLL-U reader refuses, or a
-/// word whose head is not a number from 0 to the sentence's length,
-/// naming the file and line.
+/// Text that is not UTF-8, a sentence the CoNLL-U reader refuses, a
+/// word whose ID is not the next in order from 1, or a word whose head
+/// is not a number from 0 to the sentence's length, naming the file and
+/// line.
 pub fn parse(file: &str, bytes: &[u8]) -> Result<Vec<UdSentence>> {
     let text = std::str::from_utf8(bytes).map_err(|e| Error(format!("{file}: not UTF-8: {e}")))?;
     let reader = ConlluWordReader::new(text).map_err(|e| Error(format!("{file}: {e}")))?;
@@ -139,7 +147,12 @@ pub fn parse(file: &str, bytes: &[u8]) -> Result<Vec<UdSentence>> {
         let sentence = sentence.map_err(|e| Error(format!("{file}: {e}")))?;
         let n = sentence.words.len();
         let mut s = UdSentence::default();
-        for w in &sentence.words {
+        for (i, w) in sentence.words.iter().enumerate() {
+            // Heads name words by ID, and a word's place is taken for its
+            // ID, so the IDs must run 1, 2, ... in order.
+            if w.id.text.parse::<usize>().ok() != Some(i + 1) {
+                return Err(Error(format!("{file}:{}: word ID {:?} where {} is due", w.line, w.id.text, i + 1)));
+            }
             let head = w.head.text.parse::<u32>().ok().filter(|&h| h as usize <= n).ok_or_else(|| {
                 Error(format!("{file}:{}: head {:?} is not a word of the sentence or 0", w.line, w.head.text))
             })?;
@@ -236,6 +249,7 @@ pub fn read(bank: &Treebank, column: Column, dir: &Path, unrecorded: bool) -> Re
         dev: Counts::of(&dev),
         test: Counts::of(&test),
         skipped: 0,
+        recipe_only: bank.recipe_only,
     };
     Ok(Corpus { record, splits: Splits { train, dev, test } })
 }

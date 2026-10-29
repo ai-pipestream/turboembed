@@ -48,6 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .bytes(".inference.ModelInferResponse.raw_output_contents")
         .bytes(".turbo.result.v1.TokenVectorsResult.data")
         .bytes(".turbo.result.v1.AnalyzeVectors.data")
+        .bytes(".turbo.result.v1.VectorCodesResult.data")
         .bytes(".turbo.result.v1.ChunkLevelsResult.data")
         .bytes(".turbo.result.v1.DocumentGraphRequest.graph")
         .bytes(".turbo.result.v1.DocumentGraphResponse.graph")
