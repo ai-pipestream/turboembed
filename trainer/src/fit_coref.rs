@@ -55,8 +55,8 @@ pub fn antecedent_accuracy(head: &CorefRanker, examples: &[CorefExample]) -> Res
 impl Model for Ranker<f32> {
     type Example = CorefExample;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        Ranker::params(self)
+    fn params(&self) -> Vec<Vec<f32>> {
+        Ranker::params(self).to_vec()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         Ranker::set_params(self, params)
