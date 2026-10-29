@@ -1,5 +1,5 @@
 //! An S3 bucket as a source (#1613), against a small S3 stand-in started
-//! in-process: path-style addressing as RustFS and MinIO serve it, the
+//! in-process: path-style addressing as RustFS serves it, the
 //! signature checked by the stand-in, unsigned reads of a public bucket,
 //! and the zoo's own checks on whatever the bucket serves.
 #![cfg(feature = "s3")]

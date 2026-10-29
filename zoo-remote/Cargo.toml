@@ -28,9 +28,15 @@ default = ["tls", "s3"]
 # or a private CA. Without it the crate builds with no TLS stack, which
 # the arm64 check in CI needs, and a grpcs:// address is refused.
 tls = ["tonic/tls-ring", "tonic/tls-webpki-roots"]
-# s3://: an S3 bucket (AWS, RustFS, MinIO) holding blobs/sha256/<hex>.
+# s3://: an S3 bucket (AWS, RustFS) holding blobs/sha256/<hex>.
 # Its HTTPS stack also reaches ring, so the arm64 check leaves it out too.
 s3 = ["dep:sha2", "dep:ureq"]
+# Real service coverage, run by scripts/test-rustfs.sh.
+rustfs-tests = ["s3"]
+
+[[test]]
+name = "rustfs"
+required-features = ["rustfs-tests"]
 
 [build-dependencies]
 # Compiles the server's turbo_training.proto without protoc, as the
