@@ -1,0 +1,14 @@
+===OUT===
+the quick brown fox jurnped over the la-
+  zy dog and the cow jurn-
+	ped over the rnoon, repeat-
+
+edly, with a blank line above.
+exarn- 
+ple with a trailing space after the hyphen.
+
+===EDITS===
+22	23	rn
+63	64	rn
+80	81	rn
+129	130	rn

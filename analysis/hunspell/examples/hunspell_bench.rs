@@ -18,7 +18,7 @@ fn published_model(file: &str) -> Option<PathBuf> {
     for dir in candidates.into_iter().flatten() {
         let path = dir.join(file);
         if path.is_file() {
-            return Some(path);
+            return Some(turbo_pins::require(path));
         }
     }
     None

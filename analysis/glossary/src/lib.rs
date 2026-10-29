@@ -12,7 +12,9 @@
 //! - [`TokenMatcher`]: terms found as runs of tokens whose values (the
 //!   token text of a normalized view, or stems) equal a term's analyzed
 //!   tokens, whatever separates them; built on turbo-matcher's
-//!   [`PhraseMatcher`](turbo_matcher::PhraseMatcher).
+//!   [`PhraseMatcher`](turbo_matcher::PhraseMatcher). Its optional
+//!   [`FuzzyMatchPolicy`](turbo_matcher::FuzzyMatchPolicy) admits bounded
+//!   edit and phonetic candidates without changing the matched token spans.
 //! - [`GlossaryMatcher`]: either of them, or a composite of several by
 //!   priority.
 //! - [`MappedGlossaryWriter`] and [`MappedGlossaryMatcher`]: the
@@ -94,6 +96,7 @@ mod read;
 mod select;
 mod text;
 mod token;
+mod token_fuzzy;
 
 pub use annotate::GlossaryAnnotator;
 pub use boundaries::Boundaries;

@@ -19,21 +19,27 @@ The evaluation set is a mixed corpus:
   `6,072` bytes, `57` gold spans: `3` `phone` spans and every gold
   mention of the remaining 17 built-in kinds).
 
-This corpus does not complete #968's requirement for licensed human-written
-text with labelled spans per kind. Within the mixed set only `phone` has
+On its own, this mixed corpus does not complete #968's requirement
+for licensed human-written text with labelled spans per kind; the
+external partition below does. Within the mixed set only `phone` has
 unedited third-party prose coverage; the separate external partition below
-adds unedited third-party coverage for `aba-routing`, `ca-sin`, `email`,
-`iban`, `imei`, `ipv4`, `ipv6`, `jwt`, `mac`, `uk-nhs`, `us-ssn` and
-further `phone`. The adapted crypto summaries and authored
-memos remain useful, separately labelled test partitions; they do not
-establish external human-written prose coverage for their kinds. The test
+adds unedited third-party coverage for every built-in kind:
+`aba-routing`, `aws-access-key`, `btc-address`, `ca-sin`, `card`,
+`de-steuer-id`, `email`, `eth-address`, `github-token`, `iban`,
+`imei`, `ipv4`, `ipv6`, `jwt`, `mac`, `uk-nhs`, `url-credential`,
+`us-itin`, `us-ssn` and further `phone`. The ITIN and Steuer-ID
+Wikipedia articles remain zero-gold precision documents; the positive
+external specimens for those kinds are in the validator READMEs below.
+The adapted
+crypto summaries and authored memos remain useful, separately
+labelled test partitions; the adapted summaries no longer carry
+the crypto kinds on their own now that the whole BIP-173, BIP-350
+and ERC-55 texts are in the external partition. The test
 function's historical name does not change that scope.
 
-Outstanding coverage on external text is listed in `docs/pii.md` under
-"Outstanding work for #968". New sources must preserve the policy for safe specimen
+Any future external source must preserve the policy for safe specimen
 values, record provenance and redistribution terms, and pin the actual source
-text and gold byte offsets. The original issue requirements remain open;
-neither source-partition labels nor an agent's scope decision waive them.
+text and gold byte offsets.
 
 ## Documents and provenance
 
@@ -74,7 +80,7 @@ positives.
 
 ## External prose partition (#968)
 
-Ten further whole third-party documents (`324,937` UTF-8 bytes, `88` gold
+Twenty-three further whole third-party documents (`496,469` UTF-8 bytes, `491` gold
 mentions in `labels-external.tsv`, same five columns except that newlines
 inside covered text are escaped as `\n`), scored separately by
 `precision_and_recall_on_external_prose` (`analysis/pii/tests/external_prose.rs`)
@@ -97,8 +103,27 @@ of each file is pinned in the test.
 
 | `wikipedia-routing-transit-number` | `wikipedia-routing-transit-number.wikitext` | 22,864 | `75e90f864f2d7896f6ac5ab10a77d6f9392de4e78266d7fc26d2bf6ae41b67af` | Wikipedia article "Routing transit number", wikitext at revision `1376931544` (2026-09-27), CC BY-SA 4.0. Gold: `8` `aba-routing` (the check-image MICR example `129131673` twice, `021200025` three times, `111000025`, and the dashed forms `0260-0959-3` and `2260-7352-3`). The eight-digit shorthand `0212-0002` without its check digit is not a complete routing number and is not labelled. |
 
-Annotation method: every occurrence of every built-in kind in these ten
-documents was enumerated by independent shape searches over the pinned text
+| `bip-0173` | `bip-0173.mediawiki` | 20,803 | `b19eab06b264bbd15ad7f7d640fa34de8f4a8809fba8a6ecc3e165545b27a543` | [BIP-173](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki), Base32 address format for native v0-16 witness outputs, by Pieter Wuille and Greg Maxwell, at bitcoin/bips commit `24e96e870fffaa257b465ce1f0370c14aac588e8` (BSD-2-Clause, stated in the document header). Gold: `6` `btc-address` (the mainnet P2WPKH and P2WSH examples, the uppercase valid-list address, and the version 1, 2 and 16 addresses of the document's own valid list, which encode with the original bech32 checksum that BIP-350 later replaced for version 1 and up), `2` `email` (the authors' header addresses). Testnet (`tb1`) addresses are not mainnet occurrences and are not labelled; neither is any entry of the document's invalid list. |
+| `bip-0350` | `bip-0350.mediawiki` | 26,836 | `63634b06aa8bae88b31929674736e74964c4598684269ac2b0b140c43a7a0dec` | [BIP-350](https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki), Bech32m format for v1+ witness addresses, by Pieter Wuille, at bitcoin/bips commit `24e96e870fffaa257b465ce1f0370c14aac588e8` (BSD-2-Clause, stated in the document header). Gold: `5` `btc-address` (the mainnet entries of the valid list: version 0 uppercase, version 1 and 2 and 16 bech32m, and the version 1 taproot example), `1` `email` (the author's header address). Testnet addresses and the invalid list (including checksum-valid strings with invalid program lengths or padding) are not labelled. |
+| `erc-55` | `erc-55.md` | 3,674 | `54a9b25ffcd12966c60d6abd6584734d2793734f266fbe41118e6ee52b05dc9e` | [ERC-55](https://eips.ethereum.org/EIPS/eip-55), Mixed-case checksum address encoding, by Vitalik Buterin and Alex Van de Sande (2016-01-14), at ethereum/EIPs commit `8dd085d159cb123f545c272c0d871a5339550e79` (CC0-1.0). Gold: `14` `eth-address` (every `0x` address occurrence: the four checksummed specification vectors, the worked lower-case to checksummed example pair, and the all-caps, all-lower and normal test-case lists), `2` `email` (the authors' header addresses). |
+
+| `everything-curl-urls-auth` | `everything-curl-urls-auth.md` | 763 | `a41c44bf531e319c86a35370c28b2628d6dba9179b37c7ee7f265907ea84d373` | [Everything curl](https://everything.curl.dev/), the URL authentication chapter (the cmdline/urls/auth.md file) by Daniel Stenberg and contributors, at bagder/everything-curl commit `d857700386035dffc3d5a4259e310512b2cb0454` (CC BY 4.0). Gold: `1` `url-credential` (the userinfo `user:password` of the `ftp://user:password@example.com/` example at bytes 337..350). The `-u user:password` command-line forms elsewhere in the book are not credentials in a URL and are not in this chapter. |
+| `wikipedia-individual-taxpayer-identification-number` | `wikipedia-individual-taxpayer-identification-number.wikitext` | 8,308 | `da242546a591c44a593770fae0b710afc8fee59ffc5e36df90af170bc39a199e` | Wikipedia article "Individual Taxpayer Identification Number", wikitext at revision `1356638247` (2026-05-28), CC BY-SA 4.0. Gold: none. The article prints only format patterns (`9XX-XX-XXXX`, `9XX-78-XXXX`) and no complete ITIN, so it measures `us-itin` precision and negative behaviour only; neither does IRS Publication 1915 print a specimen. |
+| `wikipedia-steuerliche-identifikationsnummer` | `wikipedia-steuerliche-identifikationsnummer.wikitext` | 35,818 | `0a56d623f8bf1c840c5b36388db2e5db19c476eafa948e54e279126318849c85` | German Wikipedia article "Steuerliche Identifikationsnummer", wikitext at revision `270826794` (2026-09-27), CC BY-SA 4.0. Gold: none. The article gives the ISO 7064 MOD 11,10 check algorithm in prose and pseudocode without a complete 11-digit specimen, so it measures `de-steuer-id` precision and negative behaviour only. |
+| `wikipedia-payment-card-number` | `wikipedia-payment-card-number.wikitext` | 21,676 | `5e4014b449a3df6330c6d4e73d9502a7d6f299a707da11077ade9adba427b43a` | Wikipedia article "Payment card number", wikitext at revision `1380242769` (2026-10-14), CC BY-SA 4.0. Gold: none. The article prints issuer identification ranges and length rules but no complete card number, so it measures `card` precision and negative behaviour only; its 14-digit archive timestamps include Luhn-valid strings, the same false-positive class as in the IMEI article. |
+
+| `awsdocs-eks-install-awscli` | `awsdocs-eks-install-awscli.adoc` | 4,258 | `1c537abb5ca8d1d14936c74526c6b34c0250b8bbe7e1d24edf280cdea1d9ab72` | [Amazon EKS User Guide](https://docs.aws.amazon.com/eks/latest/userguide/), the install-AWS-CLI chapter (the latest/ug/getting-started/install-awscli.adoc file) at awsdocs/amazon-eks-user-guide commit `4553d6483b1e7fc781b633106bcf80f1a4782ce5` (CC BY-SA 4.0). Gold: `2` `aws-access-key` (the canonical AWS documentation example key, in the `aws configure` prompt answer and again as the `UserId` of the example `sts get-caller-identity` output, where the guide reuses the same published example string). The example secret access key beside it is not an access key ID and is not labelled. |
+| `awsdocs-rekognition-cloudtrail` | `awsdocs-rekognition-cloudtrail.md` | 8,402 | `355de027b081c4b29765be8d71c74d5374861f1de771c11d1a94824c5cffa690` | [Amazon Rekognition Developer Guide](https://docs.aws.amazon.com/rekognition/latest/dg/), the CloudTrail logging chapter (the doc_source/logging-using-cloudtrail.md file) at awsdocs/amazon-rekognition-developer-guide commit `8ca760f370aebf48c0f852617188c6181fb7c556` (CC BY-SA 4.0). Gold: `2` `aws-access-key` (the `accessKeyId` of the two example log records, the canonical AWS example key), `2` `ipv4` (the records' `sourceIPAddress` documentation address `192.0.2.0`). The example account ID `111122223333` is not an occurrence of any built-in kind. |
+
+| `github-docs-credentials` | `github-docs-credentials.json` | 3,852 | `6264abec023c7028ad236ff545a802aeea01653e83cfcc3990fc480ab6797102` | [GitHub Docs](https://docs.github.com/) REST API data for the credentials-revoke endpoint (the src/rest/data/fpt-2022-11-28/credentials.json file) at github/docs commit `e6d6a89c2a7f36382ac7a99d6b3f5e44fd312781` (CC BY 4.0). Gold: `5` `github-token` (the example credentials of the revoke request body: one classic personal access token, one fine-grained token, and one token each for the OAuth, user-to-server and refresh prefixes). They are documentation example values published for revocation examples, not live credentials. |
+
+| `test-payment-cards` | `test-payment-cards.md` | 33,961 | `abaec7984e9e161615ff93bf3db98e826cab1f281f0c239b333a2d7b2b12825f` | [Test Payment Cards](https://github.com/drmonkeyninja/test-payment-cards), the gateway test-card list (the readme.md file) at commit `323dc3096578ea156cd872641e7aea98f5ec65ca` (CC BY-SA 4.0, stated at the end of the document). Gold: `355` `card` (every 13-to-19-digit number the tables publish as a test card number, contiguous, space-grouped or hyphen-grouped as printed; five of them fail Luhn and 36 begin with a digit outside the scanner's 2-to-6 or 81 rule (34 Pay360 test-range numbers in 9905/9900 and two 1-series UATP numbers), and those 41 are the measured misses). Expiry dates and card codes in the same tables are too short to be card occurrences and are not labelled. |
+
+| `uphold-itin-validator` | `uphold-itin-validator.md` | 1,872 | `7a242147969ec14571e3441eae125170a117c5785d2a2857e1360781fa7b0df8` | [Uphold itin-validator](https://github.com/uphold/itin-validator) README at commit `43b8dd9bce125adb64f5acc85a2ae255c0b1da7c` (MIT; notice retained as `LICENSE.uphold-itin-validator`). Gold: `4` `us-itin` (the valid example `900-70-0000` twice and its compact form `900700000` twice). The malformed `9-0-0700000` examples and masked outputs are not ITIN occurrences and are not labelled. |
+| `kontist-validate-steuerid` | `kontist-validate-steuerid.md` | 1,309 | `61c8f50c947ceda570bb9e8d905a786aad1036e9691b90c2cb9cff43e1a38105` | [Kontist validate-steuerid](https://github.com/kontist/validate-steuerid) README at commit `b22c90029c9c63229de714b7da3eececfd6dc13f` (MIT; notice retained as `LICENSE.kontist-validate-steuerid`). Gold: `2` `de-steuer-id` (the valid examples `65929970489` and `26954371827`). The checksum-invalid `65299970480` example is not a Steuer-ID occurrence and is not labelled. |
+
+Annotation method: every occurrence of every built-in kind in these
+twenty-three documents was enumerated by independent shape searches over the pinned text
 and read in context before labelling; spans the search shapes could not
 produce (the display-wrapped JWTs, address parts of CIDR prefixes) were
 located from the documents' own example sections. Values are as their

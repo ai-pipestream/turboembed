@@ -11,12 +11,30 @@ use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, 
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
 mod linear;
+mod words;
 pub use linear::Linear;
 pub mod crf;
+pub mod edit_tree;
+pub mod hash_embed;
+pub mod lemmatizer;
+pub mod parser;
 pub mod tagger;
+pub mod tree;
+pub use lemmatizer::EditTreeLemmatizer;
+pub use parser::BiaffineParser;
 pub use tagger::TokenTagger;
 #[cfg(test)]
+mod edit_tree_tests;
+#[cfg(test)]
+mod hash_embed_tests;
+#[cfg(test)]
+mod lemmatizer_tests;
+#[cfg(test)]
+mod parser_tests;
+#[cfg(test)]
 mod tagger_tests;
+#[cfg(test)]
+mod tree_tests;
 
 /// A classification head loaded from a bundle's raw-weights artifact.
 #[derive(Debug, Clone, PartialEq)]

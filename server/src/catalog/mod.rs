@@ -2,11 +2,15 @@
 //! docs/grpc-catalog.md): the zoo index the server was started with, the
 //! artifacts in its cache, licence acceptances, and installs. Recording an
 //! acceptance and installing are admin calls, served only with the admin
-//! flag. Without a catalog every call refuses UNIMPLEMENTED.
+//! flag. Describing, resolving and reading a model are not. Without a
+//! catalog every call refuses UNIMPLEMENTED.
 
 mod disk;
 mod entry;
 mod install;
+mod read;
+
+pub use read::READ_CHUNK_BYTES;
 
 use std::fmt;
 use std::path::PathBuf;
@@ -24,8 +28,9 @@ use crate::api::{
 use crate::kserve::Reply;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogService;
 use crate::proto::training::{
-    InstallModelRequest, LicenceTerms, ListInstalledModelsRequest, ListInstalledModelsResponse,
-    ListModelCatalogRequest, ListModelCatalogResponse, RecordLicenceAcceptanceRequest, RecordLicenceAcceptanceResponse,
+    DescribeModelRequest, DescribeModelResponse, InstallModelRequest, LicenceTerms, ListInstalledModelsRequest,
+    ListInstalledModelsResponse, ListModelCatalogRequest, ListModelCatalogResponse, ReadModelFileRequest,
+    RecordLicenceAcceptanceRequest, RecordLicenceAcceptanceResponse, ResolveModelRequest, ResolveModelResponse,
 };
 use crate::status::to_status;
 
@@ -47,8 +52,12 @@ impl fmt::Debug for Catalog {
 
 impl Catalog {
     /// The catalog over HTTPS: the index at `index`, or the built-in one.
+    /// With `store` (`file:///dir` or `s3://bucket/prefix`, docs/zoo.md),
+    /// each file is read from the store first, and the store keeps every
+    /// file fetched from its index address, so a store several servers
+    /// share, or one seeded ahead, saves the fetch.
     #[cfg(feature = "catalog-http")]
-    pub fn http(home: PathBuf, index: Option<&std::path::Path>) -> Result<Catalog, String> {
+    pub fn http(home: PathBuf, index: Option<&std::path::Path>, store: Option<&str>) -> Result<Catalog, String> {
         let index = match index {
             Some(p) => {
                 let bytes = std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -56,7 +65,12 @@ impl Catalog {
             }
             None => Index::builtin(),
         };
-        Ok(Catalog { home, index: Arc::new(index), transport: Arc::new(turbo_zoo::Http::new()) })
+        let origin = turbo_zoo::Http::new();
+        let transport: Arc<dyn Transport + Send + Sync> = match store {
+            None => Arc::new(origin),
+            Some(store) => Arc::new(store_first(store, origin)?),
+        };
+        Ok(Catalog { home, index: Arc::new(index), transport })
     }
 
     fn cache(&self) -> PathBuf {
@@ -72,6 +86,23 @@ impl Catalog {
         let p = self.acceptances_path();
         if p.exists() { Acceptances::load(&p) } else { Ok(Acceptances::default()) }
     }
+}
+
+/// `store`, which keeps what it lacks, then the index's own addresses.
+#[cfg(feature = "catalog-http")]
+fn store_first(store: &str, origin: turbo_zoo::Http) -> Result<turbo_zoo::Sources, String> {
+    let list = turbo_zoo::Sources::new();
+    let list = if let Some(dir) = store.strip_prefix("file://") {
+        if !dir.starts_with('/') {
+            return Err(format!("{store}: a file:// store names an absolute directory"));
+        }
+        list.then_keep(store, turbo_zoo::Blobs::new(dir))
+    } else if store.starts_with("s3://") {
+        list.then_keep(store, turbo_zoo::S3Bucket::new(store)?)
+    } else {
+        return Err(format!("{store}: a catalog store is file:///dir or s3://bucket/prefix"));
+    };
+    Ok(list.then("origin", origin))
 }
 
 pub(crate) struct CatalogService {
@@ -168,6 +199,7 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Status> + Sen
 #[tonic::async_trait]
 impl TurboCatalogService for CatalogService {
     type InstallModelStream = install::UpdateStream;
+    type ReadModelFileStream = read::ChunkStream;
 
     async fn list_model_catalog(&self, req: Request<ListModelCatalogRequest>) -> Reply<ListModelCatalogResponse> {
         let catalog = self.catalog()?;
@@ -225,6 +257,31 @@ impl TurboCatalogService for CatalogService {
         let req = req.into_inner();
         let who = user(1, &req.user)?;
         let stream = install::start(catalog, who, req.artifact_id, self.installing.clone()).await?;
+        Ok(Response::new(stream))
+    }
+
+    async fn describe_model(&self, req: Request<DescribeModelRequest>) -> Reply<DescribeModelResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
+        let entry = blocking(move || read::describe(&catalog, who.as_ref(), &req.artifact_id)).await?;
+        Ok(Response::new(DescribeModelResponse { entry: Some(entry) }))
+    }
+
+    async fn resolve_model(&self, req: Request<ResolveModelRequest>) -> Reply<ResolveModelResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(3, &req.user)?) };
+        let (entry, path) =
+            blocking(move || read::resolve(&catalog, who.as_ref(), &req.sha256, &req.artifact_id)).await?;
+        Ok(Response::new(ResolveModelResponse { entry: Some(entry), path }))
+    }
+
+    async fn read_model_file(&self, req: Request<ReadModelFileRequest>) -> Reply<Self::ReadModelFileStream> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let stream = read::start(catalog, who, req.artifact_id, req.path, req.sha256).await?;
         Ok(Response::new(stream))
     }
 }

@@ -40,6 +40,10 @@ fn spec(
         word_pooling: pooling,
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
+        biaffine: None,
+        pos_input: None,
+        hash_embed: None,
+        license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.t".into(),
     }

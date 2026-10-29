@@ -12,7 +12,6 @@ fn the_commit_is_forty_hex_digits() {
     assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
     assert!(is_lower_hex(LIBLINEAR_ADDON_COMMIT, 40), "{LIBLINEAR_ADDON_COMMIT}");
     assert!(is_lower_hex(NEURAL_POSTAG_COMMIT, 40), "{NEURAL_POSTAG_COMMIT}");
-    assert!(is_lower_hex(HUNSPELL_COMMIT, 40), "{HUNSPELL_COMMIT}");
     assert!(is_lower_hex(CONLLU_DEPENDENCY_COMMIT, 40), "{CONLLU_DEPENDENCY_COMMIT}");
     assert!(is_lower_hex(COREF_ADDONS_COMMIT, 40), "{COREF_ADDONS_COMMIT}");
     assert!(is_lower_hex(HUNSPELL_DICTIONARIES_COMMIT, 40), "{HUNSPELL_DICTIONARIES_COMMIT}");
@@ -26,9 +25,27 @@ fn the_base_image_is_pinned_by_a_sha256_digest() {
     assert!(is_lower_hex(hex, 64), "{BASE_IMAGE_DIGEST}");
 }
 
+/// OpenNLP 1.5 models and 2.5 artifacts are not fetched (#1509): the
+/// recipe lists none, and the generator names no 1.5 model.
+#[test]
+fn no_opennlp_1_5_or_2_5_model_is_fetched() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    let v1_5 = ["en-pos-maxent", "en-pos-perceptron", "en-chunker", "en-ner-", "models-1.5"];
+    for name in v1_5 {
+        assert!(!runs.contains(name), "Runs.java names {name}");
+    }
+    // Runs.java still names the 2.5 models in runs that #1532 deletes, but
+    // the recipe no longer fetches them.
+    for name in v1_5.into_iter().chain(["-2.5.4.bin", "langdetect-183"]) {
+        for m in MODELS.iter().chain(std::iter::once(&POOLING_SOURCE)) {
+            assert!(!m.file.contains(name) && !m.url.contains(name), "{} names {name}", m.url);
+        }
+    }
+}
+
 #[test]
 fn every_model_has_a_file_an_https_url_and_a_sha512() {
-    for m in MODELS.iter().chain(&LOCAL_MODELS) {
+    for m in MODELS.iter() {
         assert!(is_lower_hex(m.sha512, 128), "{}: {}", m.file, m.sha512);
         assert!(m.url.starts_with("https://"), "{}", m.url);
         assert!(m.url.ends_with(&format!("/{}", m.file)), "{} does not end in {}", m.url, m.file);
@@ -37,6 +54,25 @@ fn every_model_has_a_file_an_https_url_and_a_sha512() {
     assert!(is_lower_hex(POOLING_SOURCE.sha512, 128));
     assert!(POOLING_SOURCE.url.starts_with("https://huggingface.co/"), "{}", POOLING_SOURCE.url);
     assert!(is_lower_hex(crate::pooled::POOLED_SHA512, 128));
+}
+
+/// fetch-models checks each file by SHA-512 when it fetches it; the
+/// tests that load one check its SHA-256 pin (analysis/pins/models.txt,
+/// by the same file name) every time they load it.
+#[test]
+fn every_fetched_file_has_a_sha256_pin() {
+    let files = MODELS
+        .iter()
+        .chain([&POOLING_SOURCE])
+        .map(|m| m.file)
+        .chain(HUNSPELL_FILES.iter().map(|f| f.file))
+        .chain(CORPORA.iter().map(|c| c.file));
+    // A retired model (OpenNLP 2.5) is pinned nowhere; #1532 removes it
+    // from the recipe.
+    for file in files.filter(|f| !turbo_pins::retired(f)) {
+        let pin = turbo_pins::named(file).unwrap_or_else(|| panic!("{file} has no pin in analysis/pins/models.txt"));
+        assert_eq!(pin.kind, turbo_pins::Kind::File, "{file}");
+    }
 }
 
 #[test]
@@ -61,10 +97,7 @@ fn the_dockerfile_pins_the_same_base_image_and_commit() {
     assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
     let patterns = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
     assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
-    assert!(dockerfile.contains(&format!("\nARG HUNSPELL_COMMIT={HUNSPELL_COMMIT}\n")));
     assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
-    let profiles = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
-    assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
     assert!(dockerfile.contains(&format!("\nARG LIBLINEAR_ADDON_COMMIT={LIBLINEAR_ADDON_COMMIT}\n")));
     let liblinear = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
     assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));
@@ -111,6 +144,11 @@ fn runs_java_does_not_register_hunspell_goldens() {
     let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
     assert!(!golden.is_file(), "{} must stay deleted", golden.display());
+    let readme = include_str!("../../README.md");
+    assert!(
+        !readme.contains("hunspellJar"),
+        "the README must not pass the removed Hunspell bridge jar to the generator"
+    );
 }
 
 #[test]
@@ -171,7 +209,6 @@ fn the_generator_opens_the_same_model_and_fixture_files() {
         .collect();
     for file in MODELS
         .iter()
-        .chain(&LOCAL_MODELS)
         .map(|m| m.file)
         .chain(FIXTURES.iter().map(|f| opened(f.file)))
         .chain(dictionaries)
@@ -186,7 +223,6 @@ fn the_generator_names_the_same_input_sets() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
     for set in INPUT_SETS.iter().filter(|s| {
         ![
-            NORMALIZER_INPUT_SET,
             NUMBER_INPUT_SET,
             MONEY_INPUT_SET,
             QUANTITY_INPUT_SET,
@@ -219,11 +255,8 @@ fn the_generator_and_the_entrypoint_take_the_generator_args() {
 }
 
 #[test]
-fn the_dumped_annotators_and_the_normalizer_set_are_in_the_recipe() {
+fn the_dumped_annotators_are_in_the_recipe() {
     assert!(DUMPED_ANNOTATORS.iter().all(|a| ANNOTATORS.contains(a)));
-    assert!(INPUT_SETS.contains(&NORMALIZER_INPUT_SET));
-    let normalizer = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/NormalizerGolden.java");
-    assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
 }
 
 #[test]

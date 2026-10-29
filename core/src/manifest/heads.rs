@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::helpers::{fits, positive, required};
-use super::{Format, Manifest};
+use super::{Format, LicenseClass, Manifest};
 use crate::status::{Result, invalid};
 
 /// The most heads one bundle carries.
@@ -19,6 +19,14 @@ pub const MAX_ADAPTER_LAYERS: u32 = 3;
 pub const MAX_ADAPTER_HIDDEN: u32 = 4096;
 /// The most labels one head scores.
 pub const MAX_LABELS: usize = 4096;
+/// The widest biaffine MLP output.
+pub const MAX_BIAFFINE: u32 = 4096;
+/// The widest part-of-speech embedding a lemmatizer reads.
+pub const MAX_POS_DIM: u32 = 1024;
+/// The widest hashed word embedding, per feature.
+pub const MAX_HASH_DIM: u32 = 1024;
+/// The most rows one hashed feature table holds.
+pub const MAX_HASH_ROWS: u32 = 1 << 20;
 /// The namespace every head's layer id is in.
 pub const LAYER_NAMESPACE: &str = "turboembed:";
 
@@ -37,6 +45,24 @@ pub struct HeadSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<Adapter>,
     pub decode: Decode,
+    /// The arc and relation MLP widths of a HEAD_BIAFFINE_PARSER; absent
+    /// for every other kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biaffine: Option<Biaffine>,
+    /// The part-of-speech tags a HEAD_EDIT_TREE_LEMMATIZER reads beside
+    /// each word, from another head of the bundle; absent for every other
+    /// kind, and optional for a lemmatizer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pos_input: Option<PosInput>,
+    /// Hashed embeddings of the word's own text joined after its pooled
+    /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_embed: Option<HashEmbed>,
+    /// The class of the strictest licence among the corpora the head was
+    /// trained on (docs/zoo.md); the bundle's tier counts it
+    /// ([`Manifest::license_tier`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license_class: Option<LicenseClass>,
     /// The name of the FORMAT_SAFETENSORS artifact holding the head's
     /// tensors, as `from` and `host_weights` name artifacts.
     pub artifact: String,
@@ -48,6 +74,48 @@ pub enum HeadKind {
     /// One label per word, from the word's pooled subword states.
     #[serde(rename = "HEAD_TOKEN_TAGGER")]
     TokenTagger,
+    /// A head word and a relation per word, from biaffine arc and
+    /// relation scores (Dozat and Manning 2017), decoded to a tree. The
+    /// labels are the relations, under SCHEME_TAGS.
+    #[serde(rename = "HEAD_BIAFFINE_PARSER")]
+    BiaffineParser,
+    /// An edit tree per word (head/edit_tree.rs), the labels being the
+    /// trees' labels under SCHEME_TAGS; the word's lemma is its tree
+    /// applied to it.
+    #[serde(rename = "HEAD_EDIT_TREE_LEMMATIZER")]
+    EditTreeLemmatizer,
+}
+
+/// The tags a lemmatizer reads: head `head` (a SCHEME_TAGS token tagger
+/// of the same bundle, with `labels` labels) decodes each word's tag, and
+/// the lemmatizer reads the tag's learned `dim`-wide embedding beside the
+/// word's features.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PosInput {
+    pub head: String,
+    pub labels: u32,
+    pub dim: u32,
+}
+
+/// The widths of a biaffine parser's MLPs: `arc` for the dependent and
+/// head views the arc scorer reads, `rel` for the relation scorer's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Biaffine {
+    pub arc: u32,
+    pub rel: u32,
+}
+
+/// A word's identity as a head reads it beside the encoder: four
+/// features of its text (NORM, PREFIX, SUFFIX, SHAPE), each looked up in
+/// its own table of `rows[k]` rows `dim` wide by several hashes of the
+/// feature and summed (head/hash_embed.rs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HashEmbed {
+    pub dim: u32,
+    pub rows: [u32; 4],
 }
 
 /// How a head's labels read.
@@ -97,6 +165,18 @@ pub enum Decode {
     /// and BILOU, sequences the scheme forbids are never chosen.
     #[serde(rename = "DECODE_CRF")]
     Crf,
+    /// The best-scoring tree with one word on the root (Chu-Liu-Edmonds);
+    /// a biaffine parser's decode.
+    #[serde(rename = "DECODE_MST")]
+    Mst,
+    /// The best-scoring projective tree with one word on the root
+    /// (Eisner); a biaffine parser's decode.
+    #[serde(rename = "DECODE_EISNER")]
+    Eisner,
+    /// The best-scoring edit tree that fits the word, else the word
+    /// itself; a lemmatizer's decode.
+    #[serde(rename = "DECODE_EDIT_TREE")]
+    EditTree,
 }
 
 /// A label read under a scheme: outside any span, or a part of a span of
@@ -188,6 +268,75 @@ impl HeadSpec {
         if self.scheme != Scheme::Tags && !self.labels.iter().any(|l| l == "O") {
             return Err(invalid(format!("manifest.json: {}: {:?} needs the label \"O\"", at("labels"), self.scheme)));
         }
+        let fits_kind = match self.kind {
+            HeadKind::TokenTagger => matches!(self.decode, Decode::Argmax | Decode::Crf),
+            HeadKind::BiaffineParser => {
+                matches!(self.decode, Decode::Mst | Decode::Eisner) && self.scheme == Scheme::Tags
+            }
+            HeadKind::EditTreeLemmatizer => self.decode == Decode::EditTree && self.scheme == Scheme::Tags,
+        };
+        let parser = self.kind == HeadKind::BiaffineParser;
+        let lemmatizer = self.kind == HeadKind::EditTreeLemmatizer;
+        if !fits_kind || parser != self.biaffine.is_some() || (!lemmatizer && self.pos_input.is_some()) {
+            return Err(invalid(format!(
+                "manifest.json: {}: {:?} with {:?}, {:?}, biaffine {} and pos_input {}: a HEAD_TOKEN_TAGGER takes \
+                 DECODE_ARGMAX or DECODE_CRF; a HEAD_BIAFFINE_PARSER takes SCHEME_TAGS, DECODE_MST or DECODE_EISNER and \
+                 biaffine; a HEAD_EDIT_TREE_LEMMATIZER takes SCHEME_TAGS, DECODE_EDIT_TREE and an optional pos_input",
+                at("kind"),
+                self.kind,
+                self.scheme,
+                self.decode,
+                if self.biaffine.is_some() { "set" } else { "absent" },
+                if self.pos_input.is_some() { "set" } else { "absent" }
+            )));
+        }
+        if lemmatizer {
+            for (j, l) in self.labels.iter().enumerate() {
+                crate::head::edit_tree::EditTree::parse(l)
+                    .map_err(|e| invalid(format!("manifest.json: {}: {}", at(&format!("labels[{j}]")), e.message)))?;
+            }
+        }
+        if let Some(p) = &self.pos_input {
+            required(&at("pos_input.head"), &p.head)?;
+            positive(&at("pos_input.labels"), p.labels)?;
+            positive(&at("pos_input.dim"), p.dim)?;
+            if p.labels as usize > MAX_LABELS || p.dim > MAX_POS_DIM || p.head == self.name {
+                return Err(invalid(format!(
+                    "manifest.json: {}: labels {} and dim {} (at most {MAX_LABELS} and {MAX_POS_DIM}) from head {:?}, \
+                     another head",
+                    at("pos_input"),
+                    p.labels,
+                    p.dim,
+                    p.head
+                )));
+            }
+        }
+        if let Some(b) = &self.biaffine {
+            positive(&at("biaffine.arc"), b.arc)?;
+            positive(&at("biaffine.rel"), b.rel)?;
+            if b.arc > MAX_BIAFFINE || b.rel > MAX_BIAFFINE {
+                return Err(invalid(format!(
+                    "manifest.json: {}: arc {} and rel {}; at most {MAX_BIAFFINE}",
+                    at("biaffine"),
+                    b.arc,
+                    b.rel
+                )));
+            }
+        }
+        if let Some(h) = &self.hash_embed {
+            if self.kind != HeadKind::TokenTagger {
+                return Err(invalid(format!("manifest.json: {}: only a HEAD_TOKEN_TAGGER takes it", at("hash_embed"))));
+            }
+            positive(&at("hash_embed.dim"), h.dim)?;
+            if h.dim > MAX_HASH_DIM || h.rows.iter().any(|&r| r == 0 || r > MAX_HASH_ROWS) {
+                return Err(invalid(format!(
+                    "manifest.json: {}: dim {} and rows {:?}; dim 1 to {MAX_HASH_DIM}, rows 1 to {MAX_HASH_ROWS}",
+                    at("hash_embed"),
+                    h.dim,
+                    h.rows
+                )));
+            }
+        }
         if let Some(a) = &self.adapter {
             positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;
             positive(&at("adapter.bilstm.layers"), a.bilstm.layers)?;
@@ -205,6 +354,13 @@ impl HeadSpec {
 }
 
 impl Manifest {
+    /// The bundle's licence tier: the strictest class of its encoder
+    /// (`model.license_class`) and of every head's training corpora. None
+    /// when the encoder's class is not recorded and no head records one.
+    pub fn license_tier(&self) -> Option<LicenseClass> {
+        self.model.license_class.into_iter().chain(self.heads.iter().filter_map(|h| h.license_class)).max()
+    }
+
     pub(super) fn validate_heads(&self) -> Result<()> {
         if self.heads.is_empty() {
             return Ok(());
@@ -218,6 +374,13 @@ impl Manifest {
         for (i, h) in self.heads.iter().enumerate() {
             let at = |field: &str| format!("heads[{i}].{field}");
             h.validate(&format!("heads[{i}]"))?;
+            if h.license_class.is_some() && self.model.license_class.is_none() {
+                return Err(invalid(format!(
+                    "manifest.json: {}: set, and model.license_class is not, so the bundle's tier would leave the \
+                     encoder out",
+                    at("license_class")
+                )));
+            }
             if self.heads[..i].iter().any(|o| o.name == h.name) {
                 return Err(invalid(format!("manifest.json: {}: {:?} names two heads", at("name"), h.name)));
             }
@@ -232,6 +395,19 @@ impl Manifest {
                 }
                 None => {
                     return Err(invalid(format!("manifest.json: {}: no artifact {:?}", at("artifact"), h.artifact)));
+                }
+            }
+            if let Some(p) = &h.pos_input {
+                let tags = self.heads.iter().find(|o| o.name == p.head).filter(|o| {
+                    o.kind == HeadKind::TokenTagger && o.scheme == Scheme::Tags && o.labels.len() == p.labels as usize
+                });
+                if tags.is_none() {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: {:?} is not a SCHEME_TAGS token tagger head of {} labels",
+                        at("pos_input.head"),
+                        p.head,
+                        p.labels
+                    )));
                 }
             }
         }

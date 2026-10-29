@@ -34,7 +34,11 @@ use turbo::*;
 /// runs tests in the package directory), or None.
 fn named_bundle() -> Option<PathBuf> {
     let p = PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
-    Some(if p.is_absolute() { p } else { Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+    Some(turbo_pins::require(if p.is_absolute() {
+        p
+    } else {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p)
+    }))
 }
 
 fn bundle() -> PathBuf {
@@ -95,6 +99,12 @@ fn the_rotary_bundles_match_upstream() {
     let backend = device_backend();
     if turbo::model::runs_family(&backend, backend::TURBO_FAMILY_MODERNBERT).is_err() {
         eprintln!("skipped: the {backend} backend runs no rotary family");
+        return;
+    }
+    // Level Zero runs the rotary families in F32 alone and refuses FASTEST
+    // (core/tests/levelzero_rotary.rs holds it to that).
+    if backend == "levelzero" && precision() == TURBO_PRECISION_FASTEST {
+        eprintln!("skipped: the levelzero backend refuses FASTEST on the rotary families");
         return;
     }
     for name in ["tiny-modernbert-bundle", "tiny-nomic-bundle"] {

@@ -34,7 +34,7 @@ fn every_golden_text_gives_model2vecs_ids_and_vector_to_the_bit() {
         println!("TURBO_PARITY_BUNDLE and TURBO_PARITY_GOLDEN are not both set: nothing to compare");
         return;
     };
-    let (bundle, golden) = (PathBuf::from(bundle), PathBuf::from(golden));
+    let (bundle, golden) = (turbo_pins::require(PathBuf::from(bundle)), PathBuf::from(golden));
     let texts: Vec<String> = serde_json::from_slice(&fs::read(golden.join("texts.json")).unwrap()).unwrap();
     let versions: Value = serde_json::from_slice(&fs::read(golden.join("versions.json")).unwrap()).unwrap();
     println!("{}: goldens from {}", bundle.display(), versions["versions"]);

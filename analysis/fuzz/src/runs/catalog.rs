@@ -6,7 +6,7 @@ use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
-use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
+use super::tagging::{Lemmatizer, Tagger};
 use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
@@ -40,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 33] = [
+pub const NOT_COVERED: [&str; 27] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -53,10 +53,6 @@ pub const NOT_COVERED: [&str; 33] = [
     "masc",
     "ner",
     "ad",
-    "parse",
-    "head-rules",
-    "gazetteer",
-    "place-profiles",
     "string-pattern",
     "features",
     "codec",
@@ -71,14 +67,12 @@ pub const NOT_COVERED: [&str; 33] = [
     "postag-neural",
     "conllu",
     "corpora",
-    "ontonotes",
-    "frenchtreebank",
     "sentvectors",
 ];
 
-/// Every run the differential covers, as `(annotator, run)`: the golden
-/// directories under `analysis/goldens/data`. A run whose model is not
-/// present opens as `Unavailable::Missing`.
+/// Historical directory inventory, including retired classical runs.
+/// Native execution uses [`native_runs`]; retirement never opens resources.
+/// The directory inventory remains until its owning snapshot migration lands.
 pub const RUNS: &[(&str, &str)] = &[
     ("sentdetect", "en-abbrev"),
     ("sentdetect", "en-plain"),
@@ -115,20 +109,10 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
     ("lattice", "unidic-mecab-2.1.2"),
-    ("postag", "opennlp-de-ud-gsd-pos-1.3-2.5.4"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam10"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+penn"),
-    ("postag", "pos-fixture"),
-    ("postag", "pos-fixture-rust"),
     ("lemmatize", "lemma-fixture-rust"),
     ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
     ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
     ("lemmatize-dictionary", "lemmatizer-dictionary"),
-    ("chunk", "chunker-fixture"),
-    ("chunk", "chunker-fixture+beam1"),
-    ("chunk", "chunker-fixture-rust"),
     ("langdetect", "langdetect-183"),
     ("langdetect", "langdetect-183+probing"),
     ("langdetect", "langdetect-183+probing-chunk50"),
@@ -188,12 +172,41 @@ pub const RUNS: &[(&str, &str)] = &[
     ("subwords", VOCABULARY),
 ];
 
+/// Classical archive consumers retained only in the historical inventory.
+/// Unknown names within a retired family are refused before resource lookup too.
+pub fn is_retired(annotator: &str, run: &str) -> bool {
+    let base = run.split('+').next().unwrap_or("");
+    match annotator {
+        "sentdetect" => !matches!(base, "newline" | "rule" | "paragraph"),
+        "tokenize" => !matches!(base, "simple" | "whitespace" | "uax29"),
+        "postag" | "lemmatize" | "lemmatize-dictionary" | "chunk" | "langdetect" => true,
+        _ => false,
+    }
+}
+
+/// Retained native runs, including rule sentences and paragraph structure.
+/// Historical JVM expected outputs play no part in this execution registry.
+pub fn native_runs() -> impl Iterator<Item = (&'static str, &'static str)> {
+    RUNS.iter()
+        .copied()
+        .filter(|(annotator, run)| !is_retired(annotator, run))
+        .chain([("sentdetect", "rule"), ("sentdetect", "paragraph")])
+}
+
 /// Opens the Rust side of `<annotator>/<run>`.
 pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
+    if is_retired(annotator, run) {
+        return Err(Unavailable::NotCovered(format!("retired classical run {annotator}/{run}")));
+    }
     let (base, options) = split_options(run);
     let not_covered = || Unavailable::NotCovered(format!("{annotator}/{run}"));
+    if annotator == "tokenize" && base == "uax29" && !options.is_empty() {
+        return Err(not_covered());
+    }
     match annotator {
-        "sentdetect" if base == "newline" => NewlineSentences::open(&options),
+        "sentdetect" if matches!(base, "newline" | "rule" | "paragraph") => {
+            NewlineSentences::open_native(base, &options)
+        }
         "sentdetect" => MaxentSentences::open(base, &options, res),
         "tokenize" => match base {
             "simple" => Plain::open(true, &options),
@@ -206,7 +219,6 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "postag" => Tagger::open(base, &options, res),
         "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
-        "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
@@ -246,10 +258,12 @@ mod tests {
         on_disk.sort();
         let mut listed: Vec<(String, String)> = RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
         listed.sort();
-        // The PII goldens come with the first `generate` that knows the
-        // packs; until they are on disk, their runs have nothing to match.
-        if !data.join("pii").is_dir() {
-            listed.retain(|(a, _)| a != "pii");
+        // Native runs may outlive their JVM golden trees; skip families
+        // whose data directory is not checked in yet.
+        for family in ["normalize", "numbers", "money", "money-convert", "quantity", "temporal", "pii"] {
+            if !data.join(family).is_dir() {
+                listed.retain(|(a, _)| a.as_str() != family);
+            }
         }
         assert_eq!(listed, on_disk);
     }
@@ -258,19 +272,22 @@ mod tests {
     fn runs_without_a_model_open_from_the_fixtures_alone() {
         let res = Resources::new("/nonexistent");
         for (annotator, run) in [
-            ("sentdetect", "en-abbrev"),
+            ("sentdetect", "rule"),
+            ("sentdetect", "newline"),
+            ("sentdetect", "paragraph"),
             ("tokenize", "simple+keep-new-lines"),
             ("tokenize", "uax29"),
             ("normalize", "default-chain"),
             ("normalize", "umlaut-full-case-whitespace-chain"),
             ("money-convert", "latin-eu"),
-            ("chunk", "chunker-fixture+beam1"),
-            ("chunk", "chunker-fixture-rust"),
             ("pii", "all-structured"),
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }
-        assert!(matches!(open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res), Err(Unavailable::Missing(_))));
+        assert!(matches!(
+            open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res),
+            Err(Unavailable::NotCovered(_))
+        ));
         assert!(matches!(open("train", "anything", &res), Err(Unavailable::NotCovered(_))));
         // There is one whitespace definition, so no run takes a mode.
         for (annotator, run) in [("sentdetect", "en-abbrev+legacy"), ("tokenize", "simple+legacy")] {

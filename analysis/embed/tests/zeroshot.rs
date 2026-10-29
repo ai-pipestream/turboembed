@@ -14,7 +14,6 @@
 //! 5. `ClaimVerificationAnnotator` over the bundle scorer: one batch, and
 //!    edge scores equal to the softmaxed logits of each direction.
 
-use std::path::Path;
 use std::time::Instant;
 
 use turbo::bundle::Bundle;
@@ -200,7 +199,8 @@ fn real_nli_bundle_conformance_and_zero_shot_classification() {
         eprintln!("TURBO_TEST_NLI_BUNDLE not set; skipping real NLI checkpoint test");
         return;
     };
-    let dir = Path::new(&bundle_dir);
+    let dir = turbo_pins::require(&bundle_dir);
+    let dir = dir.as_path();
     let mut devices = vec![Device::Cpu];
     if std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| !v.is_empty() && v != "0") {
         devices.push(Device::Backend("cuda".into()));

@@ -170,30 +170,30 @@ is in that form and a test keeps it there.
   "zoo_version": 1,
   "artifacts": [
     {
-      "id": "opennlp-en-ud-ewt-sentence-1.3-2.5.4",
-      "kind": "KIND_MODEL",
-      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "id": "turbo-en-civil-comments-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
       "language": "en",
-      "format": "FORMAT_OPENNLP_MODEL",
-      "version": "1.3-2.5.4",
+      "format": "FORMAT_HEAD",
+      "version": "1",
       "license": "Apache-2.0",
-      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
       "trained_on": [
         {
-          "name": "UD_English-EWT r2.16",
-          "license": "CC-BY-SA-4.0",
-          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
         }
       ],
-      "class": "CLASS_SHARE_ALIKE",
-      "attribution": "Apache OpenNLP 1.3 UD model (Apache-2.0, The Apache Software Foundation), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
       "files": [
         {
-          "path": "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "size": 20061,
-          "sha256": "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
-          "sha512": "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191"
+          "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "size": 9371,
+          "sha256": "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba",
+          "sha512": "35ce10567ed7c8e79bc2fc7f495ee2e6fde9e26068ea4741632d3d26b0f794530b1775568f097dcf0eb82ae1deeddf5219a990c2b851c284ca96411f3bff4b2c"
         }
       ]
     }
@@ -382,6 +382,58 @@ command uses (`$TURBO_ZOO_HOME`, else `$XDG_DATA_HOME/turbo-zoo`, else
 `~/.local/share/turbo-zoo`), with the cache at `Home::artifacts` and the
 acceptance file at `Home::acceptances`; `UserId::from_env` reads `$USER`,
 else `$USERNAME`.
+
+### Other sources: a content-addressed store and a list of sources
+
+The zoo asks its transport for each file with `Transport::get_file`,
+which gets the artifact and the index's record of the file. By default
+it fetches the file's address, as before; a transport that finds files
+another way overrides it (#1613).
+
+- `Blobs::new(root)` is a content-addressed store on disk: each file,
+  unpacked, at `<root>/blobs/sha256/<hex>` of its SHA-256. The same
+  layout serves a zoo server's store, a library's local copy and an S3
+  bucket, so any one can seed another, and a key always names the bytes
+  the index pins. `Blobs::put(bytes)` keeps bytes under their own
+  SHA-256, written whole through a temporary name. As a transport it
+  serves a file by its SHA-256 alone, never by address, and refuses a
+  symlink or anything but a plain file.
+- `Sources::new().then(name, source)...` tries its sources in order for
+  each file and keeps the first answer that verifies by size, SHA-256
+  and SHA-512 (after the wire check, for a file served compressed); a
+  source that lacks the file, fails or serves other bytes passes the
+  request on. When none has it, the error names what each said. A
+  typical list is the local store, then a zoo server, then `Http`
+  for the index's own address.
+- `Sources::then_keep(name, store)` adds a store (anything that is a
+  `Transport` and a `Keep`: `Blobs` or `S3Bucket`) that also keeps every
+  file a later source serves, once it verifies, so the next read is
+  local. A file it cannot keep is still handed over.
+- `S3Bucket` (the `http` feature) is an S3 bucket or prefix, on AWS or
+  an S3-compatible store such as RustFS, in the same
+  `<prefix>/blobs/sha256/<hex>` layout: a file is read with one GET and
+  kept with one PUT, each signed with AWS Signature Version 4 (computed
+  over `sha2`, no AWS SDK), or unsigned for a public bucket.
+  `S3Bucket::new("s3://bucket/prefix")` is configured the way the AWS
+  tools are: `AWS_ENDPOINT_URL_S3` or `AWS_ENDPOINT_URL` for a store
+  other than AWS (addressed path-style), `AWS_REGION` or
+  `AWS_DEFAULT_REGION` (else `us-east-1`), and `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. Redirects are not
+  followed, so a signed request is not replayed elsewhere.
+  `analysis/zoo/tests/s3.rs` runs it against an in-process stand-in that checks each
+  signature; `analysis/zoo/src/fetch/sigv4.rs` checks HMAC-SHA-256 against RFC 4231
+  and the signatures against the S3 documentation's GET and PUT Object
+  examples.
+
+A zoo server keeps its files in such a store with
+`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
+(docs/grpc-catalog.md). `turbo-zoo-remote` (top-level `zoo-remote/`)
+adds the library's remote sources: a zoo server over `grpc://` or
+`grpcs://`, an S3 bucket over `s3://`, and the `TURBO_ZOO_SOURCE` list
+that names them.
+
+Whatever the source, the licence check runs first: no source is asked
+for an artifact whose terms the user has not accepted.
 
 ## Reading the index from OpenNLP
 

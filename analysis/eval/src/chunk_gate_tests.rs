@@ -20,6 +20,14 @@ fn rec(set: &str, ndcg: f64, evidence: Option<(f64, f64, f64, f64)>) -> EvalReco
             .collect(),
         ..span
     });
+    // The means and count the per-query scores must reproduce, so the
+    // record passes its own check.
+    if let Some(s) = r.metrics.span.as_mut() {
+        let n = s.per_query.len() as f64;
+        s.mean.at_10.recall = s.per_query.iter().map(|q| q.recall).sum::<f64>() / n;
+        s.mean.at_10.contained = s.per_query.iter().map(|q| q.contained).sum::<f64>() / n;
+        s.queries = s.per_query.len() as u32;
+    }
     r
 }
 
@@ -133,13 +141,7 @@ fn records_with_bad_evidence_fields_fail_their_check() {
     let ok = rec("qasper", 0.37, Some((0.23, 0.21, 0.08, 0.0)));
     let check = |edit: &dyn Fn(&mut SpanMetrics)| {
         let mut r = ok.clone();
-        // The means the per-query scores must reproduce.
-        let s = r.metrics.span.as_mut().unwrap();
-        let n = s.per_query.len() as f64;
-        s.mean.at_10.recall = s.per_query.iter().map(|q| q.recall).sum::<f64>() / n;
-        s.mean.at_10.contained = s.per_query.iter().map(|q| q.contained).sum::<f64>() / n;
-        s.queries = s.per_query.len() as u32;
-        edit(s);
+        edit(r.metrics.span.as_mut().unwrap());
         r.check()
     };
     assert!(check(&|_| {}).is_ok());
@@ -156,4 +158,24 @@ fn records_with_bad_evidence_fields_fail_their_check() {
         .contains("per_query has")
     );
     assert!(check(&|s| s.mean.at_10.recall += 0.1).unwrap_err().contains("per query mean"));
+}
+
+#[test]
+fn the_gate_checks_every_record_it_is_given() {
+    let windows = [rec("qasper", 0.38, Some((0.17, 0.07, 0.51, 0.0)))];
+    let good = rec("qasper", 0.378, Some((0.23, 0.21, 0.08, 0.0)));
+    assert!(chunk_gate(std::slice::from_ref(&good), &windows, &[]).unwrap().pass);
+    let bad_split = |r: &EvalRecord| {
+        let mut r = r.clone();
+        r.metrics.span.as_mut().unwrap().integrity = Some(Integrity { split: -1.0, short_documents: 0.0 });
+        r
+    };
+    // A split of -1 would beat any reference; the gate refuses it instead.
+    let e = chunk_gate(&[bad_split(&good)], &windows, &[]).unwrap_err();
+    assert!(e.contains("the candidate, set qasper") && e.contains("split"), "{e}");
+    let e = chunk_gate(std::slice::from_ref(&good), &[bad_split(&windows[0])], &[]).unwrap_err();
+    assert!(e.contains("the reference, set qasper"), "{e}");
+    let fixed = [bad_split(&rec("qasper", 0.30, Some((0.1, 0.1, 0.4, 0.0))))];
+    let e = chunk_gate(std::slice::from_ref(&good), &windows, &[&fixed]).unwrap_err();
+    assert!(e.contains("baseline 1, set qasper"), "{e}");
 }
