@@ -95,12 +95,22 @@ fn same_set(a: &EvalRecord, b: &EvalRecord) -> Result<()> {
 
 /// The gate of `candidate`'s records against the reference `windows`
 /// and the other baselines; every baseline must hold every set the
-/// candidate does.
+/// candidate does. Every record must pass [`EvalRecord::check`] first.
 pub fn chunk_gate(
     candidate: &[EvalRecord],
     windows: &[EvalRecord],
     others: &[&[EvalRecord]],
 ) -> Result<ChunkGateReport> {
+    // Every record is checked as it would be when read from disk, so a
+    // record built in memory cannot carry fields the gate would trust.
+    let check = |records: &[EvalRecord], who: &str| -> Result<()> {
+        records.iter().try_for_each(|r| r.check().map_err(|e| format!("{who}, set {}: {e}", r.set.name)))
+    };
+    check(candidate, "the candidate")?;
+    check(windows, "the reference")?;
+    for (k, o) in others.iter().enumerate() {
+        check(o, &format!("baseline {}", k + 1))?;
+    }
     // The candidate is judged on every set the reference holds, once.
     let sets = |records: &[EvalRecord], who: &str| -> Result<Vec<String>> {
         let mut names: Vec<String> = records.iter().map(|r| r.set.name.clone()).collect();
