@@ -22,7 +22,7 @@ pub mod feedforward;
 pub mod lstm;
 
 use std::fmt;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
 use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
 
@@ -145,6 +145,73 @@ impl From<io::Error> for NeuralError {
 /// against values written by a JVM.
 pub use turbo_jvm::random::JavaRandom as JavaRng;
 
+/// Big-endian binary reader matching `java.io.DataInputStream`.
+pub(crate) struct DataReader<R> {
+    inner: R,
+    scratch: Vec<u8>,
+}
+
+impl<R: Read> DataReader<R> {
+    pub(crate) fn new(inner: R) -> Self {
+        Self { inner, scratch: Vec::new() }
+    }
+
+    pub(crate) fn read_boolean(&mut self) -> Result<bool, NeuralError> {
+        let mut buf = [0u8; 1];
+        self.inner.read_exact(&mut buf).map_err(eof_as_format)?;
+        Ok(buf[0] != 0)
+    }
+
+    pub(crate) fn read_i32(&mut self) -> Result<i32, NeuralError> {
+        let mut buf = [0u8; 4];
+        self.inner.read_exact(&mut buf).map_err(eof_as_format)?;
+        Ok(i32::from_be_bytes(buf))
+    }
+
+    pub(crate) fn read_u16(&mut self) -> Result<u16, NeuralError> {
+        let mut buf = [0u8; 2];
+        self.inner.read_exact(&mut buf).map_err(eof_as_format)?;
+        Ok(u16::from_be_bytes(buf))
+    }
+
+    pub(crate) fn read_f32(&mut self) -> Result<f32, NeuralError> {
+        let mut buf = [0u8; 4];
+        self.inner.read_exact(&mut buf).map_err(eof_as_format)?;
+        Ok(f32::from_be_bytes(buf))
+    }
+
+    pub(crate) fn read_f64(&mut self) -> Result<f64, NeuralError> {
+        let mut buf = [0u8; 8];
+        self.inner.read_exact(&mut buf).map_err(eof_as_format)?;
+        Ok(f64::from_be_bytes(buf))
+    }
+
+    /// Reads a `DataInputStream.readUTF()` string as raw modified-UTF-8 bytes after validating its encoding.
+    pub(crate) fn read_utf_bytes(&mut self) -> Result<Vec<u8>, NeuralError> {
+        let len = self.read_u16()? as usize;
+        self.scratch.resize(len, 0);
+        self.inner.read_exact(&mut self.scratch).map_err(eof_as_format)?;
+        validate_modified_utf8(&self.scratch)?;
+        Ok(self.scratch.clone())
+    }
+
+    /// Reads a `DataInputStream.readUTF()` string into a Rust `String`.
+    pub(crate) fn read_utf(&mut self) -> Result<String, NeuralError> {
+        let len = self.read_u16()? as usize;
+        self.scratch.resize(len, 0);
+        self.inner.read_exact(&mut self.scratch).map_err(eof_as_format)?;
+        decode_modified_utf8(&self.scratch)
+    }
+}
+
+fn eof_as_format(err: io::Error) -> NeuralError {
+    if err.kind() == io::ErrorKind::UnexpectedEof {
+        NeuralError::Format(format!("truncated model stream: {err}"))
+    } else {
+        NeuralError::Io(err)
+    }
+}
+
 /// Big-endian binary writer matching `java.io.DataOutputStream`.
 pub(crate) struct DataWriter<W> {
     inner: W,
@@ -212,4 +279,84 @@ pub(crate) fn encode_unit_modified_utf8(unit: u16) -> Vec<u8> {
     let mut out = Vec::with_capacity(3);
     push_modified_utf8(&mut out, u32::from(unit));
     out
+}
+
+fn validate_modified_utf8(bytes: &[u8]) -> Result<(), NeuralError> {
+    let mut i = 0;
+    while i < bytes.len() {
+        let b1 = bytes[i];
+        match b1 >> 4 {
+            0..=7 => {
+                i += 1;
+            }
+            12 | 13 => {
+                if i + 1 >= bytes.len() {
+                    return Err(NeuralError::Format("truncated 2-byte modified UTF-8".into()));
+                }
+                if (bytes[i + 1] & 0xC0) != 0x80 {
+                    return Err(NeuralError::Format("invalid 2-byte modified UTF-8".into()));
+                }
+                i += 2;
+            }
+            14 => {
+                if i + 2 >= bytes.len() {
+                    return Err(NeuralError::Format("truncated 3-byte modified UTF-8".into()));
+                }
+                if (bytes[i + 1] & 0xC0) != 0x80 || (bytes[i + 2] & 0xC0) != 0x80 {
+                    return Err(NeuralError::Format("invalid 3-byte modified UTF-8".into()));
+                }
+                i += 3;
+            }
+            _ => {
+                return Err(NeuralError::Format("invalid modified UTF-8 leading byte".into()));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn decode_modified_utf8(bytes: &[u8]) -> Result<String, NeuralError> {
+    let mut units = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let b1 = bytes[i];
+        match b1 >> 4 {
+            0..=7 => {
+                units.push(u16::from(b1));
+                i += 1;
+            }
+            12 | 13 => {
+                if i + 1 >= bytes.len() {
+                    return Err(NeuralError::Format("truncated 2-byte modified UTF-8".into()));
+                }
+                let b2 = bytes[i + 1];
+                if (b2 & 0xC0) != 0x80 {
+                    return Err(NeuralError::Format("invalid 2-byte modified UTF-8".into()));
+                }
+                units.push(((u16::from(b1 & 0x1F)) << 6) | u16::from(b2 & 0x3F));
+                i += 2;
+            }
+            14 => {
+                if i + 2 >= bytes.len() {
+                    return Err(NeuralError::Format("truncated 3-byte modified UTF-8".into()));
+                }
+                let b2 = bytes[i + 1];
+                let b3 = bytes[i + 2];
+                if (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80 {
+                    return Err(NeuralError::Format("invalid 3-byte modified UTF-8".into()));
+                }
+                units.push(((u16::from(b1 & 0x0F)) << 12) | ((u16::from(b2 & 0x3F)) << 6) | u16::from(b3 & 0x3F));
+                i += 3;
+            }
+            _ => {
+                return Err(NeuralError::Format("invalid modified UTF-8 leading byte".into()));
+            }
+        }
+    }
+    let mut out = String::with_capacity(units.len());
+    for decoded in char::decode_utf16(units) {
+        let ch = decoded.map_err(|_| NeuralError::Format("unpaired UTF-16 surrogate in string".into()))?;
+        out.push(ch);
+    }
+    Ok(out)
 }

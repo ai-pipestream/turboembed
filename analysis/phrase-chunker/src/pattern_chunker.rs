@@ -1,25 +1,14 @@
-//! Rule-driven POS-tag pattern chunker (`PatternChunker`) and model-free
-//! composition over [`PhraseChunks`] (`PatternChunkComposer`, `ComposeMode`).
+//! Rule-driven POS-tag pattern chunker (`PatternChunker`) and composition with
+//! trained `ChunkerME` models or base [`PhraseChunks`] (`PatternChunkComposer`, `ComposeMode`).
 
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, IxRange, Refs, Span, Spans, View};
+use turbo_analysis::{Annotator, Error, IxRange, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{PhraseChunks, PosTags, Tag, TagSet, Tokens};
+use turbo_sequence::chunker::TokenTag;
 
+use crate::chunker::{PhraseChunker, sentence_ranges};
 use crate::pattern::{PatternError, TagPatternRule};
-
-/// A token surface string paired with its part-of-speech tag label.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TokenTag<'a> {
-    /// Token surface slice.
-    pub token: &'a str,
-    /// Part-of-speech tag label.
-    pub tag: &'a str,
-}
-
-fn sentence_ranges(tokens: &Tokens) -> Vec<(usize, usize)> {
-    tokens.sentence_ranges().map(|(_, r)| (r.start.get(), r.end.get())).collect()
-}
 
 /// A matched phrase chunk produced by [`PatternChunker`] within a token sequence.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -272,18 +261,26 @@ pub enum ComposeMode {
     Override,
 }
 
-/// Composes [`PatternChunker`] rules with a base [`PhraseChunks`] layer
-/// in either [`ComposeMode::Fallback`] or [`ComposeMode::Override`] mode.
+/// Composes [`PatternChunker`] rules with a base [`PhraseChunks`] layer (or an attached
+/// [`PhraseChunker`]) in either [`ComposeMode::Fallback`] or [`ComposeMode::Override`] mode.
 #[derive(Clone, Debug)]
 pub struct PatternChunkComposer {
     pattern_chunker: PatternChunker,
     mode: ComposeMode,
+    me_chunker: Option<Arc<PhraseChunker>>,
 }
 
 impl PatternChunkComposer {
     /// Creates a composer for `pattern_chunker` with the given [`ComposeMode`].
     pub fn new(pattern_chunker: PatternChunker, mode: ComposeMode) -> Self {
-        Self { pattern_chunker, mode }
+        Self { pattern_chunker, mode, me_chunker: None }
+    }
+
+    /// Attaches a trained [`PhraseChunker`] (`ChunkerME`) so [`Annotator::annotate`] runs
+    /// `ChunkerME` and composes its output with the pattern rules in a single step.
+    pub fn with_me(mut self, me_chunker: impl Into<Arc<PhraseChunker>>) -> Self {
+        self.me_chunker = Some(me_chunker.into());
+        self
     }
 
     pub fn mode(&self) -> ComposeMode {
@@ -448,7 +445,17 @@ impl Annotator for PatternChunkComposer {
     type Writes = (PhraseChunks,);
 
     fn annotate(&self, (view, tokens, tags): Refs<'_, Self>) -> Result<(PhraseChunks,), Error> {
-        self.pattern_chunker.annotate((view, tokens, tags))
+        if let Some(me) = &self.me_chunker {
+            let (_chunk_tags, base_chunks) = me.annotate((view, tokens, tags))?;
+            let composed = self.compose(view, tokens, tags, &base_chunks)?;
+            Ok((composed,))
+        } else {
+            self.pattern_chunker.annotate((view, tokens, tags))
+        }
+    }
+
+    fn model(&self) -> Option<ModelRef> {
+        self.me_chunker.as_ref().and_then(|me| me.model())
     }
 
     fn config_hash(&self) -> u64 {
@@ -457,6 +464,12 @@ impl Annotator for PatternChunkComposer {
             ComposeMode::Fallback => 1,
             ComposeMode::Override => 2,
         });
+        if let Some(me) = &self.me_chunker {
+            h.u64(me.config_hash());
+            if let Some(mref) = me.model() {
+                h.str(&mref.id).str(&mref.revision).str(&mref.sha256);
+            }
+        }
         h.finish()
     }
 }
