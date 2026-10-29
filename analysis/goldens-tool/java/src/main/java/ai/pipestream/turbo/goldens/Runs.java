@@ -14,20 +14,8 @@ import opennlp.tools.postag.POSTagFormat;
  */
 final class Runs {
 
-  /** The model files the generator loads from the models directory. */
-  static final String SENTENCE_MODEL_EN = "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin";
-  static final String SENTENCE_MODEL_DE = "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin";
-  static final String SENTENCE_MODEL_PT = "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin";
-  static final String TOKEN_MODEL_EN = "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin";
-  static final String TOKEN_MODEL_DE = "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin";
-  static final String TOKEN_MODEL_ES = "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin";
-  static final String TOKEN_MODEL_FR = "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin";
-  static final String TOKEN_MODEL_PT = "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin";
-  static final String LANGUAGE_MODEL = "langdetect-183.bin";
-  static final String POS_MODEL_EN = "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin";
-  static final String POS_MODEL_DE = "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin";
-  static final String LEMMA_MODEL_EN = "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin";
-  static final String LEMMA_MODEL_DE = "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin";
+  // Published OpenNLP 2.5 UD and language-detector models are retired (#1653).
+  // Fixture models below remain until their owning snapshot tickets delete them.
 
   /**
    * The MeCab dictionaries the generator loads from the models directory, each unpacked from its
@@ -174,12 +162,6 @@ final class Runs {
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
 
-  /** The beam sizes the English part-of-speech model is rebuilt with, besides its own 3. */
-  static final List<Integer> POS_BEAM_SIZES = List.of(1, 10);
-
-  private static final List<String> TOKEN_MODELS = List.of(TOKEN_MODEL_EN, TOKEN_MODEL_DE, TOKEN_MODEL_ES,
-      TOKEN_MODEL_FR, TOKEN_MODEL_PT);
-
   /** The annotators, and the recorders of the ones that ask a maxent model. */
   record All(List<AnnotatorGolden> annotators, List<AnnotatorDump> recorders) {}
 
@@ -194,13 +176,9 @@ final class Runs {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
-    // Sentence detection: the published models, the two fixture models and the three models the
-    // Rust trainers wrote, and the newline detector.
+    // Sentence detection: fixture models and the three models the Rust trainers wrote, and the
+    // newline detector. Published OpenNLP sentence models are retired (#1653).
     List<SentenceGolden> sentences = new ArrayList<>();
-    sentences.add(SentenceGolden.load(models.resolve(SENTENCE_MODEL_EN), Set.of(EN, MULTI, EDGE)));
-    for (String m : List.of(SENTENCE_MODEL_DE, SENTENCE_MODEL_PT)) {
-      sentences.add(SentenceGolden.load(models.resolve(m), Set.of(EDGE)));
-    }
     for (String m : List.of(SENTENCE_FIXTURE_ABBREVIATIONS, SENTENCE_FIXTURE_PLAIN, SENTENCE_FIXTURE_RUST,
         SENTENCE_FIXTURE_QN_RUST, SENTENCE_FIXTURE_PERCEPTRON_RUST)) {
       sentences.add(SentenceGolden.load(fixtures.resolve(m), Set.of(SENTENCE_FIXTURE)));
@@ -211,20 +189,10 @@ final class Runs {
     }
     annotators.add(new NewlineSentenceGolden(Set.of(EDGE)));
 
-    // Tokenization: the published models as they are, the fixture model with its own
-    // abbreviation dictionary, the English model with one added, and every published model with
-    // the alphanumeric optimization on.
+    // Tokenization: the fixture model with its own abbreviation dictionary. Published OpenNLP
+    // tokenizer models are retired (#1653).
     List<TokenGolden> tokens = new ArrayList<>();
-    tokens.add(TokenGolden.load(models.resolve(TOKEN_MODEL_EN), Set.of(EN, MULTI, EDGE, SURROGATE)));
-    for (String m : TOKEN_MODELS.subList(1, TOKEN_MODELS.size())) {
-      tokens.add(TokenGolden.load(models.resolve(m), Set.of(EDGE, SURROGATE)));
-    }
     tokens.add(TokenGolden.load(fixtures.resolve(TOKEN_FIXTURE), Set.of(ABBREVIATIONS, EDGE)));
-    tokens.add(TokenGolden.withAbbreviations(models.resolve(TOKEN_MODEL_EN), fixtures.resolve(ENGLISH_ABBREVIATIONS),
-        Set.of(ABBREVIATIONS, EDGE)));
-    for (String m : TOKEN_MODELS) {
-      tokens.add(TokenGolden.withAlphaNumericOptimization(models.resolve(m), Set.of(EDGE, ALPHANUMERIC)));
-    }
     for (TokenGolden t : tokens) {
       annotators.add(t);
       recorders.add(TokenDump.of(t));
@@ -243,7 +211,7 @@ final class Runs {
     annotators.add(WordpieceGolden.load(fixtures.resolve(WORDPIECE_VOCABULARY),
         Set.of(EN, MULTI, EDGE, SURROGATE, SUBWORDS)));
     annotators.add(SentenceVectorsGolden.load(models.resolve(SENTENCE_VECTORS_ONNX),
-        fixtures.resolve(WORDPIECE_VOCABULARY), models.resolve(SENTENCE_MODEL_EN), Set.of(EN)));
+        fixtures.resolve(WORDPIECE_VOCABULARY), fixtures.resolve(SENTENCE_FIXTURE_PLAIN), Set.of(EN)));
 
     for (int merges : BPE_MERGES) {
       annotators.add(new BpeGolden(merges, Set.of(BPE)));
@@ -266,20 +234,11 @@ final class Runs {
     annotators.add(LatticeGolden.load(models.resolve(KO_DIC), Set.of(KO, MULTI, EDGE, SURROGATE)));
     annotators.add(LatticeGolden.load(models.resolve(UNIDIC), Set.of(JA, MULTI, EDGE, SURROGATE)));
 
-    // Part-of-speech tagging, on the sentences and tokens of the published models of the same
-    // language: the English model as it is, with Penn Treebank tags asked for, and rebuilt with
-    // other beam sizes; the German model; the fixture model, whose Penn outcomes the tagger
-    // converts to UD and whose tag dictionary restricts the tags of the words it lists; and the
-    // model the Rust trainer wrote with the same tag dictionary.
+    // Part-of-speech tagging over the fixture sentence and token models: the fixture tagger and
+    // the model the Rust trainer wrote. Published OpenNLP POS models are retired (#1653).
     List<PosGolden> taggers = new ArrayList<>();
-    PosGolden.Pipeline english = PosGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN), models.resolve(TOKEN_MODEL_EN));
-    PosGolden.Pipeline german = PosGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_DE), models.resolve(TOKEN_MODEL_DE));
-    taggers.add(PosGolden.load(models.resolve(POS_MODEL_EN), english, Set.of(EN, MULTI, EDGE)));
-    taggers.add(PosGolden.withFormat(models.resolve(POS_MODEL_EN), english, POSTagFormat.PENN, Set.of(EN)));
-    for (int beam : POS_BEAM_SIZES) {
-      taggers.add(PosGolden.withBeamSize(models.resolve(POS_MODEL_EN), english, beam, Set.of(EN)));
-    }
-    taggers.add(PosGolden.load(models.resolve(POS_MODEL_DE), german, Set.of(EDGE)));
+    PosGolden.Pipeline english = PosGolden.Pipeline.load(fixtures.resolve(SENTENCE_FIXTURE_PLAIN),
+        fixtures.resolve(TOKEN_FIXTURE));
     taggers.add(PosGolden.load(fixtures.resolve(POS_FIXTURE), english, Set.of(EN, EDGE)));
     taggers.add(PosGolden.load(fixtures.resolve(POS_FIXTURE_RUST), english, Set.of(EN, EDGE)));
     for (PosGolden t : taggers) {
@@ -287,27 +246,20 @@ final class Runs {
       recorders.add(PosDump.of(t));
     }
 
-    // Lemmatization, on the sentences, tokens and tags of the published models of the same
-    // language: the English and German maxent lemmatizers, the lemmatizer the Rust trainer wrote,
-    // and the dictionary lemmatizer with the fixture dictionary over the English pipeline.
-    LemmaGolden.Pipeline taggedEnglish = LemmaGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN),
-        models.resolve(TOKEN_MODEL_EN), models.resolve(POS_MODEL_EN));
-    LemmaGolden.Pipeline taggedGerman = LemmaGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_DE),
-        models.resolve(TOKEN_MODEL_DE), models.resolve(POS_MODEL_DE));
-    for (LemmaGolden l : List.of(LemmaGolden.load(models.resolve(LEMMA_MODEL_EN), taggedEnglish, Set.of(EN, MULTI, EDGE)),
-        LemmaGolden.load(models.resolve(LEMMA_MODEL_DE), taggedGerman, Set.of(EDGE)),
-        LemmaGolden.load(fixtures.resolve(LEMMA_FIXTURE_RUST), taggedEnglish, Set.of(EN, EDGE)))) {
+    // Lemmatization over the fixture sentence, token and POS models: the Rust trainer's
+    // lemmatizer and the dictionary lemmatizer. Published OpenNLP lemma models are retired (#1653).
+    LemmaGolden.Pipeline taggedEnglish = LemmaGolden.Pipeline.load(fixtures.resolve(SENTENCE_FIXTURE_PLAIN),
+        fixtures.resolve(TOKEN_FIXTURE), fixtures.resolve(POS_FIXTURE));
+    for (LemmaGolden l : List.of(LemmaGolden.load(fixtures.resolve(LEMMA_FIXTURE_RUST), taggedEnglish, Set.of(EN, EDGE)))) {
       annotators.add(l);
       recorders.add(LemmaDump.of(l));
     }
     annotators.add(DictionaryLemmaGolden.load(fixtures.resolve(LEMMA_DICTIONARY), taggedEnglish, Set.of(EN, MULTI, EDGE)));
 
-    // Phrase chunking, on the sentences and tokens of the English models and the Penn Treebank
-    // tags the English part-of-speech model is asked for, since the fixture chunkers were trained
-    // on Penn Treebank tags: the fixture model as it is, rebuilt with a beam of one, and the model
-    // the Rust trainer wrote.
-    ChunkGolden.Pipeline pennEnglish = ChunkGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN),
-        models.resolve(TOKEN_MODEL_EN), models.resolve(POS_MODEL_EN), POSTagFormat.PENN);
+    // Phrase chunking over the fixture sentence, token and POS models (Penn Treebank tags, since
+    // the fixture chunkers were trained on them). Published OpenNLP models are retired (#1653).
+    ChunkGolden.Pipeline pennEnglish = ChunkGolden.Pipeline.load(fixtures.resolve(SENTENCE_FIXTURE_PLAIN),
+        fixtures.resolve(TOKEN_FIXTURE), fixtures.resolve(POS_FIXTURE), POSTagFormat.PENN);
     for (ChunkGolden c : List.of(ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, Set.of(EN, MULTI, EDGE)),
         ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, 1, Set.of(EN)),
         ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE_RUST), pennEnglish, Set.of(EN, MULTI, EDGE)))) {
@@ -315,10 +267,8 @@ final class Runs {
       recorders.add(ChunkDump.of(c));
     }
 
+    // Language detection: the Rust trainer's fixture only. The published detector is retired (#1653).
     for (LanguageGolden languages : List.of(
-        LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI)),
-        LanguageGolden.probing(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI, LANGDETECT)),
-        LanguageGolden.probingChunk50(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI, LANGDETECT)),
         LanguageGolden.load(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI)),
         LanguageGolden.probing(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI, LANGDETECT)),
         LanguageGolden.probingChunk50(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI, LANGDETECT)))) {
@@ -396,7 +346,7 @@ final class Runs {
     annotators.add(new PlaceProfilesGolden());
     // The sequence machinery turbo-sequence ports: StringPattern in both versions, the feature
     // generators and malformed descriptors, the BIO and BILOU codecs, the beam search of the
-    // tagger, chunker and name finder over the fixture and published models, and the tag
+    // tagger, chunker and name finder over the fixture models, and the tag
     // dictionary and tag format mapper.
     annotators.addAll(StringPatternGolden.all());
     annotators.addAll(FeatureGolden.all(fixtures));

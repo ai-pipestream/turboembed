@@ -86,20 +86,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("sentdetect", "en-plain-qn-rust"),
     ("sentdetect", "en-plain-rust"),
     ("sentdetect", "newline"),
-    ("sentdetect", "opennlp-de-ud-gsd-sentence-1.3-2.5.4"),
-    ("sentdetect", "opennlp-en-ud-ewt-sentence-1.3-2.5.4"),
-    ("sentdetect", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
-    ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary"),
-    ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
     ("tokenize", "simple"),
     ("tokenize", "simple+keep-new-lines"),
     ("tokenize", "tokenizer-abbreviations"),
@@ -115,23 +101,13 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
     ("lattice", "unidic-mecab-2.1.2"),
-    ("postag", "opennlp-de-ud-gsd-pos-1.3-2.5.4"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam10"),
-    ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+penn"),
     ("postag", "pos-fixture"),
     ("postag", "pos-fixture-rust"),
     ("lemmatize", "lemma-fixture-rust"),
-    ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
-    ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
     ("lemmatize-dictionary", "lemmatizer-dictionary"),
     ("chunk", "chunker-fixture"),
     ("chunk", "chunker-fixture+beam1"),
     ("chunk", "chunker-fixture-rust"),
-    ("langdetect", "langdetect-183"),
-    ("langdetect", "langdetect-183+probing"),
-    ("langdetect", "langdetect-183+probing-chunk50"),
     ("langdetect", "langdetect-fixture-rust"),
     ("langdetect", "langdetect-fixture-rust+probing"),
     ("langdetect", "langdetect-fixture-rust+probing-chunk50"),
@@ -269,6 +245,12 @@ mod tests {
             }
             for run in std::fs::read_dir(annotator.path()).unwrap() {
                 let run = run.unwrap().file_name().into_string().unwrap();
+                // Golden dirs for retired published OpenNLP models stay until
+                // #1644 to #1648 delete them; they are no longer catalogued.
+                let base = run.split('+').next().unwrap_or(run.as_str());
+                if base.contains("1.3-2.5.4") || base == "langdetect-183" {
+                    continue;
+                }
                 on_disk.push((name.clone(), run));
             }
         }
@@ -281,6 +263,17 @@ mod tests {
             listed.retain(|(a, _)| a != "pii");
         }
         assert_eq!(listed, on_disk);
+    }
+
+    #[test]
+    fn the_catalog_lists_no_retired_opennlp_published_model() {
+        for (_, run) in RUNS {
+            let base = run.split('+').next().unwrap_or(run);
+            assert!(
+                !base.contains("1.3-2.5.4") && base != "langdetect-183",
+                "catalog still names retired published model {run}"
+            );
+        }
     }
 
     #[test]

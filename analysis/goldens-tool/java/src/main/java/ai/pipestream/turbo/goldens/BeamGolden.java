@@ -88,10 +88,11 @@ final class BeamGolden implements AnnotatorGolden {
   }
 
   /**
-   * Every run: the fixture models and the published ones. The cluster serializers of
+   * Every run: the fixture models. The cluster serializers of
    * {@code ner-bio-fixture.bin} are registered first ({@link StoredClusters}).
    */
   static List<BeamGolden> all(Path models, Path fixtures) throws IOException {
+    Objects.requireNonNull(models, "models"); // published POS models retired (#1653)
     StoredClusters.register();
     ModelFile pos = ModelFile.read(fixtures.resolve(Runs.POS_FIXTURE));
     ModelFile names = ModelFile.read(fixtures.resolve(Runs.FEATUREGEN).resolve(FeatureGolden.NAMES_DICTIONARY));
@@ -104,7 +105,6 @@ final class BeamGolden implements AnnotatorGolden {
     out.add(new BeamGolden(Kind.NAMES, ModelFile.read(fixtures.resolve(Runs.NER_BILOU_FIXTURE)), null));
     out.add(new BeamGolden(Kind.NAMES, qn, null));
     out.add(new BeamGolden(Kind.NAMES_FRESH_SUMS, qn, null));
-    out.add(new BeamGolden(Kind.POS, ModelFile.read(models.resolve(Runs.POS_MODEL_EN)), null));
     return out;
   }
 

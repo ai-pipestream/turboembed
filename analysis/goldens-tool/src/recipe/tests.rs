@@ -26,8 +26,8 @@ fn the_base_image_is_pinned_by_a_sha256_digest() {
     assert!(is_lower_hex(hex, 64), "{BASE_IMAGE_DIGEST}");
 }
 
-/// OpenNLP 1.5 models and 2.5 artifacts are not fetched (#1509): the
-/// recipe lists none, and the generator names no 1.5 model.
+/// OpenNLP 1.5 models and 2.5 artifacts are not fetched (#1509), and the
+/// generator no longer names the retired published 2.5 models (#1653).
 #[test]
 fn no_opennlp_1_5_or_2_5_model_is_fetched() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
@@ -35,9 +35,10 @@ fn no_opennlp_1_5_or_2_5_model_is_fetched() {
     for name in v1_5 {
         assert!(!runs.contains(name), "Runs.java names {name}");
     }
-    // Runs.java still names the 2.5 models in runs that #1532 deletes, but
-    // the recipe no longer fetches them.
-    for name in v1_5.into_iter().chain(["-2.5.4.bin", "langdetect-183"]) {
+    for name in ["1.3-2.5.4", "langdetect-183"] {
+        assert!(!runs.contains(name), "Runs.java still names retired published model {name}");
+    }
+    for name in v1_5.into_iter().chain(["-2.5.4.bin", "langdetect-183", "1.3-2.5.4"]) {
         for m in MODELS.iter().chain(std::iter::once(&POOLING_SOURCE)) {
             assert!(!m.file.contains(name) && !m.url.contains(name), "{} names {name}", m.url);
         }
