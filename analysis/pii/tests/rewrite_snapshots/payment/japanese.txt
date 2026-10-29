@@ -1,0 +1,12 @@
+MASKED	連絡先：support@example.jp、電話 +44 20 7946 0321、カード ************1111。
+
+MASK_ALL	連絡先：support@example.jp、電話 +44 20 7946 0321、カード ################。
+
+REWRITE	pseudonymize	OK	連絡先：support@example.jp、電話 +44 20 7946 0321、カード CARD-1。
+
+LABEL	pseudonymize	69	85	69	75	CARD-1
+REWRITE	hmac	OK	連絡先：support@example.jp、電話 +44 20 7946 0321、カード CARD-f04eb250c58c67b2。
+
+LABEL	hmac	69	85	69	90	CARD-f04eb250c58c67b2
+AUDIT	card	1	1	CARD-f04eb250c58c67b2
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]

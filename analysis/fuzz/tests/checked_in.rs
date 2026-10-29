@@ -1,19 +1,12 @@
 //! Native behavior contracts independent of historical JVM expected outputs.
-//! The full seeded input walk and layer checks live in `invariants.rs`.
+//! The full seeded input walk and layer checks live in `invariants.rs`; the
+//! normalizer boundary contracts live with the normalizers in
+//! `analysis/normalize/tests/native_projection.rs`.
 
-use turbo_analysis::{Document, Ix, Key, Span, View, ViewId};
+use turbo_analysis::{Document, Ix, Span, View, ViewId};
 use turbo_analysis_layers::Sentences;
 use turbo_fuzz::{Resources, runs};
 use turbo_goldens::invariants::{check_document, check_spans};
-
-fn normalize(name: &str, text: &str) -> Document {
-    let run = runs::open("normalize", name, &Resources::new("unused-model-directory")).unwrap();
-    run.annotate(text, None).unwrap()
-}
-
-fn normalized(doc: &Document) -> &View {
-    doc.get_key::<View>(&Key::named("norm")).unwrap()
-}
 
 fn scalar_contract(doc: &Document, view: &View) {
     let starts: Vec<_> = view.text().char_indices().map(|(offset, _)| offset as u32).collect();
@@ -26,48 +19,6 @@ fn scalar_contract(doc: &Document, view: &View) {
         assert_eq!(offsets.to_utf16(view.text(), byte).0 as usize, prefix.encode_utf16().count());
         assert_eq!(offsets.to_code_point(view.text(), byte).0 as usize, prefix.chars().count());
     }
-}
-
-#[test]
-fn turkish_lowercase_has_exact_native_text_and_source_boundaries() {
-    for (input, expected) in [
-        ("Iİiı", "ıiiı"),
-        ("I\u{307}", "i"),
-        ("İSTANBUL IĞDIR", "istanbul ığdır"),
-        ("😀 I İ café 東京", "😀 ı i café 東京"),
-        ("", ""),
-    ] {
-        let doc = normalize("case-fold-tr", input);
-        let view = normalized(&doc);
-        assert_eq!(view.text(), expected, "{input:?}");
-        scalar_contract(&doc, view);
-        // The trailing combining dot is deleted and contributes no output bytes.
-        let contributing_end = if input == "I\u{307}" { 1 } else { input.len() as u32 };
-        assert_eq!(doc.to_source(view.id(), Span::new(0, expected.len() as u32)), Span::new(0, contributing_end));
-    }
-    let doc = normalize("case-fold-tr", "Iİiı");
-    let view = normalized(&doc);
-    for (child, source) in [((0, 2), (0, 1)), ((2, 3), (1, 3)), ((3, 4), (3, 4)), ((4, 6), (4, 6))] {
-        assert_eq!(doc.to_source(view.id(), Span::new(child.0, child.1)), Span::new(source.0, source.1));
-    }
-}
-
-#[test]
-fn native_expansion_and_deletion_keep_source_projection() {
-    for (name, input, expected) in [
-        ("ellipsis", "…\u{fe19}", "......"),
-        ("invisible", "a\u{200b}b", "ab"),
-        ("full-case-fold", "Straße", "strasse"),
-        ("whitespace", "😀  beta", "😀 beta"),
-    ] {
-        let doc = normalize(name, input);
-        let view = normalized(&doc);
-        assert_eq!(view.text(), expected, "{name}");
-        scalar_contract(&doc, view);
-        assert_eq!(doc.to_source(view.id(), Span::new(0, expected.len() as u32)), Span::new(0, input.len() as u32));
-    }
-    let doc = normalize("whitespace", "😀  beta");
-    assert_eq!(doc.to_source(normalized(&doc).id(), Span::new(5, 9)), Span::new(6, 10));
 }
 
 #[test]

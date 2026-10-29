@@ -1,0 +1,9 @@
+MASKED	Routing 021000022 is wrong; account 123456789.
+
+MASK_ALL	Routing 021000022 is wrong; account 123456789.
+
+REWRITE	pseudonymize	OK	Routing 021000022 is wrong; account 123456789.
+
+REWRITE	hmac	OK	Routing 021000022 is wrong; account 123456789.
+
+AUDIT_REPORT	no pii found

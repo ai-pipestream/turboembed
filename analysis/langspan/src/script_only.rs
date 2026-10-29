@@ -77,7 +77,7 @@ impl Annotator for ScriptDetector {
     }
 }
 
-fn letter_script(c: char) -> Option<Script> {
+pub(crate) fn letter_script(c: char) -> Option<Script> {
     if !general_category(c).is_letter() {
         return None;
     }
@@ -87,7 +87,7 @@ fn letter_script(c: char) -> Option<Script> {
     }
 }
 
-fn append(runs: &mut Vec<(Span, Script)>, span: Span, script: Script) {
+pub(crate) fn append(runs: &mut Vec<(Span, Script)>, span: Span, script: Script) {
     if let Some((previous, s)) = runs.last_mut()
         && *s == script
     {

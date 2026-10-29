@@ -126,7 +126,12 @@ async fn install(c: &mut Client, user: &str, id: &str) {
 }
 
 async fn accept_sa(c: &mut Client, user: &str) {
-    let req = RecordLicenceAcceptanceRequest { user: user.into(), licence: "CC-BY-SA-4.0".into(), terms: "".into() };
+    let req = RecordLicenceAcceptanceRequest {
+        user: user.into(),
+        licence: "CC-BY-SA-4.0".into(),
+        terms: "".into(),
+        ..Default::default()
+    };
     c.record_licence_acceptance(req).await.unwrap();
 }
 

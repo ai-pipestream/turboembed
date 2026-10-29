@@ -277,6 +277,18 @@ pub struct turbo_backend {
     >,
     pub token_head: u32,
     pub reserved3: u32,
+    #[allow(clippy::type_complexity)]
+    pub buffer_quantize: Option<
+        unsafe extern "C" fn(
+            buf: *mut c_void,
+            quantization: u32,
+            int8_ranges: *const f32,
+            rows: u32,
+            dim: u32,
+            run: *mut turbo_backend_run,
+            err: *mut turbo_error,
+        ) -> i32,
+    >,
 }
 
 // The table is immutable static data, read from any thread.
@@ -345,7 +357,7 @@ static LINKED: &[&turbo_backend] = &[
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 9] = [
+const TABLE_SIZES: [usize; 10] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
     std::mem::offset_of!(turbo_backend, session_create),
@@ -354,6 +366,7 @@ const TABLE_SIZES: [usize; 9] = [
     std::mem::offset_of!(turbo_backend, session_create_tuned),
     std::mem::offset_of!(turbo_backend, session_open),
     std::mem::offset_of!(turbo_backend, token_head),
+    std::mem::offset_of!(turbo_backend, buffer_quantize),
     size_of::<turbo_backend>(),
 ];
 

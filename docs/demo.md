@@ -194,6 +194,22 @@ not answered. A certificate or key that does not load stops the demo at
 startup. A token sent off loopback without TLS crosses the network in
 the clear; the demo says so when it starts.
 
+### The user
+
+Every catalog method that names a user (`ListModelCatalog`,
+`RecordLicenceAcceptance`, `RevokeLicenceAcceptance`,
+`ListLicenceAcceptances`, `InstallModel`, `DescribeModel`,
+`ResolveModel`, `ReadModelFile`) acts for the user the demo was started
+with, `--user`, never for a name the page sends: the demo drops the
+message's user field and writes its own (`demo/src/user.rs`, the one
+place it looks inside a message). Without `--user` the field is
+cleared, so reads name no user, and a write that acts for a user is
+refused `permission_denied` before the server sees it. A message that
+is not well formed protobuf is refused `invalid_argument`. The token
+says who may call; `--user` says who those calls are for, so a demo
+shared by several people should run one instance, with its own token,
+per person.
+
 ## Generated clients
 
 The page's protobuf and Connect-ES code is generated, never written by
@@ -268,6 +284,7 @@ target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
 | `--server URL` | The server to call, `http://HOST:PORT`. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
 | `--allow METHOD` | Also forward this method that changes the server, `/<package>.<Service>/<Method>`; repeat for more. A name that is not a known method stops the demo at startup. | `TURBO_DEMO_ALLOW`, comma-separated, else the reads only. |
 | `--token-file PATH` | A file holding the bearer token every call must carry. | `TURBO_DEMO_TOKEN_FILE`, else the token in `TURBO_DEMO_TOKEN`, else none. |
+| `--user NAME` | Who the page's licence acceptances and installs are for (see The user). | `TURBO_DEMO_USER`, else none: the catalog calls name no user and the Models tab is read-only. |
 | `--cors-origin ORIGIN` | Another origin whose pages may call, `http(s)://HOST[:PORT]`; repeat for more. | `TURBO_DEMO_CORS_ORIGINS`, comma-separated, else none. |
 | `--tls-cert PEM`, `--tls-key PEM` | Serve HTTPS with this certificate chain and private key; both or neither. | `TURBO_DEMO_TLS_CERT` and `TURBO_DEMO_TLS_KEY`, else plain HTTP. |
 
@@ -349,10 +366,17 @@ for any refused call.
 - Server: the server's name, version and readiness (`ServerLive`,
   `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
   profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
-- Models: for a user name, `ListModelCatalog` with each artifact's
-  licence terms the user has still to accept, each shown before its
-  `RecordLicenceAcceptance` (write), and `InstallModel` (write) with its
-  stages and files streamed into a progress bar; `ListInstalledModels`.
+- Models: `ListModelCatalog` for the demo's user, each artifact's
+  licence terms still to accept shown with the licence, its class and
+  what that class means in plain words, the attribution, the training
+  data and a link to the terms text. An "I have read and accept"
+  control enables `RecordLicenceAcceptance` (write), which sends the
+  artifact and the SHA-256 of the text shown. `InstallModel` (write)
+  streams its stages and files into a progress bar.
+  `ListLicenceAcceptances` lists the terms accepted, with when and on
+  which artifact's page, each with `RevokeLicenceAcceptance` (write).
+  Without `--user`, or on a server without `--admin`, the tab says it
+  is read-only and shows no controls. `ListInstalledModels`.
   `ListTeachers`, `TrainStaticModel` (write) streaming each stage with
   its counts, explained variance and quality, and `ListStaticModels`
   with `DeleteStaticModel` (write). Without `--catalog-dir` or
@@ -386,6 +410,10 @@ the server's prost types. Nothing is mocked.
 - `demo/tests/refusals.rs`: 415 for JSON and other content types, the
   allowlist, compression and malformed envelopes.
 - `demo/tests/methods.rs`: the method table against the protos.
+- `demo/tests/licences.rs`: acceptances and revokes recorded for the
+  demo's `--user` whatever user the page sends, reads naming that user,
+  writes refused without one, and a malformed message refused before
+  the server.
 - `demo/tests/gate.rs`: with the server not there, every write and
   every unknown method refused without it and every read tried; the
   token; a write off loopback without a token refused at startup; the

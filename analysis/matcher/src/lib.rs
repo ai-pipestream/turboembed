@@ -17,6 +17,14 @@
 //! - [`Matcher::align`]: which pattern token took each token of a match,
 //!   spaCy's `with_alignments`, as a pass over a match already found.
 //!
+//! Phonetic and fuzzy primitives over single words, allocation free, for
+//! other analyses to build on: [`soundex`] and [`double_metaphone`] return
+//! fixed-size keys, and [`Lexicon`] answers bounded Damerau-Levenshtein
+//! queries over a sorted word list held as a trie, returning
+//! [`FuzzyMatch`]es by entry index. [`FuzzyMatchPolicy`] combines edit
+//! distance, length limits, confidence penalties and phonetic fallback for
+//! analysis steps that opt in.
+//!
 //! A match is a range of tokens ([`IxRange<Tokens>`]); its bytes are the
 //! tokens' ([`Input::span`]), in the view the tokens were made in.
 //! Patterns read the layers the [`Input`] is given; a pattern reading one
@@ -43,12 +51,15 @@ mod align;
 mod attr;
 mod entries;
 mod error;
+mod fuzzy;
 mod hash;
 mod input;
 mod matcher;
 mod nfa;
 mod pattern;
+mod phonetic;
 mod phrase;
+mod policy;
 mod predicates;
 mod ruler;
 pub mod spacy;
@@ -56,10 +67,13 @@ mod vocab;
 
 pub use attr::{Attr, Cmp, Field, Flag, Iob};
 pub use error::{MatchError, PatternError};
+pub use fuzzy::{FuzzyMatch, Lexicon, Scratch};
 pub use input::Input;
 pub use matcher::{Greedy, Match, Matcher, PatternId};
 pub use pattern::{Test, TextTest, Tok};
+pub use phonetic::{double_metaphone, soundex};
 pub use phrase::{PhraseId, PhraseMatch, PhraseMatcher};
+pub use policy::{FuzzyMatchPolicy, FuzzyPolicyError};
 pub use predicates::{SetRelation, ValueTest};
 pub use ruler::{Policy, SpanRuler};
 pub use turbo_analysis_layers::Matches;

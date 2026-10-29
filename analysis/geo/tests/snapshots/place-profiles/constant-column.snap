@@ -1,0 +1,90 @@
+# turbo:profiles-load
+1		
+# turbo:profiles-metrics
+a
+same
+b
+# turbo:profiles-neighbors
+0	1	0	1	0000000000000000
+0	2	0	1	0000000000000000
+0	2	1	2	0000000000000000
+0	5	0	1	0000000000000000
+0	5	1	2	0000000000000000
+0	5	2	3	0000000000000000
+0	5	3	4	0000000000000000
+1	1	0	2	3feffffffffffffe
+1	2	0	2	3feffffffffffffe
+1	2	1	0	0000000000000000
+1	5	0	2	3feffffffffffffe
+1	5	1	0	0000000000000000
+1	5	2	3	bfeffffffffffffe
+1	5	3	4	bfeffffffffffffe
+2	1	0	1	3feffffffffffffe
+2	2	0	1	3feffffffffffffe
+2	2	1	0	0000000000000000
+2	5	0	1	3feffffffffffffe
+2	5	1	0	0000000000000000
+2	5	2	3	bfeffffffffffffe
+2	5	3	4	bfeffffffffffffe
+3	1	0	4	3feffffffffffffe
+3	2	0	4	3feffffffffffffe
+3	2	1	0	0000000000000000
+3	5	0	4	3feffffffffffffe
+3	5	1	0	0000000000000000
+3	5	2	1	bfeffffffffffffe
+3	5	3	2	bfeffffffffffffe
+4	1	0	3	3feffffffffffffe
+4	2	0	3	3feffffffffffffe
+4	2	1	0	0000000000000000
+4	5	0	3	3feffffffffffffe
+4	5	1	0	0000000000000000
+4	5	2	1	bfeffffffffffffe
+4	5	3	2	bfeffffffffffffe
+# turbo:profiles-places
+mid
+p1
+p2
+p4
+p5
+# turbo:profiles-similarity
+0	0	0000000000000000
+0	1	0000000000000000
+0	2	0000000000000000
+0	3	0000000000000000
+0	4	0000000000000000
+1	0	0000000000000000
+1	1	3feffffffffffffe
+1	2	3feffffffffffffe
+1	3	bfeffffffffffffe
+1	4	bfeffffffffffffe
+2	0	0000000000000000
+2	1	3feffffffffffffe
+2	2	3feffffffffffffe
+2	3	bfeffffffffffffe
+2	4	bfeffffffffffffe
+3	0	0000000000000000
+3	1	bfeffffffffffffe
+3	2	bfeffffffffffffe
+3	3	3feffffffffffffe
+3	4	3feffffffffffffe
+4	0	0000000000000000
+4	1	bfeffffffffffffe
+4	2	bfeffffffffffffe
+4	3	3feffffffffffffe
+4	4	3feffffffffffffe
+# turbo:profiles-values
+0	0	0000000000000000
+0	1	0000000000000000
+0	2	0000000000000000
+1	0	bff0000000000000
+1	1	0000000000000000
+1	2	bff0000000000000
+2	0	bff0000000000000
+2	1	0000000000000000
+2	2	bff0000000000000
+3	0	3ff0000000000000
+3	1	0000000000000000
+3	2	3ff0000000000000
+4	0	3ff0000000000000
+4	1	0000000000000000
+4	2	3ff0000000000000

@@ -166,13 +166,23 @@ constant uint EPILOGUE_BIAS_GELU = 2;
 // trigonometry here: y1 = x1 cos - x2 sin, y2 = x2 cos + x1 sin.
 constant uint EPILOGUE_ROPE = 3;
 // GATED_*: columns col (the activated gate) and col + 1 (the linear up)
-// make column col / 2 of y, n / 2 wide: act(gate) * up.
+// make column col / 2 of y, n / 2 wide: act(gate) * up, clamped to F16's
+// finite range when y is F16 (#1602).
 constant uint EPILOGUE_GATED_GELU = 4;
 constant uint EPILOGUE_GATED_SILU = 5;
 // RESIDUAL: y += the product, y the residual stream.
 constant uint EPILOGUE_RESIDUAL = 6;
 
+// F16's largest finite magnitude: a gated MLP's middle product past it
+// saturates when stored in F16 rather than rounding to infinity.
+constant float F16_MAX = 65504.0f;
+
 float silu(float v) { return v / (1.0f + exp(-v)); }
+
+template <typename YT>
+YT gated_out(float v) {
+    return sizeof(YT) == 2 ? YT(clamp(v, -F16_MAX, F16_MAX)) : YT(v);
+}
 
 // A lane's two outputs, row `row` and columns col and col + 1 (col even)
 // of y [m, n], through the epilogue in F32, rounded to y's type last:
@@ -202,10 +212,10 @@ void store_pair(device YT *y, uint row, uint col, float v0, float v1, uint layer
         }
         break;
     case EPILOGUE_GATED_GELU:
-        y[ulong(row) * (n / 2) + col / 2] = YT(gelu(v0) * v1);
+        y[ulong(row) * (n / 2) + col / 2] = gated_out<YT>(gelu(v0) * v1);
         return;
     case EPILOGUE_GATED_SILU:
-        y[ulong(row) * (n / 2) + col / 2] = YT(silu(v0) * v1);
+        y[ulong(row) * (n / 2) + col / 2] = gated_out<YT>(silu(v0) * v1);
         return;
     case EPILOGUE_RESIDUAL:
         v0 = float(y[ulong(row) * n + col]) + v0;
@@ -1489,4 +1499,47 @@ kernel void abs_max_f16(device const half *x [[buffer(0)]], constant uint &n [[b
     const float a = i < n ? abs(float(x[i])) : 0.0f;
     const float m = simd_max(a);
     if (lane == 0) atomic_fetch_max_explicit(slot, as_type<uint>(m), memory_order_relaxed);
+}
+
+
+// ---- int8 and ubinary codes (core/src/quantize.rs) ---------------------------
+//
+// Every step in F32: floor then clamp to [0, 255], then subtract 128 as i8;
+// a zero-width range uses step 1; NaN floors and clamps to NaN and casts to
+// the bottom bucket. ubinary packs bit (x > 0), eight to a byte, the first
+// dimension in the top bit, a short last byte padded with 0. out is a
+// separate buffer so the write never races the read of x.
+
+kernel void quantize_int8(device const float *x [[buffer(0)]], device const float *ranges [[buffer(1)]],
+                          device char *out [[buffer(2)]], constant uint &rows [[buffer(3)]],
+                          constant uint &dim [[buffer(4)]], uint i [[thread_position_in_grid]]) {
+    const ulong n = ulong(rows) * dim;
+    if (i >= n) return;
+    const uint d = i % dim;
+    const float lo = ranges[d];
+    const float hi = ranges[dim + d];
+    float step = (hi - lo) / 255.0f;
+    if (step == 0.0f) step = 1.0f;
+    float q = floor((x[i] - lo) / step);
+    q = clamp(q, 0.0f, 255.0f);
+    const int qi = isnan(q) ? 0 : int(q);
+    out[i] = char(qi - 128);
+}
+
+kernel void quantize_ubinary(device const float *x [[buffer(0)]], device uchar *out [[buffer(1)]],
+                             constant uint &rows [[buffer(2)]], constant uint &dim [[buffer(3)]],
+                             uint bi [[thread_position_in_grid]]) {
+    const uint row_bytes = (dim + 7u) / 8u;
+    const ulong n = ulong(rows) * row_bytes;
+    if (bi >= n) return;
+    const uint r = uint(bi / row_bytes);
+    const uint b = uint(bi % row_bytes);
+    device const float *row = x + ulong(r) * dim;
+    const uint base = b * 8u;
+    uchar byte = 0;
+    for (uint i = 0; i < 8u; i++) {
+        const uint d = base + i;
+        if (d < dim && row[d] > 0.0f) byte = uchar(byte | (0x80u >> i));
+    }
+    out[bi] = byte;
 }

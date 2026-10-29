@@ -1,0 +1,16 @@
+===OUT===
+AT&T and R&D but Q & A and a lone & here.  % and   % and a lone % there.
+©   Example™ and Brand®, a lone © or ™ or ®. Temperature  °C, section §  , ¶  .
+x + y = z, a < b > c,   *  ,   /  , a ~ b, c ^ d, e | f, g # h, i @ j, k $ l.
+
+===EDITS===
+42	44	 
+50	52	 
+78	82	 
+143	145	 
+161	162	 
+167	168	 
+192	193	 
+196	197	 
+199	200	 
+203	204	 

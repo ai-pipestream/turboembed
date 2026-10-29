@@ -106,7 +106,7 @@ fn a_bundle_on_the_device_matches_its_weights_on_the_cpu() {
         println!("skipped: TURBO_TEST_VECTORS_BUNDLE and TURBO_TEST_DEVICE are not both set");
         return;
     };
-    let bundle = PathBuf::from(bundle);
+    let bundle = turbo_pins::require(PathBuf::from(bundle));
     let device = match want.parse() {
         Ok(i) => Device::Index(i),
         Err(_) => Device::Backend(want.clone()),

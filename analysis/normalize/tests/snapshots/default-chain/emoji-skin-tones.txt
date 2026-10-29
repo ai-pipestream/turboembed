@@ -1,0 +1,9 @@
+===OUT===
+waves 👋🏻 👋🏼 👋🏽 👋🏾 👋🏿 and plain 👋. people 🧑🏽‍🤝‍🧑🏻 and 👩🏾‍🚀 at launch. a lone modifier 🏽 after a space.
+===EDITS===
+0	1	w
+66	67	 
+67	68	p
+131	132	 
+132	133	a
+167	168	

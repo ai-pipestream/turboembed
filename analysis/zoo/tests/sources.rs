@@ -20,8 +20,10 @@ const TEXT_GZ: [u8; 29] = [
     0x5c, 0x00, 0x3b, 0x7c, 0x8a, 0xdf, 0x12, 0x00, 0x00, 0x00,
 ];
 const SA: &[u8] = b"a share-alike word list\n";
+const NC: &[u8] = b"a non-commercial checkpoint\n";
 
-/// A permissive file served gzip compressed, and a share-alike one.
+/// A permissive file served gzip compressed, a share-alike one and a
+/// local-only one.
 fn index() -> Index {
     let artifact = |id: &str, licence: &str, class: &str, bytes: &[u8], download: String| {
         format!(
@@ -41,9 +43,15 @@ fn index() -> Index {
         Sha256::of(&TEXT_GZ)
     );
     let json = format!(
-        r#"{{"zoo_version": 1, "artifacts": [{}, {}]}}"#,
+        r#"{{"zoo_version": 1, "artifacts": [{}, {}, {}]}}"#,
         artifact("hello", "Apache-2.0", "CLASS_PERMISSIVE", TEXT, gz),
         artifact("sa", "CC-BY-SA-4.0", "CLASS_SHARE_ALIKE", SA, String::new()),
+        artifact("nc", "CC-BY-NC-4.0", "CLASS_LOCAL_ONLY", NC, String::new())
+            .replace(
+                r#""class": "CLASS_LOCAL_ONLY""#,
+                r#""class": "CLASS_LOCAL_ONLY", "origin": "https://example.org/nc""#
+            )
+            .replace("https://example.org/nc.txt", "https://example.org/nc/nc.txt"),
     );
     Index::parse(json.as_bytes()).unwrap()
 }
@@ -219,4 +227,65 @@ fn a_symlinked_directory_inside_the_store_is_neither_written_through_nor_read() 
     through.put(TEXT).unwrap();
     assert_eq!(through.get_file(a, f).unwrap(), TEXT);
     assert!(real.0.join("blobs/sha256").join(f.sha256.to_string()).is_file());
+}
+
+/// Serves TEXT_GZ and counts the requests in a counter the test keeps.
+struct Remote(std::sync::Arc<AtomicUsize>);
+
+impl Transport for Remote {
+    fn get(&self, _url: &Url, _size: u64) -> Result<Vec<u8>, String> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Ok(TEXT_GZ.to_vec())
+    }
+}
+
+#[test]
+fn the_keeping_store_keeps_what_later_sources_serve_once_it_verifies() {
+    let (store, other) = (Dir::new("keep"), Dir::new("keep-other"));
+    let index = index();
+    let (a, f) = file_of(&index, "hello");
+    let asked = std::sync::Arc::new(AtomicUsize::new(0));
+    let sources = Sources::new().then_keep("local", Blobs::new(&store.0)).then("remote", Remote(asked.clone()));
+    assert_eq!(sources.get_file(a, f).unwrap(), TEXT);
+    // Kept unpacked, under the SHA-256 the index pins, and read from there
+    // next time without asking the remote again.
+    assert_eq!(fs::read(Blobs::new(&store.0).path(&f.sha256)).unwrap(), TEXT);
+    assert_eq!(sources.get_file(a, f).unwrap(), TEXT);
+    assert_eq!(asked.load(Ordering::SeqCst), 1);
+    // Bytes that fail the check are not kept.
+    let (sa, sf) = file_of(&index, "sa");
+    let wrong = Sources::new()
+        .then_keep("local", Blobs::new(&other.0))
+        .then("wrong", Always(b"x".to_vec(), AtomicUsize::new(0)));
+    assert!(wrong.get_file(sa, sf).is_err());
+    assert!(!Blobs::new(&other.0).path(&sf.sha256).exists());
+    // A store that cannot be written still hands the file over.
+    let file_root = other.0.join("a-file");
+    fs::create_dir_all(&other.0).unwrap();
+    fs::write(&file_root, b"not a directory").unwrap();
+    let blocked = Sources::new().then_keep("local", Blobs::new(&file_root)).then("remote", Remote(asked.clone()));
+    assert_eq!(blocked.get_file(a, f).unwrap(), TEXT);
+}
+
+#[test]
+fn the_keeping_store_neither_serves_nor_keeps_a_local_only_file() {
+    let (store, empty) = (Dir::new("local-only"), Dir::new("local-only-empty"));
+    let index = index();
+    let (a, f) = file_of(&index, "nc");
+    // The store already holds a copy: it is not read, the origin is asked.
+    Blobs::new(&store.0).put(NC).unwrap();
+    let asked = AtomicUsize::new(0);
+    let origin = Always(NC.to_vec(), asked);
+    let list = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", origin);
+    assert_eq!(list.get_file(a, f).unwrap(), NC);
+    // An origin that is down is not covered for by the store's copy.
+    let down = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", Down);
+    let e = down.get_file(a, f).unwrap_err();
+    assert!(e.starts_with("origin: ") && !e.contains("store"), "{e}");
+    // Fetched from the origin, nothing is kept.
+    let fresh = Sources::new()
+        .then_keep("store", Blobs::new(&empty.0))
+        .then("origin", Always(NC.to_vec(), AtomicUsize::new(0)));
+    assert_eq!(fresh.get_file(a, f).unwrap(), NC);
+    assert!(!Blobs::new(&empty.0).path(&f.sha256).exists(), "no copy of a local-only file");
 }

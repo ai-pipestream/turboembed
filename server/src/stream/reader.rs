@@ -43,7 +43,7 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<(
             return Err(Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"));
         }
         let doc_opts = handler::doc_options(d.output, d.offsets, d.options.as_ref())?;
-        if doc_opts.output != AnalyzeOutput::Vectors {
+        if !matches!(doc_opts.output, AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes) {
             if std::str::from_utf8(&d.text).is_err() {
                 return Err(Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"));
             }
