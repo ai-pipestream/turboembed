@@ -8015,7 +8015,7 @@ async function sha256Blob(b, progress) {
 // demo/web/src/tabs/licences.ts
 function who(r) {
   if (!r.user) return { user: "", canChange: false, why: "read-only: the demo was started without --user" };
-  if (!r.admin) return { user: r.user, canChange: false, why: "read-only: the server was started without --admin" };
+  if (!r.admin) return { user: r.user, canChange: false, why: "read-only: the server was started without --admin or --zoo" };
   return { user: r.user, canChange: true, why: "" };
 }
 var NOTICES = {

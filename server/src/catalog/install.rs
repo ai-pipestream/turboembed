@@ -86,7 +86,7 @@ fn cached(cache: &std::path::Path, a: &Artifact, f: &turbo_zoo::File) -> bool {
 /// The licence check, then the bytes the files still to fetch take, which
 /// with the margin must fit in the cache's free space. Returns those bytes
 /// and the artifact's file count.
-fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Status> {
+pub(super) fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Status> {
     let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &Offline);
     let a = zoo.permit_with(id, user, || catalog.acceptances()).map_err(zoo_status)?;
     let cache = catalog.cache();

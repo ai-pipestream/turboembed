@@ -34,20 +34,42 @@ allows no copy beyond the cache it is installed into.
 |---|---|---|
 | `ListModelCatalog` | no | Every artifact the index lists, in its order, with its licences, files and the terms it needs accepted. |
 | `ListInstalledModels` | no | The artifacts whose files are all in the cache. |
-| `RecordLicenceAcceptance` | yes | Records that a user accepted a licence's terms. |
-| `InstallModel` | yes | Fetches and verifies an artifact into the cache, streaming its progress. |
+| `RecordLicenceAcceptance` | yes, or zoo mode | Records that a user accepted a licence's terms. |
+| `InstallModel` | yes, or zoo mode | Fetches and verifies an artifact into the cache, streaming its progress. |
 | `DescribeModel` | no | One artifact's entry, as the listing gives it. |
 | `ResolveModel` | no | The artifact and file the index pins at a SHA-256. |
-| `ReadModelFile` | no | An installed file's bytes, for a user who accepted its terms. |
-| `RevokeLicenceAcceptance` | yes | Withdraws a user's acceptance of a licence's terms. |
+| `ReadModelFile` | no | An installed file's bytes, for a user who accepted its terms; in zoo mode a file not yet installed is fetched first. |
+| `RevokeLicenceAcceptance` | yes, or zoo mode | Withdraws a user's acceptance of a licence's terms. |
 | `ListLicenceAcceptances` | no | The terms a user accepted, and whether the admin calls are served. |
 
 The admin calls are served only when the server is started with
-`--admin`; without it they refuse with `UNIMPLEMENTED` and touch no
-file. Without `--catalog-dir` every call refuses with `UNIMPLEMENTED`.
+`--admin` or `--zoo`; without either they refuse with `UNIMPLEMENTED`
+and touch no file. Without `--catalog-dir` every call refuses with `UNIMPLEMENTED`.
 Fetching needs the server's `catalog-http` feature, which is on by
 default; a server built with `--no-default-features` has no TLS stack
 and exits at start when given `--catalog-dir`.
+
+## Zoo mode
+
+`--zoo` (or `TURBO_KSERVE_ZOO`) runs the server as a model zoo for its
+users. It needs `--catalog-dir`, and the server may start with no
+`--model`, serving only its catalog. In zoo mode:
+
+- Any caller records an acceptance and starts an install, without
+  `--admin`. The user a request names is the caller's own word, which
+  suits a personal or LAN zoo; a shared zoo turns on mutual TLS
+  (`--tls-client-ca`) so only holders of a client certificate reach it.
+  `--admin` keeps its meaning for every other service.
+- A `ReadModelFile` of an artifact the user is permitted, whose file is
+  not installed yet, installs the whole artifact first, with the same
+  licence check, free disk check and verified fetch `InstallModel`
+  makes, through `--catalog-store` when one is set. The first reader
+  waits for the fetch; readers of the same artifact that arrive while it
+  runs wait for it too and fetch nothing. A read the licence check, the
+  path or the pin refuses fetches nothing.
+
+Without `--zoo` a read of a file not installed is refused, and an
+install is an admin's step.
 
 ## Listing
 
@@ -103,7 +125,7 @@ the terms are accepted again.
 `ListLicenceAcceptances` takes a `user` and answers with that user's
 acceptances in the order made: the terms, when, and the artifact and
 digest when a page recorded them. `admin` says whether the server
-serves the admin calls, so a page can show its controls or say it is
+serves the admin calls (`--admin` or `--zoo`), so a page can show its controls or say it is
 read-only. An empty `user` lists nothing. Acceptances made with
 `turbo-zoo accept` or `turbo-bundle` are in the same file and are
 listed alike.
@@ -190,7 +212,9 @@ checks, in order, before its first message:
    one is given: `FAILED_PRECONDITION`, field 4, naming both, otherwise.
    A client and a server whose indexes disagree never exchange bytes.
 5. The file is installed, a plain file in the cache at the size the
-   index records: `FAILED_PRECONDITION` otherwise.
+   index records: `FAILED_PRECONDITION` otherwise. In zoo mode the
+   artifact is installed first instead (Zoo mode, above), and a fetch
+   that fails answers as `InstallModel` would.
 
 It then streams the file's `CatalogFile`, then its bytes in frames of
 at most 64 KiB, read from the cache as they are sent, never held whole.

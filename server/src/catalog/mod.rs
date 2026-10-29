@@ -1,16 +1,18 @@
 //! The TurboCatalogService rpcs (proto/turbo_training.proto,
 //! docs/grpc-catalog.md): the zoo index the server was started with, the
 //! artifacts in its cache, licence acceptances, and installs. Recording
-//! and revoking an acceptance and installing are admin calls, served only
-//! with the admin flag. Listing acceptances and describing, resolving and
-//! reading a model are not. Without a catalog every call refuses
-//! UNIMPLEMENTED.
+//! and revoking an acceptance and installing are served only with the
+//! admin flag or in zoo mode. Listing acceptances and describing,
+//! resolving and reading a model are not; in zoo mode a read of a
+//! permitted artifact not yet cached fetches it first. Without a catalog
+//! every call refuses UNIMPLEMENTED.
 
 mod accept;
 mod disk;
 mod entry;
 mod install;
 mod read;
+mod through;
 
 pub use read::READ_CHUNK_BYTES;
 
@@ -111,6 +113,9 @@ fn store_first(store: &str, origin: turbo_zoo::Http) -> Result<turbo_zoo::Source
 pub(crate) struct CatalogService {
     catalog: Option<Catalog>,
     admin: bool,
+    /// The read-through gates in zoo mode; `None` refuses a read of a
+    /// file not yet cached.
+    through: Option<through::Fetching>,
     /// Held by the one install that may run.
     installing: Arc<AtomicBool>,
     /// Held across each read, change and write of the acceptance file.
@@ -118,10 +123,11 @@ pub(crate) struct CatalogService {
 }
 
 impl CatalogService {
-    pub(crate) fn new(catalog: Option<Catalog>, admin: bool) -> CatalogService {
+    pub(crate) fn new(catalog: Option<Catalog>, admin: bool, zoo: bool) -> CatalogService {
         CatalogService {
             catalog,
             admin,
+            through: zoo.then(through::Fetching::default),
             installing: Arc::new(AtomicBool::new(false)),
             accepting: Arc::new(Mutex::new(())),
         }
@@ -133,14 +139,16 @@ impl CatalogService {
         })
     }
 
+    /// Admits an acceptance or an install: with the admin flag, or in zoo
+    /// mode, where the user a request names is the caller's own word.
     fn admin(&self, what: &str) -> Result<(), Status> {
-        if self.admin {
+        if self.admin || self.through.is_some() {
             return Ok(());
         }
         Err(plain(Failure::new(
             TURBO_E_UNSUPPORTED,
             0,
-            format!("{what} is admin-only: start the server with --admin to serve it"),
+            format!("{what} is admin-only: start the server with --admin or --zoo to serve it"),
         )))
     }
 }
@@ -266,7 +274,7 @@ impl TurboCatalogService for CatalogService {
         let catalog = self.catalog()?;
         let req = req.into_inner();
         let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
-        let admin = self.admin;
+        let admin = self.admin || self.through.is_some();
         blocking(move || accept::list(&catalog, who.as_ref(), admin).map(Response::new)).await
     }
 
@@ -300,7 +308,8 @@ impl TurboCatalogService for CatalogService {
         let catalog = self.catalog()?;
         let req = req.into_inner();
         let who = user(1, &req.user)?;
-        let stream = read::start(catalog, who, req.artifact_id, req.path, req.sha256).await?;
+        let through = self.through.clone();
+        let stream = read::start(catalog, who, req.artifact_id, req.path, req.sha256, through).await?;
         Ok(Response::new(stream))
     }
 }

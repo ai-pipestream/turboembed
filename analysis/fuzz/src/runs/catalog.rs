@@ -80,20 +80,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("sentdetect", "en-plain-qn-rust"),
     ("sentdetect", "en-plain-rust"),
     ("sentdetect", "newline"),
-    ("sentdetect", "opennlp-de-ud-gsd-sentence-1.3-2.5.4"),
-    ("sentdetect", "opennlp-en-ud-ewt-sentence-1.3-2.5.4"),
-    ("sentdetect", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
-    ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary"),
-    ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
     ("tokenize", "simple"),
     ("tokenize", "simple+keep-new-lines"),
     ("tokenize", "tokenizer-abbreviations"),
@@ -109,9 +95,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
     ("lattice", "unidic-mecab-2.1.2"),
-    ("langdetect", "langdetect-183"),
-    ("langdetect", "langdetect-183+probing"),
-    ("langdetect", "langdetect-183+probing-chunk50"),
     ("langdetect", "langdetect-fixture-rust"),
     ("langdetect", "langdetect-fixture-rust+probing"),
     ("langdetect", "langdetect-fixture-rust+probing-chunk50"),
@@ -232,10 +215,46 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
 mod tests {
     use super::*;
 
+    /// Published OpenNLP 2.5 UD / language-detector run directories still on
+    /// disk until #1644 to #1648 delete them. Each must stay off `RUNS` and
+    /// must open as [`Unavailable::NotCovered`].
+    const RETIRED_PUBLISHED_OPENNLP_RUNS: &[(&str, &str)] = &[
+        ("sentdetect", "opennlp-de-ud-gsd-sentence-1.3-2.5.4"),
+        ("sentdetect", "opennlp-en-ud-ewt-sentence-1.3-2.5.4"),
+        ("sentdetect", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
+        ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4"),
+        ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
+        ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4"),
+        ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+alphanumeric"),
+        ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary"),
+        ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4"),
+        ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
+        ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4"),
+        ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
+        ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
+        ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
+        ("postag", "opennlp-de-ud-gsd-pos-1.3-2.5.4"),
+        ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4"),
+        ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1"),
+        ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam10"),
+        ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+penn"),
+        ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
+        ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
+        ("langdetect", "langdetect-183"),
+        ("langdetect", "langdetect-183+probing"),
+        ("langdetect", "langdetect-183+probing-chunk50"),
+    ];
+
+    fn is_retired_published_opennlp_run(run: &str) -> bool {
+        let base = run.split('+').next().unwrap_or(run);
+        base.contains("1.3-2.5.4") || base == "langdetect-183"
+    }
+
     #[test]
     fn the_catalog_names_every_run_directory_the_differential_covers() {
         let data = turbo_goldens::data_dir();
-        let mut on_disk = Vec::new();
+        let mut active = Vec::new();
+        let mut retired_on_disk = Vec::new();
         for annotator in std::fs::read_dir(&data).unwrap() {
             let annotator = annotator.unwrap();
             let name = annotator.file_name().into_string().unwrap();
@@ -248,10 +267,15 @@ mod tests {
             }
             for run in std::fs::read_dir(annotator.path()).unwrap() {
                 let run = run.unwrap().file_name().into_string().unwrap();
-                on_disk.push((name.clone(), run));
+                if is_retired_published_opennlp_run(&run) {
+                    retired_on_disk.push((name.clone(), run));
+                } else {
+                    active.push((name.clone(), run));
+                }
             }
         }
-        on_disk.sort();
+        active.sort();
+        retired_on_disk.sort();
         let mut listed: Vec<(String, String)> = RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
         listed.sort();
         // Native runs may outlive their JVM golden trees; skip families
@@ -261,7 +285,61 @@ mod tests {
                 listed.retain(|(a, _)| a.as_str() != family);
             }
         }
-        assert_eq!(listed, on_disk);
+        assert_eq!(listed, active);
+
+        // Every retired published-model directory still on disk must be on
+        // the denylist, and every denylist entry for a covered annotator that
+        // still exists must appear here (until #1644 to #1648 delete them).
+        let denylist: Vec<(String, String)> =
+            RETIRED_PUBLISHED_OPENNLP_RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
+        for (annotator, run) in &retired_on_disk {
+            assert!(
+                denylist.iter().any(|(a, r)| a == annotator && r == run),
+                "on-disk retired published OpenNLP run {annotator}/{run} is not on RETIRED_PUBLISHED_OPENNLP_RUNS"
+            );
+            assert!(
+                is_retired_published_opennlp_run(run),
+                "{annotator}/{run} must match the retired published OpenNLP denylist predicate"
+            );
+        }
+        for (annotator, run) in RETIRED_PUBLISHED_OPENNLP_RUNS {
+            if NOT_COVERED.contains(annotator) {
+                continue;
+            }
+            let path = data.join(annotator).join(run);
+            if path.is_dir() {
+                assert!(
+                    retired_on_disk.iter().any(|(a, r)| a == annotator && r == *run),
+                    "denylist entry {annotator}/{run} exists on disk but was not collected"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_catalog_lists_no_retired_opennlp_published_model() {
+        for (annotator, run) in RUNS {
+            assert!(
+                !is_retired_published_opennlp_run(run),
+                "catalog still names retired published model {annotator}/{run}"
+            );
+            assert!(
+                !RETIRED_PUBLISHED_OPENNLP_RUNS.contains(&(annotator, run)),
+                "catalog still names denylisted run {annotator}/{run}"
+            );
+        }
+    }
+
+    #[test]
+    fn retired_published_opennlp_runs_are_not_covered() {
+        let res = Resources::new("/nonexistent");
+        for &(annotator, run) in RETIRED_PUBLISHED_OPENNLP_RUNS {
+            assert!(is_retired_published_opennlp_run(run), "{annotator}/{run} must match the denylist predicate");
+            assert!(
+                matches!(open(annotator, run, &res), Err(Unavailable::NotCovered(_))),
+                "{annotator}/{run} must not open from the catalog"
+            );
+        }
     }
 
     #[test]

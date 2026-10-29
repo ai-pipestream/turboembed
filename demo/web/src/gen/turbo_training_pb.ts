@@ -566,7 +566,7 @@ export type ListLicenceAcceptancesResponse = Message<"turbo.training.v1.ListLice
 
   /**
    * Whether the server serves RecordLicenceAcceptance,
-   * RevokeLicenceAcceptance and InstallModel (its admin flag).
+   * RevokeLicenceAcceptance and InstallModel (its admin flag, or zoo mode).
    *
    * @generated from field: bool admin = 3;
    */

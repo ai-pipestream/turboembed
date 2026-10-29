@@ -17,6 +17,7 @@ pub mod adamw;
 pub mod adapter;
 mod batch;
 pub mod crf;
+pub mod encoder;
 pub mod fit;
 pub mod fit_lemma;
 pub mod fit_parse;

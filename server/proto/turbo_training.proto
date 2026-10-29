@@ -177,7 +177,7 @@ message ListLicenceAcceptancesResponse {
   string user = 1;
   repeated LicenceAcceptance accepted = 2;
   // Whether the server serves RecordLicenceAcceptance,
-  // RevokeLicenceAcceptance and InstallModel (its admin flag).
+  // RevokeLicenceAcceptance and InstallModel (its admin flag, or zoo mode).
   bool admin = 3;
 }
 

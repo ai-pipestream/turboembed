@@ -2,7 +2,7 @@
 // "I have read and accept" control, the terms the demo's user accepted,
 // and revoke. Every call acts for the user the demo was started with
 // (--user); the page never names one. Without a user, or on a server
-// without --admin, the page is read-only.
+// without --admin or --zoo, the page is read-only.
 
 import type { CatalogEntry, LicenceTerms, ListLicenceAcceptancesResponse } from "../gen/turbo_training_pb.js";
 import { el, table, type Child } from "../dom.js";
@@ -18,7 +18,7 @@ export interface Who {
 
 export function who(r: ListLicenceAcceptancesResponse): Who {
   if (!r.user) return { user: "", canChange: false, why: "read-only: the demo was started without --user" };
-  if (!r.admin) return { user: r.user, canChange: false, why: "read-only: the server was started without --admin" };
+  if (!r.admin) return { user: r.user, canChange: false, why: "read-only: the server was started without --admin or --zoo" };
   return { user: r.user, canChange: true, why: "" };
 }
 

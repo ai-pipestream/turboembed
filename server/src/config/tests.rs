@@ -169,6 +169,24 @@ fn the_catalog_comes_from_its_flags_or_their_variables() {
 }
 
 #[test]
+fn zoo_mode_comes_from_its_flag_or_variable_needs_a_catalog_and_allows_no_model() {
+    let a = args("--listen 127.0.0.1:0 --catalog-dir /z --zoo").unwrap();
+    assert!(a.zoo && !a.admin && a.models.is_empty());
+    assert!(!args("--listen 127.0.0.1:0 --admin").unwrap().zoo);
+    assert_eq!(args("--listen 127.0.0.1:0 --zoo").unwrap_err(), "--zoo needs --catalog-dir");
+    assert!(args("--listen 127.0.0.1:0 --catalog-dir /z --zoo --zoo").is_err());
+    assert!(args("--listen 127.0.0.1:0 --catalog-dir /z --zoo=1").is_err());
+    assert_eq!(args("--listen 127.0.0.1:0 --catalog-dir /z").unwrap_err(), "at least one --model is required");
+    let parsed = |v: &'static str| {
+        let env = move |k: &str| (k == ENV_ZOO).then(|| v.to_string());
+        Args::parse_with("--listen 127.0.0.1:0 --catalog-dir /z".split_whitespace().map(String::from), env)
+    };
+    assert!(parsed("true").unwrap().zoo);
+    assert_eq!(parsed("0").unwrap_err(), "at least one --model is required");
+    assert_eq!(parsed("maybe").unwrap_err(), "TURBO_KSERVE_ZOO=maybe: not one of 1, true, yes, 0, false, no");
+}
+
+#[test]
 fn refusals() {
     assert_eq!(names(&[]).unwrap_err(), "at least one --model is required");
     let zero_sessions = ModelConfig {

@@ -73,6 +73,11 @@ impl Drop for Home {
 }
 
 async fn start(home: &Path, admin: bool) -> (Server, Client) {
+    start_in(home, Serve { admin, ..Serve::default() }).await
+}
+
+/// The server over `home` with `serve`'s flags and the test catalog.
+async fn start_in(home: &Path, serve: Serve) -> (Server, Client) {
     let catalog = Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(Fixed) };
     let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
     let model = ModelConfig {
@@ -84,7 +89,7 @@ async fn start(home: &Path, admin: bool) -> (Server, Client) {
         max_seq: 0,
         sessions: 1,
     };
-    let serve = Serve { admin, catalog: Some(catalog), ..Serve::default() };
+    let serve = Serve { catalog: Some(catalog), ..serve };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model], MAX, serve).await.unwrap();
     let c = TurboCatalogServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
     (s, c)
@@ -216,5 +221,11 @@ async fn without_admin_acceptances_are_listed_but_not_changed() {
     assert_eq!(refusal(&e).1, TURBO_E_UNSUPPORTED, "{e:?}");
     let e = c.list_licence_acceptances(ListLicenceAcceptancesRequest { user: " a".into() }).await.unwrap_err();
     assert_eq!(refusal(&e), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT, "1".into()), "{e:?}");
+    s.stop().await;
+    // Zoo mode serves the changes without --admin, and the page is told so.
+    let (s, mut c) = start_in(&home.0, Serve { zoo: true, ..Serve::default() }).await;
+    assert!(list(&mut c, "alice").await.admin);
+    c.record_licence_acceptance(record("alice", "", "")).await.unwrap();
+    assert!(c.revoke_licence_acceptance(revoke("alice")).await.unwrap().into_inner().was_accepted);
     s.stop().await;
 }
