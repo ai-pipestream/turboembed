@@ -14,11 +14,17 @@ use crate::error::{Check, ZooError};
 use crate::index::{Artifact, File, Index};
 use crate::licence::Policy;
 
+#[cfg(feature = "http")]
+mod s3;
+#[cfg(feature = "http")]
+pub mod sigv4;
 mod sources;
 mod status;
 mod transport;
 
-pub use sources::{Blobs, Sources};
+#[cfg(feature = "http")]
+pub use s3::S3Bucket;
+pub use sources::{Blobs, Keep, Sources};
 pub use status::CacheStatus;
 #[cfg(feature = "http")]
 pub use transport::Http;

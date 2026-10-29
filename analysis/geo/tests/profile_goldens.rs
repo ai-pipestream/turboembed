@@ -1,51 +1,15 @@
-//! Place profiles against the JVM: every `place-profiles` golden of
-//! `analysis/goldens` (written by `turbo-goldens generate`, see
-//! analysis/goldens-tool/README.md and `PlaceProfilesGolden.java`).
+//! Reviewed place-profile snapshots and load/similarity invariants.
 //!
-//! Each golden is what `PlaceProfiles.load` made of one table of the
-//! `place-profiles` input set: whether it loaded or OpenNLP's message, the
-//! metric names, the standardized profile of every place, the similarity of
-//! every ordered pair of places and `mostSimilar` of every place with the
-//! counts 1, 2 and the number of places. The test loads the same table here
-//! and rebuilds every layer; doubles are compared bit for bit.
+//! `tests/snapshots/place-profiles/<id>.snap` holds the rebuilt layers for
+//! each input under `tests/inputs/place-profiles/`. Regenerate with
+//! `TURBO_BLESS=1 cargo test -p turbo-geo --test profile_goldens`.
+//! JVM goldens are not an oracle. Doubles are compared bit for bit.
 
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use turbo_geo::{PlaceProfiles, ProfileError};
-use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
-
-const U32: ColumnType = ColumnType::U32;
-const F64: ColumnType = ColumnType::F64;
-const STR: ColumnType = ColumnType::Str;
-
-fn shapes() -> Vec<Shape> {
-    const LOAD: &[ColumnSpec] =
-        &[ColumnSpec::new("loaded", U32), ColumnSpec::new("error-class", STR), ColumnSpec::new("error-message", STR)];
-    const METRICS: &[ColumnSpec] = &[ColumnSpec::new("name", STR)];
-    const PLACES: &[ColumnSpec] = &[ColumnSpec::new("id", STR)];
-    const VALUES: &[ColumnSpec] =
-        &[ColumnSpec::new("place", U32), ColumnSpec::new("metric", U32), ColumnSpec::new("value", F64)];
-    const PAIRS: &[ColumnSpec] =
-        &[ColumnSpec::new("a", U32), ColumnSpec::new("b", U32), ColumnSpec::new("similarity", F64)];
-    const NEIGHBORS: &[ColumnSpec] = &[
-        ColumnSpec::new("query", U32),
-        ColumnSpec::new("count", U32),
-        ColumnSpec::new("rank", U32),
-        ColumnSpec::new("place", U32),
-        ColumnSpec::new("similarity", F64),
-    ];
-    let doc = |id: &str, columns| Shape { id: id.into(), anchor: GoldenAnchor::Document, columns };
-    vec![
-        doc("turbo:profiles-load", LOAD),
-        doc("turbo:profiles-metrics", METRICS),
-        doc("turbo:profiles-places", PLACES),
-        doc("turbo:profiles-values", VALUES),
-        doc("turbo:profiles-similarity", PAIRS),
-        doc("turbo:profiles-neighbors", NEIGHBORS),
-    ]
-}
 
 /// The layers rebuilt here, by id, each as rows of cells written as text.
 type Rebuilt = BTreeMap<&'static str, Vec<Vec<String>>>;
@@ -54,23 +18,7 @@ fn bits(v: f64) -> String {
     format!("{:016x}", v.to_bits())
 }
 
-fn cells(layer: &GoldenLayer) -> Vec<Vec<String>> {
-    (0..layer.len())
-        .map(|i| {
-            layer
-                .columns
-                .iter()
-                .map(|c| match &c.data {
-                    ColumnData::U32(v) => v[i].to_string(),
-                    ColumnData::Str(v) => v.get(i).to_owned(),
-                    ColumnData::F64(v) => bits(v[i]),
-                })
-                .collect()
-        })
-        .collect()
-}
-
-/// What `PlaceProfilesGolden` writes for one table.
+/// What one table produces as snapshot layers.
 fn rebuild(bytes: &[u8]) -> Rebuilt {
     let mut out = Rebuilt::new();
     let profiles = match PlaceProfiles::from_bytes(bytes) {
@@ -129,44 +77,56 @@ fn rebuild(bytes: &[u8]) -> Rebuilt {
     out
 }
 
-/// Every golden, as its input id and file.
-fn goldens() -> Vec<(String, PathBuf)> {
-    let dir = turbo_goldens::data_dir().join("place-profiles").join("place-profiles").join("place-profiles");
-    let mut out: Vec<_> = std::fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
-        .map(|f| {
-            let path = f.unwrap().path();
-            (path.file_stem().unwrap().to_str().unwrap().to_owned(), path)
-        })
-        .collect();
-    out.sort();
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
+fn render(rebuilt: &Rebuilt) -> String {
+    let mut out = String::new();
+    for (id, rows) in rebuilt {
+        out.push_str(&format!("# {id}\n"));
+        for row in rows {
+            out.push_str(&row.join("\t"));
+            out.push('\n');
+        }
+    }
     out
 }
 
+fn input_ids() -> Vec<String> {
+    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs/place-profiles"))
+        .unwrap()
+        .map(|e| {
+            let name = e.unwrap().file_name().into_string().unwrap();
+            name.strip_suffix(".txt").unwrap().to_string()
+        })
+        .collect();
+    ids.sort();
+    ids
+}
+
 #[test]
-fn every_place_profile_golden_matches() {
-    let shapes = shapes();
-    let data = turbo_goldens::data_dir();
-    let goldens = goldens();
+fn every_place_profile_snapshot_matches() {
+    let bless = std::env::var_os("TURBO_BLESS").is_some();
+    let ids = input_ids();
     let mut loaded = 0;
-    for (id, path) in &goldens {
-        let golden = Golden::read_with(path, &shapes).unwrap();
-        assert!(golden.header.error.is_none(), "{id}: an error record");
-        let bytes = golden.input_text(&data).unwrap().into_bytes();
-        let mut ours = rebuild(&bytes);
-        for layer in &golden.layers {
-            let rows = ours.remove(layer.id.as_str()).unwrap_or_else(|| panic!("{id}: no layer {}", layer.id));
-            let theirs = cells(layer);
-            assert_eq!(rows.len(), theirs.len(), "{id}: {} has {} rows here", layer.id, rows.len());
-            for (r, (a, b)) in rows.iter().zip(&theirs).enumerate() {
-                assert_eq!(a, b, "{id}: {} row {r}", layer.id);
-            }
-            if layer.id == "turbo:profiles-load" && theirs[0][0] == "1" {
-                loaded += 1;
-            }
+    for id in &ids {
+        let bytes = std::fs::read(root().join("inputs/place-profiles").join(format!("{id}.txt"))).unwrap();
+        let ours = rebuild(&bytes);
+        if ours.get("turbo:profiles-load").and_then(|r| r.first()).map(|r| r[0].as_str()) == Some("1") {
+            loaded += 1;
         }
-        assert!(ours.is_empty(), "{id}: layers not in the golden: {:?}", ours.keys());
+        let body = render(&ours);
+        let path = root().join("snapshots/place-profiles").join(format!("{id}.snap"));
+        if bless {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &body).unwrap();
+            continue;
+        }
+        let want = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("missing snapshot {} (TURBO_BLESS=1 to write): {e}", path.display()));
+        assert_eq!(body, want, "{id}");
     }
-    assert!(goldens.len() >= 30, "{} goldens", goldens.len());
+    assert!(ids.len() >= 30, "{} inputs", ids.len());
     assert!(loaded >= 10, "{loaded} tables loaded");
 }

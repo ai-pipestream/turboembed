@@ -25,7 +25,6 @@ turbo-sentdetect = { path = "../sentdetect" }
 turbo-tokenize = { path = "../tokenize" }
 turbo-postag = { path = "../postag" }
 turbo-lemmatizer = { path = "../lemmatizer" }
-turbo-phrase-chunker = { path = "../phrase-chunker" }
 turbo-depparse = { path = "../depparse" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-unicode = { path = "../unicode" }

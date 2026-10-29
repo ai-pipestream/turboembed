@@ -74,25 +74,10 @@ pub enum Error {
     /// events (`PERCEPTRON_SEQUENCE`), which `NameFinderME.train` feeds
     /// with `NameSampleSequenceStream`; not ported.
     NameSequenceTraining(turbo_train::TrainerType),
-    /// `ChunkerME.train` given parameters that name no event trainer:
-    /// `IllegalArgumentException("Trainer type is not supported: " +
-    /// trainerType)`, the type `TrainerFactory.getTrainerType` gave, `null`
-    /// for an algorithm it cannot resolve.
-    UnsupportedTrainerType(Option<turbo_train::TrainerType>),
     /// A model file could not be read.
     Model(turbo_maxent::Error),
     /// A file could not be read.
     Io { path: std::path::PathBuf, message: String },
-    /// A constituency parser model written here could not be read back,
-    /// or its parts do not fit its parser type.
-    ParserModel(turbo_parser::model::ParserModelError),
-    /// A parse sample a parser's event stream or `ParserEvaluator` fails
-    /// on where OpenNLP throws, as `Parse.pruneParse` throws on a node
-    /// whose only child has its type.
-    ParseSample(turbo_parser::ParseError),
-    /// The tree insertion event stream failed where OpenNLP throws or
-    /// exits.
-    TreeInsert(turbo_parser::treeinsert::TreeInsertError),
     /// A cross-validation fold's prediction the evaluator refuses where
     /// the JVM's evaluator throws.
     Evaluate(turbo_formats::evaluate::EvalError),
@@ -137,20 +122,8 @@ impl fmt::Display for Error {
             Error::NameSequenceTraining(t) => {
                 write!(f, "training a name finder with a {} trainer is not ported", t.value())
             }
-            Error::UnsupportedTrainerType(t) => {
-                let name = match t {
-                    Some(turbo_train::TrainerType::Event) => "EVENT_MODEL_TRAINER",
-                    Some(turbo_train::TrainerType::EventModelSequence) => "EVENT_MODEL_SEQUENCE_TRAINER",
-                    Some(turbo_train::TrainerType::Sequence) => "SEQUENCE_TRAINER",
-                    None => "null",
-                };
-                write!(f, "Trainer type is not supported: {name}")
-            }
             Error::Model(e) => write!(f, "model file: {e}"),
             Error::Io { path, message } => write!(f, "{}: {message}", path.display()),
-            Error::ParserModel(e) => write!(f, "{e}"),
-            Error::ParseSample(e) => write!(f, "parser sample: {e}"),
-            Error::TreeInsert(e) => write!(f, "parser training events: {e}"),
             Error::Evaluate(e) => write!(f, "evaluation: {e}"),
             Error::LanguageModel(e) => write!(f, "language detector model: {e}"),
         }
@@ -180,24 +153,6 @@ impl From<PatternError> for Error {
 impl From<turbo_sequence::Error> for Error {
     fn from(e: turbo_sequence::Error) -> Error {
         Error::Sequence(e)
-    }
-}
-
-impl From<turbo_parser::model::ParserModelError> for Error {
-    fn from(e: turbo_parser::model::ParserModelError) -> Error {
-        Error::ParserModel(e)
-    }
-}
-
-impl From<turbo_parser::ParseError> for Error {
-    fn from(e: turbo_parser::ParseError) -> Error {
-        Error::ParseSample(e)
-    }
-}
-
-impl From<turbo_parser::treeinsert::TreeInsertError> for Error {
-    fn from(e: turbo_parser::treeinsert::TreeInsertError) -> Error {
-        Error::TreeInsert(e)
     }
 }
 

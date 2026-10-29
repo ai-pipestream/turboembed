@@ -78,8 +78,8 @@ impl UdRecipe {
     ///
     /// # Errors
     ///
-    /// [`Error::NoReference`] for the tokenizers, which have none
-    /// since #1645.
+    /// [`Error::NoReference`] for the tokenizers and part-of-speech
+    /// taggers, which have none since #1645 and #1646.
     pub fn reference(&self) -> Result<crate::Reference> {
         self.reference.ok_or(Error::NoReference { recipe: self.model_id })
     }

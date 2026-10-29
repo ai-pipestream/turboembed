@@ -82,7 +82,7 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 46] = [
+pub const INPUT_SETS: [&str; 44] = [
     "en",
     "multi",
     "norm",
@@ -112,8 +112,6 @@ pub const INPUT_SETS: [&str; 46] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "langdetect",
     "sequence",
     "descriptor-errors",
@@ -142,7 +140,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 50] = [
+pub const ANNOTATORS: [&str; 48] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -178,8 +176,6 @@ pub const ANNOTATORS: [&str; 50] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "string-pattern",
     "features",
     "codec",
@@ -203,7 +199,7 @@ pub const ANNOTATORS: [&str; 50] = [
 /// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
+pub const DUMPED_ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "postag", "lemmatize", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
 /// other annotators do not run on this one.

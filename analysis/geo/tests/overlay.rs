@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use turbo_geo::*;
 
 fn fixture(name: &str) -> PathBuf {
-    turbo_goldens::data_dir().join("fixtures").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
 }
 
 fn overlay() -> OverlayGazetteer<&'static BundledGazetteer, UserGazetteer> {

@@ -1,13 +1,18 @@
 //! Tagging with a bundle's own token tagger heads (`manifest.heads`,
 //! docs/bundle.md "Heads"): one encoder, any backend, and heads trained
-//! by `turbo-trainer`. [`PosTagger`] writes the part-of-speech layer and
-//! [`EntityTagger`] the entity layer, each from the head that names that
-//! layer, or from a head named outright.
+//! by `turbo-trainer`. [`PosTagger`] writes the part-of-speech layer,
+//! [`EntityTagger`] the entity layer, [`DependencyParser`] the
+//! dependency layer and [`Lemmatizer`] the lemma layer, each from the
+//! head that names that layer, or from a head named outright.
+//! [`MultiTask`] writes several of those layers from one encoder pass.
 //!
 //! The encoder pools each word's pieces on the device (words.rs); the
 //! head scores and decodes on the host, the same on every backend.
 
 pub mod annotate;
+pub mod lemma;
+pub mod multi;
+pub mod parse;
 pub mod words;
 
 use std::path::Path;
@@ -20,6 +25,9 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tokens};
 
 pub use annotate::HeadRunner;
+pub use lemma::{LemmaDictionary, Lemmatizer};
+pub use multi::MultiTask;
+pub use parse::DependencyParser;
 pub use words::WordEncoder;
 
 /// Writes the part-of-speech layer from a SCHEME_TAGS head.
