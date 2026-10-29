@@ -761,10 +761,13 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
 /* int8 or ubinary codes of the first rows * dim F32 values of buf, into
  * the leading bytes of the same buffer, matching core/src/quantize.rs.
  * A temporary device allocation holds the codes so the write never races
- * the read of the floats. */
+ * the read of the floats. When run is not NULL the allocations made
+ * here and the int8 ranges sent to the device are added to it. */
 int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
-                        turbo_error *err) {
-    return guarded(err, [&]() -> int32_t {
+                        turbo_backend_run *run, turbo_error *err) {
+    const uint64_t host0 = host_here, device0 = device_here;
+    uint64_t sent = 0;
+    const int32_t status = guarded(err, [&]() -> int32_t {
         Buffer *b = static_cast<Buffer *>(buf);
         if (rows == 0 || dim == 0) return TURBO_OK;
         if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
@@ -774,7 +777,7 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
             return refuse(err, TURBO_E_INVALID_ARGUMENT, "int8_ranges is NULL");
         const uint64_t floats = (uint64_t)rows * (uint64_t)dim;
         const uint64_t code_bytes =
-            quantization == TURBO_QUANTIZE_INT8 ? floats : (uint64_t)rows * ((uint64_t)dim + 7) / 8;
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (uint64_t)rows * (((uint64_t)dim + 7) / 8);
         if (b->bytes < floats * 4)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
                           "buffer of %llu bytes is under the %llu F32 values to quantize",
@@ -803,6 +806,7 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
                 cudaFree(codes);
                 return cuda_failed(err, ce, "copying int8_ranges to the device");
             }
+            sent = rb;
             const cudaError_t qe = quantize_int8(s, static_cast<const float *>(b->ptr), ranges_dev, (int)rows,
                                                  (int)dim, static_cast<int8_t *>(codes));
             if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_int8");
@@ -823,6 +827,12 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
         cudaFree(codes);
         return rc;
     });
+    if (run) {
+        run->host_allocs += host_here - host0;
+        run->device_allocs += device_here - device0;
+        if (status == TURBO_OK) run->h2d_bytes += sent;
+    }
+    return status;
 }
 
 // ---- Models --------------------------------------------------------------------
@@ -3648,7 +3658,7 @@ int32_t turbo_cuda_quantize(uint32_t ordinal, uint32_t quantization, const float
         }
         const size_t floats = (size_t)rows * (size_t)dim;
         const size_t code_bytes =
-            quantization == TURBO_QUANTIZE_INT8 ? floats : (size_t)rows * ((size_t)dim + 7) / 8;
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (size_t)rows * (((size_t)dim + 7) / 8);
         float *dx = nullptr;
         float *dr = nullptr;
         void *dc = nullptr;

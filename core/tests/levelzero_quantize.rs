@@ -91,8 +91,15 @@ fn levelzero_codes_match_host_byte_for_byte() {
         for (q, code) in [(Quantization::Int8, TURBO_QUANTIZE_INT8), (Quantization::UBinary, TURBO_QUANTIZE_UBINARY)] {
             let want = host_codes(q, &x, dim, &ranges);
             let mut got = vec![0u8; want.len()];
-            quantize_via_table(b, code, &x, &ranges, dim, &mut got);
+            let run = quantize_via_table(b, code, &x, &ranges, dim, &mut got);
             assert_eq!(got, want, "levelzero {q:?} dim {dim} x={x:?}");
+            // The codes buffer, and for int8 the pinned ranges, which are
+            // the only bytes sent; nothing is read back or made on the host.
+            let int8 = q == Quantization::Int8;
+            let what = format!("levelzero {q:?} dim {dim}");
+            assert_eq!(run.device_allocs, if int8 { 2 } else { 1 }, "{what}: device_allocs");
+            assert_eq!(run.h2d_bytes, if int8 { (2 * dim * 4) as u64 } else { 0 }, "{what}: h2d_bytes");
+            assert_eq!((run.host_allocs, run.d2h_bytes), (0, 0), "{what}: host_allocs and d2h_bytes");
         }
     }
 }
@@ -104,8 +111,9 @@ fn quantize_via_table(
     ranges: &[f32],
     dim: usize,
     out: &mut [u8],
-) {
+) -> turbo::backend::turbo_backend_run {
     let mut err = new_error();
+    let mut run: turbo::backend::turbo_backend_run = unsafe { std::mem::zeroed() };
     let mut ctx = std::ptr::null_mut();
     assert_eq!(
         unsafe { (b.context_create.unwrap())(0, None, std::ptr::null_mut(), &mut ctx, &mut err) },
@@ -136,7 +144,7 @@ fn quantize_via_table(
     }
     let ranges_ptr = if quantization == TURBO_QUANTIZE_INT8 { ranges.as_ptr() } else { std::ptr::null() };
     assert_eq!(
-        unsafe { (b.buffer_quantize.unwrap())(buf, quantization, ranges_ptr, 1, dim as u32, &mut err) },
+        unsafe { (b.buffer_quantize.unwrap())(buf, quantization, ranges_ptr, 1, dim as u32, &mut run, &mut err) },
         0,
         "{:?}",
         failure(0, &err)
@@ -146,4 +154,5 @@ fn quantize_via_table(
     }
     unsafe { (b.buffer_release.unwrap())(buf) };
     unsafe { (b.context_release.unwrap())(ctx) };
+    run
 }

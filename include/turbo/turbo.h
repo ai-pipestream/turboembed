@@ -760,7 +760,9 @@ int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_err
  * Packed bits (U8) are [batch, (dim + 7) / 8] bytes, and dim still counts
  * dimensions. A quantized result is in host memory. When the backend
  * offers buffer_quantize, the codes are made on the device and only those
- * bytes are counted in d2h_bytes; otherwise the core copies the vectors
+ * bytes are counted in d2h_bytes, the device memory that takes in
+ * device_allocs, and the int8 ranges sent to a device with its own memory
+ * in h2d_bytes; otherwise the core copies the vectors
  * back as F32 first (counted in d2h_bytes, and the first such run's
  * host_allocs) and quantizes them on the host.
  * After turbo_embed_write_ranges, batch is the count of ranges written and

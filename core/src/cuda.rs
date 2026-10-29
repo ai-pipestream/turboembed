@@ -187,6 +187,8 @@ pub fn quantize(
     dim: i32,
     out: &mut [u8],
 ) -> Result<(), i32> {
+    crate::quantize::check_device_call(quantization, x.len(), ranges.len(), rows, dim, out.len())
+        .map_err(|_| crate::status::INVALID_ARGUMENT)?;
     let ranges_ptr = if quantization == crate::TURBO_QUANTIZE_INT8 { ranges.as_ptr() } else { std::ptr::null() };
     let rc = unsafe { turbo_cuda_quantize(ordinal, quantization, x.as_ptr(), ranges_ptr, rows, dim, out.as_mut_ptr()) };
     if rc == 0 { Ok(()) } else { Err(rc) }

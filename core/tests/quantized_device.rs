@@ -5,9 +5,11 @@
 //! device's backend and sits in host memory. cuda and levelzero return f32
 //! vectors in device memory; with buffer_quantize the core codes them on
 //! the device and counts only the code bytes in d2h_bytes (no host
-//! staging alloc). metal's vectors are in shared memory, so their
-//! quantized runs copy the codes on the host and add nothing to
-//! d2h_bytes.
+//! staging alloc), plus the device buffers that takes in device_allocs
+//! and the int8 ranges sent in h2d_bytes. metal's vectors are in shared
+//! memory, so their quantized runs copy the codes on the host and add
+//! nothing to d2h_bytes or h2d_bytes, only the codes buffer (and the
+//! int8 ranges' buffer) to device_allocs.
 //!
 //! Without TURBO_TEST_DEVICE, or when the backend lists no device, a test
 //! says it was skipped and passes. With TURBO_TEST_REQUIRE_<BACKEND>=1
@@ -152,6 +154,10 @@ fn check(backend: &str, what: &str, mut write: impl FnMut(&turbo_embed_options) 
         let fetched = if device { batch as u64 * q.row_bytes(dim) as u64 } else { 0 };
         assert_eq!(qi.d2h_bytes, fi.d2h_bytes + fetched, "{what}: d2h_bytes, f32 placement {}", fi.placement);
         assert_eq!(qi.host_allocs, fi.host_allocs, "{what}: host_allocs (codes need no f32 staging)");
+        let int8 = q == Quantization::Int8;
+        assert_eq!(qi.device_allocs, fi.device_allocs + if int8 { 2 } else { 1 }, "{what}: device_allocs");
+        let sent = if device && int8 { dim as u64 * 2 * 4 } else { 0 };
+        assert_eq!(qi.h2d_bytes, fi.h2d_bytes + sent, "{what}: h2d_bytes (the int8 ranges)");
         *staged |= device;
         println!("{what}: f32 placement {} d2h {} -> {}", fi.placement, fi.d2h_bytes, qi.d2h_bytes);
     }

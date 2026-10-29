@@ -168,7 +168,9 @@ sentence-transformers' `quantize_embeddings` makes
   mix them in one index.
 - When the backend offers `buffer_quantize` (CUDA, Level Zero, Metal), the
   codes are made on the device and only those bytes cross the bus (counted
-  in `d2h_bytes`); otherwise the core copies the vectors back as F32 first
+  in `d2h_bytes`). The run's `device_allocs` include the temporary codes
+  buffer (and the int8 ranges' buffer), and on CUDA and Level Zero its
+  `h2d_bytes` include the int8 ranges sent to the device; otherwise the core copies the vectors back as F32 first
   and quantizes on the host. Either path yields the same codes for the
   same f32 vectors (`core/src/quantize.rs`).
 

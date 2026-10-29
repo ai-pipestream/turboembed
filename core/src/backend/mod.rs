@@ -285,6 +285,7 @@ pub struct turbo_backend {
             int8_ranges: *const f32,
             rows: u32,
             dim: u32,
+            run: *mut turbo_backend_run,
             err: *mut turbo_error,
         ) -> i32,
     >,

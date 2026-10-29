@@ -93,5 +93,40 @@ pub fn rows(q: Quantization, x: &[f32], dim: usize, ranges: &[f32], out: &mut [u
     }
 }
 
+/// The code bytes a device quantize call of `rows` by `dim` writes, or why
+/// the call cannot be made: the mode is not int8 or ubinary, a dimension
+/// is negative, the shape overflows, or a slice (`x` F32 values, `ranges`
+/// F32 values, `out` bytes) is shorter than the shape needs. The device
+/// wrappers check this before any pointer reaches the device.
+pub fn check_device_call(
+    quantization: u32,
+    x: usize,
+    ranges: usize,
+    rows: i32,
+    dim: i32,
+    out: usize,
+) -> Result<usize, String> {
+    let q = match quantization {
+        crate::TURBO_QUANTIZE_INT8 => Quantization::Int8,
+        crate::TURBO_QUANTIZE_UBINARY => Quantization::UBinary,
+        other => return Err(format!("quantization {other} is not int8 or ubinary")),
+    };
+    let (Ok(r), Ok(d)) = (usize::try_from(rows), usize::try_from(dim)) else {
+        return Err(format!("rows {rows} and dim {dim} must not be negative"));
+    };
+    let floats = r.checked_mul(d).ok_or_else(|| format!("{rows} by {dim} values overflow"))?;
+    let codes = r.checked_mul(q.row_bytes(d)).ok_or_else(|| format!("{rows} by {dim} codes overflow"))?;
+    if x < floats {
+        return Err(format!("x holds {x} values, under the {floats} of {rows} by {dim}"));
+    }
+    if q == Quantization::Int8 && ranges < 2 * d {
+        return Err(format!("ranges holds {ranges} values, under the {} int8 needs", 2 * d));
+    }
+    if out < codes {
+        return Err(format!("out holds {out} bytes, under the {codes} codes"));
+    }
+    Ok(codes)
+}
+
 #[cfg(test)]
 mod tests;

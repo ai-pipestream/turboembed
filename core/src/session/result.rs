@@ -86,8 +86,9 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
         let quantize = backend::offered!(b, buffer_quantize).unwrap();
         let ranges_ptr =
             if w.quantization == Quantization::Int8 { state.int8_ranges.as_ptr() } else { std::ptr::null() };
+        let (output, run) = (r.output, &mut *r as *mut turbo_backend_run);
         backend::check(b, "buffer_quantize", |err| unsafe {
-            quantize(r.output, q, ranges_ptr, w.batch, w.output_dim, err)
+            quantize(output, q, ranges_ptr, w.batch, w.output_dim, run, err)
         })?;
         let out = &mut state.codes[..code_bytes];
         if on_device {

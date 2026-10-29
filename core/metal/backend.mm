@@ -699,10 +699,13 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
 }
 
 /* int8 or ubinary codes of the first rows * dim F32 values of buf, into
- * the leading bytes of the same buffer, matching core/src/quantize.rs. */
+ * the leading bytes of the same buffer, matching core/src/quantize.rs.
+ * When run is not NULL the allocations made here are added to it; the
+ * ranges stay in shared memory, so nothing is counted as sent. */
 int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
-                        turbo_error *err) {
-    return guarded(err, [&]() -> int32_t {
+                        turbo_backend_run *run, turbo_error *err) {
+    const uint64_t host0 = host_here, device0 = device_here;
+    const int32_t status = guarded(err, [&]() -> int32_t {
         Buffer *b = static_cast<Buffer *>(buf);
         if (rows == 0 || dim == 0) return TURBO_OK;
         if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
@@ -714,7 +717,7 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
             return refuse(err, TURBO_E_INVALID_ARGUMENT, "buffer_quantize needs a Metal buffer");
         const uint64_t floats = (uint64_t)rows * (uint64_t)dim;
         const uint64_t code_bytes =
-            quantization == TURBO_QUANTIZE_INT8 ? floats : (uint64_t)rows * ((uint64_t)dim + 7) / 8;
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (uint64_t)rows * (((uint64_t)dim + 7) / 8);
         if (b->bytes < floats * 4)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
                           "buffer of %llu bytes is under the %llu F32 values to quantize",
@@ -756,6 +759,11 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
         TRY(finish(cb, err, "buffer_quantize"));
         return TURBO_OK;
     });
+    if (run) {
+        run->host_allocs += host_here - host0;
+        run->device_allocs += device_here - device0;
+    }
+    return status;
 }
 
 
@@ -2690,7 +2698,7 @@ int32_t turbo_metal_quantize(uint32_t ordinal, uint32_t quantization, const floa
         if (!q) return TURBO_E_RUNTIME;
         const size_t floats = (size_t)rows * (size_t)dim;
         const size_t code_bytes =
-            quantization == TURBO_QUANTIZE_INT8 ? floats : (size_t)rows * ((size_t)dim + 7) / 8;
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (size_t)rows * (((size_t)dim + 7) / 8);
         id<MTLBuffer> bx = new_buffer(d, floats * 4, MTLResourceStorageModeShared);
         id<MTLBuffer> bc = new_buffer(d, code_bytes, MTLResourceStorageModeShared);
         if (!bx || !bc) return TURBO_E_OUT_OF_MEMORY;

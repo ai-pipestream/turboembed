@@ -95,3 +95,47 @@ fn metal_codes_match_host_byte_for_byte() {
         }
     }
 }
+
+#[test]
+fn metal_codes_of_several_rows_stay_inside_their_slice() {
+    let test = "metal_codes_of_several_rows_stay_inside_their_slice";
+    if !require_or_skip(test, "metal", "METAL") {
+        return;
+    }
+    // Each row is padded to whole bytes on its own, so 3 rows of 9 values
+    // take 6 ubinary bytes; a byte past them must keep its canary.
+    let rows = 3;
+    for dim in [8usize, 9, 16, 17] {
+        let x: Vec<f32> = (0..rows * dim).map(|i| ((i * 7 % 11) as f32) - 5.0).collect();
+        let ranges: Vec<f32> = (0..dim).map(|_| -5.0).chain((0..dim).map(|_| 5.0)).collect();
+        for (q, code) in [(Quantization::Int8, TURBO_QUANTIZE_INT8), (Quantization::UBinary, TURBO_QUANTIZE_UBINARY)] {
+            let want_len = rows * q.row_bytes(dim);
+            let mut want = vec![0u8; want_len];
+            quantize::rows(q, &x, dim, &ranges, &mut want);
+            let mut got = vec![0xa5u8; want_len + 1];
+            turbo::metal::quantize(0, code, &x, &ranges, rows as i32, dim as i32, &mut got[..want_len])
+                .unwrap_or_else(|e| panic!("metal quantize {q:?} dim {dim}: status {e}"));
+            assert_eq!(&got[..want_len], &want[..], "metal {q:?} {rows} rows of dim {dim}");
+            assert_eq!(got[want_len], 0xa5, "metal {q:?} dim {dim} wrote past its codes");
+        }
+    }
+}
+
+#[test]
+fn metal_quantize_refuses_slices_under_the_shape() {
+    let test = "metal_quantize_refuses_slices_under_the_shape";
+    if !require_or_skip(test, "metal", "METAL") {
+        return;
+    }
+    let x = vec![1.0f32; 8];
+    let ranges = vec![0.0f32; 8];
+    let mut out = vec![0xa5u8; 8];
+    let short_out = turbo::metal::quantize(0, TURBO_QUANTIZE_INT8, &x, &ranges, 2, 4, &mut out[..7]);
+    let short_x = turbo::metal::quantize(0, TURBO_QUANTIZE_INT8, &x[..7], &ranges, 2, 4, &mut out);
+    let short_ranges = turbo::metal::quantize(0, TURBO_QUANTIZE_INT8, &x, &ranges[..7], 2, 4, &mut out);
+    let ubinary_rows = turbo::metal::quantize(0, TURBO_QUANTIZE_UBINARY, &x, &[], 2, 4, &mut out[..1]);
+    for (what, rc) in [("out", short_out), ("x", short_x), ("ranges", short_ranges), ("ubinary out", ubinary_rows)] {
+        assert_eq!(rc, Err(turbo::status::INVALID_ARGUMENT), "metal: short {what}");
+    }
+    assert_eq!(out, vec![0xa5u8; 8], "metal: a refused call writes nothing");
+}
