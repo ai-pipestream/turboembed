@@ -276,7 +276,6 @@ final class Runs {
       recorders.add(LanguageDump.of(languages));
     }
 
-    annotators.addAll(NormalizerGolden.all());
     annotators.addAll(NumberGolden.all());
     annotators.addAll(MoneyGolden.all(moneySnapshot));
     annotators.addAll(QuantityGolden.all());

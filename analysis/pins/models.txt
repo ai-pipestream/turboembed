@@ -32,8 +32,8 @@
 # Bundles checked in under testdata/.
 blobs/sha256/273ee3dfe946989a27a68e37d58e1dd7bc537c06b404075279f02a1b640b91f7  bundle  testdata/tiny-bert-bundle
 blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
-blobs/sha256/b6add53969bdad1b84c5aef1847b21e3eeabb836e58dfe3f2b109c41d3720f53  bundle  testdata/tiny-modernbert-bundle
-blobs/sha256/c65bddf47ed7a956d0589d9e0408481ea5a0a2658c7aabd2f3d25c80ab739484  bundle  testdata/tiny-nomic-bundle
+blobs/sha256/223fe30ed3eec3abac9281ae1cc543d634eab145b3286fe9887a87273bf9d231  bundle  testdata/tiny-modernbert-bundle
+blobs/sha256/8b12f898db464a68fa09e1bb996472c0c2ece0564daad20e6a3ffc332fb0ecd5  bundle  testdata/tiny-nomic-bundle
 blobs/sha256/a84dc0f5806a827fba920bbd2f1f3a459cd53546381f2128de216742ff24daac  bundle  testdata/tiny-sat-bundle
 blobs/sha256/9236265aedb7df4ffa76d1c3351cc3dd36343e2b718c274b91910bac6a2a3456  bundle  testdata/tiny-static-bundle
 
@@ -106,6 +106,7 @@ blobs/sha256/3c520dec8d833a3594b15567d1de0c8c039a571c728fbf2a6247d4fa885a64b4  b
 blobs/sha256/1c3b7bc10bd32729227801704b9e22f9a333b50bd899e4494dc3e7d49f3afb21  bundle  sentence-transformers/all-MiniLM-L6-v2 revision 3 (RTX 4080 machine)
 blobs/sha256/8dc4c5f58d474c5714b2b5c33782a8ce8d14033c0b13336c9400301cff254842  bundle  BAAI/bge-m3 revision 1 (RTX 4080 machine)
 blobs/sha256/c38aa631f6b5a02f8f198ec6e9bbed4e98b8a3e7437032898950245458192c70  bundle  BAAI/bge-m3 revision 2 (RTX 4080 machine)
+blobs/sha256/4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52  bundle  FacebookAI/xlm-roberta-base revision 1, from bundle/recipes/xlm-roberta-base.json (RTX 4080 machine)
 blobs/sha256/1956a158b18b776704b5a15f7ebf1b0181f070a81163ac6955e0d50ac3c144c5  bundle  gliner2-base-v1 encoder bundle (fastino/gliner2-base-v1) (B70 machine)
 blobs/sha256/5e7f64fdadc68e8fd4710ca2b903213871a8e80f6496e6d8120294562a071b34  bundle  gliner-small-v2.1 encoder bundle (urchade/gliner_small-v2.1) (B70 machine)
 blobs/sha256/c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506  bundle  SaT 1l-sm, xlm-roberta tokenizer bundle (B70 machine)

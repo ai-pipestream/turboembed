@@ -74,12 +74,11 @@ pub fn lemma_samples(conllu: &str) -> std::result::Result<(Vec<LemmaSample<'_>>,
 }
 
 impl UdRecipe {
-    /// The model the recipe's model is gated against.
+    /// The model the recipe is gated against.
     ///
     /// # Errors
     ///
-    /// [`Error::NoReference`] for the part-of-speech taggers, which have
-    /// none since #1646.
+    /// [`Error::NoReference`] when the recipe has no reference model.
     pub fn reference(&self) -> Result<crate::Reference> {
         self.reference.ok_or(Error::NoReference { recipe: self.model_id })
     }

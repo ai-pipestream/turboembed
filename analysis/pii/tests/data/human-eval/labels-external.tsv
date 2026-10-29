@@ -484,3 +484,9 @@ test-payment-cards	32910	32926	card	4462030000000000
 test-payment-cards	32931	32950	card	4917610000000000003
 test-payment-cards	32977	32993	card	4917300800000000
 test-payment-cards	33020	33036	card	4484070000000000
+uphold-itin-validator	639	650	us-itin	900-70-0000
+uphold-itin-validator	675	684	us-itin	900700000
+uphold-itin-validator	1148	1159	us-itin	900-70-0000
+uphold-itin-validator	1188	1197	us-itin	900700000
+kontist-validate-steuerid	402	413	de-steuer-id	65929970489
+kontist-validate-steuerid	445	456	de-steuer-id	26954371827

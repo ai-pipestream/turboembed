@@ -1652,3 +1652,161 @@ __kernel void lstm_step(__global const float *proj, __global const long *index, 
     state_out[at] = st;
     out[row * width + (long)k * h + j] = st;
 }
+
+/* ---- The rotary families: ModernBERT and nomic-bert (#1461) ------------------
+ *
+ * The layer loop is in rotary.rs, on the F32 linear kernels above, with these
+ * kernels between: the lookup (the word row, plus the type row for
+ * nomic-bert, LayerNormed with or without a bias), the rotation of Q and K
+ * by each token's position in its row, the gated MLP's act(gate) * up, a
+ * LayerNorm into a second buffer (ModernBERT is pre-norm), a residual add,
+ * and attention over a sliding window. */
+
+/* A LayerNorm of n values from src into dst (which may be src), a group per
+ * row; b may be null for none. */
+void rotary_norm_row(__global const float *src, __global float *dst, int n, __global const float *w,
+                     __global const float *b, float eps) {
+    const int lid = get_local_id(0);
+    float s = 0;
+    for (int d = lid; d < n; d += BLOCK) s += src[d];
+    const float mean = work_group_reduce_add(s) / n;
+    float v = 0;
+    for (int d = lid; d < n; d += BLOCK) {
+        const float c = src[d] - mean;
+        v += c * c;
+    }
+    const float var = work_group_reduce_add(v) / n;
+    const float inv = 1.0f / sqrt(var + eps);
+    for (int d = lid; d < n; d += BLOCK) {
+        const float xn = (float)((src[d] - mean) * inv);
+        dst[d] = b ? xn * w[d] + b[d] : xn * w[d];
+    }
+}
+
+/* Each token's word row (plus its type row when type is not null),
+ * LayerNormed into x; also copies the mask, the row table and each token's
+ * position in its row to the device. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void rotary_embed(
+    __global const int *ids, __global const int *positions, __global const int *types, int has_types,
+    __global const int *mask, __global const int *rows, int batch, __global const float *word,
+    __global const float *type, __global const float *ln_w, __global const float *ln_b, float eps, int hidden,
+    __global float *x, __global int *packed_mask, __global int *device_rows, __global int *device_positions) {
+    const int t = get_group_id(0);
+    __global const float *wr = word + (size_t)ids[t] * hidden;
+    __global const float *tr = type ? type + (size_t)(has_types ? types[t] : 0) * hidden : 0;
+    __global float *row = x + (size_t)t * hidden;
+    for (int d = get_local_id(0); d < hidden; d += BLOCK) row[d] = tr ? wr[d] + tr[d] : wr[d];
+    if (get_local_id(0) == 0) {
+        packed_mask[t] = mask[t];
+        device_positions[t] = positions[t];
+    }
+    if (t < batch && get_local_id(0) < 2) device_rows[2 * t + get_local_id(0)] = rows[2 * t + get_local_id(0)];
+    barrier(CLK_GLOBAL_MEM_FENCE);
+    rotary_norm_row(row, row, hidden, ln_w, ln_b, eps);
+}
+
+/* x's rows LayerNormed into y, a group per token. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void rotary_norm(
+    __global const float *x, __global float *y, __global const float *w, __global const float *b, float eps,
+    int hidden) {
+    const size_t t = get_group_id(0);
+    rotary_norm_row(x + t * hidden, y + t * hidden, hidden, w, b, eps);
+}
+
+/* x += y over n values. */
+__kernel void rotary_add(__global float *x, __global const float *y, ulong n) {
+    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) x[i] = x[i] + y[i];
+}
+
+/* Q and K of qkv ([tokens, 3 * hidden]) rotated in place by each token's
+ * position: column c < half of a head turns with column c + half,
+ * y1 = x1 cos - x2 sin, y2 = x2 cos + x1 sin, cos and sin from the table
+ * ([positions][half] each) of the layer's base. A work-item per token, head,
+ * Q or K, and pair. */
+__kernel void rotary_rope(__global float *qkv, __global const int *positions, __global const float *cos_t,
+                          __global const float *sin_t, int hidden, int head_dim, int tokens) {
+    const int pw = head_dim / 2, heads = hidden / head_dim;
+    const size_t per = (size_t)2 * heads * pw;
+    const size_t n = (size_t)tokens * per;
+    for (size_t g = get_global_id(0); g < n; g += get_global_size(0)) {
+        const int t = g / per, rest = g % per;
+        const int which = rest / (heads * pw), hp = rest % (heads * pw);
+        const int head = hp / pw, p = hp % pw;
+        __global float *x = qkv + (size_t)t * 3 * hidden + which * hidden + head * head_dim;
+        const size_t at = (size_t)positions[t] * pw + p;
+        const float cs = cos_t[at], sn = sin_t[at];
+        const float x1 = x[p], x2 = x[p + pw];
+        x[p] = x1 * cs - x2 * sn;
+        x[p + pw] = x2 * cs + x1 * sn;
+    }
+}
+
+float rotary_silu(float v) { return v / (1.0f + exp(-v)); }
+
+/* out[t, j] = act(gate[t, j]) * up[t, j] for j < width, each operand at
+ * its own row stride: GELU (erf) for act 1, SiLU for act 2. */
+__kernel void rotary_gated(__global const float *gate, int ld_gate, __global const float *up, int ld_up,
+                           __global float *out, int width, int tokens, int act) {
+    const size_t n = (size_t)tokens * width;
+    for (size_t g = get_global_id(0); g < n; g += get_global_size(0)) {
+        const size_t t = g / width, j = g % width;
+        const float v = gate[t * ld_gate + j];
+        out[g] = (act == 2 ? rotary_silu(v) : gelu(v)) * up[t * ld_up + j];
+    }
+}
+
+/* attention over F32 qkv into ctx, a group per query, head and row, as the
+ * general kernel; with window >= 0 query i reads only the keys j with
+ * |i - j| <= window. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void rotary_attention(
+    __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
+    float scale, int window, __global float *ctx, __local float *sm) {
+    const int i = get_group_id(0), head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
+    const int start = rows[2 * r], len = rows[2 * r + 1];
+    if (i >= len) return;
+    const int lo = window < 0 ? 0 : max(0, i - window), hi = window < 0 ? len : min(len, i + window + 1);
+    __local float *qi = sm;
+    __local float *score = qi + head_dim;
+    const int lid = get_local_id(0);
+    const int lane = get_sub_group_local_id(), sg = get_sub_group_id();
+    const int lanes = get_max_sub_group_size(), groups_of_lanes = get_num_sub_groups();
+    const int stride = 3 * hidden, col = head * head_dim;
+    __global const int *m = mask + start;
+    __global const float *base = qkv + (size_t)start * stride + col;
+    for (int d = lid; d < head_dim; d += BLOCK) qi[d] = base[(size_t)i * stride + d];
+    barrier(CLK_LOCAL_MEM_FENCE);
+    for (int j = lo + sg; j < hi; j += groups_of_lanes) {
+        if (m[j] == 0) continue;
+        __global const float *krow = base + (size_t)j * stride + hidden;
+        float s = 0.0f;
+        for (int d = lane; d < head_dim; d += lanes) s += qi[d] * krow[d];
+        s = sub_group_reduce_add(s);
+        if (lane == 0) score[j] = s * scale;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    float mx = -INFINITY;
+    for (int j = lo + lid; j < hi; j += BLOCK)
+        if (m[j] != 0) mx = fmax(mx, score[j]);
+    mx = work_group_reduce_max(mx);
+    float sum = 0.0f;
+    for (int j = lo + lid; j < hi; j += BLOCK) {
+        float e = 0.0f;
+        if (m[j] != 0) {
+            e = exp(score[j] - mx);
+            sum += e;
+        }
+        score[j] = e;
+    }
+    sum = work_group_reduce_add(sum);
+    const float inv = 1.0f / sum;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    const size_t at = (size_t)(start + i) * hidden + col;
+    for (int d = lid; d < head_dim; d += BLOCK) {
+        float c = 0.0f;
+        for (int j = lo; j < hi; j++) {
+            if (m[j] == 0) continue;
+            c += score[j] * inv * base[(size_t)j * stride + 2 * hidden + d];
+        }
+        ctx[at + d] = c;
+    }
+}

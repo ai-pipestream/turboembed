@@ -12,7 +12,7 @@ use crate::digest::Sha256;
 use crate::index::{Artifact, File, Url};
 
 /// An S3 bucket, or a prefix in one, on AWS or any S3-compatible store
-/// (RustFS, MinIO). The bucket holds files the way [`turbo_zoo::Blobs`]
+/// (RustFS). The bucket holds files the way [`turbo_zoo::Blobs`]
 /// does, so a store copied there (`aws s3 sync <root> s3://bucket/zoo`)
 /// serves as is.
 #[derive(Clone)]
@@ -49,7 +49,7 @@ impl S3Bucket {
     }
 
     /// The bucket at `endpoint` (`http://host:port` or `https://host`,
-    /// addressed path-style, as RustFS and MinIO serve), or on AWS when
+    /// addressed path-style, as RustFS serves), or on AWS when
     /// none is given, read with `creds`, or unsigned without.
     pub fn with(
         address: &str,

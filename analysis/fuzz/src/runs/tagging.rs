@@ -1,16 +1,16 @@
-//! The runs over tokens: the part-of-speech taggers and the lemmatizers.
-//! With a golden, they run on the JVM's own sentences, tokens and tags
-//! loaded from it (`turbo_goldens::load_document`), as the crates' golden
-//! tests do, so a difference is the run's own. Without one they run on the
-//! simple tokenizer's tokens and the fixture tagger's tags, which is enough
-//! for the offset invariants.
+//! The runs over tokens: the part-of-speech taggers and dictionary
+//! lemmatizer. With a golden, they run on the JVM's own sentences, tokens and
+//! tags loaded from it (`turbo_goldens::load_document`), as the crates'
+//! golden tests do, so a difference is the run's own. Without one they run
+//! on the simple tokenizer's tokens and the fixture tagger's tags, which
+//! is enough for the offset invariants.
 
 use std::sync::Arc;
 
-use turbo_analysis::{Analyzer, Bound, Document};
-use turbo_analysis_layers::{Confidence, Lemmas, PosTags, Tokens};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Layer, Refs, Tag, TagSet, View};
+use turbo_analysis_layers::{Lemmas, PosTags, Tokens};
 use turbo_goldens::{GOLDEN_KEY, Golden, Tolerance, golden_key, load_document, matches_golden};
-use turbo_lemmatizer::{DictionaryLemmatizer, LemmatizerModel, MaxentLemmatizer};
+use turbo_lemmatizer::DictionaryLemmatizer;
 use turbo_postag::{PosModel, PosTagFormat, PosTagger};
 use turbo_tokenize::{SimpleTokenizer, TokenizerOptions};
 
@@ -25,13 +25,6 @@ const FIXTURE_TAGGERS: [&str; 2] = ["pos-fixture", "pos-fixture-rust"];
 
 fn broken(what: impl std::fmt::Display) -> Unavailable {
     Unavailable::Broken(what.to_string())
-}
-
-/// The fixture tagger the plain pipelines tag with.
-fn fixture_tagger(res: &Resources, format: PosTagFormat) -> Result<PosTagger, Unavailable> {
-    let path = res.fixture("pos-fixture.bin")?;
-    let model = PosModel::read(&path).map_err(|e| broken(format!("{}: {e}", path.display())))?;
-    Ok(PosTagger::new(model.with_format(format)))
 }
 
 /// A document of `text` with the golden's layers, or of the text alone.
@@ -118,54 +111,56 @@ fn default_check(run: &dyn Run, text: &str, golden: &Golden) -> super::Checked {
     }
 }
 
-/// `LemmatizerME` with a published model, or `DictionaryLemmatizer` with
-/// the fixture dictionary.
-pub(crate) struct Lemmatizer {
-    on_golden: Analyzer,
-    plain: Analyzer,
-    confidence: bool,
+/// A deterministic majority-tag baseline used instead of a model file.
+struct BaselinePos {
+    tagset: Arc<TagSet>,
 }
 
-impl Lemmatizer {
-    pub(crate) fn open_maxent(model: &str, res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let path = if model == "lemma-fixture-rust" {
-            res.fixture(&format!("{model}.bin"))?
-        } else {
-            res.model(&format!("{model}.bin"))?
-        };
-        let m = Arc::new(LemmatizerModel::read(&path).map_err(|e| broken(format!("{}: {e}", path.display())))?);
-        Lemmatizer::build(|| MaxentLemmatizer::new(m.clone()), true, res)
+impl BaselinePos {
+    fn new() -> Self {
+        Self { tagset: TagSet::new("upos", &["NOUN"]) }
     }
+}
 
-    pub(crate) fn open_dictionary(res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
+impl Annotator for BaselinePos {
+    const ID: &'static str = "turbo-fuzz:baseline-pos";
+    type Reads = (View, Tokens);
+    type Writes = (PosTags,);
+
+    fn annotate(&self, (_, tokens): Refs<'_, Self>) -> Result<(PosTags,), turbo_analysis::Error> {
+        Ok((PosTags { tagset: self.tagset.clone(), tags: vec![Tag(0); tokens.len()], prob: None },))
+    }
+}
+
+/// The no-model dictionary lemmatizer with the checked-in fixture.
+pub(crate) struct DictionaryRun {
+    on_golden: Analyzer,
+    plain: Analyzer,
+}
+
+impl DictionaryRun {
+    pub(crate) fn open(res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
         let path = res.fixture("lemmatizer-dictionary.txt")?;
         let read =
             || DictionaryLemmatizer::read(&path, "fixture").map_err(|e| broken(format!("{}: {e}", path.display())));
         read()?;
-        Lemmatizer::build(|| read().expect("the dictionary read once already"), false, res)
-    }
-
-    fn build<A>(make: impl Fn() -> A, confidence: bool, res: &Resources) -> Result<Box<dyn Run>, Unavailable>
-    where
-        A: turbo_analysis::Annotator<Reads = (turbo_analysis::View, Tokens, PosTags)> + 'static,
-    {
         let on_golden = Analyzer::builder()
             .given(golden_key::<Tokens>())
             .given(golden_key::<PosTags>())
-            .step(Bound::new(make()).read(1, GOLDEN_KEY).read(2, GOLDEN_KEY))
+            .step(Bound::new(read().expect("the dictionary read once already")).read(1, GOLDEN_KEY).read(2, GOLDEN_KEY))
             .build()
             .map_err(broken)?;
         let plain = Analyzer::builder()
             .add(SimpleTokenizer::new(TokenizerOptions::default()))
-            .add(fixture_tagger(res, PosTagFormat::Ud)?)
-            .add(make())
+            .add(BaselinePos::new())
+            .add(read().expect("the dictionary read once already"))
             .build()
             .map_err(broken)?;
-        Ok(Box::new(Lemmatizer { on_golden, plain, confidence }))
+        Ok(Box::new(DictionaryRun { on_golden, plain }))
     }
 }
 
-impl Run for Lemmatizer {
+impl Run for DictionaryRun {
     fn annotate(&self, text: &str, golden: Option<&Golden>) -> Result<Document, RustError> {
         match golden {
             Some(_) => analyze_document(&self.on_golden, document(text, golden)?),
@@ -177,11 +172,7 @@ impl Run for Lemmatizer {
         if let Some(skipped) = cut(golden) {
             return skipped;
         }
-        let lemmas = outcome(matches_golden::<Lemmas>(doc, golden, Tolerance::exact()));
-        if lemmas != Outcome::Match || !self.confidence {
-            return lemmas;
-        }
-        outcome(matches_golden::<Confidence<Lemmas>>(doc, golden, Tolerance::exact()))
+        outcome(matches_golden::<Lemmas>(doc, golden, Tolerance::exact()))
     }
 
     fn check(&self, text: &str, golden: &Golden) -> super::Checked {
