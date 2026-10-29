@@ -59,11 +59,44 @@ turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bun
     [--device cpu|cuda|levelzero|metal] [--precision model|exact] [--pooling first|mean]
     [--crf] [--bilstm <hidden>x<layers>] [--seed N] [--epochs N] [--batch N] [--lr X]
     [--patience N] [--max-train N] [--commit <sha>]
+turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    --layers N [--device ..] [--precision ..] [--pooling first|mean] [--max-batch N]
+    [--splits train,dev,test] [--commit <sha>]
+turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
+    (--layer N | --mix [--from-layer N]) [--crf] [--bilstm ..] [--hash-embed ..] [training settings]
 turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
 turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 ```
+
+`cache` (#1616) reads every split once and writes each word's features
+at the encoder's last N layers, so heads on any one layer, or on a
+learned mix of them, train without the encoder: `cache.json`
+(`cache::CacheRecord`: command, commit, corpus record, encoder, pooling,
+the layers counted from 1, and per split its sentences, words and files)
+and `<split>.layer<NN>.f32`, [words, hidden] little-endian f32 in corpus
+order. `cache::read_layer` reads one split at one layer back, checked
+against the corpus's sentences and the file size. The layers come from
+the core's per-layer taps (`turbo_embed_write_layer_ranges`): CPU, BERT,
+RoBERTa, ModernBERT and nomic encoders. A run holds a window's words at
+every layer, so `--max-batch` is raised to N when lower. A cache is
+[words, hidden, layers] f32: MultiCoNER v2 English's train and dev
+(some 250,000 words) at all 22 layers of ModernBERT-base is about 17 GB,
+and its 249,980-sentence test split many times that, so `--splits`
+names the splits to read (all three by default).
+
+`fit-cache` trains a head on a cache's train split and scores it on its
+dev split, without the encoder: on one layer (`--layer N`; on the last
+layer it is the run `train` makes, epoch for epoch), or on a learned mix
+of the cached layers from `--from-layer` on (`--mix`: ELMo's scalar
+mix, `turbo_trainer::mix`, a softmax weight a layer and a gain, trained
+with the head). It writes `head.safetensors`, `head.json` and
+`fit.json` (`fit_cache::FitRecord`: the cache's record, the layers, the
+mix's weights and gain, the head, the settings, and the loss and dev
+score each epoch). Comparing the best single layer's dev score with the
+mix's is #1616's step 2; the winner is then scored on test through the
+encoder.
 
 `train-lemma` trains the edit-tree lemmatizer (`lemma` on
 `turboembed:lemmas`) over the trees that come up at least
@@ -107,6 +140,7 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
     cargo test --release -p turbo-trainer-recipes
 ```
 
-Not yet here: bundle output (a sealed bundle carrying the head), the
-learned mix of the last layers, WNUT-17 and MASC named entities, and
-a lemmatizer that reads the tagger's UPOS (`pos_input`).
+Not yet here: bundle output (a sealed bundle carrying the head),
+a core head that reads a mix of layers (only if the mix wins, #1616),
+WNUT-17 and MASC named entities, and a lemmatizer that reads the
+tagger's UPOS (`pos_input`).

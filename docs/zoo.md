@@ -405,6 +405,13 @@ another way overrides it (#1613).
   request on. When none has it, the error names what each said. A
   typical list is the local store, then a zoo server, then `Http`
   for the index's own address.
+- `Sources::then_keep(name, store)` adds a `Blobs` store that also keeps
+  every file a later source serves, once it verifies, so the next read
+  is local. A file it cannot keep is still handed over.
+
+`turbo-zoo-remote` (top-level `zoo-remote/`) adds the remote sources: a
+zoo server over `grpc://` or `grpcs://`, an S3 bucket in the same layout
+over `s3://`, and the `TURBO_ZOO_SOURCE` list that names them.
 
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.

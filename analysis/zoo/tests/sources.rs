@@ -220,3 +220,41 @@ fn a_symlinked_directory_inside_the_store_is_neither_written_through_nor_read() 
     assert_eq!(through.get_file(a, f).unwrap(), TEXT);
     assert!(real.0.join("blobs/sha256").join(f.sha256.to_string()).is_file());
 }
+
+/// Serves TEXT_GZ and counts the requests in a counter the test keeps.
+struct Remote(std::sync::Arc<AtomicUsize>);
+
+impl Transport for Remote {
+    fn get(&self, _url: &Url, _size: u64) -> Result<Vec<u8>, String> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Ok(TEXT_GZ.to_vec())
+    }
+}
+
+#[test]
+fn the_keeping_store_keeps_what_later_sources_serve_once_it_verifies() {
+    let (store, other) = (Dir::new("keep"), Dir::new("keep-other"));
+    let index = index();
+    let (a, f) = file_of(&index, "hello");
+    let asked = std::sync::Arc::new(AtomicUsize::new(0));
+    let sources = Sources::new().then_keep("local", Blobs::new(&store.0)).then("remote", Remote(asked.clone()));
+    assert_eq!(sources.get_file(a, f).unwrap(), TEXT);
+    // Kept unpacked, under the SHA-256 the index pins, and read from there
+    // next time without asking the remote again.
+    assert_eq!(fs::read(Blobs::new(&store.0).path(&f.sha256)).unwrap(), TEXT);
+    assert_eq!(sources.get_file(a, f).unwrap(), TEXT);
+    assert_eq!(asked.load(Ordering::SeqCst), 1);
+    // Bytes that fail the check are not kept.
+    let (sa, sf) = file_of(&index, "sa");
+    let wrong = Sources::new()
+        .then_keep("local", Blobs::new(&other.0))
+        .then("wrong", Always(b"x".to_vec(), AtomicUsize::new(0)));
+    assert!(wrong.get_file(sa, sf).is_err());
+    assert!(!Blobs::new(&other.0).path(&sf.sha256).exists());
+    // A store that cannot be written still hands the file over.
+    let file_root = other.0.join("a-file");
+    fs::create_dir_all(&other.0).unwrap();
+    fs::write(&file_root, b"not a directory").unwrap();
+    let blocked = Sources::new().then_keep("local", Blobs::new(&file_root)).then("remote", Remote(asked.clone()));
+    assert_eq!(blocked.get_file(a, f).unwrap(), TEXT);
+}
