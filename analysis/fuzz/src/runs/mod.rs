@@ -14,7 +14,6 @@
 
 mod catalog;
 mod confusables_17;
-mod language;
 mod normalize;
 mod numeric;
 mod pii;

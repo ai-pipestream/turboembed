@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use turbo_jvm::random::JavaRandom;
 use turbo_train_recipes::Error;
 use turbo_train_recipes::langdetect::{
-    EXPORT, ExcludedLanguage, ExportRecord, LanguagePair, LanguageRecipe, Split, check_export,
+    EXPORT, ExcludedLanguage, ExportRecord, LanguagePair, LanguageRecipe, Split, check_export, run,
 };
 use turbo_train_recipes::tatoeba::{Export, SentenceLicence, TatoebaError};
 use turbo_zoo::{Licence, LicenceClass};
@@ -199,4 +199,15 @@ fn an_export_is_a_release_only_when_it_is_the_recorded_one() {
     // The recipe records Tatoeba's export of 2026-10-10, not this one.
     assert_eq!(EXPORT.digest(), Some("4421126b36dc0ce206b222296d696aff04a399620f1ca5dbefbfa50a1890aa92"));
     assert!(!EXPORT.is(EXPORT_DIGEST));
+}
+
+#[test]
+fn classical_run_and_gate_are_retired() {
+    let export = export();
+    let error = run(&TEST, &export, false, &[]).unwrap_err();
+    assert!(matches!(error, Error::Model(_)));
+
+    let mut plan = TEST.plan(TEST.sentences(&export).unwrap()).unwrap();
+    let error = TEST.gate(&[], &[], &mut plan, "test", "0").unwrap_err();
+    assert!(matches!(error, Error::Model(_)));
 }

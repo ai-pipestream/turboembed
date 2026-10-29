@@ -110,9 +110,8 @@ match the JVM bit for bit:
   `HashMapOrder`, `put_order` and `JavaHashMap` reproduce JDK 21's
   `HashMap` table sizing, bin splitting, red-black tree bins and
   iteration order for `new HashMap<>()`, `new HashMap<>(n)`, `put`,
-  `merge`, `putAll` and `clear`, used by `turbo-langdetect`,
-  `turbo-namefind`, `turbo-sequence`, `turbo-bpe-trainer` and
-  `turbo-formats`.
+  `merge`, `putAll` and `clear`, used by `turbo-namefind`,
+  `turbo-sequence`, `turbo-bpe-trainer` and `turbo-formats`.
 
 It is checked against vectors a JDK 21 wrote; `analysis/jvm/README.md`
 says how to regenerate them.
@@ -3106,7 +3105,6 @@ The generator writes these layers, in this order within a golden:
 |---|---|
 | `sentdetect` (`SentenceDetectorME.sentPosDetect`) | `opennlp:sentences`, `turbo:utf16<opennlp:sentences>` when a sentence cuts a character, `turbo:confidence<opennlp:sentences>` |
 | `tokenize` (`TokenizerME.tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:confidence<opennlp:tokens>` |
-| `langdetect` (native character n-gram prediction) | `opennlp:language` |
 | `postag` (`POSTaggerME.tag` on each sentence `SentenceDetectorME` and `TokenizerME` cut) | `opennlp:sentences` and `opennlp:tokens` as above, then `opennlp:pos` aligned to the tokens (`tag:str`, `prob:f64` from `probs()`) |
 | `lemmatize` (`LemmatizerME.lemmatize` on each sentence, tagged by `POSTaggerME`) | `opennlp:sentences`, `opennlp:tokens` and `opennlp:pos` as above, then `opennlp:lemmas` aligned to the tokens (`lemma:str`) and `turbo:confidence<opennlp:lemmas>` (`value:f64` from `probs()`) |
 | `lemmatize-dictionary` (`DictionaryLemmatizer.lemmatize`) | the same without the confidence; `O` where the dictionary has no entry |
@@ -3232,8 +3230,8 @@ least one row cuts a character, so every other golden is as it was.
 
 > **Being retired under #1509 (delete when #1530 lands):** Maxent decision point dumps (`.dump`) are frozen and slated for deletion with `analysis/goldens` in #1530.
 
-Beside each golden of `sentdetect`, `tokenize`, `postag`, `lemmatize`, `chunk`
-and `langdetect` that names a model and has no error record,
+Beside each golden of `sentdetect`, `tokenize`, `postag`, `lemmatize` and
+`chunk` that names a model and has no error record,
 `<annotator>/<model>/<set>/<id>.dump` records every
 decision the annotator asked its maxent model for on that input: the
 context strings the context generator produced and the probability of

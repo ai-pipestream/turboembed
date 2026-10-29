@@ -1126,45 +1126,32 @@ assets. The recipe trains on one with `--unrecorded-export`; on a
 machine that can reach Tatoeba:
 
 ```
-mkdir -p tatoeba/archives tatoeba/export models
+mkdir -p tatoeba/archives tatoeba/export
 curl -fL -o tatoeba/archives/sentences_detailed.tar.bz2 https://downloads.tatoeba.org/exports/sentences_detailed.tar.bz2
 curl -fL -o tatoeba/archives/sentences_CC0.tar.bz2 https://downloads.tatoeba.org/exports/sentences_CC0.tar.bz2
 tar -xjf tatoeba/archives/sentences_detailed.tar.bz2 -C tatoeba/export
 tar -xjf tatoeba/archives/sentences_CC0.tar.bz2 -C tatoeba/export
-cargo run -p turbo-goldens-tool -- fetch-models models
-cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
-    --references models --out run-a --unrecorded-export
-cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
-    --references models --out run-b --unrecorded-export
-cmp run-a/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin \
-    run-b/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba/export/sentences_detailed.csv tatoeba/export/sentences_CC0.csv \
+  <web-ranges-dir> run-a
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba/export/sentences_detailed.csv tatoeba/export/sentences_CC0.csv \
+  <web-ranges-dir> run-b
+cmp run-a/langid.ngram run-b/langid.ngram
 ```
 
-Each run prints the export's digest, the CC0 file's counts, the
-languages trained on and left out, and the gate. To record the run:
+Each run prints the export's digest, the native model's SHA-256, the
+training and held-out counts, and exact held-out accuracy. To record the
+run:
 
 1. Re-check the licence values in tatoeba2's current source and record
-   the commit checked: `docs/database/tables/sentences.sql` still gives
-   `license` the values `CC BY 2.0 FR` and `CC0 1.0` and no other,
-   `src/Lib/Licenses.php` lists no other sentence licence, and
-   `docs/database/scripts/weekly_exports.sql` still selects the detailed
-   file with `license != ''` and the CC0 file with `license = 'CC0 1.0'`,
-   in the same columns. If any of them changed, the reader's licence
-   classification (`tatoeba`) must be revised before a run is recorded.
-2. Check that both files are of one weekly export: `tar -tvjf` on each
-   archive gives its file's time, and the two must be of one run of
-   Tatoeba's export (written one after the other, not days apart).
-3. Set `langdetect::EXPORT` to the digest, and check the card's
-   `other_languages` and `excluded_languages` for a Tatoeba code the
-   table spells differently.
-4. Record here, from `card.json` and `gate.json`, the export's digest
-   and file sizes, the CC0 file's `cc0_records`, `cc0_differing` and
-   `cc0_not_in_detailed`, the languages and sentences on each side
-   (`per_language`: `sentences`, `licence_left_out`, `duplicates`,
-   `training`, `held_out`, and each model's correct count), the
-   languages left out with their counts, the gate's scores and
-   interval, and the model's size and SHA-256 and the size and SHA-256
-   of `training-sentences.txt` from both runs.
+   the commit checked. If they changed, revise `tatoeba` before recording.
+2. Check that both archives are of one weekly export by their tar times.
+3. Set `langdetect::EXPORT` to the digest and check the language counts
+   for any new or differently named codes.
+4. Record the native receipt's training and held-out counts, correct
+   count, accuracy, model SHA-256, and the `training-sentences.txt`
+   attribution digest from both runs.
 5. Keep the archives in a release of their own, list them in
    `tatoeba-export.txt`, and name the model's release in
    `release::MODELS_RELEASES`.
@@ -1938,18 +1925,10 @@ holding a training sentence are passed over, while a window holding
 another language's sentence, or a sentence too short to be looked for,
 is kept. A changed byte, a missing range, a range or a file not
 listed, a file the recipe does not read and a footer prefix too short
-for the rows wanted are refused. It runs the recipe end to end on the
-export of `tests/data/tatoeba` and web files of the nine languages
-`tests/langdetect.rs` uses, made of common words of each, with the
-language fixture as the reference and as the compared model: the same
-bytes from a second training, Turkish trained on its windows alone,
-the Tatoeba gate's held-out set the same as the Tatoeba recipe's, both
-gates and both comparisons with the trained model's side the same in
-each pair, the card's counts, the model's directory, and the card's
-zoo entry, refused for a model no recipe trains, one gated against
-another reference, a failed gate, an unrecorded export and unrecorded
-web lists, and made with its three files once none of those holds. It
-also runs the binary: `fineweb-ranges --paths` lists the 204 files,
+for the rows wanted are refused. Native training is checked separately
+by `langid` tests. The retired `langdetect_web::run` and `score` return
+explicit errors, with tests for those paths. The binary checks
+`fineweb-ranges --paths`, which lists the 204 files,
 `--need` with nothing fetched asks for each file's last 8 bytes,
 `--record` refuses ranges not fetched, a flag a command does not read
 is refused, and `tatoeba-fineweb` without its two models or its web

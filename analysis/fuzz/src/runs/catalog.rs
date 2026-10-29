@@ -1,6 +1,5 @@
 //! Every run by name, and the one that opens it.
 
-use super::language::Detector;
 use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
@@ -14,7 +13,7 @@ use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
 /// does not cover: the training stack (`train`, `train-events`,
-/// `train-langdetect`, `train-liblinear`), the format readers (`formats`,
+/// `train-liblinear`), the format readers (`formats`,
 /// `masc`, `ner`, `corpora`, `ad`) and the parse and head rule readers (`parse`,
 /// `head-rules`) compare files, not layers of a text; the evaluators and the
 /// cross-validators (`cross-validate`) compare scores; the detokenizer
@@ -40,10 +39,9 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 27] = [
+pub const NOT_COVERED: [&str; 26] = [
     "train",
     "train-events",
-    "train-langdetect",
     "train-liblinear",
     "formats",
     "evaluate",
@@ -209,7 +207,6 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "lattice" => Lattice::open(base, &options, res),
         "postag" => Tagger::open(base, &options, res),
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => DictionaryRun::open(res),
-        "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
         "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
