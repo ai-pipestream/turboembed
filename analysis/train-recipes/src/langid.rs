@@ -1,4 +1,4 @@
-//! Language identification trained on Tatoeba sentences (#1525).
+//! Native language identification on the pinned Tatoeba and FineWeb plans (#1525).
 
 use std::path::{Path, PathBuf};
 
@@ -7,6 +7,17 @@ use turbo_langdetect::{NgramModel, ngram::MODEL_ENTRY};
 use turbo_trainer::langid::{Config, Example, train};
 
 use crate::error::{Error, Result};
+use crate::fineweb::WebPlan;
+use crate::langdetect::{LANGDETECT, Plan};
+
+/// A native model and its exact held-out coverage.
+#[derive(Debug)]
+pub struct NativeOutcome {
+    pub model: NgramModel,
+    pub training: usize,
+    pub held_out: usize,
+    pub correct: usize,
+}
 
 /// Trains a loadable language identification model on `(text, language)` pairs.
 pub fn train_langid(samples: &[(String, String)], languages: &[String], model_ref: ModelRef) -> Result<NgramModel> {
@@ -18,6 +29,36 @@ pub fn train_langid(samples: &[(String, String)], languages: &[String], model_re
     let (weights, bias) = train::<f32>(&examples, languages.len(), &config);
     NgramModel::from_trained(languages.to_vec(), weights, bias, config.ngram_range, config.buckets, model_ref)
         .map_err(|e| Error::Model(e.to_string()))
+}
+
+/// Trains and scores on the checked Tatoeba plan and optional checked web plan.
+pub fn train_planned(plan: &Plan, web: Option<&WebPlan>, model_ref: ModelRef) -> Result<NativeOutcome> {
+    let languages: Vec<String> = LANGDETECT.languages.iter().map(|p| p.tatoeba.to_owned()).collect();
+    let mut samples = Vec::new();
+    for sample in &plan.training {
+        samples.push((sample.text.to_string(), languages[sample.language].clone()));
+    }
+    if let Some(web) = web {
+        for sample in &web.training {
+            samples.push((sample.window.clone(), languages[sample.language].clone()));
+        }
+    }
+    let model = train_langid(&samples, &languages, model_ref)?;
+    let mut held_out = plan.held_out.len();
+    let mut correct = plan
+        .held_out
+        .iter()
+        .filter(|sample| model.predict(&sample.text).is_some_and(|p| p == languages[sample.language]))
+        .count();
+    if let Some(web) = web {
+        held_out += web.held_out.len();
+        correct += web
+            .held_out
+            .iter()
+            .filter(|sample| model.predict(&sample.window).is_some_and(|p| p == languages[sample.language]))
+            .count();
+    }
+    Ok(NativeOutcome { model, training: samples.len(), held_out, correct })
 }
 
 /// Writes the native model entry into `dir` and returns its path.
