@@ -82,10 +82,9 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 43] = [
+pub const INPUT_SETS: [&str; 42] = [
     "en",
     "multi",
-    "norm",
     "num",
     "money",
     "quantity",
@@ -139,7 +138,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 46] = [
+pub const ANNOTATORS: [&str; 45] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -147,7 +146,6 @@ pub const ANNOTATORS: [&str; 46] = [
     "lemmatize-dictionary",
     "chunk",
     "langdetect",
-    "normalize",
     "numbers",
     "money",
     "money-convert",
@@ -196,11 +194,7 @@ pub const ANNOTATORS: [&str; 46] = [
 /// annotators, the detokenizer, the WordPiece encoder,
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
-
-/// The input set the normalizers run on. They run on no other set, and the
-/// other annotators do not run on this one.
-pub const NORMALIZER_INPUT_SET: &str = "norm";
+pub const DUMPED_ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "postag", "lemmatize", "langdetect"];
 
 /// The input set the number scan runs on. It runs on no other set, and the
 /// other annotators do not run on this one.

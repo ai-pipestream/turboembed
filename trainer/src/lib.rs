@@ -9,17 +9,22 @@
 //! Every op is generic over [`Real`]: training runs in f32, and the
 //! gradient checks run the same code in f64 against finite differences.
 //! A run is deterministic: the seed fixes the initial weights and the
-//! data order, gradients are summed in a fixed order, and nothing runs
-//! on more than one thread, so two runs give identical bytes.
+//! data order, and gradients are summed in a fixed order whatever the
+//! thread count (a batch's examples run in parallel, each into its own
+//! buffer), so two runs give identical bytes.
 
 pub mod adamw;
 pub mod adapter;
+mod batch;
 pub mod crf;
 pub mod fit;
+pub mod fit_lemma;
 pub mod fit_parse;
+pub mod lemma;
 pub mod linear;
 pub mod logspace;
 pub mod lstm;
+pub mod mix;
 pub mod parser;
 pub mod real;
 pub mod rng;
@@ -27,8 +32,10 @@ mod shapes;
 pub mod tagger;
 pub mod xent;
 
-pub use fit::{Config, Example, Report, fit};
-pub use fit_parse::{ParseExample, fit_parser};
+pub use fit::{Config, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
+pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};
+pub use fit_parse::{ParseExample, fit_parser, fit_parser_with};
+pub use lemma::Lemmatizer;
 pub use parser::Parser;
 pub use real::Real;
 pub use tagger::Tagger;

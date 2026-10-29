@@ -24,6 +24,9 @@ fn spec(decode: Decode, adapter: Option<(u32, u32)>) -> HeadSpec {
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
         biaffine: None,
+        pos_input: None,
+        hash_embed: None,
+        license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),
     }

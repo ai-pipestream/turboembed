@@ -13,6 +13,18 @@ keeps it: the cache under `artifacts/<id>/` and the acceptance file
 the same cache and the same acceptances. `--catalog-index FILE` serves
 that index instead of the built-in one.
 
+`--catalog-store URL` puts a content-addressed store in front of the
+index's own addresses: `file:///dir` (a directory) or
+`s3://bucket/prefix` (an S3 bucket on AWS, or on RustFS, MinIO or
+another S3-compatible store named by `AWS_ENDPOINT_URL`), both in the
+`blobs/sha256/<hex>` layout docs/zoo.md describes. An install reads each
+file from the store first and fetches it from its address only when the
+store lacks it, and the store then keeps it once it verifies. So
+servers that share one bucket fetch each file from its origin once, and
+a store seeded ahead (`aws s3 sync`) serves installs with no outside
+fetch. The bucket's credentials are the `AWS_*` variables the AWS tools
+read. A file the store cannot keep is still installed.
+
 ## The service
 
 | RPC | Admin | Answer |

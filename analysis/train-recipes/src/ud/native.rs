@@ -59,7 +59,7 @@ pub fn train(source: &UdRecipe, conllu: &str) -> Result<Trained> {
 /// caller must use `Treebank::read` to check corpus licence and file digests.
 pub fn run(source: &UdRecipe, text: &TreebankText, reference: &[u8]) -> Result<UdOutcome> {
     let recipe = UdRecipe { model_id: model_id(source)?, ..*source };
-    source.reference.check(reference)?;
+    source.reference()?.check(reference)?;
     source.check_data(text, reference)?;
     let trained = train(source, &text.train)?;
     let GateRun { record: gate, held_out } = recipe.gate(&trained.bytes, reference, recipe.held_out(text)?)?;

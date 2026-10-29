@@ -220,7 +220,6 @@ fn the_generator_names_the_same_input_sets() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
     for set in INPUT_SETS.iter().filter(|s| {
         ![
-            NORMALIZER_INPUT_SET,
             NUMBER_INPUT_SET,
             MONEY_INPUT_SET,
             QUANTITY_INPUT_SET,
@@ -252,11 +251,8 @@ fn the_generator_and_the_entrypoint_take_the_generator_args() {
 }
 
 #[test]
-fn the_dumped_annotators_and_the_normalizer_set_are_in_the_recipe() {
+fn the_dumped_annotators_are_in_the_recipe() {
     assert!(DUMPED_ANNOTATORS.iter().all(|a| ANNOTATORS.contains(a)));
-    assert!(INPUT_SETS.contains(&NORMALIZER_INPUT_SET));
-    let normalizer = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/NormalizerGolden.java");
-    assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
 }
 
 #[test]

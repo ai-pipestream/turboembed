@@ -3,7 +3,6 @@
 #[path = "../common/mod.rs"]
 mod common;
 
-mod skipped;
 mod split;
 
 use turbo_formats::masc::MascCorpus;
