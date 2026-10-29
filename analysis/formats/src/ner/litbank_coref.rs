@@ -146,11 +146,11 @@ impl<'a> LitbankCorefReader<'a> {
                                 text: format!("unmatched closing bracket for chain {chain}"),
                             }));
                         };
-                        let end = if stack.is_empty() { index - 1 } else { index.saturating_sub(2) };
+                        let end = index as usize - 1;
                         mentions.push(Mention {
                             chain,
-                            tokens: start..(end + 1),
-                            text: Span::new(tokens[start as usize].start, tokens[end as usize].end),
+                            tokens: start..index,
+                            text: Span::new(tokens[start as usize].start, tokens[end].end),
                         });
                     }
                 }
@@ -205,11 +205,23 @@ mod tests {
         let doc = reader.read_document().unwrap().unwrap();
         assert_eq!(doc.mentions.len(), 2);
         let inner = &doc.mentions[0];
-        assert_eq!(inner.tokens, 0..1);
-        assert_eq!(inner.text, Span::new(0, 3));
+        assert_eq!(inner.tokens, 0..2);
+        assert_eq!(inner.text, Span::new(0, 10));
         let outer = &doc.mentions[1];
         assert_eq!(outer.tokens, 0..2);
         assert_eq!(outer.text, Span::new(0, 10));
+    }
+
+    #[test]
+    fn nested_inner_mention_ends_on_its_closing_token() {
+        let text = "#begin document (test); part 0\ntest\t0\t0\ta\t_\t_\t_\t_\t_\t_\t_\t_\t(0\ntest\t0\t1\tb\t_\t_\t_\t_\t_\t_\t_\t_\t_\ntest\t0\t2\tc\t_\t_\t_\t_\t_\t_\t_\t_\t_\ntest\t0\t3\td\t_\t_\t_\t_\t_\t_\t_\t_\t(0\ntest\t0\t4\te\t_\t_\t_\t_\t_\t_\t_\t_\t_\ntest\t0\t5\tf\t_\t_\t_\t_\t_\t_\t_\t_\t0)\ntest\t0\t6\tg\t_\t_\t_\t_\t_\t_\t_\t_\t_\ntest\t0\t7\th\t_\t_\t_\t_\t_\t_\t_\t_\t0)\n\n#end document\n";
+        let mut reader = LitbankCorefReader::new(text).unwrap();
+        let doc = reader.read_document().unwrap().unwrap();
+        assert_eq!(doc.mentions.len(), 2);
+        assert_eq!(doc.mentions[0].tokens, 3..6);
+        assert_eq!(doc.mentions[0].text, Span::new(6, 11));
+        assert_eq!(doc.mentions[1].tokens, 0..8);
+        assert_eq!(doc.mentions[1].text, Span::new(0, 15));
     }
 
     #[test]
