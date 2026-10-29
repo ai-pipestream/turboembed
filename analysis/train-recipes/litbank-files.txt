@@ -1,4 +1,5 @@
-# The LitBank archive the coreference and entity recipes read,
-# with its size and SHA-256 at the pinned commit.
+# The LitBank files the coreference and entity recipes read,
+# with each file's size and SHA-256 at the pinned commit.
 # repo	revision	path	size	sha256
-dbamman/litbank	3e50db0ffc033d7ccbb94f4d88f6b99210328ed8	archive.tar.gz	29297133	1dc94ccf0ee6bcfb949f879d5786d15547b6295b9b3cd2ac727369cf771f3d20
+dbamman/litbank	3e50db0ffc033d7ccbb94f4d88f6b99210328ed8	entities/brat/155_the_moonstone_brat.ann	5112	e17fd9ba320c2110b4722ab8fbcbd5cbe6fb77412eda5e1800603e1b0293bf76
+dbamman/litbank	3e50db0ffc033d7ccbb94f4d88f6b99210328ed8	coref/conll/155_the_moonstone_brat.conll	102061	b8e64341442a49b38f3fa2db2787b41b2d9c8c9e48bd2e9105524e425a4aa0f6

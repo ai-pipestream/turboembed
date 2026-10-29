@@ -58,7 +58,7 @@ impl<'a> LitbankCorefReader<'a> {
         let mut tokens = Vec::new();
         let mut text = String::new();
         let mut mentions = Vec::new();
-        let mut open: HashMap<u32, Vec<u32>> = HashMap::new();
+        let mut open: HashMap<u32, Vec<(u32, u32)>> = HashMap::new();
         let mut sentence = 0u32;
         let mut index = 0u32;
         let mut began = false;
@@ -125,7 +125,7 @@ impl<'a> LitbankCorefReader<'a> {
                                     text: part.to_owned(),
                                 })
                             })?;
-                            open.entry(chain).or_default().push(tokens.len() as u32 - 1);
+                            open.entry(chain).or_default().push((tokens.len() as u32 - 1, line.number));
                         }
                     } else if let Some(id) = part.strip_suffix(')') {
                         let chain: u32 = id.parse().map_err(|_| {
@@ -134,25 +134,33 @@ impl<'a> LitbankCorefReader<'a> {
                                 text: part.to_owned(),
                             })
                         })?;
-                        let Some(start) = open.get_mut(&chain).and_then(|stack| stack.pop()) else {
+                        let Some(stack) = open.get_mut(&chain) else {
                             return Err(FormatError::Ner(super::NerError::LitbankCorefChain {
                                 line: line.number,
                                 text: format!("unmatched closing bracket for chain {chain}"),
                             }));
                         };
+                        let Some((start, _)) = stack.pop() else {
+                            return Err(FormatError::Ner(super::NerError::LitbankCorefChain {
+                                line: line.number,
+                                text: format!("unmatched closing bracket for chain {chain}"),
+                            }));
+                        };
+                        let end = if stack.is_empty() { index - 1 } else { index.saturating_sub(2) };
                         mentions.push(Mention {
                             chain,
-                            tokens: start..(tokens.len() as u32),
-                            text: Span::new(tokens[start as usize].start, token_end),
+                            tokens: start..(end + 1),
+                            text: Span::new(tokens[start as usize].start, tokens[end as usize].end),
                         });
                     }
                 }
             }
         }
 
-        if let Some((&chain, _)) = open.iter().find(|(_, stack)| !stack.is_empty()) {
+        if let Some((&chain, stack)) = open.iter().find(|(_, stack)| !stack.is_empty()) {
+            let opening_line = stack.last().map(|(_, line)| *line).unwrap_or(0);
             return Err(FormatError::Ner(super::NerError::LitbankCorefChain {
-                line: 0,
+                line: opening_line,
                 text: format!("unclosed opening bracket for chain {chain}"),
             }));
         }
@@ -167,6 +175,7 @@ impl<'a> LitbankCorefReader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ner::NerError;
 
     const TEXT: &str = "#begin document (test); part 0\ntest\t0\t0\tHello\t_\t_\t_\t_\t_\t_\t_\t_\t(0)\ntest\t0\t1\tworld\t_\t_\t_\t_\t_\t_\t_\t_\t_\n\n#end document\n";
 
@@ -195,19 +204,33 @@ mod tests {
         let mut reader = LitbankCorefReader::new(text).unwrap();
         let doc = reader.read_document().unwrap().unwrap();
         assert_eq!(doc.mentions.len(), 2);
+        let inner = &doc.mentions[0];
+        assert_eq!(inner.tokens, 0..1);
+        assert_eq!(inner.text, Span::new(0, 3));
+        let outer = &doc.mentions[1];
+        assert_eq!(outer.tokens, 0..2);
+        assert_eq!(outer.text, Span::new(0, 10));
     }
 
     #[test]
     fn unmatched_closing_bracket_is_an_error() {
         let text = "#begin document (test); part 0\ntest\t0\t0\tHello\t_\t_\t_\t_\t_\t_\t_\t_\t0)\n\n#end document\n";
         let mut reader = LitbankCorefReader::new(text).unwrap();
-        assert!(reader.read_document().is_err());
+        let err = reader.read_document().unwrap_err();
+        match err {
+            FormatError::Ner(NerError::LitbankCorefChain { line, .. }) => assert_eq!(line, 2),
+            other => panic!("unexpected error: {other}"),
+        }
     }
 
     #[test]
     fn unclosed_opening_bracket_is_an_error() {
         let text = "#begin document (test); part 0\ntest\t0\t0\tHello\t_\t_\t_\t_\t_\t_\t_\t_\t(0\n\n#end document\n";
         let mut reader = LitbankCorefReader::new(text).unwrap();
-        assert!(reader.read_document().is_err());
+        let err = reader.read_document().unwrap_err();
+        match err {
+            FormatError::Ner(NerError::LitbankCorefChain { line, .. }) => assert_eq!(line, 2),
+            other => panic!("unexpected error: {other}"),
+        }
     }
 }

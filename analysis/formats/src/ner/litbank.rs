@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn reads_a_brat_document() {
-        let dir = std::env::temp_dir().join("litbank-test");
+        let dir = std::env::temp_dir().join(format!("litbank-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let txt = dir.join("doc.txt");
         let ann = dir.join("doc.ann");
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn documents_lists_brat_files() {
-        let dir = std::env::temp_dir().join("litbank-docs-test");
+        let dir = std::env::temp_dir().join(format!("litbank-docs-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("a.txt"), "a").unwrap();
         std::fs::write(dir.join("a.ann"), "").unwrap();
