@@ -2972,12 +2972,14 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "protox",
+ "sha2",
  "tokio",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
  "turbo-kserve",
  "turbo-zoo",
+ "ureq",
 ]
 
 [[package]]

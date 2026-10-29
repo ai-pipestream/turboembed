@@ -234,6 +234,33 @@ impl<R: Real> Tagger<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        self.loss_inner(features, forms, gold, grads, w, None)
+    }
+
+    /// As [`loss_forms`](Self::loss_forms), the loss's gradient with
+    /// respect to `features` also written to `dfeatures` ([words, hidden]),
+    /// for what feeds the head (a learned mix of layers, say).
+    pub fn loss_input(
+        &self,
+        features: &[R],
+        forms: Option<&[&str]>,
+        gold: &[u32],
+        grads: &mut [Vec<R>],
+        w: &mut Work<R>,
+        dfeatures: &mut Vec<R>,
+    ) -> Result<f64> {
+        self.loss_inner(features, forms, gold, grads, w, Some(dfeatures))
+    }
+
+    fn loss_inner(
+        &self,
+        features: &[R],
+        forms: Option<&[&str]>,
+        gold: &[u32],
+        grads: &mut [Vec<R>],
+        w: &mut Work<R>,
+        dfeatures: Option<&mut Vec<R>>,
+    ) -> Result<f64> {
         if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
             return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
         }
@@ -263,11 +290,19 @@ impl<R: Real> Tagger<R> {
         let (layers, width) = (shape.layers, shape.width());
         let x0: &[R] = if hashed { &w.input } else { features };
         let x = adapter::output(x0, &w.adapter);
-        let mut dx = vec![R::ZERO; if layers == 0 && !hashed { 0 } else { n * width }];
+        let input = dfeatures.is_some();
+        let mut dx = vec![R::ZERO; if layers == 0 && !hashed && !input { 0 } else { n * width }];
         let [dw, db] = grads.get_disjoint_mut([o, o + 1]).expect("distinct");
         let dxo = if dx.is_empty() { None } else { Some(&mut dx[..]) };
         linear::backward(&self.params[o], x, &w.dscores, width, labels, dw, db, dxo);
-        let dx0 = adapter::backward(shape, &self.params, x0, dx, grads, &w.adapter, hashed);
+        let dx0 = adapter::backward(shape, &self.params, x0, dx, grads, &w.adapter, hashed || input);
+        if let Some(d) = dfeatures {
+            // The input's rows are the features, then a hashed head's
+            // embeddings of the word's text.
+            let width0 = dx0.len() / n.max(1);
+            d.clear();
+            d.extend((0..n).flat_map(|i| dx0[i * width0..][..self.hidden].iter().copied()));
+        }
         if let Some(h) = self.spec.hash_embed {
             let (hidden, d, t) = (self.hidden, h.dim as usize, 6 * layers);
             let width0 = hidden + 4 * d;
