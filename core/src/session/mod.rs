@@ -156,7 +156,9 @@ const RESULT_MAGIC: u64 = 0x7475_7262_6f72_7331; // "turbors1"
 /// Fields 1 to 3 of turbo_embed_options (truncate, max_tokens,
 /// prompt_role): the core applies them before a backend sees the rows, so
 /// every device honors them. Fields 7 and 8 (quantization, int8_ranges)
-/// likewise: the core quantizes the vectors a backend returns.
+/// likewise: the core turns the vectors a backend returns into codes, on
+/// the device through buffer_quantize when the backend offers it, else
+/// on the host after a copy.
 pub(crate) const CORE_HONORED: u32 = 0b1100_0111;
 
 /// Heap allocations the core's part of turbo_session_run makes. See the

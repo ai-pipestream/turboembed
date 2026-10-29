@@ -174,10 +174,12 @@ mod buffers;
 mod context;
 mod kernel;
 
+mod quantize;
 pub(crate) use buffers::{Buffer, buffer_alloc, buffer_export, buffer_import, buffer_read, buffer_release};
 pub(crate) use context::Queue;
 use context::{EVENTS, profiling};
 pub(crate) use kernel::{Arg, Kernel};
+pub(crate) use quantize::buffer_quantize;
 
 impl Drop for Context {
     fn drop(&mut self) {

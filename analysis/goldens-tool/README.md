@@ -4,12 +4,12 @@ The golden files in `analysis/goldens/data` record what OpenNLP 3.x
 computes on the JVM for fixed inputs and models. This directory holds
 everything that makes them.
 
-The generator's runs open OpenNLP 2.5 models (the UD 1.3 models built
-with OpenNLP 2.5.4 and `langdetect-183.bin`), which are no longer fetched
-or pinned (#1509), so `generate`, `verify` and `fuzz` refuse to run
-(`models::GENERATOR_RETIRED`) and the nightly differential workflow is
-deleted. The checked in goldens stay until #1532 removes those runs and
-their goldens; the Rust tests still read them.
+The generator no longer opens published OpenNLP 2.5 UD or language-detector
+models (#1509, #1653). Those models are not fetched or pinned, so
+`generate`, `verify` and `fuzz` refuse to run (`models::GENERATOR_RETIRED`)
+and the nightly differential workflow is deleted. Fixture and Rust-trained
+models remain; the checked-in published-model goldens stay until #1532
+and #1644 to #1648 remove them; the Rust tests still read those goldens.
 
 
 - `java/`: the generator, a Maven project that depends only on the OpenNLP
@@ -71,10 +71,9 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
 
 - `image` builds the container image, tags it with the OpenNLP commit and
   prints its id.
-- `fetch-models <dir>` downloads no OpenNLP model: the UD 1.3 models built
-  with OpenNLP 2.5.4, `langdetect-183.bin` and the OpenNLP 1.5 models are
-  not fetched, pinned or run anywhere in this repository (#1509), so the
-  generator's runs that open them cannot run until #1532 removes them.
+- `fetch-models <dir>` downloads no OpenNLP model: published OpenNLP 2.5 UD
+  models, the published language detector, and the OpenNLP 1.5 models are
+  not fetched, pinned or run anywhere in this repository (#1509, #1653).
   With `--local` it also downloads the all-MiniLM-L6-v2 export
   (`POOLING_SOURCE`) the pooled sentence vector model is derived from.
   It also fetches LibreOffice's `en_US`, `de_DE_frami` and `hu_HU` Hunspell
@@ -142,32 +141,20 @@ a directory with the same model run without them, and its options are
 
 | Annotator | `<model>` | Input sets | `config` |
 |---|---|---|---|
-| `sentdetect` (`SentenceDetectorME`) | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `en`, `multi`, `edge` | |
-| | `opennlp-de-ud-gsd-sentence-1.3-2.5.4`, `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `edge` | |
-| | `en-abbrev`, `en-plain`, `en-plain-rust`, `en-plain-qn-rust`, `en-plain-perceptron-rust` (fixtures) | `sentence-fixture` | |
+| `sentdetect` (`SentenceDetectorME`) | `en-abbrev`, `en-plain`, `en-plain-rust`, `en-plain-qn-rust`, `en-plain-perceptron-rust` (fixtures) | `sentence-fixture` | |
 | `sentdetect` (`NewlineSentenceDetector`) | `newline` | `edge` | |
-| `tokenize` (`TokenizerME`) | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `en`, `multi`, `edge`, `surrogate` | |
-| | the `de`, `es`, `fr` and `pt` tokenizer models | `edge`, `surrogate` | |
-| | `tokenizer-abbreviations` (fixture) | `abbreviations`, `edge` | |
-| | `opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary` | `abbreviations`, `edge` | |
-| | each of the five models `+alphanumeric` | `edge`, `alphanumeric` | `useAlphaNumericOptimization true`, `alphaNumericPattern <pattern>` |
+| `tokenize` (`TokenizerME`) | `tokenizer-abbreviations` (fixture) | `abbreviations`, `edge` | |
 | `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer`) | `simple`, `whitespace`, each also `+keep-new-lines` | `edge` | `keepNewLines true` |
 | `tokenize` (UAX #29 `WordTokenizer`) | `uax29` | `edge` | |
 | `detokenize` (`DictionaryDetokenizer`) | `en-detokenizer`, `fr-detokenizer`, `latin-detokenizer`, `pt-detokenizer`, `quotes-detokenizer` (fixtures) | `detokenizer`, the inputs whose id starts with the dictionary's name | `splitMarker <SPLIT>` |
-| `postag` (`POSTaggerME`) | `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `en`, `multi`, `edge` | |
-| | `opennlp-en-ud-ewt-pos-1.3-2.5.4+penn` | `en` | `format PENN` |
-| | `opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1`, `+beam10` | `en` | `beamSize` |
-| | `opennlp-de-ud-gsd-pos-1.3-2.5.4` | `edge` | |
-| | `pos-fixture`, `pos-fixture-rust` (fixtures) | `en`, `edge` | |
-| `lemmatize` (`LemmatizerME`) | `opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | `en`, `multi`, `edge` | |
-| | `opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | `edge` | |
-| | `lemma-fixture-rust` (fixture) | `en`, `edge` | |
+| `postag` (`POSTaggerME`) | `pos-fixture`, `pos-fixture-rust` (fixtures) | `en`, `edge` | |
+| `lemmatize` (`LemmatizerME`) | `lemma-fixture-rust` (fixture) | `en`, `edge` | |
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
 | `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
-| | `chunker-fixture+beam1` | `en` | `beamSize 1` |
-| | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
-| `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
-| | `langdetect-183+probing`, `langdetect-183+probing-chunk50`, `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
+| `chunk` (`ChunkerME`) | `chunker-fixture+beam1` (fixture) | `en` | `beamSize 1` |
+| `chunk` (`ChunkerME`) | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
+| `langdetect` (`LanguageDetectorME`) | `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
+| | `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
@@ -186,8 +173,7 @@ a directory with the same model run without them, and its options are
 | `train-events` (`POSSampleEventStream`, `LemmaSampleEventStream`) | `postag-wordtag`, `postag-wordtag-tagdict`, `postag-conllu-u`, `postag-conllu-x`, `lemma-text`, `lemma-conllu-u` | `tagged`, `formats` by run; the `wordtag`, `lemma` or `conllu` inputs by source and format | `run`, `source`, `language`, `format`, and when given `tagset`, `tagDictionary` |
 | `namefind` (`NameFinderEventStream`, `NameFinderME.train`) | `train-bio`, `train-bilou`, `train-type`, `train-perceptron`, `train-qn` | `tagged`, `formats`: the inputs whose id starts with `name` | `run`, `language`, `codec`, and when given `type`, `algorithm` |
 | `namefind` (`NameFinderME`) | `ner-fixture-rust` (fixture) | the same | `run find` |
-| `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
-| `train-liblinear` (`LiblinearTrainer.train` of the addons' `liblinear-addon`) | `sentdetect-sample`, `postag-l2`, `postag-dual`, `sentdetect-dual-newton`, `realvalue-l1`, `sentdetect-l2`, `sentdetect-raw` | `en`, `multi`, `edge`, `train` by run | `source`, `DataIndexer`, `Cutoff`, `solverType`, `c`, `eps`, `p`, `bias`, `events` |
+| `train-liblinear` (`LiblinearTrainer.train` of the addons' `liblinear-addon`) | `sentdetect-sample`, `postag-l2`, `sentdetect-dual`, `sentdetect-dual-newton`, `realvalue-l1`, `sentdetect-l2`, `sentdetect-raw` | `en`, `multi`, `edge`, `train` by run | `source`, `DataIndexer`, `Cutoff`, `solverType`, `c`, `eps`, `p`, `bias`, `events` |
 | `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
 | `cross-validate` (`TokenNameFinderCrossValidator`, `LanguageDetectorCrossValidator`) | `namefind-bio`, `namefind-bilou`, `langdetect-default`, `langdetect-cutoff1` | `tagged/names` (name finder runs), `langdetect/samples` (language detector runs) | `run`, `folds`, and `language`, `codec` (name finder) or `Algorithm`, `Cutoff`, `Iterations` (language detector) |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture) | `zh`, `multi`, `edge`, `surrogate` | |
@@ -209,19 +195,11 @@ a directory with the same model run without them, and its options are
 | `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace`, `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace`, `muc6-simple`, `brat-whitespace`, `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes` |
 | `ad` (the Arvores Deitadas streams) | `names`, `names-nosplit`, `pos`, `pos-expand-features`, `chunk`, `chunk-1-3`, `sentence`, `sentence-titles`, `token` (with `pt-detokenizer`, fixture) | `ad`; the `sentence` runs leave out `ad-null-text` | `splitHyphenatedTokens`, `expandME`, `includeFeatures`, `start`, `end`, `includeTitles` |
-| `ontonotes` (the OntoNotes streams) | `names`, `parse`, `pos`, `lines` | `ontonotes` | |
-| `frenchtreebank` (`ConstitParseSampleStream`) | `parse` | `frenchtreebank` | |
-| `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
-| `parse` (`buildDictionary`, the `chunking` and `treeinsert` event streams and context generators, `Parser.train`, `ParserTool.parseLine`, `ParserEvaluator`) | `dictionary-cutoff-1`, `dictionary-cutoff-5`; `events-chunking-build`, `events-chunking-build+dictionary`, `events-chunking-check`, `events-treeinsert-build`, `events-treeinsert-check`, `events-treeinsert-attach`, `events-chunk`, `events-tag`; `generators`; `model-chunking`, `model-treeinsert` (all with `en-head-rules`, fixture) | `parse-treebank`; the models are trained on its `treebank` input | `rules`, `cutoff`, `etype`, `dictionary-cutoff`, `check-types`; `corpus`, `language`, `<model>.Algorithm`, `<model>.Iterations`, `<model>.Cutoff`, `dict.Cutoff`, `searches`, `parse-counts` |
-| `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
 | `place-profiles` (`PlaceProfiles` of the addons `geo` module) | `place-profiles` | `place-profiles` | `profilesCommit` |
 | `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
 | `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
 | `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
-| `beam` (`BeamSearch` as `POSTaggerME`, `ChunkerME` and `NameFinderME` wire it) | `pos-fixture`, `pos-fixture+default-context`, `chunker-fixture`, `ner-bio-fixture`, `ner-bilou-fixture`, `ner-qn-fixture`, `ner-qn-fixture+fresh-sums` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `sequence` (the `sentences` input) | `kind` |
-| `tag-dictionary` (`POSDictionary`) | `tags`, `tags-cases`, `tags-exact`, `pos-fixture` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `sequence` (the `sentences` input) | |
-| `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
 | `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
 | `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
 | `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |
@@ -232,14 +210,6 @@ a directory with the same model run without them, and its options are
 | `doccat` (`DocumentCategorizerME.train`, `categorize`) | `sms-default`, `sms-maxent`, `sms-qn`, `sms-perceptron` | `doccat`; the corpus `emoji` in `doccat-train` | `run`, `corpus`, `language`, `generators`, `Algorithm`, `Iterations`, `Cutoff` |
 | `postag-neural` (`BilstmPOSTagger`, `FeedforwardPOSTagger` of the addons `neural-postag` module, `topKSequences`) | `bilstm`, `bilstm-crf`, `bilstm-two-layer`, `bilstm-two-layer-crf`, `bilstm-vectors-crf`, `bilstm-adapter-crf`, `feedforward`, `feedforward-vectors` | `tagged` (the `wordtag` input, also the training corpus), `sequence` (the `sentences` input) | `run`, `corpus`, `neuralPostagCommit`, `settings`, `vectors` |
 
-- `+english-dictionary` is the English model rebuilt through
-  `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
-  abbreviation dictionary `english-dictionary.xml`, which is its second
-  `model` record. No published model has an abbreviation dictionary.
-- `+alphanumeric` is the model rebuilt the same way with the alphanumeric
-  optimization on and its own pattern; the `alphaNumericPattern` record is
-  the pattern the tokenizer uses (`Factory.DEFAULT_ALPHANUMERIC` when the
-  factory has none, which no published model lacks).
 - A detokenizer input holds one token per line, and its golden holds the
   tokens, the operation `detokenize` gave each and the text it returned
   with and without the split marker (`docs/analysis.md`).
@@ -311,24 +281,6 @@ a directory with the same model run without them, and its options are
   A predicate of these sources holds a token, which the sample streams
   never let hold a space; the generator stops if one does, so the space
   separated `context` field is never ambiguous.
-- A `train-events` run of `ChunkerTrainGolden` is `ChunkerME.train` with
-  `new ChunkerFactory()` over the input read with `ChunkSampleStream`, as
-  the trainer tool reads it: the events of `ChunkerEventStream` over the
-  factory's `DefaultChunkerContextGenerator`, then the model trained. The
-  runs are the training parameters: `TrainingParameters.defaultParams()`
-  (`chunker-defaults`: `MAXENT`, 100 iterations, cutoff 5), the
-  perceptron with cutoff 1 and a beam size of 5 (`chunker-perceptron`),
-  `MAXENT_QN` with cutoff 1 (`chunker-qn`), and the sequence perceptron
-  (`chunker-perceptron-sequence`), which `ChunkerME.train` refuses. It
-  records the events, `turbo:stream-errors` and the checksum as the
-  tagger's runs do, then either `turbo:train-error` (the class and
-  message of what training threw) or the model: `turbo:model-entry`
-  (the algorithm, and the `chunker.model` entry's length and SHA-256),
-  `turbo:model-outcomes` and `turbo:model-predicates` (the labels in the
-  model's order), `turbo:model-parameters` (every parameter with its
-  predicate and outcome index), and `turbo:manifest` and
-  `turbo:package-entries` of the model file.
-  `analysis/train-components/tests/chunker.rs` compares with them.
 - A `train-liblinear` run (`LiblinearTrainGolden`) trains the liblinear
   add-on of the OpenNLP addons (`main` branch, the commit
   `LIBLINEAR_ADDON_COMMIT` in `src/recipe/mod.rs`) on the events of a `train`
@@ -387,13 +339,11 @@ a directory with the same model run without them, and its options are
   of the same). The JVM loads all three with `SentenceModel` like the other
   fixtures, so their goldens show what the JVM makes of a model file
   written here.
-  `pos-fixture-rust.bin`, `lemma-fixture-rust.bin` and
-  `chunker-fixture-rust.bin` are the `.bin` files the Rust trainer writes
-  from `inputs/tagged/wordtag.txt` (with `tags.tagdict`),
-  `inputs/tagged/lemmas.txt` and `inputs/tagged/chunks.txt`
+  `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` are the `.bin` files
+  the Rust trainer writes from `inputs/tagged/wordtag.txt` (with `tags.tagdict`)
+  and `inputs/tagged/lemmas.txt`
   (`analysis/train-components/tests/fixtures.rs`); the JVM loads them with
-  `POSModel`, `LemmatizerModel` and `ChunkerModel` and tags, lemmatizes or
-  chunks with them.
+  `POSModel` and `LemmatizerModel` and tags or lemmatizes with them.
   `langdetect-fixture-rust.bin` is the one it writes from
   `inputs/langdetect/samples.txt` with the default parameters (the same
   test); the JVM loads it with `LanguageDetectorModel` and detects with
@@ -440,20 +390,6 @@ a directory with the same model run without them, and its options are
   over the fixture dictionary and the English pipeline, without a
   confidence layer; it asks no model, so it has its own annotator
   directory and no dumps.
-- A `chunk` run cuts the input with the English sentence and tokenizer
-  models and tags it with the English part-of-speech model asked for
-  `POSTagFormat.PENN` (its second, third and fourth `model` records), since
-  the fixture chunker was trained on Penn Treebank tags, and chunks each
-  sentence with `chunk`; its golden has the sentences, tokens and tags,
-  `opennlp:chunk-tags` with `probs()` as the probability column, and
-  `opennlp:chunks`, the phrases `ChunkSample.phrasesAsSpanList` reads off
-  the tags (what `chunkAsSpans` returns), each spanning its tokens' text,
-  with its token range and kind. `+beam<n>` rebuilds the model through
-  `ChunkerModel(String, MaxentModel, int, Map, ChunkerFactory)` with that
-  beam size. The dumps are made like the tagger's
-  (`RecordingChunkerFactory`). The fixture is a perceptron model, so the
-  generator depends on `opennlp-ml-perceptron`, which the runtime lists as
-  optional.
 
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
 `/fixtures` and listed with their SHA-512 in `src/recipe/fixtures.rs`; the data
@@ -788,129 +724,6 @@ for the sample kind. `analysis/formats/tests/ad.rs` compares the Rust
 readers with these goldens. They are not checked in yet: the test skips,
 naming `cargo run -p turbo-goldens-tool -- generate`, until they are
 generated.
-
-## Parse goldens
-
-`parse/<run>/parse/<id>.golden` is what OpenNLP's Penn Treebank reader
-made of `inputs/parse/<id>.txt`, one bracketed parse per line, read with
-`PlainTextByLineStream` over UTF-8. `ParserGolden` runs
-`ParseSampleStream` (`treebank`, and `treebank+function-tags` with
-`Parse.useFunctionTags(true)`, set back to false afterwards), and
-`Parse.parseParse` with a rule class as the gap labeler followed by
-`updateHeads` (`en-head-rules` and `es-head-rules`, OpenNLP's English and
-AnCora rule files, and `es-regex-head-rules`, AnCora rules written for this
-project whose tags use more of Java's regular expressions;
-`en-head-rules+possessives` calls `pruneParse` and `fixPossesives` before
-`updateHeads`, as `AbstractParserEventStream` does). A line that throws is
-recorded with the number of parses before it, and reading goes on. The
-layers are `turbo:samples` (`toStringPennTreebank` of each parse),
-`turbo:read-errors`, `turbo:parse-texts` (each parse's text),
-`turbo:parse-nodes` (every node in preorder with its depth, type, UTF-8
-span, its head's span, whether it is its own head and its head index),
-`turbo:pos-samples` and `turbo:chunk-samples` (what `PosSampleStream` and
-`ChunkSampleStream` make of each parse).
-
-`head-rules/<en|es>/head-rules/<id>.golden` is what
-`opennlp.tools.parser.lang.en.HeadRules` or `AncoraSpanishHeadRules` read
-from the rule file `inputs/head-rules/<id>.txt`: `turbo:head-rules`, the
-lines `serialize` wrote, or `turbo:rules-errors`, what the reader threw.
-`analysis/parser/tests/goldens.rs` compares the Rust reader, writer and
-rule classes with both.
-
-### Bottom-up parser goldens
-
-`parse/<run>/parse-treebank/<id>.golden` is what OpenNLP's chunking and
-treeinsert parsers (`opennlp.tools.parser.chunking`, `.treeinsert`) make
-of `inputs/parse-treebank/<id>.txt`, one bracketed parse per line, with the
-English head rules fixture (`ParserTrainGolden`). The inputs are written
-for this project: `treebank` (42 sentences, the training corpus) and
-`held-out` (8 sentences). Between them they have commas, brackets, quotes,
-sentence-final `.`, `?` and `!`, possessives, unary chains, a node whose
-only child has its own type (which `pruneParse` removes) and sister
-adjunctions (`NP -> NP PP`, `VP -> VP PP`, `S -> S , CC S`). A sample is a
-line that is not blank, numbered from 0, read with `Parse.parseParse` and
-read again for every call, since the streams and generators change it.
-
-- `dictionary-cutoff-1`, `dictionary-cutoff-5`:
-  `AbstractBottomUpParser.buildDictionary` over the input's samples.
-  `turbo:dictionary` has a row per token of each n-gram (the n-gram's
-  number and the token), the n-grams sorted by their tokens.
-- `events-<parser>-<type>` (and `events-chunking-build+dictionary`, with
-  the input's own cutoff 1 dictionary, as `chunking.Parser.train` builds
-  it), `events-chunk` and `events-tag`: the events of the parser's
-  `ParserEventStream` of that event type, one sample at a time.
-  `turbo:events` has a row per event: the sample, the outcome, the number
-  of context strings and the context strings in order joined by single
-  spaces. `turbo:sample-errors` has the sample, class and message of each
-  exception.
-- `generators`: the context generators called directly on each sample's
-  chunk array (after `pruneParse` and `updateHeads`, `getInitialChunks`
-  then `collapsePunctuation`), as it is (`unlabeled`) and with every
-  chunk's label set to `c` (`complete`): `ChunkContextGenerator` at every
-  token, the chunking build generator at every index without and with the
-  dictionary, the chunking check generator for each start, each end up to
-  two chunks later and the types `NP`, `VP`, `S`, the treeinsert build
-  generator at every index, the treeinsert attach generator at every index
-  from 1 against the chunks before it (nearest first) at every frontier
-  index, and the treeinsert check generator with every chunk that is not a
-  tag as the parent, with `trim` false and true. `turbo:chunks` lists each
-  array (type, UTF-8 span in `turbo:parse-texts`, head span, head index)
-  and `turbo:generator-errors` each call that threw.
-- `model-chunking`, `model-treeinsert`: `Parser.train` on the `treebank`
-  input (`ParseSampleStream` over the lines, read again on each reset) with
-  GIS (`MAXENT`), 100 iterations and cutoff 1 for the build, check, attach,
-  tagger and chunker models and cutoff 1 for the dictionary. The
-  `treebank` golden holds the model file with `Timestamp` taken out of
-  every manifest and every zip entry, the nested tagger and chunker
-  packages too, written again with a fixed time, so that each run writes
-  the same bytes: `turbo:model-file` (SHA-256 and length),
-  `turbo:model-hex` (the bytes as hex, 64 a row), `turbo:model-entries`
-  and `turbo:manifest`. Both goldens hold, with the model read back from
-  that file, `ParserTool.parseLine` on each sample's tokens joined by
-  spaces at beam 1 and advance 0.5 and at beam 3 and advance 0.95, asking
-  for 1 and 3 parses: `turbo:parses` (rank, `getProb`, `show`),
-  `turbo:parse-nodes` (every node in preorder: depth, type, UTF-8 span,
-  head span, head index) and `turbo:parse-errors`; and `turbo:evaluation`,
-  the precision, recall and F-measure of `ParserEvaluator` over the input
-  at those two settings and at `ParserFactory.create(model)`'s beam 20 and
-  advance 0.95.
-
-`ParserTool` and `ParserEvaluator` are in OpenNLP's `opennlp-cli` module,
-which the image installs with the runtime for these runs.
-`analysis/parser/tests/goldens/treebank.rs` compares the dictionary and
-generator runs and the parses of the model runs;
-`analysis/train-components/tests/parser_goldens.rs` compares the event
-runs and the model runs in full, and trains the models again.
-
-## OntoNotes and French Treebank goldens
-
-`ontonotes/<run>/ontonotes/<id>.golden` is what one of OpenNLP's OntoNotes
-streams read from the corpus directory bundled in
-`inputs/ontonotes/<id>.txt` (a bundle, see "MASC goldens"). `OntoNotesGolden`
-writes the directory out and makes each stream with the `ontonotes` factory
-of the registry, given the directory as `-ontoNotesDir`: the name samples of
-its `.name` files (`names`),
-the parses of its `.parse` files (`parse`) and the part-of-speech samples
-made of them (`pos`). `lines` reads the `.parse` files with the
-`DocumentToLineStream` the parse factory puts under its stream.
-`frenchtreebank/parse/frenchtreebank/<id>.golden` is what
-`ConstitParseSampleStream` read from the data directory bundled in
-`inputs/frenchtreebank/<id>.txt`, made by the `frenchtreebank` factory with
-the directory as `-data`.
-
-The streams are read until `read` returns null; an exception is recorded
-with the number of samples before it, and reading goes on. The layers are
-`turbo:samples` and `turbo:read-errors`; then `turbo:sample-tokens` and
-`turbo:names` for the names, the layers of "Parse goldens" below for the
-parses, `turbo:sample-tokens` and `turbo:sample-tags` for the
-part-of-speech samples and `turbo:lines` for the lines; and last
-`turbo:listing`, the files the factory's `DirectorySampleStream` gives, in
-its order, relative to the directory. A message that names the directory
-writes it `<corpus>`. `analysis/formats/tests/ontonotes.rs` and
-`analysis/formats/tests/frenchtreebank.rs` compare the readers of
-`turbo_formats::ontonotes` and `turbo_formats::frenchtreebank` with these
-goldens; the messages of parse errors and XML errors are the JVM's own and
-are not compared.
 
 ## Gazetteer goldens
 
@@ -1444,18 +1257,12 @@ entrypoint names the jar in the system property
 class loader that looks there first, beside the generator's own. Run outside
 the container, the generator needs that property.
 
-The `hunspell` runs work the same way with the Hunspell classes of the fork's
-`OPENNLP-1927-hunspell-compatibility` branch (`HUNSPELL_COMMIT` in
-`src/recipe/mod.rs`): the image compiles that commit's `HunspellStemmer`,
-`HunspellDictionary`, `HunspellAffixTable`, `HunspellCompoundRule`,
-`HunspellConversion` and `AffixCondition`, with `java/hunspell/HunspellBridge.java`,
-into `/hunspell/hunspell.jar` beside a file holding the commit, and the
-entrypoint names the jar in `turbo.goldens.hunspellJar`. The runs check the
-commit and load every class of the package from the jar first. The
-dictionaries come from `fetch-models`, which downloads `HUNSPELL_FILES` of
-the recipe into `<models>/hunspell/` and checks the SHA-512 the recipe holds
-for each (the repository publishes none); `analysis/hunspell/README.md` lists
-their licences. None is checked in.
+The Hunspell JVM generator bridge is gone: `analysis/hunspell` covers
+parity with its own unit tests and snapshots. Dictionaries still come from
+`fetch-models`, which downloads `HUNSPELL_FILES` of the recipe into
+`<models>/hunspell/` and checks the SHA-512 the recipe holds for each
+(the repository publishes none); `analysis/hunspell/README.md` lists their
+licences. None is checked in.
 
 The fixture models `pos-fixture.bin`, `chunker-fixture.bin` and
 `ner-{bio,bilou,qn}-fixture.bin` are trained by `FixtureModels.java` from
@@ -1510,7 +1317,7 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
 cargo run -p turbo-goldens-tool -- fetch-models <models dir> --local
-java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -Dturbo.goldens.hunspellJar=<hunspell.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 

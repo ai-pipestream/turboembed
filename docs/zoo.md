@@ -405,6 +405,38 @@ another way overrides it (#1613).
   request on. When none has it, the error names what each said. A
   typical list is the local store, then a zoo server, then `Http`
   for the index's own address.
+- `Sources::then_keep(name, store)` adds a store (anything that is a
+  `Transport` and a `Keep`: `Blobs` or `S3Bucket`) that also keeps every
+  file a later source serves, once it verifies, so the next read is
+  local. A file it cannot keep is still handed over. The keeping store
+  neither serves nor keeps an artifact whose class may not be
+  redistributed (`CLASS_LOCAL_ONLY`, refused): such a file comes only
+  from the sources after it, and no copy of it is made, on a server's
+  store or on a user's own machine.
+- `S3Bucket` (the `http` feature) is an S3 bucket or prefix, on AWS or
+  an S3-compatible store such as RustFS, in the same
+  `<prefix>/blobs/sha256/<hex>` layout: a file is read with one GET and
+  kept with one PUT, each signed with AWS Signature Version 4 (computed
+  over `sha2`, no AWS SDK), or unsigned for a public bucket.
+  `S3Bucket::new("s3://bucket/prefix")` is configured the way the AWS
+  tools are: `AWS_ENDPOINT_URL_S3` or `AWS_ENDPOINT_URL` for a store
+  other than AWS (addressed path-style), `AWS_REGION` or
+  `AWS_DEFAULT_REGION` (else `us-east-1`), and `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. Redirects are not
+  followed, so a signed request is not replayed elsewhere.
+  `analysis/zoo/tests/s3.rs` runs it against an in-process stand-in that checks each
+  signature; `analysis/zoo/src/fetch/sigv4.rs` checks HMAC-SHA-256 against RFC 4231
+  and the signatures against the S3 documentation's GET and PUT Object
+  examples.
+
+A zoo server keeps its files in such a store with
+`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
+(docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
+its first read, so a library pointed at it with `grpc(s)://` needs no
+separate install step. `turbo-zoo-remote` (top-level `zoo-remote/`)
+adds the library's remote sources: a zoo server over `grpc://` or
+`grpcs://`, an S3 bucket over `s3://`, and the `TURBO_ZOO_SOURCE` list
+that names them.
 
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.

@@ -12,7 +12,6 @@ fn the_commit_is_forty_hex_digits() {
     assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
     assert!(is_lower_hex(LIBLINEAR_ADDON_COMMIT, 40), "{LIBLINEAR_ADDON_COMMIT}");
     assert!(is_lower_hex(NEURAL_POSTAG_COMMIT, 40), "{NEURAL_POSTAG_COMMIT}");
-    assert!(is_lower_hex(HUNSPELL_COMMIT, 40), "{HUNSPELL_COMMIT}");
     assert!(is_lower_hex(CONLLU_DEPENDENCY_COMMIT, 40), "{CONLLU_DEPENDENCY_COMMIT}");
     assert!(is_lower_hex(COREF_ADDONS_COMMIT, 40), "{COREF_ADDONS_COMMIT}");
     assert!(is_lower_hex(HUNSPELL_DICTIONARIES_COMMIT, 40), "{HUNSPELL_DICTIONARIES_COMMIT}");
@@ -26,8 +25,8 @@ fn the_base_image_is_pinned_by_a_sha256_digest() {
     assert!(is_lower_hex(hex, 64), "{BASE_IMAGE_DIGEST}");
 }
 
-/// OpenNLP 1.5 models and 2.5 artifacts are not fetched (#1509): the
-/// recipe lists none, and the generator names no 1.5 model.
+/// OpenNLP 1.5 models and 2.5 artifacts are not fetched (#1509), and the
+/// generator no longer names the retired published 2.5 models (#1653).
 #[test]
 fn no_opennlp_1_5_or_2_5_model_is_fetched() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
@@ -35,9 +34,10 @@ fn no_opennlp_1_5_or_2_5_model_is_fetched() {
     for name in v1_5 {
         assert!(!runs.contains(name), "Runs.java names {name}");
     }
-    // Runs.java still names the 2.5 models in runs that #1532 deletes, but
-    // the recipe no longer fetches them.
-    for name in v1_5.into_iter().chain(["-2.5.4.bin", "langdetect-183"]) {
+    for name in ["1.3-2.5.4", "langdetect-183"] {
+        assert!(!runs.contains(name), "Runs.java still names retired published model {name}");
+    }
+    for name in v1_5.into_iter().chain(["-2.5.4.bin", "langdetect-183", "1.3-2.5.4"]) {
         for m in MODELS.iter().chain(std::iter::once(&POOLING_SOURCE)) {
             assert!(!m.file.contains(name) && !m.url.contains(name), "{} names {name}", m.url);
         }
@@ -98,7 +98,6 @@ fn the_dockerfile_pins_the_same_base_image_and_commit() {
     assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
     let patterns = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
     assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
-    assert!(dockerfile.contains(&format!("\nARG HUNSPELL_COMMIT={HUNSPELL_COMMIT}\n")));
     assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
     assert!(dockerfile.contains(&format!("\nARG LIBLINEAR_ADDON_COMMIT={LIBLINEAR_ADDON_COMMIT}\n")));
     let liblinear = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
@@ -146,6 +145,11 @@ fn runs_java_does_not_register_hunspell_goldens() {
     let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
     assert!(!golden.is_file(), "{} must stay deleted", golden.display());
+    let readme = include_str!("../../README.md");
+    assert!(
+        !readme.contains("hunspellJar"),
+        "the README must not pass the removed Hunspell bridge jar to the generator"
+    );
 }
 
 #[test]
@@ -220,7 +224,6 @@ fn the_generator_names_the_same_input_sets() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
     for set in INPUT_SETS.iter().filter(|s| {
         ![
-            NORMALIZER_INPUT_SET,
             SVM_DOCCAT_INPUT_SET,
             SVM_DOCCAT_TRAIN_SET,
             SENTIMENT_INPUT_SET,
@@ -248,11 +251,8 @@ fn the_generator_and_the_entrypoint_take_the_generator_args() {
 }
 
 #[test]
-fn the_dumped_annotators_and_the_normalizer_set_are_in_the_recipe() {
+fn the_dumped_annotators_are_in_the_recipe() {
     assert!(DUMPED_ANNOTATORS.iter().all(|a| ANNOTATORS.contains(a)));
-    assert!(INPUT_SETS.contains(&NORMALIZER_INPUT_SET));
-    let normalizer = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/NormalizerGolden.java");
-    assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
 }
 
 #[test]
@@ -371,5 +371,34 @@ fn every_excerpt_is_present_with_its_hash_and_line_count() {
         assert!(head.lines().all(|l| l.starts_with("# ")), "{}", e.input);
         let taken: u32 = e.lines.iter().map(|&(a, b)| b - a + 1).sum();
         assert_eq!(body.lines().count() as u32, taken, "{}", e.input);
+    }
+}
+
+/// The README's Runs table lists every fixture run `Runs.java` registers, with
+/// its annotator named, so a run the generator still produces is never left
+/// out of the documentation.
+#[test]
+fn readme_runs_table_lists_the_fixture_runs() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    let readme = include_str!("../../README.md");
+    let table: Vec<&str> = readme.lines().filter(|l| l.starts_with("| ")).collect();
+    let fixture_runs = [
+        ("ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE)", "`chunk` (`ChunkerME`)", "`chunker-fixture`"),
+        (
+            "ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE)",
+            "`chunk` (`ChunkerME`)",
+            "`chunker-fixture+beam1`",
+        ),
+        ("fixtures.resolve(CHUNKER_FIXTURE_RUST)", "`chunk` (`ChunkerME`)", "`chunker-fixture-rust`"),
+        ("fixtures.resolve(POS_FIXTURE_RUST)", "`postag` (`POSTaggerME`)", "`pos-fixture-rust`"),
+        ("fixtures.resolve(LEMMA_FIXTURE_RUST)", "`lemmatize` (`LemmatizerME`)", "`lemma-fixture-rust`"),
+        ("fixtures.resolve(LANGUAGE_FIXTURE_RUST)", "`langdetect` (`LanguageDetectorME`)", "`langdetect-fixture-rust`"),
+    ];
+    for (registered, annotator, model) in fixture_runs {
+        assert!(runs.contains(registered), "Runs.java no longer registers {model}; update this test");
+        assert!(
+            table.iter().any(|row| row.starts_with(&format!("| {annotator} |")) && row.contains(model)),
+            "README Runs table has no {annotator} row naming {model}"
+        );
     }
 }

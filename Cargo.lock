@@ -1825,6 +1825,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2171,6 +2172,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-calibration",
  "turbo-chunker",
+ "turbo-formats",
  "turbo-langspan",
  "turbo-pins",
  "turbo-sat",
@@ -2215,7 +2217,6 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
- "turbo-parser",
  "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",
@@ -2235,7 +2236,6 @@ dependencies = [
  "turbo-maxent",
  "turbo-normalize",
  "turbo-numeric",
- "turbo-phrase-chunker",
  "turbo-pii",
  "turbo-pins",
  "turbo-postag",
@@ -2457,6 +2457,7 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-trainer",
  "turbo-unicode",
 ]
 
@@ -2466,6 +2467,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-langdetect",
  "turbo-unicode",
 ]
 
@@ -2588,30 +2590,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "turbo-parser"
-version = "0.1.0"
-dependencies = [
- "turbo-analysis",
- "turbo-analysis-layers",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
- "turbo-postag",
- "turbo-sequence",
- "turbo-unicode",
-]
-
-[[package]]
 name = "turbo-phrase-chunker"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
  "turbo-jvm",
- "turbo-maxent",
- "turbo-sequence",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2661,6 +2645,7 @@ dependencies = [
  "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-grammar",
+ "turbo-langdetect",
  "turbo-langspan",
  "turbo-maxent",
  "turbo-namefind",
@@ -2865,8 +2850,6 @@ dependencies = [
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-namefind",
- "turbo-parser",
- "turbo-phrase-chunker",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-tokenize",
@@ -2893,7 +2876,6 @@ dependencies = [
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-namefind",
- "turbo-phrase-chunker",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-sequence",
@@ -2901,6 +2883,7 @@ dependencies = [
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-zoo",
 ]
@@ -2910,6 +2893,21 @@ name = "turbo-trainer"
 version = "0.1.0"
 dependencies = [
  "turbo",
+]
+
+[[package]]
+name = "turbo-trainer-recipes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-analysis-embed",
+ "turbo-formats",
+ "turbo-tagger",
+ "turbo-train-recipes",
+ "turbo-trainer",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2952,6 +2950,20 @@ dependencies = [
  "turbo-maxent",
  "turbo-zstd",
  "ureq",
+]
+
+[[package]]
+name = "turbo-zoo-remote"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protox",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "turbo-kserve",
+ "turbo-zoo",
 ]
 
 [[package]]

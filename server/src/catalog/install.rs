@@ -8,7 +8,7 @@
 use std::fs;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
@@ -86,7 +86,7 @@ fn cached(cache: &std::path::Path, a: &Artifact, f: &turbo_zoo::File) -> bool {
 /// The licence check, then the bytes the files still to fetch take, which
 /// with the margin must fit in the cache's free space. Returns those bytes
 /// and the artifact's file count.
-fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Status> {
+pub(super) fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Status> {
     let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &Offline);
     let a = zoo.permit_with(id, user, || catalog.acceptances()).map_err(zoo_status)?;
     let cache = catalog.cache();
@@ -108,35 +108,27 @@ fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Statu
     Ok((needed, a.files.len() as u32))
 }
 
-/// The catalog's transport, reporting each request and arrival. The fetch
-/// asks for the files it does not keep from the cache, `pending`, in index
-/// order, so a request is for the first of them at or after `next` with
-/// its address: two files may share one.
+/// The catalog's transport, reporting each file's request and arrival.
+/// The fetch asks by file, so the report names the file it asks for, and
+/// the request goes on by file too: a store that serves files by their
+/// SHA-256 is asked before the index's address.
 struct Reporting<'a> {
     inner: &'a (dyn Transport + Send + Sync),
-    artifact: &'a Artifact,
-    pending: Vec<usize>,
     tx: &'a Tx,
-    next: AtomicUsize,
 }
 
 impl Transport for Reporting<'_> {
     fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
-        let files = &self.artifact.files;
-        let count = files.len() as u32;
-        let from = self.next.load(Ordering::Relaxed);
-        let found = self.pending.iter().enumerate().skip(from).find(|&(_, &i)| files[i].url == *url);
-        let (at, path, wire) = match found {
-            Some((k, &i)) => {
-                self.next.store(k + 1, Ordering::Relaxed);
-                let f = &files[i];
-                (i as u32, f.path.as_str().to_owned(), f.download.as_ref().map_or(f.size, |d| d.download_bytes))
-            }
-            None => (0, String::new(), size),
-        };
-        let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloading, at, count, &path, wire)));
-        let got = self.inner.get(url, size)?;
-        let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloaded, at, count, &path, got.len() as u64)));
+        self.inner.get(url, size)
+    }
+
+    fn get_file(&self, artifact: &Artifact, file: &turbo_zoo::File) -> Result<Vec<u8>, String> {
+        let count = artifact.files.len() as u32;
+        let at = artifact.files.iter().position(|f| f.path == file.path).unwrap_or(0) as u32;
+        let (path, wire) = (file.path.as_str(), file.download.as_ref().map_or(file.size, |d| d.download_bytes));
+        let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloading, at, count, path, wire)));
+        let got = self.inner.get_file(artifact, file)?;
+        let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloaded, at, count, path, got.len() as u64)));
         Ok(got)
     }
 }
@@ -146,10 +138,7 @@ impl Transport for Reporting<'_> {
 fn run(catalog: Catalog, user: UserId, id: String, tx: Tx, _slot: Slot) {
     let outcome = (|| {
         let a = catalog.index.get(&id).map_err(zoo_status)?;
-        let cache = catalog.cache();
-        let pending = (0..a.files.len()).filter(|&i| !cached(&cache, a, &a.files[i])).collect();
-        let reporting =
-            Reporting { inner: &*catalog.transport, artifact: a, pending, tx: &tx, next: AtomicUsize::new(0) };
+        let reporting = Reporting { inner: &*catalog.transport, tx: &tx };
         let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &reporting);
         let fetched = zoo.fetch_with(&id, &user, || catalog.acceptances()).map_err(zoo_status)?;
         let total: u64 = a.files.iter().map(|f| f.size).sum();

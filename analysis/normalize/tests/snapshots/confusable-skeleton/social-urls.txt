@@ -1,0 +1,19 @@
+===OUT===
+RT @alice: check https://exarnple.corn/a?b=c#d and #hash_tag_l @user_narne's post http://t.co/Xy9Z
+#NoSpace#Adjacent @a@b ernail rne at rne@exarnple.corn or visit exarnple.corn.
+@user: ''quoted'' #tag. (see @bob, #cool!)
+
+===EDITS===
+28	29	rn
+35	36	rn
+59	60	l
+69	70	rn
+120	121	rn
+125	126	rn
+131	132	rn
+137	138	rn
+144	145	rn
+158	159	rn
+165	166	rn
+175	176	''
+182	183	''

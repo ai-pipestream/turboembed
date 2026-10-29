@@ -44,7 +44,6 @@ const FED: &[&str] = &[
     "money",
     "namefind",
     "ner",
-    "norm",
     "num",
     "ontonotes",
     "parse",

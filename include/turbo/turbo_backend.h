@@ -26,11 +26,11 @@
  *     first. It has no log function of its own: its warnings reach the
  *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills. The core knows nine sizes: through capability,
+ *     a backend fills. The core knows ten sizes: through capability,
  *     through buffer_export, through model_release, through session_run,
  *     through buffer_read, through reserved2, through
- *     session_create_tuned, through embed_write_ranges, and through
- *     reserved3, which is sizeof(turbo_backend). It refuses any other.
+ *     session_create_tuned, through embed_write_ranges, through reserved3, and through
+ *     buffer_quantize, which is sizeof(turbo_backend). It refuses any other.
  *     A function added after the first three may be NULL, and the core
  *     calls it only when struct_size covers it; formats and token_head it
  *     reads only when struct_size covers them, and a table that ends
@@ -597,6 +597,24 @@ typedef struct turbo_backend {
      * embed_write_ranges sets it. */
     uint32_t token_head;
     uint32_t reserved3;
+
+    /* On-device int8 and ubinary codes of the first rows * dim F32 values
+     * of buf (a DEVICE or SHARED buffer), matching core/src/quantize.rs
+     * bit for bit. Quantization is TURBO_QUANTIZE_INT8 or
+     * TURBO_QUANTIZE_UBINARY. int8_ranges is host [2, dim] f32 (mins then
+     * maxes) for INT8 and ignored for UBINARY. The codes replace the
+     * leading bytes of buf (rows * dim bytes for INT8, rows *
+     * ((dim + 7) / 8) for UBINARY); a temporary device buffer holds the
+     * codes while the kernel runs so the write never races the read.
+     * NULL where the backend has no such kernels. The core calls it
+     * after session_run for a quantized write whose vectors sit in
+     * device or shared memory, then buffer_read (or a host copy of a
+     * shared buffer) of only the codes. When run is not NULL the call adds
+     * its own allocations to its host_allocs and device_allocs, and the
+     * bytes it sends to the device (the int8 ranges, where the device has
+     * memory of its own) to its h2d_bytes. */
+    int32_t (*buffer_quantize)(void *buf, uint32_t quantization, const float *int8_ranges,
+                               uint32_t rows, uint32_t dim, turbo_backend_run *run, turbo_error *err);
 } turbo_backend;
 
 #ifdef __cplusplus

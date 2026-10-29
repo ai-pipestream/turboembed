@@ -20,7 +20,7 @@ use turbo_kserve::proto::training::install_model_update::Update;
 use turbo_kserve::proto::training::turbo_catalog_service_client::TurboCatalogServiceClient;
 use turbo_kserve::proto::training::*;
 use turbo_kserve::{Serve, Server};
-use turbo_zoo::{Index, Sha256, Sha512, Transport, Url};
+use turbo_zoo::{Blobs, Index, Sha256, Sha512, Sources, Transport, Url};
 
 type Client = TurboCatalogServiceClient<Channel>;
 
@@ -379,5 +379,80 @@ async fn an_install_that_would_not_leave_the_disk_margin_is_refused_before_any_f
     assert_eq!(t.gets.load(Ordering::SeqCst), 0);
     let e = install(&mut c, "", "hello").await.unwrap_err();
     assert_eq!(refusal(&e), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT), "{e:?}");
+    s.stop().await;
+}
+
+/// The test's transport, shared so its count can be read after it is
+/// handed to a source list.
+struct Shared(Arc<Fixed>);
+
+impl Transport for Shared {
+    fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
+        self.0.get(url, size)
+    }
+}
+
+#[tokio::test]
+async fn an_install_reads_the_store_first_and_the_store_keeps_what_the_origin_serves() {
+    let (home, again, store) = (Home::new("store-home"), Home::new("store-again"), Home::new("store-blobs"));
+    let through = |home: &Path, origin: Arc<Fixed>| {
+        let list = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", Shared(origin));
+        Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(list) }
+    };
+    let origin = Arc::new(transport());
+    let (s, mut c) =
+        start_with(Serve { admin: true, catalog: Some(through(&home.0, origin.clone())), ..Serve::default() }).await;
+    let updates = install(&mut c, "alice", "hello").await.unwrap();
+    // The progress is the file's, as without a store.
+    let (n, wire) = (TEXT.len() as u64, TEXT_GZ.len() as u64);
+    assert_eq!(
+        stages(&updates)[1..3],
+        [(InstallStage::Downloading as i32, wire), (InstallStage::Downloaded as i32, n)]
+    );
+    assert_eq!(origin.gets.load(Ordering::SeqCst), 1);
+    // Kept unpacked under the SHA-256 the index pins.
+    assert_eq!(fs::read(Blobs::new(&store.0).path(&Sha256::of(TEXT))).unwrap(), TEXT);
+    s.stop().await;
+    // A second server with an empty cache and an origin that serves
+    // nothing installs from the store alone.
+    let empty = Arc::new(Fixed::default());
+    let (s, mut c) =
+        start_with(Serve { admin: true, catalog: Some(through(&again.0, empty.clone())), ..Serve::default() }).await;
+    let Some(Update::Installed(m)) = install(&mut c, "alice", "hello").await.unwrap().pop() else { panic!() };
+    assert_eq!((fs::read(&m.files[0]).unwrap(), empty.gets.load(Ordering::SeqCst)), (TEXT.to_vec(), 0));
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn a_store_neither_serves_nor_keeps_a_local_only_artifact() {
+    const NC: &[u8] = b"a non-commercial checkpoint\n";
+    let (home, store) = (Home::new("nc-home"), Home::new("nc-store"));
+    let json = format!(
+        r#"{{"zoo_version": 1, "artifacts": [{{"id": "nc", "kind": "KIND_LEXICON", "language": "en",
+          "format": "FORMAT_TEXT", "version": "1", "license": "CC-BY-NC-4.0",
+          "license_terms": "https://example.org/nc/LICENSE", "trained_on": [], "class": "CLASS_LOCAL_ONLY",
+          "origin": "{BASE}/nc", "attribution": "Example attribution for nc.", "files": [{}]}}]}}"#,
+        file_at("nc.txt", "nc/nc.txt", NC, None)
+    );
+    let kept = Blobs::new(&store.0).path(&Sha256::of(NC));
+    // A copy already in the store, as a store seeded by hand would hold.
+    Blobs::new(&store.0).put(NC).unwrap();
+    let origin =
+        Arc::new(Fixed { files: HashMap::from([(format!("{BASE}/nc/nc.txt"), NC.to_vec())]), ..Fixed::default() });
+    let list = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", Shared(origin.clone()));
+    let index = Arc::new(Index::parse(json.as_bytes()).unwrap());
+    let catalog = Catalog { home: home.0.clone(), index, transport: Arc::new(list) };
+    let (s, mut c) = start_with(Serve { admin: true, catalog: Some(catalog), ..Serve::default() }).await;
+    let accept =
+        RecordLicenceAcceptanceRequest { user: "alice".into(), licence: "CC-BY-NC-4.0".into(), terms: "".into() };
+    c.record_licence_acceptance(accept).await.unwrap();
+    // The store's copy is passed over: the file comes from its publisher.
+    let Some(Update::Installed(m)) = install(&mut c, "alice", "nc").await.unwrap().pop() else { panic!() };
+    assert_eq!((fs::read(&m.files[0]).unwrap(), origin.gets.load(Ordering::SeqCst)), (NC.to_vec(), 1));
+    // And what the publisher serves is not kept.
+    fs::remove_file(&kept).unwrap();
+    fs::remove_dir_all(home.0.join("artifacts")).unwrap();
+    let Some(Update::Installed(_)) = install(&mut c, "alice", "nc").await.unwrap().pop() else { panic!() };
+    assert_eq!((kept.exists(), origin.gets.load(Ordering::SeqCst)), (false, 2));
     s.stop().await;
 }
