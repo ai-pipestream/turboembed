@@ -30,17 +30,14 @@ use crate::resources::{Resources, Unavailable};
 /// them, and the sentiment runs (`sentiment`) train models on a corpus of
 /// their own and score their own documents, which turbo-train-components
 /// compares with; the maxent document categorizer runs (`doccat`) train
-/// models on a downloaded corpus and categorize documents of their own; the
-/// PII rewrites (`pii-rewrite`) compare whole rewritten
-/// texts, labels and audit reports rather than layers, which turbo-pii
-/// compares with; the neural part-of-speech taggers (`postag-neural`) train
+/// models on a downloaded corpus and categorize documents of their own; the neural part-of-speech taggers (`postag-neural`) train
 /// models of their own and tag token lists rather than texts; the CoNLL-U
 /// dependency and CorefUD readers (`conllu`) and the OntoNotes and French
 /// Treebank readers (`ontonotes`, `frenchtreebank`) read files of their own,
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 31] = [
+pub const NOT_COVERED: [&str; 30] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -65,7 +62,6 @@ pub const NOT_COVERED: [&str; 31] = [
     "svm-doccat",
     "sentiment",
     "doccat",
-    "pii-rewrite",
     "postag-neural",
     "conllu",
     "corpora",
