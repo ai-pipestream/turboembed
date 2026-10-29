@@ -19,3 +19,7 @@ turbo-analysis-embed = { path = "../embed" }
 turbo-pins = { path = "../pins" }
 serde_json = "1"
 turbo-formats = { path = "../formats" }
+
+[[example]]
+name = "conll_eval"
+test = true
