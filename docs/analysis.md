@@ -3969,6 +3969,68 @@ no cut dump; on Metal its arguana run has one chunk fewer than the
 CPU's (49147 against 49148) with the same per-query scores. The Intel
 NPU leg is #1480.
 
+### The chunker gate on evidence (#172)
+
+The document gate (`turbo-eval gate`: +2 nDCG@10 points on two sets)
+measures document ranking. On scifact, nfcorpus and arguana most judged
+documents are one or two chunks under any chunker, and even the better
+of chunker v1 and sentence windows per query stays under +2 on scifact
+and nfcorpus (#172, diagnosis of 2026-10-28). So from 2026-10-28 a
+chunker is gated on what it hands a reader instead, by `turbo-eval
+chunk-gate <candidate> <sentence-windows> [<baseline> ...]`
+(`analysis/eval/src/chunk_gate.rs`, its thresholds in one place):
+
+- **Evidence**, on every set with judged evidence spans that is not
+  mostly one- or two-chunk documents (under half of them, by the smaller
+  of the candidate's and the reference's shares): span recall@10 and
+  contained@10 above sentence-windows-5, each with the 95% paired
+  bootstrap interval's low end above zero, and fewer judged spans cut
+  through. At least one set must be gated.
+- **Floor**, on every set: against the baseline with the best mean
+  nDCG@10 there, the interval's high end of the candidate's difference
+  is at least -0.5 points.
+
+Records carry what it reads in `metrics.span`: the evidence integrity
+(share of judged spans no chunk holds whole, share of judged documents
+in at most two chunks) and per-query recall and containment at 10.
+Records made before lack them, and the chunk gate refuses them, so no
+record is read against the wrong bar.
+
+Chunker v1 is `turbo-chunker --max 254 --target 200 --clauses` with
+`--retrieval hybrid`, all-MiniLM-L6-v2 (manifest `0f17adc4`). `--clauses`
+splits a sentence over `--max` at clause punctuation and else by token
+windows: gutenqa has unpunctuated stretches the sentence splitter cannot
+break, up to 116k tokens, which were one truncated chunk and cost v1
+1.46 points of nDCG@10 against fixed-tokens-200. Records at
+`8051f4d7` (gate reports from `957dc00a`, byte-identical to `e28b80d0`'s), six sets, under
+`analysis/eval/records/v1-clauses-172/<backend>/<name>/`, with the gate
+and cut reports in `reports/`. On the CPU, Level Zero (Arc Pro B70), CUDA (RTX 4080 SUPER) and Metal
+(Apple M2; its records at `e28b80d0`, which differs from `8051f4d7` only
+in the gate's code, not in chunking or scoring) the evidence numbers
+are the same, and Metal's floors are the CPU's; the floors that differ are qasper's (CPU
+-1.31, Level Zero -1.27, CUDA -1.29) and, on CUDA, arguana (-0.57) and
+nfcorpus (+0.34):
+
+| Set | recall@10 vs sw-5 | contained@10 vs sw-5 | evidence cut through, v1 / sw-5 | nDCG@10 vs best baseline, mean (high end) |
+| :--- | ---: | ---: | ---: | ---: |
+| qasper | +5.68 (+4.44..+6.95) | +13.78 (+12.05..+15.56) | 7.7% / 51.0% | -1.31 (-0.01) CPU, -1.27 (+0.02) Level Zero, -1.29 (+0.01) CUDA, sandbox semantic |
+| gutenqa | +10.80 (+9.11..+12.52) | +12.05 (+10.18..+13.92) | 5.8% / 9.0% | +0.01 (+0.44), fixed-tokens |
+| conteb-squad | reported: 98% short | | 0.1% / 0.2% | -0.68 (+0.08), sandbox semantic |
+| scifact | | | | -1.34 (-0.03), sentence windows |
+| arguana | | | | -0.68 (-0.16), CUDA -0.57 (-0.02), fixed-tokens |
+| nfcorpus | | | | +0.39 (+0.99), CUDA +0.34 (+0.93), sentence windows |
+
+The gate PASSes on all four backends, and the cohesion-1000 variant
+(`--cohesion 1000 --clauses`) passes too. Both pipelines cut every
+document of the six sets the same on the CPU, Level Zero, CUDA and Metal (`turbo-eval
+cuts`, every chunk's full range; a `--clauses` run's chunks are compared
+by range alone, since its cuts inside a sentence have no margin to
+price). CUDA's nDCG@10 differs from the CPU's only from its vectors'
+numerics (arguana on up to 58 of 1406 queries, nfcorpus on up to 4),
+with the same chunks. Metal matches the CPU query for query. Sentence
+windows is still the eval default; making this pipeline the default is
+separate follow-up work.
+
 ### Structure in the chunker
 
 The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`

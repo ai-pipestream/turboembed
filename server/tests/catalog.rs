@@ -422,3 +422,37 @@ async fn an_install_reads_the_store_first_and_the_store_keeps_what_the_origin_se
     assert_eq!((fs::read(&m.files[0]).unwrap(), empty.gets.load(Ordering::SeqCst)), (TEXT.to_vec(), 0));
     s.stop().await;
 }
+
+#[tokio::test]
+async fn a_store_neither_serves_nor_keeps_a_local_only_artifact() {
+    const NC: &[u8] = b"a non-commercial checkpoint\n";
+    let (home, store) = (Home::new("nc-home"), Home::new("nc-store"));
+    let json = format!(
+        r#"{{"zoo_version": 1, "artifacts": [{{"id": "nc", "kind": "KIND_LEXICON", "language": "en",
+          "format": "FORMAT_TEXT", "version": "1", "license": "CC-BY-NC-4.0",
+          "license_terms": "https://example.org/nc/LICENSE", "trained_on": [], "class": "CLASS_LOCAL_ONLY",
+          "origin": "{BASE}/nc", "attribution": "Example attribution for nc.", "files": [{}]}}]}}"#,
+        file_at("nc.txt", "nc/nc.txt", NC, None)
+    );
+    let kept = Blobs::new(&store.0).path(&Sha256::of(NC));
+    // A copy already in the store, as a store seeded by hand would hold.
+    Blobs::new(&store.0).put(NC).unwrap();
+    let origin =
+        Arc::new(Fixed { files: HashMap::from([(format!("{BASE}/nc/nc.txt"), NC.to_vec())]), ..Fixed::default() });
+    let list = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", Shared(origin.clone()));
+    let index = Arc::new(Index::parse(json.as_bytes()).unwrap());
+    let catalog = Catalog { home: home.0.clone(), index, transport: Arc::new(list) };
+    let (s, mut c) = start_with(Serve { admin: true, catalog: Some(catalog), ..Serve::default() }).await;
+    let accept =
+        RecordLicenceAcceptanceRequest { user: "alice".into(), licence: "CC-BY-NC-4.0".into(), terms: "".into() };
+    c.record_licence_acceptance(accept).await.unwrap();
+    // The store's copy is passed over: the file comes from its publisher.
+    let Some(Update::Installed(m)) = install(&mut c, "alice", "nc").await.unwrap().pop() else { panic!() };
+    assert_eq!((fs::read(&m.files[0]).unwrap(), origin.gets.load(Ordering::SeqCst)), (NC.to_vec(), 1));
+    // And what the publisher serves is not kept.
+    fs::remove_file(&kept).unwrap();
+    fs::remove_dir_all(home.0.join("artifacts")).unwrap();
+    let Some(Update::Installed(_)) = install(&mut c, "alice", "nc").await.unwrap().pop() else { panic!() };
+    assert_eq!((kept.exists(), origin.gets.load(Ordering::SeqCst)), (false, 2));
+    s.stop().await;
+}

@@ -191,7 +191,7 @@ pub const ANNOTATORS: [&str; 47] = [
 /// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "postag", "lemmatize", "langdetect"];
+pub const DUMPED_ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "postag", "langdetect"];
 
 /// The input set the number scan runs on. It runs on no other set, and the
 /// other annotators do not run on this one.

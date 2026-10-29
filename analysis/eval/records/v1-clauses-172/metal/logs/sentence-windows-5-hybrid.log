@@ -1,0 +1,37 @@
+== sentence-windows-5-hybrid 2026-10-28T12:01:32Z head e28b80d0d2185ff3a0d8f797cfe07e7ea5dd1d84
+ 8:01  up 19 days,  1:11, 7 users, load averages: 10.23 4.79 3.91
+"Device Utilization %"=33
+cmd: cargo run --release -p turbo-eval --features turbo/metal -- run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper,conteb-squad,gutenqa --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/sentence-windows-5-hybrid --chunker sentence-windows --window 5
+    Finished `release` profile [optimized] target(s) in 0.25s
+     Running `target/release/turbo-eval run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper,conteb-squad,gutenqa --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/sentence-windows-5-hybrid --chunker sentence-windows --window 5`
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+set gutenqa: 112 judgements could not be placed in their document and are left out
+$SCRATCH/records/sentence-windows-5-hybrid/scifact.json
+$SCRATCH/records/sentence-windows-5-hybrid/nfcorpus.json
+$SCRATCH/records/sentence-windows-5-hybrid/arguana.json
+$SCRATCH/records/sentence-windows-5-hybrid/qasper.json
+$SCRATCH/records/sentence-windows-5-hybrid/conteb-squad.json
+$SCRATCH/records/sentence-windows-5-hybrid/gutenqa.json
+      843.52 real       415.02 user         4.78 sys
+           976437248  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              129977  page reclaims
+                1534  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1578  voluntary context switches
+              657704  involuntary context switches
+       1704080007194  instructions retired
+        788335418081  cycles elapsed
+          1249773080  peak memory footprint
+exit 0
+== end 2026-10-28T12:15:36Z
+ 8:15  up 19 days,  1:25, 7 users, load averages: 12.82 5.74 4.49
+"Device Utilization %"=98

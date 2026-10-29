@@ -68,6 +68,14 @@ impl TokenizerTier {
     }
 }
 
+/// One gold document for a tokenizer tier: the text the tier sees and
+/// the gold words over it, by sentence.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TokenDocument {
+    pub text: String,
+    pub sentences: Vec<Vec<String>>,
+}
+
 /// Scores a tokenizer tier over each document's joined `# text` lines:
 /// the predicted tokens are one stream per document, form-aligned to
 /// the gold words, so `tokens` is word-segmentation F1 with gold
@@ -79,26 +87,63 @@ pub fn score_tokenizer(
     tier: TokenizerTier,
     resamples: u32,
 ) -> Result<SystemScores> {
-    let documents = joined_documents(gold)?;
+    let joined = joined_documents(gold)?;
+    let mut documents: Vec<TokenDocument> = Vec::with_capacity(joined.len());
+    for (text, _) in joined {
+        documents.push(TokenDocument { text, sentences: Vec::new() });
+    }
+    // Group the gold forms exactly as joined_documents grouped texts.
+    let mut at = 0usize;
+    for (i, sentence) in gold.iter().enumerate() {
+        if sentence.new_doc && i > 0 {
+            at += 1;
+        }
+        documents[at].sentences.push(sentence.tokens.iter().map(|t| t.form.clone()).collect());
+    }
+    score_tokenizer_documents(system, &documents, tier, resamples, gold.len())
+}
+
+/// Scores a tokenizer tier over gold documents of any source corpus:
+/// `sentences` of each is only its gold count, for the throughput
+/// field. Gold words are the concatenated sentence forms.
+pub fn score_tokenizer_documents(
+    system: &str,
+    documents: &[TokenDocument],
+    tier: TokenizerTier,
+    resamples: u32,
+    sentences: usize,
+) -> Result<SystemScores> {
+    fn sentence(forms: Vec<String>, new_doc: bool) -> ConlluSentence {
+        ConlluSentence {
+            text: None,
+            tokens: forms
+                .into_iter()
+                .map(|form| ConlluToken {
+                    form,
+                    lemma: "_".into(),
+                    upos: "_".into(),
+                    xpos: "_".into(),
+                    feats: "_".into(),
+                    head: None,
+                    deprel: "_".into(),
+                })
+                .collect(),
+            new_doc,
+        }
+    }
     let started = Instant::now();
     let mut predicted: Vec<ConlluSentence> = Vec::with_capacity(documents.len());
-    for (joined, _) in &documents {
-        let tokens = tier
-            .forms(joined)
-            .into_iter()
-            .map(|form| ConlluToken {
-                form,
-                lemma: "_".into(),
-                upos: "_".into(),
-                xpos: "_".into(),
-                feats: "_".into(),
-                head: None,
-                deprel: "_".into(),
-            })
-            .collect();
-        predicted.push(ConlluSentence { text: None, tokens, new_doc: true });
+    for document in documents {
+        predicted.push(sentence(tier.forms(&document.text), true));
     }
     let elapsed = started.elapsed().as_secs_f64();
+    let mut gold_sentences: Vec<ConlluSentence> = Vec::new();
+    for document in documents {
+        for (i, forms) in document.sentences.iter().enumerate() {
+            gold_sentences.push(sentence(forms.clone(), i == 0));
+        }
+    }
+    let gold = &gold_sentences[..];
 
     let gold_all = flatten(gold);
     let (gold_flat, gold_docs, gold_sents) = (&gold_all.tokens, &gold_all.documents, &gold_all.sentences);
@@ -149,6 +194,6 @@ pub fn score_tokenizer(
         language: None,
         not_run: vec!["sentences/fields: a tokenizer tier writes no sentence or field predictions".into()],
         token_mismatch_sentences: mismatch,
-        throughput_sentences_per_second: (elapsed > 0.0).then_some(gold.len() as f64 / elapsed),
+        throughput_sentences_per_second: (elapsed > 0.0).then_some(sentences as f64 / elapsed),
     })
 }
