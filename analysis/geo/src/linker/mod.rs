@@ -9,6 +9,7 @@ mod context;
 mod equivalence_tests;
 mod fuzzy;
 mod geohash;
+mod policy;
 mod spatial;
 #[cfg(test)]
 mod tests;
@@ -18,6 +19,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Edge, Edges, Error, Ix, Refs, Span, Tag, TagSet, View};
 use turbo_analysis_layers::Entities;
+use turbo_matcher::FuzzyMatchPolicy;
 use turbo_unicode::java::to_lowercase;
 
 use crate::entry::GazetteerEntry;
@@ -142,6 +144,7 @@ pub struct LinkedCandidate {
 pub struct GeoEntityLinker<G> {
     gazetteer: G,
     fuzzy: FuzzyStringScorer,
+    fuzzy_policy: FuzzyMatchPolicy,
     geohash: GeoHashBinningScorer,
     country: CountryProximityScorer,
     province: ProvinceProximityScorer,
@@ -159,6 +162,7 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
         GeoEntityLinker {
             gazetteer,
             fuzzy: FuzzyStringScorer::default(),
+            fuzzy_policy: FuzzyMatchPolicy::default(),
             geohash: GeoHashBinningScorer::default(),
             country: CountryProximityScorer::default(),
             province: ProvinceProximityScorer::default(),
@@ -175,6 +179,14 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
 
     pub fn with_fuzzy_scorer(mut self, fuzzy: FuzzyStringScorer) -> Self {
         self.fuzzy = fuzzy;
+        self
+    }
+
+    /// Sets the fuzzy match policy gating typo and phonetic recovery. The
+    /// default policy is disabled: retrieval, scores, and hashes are then
+    /// exactly those of the scorer-only path.
+    pub fn with_fuzzy_match_policy(mut self, policy: FuzzyMatchPolicy) -> Self {
+        self.fuzzy_policy = policy;
         self
     }
 
@@ -245,12 +257,30 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
         for (m_idx, &span) in mentions.iter().enumerate() {
             let surface = &text[span.range()];
             mention_keys.push(folder.fold(surface));
-            let hits = self.gazetteer.lookup_fuzzy(surface, &self.fuzzy, min_sim, retrieval_limit);
+            // An enabled policy broadens retrieval to surface edit and
+            // phonetic candidates, then re-scores each hit with the policy
+            // over the entry's names; the policy confidence replaces the
+            // retrieval score, is never multiplied by it, and the
+            // retrieval-limit cap is applied only after the policy ranking.
+            let hits = if self.fuzzy_policy.is_enabled() {
+                let hits = self.gazetteer.lookup_fuzzy(
+                    surface,
+                    &self.fuzzy,
+                    policy::POLICY_RETRIEVAL_MIN_SIMILARITY,
+                    policy::broadened_limit(),
+                );
+                policy::score_and_retain(&self.fuzzy_policy, surface, hits, retrieval_limit)
+            } else {
+                self.gazetteer.lookup_fuzzy(surface, &self.fuzzy, min_sim, retrieval_limit)
+            };
             let mut entries = Vec::with_capacity(hits.len());
             hash_starts.push(hash_rows.len());
             for (idx, (entry_view, sim)) in hits.into_iter().enumerate() {
                 let owned = entry_view.to_entry();
                 hash_rows.push(encode_geohash(owned.location(), self.geohash.precision()));
+                // `hits` is in policy-ranked order when the policy is enabled
+                // and in raw retrieval order when it is disabled, so the rank
+                // weight always follows the order the candidates ranked in.
                 let rank_weight = 1.0 / (1.0 + idx as f64);
                 if let Some(code) = owned.region_code() {
                     cand_country_signals
@@ -373,6 +403,9 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
             policy_disc,
         ] {
             h.fold_u64(bits);
+        }
+        if self.fuzzy_policy.is_enabled() {
+            h.fold_u64(self.fuzzy_policy.fingerprint());
         }
         hash_location_types(h.finish(), &self.location_types)
     }

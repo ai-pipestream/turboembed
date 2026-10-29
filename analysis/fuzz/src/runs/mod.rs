@@ -16,9 +16,12 @@ mod catalog;
 mod confusables_17;
 mod language;
 mod normalize;
+mod numeric;
+mod pii;
 mod sentences;
 mod subwords;
 mod tagging;
+mod temporal;
 mod tokens;
 
 use std::fmt;
@@ -27,7 +30,7 @@ use turbo_analysis::{Analyzer, Document};
 use turbo_analysis_layers::Tokens;
 use turbo_goldens::{Golden, Mismatch};
 
-pub use catalog::{NOT_COVERED, RUNS, open};
+pub use catalog::{NOT_COVERED, RUNS, is_retired, native_runs, open};
 
 /// What comparing one golden with the Rust side found.
 #[derive(Clone, Debug, PartialEq)]
@@ -154,6 +157,11 @@ pub(crate) fn token_spans(doc: &Document) -> Vec<(u32, u32)> {
 /// surrogate pair, which its `turbo:utf16<layer>` block says.
 pub(crate) fn has_cut(golden: &Golden, layer: &str) -> bool {
     golden.layer(&format!("turbo:utf16<{layer}>")).is_some()
+}
+
+/// The value of the golden's `config` record `key`.
+pub(crate) fn config<'g>(golden: &'g Golden, key: &str) -> Option<&'g str> {
+    golden.header.config.iter().find(|c| c.key == key).map(|c| c.value.as_str())
 }
 
 /// A run name split at its `+` options: `opennlp-en-...+beam1` gives the

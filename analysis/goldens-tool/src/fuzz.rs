@@ -172,8 +172,10 @@ fn count_inputs(inputs: &Path) -> Result<usize, String> {
     Ok(read(set)?.filter_map(|e| e.ok()).filter(|e| e.path().extension().is_some_and(|x| x == "txt")).count())
 }
 
-/// Runs the whole command.
+/// Runs the whole command. Refused until #1532 (see
+/// [`models::GENERATOR_RETIRED`]).
 pub fn run(opts: &Options) -> Result<Summary, String> {
+    models::generator_runs()?;
     let out = opts.out_dir();
     let inputs = out.join("inputs");
     let jvm = out.join("jvm");

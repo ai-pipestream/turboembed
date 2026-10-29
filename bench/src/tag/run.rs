@@ -18,7 +18,7 @@ use crate::postag::Treebank;
 use crate::postag::measure::{Sentence, conllu, pass};
 use crate::{BUILD_CHANGES, BUILD_COMMIT, Result, check_build, git, utc};
 
-const USAGE: &str = "turbo-bench tag --model <bundle-dir | ONLP-BLPT file> --corpus <file.conllu> [--device cpu] \
+const USAGE: &str = "turbo-bench tag --model <native-bundle-dir> --corpus <file.conllu> [--device cpu] \
                      [--precision exact|model|fastest] [--sentences-per-call <n>] [--rounds <n>] [--cpus <list>] \
                      [--repo <dir>] [--out <dir>]";
 
@@ -40,25 +40,24 @@ fn options(args: &[String]) -> Result<BTreeMap<String, String>> {
     Ok(o)
 }
 
-/// The model of `path` for a precision: a bundle directory's F32 or F16
-/// weights, or an `ONLP-BLPT` file's f64. Its source SHA-256, the
-/// bundle manifest's SHA-256 (empty for a file) and the weights' name.
+/// Native bundle weights, their common F32 source digest, manifest digest
+/// and selected precision. Archive-file inputs are retired under #1511.
 fn load(path: &Path, weights: &[&str]) -> Result<(BilstmPosModel, String, String, &'static str)> {
-    let read = |p: &Path| std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()));
-    if path.is_dir() {
-        let m = turbo_bundle::postag::verify(path, None)?;
-        let manifest = sha256_hex(&read(&path.join(turbo_bundle::postag::MANIFEST))?);
-        let f16 = weights == ["f16"];
-        let model = turbo_bundle::postag::load(path, f16)?;
-        return Ok((model, m.source_sha256, manifest, if f16 { "f16" } else { "f32" }));
+    if !path.is_dir() {
+        return Err("tag: OpenNLP archive loading is retired; give a native bundle directory".into());
     }
-    if !weights.contains(&"f64") {
-        return Err(format!("{}: this precision runs a bundle's F16 weights; give a bundle directory", path.display()));
-    }
-    let bytes = read(path)?;
-    let model = BilstmPosModel::load(bytes.as_slice()).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok((model, sha256_hex(&bytes), String::new(), "f64"))
+    let m = turbo_bundle::postag::verify(path)?;
+    let bytes = std::fs::read(path.join(turbo_bundle::postag::MANIFEST)).map_err(|e| e.to_string())?;
+    let manifest = sha256_hex(&bytes);
+    let f16 = weights == ["f16"];
+    let model = turbo_bundle::postag::load(path, f16)?;
+    let source = m.files["weights.safetensors"].clone();
+    Ok((model, source, manifest, if f16 { "f16" } else { "f32" }))
 }
+
+#[cfg(test)]
+#[path = "run_tests.rs"]
+mod tests;
 
 fn speed(passes: &[f64], mut calls: Vec<f64>, words: usize) -> Speed {
     let mut rates: Vec<f64> = passes.iter().map(|s| words as f64 / s).collect();

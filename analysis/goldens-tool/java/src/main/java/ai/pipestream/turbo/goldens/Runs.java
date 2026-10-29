@@ -29,13 +29,6 @@ final class Runs {
   static final String LEMMA_MODEL_EN = "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin";
   static final String LEMMA_MODEL_DE = "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin";
 
-  /** The OpenNLP 1.5 English models the beam search, tag dictionary and tag format goldens run. */
-  static final String POS_MODEL_EN_15_MAXENT = "en-pos-maxent.bin";
-  static final String POS_MODEL_EN_15_PERCEPTRON = "en-pos-perceptron.bin";
-  static final String CHUNKER_MODEL_EN_15 = "en-chunker.bin";
-  static final String PERSON_MODEL_EN_15 = "en-ner-person.bin";
-  static final String LOCATION_MODEL_EN_15 = "en-ner-location.bin";
-
   /**
    * The MeCab dictionaries the generator loads from the models directory, each unpacked from its
    * published archive, and the UTF-8 copy of the one that is not UTF-8.

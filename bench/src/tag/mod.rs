@@ -58,9 +58,9 @@ pub struct TagModel {
     pub id: String,
     pub revision: String,
     pub sha256: String,
-    /// SHA-256 of the `ONLP-BLPT` file, read or named by the bundle.
+    /// SHA-256 of native F32 parameter bytes; historical records name an archive.
     pub source_sha256: String,
-    /// SHA-256 of the bundle's `postag.json`; empty for a model file.
+    /// SHA-256 of the bundle's `postag.json`; empty only in historical file records.
     pub bundle_sha256: String,
     /// `f64` (the model file), `f32` or `f16` (a bundle's weights).
     pub weights: String,

@@ -2,9 +2,12 @@
 
 use super::language::Detector;
 use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
+use super::numeric::{MoneyLayer, Numeric};
+use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
 use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
+use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
@@ -28,16 +31,16 @@ use crate::resources::{Resources, Unavailable};
 /// their own and score their own documents, which turbo-train-components
 /// compares with; the maxent document categorizer runs (`doccat`) train
 /// models on a downloaded corpus and categorize documents of their own; the
-/// PII packs and rewrites (`pii`, `pii-rewrite`) live under
-/// turbo-pii's own snapshots; the number, money, quantity and temporal
-/// runs live under turbo-numeric's own snapshots; the neural part-of-speech taggers (`postag-neural`) train
+/// PII rewrites (`pii-rewrite`) compare whole rewritten
+/// texts, labels and audit reports rather than layers, which turbo-pii
+/// compares with; the neural part-of-speech taggers (`postag-neural`) train
 /// models of their own and tag token lists rather than texts; the CoNLL-U
 /// dependency and CorefUD readers (`conllu`) and the OntoNotes and French
 /// Treebank readers (`ontonotes`, `frenchtreebank`) read files of their own,
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 30] = [
+pub const NOT_COVERED: [&str; 31] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -62,6 +65,7 @@ pub const NOT_COVERED: [&str; 30] = [
     "svm-doccat",
     "sentiment",
     "doccat",
+    "pii-rewrite",
     "postag-neural",
     "conllu",
     "corpora",
@@ -70,9 +74,9 @@ pub const NOT_COVERED: [&str; 30] = [
     "sentvectors",
 ];
 
-/// Every run the differential covers, as `(annotator, run)`: the golden
-/// directories under `analysis/goldens/data`. A run whose model is not
-/// present opens as `Unavailable::Missing`.
+/// Historical directory inventory, including retired classical runs.
+/// Native execution uses [`native_runs`]; retirement never opens resources.
+/// The directory inventory remains until its owning snapshot migration lands.
 pub const RUNS: &[(&str, &str)] = &[
     ("sentdetect", "en-abbrev"),
     ("sentdetect", "en-plain"),
@@ -159,15 +163,64 @@ pub const RUNS: &[(&str, &str)] = &[
     ("normalize", "symbol-joiner"),
     ("normalize", "default-chain"),
     ("normalize", "umlaut-full-case-whitespace-chain"),
+    ("numbers", "latin-eu"),
+    ("numbers", "latin-us"),
+    ("money", "latin-eu"),
+    ("money", "latin-us"),
+    ("money-convert", "latin-eu"),
+    ("money-convert", "latin-us"),
+    ("quantity", "latin-eu"),
+    ("quantity", "latin-us"),
+    ("temporal", "dateline"),
+    ("temporal", "fixed"),
+    ("pii", "payment"),
+    ("pii", "contact"),
+    ("pii", "network"),
+    ("pii", "secrets"),
+    ("pii", "crypto"),
+    ("pii", "us-identity"),
+    ("pii", "eu-identity"),
+    ("pii", "ca-identity"),
+    ("pii", "device"),
+    ("pii", "all-structured"),
     ("subwords", VOCABULARY),
 ];
 
+/// Classical archive consumers retained only in the historical inventory.
+/// Unknown names within a retired family are refused before resource lookup too.
+pub fn is_retired(annotator: &str, run: &str) -> bool {
+    let base = run.split('+').next().unwrap_or("");
+    match annotator {
+        "sentdetect" => !matches!(base, "newline" | "rule" | "paragraph"),
+        "tokenize" => !matches!(base, "simple" | "whitespace" | "uax29"),
+        "postag" | "lemmatize" | "lemmatize-dictionary" | "chunk" | "langdetect" => true,
+        _ => false,
+    }
+}
+
+/// Retained native runs, including rule sentences and paragraph structure.
+/// Historical JVM expected outputs play no part in this execution registry.
+pub fn native_runs() -> impl Iterator<Item = (&'static str, &'static str)> {
+    RUNS.iter()
+        .copied()
+        .filter(|(annotator, run)| !is_retired(annotator, run))
+        .chain([("sentdetect", "rule"), ("sentdetect", "paragraph")])
+}
+
 /// Opens the Rust side of `<annotator>/<run>`.
 pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
+    if is_retired(annotator, run) {
+        return Err(Unavailable::NotCovered(format!("retired classical run {annotator}/{run}")));
+    }
     let (base, options) = split_options(run);
     let not_covered = || Unavailable::NotCovered(format!("{annotator}/{run}"));
+    if annotator == "tokenize" && base == "uax29" && !options.is_empty() {
+        return Err(not_covered());
+    }
     match annotator {
-        "sentdetect" if base == "newline" => NewlineSentences::open(&options),
+        "sentdetect" if matches!(base, "newline" | "rule" | "paragraph") => {
+            NewlineSentences::open_native(base, &options)
+        }
         "sentdetect" => MaxentSentences::open(base, &options, res),
         "tokenize" => match base {
             "simple" => Plain::open(true, &options),
@@ -183,6 +236,12 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
+        "numbers" => Numeric::open_numbers(run),
+        "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
+        "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
+        "quantity" => Numeric::open_quantities(run),
+        "temporal" => Temporal::open(run),
+        "pii" => PiiRun::open(run),
         "subwords" if run == VOCABULARY => WordPiece::open(res),
         _ => Err(not_covered()),
     }
@@ -214,6 +273,13 @@ mod tests {
         on_disk.sort();
         let mut listed: Vec<(String, String)> = RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
         listed.sort();
+        // Native runs may outlive their JVM golden trees; skip families
+        // whose data directory is not checked in yet.
+        for family in ["numbers", "money", "money-convert", "quantity", "temporal", "pii"] {
+            if !data.join(family).is_dir() {
+                listed.retain(|(a, _)| a.as_str() != family);
+            }
+        }
         assert_eq!(listed, on_disk);
     }
 
@@ -221,17 +287,22 @@ mod tests {
     fn runs_without_a_model_open_from_the_fixtures_alone() {
         let res = Resources::new("/nonexistent");
         for (annotator, run) in [
-            ("sentdetect", "en-abbrev"),
+            ("sentdetect", "rule"),
+            ("sentdetect", "newline"),
+            ("sentdetect", "paragraph"),
             ("tokenize", "simple+keep-new-lines"),
             ("tokenize", "uax29"),
             ("normalize", "default-chain"),
             ("normalize", "umlaut-full-case-whitespace-chain"),
-            ("chunk", "chunker-fixture+beam1"),
-            ("chunk", "chunker-fixture-rust"),
+            ("money-convert", "latin-eu"),
+            ("pii", "all-structured"),
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }
-        assert!(matches!(open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res), Err(Unavailable::Missing(_))));
+        assert!(matches!(
+            open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res),
+            Err(Unavailable::NotCovered(_))
+        ));
         assert!(matches!(open("train", "anything", &res), Err(Unavailable::NotCovered(_))));
         // There is one whitespace definition, so no run takes a mode.
         for (annotator, run) in [("sentdetect", "en-abbrev+legacy"), ("tokenize", "simple+legacy")] {

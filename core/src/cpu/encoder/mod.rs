@@ -46,6 +46,8 @@ use super::pool::Pool;
 mod job;
 mod rotary;
 #[cfg(test)]
+mod taps_tests;
+#[cfg(test)]
 mod tests;
 
 use job::{Bufs, Job, Step, entry};
@@ -124,6 +126,10 @@ pub(super) struct Encoder {
     /// capacity the session's max_ranges. Empty after `write`: the run
     /// then pools each row.
     ranges: Vec<turbo_token_range>,
+    /// The last layers each range is pooled from, 1 for the final alone:
+    /// the output is [taps, ranges, output_dim], the last block the
+    /// final layer's (turbo_backend.h, `taps`).
+    taps: usize,
 
     /// Each row's first packed token and its length through its last
     /// live token.
@@ -204,6 +210,7 @@ impl Encoder {
             normalize: 0,
             output_dim: 0,
             ranges,
+            taps: 1,
             rows: zeroed(max_batch)?,
             at: zeroed(tokens)?,
             padded: zeroed(max_batch)?,
@@ -278,11 +285,20 @@ impl Encoder {
         self.pooling = r.pooling;
         self.normalize = r.normalize;
         self.output_dim = r.output_dim as usize;
+        self.taps = (r.taps as usize).max(1);
+    }
+
+    /// The block of the output layer `l`'s states are pooled into when it
+    /// is a tap before the last layer: None for the last layer, whose
+    /// states the run pools at its end, and for any layer untapped.
+    fn tap(&self, l: usize) -> Option<usize> {
+        let first = self.layers - self.taps;
+        (!self.ranges.is_empty() && l >= first && l + 1 < self.layers).then(|| l - first)
     }
 
     /// Run the written rows into `out`, [batch, output_dim] packed, or
-    /// [ranges, output_dim] after `write_ranges`, on `pool`, which has at
-    /// most the threads the encoder was made for.
+    /// [taps, ranges, output_dim] after `write_ranges`, on `pool`, which
+    /// has at most the threads the encoder was made for.
     pub(super) fn run(&mut self, pool: &mut Pool, out: &mut [f32]) {
         debug_assert!(pool.threads() * self.per_thread <= self.scratch.len());
         let tokens = self.pack();
@@ -310,8 +326,23 @@ impl Encoder {
         };
         let linear = |pool: &mut Pool, g: Gemm| go(pool, Step::Linear(g), g.tasks());
         let chunks = tokens.div_ceil(TOKENS);
+        let (count, od, at) = (e.ranges.len(), e.output_dim, out.as_mut_ptr());
+        debug_assert!(count == 0 || out.len() >= e.taps * count * od);
+        // Each range pooled from the states at `src` into block k of out.
+        let pool_ranges = |pool: &mut Pool, src: *const f32, k: usize| {
+            let per_task = count.div_ceil(pool.threads() * RANGE_TASKS_PER_THREAD);
+            // SAFETY: k is below taps, and out holds taps blocks of count
+            // vectors.
+            let out = unsafe { at.add(k * count * od) };
+            go(pool, Step::PoolRanges { src, out, per_task }, count.div_ceil(per_task));
+        };
+        let tapped = |pool: &mut Pool, l: usize, src: *const f32| {
+            if let Some(k) = e.tap(l) {
+                pool_ranges(pool, src, k);
+            }
+        };
         if let Some(r) = &e.rotary {
-            r.layers(e, packed, bufs, tokens, pool, &go);
+            r.layers(e, packed, bufs, tokens, pool, &go, &tapped);
         } else {
             go(pool, Step::Lookup, chunks);
         }
@@ -326,15 +357,13 @@ impl Encoder {
             linear(pool, gemm(bufs.x, h, &pl.ffn_in, w(FFN_IN_B), bufs.ffn, n_i, Epilogue::Gelu));
             linear(pool, gemm(bufs.ffn, n_i, &pl.ffn_out, w(FFN_OUT_B), bufs.x, h, Epilogue::Residual));
             go(pool, Step::Norm(w(FFN_LN_W), w(FFN_LN_B)), chunks);
+            tapped(pool, l, bufs.x);
         }
-        if e.ranges.is_empty() {
+        if count == 0 {
             self.pool(out);
             return;
         }
-        let count = e.ranges.len();
-        debug_assert!(out.len() >= count * e.output_dim);
-        let per_task = count.div_ceil(pool.threads() * RANGE_TASKS_PER_THREAD);
-        go(pool, Step::PoolRanges { out: out.as_mut_ptr(), per_task }, count.div_ceil(per_task));
+        pool_ranges(pool, bufs.x, e.taps - 1);
     }
 
     /// Each row's place among the packed tokens, each token's place in
