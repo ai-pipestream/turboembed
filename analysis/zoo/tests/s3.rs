@@ -2,7 +2,7 @@
 //! in-process: path-style addressing as RustFS serves it, the
 //! signature checked by the stand-in, unsigned reads of a public bucket,
 //! and the zoo's own checks on whatever the bucket serves.
-#![cfg(feature = "s3")]
+#![cfg(feature = "http")]
 
 use std::collections::HashMap;
 use std::fs;
@@ -11,9 +11,8 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 
-use turbo_zoo::{Acceptances, Blobs, Index, Offline, Policy, Sha256, Sha512, Transport, Url, UserId, Zoo, ZooError};
-use turbo_zoo_remote::sigv4::{Credentials, sign_get};
-use turbo_zoo_remote::{S3Bucket, sources};
+use turbo_zoo::sigv4::{Credentials, EMPTY_SHA256, payload_sha256, sign};
+use turbo_zoo::{Acceptances, Blobs, Index, Policy, S3Bucket, Sha256, Sha512, Transport, Url, UserId, Zoo, ZooError};
 
 const TEXT: &[u8] = b"hello hello hello\n";
 
@@ -35,21 +34,22 @@ fn creds() -> Credentials {
     Credentials { key: "AKIDEXAMPLE".into(), secret: "a-secret".into(), token: Some("a-session".into()) }
 }
 
-/// What the stand-in saw of one request: its path and headers, lower-cased
-/// names.
+/// What the stand-in saw of one request: its method, path and headers,
+/// lower-cased names.
 struct Seen {
+    method: String,
     path: String,
     headers: HashMap<String, String>,
 }
 
-/// Answers `n` GETs from `objects` (path to bytes), each with 404 when the
-/// path is not there or, when `creds` are given, 403 unless the request
-/// carries the signature those credentials make for it.
-fn stand_in(
-    objects: HashMap<String, Vec<u8>>,
-    creds: Option<Credentials>,
-    n: usize,
-) -> (String, JoinHandle<Vec<Seen>>) {
+/// What the stand-in saw, and the objects it held when it stopped.
+type Log = (Vec<Seen>, HashMap<String, Vec<u8>>);
+
+/// Answers `n` requests: a GET from `objects` (path to bytes), 404 when
+/// the path is not there, and a PUT into them. When `creds` are given,
+/// each request is refused 403 unless it carries the signature those
+/// credentials make for it, over the body it sent.
+fn stand_in(mut objects: HashMap<String, Vec<u8>>, creds: Option<Credentials>, n: usize) -> (String, JoinHandle<Log>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let handle = std::thread::spawn(move || {
@@ -59,7 +59,8 @@ fn stand_in(
             let mut reader = BufReader::new(conn.try_clone().unwrap());
             let mut line = String::new();
             reader.read_line(&mut line).unwrap();
-            let path = line.split(' ').nth(1).unwrap().to_owned();
+            let mut parts = line.split(' ');
+            let (method, path) = (parts.next().unwrap().to_owned(), parts.next().unwrap().to_owned());
             let mut headers = HashMap::new();
             loop {
                 let mut h = String::new();
@@ -71,24 +72,33 @@ fn stand_in(
                 let (k, v) = h.split_once(':').unwrap();
                 headers.insert(k.to_ascii_lowercase(), v.trim().to_owned());
             }
+            let length = headers.get("content-length").map_or(0, |v| v.parse().unwrap());
+            let mut body = vec![0u8; length];
+            reader.read_exact(&mut body).unwrap();
             let signed_right = creds.as_ref().is_none_or(|c| {
                 let date = headers.get("x-amz-date").cloned().unwrap_or_default();
-                let want = sign_get(c, "us-east-1", &headers["host"], &path, &[], &date);
-                want.iter().all(|(k, v)| headers.get(k) == Some(v))
+                let payload = if method == "PUT" { payload_sha256(&body) } else { EMPTY_SHA256.into() };
+                let at = (headers["host"].as_str(), path.as_str());
+                sign(&method, c, "us-east-1", at, &payload, &[], &date)
+                    .is_ok_and(|want| want.iter().all(|(k, v)| headers.get(k) == Some(v)))
             });
-            let reply: (&str, &[u8]) = match objects.get(&path) {
-                _ if !signed_right => ("403 Forbidden", b""),
-                Some(b) => ("200 OK", b),
-                None => ("404 Not Found", b""),
+            let reply: (&str, Vec<u8>) = match (signed_right, method.as_str(), objects.get(&path)) {
+                (false, _, _) => ("403 Forbidden", Vec::new()),
+                (true, "PUT", _) => {
+                    objects.insert(path.clone(), body);
+                    ("200 OK", Vec::new())
+                }
+                (true, _, Some(b)) => ("200 OK", b.clone()),
+                (true, _, None) => ("404 Not Found", Vec::new()),
             };
             let head =
                 format!("HTTP/1.1 {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", reply.0, reply.1.len());
             conn.write_all(head.as_bytes()).unwrap();
-            conn.write_all(reply.1).unwrap();
+            conn.write_all(&reply.1).unwrap();
             let _ = reader.read(&mut [0u8; 1]);
-            seen.push(Seen { path, headers });
+            seen.push(Seen { method, path, headers });
         }
-        seen
+        (seen, objects)
     });
     (endpoint, handle)
 }
@@ -126,7 +136,7 @@ fn a_model_loads_from_a_bucket_with_a_signed_path_style_get() {
     let zoo = Zoo::new(index(), cache.0.clone(), Policy::default(), &bucket);
     let fetched = zoo.fetch("hello", &alice(), &Acceptances::default()).unwrap();
     assert_eq!(fs::read(fetched.single().unwrap()).unwrap(), TEXT);
-    let seen = server.join().unwrap();
+    let (seen, _) = server.join().unwrap();
     assert_eq!(seen[0].path, key("/models/zoo"));
     assert_eq!(seen[0].headers["x-amz-security-token"], "a-session");
     assert!(seen[0].headers["authorization"].starts_with("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/"));
@@ -145,7 +155,7 @@ fn a_wrong_key_is_refused_by_the_bucket_and_a_public_bucket_is_read_unsigned() {
     let (endpoint, server) = stand_in(objects, None, 1);
     let bucket = S3Bucket::with("s3://public", Some(&endpoint), "us-east-1", None).unwrap();
     assert_eq!(bucket.get_file(a, &a.files[0]).unwrap(), TEXT);
-    assert!(!server.join().unwrap()[0].headers.contains_key("authorization"));
+    assert!(!server.join().unwrap().0[0].headers.contains_key("authorization"));
 }
 
 #[test]
@@ -202,6 +212,32 @@ fn bucket_addresses_are_checked_before_any_request() {
     assert!(S3Bucket::with("s3://models", None, "US East", None).is_err());
     let u: Url = "https://example.org/hello.txt".parse().unwrap();
     assert!(aws.get(&u, 1).unwrap_err().contains("by its SHA-256"));
-    // TURBO_ZOO_SOURCE names a bucket like any other source.
-    assert_eq!(sources("file:///zoo, s3://models/zoo, origin", &alice(), Offline).unwrap().len(), 3);
+}
+
+#[test]
+fn a_bucket_keeps_what_the_origin_serves_with_a_signed_put() {
+    // A GET that finds nothing, a PUT, then a GET from the bucket.
+    let (endpoint, server) = stand_in(HashMap::new(), Some(creds()), 3);
+    let bucket = S3Bucket::with("s3://models/zoo", Some(&endpoint), "us-east-1", Some(creds())).unwrap();
+    let origin = Origin(TEXT.to_vec());
+    let list = turbo_zoo::Sources::new().then_keep("bucket", bucket.clone()).then("origin", origin);
+    let index = index();
+    let a = index.get("hello").unwrap();
+    assert_eq!(list.get_file(a, &a.files[0]).unwrap(), TEXT);
+    // Now the bucket serves it: the list is not asked to reach the origin.
+    assert_eq!(bucket.get_file(a, &a.files[0]).unwrap(), TEXT);
+    let (seen, objects) = server.join().unwrap();
+    let methods: Vec<&str> = seen.iter().map(|s| s.method.as_str()).collect();
+    assert_eq!(methods, ["GET", "PUT", "GET"]);
+    assert_eq!(objects[&key("/models/zoo")], TEXT);
+    assert_eq!(seen[1].headers["x-amz-content-sha256"], payload_sha256(TEXT));
+}
+
+/// The index's own address: serves the same bytes for every file.
+struct Origin(Vec<u8>);
+
+impl Transport for Origin {
+    fn get(&self, _url: &Url, _size: u64) -> Result<Vec<u8>, String> {
+        Ok(self.0.clone())
+    }
 }

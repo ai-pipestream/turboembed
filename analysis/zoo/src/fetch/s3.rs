@@ -1,17 +1,21 @@
-//! An S3 bucket as a source: each file read by its SHA-256 from
-//! `<prefix>/blobs/sha256/<hex>`, the layout a zoo server's store and a
-//! library's local copy share, with one signed GET.
+//! An S3 bucket as a source and a store: each file read by its SHA-256
+//! from `<prefix>/blobs/sha256/<hex>`, the layout a zoo server's store and
+//! a library's local copy share, with one signed GET, and kept there with
+//! one signed PUT.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use turbo_zoo::{Artifact, File, Transport, Url};
-
-use crate::sigv4::{Credentials, amz_date, sign_get};
+use super::sigv4::{Credentials, EMPTY_SHA256, amz_date, payload_sha256, sign};
+use super::sources::Keep;
+use super::transport::Transport;
+use crate::digest::Sha256;
+use crate::index::{Artifact, File, Url};
 
 /// An S3 bucket, or a prefix in one, on AWS or any S3-compatible store
 /// (RustFS). The bucket holds files the way [`turbo_zoo::Blobs`]
 /// does, so a store copied there (`aws s3 sync <root> s3://bucket/zoo`)
 /// serves as is.
+#[derive(Clone)]
 pub struct S3Bucket {
     address: String,
     /// `scheme://authority`, with no path.
@@ -100,6 +104,35 @@ impl S3Bucket {
     pub fn url_of(&self, hex: &str) -> String {
         format!("{}{}/blobs/sha256/{hex}", self.base, self.path)
     }
+
+    /// `method` on the object for `hex`, signed when there are credentials.
+    fn request(&self, method: &str, hex: &str, payload: &str) -> Result<(String, Vec<(String, String)>), String> {
+        let path = format!("{}/blobs/sha256/{hex}", self.path);
+        let url = format!("{}{path}", self.base);
+        let Some(creds) = &self.creds else { return Ok((url, Vec::new())) };
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
+        let headers = sign(method, creds, &self.region, (&self.host, &path), payload, &[], &amz_date(now))?;
+        Ok((url, headers))
+    }
+
+    /// Keeps `bytes` in the bucket under their own SHA-256, with one PUT,
+    /// and returns that SHA-256.
+    pub fn put(&self, bytes: &[u8]) -> Result<Sha256, String> {
+        let sha256 = Sha256::of(bytes);
+        let (url, headers) = self.request("PUT", &sha256.to_string(), &payload_sha256(bytes))?;
+        let mut req = self.agent.put(&url);
+        for (name, value) in headers {
+            req = req.header(name, value);
+        }
+        req.send(bytes).map_err(|e| format!("{url}: {e}"))?;
+        Ok(sha256)
+    }
+}
+
+impl Keep for S3Bucket {
+    fn keep(&self, bytes: &[u8]) -> Result<(), String> {
+        self.put(bytes).map(|_| ())
+    }
 }
 
 impl Transport for S3Bucket {
@@ -110,15 +143,10 @@ impl Transport for S3Bucket {
     /// The file, unpacked, as the store keeps it, at most its size and one
     /// byte more so the zoo's size check fails on a longer one.
     fn get_file(&self, _artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
-        let hex = file.sha256.to_string();
-        let path = format!("{}/blobs/sha256/{hex}", self.path);
-        let url = format!("{}{path}", self.base);
+        let (url, headers) = self.request("GET", &file.sha256.to_string(), EMPTY_SHA256)?;
         let mut req = self.agent.get(&url);
-        if let Some(creds) = &self.creds {
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
-            for (name, value) in sign_get(creds, &self.region, &self.host, &path, &[], &amz_date(now)) {
-                req = req.header(name, value);
-            }
+        for (name, value) in headers {
+            req = req.header(name, value);
         }
         let mut resp = req.call().map_err(|e| format!("{url}: {e}"))?;
         resp.body_mut()

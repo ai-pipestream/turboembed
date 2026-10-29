@@ -119,6 +119,18 @@ fn rustfs_signed_reads_integrity_and_offline_cache() {
     assert!(matches!(error, ZooError::Integrity { .. }), "{error:?}");
     assert!(!cache.join("fixture").join("fixture.txt").exists());
 
+    // The library also signs uploads and can keep an origin file in RustFS.
+    let writer = service.bucket("written", Some(&service.secret));
+    assert_eq!(writer.put(&bytes).unwrap(), file.sha256);
+    assert_eq!(writer.put(&bytes).unwrap(), file.sha256);
+    assert_eq!(writer.get_file(artifact, file).unwrap(), bytes);
+    assert!(service.bucket("written", Some("wrongsecret")).put(&bytes).unwrap_err().contains("403"));
+    let keeper = service.bucket("kept", Some(&service.secret));
+    let sources = Sources::new().then_keep("rustfs", keeper).then("origin", store.clone());
+    assert_eq!(sources.get_file(artifact, file).unwrap(), bytes);
+    fs::remove_file(store.path(&file.sha256)).unwrap();
+    assert_eq!(sources.get_file(artifact, file).unwrap(), bytes);
+
     // Different prefix, empty objects, and correct files through the full installer.
     let empty = fixture_index(&[]);
     let empty_artifact = empty.get("fixture").unwrap();
