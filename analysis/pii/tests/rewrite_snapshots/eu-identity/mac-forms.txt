@@ -1,0 +1,9 @@
+MASKED	Adapters 00-1B-44-11-3A-B7, 00:1b:44:11:3a:b8 and 001b.4411.3ab9 are up.
+
+MASK_ALL	Adapters 00-1B-44-11-3A-B7, 00:1b:44:11:3a:b8 and 001b.4411.3ab9 are up.
+
+REWRITE	pseudonymize	OK	Adapters 00-1B-44-11-3A-B7, 00:1b:44:11:3a:b8 and 001b.4411.3ab9 are up.
+
+REWRITE	hmac	OK	Adapters 00-1B-44-11-3A-B7, 00:1b:44:11:3a:b8 and 001b.4411.3ab9 are up.
+
+AUDIT_REPORT	no pii found

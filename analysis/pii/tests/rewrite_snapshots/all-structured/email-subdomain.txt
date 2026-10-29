@@ -1,0 +1,12 @@
+MASKED	Mail ***.****+******@****.**.*******.**.** and keep a copy.
+
+MASK_ALL	Mail ##################################### and keep a copy.
+
+REWRITE	pseudonymize	OK	Mail EMAIL-1 and keep a copy.
+
+LABEL	pseudonymize	5	42	5	12	EMAIL-1
+REWRITE	hmac	OK	Mail EMAIL-b166ba391e0225eb and keep a copy.
+
+LABEL	hmac	5	42	5	27	EMAIL-b166ba391e0225eb
+AUDIT	email	1	1	EMAIL-b166ba391e0225eb
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-b166ba391e0225eb]

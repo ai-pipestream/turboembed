@@ -1,0 +1,12 @@
+MASKED	Send it to *****.****@*******.***... then wait.
+
+MASK_ALL	Send it to ######################... then wait.
+
+REWRITE	pseudonymize	OK	Send it to EMAIL-1... then wait.
+
+LABEL	pseudonymize	11	33	11	18	EMAIL-1
+REWRITE	hmac	OK	Send it to EMAIL-cfab778c7e5b129e... then wait.
+
+LABEL	hmac	11	33	11	33	EMAIL-cfab778c7e5b129e
+AUDIT	email	1	1	EMAIL-cfab778c7e5b129e
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-cfab778c7e5b129e]
