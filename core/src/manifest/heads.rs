@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::helpers::{fits, positive, required};
-use super::{Format, Manifest};
+use super::{Format, LicenseClass, Manifest};
 use crate::status::{Result, invalid};
 
 /// The most heads one bundle carries.
@@ -23,6 +23,10 @@ pub const MAX_LABELS: usize = 4096;
 pub const MAX_BIAFFINE: u32 = 4096;
 /// The widest part-of-speech embedding a lemmatizer reads.
 pub const MAX_POS_DIM: u32 = 1024;
+/// The widest hashed word embedding, per feature.
+pub const MAX_HASH_DIM: u32 = 1024;
+/// The most rows one hashed feature table holds.
+pub const MAX_HASH_ROWS: u32 = 1 << 20;
 /// The namespace every head's layer id is in.
 pub const LAYER_NAMESPACE: &str = "turboembed:";
 
@@ -50,6 +54,15 @@ pub struct HeadSpec {
     /// kind, and optional for a lemmatizer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos_input: Option<PosInput>,
+    /// Hashed embeddings of the word's own text joined after its pooled
+    /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_embed: Option<HashEmbed>,
+    /// The class of the strictest licence among the corpora the head was
+    /// trained on (docs/zoo.md); the bundle's tier counts it
+    /// ([`Manifest::license_tier`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license_class: Option<LicenseClass>,
     /// The name of the FORMAT_SAFETENSORS artifact holding the head's
     /// tensors, as `from` and `host_weights` name artifacts.
     pub artifact: String,
@@ -92,6 +105,17 @@ pub struct PosInput {
 pub struct Biaffine {
     pub arc: u32,
     pub rel: u32,
+}
+
+/// A word's identity as a head reads it beside the encoder: four
+/// features of its text (NORM, PREFIX, SUFFIX, SHAPE), each looked up in
+/// its own table of `rows[k]` rows `dim` wide by several hashes of the
+/// feature and summed (head/hash_embed.rs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HashEmbed {
+    pub dim: u32,
+    pub rows: [u32; 4],
 }
 
 /// How a head's labels read.
@@ -299,6 +323,20 @@ impl HeadSpec {
                 )));
             }
         }
+        if let Some(h) = &self.hash_embed {
+            if self.kind != HeadKind::TokenTagger {
+                return Err(invalid(format!("manifest.json: {}: only a HEAD_TOKEN_TAGGER takes it", at("hash_embed"))));
+            }
+            positive(&at("hash_embed.dim"), h.dim)?;
+            if h.dim > MAX_HASH_DIM || h.rows.iter().any(|&r| r == 0 || r > MAX_HASH_ROWS) {
+                return Err(invalid(format!(
+                    "manifest.json: {}: dim {} and rows {:?}; dim 1 to {MAX_HASH_DIM}, rows 1 to {MAX_HASH_ROWS}",
+                    at("hash_embed"),
+                    h.dim,
+                    h.rows
+                )));
+            }
+        }
         if let Some(a) = &self.adapter {
             positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;
             positive(&at("adapter.bilstm.layers"), a.bilstm.layers)?;
@@ -316,6 +354,13 @@ impl HeadSpec {
 }
 
 impl Manifest {
+    /// The bundle's licence tier: the strictest class of its encoder
+    /// (`model.license_class`) and of every head's training corpora. None
+    /// when the encoder's class is not recorded and no head records one.
+    pub fn license_tier(&self) -> Option<LicenseClass> {
+        self.model.license_class.into_iter().chain(self.heads.iter().filter_map(|h| h.license_class)).max()
+    }
+
     pub(super) fn validate_heads(&self) -> Result<()> {
         if self.heads.is_empty() {
             return Ok(());
@@ -329,6 +374,13 @@ impl Manifest {
         for (i, h) in self.heads.iter().enumerate() {
             let at = |field: &str| format!("heads[{i}].{field}");
             h.validate(&format!("heads[{i}]"))?;
+            if h.license_class.is_some() && self.model.license_class.is_none() {
+                return Err(invalid(format!(
+                    "manifest.json: {}: set, and model.license_class is not, so the bundle's tier would leave the \
+                     encoder out",
+                    at("license_class")
+                )));
+            }
             if self.heads[..i].iter().any(|o| o.name == h.name) {
                 return Err(invalid(format!("manifest.json: {}: {:?} names two heads", at("name"), h.name)));
             }

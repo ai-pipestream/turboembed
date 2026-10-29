@@ -76,24 +76,7 @@ impl DependencyParser {
     pub fn parse(&self, sequences: &[Vec<&str>]) -> Result<Vec<Parse>, CoreError> {
         let pooling = self.parser.spec().word_pooling;
         let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, pooling)?;
-        self.parse_features(&features)
-    }
-
-    fn parse_features(&self, features: &[Vec<f32>]) -> Result<Vec<Parse>, CoreError> {
-        let (mut arcs, mut scores, mut work) = (Vec::new(), Vec::new(), Work::default());
-        let hidden = self.parser.hidden();
-        let mut out = Vec::with_capacity(features.len());
-        for f in features {
-            let ids: Vec<u32> = (0..(f.len() / hidden) as u32).collect();
-            let n = self.parser.arcs(f, &ids, &mut arcs, &mut work)?;
-            let mut heads = Vec::new();
-            self.parser.decode(&arcs, n, &mut heads)?;
-            self.parser.relations(&heads, &mut scores, &work)?;
-            let mut relations = Vec::new();
-            self.parser.relation_labels(&scores, n, &mut relations)?;
-            out.push(Parse { heads, relations });
-        }
-        Ok(out)
+        parse_with(&self.parser, &features)
     }
 
     /// The dependency layer over every token of the view, the pieces
@@ -110,22 +93,8 @@ impl DependencyParser {
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
         let features = words.token_features(view, tokens, &seqs, subwords, pooling)?;
         drop(words);
-        let parses = self.parse_features(&features).map_err(|e| e.to_string())?;
-        let n = tokens.spans.len();
-        let (mut head, mut relation) = (vec![None; n], vec![Tag(0); n]);
-        let mut seen = vec![false; n];
-        for (s, p) in seqs.iter().zip(&parses) {
-            for (k, &i) in s.iter().enumerate() {
-                let h = p.heads[k] as usize;
-                head[i] = (h > 0).then(|| Ix::new(s[h - 1] as u32));
-                relation[i] = Tag(p.relations[k] as u16);
-                seen[i] = true;
-            }
-        }
-        if seen.iter().any(|s| !s) {
-            return Err("a token lies outside every sentence".into());
-        }
-        Ok(Dependencies { head, relation, relations: self.relations.clone() })
+        let parses = parse_with(&self.parser, &features).map_err(|e| e.to_string())?;
+        dep_layer(tokens, &seqs, &parses, &self.relations)
     }
 }
 
@@ -151,4 +120,46 @@ impl Annotator for DependencyParser {
     fn config_hash(&self) -> u64 {
         Fnv1a::new().str(&self.parser.spec().name).u64(self.width as u64).finish()
     }
+}
+
+/// Each sequence parsed by `parser` from its word features.
+pub(crate) fn parse_with(parser: &BiaffineParser, features: &[Vec<f32>]) -> Result<Vec<Parse>, CoreError> {
+    let (mut arcs, mut scores, mut work) = (Vec::new(), Vec::new(), Work::default());
+    let hidden = parser.hidden();
+    let mut out = Vec::with_capacity(features.len());
+    for f in features {
+        let ids: Vec<u32> = (0..(f.len() / hidden) as u32).collect();
+        let n = parser.arcs(f, &ids, &mut arcs, &mut work)?;
+        let mut heads = Vec::new();
+        parser.decode(&arcs, n, &mut heads)?;
+        parser.relations(&heads, &mut scores, &work)?;
+        let mut relations = Vec::new();
+        parser.relation_labels(&scores, n, &mut relations)?;
+        out.push(Parse { heads, relations });
+    }
+    Ok(out)
+}
+
+/// The dependency layer from each sequence's parse.
+pub(crate) fn dep_layer(
+    tokens: &Tokens,
+    seqs: &[Vec<usize>],
+    parses: &[Parse],
+    relations: &Arc<TagSet>,
+) -> Result<Dependencies<Tokens>, String> {
+    let n = tokens.spans.len();
+    let (mut head, mut relation) = (vec![None; n], vec![Tag(0); n]);
+    let mut seen = vec![false; n];
+    for (s, p) in seqs.iter().zip(parses) {
+        for (k, &i) in s.iter().enumerate() {
+            let h = p.heads[k] as usize;
+            head[i] = (h > 0).then(|| Ix::new(s[h - 1] as u32));
+            relation[i] = Tag(p.relations[k] as u16);
+            seen[i] = true;
+        }
+    }
+    if seen.iter().any(|s| !s) {
+        return Err("a token lies outside every sentence".into());
+    }
+    Ok(Dependencies { head, relation, relations: relations.clone() })
 }

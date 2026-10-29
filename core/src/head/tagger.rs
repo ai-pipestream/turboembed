@@ -115,8 +115,28 @@ impl TokenTagger {
     /// Refused: states or map of the wrong size (INVALID_SHAPE); a word
     /// map out of order or a non-finite state (INVALID_ARGUMENT).
     pub fn scores(&self, states: &[f32], words: &[u32], out: &mut Vec<f32>, w: &mut Work) -> Result<usize> {
+        self.scores_forms(states, words, None, out, w)
+    }
+
+    /// Whether the head reads each word's text (a `hash_embed`), so its
+    /// scores need [`scores_forms`](Self::scores_forms).
+    pub fn reads_forms(&self) -> bool {
+        self.reader.reads_forms()
+    }
+
+    /// As [`scores`](Self::scores), with each word's text, which a head
+    /// with a `hash_embed` reads (refused without it) and any other head
+    /// ignores.
+    pub fn scores_forms(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        forms: Option<&[&str]>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<usize> {
         out.clear();
-        let n = self.reader.read(states, words, w)?;
+        let n = self.reader.read(states, words, forms, w)?;
         out.resize(n * self.out.out_dim, 0.0);
         if n > 0 {
             self.out.apply_rows(&w.pooled, n, out);

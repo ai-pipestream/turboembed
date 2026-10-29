@@ -1825,6 +1825,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2908,6 +2909,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-trainer-recipes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-analysis-embed",
+ "turbo-formats",
+ "turbo-tagger",
+ "turbo-train-recipes",
+ "turbo-trainer",
+ "turbo-zoo",
+]
+
+[[package]]
 name = "turbo-unicode"
 version = "0.1.0"
 dependencies = [
@@ -2947,6 +2963,20 @@ dependencies = [
  "turbo-maxent",
  "turbo-zstd",
  "ureq",
+]
+
+[[package]]
+name = "turbo-zoo-remote"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protox",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "turbo-kserve",
+ "turbo-zoo",
 ]
 
 [[package]]

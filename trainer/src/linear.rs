@@ -1,7 +1,7 @@
 //! A linear layer over rows: y = x W^T + b, W [out, in] row-major as the
 //! core's `Linear` holds it.
 
-use crate::real::Real;
+use crate::real::{Real, dot};
 
 /// y [rows, out] from x [rows, inp].
 pub fn forward<R: Real>(w: &[R], b: &[R], x: &[R], inp: usize, out: usize, y: &mut [R]) {
@@ -10,11 +10,7 @@ pub fn forward<R: Real>(w: &[R], b: &[R], x: &[R], inp: usize, out: usize, y: &m
     for r in 0..rows {
         let xr = &x[r * inp..][..inp];
         for (o, yo) in y[r * out..][..out].iter_mut().enumerate() {
-            let mut s = b[o];
-            for (wv, xv) in w[o * inp..][..inp].iter().zip(xr) {
-                s += *wv * *xv;
-            }
-            *yo = s;
+            *yo = b[o] + dot(&w[o * inp..][..inp], xr);
         }
     }
 }

@@ -5,7 +5,7 @@
 //! the sequence from its last row. A bidirectional layer writes each row
 //! as [forward state, backward state], as the core does.
 
-use crate::real::Real;
+use crate::real::{Real, dot};
 
 /// One direction's weights.
 #[derive(Debug, Clone, Copy)]
@@ -62,14 +62,9 @@ pub fn forward<R: Real>(
     for t in 0..n {
         let xr = &x[row(d.reverse, n, t) * inp..][..inp];
         for (k, ak) in a.iter_mut().enumerate() {
-            let mut s = d.b[k];
-            for (wv, xv) in d.w[k * inp..][..inp].iter().zip(xr) {
-                s += *wv * *xv;
-            }
+            let mut s = d.b[k] + dot(&d.w[k * inp..][..inp], xr);
             if t > 0 {
-                for (uv, hv) in d.u[k * h..][..h].iter().zip(&cache.state[(t - 1) * h..][..h]) {
-                    s += *uv * *hv;
-                }
+                s += dot(&d.u[k * h..][..h], &cache.state[(t - 1) * h..][..h]);
             }
             *ak = s;
         }
@@ -87,8 +82,10 @@ pub fn forward<R: Real>(
     }
 }
 
-/// Adds the gradients of [`forward`] to `grad` and to `dx` [n, inp], from
-/// `dout`, the gradient of the loss with respect to `out`.
+/// Adds the gradients of [`forward`] to `grad` and, when given, to `dx`
+/// [n, inp], from `dout`, the gradient of the loss with respect to `out`.
+/// Leaving `dx` out skips a third of the work where nothing reads it (the
+/// first layer over frozen features).
 #[allow(clippy::too_many_arguments)]
 pub fn backward<R: Real>(
     d: Dir<R>,
@@ -100,7 +97,7 @@ pub fn backward<R: Real>(
     offset: usize,
     cache: &Cache<R>,
     grad: Grad<R>,
-    dx: &mut [R],
+    mut dx: Option<&mut [R]>,
 ) {
     let n = x.len() / inp;
     let g4 = 4 * h;
@@ -124,15 +121,17 @@ pub fn backward<R: Real>(
             dc_next[j] = dc * f;
         }
         let xr = &x[r * inp..][..inp];
-        let dxr = &mut dx[r * inp..][..inp];
+        let mut dxr = dx.as_deref_mut().map(|d| &mut d[r * inp..][..inp]);
         dh_next.fill(R::ZERO);
         for (k, &g) in da.iter().enumerate() {
             grad.b[k] += g;
             for (dw, xv) in grad.w[k * inp..][..inp].iter_mut().zip(xr) {
                 *dw += g * *xv;
             }
-            for (dxv, wv) in dxr.iter_mut().zip(&d.w[k * inp..][..inp]) {
-                *dxv += g * *wv;
+            if let Some(dxr) = dxr.as_deref_mut() {
+                for (dxv, wv) in dxr.iter_mut().zip(&d.w[k * inp..][..inp]) {
+                    *dxv += g * *wv;
+                }
             }
             if t > 0 {
                 let prev = &cache.state[(t - 1) * h..][..h];

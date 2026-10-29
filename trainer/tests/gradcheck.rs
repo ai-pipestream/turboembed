@@ -75,7 +75,7 @@ fn lstm_gradients_match_finite_differences_in_both_directions() {
         let (mut gw, mut gu, mut gb, mut dx) =
             (vec![0.0; w.len()], vec![0.0; u.len()], vec![0.0; b.len()], vec![0.0; x.len()]);
         let g = lstm::Grad { w: &mut gw, u: &mut gu, b: &mut gb };
-        lstm::backward(d, &x, inp, h, &r, stride, offset, &cache, g, &mut dx);
+        lstm::backward(d, &x, inp, h, &r, stride, offset, &cache, g, Some(&mut dx));
         let (u0, b0, x0) = (u.clone(), b.clone(), x.clone());
         check("w", &mut w, &gw, &mut |w| loss(w, &u0, &b0, &x0));
         let w0 = w.clone();
@@ -155,6 +155,8 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         decode,
         biaffine: None,
         pos_input: None,
+        hash_embed: None,
+        license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "t".into(),
     }
