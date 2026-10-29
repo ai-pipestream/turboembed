@@ -323,6 +323,7 @@ async fn admin_starts_empty_and_bundle_dir_loads_sealed_bundles() {
             max_batch: 0,
             max_seq: 0,
             select_device: false,
+            user: String::new(),
         })
         .await
         .unwrap()

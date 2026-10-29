@@ -130,6 +130,11 @@ read-only. An empty `user` lists nothing. Acceptances made with
 `turbo-zoo accept` or `turbo-bundle` are in the same file and are
 listed alike.
 
+The analysis service's `LoadBundle` reads the same file on a server
+started with a catalog: a bundle whose `model.license` needs acceptance
+loads only for the request's `user` (field 12) when that user accepted
+it (docs/grpc-analysis.md, Capabilities).
+
 ## Installing
 
 `InstallModel` takes a `user` and an `artifact_id`. Before its first

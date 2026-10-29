@@ -229,3 +229,60 @@ async fn without_admin_acceptances_are_listed_but_not_changed() {
     assert!(c.revoke_licence_acceptance(revoke("alice")).await.unwrap().into_inner().was_accepted);
     s.stop().await;
 }
+
+/// The tiny test bundle, copied with its manifest naming `licence`.
+fn bundle_under(home: &Home, licence: &str) -> PathBuf {
+    let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
+    let to = home.0.join(format!("bundle-{licence}"));
+    let mut stack = vec![(from, to.clone())];
+    while let Some((src, dst)) = stack.pop() {
+        fs::create_dir_all(&dst).unwrap();
+        for e in fs::read_dir(&src).unwrap() {
+            let e = e.unwrap();
+            if e.file_type().unwrap().is_dir() {
+                stack.push((e.path(), dst.join(e.file_name())));
+            } else {
+                fs::copy(e.path(), dst.join(e.file_name())).unwrap();
+            }
+        }
+    }
+    let m = to.join("manifest.json");
+    let text =
+        fs::read_to_string(&m).unwrap().replace("\"license\": \"Apache-2.0\"", &format!("\"license\": \"{licence}\""));
+    fs::write(&m, text).unwrap();
+    to
+}
+
+/// LoadBundle of a share-alike bundle needs the loading user's
+/// acceptance; a permissive one needs none.
+#[tokio::test]
+async fn load_bundle_needs_the_loading_users_acceptance() {
+    use turbo_kserve::proto::result::LoadBundleRequest;
+    use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+    let home = Home::new("load");
+    let (s, mut c) = start(&home.0, true).await;
+    let mut a = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let sa = bundle_under(&home, "CC-BY-SA-4.0");
+    let rt = turbo_kserve::api::Runtime::create().unwrap();
+    let cpu = (0..16).find(|&i| rt.device_info(i).is_ok_and(|d| d.kind == turbo::TURBO_DEVICE_CPU)).expect("a CPU");
+    let load = |name: &str, dir: &Path, user: &str| LoadBundleRequest {
+        name: name.into(),
+        bundle: dir.to_str().unwrap().into(),
+        sessions: 1,
+        device: cpu,
+        user: user.into(),
+        ..Default::default()
+    };
+    let e = a.load_bundle(load("sa", &sa, "alice")).await.unwrap_err();
+    assert_eq!(refusal(&e).1, TURBO_E_INVALID_STATE, "{e:?}");
+    assert!(e.message().contains("CC-BY-SA-4.0") && e.message().contains(SA_TEXT), "{e:?}");
+    let e = a.load_bundle(load("sa", &sa, "")).await.unwrap_err();
+    assert_eq!(refusal(&e), (Code::FailedPrecondition, TURBO_E_INVALID_STATE, "12".into()), "{e:?}");
+    c.record_licence_acceptance(record("alice", "", "")).await.unwrap();
+    a.load_bundle(load("sa", &sa, "alice")).await.unwrap();
+    let e = a.load_bundle(load("sa-bob", &sa, "bob")).await.unwrap_err();
+    assert_eq!(refusal(&e).1, TURBO_E_INVALID_STATE, "one user's acceptance is not another's: {e:?}");
+    let free = bundle_under(&home, "Apache-2.0");
+    a.load_bundle(load("free", &free, "")).await.unwrap();
+    s.stop().await;
+}

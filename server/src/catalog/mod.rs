@@ -10,10 +10,12 @@
 mod accept;
 mod disk;
 mod entry;
+mod gate;
 mod install;
 mod read;
 mod through;
 
+pub(crate) use gate::check_load;
 pub use read::READ_CHUNK_BYTES;
 
 use std::fmt;
@@ -87,7 +89,7 @@ impl Catalog {
     }
 
     /// The acceptance file, empty when there is none yet.
-    fn acceptances(&self) -> Result<Acceptances, ZooError> {
+    pub(crate) fn acceptances(&self) -> Result<Acceptances, ZooError> {
         let p = self.acceptances_path();
         if p.exists() { Acceptances::load(&p) } else { Ok(Acceptances::default()) }
     }
