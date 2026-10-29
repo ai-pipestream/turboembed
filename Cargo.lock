@@ -2147,6 +2147,7 @@ dependencies = [
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-matcher",
  "turbo-maxent",
  "turbo-namefind",
  "turbo-normalize",
@@ -2253,8 +2254,10 @@ dependencies = [
  "turbo-glossary-layers",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-matcher",
  "turbo-normalize",
  "turbo-numeric",
+ "turbo-sha256",
  "turbo-tokenize",
  "turbo-unicode",
 ]

@@ -1,5 +1,6 @@
-//! The small BERT in testdata with a part-of-speech head and an entity
-//! head of seeded weights, for the tests of this crate.
+//! The small BERT in testdata with a part-of-speech head, an entity head
+//! and a dependency parser head of seeded weights, for the tests of this
+//! crate.
 
 #![allow(dead_code)]
 
@@ -8,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use turbo::bundle::sha256_hex;
-use turbo::head::tagger::tensors;
-use turbo::manifest::HeadSpec;
+use turbo::head::{parser, tagger};
+use turbo::manifest::{HeadKind, HeadSpec};
 use turbo_analysis::{Span, Spans, ViewId};
 use turbo_analysis_layers::Tokens;
 
@@ -31,6 +32,12 @@ pub fn heads() -> Value {
             "labels": ["O", "B-PER", "I-PER", "B-LOC", "I-LOC"], "scheme": "SCHEME_BIO",
             "word_pooling": "WORD_POOLING_FIRST", "adapter": {"bilstm": {"hidden": 4, "layers": 1}},
             "decode": "DECODE_CRF", "artifact": "weights-f32", "tensor_prefix": "heads.ner"
+        },
+        {
+            "name": "deps", "layer": "turboembed:dependencies", "kind": "HEAD_BIAFFINE_PARSER",
+            "labels": ["root", "nsubj", "obj", "det", "amod", "punct"], "scheme": "SCHEME_TAGS",
+            "word_pooling": "WORD_POOLING_FIRST", "decode": "DECODE_MST", "biaffine": {"arc": 6, "rel": 4},
+            "artifact": "weights-f32", "tensor_prefix": "heads.deps"
         }
     ])
 }
@@ -65,7 +72,11 @@ pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
     let mut seed = 1;
     for h in heads().as_array().unwrap() {
         let spec: HeadSpec = serde_json::from_value(h.clone()).unwrap();
-        for (suffix, shape) in tensors(&spec, 32) {
+        let shapes = match spec.kind {
+            HeadKind::BiaffineParser => parser::tensors(&spec, 32),
+            _ => tagger::tensors(&spec, 32),
+        };
+        for (suffix, shape) in shapes {
             let count = shape.iter().product::<u64>() as usize;
             let start = data.len();
             data.extend(values(seed, count, 0.8).iter().flat_map(|v| v.to_le_bytes()));
