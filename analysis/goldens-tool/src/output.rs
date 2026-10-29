@@ -337,12 +337,12 @@ mod tests {
         assert!(e.contains("without a golden"), "{e}");
         fs::remove_file(root.join("tokenize/m/en/b.dump")).unwrap();
 
-        put("quantity/latin-eu/quantity/a.golden", "golden 1\nannotator\ta.B\trun\n");
+        put("detokenize/rule/en/a.golden", "golden 1\nannotator\ta.B\trun\n");
         assert_eq!(check_dumps(&root).unwrap(), 1);
-        put("quantity/latin-eu/quantity/a.dump", &dump_text("quantity/a"));
+        put("detokenize/rule/en/a.dump", &dump_text("en/a"));
         let e = check_dumps(&root).unwrap_err();
         assert!(e.contains("without a model"), "{e}");
-        fs::remove_file(root.join("quantity/latin-eu/quantity/a.dump")).unwrap();
+        fs::remove_dir_all(root.join("detokenize")).unwrap();
 
         // Non-dumped annotators still validate golden framing and path layout.
         put("detokenize/m/en/x.golden", "");
