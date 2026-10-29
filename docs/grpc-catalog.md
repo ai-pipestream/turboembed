@@ -15,7 +15,7 @@ that index instead of the built-in one.
 
 `--catalog-store URL` puts a content-addressed store in front of the
 index's own addresses: `file:///dir` (a directory) or
-`s3://bucket/prefix` (an S3 bucket on AWS, or on RustFS, MinIO or
+`s3://bucket/prefix` (an S3 bucket on AWS, or on RustFS or
 another S3-compatible store named by `AWS_ENDPOINT_URL`), both in the
 `blobs/sha256/<hex>` layout docs/zoo.md describes. An install reads each
 file from the store first and fetches it from its address only when the
