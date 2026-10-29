@@ -1,7 +1,8 @@
 //! DescribeModel, ResolveModel and ReadModelFile: one artifact's entry, the
 //! artifact and file the index pins at a SHA-256, and an installed file's
 //! bytes streamed to a user the licence check admits. A read is not an
-//! admin call. The bytes are hashed as they are sent, and a file whose
+//! admin call. In zoo mode a file not yet cached is fetched first
+//! (through.rs); otherwise it is refused until the artifact is installed. The bytes are hashed as they are sent, and a file whose
 //! size or SHA-256 no longer matches the index ends the stream with
 //! DATA_LOSS instead of a clean end; the client verifies every digest too.
 
@@ -16,7 +17,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use turbo_zoo::{Offline, Policy, Sha256, UserId, Zoo, ZooError};
 
-use super::{Catalog, entry, invalid, plain, zoo_status};
+use super::{Catalog, entry, invalid, plain, through, zoo_status};
 use crate::api::{Failure, TURBO_E_BUNDLE_INTEGRITY, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_STATE, TURBO_E_RUNTIME};
 use crate::proto::training::model_file_chunk::Frame;
 use crate::proto::training::{CatalogEntry, ModelFileChunk};
@@ -78,6 +79,7 @@ pub(super) async fn start(
     id: String,
     path: String,
     pin: String,
+    through: Option<through::Fetching>,
 ) -> Result<ChunkStream, Status> {
     if id.is_empty() {
         return Err(invalid(2, "artifact_id is required"));
@@ -86,7 +88,7 @@ pub(super) async fn start(
         return Err(invalid(3, "path is required"));
     }
     let pin = if pin.is_empty() { None } else { Some(sha256(4, &pin)?) };
-    let opened = super::blocking(move || open(&catalog, &user, &id, &path, pin)).await?;
+    let opened = super::blocking(move || open(&catalog, &user, &id, &path, pin, through.as_ref())).await?;
     let (tx, rx) = mpsc::channel(4);
     tokio::task::spawn_blocking(move || send(opened, tx));
     Ok(Box::pin(ReceiverStream::new(rx)))
@@ -101,8 +103,15 @@ struct Opened {
 
 /// The licence check, then the file: listed in the artifact, pinned at
 /// the caller's SHA-256 when one is given, and a plain file in the cache
-/// at the size the index records.
-fn open(catalog: &Catalog, user: &UserId, id: &str, path: &str, pin: Option<Sha256>) -> Result<Opened, Status> {
+/// at the size the index records, fetched first when `through` is given.
+fn open(
+    catalog: &Catalog,
+    user: &UserId,
+    id: &str,
+    path: &str,
+    pin: Option<Sha256>,
+    through: Option<&through::Fetching>,
+) -> Result<Opened, Status> {
     let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &Offline);
     let a = zoo.permit_with(id, user, || catalog.acceptances()).map_err(zoo_status)?;
     let f = a
@@ -120,8 +129,13 @@ fn open(catalog: &Catalog, user: &UserId, id: &str, path: &str, pin: Option<Sha2
         )));
     }
     let local = catalog.cache().join(a.id.as_str()).join(f.path.as_str());
-    let installed = fs::symlink_metadata(&local).is_ok_and(|m| m.is_file() && m.len() == f.size);
-    if !installed {
+    let installed = || fs::symlink_metadata(&local).is_ok_and(|m| m.is_file() && m.len() == f.size);
+    if !installed()
+        && let Some(gates) = through
+    {
+        through::fetch(catalog, user, a.id.as_str(), gates)?;
+    }
+    if !installed() {
         return Err(plain(Failure::new(
             TURBO_E_INVALID_STATE,
             0,
