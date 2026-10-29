@@ -62,25 +62,15 @@ index served from memory, so nothing is downloaded. It checks that:
 - the list parser refuses empty entries, `origin` named twice, unknown
   schemes, relative `file://` paths and addresses with a path.
 
-`tests/s3.rs` starts a small S3 stand-in in-process that checks each
-request's signature. It checks that:
-
-- a model loads from a bucket path-style with a signed GET, carrying the
-  session token;
-- a wrong secret is refused, and a public bucket is read unsigned;
-- other bytes from a bucket are not kept;
-- the first local store keeps what a bucket serves, and serves it with
-  the bucket gone;
-- bucket names, prefixes, regions and endpoints are checked before any
-  request.
-
-`src/sigv4.rs` checks HMAC-SHA-256 against RFC 4231 and the signature
-against the S3 documentation's GET Object example.
+The S3 bucket itself, `S3Bucket`, is turbo-zoo's (docs/zoo.md), so a
+zoo server can keep its files in one too; its tests are turbo-zoo's
+`tests/s3.rs`.
 
 ## Features
 
 - `tls` (default): `grpcs://`. Without it a `grpcs://` source is refused.
-- `s3` (default): `s3://`. Without it an `s3://` source is refused.
+- `s3` (default): `s3://`, through turbo-zoo's `http` feature. Without
+  it an `s3://` source is refused.
 
 Both reach `ring`, so the arm64 check in CI builds the crate with
 neither.

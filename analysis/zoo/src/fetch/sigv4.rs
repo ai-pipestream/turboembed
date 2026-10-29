@@ -1,5 +1,5 @@
-//! AWS Signature Version 4 for one S3 GET with no query and no body, the
-//! only request an S3 source makes. HMAC-SHA-256 is the RFC 2104
+//! AWS Signature Version 4 for the S3 requests a store makes: a GET or a
+//! PUT of one object, with no query. HMAC-SHA-256 is the RFC 2104
 //! construction over `sha2`, so no AWS SDK or HMAC crate is needed.
 
 use sha2::{Digest, Sha256};
@@ -57,21 +57,31 @@ pub fn amz_date(secs: u64) -> String {
     format!("{year:04}{month:02}{day:02}T{:02}{:02}{:02}Z", rest / 3600, rest % 3600 / 60, rest % 60)
 }
 
-/// The headers that sign a GET of `path` (already URI-encoded) on `host`
-/// (as the Host header carries it) in `region`, at `date` ([`amz_date`]):
-/// `x-amz-date`, `x-amz-content-sha256`, the session token when there is
-/// one, and `authorization`. `extra` are further headers to sign and send,
-/// named in lower case.
-pub fn sign_get(
+/// The headers that sign a `method` request at `(host, path)`, the host
+/// as the Host header carries it and the path already URI-encoded, in
+/// `region`, at
+/// `date` ([`amz_date`]), with a body whose SHA-256 is `payload` in hex
+/// ([`EMPTY_SHA256`] for none): `x-amz-date`, `x-amz-content-sha256`, the
+/// session token when there is one, and `authorization`. `extra` are
+/// further headers to sign and send, named in lower case. A date not in
+/// the [`amz_date`] form is refused.
+pub fn sign(
+    method: &str,
     creds: &Credentials,
     region: &str,
-    host: &str,
-    path: &str,
+    (host, path): (&str, &str),
+    payload: &str,
     extra: &[(&str, &str)],
     date: &str,
-) -> Vec<(String, String)> {
+) -> Result<Vec<(String, String)>, String> {
+    let d = date.as_bytes();
+    let form = d.len() == 16 && d[8] == b'T' && d[15] == b'Z';
+    if !form || !d.iter().enumerate().all(|(i, b)| matches!(i, 8 | 15) || b.is_ascii_digit()) {
+        return Err(format!("{date:?} is not a SigV4 date (YYYYMMDDTHHMMSSZ)"));
+    }
+    let day = &date[..8];
     let mut signed: Vec<(String, String)> =
-        vec![("x-amz-content-sha256".into(), EMPTY_SHA256.into()), ("x-amz-date".into(), date.into())];
+        vec![("x-amz-content-sha256".into(), payload.into()), ("x-amz-date".into(), date.into())];
     if let Some(token) = &creds.token {
         signed.push(("x-amz-security-token".into(), token.clone()));
     }
@@ -81,10 +91,10 @@ pub fn sign_get(
     all.sort();
     let canonical_headers: String = all.iter().map(|(n, v)| format!("{n}:{}\n", v.trim())).collect();
     let names = all.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(";");
-    let request = format!("GET\n{path}\n\n{canonical_headers}\n{names}\n{EMPTY_SHA256}");
-    let scope = format!("{}/{region}/s3/aws4_request", &date[..8]);
+    let request = format!("{method}\n{path}\n\n{canonical_headers}\n{names}\n{payload}");
+    let scope = format!("{day}/{region}/s3/aws4_request");
     let to_sign = format!("AWS4-HMAC-SHA256\n{date}\n{scope}\n{}", hex(&Sha256::digest(request.as_bytes())));
-    let mut key = hmac(format!("AWS4{}", creds.secret).as_bytes(), &date.as_bytes()[..8]);
+    let mut key = hmac(format!("AWS4{}", creds.secret).as_bytes(), day.as_bytes());
     for part in [region, "s3", "aws4_request"] {
         key = hmac(&key, part.as_bytes());
     }
@@ -93,12 +103,17 @@ pub fn sign_get(
         "authorization".into(),
         format!("AWS4-HMAC-SHA256 Credential={}/{scope},SignedHeaders={names},Signature={signature}", creds.key),
     ));
-    signed
+    Ok(signed)
+}
+
+/// The SHA-256 of `bytes` in hex, the payload hash of a PUT.
+pub fn payload_sha256(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Credentials, amz_date, hex, hmac, sign_get};
+    use super::{Credentials, EMPTY_SHA256, amz_date, hex, hmac, payload_sha256, sign};
 
     #[test]
     fn hmac_matches_rfc_4231() {
@@ -126,14 +141,16 @@ mod tests {
             secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".into(),
             token: None,
         };
-        let headers = sign_get(
+        let headers = sign(
+            "GET",
             &creds,
             "us-east-1",
-            "examplebucket.s3.amazonaws.com",
-            "/test.txt",
+            ("examplebucket.s3.amazonaws.com", "/test.txt"),
+            EMPTY_SHA256,
             &[("range", "bytes=0-9")],
             "20130524T000000Z",
-        );
+        )
+        .unwrap();
         let auth = &headers.iter().find(|(n, _)| n == "authorization").unwrap().1;
         assert_eq!(
             auth,
@@ -142,5 +159,40 @@ mod tests {
              Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"
         );
         assert!(!format!("{creds:?}").contains("EXAMPLEKEY"), "the secret is never printed");
+    }
+
+    #[test]
+    fn a_put_is_signed_as_the_aws_s3_documentation_example() {
+        // "Example: PUT Object" in the same examples: a body, a Date
+        // header and a storage class signed alongside.
+        let creds = Credentials {
+            key: "AKIAIOSFODNN7EXAMPLE".into(),
+            secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".into(),
+            token: None,
+        };
+        let body = b"Welcome to Amazon S3.";
+        let payload = payload_sha256(body);
+        assert_eq!(payload, "44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072");
+        let headers = sign(
+            "PUT",
+            &creds,
+            "us-east-1",
+            ("examplebucket.s3.amazonaws.com", "/test%24file.text"),
+            &payload,
+            &[("date", "Fri, 24 May 2013 00:00:00 GMT"), ("x-amz-storage-class", "REDUCED_REDUNDANCY")],
+            "20130524T000000Z",
+        )
+        .unwrap();
+        let auth = &headers.iter().find(|(n, _)| n == "authorization").unwrap().1;
+        assert!(auth.ends_with("Signature=98ad721746da40c64f1a55b78f14c238d841ea1380cd77a1b5971af0ece108bd"), "{auth}");
+    }
+
+    #[test]
+    fn a_date_not_in_the_sigv4_form_is_refused_rather_than_panicking() {
+        let creds = Credentials { key: "k".into(), secret: "s".into(), token: None };
+        for bad in ["", "2013", "20130524", "2013052400000000", "2013-05-24T00:00Z", "20130524T00000\u{e9}"] {
+            let e = sign("GET", &creds, "us-east-1", ("h", "/"), EMPTY_SHA256, &[], bad).unwrap_err();
+            assert!(e.contains("not a SigV4 date"), "{bad:?}: {e}");
+        }
     }
 }
