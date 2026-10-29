@@ -11,7 +11,11 @@ use serde_json::Value;
 use turbo::head::TokenTagger;
 use turbo::head::tagger::tensors;
 use turbo::manifest::HeadSpec;
+use turbo::manifest::WordPooling;
+use turbo_analysis_embed::EncoderOptions;
+use turbo_tagger::WordEncoder;
 use turbo_trainer_recipes::receipt::{Receipt, SCHEMA};
+use turbo_trainer_recipes::run::examples;
 
 fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -45,14 +49,19 @@ fn run(args: &[&str]) -> std::process::Output {
 }
 
 fn train(data: &Path, out: &Path) -> Receipt {
-    let o = run(&[
+    train_with(data, out, &[])
+}
+
+fn train_with(data: &Path, out: &Path, extra: &[&str]) -> Receipt {
+    let bundle = tiny();
+    let mut args = vec![
         "train",
         "--corpus",
         "multiconer2-en",
         "--dir",
         data.to_str().unwrap(),
         "--bundle",
-        tiny().to_str().unwrap(),
+        bundle.to_str().unwrap(),
         "--out",
         out.to_str().unwrap(),
         "--unrecorded-corpus",
@@ -65,7 +74,9 @@ fn train(data: &Path, out: &Path) -> Receipt {
         "0.01",
         "--commit",
         "test",
-    ]);
+    ];
+    args.extend_from_slice(extra);
+    let o = run(&args);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap()
 }
@@ -78,6 +89,7 @@ fn read_safetensors(bytes: &[u8]) -> Vec<(String, Vec<u64>, Vec<f32>)> {
     let data = &bytes[8 + n..];
     header
         .into_iter()
+        .filter(|(k, _)| k != "__metadata__")
         .map(|(k, v)| {
             assert_eq!(v["dtype"], "F32");
             let shape = v["shape"].as_array().unwrap().iter().map(|d| d.as_u64().unwrap()).collect();
@@ -87,6 +99,13 @@ fn read_safetensors(bytes: &[u8]) -> Vec<(String, Vec<u64>, Vec<f32>)> {
             (k, shape, vals)
         })
         .collect()
+}
+
+/// The `__metadata__` of a safetensors file.
+fn metadata(bytes: &[u8]) -> Value {
+    let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
+    let header: Value = serde_json::from_slice(&bytes[8..8 + n]).unwrap();
+    header["__metadata__"].clone()
 }
 
 #[test]
@@ -127,12 +146,52 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     assert_eq!(got, want_sorted);
     let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.ner.{s}")).map(|(_, _, v)| v.clone());
     TokenTagger::from_tensors(&head, 32, &get).unwrap();
+    // The published head keeps its checkpoint record: the best epoch and
+    // its dev score, as the receipt gives them.
+    let m = metadata(&bytes);
+    let best = training.best_epoch;
+    assert_eq!(m["best_epoch"].as_str(), Some(best.to_string().as_str()));
+    assert_eq!(m["dev"].as_str().unwrap().parse::<f64>().unwrap(), training.dev[best]);
 
     let again = scratch("out-b");
     let r2 = train(&data, &again);
     assert_eq!(fs::read(again.join("head.safetensors")).unwrap(), bytes, "one seed, one head");
     assert_eq!(r2.eval, r.eval);
     for d in [data, out, again] {
+        fs::remove_dir_all(d).unwrap();
+    }
+}
+
+#[test]
+fn a_hashed_head_trains_with_its_tables_and_the_core_reads_its_forms() {
+    let data = scratch("data-hash");
+    corpus(&data);
+    let out = scratch("out-hash");
+    let r = train_with(&data, &out, &["--hash-embed", "4", "--hash-rows", "16,8,8,8", "--tolerance", "0.01"]);
+    let head = r.head.clone().unwrap();
+    assert_eq!(head.hash_embed, Some(turbo::manifest::HashEmbed { dim: 4, rows: [16, 8, 8, 8] }));
+    assert_eq!(r.config.as_ref().unwrap().tolerance, 0.01);
+    let t = read_safetensors(&fs::read(out.join("head.safetensors")).unwrap());
+    for f in ["norm", "prefix", "suffix", "shape"] {
+        assert!(t.iter().any(|(k, _, _)| *k == format!("heads.ner.hash.{f}")), "{f}");
+    }
+    let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.ner.{s}")).map(|(_, _, v)| v.clone());
+    assert!(TokenTagger::from_tensors(&head, 32, &get).unwrap().reads_forms());
+    let bad = run(&[
+        "train",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        "x",
+        "--bundle",
+        "x",
+        "--out",
+        "x",
+        "--hash-rows",
+        "1,2",
+    ]);
+    assert!(!bad.status.success());
+    for d in [data, out] {
         fs::remove_dir_all(d).unwrap();
     }
 }
@@ -244,6 +303,79 @@ fn of_runs_racing_for_one_out_exactly_one_writes() {
 }
 
 #[test]
+fn a_run_stopped_midway_keeps_its_best_head_so_far() {
+    let data = scratch("stop-data");
+    corpus(&data);
+    let out = scratch("stop-out");
+    let (d, o, b) = (data.to_str().unwrap(), out.to_str().unwrap(), tiny());
+    let args = [
+        "train",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        d,
+        "--bundle",
+        b.to_str().unwrap(),
+        "--out",
+        o,
+        "--unrecorded-corpus",
+        "--epochs",
+        "100000",
+        "--patience",
+        "0",
+        "--commit",
+        "test",
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(args)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    // The dev examples the run scores, read as it reads them.
+    let corpus = turbo_trainer_recipes::read_corpus("multiconer2-en", &data, true).unwrap();
+    let mut enc = WordEncoder::open(&b, &EncoderOptions::default()).unwrap();
+    let mut head: Option<HeadSpec> = None;
+    let mut dev = Vec::new();
+    // Each read of the checkpoint, while the run replaces it and after
+    // it is killed, is one generation: weights that score on dev exactly
+    // the score its metadata gives, beside the epoch they are from.
+    let mut check = |bytes: &[u8]| -> u64 {
+        let h = head.get_or_insert_with(|| {
+            let h: HeadSpec = serde_json::from_slice(&fs::read(out.join("head.json")).unwrap()).unwrap();
+            dev = examples(&mut enc, &corpus.splits.dev, &h.labels, WordPooling::First).unwrap().0;
+            h
+        });
+        let m = metadata(bytes);
+        let epoch: u64 = m["best_epoch"].as_str().unwrap().parse().unwrap();
+        let want: f64 = m["dev"].as_str().unwrap().parse().unwrap();
+        let t = read_safetensors(bytes);
+        let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.ner.{s}")).map(|(_, _, v)| v.clone());
+        let tagger = TokenTagger::from_tensors(h, 32, &get).unwrap();
+        assert_eq!(turbo_trainer::fit::score(&tagger, &dev).unwrap(), want, "epoch {epoch}: weights and score agree");
+        epoch
+    };
+    let start = std::time::Instant::now();
+    while !out.join("head.safetensors").is_file() {
+        assert!(start.elapsed().as_secs() < 120, "no checkpoint within two minutes");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let mut epochs = Vec::new();
+    while start.elapsed().as_millis() < 1500 && epochs.len() < 40 {
+        epochs.push(check(&fs::read(out.join("head.safetensors")).unwrap()));
+    }
+    child.kill().unwrap();
+    child.wait().unwrap();
+    // What is left is whole: the spec, and one generation of the head; no
+    // receipt and nothing else naming an epoch, since the run did not finish.
+    let last = check(&fs::read(out.join("head.safetensors")).unwrap());
+    assert!(epochs.windows(2).all(|w| w[0] <= w[1]) && epochs.last() <= Some(&last), "{epochs:?} then {last}");
+    assert!(!out.join("receipt.json").exists() && !out.join("checkpoint.json").exists());
+    fs::remove_dir_all(data).unwrap();
+    fs::remove_dir_all(out).unwrap();
+}
+
+#[test]
 fn unknown_commands_corpora_and_arguments_are_refused() {
     for (args, msg) in [
         (&["fit", "--corpus", "masc-pos", "--dir", "."][..], "unknown command"),
@@ -309,5 +441,40 @@ fn the_baseline_learns_from_the_sentences_the_model_is_given() {
     assert_eq!(train_out(&all, "0").eval.baseline.score(), 1.0);
     for d in [data, one, all] {
         fs::remove_dir_all(d).unwrap();
+    }
+}
+
+#[test]
+fn a_bilstm_head_waits_longer_before_it_stops() {
+    let data = scratch("patience-data");
+    corpus(&data);
+    let (d, b) = (data.to_str().unwrap(), tiny());
+    let patience = |out: &Path, extra: &[&str]| {
+        let mut args = vec![
+            "train",
+            "--corpus",
+            "multiconer2-en",
+            "--dir",
+            d,
+            "--bundle",
+            b.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--unrecorded-corpus",
+            "--epochs",
+            "1",
+        ];
+        args.extend(extra);
+        let o = run(&args);
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+        let r: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+        r.config.unwrap().patience
+    };
+    let outs = [scratch("patience-linear"), scratch("patience-bilstm"), scratch("patience-given")];
+    assert_eq!(patience(&outs[0], &[]), turbo_trainer::Config::default().patience);
+    assert_eq!(patience(&outs[1], &["--bilstm", "4x1"]), 15);
+    assert_eq!(patience(&outs[2], &["--bilstm", "4x1", "--patience", "3"]), 3);
+    for p in outs.into_iter().chain([data]) {
+        fs::remove_dir_all(p).unwrap();
     }
 }

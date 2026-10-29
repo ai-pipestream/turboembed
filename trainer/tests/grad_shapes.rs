@@ -25,6 +25,7 @@ fn spec(decode: Decode, adapter: Option<(u32, u32)>) -> HeadSpec {
         decode,
         biaffine: None,
         pos_input: None,
+        hash_embed: None,
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),
     }

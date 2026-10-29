@@ -42,6 +42,7 @@ fn spec(
         decode,
         biaffine: None,
         pos_input: None,
+        hash_embed: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.t".into(),
     }

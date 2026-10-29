@@ -19,9 +19,10 @@ fn spec(adapter: Option<(u32, u32)>) -> HeadSpec {
         scheme: Scheme::Tags,
         word_pooling: WordPooling::First,
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
-        pos_input: None,
         decode: Decode::Mst,
         biaffine: Some(Biaffine { arc: 3, rel: 2 }),
+        pos_input: None,
+        hash_embed: None,
         artifact: "weights".into(),
         tensor_prefix: "deps".into(),
     }
