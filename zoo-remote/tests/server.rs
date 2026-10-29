@@ -239,11 +239,17 @@ fn a_source_list_names_only_what_it_can_read() {
     } else {
         assert!(tls.err().unwrap().contains("needs the tls feature"));
     }
+    let s3 = sources("s3://models/zoo", &alice(), Offline);
+    if cfg!(feature = "s3") {
+        assert_eq!(s3.unwrap().len(), 1);
+    } else {
+        assert!(s3.err().unwrap().contains("needs the s3 feature"));
+    }
     for (bad, says) in [
         ("", "an empty entry"),
         ("file:///zoo,,origin", "an empty entry"),
         ("origin, origin", "named twice"),
-        ("s3://bucket/zoo", "a source is file://"),
+        ("ftp://bucket/zoo", "a source is file://"),
         ("https://example.org/zoo", "a source is file://"),
         ("file://zoo", "absolute directory"),
         ("grpc://zoo.example:8081/path", "host and port alone"),
