@@ -48,6 +48,25 @@ fn a_head_outside_the_sentence_is_refused_with_its_place() {
 }
 
 #[test]
+fn word_ids_out_of_order_repeated_zero_or_not_numbers_are_refused() {
+    let row = |id: &str, form: &str, head: &str| format!("{id}\t{form}\t{form}\tX\tX\t_\t{head}\tdep\t_\t_\n");
+    // Reordered: C, A, B with heads that only mean the right tree by ID.
+    let reordered = row("3", "C", "0") + &row("1", "A", "3") + &row("2", "B", "1");
+    for (case, text) in [
+        ("reordered", reordered),
+        ("repeated", row("1", "A", "0") + &row("1", "B", "1")),
+        ("zero", row("0", "A", "0") + &row("1", "B", "0")),
+        ("not a number", row("1", "A", "0") + &row("b", "B", "1")),
+    ] {
+        let e = parse("t", format!("# sent_id = c\n{text}\n").as_bytes()).err();
+        let e = e.unwrap_or_else(|| panic!("{case} was read"));
+        assert!(e.0.starts_with("t:") && e.0.contains("word ID"), "{case}: {e}");
+    }
+    // Multiword tokens and empty nodes around ordered IDs still read.
+    assert_eq!(parse("t", TEXT.as_bytes()).unwrap()[0].heads, [0, 4, 4, 1, 1]);
+}
+
+#[test]
 fn each_column_is_a_corpus_id_with_its_own_head() {
     assert_eq!(find("ud-en-ewt-upos"), Some((EN_EWT, Column::Upos)));
     assert_eq!(find("ud-en-ewt-feats"), Some((EN_EWT, Column::Feats)));

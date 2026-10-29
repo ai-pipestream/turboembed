@@ -128,9 +128,10 @@ pub struct UdSentence {
 ///
 /// # Errors
 ///
-/// Text that is not UTF-8, a sentence the CoNLL-U reader refuses, or a
-/// word whose head is not a number from 0 to the sentence's length,
-/// naming the file and line.
+/// Text that is not UTF-8, a sentence the CoNLL-U reader refuses, a
+/// word whose ID is not the next in order from 1, or a word whose head
+/// is not a number from 0 to the sentence's length, naming the file and
+/// line.
 pub fn parse(file: &str, bytes: &[u8]) -> Result<Vec<UdSentence>> {
     let text = std::str::from_utf8(bytes).map_err(|e| Error(format!("{file}: not UTF-8: {e}")))?;
     let reader = ConlluWordReader::new(text).map_err(|e| Error(format!("{file}: {e}")))?;
@@ -139,7 +140,12 @@ pub fn parse(file: &str, bytes: &[u8]) -> Result<Vec<UdSentence>> {
         let sentence = sentence.map_err(|e| Error(format!("{file}: {e}")))?;
         let n = sentence.words.len();
         let mut s = UdSentence::default();
-        for w in &sentence.words {
+        for (i, w) in sentence.words.iter().enumerate() {
+            // Heads name words by ID, and a word's place is taken for its
+            // ID, so the IDs must run 1, 2, ... in order.
+            if w.id.text.parse::<usize>().ok() != Some(i + 1) {
+                return Err(Error(format!("{file}:{}: word ID {:?} where {} is due", w.line, w.id.text, i + 1)));
+            }
             let head = w.head.text.parse::<u32>().ok().filter(|&h| h as usize <= n).ok_or_else(|| {
                 Error(format!("{file}:{}: head {:?} is not a word of the sentence or 0", w.line, w.head.text))
             })?;
