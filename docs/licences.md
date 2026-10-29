@@ -110,16 +110,18 @@ models. Dataset download helpers remain subject to the same licence policy.
 | Model | Trained on | Licence of the data | Reason | Checked |
 |---|---|---|---|---|
 | `langdetect-183.bin` | Leipzig corpora ([model README](https://archive.apache.org/dist/opennlp/models/langdetect/1.8.3/README.txt), [corpora](https://wortschatz.uni-leipzig.de/en/download)) | conflicting: one source says CC BY, another CC BY-NC | terms not confirmed (`LicenseRef-Unconfirmed`) | plan; README here |
-| 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
-| 1.5 `en-pos-maxent` | not published (the OpenNLP 1.5.1 test plan heads its regression-training section "(private) English data", which may not describe these models) | none stated | proprietary: refused for shipping, bundling and training; allowed only as a reference that is scored (below) | plan |
+| 1.5 `en-chunker` | CoNLL-2000 (Wall Street Journal, LDC) ([1.5 models](http://opennlp.sourceforge.net/models-1.5/)) | LDC | proprietary: refused for shipping, bundling, training and scoring (#1509, below) | plan |
+| 1.5 `en-pos-maxent` | not published (the OpenNLP 1.5.1 test plan heads its regression-training section "(private) English data", which may not describe these models) | none stated | proprietary: refused for shipping, bundling, training and scoring (#1509, below) | plan |
 | 1.5 `en-pos-perceptron` | not published (as `en-pos-maxent`) | none stated | proprietary | plan |
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
 
 Earlier MASC evaluation used `en-pos-maxent.bin` and `en-chunker.bin` as
-restricted comparison inputs. The current build neither loads these archives
-nor runs the old model publication workflow. The retained
-`analysis/train-recipes/masc-references.txt` records historical input hashes;
-it is not permission to fetch, redistribute or execute these models.
+restricted comparison inputs. That score-only exception was revoked on
+2026-10-28 (#1509): no OpenNLP 1.5 model is fetched, pinned, scored or run,
+the goldens generator no longer runs them, and MASC gates compare with gold
+labels, majority baselines and spaCy or Stanza only. The retained
+`analysis/train-recipes/masc-references.txt` lists none of them; it is not
+permission to fetch, redistribute or execute any OpenNLP model.
 The former language detector comparison input, `langdetect-183.bin`, is also
 unsupported and absent from the zoo. Historical evaluation permission does
 not authorize bundling, mirroring or training on any of these inputs.
@@ -598,12 +600,12 @@ data):
 | UD 1.3 `uk-ud-iu-*` | [UD_Ukrainian-IU r2.16](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | here |
 
 `opennlp-it-ud-vit-pos-1.3-2.5.4.bin` and
-`opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin` are used only as the references
+`opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin` were used only as the references
 of the Italian UD recipes' gates in `turbo-train-recipes` (#415). They
-are read from a directory the user names, checked against the size and
-SHA-256 the recipes record (`ud::IT_UD_VIT_POS`, `ud::IT_UD_VIT_LEMMAS`),
-and scored on UD_Italian-MarkIT's `test` file beside the model trained on
-MarkIT. Nothing ships, bundles, mirrors or trains on them, the zoo does
+were read from a directory the user named and scored on
+UD_Italian-MarkIT's `test` file beside the model trained on MarkIT. As
+OpenNLP 2.5 artifacts they are no longer fetched or pinned (#1509): the
+recipes name them by id alone, and #1532 removes the gates. Nothing ships, bundles, mirrors or trains on them, the zoo does
 not list them, and CI does not fetch them.
 
 ## GLiNER small-v2.1 numerical fixtures

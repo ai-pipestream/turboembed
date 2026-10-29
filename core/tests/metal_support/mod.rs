@@ -266,5 +266,9 @@ impl Drop for Pages {
 /// tests/conformance.rs reads it.
 pub fn named_bundle() -> Option<std::path::PathBuf> {
     let p = std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
-    Some(if p.is_absolute() { p } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+    Some(turbo_pins::require(if p.is_absolute() {
+        p
+    } else {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p)
+    }))
 }

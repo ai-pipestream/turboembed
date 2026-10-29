@@ -16,6 +16,8 @@
 #![cfg(feature = "metal")]
 
 mod common;
+#[path = "common/rotary.rs"]
+mod rotary;
 
 use std::path::PathBuf;
 use std::ptr;
@@ -334,4 +336,40 @@ fn a_left_padded_row_stays_finite_at_fastest() {
     let cos = least_cosine(&got, &cs.run().unwrap().rows());
     println!("a_left_padded_row_stays_finite_at_fastest: 1 - least cosine {:.3e}", 1.0 - cos);
     assert!(cos >= FASTEST_COSINE, "{cos}");
+}
+
+/// F16's largest finite magnitude: a gated MLP middle product past it
+/// clamps to 65504 rather than overflowing to infinity (#1602).
+const F16_MAX: f32 = 65504.0;
+
+#[test]
+fn gated_middle_past_f16_s_range_clamps_and_stays_finite() {
+    let _t = turn();
+    let Some(_) = device("gated_middle_past_f16_s_range_clamps_and_stays_finite") else { return };
+    for (name, f, typed) in [
+        ("modernbert", rotary::overflow_modernbert("metal-gated-overflow-mb"), false),
+        ("nomic", rotary::overflow_nomic("metal-gated-overflow-nb"), true),
+    ] {
+        let g = f.load_on(metal).unwrap();
+        for lens in [&[9usize, 1, 5][..], &[32usize, 32][..], &[64usize, 33, 17][..]] {
+            let t = rows(lens, &[], &[], rotary::VOCAB as usize, typed);
+            for tile in ["h32", "h64", "h128", "h32n32", "h64n32", "auto"] {
+                turbo::metal::use_choices(Some(&format!("linear={tile}")));
+                turbo::metal::track_peaks(true);
+                let gs = Session::create(g.m, Some(&session_desc(4, 64, TURBO_PRECISION_FASTEST)));
+                turbo::metal::track_peaks(false);
+                turbo::metal::use_choices(None);
+                let gs = gs.unwrap_or_else(|e| panic!("{name}: linear={tile}: {e:?}"));
+                assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F16, "{name}: {tile}");
+                gs.write_tokens(&t.batch(), None).unwrap();
+                let got = gs.run().unwrap().rows();
+                let middle_peak = turbo::metal::peaks()[4];
+                assert_eq!(middle_peak, F16_MAX, "{name}: {tile}: lens {lens:?}: gated middle peak {middle_peak}");
+                assert!(
+                    got.iter().flatten().all(|v| v.is_finite()),
+                    "{name}: {tile}: lens {lens:?}: non-finite output {got:?}"
+                );
+            }
+        }
+    }
 }

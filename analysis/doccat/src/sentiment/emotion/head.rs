@@ -15,28 +15,14 @@ use std::fmt;
 use turbo_analysis::ModelRef;
 use turbo_analysis_layers::{EMOTION_DIMENSIONS, EmotionScores};
 
+pub use crate::scorers::EmotionVectorScorer;
+
 const MAGIC: &[u8; 4] = b"TEVH";
 const VERSION: u32 = 1;
 const HEADER: usize = 16;
 const ENCODER: u32 = 2;
 const MAX_STRING: usize = 4096;
 const N: usize = EMOTION_DIMENSIONS;
-
-/// A multi-label emotion head over one vector per unit.
-pub trait EmotionVectorScorer: Send + Sync {
-    /// The 28 scores of `vec`, each in `0.0..=1.0`.
-    fn score_emotions(&self, vec: &[f32]) -> Result<EmotionScores, String>;
-
-    /// The encoder the vectors must come from, when the head names one.
-    fn model(&self) -> Option<ModelRef> {
-        None
-    }
-
-    /// A hash of the head's configuration, for provenance.
-    fn config_hash(&self) -> u64 {
-        0
-    }
-}
 
 /// Why a head could not be made or read.
 #[derive(Clone, Debug, PartialEq)]
