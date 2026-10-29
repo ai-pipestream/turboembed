@@ -8,7 +8,7 @@ use turbo_zoo::{Licence, LicenceClass, class_of};
 fn the_recipe_is_the_tatoeba_recipe_under_its_own_id() {
     let r = LANGDETECT_WEB;
     assert_eq!(r.tatoeba.model_id, MODEL_ID);
-    assert_eq!(r.tatoeba.reference.id(), LANGDETECT.reference.id());
+    assert_eq!(r.tatoeba.reference, LANGDETECT.reference);
     assert_eq!(r.tatoeba.split, LANGDETECT.split);
     assert_eq!(r.tatoeba.parameters(), LANGDETECT.parameters());
     assert_eq!(r.tatoeba.languages, LANGDETECT.languages);

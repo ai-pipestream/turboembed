@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 
 use turbo_analysis::{Annotator, Error, Layer, Refs, View};
 use turbo_analysis_layers::{Language, Lemmas, PosTags, Strs, Terms, Tokens};
-use turbo_langdetect::LanguageDetector;
+use turbo_langdetect::NgramModel;
 use turbo_normalize::{AccentFold, GermanUmlauts};
 use turbo_unicode::java::code_point::is_whitespace as is_java_whitespace;
 use turbo_unicode::java::to_lowercase;
@@ -194,11 +194,9 @@ impl NormalizationProfiles {
 
     /// Detects the best language of `text` with `detector` and returns its
     /// [`NormalizationProfile`], or `None` if the detected language has no
-    /// Snowball stemmer (`NormalizationProfiles.detect(CharSequence, LanguageDetector)`).
-    pub fn detect(text: &str, detector: &LanguageDetector) -> Option<NormalizationProfile> {
-        let mut scratch = turbo_langdetect::Scratch::default();
-        let prediction = detector.predict_language(text, &mut scratch);
-        Self::for_language(prediction.code)
+    /// Snowball stemmer.
+    pub fn detect(text: &str, detector: &NgramModel) -> Option<NormalizationProfile> {
+        Self::for_language(detector.predict(text)?)
     }
 
     /// Returns the 22 ISO 639-3 language codes of the supported profiles

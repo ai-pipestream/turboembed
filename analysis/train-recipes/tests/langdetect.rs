@@ -16,23 +16,12 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use turbo_jvm::random::JavaRandom;
+use turbo_train_recipes::Error;
 use turbo_train_recipes::langdetect::{
     EXPORT, ExcludedLanguage, ExportRecord, LanguagePair, LanguageRecipe, Split, check_export,
 };
 use turbo_train_recipes::tatoeba::{Export, SentenceLicence, TatoebaError};
-use turbo_train_recipes::{Error, RecordedReference, Reference};
 use turbo_zoo::{Licence, LicenceClass};
-
-/// `analysis/goldens/data/fixtures/langdetect-fixture-rust.bin`, trained
-/// by turbo-train-components on `inputs/langdetect/samples.txt`: the test
-/// recipe's reference, for its nine languages.
-const FIXTURE: RecordedReference = RecordedReference {
-    id: "langdetect-fixture-rust",
-    file: "langdetect-fixture-rust.bin",
-    url: "analysis/goldens/data/fixtures/langdetect-fixture-rust.bin",
-    size: 7503,
-    sha256: "bfde716d402a696348045c2225428bbeb53f9e40f6807a5716396852a2a03ccb",
-};
 
 const fn same(code: &'static [&'static str; 1]) -> LanguagePair {
     LanguagePair { tatoeba: code[0], reference: code }
@@ -56,7 +45,7 @@ const TEST_LANGUAGES: [LanguagePair; 9] = [
 /// 40 short training sentences have few n-grams seen five times.
 const TEST: LanguageRecipe = LanguageRecipe {
     model_id: "turbo-mul-test-langdetect",
-    reference: Reference::Recorded(FIXTURE),
+    reference: None,
     languages: &TEST_LANGUAGES,
     split: Split { seed: 429, held_out: 4, max_training: 5, min_sentences: 8 },
     iterations: 30,

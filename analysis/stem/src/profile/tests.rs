@@ -262,3 +262,18 @@ fn term_annotator_config_hash_is_deterministic_and_distinguishes_custom_normaliz
         TermAnnotator::new(TermAnalyzer::builder().case_fold().unwrap().build()).config_hash()
     );
 }
+
+#[test]
+fn detect_uses_the_native_language_model() {
+    let model = NgramModel::new(
+        vec!["eng".into(), "deu".into()],
+        (0..32).map(|i| if i < 16 { 1.0 } else { 0.0 }).collect(),
+        vec![0.0; 2],
+        (1, 1),
+        16,
+        turbo_analysis::ModelRef { id: "test".into(), revision: "1".into(), sha256: "0".into() },
+    )
+    .unwrap();
+    let detected = NormalizationProfiles::detect("hello", &model).unwrap();
+    assert_eq!(detected.stemmer_algorithm(), SnowballAlgorithm::English);
+}

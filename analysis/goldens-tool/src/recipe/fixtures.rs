@@ -17,7 +17,7 @@ pub struct Fixture {
 /// of the name finder's dictionaries and patterns (`namefind`) or a
 /// hand-written Hunspell dictionary (`hunspell`), and `Runs` opens the
 /// directory.
-pub const FIXTURES: [Fixture; 105] = [
+pub const FIXTURES: [Fixture; 104] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd",
@@ -57,10 +57,6 @@ pub const FIXTURES: [Fixture; 105] = [
     Fixture {
         file: "ner-fixture-rust.bin",
         sha512: "c9e30b48571cd106396a9f84c0692216b5934cd7cae4ec277ceb867b93a5b9ed4285349d48c2e3d7c508bb824697a2e68055b54817b0f9fbc06e011c510ef070",
-    },
-    Fixture {
-        file: "langdetect-fixture-rust.bin",
-        sha512: "631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99",
     },
     Fixture {
         file: "tags.tagdict",
