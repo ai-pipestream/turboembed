@@ -9,7 +9,7 @@ use turbo_namefind_dl::{Decoding, NameFinderDl, NameFinderDlOptions};
 #[test]
 #[ignore = "needs TURBO_NER_BUNDLE naming the dslim/bert-base-NER bundle"]
 fn raw_punctuation_separates_names_without_becoming_part_of_them() {
-    let bundle = PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE"));
+    let bundle = turbo_pins::require(PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE")));
     let cases: [(&str, &[(&str, &str)]); 8] = [
         ("She lives in Paris.", &[("Paris", "LOC")]),
         ("She lives in (Paris).", &[("Paris", "LOC")]),

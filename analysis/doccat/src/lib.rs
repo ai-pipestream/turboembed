@@ -1,56 +1,43 @@
-//! Document categorization (`DocumentCategorizerME`, `DoccatModel`,
-//! `DoccatFactory`, `SvmCategorizer`, `SvmDoccatModel`, feature generators
-//! and `SpanCategorizer`), ported from OpenNLP 3.x (`opennlp.tools.doccat.*`
-//! and `opennlp.tools.ml.libsvm.doccat.*`) onto the analysis API.
+//! Document categorization, zero-shot and NLI claim verification, and
+//! sentiment, aspect, emotion, incivility, and pragmatics analysis.
 //!
 //! # Overview
 //!
-//! - The layer every categorizer here writes is the shared
-//!   [`turbo_analysis_layers::Categories`]: `Categories` (`turbo:categories`)
-//!   for the whole document, `Categories<Sentences>`, `Categories<Structure>`
-//!   and `Categories<Chunks>` for each sentence, block or chunk.
-//!   [`SpanCategorizable`] is a layer of spans [`SpanCategorizer`] can
-//!   categorize.
-//! - [`DoccatFeatureGenerator`] and [`FeatureGenerator`]: feature extraction
-//!   from tokenized text, with built-in implementations
-//!   [`BagOfWordsFeatureGenerator`], [`NGramFeatureGenerator`], and
-//!   [`EmojiFeatureGenerator`], chained by [`DoccatContextGenerator`].
-//! - [`DoccatModel`]: loads and validates OpenNLP `DocumentCategorizerME`
-//!   `.bin` model archives (`doccat.model` and `manifest.properties`).
-//! - [`DocumentCategorizerME`] and [`SpanCategorizer`]: categorize tokenized
-//!   text or run in an [`turbo_analysis::Analyzer`] pipeline to write
-//!   `turbo:categories`, `Categories<Sentences>`, `Categories<Structure>`,
-//!   or `Categories<Chunks>`.
-//! - [`DoccatFactory`] and [`DoccatEventStream`]: the feature generators a
-//!   model is trained with and the training events of `DocumentSample`s.
-//!   `turbo_train_components::doccat` trains and packages the model file.
-//! - [`svm`]: the SVM categorizer of `opennlp-ml-libsvm`
-//!   (`DocumentCategorizerSVM`): [`SvmDoccatModel`] opens a model exported
-//!   as a LIBSVM text model and a sidecar, and [`SvmCategorizer`] runs
-//!   `categorize` and, as an annotator, reads `opennlp:tokens` and writes
-//!   `turbo:categories`. Its LIBSVM predictor ([`svm::libsvm`]) is a port
-//!   of LIBSVM's Java prediction code.
-//! - [`zeroshot`] categorizes against caller-supplied labels with no
-//!   per-label training, framing each label as an NLI hypothesis over
-//!   the text: [`ZeroShotCategorizer`] scores premise/hypothesis pairs
-//!   through an [`NliScorer`], and [`ZeroShotAnnotator`] /
-//!   [`ZeroShotSpanAnnotator`] write the same `Categories` layers.
-//! - [`sentiment`] is `SentimentME` (`opennlp.tools.sentiment`), a maxent
-//!   classifier over the tokens and, with `EmojiSentimentFactory`, their
-//!   emoji features: [`SentimentModel`] opens its model file and
-//!   [`SentimentMe`] reads `opennlp:tokens` and writes the `sentiment`
-//!   instance of `turbo:categories`.
-//! - [`multilabel`] is this crate's own multi-label categorizer (not an
-//!   OpenNLP port): [`MultiLabelDoccatModel`] scores every label
-//!   independently through its OvR sigmoid heads, [`train_multilabel`]
-//!   fits the heads, and [`ThresholdCalibrator`] moves each label's
-//!   threshold to its validation F_beta.
+//! - The category layer is the shared [`turbo_analysis_layers::Categories`]:
+//!   `Categories` (`turbo:categories`) for the whole document, and
+//!   `Categories<Sentences>`, `Categories<Structure>`, and `Categories<Chunks>`
+//!   for each sentence, block, or chunk. [`SpanCategorizable`] marks span
+//!   layers that span categorizers can score item by item.
+//! - [`scorers`] defines the vector-head and category scorer traits
+//!   ([`PragmaticsVectorScorer`], [`EmotionVectorScorer`],
+//!   [`IncivilityVectorScorer`], and [`AspectCategoryScorer`]) and re-exports
+//!   the sentiment and pragmatics layer types without coupling to
+//!   `SentimentModel`, `SentimentMe`, or `turbo-maxent` (crate-level
+//!   `turbo-train` retirement is tracked under `#1530`).
+//! - [`dl`] implements sequence-classification document and span categorization
+//!   ([`DocumentCategorizerDL`], [`DlSpanCategorizer`]) over an encoder-backed
+//!   [`DlSequenceScorer`].
+//! - [`multilabel`] implements multi-label categorization
+//!   ([`MultiLabelDoccatModel`], [`MultiLabelCategorizer`],
+//!   [`MultiLabelSpanCategorizer`]), one-vs-rest training ([`train_multilabel`]),
+//!   and per-label threshold calibration ([`ThresholdCalibrator`]).
+//! - [`zeroshot`] and [`claim_verify`] implement NLI-backed zero-shot
+//!   categorization ([`ZeroShotCategorizer`], [`ZeroShotAnnotator`]) and claim
+//!   verification ([`ClaimVerificationAnnotator`]).
+//! - [`sentiment`] implements VADER lexicon and dependency-negation sentiment
+//!   ([`LexiconSentiment`]), rule-based aspect and opinion extraction
+//!   ([`RuleAspectSentiment`]), 28-label emotion scoring ([`EmotionAnnotator`],
+//!   [`EmotionVectorHead`]), 6-label incivility and toxicity scoring
+//!   ([`IncivilityAnnotator`], [`IncivilityVectorHead`]), and sentence-level
+//!   sarcasm and irony detection ([`PragmaticsAnnotator`]).
+//! - Behind the off-by-default `classical` feature: `DocumentCategorizerME`,
+//!   `DoccatModel`, `SpanCategorizer`, `SvmCategorizer`, `SvmDoccatModel`, and
+//!   `SentimentMe` / `SentimentModel`.
 //!
-//! docs/doccat.md describes the model files, the parity tests and their
-//! tolerances, and why the predictor is a port rather than linfa-svm;
-//! docs/sentiment.md describes the sentiment detector.
+//! See `docs/doccat.md` and `docs/sentiment.md` for architecture and testing details.
 
 pub mod calibrated;
+#[cfg(feature = "classical")]
 pub mod categorizer;
 pub mod claim_verify;
 pub mod dl;
@@ -61,11 +48,15 @@ pub mod java;
 pub mod layer;
 pub mod model;
 pub mod multilabel;
+pub mod scorers;
+pub mod selection;
 pub mod sentiment;
+#[cfg(feature = "classical")]
 pub mod svm;
 pub mod train;
 pub mod zeroshot;
 
+#[cfg(feature = "classical")]
 pub use categorizer::{DocumentCategorizerME, SpanCategorizer};
 pub use claim_verify::{ClaimVerificationAnnotator, ClaimVerifyConfig};
 pub use dl::{
@@ -80,32 +71,43 @@ pub use features::{
     PatternMode,
 };
 pub use layer::SpanCategorizable;
-pub use model::{
-    COMPONENT_NAME, DoccatModel, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators,
-};
+#[cfg(feature = "classical")]
+pub use model::DoccatModel;
+pub use model::{COMPONENT_NAME, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators};
 pub use multilabel::{
     COMPONENT_NAME as MULTILABEL_COMPONENT_NAME, LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel,
     MultiLabelError, MultiLabelReport, MultiLabelSample, MultiLabelSpanCategorizer, MultiLabelTrainingParameters, Prf,
-    ThresholdCalibrator, evaluate, open_package as open_multilabel_package, package_multilabel_model, train_multilabel,
+    ThresholdCalibrator, evaluate, train_multilabel,
 };
+#[cfg(feature = "classical")]
+pub use multilabel::{open_package as open_multilabel_package, package_multilabel_model};
+pub use scorers::{
+    AspectCategoryScorer, EmotionEvidence, EmotionStage, EmotionUnit, EmotionVectorScorer, INCIVILITY_DIMENSIONS,
+    IncivilityEvidenceSpan, IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorScorer,
+    PragmaticsVectorScorer,
+};
+pub use selection::{DoccatTrainer, FeatureSelection, SelectedFeatures, SelectionMetric};
 pub use sentiment::{
-    AbsaMetrics, AbsaTriplet, AspectCategoryScorer, CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD,
-    CIVIL_COMMENTS_BGE_SMALL_HEAD, CIVIL_COMMENTS_MINILM_CONTEXT_HEAD, CIVIL_COMMENTS_MINILM_HEAD,
-    DEFAULT_ASPECT_CATEGORIES, DEFAULT_EMOTION_THRESHOLD, DEFAULT_INCIVILITY_FUSION_GATE, DEFAULT_INCIVILITY_THRESHOLD,
-    EmotionAnnotator, EmotionFitOptions, EmotionHeadError, EmotionMetrics, EmotionStage, EmotionUnit,
-    EmotionVectorHead, EmotionVectorScorer, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD,
-    GoldBiasUnit, GoldEmotionUnit, GoldIncivilityUnit, GoldToxicSpanUnit, INCIVILITY_DIMENSIONS, IdentityTerms,
+    AbsaMetrics, AbsaTriplet, CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD, CIVIL_COMMENTS_BGE_SMALL_HEAD,
+    CIVIL_COMMENTS_MINILM_CONTEXT_HEAD, CIVIL_COMMENTS_MINILM_HEAD, DEFAULT_ASPECT_CATEGORIES,
+    DEFAULT_EMOTION_THRESHOLD, DEFAULT_INCIVILITY_FUSION_GATE, DEFAULT_INCIVILITY_THRESHOLD, EmotionAnnotator,
+    EmotionFitOptions, EmotionHeadError, EmotionMetrics, EmotionVectorHead, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD,
+    GOEMOTIONS_MINILM_HEAD, GoldBiasUnit, GoldEmotionUnit, GoldIncivilityUnit, GoldToxicSpanUnit, IdentityTerms,
     IncivilityAnnotator, IncivilityBiasMetrics, IncivilityFitOptions, IncivilityHeadError, IncivilityLexicon,
-    IncivilityMetrics, IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorHead,
-    IncivilityVectorScorer, IncivilityZooError, LabelBias, LabelMetrics, LexiconSentiment, NegationMode,
-    PragmaticsAnnotator, PragmaticsVectorScorer, RuleAspectSentiment, SENTENCE_SENTIMENT, SentenceSentiment,
-    SentimentFactory, SentimentMe, SentimentModel, SubgroupBias, ToxicSpanMetrics, VaderLexicon, VaderScore,
-    char_span_to_token_range, char_span_to_utf8_span, evaluate_absa_corpus, evaluate_emotion_corpus,
-    evaluate_emotion_corpus_with_thresholds, evaluate_incivility_bias, evaluate_incivility_corpus,
-    evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, extract_triplets, incivility_token_key, roc_auc,
+    IncivilityMetrics, IncivilityVectorHead, IncivilityZooError, LabelBias, LabelMetrics, LexiconSentiment,
+    NegationMode, PragmaticsAnnotator, RuleAspectSentiment, SENTENCE_SENTIMENT, SentenceSentiment, SubgroupBias,
+    ToxicSpanMetrics, VaderLexicon, VaderScore, char_span_to_token_range, char_span_to_utf8_span, evaluate_absa_corpus,
+    evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds, evaluate_incivility_bias,
+    evaluate_incivility_corpus, evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, extract_triplets,
+    incivility_token_key, roc_auc,
 };
+#[cfg(feature = "classical")]
+pub use sentiment::{SentimentFactory, SentimentMe, SentimentModel};
+#[cfg(feature = "classical")]
 pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
-pub use train::{DoccatEventStream, DoccatFactory, doccat_events, doccat_index};
+#[cfg(feature = "classical")]
+pub use train::doccat_index;
+pub use train::{DoccatEventStream, DoccatFactory, doccat_events};
 pub use zeroshot::{
     NliScorer, WindowAggregation, ZeroShotAnnotator, ZeroShotCategorizer, ZeroShotConfig, ZeroShotError, ZeroShotMode,
     ZeroShotSpanAnnotator,
@@ -239,6 +241,3 @@ mod tests {
         assert!(plain.is_empty());
     }
 }
-
-pub mod selection;
-pub use selection::{DoccatTrainer, FeatureSelection, SelectedFeatures, SelectionMetric};
