@@ -8,6 +8,7 @@
 //! | `corpus` | Sentences, splits, file pins and the corpus record |
 //! | `masc_pos` | MASC 3.0.0 Penn tags on the recipes' recorded release and split |
 //! | `multiconer` | MultiCoNER v2 English, pinned file by file, and its coarse groups |
+//! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
 //! | `run` | Head spec, encoder features, prediction, outputs |
 //! | `receipt` | `receipt.json` |
@@ -20,6 +21,7 @@ pub mod multiconer;
 pub mod receipt;
 pub mod run;
 pub mod safetensors;
+pub mod ud;
 
 /// An error, as the message the command prints.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,8 +37,13 @@ impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// The corpora the trainer reads, by id.
-pub const CORPORA: [&str; 2] = [masc_pos::ID, multiconer::ID];
+/// The corpora the trainer reads, by id: MASC, MultiCoNER, and a tag
+/// corpus for each column of each UD treebank.
+pub fn corpora() -> Vec<String> {
+    let mut all = vec![masc_pos::ID.to_owned(), multiconer::ID.to_owned()];
+    all.extend(ud::corpus_ids());
+    all
+}
 
 /// Reads the corpus `id` from `dir`.
 ///
@@ -47,7 +54,19 @@ pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<
     match id {
         masc_pos::ID => masc_pos::read(dir, unrecorded),
         multiconer::ID => multiconer::read(dir, unrecorded),
-        _ => Err(Error(format!("unknown corpus {id:?}: one of {}", CORPORA.join(", ")))),
+        _ => match ud::find(id) {
+            Some((bank, column)) => ud::read(&bank, column, dir, unrecorded),
+            None => Err(Error(format!("unknown corpus {id:?}: one of {}", corpora().join(", ")))),
+        },
+    }
+}
+
+/// The name and layer of the head a corpus trains.
+pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
+    match (ud::find(id), task) {
+        (Some((_, column)), _) => column.head(),
+        (None, corpus::Task::Tags) => ("pos", "turboembed:pos"),
+        (None, corpus::Task::Bio) => ("ner", "turboembed:entities"),
     }
 }
 
