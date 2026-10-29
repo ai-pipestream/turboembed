@@ -21,6 +21,9 @@ that index instead of the built-in one.
 | `ListInstalledModels` | no | The artifacts whose files are all in the cache. |
 | `RecordLicenceAcceptance` | yes | Records that a user accepted a licence's terms. |
 | `InstallModel` | yes | Fetches and verifies an artifact into the cache, streaming its progress. |
+| `DescribeModel` | no | One artifact's entry, as the listing gives it. |
+| `ResolveModel` | no | The artifact and file the index pins at a SHA-256. |
+| `ReadModelFile` | no | An installed file's bytes, for a user who accepted its terms. |
 
 The admin calls are served only when the server is started with
 `--admin`; without it they refuse with `UNIMPLEMENTED` and touch no
@@ -109,3 +112,46 @@ expects, and the bytes asked for unencoded (`Accept-Encoding:
 identity`). A file served compressed reaches the wire check as sent;
 if a server encodes it anyway and the transport decodes that, the bytes
 that arrive are the file itself, kept when they verify as it.
+
+## Describing, resolving and reading
+
+These are the calls a client that loads models from this server makes
+(#1613). None is an admin call.
+
+`DescribeModel` takes an `artifact_id` and an optional `user` and
+answers with the artifact's `CatalogEntry`, the one `ListModelCatalog`
+gives, `missing_terms` included when a user is named. An id the index
+does not list is `NOT_FOUND` (`TURBO_E_BUNDLE_NOT_FOUND`); a refused one
+is `FAILED_PRECONDITION`.
+
+`ResolveModel` takes a file's `sha256` (64 lowercase hexadecimal
+digits; anything else is `INVALID_ARGUMENT`, field 1) and answers with
+the first artifact in index order that has a file pinned at it, and that
+file's `path`. With an `artifact_id`, only that artifact's files are
+searched. A hash the index pins nowhere is `NOT_FOUND`.
+
+`ReadModelFile` takes a `user`, an `artifact_id`, a `path` and,
+optionally, the `sha256` the caller's own index pins for that file. It
+checks, in order, before its first message:
+
+1. The user name is valid, the id and path are not empty, and the
+   `sha256`, when given, is well formed: `INVALID_ARGUMENT`, field 1,
+   2, 3 or 4, otherwise.
+2. The user accepted every term the artifact's class needs:
+   `FAILED_PRECONDITION` (`TURBO_E_INVALID_STATE`) otherwise, naming
+   the missing terms, as `InstallModel` refuses. An unknown id is
+   `NOT_FOUND`.
+3. The artifact has a file at `path`: `NOT_FOUND` otherwise.
+4. The server's index pins that file at the request's `sha256`, when
+   one is given: `FAILED_PRECONDITION`, field 4, naming both, otherwise.
+   A client and a server whose indexes disagree never exchange bytes.
+5. The file is installed, a plain file in the cache at the size the
+   index records: `FAILED_PRECONDITION` otherwise.
+
+It then streams the file's `CatalogFile`, then its bytes in frames of
+at most 64 KiB, read from the cache as they are sent, never held whole.
+The bytes are hashed on the way; when they are not the size and SHA-256
+the index records (the cache was changed since the install), the stream
+ends with `DATA_LOSS` (`TURBO_E_BUNDLE_INTEGRITY`) instead of ending
+cleanly. A client verifies every file by size, SHA-256 and SHA-512 all
+the same, as it verifies a download from anywhere else.

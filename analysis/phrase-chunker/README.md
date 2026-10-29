@@ -27,8 +27,7 @@ OpenNLP fork.
 ## Model
 
 The chunker models Apache OpenNLP publishes are OpenNLP 1.5 models, which this
-project does not ship; the chunker recipe of `turbo-train-recipes` loads
-`en-chunker.bin` only to score it as the reference of its gate. The tests run `chunker-fixture.bin`, a small perceptron
+project does not ship, fetch or score (#1509). The tests run `chunker-fixture.bin`, a small perceptron
 model trained for this project on eight sentences with Penn Treebank tags
 (`analysis/goldens/data/train-fixtures/train-chunk.txt`, `analysis/sequence/README.md`),
 checked in as `analysis/goldens/data/fixtures/chunker-fixture.bin`, and

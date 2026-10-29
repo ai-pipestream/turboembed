@@ -419,6 +419,13 @@ typedef struct turbo_backend_embed_rows {
                                     normalization, goes through the head, its sums in F64,
                                     and the run's output is [count, head_out]; output_dim is
                                     then head_out and normalize NONE. 0 everywhere else */
+    uint32_t       taps;         /* 0 or 1: the final layer's states. T > 1 on a range write
+                                    (turbo_embed_write_layer_ranges): each range pooled from
+                                    each of the last T layers, the run's output [T, count,
+                                    output_dim], the last block the final layer's. The core
+                                    passes T > 1 only to a backend and family that take it;
+                                    head is then 0 and T * count at most max_ranges */
+    uint32_t       reserved;     /* 0 */
 } turbo_backend_embed_rows;
 
 /* What a run produced and what it cost: turbo_result_info's fields that

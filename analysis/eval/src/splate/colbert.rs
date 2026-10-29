@@ -199,8 +199,9 @@ mod tests {
     #[test]
     #[ignore = "needs TURBO_SPLATE913_BUNDLES with the colbertv2 bundle"]
     fn checkpoint_query_rows_do_not_attend_to_the_mask_tail() {
-        let dir =
-            std::path::PathBuf::from(std::env::var("TURBO_SPLATE913_BUNDLES").expect("bundles")).join("colbertv2");
+        let dir = turbo_pins::require(
+            std::path::PathBuf::from(std::env::var("TURBO_SPLATE913_BUNDLES").expect("bundles")).join("colbertv2"),
+        );
         let options = EncoderOptions::default();
         let mut protocol = ColbertProtocol::open(&dir, &options).expect("open bundle");
         let pieces: Vec<i32> = vec![1996, 2293, 3388]; // arbitrary in-vocab pieces

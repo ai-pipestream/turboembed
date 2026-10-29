@@ -19,6 +19,8 @@ pub const MAX_ADAPTER_LAYERS: u32 = 3;
 pub const MAX_ADAPTER_HIDDEN: u32 = 4096;
 /// The most labels one head scores.
 pub const MAX_LABELS: usize = 4096;
+/// The widest biaffine MLP output.
+pub const MAX_BIAFFINE: u32 = 4096;
 /// The namespace every head's layer id is in.
 pub const LAYER_NAMESPACE: &str = "turboembed:";
 
@@ -37,6 +39,10 @@ pub struct HeadSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<Adapter>,
     pub decode: Decode,
+    /// The arc and relation MLP widths of a HEAD_BIAFFINE_PARSER; absent
+    /// for every other kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biaffine: Option<Biaffine>,
     /// The name of the FORMAT_SAFETENSORS artifact holding the head's
     /// tensors, as `from` and `host_weights` name artifacts.
     pub artifact: String,
@@ -48,6 +54,20 @@ pub enum HeadKind {
     /// One label per word, from the word's pooled subword states.
     #[serde(rename = "HEAD_TOKEN_TAGGER")]
     TokenTagger,
+    /// A head word and a relation per word, from biaffine arc and
+    /// relation scores (Dozat and Manning 2017), decoded to a tree. The
+    /// labels are the relations, under SCHEME_TAGS.
+    #[serde(rename = "HEAD_BIAFFINE_PARSER")]
+    BiaffineParser,
+}
+
+/// The widths of a biaffine parser's MLPs: `arc` for the dependent and
+/// head views the arc scorer reads, `rel` for the relation scorer's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Biaffine {
+    pub arc: u32,
+    pub rel: u32,
 }
 
 /// How a head's labels read.
@@ -97,6 +117,14 @@ pub enum Decode {
     /// and BILOU, sequences the scheme forbids are never chosen.
     #[serde(rename = "DECODE_CRF")]
     Crf,
+    /// The best-scoring tree with one word on the root (Chu-Liu-Edmonds);
+    /// a biaffine parser's decode.
+    #[serde(rename = "DECODE_MST")]
+    Mst,
+    /// The best-scoring projective tree with one word on the root
+    /// (Eisner); a biaffine parser's decode.
+    #[serde(rename = "DECODE_EISNER")]
+    Eisner,
 }
 
 /// A label read under a scheme: outside any span, or a part of a span of
@@ -187,6 +215,31 @@ impl HeadSpec {
         // admits, so a CRF decode always has an answer.
         if self.scheme != Scheme::Tags && !self.labels.iter().any(|l| l == "O") {
             return Err(invalid(format!("manifest.json: {}: {:?} needs the label \"O\"", at("labels"), self.scheme)));
+        }
+        let parser = self.kind == HeadKind::BiaffineParser;
+        let tree = matches!(self.decode, Decode::Mst | Decode::Eisner);
+        if parser != tree || parser != self.biaffine.is_some() || (parser && self.scheme != Scheme::Tags) {
+            return Err(invalid(format!(
+                "manifest.json: {}: {:?} with {:?}, {:?} and biaffine {}: a HEAD_BIAFFINE_PARSER takes \
+                 SCHEME_TAGS, DECODE_MST or DECODE_EISNER and biaffine; a HEAD_TOKEN_TAGGER neither of the last two",
+                at("kind"),
+                self.kind,
+                self.scheme,
+                self.decode,
+                if self.biaffine.is_some() { "set" } else { "absent" }
+            )));
+        }
+        if let Some(b) = &self.biaffine {
+            positive(&at("biaffine.arc"), b.arc)?;
+            positive(&at("biaffine.rel"), b.rel)?;
+            if b.arc > MAX_BIAFFINE || b.rel > MAX_BIAFFINE {
+                return Err(invalid(format!(
+                    "manifest.json: {}: arc {} and rel {}; at most {MAX_BIAFFINE}",
+                    at("biaffine"),
+                    b.arc,
+                    b.rel
+                )));
+            }
         }
         if let Some(a) = &self.adapter {
             positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;

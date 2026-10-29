@@ -25,16 +25,17 @@ fn only_the_cpu_runs_a_banded_model() {
 }
 
 #[test]
-fn only_the_cpu_and_metal_run_a_rotary_model() {
+fn only_the_cpu_cuda_and_metal_run_a_rotary_model() {
     use crate::backend::{TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT};
     for family in [TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT] {
-        assert!(runs_family("cpu", family).is_ok());
-        assert!(runs_family("metal", family).is_ok());
-        for b in ["cuda", "levelzero", "npu", "hailo"] {
+        for b in ["cpu", "cuda", "metal"] {
+            assert!(runs_family(b, family).is_ok());
+        }
+        for b in ["levelzero", "npu", "hailo"] {
             let e = runs_family(b, family).err().unwrap();
             assert_eq!(e.code, UNSUPPORTED);
             assert!(
-                e.message.contains(&format!("the {b} backend has no encoder for it yet; use cpu or metal")),
+                e.message.contains(&format!("the {b} backend has no encoder for it yet; use cpu, cuda or metal")),
                 "{}",
                 e.message
             );

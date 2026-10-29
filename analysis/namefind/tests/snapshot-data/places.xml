@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dictionary case_sensitive="false">
+  <entry><token>New</token><token>York</token></entry>
+  <entry><token>New</token><token>York</token><token>City</token></entry>
+  <entry><token>York</token><token>City</token><token>Hall</token></entry>
+  <entry><token>City</token></entry>
+  <entry><token>San</token><token>Francisco</token></entry>
+  <entry><token>São</token><token>Paulo</token></entry>
+  <entry><token>İstanbul</token></entry>
+  <entry><token>strasse</token></entry>
+  <entry><token>K</token></entry>
+  <entry><token>😀</token><token>face</token></entry>
+</dictionary>

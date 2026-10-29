@@ -2,17 +2,17 @@
 //! every run writes, on a small seeded corpus of the fuzz generator and on
 //! the checked in golden inputs of the sets of [`FED`]. No
 //! container is needed: the Rust side runs alone. Runs whose published
-//! model is not downloaded are skipped, unless
-//! `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`; the published MeCab dictionaries
+//! MeCab dictionary is not requested are skipped; the published dictionaries
 //! are left out unless `TURBO_TEST_MECAB_DICTIONARIES=1`, as the lattice
 //! crate's own tests on them are ignored by default.
 
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use turbo_fuzz::{Resources, Unavailable, runs};
+use turbo_analysis::{Key, View};
+use turbo_fuzz::{Resources, runs};
 use turbo_goldens::fuzz::corpus;
-use turbo_goldens::invariants::check_document;
+use turbo_goldens::invariants::{check_document, check_spans};
 
 const SEED: u64 = 7;
 const COUNT: u64 = 40;
@@ -130,11 +130,6 @@ fn every_input_set_is_fed_or_left_out_by_name() {
     assert_eq!(given, fed, "every fed set gives texts");
 }
 
-fn required(path: &Path) -> bool {
-    let dictionary = path.to_string_lossy().contains("mecab-");
-    !dictionary && std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1")
-}
-
 #[test]
 fn every_layer_of_every_run_keeps_the_offset_invariants() {
     let res = Resources::from_env();
@@ -144,23 +139,15 @@ fn every_layer_of_every_run_keeps_the_offset_invariants() {
     let (mut runs_checked, mut layers_checked, mut skipped) = (0, 0, Vec::new());
     let mut failures = Vec::new();
     let dictionaries = std::env::var("TURBO_TEST_MECAB_DICTIONARIES").is_ok_and(|v| v == "1");
-    for &(annotator, run) in runs::RUNS {
+    let registered = runs::native_runs().count();
+    for (annotator, run) in runs::native_runs() {
         let name = format!("{annotator}/{run}");
         if annotator == "lattice" && !run.starts_with("mecab-fixture-") && !dictionaries {
             skipped.push(name);
             continue;
         }
-        // Tags and lemmas have no spans of their own; without a golden these
-        // runs tokenize with the simple tokenizer, which has its own run here.
-        if ["postag", "lemmatize", "lemmatize-dictionary"].contains(&annotator) {
-            continue;
-        }
         let r = match runs::open(annotator, run, &res) {
             Ok(r) => r,
-            Err(Unavailable::Missing(p)) if !required(&p) => {
-                skipped.push(name);
-                continue;
-            }
             Err(e) => panic!("{name}: {e}"),
         };
         runs_checked += 1;
@@ -169,7 +156,14 @@ fn every_layer_of_every_run_keeps_the_offset_invariants() {
             // A run may refuse a text (the lattice tokenizer without a
             // candidate); that is the differential's business, not this test's.
             let Ok(doc) = r.annotate(text, None) else { continue };
-            let (layers, violations) = check_document(&doc);
+            let (layers, mut violations) = check_document(&doc);
+            if annotator == "normalize" {
+                let view = doc.get_key::<View>(&Key::named("norm")).expect("normalizer output view");
+                let starts: Vec<_> = view.text().char_indices().map(|(i, _)| i as u32).collect();
+                let ends: Vec<_> =
+                    starts.iter().skip(1).copied().chain([view.text().len() as u32]).take(starts.len()).collect();
+                violations.extend(check_spans(&doc, "normalized scalars", view.id(), &starts, &ends));
+            }
             layers_checked += layers;
             for v in violations {
                 failures.push(format!("{name} on {id}: {v}"));
@@ -178,7 +172,8 @@ fn every_layer_of_every_run_keeps_the_offset_invariants() {
         eprintln!("{name}: {:.1} s", started.elapsed().as_secs_f64());
     }
     eprintln!("{runs_checked} runs over {} texts, {layers_checked} layers checked; skipped {skipped:?}", texts.len());
-    assert!(runs_checked >= 70, "{runs_checked} runs; skipped {skipped:?}");
+    assert_eq!(runs_checked + skipped.len(), registered, "every native run is accounted for");
+    assert!(skipped.len() <= 3, "only the three opt-in published MeCab dictionaries may be excluded");
     assert!(layers_checked > 10_000, "{layers_checked} layers checked");
     assert!(failures.is_empty(), "{} offset invariants broken:\n{}", failures.len(), failures.join("\n"));
 }

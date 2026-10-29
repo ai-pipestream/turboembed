@@ -39,7 +39,7 @@ const SETTINGS: [(f64, u32, u32); 3] = [(0.5, 16, 62), (0.5, 7, 30), (0.25, 62, 
 
 fn bundles() -> Vec<PathBuf> {
     let mut b = vec![Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-sat-bundle")];
-    b.extend(std::env::var_os("TURBO_TEST_SAT_BUNDLE").map(PathBuf::from));
+    b.extend(std::env::var_os("TURBO_TEST_SAT_BUNDLE").map(turbo_pins::require));
     b
 }
 

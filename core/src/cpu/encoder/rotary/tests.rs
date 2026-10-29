@@ -20,8 +20,8 @@ const H: usize = 64;
 const HEADS: usize = 2;
 const I: usize = 48;
 
-struct Model {
-    desc: turbo_backend_model,
+pub(in crate::cpu::encoder) struct Model {
+    pub(in crate::cpu::encoder) desc: turbo_backend_model,
     tensors: Vec<Vec<f32>>,
     _table: Vec<f32>,
 }
@@ -29,6 +29,12 @@ struct Model {
 impl Model {
     /// A ModernBERT (global layers 0 and 3, a window of 16) or a nomic-bert.
     fn new(modern: bool) -> Model {
+        Model::layered(modern, LAYERS)
+    }
+
+    /// As `new` with `layers` layers: the first layers of a deeper one,
+    /// the same tensors in the same order.
+    pub(in crate::cpu::encoder) fn layered(modern: bool, layers: usize) -> Model {
         let (h, i) = (H, I);
         let mut n = 0;
         let mut t = |len: usize, norm: bool| {
@@ -39,7 +45,7 @@ impl Model {
         let mut tensors = Vec::new();
         if modern {
             tensors.extend([t(VOCAB * h, false), t(h, true), t(h, true)]);
-            for l in 0..LAYERS {
+            for l in 0..layers {
                 tensors.push(if l == 0 { Vec::new() } else { t(h, true) });
                 tensors.extend([
                     t(3 * h * h, false),
@@ -51,7 +57,7 @@ impl Model {
             }
         } else {
             tensors.extend([t(VOCAB * h, false), t(2 * h, false), t(h, true), t(h, false)]);
-            for _ in 0..LAYERS {
+            for _ in 0..layers {
                 tensors.extend([t(3 * h * h, false), t(h * h, false), t(h, true), t(h, false)]);
                 tensors.extend([t(i * h, false), t(i * h, false), t(h * i, false), t(h, true), t(h, false)]);
             }
@@ -64,7 +70,7 @@ impl Model {
         desc.struct_size = size_of::<turbo_backend_model>() as u32;
         desc.family = if modern { TURBO_FAMILY_MODERNBERT } else { TURBO_FAMILY_NOMIC_BERT };
         desc.dtype = TURBO_DTYPE_F32;
-        desc.layers = LAYERS as u32;
+        desc.layers = layers as u32;
         desc.hidden = h as u32;
         desc.heads = HEADS as u32;
         desc.intermediate = i as u32;
@@ -88,7 +94,7 @@ impl Model {
         Model { desc, tensors, _table: table }
     }
 
-    fn slices(&self) -> Vec<&[f32]> {
+    pub(in crate::cpu::encoder) fn slices(&self) -> Vec<&[f32]> {
         self.tensors.iter().map(Vec::as_slice).collect()
     }
 
@@ -117,6 +123,8 @@ impl Model {
             normalize: TURBO_NORMALIZE_NONE,
             output_dim: H as u32,
             head: 0,
+            taps: 0,
+            reserved: 0,
         };
         let mut first = Vec::new();
         for _ in 0..2 {
