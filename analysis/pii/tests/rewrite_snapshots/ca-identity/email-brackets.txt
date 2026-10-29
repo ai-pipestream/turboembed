@@ -1,0 +1,9 @@
+MASKED	From: The Desk <desk@example.com>; Cc: (help@example.net).
+
+MASK_ALL	From: The Desk <desk@example.com>; Cc: (help@example.net).
+
+REWRITE	pseudonymize	OK	From: The Desk <desk@example.com>; Cc: (help@example.net).
+
+REWRITE	hmac	OK	From: The Desk <desk@example.com>; Cc: (help@example.net).
+
+AUDIT_REPORT	no pii found

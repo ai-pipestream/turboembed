@@ -40,7 +40,7 @@ layers over them (`server/src/analysis.rs`, docs/grpc-analysis.md).
 | `turbo-grammar` | `analysis/grammar/` | A rule grammar with a chart parser for numbers, ordinals and percentages in words or digits (English), which writes the `grammar` instances of `turbo:numbers` and `turbo:quantities` and the `turbo:ordinals` layer, with its Recognizers-Text conformance tests ([grammar.md](grammar.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
-| `turbo-depparse` | `analysis/depparse/` | Typed dependency graphs, arc-standard parsing/training, UAS/LAS and annotation ([dependency-parser.md](dependency-parser.md)) |
+| `turbo-depparse` | `analysis/depparse/` | Typed dependency graphs, CoNLL-U sample alignment, and UAS/LAS evaluation ([dependency-parser.md](dependency-parser.md)) |
 | `turbo-relation` | `analysis/relation/` | Dependency-path relation extraction over entity heads ([relation.md](relation.md)) |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the explicit `BeamSearch::opennlp` session for QN probability carry between evaluations and sentences; `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
@@ -3191,7 +3191,7 @@ See [temporal.md](temporal.md#golden-files).
 `PiiAnnotator`'s order, with the columns `start`, `end` (UTF-8 byte
 offsets), `type` (`PiiMention.type()`) and `normalized`. The `annotator`
 line names `opennlp.tools.pii.PiiPacks` and the factory method, and the
-`config pack` record names the pack. See [pii.md](pii.md#golden-files).
+`config pack` record names the pack. See [pii.md](pii.md#snapshot-tests).
 
 `pii-rewrite/<pack>/pii/<id>.golden` holds what OpenNLP makes of those
 mentions under a fixed test key (`config key`): the masked text's edits as
@@ -3199,7 +3199,7 @@ mentions under a fixed test key (`config key`): the masked text's edits as
 one mask byte per UTF-8 byte), the text with every mention masked, the
 numbered and keyed rewrites or the exception each threw, their labels, and
 the audit report by type and as text. `analysis/goldens-tool/README.md`
-lists the columns. See [pii.md](pii.md#golden-files).
+lists the columns. See [pii.md](pii.md#snapshot-tests).
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,

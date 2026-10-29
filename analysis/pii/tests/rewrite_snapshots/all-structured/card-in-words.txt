@@ -1,0 +1,12 @@
+MASKED	The number4111111111111111 is joined; 4111111111111111x too; (************1111) is not.
+
+MASK_ALL	The number4111111111111111 is joined; 4111111111111111x too; (################) is not.
+
+REWRITE	pseudonymize	OK	The number4111111111111111 is joined; 4111111111111111x too; (CARD-1) is not.
+
+LABEL	pseudonymize	62	78	62	68	CARD-1
+REWRITE	hmac	OK	The number4111111111111111 is joined; 4111111111111111x too; (CARD-f04eb250c58c67b2) is not.
+
+LABEL	hmac	62	78	62	83	CARD-f04eb250c58c67b2
+AUDIT	card	1	1	CARD-f04eb250c58c67b2
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]

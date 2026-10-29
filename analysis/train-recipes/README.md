@@ -93,7 +93,7 @@ status is 1 when a gate fails and 2 on an error.
 | Model | Reference | Data | Measure |
 |---|---|---|---|
 | `turbo-en-masc-3.0.0-sentence-1` | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | MASC sentence samples of 10 sentences | F-measure of sentence spans |
-| `turbo-en-masc-3.0.0-tokens-1` | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | MASC Penn tokens, one sample per sentence | F-measure of token spans |
+| `turbo-en-masc-3.0.0-tokens-1` | none (#1645) | MASC Penn tokens, one sample per sentence | F-measure of token spans against gold |
 | `turbo-en-masc-3.0.0-pos-1` | none (#1509) | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
 | `turbo-en-masc-3.0.0-chunks-1` | none (#1509) | MASC Penn tokens, their `msd` tags and chunk tags of MASC's noun chunks (`NP`) and verb chunks (`VP`), one sample per sentence | F-measure of `NP` and `VP` chunks, one unit per sentence |
 | `turbo-en-masc-3.0.0-ner-person-1` | none (#1509) | MASC Penn tokens and the `person` entities, one sample per sentence | F-measure of `person` names, one unit per sentence |
@@ -830,47 +830,44 @@ models scored on every token):
   and that favours the candidate (above); the widest is the Portuguese
   lemmatizer's 9.99 points.
 
-### The UD dependency parser recipes (`depparse`)
+### The UD dependency parser recipes (`depparse`, retired)
 
-`depparse` trains and gates both the linear (`DependencyParserME`) and neural
-(`FeedforwardDependencyParser`) arc-standard dependency parsers across all five
-UD 2.16 treebanks:
+The classical arc-standard dependency parser (`DependencyParserME` and
+`FeedforwardDependencyParser`) and its pseudo-projective lifting have been
+deleted (`#1529`) in favour of the Dozat & Manning (2017) deep biaffine graph
+parser (`turbo-parse` / `turbo-trainer`). Both the `depparse` CLI subcommand and
+`DepparseRecipe::train` / `DepparseRecipe::gate` are retired and refuse with an
+error (`#1511`, `#1529`).
 
-```
-cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/artifacts \
-    --out <dir> [--recipe <model id>]...
-```
+The historical configuration and release record for `models-ud-depparse-2.16-1`
+are retained below for provenance until `turbo-train-recipes` is retired in
+`#1532`:
 
-- Pseudo-projective handling: non-projective sentences in `train` (840 in
-  `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in `UD_Finnish-FTB`)
-  are lifted into projective trees with directional `base^<step1^>step2...`
-  path labels via `DependencyGraph::projectivize` instead of being discarded,
-  and decoded back into non-projective trees via `DependencyGraph::deprojectivize`
-  (preserving ordinary custom labels such as `root^literal` unchanged). Because
-  Nivre and Nilsson's directional label-path scheme is approximate when siblings
-  under the same lifted ancestor share a relation label and direction, gold
-  encode/decode over all 1,867 `UD_Finnish-FTB` test sentences alters 8 heads
-  across 8 sentences (out of 16,286 words). Zero training or held-out sentences
-  are skipped across all five treebanks.
-- Parameters: MaxEnt models train with GIS (`MAXENT`), 100 iterations, cutoff 5,
-  4 partitions, and fixed manifest timestamp `2026-10-14T00:00:00Z`. Feedforward
-  models train with deterministic AdaGrad (`FeedforwardDependencyTrainer`), 5
-  epochs, batch size 512, embedding size 16, hidden size 64, `ChenManning18`
+- Historical pseudo-projective handling: non-projective sentences in `train`
+  (840 in `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in
+  `UD_Finnish-FTB`) were lifted into projective trees with directional
+  `base^<step1^>step2...` path labels and decoded back into non-projective
+  trees. Because Nivre and Nilsson's directional label-path scheme is
+  approximate when siblings under the same lifted ancestor share a relation
+  label and direction, gold encode/decode over all 1,867 `UD_Finnish-FTB` test
+  sentences altered 8 heads across 8 sentences (out of 16,286 words). Zero
+  training or held-out sentences were skipped across all five treebanks.
+- Historical parameters: MaxEnt models trained with GIS (`MAXENT`), 100
+  iterations, cutoff 5, 4 partitions, and fixed manifest timestamp
+  `2026-10-14T00:00:00Z`. Feedforward models trained with deterministic AdaGrad,
+  5 epochs, batch size 512, embedding size 16, hidden size 64, `ChenManning18`
   layout, `cube` activation, dropout 0.5, learning rate 0.02, L2 1e-8, word
   cutoff 5, and seed 17.
-- Gates and baseline scope: every model writes both `gate.json` (LAS paired
+- Historical gates and baseline scope: every model wrote `gate.json` (LAS paired
   bootstrap, 10,000 draws, seed 154) and `gate-uas.json` (UAS paired bootstrap,
   10,000 draws, seed 154) against its single-step projective-only internal
   baseline (`<model_id>-projective-baseline`: 1 GIS iteration for MaxEnt, 1
   AdaGrad epoch for Feedforward trained on projective sentences only) and
-  records all-token and punctuation-excluded (`PUNCT`) UAS and LAS in
-  `card.json` (`DepparseModelCard`, version 1). Because Apache OpenNLP publishes
-  no pre-trained UD dependency parser models in the zoo, the gate verifies
-  improvement over that undertrained internal baseline rather than an
-  equal-budget external parser.
+  recorded all-token and punctuation-excluded (`PUNCT`) UAS and LAS in
+  `card.json` (`DepparseModelCard`, version 1).
 - Shippable entries: the eight models for Spanish, Catalan, Finnish and Italian
-  are published in release `models-ud-depparse-2.16-1` and listed in
-  `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remain
+  were published in release `models-ud-depparse-2.16-1` and listed in
+  `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remained
   recipe-only (`DepparseModelCard::artifact` refuses them because newspaper text
   rights are not settled).
 

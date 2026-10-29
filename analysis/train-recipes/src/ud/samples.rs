@@ -78,7 +78,9 @@ impl UdRecipe {
     ///
     /// # Errors
     ///
-    /// [`Error::NoReference`] when the recipe has no reference model.
+    /// [`Error::NoReference`] for the tokenizers, part-of-speech
+    /// taggers and lemmatizers, which have none since #1645, #1646
+    /// and #1647.
     pub fn reference(&self) -> Result<crate::Reference> {
         self.reference.ok_or(Error::NoReference { recipe: self.model_id })
     }
@@ -116,7 +118,7 @@ impl UdRecipe {
             Component::Tokens => segmentation::Component::Tokens,
             Component::Pos | Component::Lemmas => return None,
         };
-        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference?.id() })
+        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference.map(|r| r.id()) })
     }
 
     /// For a tagger, the MASC tagger's gate for it: a [`PosRecipe`] of the

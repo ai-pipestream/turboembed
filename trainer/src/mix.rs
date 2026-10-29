@@ -127,8 +127,8 @@ impl<R: Real> MixTagger<R> {
 impl Model for MixTagger<f32> {
     type Example = MixExample;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        &self.params
+    fn params(&self) -> Vec<Vec<f32>> {
+        self.params.clone()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         MixTagger::set_params(self, params)

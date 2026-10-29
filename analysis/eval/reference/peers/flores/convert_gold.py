@@ -1,6 +1,13 @@
 """Convert FLORES+ devtest jsonl files to the bench's language gold form.
 
-Usage: convert_gold.py DEVTEST_DIR OUT.tsv
+Usage: convert_gold.py DEVTEST_DIR OUT.tsv [--short-out SHORT.tsv]
+
+With --short-out, a second gold file is written from the same rows
+for the short-text half of the language gate: each text cut to its
+first four whitespace-separated words, or to its first 20
+characters when it has fewer words to cut (the scripts without
+spaces). The labels do not change; only the evidence per text
+shrinks. Both files' digests are printed.
 
 DEVTEST_DIR holds the .jsonl files of the devtest split of
 openlanguagedata/flores_plus at the revision pinned in the records
@@ -139,9 +146,27 @@ def rows_of(path, gold):
     return rows
 
 
+def short_of(text):
+    # Split on runs of Unicode whitespace (str.split with no
+    # separator): leading or repeated spaces make no empty words,
+    # and a nonbreaking or ideographic space is a separator like
+    # any other. With fewer than four words to cut (the scripts
+    # without spaces), the fallback is the first 20 characters of
+    # the stripped text, so the short form is never empty.
+    words = text.split()
+    if len(words) >= 4:
+        return " ".join(words[:4])
+    return text.strip()[:20]
+
+
 def main():
     src_dir, out = sys.argv[1], sys.argv[2]
-    lines = []
+    short_out = None
+    if sys.argv[3:] and sys.argv[3] == "--short-out" and len(sys.argv) == 5:
+        short_out = sys.argv[4]
+    elif len(sys.argv) != 3:
+        raise SystemExit(__doc__)
+    lines, short_lines = [], []
     for gold in sorted(FILES):
         name = FILES[gold]
         path = os.path.join(src_dir, name)
@@ -151,11 +176,20 @@ def main():
             digest = hashlib.sha256(f.read()).hexdigest()
         rows = rows_of(path, gold)
         lines.extend(f"{gold}\t{text}\n" for _, _, text in rows)
+        short_lines.extend(f"{gold}\t{short_of(text)}\n" for _, _, text in rows)
         print(f"{name} sha256 {digest} rows {len(rows)}", file=sys.stderr)
     body = "".join(lines).encode("utf-8")
     with open(out, "wb") as f:
         f.write(body)
     print(f"{out} sha256 {hashlib.sha256(body).hexdigest()} texts {len(lines)}", file=sys.stderr)
+    if short_out is not None:
+        short_body = "".join(short_lines).encode("utf-8")
+        with open(short_out, "wb") as f:
+            f.write(short_body)
+        print(
+            f"{short_out} sha256 {hashlib.sha256(short_body).hexdigest()} texts {len(short_lines)} (short)",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

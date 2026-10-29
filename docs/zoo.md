@@ -264,13 +264,16 @@ Which user accepted which licence, in the zoo's home directory as
 
 | Field | Type | Meaning |
 |---|---|---|
-| `acceptances_version` | uint32 | 1. |
+| `acceptances_version` | uint32 | 1, or 2 when an acceptance holds `artifact` or `license_text_sha256`. The file is written at the lowest version that holds it, so a reader of version 1 reads every file made without a page. Both versions read. |
 | `accepted[].user` | string | Who accepted: 1 to 256 bytes, no control characters, no leading or trailing whitespace. |
 | `accepted[].license` | SPDX string | A licence of `CLASS_LGPL`, `CLASS_SHARE_ALIKE`, `CLASS_GPL` or `CLASS_LOCAL_ONLY`. A permissive licence needs no acceptance and a refused one cannot be accepted; either rejects the file. |
 | `accepted[].license_text` | https URL | The text the user was shown. For a licence with one text, the zoo's address for it; for `LicenseRef-RestrictedPublic`, the host's terms page as the index gives it (`license_terms`), so each host's terms are accepted on their own. |
 | `accepted[].accepted_at` | uint64 | Seconds since the Unix epoch, UTC. |
+| `accepted[].artifact` | artifact id | Version 2, optional: the artifact whose page showed the terms (the demo's Models tab, through `RecordLicenceAcceptance`). For audit only; the acceptance covers every artifact under the same terms. |
+| `accepted[].license_text_sha256` | SHA-256 | Version 2, optional: the SHA-256 of `license_text` as the page displayed it. A digest of other text rejects the file. |
 
-Every field is required. One user accepts one licence and text at most
+Every field of version 1 is required; a version 1 file with a version 2
+field is rejected. One user accepts one licence and text at most
 once. An absent file means nothing has been accepted. The zoo never
 writes the file on its own: only the user's explicit action adds an
 entry. `turbo-zoo accept <licence>` (or `turbo-zoo accept

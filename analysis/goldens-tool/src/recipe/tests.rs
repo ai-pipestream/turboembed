@@ -234,7 +234,6 @@ fn the_generator_names_the_same_input_sets() {
             SENTIMENT_TRAIN_SET,
             DOCCAT_INPUT_SET,
             DOCCAT_TRAIN_SET,
-            PII_INPUT_SET,
         ]
         .contains(s)
     }) {
@@ -299,24 +298,6 @@ fn the_temporal_extractor_has_its_own_input_set_and_no_dumps() {
     let temporal = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
     assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
     assert!(temporal.contains("ANNOTATOR = \"temporal\""));
-}
-
-#[test]
-fn the_pii_packs_and_rewrites_have_their_own_input_set_and_no_dumps() {
-    assert!(INPUT_SETS.contains(&PII_INPUT_SET));
-    for annotator in ["pii", "pii-rewrite"] {
-        assert!(ANNOTATORS.contains(&annotator));
-        assert!(!DUMPED_ANNOTATORS.contains(&annotator));
-    }
-    let pii = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PiiGolden.java");
-    assert!(pii.contains(&format!("INPUT_SET = \"{PII_INPUT_SET}\"")));
-    assert!(pii.contains("ANNOTATOR = \"pii\""));
-    let rewrite = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PiiRewriteGolden.java");
-    assert!(rewrite.contains("ANNOTATOR = \"pii-rewrite\""));
-    assert!(rewrite.contains("Set.of(PiiGolden.INPUT_SET)"));
-    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-    assert!(runs.contains("annotators.addAll(PiiGolden.all());"));
-    assert!(runs.contains("annotators.addAll(PiiRewriteGolden.all());"));
 }
 
 #[test]

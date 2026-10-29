@@ -1,0 +1,14 @@
+MASKED	Routing ********* confirmed; routing number ********* too.
+
+MASK_ALL	Routing ######### confirmed; routing number ######### too.
+
+REWRITE	pseudonymize	OK	Routing ABA-ROUTING-1 confirmed; routing number ABA-ROUTING-2 too.
+
+LABEL	pseudonymize	8	17	8	21	ABA-ROUTING-1
+LABEL	pseudonymize	44	53	48	61	ABA-ROUTING-2
+REWRITE	hmac	OK	Routing ABA-ROUTING-0859865aa445ca3a confirmed; routing number ABA-ROUTING-f656c7b677d87732 too.
+
+LABEL	hmac	8	17	8	36	ABA-ROUTING-0859865aa445ca3a
+LABEL	hmac	44	53	63	91	ABA-ROUTING-f656c7b677d87732
+AUDIT	aba-routing	2	2	ABA-ROUTING-0859865aa445ca3a, ABA-ROUTING-f656c7b677d87732
+AUDIT_REPORT	aba-routing: 2 mentions, 2 distinct [ABA-ROUTING-0859865aa445ca3a, ABA-ROUTING-f656c7b677d87732]

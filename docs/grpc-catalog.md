@@ -39,6 +39,8 @@ allows no copy beyond the cache it is installed into.
 | `DescribeModel` | no | One artifact's entry, as the listing gives it. |
 | `ResolveModel` | no | The artifact and file the index pins at a SHA-256. |
 | `ReadModelFile` | no | An installed file's bytes, for a user who accepted its terms; in zoo mode a file not yet installed is fetched first. |
+| `RevokeLicenceAcceptance` | yes, or zoo mode | Withdraws a user's acceptance of a licence's terms. |
+| `ListLicenceAcceptances` | no | The terms a user accepted, and whether the admin calls are served. |
 
 The admin calls are served only when the server is started with
 `--admin` or `--zoo`; without either they refuse with `UNIMPLEMENTED`
@@ -99,11 +101,38 @@ terms and when they were accepted. Accepting again keeps the first
 time. A client calls it only after showing the user the text at that
 address.
 
+A page that shows the terms also sends `artifact_id`, the artifact
+whose page it was, and `text_sha256`, the SHA-256 of the
+`LicenceTerms.text` it displayed, as 64 lowercase hex digits. The
+server checks the digest against the text it serves for those terms, so
+the acceptance names that exact text, and records both in the
+acceptance file (version 2, docs/zoo.md). The artifact is for audit
+only: one acceptance still covers every artifact under the same terms.
+Both fields are optional; without them the record is the same as the
+command line's.
+
 | Request | Refusal |
 |---|---|
 | A user name that is empty, over 256 bytes, has control characters, or leading or trailing whitespace | `INVALID_ARGUMENT`, field 1 |
 | A licence the zoo does not know, a refused one, or a permissive one, which has nothing to accept | `INVALID_ARGUMENT`, field 2 |
 | A terms address for a licence with its own text, or none for one without | `INVALID_ARGUMENT`, field 3 |
+| An `artifact_id` the index does not list, or whose terms do not include these | `INVALID_ARGUMENT`, field 4 |
+| A `text_sha256` that is not 64 lowercase hex digits, or not the SHA-256 of the served text | `INVALID_ARGUMENT`, field 5 |
+
+`RevokeLicenceAcceptance` takes the same `user`, `licence` and `terms`
+and removes that acceptance from the file, as `turbo-zoo revoke` does,
+with the same refusals for fields 1 to 3. `was_accepted` says whether
+there was one. Files already installed stay in the cache, but neither
+`ReadModelFile` nor the zoo hands any of them to that user again until
+the terms are accepted again.
+
+`ListLicenceAcceptances` takes a `user` and answers with that user's
+acceptances in the order made: the terms, when, and the artifact and
+digest when a page recorded them. `admin` says whether the server
+serves the admin calls (`--admin` or `--zoo`), so a page can show its controls or say it is
+read-only. An empty `user` lists nothing. Acceptances made with
+`turbo-zoo accept` or `turbo-bundle` are in the same file and are
+listed alike.
 
 ## Installing
 

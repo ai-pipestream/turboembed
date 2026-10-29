@@ -1,11 +1,13 @@
 //! The TurboCatalogService rpcs (proto/turbo_training.proto,
 //! docs/grpc-catalog.md): the zoo index the server was started with, the
-//! artifacts in its cache, licence acceptances, and installs. Recording an
-//! acceptance and installing are served only with the admin flag or in
-//! zoo mode. Describing, resolving and reading a model are not; in zoo
-//! mode a read of a permitted artifact not yet cached fetches it first.
-//! Without a catalog every call refuses UNIMPLEMENTED.
+//! artifacts in its cache, licence acceptances, and installs. Recording
+//! and revoking an acceptance and installing are served only with the
+//! admin flag or in zoo mode. Listing acceptances and describing,
+//! resolving and reading a model are not; in zoo mode a read of a
+//! permitted artifact not yet cached fetches it first. Without a catalog
+//! every call refuses UNIMPLEMENTED.
 
+mod accept;
 mod disk;
 mod entry;
 mod install;
@@ -18,7 +20,6 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use tonic::{Request, Response, Status};
 use turbo_zoo::{Acceptances, Index, Licence, LicenceClass, Requirement, Transport, UserId, ZooError};
@@ -31,8 +32,10 @@ use crate::kserve::Reply;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogService;
 use crate::proto::training::{
     DescribeModelRequest, DescribeModelResponse, InstallModelRequest, LicenceTerms, ListInstalledModelsRequest,
-    ListInstalledModelsResponse, ListModelCatalogRequest, ListModelCatalogResponse, ReadModelFileRequest,
-    RecordLicenceAcceptanceRequest, RecordLicenceAcceptanceResponse, ResolveModelRequest, ResolveModelResponse,
+    ListInstalledModelsResponse, ListLicenceAcceptancesRequest, ListLicenceAcceptancesResponse,
+    ListModelCatalogRequest, ListModelCatalogResponse, ReadModelFileRequest, RecordLicenceAcceptanceRequest,
+    RecordLicenceAcceptanceResponse, ResolveModelRequest, ResolveModelResponse, RevokeLicenceAcceptanceRequest,
+    RevokeLicenceAcceptanceResponse,
 };
 use crate::status::to_status;
 
@@ -238,25 +241,41 @@ impl TurboCatalogService for CatalogService {
         let req = req.into_inner();
         let who = user(1, &req.user)?;
         let r = requirement(&req.licence, &req.terms)?;
+        let shown = accept::shown(&catalog, &r, &req.artifact_id, &req.text_sha256)?;
         let lock = self.accepting.clone();
         blocking(move || {
             let _held = lock.lock().unwrap_or_else(|p| p.into_inner());
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-            let mut acceptances = catalog.acceptances().map_err(zoo_status)?;
-            acceptances.accept_terms(&who, &r, now).map_err(zoo_status)?;
-            std::fs::create_dir_all(&catalog.home)
-                .map_err(|e| zoo_status(ZooError::Io { path: catalog.home.clone(), message: e.to_string() }))?;
-            acceptances.save(&catalog.acceptances_path()).map_err(zoo_status)?;
-            // Accepting again keeps the first time.
-            let first =
-                acceptances.iter().find(|a| a.user == who && a.license == r.licence && a.license_text == r.text);
-            Ok(Response::new(RecordLicenceAcceptanceResponse {
-                user: who.to_string(),
-                accepted: Some(terms(&r)),
-                accepted_at: first.map_or(now, |a| a.accepted_at),
-            }))
+            accept::record(&catalog, &who, &r, &shown).map(Response::new)
         })
         .await
+    }
+
+    async fn revoke_licence_acceptance(
+        &self,
+        req: Request<RevokeLicenceAcceptanceRequest>,
+    ) -> Reply<RevokeLicenceAcceptanceResponse> {
+        self.admin("RevokeLicenceAcceptance")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let r = requirement(&req.licence, &req.terms)?;
+        let lock = self.accepting.clone();
+        blocking(move || {
+            let _held = lock.lock().unwrap_or_else(|p| p.into_inner());
+            accept::revoke(&catalog, &who, &r).map(Response::new)
+        })
+        .await
+    }
+
+    async fn list_licence_acceptances(
+        &self,
+        req: Request<ListLicenceAcceptancesRequest>,
+    ) -> Reply<ListLicenceAcceptancesResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
+        let admin = self.admin || self.through.is_some();
+        blocking(move || accept::list(&catalog, who.as_ref(), admin).map(Response::new)).await
     }
 
     async fn install_model(&self, req: Request<InstallModelRequest>) -> Reply<Self::InstallModelStream> {
