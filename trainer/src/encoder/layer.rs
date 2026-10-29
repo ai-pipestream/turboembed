@@ -2,7 +2,7 @@
 //! and backward: x += attn(attn_norm(x)), x += mlp(ffn_norm(x)), the
 //! attention norm absent in layer 0, Q and K rotated by the layer's base,
 //! the window on a local layer, and a gated MLP; each projection with
-//! its adapter when the encoder has them.
+//! its adapter on a layer that has them.
 
 use crate::real::Real;
 
@@ -50,7 +50,7 @@ impl<R: Real> Encoder<R> {
     fn project(&self, l: usize, which: usize, x: &[R], y: &mut [R], h: &mut Vec<R>) {
         let (inp, out) = self.widths(which);
         matmul::forward(x, &self.params[slot(l, which)], inp, out, y);
-        if let Some(a) = &self.lora {
+        if let Some(a) = self.adapter(l) {
             let (sa, sb) = self.lora_slots(l, which);
             lora::forward(x, &self.params[sa], &self.params[sb], inp, a.rank, a.scale(), y, h);
         }
@@ -66,7 +66,7 @@ impl<R: Real> Encoder<R> {
             matmul::grad_w(x, dy, inp, out, &mut g[slot(l, which)]);
         }
         matmul::grad_x(w, dy, inp, out, dx);
-        if let Some(a) = &self.lora {
+        if let Some(a) = self.adapter(l) {
             let (sa, sb) = self.lora_slots(l, which);
             let [da, db] = g.get_disjoint_mut([sa, sb]).expect("an adapter's two slots are distinct");
             lora::backward(x, &self.params[sa], &self.params[sb], h, inp, a.rank, a.scale(), dy, da, db, Some(dx));

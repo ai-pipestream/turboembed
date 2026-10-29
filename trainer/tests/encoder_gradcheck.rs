@@ -114,12 +114,13 @@ fn attention_gradients_match_for_global_and_local_layers() {
         let mut dqkv = vec![0.0; qkv.len()];
         attention::backward(&qkv, hidden, heads, window, &c, &r, &mut dqkv);
         check("qkv", &mut qkv, &dqkv, &mut loss);
-        // A local layer's probabilities are zero outside the window: query
-        // 0 of head 0 reads keys 0 and 1 alone.
-        if window == 1 {
-            assert_eq!(c.probs[2], 0.0);
-            assert!(c.probs[1] > 0.0);
-        }
+        // On a local layer query 0 reads keys 0 and 1 alone: moving key
+        // 2's values changes its context on the global layer only.
+        let mut moved = qkv.clone();
+        moved[2 * 3 * hidden + 2 * hidden] += 1.0;
+        let mut ctx2 = vec![0.0; n * hidden];
+        attention::forward(&moved, hidden, heads, window, &mut ctx2, &mut c);
+        assert_eq!(ctx[..hidden] == ctx2[..hidden], window == 1, "window {window}");
     }
 }
 
