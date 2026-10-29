@@ -141,25 +141,17 @@ a directory with the same model run without them, and its options are
 
 | Annotator | `<model>` | Input sets | `config` |
 |---|---|---|---|
-| | `en-abbrev`, `en-plain`, `en-plain-rust`, `en-plain-qn-rust`, `en-plain-perceptron-rust` (fixtures) | `sentence-fixture` | |
+| `sentdetect` (`SentenceDetectorME`) | `en-abbrev`, `en-plain`, `en-plain-rust`, `en-plain-qn-rust`, `en-plain-perceptron-rust` (fixtures) | `sentence-fixture` | |
 | `sentdetect` (`NewlineSentenceDetector`) | `newline` | `edge` | |
-| | the `de`, `es`, `fr` and `pt` tokenizer models | `edge`, `surrogate` | |
-| | `tokenizer-abbreviations` (fixture) | `abbreviations`, `edge` | |
-| | each of the five models `+alphanumeric` | `edge`, `alphanumeric` | `useAlphaNumericOptimization true`, `alphaNumericPattern <pattern>` |
+| `tokenize` (`TokenizerME`) | `tokenizer-abbreviations` (fixture) | `abbreviations`, `edge` | |
 | `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer`) | `simple`, `whitespace`, each also `+keep-new-lines` | `edge` | `keepNewLines true` |
 | `tokenize` (UAX #29 `WordTokenizer`) | `uax29` | `edge` | |
 | `detokenize` (`DictionaryDetokenizer`) | `en-detokenizer`, `fr-detokenizer`, `latin-detokenizer`, `pt-detokenizer`, `quotes-detokenizer` (fixtures) | `detokenizer`, the inputs whose id starts with the dictionary's name | `splitMarker <SPLIT>` |
-| | `pos-fixture`, `pos-fixture-rust` (fixtures) | `en`, `edge` | |
-| | `lemma-fixture-rust` (fixture) | `en`, `edge` | |
+| `postag` (`POSTaggerME`) | `pos-fixture`, `pos-fixture-rust` (fixtures) | `en`, `edge` | |
+| `lemmatize` (`LemmatizerME`) | `lemma-fixture-rust` (fixture) | `en`, `edge` | |
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
-<<<<<<< ours
-| `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
-| | `chunker-fixture+beam1` | `en` | `beamSize 1` |
-| | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
-=======
-| `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
-| | `langdetect-183+probing`, `langdetect-183+probing-chunk50`, `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
->>>>>>> theirs
+| `langdetect` (`LanguageDetectorME`) | `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
+| | `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
@@ -215,14 +207,6 @@ a directory with the same model run without them, and its options are
 | `doccat` (`DocumentCategorizerME.train`, `categorize`) | `sms-default`, `sms-maxent`, `sms-qn`, `sms-perceptron` | `doccat`; the corpus `emoji` in `doccat-train` | `run`, `corpus`, `language`, `generators`, `Algorithm`, `Iterations`, `Cutoff` |
 | `postag-neural` (`BilstmPOSTagger`, `FeedforwardPOSTagger` of the addons `neural-postag` module, `topKSequences`) | `bilstm`, `bilstm-crf`, `bilstm-two-layer`, `bilstm-two-layer-crf`, `bilstm-vectors-crf`, `bilstm-adapter-crf`, `feedforward`, `feedforward-vectors` | `tagged` (the `wordtag` input, also the training corpus), `sequence` (the `sentences` input) | `run`, `corpus`, `neuralPostagCommit`, `settings`, `vectors` |
 
-- `+english-dictionary` is the English model rebuilt through
-  `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
-  abbreviation dictionary `english-dictionary.xml`, which is its second
-  `model` record. No published model has an abbreviation dictionary.
-- `+alphanumeric` is the model rebuilt the same way with the alphanumeric
-  optimization on and its own pattern; the `alphaNumericPattern` record is
-  the pattern the tokenizer uses (`Factory.DEFAULT_ALPHANUMERIC` when the
-  factory has none, which no published model lacks).
 - A detokenizer input holds one token per line, and its golden holds the
   tokens, the operation `detokenize` gave each and the text it returned
   with and without the split marker (`docs/analysis.md`).
