@@ -42,8 +42,10 @@ fn every_segmentation_golden_reads_and_writes_back_its_bytes() {
             n += 1;
         }
     }
-    // 643 tokenize, 243 sentdetect, 19 detokenize and 132 unigram goldens.
-    assert_eq!(n, 1037);
+    // 208 tokenize, 243 sentdetect, 19 detokenize and 132 unigram goldens.
+    // The published OpenNLP UD tokenizer runs' 435 goldens left with
+    // those models (#1645).
+    assert_eq!(n, 602);
 }
 
 #[test]
@@ -68,9 +70,9 @@ fn every_dump_reads_and_has_its_goldens_header() {
             points += d.points.len();
         }
     }
-    // 473 tokenize and 209 sentdetect dumps.
-    assert_eq!(dumps, 682);
-    assert_eq!(points, 24679, "every point of every dump");
+    // 38 tokenize and 209 sentdetect dumps.
+    assert_eq!(dumps, 247);
+    assert_eq!(points, 2865, "every point of every dump");
 }
 
 #[test]

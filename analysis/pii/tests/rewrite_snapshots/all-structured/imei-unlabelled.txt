@@ -1,0 +1,12 @@
+MASKED	Serial ***********7518 with no label.
+
+MASK_ALL	Serial ############### with no label.
+
+REWRITE	pseudonymize	OK	Serial CARD-1 with no label.
+
+LABEL	pseudonymize	7	22	7	13	CARD-1
+REWRITE	hmac	OK	Serial CARD-562fad218fa2f0bb with no label.
+
+LABEL	hmac	7	22	7	28	CARD-562fad218fa2f0bb
+AUDIT	card	1	1	CARD-562fad218fa2f0bb
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-562fad218fa2f0bb]

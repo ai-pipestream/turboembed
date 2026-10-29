@@ -93,7 +93,7 @@ status is 1 when a gate fails and 2 on an error.
 | Model | Reference | Data | Measure |
 |---|---|---|---|
 | `turbo-en-masc-3.0.0-sentence-1` | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | MASC sentence samples of 10 sentences | F-measure of sentence spans |
-| `turbo-en-masc-3.0.0-tokens-1` | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | MASC Penn tokens, one sample per sentence | F-measure of token spans |
+| `turbo-en-masc-3.0.0-tokens-1` | none (#1645) | MASC Penn tokens, one sample per sentence | F-measure of token spans against gold |
 | `turbo-en-masc-3.0.0-pos-1` | none (#1509) | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
 | `turbo-en-masc-3.0.0-chunks-1` | none (#1509) | MASC Penn tokens, their `msd` tags and chunk tags of MASC's noun chunks (`NP`) and verb chunks (`VP`), one sample per sentence | F-measure of `NP` and `VP` chunks, one unit per sentence |
 | `turbo-en-masc-3.0.0-ner-person-1` | none (#1509) | MASC Penn tokens and the `person` entities, one sample per sentence | F-measure of `person` names, one unit per sentence |

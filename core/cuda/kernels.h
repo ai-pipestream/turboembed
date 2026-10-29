@@ -552,6 +552,14 @@ cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst
 
 /* Whether this build carries code the current device runs: cudaSuccess,
  * or the error that says why not. */
+
+/* int8 and ubinary codes of [rows, dim] F32 vectors, matching
+ * core/src/quantize.rs bit for bit. ranges is [2, dim] (mins then maxes)
+ * for int8; out holds rows * dim int8 bytes or rows * ceil(dim/8) ubinary
+ * bytes. */
+cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out);
+cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out);
+
 cudaError_t kernels_run_here();
 
 } // namespace turbo_cuda

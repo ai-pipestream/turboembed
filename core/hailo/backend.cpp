@@ -648,6 +648,7 @@ const turbo_backend turbo_hailo_backend = {
     embed_write_ranges,
     0,
     0,
+    nullptr,
 };
 
 } // extern "C"

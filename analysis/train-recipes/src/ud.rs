@@ -189,7 +189,9 @@ pub struct UdRecipe {
     pub model_id: &'static str,
     pub treebank: Treebank,
     pub component: Component,
-    /// The model the recipe is gated against; `None` for taggers and lemmatizers.
+    /// The model the recipe's model is gated against; `None` for the
+    /// tokenizers, part-of-speech taggers and lemmatizers since #1645,
+    /// #1646 and #1647 retired the OpenNLP UD models.
     pub reference: Option<Reference>,
 }
 
@@ -213,12 +215,7 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Sentences,
         Some(Retired("opennlp-es-ud-gsd-sentence-1.3-2.5.4")),
     ),
-    recipe(
-        "turbo-es-ud-ancora-2.16-tokens-1",
-        SPANISH_ANCORA,
-        Tokens,
-        Some(Retired("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
-    ),
+    recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, None),
     recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, None),
     recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, None),
     recipe(
@@ -227,12 +224,7 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Sentences,
         Some(Retired("opennlp-ca-ud-ancora-sentence-1.3-2.5.4")),
     ),
-    recipe(
-        "turbo-ca-ud-ancora-2.16-tokens-1",
-        CATALAN_ANCORA,
-        Tokens,
-        Some(Retired("opennlp-ca-ud-ancora-tokens-1.3-2.5.4")),
-    ),
+    recipe("turbo-ca-ud-ancora-2.16-tokens-1", CATALAN_ANCORA, Tokens, None),
     recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, None),
     recipe("turbo-ca-ud-ancora-2.16-lemmas-1", CATALAN_ANCORA, Lemmas, None),
     recipe(
@@ -241,12 +233,7 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Sentences,
         Some(Retired("opennlp-pt-ud-gsd-sentence-1.3-2.5.4")),
     ),
-    recipe(
-        "turbo-pt-ud-porttinari-2.16-tokens-1",
-        PORTUGUESE_PORTTINARI,
-        Tokens,
-        Some(Retired("opennlp-pt-ud-gsd-tokens-1.3-2.5.4")),
-    ),
+    recipe("turbo-pt-ud-porttinari-2.16-tokens-1", PORTUGUESE_PORTTINARI, Tokens, None),
     recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, None),
     recipe("turbo-pt-ud-porttinari-2.16-lemmas-1", PORTUGUESE_PORTTINARI, Lemmas, None),
     recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, None),
@@ -385,16 +372,19 @@ mod tests {
     }
 
     #[test]
-    fn ud_pos_and_lemma_recipes_have_no_reference() {
-        for recipe in UD_RECIPES {
-            if matches!(recipe.component, Component::Pos | Component::Lemmas) {
-                assert_eq!(recipe.reference, None, "{}", recipe.model_id);
-                assert!(matches!(recipe.reference(), Err(Error::NoReference { recipe: id }) if id == recipe.model_id));
-                if recipe.component == Component::Pos {
-                    assert_eq!(recipe.tagger().unwrap().reference, None, "{}", recipe.model_id);
-                }
+    fn ud_token_pos_and_lemma_recipes_have_no_reference() {
+        for r in UD_RECIPES {
+            if matches!(r.component, Component::Tokens | Component::Pos | Component::Lemmas) {
+                assert_eq!(r.reference, None, "{}", r.model_id);
+                assert!(matches!(r.reference(), Err(Error::NoReference { recipe }) if recipe == r.model_id));
             } else {
-                assert!(recipe.reference().is_ok(), "{}", recipe.model_id);
+                assert!(r.reference().is_ok(), "{}", r.model_id);
+            }
+            if r.component == Component::Pos {
+                assert_eq!(r.tagger().unwrap().reference, None, "{}", r.model_id);
+            }
+            if r.component == Component::Tokens {
+                assert_eq!(r.segmentation().unwrap().reference_id, None, "{}", r.model_id);
             }
         }
     }
