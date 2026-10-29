@@ -150,6 +150,9 @@ a directory with the same model run without them, and its options are
 | `postag` (`POSTaggerME`) | `pos-fixture`, `pos-fixture-rust` (fixtures) | `en`, `edge` | |
 | `lemmatize` (`LemmatizerME`) | `lemma-fixture-rust` (fixture) | `en`, `edge` | |
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
+| `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
+| `chunk` (`ChunkerME`) | `chunker-fixture+beam1` (fixture) | `en` | `beamSize 1` |
+| `chunk` (`ChunkerME`) | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
 | | `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |

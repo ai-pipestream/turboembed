@@ -438,3 +438,32 @@ fn every_excerpt_is_present_with_its_hash_and_line_count() {
         assert_eq!(body.lines().count() as u32, taken, "{}", e.input);
     }
 }
+
+/// The README's Runs table lists every fixture run `Runs.java` registers, with
+/// its annotator named, so a run the generator still produces is never left
+/// out of the documentation.
+#[test]
+fn readme_runs_table_lists_the_fixture_runs() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    let readme = include_str!("../../README.md");
+    let table: Vec<&str> = readme.lines().filter(|l| l.starts_with("| ")).collect();
+    let fixture_runs = [
+        ("ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE)", "`chunk` (`ChunkerME`)", "`chunker-fixture`"),
+        (
+            "ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE)",
+            "`chunk` (`ChunkerME`)",
+            "`chunker-fixture+beam1`",
+        ),
+        ("fixtures.resolve(CHUNKER_FIXTURE_RUST)", "`chunk` (`ChunkerME`)", "`chunker-fixture-rust`"),
+        ("fixtures.resolve(POS_FIXTURE_RUST)", "`postag` (`POSTaggerME`)", "`pos-fixture-rust`"),
+        ("fixtures.resolve(LEMMA_FIXTURE_RUST)", "`lemmatize` (`LemmatizerME`)", "`lemma-fixture-rust`"),
+        ("fixtures.resolve(LANGUAGE_FIXTURE_RUST)", "`langdetect` (`LanguageDetectorME`)", "`langdetect-fixture-rust`"),
+    ];
+    for (registered, annotator, model) in fixture_runs {
+        assert!(runs.contains(registered), "Runs.java no longer registers {model}; update this test");
+        assert!(
+            table.iter().any(|row| row.starts_with(&format!("| {annotator} |")) && row.contains(model)),
+            "README Runs table has no {annotator} row naming {model}"
+        );
+    }
+}
