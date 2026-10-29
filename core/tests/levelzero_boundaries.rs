@@ -138,6 +138,8 @@ fn rows(batch: u32, seq: u32, stride: u32, ids: &[i32]) -> turbo_backend_embed_r
         normalize: TURBO_NORMALIZE_NONE,
         output_dim: HIDDEN,
         head: 0,
+        taps: 0,
+        reserved: 0,
     }
 }
 

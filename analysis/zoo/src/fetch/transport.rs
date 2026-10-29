@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use crate::index::Url;
+use crate::index::{Artifact, File, Url};
 
 /// Fetches the bytes at an address. The zoo verifies whatever it returns,
 /// so a transport needs no checks of its own; `size` is the most the zoo
@@ -13,6 +13,23 @@ use crate::index::Url;
 /// `Content-Encoding` hands over the file itself.
 pub trait Transport {
     fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String>;
+
+    /// The bytes of `file`, one of `artifact`'s. The zoo asks through this
+    /// call, so a transport that finds a file by its artifact, path or
+    /// SHA-256 rather than by its address (a model server, a
+    /// content-addressed store) overrides it. By default, [`Transport::get`]
+    /// of the file's address, at most [`most_bytes`] of it.
+    fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
+        let _ = artifact;
+        self.get(&file.url, most_bytes(file))
+    }
+}
+
+/// The most the zoo takes for `file`: its size, or for a file served
+/// compressed the larger of that and its wire size, since a transport that
+/// decodes a `Content-Encoding` hands over the file itself.
+pub fn most_bytes(file: &File) -> u64 {
+    file.download.as_ref().map_or(file.size, |d| d.download_bytes.max(file.size))
 }
 
 /// A transport that fetches nothing: the zoo hands out only what is

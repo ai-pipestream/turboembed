@@ -37,6 +37,7 @@ fn texts_a_second() {
         .map(|b| b.trim().parse().unwrap())
         .collect();
 
+    let bundle = turbo_pins::require(&bundle);
     let start = Instant::now();
     let l = Loaded::load(std::path::Path::new(&bundle)).unwrap_or_else(|e| panic!("{e:?}"));
     println!("{}: loaded in {:.1} ms, {} texts", bundle.display(), ms(start.elapsed()), texts.len());

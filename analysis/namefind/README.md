@@ -11,4 +11,4 @@ Named-entity recognition (`TokenNameFinder` trait, `Name`) combining determinist
 ## Testing, Accuracy, and Speed
 
 - **Test suite**: Covered by `analysis/namefind/tests/pipeline.rs`, `analysis/namefind/tests/consensus.rs`, `analysis/namefind/tests/calibrated.rs`, `analysis/namefind/tests/evidence.rs`, and `analysis/namefind/tests/resource_reuse.rs`.
-- **Accuracy and speed**: See `docs/namefind-dl.md`, `docs/crf-namefinder.md`, `docs/namefinder-evaluation.md`, and `docs/namefinder-crf-evaluation.md` for CoNLL/OntoNotes F1 benchmarks and CPU throughput figures.
+- **Accuracy and speed**: See `docs/namefind-dl.md`, `docs/crf-namefinder.md`, and `docs/namefinder-crf-evaluation.md` for CoNLL/OntoNotes F1 benchmarks and CPU throughput figures.

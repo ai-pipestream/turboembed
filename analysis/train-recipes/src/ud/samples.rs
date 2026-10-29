@@ -116,7 +116,7 @@ impl UdRecipe {
     pub fn tagger(&self) -> Option<PosRecipe> {
         (self.component == Component::Pos).then_some(PosRecipe {
             model_id: self.model_id,
-            reference: self.reference,
+            reference: Some(self.reference),
             reference_format: TAG_FORMAT,
             reference_mappings: &[],
             max_left_out: MAX_TOKENS_LEFT_OUT,

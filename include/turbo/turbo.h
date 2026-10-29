@@ -656,6 +656,24 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
                                  const turbo_token_range *ranges, uint32_t count,
                                  const turbo_embed_options *opts, turbo_error *err);
 
+/* turbo_embed_write_ranges, each range pooled from each of the encoder's
+ * last `layers` layers in one pass: the run's rows are [layers, count,
+ * dim], block k from layer L - layers + k + 1 of the model's L, so the
+ * last block is what turbo_embed_write_ranges writes, bit for bit. A
+ * ModernBERT's final_norm is applied to every layer read, as to the
+ * last, so each block is on the scale of the final states. layers of 1
+ * is turbo_embed_write_ranges; 0 or over the model's layers is
+ * TURBO_E_INVALID_ARGUMENT; above 1 on a backend or model that does not
+ * read the earlier layers (the cpu backend's BERT, RoBERTa, ModernBERT
+ * and nomic-bert encoders do), or on a model whose device applies a span
+ * head, is TURBO_E_UNSUPPORTED_OPTION. count times layers over the
+ * session's max_ranges is TURBO_E_CAPACITY. Everything else is as for
+ * turbo_embed_write_ranges, each row cut and normalized as there. */
+int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
+                                       const turbo_token_range *ranges, uint32_t count,
+                                       uint32_t layers, const turbo_embed_options *opts,
+                                       turbo_error *err);
+
 /* Run what was written. A write replaces what an earlier write left, and
  * a run takes it, even when the run fails: a run with nothing written
  * since the last run, or after a failed write, is TURBO_E_INVALID_STATE.

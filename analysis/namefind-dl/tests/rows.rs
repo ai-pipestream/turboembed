@@ -13,7 +13,7 @@ const TEXT: &str =
 #[test]
 #[ignore = "needs TURBO_NER_BUNDLE naming a dslim/bert-base-NER bundle (bundle/recipes/dslim-bert-base-ner.json)"]
 fn an_entity_across_a_row_boundary_is_whole() {
-    let dir = PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE"));
+    let dir = turbo_pins::require(PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE")));
     let find = |max_seq: u32| {
         let encoder = EncoderOptions { max_seq, ..EncoderOptions::default() };
         let f = NameFinderDl::open(&dir, &NameFinderDlOptions { encoder, ..NameFinderDlOptions::default() }).unwrap();

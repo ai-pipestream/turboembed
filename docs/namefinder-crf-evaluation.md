@@ -2,8 +2,8 @@
 
 The full-corpus run for #923 rejects publication of all 4 CRF models.
 The CRF's micro F1 is 44.66 across person, location, organization and date,
-compared with 51.71 for maxent trained on the same MASC split and 56.03 for
-the published 1.5 reference models. On the 3 types supported by namefind-dl,
+compared with 51.71 for maxent trained on the same MASC split. The run's
+comparisons with published 1.5 models are removed (#1509). On the 3 types supported by namefind-dl,
 the scores are 44.24, 53.96 and 80.12 respectively. No model or zoo entry
 is published by this change.
 
@@ -22,7 +22,7 @@ Training is BIO, feature cutoff 2, L2 1.0 and 100 optimizer iterations.
 Model ZIP timestamps are fixed at zero. The matched maxent baseline uses
 GIS, cutoff 0, 300 iterations and 1 thread on the same training documents.
 Each type has its own model and gold annotation set. Both inference paths
-use the same token and window feature generators. CRF previous-label features
+use the existing token feature generators. CRF previous-label features
 receive constant `other` history and adaptive state resets each sentence;
 maxent preserves its normal document-adaptive behavior. This evaluates
 the current shipped recipes, not a controlled comparison of optimizers
@@ -49,14 +49,14 @@ annotation counts, gate settings and intervals. Evaluation requires an
 exact span and type match. The overall rows are micro scores from summed
 counts, not averages of per-type F1.
 
-| Type | CRF precision | CRF recall | CRF F1 | Matched maxent F1 | Published 1.5 F1 | Namefind-dl F1 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Person | 75.48 | 23.04 | 35.30 | 55.33 | 60.82 | 87.14 |
-| Location | 80.55 | 54.13 | 64.75 | 56.39 | 64.10 | 82.06 |
-| Organization | 70.97 | 34.27 | 46.22 | 44.83 | 42.54 | 55.92 |
-| Date | 67.54 | 36.03 | 46.99 | 37.73 | 42.44 | unsupported |
-| All 4 types | 74.79 | 31.84 | 44.66 | 51.71 | 56.03 | unsupported |
-| Shared 3 types | 76.39 | 31.13 | 44.24 | 53.96 | not scored here | 80.12 |
+| Type | CRF precision | CRF recall | CRF F1 | Matched maxent F1 | Namefind-dl F1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Person | 75.48 | 23.04 | 35.30 | 55.33 | 87.14 |
+| Location | 80.55 | 54.13 | 64.75 | 56.39 | 82.06 |
+| Organization | 70.97 | 34.27 | 46.22 | 44.83 | 55.92 |
+| Date | 67.54 | 36.03 | 46.99 | 37.73 | unsupported |
+| All 4 types | 74.79 | 31.84 | 44.66 | 51.71 | unsupported |
+| Shared 3 types | 76.39 | 31.13 | 44.24 | 53.96 | 80.12 |
 
 Gold counts are 1363 person, 436 location, 321 organization and 358 date.
 Training name counts are 4894, 3944, 2934 and 2714 respectively. The MASC
@@ -79,11 +79,9 @@ sentences; the interval does not account for document-level correlation.
 | Organization vs matched maxent | +1.39 | [-7.28, 9.78] | FAIL |
 | Date vs matched maxent | +9.27 | [3.37, 15.36] | PASS |
 | All 4 vs matched maxent | -7.05 | [-9.62, -4.49] | FAIL |
-| All 4 vs published 1.5 | -11.36 | [-14.08, -8.73] | FAIL |
 | Shared 3 vs namefind-dl | -35.89 | [-38.70, -33.07] | FAIL |
 
-Every per-type comparison with published 1.5 fails its gate, as does every
-shared-type comparison with namefind-dl. The receipt includes each of
+Every shared-type comparison with namefind-dl fails its gate. The receipt includes each of
 those intervals and the matched maxent versus namefind-dl results. Passing
 one comparison does not authorize publishing a model that fails another.
 
@@ -100,20 +98,11 @@ The recovery test fails on the original implementation.
 
 After adding the zero-step guard, all 4 models were trained again on the
 full corpus. Every model SHA-256 matched the earlier completed run. The
-CRF recipe exited with failure after writing all per-type and overall gate
-records because the accuracy gates failed. This was a measured rejection,
+CRF recipe exits with failure after writing all per-type and overall gate
+records because the accuracy gates fail. This is a measured rejection,
 not a training crash or a unit-test failure.
 
-The historical CRF training and comparison examples (`crf_namefind` and
-`crf_compare_dl`) were retired with the classical model loader in `#1511`
-(`#1557`). For neural predictions on held-out JSON records, `turbo-namefind-dl`
-provides the `masc_predict` example:
-
-```sh
-cargo run --locked --release -p turbo-namefind-dl --example masc_predict -- BUNDLE OUTPUT/person/held-out.json PREDICTIONS_JSON
-```
-
-The historical comparison used digest-checked 1.5 English person, location,
-organization, and date reference models; model files, held-out inputs, and
-prediction records were kept local, and the committed receipt contains
-aggregate evidence and corpus-relative document identifiers only.
+The `crf_namefind` and `crf_compare_dl` examples that produced these
+records are gone, and the run's published 1.5 reference inputs are not
+kept (#1509). The committed receipt contains aggregate evidence and
+corpus-relative document identifiers only.
