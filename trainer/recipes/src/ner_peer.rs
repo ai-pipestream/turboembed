@@ -54,10 +54,10 @@ pub fn read(file: &str, bytes: &[u8], gold: &[Sentence]) -> Result<Vec<Vec<Strin
 
 /// Validate after an explicit peer-to-corpus mapping, never infer a mapping.
 pub fn validate(corpus: &str, labels: &[Vec<String>]) -> Result<()> {
-    let known = |kind: &str| match corpus {
-        crate::wnut17::ID => crate::wnut17::TYPES.contains(&kind),
-        crate::multiconer::ID => crate::multiconer::COARSE.iter().any(|(_, types)| types.contains(&kind)),
-        _ => false,
+    let known = |kind: &str| {
+        crate::fixed_entity_types(corpus).is_some_and(|types| types.contains(&kind))
+            || (corpus == crate::multiconer::ID
+                && crate::multiconer::COARSE.iter().any(|(_, types)| types.contains(&kind)))
     };
     for (sentence, tags) in labels.iter().enumerate() {
         let mut previous = None;

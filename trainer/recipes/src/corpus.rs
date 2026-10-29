@@ -148,10 +148,17 @@ pub struct Corpus {
 }
 
 impl Corpus {
-    /// The label set: every training label, sorted, with "O" first for a
-    /// BIO corpus (the order a head's labels take).
+    /// The head's label set, sorted with "O" first. Fixed-type NER recipes
+    /// use their declared schema, including labels absent from training;
+    /// other tasks use observed training labels. Held-out labels never
+    /// determine the vocabulary.
     pub fn labels(&self) -> Vec<String> {
-        let mut all: Vec<String> = self.splits.train.iter().flat_map(|s| s.labels.iter().cloned()).collect();
+        let mut all: Vec<String> = match crate::fixed_entity_types(&self.record.id) {
+            Some(types) => std::iter::once("O".to_owned())
+                .chain(types.iter().flat_map(|kind| [format!("B-{kind}"), format!("I-{kind}")]))
+                .collect(),
+            None => self.splits.train.iter().flat_map(|s| s.labels.iter().cloned()).collect(),
+        };
         all.sort();
         all.dedup();
         if let Some(o) = all.iter().position(|l| l == "O") {

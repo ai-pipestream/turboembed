@@ -40,7 +40,9 @@ The verified split sizes are 3,394/1,009/1,287 sentences and
 62,730/15,733/23,394 tokens for train/dev/test. Types are person, location,
 group, creative-work, corporation and product. They are not silently
 mapped to MASC's person/location/organization/date schema, nor treated
-as negative labels for types that this corpus does not annotate.
+as negative labels for types that this corpus does not annotate. The head
+vocabulary is the fixed 13-label BIO schema, even if a local training
+fixture lacks a type. It never comes from dev or test labels.
 
 ## Training and peer scoring
 
@@ -65,9 +67,10 @@ group without a separately documented evaluation protocol. A receipt
 records the prediction-file digest, peer name and mapping. Authored
 test predictions are protocol tests, never peer performance evidence.
 
-Full accelerator runs are scheduled through the training owner. The
+Full accelerator runs are booked with krick-1 in issue #1524, with the
+exact commit, encoder digest and command, before starting. The
 CPU fixture tests exercise fitting, export/reload agreement and test-set
 isolation; they do not establish corpus accuracy. MASC's cross-sentence
-entity identity correction, missing type coverage, German data, actual
+entity identity correction, missing type coverage, full German training, actual
 spaCy/Stanza comparisons, model packaging and release remain in #1524.
 No default model or claim that #1524 is complete is added by this recipe.

@@ -7,6 +7,8 @@ use std::path::Path;
 use turbo_formats::ner::{Wnut17Reader, Wnut17Types};
 use turbo_train_recipes::wnut17::{WNUT_17, files};
 
+const ATTRIBUTION: &str = "Trained on WNUT 2017 Emerging and Rare Entity Recognition, Derczynski et al., CC BY 4.0. Corpus: https://github.com/leondz/emerging_entities_17";
+
 pub const ID: &str = "wnut17";
 /// The single-label test file used by the publisher's Hugging Face loader:
 /// https://huggingface.co/datasets/leondz/wnut_17/blob/main/wnut_17.py
@@ -33,7 +35,7 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
             Pin { path: pin.path, size: pin.size, sha256: pin.sha256 }
         };
         let (record, bytes) = read_file(dir, name)?;
-        if let Err(e) = check_pin(&record, &Pin { path: pin.path, size: pin.size, sha256: pin.sha256 }) {
+        if let Err(e) = check_pin(&record, &pin) {
             mismatches.push(e);
         }
         parts.push(parse(name, &bytes)?);
@@ -49,12 +51,22 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
         return Err(Error("WNUT-17 requires nonempty train, dev and test files".into()));
     }
     let record = CorpusRecord {
-        id: ID.into(), name: WNUT_17.name.into(), task: Task::Bio,
-        licence: "CC BY 4.0".into(), spdx: "CC-BY-4.0".into(), terms: WNUT_17.licence_terms.into(),
-        attribution: "Trained on WNUT 2017 Emerging and Rare Entity Recognition, Derczynski et al., CC BY 4.0. Corpus: https://github.com/leondz/emerging_entities_17".into(),
-        recorded: mismatches.is_empty(), corpus_sha256: String::new(), files: records,
+        id: ID.into(),
+        name: WNUT_17.name.into(),
+        task: Task::Bio,
+        licence: "CC BY 4.0".into(),
+        spdx: "CC-BY-4.0".into(),
+        terms: WNUT_17.licence_terms.into(),
+        attribution: ATTRIBUTION.into(),
+        recorded: mismatches.is_empty(),
+        corpus_sha256: String::new(),
+        files: records,
         split: format!("publisher train/dev/test files at {}; no repartitioning", WNUT_17.revision),
-        train: Counts::of(&train), dev: Counts::of(&dev), test: Counts::of(&test), skipped: 0, recipe_only: false,
+        train: Counts::of(&train),
+        dev: Counts::of(&dev),
+        test: Counts::of(&test),
+        skipped: 0,
+        recipe_only: false,
     };
     Ok(Corpus { record, splits: Splits { train, dev, test } })
 }

@@ -26,6 +26,7 @@ fn wnut_is_a_separate_permissive_crf_corpus_with_pinned_splits() {
     assert_eq!(corpus.splits.test[0].words[0], "Zoe");
     let head = spec(&corpus, &HeadOptions { crf: true, ..HeadOptions::default() }).unwrap();
     assert_eq!(head.decode, Decode::Crf);
+    assert_eq!(head.labels.len(), 13, "all six declared types remain decodable");
     assert_eq!(head.license_class, Some(LicenseClass::Permissive));
     let error = read_corpus("wnut17", &dir, false).unwrap_err().to_string();
     assert!(error.contains("recorded release"), "{error}");
