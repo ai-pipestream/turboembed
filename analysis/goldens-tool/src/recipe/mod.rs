@@ -78,11 +78,11 @@ pub use self::excerpts::{EXCERPTS, Excerpt};
 pub use self::fixtures::{FIXTURES, Fixture};
 pub use self::models::{
     CORPORA, Corpus, DICTIONARIES, Dictionary, DictionaryEncoding, HUNSPELL_DICTIONARIES_COMMIT, HUNSPELL_FILES,
-    HunspellFile, LOCAL_MODELS, MODELS, Model, POOLING_SOURCE, UTF8_COPY_SUFFIX,
+    HunspellFile, MODELS, Model, POOLING_SOURCE, UTF8_COPY_SUFFIX,
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 46] = [
+pub const INPUT_SETS: [&str; 44] = [
     "en",
     "multi",
     "norm",
@@ -112,8 +112,6 @@ pub const INPUT_SETS: [&str; 46] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "langdetect",
     "sequence",
     "descriptor-errors",
@@ -142,7 +140,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 50] = [
+pub const ANNOTATORS: [&str; 48] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -178,8 +176,6 @@ pub const ANNOTATORS: [&str; 50] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "string-pattern",
     "features",
     "codec",

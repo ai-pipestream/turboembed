@@ -222,7 +222,7 @@ Local native id: `turbo-it-ud-markit-2.16-lemmas-native-v1-local`.
 - Test: `9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc`
 - Native model: `41f4ad8d45199e8e515050b72d15964c036d03200c436576eea8dfc400d67983`
 - Legacy model: `5ba6ea4a0310397f68e92ef3a86dbd03ebad3f0dbb096f4737122c5c0a68c69a`
-- Reference model: `10b25bc4506af3a5f06e56b9e1058aecccb3021e5d08902a1fa1ee33606510c7`
+- Reference model: `opennlp-it-ud-vit-lemmas-1.3-2.5.4`, an OpenNLP 2.5 artifact no longer fetched or pinned (#1509)
 
 Dataset releases and terms: [Spanish AnCora](https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16),
 [Catalan AnCora](https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16),

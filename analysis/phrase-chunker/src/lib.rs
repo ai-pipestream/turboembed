@@ -4,6 +4,9 @@
 //! its probability per token, and `opennlp:chunks`, the phrases those
 //! tags make, each a run of tokens with its kind.
 //!
+//! [`DependencyChunker`] reads noun and verb chunks off a dependency
+//! parse instead (#1650), with no chunker model at all.
+//!
 //! [`ChunkerModel`] opens a `ChunkerModel` file and [`PhraseChunker`]
 //! runs the beam search over the tagged tokens of each sentence
 //! (`ChunkerME.chunk`), then reads the phrases off the tags as
@@ -16,8 +19,7 @@
 //! bit for bit; the tests compare both, and the phrases, with files the
 //! JVM wrote (`analysis/goldens/data/chunk`, see `README.md` here). The
 //! published chunker models are OpenNLP 1.5 models, which this project
-//! does not ship (the chunker recipe of `turbo-train-recipes` scores
-//! `en-chunker.bin` as its gate's reference); the tests run the small
+//! does not ship, fetch or score (#1509); the tests run the small
 //! models `chunker-fixture.bin`, trained by OpenNLP, and
 //! `chunker-fixture-rust.bin`, trained by `turbo-train-components`, both
 //! on Penn Treebank tags, over the Penn Treebank tags the English
@@ -48,6 +50,7 @@
 //!   nothing; it is refused when the model is opened.
 
 pub mod chunker;
+pub mod derived;
 pub mod error;
 pub mod model;
 pub mod pattern;
@@ -55,6 +58,7 @@ pub mod pattern_chunker;
 pub mod phrases;
 
 pub use chunker::PhraseChunker;
+pub use derived::{ChunkKind, DependencyChunker, Derived, derive};
 pub use error::{ModelError, PhraseError};
 pub use model::{COMPONENT_NAME, ChunkerModel, FACTORY};
 pub use pattern::{PatternError, TagCond, TagPatternRule, TokenMatcher, WordCond};
