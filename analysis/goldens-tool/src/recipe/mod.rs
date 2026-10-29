@@ -199,7 +199,7 @@ pub const ANNOTATORS: [&str; 48] = [
 /// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
+pub const DUMPED_ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "postag", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
 /// other annotators do not run on this one.
