@@ -1,5 +1,6 @@
 //! Every run by name, and the one that opens it.
 
+use super::language::Detector;
 use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
@@ -39,12 +40,11 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 32] = [
+pub const NOT_COVERED: [&str; 31] = [
     "train",
     "train-events",
     "train-langdetect",
     "train-liblinear",
-    "langdetect",
     "formats",
     "evaluate",
     "cross-validate",
@@ -127,6 +127,12 @@ pub const RUNS: &[(&str, &str)] = &[
     ("chunk", "chunker-fixture"),
     ("chunk", "chunker-fixture+beam1"),
     ("chunk", "chunker-fixture-rust"),
+    ("langdetect", "langdetect-183"),
+    ("langdetect", "langdetect-183+probing"),
+    ("langdetect", "langdetect-183+probing-chunk50"),
+    ("langdetect", "langdetect-fixture-rust"),
+    ("langdetect", "langdetect-fixture-rust+probing"),
+    ("langdetect", "langdetect-fixture-rust+probing-chunk50"),
     ("normalize", "whitespace"),
     ("normalize", "whitespace-keep-lines"),
     ("normalize", "whitespace-keep-paragraphs"),
@@ -187,7 +193,7 @@ pub fn is_retired(annotator: &str, run: &str) -> bool {
     match annotator {
         "sentdetect" => !matches!(base, "newline" | "rule" | "paragraph"),
         "tokenize" => !matches!(base, "simple" | "whitespace" | "uax29"),
-        "postag" | "lemmatize" | "lemmatize-dictionary" | "chunk" => true,
+        "postag" | "lemmatize" | "lemmatize-dictionary" | "chunk" | "langdetect" => true,
         _ => false,
     }
 }
@@ -228,6 +234,7 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
         "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
+        "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
         "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),

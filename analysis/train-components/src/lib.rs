@@ -150,6 +150,7 @@ pub mod dictionary;
 pub mod doccat;
 pub mod error;
 pub mod java_hash;
+pub mod langdetect;
 pub mod lemmatize;
 pub mod namefind;
 pub mod package;
@@ -164,6 +165,7 @@ pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_
 pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
 pub use doccat::{TrainedDoccatModel, train_doccat};
 pub use error::{Error, Result};
+pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_events, train_language_model};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
 pub use namefind::{NameEventStream, TokenNameFinderFactory, name_events, train_name_model};
 pub use package::Stamp;

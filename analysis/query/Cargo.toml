@@ -34,3 +34,4 @@ turbo-unicode = { path = "../unicode" }
 [dev-dependencies]
 turbo = { path = "../../core" }
 turbo-analysis-embed = { path = "../embed" }
+turbo-langdetect = { path = "../langdetect" }

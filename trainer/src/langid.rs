@@ -1,6 +1,6 @@
 //! Deterministic softmax trainer for hashed n-gram language identification.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::real::Real;
 
@@ -30,29 +30,21 @@ impl Default for Config {
     }
 }
 
-/// Hashes a byte string into a bucket.
-fn hash(bytes: &[u8], buckets: u32) -> u32 {
-    let mut h: u32 = 2166136261;
-    for &b in bytes {
-        h ^= b as u32;
-        h = h.wrapping_mul(16777619);
-    }
-    h % buckets
-}
-
-/// Extracts hashed character n-gram features from `text`.
-pub fn features(text: &str, ngram_range: (u8, u8), buckets: u32) -> HashMap<u32, f32> {
-    let bytes = text.as_bytes();
-    let mut features = HashMap::new();
-    let (min_n, max_n) = ngram_range;
-    for n in min_n..=max_n {
-        let n = n as usize;
-        if bytes.len() < n {
-            continue;
-        }
-        for window in bytes.windows(n) {
-            let bucket = hash(window, buckets);
-            *features.entry(bucket).or_insert(0.0) += 1.0;
+/// Extracts hashed Unicode scalar n-grams in deterministic bucket order.
+pub fn features(text: &str, ngram_range: (u8, u8), buckets: u32) -> BTreeMap<u32, f32> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut features = BTreeMap::new();
+    for n in ngram_range.0..=ngram_range.1 {
+        for window in chars.windows(n as usize) {
+            let mut hash = 2166136261u32;
+            for &c in window {
+                let mut encoded = [0u8; 4];
+                for &b in c.encode_utf8(&mut encoded).as_bytes() {
+                    hash ^= b as u32;
+                    hash = hash.wrapping_mul(16777619);
+                }
+            }
+            *features.entry(hash % buckets).or_insert(0.0) += 1.0;
         }
     }
     features
@@ -103,24 +95,36 @@ pub fn train<R: Real>(examples: &[Example], languages: usize, config: &Config) -
 mod tests {
     use super::*;
 
+    fn predict(text: &str, weights: &[f32], bias: &[f32], config: &Config) -> usize {
+        let features = features(text, config.ngram_range, config.buckets);
+        let mut scores = bias.to_vec();
+        for (bucket, count) in features {
+            for (i, score) in scores.iter_mut().enumerate() {
+                *score += weights[i * config.buckets as usize + bucket as usize] * count;
+            }
+        }
+        scores.iter().enumerate().max_by(|(_, a), (_, b)| a.total_cmp(b)).unwrap().0
+    }
+
     #[test]
-    fn learns_a_simple_distinction() {
+    fn learns_a_simple_distinction_deterministically() {
         let examples = [
             Example { text: "hello world", language: 0 },
             Example { text: "hallo welt", language: 1 },
             Example { text: "hello there", language: 0 },
             Example { text: "hallo dort", language: 1 },
         ];
-        let config = Config { epochs: 20, ..Config::default() };
+        let config = Config { buckets: 256, epochs: 20, ..Config::default() };
         let (weights, bias) = train::<f32>(&examples, 2, &config);
-        assert_eq!(weights.len(), 2 * config.buckets as usize);
-        assert_eq!(bias.len(), 2);
+        assert_eq!(predict("hello", &weights, &bias, &config), 0);
+        assert_eq!(predict("hallo", &weights, &bias, &config), 1);
+        assert_eq!(train::<f32>(&examples, 2, &config), (weights, bias));
     }
 
     #[test]
-    fn features_are_deterministic() {
-        let a = features("hello", (1, 3), 16);
-        let b = features("hello", (1, 3), 16);
-        assert_eq!(a, b);
+    fn features_count_unicode_scalars() {
+        let features = features("éé", (1, 1), 16);
+        assert_eq!(features.len(), 1);
+        assert_eq!(features.values().copied().collect::<Vec<_>>(), [2.0]);
     }
 }

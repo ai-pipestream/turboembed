@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use super::*;
+use crate::langdetect::LANGUAGES;
 
 #[test]
 fn the_web_languages_are_the_recipe_s_in_its_order() {

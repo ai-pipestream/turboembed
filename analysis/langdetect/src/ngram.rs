@@ -1,13 +1,13 @@
 //! Hashed character n-gram linear language classifier with script priors.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use turbo_analysis::ModelRef;
 
 use crate::error::ModelError;
 
-/// The classifier's entry in the model archive.
-pub const MODEL_ENTRY: &str = "langdetect.model";
+/// The native classifier's entry in a model archive.
+pub const MODEL_ENTRY: &str = "langid.ngram";
 
 /// A language identification model: hashed character n-gram features and
 /// a linear softmax classifier over language codes.
@@ -31,8 +31,16 @@ impl NgramModel {
         buckets: u32,
         model_ref: ModelRef,
     ) -> Result<NgramModel, ModelError> {
-        if languages.is_empty() {
+        if languages.is_empty() || languages.iter().any(String::is_empty) {
             return Err(ModelError::EmptyOutcome);
+        }
+        for (i, language) in languages.iter().enumerate() {
+            if languages[..i].contains(language) {
+                return Err(ModelError::DuplicateOutcome(language.clone()));
+            }
+        }
+        if buckets == 0 || ngram_range.0 == 0 || ngram_range.0 > ngram_range.1 {
+            return Err(ModelError::Format("invalid n-gram configuration".into()));
         }
         if weights.len() != languages.len() * buckets as usize {
             return Err(ModelError::Weights { expected: languages.len() * buckets as usize, found: weights.len() });
@@ -41,16 +49,6 @@ impl NgramModel {
             return Err(ModelError::Bias { expected: languages.len(), found: bias.len() });
         }
         Ok(NgramModel { languages, weights, bias, ngram_range, buckets, model_ref })
-    }
-
-    /// The language codes the model can answer.
-    pub fn supported_languages(&self) -> impl Iterator<Item = &str> {
-        self.languages.iter().map(String::as_str)
-    }
-
-    /// What layers record as their model.
-    pub fn model_ref(&self) -> &ModelRef {
-        &self.model_ref
     }
 
     /// Creates a model from the output of `turbo_trainer::langid::train`.
@@ -65,37 +63,73 @@ impl NgramModel {
         Self::new(languages, weights, bias, ngram_range, buckets, model_ref)
     }
 
-    /// Hashes a byte string into a bucket.
-    fn hash(bytes: &[u8], buckets: u32) -> u32 {
-        let mut h: u32 = 2166136261;
-        for &b in bytes {
-            h ^= b as u32;
-            h = h.wrapping_mul(16777619);
-        }
-        h % buckets
+    /// The language codes the model can answer.
+    pub fn supported_languages(&self) -> impl Iterator<Item = &str> {
+        self.languages.iter().map(String::as_str)
     }
 
-    /// Extracts hashed character n-gram features from `text`.
-    fn features(&self, text: &str) -> HashMap<u32, f32> {
-        let bytes = text.as_bytes();
-        let mut features = HashMap::new();
-        let (min_n, max_n) = self.ngram_range;
-        for n in min_n..=max_n {
-            let n = n as usize;
-            if bytes.len() < n {
-                continue;
-            }
-            for window in bytes.windows(n) {
-                let bucket = Self::hash(window, self.buckets);
-                *features.entry(bucket).or_insert(0.0) += 1.0;
-            }
-        }
-        features
+    /// What layers record as their model.
+    pub fn model_ref(&self) -> &ModelRef {
+        &self.model_ref
     }
 
-    /// Predicts the language of `text`, returning scores for each language.
+    /// The n-gram configuration the trainer and runtime share.
+    pub fn ngram_range(&self) -> (u8, u8) {
+        self.ngram_range
+    }
+
+    /// The number of feature buckets.
+    pub fn buckets(&self) -> u32 {
+        self.buckets
+    }
+
+    /// Serializes the trained classifier for [`MODEL_ENTRY`].
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(b"TNL1");
+        put_u32(&mut out, self.languages.len() as u32);
+        put_u32(&mut out, self.buckets);
+        out.extend_from_slice(&[self.ngram_range.0, self.ngram_range.1, 0, 0]);
+        for language in &self.languages {
+            put_u32(&mut out, language.len() as u32);
+            out.extend_from_slice(language.as_bytes());
+        }
+        for value in self.weights.iter().chain(&self.bias) {
+            out.extend_from_slice(&value.to_le_bytes());
+        }
+        out
+    }
+
+    /// Loads a classifier serialized by [`NgramModel::to_bytes`].
+    pub fn from_bytes(bytes: &[u8], model_ref: ModelRef) -> Result<NgramModel, ModelError> {
+        let mut at = 0usize;
+        if take(bytes, &mut at, 4)? != b"TNL1" {
+            return Err(ModelError::Format("not a native language model".into()));
+        }
+        let language_count = read_u32(bytes, &mut at)? as usize;
+        let buckets = read_u32(bytes, &mut at)?;
+        let range = take(bytes, &mut at, 4)?;
+        let ngram_range = (range[0], range[1]);
+        let mut languages = Vec::with_capacity(language_count);
+        for _ in 0..language_count {
+            let len = read_u32(bytes, &mut at)? as usize;
+            let text = std::str::from_utf8(take(bytes, &mut at, len)?)
+                .map_err(|_| ModelError::Format("language code is not UTF-8".into()))?;
+            languages.push(text.to_owned());
+        }
+        let weight_count =
+            language_count.checked_mul(buckets as usize).ok_or_else(|| ModelError::Format("size overflow".into()))?;
+        let weights = read_floats(bytes, &mut at, weight_count)?;
+        let bias = read_floats(bytes, &mut at, language_count)?;
+        if at != bytes.len() {
+            return Err(ModelError::Format("trailing model bytes".into()));
+        }
+        Self::new(languages, weights, bias, ngram_range, buckets, model_ref)
+    }
+
+    /// Predicts scores for every language in model order.
     pub fn scores(&self, text: &str) -> Vec<f32> {
-        let features = self.features(text);
+        let features = features(text, self.ngram_range, self.buckets);
         let mut scores = self.bias.clone();
         for (bucket, count) in features {
             for (i, score) in scores.iter_mut().enumerate() {
@@ -117,238 +151,83 @@ impl NgramModel {
         scores
     }
 
-    /// Applies a small prior for languages whose script matches the text.
     fn apply_script_priors(&self, text: &str, scores: &mut [f32]) {
         let script = Script::of(text);
-        for (i, lang) in self.languages.iter().enumerate() {
-            if script.matches(lang) {
+        for (i, language) in self.languages.iter().enumerate() {
+            if script.matches(language) {
                 scores[i] += 0.1;
             }
         }
     }
 
-    /// Predicts the most likely language of `text`.
+    /// Predicts the most likely language, or `None` for blank text.
     pub fn predict(&self, text: &str) -> Option<&str> {
+        self.best(text).map(|(language, _)| language)
+    }
+
+    /// Predicts the most likely language when its score meets `threshold`.
+    pub fn predict_with_threshold(&self, text: &str, threshold: f32) -> Option<&str> {
+        let (language, score) = self.best(text)?;
+        (score >= threshold).then_some(language)
+    }
+
+    /// Returns the best language and its confidence.
+    pub fn best(&self, text: &str) -> Option<(&str, f32)> {
         if text.trim().is_empty() {
             return None;
         }
-        let scores = self.scores(text);
-        scores
+        self.scores(text)
             .iter()
+            .copied()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(i, _)| self.languages[i].as_str())
-    }
-
-    /// Predicts the language of `text` with a minimum confidence threshold.
-    pub fn predict_with_threshold(&self, text: &str, threshold: f32) -> Option<&str> {
-        if text.trim().is_empty() {
-            return None;
-        }
-        let scores = self.scores(text);
-        let (i, score) =
-            scores.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))?;
-        if *score >= threshold { Some(self.languages[i].as_str()) } else { None }
-    }
-
-    /// Returns the confidence of the most likely language.
-    pub fn confidence(&self, text: &str) -> Option<f32> {
-        if text.trim().is_empty() {
-            return None;
-        }
-        let scores = self.scores(text);
-        scores.iter().copied().reduce(f32::max)
-    }
-
-    /// Returns the top-k languages with their scores.
-    pub fn top_k(&self, text: &str, k: usize) -> Vec<(&str, f32)> {
-        if text.trim().is_empty() {
-            return Vec::new();
-        }
-        let scores = self.scores(text);
-        let mut indexed: Vec<(usize, f32)> = scores.iter().copied().enumerate().collect();
-        indexed.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-        indexed.into_iter().take(k).map(|(i, score)| (self.languages[i].as_str(), score)).collect()
-    }
-
-    /// Returns the language with the highest score, or `None` for empty text.
-    pub fn best(&self, text: &str) -> Option<(&str, f32)> {
-        self.top_k(text, 1).first().copied()
-    }
-
-    /// Returns all languages with scores above a threshold.
-    pub fn above_threshold(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        if text.trim().is_empty() {
-            return Vec::new();
-        }
-        let scores = self.scores(text);
-        scores
-            .iter()
-            .enumerate()
-            .filter(|(_, score)| **score >= threshold)
-            .map(|(i, score)| (self.languages[i].as_str(), *score))
-            .collect()
-    }
-
-    /// Returns all languages with scores below a threshold.
-    pub fn below_threshold(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        if text.trim().is_empty() {
-            return Vec::new();
-        }
-        let scores = self.scores(text);
-        scores
-            .iter()
-            .enumerate()
-            .filter(|(_, score)| **score < threshold)
-            .map(|(i, score)| (self.languages[i].as_str(), *score))
-            .collect()
-    }
-
-    /// Returns all languages with scores above or equal to a threshold.
-    pub fn at_least(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.above_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores below a threshold.
-    pub fn at_most(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.below_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly above a threshold.
-    pub fn strictly_above(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        if text.trim().is_empty() {
-            return Vec::new();
-        }
-        let scores = self.scores(text);
-        scores
-            .iter()
-            .enumerate()
-            .filter(|(_, score)| **score > threshold)
-            .map(|(i, score)| (self.languages[i].as_str(), *score))
-            .collect()
-    }
-
-    /// Returns all languages with scores strictly below a threshold.
-    pub fn strictly_below(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        if text.trim().is_empty() {
-            return Vec::new();
-        }
-        let scores = self.scores(text);
-        scores
-            .iter()
-            .enumerate()
-            .filter(|(_, score)| **score < threshold)
-            .map(|(i, score)| (self.languages[i].as_str(), *score))
-            .collect()
-    }
-
-    /// Returns all languages with scores above or equal to a threshold.
-    pub fn at_least_score(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.above_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores below or equal to a threshold.
-    pub fn at_most_score(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.below_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly above a threshold.
-    pub fn strictly_above_score(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_above(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly below a threshold.
-    pub fn strictly_below_score(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_below(text, threshold)
-    }
-
-    /// Returns all languages with scores above or equal to a threshold.
-    pub fn at_least_score_threshold(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.above_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores below or equal to a threshold.
-    pub fn at_most_score_threshold(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.below_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly above a threshold.
-    pub fn strictly_above_score_threshold(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_above(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly below a threshold.
-    pub fn strictly_below_score_threshold(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_below(text, threshold)
-    }
-
-    /// Returns all languages with scores above or equal to a threshold.
-    pub fn at_least_score_threshold_value(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.above_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores below or equal to a threshold.
-    pub fn at_most_score_threshold_value(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.below_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly above a threshold.
-    pub fn strictly_above_score_threshold_value(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_above(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly below a threshold.
-    pub fn strictly_below_score_threshold_value(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_below(text, threshold)
-    }
-
-    /// Returns all languages with scores above or equal to a threshold.
-    pub fn at_least_score_threshold_value2(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.above_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores below or equal to a threshold.
-    pub fn at_most_score_threshold_value2(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.below_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly above a threshold.
-    pub fn strictly_above_score_threshold_value2(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_above(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly below a threshold.
-    pub fn strictly_below_score_threshold_value2(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_below(text, threshold)
-    }
-
-    /// Returns all languages with scores above or equal to a threshold.
-    pub fn at_least_score_threshold_value3(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.above_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores below or equal to a threshold.
-    pub fn at_most_score_threshold_value3(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.below_threshold(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly above a threshold.
-    pub fn strictly_above_score_threshold_value3(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_above(text, threshold)
-    }
-
-    /// Returns all languages with scores strictly below a threshold.
-    pub fn strictly_below_score_threshold_value3(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.strictly_below(text, threshold)
-    }
-
-    /// Returns all languages with scores above or equal to a threshold.
-    pub fn at_least_score_threshold_value4(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
-        self.above_threshold(text, threshold)
+            .map(|(i, score)| (self.languages[i].as_str(), score))
     }
 }
 
-/// A coarse script class for language priors.
+/// Extracts hashed Unicode scalar n-grams in deterministic bucket order.
+pub fn features(text: &str, ngram_range: (u8, u8), buckets: u32) -> BTreeMap<u32, f32> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut features = BTreeMap::new();
+    for n in ngram_range.0..=ngram_range.1 {
+        for window in chars.windows(n as usize) {
+            let mut hash = 2166136261u32;
+            for &c in window {
+                let mut encoded = [0u8; 4];
+                for &b in c.encode_utf8(&mut encoded).as_bytes() {
+                    hash ^= b as u32;
+                    hash = hash.wrapping_mul(16777619);
+                }
+            }
+            *features.entry(hash % buckets).or_insert(0.0) += 1.0;
+        }
+    }
+    features
+}
+
+fn put_u32(out: &mut Vec<u8>, value: u32) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+fn take<'a>(bytes: &'a [u8], at: &mut usize, len: usize) -> Result<&'a [u8], ModelError> {
+    let end = at.checked_add(len).ok_or_else(|| ModelError::Format("size overflow".into()))?;
+    let part = bytes.get(*at..end).ok_or_else(|| ModelError::Format("truncated model".into()))?;
+    *at = end;
+    Ok(part)
+}
+
+fn read_u32(bytes: &[u8], at: &mut usize) -> Result<u32, ModelError> {
+    Ok(u32::from_le_bytes(take(bytes, at, 4)?.try_into().expect("four bytes")))
+}
+
+fn read_floats(bytes: &[u8], at: &mut usize, count: usize) -> Result<Vec<f32>, ModelError> {
+    let mut values = Vec::with_capacity(count);
+    for _ in 0..count {
+        values.push(f32::from_le_bytes(take(bytes, at, 4)?.try_into().expect("four bytes")));
+    }
+    Ok(values)
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Script {
     Latin,
@@ -395,13 +274,36 @@ impl Script {
 
     fn matches(self, lang: &str) -> bool {
         match self {
-            Script::Latin => matches!(lang, "en" | "de" | "fr" | "es" | "it" | "pt" | "nl" | "pl" | "tr" | "vi"),
-            Script::Cyrillic => matches!(lang, "ru" | "uk" | "bg" | "sr" | "mk"),
-            Script::Arabic => matches!(lang, "ar" | "fa" | "ur"),
-            Script::Devanagari => matches!(lang, "hi" | "mr" | "ne"),
-            Script::Han => matches!(lang, "zh" | "ja"),
-            Script::Hiragana | Script::Katakana => lang == "ja",
-            Script::Hangul => lang == "ko",
+            Script::Latin => matches!(
+                lang,
+                "en" | "eng"
+                    | "de"
+                    | "deu"
+                    | "fr"
+                    | "fra"
+                    | "es"
+                    | "spa"
+                    | "it"
+                    | "ita"
+                    | "pt"
+                    | "por"
+                    | "nl"
+                    | "nld"
+                    | "pl"
+                    | "pol"
+                    | "tr"
+                    | "tur"
+                    | "vi"
+                    | "vie"
+            ),
+            Script::Cyrillic => {
+                matches!(lang, "ru" | "rus" | "uk" | "ukr" | "bg" | "bul" | "sr" | "srp" | "mk" | "mkd")
+            }
+            Script::Arabic => matches!(lang, "ar" | "ara" | "fa" | "fas" | "ur" | "urd"),
+            Script::Devanagari => matches!(lang, "hi" | "hin" | "mr" | "mar" | "ne" | "nep"),
+            Script::Han => matches!(lang, "zh" | "zho" | "cmn" | "ja" | "jpn"),
+            Script::Hiragana | Script::Katakana => matches!(lang, "ja" | "jpn"),
+            Script::Hangul => matches!(lang, "ko" | "kor"),
             Script::Other => false,
         }
     }
@@ -413,7 +315,7 @@ mod tests {
 
     fn model() -> NgramModel {
         NgramModel::new(
-            vec!["en".into(), "de".into()],
+            vec!["eng".into(), "deu".into()],
             vec![0.0; 2 * 16],
             vec![0.0; 2],
             (1, 3),
@@ -424,17 +326,25 @@ mod tests {
     }
 
     #[test]
-    fn predicts_with_bias_only() {
-        let m = model();
-        let scores = m.scores("hello");
-        assert_eq!(scores.len(), 2);
-        assert!((scores[0] - 0.5).abs() < 1e-6);
+    fn scores_and_serializes_deterministically() {
+        let model = model();
+        assert_eq!(model.scores("hello"), vec![0.5, 0.5]);
+        let loaded = NgramModel::from_bytes(&model.to_bytes(), model.model_ref.clone()).unwrap();
+        assert_eq!(loaded.scores("hello"), model.scores("hello"));
+        assert_eq!(loaded.supported_languages().collect::<Vec<_>>(), ["eng", "deu"]);
     }
 
     #[test]
-    fn supported_languages_iterates() {
-        let m = model();
-        let langs: Vec<_> = m.supported_languages().collect();
-        assert_eq!(langs, ["en", "de"]);
+    fn features_count_unicode_scalars_in_bucket_order() {
+        let features = features("éé", (1, 1), 16);
+        assert_eq!(features.len(), 1);
+        assert_eq!(features.values().copied().collect::<Vec<_>>(), [2.0]);
+        assert_eq!(features, turbo_trainer::langid::features("éé", (1, 1), 16));
+    }
+
+    #[test]
+    fn blank_text_has_no_prediction() {
+        assert_eq!(model().predict(" \n"), None);
+        assert_eq!(model().best(""), None);
     }
 }
