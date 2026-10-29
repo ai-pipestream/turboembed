@@ -189,7 +189,7 @@ pub struct UdRecipe {
     pub model_id: &'static str,
     pub treebank: Treebank,
     pub component: Component,
-    /// The model the recipe is gated against; `None` for lemmatizers and POS taggers.
+    /// The model the recipe is gated against; `None` for lemmatizers.
     pub reference: Option<Reference>,
 }
 

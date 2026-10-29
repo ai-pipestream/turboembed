@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Analyzer, Bound, Document};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Layer, Refs, Tag, TagSet, View};
 use turbo_analysis_layers::{ChunkTags, Lemmas, PhraseChunks, PosTags, Tokens};
 use turbo_goldens::{GOLDEN_KEY, Golden, Tolerance, golden_key, load_document, matches_golden};
 use turbo_lemmatizer::DictionaryLemmatizer;
@@ -123,6 +123,27 @@ fn default_check(run: &dyn Run, text: &str, golden: &Golden) -> super::Checked {
     }
 }
 
+/// A deterministic majority-tag baseline used instead of a model file.
+struct BaselinePos {
+    tagset: Arc<TagSet>,
+}
+
+impl BaselinePos {
+    fn new() -> Self {
+        Self { tagset: TagSet::new("upos", &["NOUN"]) }
+    }
+}
+
+impl Annotator for BaselinePos {
+    const ID: &'static str = "turbo-fuzz:baseline-pos";
+    type Reads = (View, Tokens);
+    type Writes = (PosTags,);
+
+    fn annotate(&self, (_, tokens): Refs<'_, Self>) -> Result<(PosTags,), turbo_analysis::Error> {
+        Ok((PosTags { tagset: self.tagset.clone(), tags: vec![Tag(0); tokens.len()], prob: None },))
+    }
+}
+
 /// The no-model dictionary lemmatizer with the checked-in fixture.
 pub(crate) struct DictionaryRun {
     on_golden: Analyzer,
@@ -143,7 +164,7 @@ impl DictionaryRun {
             .map_err(broken)?;
         let plain = Analyzer::builder()
             .add(SimpleTokenizer::new(TokenizerOptions::default()))
-            .add(fixture_tagger(res, PosTagFormat::Ud)?)
+            .add(BaselinePos::new())
             .add(read().expect("the dictionary read once already"))
             .build()
             .map_err(broken)?;
