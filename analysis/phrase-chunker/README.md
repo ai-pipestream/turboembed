@@ -12,5 +12,9 @@ Zero-training rule-driven POS-tag pattern chunker (`TagPatternRule`,
 - `PatternChunkComposer` merges rule chunks with a base `PhraseChunks` layer in
   `ComposeMode::Fallback` or `ComposeMode::Override`.
 
+- `DependencyChunker` (`src/derived.rs`) derives noun (`NP`) and verb (`VP`)
+  chunks directly from a Universal Dependencies parse (`turbo_analysis_layers::Dependencies`),
+  tokens and POS tags (UPOS or Penn), with no chunker model (#1650).
+
 The crate documentation (`src/lib.rs`) describes the modules. The name keeps it
 apart from `turbo-chunker`, which cuts retrieval units.

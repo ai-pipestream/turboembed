@@ -132,3 +132,29 @@ fn a_left_padded_modernbert_row_stays_finite() {
         assert!(v.iter().all(|x| x.is_finite()), "row {r}: {v:?}");
     }
 }
+
+/// Fixtures whose gated MLP middle product `act(gate x) * (up x)` exceeds
+/// F16's 65504 limit while every weight stays inside [-30, 30] (#1602).
+#[test]
+fn gated_middle_past_f16_s_range_loads_with_in_range_weights_and_runs_finite_on_cpu() {
+    for f in [rotary::overflow_modernbert("rotary-overflow-mb"), rotary::overflow_nomic("rotary-overflow-nb")] {
+        let w = weights(&f);
+        for t in w.tensors() {
+            if t.data.is_null() || t.bytes == 0 {
+                continue;
+            }
+            let slice = unsafe { std::slice::from_raw_parts(t.data as *const f32, (t.bytes / 4) as usize) };
+            assert!(slice.iter().all(|v| v.is_finite() && v.abs() <= 30.0));
+        }
+        let loaded = f.load().unwrap();
+        let session =
+            common::Session::create(loaded.m, Some(&common::session_desc(4, 32, turbo::TURBO_PRECISION_FASTEST)))
+                .unwrap();
+        let rows: Vec<Vec<i32>> =
+            [9usize, 1, 32].iter().map(|&n| (0..n as i32).map(|k| 100 + 19 * k).collect()).collect();
+        let t = common::Tokens::new(&rows, 0);
+        session.write_tokens(&t.batch(), None).unwrap();
+        let out = session.run().unwrap().rows();
+        assert!(out.iter().flatten().all(|v| v.is_finite()), "{out:?}");
+    }
+}

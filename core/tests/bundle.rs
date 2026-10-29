@@ -11,7 +11,9 @@ use serde_json::Value;
 use turbo::*;
 
 fn dir() -> PathBuf {
-    std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set").into()
+    turbo_pins::require(std::path::PathBuf::from(
+        std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"),
+    ))
 }
 
 #[test]

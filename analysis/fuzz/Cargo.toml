@@ -9,6 +9,7 @@ publish = false
 name = "turbo_fuzz"
 
 [dependencies]
+turbo-pins = { path = "../pins" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-goldens = { path = "../goldens" }

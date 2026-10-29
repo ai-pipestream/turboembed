@@ -1,3 +1,5 @@
+#![cfg(feature = "classical")]
+
 use turbo_analysis::{Annotator, Document, Layer, Span, Spans, View, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_calibration::{Calibration, DataIdentity, Policy, Transform, digest, metrics};

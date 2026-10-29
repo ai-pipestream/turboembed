@@ -40,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 29] = [
+pub const NOT_COVERED: [&str; 27] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -53,8 +53,6 @@ pub const NOT_COVERED: [&str; 29] = [
     "masc",
     "ner",
     "ad",
-    "gazetteer",
-    "place-profiles",
     "string-pattern",
     "features",
     "codec",
