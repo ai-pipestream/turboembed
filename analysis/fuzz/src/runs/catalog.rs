@@ -93,7 +93,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
     ("lattice", "unidic-mecab-2.1.2"),
-
     ("normalize", "whitespace"),
     ("normalize", "whitespace-keep-lines"),
     ("normalize", "whitespace-keep-paragraphs"),
