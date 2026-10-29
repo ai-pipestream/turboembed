@@ -1,16 +1,18 @@
 //! `FMeasure` and `Mean`: the scores every evaluator keeps.
 //!
-//! True positives are a multiset intersection ([`count_true_positives`]):
-//! each prediction matches at most one reference, so precision and recall
-//! stay within 0 and 1.
+//! Standard evaluation counts true positives as a multiset intersection
+//! ([`count_true_positives`]), so precision and recall stay within 0
+//! and 1.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
 
 use crate::sample::Name;
 
-/// A typed span. Offsets are token indices for names and phrases and byte
-/// offsets for tokens and sentences.
+/// A span with a type, compared as `opennlp.tools.util.Span.equals`
+/// compares: by start, end and type. The offsets are token indices for
+/// names and phrases and byte offsets for tokens and sentences.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LabeledSpan<'t> {
     pub start: u32,
@@ -22,6 +24,15 @@ impl<'t> LabeledSpan<'t> {
     pub fn new(start: u32, end: u32, kind: Option<&'t str>) -> LabeledSpan<'t> {
         LabeledSpan { start, end, kind }
     }
+
+    /// `Span.toString`: `[start..end)`, then a space and the type when
+    /// there is one.
+    pub fn java_string(&self) -> String {
+        match self.kind {
+            Some(k) => format!("[{}..{}) {k}", self.start, self.end),
+            None => format!("[{}..{})", self.start, self.end),
+        }
+    }
 }
 
 impl<'t> From<&Name<'t>> for LabeledSpan<'t> {
@@ -30,10 +41,18 @@ impl<'t> From<&Name<'t>> for LabeledSpan<'t> {
     }
 }
 
-/// Precision, recall and F-measure over all the samples evaluated.
+impl fmt::Display for LabeledSpan<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.java_string())
+    }
+}
+
+/// Precision, recall and F-measure over all the samples evaluated, as
+/// `opennlp.tools.util.eval.FMeasure` keeps them.
 ///
 /// The counts add up over every sample, so the scores are those of all
-/// the items together, not a mean of per-sample scores. Each prediction
+/// the items together, not a mean of per-sample scores (the Java
+/// documentation says otherwise; the code adds counts). Each prediction
 /// counts against at most one reference ([`count_true_positives`]), so
 /// precision and recall stay within 0 and 1.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -44,16 +63,16 @@ pub struct FMeasure {
 }
 
 impl FMeasure {
-    /// Adds the true positives of `predictions` against `references`
-    /// ([`count_true_positives`]), the number of predictions and the
-    /// number of references.
+    /// `updateScores`: adds the true positives of `predictions` against
+    /// `references`, the number of
+    /// predictions and the number of references.
     pub fn update<T: Eq + Hash>(&mut self, references: &[T], predictions: &[T]) {
         self.true_positives += count_true_positives(references, predictions);
         self.selected += predictions.len() as u64;
         self.target += references.len() as u64;
     }
 
-    /// Adds the counts of `other` to these.
+    /// `mergeInto`: adds the counts of `other` to these.
     pub fn merge(&mut self, other: &FMeasure) {
         self.selected += other.selected;
         self.target += other.target;
@@ -72,7 +91,7 @@ impl FMeasure {
     }
 
     /// `2 * (precision * recall) / (precision + recall)`, or -1 when
-    /// precision and recall add up to 0 or less.
+    /// precision and recall add up to 0 or less, as Java returns.
     pub fn f_measure(&self) -> f64 {
         let (p, r) = (self.precision(), self.recall());
         if p + r > 0.0 { 2.0 * (p * r) / (p + r) } else { -1.0 }
@@ -133,7 +152,7 @@ pub fn recall<T: Eq + Hash>(references: &[T], predictions: &[T]) -> f64 {
     count_true_positives(references, predictions) as f64 / references.len() as f64
 }
 
-/// The arithmetic mean of values.
+/// The arithmetic mean of values: `opennlp.tools.util.eval.Mean`.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Mean {
     sum: f64,

@@ -190,10 +190,16 @@ fn read_document_as(hdr: &Path, chunks: ChunkFiles, logical: bool) -> Result<Mas
     let mut group: Vec<(Option<String>, PathBuf)> = Vec::new();
     for HeaderFile { id, loc } in files {
         let path = folder.join(loc.as_deref().ok_or(MascError::NoLocation)?);
-        if !path.is_file() {
-            return Err(MascError::MissingFile { path });
-        }
         group.push((id, path));
+    }
+    for file in
+        [AnnotationFile::Segments, AnnotationFile::Sentences, AnnotationFile::Penn, AnnotationFile::NamedEntities]
+    {
+        if let Some((_, path)) = group.iter().find(|(id, _)| id.as_deref() == Some(file.id()))
+            && !path.is_file()
+        {
+            return Err(MascError::MissingFile { path: path.to_owned() });
+        }
     }
     let find = |id: &str| group.iter().find(|(k, _)| k.as_deref() == Some(id)).map(|(_, p)| p.as_path());
     let text_path = find("f.text").ok_or(MascError::NoPrimaryData)?;

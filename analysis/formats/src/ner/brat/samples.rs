@@ -199,7 +199,7 @@ impl<S: SentenceSpans, T: TokenSpans> BratParser<S, T> {
                         mapped.push(Some(Name::new(b, e, Some(a.kind.as_str()))?));
                     }
                 }
-                mapped.sort_by(|x, y| x.as_ref().unwrap().compare(y.as_ref().unwrap()));
+                mapped.sort_by(|x, y| x.as_ref().unwrap().java_cmp(y.as_ref().unwrap()));
                 for i in 1..mapped.len() {
                     let (prev, cur) = (mapped[i - 1].unwrap(), mapped[i].unwrap());
                     if prev.end == cur.start {

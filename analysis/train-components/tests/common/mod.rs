@@ -213,6 +213,9 @@ pub fn java_class(e: &FormatError) -> Option<&'static str> {
             Some("java.io.IOException")
         }
         OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+        Ad(e) => Some(e.java_class()),
+        Corpus(e) => e.java_class(),
+        Coref(_) => Some("opennlp.tools.util.InvalidFormatException"),
         Ner(_) => None,
         ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
         SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,

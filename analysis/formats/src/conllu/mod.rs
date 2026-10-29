@@ -27,8 +27,10 @@
 //! The other columns are the multiword line's own. Empty nodes (ids like
 //! `8.1`) are word lines like any other.
 //!
-//! The sample readers are in [`samples`]. [`dependency`] reads dependency
-//! samples directly from the source lines rather than through [`ConlluReader`].
+//! The sample readers are in [`samples`]. [`dependency`] reads
+//! dependency samples and [`coref`] documents with CorefUD coreference;
+//! neither goes through [`ConlluReader`], as their Java streams read the
+//! lines themselves.
 //!
 //! # What OpenNLP does here
 //!
@@ -50,6 +52,7 @@
 //! - An error in a sentence discards the whole sentence, and reading goes
 //!   on with the next.
 
+pub mod coref;
 pub mod dependency;
 pub mod document;
 pub mod node_ids;
@@ -63,6 +66,7 @@ use turbo_analysis::Span;
 use crate::error::FormatError;
 use crate::source::{Field, Line, Lines, Piece, java_trim, split_fields};
 
+pub use coref::{ConlluCorefReader, CorefDocument};
 pub use dependency::ConlluDependencyReader;
 pub use document::write_document_conllu;
 pub use samples::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader};
@@ -193,11 +197,6 @@ pub type ConlluStream<'a> = ConlluReader<'a>;
 impl<'a> ConlluReader<'a> {
     pub fn new(source: &'a str) -> Result<ConlluReader<'a>, FormatError> {
         Ok(ConlluReader { lines: Lines::new(source)? })
-    }
-
-    /// The full source text the sentences were read from.
-    pub fn source(&self) -> &'a str {
-        self.lines.source()
     }
 
     /// `ParagraphStream.read`: the next run of lines that are not of

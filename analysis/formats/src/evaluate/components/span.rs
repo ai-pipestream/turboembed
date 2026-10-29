@@ -67,8 +67,8 @@ fn check_in_text(spans: &[Span], text: &str) -> Result<(), EvalError> {
 /// as one item per sample.
 ///
 /// No sample of the token format with a token matches: its text ends
-/// with a space and the detokenized text does not. An empty text (no
-/// tokens) matches.
+/// with a space ([`crate::native::token`]) and the detokenized text does
+/// not. An empty line (an empty text, no tokens) matches.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct DetokenizerEvaluator {
     fmeasure: FMeasure,

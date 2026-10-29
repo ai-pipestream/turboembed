@@ -80,19 +80,8 @@ impl<'a> Iterator for ConllXPosReader<'a> {
 mod tests {
     use super::*;
 
-    /// The word and tag format's line for a sample: `token_tag` pairs
-    /// separated by single spaces.
-    fn line_of(s: &PosSample<'_>) -> String {
-        s.tokens()
-            .iter()
-            .zip(s.tags())
-            .map(|(t, g)| format!("{}_{}", t.as_str(), g.as_str()))
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
-
     fn read(source: &str) -> Vec<Result<String, String>> {
-        ConllXPosReader::new(source).unwrap().map(|r| r.map(|s| line_of(&s)).map_err(|e| e.to_string())).collect()
+        ConllXPosReader::new(source).unwrap().map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string())).collect()
     }
 
     #[test]

@@ -8,10 +8,10 @@
 //!   tokens.
 //! - A sentence sample is the `text` comments of up to a number of
 //!   sentences, each followed by a space, the last space removed. A
-//!   sentence without one uses its source lines instead of a placeholder;
-//!   that sentence's source is those lines. A number of zero gives no
-//!   samples. An error in a sentence discards the sentences read before it
-//!   into the same sample.
+//!   sentence without one stands in the document as `null`, Java's
+//!   string of a missing value; that sentence's source is the sentence's
+//!   lines. A number of zero gives no samples. An error in a sentence
+//!   discards the sentences read before it into the same sample.
 //! - A token sample is a sentence's `text` comment with `<SPLIT>`
 //!   inserted after each word form that is followed by a character that
 //!   is not Unicode whitespace, parsed as the token
@@ -27,11 +27,12 @@ use turbo_analysis::Span;
 
 use super::{ConlluReader, Sentence, Tagset};
 use crate::error::FormatError;
+use crate::native::token::parse_text;
 use crate::sample::lemma::LemmaSample;
 use crate::sample::pos::PosSample;
 use crate::sample::sentence::SentenceSample;
 use crate::sample::token::{SPLIT_MARKER, SplitMarker, TokenSample};
-use crate::source::{Piece, whitespace_tokens};
+use crate::source::Piece;
 
 /// Reads part-of-speech samples from CoNLL-U.
 #[derive(Clone, Debug)]
@@ -113,7 +114,7 @@ impl<'a> Iterator for ConlluSentenceReader<'a> {
             };
             let (text, source) = match &sentence.text {
                 Some(t) => (t.as_str(), t.span),
-                None => (&self.sentences.source()[sentence.source.range()], sentence.source),
+                None => ("null", sentence.source),
             };
             let start = document.len();
             document.push_str(text);
@@ -158,22 +159,18 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
     let Some(comment) = &sentence.text else {
         return Err(FormatError::NoSentenceText { line: sentence.line });
     };
-    // Search only the original comment, never the text with markers. The
-    // marker map below is only for projecting token spans back to it.
-    let raw = comment.as_str();
-    let mut text = raw.to_owned();
+    // The text with the markers, and for each of its bytes the source byte
+    // it is, or none for a marker's byte.
+    let mut text = comment.as_str().to_owned();
     let base = comment.span.start;
     let mut origin: Vec<Option<u32>> = (base..comment.span.end).map(Some).collect();
     let mut search = 0;
-    // The marker bytes inserted into `text` so far: raw offsets shift by
-    // this much once `text` holds a marker.
-    let mut shift = 0usize;
     for word in &sentence.word_lines {
         if word.id.as_str().contains('.') {
             continue;
         }
         let form = word.form.as_str();
-        let Some(at) = raw[search..].find(form).map(|i| search + i) else {
+        let Some(at) = text[search..].find(form).map(|i| search + i) else {
             return Err(FormatError::TokenNotInText {
                 line: word.line,
                 token: form.to_owned(),
@@ -182,13 +179,11 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
             });
         };
         search = at + form.len();
-        if let Some(c) = raw[search..].chars().next()
+        if let Some(c) = text[search..].chars().next()
             && !turbo_unicode::whitespace::is_whitespace(c as u32)
         {
-            let at = search + shift;
-            text.insert_str(at, SPLIT_MARKER);
-            origin.splice(at..at, std::iter::repeat_n(None, SPLIT_MARKER.len()));
-            shift += SPLIT_MARKER.len();
+            text.insert_str(search, SPLIT_MARKER);
+            origin.splice(search..search, std::iter::repeat_n(None, SPLIT_MARKER.len()));
         }
     }
     let len = u32::try_from(text.len()).map_err(|_| FormatError::TooLong { len: text.len() })?;
@@ -203,37 +198,6 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
     };
     let piece = Piece { text: &text, span: Span::new(0, len) };
     parse_text(piece, SplitMarker::default(), to_source, sentence.source)
-}
-
-/// Parses `text` as the token format parses a line: each
-/// whitespace-separated piece with its `marker` markers removed, one
-/// space after each piece, and a token per part between markers.
-/// `to_source` maps the span of each token in `text` (offset by the
-/// piece's span) to its bytes in the source.
-fn parse_text<'a>(
-    text: Piece<'_>,
-    marker: SplitMarker<'_>,
-    to_source: impl Fn(Span) -> Span,
-    source: Span,
-) -> Result<TokenSample<'a>, FormatError> {
-    // Each piece is followed by one space where the text has at least one
-    // whitespace character or its end, so no token ends past the text's
-    // length and the `u32` offsets below cannot overflow.
-    let mut out = String::with_capacity(text.text.len() + 1);
-    let mut tokens = Vec::new();
-    let mut sources = Vec::new();
-    for piece in whitespace_tokens(text) {
-        let mut at = 0;
-        for part in piece.text.split(marker.as_str()) {
-            let start = out.len() as u32;
-            out.push_str(part);
-            tokens.push(Span::new(start, out.len() as u32));
-            sources.push(to_source(piece.slice(at, at + part.len()).span));
-            at += part.len() + marker.as_str().len();
-        }
-        out.push(' ');
-    }
-    TokenSample::new(Cow::Owned(out), tokens, sources, source)
 }
 
 #[cfg(test)]
@@ -254,9 +218,7 @@ mod tests {
         );
         let pos: Vec<PosSample<'_>> = ConlluPosReader::new(&src, Tagset::X).unwrap().map(Result::unwrap).collect();
         assert_eq!(pos.len(), 2);
-        let tagged: Vec<String> =
-            pos[0].tokens().iter().zip(pos[0].tags()).map(|(t, g)| format!("{}_{}", t.as_str(), g.as_str())).collect();
-        assert_eq!(tagged.join(" "), "a_x e__ b_y");
+        assert_eq!(pos[0].to_string(), "a_x e__ b_y");
         assert!(pos[1].is_empty());
         let lemmas: Vec<LemmaSample<'_>> =
             ConlluLemmaReader::new(&src, Tagset::U).unwrap().map(Result::unwrap).collect();
@@ -265,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn sentence_samples_use_source_lines_when_text_is_missing() {
+    fn sentence_samples_stand_null_for_a_missing_text() {
         let src = format!(
             "# text = One.\n{}\n{}\n# text = Three.\n{}\n",
             line("1", "One", "_", "_", "_"),
@@ -275,10 +237,8 @@ mod tests {
         let samples: Vec<SentenceSample<'_>> =
             ConlluSentenceReader::new(&src, 2).unwrap().map(Result::unwrap).collect();
         assert_eq!(samples.len(), 2);
-        let raw = line("1", "Two", "_", "_", "_");
-        let raw = raw.trim_end();
-        assert_eq!(samples[0].document(), format!("One. {raw}"));
-        assert_eq!(samples[0].sentence(1), raw);
+        assert_eq!(samples[0].document(), "One. null");
+        assert_eq!(samples[0].sentence(1), "null");
         assert_eq!(&src[samples[0].sources()[0].range()], "One.");
         assert_eq!(samples[1].document(), "Three.");
         assert_eq!(ConlluSentenceReader::new(&src, 0).unwrap().count(), 0);
@@ -297,53 +257,27 @@ mod tests {
         );
         let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
         assert_eq!(s.text(), "Vamos al mar. ");
-        assert_eq!(s.tokens(), [Span::new(0, 5), Span::new(6, 8), Span::new(9, 12), Span::new(12, 13)]);
+        assert_eq!(s.to_string(), "Vamos al mar<SPLIT>.");
         let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
         assert_eq!(sources, ["Vamos", "al", "mar", "."]);
     }
 
     #[test]
-    fn token_samples_separate_forms_written_together_after_each_marker() {
-        // `10`, `h` and `.` run together, so every form but the last is
-        // followed by a marker; each later marker's offset accounts for the
-        // markers before it.
-        let src = format!(
-            "# sent_id = s\n# text = at 10h.\n{}{}{}",
-            line("1", "10", "_", "_", "_"),
-            line("2", "h", "_", "_", "_"),
-            line("3", ".", "_", "_", "_"),
-        );
-        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
-        assert_eq!(s.text(), "at 10h. ");
-        assert_eq!(s.tokens(), [Span::new(0, 2), Span::new(3, 5), Span::new(5, 6), Span::new(6, 7)]);
-        let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
-        assert_eq!(sources, ["at", "10", "h", "."]);
-    }
-
-    #[test]
-    fn literal_split_forms_are_not_matched_to_inserted_markers() {
-        let src = format!(
-            "# text = <SPLIT> <SPLIT>\n{}{}",
-            line("1", "<SPLIT>", "_", "_", "_"),
-            line("2", "<SPLIT>", "_", "_", "_")
-        );
-        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
-        assert_eq!(s.text(), "  ");
-        assert!(s.sources().iter().all(|span| span.is_empty()));
-    }
-
-    #[test]
-    fn a_form_is_not_found_inside_a_marker() {
-        // After `a` the output is `a<SPLIT>b`, but the source has no
-        // `SPLIT` token: a match inside the inserted marker is rejected.
+    fn a_form_can_be_found_inside_a_marker() {
+        // After `a` the text is `a<SPLIT>b`, and `SPLIT` is found inside the
+        // marker; `b` is found after it.
         let src = format!(
             "# text = ab\n{}{}{}",
             line("1", "a", "_", "_", "_"),
             line("2", "SPLIT", "_", "_", "_"),
             line("3", "b", "_", "_", "_")
         );
-        let err = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap_err();
-        assert!(matches!(err, FormatError::TokenNotInText { .. }));
+        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
+        assert_eq!(s.text(), "a<SPLIT>b ");
+        let tokens: Vec<&str> = (0..s.tokens().len()).map(|i| s.token(i)).collect();
+        assert_eq!(tokens, ["a<SPLIT", ">b"]);
+        let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
+        assert_eq!(sources, ["a", "b"]);
     }
 
     #[test]

@@ -1,12 +1,19 @@
-//! What a reader refuses.
+//! What a reader refuses, and what it skips.
 //!
-//! A [`FormatError`] is a sample a reader cannot build from its input.
-//! `Display` states the refusal.
+//! A [`FormatError`] is a sample OpenNLP's stream throws on. Its
+//! `Display` is the message of the exception Java throws there, and
+//! [`FormatError::java_class`] the exception's class, so a test compares
+//! both with the JVM's. A [`Warning`] is a line OpenNLP's stream logs and
+//! skips or replaces; the reader carries on as Java does and keeps the
+//! warning for the caller.
 
 use std::fmt;
 
 use turbo_analysis::Span;
 
+use crate::ad::AdError;
+use crate::conllu::coref::CorefError;
+use crate::corpora::CorpusError;
 use crate::ner::NerError;
 
 /// A sample a reader cannot read, or a sample value that cannot be built.
@@ -52,6 +59,11 @@ pub enum FormatError {
     TooLong { len: usize },
     /// What a reader of a named entity corpus ([`crate::ner`]) refuses.
     Ner(NerError),
+    /// What an Arvores Deitadas reader ([`crate::ad`]) refuses.
+    Ad(AdError),
+    /// What a reader of a sentence, language or document corpus
+    /// ([`crate::corpora`]) refuses.
+    Corpus(CorpusError),
     /// A CoNLL-U word line without exactly ten tab-separated columns
     /// (after `StringUtil.split` drops the empty columns at its end).
     /// `text` is the line.
@@ -87,6 +99,9 @@ pub enum FormatError {
     /// other than ten columns (empty columns at its end count). `count`
     /// is the number of columns and `text` the line.
     DependencyColumns { line: u32, count: usize, text: String },
+    /// What the CorefUD reader ([`crate::conllu::coref`]) refuses in a
+    /// document.
+    Coref(CorefError),
     /// A CoNLL-U `HEAD` that is not `0`, `_` or the id of another word of
     /// the sentence, which the word-preserving converter refuses rather
     /// than reading as a root. `head` is the column.
@@ -135,11 +150,48 @@ pub enum FormatError {
 }
 
 impl FormatError {
+    /// The class of the exception OpenNLP throws in the same place, for
+    /// the errors that have one.
+    pub fn java_class(&self) -> Option<&'static str> {
+        use FormatError::*;
+        match self {
+            NestedName { .. } | MissingNameType { .. } | UnexpectedEnd { .. } | NoDocumentText { .. } => {
+                Some("java.io.IOException")
+            }
+            OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+            Ner(e) => Some(e.java_class()),
+            Ad(e) => Some(e.java_class()),
+            Corpus(e) => e.java_class(),
+            ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
+            Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
+            ConlluColumns { .. }
+            | InvalidLanguage { .. }
+            | InvalidMultiwordId { .. }
+            | BackwardsMultiwordId { .. }
+            | MissingMultiwordLine { .. } => Some("opennlp.tools.util.InvalidFormatException"),
+            MultiwordRemoval { .. } => Some("java.lang.IndexOutOfBoundsException"),
+            DependencyColumns { .. } | Coref(_) => Some("opennlp.tools.util.InvalidFormatException"),
+            TokenNotInText { .. } | NoSentenceText { .. } => Some("java.io.IOException"),
+            ConlluHead { .. } | ConlluDocument { .. } | HeadOutsideSentence { .. } | NoTokens => None,
+            Conll02Fields { .. } | Conll03Fields { .. } | InvalidNameTag { .. } | DocstartNotFollowedByEmpty { .. } => {
+                Some("java.io.IOException")
+            }
+            MulticonerFields { .. }
+            | UnexpectedNameContinuation { .. }
+            | NameTypeMismatch { .. }
+            | UnknownNameType { .. }
+            | ConllXColumns { .. } => Some("opennlp.tools.util.InvalidFormatException"),
+            DocstartAtEnd { .. } => Some("java.lang.NullPointerException"),
+            SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,
+        }
+    }
+
     /// The source line the error is on, for the errors a reader makes.
     pub fn line(&self) -> Option<u32> {
         use FormatError::*;
         match *self {
             Ner(ref e) => e.line(),
+            Coref(ref e) => Some(e.line()),
             NestedName { line, .. }
             | MissingNameType { line, .. }
             | UnexpectedEnd { line, .. }
@@ -158,10 +210,7 @@ impl FormatError {
             | ConlluDocument { line, .. }
             | Conll02Fields { line, .. }
             | Conll03Fields { line, .. }
-            | MulticonerFields { line, .. }
             | InvalidNameTag { line, .. }
-            | UnexpectedNameContinuation { line, .. }
-            | NameTypeMismatch { line, .. }
             | UnknownNameType { line, .. }
             | DocstartNotFollowedByEmpty { line, .. }
             | DocstartAtEnd { line }
@@ -176,6 +225,8 @@ impl fmt::Display for FormatError {
         use FormatError::*;
         match self {
             Ner(e) => e.fmt(f),
+            Ad(e) => e.fmt(f),
+            Corpus(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
             }
@@ -215,6 +266,7 @@ impl fmt::Display for FormatError {
             DependencyColumns { count, text, .. } => {
                 write!(f, "CoNLL-U word line has {count} columns, expected 10: {text}")
             }
+            Coref(e) => e.fmt(f),
             TokenNotInText { token, sentence, text, .. } => write!(
                 f,
                 "Failed to match token [{token}] in sentence [{}] with text [{text}]",
@@ -231,13 +283,11 @@ impl fmt::Display for FormatError {
                 write!(f, "Expected three fields per line in training data, got {count} for line '{text}'!")
             }
             Conll03Fields { text, .. } => write!(f, "Incorrect number of fields per line for language: '{text}'!"),
-            MulticonerFields { text, .. } => {
-                write!(f, "MultiCoNER v2 line needs a token, ' _ _ ', and a name tag: {text}")
-            }
+            MulticonerFields { text, .. } => write!(f, "Expected token and tag separated by ' _ _ ': '{text}'"),
             InvalidNameTag { tag, .. } => write!(f, "Invalid tag: {tag}"),
-            UnexpectedNameContinuation { tag, .. } => write!(f, "Name continuation has no beginning: {tag}"),
+            UnexpectedNameContinuation { tag, .. } => write!(f, "Unexpected name continuation: {tag}"),
             NameTypeMismatch { expected, found, .. } => {
-                write!(f, "Name continuation type {found} does not match {expected}")
+                write!(f, "Name type mismatch: expected {expected}, found {found}")
             }
             UnknownNameType { kind, .. } => write!(f, "Unknown type: {kind}"),
             DocstartNotFollowedByEmpty { text, .. } => write!(f, "Empty line after -DOCSTART- not empty: '{text}'!"),
@@ -250,3 +300,19 @@ impl fmt::Display for FormatError {
 }
 
 impl std::error::Error for FormatError {}
+
+/// A line a reader skipped or replaced, as OpenNLP's stream logs it and
+/// carries on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Warning {
+    /// A word and tag line with a token that has no `_`.
+    /// `WordTagSampleStream` logs "Error during parsing, ignoring
+    /// sentence" and returns a sample with no tokens in its place.
+    NoTagSeparator { line: u32, token: Span },
+    /// A lemma or chunk line without exactly three columns, skipped
+    /// ("Skipping corrupt line").
+    CorruptLine { line: u32, columns: usize },
+    /// A language sample line without a tab after a non-empty language
+    /// code, which `LanguageDetectorSampleStream` passes over silently.
+    NoLanguage { line: u32 },
+}

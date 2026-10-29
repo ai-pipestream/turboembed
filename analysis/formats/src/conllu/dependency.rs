@@ -264,35 +264,15 @@ fn word_index(id: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Write as _;
-
     use super::*;
 
     fn line(id: &str, form: &str, upos: &str, head: &str, rel: &str) -> String {
         format!("{id}\t{form}\t_\t{upos}\tx{upos}\t_\t{head}\t{rel}\t_\t_\n")
     }
 
-    /// The sample's rows as the CoNLL-U word lines hold them: the token,
-    /// its tag, its head's number (`0` for the root) and its relation.
-    fn rows(s: &DependencySample<'_>) -> String {
-        let mut out = String::new();
-        for (i, ((token, tag), arc)) in s.tokens().iter().zip(s.tags()).zip(s.tree().arcs()).enumerate() {
-            let _ = writeln!(
-                out,
-                "{}\t{}\t{}\t{}\t{}",
-                i + 1,
-                token.as_str(),
-                tag.as_str(),
-                arc.head.column(),
-                arc.relation.as_str()
-            );
-        }
-        out
-    }
-
     fn read(src: &str) -> (Vec<Result<String, String>>, Vec<Skipped>) {
         let mut r = ConlluDependencyReader::new(src, Tagset::U).unwrap();
-        let out = r.by_ref().map(|s| s.map(|s| rows(&s)).map_err(|e| e.to_string())).collect();
+        let out = r.by_ref().map(|s| s.map(|s| s.to_string()).map_err(|e| e.to_string())).collect();
         (out, r.skipped().to_vec())
     }
 
@@ -310,7 +290,7 @@ mod tests {
         let mut r = ConlluDependencyReader::new(&src, Tagset::X).unwrap();
         let s = r.next().unwrap().unwrap();
         assert_eq!(
-            rows(&s),
+            s.to_string(),
             "1\tVamos\txVERB\t0\troot\n2\ta\txADP\t4\tcase\n3\tel\txDET\t4\tdet\n4\tmar\txNOUN\t1\tobl\n"
         );
         assert_eq!(&src[s.tokens()[3].span.range()], "mar");

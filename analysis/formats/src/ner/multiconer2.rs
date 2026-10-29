@@ -101,6 +101,31 @@ fn kind(text: &str, line: u32) -> Result<&str, FormatError> {
         .ok_or_else(|| FormatError::UnknownNameType { line, kind: text.to_owned() })
 }
 
+fn validate(tags: &[Tag]) -> Result<(), FormatError> {
+    let mut open = None;
+    for tag in tags {
+        if let Some(kind) = tag.text.strip_prefix("B-") {
+            open = Some(kind.to_owned());
+        } else if let Some(kind) = tag.text.strip_prefix("I-") {
+            let Some(ref expected) = open else {
+                return Err(FormatError::UnexpectedNameContinuation { line: tag.line, tag: tag.text.to_owned() });
+            };
+            if kind != expected {
+                return Err(FormatError::NameTypeMismatch {
+                    line: tag.line,
+                    expected: expected.clone(),
+                    found: kind.to_owned(),
+                });
+            }
+        } else if tag.text == "O" {
+            open = None;
+        } else {
+            return Err(FormatError::InvalidNameTag { line: tag.line, tag: tag.text.to_owned() });
+        }
+    }
+    Ok(())
+}
+
 impl<'a> Iterator for MulticonerReader<'a> {
     type Item = Result<NameSample<'a>, FormatError>;
 
@@ -151,6 +176,9 @@ impl<'a> Iterator for MulticonerReader<'a> {
             }
             if !sentence.tokens.is_empty() {
                 sentence.clear_adaptive_data = clear;
+                if let Err(error) = validate(&sentence.tags) {
+                    return Some(Err(error));
+                }
                 let names = bio_names(&sentence.tags, |tag| tag, kind);
                 return sentence.sample(names);
             }
