@@ -1825,6 +1825,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2966,6 +2967,20 @@ dependencies = [
  "turbo-maxent",
  "turbo-zstd",
  "ureq",
+]
+
+[[package]]
+name = "turbo-zoo-remote"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protox",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "turbo-kserve",
+ "turbo-zoo",
 ]
 
 [[package]]
