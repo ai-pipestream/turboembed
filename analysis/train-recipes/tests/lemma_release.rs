@@ -1,8 +1,11 @@
 //! Published recipe ids retain their original on-disk class format.
+#[path = "../../train-components/src/testsupport.rs"]
+mod testsupport;
+
+use crate::testsupport::LemmaReader;
 use turbo_lemmatizer::{LemmaEncoding, LemmatizerModel};
 use turbo_maxent::ModelFile;
 use turbo_train::TrainingConfiguration;
-use turbo_train_components::testsupport::LemmaReader;
 use turbo_train_components::{LemmatizerFactory, Stamp, train_lemmatizer_model};
 use turbo_train_recipes::segmentation::TIMESTAMP_MS;
 use turbo_train_recipes::ud::{UdRecipe, UdSamples};

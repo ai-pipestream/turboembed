@@ -1,6 +1,9 @@
+#[path = "../src/testsupport.rs"]
+mod testsupport;
+
+use crate::testsupport::DocumentReader;
 use turbo_doccat::{DoccatFactory, DocumentCategorizerME};
 use turbo_train::{TrainingConfiguration, TrainingParameters};
-use turbo_train_components::testsupport::DocumentReader;
 use turbo_train_components::{Stamp, doccat::train_doccat};
 #[test]
 fn selected_models_keep_accuracy_and_reduce_vocabulary() {

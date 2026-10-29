@@ -1,13 +1,16 @@
 //! The real tagged-text fixture through training, packaging and both
 //! inference entry points. Compatibility goldens remain in `fixtures`.
 
+#[path = "../src/testsupport.rs"]
+mod testsupport;
+
+use crate::testsupport::LemmaReader;
 use std::sync::Arc;
 use turbo_analysis::{Analyzer, Document, Key, Provenance, Span, Spans, View};
 use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tag, TagSet, Tokens};
 use turbo_lemmatizer::{CASE_SENSITIVE_FACTORY, LemmaEncoding, LemmatizerModel, MaxentLemmatizer, TokenTag};
 use turbo_maxent::ModelFile;
 use turbo_train::{Key as TrainKey, ModelPackage, TrainingConfiguration, TrainingParameters};
-use turbo_train_components::testsupport::LemmaReader;
 use turbo_train_components::{LemmatizerFactory, Stamp, train_lemmatizer_model};
 
 fn package(factory: &LemmatizerFactory) -> ModelPackage {

@@ -3,6 +3,10 @@
 //! `DocumentCategorizerMETest` and the annotators on views, sentences,
 //! structure blocks and chunks.
 
+#[path = "../src/testsupport.rs"]
+mod testsupport;
+
+use crate::testsupport::DocumentReader;
 use turbo_analysis::{Analyzer, Anchor, Document, IxRange, Key, Layer, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Block, Categories, Chunks, Cut, Sentences, Structure};
 use turbo_doccat::{
@@ -15,7 +19,6 @@ use turbo_tokenize::WhitespaceTokenizer;
 use turbo_train::{Key as ParamKey, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::doccat::train_doccat;
-use turbo_train_components::testsupport::DocumentReader;
 
 fn parse_samples(corpus: &str) -> Vec<DocumentSample<'_>> {
     DocumentReader::new(corpus).unwrap().map(|r| r.expect("valid sample")).collect()

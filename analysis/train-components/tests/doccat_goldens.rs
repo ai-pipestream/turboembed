@@ -21,9 +21,12 @@
 //! checked without the corpus, in `turbo-doccat`'s `tests/maxent_goldens.rs`.
 
 mod common;
+#[path = "../src/testsupport.rs"]
+mod testsupport;
 
 use std::path::Path;
 
+use crate::testsupport::DocumentReader;
 use common::{config, golden_files, java_string, layer};
 use turbo_analysis::{Analyzer, Document, Key};
 use turbo_analysis_layers::{Categories, Tokens};
@@ -41,7 +44,6 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Key as Param, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::doccat::train_doccat;
-use turbo_train_components::testsupport::DocumentReader;
 
 /// The command that writes the goldens.
 const GENERATE: &str = "cargo run -p turbo-goldens-tool -- generate";

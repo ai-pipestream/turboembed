@@ -14,9 +14,12 @@
 //! and probabilities, bit for bit.
 
 mod common;
+#[path = "../src/testsupport.rs"]
+mod testsupport;
 
 use std::path::Path;
 
+use crate::testsupport::DocumentReader;
 use common::{config, describe_difference, golden_files, java_string, layer};
 use turbo_analysis::{Analyzer, Document, Key};
 use turbo_analysis_layers::{Categories, Tokens};
@@ -31,7 +34,6 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Event, Key as Param, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::sentiment::{sentiment_events, train_sentiment_model};
-use turbo_train_components::testsupport::DocumentReader;
 
 /// The command that writes the goldens.
 const GENERATE: &str = "cargo run -p turbo-goldens-tool -- generate";

@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports)]
+
 //! Readers for the OpenNLP line sample formats the training fixtures use.
 //!
 //! The stripped corpus crate no longer ships these, so the training tests
@@ -8,9 +10,13 @@
 
 use turbo_formats::Piece;
 
+#[path = "testsupport/columns.rs"]
 mod columns;
+#[path = "testsupport/name.rs"]
 mod name;
+#[path = "testsupport/simple.rs"]
 mod simple;
+#[path = "testsupport/spans.rs"]
 mod spans;
 
 pub use columns::{ChunkReader, LemmaReader};

@@ -8,6 +8,7 @@ annotator	opennlp.tools.tokenize.TokSpanEventStream	read
 config	alphaNumericPattern	^[A-Za-z0-9]+$
 config	format	conllu
 config	language	en
+config	provenance	Rust regeneration; opennlp and jdk records are required legacy schema metadata for the former comparison environment
 config	run	tokenize-conllu
 config	source	tokenize
 config	useAlphaNumericOptimization	false

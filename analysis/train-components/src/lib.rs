@@ -159,6 +159,7 @@ pub mod postag;
 pub mod sentdetect;
 pub mod sentiment;
 pub mod tagdict;
+#[cfg(test)]
 pub mod testsupport;
 pub mod tokenize;
 

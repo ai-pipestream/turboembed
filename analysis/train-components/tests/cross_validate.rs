@@ -9,9 +9,12 @@
 //! `langdetect-cutoff1` over `inputs/langdetect/samples.txt`, 3 folds each.
 
 mod common;
+#[path = "../src/testsupport.rs"]
+mod testsupport;
 
 use std::path::Path;
 
+use crate::testsupport::{LanguageReader, NameReader};
 use common::{golden_files, layer};
 use turbo_formats::{LanguageSample, NameSample};
 use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape, data_dir};
@@ -22,7 +25,6 @@ use turbo_train_components::langdetect::{
     LanguageCrossValidation, LanguageDetectorCrossValidator, LanguageDetectorFactory, default_training_parameters,
 };
 use turbo_train_components::namefind::{NameCrossValidation, TokenNameFinderCrossValidator, TokenNameFinderFactory};
-use turbo_train_components::testsupport::{LanguageReader, NameReader};
 
 const fn col(name: &'static str, ty: ColumnType) -> ColumnSpec {
     ColumnSpec::new(name, ty)

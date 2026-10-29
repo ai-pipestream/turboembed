@@ -1,4 +1,8 @@
 //! The #427 sentence-clear option must not repartition MASC documents.
+#[path = "../src/testsupport.rs"]
+mod testsupport;
+
+use crate::testsupport::NameReader;
 use turbo_formats::evaluate::{CrossValidation, NameFinderEvaluator};
 use turbo_formats::{Name, NameSample};
 use turbo_maxent::ModelFile;
@@ -10,7 +14,6 @@ use turbo_train_components::namefind::cross_validate::documents;
 use turbo_train_components::namefind::{
     MODEL_ENTRY, NameEventStream, TokenNameFinderCrossValidator, TokenNameFinderFactory, train_name_model_from_events,
 };
-use turbo_train_components::testsupport::NameReader;
 
 fn params() -> TrainingParameters {
     let mut params = TrainingParameters::new();

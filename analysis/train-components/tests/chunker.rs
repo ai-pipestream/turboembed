@@ -10,9 +10,12 @@
 //! the manifest without its timestamp and the zip entries.
 
 mod common;
+#[path = "../src/testsupport.rs"]
+mod testsupport;
 
 use std::path::Path;
 
+use crate::testsupport::ChunkReader;
 use turbo_formats::{ChunkSample, FormatError};
 use turbo_goldens::{Golden, data_dir};
 use turbo_maxent::Properties;
@@ -21,7 +24,6 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::params::Key;
 use turbo_train::{Event, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::chunk::{self, ChunkerFactory, train_chunker_model};
-use turbo_train_components::testsupport::ChunkReader;
 use turbo_train_components::{Error, Stamp, postag};
 use turbo_zoo::Sha256;
 

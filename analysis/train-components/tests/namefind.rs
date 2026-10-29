@@ -17,10 +17,13 @@
 //!   names with the same probabilities.
 
 mod common;
+#[path = "../src/testsupport.rs"]
+mod testsupport;
 
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::testsupport::NameReader;
 use turbo_formats::{FormatError, NameSample};
 use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape, data_dir};
 use turbo_maxent::{JavaString, ModelFile, Properties};
@@ -30,7 +33,6 @@ use turbo_train::event::checksum;
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Event, Key, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::namefind::{self, NameEventStream, TokenNameFinderFactory, train_name_model};
-use turbo_train_components::testsupport::NameReader;
 use turbo_train_components::{Error, Stamp};
 
 const fn col(name: &'static str, ty: ColumnType) -> ColumnSpec {
