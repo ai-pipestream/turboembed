@@ -1,48 +1,25 @@
-//! Errors returned when opening, configuring, or training a document
-//! categorizer model.
+//! Errors returned when configuring or parsing document categorizer feature
+//! generators.
 
 use std::fmt;
 
-#[cfg(feature = "classical")]
-use turbo_maxent::JavaString;
-
-/// Why a document categorizer model or feature generator could not be
-/// built, opened, or trained.
-#[derive(Debug)]
+/// Why a document categorizer feature generator or configuration could not be
+/// built or parsed.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DoccatError {
-    /// The archive's `Component-Name` is not `DocumentCategorizerME`.
-    Component(String),
-    /// The archive's `factory` is not `opennlp.tools.doccat.DoccatFactory`.
-    Factory(String),
-    /// The archive's `doccat.featureGenerators` names an unknown feature
-    /// generator class.
+    /// A feature generator specification names an unknown generator class or
+    /// malformed parameter list.
     UnknownFeatureGenerator(String),
     /// `NGramFeatureGenerator` was configured with `min_gram == 0` or
     /// `min_gram > max_gram`.
     InvalidNGramRange { min_gram: usize, max_gram: usize },
-    /// Reading `doccat.model` failed.
-    #[cfg(feature = "classical")]
-    Maxent(turbo_maxent::Error),
-    /// An outcome in `doccat.model` contains lone UTF-16 surrogates and is
-    /// not valid UTF-8 text.
-    #[cfg(feature = "classical")]
-    OutcomeNotText(JavaString),
-    /// Indexing training events failed, or a training parameter is invalid.
-    #[cfg(feature = "classical")]
-    Train(turbo_train::Error),
 }
 
 impl fmt::Display for DoccatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DoccatError::Component(c) => {
-                write!(f, "expected Component-Name DocumentCategorizerME, got {c:?}")
-            }
-            DoccatError::Factory(fac) => {
-                write!(f, "unsupported DoccatModel factory {fac:?}")
-            }
             DoccatError::UnknownFeatureGenerator(cls) => {
-                write!(f, "unsupported doccat feature generator class {cls:?}")
+                write!(f, "unsupported doccat feature generator specification {cls:?}")
             }
             DoccatError::InvalidNGramRange { min_gram, max_gram } => {
                 write!(
@@ -50,40 +27,8 @@ impl fmt::Display for DoccatError {
                     "invalid NGramFeatureGenerator range: min_gram ({min_gram}) must be >= 1 and <= max_gram ({max_gram})"
                 )
             }
-            #[cfg(feature = "classical")]
-            DoccatError::Maxent(e) => write!(f, "{e}"),
-            #[cfg(feature = "classical")]
-            DoccatError::OutcomeNotText(o) => {
-                write!(f, "category outcome {o} is not valid UTF-8 text")
-            }
-            #[cfg(feature = "classical")]
-            DoccatError::Train(e) => write!(f, "{e}"),
         }
     }
 }
 
-impl std::error::Error for DoccatError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            #[cfg(feature = "classical")]
-            DoccatError::Maxent(e) => Some(e),
-            #[cfg(feature = "classical")]
-            DoccatError::Train(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "classical")]
-impl From<turbo_maxent::Error> for DoccatError {
-    fn from(e: turbo_maxent::Error) -> Self {
-        DoccatError::Maxent(e)
-    }
-}
-
-#[cfg(feature = "classical")]
-impl From<turbo_train::Error> for DoccatError {
-    fn from(e: turbo_train::Error) -> Self {
-        DoccatError::Train(e)
-    }
-}
+impl std::error::Error for DoccatError {}

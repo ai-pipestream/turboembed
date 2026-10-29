@@ -3,19 +3,13 @@
 `turbo-doccat` (`analysis/doccat/`) implements document, chunk, block, and
 sentence categorization, zero-shot natural-language-inference (NLI)
 classification, intra-document claim verification, probability calibration, and
-the lexicon, rule, and vector-head sentiment suite described in
-[sentiment.md](sentiment.md). The OpenNLP `DocumentCategorizerME` and
-`SentimentME` archive constructors are disabled under #1511; their
-training/archive and JVM parity tests are no longer current acceptance coverage,
-and downloading a `.bin` model does not enable those paths.
+the lexicon, rule, and vector-head sentiment and polarity suite described in
+[sentiment.md](sentiment.md).
 
 ## Architecture and module layout
 
-`turbo_doccat::scorers` has no direct imports of classical linear-model types
-(`turbo-maxent` remains an optional direct dependency behind `classical` and a
-transitive dependency via `turbo-formats`, `turbo-sequence`, and `turbo-train`
-pending the deletion work in `#1532`). The crate is organized around typed
-layers in `turbo-analysis-layers` and backend-agnostic scorer traits:
+The crate is organized around typed layers in `turbo-analysis-layers` and
+backend-agnostic scorer traits:
 
 - **Shared category layer (`Categories`, `SpanCategorizable`)**:
   `Categories` (`turbo:categories`) stores the ranked category distribution for
@@ -23,12 +17,17 @@ layers in `turbo-analysis-layers` and backend-agnostic scorer traits:
   `Categories<Chunks>` store one category distribution per sentence, structure
   block, or retrieval chunk.
 - **Vector-scorer traits (`turbo_doccat::scorers`)**:
-  `PragmaticsVectorScorer`, `EmotionVectorScorer`, `IncivilityVectorScorer`, and
-  `AspectCategoryScorer` decouple rule and lexicon annotators from the neural
-  embedding heads in `turbo-analysis-embed`, and re-export the sentiment and
-  pragmatics layer types (`Opinions`, `Aspects`, `EmotionLayer`, `Incivility`,
-  `Pragmatics`) with no direct imports of `SentimentModel`, `SentimentMe`, or
-  `turbo-maxent`.
+  `PolarityVectorScorer`, `PragmaticsVectorScorer`, `EmotionVectorScorer`,
+  `IncivilityVectorScorer`, and `AspectCategoryScorer` decouple rule and lexicon
+  annotators from the neural embedding heads in `turbo-analysis-embed`, and
+  re-export the sentiment and pragmatics layer types (`Opinions`, `Aspects`,
+  `EmotionLayer`, `Incivility`, `Pragmatics`, `Polarity`, `PolarityScores`).
+- **Document and sentence polarity (`turbo_doccat::sentiment::polarity`)**:
+  `PolarityAnnotator` (`turbo-doccat:polarity`) and
+  `SentencePolarityAnnotator` (`turbo-doccat:sentence-polarity`) score
+  `positive`, `negative`, and `neutral` polarity across `Lexicon`, `Learned`,
+  and `Hybrid` stages using `LexiconSentiment` and `PolarityVectorHead` (trained
+  with `turbo-trainer`).
 - **Multi-label linear categorization (`turbo_doccat::multilabel`)**:
   one-vs-rest linear heads (`MultiLabelDoccatModel`, `MultiLabelCategorizer`,
   `MultiLabelSpanCategorizer`) with per-label threshold calibration
@@ -47,15 +46,11 @@ layers in `turbo-analysis-layers` and backend-agnostic scorer traits:
   `selection`, `calibrated`)**:
   `BagOfWordsFeatureGenerator`, `NGramFeatureGenerator`,
   `EmojiFeatureGenerator`, chi-square and mutual-information feature selection
-  (`SelectionMetric::Chi2`, `SelectionMetric::MutualInformation`), and post-hoc
-  probability calibration (`CalibratedCategorizer` over
-  `turbo_calibration::Transform::{Temperature, Isotonic}` and
+  (`FeatureSelection`, `SelectionMetric::Chi2`,
+  `SelectionMetric::MutualInformation`), and post-hoc probability calibration
+  (`CalibratedCategorizer` over
+  `turbo_calibration::Transform::{Temperature, Platt, Isotonic}` and
   `turbo_calibration::metrics::reliability`).
-- **Classical single-label categorizers (`classical` Cargo feature, off by
-  default)**:
-  `DocumentCategorizerME`, `DoccatModel`, `SpanCategorizer`, `SvmCategorizer`,
-  and `SvmDoccatModel` are gated behind the off-by-default `classical` feature
-  pending the replacements in `#1526` and removal of `turbo-maxent` in `#1532`.
 
 ## Multi-label categorization (`MultiLabelDoccatModel`)
 
@@ -223,30 +218,15 @@ transformer model (`DlSequenceScorer`):
   `NGramFeatureGenerator` (`ng=:<t_1>:...:<t_k>`), and `EmojiFeatureGenerator`
   (`emoji=<token>`).
 - **Feature selection (`turbo_doccat::selection`)**:
-  `SelectionConfig`, `select_features`, and `rank_features` rank candidate
-  features by `SelectionMetric::Chi2` or `SelectionMetric::MutualInformation`
-  before model fitting, tested in `analysis/doccat/src/selection.rs`.
-- **Probability calibration (`turbo_doccat::calibrated`)**:
-  `CalibratedCategorizer` wraps single-label probability distributions with
-  `turbo_calibration::Calibration` (`Transform::Temperature`,
-  `Transform::Isotonic`, `Transform::Platt`, or `Transform::Identity`, fitted via
-  `turbo_train::calibration`), accompanied by
-  `turbo_calibration::metrics::reliability` returning `Reliability` (`ece` and
-  `brier`). Tested in `analysis/doccat/tests/calibrated.rs`.
+  `FeatureSelection` and `SelectedFeatures` rank candidate features over
+  `FeatureDocument` instances by `SelectionMetric::Chi2` or
+  `SelectionMetric::MutualInformation` before model fitting, tested in
+  `analysis/doccat/src/selection.rs` and `analysis/doccat/tests/selection.rs`.
+- **Probability calibration and provenance evidence (`turbo_doccat::calibrated`)**:
+  `CalibratedCategorizer` wraps any `CalibratableCategorizer` (`PolarityAnnotator`
+  or `DocumentCategorizerDL`) with `turbo_calibration::Calibration`
+  (`Transform::Temperature`, `Transform::Isotonic`, or `Transform::Platt`),
+  accompanied by `turbo_calibration::metrics::reliability` returning
+  `Reliability` (`ece` and `brier`). Tested in
+  `analysis/doccat/tests/calibrated.rs` and `analysis/doccat/tests/evidence.rs`.
 
-## Classical single-label categorizers (`classical` feature)
-
-`DocumentCategorizerME`, `DoccatModel`, `SpanCategorizer`, `SvmCategorizer`, and
-`SvmDoccatModel` are behind the off-by-default `classical` Cargo feature
-(`cargo test -p turbo-doccat --features classical`):
-
-- `DocumentCategorizerME` and `SpanCategorizer<L>` evaluate a linear
-  `DoccatModel` over `DoccatContextGenerator` features to produce `Categories`
-  or `Categories<L>`, with per-token weight attribution tested in
-  `analysis/doccat/tests/categorizer.rs` and
-  `analysis/doccat/tests/evidence.rs`.
-- `SvmCategorizer` and `SvmDoccatModel` score sparse bag-of-words and n-gram
-  feature vectors with term weighting (`Binary`, `TermFrequency`, `TfIdf`,
-  `LogNormalizedTf`), min-max feature scaling, linear/polynomial/RBF/sigmoid
-  kernels, and pairwise Platt probability coupling, tested in
-  `analysis/doccat/tests/libsvm.rs`.

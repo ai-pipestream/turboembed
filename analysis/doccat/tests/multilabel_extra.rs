@@ -129,7 +129,7 @@ fn version_one_entries_still_open() {
     head(&mut out, "sports", 0.5, -1.0, "bow=team", 4.0);
     head(&mut out, "finance", 0.5, -2.0, "bow=stock", 4.5);
     head(&mut out, "weather", 0.5, -1.5, "bow=rain", 3.0);
-    let crc = turbo_train::crc32c(&out);
+    let crc = turbo_doccat::multilabel::crc32c(&out);
     out.extend_from_slice(&crc.to_be_bytes());
 
     let opened = MultiLabelDoccatModel::open(&out).unwrap();
@@ -308,8 +308,6 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
     use std::collections::BTreeMap;
     use std::sync::Arc;
     use turbo_doccat::features::PatternMode;
-    #[cfg(feature = "classical")]
-    use turbo_doccat::multilabel::package_multilabel_model;
     use turbo_doccat::multilabel::{MultiLabelSample, MultiLabelTrainingParameters, train_multilabel};
     use turbo_doccat::{DoccatFactory, DoccatFeatureGenerator, NGramFeatureGenerator};
 
@@ -358,11 +356,6 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
     let custom_cg = DoccatContextGenerator::from_custom(vec![Arc::new(CustomGen)]);
     let with_custom = trained.with_context_generator(custom_cg.clone());
     assert!(with_custom.write().is_err(), "write must fail when custom generators are present");
-    #[cfg(feature = "classical")]
-    assert!(
-        package_multilabel_model(&with_custom, 1_700_000_000_000).is_err(),
-        "package_multilabel_model must fail when custom generators are present"
-    );
     assert!(
         !with_custom.model_ref().sha256.is_empty(),
         "in-memory custom-generator models must still record a non-empty provenance sha256"

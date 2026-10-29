@@ -4,39 +4,29 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "Document categorization, sentiment, emotion, incivility, aspect, and pragmatics annotators"
+description = "Document categorization, sentiment, polarity, emotion, incivility, aspect, and pragmatics annotators"
 
 [lib]
 name = "turbo_doccat"
 
-[features]
-default = []
-classical = ["dep:turbo-maxent", "dep:turbo-jvm"]
-
 [[example]]
 name = "calibration_deployment"
-required-features = ["classical"]
 
 [[example]]
 name = "calibration_timing"
-required-features = ["classical"]
 
 [dependencies]
 turbo-calibration = { path = "../calibration" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
-turbo-formats = { path = "../formats" }
 turbo = { path = "../../core" }
-turbo-jvm = { path = "../jvm", optional = true }
-turbo-maxent = { path = "../maxent", optional = true }
 turbo-normalize = { path = "../normalize" }
 turbo-normalize-layers = { path = "../normalize-layers" }
 turbo-sequence = { path = "../sequence" }
 turbo-sha256 = { path = "../sha256" }
-turbo-train = { path = "../train" }
+turbo-trainer = { path = "../../trainer" }
 turbo-unicode = { path = "../unicode" }
 turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
-turbo-goldens = { path = "../goldens" }
 turbo-zoo = { path = "../zoo" }

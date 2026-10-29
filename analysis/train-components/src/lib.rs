@@ -147,7 +147,6 @@
 
 pub mod chunk;
 pub mod dictionary;
-pub mod doccat;
 pub mod error;
 pub mod java_hash;
 pub mod langdetect;
@@ -157,13 +156,11 @@ pub mod package;
 pub mod parser;
 pub mod postag;
 pub mod sentdetect;
-pub mod sentiment;
 pub mod tagdict;
 pub mod tokenize;
 
 pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
 pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
-pub use doccat::{TrainedDoccatModel, train_doccat};
 pub use error::{Error, Result};
 pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_events, train_language_model};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
@@ -172,7 +169,6 @@ pub use package::Stamp;
 pub use parser::{ParserCrossValidator, ParserEvaluator, ParserTrainingParameters, train_parser};
 pub use postag::{PosEventStream, PosTaggerFactory, pos_events, train_pos_model};
 pub use sentdetect::{SdEventStream, SentenceDetectorFactory, sd_events, train_sentence_model};
-pub use sentiment::{SentimentEventStream, sentiment_events, train_sentiment_model};
 pub use tagdict::PosDictionary;
 pub use tokenize::{TokSpanEventStream, TokenizerFactory, tok_events, train_tokenizer_model};
 

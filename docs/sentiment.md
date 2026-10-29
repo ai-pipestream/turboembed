@@ -2,26 +2,34 @@
 
 `turbo-doccat` (`analysis/doccat/`) and `turbo-analysis-embed`
 (`analysis/embed/`) implement polarity, aspect, emotion, incivility, and
-pragmatics analysis across lexicon, rule, and vector-head stages. The OpenNLP
-`SentimentME` archive loader and its JVM training comparisons are disabled under
-#1511; no current recipe should train an OpenNLP archive or fetch one to enable
-sentiment:
+pragmatics analysis across lexicon, rule, and vector-head stages:
 
 - **Scorer traits and layer types (`turbo_doccat::scorers`)**:
-  `PragmaticsVectorScorer`, `EmotionVectorScorer`, `IncivilityVectorScorer`, and
-  `AspectCategoryScorer` define the vector-head interfaces and re-export the
-  sentiment and pragmatics layers (`Opinions`, `Aspects`, `EmotionLayer`,
-  `Incivility`, `Pragmatics`) with no direct module imports of `SentimentModel`,
-  `SentimentMe`, or `turbo-maxent` (while crate-level transitive paths via
-  `turbo-formats`, `turbo-sequence`, and `turbo-train` remain pending the
-  deletion work in `#1532`).
+  `PolarityVectorScorer`, `PragmaticsVectorScorer`, `EmotionVectorScorer`,
+  `IncivilityVectorScorer`, and `AspectCategoryScorer` define the vector-head
+  interfaces and re-export the sentiment and pragmatics layers (`Opinions`,
+  `Aspects`, `EmotionLayer`, `Incivility`, `Pragmatics`, `Polarity`,
+  `PolarityScores`).
+- **Learned and hybrid polarity classification (`PolarityAnnotator`,
+  `SentencePolarityAnnotator`, and `PolarityVectorHead`, `#1526`)**:
+  `PolarityVectorHead` (`analysis/doccat/src/sentiment/polarity/`) is a
+  three-class (`positive`, `negative`, `neutral`) dense linear head (`TPVH` v1)
+  trained end to end with `turbo-trainer` (`AdamW`, `linear::forward`,
+  `linear::backward`, `xent::loss`, and `Rng`) with validation early stopping
+  and majority-baseline gating (`evaluate_polarity`, `majority_baseline`).
+  `PolarityAnnotator` (`turbo-doccat:polarity`) writes document-level
+  `Categories` (bound to `SENTIMENT`) and `SentencePolarityAnnotator`
+  (`turbo-doccat:sentence-polarity`) writes `(Opinions, Categories<Sentences>)`
+  (bound to `SENTENCE_SENTIMENT`) across `PolarityStage::{Lexicon, Learned,
+  Hybrid}`.
 - **Lexicon and dependency-negation polarity (`LexiconSentiment`)**:
   VADER valence scoring with three-token window or dependency-tree negation,
   producing token-level `Opinions` (`turbo:opinions`) and sentence-level
   `Categories<Sentences>` (`turbo:categories`).
 - **Embedding classifier heads and label centroids (`turbo_analysis_embed`)**:
   `LabelCentroids` (`TCENT001`) and 1-layer/2-layer `ClassifierHead` (`THEAD001`)
-  scoring sentence, chunk, opinion, and aspect embeddings.
+  scoring sentence, chunk, opinion, and aspect embeddings (and implementing
+  `PolarityVectorScorer` for `ClassifierHead`).
 - **Sarcasm and irony (`PragmaticsAnnotator`)**:
   combines surface positive/negative incongruity rules, text-against-emoji
   polarity mismatch, and a `PragmaticsVectorScorer` sentence head into
@@ -46,15 +54,11 @@ sentiment:
   scores polarity, aspect, and incivility shifts across sentence gaps into
   `Boundaries` (`SENTIMENT` instance) and summarizes per-chunk facets in
   `ChunkFacets` (`turbo:chunk-facets`).
-- **Classical token-context sentiment (`SentimentMe`, `classical` feature)**:
-  gated behind the off-by-default `classical` Cargo feature pending `#1526` and
-  `#1532`.
 
 Dataset, lexicon and checkpoint permissions remain recorded in the
 [complex sentiment licence audit](licences.md#complex-sentiment-licence-audit-326).
 It distinguishes shipped material, local evaluation and candidates awaiting
-source permissions. Historical maxent parity results do not establish native
-head accuracy.
+source permissions.
 
 ## Lexicon and negation sentiment baseline (`LexiconSentiment`, #320)
 
