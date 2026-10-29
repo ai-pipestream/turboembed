@@ -1,6 +1,7 @@
 //! Token samples: `opennlp.tools.tokenize.TokenSample`.
 
 use std::borrow::Cow;
+use std::fmt;
 
 use turbo_analysis::Span;
 
@@ -34,8 +35,11 @@ impl Default for SplitMarker<'static> {
 
 /// A text and the tokens in it.
 ///
-/// The text is the sample's own. Each token has its span in that text and
-/// the span of the source it came from.
+/// The text is the sample's own: the token format writes the tokens of
+/// a line with a space after each run of joined tokens (so the text ends
+/// with a space), and a converted sample rebuilds it with a detokenizer.
+/// Each token has its span in that text and the span of the source it
+/// came from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TokenSample<'a> {
     text: Cow<'a, str>,
@@ -93,5 +97,27 @@ impl<'a> TokenSample<'a> {
     /// The text of token `i`.
     pub fn token(&self, i: usize) -> &str {
         &self.text[self.tokens[i].range()]
+    }
+
+    /// `TokenSample.toString` with another marker than `<SPLIT>`.
+    pub fn write_with(&self, marker: SplitMarker<'_>, out: &mut impl fmt::Write) -> fmt::Result {
+        let mut last_end: Option<u32> = None;
+        for &span in &self.tokens {
+            if let Some(end) = last_end {
+                out.write_str(if end == span.start { marker.as_str() } else { " " })?;
+            }
+            out.write_str(&self.text[span.range()])?;
+            last_end = Some(span.end);
+        }
+        Ok(())
+    }
+}
+
+/// `TokenSample.toString`, the token format's line: the tokens in order,
+/// separated by `<SPLIT>` where one ends where the next starts and by a
+/// space otherwise, whatever the text holds between them.
+impl fmt::Display for TokenSample<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.write_with(SplitMarker::default(), f)
     }
 }

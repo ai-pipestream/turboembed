@@ -35,7 +35,7 @@ use std::sync::Arc;
 use turbo_analysis::Span;
 use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, Scoring, Task};
 use turbo_formats::evaluate::{SentenceDetectorEvaluator, TokenizerEvaluator};
-use turbo_formats::masc::{MascCorpus, MascSentenceReader, MascTokenReader};
+use turbo_formats::masc::{EmptySentence, MascCorpus, MascSentenceReader, MascTokenReader};
 use turbo_formats::sample::{SentenceSample, TokenSample};
 use turbo_maxent::ModelFile;
 use turbo_sentdetect::{SentenceDetector, SentenceModel};
@@ -166,7 +166,7 @@ pub fn read_token_samples<'c>(
     corpus: &'c MascCorpus,
     mut each: impl FnMut(TokenSample<'c>) -> Result<()>,
 ) -> Result<usize> {
-    let mut reader = MascTokenReader::new(corpus)?;
+    let mut reader = MascTokenReader::with_empty_sentences(corpus, EmptySentence::Skipped)?;
     let mut out_of_order = 0;
     while let Some(read) = reader.read()? {
         if in_text_order(read.sample.tokens()) {

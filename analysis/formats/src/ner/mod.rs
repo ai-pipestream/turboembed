@@ -1,26 +1,24 @@
-//! Named-entity corpus readers: GermEval 2014, BioNLP 2004, Evalita 2007,
-//! brat, WNUT-17, MultiCoNER v2, LitBank and the 1990 US Census lists.
+//! The named entity corpora OpenNLP reads besides CoNLL: GermEval 2014,
+//! BioNLP 2004 (JNLPBA), Evalita 2007, MUC-6 and brat names, and the 1990
+//! US Census surname lists.
 //!
-//! | Corpus | Reader |
-//! |---|---|
-//! | GermEval 2014 | [`GermEvalReader`] |
-//! | BioNLP 2004 | [`BioNlpReader`] |
-//! | Evalita 2007 | [`EvalitaReader`] |
-//! | 1990 US Census surnames | [`CensusReader`]: it reads names for a dictionary, not samples |
-//! | brat standoff | [`brat::BratParser`], [`brat::BratSamples`] for a directory |
-//!
-//! Three kept corpora (#1533) have readers here with no OpenNLP stream
-//! behind them: WNUT-17 ([`WnutReader`]), MultiCoNER v2
-//! ([`MulticonerReader`]) and LitBank ([`LitBankReader`]). Their formats
-//! are pinned in each reader's documentation, and their errors carry no
-//! JVM message.
+//! | Corpus | Reader | OpenNLP | Registry name |
+//! |---|---|---|---|
+//! | GermEval 2014 | [`GermEvalReader`] | `GermEval2014NameSampleStream` | `germeval2014` ([`GermEvalNames`]) |
+//! | BioNLP 2004 | [`BioNlpReader`] | `BioNLP2004NameSampleStream` | `bionlp2004` ([`BioNlpNames`]) |
+//! | Evalita 2007 | [`EvalitaReader`] | `EvalitaNameSampleStream` | `evalita` ([`EvalitaNames`]) |
+//! | 1990 US Census surnames | [`CensusReader`] | `NameFinderCensus90NameStream` | none: it reads names for a dictionary, not samples |
+//! | MUC-6 | [`MucReader`], [`MucSamples`] for a directory | `MucNameSampleStream` | `muc6` ([`Muc6Names`], one file) |
+//! | brat standoff | [`brat::BratParser`], [`brat::BratSamples`] for a directory | `BratNameSampleStream` | none: a corpus is a directory of files |
 //!
 //! The readers take decoded text ([`crate::decode`]); OpenNLP reads each of
 //! these corpora as UTF-8, and the census lists in the encoding the
 //! dictionary tool is given (UTF-8 unless told otherwise). Tokens are
-//! fields of the text with their byte spans. brat text is split into
-//! tokens by a tokenizer ([`TokenSpans`], [`RuleTokenizer`]) and sentences
-//! ([`SentenceSpans`], [`NewlineSentences`]).
+//! fields of the text with their byte spans. MUC-6 and brat text is split
+//! into tokens by a tokenizer ([`TokenSpans`], [`RuleTokenizer`]) and brat
+//! text into sentences ([`SentenceSpans`], [`NewlineSentences`]); the
+//! [`MucReader`] and [`brat`] documentation lists what OpenNLP does
+//! with them.
 //!
 //! The three tagged corpora have a sentence per block of lines, ended by
 //! an empty line, a word per line and a name tag per word. A name starts
@@ -71,8 +69,11 @@ mod bionlp;
 pub mod brat;
 mod census;
 mod evalita;
+mod formats;
 mod germeval;
 mod litbank;
+mod litbank_coref;
+mod muc;
 mod multiconer2;
 mod tokens;
 mod wnut17;
@@ -84,24 +85,44 @@ use turbo_analysis::Span;
 pub use bionlp::{BioNlpReader, BioNlpTypes};
 pub use census::CensusReader;
 pub use evalita::{EvalitaLanguage, EvalitaReader, EvalitaTypes};
+pub use formats::{BioNlpNames, EvalitaNames, GermEvalNames, Muc6Names};
 pub use germeval::{GermEvalLayer, GermEvalReader, GermEvalTypes};
-pub use litbank::{LITBANK_TYPES, LitBankError, LitBankReader};
+pub use litbank::{LITBANK_TYPES, LitbankReader};
+pub use litbank_coref::{CorefToken, LitbankCorefDocument, LitbankCorefReader, Mention};
+pub use muc::{MUC_TYPES, MUC6_FORMAT, MucReader, MucSamples, muc_files};
 pub use multiconer2::{MULTICONER_TYPES, MulticonerReader};
 pub use tokens::{NewlineSentences, RuleTokenizer, SentenceSpans, TokenSpans};
-pub use wnut17::{WNUT17_TYPES, WnutError, WnutReader};
+pub use wnut17::{Wnut17Reader, Wnut17Types};
 
 use crate::error::FormatError;
 use crate::ner::brat::BratCause;
 use crate::sample::{Name, NameSample};
 use crate::source::{Field, Line};
 
-/// What a reader of a named entity corpus refuses.
+/// The registry name of the GermEval 2014 format.
+pub const GERMEVAL_FORMAT: &str = "germeval2014";
+
+/// The registry name of the BioNLP 2004 format.
+pub const BIONLP_FORMAT: &str = "bionlp2004";
+
+/// The registry name of the Evalita format.
+pub const EVALITA_FORMAT: &str = "evalita";
+
+/// What a reader of a named entity corpus refuses. `Display` is the
+/// message of the exception OpenNLP throws, and [`NerError::java_class`]
+/// its class.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NerError {
     /// A GermEval line with fewer than four tab-separated fields (after
     /// `StringUtil.split` drops the empty fields at its end). `count` is
     /// the number of fields and `text` the line.
     GermEvalFields { line: u32, count: usize, text: String },
+    /// A WNUT-17 line without exactly two tab-separated fields.
+    Wnut17Fields { line: u32, count: usize, text: String },
+    /// A LitBank CoNLL coreference line with too few fields.
+    LitbankCorefFields { line: u32, count: usize, text: String },
+    /// A LitBank CoNLL coreference chain id that is not a number.
+    LitbankCorefChain { line: u32, text: String },
     /// A BioNLP line without exactly two tab-separated fields.
     BioNlpFields { line: u32, count: usize, text: String },
     /// An Evalita line without exactly four space-separated fields.
@@ -109,6 +130,21 @@ pub enum NerError {
     /// A census line that starts with a space: the name before it is
     /// empty and `substring(0, 1)` throws.
     EmptyCensusName { line: u32 },
+    /// A `<` inside a MUC tag.
+    MucUnexpectedOpen { line: u32 },
+    /// A `>` outside a MUC tag.
+    MucUnexpectedClose { line: u32 },
+    /// A MUC tag still open at the end of the file; `line` is where it
+    /// starts.
+    MucUnclosedTag { line: u32 },
+    /// A MUC name element without a `TYPE` value: the stream asks the set
+    /// of types whether it holds null, which throws.
+    MucMissingType { line: u32 },
+    /// A MUC name element whose `TYPE` is not one of [`MUC_TYPES`].
+    MucUnknownType { line: u32, kind: String },
+    /// The end tag of a MUC name element with no name open: the stream
+    /// pops an empty stack.
+    MucUnopenedName { line: u32 },
     /// A line of a brat annotation file that a parser refuses, which the
     /// stream wraps in an `IOException` naming the document `file` (its
     /// path without `.ann`); `cause` is what the parser threw.
@@ -133,6 +169,28 @@ pub enum NerError {
 }
 
 impl NerError {
+    /// The class of the exception OpenNLP throws in the same place.
+    pub fn java_class(&self) -> &'static str {
+        use NerError::*;
+        match self {
+            GermEvalFields { .. } | BioNlpFields { .. } | EvalitaFields { .. } => "java.io.IOException",
+            Wnut17Fields { .. } | LitbankCorefFields { .. } | LitbankCorefChain { .. } => {
+                "java.lang.IllegalArgumentException"
+            }
+            EmptyCensusName { .. } => "java.lang.StringIndexOutOfBoundsException",
+            MucUnexpectedOpen { .. } | MucUnexpectedClose { .. } | MucUnclosedTag { .. } | MucUnknownType { .. } => {
+                "opennlp.tools.util.InvalidFormatException"
+            }
+            MucMissingType { .. } => "java.lang.NullPointerException",
+            MucUnopenedName { .. } => "java.util.EmptyStackException",
+            BratAnnotation { .. } => "java.io.IOException",
+            BratIndex { .. } | BratConfigNoType { .. } => "java.lang.ArrayIndexOutOfBoundsException",
+            BratSpan { .. } | BratNoNameTypes => "java.lang.IllegalArgumentException",
+            BratOverlappingNames { .. } => "java.lang.RuntimeException",
+            BratConfigNoSection { .. } => "java.lang.NullPointerException",
+        }
+    }
+
     /// The source line the error is on.
     pub fn line(&self) -> Option<u32> {
         use NerError::*;
@@ -140,7 +198,16 @@ impl NerError {
             GermEvalFields { line, .. }
             | BioNlpFields { line, .. }
             | EvalitaFields { line, .. }
+            | Wnut17Fields { line, .. }
+            | LitbankCorefFields { line, .. }
+            | LitbankCorefChain { line, .. }
             | EmptyCensusName { line }
+            | MucUnexpectedOpen { line }
+            | MucUnexpectedClose { line }
+            | MucUnclosedTag { line }
+            | MucMissingType { line }
+            | MucUnknownType { line, .. }
+            | MucUnopenedName { line }
             | BratAnnotation { line, .. }
             | BratIndex { line, .. }
             | BratSpan { line, .. }
@@ -162,8 +229,27 @@ impl fmt::Display for NerError {
             BioNlpFields { count, text, .. } => {
                 write!(f, "Expected two fields per line in training data, got {count} for line '{text}'!")
             }
+            Wnut17Fields { count, text, .. } => {
+                write!(f, "Expected two tab-separated fields per line in WNUT-17 data, got {count} for line '{text}'!")
+            }
+            LitbankCorefFields { count, text, .. } => {
+                write!(
+                    f,
+                    "Expected at least twelve tab-separated fields per line in LitBank CoNLL data, got {count} for line '{text}'!"
+                )
+            }
+            LitbankCorefChain { text, .. } => {
+                write!(f, "Invalid LitBank coreference chain id: '{text}'!")
+            }
             EvalitaFields { text, .. } => write!(f, "Incorrect number of fields per line for language: '{text}'!"),
             EmptyCensusName { .. } => f.write_str("Range [0, 1) out of bounds for length 0"),
+            MucUnexpectedOpen { .. } => f.write_str("Did not expect < char!"),
+            MucUnexpectedClose { .. } => f.write_str("Did not expect > char!"),
+            MucUnclosedTag { .. } => f.write_str("Did not find matching > char!"),
+            MucMissingType { .. } | MucUnopenedName { .. } => Ok(()),
+            MucUnknownType { kind, .. } => {
+                write!(f, "Unknown timex, numex or namex type: {kind}, expected one of [{}]", MUC_TYPES.join(", "))
+            }
             BratAnnotation { file, .. } => write!(f, "Failed to parse ann document with id [{file}.ann]"),
             BratIndex { index, len, .. } => write!(f, "Index {index} out of bounds for length {len}"),
             BratSpan { start, end, .. } => {
@@ -236,50 +322,49 @@ impl<'a> Sentence<'a> {
     }
 }
 
-/// Decodes strict IOB tags. Every continuation must follow a beginning and
-/// retain its type. `filter` maps a source tag to the tag to decode, and
-/// `kind` validates the beginning tag's type.
+/// The names of tagged tokens as the BioNLP, Evalita and GermEval streams
+/// find them: a name starts at `B-` and grows with each `I-`, whatever
+/// its type, until `O` or the next `B-`; any other tag is
+/// [`FormatError::InvalidNameTag`]. `filter` gives the tag the stream reads in
+/// place of each (`O` for a type left out), and `kind` the type of a
+/// name from its first tag as written, after the two-character prefix.
 pub(crate) fn bio_names<'a>(
     tags: &[Tag<'a>],
     filter: impl Fn(&'a str) -> &'a str,
     kind: impl Fn(&'a str, u32) -> Result<&'a str, FormatError>,
 ) -> Result<Vec<Name<'a>>, FormatError> {
-    let extract = |begin: usize, end: usize| -> Result<Name<'a>, FormatError> {
+    let extract = |begin: usize, end: i64| -> Result<Name<'a>, FormatError> {
         let tag = tags[begin];
         let kind = kind(&tag.text[2..], tag.line)?;
-        Name::new(begin as u32, end as u32, Some(kind))
+        let end = u32::try_from(end).expect("an open name ends after its first token");
+        Name::new(begin as u32, end, Some(kind))
     };
     let mut names = Vec::new();
     let mut begin: Option<usize> = None;
+    // Java's endIndex, which an `I-` with no name open moves on from -1;
+    // the next `B-` sets it again, so that does not show
+    let mut end: i64 = -1;
     for (i, t) in tags.iter().enumerate() {
         let tag = filter(t.text);
         if tag.starts_with("B-") {
             if let Some(b) = begin {
-                names.push(extract(b, i)?);
+                names.push(extract(b, end)?);
             }
             begin = Some(i);
-        } else if let Some(found) = tag.strip_prefix("I-") {
-            let Some(b) = begin else {
-                return Err(FormatError::UnexpectedNameContinuation { line: t.line, tag: tag.to_owned() });
-            };
-            let expected = &tags[b].text[2..];
-            if found != expected {
-                return Err(FormatError::NameTypeMismatch {
-                    line: t.line,
-                    expected: expected.to_owned(),
-                    found: found.to_owned(),
-                });
-            }
+            end = i as i64 + 1;
+        } else if tag.starts_with("I-") {
+            end += 1;
         } else if tag == "O" {
             if let Some(b) = begin.take() {
-                names.push(extract(b, i)?);
+                names.push(extract(b, end)?);
+                end = -1;
             }
         } else {
             return Err(FormatError::InvalidNameTag { line: t.line, tag: tag.to_owned() });
         }
     }
     if let Some(b) = begin {
-        names.push(extract(b, tags.len())?);
+        names.push(extract(b, end)?);
     }
     Ok(names)
 }
@@ -292,36 +377,20 @@ mod tests {
         texts.iter().enumerate().map(|(i, t)| Tag { text: t, line: i as u32 + 1 }).collect()
     }
 
-    type Shape = (u32, u32, Option<&'static str>);
-
-    fn names(texts: &[&'static str]) -> Result<Vec<Shape>, String> {
+    fn names(texts: &[&'static str]) -> Result<Vec<String>, String> {
         bio_names(&tags(texts), |t| t, |k, _| Ok(k))
-            .map(|n| n.iter().map(|name| (name.start, name.end, name.kind)).collect())
+            .map(|n| n.iter().map(Name::java_string).collect())
             .map_err(|e| e.to_string())
     }
 
     #[test]
-    fn a_name_starts_at_b_and_takes_matching_i_tags() {
-        assert_eq!(
-            names(&["B-A", "I-A", "O", "B-C", "B-D", "I-D"]).unwrap(),
-            [(0, 2, Some("A")), (3, 4, Some("C")), (4, 6, Some("D"))]
-        );
+    fn a_name_starts_at_b_and_takes_every_i() {
+        assert_eq!(names(&["B-A", "I-B", "O", "B-C", "B-D", "I-D"]).unwrap(), ["[0..2) A", "[3..4) C", "[4..6) D"]);
     }
 
     #[test]
-    fn an_i_with_no_name_open_is_an_error() {
-        assert!(matches!(
-            bio_names(&tags(&["I-A"]), |t| t, |k, _| Ok(k)),
-            Err(FormatError::UnexpectedNameContinuation { line: 1, .. })
-        ));
-    }
-
-    #[test]
-    fn an_i_type_must_match_its_beginning() {
-        assert!(matches!(
-            bio_names(&tags(&["B-A", "I-B"]), |t| t, |k, _| Ok(k)),
-            Err(FormatError::NameTypeMismatch { line: 2, .. })
-        ));
+    fn an_i_with_no_name_open_is_read_as_o() {
+        assert_eq!(names(&["I-A", "I-A", "O", "I-B", "B-C"]).unwrap(), ["[4..5) C"]);
     }
 
     #[test]
@@ -331,11 +400,13 @@ mod tests {
     }
 
     #[test]
-    fn errors_name_their_line_and_message() {
-        let e = NerError::BioNlpFields { line: 3, count: 2, text: "x".into() };
+    fn errors_name_their_exceptions() {
+        let e = NerError::MucUnexpectedOpen { line: 3 };
+        assert_eq!(e.java_class(), "opennlp.tools.util.InvalidFormatException");
         assert_eq!(e.line(), Some(3));
         let e = FormatError::from(e);
+        assert_eq!(e.java_class(), Some("opennlp.tools.util.InvalidFormatException"));
         assert_eq!(e.line(), Some(3));
-        assert_eq!(e.to_string(), "Expected two fields per line in training data, got 2 for line 'x'!");
+        assert_eq!(e.to_string(), "Did not expect < char!");
     }
 }

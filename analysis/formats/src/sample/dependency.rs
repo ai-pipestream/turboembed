@@ -26,7 +26,8 @@ pub enum Head {
 
 impl Head {
     /// The head as the CoNLL-U `HEAD` column writes it: `0` for the root
-    /// and the word's index plus one for a word.
+    /// and the word's index plus one for a word. `DependencySample.toString`
+    /// writes the same number (`ROOT_HEAD`, -1, plus one).
     pub fn column(self) -> u64 {
         match self {
             Head::Root => 0,
@@ -259,6 +260,19 @@ impl<'a> DependencySample<'a> {
     }
 }
 
+/// `DependencySample.toString`: a line per token of its number, the
+/// token, the tag, the head's number (`0` for the root) and the relation,
+/// separated by tabs, each line ended by a line feed (the line separator
+/// of the systems the goldens are made on).
+impl fmt::Display for DependencySample<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, ((token, tag), arc)) in self.tokens.iter().zip(&self.tags).zip(self.tree.arcs()).enumerate() {
+            writeln!(f, "{}\t{token}\t{tag}\t{}\t{}", i + 1, arc.head.column(), arc.relation)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,5 +328,15 @@ mod tests {
         let rels = (0..n).map(|_| rel("dep")).collect();
         let t = DependencyTree::new(heads, rels).unwrap();
         assert_eq!(t.root(), n - 1);
+    }
+
+    #[test]
+    fn written_as_java_writes_it() {
+        let src = "a b";
+        let tokens = vec![Field::of(src, Span::new(0, 1)), Field::of(src, Span::new(2, 3))];
+        let tags = vec![rel("X"), rel("Y")];
+        let t = tree(&[Root, Word(0)], &["root", "dep"]).unwrap();
+        let s = DependencySample::new(tokens, tags, t, Span::new(0, 3)).unwrap();
+        assert_eq!(s.to_string(), "1\ta\tX\t0\troot\n2\tb\tY\t1\tdep\n");
     }
 }

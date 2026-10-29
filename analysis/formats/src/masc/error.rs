@@ -136,6 +136,39 @@ pub enum MascError {
 }
 
 impl MascError {
+    /// The class of the exception OpenNLP throws in the same place, for
+    /// the errors that have one.
+    pub fn java_class(&self) -> Option<&'static str> {
+        use MascError::*;
+        match self {
+            Annotation {
+                file: AnnotationFile::NounChunks | AnnotationFile::VerbChunks | AnnotationFile::Logical,
+                ..
+            } => None,
+            NotADirectory { .. }
+            | Header { .. }
+            | MissingFile { .. }
+            | NoAnnotationStream { .. }
+            | Annotation { .. }
+            | QuarksEndInSentence { .. }
+            | MissingQuark { .. }
+            | NoDocuments { .. } => Some("java.io.IOException"),
+            NoAnnotations | NoLocation | NoPrimaryData | NullDocument | Untokenized { .. } => {
+                Some("java.lang.NullPointerException")
+            }
+            IndexOutOfBounds { .. } => Some("java.lang.IndexOutOfBoundsException"),
+            Substring { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
+            NegativeTokenStart { .. } | TokenOutOfBounds { .. } | NullTag => Some("java.lang.IllegalArgumentException"),
+            Sample(e) => e.java_class(),
+            Io { .. }
+            | DirectoryCycle { .. }
+            | SplitsSurrogatePair { .. }
+            | TooLong { .. }
+            | NoChunks
+            | LogicalStructure { .. } => None,
+        }
+    }
+
     /// Whether `MascDocumentStream` logs this error of a document and goes
     /// on with the next one (an `IOException` from `parseDocument`), rather
     /// than failing as a whole.
@@ -154,33 +187,47 @@ impl fmt::Display for MascError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use MascError::*;
         match self {
-            NotADirectory { path } => write!(f, "corpus path is not a directory: {}", path.display()),
+            NotADirectory { .. } => {
+                f.write_str("Input corpus directory must be a directory according to File.isDirectory()!")
+            }
             Io { path, error } => write!(f, "{}: {error}", path.display()),
             DirectoryCycle { path } => write!(f, "{} is inside itself", path.display()),
-            Header { path, .. } => write!(f, "could not parse MASC header: {}", path.display()),
-            NoAnnotations => f.write_str("MASC header has no annotation or primary data"),
-            NoLocation => f.write_str("MASC header entry has no location"),
-            NoPrimaryData => f.write_str("MASC header has no primary text"),
+            Header { path, .. } => write!(f, "Invalid corpus format. Could not parse the header: {}", path.display()),
+            NoAnnotations => {
+                f.write_str("Cannot invoke \"java.util.HashMap.entrySet()\" because \"annotationFiles\" is null")
+            }
+            NoLocation | NoPrimaryData => Ok(()),
             MissingFile { path } => {
                 write!(f, "Corpus integrity violated. Annotation file {} is missing.", path.display())
             }
-            NoAnnotationStream { file } => write!(f, "MASC header has no {} annotation", file.id()),
+            NoAnnotationStream { .. } => f.write_str("Stream closed"),
             Annotation { file, .. } => f.write_str(file.failure()),
-            QuarksEndInSentence { end } => write!(f, "segmentation ends inside a sentence at UTF-16 offset {end}"),
-            IndexOutOfBounds { index, len } => write!(f, "index {index} is out of bounds for length {len}"),
-            MissingQuark { id } => write!(f, "Penn token names missing segmentation quark {id}"),
-            Substring { begin, end, len } => write!(f, "range [{begin}, {end}) is outside UTF-16 length {len}"),
+            QuarksEndInSentence { end } => write!(
+                f,
+                "Sentence ends and word ends do not match.First sentence not completed ends at character: {end}"
+            ),
+            IndexOutOfBounds { index, len } => write!(f, "Index {index} out of bounds for length {len}"),
+            MissingQuark { id } => write!(f, "Could not attach POS tags to words. Word{id} not found in the document."),
+            Substring { begin, end, len } => write!(f, "Range [{begin}, {end}) out of bounds for length {len}"),
             SplitsSurrogatePair { unit } => write!(f, "UTF-16 offset {unit} is inside a surrogate pair"),
             TooLong { len } => write!(f, "a text of {len} bytes is longer than spans can index"),
-            NullDocument => f.write_str("the MASC sample stream is past the end of its corpus"),
-            Untokenized { method } => write!(f, "MASC sentence has no Penn tokens for {method}"),
+            NullDocument => f.write_str(
+                "Cannot invoke \"opennlp.tools.formats.masc.MascDocument.read()\" because \"this.buffer\" is null",
+            ),
+            Untokenized { method } => {
+                write!(f, "Cannot invoke \"java.util.List.{method}()\" because \"this.sentenceTokens\" is null")
+            }
             NoDocuments { stream } => {
-                let what = match stream {
-                    MascStream::PartOfSpeech => "POS tags",
-                    MascStream::Tokens => "Penn tokenization",
-                    MascStream::NamedEntities => "named entity labels",
+                let (what, method) = match stream {
+                    MascStream::PartOfSpeech => ("POS tags", "hasPennTags"),
+                    MascStream::Tokens => ("Penn tokenization", "hasPennTags"),
+                    MascStream::NamedEntities => ("named entity labels", "hasNamedEntities"),
                 };
-                write!(f, "no MASC document has {what}")
+                write!(
+                    f,
+                    "None of the documents has {what}Cannot invoke \
+                     \"opennlp.tools.formats.masc.MascDocument.{method}()\" because \"this.buffer\" is null"
+                )
             }
             NegativeTokenStart { start } => write!(f, "start index must be zero or greater: {start}"),
             TokenOutOfBounds { start, end, len } => {
