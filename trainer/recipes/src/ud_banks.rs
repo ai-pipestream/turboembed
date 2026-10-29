@@ -38,6 +38,7 @@ pub const ES_ANCORA: Treebank = Treebank {
         size: 5_106_509,
         sha256: "2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b",
     },
+    recipe_only: false,
 };
 
 /// UD Catalan AnCora r2.16.
@@ -67,6 +68,7 @@ pub const CA_ANCORA: Treebank = Treebank {
         size: 5_515_247,
         sha256: "f68ff102b9bf8bc197be3262a1caf25682683c4db4c648663c7a791bfbfa115f",
     },
+    recipe_only: false,
 };
 
 /// UD Finnish FTB r2.16.
@@ -79,7 +81,7 @@ pub const FI_FTB: Treebank = Treebank {
     spdx: "CC-BY-4.0",
     terms: "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md",
     attribution: "Trained on Universal Dependencies Finnish FTB r2.16, published at \
-         https://github.com/UniversalDependencies/UD_Finnish-FTB; FTB1U is Copyright 2014 FIN-CLARIN. used under the \
+         https://github.com/UniversalDependencies/UD_Finnish-FTB; FTB1U is Copyright 2014 FIN-CLARIN. Used under the \
          Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
     train: Pin {
         path: "fi_ftb-ud-train.conllu",
@@ -96,6 +98,7 @@ pub const FI_FTB: Treebank = Treebank {
         size: 1_342_602,
         sha256: "3aca7fbd727846c0955e9db581571a0fca89d46f825ee7f2a32fab1ea0bc31ba",
     },
+    recipe_only: false,
 };
 
 /// UD Italian MarkIT r2.16.
@@ -125,6 +128,7 @@ pub const IT_MARKIT: Treebank = Treebank {
         size: 658_412,
         sha256: "9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc",
     },
+    recipe_only: false,
 };
 
 /// UD Portuguese Porttinari r2.16.
@@ -154,6 +158,7 @@ pub const PT_PORTTINARI: Treebank = Treebank {
         size: 2_333_603,
         sha256: "08e51c3687f2800ea45445cb48c7030832984c316b1c39757606499b8e7577b9",
     },
+    recipe_only: true,
 };
 
 /// UD German GSD r2.16.
@@ -183,6 +188,7 @@ pub const DE_GSD: Treebank = Treebank {
         size: 1_207_783,
         sha256: "bceb8e867ba3ee7f1449d44fb31538d63a514f07e6763e7d9a5ffe794407bed4",
     },
+    recipe_only: false,
 };
 
 /// UD French GSD r2.16.
@@ -212,6 +218,7 @@ pub const FR_GSD: Treebank = Treebank {
         size: 652_793,
         sha256: "5d1743c7a9ce2908943d4a430ed9a77755e2a8d7e32d42ee0f1d6a0b528f0be8",
     },
+    recipe_only: false,
 };
 
 /// UD Dutch Alpino r2.16.
@@ -241,6 +248,7 @@ pub const NL_ALPINO: Treebank = Treebank {
         size: 951_318,
         sha256: "f5b5000fcbb6745d42f7cccf3986bb2550f9b56a171b0d4808fb45d2df7972a2",
     },
+    recipe_only: false,
 };
 
 /// UD Russian GSD r2.16.
@@ -270,6 +278,7 @@ pub const RU_GSD: Treebank = Treebank {
         size: 1_027_273,
         sha256: "f26e022329162a1c6306f76644d06f770f1572501755421165387137fe63138d",
     },
+    recipe_only: false,
 };
 
 /// UD Portuguese GSD r2.16.
@@ -299,4 +308,5 @@ pub const PT_GSD: Treebank = Treebank {
         size: 1_658_886,
         sha256: "0572d50de07593d662f7a1ff49490c7c3722612acac1d5c50916deb3d7b02a31",
     },
+    recipe_only: false,
 };
