@@ -111,7 +111,7 @@ impl HeadRunner {
     pub fn decode(&self, sequences: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
         let pooling = self.tagger.spec().word_pooling;
         let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, pooling)?;
-        self.decode_features(&features)
+        self.decode_features(&features, sequences)
     }
 
     /// Each sequence of `tokens` decoded, its pieces from `subwords` when
@@ -127,18 +127,25 @@ impl HeadRunner {
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
         let features = words.token_features(view, tokens, seqs, subwords, pooling)?;
         drop(words);
-        self.decode_features(&features).map_err(|e| e.to_string())
+        let text = view.text();
+        let forms: Vec<Vec<&str>> = seqs
+            .iter()
+            .map(|s| s.iter().map(|&i| &text[tokens.spans.get(Ix::new(i as u32)).range()]).collect())
+            .collect();
+        self.decode_features(&features, &forms).map_err(|e| e.to_string())
     }
 
-    fn decode_features(&self, features: &[Vec<f32>]) -> Result<Vec<Decoded>, CoreError> {
+    /// Each sequence decoded from its word features and its words' text,
+    /// which a head with a `hash_embed` reads.
+    fn decode_features(&self, features: &[Vec<f32>], forms: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
         let (mut scores, mut work) = (Vec::new(), Work::default());
         let labels = self.tagger.labels().len();
         let hidden = self.tagger.hidden();
         let mut out = Vec::with_capacity(features.len());
-        for f in features {
+        for (f, forms) in features.iter().zip(forms) {
             let n = f.len() / hidden;
             let words: Vec<u32> = (0..n as u32).collect();
-            self.tagger.scores(f, &words, &mut scores, &mut work)?;
+            self.tagger.scores_forms(f, &words, Some(forms), &mut scores, &mut work)?;
             let mut tags = Vec::new();
             self.tagger.decode(&scores, n, &mut tags)?;
             let prob = tags

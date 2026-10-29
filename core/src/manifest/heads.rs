@@ -23,6 +23,10 @@ pub const MAX_LABELS: usize = 4096;
 pub const MAX_BIAFFINE: u32 = 4096;
 /// The widest part-of-speech embedding a lemmatizer reads.
 pub const MAX_POS_DIM: u32 = 1024;
+/// The widest hashed word embedding, per feature.
+pub const MAX_HASH_DIM: u32 = 1024;
+/// The most rows one hashed feature table holds.
+pub const MAX_HASH_ROWS: u32 = 1 << 20;
 /// The namespace every head's layer id is in.
 pub const LAYER_NAMESPACE: &str = "turboembed:";
 
@@ -50,6 +54,10 @@ pub struct HeadSpec {
     /// kind, and optional for a lemmatizer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos_input: Option<PosInput>,
+    /// Hashed embeddings of the word's own text joined after its pooled
+    /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_embed: Option<HashEmbed>,
     /// The name of the FORMAT_SAFETENSORS artifact holding the head's
     /// tensors, as `from` and `host_weights` name artifacts.
     pub artifact: String,
@@ -92,6 +100,17 @@ pub struct PosInput {
 pub struct Biaffine {
     pub arc: u32,
     pub rel: u32,
+}
+
+/// A word's identity as a head reads it beside the encoder: four
+/// features of its text (NORM, PREFIX, SUFFIX, SHAPE), each looked up in
+/// its own table of `rows[k]` rows `dim` wide by several hashes of the
+/// feature and summed (head/hash_embed.rs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HashEmbed {
+    pub dim: u32,
+    pub rows: [u32; 4],
 }
 
 /// How a head's labels read.
@@ -296,6 +315,20 @@ impl HeadSpec {
                     at("biaffine"),
                     b.arc,
                     b.rel
+                )));
+            }
+        }
+        if let Some(h) = &self.hash_embed {
+            if self.kind != HeadKind::TokenTagger {
+                return Err(invalid(format!("manifest.json: {}: only a HEAD_TOKEN_TAGGER takes it", at("hash_embed"))));
+            }
+            positive(&at("hash_embed.dim"), h.dim)?;
+            if h.dim > MAX_HASH_DIM || h.rows.iter().any(|&r| r == 0 || r > MAX_HASH_ROWS) {
+                return Err(invalid(format!(
+                    "manifest.json: {}: dim {} and rows {:?}; dim 1 to {MAX_HASH_DIM}, rows 1 to {MAX_HASH_ROWS}",
+                    at("hash_embed"),
+                    h.dim,
+                    h.rows
                 )));
             }
         }
