@@ -256,6 +256,11 @@ impl NgramModel {
     pub fn strictly_above_score(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
         self.strictly_above(text, threshold)
     }
+
+    /// Returns all languages with scores strictly below a threshold.
+    pub fn strictly_below_score(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
+        self.strictly_below(text, threshold)
+    }
 }
 
 /// A coarse script class for language priors.
