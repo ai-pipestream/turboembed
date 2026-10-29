@@ -237,7 +237,9 @@ documented in its runner (see below).
   predictions are recorded), zero-shot with the six kind names as
   prompt labels at the default threshold 0.5, in the pinned
   container at `analysis/eval/reference/peers/gliner/` (local image
-  id at record time `sha256:614fedccce15`). Unlike the other two
+  id at record time
+  `sha256:614fedccce1528a481546dece6378f6344f1a8619c38987732266470158fda09`).
+  Unlike the other two
   runners it tokenizes the joined text itself; its spans are mapped
   back onto the gold tokens by char overlap, highest score first,
   as its runner documents. Predictions SHA-256
@@ -386,9 +388,31 @@ p50 99.60 s (12.92 sentences/s), p99 368.54 s, with the host's
 ran. Those numbers say more about that load than about GLiNER;
 they are the receipt form pinned down, not a speed claim, and an
 idle-host rerun should replace them before anyone compares
-systems by them. The receipt's final predictions are byte-identical
-to the scored record's (SHA-256 `9638a97e...` above), so the 20
-runs also show this peer's output is deterministic on CPU.
+systems by them. Only the final run's predictions survive (every
+run overwrote the same file) and they are byte-identical to the
+scored record's (SHA-256 `9638a97e...` above); this receipt shows
+nothing about the earlier runs' outputs, and no determinism claim
+rests on it. Receipts written with `--output` keep every run's
+output digest, which is what such a claim needs.
+
+Provenance correction for that receipt (2026-10-29, codex review
+of #1655): its `commit` is the checkout's HEAD when it ran
+(`8dc59814ce5b6f97ea0582f44fee969bda7621f9`), but the harness and
+runner it timed were uncommitted working-tree files at that
+moment; they are not in that commit's tree. They were first
+committed minutes after the receipt finished, in `2bbbb4647` (the
+only commit touching them before this note), with SHA-256 digests:
+`analysis/eval/reference/throughput_receipt.py`
+`886eca997327e3aecaced7d4cd9c35618aa5cecac2ede93b6a7066923c3f886b`,
+`analysis/eval/reference/peers/gliner/Dockerfile`
+`6dc52303814a84a86c2d02602823ee47ff20c7c76fb1326e9c8f89de47c77ece`,
+`analysis/eval/reference/peers/gliner/ner_predict.py`
+`bd048354c6bbe5b892619d460ac4eead05c580cb9979eb7f42f174c22105d036`.
+The image the mutable tag `turbo-peer-gliner:0.2.21-small-v2.1`
+named is `sha256:614fedccce1528a481546dece6378f6344f1a8619c38987732266470158fda09`
+(full id; the record above first carried its short form). No later
+commit is substituted for the historical run; receipts now record
+the working-tree state so this cannot recur silently.
 Receipts for the other analysis systems land as their booked runs
 complete; the records above still carry at most the single
 in-process timing their own sections state.
@@ -448,7 +472,8 @@ docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
 
 # Entities on WNUT-17 with GLiNER (gold: emerging.test.annotated of
 # leondz/emerging_entities_17, the bytes the pin below names)
-docker build -t turbo-peer-gliner:0.2.21-small-v2.1 analysis/eval/reference/peers/gliner
+docker build --build-arg TURBO_ACCEPT_TERMS=urchade/gliner_small-v2.1 \
+  -t turbo-peer-gliner:0.2.21-small-v2.1 analysis/eval/reference/peers/gliner
 docker run --rm --network none -v <out-dir>:/out \
   turbo-peer-gliner:0.2.21-small-v2.1 /out/wnut17-test.tsv /out/gliner-wnut17.txt
 turbo-eval analysis --ner-gold <out-dir>/wnut17-test.tsv \
@@ -474,6 +499,7 @@ turbo-eval analysis --lang-gold <out-dir>/flores-plus-devtest-73.tsv \
 # Throughput receipt (20 runs of one system command; GLiNER shown)
 python3 analysis/eval/reference/throughput_receipt.py \
   analysis/eval/records/peer-analysis-1521/throughput/gliner-wnut17.json 1287 \
+  --output <out-dir>/gliner-wnut17.txt \
   -- docker run --rm --network none -v <out-dir>:/out \
   turbo-peer-gliner:0.2.21-small-v2.1 /out/wnut17-test.tsv /out/gliner-wnut17.txt
 ```

@@ -147,10 +147,16 @@ def rows_of(path, gold):
 
 
 def short_of(text):
-    words = text.split(" ")
+    # Split on runs of Unicode whitespace (str.split with no
+    # separator): leading or repeated spaces make no empty words,
+    # and a nonbreaking or ideographic space is a separator like
+    # any other. With fewer than four words to cut (the scripts
+    # without spaces), the fallback is the first 20 characters of
+    # the stripped text, so the short form is never empty.
+    words = text.split()
     if len(words) >= 4:
         return " ".join(words[:4])
-    return text[:20]
+    return text.strip()[:20]
 
 
 def main():

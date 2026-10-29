@@ -3,7 +3,10 @@
 # checkpoint files at the zoo-pinned revision are baked in at build
 # time so runs need no network. The checkpoint is local-only by its
 # training data (docs/licences.md): this image is a local peer runner,
-# never shipped, and only its predictions are recorded.
+# never shipped, and only its predictions are recorded. Its fetch is
+# gated on explicit acceptance of the dataset card's terms: build
+# with --build-arg TURBO_ACCEPT_TERMS=urchade/gliner_small-v2.1
+# (fetch_checkpoint.py refuses, before any download, without it).
 FROM python@sha256:12316debbfb86890f6b2d825820612741ba527ad5a44e3902759141d572bfe8f
 
 ARG GLINER_VERSION=0.2.21
@@ -15,12 +18,16 @@ ARG TRANSFORMERS_VERSION=4.46.3
 ARG HF_HUB_VERSION=0.26.5
 ARG CHECKPOINT=urchade/gliner_small-v2.1
 ARG REVISION=4e091416cf7c3481db542c2a3d26156916f3a47f
+# Empty by default: the checkpoint download below refuses until the
+# builder records acceptance by naming the checkpoint (see header).
+ARG TURBO_ACCEPT_TERMS=
 
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
     "torch==${TORCH_VERSION}"
 RUN pip install --no-cache-dir "gliner==${GLINER_VERSION}" \
     "transformers==${TRANSFORMERS_VERSION}" "huggingface_hub==${HF_HUB_VERSION}"
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('${CHECKPOINT}', revision='${REVISION}', local_dir='/gliner-model')"
+COPY fetch_checkpoint.py /fetch_checkpoint.py
+RUN TURBO_ACCEPT_TERMS="${TURBO_ACCEPT_TERMS}" python /fetch_checkpoint.py "${CHECKPOINT}" "${REVISION}" /gliner-model
 # The checkpoint's gliner_config.json names microsoft/deberta-v3-small
 # as its encoder and tokenizer; bake it at the licence-checked revision
 # and point the config's copy at the local directory, so no run
