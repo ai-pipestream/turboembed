@@ -249,3 +249,56 @@ fn round(x: f64) -> f64 {
 }
 
 const RECORDED: (f64, f64, f64) = (0.9503, 0.3322, 0.3707);
+
+/// The metadata of a safetensors file.
+fn metadata(bytes: &[u8]) -> Value {
+    let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
+    let header: Value = serde_json::from_slice(&bytes[8..8 + n]).unwrap();
+    header["__metadata__"].clone()
+}
+
+#[test]
+fn a_ud_run_stopped_midway_keeps_its_best_head_so_far() {
+    let data = scratch("stop-data");
+    write_treebank(&data);
+    let bundle = tiny();
+    for (command, extra) in [("train-lemma", ["--min-tree-freq", "1"]), ("train-parse", ["--arc", "8"])] {
+        let out = scratch(&format!("stop-{command}"));
+        let mut args = vec![command, "--corpus", "ud-en-ewt", "--dir", data.to_str().unwrap()];
+        args.extend(["--bundle", bundle.to_str().unwrap(), "--out", out.to_str().unwrap(), "--unrecorded-corpus"]);
+        args.extend(["--epochs", "100000", "--patience", "0", "--batch", "8", "--commit", "test"]);
+        args.extend(extra);
+        let mut child = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+            .args(&args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let start = std::time::Instant::now();
+        while !out.join("head.safetensors").is_file() {
+            assert!(start.elapsed().as_secs() < 120, "{command}: no checkpoint within two minutes");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        child.kill().unwrap();
+        child.wait().unwrap();
+        // What is left is whole: the spec, and a head the core loads that
+        // names the epoch and dev score it is from; no receipt.
+        let head: HeadSpec = serde_json::from_slice(&fs::read(out.join("head.json")).unwrap()).unwrap();
+        let bytes = fs::read(out.join("head.safetensors")).unwrap();
+        let m = metadata(&bytes);
+        let _: u64 = m["best_epoch"].as_str().unwrap().parse().unwrap();
+        let dev: f64 = m["dev"].as_str().unwrap().parse().unwrap();
+        assert!((0.0..=1.0).contains(&dev), "{command}: dev {dev}");
+        let t = read_safetensors(&bytes);
+        let prefix = head.tensor_prefix.clone();
+        let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("{prefix}.{s}")).map(|(_, _, v)| v.clone());
+        match head.kind {
+            HeadKind::EditTreeLemmatizer => drop(EditTreeLemmatizer::from_tensors(&head, 32, &get).unwrap()),
+            HeadKind::BiaffineParser => drop(BiaffineParser::from_tensors(&head, 32, &get).unwrap()),
+            k => panic!("{command}: a {k:?} head"),
+        }
+        assert!(!out.join("receipt.json").exists(), "{command} did not finish");
+        fs::remove_dir_all(out).unwrap();
+    }
+    fs::remove_dir_all(data).unwrap();
+}
