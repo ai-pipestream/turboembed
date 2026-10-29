@@ -412,7 +412,8 @@ the server's prost types. Nothing is mocked.
   after which the server has stopped the training and written nothing.
 - `demo/tests/refusals.rs`: 415 for JSON and other content types, the
   allowlist, compression and malformed envelopes.
-- `demo/tests/methods.rs`: the method table against the protos.
+- `demo/tests/methods.rs`: the method table against the protos, and every
+  request with a `user` field in the user table with its field number.
 - `demo/tests/licences.rs`: acceptances and revokes recorded for the
   demo's `--user` whatever user the page sends, reads naming that user,
   writes refused without one, a malformed message refused before
