@@ -8,6 +8,7 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | `masc-pos` | MASC 3.0.0, Penn tags (CC BY 3.0 US) | tags | corpus digest of the extracted release (`turbo_train_recipes::masc::RELEASE`) | test: the recipes' held-out documents (every tenth, Twitter genre left out), so numbers compare with the MASC tagger's gate; dev: every tenth training-side document |
 | `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
 | `ud-en-ewt-upos`, `ud-en-ewt-xpos`, `ud-en-ewt-feats` | UD English EWT r2.18 (commit `b7711cce`), one corpus a column, read as syntactic words (CC BY-SA 4.0: share-alike, as MultiCoNER) | tags, heads `upos` on `turboembed:pos`, `xpos`, `feats` | size and SHA-256 of each file (`ud::EN_EWT`) | the release's own train, dev and test; the test file is the one the spaCy, Stanza and Trankit peer records score |
+| `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the last five CC BY-SA 4.0, share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
 
 A directory that is not the recorded release is refused unless the run
 passes `--unrecorded-corpus`, and its receipt then says
@@ -17,6 +18,18 @@ release tag:
 ```text
 for f in en_ewt-ud-train.conllu en_ewt-ud-dev.conllu en_ewt-ud-test.conllu; do
   curl -sSO https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/r2.18/$f
+done
+```
+
+The r2.16 treebanks the same way, each from its repository at `r2.16`
+(`UD_Spanish-AnCora`, `UD_Catalan-AnCora`, `UD_Finnish-FTB`,
+`UD_Italian-MarkIT`, `UD_Portuguese-Porttinari`, `UD_German-GSD`,
+`UD_French-GSD`, `UD_Dutch-Alpino`, `UD_Russian-GSD`, `UD_Portuguese-GSD`),
+the `<code>_<bank>-ud-{train,dev,test}.conllu` files the repository holds:
+
+```text
+for f in de_gsd-ud-train.conllu de_gsd-ud-dev.conllu de_gsd-ud-test.conllu; do
+  curl -sSO https://raw.githubusercontent.com/UniversalDependencies/UD_German-GSD/r2.16/$f
 done
 ```
 
@@ -51,6 +64,10 @@ turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bun
     [--splits train,dev,test] [--commit <sha>]
 turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
     (--layer N | --mix [--from-layer N]) [--crf] [--bilstm ..] [--hash-embed ..] [training settings]
+turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+    [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+    [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 ```
 
 `cache` (#1616) reads every split once and writes each word's features
@@ -81,6 +98,21 @@ score each epoch). Comparing the best single layer's dev score with the
 mix's is #1616's step 2; the winner is then scored on test through the
 encoder.
 
+`train-lemma` trains the edit-tree lemmatizer (`lemma` on
+`turboembed:lemmas`) over the trees that come up at least
+`--min-tree-freq` times in training (3, spaCy's default);
+`train-parse` trains the biaffine parser (`deps` on
+`turboembed:dependencies`, MST decoding, arc and relation widths 256
+and 64 by default) over the training relations. Both take the
+treebank's id, read its syntactic words, and write the same
+`head.safetensors`, `head.json` and receipt as `train`. They score as
+word labels: lemma accuracy for the lemmatizer, LAS for the parser
+(each word's label is `<head> <relation>`), with the parser's UAS
+beside it (`eval.uas`). Their baselines: each word's commonest
+training lemma, the word itself when unseen; and each word's
+commonest training attachment, the signed distance to its head with
+the relation, the commonest overall when unseen.
+
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for
 many epochs, and each better epoch is saved as it comes.
@@ -98,7 +130,8 @@ baseline, the bootstrap, timings, and the outputs' digests).
 Majority baselines on the test splits (CPU, 2026-10-28, at the recorded
 releases): MASC Penn POS accuracy 0.8964 (85,292 words), MultiCoNER v2
 English span F1 0.1404 (377,805 gold spans). UD EWT r2.18 test (25,094
-words): UPOS 0.8617, XPOS 0.8381, features 0.8292.
+words): UPOS 0.8617, XPOS 0.8381, features 0.8292, lemmas 0.9503,
+LAS 0.3322, UAS 0.3707.
 
 ```text
 cargo test -p turbo-trainer-recipes
@@ -109,5 +142,5 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
 
 Not yet here: bundle output (a sealed bundle carrying the head),
 a core head that reads a mix of layers (only if the mix wins, #1616),
-WNUT-17 and MASC named entities, and the UD lemma and dependency heads
-(they read `ud::UdSentence`).
+WNUT-17 and MASC named entities, and a lemmatizer that reads the
+tagger's UPOS (`pos_input`).

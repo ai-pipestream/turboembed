@@ -5,7 +5,7 @@
 //! Each treebank is pinned by release tag, commit and the size and
 //! SHA-256 of its train, dev and test files, and fetched by the command
 //! in the recipes' readme, never checked in. Every English UD treebank
-//! is CC BY-SA or NC, so a head trained on one is share-alike: offered
+//! is CC BY-SA or NC, so a head trained on an English one is share-alike: offered
 //! for download once a user accepts, never in a default bundle.
 //!
 //! A tag task is a corpus of its own, `<treebank>-<column>`
@@ -35,6 +35,9 @@ pub struct Treebank {
     pub train: Pin,
     pub dev: Pin,
     pub test: Pin,
+    /// The treebank's text rights are not settled, so a head trained on
+    /// it is local-only whatever its licence (`CorpusRecord::recipe_only`).
+    pub recipe_only: bool,
 }
 
 /// UD English EWT r2.18. Its test file is the one the peer records under
@@ -67,10 +70,14 @@ pub const EN_EWT: Treebank = Treebank {
         size: 1_900_101,
         sha256: "fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a",
     },
+    recipe_only: false,
 };
 
+pub use crate::ud_banks::*;
+
 /// The treebanks the trainer reads.
-pub const TREEBANKS: [Treebank; 1] = [EN_EWT];
+pub const TREEBANKS: [Treebank; 11] =
+    [EN_EWT, ES_ANCORA, CA_ANCORA, FI_FTB, IT_MARKIT, PT_PORTTINARI, DE_GSD, FR_GSD, NL_ALPINO, RU_GSD, PT_GSD];
 
 /// The columns a tag head trains on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -242,6 +249,7 @@ pub fn read(bank: &Treebank, column: Column, dir: &Path, unrecorded: bool) -> Re
         dev: Counts::of(&dev),
         test: Counts::of(&test),
         skipped: 0,
+        recipe_only: bank.recipe_only,
     };
     Ok(Corpus { record, splits: Splits { train, dev, test } })
 }

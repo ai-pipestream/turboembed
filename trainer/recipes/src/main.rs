@@ -14,6 +14,10 @@
 //!     [--commit <sha>] [--unrecorded-corpus]
 //! turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <dir>
 //!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
+//! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
+//!     [--min-tree-freq N])
+//! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
+//!     [--arc N] [--rel N])
 //! ```
 //!
 //! `cache` writes every split's word features at the encoder's last N
@@ -28,8 +32,10 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
-use turbo_analysis_embed::EncoderOptions;
+use turbo::manifest::{HashEmbed, WordPooling};
+use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
+use turbo_trainer::Config;
 use turbo_trainer_recipes::cache::{self, CacheRecord};
 use turbo_trainer_recipes::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
 use turbo_trainer_recipes::corpus::{Sentence, Task};
@@ -38,7 +44,10 @@ use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{
     CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, examples, named, predict, replace, spec, write,
 };
+use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
+
+mod train_ud;
 
 const RESAMPLES: usize = 1000;
 
@@ -97,6 +106,7 @@ fn run(argv: Vec<String>) -> Result<()> {
                         coarse(&corpus_id),
                     ),
                     comparison: None,
+                    uas: None,
                 },
                 timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
                 outputs: Vec::new(),
@@ -106,7 +116,13 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
-        _ => Err(Error(format!("unknown command {command:?}: check, baseline, train, cache or fit-cache"))),
+        "train-lemma" | "train-parse" => {
+            let head = if command == "train-lemma" { UdHead::Lemma } else { UdHead::Deps };
+            train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
+        }
+        _ => Err(Error(format!(
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, cache or fit-cache"
+        ))),
     }
 }
 
@@ -163,13 +179,33 @@ fn cache(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     Ok(())
 }
 
-fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+/// The settings `train` and the UD commands share.
+struct Opts {
+    bundle: PathBuf,
+    out: OutDir,
+    device: Device,
+    precision: Precision,
+    pooling: WordPooling,
+    crf: bool,
+    bilstm: Option<(u32, u32)>,
+    hash: Option<HashEmbed>,
+    c: Config,
+    max_train: usize,
+    commit: String,
+}
+
+fn options(a: &mut Args) -> Result<Opts> {
     let bundle = PathBuf::from(a.required("--bundle")?);
     let out = OutDir::claim(&a.required("--out")?)?;
-    let (device, precision, pooling) = encoder_args(&mut a)?;
-    let HeadArgs { crf, bilstm, hash, config: c } = head_args(&mut a)?;
+    let (device, precision, pooling) = encoder_args(a)?;
+    let HeadArgs { crf, bilstm, hash, config: c } = head_args(a)?;
     let max_train: usize = a.parsed("--max-train", 0)?;
     let commit = commit(a.value("--commit")?);
+    Ok(Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit })
+}
+
+fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
     let t = Instant::now();
@@ -231,6 +267,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         model: Some(evaluate(task, test, &predicted, &seen, coarse(corpus_id))),
         baseline: evaluate(task, test, &base, &seen, coarse(corpus_id)),
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
+        uas: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
