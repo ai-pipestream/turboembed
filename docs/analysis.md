@@ -4304,7 +4304,7 @@ a `sha256sum` style manifest of the files read, sorted by path.
 | Set | Source | Licence | Spans | Digests |
 |---|---|---|---|---|
 | `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a recorded revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
-| `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none (no stable file URLs) |
+| `legalbench-rag-mini` | a shared folder, placed by hand (the recorded copy: the byte-exact Hugging Face mirror `awinml/legalbench-rag` at `2b9c248b`, its `SHA256SUMS` verified) | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none in the set (no stable file URLs); the records pin the read files' manifest digest |
 | `conteb-covid-qa` | Parquet | none for the article text, so refused (below) | the judged chunk | not recorded yet |
 | `conteb-squad` | Parquet, ConTEB's SQuAD set (`illuin-conteb/squad-conteb-eval`, revision 8f81cbd), validation split | CC BY-SA 4.0 (SQuAD over Wikipedia; downloaded at use, never bundled) | the judged chunk | recorded |
 | `gutenqa` | Parquet | MIT (dataset card) | the quoted passage, located in its chunk as written or, failing that, with quotation marks dropped and whitespace runs made one space in both texts | recorded |
