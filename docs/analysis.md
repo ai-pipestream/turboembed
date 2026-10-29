@@ -3480,20 +3480,9 @@ exactly the ones the golden tests list:
   with `keepNewLines` (`analysis/tokenize/tests/golden.rs`,
   `simple_newlines`), the exception on a text that starts with a line
   break among them.
-- `normalize`: for each normalizer whose section of `docs/normalizers.md`
-  records a deliberate difference ("Differences from OpenNLP"), a rule in
-  `analysis/fuzz/src/runs/normalize/mod.rs` recognizes that construct and no
-  other: every region of the source the two sides change differently
-  must be it (U+2E42 folded by `Quotes`, the five added bullets, the
-  three added ellipsis forms, U+206A to U+206F deleted by `Invisible`, a
-  word ending in combining marks joined by `Dehyphenate`, `y'all` and the
-  added subjects of `EnglishContractions`, a symbol in running text for
-  `SymbolWords`, an internationalized e-mail address for `BoundedUrls`,
-  and for `ConfusableSkeleton` a JVM skeleton from the 17.0 data whose
-  18.0 skeleton is the port's). The edits that are equivalent to the
-  golden's though not the same rows are a match. `EmojiRemove` in its
-  supplementary mode compares exactly: its documented differences are
-  the sequence mode and the annotator.
+- `normalize`: the differences recorded under "Differences from OpenNLP"
+  in `docs/normalizers.md` are pinned per input, with the documented
+  output, in the `Divergence` table of `analysis/normalize/tests/goldens.rs`.
 - `subwords`: the four differences of `analysis/embed/tests/goldens.rs`
   and the special token strings. The run models how `WordpieceEncoder`
   maps its normalized text back to the source (controls dropped,
@@ -3651,11 +3640,9 @@ mark in a span, 1,763 confusable skeletons (Unicode 18.0 confusables
 against the JVM's), 2,381 simple tokenizer goldens with `keepNewLines`
 (443 of them the exception), 303 bounded URL goldens (internationalized
 e-mail addresses), 224 symbol word goldens (symbols in running text), 148
-WordPiece goldens with final sigma, 100 language goldens. For the
-normalizers with a "Differences from OpenNLP" section, the rule per
-normalizer in `analysis/fuzz/src/runs/normalize/mod.rs` (listed above) names
-the difference each mismatch is, and a region no rule recognizes is a
-divergence. No OpenNLP bug was found that the crate docs did not already
+WordPiece goldens with final sigma, 100 language goldens. The
+documented normalizer differences are pinned per input in
+`analysis/normalize/tests/goldens.rs`. No OpenNLP bug was found that the crate docs did not already
 record.
 
 ## Evaluation
