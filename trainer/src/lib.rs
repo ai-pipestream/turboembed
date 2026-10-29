@@ -20,6 +20,7 @@ pub mod crf;
 pub mod fit;
 pub mod fit_lemma;
 pub mod fit_parse;
+pub mod langid;
 pub mod lemma;
 pub mod linear;
 pub mod logspace;

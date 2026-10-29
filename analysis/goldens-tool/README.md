@@ -1278,18 +1278,12 @@ entrypoint names the jar in the system property
 class loader that looks there first, beside the generator's own. Run outside
 the container, the generator needs that property.
 
-The `hunspell` runs work the same way with the Hunspell classes of the fork's
-`OPENNLP-1927-hunspell-compatibility` branch (`HUNSPELL_COMMIT` in
-`src/recipe/mod.rs`): the image compiles that commit's `HunspellStemmer`,
-`HunspellDictionary`, `HunspellAffixTable`, `HunspellCompoundRule`,
-`HunspellConversion` and `AffixCondition`, with `java/hunspell/HunspellBridge.java`,
-into `/hunspell/hunspell.jar` beside a file holding the commit, and the
-entrypoint names the jar in `turbo.goldens.hunspellJar`. The runs check the
-commit and load every class of the package from the jar first. The
-dictionaries come from `fetch-models`, which downloads `HUNSPELL_FILES` of
-the recipe into `<models>/hunspell/` and checks the SHA-512 the recipe holds
-for each (the repository publishes none); `analysis/hunspell/README.md` lists
-their licences. None is checked in.
+The Hunspell JVM generator bridge is gone: `analysis/hunspell` covers
+parity with its own unit tests and snapshots. Dictionaries still come from
+`fetch-models`, which downloads `HUNSPELL_FILES` of the recipe into
+`<models>/hunspell/` and checks the SHA-512 the recipe holds for each
+(the repository publishes none); `analysis/hunspell/README.md` lists their
+licences. None is checked in.
 
 The fixture models `pos-fixture.bin`, `chunker-fixture.bin` and
 `ner-{bio,bilou,qn}-fixture.bin` are trained by `FixtureModels.java` from
@@ -1344,7 +1338,7 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
 cargo run -p turbo-goldens-tool -- fetch-models <models dir> --local
-java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -Dturbo.goldens.hunspellJar=<hunspell.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 

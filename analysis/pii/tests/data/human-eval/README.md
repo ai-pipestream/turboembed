@@ -19,27 +19,27 @@ The evaluation set is a mixed corpus:
   `6,072` bytes, `57` gold spans: `3` `phone` spans and every gold
   mention of the remaining 17 built-in kinds).
 
-This corpus does not complete #968's requirement for licensed human-written
-text with labelled spans per kind. Within the mixed set only `phone` has
+On its own, this mixed corpus does not complete #968's requirement
+for licensed human-written text with labelled spans per kind; the
+external partition below does. Within the mixed set only `phone` has
 unedited third-party prose coverage; the separate external partition below
-adds unedited third-party coverage for `aba-routing`,
-`aws-access-key`, `btc-address`, `ca-sin`, `card`, `email`,
-`eth-address`, `github-token`, `iban`, `imei`, `ipv4`, `ipv6`,
-`jwt`, `mac`, `uk-nhs`, `url-credential`, `us-ssn` and further
-`phone`, plus zero-gold precision documents for `us-itin` and
-`de-steuer-id`, for which no licensed source found so far prints
-a complete specimen. The adapted
+adds unedited third-party coverage for every built-in kind:
+`aba-routing`, `aws-access-key`, `btc-address`, `ca-sin`, `card`,
+`de-steuer-id`, `email`, `eth-address`, `github-token`, `iban`,
+`imei`, `ipv4`, `ipv6`, `jwt`, `mac`, `uk-nhs`, `url-credential`,
+`us-itin`, `us-ssn` and further `phone`. The ITIN and Steuer-ID
+Wikipedia articles remain zero-gold precision documents; the positive
+external specimens for those kinds are in the validator READMEs below.
+The adapted
 crypto summaries and authored memos remain useful, separately
 labelled test partitions; the adapted summaries no longer carry
 the crypto kinds on their own now that the whole BIP-173, BIP-350
 and ERC-55 texts are in the external partition. The test
 function's historical name does not change that scope.
 
-Outstanding coverage on external text is listed in `docs/pii.md` under
-"Outstanding work for #968". New sources must preserve the policy for safe specimen
+Any future external source must preserve the policy for safe specimen
 values, record provenance and redistribution terms, and pin the actual source
-text and gold byte offsets. The original issue requirements remain open;
-neither source-partition labels nor an agent's scope decision waive them.
+text and gold byte offsets.
 
 ## Documents and provenance
 
@@ -80,7 +80,7 @@ positives.
 
 ## External prose partition (#968)
 
-Twenty-one further whole third-party documents (`493,288` UTF-8 bytes, `485` gold
+Twenty-three further whole third-party documents (`496,469` UTF-8 bytes, `491` gold
 mentions in `labels-external.tsv`, same five columns except that newlines
 inside covered text are escaped as `\n`), scored separately by
 `precision_and_recall_on_external_prose` (`analysis/pii/tests/external_prose.rs`)
@@ -119,8 +119,11 @@ of each file is pinned in the test.
 
 | `test-payment-cards` | `test-payment-cards.md` | 33,961 | `abaec7984e9e161615ff93bf3db98e826cab1f281f0c239b333a2d7b2b12825f` | [Test Payment Cards](https://github.com/drmonkeyninja/test-payment-cards), the gateway test-card list (the readme.md file) at commit `323dc3096578ea156cd872641e7aea98f5ec65ca` (CC BY-SA 4.0, stated at the end of the document). Gold: `355` `card` (every 13-to-19-digit number the tables publish as a test card number, contiguous, space-grouped or hyphen-grouped as printed; five of them fail Luhn and 36 begin with a digit outside the scanner's 2-to-6 or 81 rule (34 Pay360 test-range numbers in 9905/9900 and two 1-series UATP numbers), and those 41 are the measured misses). Expiry dates and card codes in the same tables are too short to be card occurrences and are not labelled. |
 
+| `uphold-itin-validator` | `uphold-itin-validator.md` | 1,872 | `7a242147969ec14571e3441eae125170a117c5785d2a2857e1360781fa7b0df8` | [Uphold itin-validator](https://github.com/uphold/itin-validator) README at commit `43b8dd9bce125adb64f5acc85a2ae255c0b1da7c` (MIT; notice retained as `LICENSE.uphold-itin-validator`). Gold: `4` `us-itin` (the valid example `900-70-0000` twice and its compact form `900700000` twice). The malformed `9-0-0700000` examples and masked outputs are not ITIN occurrences and are not labelled. |
+| `kontist-validate-steuerid` | `kontist-validate-steuerid.md` | 1,309 | `61c8f50c947ceda570bb9e8d905a786aad1036e9691b90c2cb9cff43e1a38105` | [Kontist validate-steuerid](https://github.com/kontist/validate-steuerid) README at commit `b22c90029c9c63229de714b7da3eececfd6dc13f` (MIT; notice retained as `LICENSE.kontist-validate-steuerid`). Gold: `2` `de-steuer-id` (the valid examples `65929970489` and `26954371827`). The checksum-invalid `65299970480` example is not a Steuer-ID occurrence and is not labelled. |
+
 Annotation method: every occurrence of every built-in kind in these
-twenty-one documents was enumerated by independent shape searches over the pinned text
+twenty-three documents was enumerated by independent shape searches over the pinned text
 and read in context before labelling; spans the search shapes could not
 produce (the display-wrapped JWTs, address parts of CIDR prefixes) were
 located from the documents' own example sections. Values are as their

@@ -1,0 +1,9 @@
+===OUT===
+⁌ black left ⁍ black right ◘ inverse bullet ⦾ circled white ⦿ circled bullet • the plain bullet
+===EDITS===
+14	15	 
+30	31	 
+49	50	 
+67	68	 
+86	87	 
+107	108	

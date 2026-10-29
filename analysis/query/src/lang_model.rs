@@ -2,22 +2,28 @@
 
 use turbo_analysis::{Annotator, Error, Refs, View};
 use turbo_analysis_layers::{Language, LanguageSpans, Sentences, Tokens};
-use turbo_langspan::ScriptDetector;
+use turbo_langspan::{NgramDetector, ScriptDetector};
 
 /// Script-only evidence until the trained language head in #1525 is available.
 pub fn default_span_detector() -> ScriptDetector {
     ScriptDetector
 }
 
-/// Query wrapper for the model-free script detector.
-pub struct QuerySpanDetector {
-    inner: ScriptDetector,
+/// Query wrapper for script or trained n-gram language detection.
+pub enum QuerySpanDetector {
+    Script(ScriptDetector),
+    Ngram(NgramDetector),
 }
 
 impl QuerySpanDetector {
     /// Wraps model-free script evidence for query processing.
     pub fn new(inner: ScriptDetector) -> Self {
-        Self { inner }
+        Self::Script(inner)
+    }
+
+    /// Wraps the trained n-gram language detector.
+    pub fn with_ngram(inner: NgramDetector) -> Self {
+        Self::Ngram(inner)
     }
 }
 
@@ -27,7 +33,10 @@ impl Annotator for QuerySpanDetector {
     type Writes = (LanguageSpans, Language);
 
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.inner.annotate(input)
+        match self {
+            Self::Script(inner) => inner.annotate(input),
+            Self::Ngram(inner) => inner.annotate(input),
+        }
     }
 }
 

@@ -12,11 +12,14 @@ impl Session {
     /// to the queue: all of them for a run, fewer for the tuner, whose
     /// output is not read. Returns the oneDNN primitives it built.
     pub(super) fn encode(&self, q: &mut Queue, layers: u32) -> Res<u64> {
+        if let Some(rk) = &self.kernels.rotary {
+            return self.encode_rotary(q, rk, layers);
+        }
         let c = self.ctx();
         let d = &self.model().desc;
         let w = &self.weights.tensors;
         let k = &self.kernels;
-        let (batch, tokens) = (self.batch, self.tokens);
+        let tokens = self.tokens;
         let (h, inter) = (d.hidden, d.intermediate);
         let eps = d.layer_norm_eps as f32;
         let base = super::deberta::layer_base(d);
@@ -377,6 +380,17 @@ impl Session {
                 add_ln(q, ln.0, ln.1, ln.2, parts, "the feed-forward LayerNorm")?;
             }
         }
+        self.pool_out(q)?;
+        Ok(built.get())
+    }
+
+    /// The pooling of x into the output, a vector per row, or per range
+    /// after embed_write_ranges, and the normalization.
+    pub(super) fn pool_out(&self, q: &mut Queue) -> Res<()> {
+        use Arg::*;
+        let c = self.ctx();
+        let k = &self.kernels;
+        let (batch, h) = (self.batch, self.model().desc.hidden);
         // A vector per row, or per range after embed_write_ranges, whose
         // ranges the kernel reads from the staging after the row table.
         let vectors = if self.ranges > 0 {
@@ -409,6 +423,6 @@ impl Session {
             let args = [Ptr(self.output.ptr as u64), I32(self.output_dim as i32)];
             k.normalize.launch(c, q, "normalization", &args, [vectors, 1, 1])?;
         }
-        Ok(built.get())
+        Ok(())
     }
 }
