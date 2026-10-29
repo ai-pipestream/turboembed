@@ -72,7 +72,12 @@ fn masc_references_list_no_model() {
 fn no_masc_recipe_or_listed_reference_is_an_opennlp_1_5_model() {
     for recipe in crate::RECIPES {
         match recipe {
-            crate::Recipe::Segmentation(_) => assert!(recipe.reference().is_ok(), "{}", recipe.model_id()),
+            // The sentence detector's reference is retired; the
+            // tokenizer's was retired with the UD tokenizer models
+            // (#1645), so it has none.
+            crate::Recipe::Segmentation(r) if r.component == crate::segmentation::Component::Sentence => {
+                assert!(recipe.reference().is_ok(), "{}", recipe.model_id())
+            }
             _ => match recipe.reference() {
                 Err(Error::NoReference { recipe: id }) => assert_eq!(id, recipe.model_id()),
                 other => panic!("{}: {other:?}", recipe.model_id()),

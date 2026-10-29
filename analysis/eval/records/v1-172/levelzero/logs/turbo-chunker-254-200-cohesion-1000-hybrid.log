@@ -1,0 +1,14 @@
+== turbo-chunker-254-200-cohesion-1000-hybrid 2026-10-28T07:56:25Z 0d58e8629e85345b5c585c4beffa39b66a63c248 load 39.89 38.20 35.92
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device levelzero --retrieval hybrid --out <records>/levelzero/turbo-chunker-254-200-cohesion-1000-hybrid --dump-cuts <dumps>/levelzero/turbo-chunker-254-200-cohesion-1000-hybrid --chunker turbo-chunker --max 254 --target 200 --cohesion 1000
+set scifact: the cuts of 5183 documents in artifact scifact.cuts
+set nfcorpus: the cuts of 3633 documents in artifact nfcorpus.cuts
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set arguana: the cuts of 8674 documents in artifact arguana.cuts
+set qasper: 21 judgements could not be placed in their document and are left out
+set qasper: the cuts of 416 documents in artifact qasper.cuts
+<records>/levelzero/turbo-chunker-254-200-cohesion-1000-hybrid/scifact.json
+<records>/levelzero/turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.json
+<records>/levelzero/turbo-chunker-254-200-cohesion-1000-hybrid/arguana.json
+<records>/levelzero/turbo-chunker-254-200-cohesion-1000-hybrid/qasper.json
+wall 52.08 s maxrss 356956 KB
+exit 0 load 52.20 41.63 37.19

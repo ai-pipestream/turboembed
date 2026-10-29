@@ -3191,7 +3191,7 @@ See [temporal.md](temporal.md#golden-files).
 `PiiAnnotator`'s order, with the columns `start`, `end` (UTF-8 byte
 offsets), `type` (`PiiMention.type()`) and `normalized`. The `annotator`
 line names `opennlp.tools.pii.PiiPacks` and the factory method, and the
-`config pack` record names the pack. See [pii.md](pii.md#golden-files).
+`config pack` record names the pack. See [pii.md](pii.md#snapshot-tests).
 
 `pii-rewrite/<pack>/pii/<id>.golden` holds what OpenNLP makes of those
 mentions under a fixed test key (`config key`): the masked text's edits as
@@ -3199,7 +3199,7 @@ mentions under a fixed test key (`config key`): the masked text's edits as
 one mask byte per UTF-8 byte), the text with every mention masked, the
 numbered and keyed rewrites or the exception each threw, their labels, and
 the audit report by type and as text. `analysis/goldens-tool/README.md`
-lists the columns. See [pii.md](pii.md#golden-files).
+lists the columns. See [pii.md](pii.md#snapshot-tests).
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,
@@ -3914,6 +3914,123 @@ match the CPU and Level Zero records query for query on all four sets,
 with the same chunk counts and the same `tokens_embedded`,
 `chunk_bytes` and `chunk_tokens`, and both gates FAIL with the same
 numbers. Every cut is the same on the CPU, CUDA, Level Zero and Metal.
+
+### Chunker v1 (#172)
+
+Chunker v1 is the structure-cost hybrid: `turbo-chunker --max 254
+--target 200` with `--retrieval hybrid` at its defaults (weighted
+fusion, BM25 weight 0.35), all-MiniLM-L6-v2 (manifest `0f17adc4`). Its
+cuts read no vectors. Beside it runs
+`turbo-chunker-254-200-cohesion-1000-hybrid`, whose cohesion term reads
+sentence vectors, so a backend's numerics could move its cuts: it is the
+cut-identity check. Each backend gates the candidate against the three
+hybrid baselines run on that same backend. Every record is at main
+`0d58e862`, with turbo-sentdetect's rule splitter as the sentence
+default (#1568), under `analysis/eval/records/v1-172/<backend>/<name>/`
+for the CPU, Level Zero (Arc Pro B70), CUDA (RTX 4080 SUPER) and Metal
+(Apple M2), with the run logs beside them and the gate and cut reports in
+`analysis/eval/records/v1-172/reports/`. (The first records, at
+`16e74c04` with the 2.5.4 OpenNLP sentence model, gave the same
+verdicts; their cut dumps predate the dumps' completion record and could
+not be re-verified, so they are not kept.)
+
+The document gate FAILs on every backend, with the same verdicts (the
+sets below the -0.5 floor; CPU, Level Zero and Metal number for number,
+CUDA where it differs):
+
+| Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
+| :--- | :--- | :--- | :--- |
+| structure-cost hybrid (v1) | FAIL, 0 gains; `scifact` -1.34, `qasper` -0.95 | FAIL, 0 gains; `arguana` -0.68 (CUDA -0.55) | FAIL, 2 gains; `qasper` -1.34 (Level Zero -1.30, CUDA -1.32) |
+| cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.20, `qasper` -0.74 | FAIL, 0 gains; `arguana` -0.77 (CUDA -0.59) | FAIL, 2 gains; `qasper` -1.12 (Level Zero -1.09, CUDA -1.10) |
+
+v1's nDCG@10 is `69.07` / `34.22` / `51.49` / `37.64` (scifact,
+nfcorpus, arguana, qasper) on the CPU. Against like-for-like baselines
+it is not 2 points better on any set; the per-document diagnosis on #172
+explains why (most judged BEIR documents are one or two chunks under any
+chunker) and what v1 does better: on qasper it cuts through 7.7% of the
+judged evidence spans against sentence windows' 51%.
+
+Cut identity: `turbo-eval run --dump-cuts` wrote each turbo-chunker
+run's cuts, and `turbo-eval cuts` (with #1595, which also compares every
+chunk's full range) compared every document against the CPU's. Each
+dump read as complete; for both pipelines, on all four sets, every
+document has the same chunks on the CPU, Level Zero, CUDA and Metal:
+the same full ranges (start, end, level and parent) and the same cut
+starts (structure-cost 55854 shared cuts, cohesion 57804; 0 documents
+differ). With no differing cut, the reports hold no margins to set
+against a precision tier. The dumps are not committed (about 107 MB per
+pipeline and backend); `reports/cut-dumps.sha256` names each one's
+SHA-256 and size. Metal matches the CPU query for query on every
+record; Level Zero on every record but the sandbox semantic chunker's
+on qasper (2 of 1451 queries differ, same chunk count and sizes); CUDA
+differs on up to 62 of arguana's 1406 queries (v1 +0.18 points,
+cohesion +0.24) with the same chunks, so from its vectors' numerics. The
+sandbox semantic chunker cuts on sentence-vector thresholds and writes
+no cut dump; on Metal its arguana run has one chunk fewer than the
+CPU's (49147 against 49148) with the same per-query scores. The Intel
+NPU leg is #1480.
+
+### The chunker gate on evidence (#172)
+
+The document gate (`turbo-eval gate`: +2 nDCG@10 points on two sets)
+measures document ranking. On scifact, nfcorpus and arguana most judged
+documents are one or two chunks under any chunker, and even the better
+of chunker v1 and sentence windows per query stays under +2 on scifact
+and nfcorpus (#172, diagnosis of 2026-10-28). So from 2026-10-28 a
+chunker is gated on what it hands a reader instead, by `turbo-eval
+chunk-gate <candidate> <sentence-windows> [<baseline> ...]`
+(`analysis/eval/src/chunk_gate.rs`, its thresholds in one place):
+
+- **Evidence**, on every set with judged evidence spans that is not
+  mostly one- or two-chunk documents (under half of them, by the smaller
+  of the candidate's and the reference's shares): span recall@10 and
+  contained@10 above sentence-windows-5, each with the 95% paired
+  bootstrap interval's low end above zero, and fewer judged spans cut
+  through. At least one set must be gated.
+- **Floor**, on every set: against the baseline with the best mean
+  nDCG@10 there, the interval's high end of the candidate's difference
+  is at least -0.5 points.
+
+Records carry what it reads in `metrics.span`: the evidence integrity
+(share of judged spans no chunk holds whole, share of judged documents
+in at most two chunks) and per-query recall and containment at 10.
+Records made before lack them, and the chunk gate refuses them, so no
+record is read against the wrong bar.
+
+Chunker v1 is `turbo-chunker --max 254 --target 200 --clauses` with
+`--retrieval hybrid`, all-MiniLM-L6-v2 (manifest `0f17adc4`). `--clauses`
+splits a sentence over `--max` at clause punctuation and else by token
+windows: gutenqa has unpunctuated stretches the sentence splitter cannot
+break, up to 116k tokens, which were one truncated chunk and cost v1
+1.46 points of nDCG@10 against fixed-tokens-200. Records at
+`8051f4d7` (gate reports from `957dc00a`, byte-identical to `e28b80d0`'s), six sets, under
+`analysis/eval/records/v1-clauses-172/<backend>/<name>/`, with the gate
+and cut reports in `reports/`. On the CPU, Level Zero (Arc Pro B70), CUDA (RTX 4080 SUPER) and Metal
+(Apple M2; its records at `e28b80d0`, which differs from `8051f4d7` only
+in the gate's code, not in chunking or scoring) the evidence numbers
+are the same, and Metal's floors are the CPU's; the floors that differ are qasper's (CPU
+-1.31, Level Zero -1.27, CUDA -1.29) and, on CUDA, arguana (-0.57) and
+nfcorpus (+0.34):
+
+| Set | recall@10 vs sw-5 | contained@10 vs sw-5 | evidence cut through, v1 / sw-5 | nDCG@10 vs best baseline, mean (high end) |
+| :--- | ---: | ---: | ---: | ---: |
+| qasper | +5.68 (+4.44..+6.95) | +13.78 (+12.05..+15.56) | 7.7% / 51.0% | -1.31 (-0.01) CPU, -1.27 (+0.02) Level Zero, -1.29 (+0.01) CUDA, sandbox semantic |
+| gutenqa | +10.80 (+9.11..+12.52) | +12.05 (+10.18..+13.92) | 5.8% / 9.0% | +0.01 (+0.44), fixed-tokens |
+| conteb-squad | reported: 98% short | | 0.1% / 0.2% | -0.68 (+0.08), sandbox semantic |
+| scifact | | | | -1.34 (-0.03), sentence windows |
+| arguana | | | | -0.68 (-0.16), CUDA -0.57 (-0.02), fixed-tokens |
+| nfcorpus | | | | +0.39 (+0.99), CUDA +0.34 (+0.93), sentence windows |
+
+The gate PASSes on all four backends, and the cohesion-1000 variant
+(`--cohesion 1000 --clauses`) passes too. Both pipelines cut every
+document of the six sets the same on the CPU, Level Zero, CUDA and Metal (`turbo-eval
+cuts`, every chunk's full range; a `--clauses` run's chunks are compared
+by range alone, since its cuts inside a sentence have no margin to
+price). CUDA's nDCG@10 differs from the CPU's only from its vectors'
+numerics (arguana on up to 58 of 1406 queries, nfcorpus on up to 4),
+with the same chunks. Metal matches the CPU query for query. Sentence
+windows is still the eval default; making this pipeline the default is
+separate follow-up work.
 
 ### Structure in the chunker
 

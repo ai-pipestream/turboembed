@@ -4546,6 +4546,65 @@ cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst
     return cudaGetLastError();
 }
 
+
+/* int8 and ubinary codes, bit for bit with core/src/quantize.rs: every
+ * step in F32, floor then clamp to [0, 255], then subtract 128 as i8; a
+ * zero-width range uses step 1; NaN floors and clamps to NaN and casts to
+ * the bottom bucket (0 after the cast). ubinary packs bit (x > 0), eight
+ * to a byte, the first dimension in the top bit, a short last byte padded
+ * with 0. */
+
+__global__ void quantize_int8_kernel(const float *x, const float *ranges, int rows, int dim, int8_t *out) {
+    const size_t n = (size_t)rows * (size_t)dim;
+    for (size_t i = (size_t)blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x) {
+        const int d = (int)(i % (size_t)dim);
+        const float lo = ranges[d];
+        const float hi = ranges[(size_t)dim + (size_t)d];
+        float step = (hi - lo) / 255.0f;
+        if (step == 0.0f) step = 1.0f;
+        float q = floorf((x[i] - lo) / step);
+        q = fminf(fmaxf(q, 0.0f), 255.0f);
+        const int qi = isnan(q) ? 0 : (int)q;
+        out[i] = (int8_t)(qi - 128);
+    }
+}
+
+__global__ void quantize_ubinary_kernel(const float *x, int rows, int dim, uint8_t *out) {
+    const int row_bytes = (dim + 7) / 8;
+    const size_t n = (size_t)rows * (size_t)row_bytes;
+    for (size_t bi = (size_t)blockIdx.x * blockDim.x + threadIdx.x; bi < n; bi += (size_t)gridDim.x * blockDim.x) {
+        const int r = (int)(bi / (size_t)row_bytes);
+        const int b = (int)(bi % (size_t)row_bytes);
+        const float *row = x + (size_t)r * (size_t)dim;
+        const int base = b * 8;
+        uint8_t byte = 0;
+        for (int i = 0; i < 8; i++) {
+            const int d = base + i;
+            if (d < dim && row[d] > 0.0f) byte = (uint8_t)(byte | (0x80u >> i));
+        }
+        out[bi] = byte;
+    }
+}
+
+cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out) {
+    if (rows <= 0 || dim <= 0) return cudaSuccess;
+    const size_t n = (size_t)rows * (size_t)dim;
+    const int threads = 256;
+    const int blocks = (int)((n + (size_t)threads - 1) / (size_t)threads);
+    quantize_int8_kernel<<<blocks, threads, 0, s>>>(x, ranges, rows, dim, out);
+    return cudaGetLastError();
+}
+
+cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out) {
+    if (rows <= 0 || dim <= 0) return cudaSuccess;
+    const int row_bytes = (dim + 7) / 8;
+    const size_t n = (size_t)rows * (size_t)row_bytes;
+    const int threads = 256;
+    const int blocks = (int)((n + (size_t)threads - 1) / (size_t)threads);
+    quantize_ubinary_kernel<<<blocks, threads, 0, s>>>(x, rows, dim, out);
+    return cudaGetLastError();
+}
+
 cudaError_t kernels_run_here() {
     cudaFuncAttributes a;
     return cudaFuncGetAttributes(&a, pack_rows_kernel);

@@ -191,6 +191,7 @@ the records named above, not the UD scorer's):
 | ca-ancora | 59610 | 88.52 | 70.69 | - | 99.96 | 95.47 |
 | fi-ftb | 16286 | 98.31 | 99.77 | - | 99.77 | 99.50 |
 | it-markit | 10196 | 87.60 | 91.24 | - | 99.41 | 99.75 |
+| en-masc (held out) | 85292 | 94.37 | 73.00 | - | - | - |
 
 Reading notes: the peers tokenize with models trained on UD-style
 segmentation, so the gap to a rule segmenter is the price of
@@ -201,7 +202,16 @@ whitespace baseline beats UAX #29 and matches Stanza's bench score;
 it-markit goes the same way. The fi-ftb and it-markit test files are
 single documents for this scorer, so their bootstrap intervals
 degenerate to the point score. The token-split head's row lands
-here when a trained bundle exists; MASC token F1 is still owed.
+here when a trained bundle exists.
+
+The en-masc row (`turbo-tokenize-en-masc-test.json`, via
+`--gold-masc`) scores the same tiers against MASC 3.0.0's Penn
+tokens on the trainer recipes' held-out split: every tenth document
+in corpus order at 9 modulo 10, the Twitter genre left out, at the
+recorded corpus digest `445449f5…`. Its 6384 gold sentences and
+85292 gold words are the test counts the MASC POS receipts record,
+which is the split-parity check. No peer system has a MASC token
+row yet.
 
 ## Entities: WNUT-17
 
@@ -452,6 +462,11 @@ turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
 # are in the inputs table above and in each record)
 turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
   --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
+  --tokenize uax29 --tokenize whitespace --out <new-record>.json
+
+# Tokenizer tiers on the MASC held-out split (the extracted release
+# directory; its corpus digest is checked against the recorded one)
+turbo-eval analysis --gold-masc <masc-dir>/MASC-3.0.0 \
   --tokenize uax29 --tokenize whitespace --out <new-record>.json
 
 # Multilingual Stanza (per language; es shown)

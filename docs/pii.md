@@ -200,8 +200,7 @@ spans over multi-byte texts, and that the text equals `mask`.
 
 - Offsets are UTF-8 bytes; OpenNLP's are UTF-16 units. They differ after
   any non-ASCII character (after U+10428 the byte offset is 4 more, the
-  unit offset 2 more). The goldens record UTF-8 offsets, so the
-  comparison is exact.
+  unit offset 2 more). The snapshots record UTF-8 offsets.
 - Masks keep the byte length, not the UTF-16 length (above).
 - Caller-defined extractors implement `CustomExtractor` (with optional
   `config_hash` for stateful settings, or pass a scan function to
@@ -227,7 +226,7 @@ spans over multi-byte texts, and that the text equals `mask`.
   also reported as a phone or card and ten digits inside an
   international phone number are not also reported as an NHS number.
   `PiiDetector::keeping_nested` keeps nested mentions as OpenNLP does;
-  the golden and differential parity checks use it.
+  the snapshot tests use it.
 
 ## OpenNLP behaviour kept
 
@@ -265,53 +264,40 @@ that could be real, it is replaced, and the tests say so:
   names by `example.com`.
 - An SSN known to have been published in an advertisement is left out.
 
-## Golden files
+## Snapshot tests
 
-JVM goldens come from the goldens tool (`analysis/goldens-tool`), as for
-the other OpenNLP ports ([analysis.md](analysis.md#golden-files)).
+The snapshots are reviewed outputs of this crate, checked in next to its
+tests. No other implementation produces or checks them.
 
-- Inputs: the `pii` set, `analysis/goldens/data/inputs/pii/`, 61 texts
-  written for the packs with only documented test values, example ranges
-  and made up values.
-- Goldens: `analysis/goldens/data/pii/<pack>/pii/<id>.golden`, one
-  directory per pack (`payment`, `contact`, `network`, `secrets`,
+- Inputs: `analysis/pii/tests/inputs/`, 61 texts written for the packs
+  with only documented test values, example ranges and made up values.
+- Detection snapshots: `analysis/pii/tests/snapshots/<pack>/<id>.tsv`,
+  one directory per pack (`payment`, `contact`, `network`, `secrets`,
   `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`,
-  `all-structured`), from `PiiAnnotator` over the `PiiPacks` extractor.
-  Layer `turbo:pii` with the columns `start`, `end` (UTF-8 byte offsets),
-  `type` and `normalized`; the `config pack` record names the pack.
-- Rewrite goldens: `pii-rewrite/<pack>/pii/<id>.golden` under the same
-  data directory, what `Masker` (with `MaskPolicies.byType()` and with
-  `#`), `Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` make of
-  the pack's mentions under the test key in the `config key` record: the
-  masked text's edits as `turbo:view`, the text with every mention
-  masked, both rewrites or the exception each threw, their labels with
-  the spans they replaced, and the audit report by type and as text.
-  `analysis/goldens-tool/README.md` lists the columns. A character
-  OpenNLP masks is written as one mask byte per UTF-8 byte, as here.
-
-Make them in the recipe container with
-
-```
-cargo run -p turbo-goldens-tool -- generate
-```
+  `all-structured`), one row per `turbo:pii` mention with its `start`
+  and `end` (UTF-8 byte offsets), kind and TSV-escaped normalized form.
+- Rewrite snapshots: `analysis/pii/tests/rewrite_snapshots/<pack>/<id>.txt`,
+  what `MaskedView`, `mask_all`, `Pseudonymizer`, `HmacTokenizer` and
+  `PiiAuditReport` make of the pack's mentions under a fixed test key:
+  the masked text, the text with every mention masked, both rewrites (or
+  `OVERLAP` when both refuse overlapping mentions), their labels with the
+  spans they replaced, and the audit report.
 
 `analysis/pii/tests/goldens.rs` runs every pack with
-`PiiDetector::keeping_nested` over the set and compares the layer with
-the goldens row for row; while the `pii` golden directory is not on disk
-it says so and passes. The differential fuzzer covers the ten packs in
-the same parity mode (`analysis/fuzz/src/runs/pii.rs`), and the `pii`
-set is among the sets it writes generated texts into.
+`PiiDetector::keeping_nested` over the inputs, checks each layer with
+`Layer::check`, that spans are in bounds and that kind names parse back,
+and compares the rows with the detection snapshots.
+`analysis/pii/tests/rewrite_goldens.rs` does the same for the rewrites,
+and also checks that every rewrite label maps back to a source mention
+and that both rewrites refuse the same overlaps. A missing snapshot fails
+the test. After a reviewed change in behaviour, rewrite them with
 
-`analysis/pii/tests/rewrite_goldens.rs` runs every pack (with
-`keeping_nested`) and `MaskedView` over the set and compares the masked
-view's edits, the fully masked text, both rewrites (or that both sides
-refuse overlapping mentions; the Java message gives UTF-16 offsets, so
-only the refusal is compared), the labels with the spans they replaced
-and the offset map at them, and the audit report, exactly. While the
-`pii-rewrite` golden directory is not on disk it says so and passes. The
-differential fuzzer leaves these runs out (`NOT_COVERED` in
-`analysis/fuzz/src/runs/catalog.rs`), since they compare texts and
-reports rather than layers.
+```
+TURBO_BLESS=1 cargo test -p turbo-pii --test goldens --test rewrite_goldens
+```
+
+The fuzz catalog (`analysis/fuzz/src/runs/catalog.rs`) runs every pack
+natively over generated texts.
 
 ## Precision and recall
 

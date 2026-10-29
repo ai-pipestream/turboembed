@@ -16,7 +16,6 @@ fn retired_runs_are_rejected_before_resource_lookup() {
         ("tokenize", "arbitrary-model"),
         ("postag", "pos-fixture"),
         ("lemmatize", "lemma-fixture-rust"),
-        ("lemmatize-dictionary", "lemmatizer-dictionary"),
         ("chunk", "chunker-fixture"),
         ("langdetect", "langdetect-fixture-rust"),
     ] {

@@ -1500,3 +1500,46 @@ kernel void abs_max_f16(device const half *x [[buffer(0)]], constant uint &n [[b
     const float m = simd_max(a);
     if (lane == 0) atomic_fetch_max_explicit(slot, as_type<uint>(m), memory_order_relaxed);
 }
+
+
+// ---- int8 and ubinary codes (core/src/quantize.rs) ---------------------------
+//
+// Every step in F32: floor then clamp to [0, 255], then subtract 128 as i8;
+// a zero-width range uses step 1; NaN floors and clamps to NaN and casts to
+// the bottom bucket. ubinary packs bit (x > 0), eight to a byte, the first
+// dimension in the top bit, a short last byte padded with 0. out is a
+// separate buffer so the write never races the read of x.
+
+kernel void quantize_int8(device const float *x [[buffer(0)]], device const float *ranges [[buffer(1)]],
+                          device char *out [[buffer(2)]], constant uint &rows [[buffer(3)]],
+                          constant uint &dim [[buffer(4)]], uint i [[thread_position_in_grid]]) {
+    const ulong n = ulong(rows) * dim;
+    if (i >= n) return;
+    const uint d = i % dim;
+    const float lo = ranges[d];
+    const float hi = ranges[dim + d];
+    float step = (hi - lo) / 255.0f;
+    if (step == 0.0f) step = 1.0f;
+    float q = floor((x[i] - lo) / step);
+    q = clamp(q, 0.0f, 255.0f);
+    const int qi = isnan(q) ? 0 : int(q);
+    out[i] = char(qi - 128);
+}
+
+kernel void quantize_ubinary(device const float *x [[buffer(0)]], device uchar *out [[buffer(1)]],
+                             constant uint &rows [[buffer(2)]], constant uint &dim [[buffer(3)]],
+                             uint bi [[thread_position_in_grid]]) {
+    const uint row_bytes = (dim + 7u) / 8u;
+    const ulong n = ulong(rows) * row_bytes;
+    if (bi >= n) return;
+    const uint r = uint(bi / row_bytes);
+    const uint b = uint(bi % row_bytes);
+    device const float *row = x + ulong(r) * dim;
+    const uint base = b * 8u;
+    uchar byte = 0;
+    for (uint i = 0; i < 8u; i++) {
+        const uint d = base + i;
+        if (d < dim && row[d] > 0.0f) byte = uchar(byte | (0x80u >> i));
+    }
+    out[bi] = byte;
+}

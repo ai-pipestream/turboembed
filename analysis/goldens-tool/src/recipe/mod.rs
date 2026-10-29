@@ -76,14 +76,13 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 43] = [
+pub const INPUT_SETS: [&str; 42] = [
     "en",
     "multi",
     "num",
     "money",
     "quantity",
     "temporal",
-    "pii",
     "edge",
     "surrogate",
     "abbreviations",
@@ -133,7 +132,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 47] = [
+pub const ANNOTATORS: [&str; 45] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -146,8 +145,6 @@ pub const ANNOTATORS: [&str; 47] = [
     "money-convert",
     "quantity",
     "temporal",
-    "pii",
-    "pii-rewrite",
     "detokenize",
     "subwords",
     "sentvectors",
@@ -187,11 +184,11 @@ pub const ANNOTATORS: [&str; 47] = [
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers, the number scan, the money, quantity, temporal and PII
-/// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
+/// normalizers, the number scan, the money, quantity and temporal
+/// annotators, the detokenizer, the WordPiece encoder,
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 5] = ["sentdetect", "tokenize", "postag", "lemmatize", "langdetect"];
+pub const DUMPED_ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "postag", "langdetect"];
 
 /// The input set the number scan runs on. It runs on no other set, and the
 /// other annotators do not run on this one.
@@ -228,8 +225,6 @@ pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
 pub const DOCCAT_INPUT_SET: &str = "doccat";
 pub const DOCCAT_TRAIN_SET: &str = "doccat-train";
 
-/// The input set the PII packs and the PII rewrites run on. They run on no
-/// other set, and the other annotators do not run on this one.
 /// The input set of the corpus readers: files and directories in the
 /// layouts of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig and
 /// 20 Newsgroups corpora. No other annotator runs on it.
@@ -240,10 +235,6 @@ pub const CORPORA_INPUT_SET: &str = "corpora";
 /// read by its own streams only.
 pub const ONTONOTES_INPUT_SET: &str = "ontonotes";
 pub const FRENCH_TREEBANK_INPUT_SET: &str = "frenchtreebank";
-
-/// The input set the PII packs run on. They run on no other set, and the
-/// other annotators do not run on this one.
-pub const PII_INPUT_SET: &str = "pii";
 
 /// The input set the Arvores Deitadas streams read: files in the format of
 /// the Floresta Sinta(c)tica treebank, written for the goldens. The streams

@@ -25,8 +25,8 @@ fn the_base_image_is_pinned_by_a_sha256_digest() {
     assert!(is_lower_hex(hex, 64), "{BASE_IMAGE_DIGEST}");
 }
 
-/// OpenNLP 1.5 models and 2.5 artifacts are not fetched (#1509): the
-/// recipe lists none, and the generator names no 1.5 model.
+/// OpenNLP 1.5 models and 2.5 artifacts are not fetched (#1509), and the
+/// generator no longer names the retired published 2.5 models (#1653).
 #[test]
 fn no_opennlp_1_5_or_2_5_model_is_fetched() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
@@ -34,9 +34,10 @@ fn no_opennlp_1_5_or_2_5_model_is_fetched() {
     for name in v1_5 {
         assert!(!runs.contains(name), "Runs.java names {name}");
     }
-    // Runs.java still names the 2.5 models in runs that #1532 deletes, but
-    // the recipe no longer fetches them.
-    for name in v1_5.into_iter().chain(["-2.5.4.bin", "langdetect-183"]) {
+    for name in ["1.3-2.5.4", "langdetect-183"] {
+        assert!(!runs.contains(name), "Runs.java still names retired published model {name}");
+    }
+    for name in v1_5.into_iter().chain(["-2.5.4.bin", "langdetect-183", "1.3-2.5.4"]) {
         for m in MODELS.iter().chain(std::iter::once(&POOLING_SOURCE)) {
             assert!(!m.file.contains(name) && !m.url.contains(name), "{} names {name}", m.url);
         }
@@ -233,7 +234,6 @@ fn the_generator_names_the_same_input_sets() {
             SENTIMENT_TRAIN_SET,
             DOCCAT_INPUT_SET,
             DOCCAT_TRAIN_SET,
-            PII_INPUT_SET,
         ]
         .contains(s)
     }) {
@@ -298,24 +298,6 @@ fn the_temporal_extractor_has_its_own_input_set_and_no_dumps() {
     let temporal = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
     assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
     assert!(temporal.contains("ANNOTATOR = \"temporal\""));
-}
-
-#[test]
-fn the_pii_packs_and_rewrites_have_their_own_input_set_and_no_dumps() {
-    assert!(INPUT_SETS.contains(&PII_INPUT_SET));
-    for annotator in ["pii", "pii-rewrite"] {
-        assert!(ANNOTATORS.contains(&annotator));
-        assert!(!DUMPED_ANNOTATORS.contains(&annotator));
-    }
-    let pii = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PiiGolden.java");
-    assert!(pii.contains(&format!("INPUT_SET = \"{PII_INPUT_SET}\"")));
-    assert!(pii.contains("ANNOTATOR = \"pii\""));
-    let rewrite = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PiiRewriteGolden.java");
-    assert!(rewrite.contains("ANNOTATOR = \"pii-rewrite\""));
-    assert!(rewrite.contains("Set.of(PiiGolden.INPUT_SET)"));
-    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-    assert!(runs.contains("annotators.addAll(PiiGolden.all());"));
-    assert!(runs.contains("annotators.addAll(PiiRewriteGolden.all());"));
 }
 
 #[test]
@@ -434,5 +416,34 @@ fn every_excerpt_is_present_with_its_hash_and_line_count() {
         assert!(head.lines().all(|l| l.starts_with("# ")), "{}", e.input);
         let taken: u32 = e.lines.iter().map(|&(a, b)| b - a + 1).sum();
         assert_eq!(body.lines().count() as u32, taken, "{}", e.input);
+    }
+}
+
+/// The README's Runs table lists every fixture run `Runs.java` registers, with
+/// its annotator named, so a run the generator still produces is never left
+/// out of the documentation.
+#[test]
+fn readme_runs_table_lists_the_fixture_runs() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    let readme = include_str!("../../README.md");
+    let table: Vec<&str> = readme.lines().filter(|l| l.starts_with("| ")).collect();
+    let fixture_runs = [
+        ("ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE)", "`chunk` (`ChunkerME`)", "`chunker-fixture`"),
+        (
+            "ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE)",
+            "`chunk` (`ChunkerME`)",
+            "`chunker-fixture+beam1`",
+        ),
+        ("fixtures.resolve(CHUNKER_FIXTURE_RUST)", "`chunk` (`ChunkerME`)", "`chunker-fixture-rust`"),
+        ("fixtures.resolve(POS_FIXTURE_RUST)", "`postag` (`POSTaggerME`)", "`pos-fixture-rust`"),
+        ("fixtures.resolve(LEMMA_FIXTURE_RUST)", "`lemmatize` (`LemmatizerME`)", "`lemma-fixture-rust`"),
+        ("fixtures.resolve(LANGUAGE_FIXTURE_RUST)", "`langdetect` (`LanguageDetectorME`)", "`langdetect-fixture-rust`"),
+    ];
+    for (registered, annotator, model) in fixture_runs {
+        assert!(runs.contains(registered), "Runs.java no longer registers {model}; update this test");
+        assert!(
+            table.iter().any(|row| row.starts_with(&format!("| {annotator} |")) && row.contains(model)),
+            "README Runs table has no {annotator} row naming {model}"
+        );
     }
 }

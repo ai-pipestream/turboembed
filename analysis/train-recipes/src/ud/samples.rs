@@ -74,12 +74,13 @@ pub fn lemma_samples(conllu: &str) -> std::result::Result<(Vec<LemmaSample<'_>>,
 }
 
 impl UdRecipe {
-    /// The model the recipe's model is gated against.
+    /// The model the recipe is gated against.
     ///
     /// # Errors
     ///
-    /// [`Error::NoReference`] for the part-of-speech taggers, which have
-    /// none since #1646.
+    /// [`Error::NoReference`] for the tokenizers, part-of-speech
+    /// taggers and lemmatizers, which have none since #1645, #1646
+    /// and #1647.
     pub fn reference(&self) -> Result<crate::Reference> {
         self.reference.ok_or(Error::NoReference { recipe: self.model_id })
     }
@@ -117,7 +118,7 @@ impl UdRecipe {
             Component::Tokens => segmentation::Component::Tokens,
             Component::Pos | Component::Lemmas => return None,
         };
-        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference?.id() })
+        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference.map(|r| r.id()) })
     }
 
     /// For a tagger, the MASC tagger's gate for it: a [`PosRecipe`] of the

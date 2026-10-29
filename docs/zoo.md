@@ -408,7 +408,11 @@ another way overrides it (#1613).
 - `Sources::then_keep(name, store)` adds a store (anything that is a
   `Transport` and a `Keep`: `Blobs` or `S3Bucket`) that also keeps every
   file a later source serves, once it verifies, so the next read is
-  local. A file it cannot keep is still handed over.
+  local. A file it cannot keep is still handed over. The keeping store
+  neither serves nor keeps an artifact whose class may not be
+  redistributed (`CLASS_LOCAL_ONLY`, refused): such a file comes only
+  from the sources after it, and no copy of it is made, on a server's
+  store or on a user's own machine.
 - `S3Bucket` (the `http` feature) is an S3 bucket or prefix, on AWS or
   an S3-compatible store such as RustFS, in the same
   `<prefix>/blobs/sha256/<hex>` layout: a file is read with one GET and
@@ -427,7 +431,9 @@ another way overrides it (#1613).
 
 A zoo server keeps its files in such a store with
 `--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
-(docs/grpc-catalog.md). `turbo-zoo-remote` (top-level `zoo-remote/`)
+(docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
+its first read, so a library pointed at it with `grpc(s)://` needs no
+separate install step. `turbo-zoo-remote` (top-level `zoo-remote/`)
 adds the library's remote sources: a zoo server over `grpc://` or
 `grpcs://`, an S3 bucket over `s3://`, and the `TURBO_ZOO_SOURCE` list
 that names them.

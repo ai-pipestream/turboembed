@@ -1,0 +1,9 @@
+MASKED	Token ghp_1234567890abcdefghijklmnopqrstuvwxyz leaked.
+
+MASK_ALL	Token ghp_1234567890abcdefghijklmnopqrstuvwxyz leaked.
+
+REWRITE	pseudonymize	OK	Token ghp_1234567890abcdefghijklmnopqrstuvwxyz leaked.
+
+REWRITE	hmac	OK	Token ghp_1234567890abcdefghijklmnopqrstuvwxyz leaked.
+
+AUDIT_REPORT	no pii found

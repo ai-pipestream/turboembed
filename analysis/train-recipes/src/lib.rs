@@ -60,8 +60,10 @@ pub mod card;
 pub mod depparse;
 pub mod error;
 pub mod fineweb;
+pub mod flores;
 pub mod langdetect;
 pub mod langdetect_web;
+pub mod langid;
 pub mod litbank;
 pub mod masc;
 pub mod namefind;
@@ -219,11 +221,11 @@ impl Recipe {
     ///
     /// # Errors
     ///
-    /// [`Error::NoReference`] for a recipe with none: the tagger, the
-    /// chunker and the name finders.
+    /// [`Error::NoReference`] for a recipe with none: the tokenizer,
+    /// the tagger, the chunker and the name finders.
     pub fn reference(&self) -> Result<Reference> {
         let reference = match self {
-            Recipe::Segmentation(r) => Some(Reference::Retired(r.reference_id)),
+            Recipe::Segmentation(r) => r.reference_id.map(Reference::Retired),
             Recipe::Pos(r) => r.reference,
             Recipe::Name(r) => r.reference,
         };

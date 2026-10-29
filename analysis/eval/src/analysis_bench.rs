@@ -36,6 +36,7 @@ use crate::analysis::Sentencer;
 mod align;
 mod conllu;
 mod language;
+mod masc;
 mod ner;
 mod tokenize;
 use crate::model_gate::{Counts, Measure};
@@ -44,8 +45,9 @@ use crate::sha::{sha256, to_hex};
 use crate::significance::percentile;
 pub use conllu::{ConlluSentence, ConlluToken, parse_conllu};
 pub use language::{LangGold, parse_lang_gold, parse_lang_pred, score_language, script_fallback_predictions};
+pub use masc::{MASC_CORPUS_SHA256, MascGold, corpus_digest, masc_documents, masc_test_documents};
 pub use ner::{parse_ner_gold, parse_ner_pred, score_ner};
-pub use tokenize::{TokenizerTier, score_tokenizer};
+pub use tokenize::{TokenDocument, TokenizerTier, score_tokenizer, score_tokenizer_documents};
 
 /// The fixed bootstrap seed of every analysis record.
 pub const BOOTSTRAP_SEED: i64 = 42;
@@ -295,6 +297,7 @@ pub fn command(args: &[String]) -> Result<()> {
         return ner::ner_command(args);
     }
     let mut gold_path = None;
+    let mut gold_masc = None;
     let mut want_sha = None;
     let mut out = None;
     let mut preds: Vec<(String, String)> = Vec::new();
@@ -310,6 +313,7 @@ pub fn command(args: &[String]) -> Result<()> {
             |it: &mut std::slice::Iter<'_, String>| it.next().cloned().ok_or_else(|| format!("{arg} needs a value"));
         match arg.as_str() {
             "--gold" => gold_path = Some(value(&mut it)?),
+            "--gold-masc" => gold_masc = Some(value(&mut it)?),
             "--sha256" => want_sha = Some(value(&mut it)?),
             "--out" => out = Some(value(&mut it)?),
             "--system" => system_name = value(&mut it)?,
@@ -330,7 +334,46 @@ pub fn command(args: &[String]) -> Result<()> {
             other => return Err(format!("analysis: unknown option {other}")),
         }
     }
-    let gold_path = gold_path.ok_or("analysis needs --gold <file.conllu>")?;
+    if let Some(dir) = &gold_masc {
+        if gold_path.is_some() || want_sha.is_some() || !preds.is_empty() || !sents.is_empty() || sentences.is_some() {
+            return Err("--gold-masc takes only --tokenize systems (no --gold, --pred, --sents or --sentences)".into());
+        }
+        if tokenizers.is_empty() {
+            return Err("--gold-masc needs at least one --tokenize system".into());
+        }
+        let out = out.ok_or("analysis needs --out <record.json>")?;
+        if Path::new(&out).exists() {
+            return Err(format!("{out} exists; refusing to overwrite a record"));
+        }
+        let gold = masc::masc_test_documents(Path::new(dir))?;
+        let systems = tokenizers
+            .iter()
+            .map(|tier| {
+                score_tokenizer_documents(tier.system_name(), &gold.documents, *tier, resamples, gold.sentences)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let record = AnalysisRecord {
+            version: 1,
+            gold_file: Path::new(dir).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+            gold_sha256: gold.sha256,
+            sentences: gold.sentences,
+            tokens: gold.documents.iter().flat_map(|d| &d.sentences).map(Vec::len).sum(),
+            resamples,
+            seed: BOOTSTRAP_SEED,
+            conditioning: vec![
+                "gold: the MASC 3.0.0 held-out documents of the trainer recipes' split (every tenth document in corpus order, the Twitter genre left out), at the recorded corpus digest".into(),
+                "tokens (tokenizer tiers): UAX #29 segments of each document's gold sentence texts joined with one space, whitespace-only segments dropped, or Unicode White_Space runs for the whitespace baseline; no gold segmentation reaches a tier".into(),
+                "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted".into(),
+                "bootstrap: per-document pooled resampling for token-aligned metrics".into(),
+            ],
+            systems,
+        };
+        let bytes = serde_json::to_vec_pretty(&record).map_err(|e| e.to_string())?;
+        std::fs::write(&out, bytes).map_err(|e| format!("{out}: {e}"))?;
+        println!("wrote {out}");
+        return Ok(());
+    }
+    let gold_path = gold_path.ok_or("analysis needs --gold <file.conllu> or --gold-masc <MASC-3.0.0 dir>")?;
     let want_sha = want_sha.ok_or("analysis needs --sha256 <hex> pinning the gold file")?;
     let out = out.ok_or("analysis needs --out <record.json>")?;
     if Path::new(&out).exists() {

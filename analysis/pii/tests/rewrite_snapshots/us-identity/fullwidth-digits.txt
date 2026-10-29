@@ -1,0 +1,9 @@
+MASKED	Fullwidth ４１１１１１１１１１１１１１１１ and Arabic-Indic ٤١١١١١١١١١١١١١١١ are not scanned.
+
+MASK_ALL	Fullwidth ４１１１１１１１１１１１１１１１ and Arabic-Indic ٤١١١١١١١١١١١١١١١ are not scanned.
+
+REWRITE	pseudonymize	OK	Fullwidth ４１１１１１１１１１１１１１１１ and Arabic-Indic ٤١١١١١١١١١١١١١١١ are not scanned.
+
+REWRITE	hmac	OK	Fullwidth ４１１１１１１１１１１１１１１１ and Arabic-Indic ٤١١١١١١١١١١١١١١١ are not scanned.
+
+AUDIT_REPORT	no pii found
