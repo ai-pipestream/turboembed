@@ -208,6 +208,11 @@ impl NgramModel {
     pub fn at_least(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
         self.above_threshold(text, threshold)
     }
+
+    /// Returns all languages with scores below a threshold.
+    pub fn at_most(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
+        self.below_threshold(text, threshold)
+    }
 }
 
 /// A coarse script class for language priors.
