@@ -6,7 +6,7 @@ use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
-use super::tagging::{Lemmatizer, Tagger};
+use super::tagging::{DictionaryRun, Tagger};
 use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
@@ -109,10 +109,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
     ("lattice", "unidic-mecab-2.1.2"),
-    ("lemmatize", "lemma-fixture-rust"),
-    ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
-    ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
-    ("lemmatize-dictionary", "lemmatizer-dictionary"),
     ("langdetect", "langdetect-183"),
     ("langdetect", "langdetect-183+probing"),
     ("langdetect", "langdetect-183+probing-chunk50"),
@@ -179,7 +175,7 @@ pub fn is_retired(annotator: &str, run: &str) -> bool {
     match annotator {
         "sentdetect" => !matches!(base, "newline" | "rule" | "paragraph"),
         "tokenize" => !matches!(base, "simple" | "whitespace" | "uax29"),
-        "postag" | "lemmatize" | "lemmatize-dictionary" | "chunk" | "langdetect" => true,
+        "postag" | "lemmatize" | "chunk" | "langdetect" => true,
         _ => false,
     }
 }
@@ -187,10 +183,11 @@ pub fn is_retired(annotator: &str, run: &str) -> bool {
 /// Retained native runs, including rule sentences and paragraph structure.
 /// Historical JVM expected outputs play no part in this execution registry.
 pub fn native_runs() -> impl Iterator<Item = (&'static str, &'static str)> {
-    RUNS.iter()
-        .copied()
-        .filter(|(annotator, run)| !is_retired(annotator, run))
-        .chain([("sentdetect", "rule"), ("sentdetect", "paragraph")])
+    RUNS.iter().copied().filter(|(annotator, run)| !is_retired(annotator, run)).chain([
+        ("sentdetect", "rule"),
+        ("sentdetect", "paragraph"),
+        ("lemmatize-dictionary", "lemmatizer-dictionary"),
+    ])
 }
 
 /// Opens the Rust side of `<annotator>/<run>`.
@@ -217,8 +214,7 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "unigram" => Unigram::open(base, &options, res),
         "lattice" => Lattice::open(base, &options, res),
         "postag" => Tagger::open(base, &options, res),
-        "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
-        "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
+        "lemmatize-dictionary" if run == "lemmatizer-dictionary" => DictionaryRun::open(res),
         "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
