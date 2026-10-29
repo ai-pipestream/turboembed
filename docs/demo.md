@@ -281,7 +281,10 @@ target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
 | Flag | Meaning | Absent |
 |---|---|---|
 | `--listen ADDR:PORT` | Where the page is served. | `TURBO_DEMO_LISTEN`, else `127.0.0.1:8080`. |
-| `--server URL` | The server to call, `http://HOST:PORT`. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
+| `--server URL` | The server to call, `http://HOST:PORT` or `https://HOST:PORT`. HTTPS requires an explicit trusted CA. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
+| `--server-tls-ca PEM` | Trust this CA certificate chain for the upstream gRPC server. | `TURBO_DEMO_SERVER_TLS_CA`, else no upstream TLS. |
+| `--server-tls-cert PEM`, `--server-tls-key PEM` | Present this client identity to the upstream server; both or neither. | `TURBO_DEMO_SERVER_TLS_CERT` and `TURBO_DEMO_SERVER_TLS_KEY`. |
+| `--server-tls-name NAME` | Verify this certificate name when dialing a different address. Trust and name verification stay enabled. | `TURBO_DEMO_SERVER_TLS_NAME`, else the URL host. |
 | `--allow METHOD` | Also forward this method that changes the server, `/<package>.<Service>/<Method>`; repeat for more. A name that is not a known method stops the demo at startup. | `TURBO_DEMO_ALLOW`, comma-separated, else the reads only. |
 | `--token-file PATH` | A file holding the bearer token every call must carry. | `TURBO_DEMO_TOKEN_FILE`, else the token in `TURBO_DEMO_TOKEN`, else none. |
 | `--user NAME` | Who the page's licence acceptances and installs are for (see The user). | `TURBO_DEMO_USER`, else none: the catalog calls name no user and the Models tab is read-only. |
@@ -291,6 +294,23 @@ target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
 The demo serves on the loopback address with no token unless told
 otherwise. It need not start after the server: it connects
 on each call, and a call while the server is down is `unavailable`.
+
+The upstream client settings are separate from the page's `--tls-cert`
+and `--tls-key`. For an mTLS upstream, mount a dedicated client identity
+and the server CA, then start the page with:
+
+```sh
+turbo-kserve-demo --server https://127.0.0.1:8081 \
+  --server-tls-ca certs/server-ca.pem --server-tls-name localhost \
+  --server-tls-cert certs/client.pem --server-tls-key certs/client.key
+```
+
+There is no plaintext retry or insecure certificate option. An HTTPS
+URL without a CA, an HTTP URL with TLS settings, or an incomplete client
+identity is refused. Flags override the corresponding environment values.
+Library callers use `Options.upstream_tls: Option<UpstreamTls>` and the
+paired `ClientIdentity` type. The server's private key is never used as
+the client's key automatically.
 
 ## What the page shows
 

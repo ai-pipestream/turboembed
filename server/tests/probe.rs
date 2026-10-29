@@ -12,7 +12,7 @@ use turbo_kserve::probe::{self, Probe};
 use turbo_kserve::proto::health::health_check_response::ServingStatus;
 
 fn probe(s: &Server, service: &str) -> Probe {
-    Probe { addr: s.local_addr(), service: service.into(), timeout: Duration::from_secs(5) }
+    Probe { addr: s.local_addr(), service: service.into(), timeout: Duration::from_secs(5), tls: None }
 }
 
 #[tokio::test]
