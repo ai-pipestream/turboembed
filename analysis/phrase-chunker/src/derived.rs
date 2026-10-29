@@ -102,7 +102,7 @@ pub fn derive(tags: &[&str], heads: &[Option<usize>], rels: &[&str], words: &[&s
         let mut stack = vec![head];
         while let Some(t) = stack.pop() {
             for &c in &children[t] {
-                if inside(c) {
+                if inside(c) && !set.contains(&c) {
                     set.push(c);
                     stack.push(c);
                 }
@@ -185,9 +185,11 @@ impl Annotator for DependencyChunker {
         if deps.head.len() != n || deps.relation.len() != n {
             return refuse(format!("{} heads and {} relations for {n} tokens", deps.head.len(), deps.relation.len()));
         }
-        if let Some((i, h)) = deps.head.iter().enumerate().find_map(|(i, h)| h.filter(|h| h.get() >= n).map(|h| (i, h)))
-        {
-            return refuse(format!("head {} of token {i} is past the {n} tokens", h.get()));
+        // Relations in the tag set, heads in range and never their own,
+        // and no cycle: what a document checks on `add`, for a parse
+        // passed in directly.
+        if let Err(detail) = deps.check_forest() {
+            return refuse(detail);
         }
         let text = view.text();
         let (starts, ends) = tokens.spans.columns();

@@ -2,7 +2,7 @@
 //! annotator over a document.
 
 use turbo_analysis::{Annotator, Document, Ix, Key, Provenance, Span, Spans, View, ViewId};
-use turbo_analysis_layers::{Dependencies, PhraseChunks, PosTags, TagSet, Tokens};
+use turbo_analysis_layers::{Dependencies, PhraseChunks, PosTags, Tag, TagSet, Tokens};
 use turbo_phrase_chunker::{ChunkKind, DependencyChunker, derive};
 
 /// `(word, tag, head counted from 1 with 0 the root, relation)` rows.
@@ -94,6 +94,11 @@ fn a_dependent_across_a_gap_is_left_out() {
     assert_eq!(chunks(&rows), [("dog".into(), "NP")]);
     assert_eq!(ChunkKind::Verb.label(), "VP");
     assert!(chunks(&[]).is_empty());
+    // A cycle ends rather than loops: each token is inside the other's
+    // chunk, so neither heads one; a cycle through a head stops there.
+    assert!(chunks(&[("the", "DT", 2, "det"), ("dog", "NN", 1, "compound")]).is_empty());
+    let looped = [("the", "DT", 3, "det"), ("big", "JJ", 1, "amod"), ("dog", "NN", 2, "nsubj")];
+    assert_eq!(chunks(&looped), [("the big dog".into(), "NP")]);
 }
 
 /// A document of `rows` (word, Penn tag, head from 1 with 0 the root,
@@ -175,7 +180,21 @@ fn the_annotator_refuses_a_head_past_the_tokens_and_a_short_parse() {
     rows[1].2 = 9;
     let (doc, deps) = document(&rows);
     let err = annotate(&doc, &deps).err().expect("refused").to_string();
-    assert!(err.contains("head 8 of token 1 is past the 5 tokens"), "{err}");
+    assert!(err.contains("dependency head 8 at 1 is out of bounds (5)"), "{err}");
+
+    // A relation outside the tag set, a token its own head, and a cycle.
+    let (doc, mut deps) = document(&BARKED);
+    deps.relation[0] = Tag(u16::MAX);
+    let err = annotate(&doc, &deps).err().expect("refused").to_string();
+    assert!(err.contains("a relation outside"), "{err}");
+    let (doc, mut deps) = document(&BARKED);
+    deps.head[0] = Some(Ix::new(0));
+    let err = annotate(&doc, &deps).err().expect("refused").to_string();
+    assert!(err.contains("is its own head"), "{err}");
+    let (doc, mut deps) = document(&BARKED);
+    deps.head[2] = Some(Ix::new(1));
+    deps.head[1] = Some(Ix::new(2));
+    assert!(annotate(&doc, &deps).is_err(), "big and dog head each other");
 
     let (doc, mut deps) = document(&BARKED);
     deps.relation.pop();
