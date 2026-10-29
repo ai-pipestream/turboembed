@@ -258,13 +258,13 @@ impl<R: Real> Ranker<R> {
                 }
             }
         }
-        if !total.is_finite() || local.iter().flatten().any(|g| !g.to_f64().is_finite()) {
-            return Err(invalid("trainer: the coreference loss or a gradient is not finite"));
+        if !total.is_finite() {
+            return Err(invalid("trainer: the coreference loss is not finite"));
         }
+        // Checked once the adapter's share is in: its backward can
+        // overflow, and nothing reaches `grads` unless all of it is finite.
         adapter::backward(shape, &self.params, features, dv, &mut local, &w.adapter, false);
-        for (g, l) in grads.iter_mut().zip(local) {
-            g.iter_mut().zip(l).for_each(|(a, b)| *a += b);
-        }
+        adapter::commit(grads, &local, "coreference")?;
         Ok((total, m))
     }
 }

@@ -121,3 +121,44 @@ fn a_trained_ranker_links_the_mentions_of_one_entity() {
     let (again, _) = fit_coref(&s, HIDDEN, &data(1, 120), &data(2, 30), &c).unwrap();
     assert_eq!(again.params(), trained.params(), "the same seed gives the same bytes");
 }
+
+#[test]
+fn an_adapter_gradient_past_f32_is_refused_and_leaves_gradients_alone() {
+    // Codex's case: hidden 1, a BiLSTM of width 1 whose candidate biases
+    // are 1 and other weights 0, mention weights of 1 and a pair weight
+    // of 1e10. Over features of 3e38 the loss is finite but the adapter's
+    // input weight gradients are not.
+    let mut s = spec(1, 2);
+    s.coref = Some(CorefShape { dim: 1, antecedents: 2 });
+    let mut model = Ranker::<f32>::new(&s, 1, &mut Rng::new(9)).unwrap();
+    for t in 0..model.params().len() {
+        let name = model.names()[t].clone();
+        let w = model.param_mut(t);
+        w.fill(0.0);
+        if name.starts_with("lstm.") && name.ends_with(".b") {
+            w[2] = 1.0;
+        } else if name == "mention.weight" {
+            w.fill(1.0);
+        } else if name == "pair.weight" {
+            w.fill(1e10);
+        }
+    }
+    let (mentions, chains) = ([(0, 0), (1, 1)], [0, 1]);
+    let mut grads = model.zero_grads();
+    let mut w = Work::default();
+    assert!(model.loss(&[3e38, 3e38], &mentions, &chains, &mut grads, &mut w).is_err());
+    assert!(grads.iter().flatten().all(|&g| g == 0.0), "nothing is stored");
+    // The same weights over features of normal scale add finite gradients.
+    model.loss(&[1.0, 1.0], &mentions, &chains, &mut grads, &mut w).unwrap();
+    assert!(grads.iter().flatten().all(|g| g.is_finite()));
+    // At features of 1e25 the largest gradient is about 1.6e34: finite,
+    // but stored sums of f32::MAX with its sign would overflow.
+    let mut big = model.zero_grads();
+    model.loss(&[1e25, 1e25], &mentions, &chains, &mut big, &mut w).unwrap();
+    assert!(big.iter().flatten().any(|g| g.abs() > 1e33));
+    let mut full: Vec<Vec<f32>> =
+        big.iter().map(|t| t.iter().map(|&g| if g < 0.0 { -f32::MAX } else { f32::MAX }).collect()).collect();
+    let before = full.clone();
+    assert!(model.loss(&[1e25, 1e25], &mentions, &chains, &mut full, &mut w).is_err());
+    assert_eq!(full, before);
+}

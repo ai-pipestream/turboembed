@@ -19,7 +19,9 @@ use turbo::head::coref::chains;
 use turbo::head::tagger::Work;
 use turbo::manifest::HeadKind;
 use turbo::status::Error as CoreError;
-use turbo_analysis::{Annotator, Edge, Edges, Error, Execution, Fnv1a, Groups, Ix, ModelRef, Refs, TagSet, View};
+use turbo_analysis::{
+    Annotator, Edge, Edges, Error, Execution, Fnv1a, Groups, Ix, Layer, ModelRef, Refs, TagSet, View,
+};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Subwords, Tokens};
 
@@ -86,6 +88,10 @@ impl CorefTagger {
         let all = Tokens { spans: tokens.spans.clone(), sentence: None };
         let seqs = HeadRunner::sequences(view, &all, None)?;
         let n = tokens.spans.len();
+        entities.check().map_err(|e| format!("the entities: {e}"))?;
+        if entities.spans.view() != view.id() {
+            return Err(format!("entities over {:?}, tokens over {:?}", entities.spans.view(), view.id()));
+        }
         if entities.tokens.iter().any(|r| r.end.get() > n || r.start >= r.end) {
             return Err("an entity outside the tokens, or of no tokens".into());
         }

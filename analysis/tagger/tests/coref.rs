@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use turbo::head::coref::chains;
 use turbo::head::tagger::Work;
 use turbo::manifest::WordPooling;
-use turbo_analysis::{Annotator, Document, Ix, IxRange, Key, Layer, Span, Spans, TagSet, View};
+use turbo_analysis::{Annotator, Document, Ix, IxRange, Key, Layer, Span, Spans, TagSet, View, ViewId};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Tag};
 use turbo_tagger::{CorefTagger, WordEncoder};
@@ -32,8 +32,13 @@ fn coref_head(antecedents: u32) -> Value {
 const RANGES: [(u32, u32); 7] = [(0, 1), (2, 3), (4, 5), (7, 11), (10, 11), (0, 1), (14, 16)];
 
 fn entities(toks: &turbo_analysis_layers::Tokens) -> Entities {
+    entities_over(toks, toks.spans.view())
+}
+
+/// The entities of [`RANGES`] with their spans in `view`.
+fn entities_over(toks: &turbo_analysis_layers::Tokens, view: ViewId) -> Entities {
     let mut e = Entities {
-        spans: Spans::new(toks.spans.view()),
+        spans: Spans::new(view),
         tokens: Vec::new(),
         kind: Vec::new(),
         kinds: TagSet::new("mentions", &["X"]),
@@ -116,4 +121,15 @@ fn bad_entities_and_wrong_heads_are_refused() {
     let mut ents = entities(&toks);
     ents.tokens[1] = IxRange::new(2, 99);
     assert!(tagger.annotate((view, &toks, &ents, None)).is_err());
+    // Entities whose spans are in another view than the tokens'.
+    let elsewhere = entities_over(&toks, ViewId(7));
+    let Err(err) = tagger.annotate((view, &toks, &elsewhere, None)) else { panic!("another view") };
+    assert!(err.to_string().contains("entities over"), "{err}");
+    // Entities the layer's own check refuses: no kind per entity.
+    let mut kindless = entities(&toks);
+    kindless.kind.clear();
+    assert!(kindless.check().is_err());
+    assert!(tagger.annotate((view, &toks, &kindless, None)).is_err());
+    // The same entities as they should be still resolve.
+    tagger.annotate((view, &toks, &entities(&toks), None)).unwrap();
 }
