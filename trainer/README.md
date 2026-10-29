@@ -43,10 +43,27 @@ What is here:
   the thread count; `verbose` logs each epoch's loss, dev score, seconds
   and words a second. Two runs with one seed give identical bytes.
 
+- `encoder`: stage R2 (#1519), a ModernBERT encoder in training. Its
+  ops, each forward and backward and generic over `Real`: LayerNorm with
+  and without a bias (`norm`), rotary positions from the core's own
+  cos/sin table (`rope`), the gated GELU MLP with an erf to f64
+  rounding (`gated`, `math`), softmax attention with the sliding window
+  of a local layer (`attention`), the bias-free projections (`matmul`)
+  and low-rank adapters on them (`lora`). `Encoder` loads a ModernBERT
+  bundle's F32 weights, runs one sequence forward with the core's
+  numerics (held to the sealed tiny ModernBERT reference within the
+  conformance tolerance), and backward to every weight; `with_lora`
+  freezes the base and trains adapters alone; `merged` folds them back
+  into weights a bundle carries. One sequence at a time, on one thread,
+  with every head's probabilities kept: the reference the later legs
+  (batches, CUDA backward, checkpointing, bf16) are held to.
+
 Corpora, scoring, receipts and the `turbo-train-head` command are in
 `trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle
-output; the edit-tree head (R1c); encoder fine-tuning (R2, #1519);
-distillation (R3, #1520).
+output; the edit-tree head (R1c); the rest of R2 (CUDA backward, bf16
+with f32 master weights and loss scaling, gradient checkpointing,
+dropout, full fine-tuning runs and bundle output, #1519); distillation
+(R3, #1520).
 
 ```text
 cargo test -p turbo-trainer
