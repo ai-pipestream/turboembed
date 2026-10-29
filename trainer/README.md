@@ -40,13 +40,42 @@ What is here:
   examples run on `threads` threads (0, the default, takes every core),
   each into a gradient buffer of its own, and the buffers are summed
   element by element in example order, so the weights do not depend on
-  the thread count; `verbose` logs each epoch's loss, dev score, seconds
-  and words a second. Two runs with one seed give identical bytes.
+  the thread count; a batch runs in rounds of `lanes` examples (0, the
+  default, takes the whole batch), each round added to the sum in turn,
+  so memory is bounded by the lanes and the weights do not depend on
+  them either (gradient accumulation); `verbose` logs each epoch's loss,
+  dev score, seconds and words a second. Two runs with one seed give
+  identical bytes.
+
+- `encoder`: stage R2 (#1519), a ModernBERT encoder in training. Its
+  ops, each forward and backward and generic over `Real`: LayerNorm with
+  and without a bias (`norm`), rotary positions from the core's own
+  cos/sin table (`rope`), the gated GELU MLP with an erf to f64
+  rounding (`gated`, `math`), softmax attention with the sliding window
+  of a local layer (`attention`), which recomputes its probabilities in
+  backward rather than keeping heads x n^2 of them a layer, the
+  bias-free projections (`matmul`) and low-rank adapters on them
+  (`lora`). `Encoder` loads a ModernBERT bundle's F32 weights, runs one
+  sequence forward with the core's numerics (held to the sealed tiny
+  ModernBERT reference within the conformance tolerance), and backward
+  to every weight; `with_lora` freezes the base and trains adapters on
+  every layer, `with_lora_top` on the top layers alone, and a frozen
+  slot holds no gradient buffer; `merged` folds them back into weights a
+  bundle carries. `pool` turns subword states into words as the core's
+  word reader does. `tuned` trains the encoder under a token tagger
+  head on the shared loop: the head's loss flows through the pooling
+  into the encoder's trainable weights, dev is scored through the core's
+  tagger over the encoder's states, and `fit_tuned` takes the same
+  `Config` as `fit`, threads and lanes included. One sequence a thread,
+  with no sum split: the reference the later legs (CUDA backward, bf16)
+  are held to.
 
 Corpora, scoring, receipts and the `turbo-train-head` command are in
 `trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle
-output; the edit-tree head (R1c); encoder fine-tuning (R2, #1519);
-distillation (R3, #1520).
+output; the edit-tree head (R1c); the rest of R2 (CUDA backward, bf16
+with f32 master weights and loss scaling, checkpointing of the other
+activations, dropout, full fine-tuning runs on a corpus and bundle
+output, #1519); distillation (R3, #1520).
 
 ```text
 cargo test -p turbo-trainer

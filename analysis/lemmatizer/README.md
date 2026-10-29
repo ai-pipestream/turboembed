@@ -24,7 +24,7 @@ common word. There is no inference-time POS rule for capitalization.
 Edit indices end in `:`, so indices above nine decode without ambiguity.
 
 `LemmatizerFactory::opennlp` retains the original training behavior for
-JVM goldens and UD reproduction. Published models and manifests without a
+JVM goldens. Published models and manifests without a
 factory keep the original decoder. Native models use a distinct factory
 name so a JVM without that factory refuses them instead of silently
 misreading the new classes. Unknown factory versions are refused here.
@@ -34,28 +34,9 @@ full-corpus results, model hashes and the Italian gate diagnosis.
 
 ## Models
 
-| File | Origin | SHA-256 |
-|---|---|---|
-| `opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin` | Apache OpenNLP UD models 1.3 (`downloads.apache.org/opennlp/models/ud-models-1.3`, also Maven Central `org.apache.opennlp:opennlp-models-lemmatizer-en:1.3.0`) | `711ad051faba79865c5f9fc5b8c455d6ad8e6d3e8b92f42142af1ef0bc7b3a96` |
-| `opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin` | the same release (`opennlp-models-lemmatizer-de:1.3.0`) | `8850986f02dfbe293046bfce93bc0c3f3fa010e89177250abca23d860033d4f6` |
-
-The two UD models are the OpenNLP 1.3 models trained by OpenNLP 2.5.4 on
-Universal Dependencies treebanks (English EWT, German GSD). The models are
-under the Apache License 2.0, but the treebanks they were trained on are
-CC BY-SA, so the files are not checked in: `cargo run -p turbo-goldens-tool --
-fetch-models <dir>` downloads them (with the other models of
-`analysis/goldens-tool/src/recipe/models.rs`, each checked against its published
-SHA-512), and the tests read them from the directory `TURBO_GOLDENS_MODELS`
-names, or `target/turbo-goldens/models` under the repository root. A test that
-needs a model that is not there says so and passes, unless
-`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1` makes that a failure, as CI sets it after
-fetching the models. Both are maxent models with `BeamSize=3`, the default
-factory and so the default context generator, and lemma classes (shortest edit
-scripts) as outcomes: 860 in the English model. Their features name Universal
-Dependencies tags (`t0=NOUN`), so they run on the tags of the UD
-part-of-speech models. Each file's SHA-512 is in the first `model` record of
-every golden made with it (`analysis/goldens/data/lemmatize/<model>/`), and the
-tests check it.
+The OpenNLP UD lemma models and their golden files were retired under #1647.
+Lemmatization now uses our edit-tree head and crate-local dictionary snapshots
+(`analysis/lemmatizer/tests/dictionary_snapshot.rs`).
 
 The dictionary the dictionary lemmatizer's tests run,
 `lemmatizer-dictionary.txt`, is made for this project and checked in as one of
@@ -64,26 +45,8 @@ directory's README describes it).
 
 ## Golden files
 
-`tests/golden.rs` compares both lemmatizers with files a JVM running OpenNLP
-wrote, made by the golden generator (`analysis/goldens-tool`,
-`LemmaGolden.java` and `DictionaryLemmaGolden.java`). Each golden holds the
-sentences, tokens and part-of-speech tags the JVM's own sentence detector,
-tokenizer and tagger made, and the lemma each lemmatizer gave each token. The
-test loads the JVM's tokens and tags as golden layers and runs the lemmatizer
-on them, so what is compared is the lemmatization alone: lemmas exactly and,
-for the maxent lemmatizer, probabilities bit for bit.
-
-| Run | Model | Input sets | What it covers |
-|---|---|---|---|
-| `lemmatize/opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | the published English model (see Models) | `en`, `multi`, `edge` | 1,304 tokens, 181 of them with a class other than `O` |
-| `lemmatize/opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | the published German model | `edge` | 465 tokens, 45 changed |
-| `lemmatize-dictionary/lemmatizer-dictionary` | `analysis/goldens/data/fixtures/lemmatizer-dictionary.txt` | `en`, `multi`, `edge` | 1,304 tokens, 130 found in the dictionary, the rest `O`; entries with several lemmas, with a capital letter (never found), listed twice, with an empty lemma field and with fields after the lemma |
-
-Beside each maxent golden is a decision point dump, every context the beam
-search asked the model about with the probability of every lemma class; the
-test runs the search with a recording context generator and checks the
-contexts feature by feature, in the JVM's order, and the probabilities bit for
-bit.
+The old OpenNLP lemma goldens were removed under #1647. Dictionary
+lemmatization is covered by crate-local snapshot tests.
 
 The `lemma-fixture-rust` model has two classes that delete the two units of
 an emoji at the end of a token (`Smile😀` to `smile`, `ok👍` to `ok`), so each

@@ -8,6 +8,9 @@ use crate::status::{Result, invalid};
 /// The shape the architecture implies for a BERT tensor: `[out, in]` for a
 /// linear layer's weight, `[out]` for its bias and for LayerNorm.
 fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
+    if let Some(shape) = super::rotary::rotary_shape(role, a) {
+        return shape;
+    }
     let (h, i) = (a.hidden as u64, a.intermediate as u64);
     use TensorRole::*;
     match role {
@@ -21,6 +24,7 @@ fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
         EmbeddingsLnWeight | EmbeddingsLnBias | QBias | KBias | VBias | AttnOutBias | AttnLnWeight | AttnLnBias
         | FfnOutBias | FfnLnWeight | FfnLnBias | RelativeLnWeight | RelativeLnBias => vec![h],
         RelativeEmbeddings => vec![2 * a.relative.map_or(0, |r| r.position_buckets) as u64, h],
+        QkvWeight | FinalNormWeight | FfnGateWeight | FfnUpWeight => unreachable!("rotary_shape gives them"),
         StaticEmbeddings | StaticWeights | StaticMapping => {
             unreachable!("an encoder's tensor_names has no static role (validate)")
         }
@@ -81,8 +85,9 @@ pub const DEBERTA_EMBEDDING_ROLES: [TensorRole; TURBO_DEBERTA_EMBEDDING_TENSORS 
 };
 
 /// Every tensor the family's encoder needs, in the order turbo_backend.h's
-/// TURBO_BERT_* (or TURBO_DEBERTA_*) constants give. Every role must be in
-/// tensor_names.
+/// TURBO_BERT_* (or TURBO_DEBERTA_*, TURBO_MODERNBERT_*, TURBO_NOMIC_*)
+/// constants give, less the one `rotary_roles::absent` names. Every role
+/// must be in tensor_names.
 pub fn bert_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Vec<Expected>> {
     tensors_of(index, art, a, a.layers)
 }
@@ -94,7 +99,12 @@ pub fn embedding_tensors(index: usize, art: &Artifact, a: &Architecture) -> Resu
 }
 
 fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Result<Vec<Expected>> {
-    let encoder = if a.family == Family::DebertaV2 { "a DeBERTa-v2" } else { "a BERT" };
+    let encoder = match a.family {
+        Family::DebertaV2 => "a DeBERTa-v2",
+        Family::Modernbert => "a ModernBERT",
+        Family::NomicBert => "a nomic-bert",
+        Family::Bert | Family::Roberta => "a BERT",
+    };
     let name = |role: TensorRole| {
         art.tensor_names.get(&role).ok_or_else(|| {
             invalid(format!(
@@ -103,14 +113,21 @@ fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Re
             ))
         })
     };
-    let embeddings: &[TensorRole] =
-        if a.family == Family::DebertaV2 { &DEBERTA_EMBEDDING_ROLES } else { &BERT_EMBEDDING_ROLES };
-    let mut out = Vec::with_capacity(embeddings.len() + (layers * TURBO_BERT_LAYER_TENSORS) as usize);
+    let (embeddings, layer_roles): (&[TensorRole], &[TensorRole]) = match super::rotary::tables(a.family) {
+        Some(t) => t,
+        None if a.family == Family::DebertaV2 => (&DEBERTA_EMBEDDING_ROLES, &BERT_LAYER_ROLES),
+        None => (&BERT_EMBEDDING_ROLES, &BERT_LAYER_ROLES),
+    };
+    let absent = super::rotary::absent(a.family);
+    let mut out = Vec::with_capacity(embeddings.len() + layers as usize * layer_roles.len());
     for &role in embeddings {
         out.push(Expected { name: name(role)?.clone(), shape: bert_shape(role, a), what: role_name(role) });
     }
     for layer in 0..layers {
-        for role in BERT_LAYER_ROLES {
+        for (r, &role) in layer_roles.iter().enumerate() {
+            if absent == Some(embeddings.len() + layer as usize * layer_roles.len() + r) {
+                continue;
+            }
             out.push(Expected {
                 name: name(role)?.replace("{layer}", &layer.to_string()),
                 shape: bert_shape(role, a),

@@ -1,0 +1,14 @@
+MASKED	Office (***) ***-****, mobile +* ***-***-****, fax 202.555.0199.
+
+MASK_ALL	Office ##############, mobile ###############, fax 202.555.0199.
+
+REWRITE	pseudonymize	OK	Office PHONE-1, mobile PHONE-2, fax 202.555.0199.
+
+LABEL	pseudonymize	7	21	7	14	PHONE-1
+LABEL	pseudonymize	30	45	23	30	PHONE-2
+REWRITE	hmac	OK	Office PHONE-f50a7a743264f1db, mobile PHONE-8cc2d23bb2dfa2d3, fax 202.555.0199.
+
+LABEL	hmac	7	21	7	29	PHONE-f50a7a743264f1db
+LABEL	hmac	30	45	38	60	PHONE-8cc2d23bb2dfa2d3
+AUDIT	phone	2	2	PHONE-f50a7a743264f1db, PHONE-8cc2d23bb2dfa2d3
+AUDIT_REPORT	phone: 2 mentions, 2 distinct [PHONE-f50a7a743264f1db, PHONE-8cc2d23bb2dfa2d3]

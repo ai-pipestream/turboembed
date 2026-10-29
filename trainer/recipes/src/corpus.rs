@@ -100,6 +100,12 @@ pub struct CorpusRecord {
     pub test: Counts,
     /// Sentences the reader left out (no words, a word without a label).
     pub skipped: usize,
+    /// Whether a head trained on the corpus stays local whatever its
+    /// licence says: the corpus's text rights are not settled (UD
+    /// Portuguese Porttinari), so it is a recipe a user runs, never a
+    /// shipped model.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub recipe_only: bool,
 }
 
 impl CorpusRecord {
@@ -107,6 +113,7 @@ impl CorpusRecord {
     /// (docs/zoo.md): what a head trained on it carries as
     /// `license_class`, so a bundle holding the head is offered only as
     /// its terms allow (a CC BY-SA corpus makes the bundle accept-first).
+    /// A recipe-only corpus's head is local-only, whatever its licence.
     ///
     /// # Errors
     ///
@@ -116,7 +123,11 @@ impl CorpusRecord {
         use turbo::manifest::LicenseClass;
         use turbo_zoo::{Licence, LicenceClass};
         let licence: Licence = self.spdx.parse().map_err(|e| Error(format!("corpus {}: licence {e}", self.id)))?;
-        Ok(match licence.class() {
+        let class = licence.class();
+        if self.recipe_only && class != LicenceClass::Refused {
+            return Ok(LicenseClass::LocalOnly);
+        }
+        Ok(match class {
             LicenceClass::Permissive => LicenseClass::Permissive,
             LicenceClass::Lgpl => LicenseClass::Lgpl,
             LicenceClass::ShareAlike => LicenseClass::ShareAlike,

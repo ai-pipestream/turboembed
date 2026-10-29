@@ -1,5 +1,5 @@
-//! The tokenizer runs: the maxent tokenizer with every published or
-//! fixture model and its options, the simple and whitespace tokenizers in
+//! The tokenizer runs: the maxent tokenizer with every fixture model and its
+//! options, the simple and whitespace tokenizers in
 //! every mode, the UAX #29 word tokenizer, the unigram segmenter with
 //! each lexicon, and the lattice tokenizer with each dictionary.
 
@@ -9,7 +9,6 @@ use turbo_goldens::expect::{
     JvmSpan, joined_me_spans, jvm_simple_newline_spans, jvm_token_spans, simple_newline_spans, whole_character_spans,
 };
 use turbo_goldens::{Golden, Tolerance, matches_golden};
-use turbo_maxent::Dictionary;
 use turbo_tokenize::lattice::Scratch as LatticeScratch;
 use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_tokenize::{
@@ -18,13 +17,9 @@ use turbo_tokenize::{
 };
 use turbo_unicode::utf16::byte_to_utf16;
 
-use super::sentences::whitespace_mode;
+use super::sentences::no_options;
 use super::{Checked, Outcome, Run, RustError, analyze, has_cut, jvm_threw, outcome, token_spans};
 use crate::resources::{Resources, Unavailable};
-
-/// The published tokenizer model whose run with the English abbreviation
-/// dictionary has goldens.
-const ENGLISH_MODEL: &str = "opennlp-en-ud-ewt-tokens-1.3-2.5.4";
 
 /// The probabilities the golden tests accept: `assert_close` in
 /// `analysis/tokenize/tests/common/mod.rs` allows 1e-9.
@@ -61,10 +56,14 @@ impl Maxent {
                 let pattern = m.alphanumeric_pattern().to_string();
                 m = m.with_alphanumeric_optimization(Some(&pattern)).map_err(broken)?;
             }
-            ["english-dictionary"] if model == ENGLISH_MODEL => {
-                let xml = res.fixture("english-dictionary.xml")?;
-                let bytes = std::fs::read(&xml).map_err(|e| broken(format!("{}: {e}", xml.display())))?;
-                m = m.with_abbreviations(Some(Dictionary::read(&bytes).map_err(broken)?));
+            // The English abbreviation dictionary run was the published
+            // UD tokenizer model's; those models are retired (#1645), so
+            // no maxent run takes a dictionary here. The default
+            // tokenizer fuzz coverage is the UAX #29 run below.
+            ["english-dictionary"] => {
+                return Err(Unavailable::NotCovered(format!(
+                    "tokenize/{model}+english-dictionary: published OpenNLP models are retired"
+                )));
             }
             other => return Err(Unavailable::NotCovered(format!("tokenize/{model} with {other:?}"))),
         }
@@ -123,7 +122,7 @@ impl Run for Maxent {
 }
 
 /// `SimpleTokenizer` or `WhitespaceTokenizer`, with or without
-/// `keepNewLines`, in either whitespace mode.
+/// `keepNewLines`.
 pub(crate) struct Plain {
     simple: bool,
     options: TokenizerOptions,
@@ -136,7 +135,8 @@ impl Plain {
             ["keep-new-lines", rest @ ..] => (true, rest),
             rest => (false, rest),
         };
-        let options = TokenizerOptions { whitespace: whitespace_mode(rest)?, keep_newlines };
+        no_options(rest)?;
+        let options = TokenizerOptions { keep_newlines };
         let builder = Analyzer::builder();
         let analyzer = if simple {
             builder.add(SimpleTokenizer::new(options)).build()
@@ -150,7 +150,7 @@ impl Plain {
     /// it follows.
     fn plain_spans(&self, text: &str) -> Vec<(u32, u32)> {
         let mut out = Vec::new();
-        let options = TokenizerOptions { keep_newlines: false, ..self.options };
+        let options = TokenizerOptions { keep_newlines: false };
         if self.simple {
             simple_spans(text, options, &mut out);
         } else {
@@ -194,7 +194,7 @@ impl Run for Plain {
             );
             return Checked { doc: Some(doc), outcome: Outcome::Divergence(what) };
         }
-        let model = jvm_simple_newline_spans(text, self.options.whitespace);
+        let model = jvm_simple_newline_spans(text);
         let outcome = match (&golden.header.error, model) {
             (Some(e), Err(class)) if e.class.ends_with("IllegalArgumentException") && class == e.class => {
                 Outcome::Documented(format!(
@@ -322,18 +322,18 @@ impl Run for Uax29 {
     }
 }
 
-/// The unigram segmenter with a fixture lexicon in either mode.
+/// The unigram segmenter with a fixture lexicon.
 pub(crate) struct Unigram {
     analyzer: Analyzer,
 }
 
 impl Unigram {
     pub(crate) fn open(lexicon: &str, options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let mode = whitespace_mode(options)?;
+        no_options(options)?;
         let path = res.fixture(&format!("{lexicon}.txt"))?;
-        let lexicon = UnigramLexicon::read(&path, mode).map_err(|e| broken(format!("{}: {e}", path.display())))?;
+        let lexicon = UnigramLexicon::read(&path).map_err(|e| broken(format!("{}: {e}", path.display())))?;
         let analyzer = Analyzer::builder()
-            .add(UnigramSegmenter::new(lexicon, mode).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp))
+            .add(UnigramSegmenter::new(lexicon).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp))
             .build()
             .map_err(broken)?;
         Ok(Box::new(Unigram { analyzer }))
@@ -364,16 +364,16 @@ pub(crate) struct Lattice {
 
 impl Lattice {
     pub(crate) fn open(dictionary: &str, options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let mode = whitespace_mode(options)?;
+        no_options(options)?;
         let dir = if dictionary.starts_with("mecab-fixture-") {
             res.fixture(dictionary)?
         } else if dictionary.starts_with("mecab-ipadic-") {
-            res.model(&format!("{dictionary}.utf8"))?
+            res.dictionary(&format!("{dictionary}.utf8"))?
         } else {
-            res.model(dictionary)?
+            res.dictionary(dictionary)?
         };
-        let loaded = MecabDictionary::load(&dir, mode).map_err(|e| broken(format!("{}: {e}", dir.display())))?;
-        Ok(Box::new(Lattice { tokenizer: LatticeTokenizer::new(loaded, mode) }))
+        let loaded = MecabDictionary::load(&dir).map_err(|e| broken(format!("{}: {e}", dir.display())))?;
+        Ok(Box::new(Lattice { tokenizer: LatticeTokenizer::new(loaded) }))
     }
 
     /// The byte offset the tokenizer finds no candidate at, if any.

@@ -1,7 +1,7 @@
 use std::{collections::HashSet, env, fs, hint::black_box, io::Cursor, time::Instant};
 #[cfg(feature = "policies")]
 use turbo_tokenize::UnigramMode;
-use turbo_tokenize::{UnigramLexicon, UnigramSegmenter, WhitespaceMode, unigram::Scratch};
+use turbo_tokenize::{UnigramLexicon, UnigramSegmenter, unigram::Scratch};
 
 mod output_hash;
 
@@ -9,18 +9,17 @@ fn main() {
     let args: Vec<_> = env::args().collect();
     let dict = fs::read(&args[1]).unwrap();
     let jieba = jieba_rs::Jieba::with_dict(&mut Cursor::new(&dict)).unwrap();
-    let lex = UnigramLexicon::parse(&dict, WhitespaceMode::Unicode).unwrap();
+    let lex = UnigramLexicon::parse(&dict).unwrap();
     #[cfg(feature = "policies")]
     let models: Vec<_> = [UnigramMode::OpenNlp, UnigramMode::Dictionary, UnigramMode::Chinese]
         .into_iter()
-        .map(|m| UnigramSegmenter::new(lex.clone(), WhitespaceMode::Unicode).with_mode(m))
+        .map(|m| UnigramSegmenter::new(lex.clone()).with_mode(m))
         .collect();
     #[cfg(not(feature = "policies"))]
-    let models = vec![UnigramSegmenter::new(lex, WhitespaceMode::Unicode)];
+    let models = vec![UnigramSegmenter::new(lex)];
     #[cfg(feature = "main-baseline")]
     let baseline = turbo_tokenize_main::UnigramSegmenter::new(
-        turbo_tokenize_main::UnigramLexicon::parse(&dict, WhitespaceMode::Unicode).unwrap(),
-        WhitespaceMode::Unicode,
+        turbo_tokenize_main::UnigramLexicon::parse(&dict).unwrap(),
     );
     #[cfg(feature = "main-baseline")]
     let mut baseline_scratch = turbo_tokenize_main::unigram::Scratch::new();
@@ -121,7 +120,7 @@ fn jieba_words<'a>(jieba: &'a jieba_rs::Jieba, line: &'a str, hmm: bool) -> Vec<
         .cut(line, hmm)
         .into_iter()
         .map(|t| t.word)
-        .filter(|w| !w.chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)))
+        .filter(|w| !w.chars().all(|c| turbo_unicode::whitespace::is_whitespace(c as u32)))
         .collect()
 }
 

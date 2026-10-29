@@ -82,7 +82,7 @@ fn sentence_vectors_match_sentence_vectors_dl() {
         println!("skipped: TURBO_TEST_MINILM_BUNDLE is not set");
         return;
     };
-    let bundle = PathBuf::from(bundle);
+    let bundle = turbo_pins::require(PathBuf::from(bundle));
     let vectors = Arc::new(VectorAnnotator::open(&bundle, &VectorOptions::default()).unwrap());
     assert_eq!(vectors.dim(), 384, "TURBO_TEST_MINILM_BUNDLE must be an all-MiniLM-L6-v2 bundle");
     let a = Analyzer::builder()

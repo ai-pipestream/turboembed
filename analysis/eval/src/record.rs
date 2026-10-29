@@ -22,7 +22,7 @@ use turbo::record::{BundleId, Device, HOST_PATHS, Machine};
 use crate::Result;
 use crate::cost::Cost;
 use crate::metrics::{DocScores, RecallAtK, mean};
-use crate::spans::{SpanAtK, SpanEval, SpanScores};
+use crate::spans::{Integrity, SpanAtK, SpanEval, SpanScores};
 
 /// The schema version this crate writes and reads.
 pub const EVAL_RECORD_VERSION: u32 = 1;
@@ -112,12 +112,30 @@ pub struct Metrics {
     pub per_query: Vec<QueryNdcg>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpanMetrics {
     /// Queries scored at span level: those with a relevant span.
     pub queries: u32,
     pub mean: SpanAtK,
+    /// How whole the chunks keep the judged evidence; absent from records
+    /// made before the evidence gate (#172).
+    #[serde(default)]
+    pub integrity: Option<Integrity>,
+    /// Recall and containment at 10 of each scored query, in query byte
+    /// order, which the evidence gate pairs; empty in records made before
+    /// it.
+    #[serde(default)]
+    pub per_query: Vec<QuerySpanAt10>,
+}
+
+/// One query's span recall and containment at 10.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuerySpanAt10 {
+    pub query: String,
+    pub recall: f64,
+    pub contained: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -129,14 +147,27 @@ pub struct QueryNdcg {
 
 impl Metrics {
     /// The record's metrics from the document and span evaluations.
-    pub fn new(docs: &DocScores, spans: Option<&SpanEval>) -> Result<Metrics> {
+    pub fn new(docs: &DocScores, spans: Option<&SpanEval>, integrity: Option<Integrity>) -> Result<Metrics> {
         let count = |n: usize| u32::try_from(n).map_err(|_| format!("{n} queries is too many for a record"));
         Ok(Metrics {
             queries: count(docs.per_query.len())?,
             ndcg_at_10: docs.ndcg_at_10,
             recall: docs.recall,
             span: match spans {
-                Some(s) => Some(SpanMetrics { queries: count(s.per_query.len())?, mean: s.mean }),
+                Some(s) => Some(SpanMetrics {
+                    queries: count(s.per_query.len())?,
+                    mean: s.mean,
+                    integrity,
+                    per_query: s
+                        .per_query
+                        .iter()
+                        .map(|q| QuerySpanAt10 {
+                            query: q.query.clone(),
+                            recall: q.scores.at_10.recall,
+                            contained: q.scores.at_10.contained,
+                        })
+                        .collect(),
+                }),
                 None => None,
             },
             per_query: docs
@@ -230,6 +261,7 @@ impl EvalRecord {
             span_in_unit("metrics.span.mean.at_5", &s.mean.at_5)?;
             span_in_unit("metrics.span.mean.at_10", &s.mean.at_10)?;
             span_in_unit("metrics.span.mean.at_100", &s.mean.at_100)?;
+            crate::chunk_gate::check_evidence(s)?;
         }
 
         let c = &self.cost;
@@ -339,6 +371,8 @@ pub(crate) mod tests {
                 span: Some(SpanMetrics {
                     queries: 2,
                     mean: SpanAtK { at_1: spans, at_5: spans, at_10: spans, at_100: spans },
+                    integrity: None,
+                    per_query: Vec::new(),
                 }),
                 per_query,
             },

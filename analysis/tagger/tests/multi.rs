@@ -57,7 +57,7 @@ fn long_sentences_read_in_windows_agree_too() {
     let o = EncoderOptions { max_seq: 8, max_batch: 3, ..EncoderOptions::default() };
     agree(&dir, &o, LONG);
     // One row a run holds fewer ranges than a row's words take under two
-    // poolings, so such a row is read once a pooling.
+    // poolings, so such a row is read once, a range a piece.
     let o = EncoderOptions { max_seq: 8, max_batch: 1, ..EncoderOptions::default() };
     agree(&dir, &o, LONG);
 }
@@ -68,17 +68,20 @@ fn one_read_of_each_window_serves_every_head_and_pooling() {
     let doc = Document::new(LONG);
     let view = doc.require(&Key::<View>::DEFAULT).unwrap();
     let toks = tokens(LONG);
-    let o = EncoderOptions { max_seq: 8, ..EncoderOptions::default() };
-    // The pos head pools by the mean, the others by the first piece.
-    let one = MultiTask::<(PosTags,)>::open(&dir, &[None], &o).unwrap();
-    let all = MultiTask::<All>::open(&dir, &[None; 4], &o).unwrap();
-    let first = MultiTask::<(Entities,)>::open(&dir, &[None], &o).unwrap();
-    for m in [&one as &dyn Rows, &all, &first] {
-        m.run(view, &toks);
+    // Many rows a run, and one: the pos head pools by the mean, the
+    // others by the first piece.
+    for max_batch in [0, 1] {
+        let o = EncoderOptions { max_seq: 8, max_batch, ..EncoderOptions::default() };
+        let one = MultiTask::<(PosTags,)>::open(&dir, &[None], &o).unwrap();
+        let all = MultiTask::<All>::open(&dir, &[None; 4], &o).unwrap();
+        let first = MultiTask::<(Entities,)>::open(&dir, &[None], &o).unwrap();
+        for m in [&one as &dyn Rows, &all, &first] {
+            m.run(view, &toks);
+        }
+        assert!(one.rows() > 1, "the long sentence is read in windows");
+        assert_eq!(all.rows(), one.rows(), "max_batch {max_batch}");
+        assert_eq!(first.rows(), one.rows(), "max_batch {max_batch}");
     }
-    assert!(one.rows() > 1, "the long sentence is read in windows");
-    assert_eq!(all.rows(), one.rows());
-    assert_eq!(first.rows(), one.rows());
 }
 
 /// A multi-task annotator run once, whatever its outputs.

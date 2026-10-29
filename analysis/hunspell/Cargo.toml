@@ -18,5 +18,4 @@ turbo-stem-layers = { path = "../stem-layers" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
-# The goldens of the stemmer, made by OpenNLP on a JVM.
-turbo-goldens = { path = "../goldens" }
+turbo-pins = { path = "../pins" }

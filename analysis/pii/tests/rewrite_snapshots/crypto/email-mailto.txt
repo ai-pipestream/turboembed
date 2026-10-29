@@ -1,0 +1,9 @@
+MASKED	Link: mailto:contact@example.com?subject=hi
+
+MASK_ALL	Link: mailto:contact@example.com?subject=hi
+
+REWRITE	pseudonymize	OK	Link: mailto:contact@example.com?subject=hi
+
+REWRITE	hmac	OK	Link: mailto:contact@example.com?subject=hi
+
+AUDIT_REPORT	no pii found

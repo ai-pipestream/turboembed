@@ -2,18 +2,17 @@
 
 Training OpenNLP's components in Rust: the event streams
 `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`,
-`LemmaSampleEventStream`, `ChunkerEventStream`, `NameFinderEventStream`
+`LemmaSampleEventStream`, `NameFinderEventStream`
 and `LanguageDetectorEventStream`, the factories that set them up, the
 model files `SentenceDetectorME.train`, `TokenizerME.train`,
-`POSTaggerME.train`, `LemmatizerME.train`, `ChunkerME.train`,
+`POSTaggerME.train`, `LemmatizerME.train`,
 `NameFinderME.train` and `LanguageDetectorME.train` return, with every
-manifest entry and artifact the JVM writes, and the reproduction of the
-published UD 1.3 models from their treebanks.
+manifest entry and artifact the JVM writes.
 
 The lemmatizer's default factory is now native and case-preserving.
 Use `LemmatizerFactory::opennlp` for the original event classes and JVM
-model format. The published UD reproduction and golden tests select that
-compatibility factory explicitly. See docs/lemma-case-evaluation.md.
+model format. The golden tests select that compatibility factory
+explicitly. See docs/lemma-case-evaluation.md.
 
 | Module | OpenNLP |
 |---|---|
@@ -21,18 +20,16 @@ compatibility factory explicitly. See docs/lemma-case-evaluation.md.
 | `tokenize` | `TokenizerFactory` (with the language's alphanumeric pattern), `TokSpanEventStream`, `TokenizerME.train`, `TokenizerModel` |
 | `postag` | `POSTaggerFactory` (the default feature generator descriptor or a given one, a tag dictionary or none), `POSSampleEventStream` over `ConfigurablePOSContextGenerator`, `POSTaggerME.train`, `POSModel` with its `generator.featuregen` and `tags.tagdict` entries |
 | `lemmatize` | `LemmatizerFactory`, `LemmatizerME.encodeLemmas`, `LemmaSampleEventStream` over `DefaultLemmatizerContextGenerator`, `LemmatizerME.train`, `LemmatizerModel` |
-| `chunk` | `ChunkerFactory`, `ChunkerEventStream` over `DefaultChunkerContextGenerator`, `ChunkerME.train` with `MAXENT`, `MAXENT_QN`, `PERCEPTRON` or `NAIVEBAYES`, `ChunkerModel` |
 | `namefind` | `TokenNameFinderFactory` (the default descriptor or a given one without resources, the BIO or BILOU codec), `NameFinderEventStream` over `DefaultNameContextGenerator`, `NameFinderME.train` with an event trainer and its default parameters, `TokenNameFinderModel` with its `generator.featuregen` entry |
 | `langdetect` | `LanguageDetectorFactory`, `LanguageDetectorEventStream` over `DefaultLanguageDetectorContextGenerator` (the n-grams in `getContext`'s order, which differs from `predictLanguages`' when a bucket became a tree), `LanguageDetectorME.train`, `LanguageDetectorModel` |
 | `dictionary` | `Dictionary` as `new Dictionary(InputStream)` reads it and `Dictionary.serialize` writes it, through the JDK's `ToStream` with indentation |
 | `tagdict` | `POSDictionary` as `POSDictionary.create` reads it (a case-insensitive one is lowercased into a second map in the first map's order) and `POSDictionary.serialize` writes it |
 | `java_hash` | `String.hashCode`, `StringList.hashCode`, and the iteration order of a `java.util.HashMap` |
 | `package` | The `factory` and `serializer-class-*` manifest entries and the zip entry order of `BaseModel.serialize` |
-| `ud` | The recipes of the eighteen `opennlp-*-ud-*-{sentence,tokens,pos,lemmas}-1.3-2.5.4.bin` models and the comparison with the published files |
 
 The samples come from `turbo-formats` (native and CoNLL-U readers), the
 context generators from `turbo-sentdetect`, `turbo-tokenize`,
-`turbo-sequence` (the tagger's and the chunker's), `turbo-lemmatizer` and
+`turbo-sequence`, `turbo-lemmatizer` and
 `turbo-langdetect`, so that training
 and inference share one implementation of each, and the trainer, model
 writer and `.bin` packaging from `turbo-train`. This crate connects them,
@@ -124,8 +121,6 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   the written bytes are checked by the writer's unit tests, and
   `analysis/lemmatizer/tests/golden.rs` checks the JVM's lemmas and dumps
   over the Rust fixture, which the JVM reads.
-- The published UD 1.3 models were trained with 300 iterations, not the
-  150 that `ud-train.conf` in `apache/opennlp-models` says (below).
 - `NameFinderME.train` puts `Algorithm=MAXENT`, `Cutoff=0` and
   `Iterations=300` into the caller's parameters where they are absent
   (`putIfAbsent`), so a name finder trained with no parameters file uses
@@ -163,12 +158,6 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   not ported (`Error::NameSequenceTraining`), and neither are factory
   resources (word clusters, brown clusters, dictionaries): a descriptor
   that names one is refused.
-- `ChunkerME.train` takes only event trainers: the sequence perceptron
-  (`PERCEPTRON_SEQUENCE`), which the tagger and the name finder train
-  with, is refused with `IllegalArgumentException("Trainer type is not
-  supported: EVENT_MODEL_SEQUENCE_TRAINER")` (`Error::UnsupportedTrainerType`).
-  The chunker model file has `chunker.model` before
-  `manifest.properties`, the order of the JVM's artifact map.
 
 ## JVM reference
 
@@ -185,21 +174,7 @@ and tag lines, word, tag and lemma lines and CoNLL-U in both tag sets,
 with their model files, the `tags.tagdict` entry and
 `POSDictionary.serialize` of dictionaries built in the generator
 (`TaggerEventGolden`; docs/analysis.md, "Training the components").
-`tests/goldens.rs` compares this crate with every one of them but the
-chunker's. The `chunker-*` runs there (`ChunkerTrainGolden`) are
-`ChunkerME.train` itself over the chunk inputs of the `formats` and
-`tagged` sets: with OpenNLP's default parameters (GIS, 100 iterations,
-cutoff 5), the perceptron with cutoff 1 and a beam size of 5, `MAXENT_QN`
-with cutoff 1, and the sequence perceptron, which it refuses. Each
-holds the events, what the sample stream threw, the event checksum, and
-what training threw or the model it trained: its outcomes and
-predicates in order, every parameter, the `chunker.model` entry's length
-and SHA-256, the manifest and the zip entries. `tests/chunker.rs` trains
-on the same samples with the same parameters and compares all of it:
-every parameter must be the JVM's double, bit for bit (1,347 for the
-defaults, 94,545 each for the perceptron and `MAXENT_QN`), and the
-`chunker.model` entry's SHA-256 the JVM's, so the entries are the JVM's
-bytes.
+`tests/goldens.rs` compares this crate with every one of them.
 Beside the dictionary and pattern name finder runs,
 `analysis/goldens/data/namefind/` holds the events of
 `NameFinderEventStream` with the BIO and BILOU codecs, with a type given
@@ -215,20 +190,17 @@ is equal, well within the 1e-9 the issue asks for; and that
 `turbo-sequence`'s `NameFinder` finds the JVM's names with the JVM's
 probabilities, bit for bit, over the Rust fixture.
 `tests/fixtures.rs` trains the fixture models `en-plain.bin`,
-`en-abbrev.bin`, `tokenizer-abbreviations.bin`, `pos-fixture.bin` and
-`chunker-fixture.bin` again from their training texts and checks the
+`en-abbrev.bin`, `tokenizer-abbreviations.bin` and `pos-fixture.bin`
+again from their training texts and checks the
 manifest, the dictionaries, the descriptor and the model entries byte
 for byte, trains `turbo-sequence`'s name finder fixtures
 `ner-bilou-fixture.bin` (GIS, with its descriptor and the BILOU codec)
 and `ner-qn-fixture.bin` (`MAXENT_QN`, the default descriptor) again
 from their training text, and trains `pos-fixture-rust.bin`,
-`lemma-fixture-rust.bin`, `chunker-fixture-rust.bin` and
+`lemma-fixture-rust.bin` and
 `ner-fixture-rust.bin`, the fixtures this crate wrote from
 `analysis/goldens/data/inputs/tagged/`, which the golden generator loads
-in the JVM and tags, lemmatizes, chunks or finds names with
-(`analysis/postag/tests/golden.rs`, `analysis/lemmatizer/tests/golden.rs`
-and `analysis/phrase-chunker/tests/golden.rs` compare the Rust
-annotators with those goldens).
+in the JVM and tags, lemmatizes or finds names with.
 `tests/langdetect.rs` compares the language detector's training with the
 `train-langdetect` goldens (the events, the index, every GIS iteration
 and the model file; docs/langdetect.md, "Training"), among them
@@ -244,44 +216,3 @@ and the model file; docs/langdetect.md, "Training"), among them
 fold the sides, the training events' checksum, the counts and every
 prediction, and the merged precision, recall and F-measure or accuracy
 (`jvm_accuracy`, the JVM's rounding; `accuracy` is the exact share).
-
-## Reproducing the UD 1.3 models
-
-`ud::RECIPES` are the eighteen published models
-(`opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens,pos,lemmas}-1.3-2.5.4`;
-no sentence model was published for Spanish and French) as typed data:
-the treebank (repository, train file, size and digests at Universal
-Dependencies release 2.16, licence), the component, the factory and the
-training parameters. The treebanks are CC BY-SA 4.0, so they are fetched
-through `turbo-zoo` by digest after the licence is accepted, into the zoo
-cache, and never committed; `ud::datasets()` is the zoo index of the
-five. A published model that is not under `TURBO_GOLDENS_MODELS` (the
-goldens use only the English and German taggers and lemmatizers) is
-fetched through the zoo's built-in index (`ud::fetch_published_model`).
-
-```text
-cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes
-cargo run -p turbo-goldens-tool -- fetch-models <dir>
-TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
-```
-
-The test is ignored by default and prints the event hash, model entry's
-digest, manifest and ZIP entry names for each model. The recipes use the
-2.5.4 tools' defaults except for two values in the upstream `ud-train.conf`:
-the published models require `Iterations=300` and `Threads=12`, while the
-committed file says 150 and 4. `CONF_ITERATIONS` and `CONF_THREADS` preserve
-the file's values; `ITERATIONS` and `THREADS` are the reproduction settings.
-
-The old last-bit residual came from the partition count. GIS adds events
-within each partition and then combines partial sums in partition order.
-The thread count changes that grouping, even though thread scheduling does
-not change it. The original OpenNLP 2.5.4 CLI at 4 produces the same English
-sentence parameters as Rust at 4; at 12 it matches the published entry
-exactly. The English token, POS and lemma CLI runs also match at 12.
-See docs/analysis.md for artifact hashes, commands and the complete run.
-
-The gate requires exact model-entry bytes, event hash, manifest text and
-entry names. The old `1e-12` tolerance is no longer accepted. A filter that
-selects no recipe fails. ZIP compression is not compared: Rust stores its
-entries and Java deflates them. Model files written to `TURBO_REPRODUCE_OUT`
-load in both runtimes. No corpus text or generated model is checked in.

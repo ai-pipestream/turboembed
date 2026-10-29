@@ -33,6 +33,9 @@ use super::normalize::{
     NormalizedNameStep, NormalizedSourceStep, NormalizedStructureProjectStep, NormalizedSubwordsStep,
     NormalizedTokensStep,
 };
+
+mod block5;
+
 use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_ARGUMENT};
 use crate::state::{Loaded, State};
 
@@ -96,7 +99,8 @@ pub(super) fn step_needs_sparse(name: &str) -> bool {
 }
 
 pub(super) fn step_needs_embed(name: &str) -> bool {
-    step_needs_sparse(name)
+    block5::is_sat_step(name)
+        || step_needs_sparse(name)
         || matches!(
             name,
             "turbo:subwords"
@@ -353,6 +357,12 @@ pub(crate) fn compile_analyzer_with_state(
                 }
                 _ => unreachable!(),
             };
+            continue;
+        }
+
+        let (next_builder, handled) = block5::add_step(builder, name, embed_cx.as_ref())?;
+        builder = next_builder;
+        if handled {
             continue;
         }
 
