@@ -17,7 +17,7 @@ impl BouvierReader {
         }
         let mut entries: Vec<DocumentSample<'static>> = Vec::new();
         let mut pos = 0;
-        while let Some(open) = find_ci(source, "<p", pos) {
+        while let Some(open) = find_paragraph(source, pos) {
             let after_open = source[open..]
                 .find('>')
                 .map(|i| open + i + 1)
@@ -65,8 +65,22 @@ fn continuation(text: &str) -> bool {
     chars.next().is_some_and(|c| c.is_ascii_digit()) && chars.next() == Some('.')
 }
 
+fn find_paragraph(source: &str, start: usize) -> Option<usize> {
+    let mut at = start;
+    while let Some(i) = find_ci(source, "<p", at) {
+        if source.as_bytes().get(i + 2).is_some_and(|b| *b == b'>' || b.is_ascii_whitespace()) {
+            return Some(i);
+        }
+        at = i + 2;
+    }
+    None
+}
+
 fn find_ci(source: &str, needle: &str, start: usize) -> Option<usize> {
-    source[start..].to_ascii_lowercase().find(needle).map(|i| start + i)
+    source.as_bytes()[start..]
+        .windows(needle.len())
+        .position(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
+        .map(|i| start + i)
 }
 
 fn decode(source: &str, start: usize, end: usize) -> Result<Decoded, LegalError> {
@@ -110,8 +124,10 @@ fn entity_char(entity: &str) -> Option<char> {
         "nbsp" => Some('\u{a0}'),
         "laquo" => Some('\u{ab}'),
         "raquo" => Some('\u{bb}'),
-        "ldquo" | "lsquo" => Some('\u{201c}'),
-        "rdquo" | "rsquo" => Some('\u{201d}'),
+        "lsquo" => Some('\u{2018}'),
+        "rsquo" => Some('\u{2019}'),
+        "ldquo" => Some('\u{201c}'),
+        "rdquo" => Some('\u{201d}'),
         "hellip" => Some('\u{2026}'),
         "middot" => Some('\u{b7}'),
         _ => None,

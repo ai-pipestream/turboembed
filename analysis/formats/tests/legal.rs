@@ -65,6 +65,25 @@ fn bouvier_rejects_unclosed_paragraphs() {
     assert!(matches!(error, LegalError::Markup { .. }));
 }
 
+#[test]
+fn bouvier_decodes_single_and_double_curly_quotes() {
+    let entries: Vec<_> = BouvierReader::new("<P><B>T</B> &lsquo;x&rsquo; &ldquo;y&rdquo;</P>").unwrap().collect();
+    let tokens: Vec<_> = entries[0].tokens.iter().map(|token| token.as_str()).collect();
+    assert_eq!(tokens, ["‘x’", "“y”"]);
+}
+
+#[test]
+fn bouvier_scans_a_large_page_in_linear_time() {
+    let mut source = String::new();
+    for _ in 0..4_000 {
+        source.push_str("<P><B>T</B>. x</P>\n");
+    }
+    let start = std::time::Instant::now();
+    let entries = BouvierReader::new(&source).unwrap().count();
+    assert_eq!(entries, 4_000);
+    assert!(start.elapsed() < std::time::Duration::from_secs(2), "reading took {:?}", start.elapsed());
+}
+
 fn document(tokens: &[&str]) -> DocumentSample<'static> {
     DocumentSample {
         category: Field::made("legal".to_owned(), Span::new(0, 0)),
