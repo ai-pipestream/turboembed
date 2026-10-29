@@ -69,8 +69,11 @@ pub const EN_EWT: Treebank = Treebank {
     },
 };
 
+pub use crate::ud_banks::*;
+
 /// The treebanks the trainer reads.
-pub const TREEBANKS: [Treebank; 1] = [EN_EWT];
+pub const TREEBANKS: [Treebank; 11] =
+    [EN_EWT, ES_ANCORA, CA_ANCORA, FI_FTB, IT_MARKIT, PT_PORTTINARI, DE_GSD, FR_GSD, NL_ALPINO, RU_GSD, PT_GSD];
 
 /// The columns a tag head trains on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
