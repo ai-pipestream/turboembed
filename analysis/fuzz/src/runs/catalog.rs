@@ -109,7 +109,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
     ("lattice", "unidic-mecab-2.1.2"),
-    ("lemmatize-dictionary", "lemmatizer-dictionary"),
     ("langdetect", "langdetect-183"),
     ("langdetect", "langdetect-183+probing"),
     ("langdetect", "langdetect-183+probing-chunk50"),
@@ -184,10 +183,11 @@ pub fn is_retired(annotator: &str, run: &str) -> bool {
 /// Retained native runs, including rule sentences and paragraph structure.
 /// Historical JVM expected outputs play no part in this execution registry.
 pub fn native_runs() -> impl Iterator<Item = (&'static str, &'static str)> {
-    RUNS.iter()
-        .copied()
-        .filter(|(annotator, run)| !is_retired(annotator, run))
-        .chain([("sentdetect", "rule"), ("sentdetect", "paragraph")])
+    RUNS.iter().copied().filter(|(annotator, run)| !is_retired(annotator, run)).chain([
+        ("sentdetect", "rule"),
+        ("sentdetect", "paragraph"),
+        ("lemmatize-dictionary", "lemmatizer-dictionary"),
+    ])
 }
 
 /// Opens the Rust side of `<annotator>/<run>`.
