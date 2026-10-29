@@ -5,7 +5,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::sigv4::{Credentials, EMPTY_SHA256, amz_date, payload_sha256, sign};
+use super::sigv4::{Credentials, EMPTY_SHA256, amz_date, sign};
 use super::sources::Keep;
 use super::transport::Transport;
 use crate::digest::Sha256;
@@ -118,8 +118,10 @@ impl S3Bucket {
     /// Keeps `bytes` in the bucket under their own SHA-256, with one PUT,
     /// and returns that SHA-256.
     pub fn put(&self, bytes: &[u8]) -> Result<Sha256, String> {
+        // The payload's SHA-256 is the key's: one hash serves both.
         let sha256 = Sha256::of(bytes);
-        let (url, headers) = self.request("PUT", &sha256.to_string(), &payload_sha256(bytes))?;
+        let hex = sha256.to_string();
+        let (url, headers) = self.request("PUT", &hex, &hex)?;
         let mut req = self.agent.put(&url);
         for (name, value) in headers {
             req = req.header(name, value);
