@@ -9,6 +9,10 @@
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
 //!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
+//!     [--min-tree-freq N])
+//! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
+//!     [--arc N] [--rel N])
 //! ```
 //!
 //! Exit status 2 on any error. `--out` must not exist yet. A run claims
@@ -30,7 +34,10 @@ use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{
     CHECKPOINT_DEV, CHECKPOINT_EPOCH, HASH_ROWS, HeadOptions, examples, named, predict, replace, spec, write,
 };
+use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
+
+mod train_ud;
 
 const RESAMPLES: usize = 1000;
 
@@ -132,6 +139,7 @@ fn run(argv: Vec<String>) -> Result<()> {
                         coarse(&corpus_id),
                     ),
                     comparison: None,
+                    uas: None,
                 },
                 timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
                 outputs: Vec::new(),
@@ -139,11 +147,30 @@ fn run(argv: Vec<String>) -> Result<()> {
             finish(out, receipt)
         }
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
-        _ => Err(Error(format!("unknown command {command:?}: check, baseline or train"))),
+        "train-lemma" | "train-parse" => {
+            let head = if command == "train-lemma" { UdHead::Lemma } else { UdHead::Deps };
+            train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
+        }
+        _ => Err(Error(format!("unknown command {command:?}: check, baseline, train, train-lemma or train-parse"))),
     }
 }
 
-fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+/// The settings `train` and the UD commands share.
+struct Opts {
+    bundle: PathBuf,
+    out: OutDir,
+    device: Device,
+    precision: Precision,
+    pooling: WordPooling,
+    crf: bool,
+    bilstm: Option<(u32, u32)>,
+    hash: Option<HashEmbed>,
+    c: Config,
+    max_train: usize,
+    commit: String,
+}
+
+fn options(a: &mut Args) -> Result<Opts> {
     let bundle = PathBuf::from(a.required("--bundle")?);
     let out = OutDir::claim(&a.required("--out")?)?;
     let device = match a.value("--device")?.as_deref() {
@@ -193,6 +220,11 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     };
     let max_train: usize = a.parsed("--max-train", 0)?;
     let commit = commit(a.value("--commit")?);
+    Ok(Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit })
+}
+
+fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
     let t = Instant::now();
@@ -254,6 +286,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         model: Some(evaluate(task, test, &predicted, &seen, coarse(corpus_id))),
         baseline: evaluate(task, test, &base, &seen, coarse(corpus_id)),
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
+        uas: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
