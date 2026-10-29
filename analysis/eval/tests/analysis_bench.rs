@@ -1,7 +1,8 @@
 use turbo_eval::analysis::Sentencer;
 use turbo_eval::analysis_bench::{
-    command, parse_conllu, parse_lang_gold, parse_lang_pred, parse_ner_gold, parse_ner_pred, parse_sentence_list,
-    score_conllu, score_language, score_ner, score_sentence_list, score_sentencer, script_fallback_predictions,
+    TokenizerTier, command, parse_conllu, parse_lang_gold, parse_lang_pred, parse_ner_gold, parse_ner_pred,
+    parse_sentence_list, score_conllu, score_language, score_ner, score_sentence_list, score_sentencer,
+    score_tokenizer, script_fallback_predictions,
 };
 use turbo_eval::sha::{sha256, to_hex};
 
@@ -33,10 +34,10 @@ fn truncated_predictions_earn_no_boundary_credit() {
     let gold = parse_conllu(&format!("{}{}{}", one("Cats"), one("Dogs"), one("Birds"))).unwrap();
     let pred = parse_conllu(&format!("{}{}", one("Cats"), one("Dogs"))).unwrap();
     let scores = score_conllu("truncated", &gold, &pred, 0);
-    assert_eq!(scores.sentences.correct, 1);
-    assert_eq!(scores.sentences.selected, 1);
-    assert_eq!(scores.sentences.target, 2);
-    assert!(scores.sentences.score <= 100.0);
+    assert_eq!(scores.sentences.as_ref().unwrap().correct, 1);
+    assert_eq!(scores.sentences.as_ref().unwrap().selected, 1);
+    assert_eq!(scores.sentences.as_ref().unwrap().target, 2);
+    assert!(scores.sentences.as_ref().unwrap().score <= 100.0);
 }
 
 #[test]
@@ -65,11 +66,11 @@ fn boundary_populations_agree_across_paths() {
     ))
     .unwrap();
     let by_conllu = score_conllu("self", &gold, &gold, 0);
-    assert_eq!(by_conllu.sentences.target, 2, "one within-document boundary per document");
-    assert_eq!(by_conllu.sentences.score, 100.0);
+    assert_eq!(by_conllu.sentences.as_ref().unwrap().target, 2, "one within-document boundary per document");
+    assert_eq!(by_conllu.sentences.as_ref().unwrap().score, 100.0);
     let listed = parse_sentence_list("Cats\nDogs\n\nBirds\nFish\n");
     let by_list = score_sentence_list("self", &gold, &listed).unwrap();
-    assert_eq!(by_list.sentences.target, by_conllu.sentences.target);
+    assert_eq!(by_list.sentences.as_ref().unwrap().target, by_conllu.sentences.as_ref().unwrap().target);
 }
 
 #[test]
@@ -100,7 +101,7 @@ fn malformed_rows_are_refused_with_the_line_number() {
 fn a_perfect_prediction_scores_one_hundred_everywhere() {
     let gold = parse_conllu(GOLD).unwrap();
     let scores = score_conllu("self", &gold, &gold, 20);
-    assert_eq!(scores.sentences.score, 100.0);
+    assert_eq!(scores.sentences.as_ref().unwrap().score, 100.0);
     assert_eq!(scores.tokens.unwrap().score, 100.0);
     assert_eq!(scores.upos.unwrap().score, 100.0);
     assert_eq!(scores.las.unwrap().score, 100.0);
@@ -146,8 +147,8 @@ fn resegmented_predictions_keep_their_field_scores() {
     assert_eq!(scores.tokens.unwrap().score, 100.0);
     assert_eq!(scores.upos.unwrap().score, 100.0);
     assert_eq!(scores.las.unwrap().score, 100.0);
-    assert_eq!(scores.sentences.correct, 0);
-    assert_eq!(scores.sentences.target, 1);
+    assert_eq!(scores.sentences.as_ref().unwrap().correct, 0);
+    assert_eq!(scores.sentences.as_ref().unwrap().target, 1);
     assert_eq!(scores.token_mismatch_sentences, 0);
 }
 
@@ -172,7 +173,7 @@ fn split_tokens_resync_instead_of_shifting_the_stream() {
     assert_eq!(scores.tokens.as_ref().unwrap().selected, 7);
     assert_eq!(scores.upos.unwrap().correct, 5);
     assert_eq!(scores.token_mismatch_sentences, 1);
-    assert_eq!(scores.sentences.score, 100.0);
+    assert_eq!(scores.sentences.as_ref().unwrap().score, 100.0);
 }
 
 #[test]
@@ -180,13 +181,13 @@ fn sentence_lists_tile_gold_documents_or_are_refused() {
     let gold = parse_conllu(GOLD).unwrap();
     let perfect = parse_sentence_list("Cats purr.\nDogs bark.\n");
     let scores = score_sentence_list("peer", &gold, &perfect).unwrap();
-    assert_eq!(scores.sentences.score, 100.0);
+    assert_eq!(scores.sentences.as_ref().unwrap().score, 100.0);
     assert!(scores.tokens.is_none());
 
     let merged = parse_sentence_list("Cats purr. Dogs bark.\n");
     let scores = score_sentence_list("peer", &gold, &merged).unwrap();
-    assert_eq!(scores.sentences.correct, 0);
-    assert_eq!(scores.sentences.target, 1);
+    assert_eq!(scores.sentences.as_ref().unwrap().correct, 0);
+    assert_eq!(scores.sentences.as_ref().unwrap().target, 1);
 
     let swapped = parse_sentence_list("Dogs bark.\nCats purr.\n");
     let err = score_sentence_list("peer", &gold, &swapped).unwrap_err();
@@ -201,9 +202,56 @@ fn sentence_lists_tile_gold_documents_or_are_refused() {
 fn the_rule_sentencer_scores_the_joined_gold_text() {
     let gold = parse_conllu(GOLD).unwrap();
     let scores = score_sentencer("turbo-rule", &gold, &Sentencer::rules("en")).unwrap();
-    assert_eq!(scores.sentences.score, 100.0);
+    assert_eq!(scores.sentences.as_ref().unwrap().score, 100.0);
     assert!(scores.tokens.is_none());
     assert!(scores.throughput_sentences_per_second.is_some_and(|t| t > 0.0));
+}
+
+/// Two sentences, one with a multiword token: the tokenizer tiers see
+/// only the joined `# text`, never the gold segmentation.
+const GOLD_TOK: &str = concat!(
+    "# text = Cats purr.\n",
+    "1\tCats\tcat\tNOUN\tNN\tNumber=Plur\t2\tnsubj\t_\t_\n",
+    "2\tpurr\tpurr\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+    "3\t.\t.\tPUNCT\t.\t_\t2\tpunct\t_\t_\n",
+    "\n",
+    "# text = Dogs don't bark.\n",
+    "1\tDogs\tdog\tNOUN\tNN\tNumber=Plur\t4\tnsubj\t_\t_\n",
+    "2-3\tdon't\t_\t_\t_\t_\t_\t_\t_\t_\n",
+    "2\tdo\tdo\tAUX\tVB\tTense=Pres\t4\taux\t_\t_\n",
+    "3\tn't\tnot\tPART\tRB\tPolarity=Neg\t4\tadvmod\t_\t_\n",
+    "4\tbark\tbark\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+    "5\t.\t.\tPUNCT\t.\t_\t4\tpunct\t_\t_\n",
+);
+
+#[test]
+fn tokenizer_tiers_score_words_against_gold() {
+    let gold = parse_conllu(GOLD_TOK).unwrap();
+    // UAX #29 keeps "don't" whole and splits the final periods: 6 of
+    // its 7 forms align with the 8 gold words.
+    let uax29 = score_tokenizer("turbo-uax29", &gold, TokenizerTier::Uax29, 10).unwrap();
+    assert!(uax29.sentences.is_none());
+    let tokens = uax29.tokens.expect("tokenizer tiers score tokens");
+    assert_eq!((tokens.correct, tokens.selected, tokens.target), (6, 7, 8), "{tokens:?}");
+    assert!((tokens.score - 80.0).abs() < 1e-9, "{}", tokens.score);
+    assert!(uax29.upos.is_none() && uax29.las.is_none());
+    assert_eq!(uax29.token_mismatch_sentences, 1);
+    assert!(uax29.throughput_sentences_per_second.is_some_and(|t| t > 0.0));
+
+    // Whitespace agrees only where a gold word is a whole run, and
+    // the alignment resyncs only where the following forms also agree,
+    // so just Cats pairs: Dogs is skipped because gold "do" follows
+    // it where the run has "don't".
+    let ws = score_tokenizer("turbo-whitespace", &gold, TokenizerTier::Whitespace, 0).unwrap();
+    let tokens = ws.tokens.expect("tokenizer tiers score tokens");
+    assert_eq!((tokens.correct, tokens.selected, tokens.target), (1, 5, 8), "{tokens:?}");
+    assert!((tokens.score - 200.0 / 13.0).abs() < 1e-9, "{}", tokens.score);
+    assert_eq!(ws.token_mismatch_sentences, 2);
+
+    // The forms themselves: punctuation is a segment, whitespace is not.
+    assert_eq!(TokenizerTier::Uax29.forms("Cats purr."), ["Cats", "purr", "."],);
+    assert_eq!(TokenizerTier::Whitespace.forms("Cats purr."), ["Cats", "purr."],);
+    assert_eq!(TokenizerTier::parse("bogus").unwrap_err(), "--tokenize bogus: uax29 or whitespace");
 }
 
 #[test]
@@ -360,5 +408,47 @@ fn the_command_writes_a_record_and_refuses_a_wrong_pin() {
     assert_eq!(record["sentences"], 2);
     assert_eq!(record["systems"].as_array().unwrap().len(), 2);
     assert_eq!(record["systems"][0]["upos"]["score"], 100.0);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn the_command_writes_a_tokenizer_record() {
+    let dir = std::env::temp_dir().join(format!("turbo-eval-analysis-tok-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let gold = dir.join("gold.conllu");
+    std::fs::write(&gold, GOLD_TOK).unwrap();
+    let digest = to_hex(&sha256(GOLD_TOK.as_bytes()));
+    let out = dir.join("record.json");
+    let args: Vec<String> = [
+        "--gold",
+        gold.to_str().unwrap(),
+        "--sha256",
+        &digest,
+        "--out",
+        out.to_str().unwrap(),
+        "--tokenize",
+        "uax29",
+        "--tokenize",
+        "whitespace",
+        "--resamples",
+        "10",
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    let bogus: Vec<String> =
+        args.iter().map(|a| if a == "whitespace" { "bogus".to_string() } else { a.clone() }).collect();
+    let err = command(&bogus).unwrap_err();
+    assert!(err.contains("--tokenize bogus"), "{err}");
+
+    command(&args).unwrap();
+    let record: serde_json::Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
+    let systems = record["systems"].as_array().unwrap();
+    assert_eq!(systems.len(), 2);
+    assert_eq!(systems[0]["system"], "turbo-uax29");
+    assert_eq!(systems[0]["sentences"], serde_json::Value::Null);
+    assert_eq!(systems[0]["tokens"]["score"], 80.0);
+    assert_eq!(systems[1]["system"], "turbo-whitespace");
     std::fs::remove_dir_all(&dir).unwrap();
 }
