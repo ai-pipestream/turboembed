@@ -1,5 +1,5 @@
-//! The tokenizer runs: the maxent tokenizer with every published or
-//! fixture model and its options, the simple and whitespace tokenizers in
+//! The tokenizer runs: the maxent tokenizer with every fixture model and its
+//! options, the simple and whitespace tokenizers in
 //! every mode, the UAX #29 word tokenizer, the unigram segmenter with
 //! each lexicon, and the lattice tokenizer with each dictionary.
 
@@ -60,6 +60,11 @@ impl Maxent {
             // UD tokenizer model's; those models are retired (#1645), so
             // no maxent run takes a dictionary here. The default
             // tokenizer fuzz coverage is the UAX #29 run below.
+            ["english-dictionary"] => {
+                return Err(Unavailable::NotCovered(format!(
+                    "tokenize/{model}+english-dictionary: published OpenNLP models are retired"
+                )));
+            }
             other => return Err(Unavailable::NotCovered(format!("tokenize/{model} with {other:?}"))),
         }
         let tokenizer = TokenizerMe::new(m, TokenizerOptions::default());

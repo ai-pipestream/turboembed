@@ -8,10 +8,10 @@ table of datasets and checkpoints the index is built from.
 
 ```
 cargo run -p turbo-zoo -- list
-cargo run -p turbo-zoo -- show opennlp-en-ud-ewt-sentence-1.3-2.5.4
+cargo run -p turbo-zoo -- show turbo-en-civil-comments-minilm-l6-v2-head-1
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0          # prints the licence text address
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes    # records the acceptance
-cargo run -p turbo-zoo -- fetch opennlp-en-ud-ewt-sentence-1.3-2.5.4
+cargo run -p turbo-zoo -- fetch turbo-en-civil-comments-minilm-l6-v2-head-1
 ```
 
 From code:
@@ -21,7 +21,7 @@ use turbo_zoo::{Acceptances, Http, Index, Policy, Zoo};
 
 let zoo = Zoo::new(Index::builtin(), cache_dir, Policy::default(), &Http);
 let acceptances = Acceptances::load(&home.join("acceptances.json"))?;
-let fetched = zoo.fetch("opennlp-ca-ud-ancora-sentence-1.3-2.5.4", &user, &acceptances)?;
+let fetched = zoo.fetch("turbo-en-masc-3.0.0-aspect-sentiment-1", &user, &acceptances)?;
 let model_path = fetched.single().unwrap();
 ```
 

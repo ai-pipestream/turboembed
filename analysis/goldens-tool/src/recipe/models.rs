@@ -8,10 +8,9 @@ pub struct Model {
     pub sha512: &'static str,
 }
 
-/// The published OpenNLP models the generator loaded: none. The UD 1.3
-/// models built with OpenNLP 2.5.4 and `langdetect-183.bin` are OpenNLP
-/// 2.5 artifacts, which are not fetched, pinned or run (#1509); the
-/// generator's runs that open them, and their goldens, go with #1532.
+/// The published OpenNLP models the generator loaded: none. Published
+/// OpenNLP 2.5 UD and language-detector artifacts are not fetched, pinned
+/// or run (#1509, #1653); their goldens go with #1532 and #1644 to #1648.
 pub const MODELS: [Model; 0] = [];
 
 /// The upstream all-MiniLM-L6-v2 ONNX export, at the revision the sentence
