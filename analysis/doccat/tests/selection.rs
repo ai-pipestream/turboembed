@@ -78,3 +78,13 @@ fn selected_features_feed_multilabel_doccat_without_noise_weights() {
         assert!(m.scores(&["cue_b"])[idx_b] > m.scores(&["cue_b"])[idx_a]);
     }
 }
+
+#[test]
+fn equal_scores_break_ties_by_native_rust_utf8_order() {
+    // U+FB00 ('ﬀ') is > U+1F600 ('😀') in UTF-16 code units (0xFB00 > 0xD83D),
+    // whereas in native Rust Unicode scalar order '\u{FB00}' < '\u{1F600}'.
+    let docs = vec![FeatureDocument::from_strs("a", &["\u{1F600}"]), FeatureDocument::from_strs("b", &["\u{FB00}"])];
+    let selected = FeatureSelection { metric: SelectionMetric::MutualInformation, top_k: 2 }.fit(&docs).unwrap();
+    assert_eq!(selected.ranked()[0].0, "\u{FB00}");
+    assert_eq!(selected.ranked()[1].0, "\u{1F600}");
+}

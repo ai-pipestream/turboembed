@@ -142,7 +142,7 @@ impl FeatureSelection {
             })
             .collect();
         ranked.sort_by(|(fa, sa), (fb, sb)| match sb.total_cmp(sa) {
-            Ordering::Equal => fa.encode_utf16().cmp(fb.encode_utf16()),
+            Ordering::Equal => fa.cmp(fb),
             ord => ord,
         });
         let kept = ranked.iter().take(self.top_k).map(|(f, _)| f.clone()).collect();

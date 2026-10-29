@@ -261,3 +261,61 @@ fn sentence_polarity_annotator_writes_opinions_and_sentence_categories() {
         assert!(ops.len() >= 2, "expected opinion spans from lexicon tokens in stage {stage:?}");
     }
 }
+
+#[test]
+fn hybrid_zero_head_weight_preserves_vader_compound_decision_on_neutral_heavy_sentence() {
+    let enc = encoder_ref("encoder:zero-weight");
+    let head = Arc::new(
+        PolarityVectorHead::new(2, vec![-2.0, 0.0, 2.0, 0.0, 0.0, 2.0], [0.0, 0.0, 0.0], Some(enc.clone())).unwrap(),
+    );
+    let text = "The table in the room is good.";
+    let (sents, toks) = tokenize_whitespace(text);
+    let sent_vecs = Vectors::<Sentences>::new(2, vec![1.0, 0.0], vec![], enc);
+
+    let mut doc = Document::new(text);
+    doc.add(&Key::DEFAULT, sents, Provenance::by("test")).unwrap();
+    doc.add(&Key::DEFAULT, toks, Provenance::by("test")).unwrap();
+    doc.add(&Key::DEFAULT, sent_vecs, Provenance::by("test")).unwrap();
+
+    let (lex_pol, lex_scores) = PolarityAnnotator::new()
+        .score_document(
+            doc.get::<View>().unwrap(),
+            doc.get::<Sentences>(),
+            doc.get::<Tokens>(),
+            None,
+            None,
+            doc.get::<Vectors<Sentences>>(),
+        )
+        .unwrap();
+    assert_eq!(lex_pol, Polarity::Positive);
+    assert_eq!(lex_scores.label(), Polarity::Positive);
+
+    let (hyb_pol, hyb_scores) = PolarityAnnotator::hybrid(LexiconSentiment::new(), head.clone(), 0.0)
+        .score_document(
+            doc.get::<View>().unwrap(),
+            doc.get::<Sentences>(),
+            doc.get::<Tokens>(),
+            None,
+            None,
+            doc.get::<Vectors<Sentences>>(),
+        )
+        .unwrap();
+    assert_eq!(hyb_pol, Polarity::Positive);
+    assert_eq!(hyb_scores.label(), Polarity::Positive);
+
+    let sent_ann = SentencePolarityAnnotator::new()
+        .with_vector_scorer(head)
+        .with_head_weight(0.0)
+        .with_stage(PolarityStage::Hybrid);
+    let (_, sent_cats) = sent_ann
+        .annotate((
+            doc.get::<View>().unwrap(),
+            doc.get::<Sentences>().unwrap(),
+            doc.get::<Tokens>(),
+            None,
+            None,
+            doc.get::<Vectors<Sentences>>(),
+        ))
+        .unwrap();
+    assert_eq!(sent_cats.best_category(0), "positive");
+}

@@ -16,28 +16,53 @@ use crate::sentiment::validation;
 use super::head::{POLARITY_NAMES, polarity_index, validate_polarity_scores};
 use super::{PolarityAnnotator, SentencePolarityAnnotator};
 
-/// Smoothing floor applied when converting VADER's raw proportions into a
+/// Smoothing floor applied when converting VADER's compound decision into a
 /// calibrated three-class probability distribution in `(0, 1)`.
 const VADER_PROB_SMOOTHING: f64 = 0.03;
 
 /// Converts a [`VaderScore`] into normalized three-class [`PolarityScores`]
-/// in `(0, 1)` summing to `1.0` while preserving VADER's compound threshold
-/// decision when selecting the dominant tag.
+/// in `(0, 1)` summing to `1.0` whose argmax (`scores.label()`) always matches
+/// VADER's compound-threshold decision (`score.polarity()`).
 pub fn vader_to_polarity_scores(score: VaderScore) -> (Polarity, PolarityScores) {
     let polarity = score.polarity();
-    let sum = score.pos + score.neg + score.neu;
-    let (raw_pos, raw_neg, raw_neu) = if sum > 0.0 && sum.is_finite() {
-        (score.pos / sum, score.neg / sum, score.neu / sum)
-    } else {
-        (0.0, 0.0, 1.0)
+    let c = if score.compound.is_finite() { score.compound.clamp(-1.0, 1.0) } else { 0.0 };
+    let pos_raw = if score.pos.is_finite() && score.pos > 0.0 { score.pos } else { 0.0 };
+    let neg_raw = if score.neg.is_finite() && score.neg > 0.0 { score.neg } else { 0.0 };
+    let neu_raw = if score.neu.is_finite() && score.neu > 0.0 { score.neu } else { 0.0 };
+
+    let (p_pos, p_neg, p_neu) = match polarity {
+        Polarity::Positive => {
+            let t = ((c - COMPOUND_THRESHOLD) / (1.0 - COMPOUND_THRESHOLD)).clamp(0.0, 1.0);
+            let p_pos = 0.50 + 0.44 * t;
+            let excess = 1.0 - p_pos - 2.0 * VADER_PROB_SMOOTHING;
+            let other_sum = neg_raw + neu_raw;
+            let neg_share = if other_sum > 0.0 { (neg_raw / other_sum).clamp(0.0, 1.0) } else { 0.0 };
+            let p_neg = VADER_PROB_SMOOTHING + excess * neg_share;
+            let p_neu = VADER_PROB_SMOOTHING + excess * (1.0 - neg_share);
+            (p_pos, p_neg, p_neu)
+        }
+        Polarity::Negative => {
+            let t = ((-c - COMPOUND_THRESHOLD) / (1.0 - COMPOUND_THRESHOLD)).clamp(0.0, 1.0);
+            let p_neg = 0.50 + 0.44 * t;
+            let excess = 1.0 - p_neg - 2.0 * VADER_PROB_SMOOTHING;
+            let other_sum = pos_raw + neu_raw;
+            let pos_share = if other_sum > 0.0 { (pos_raw / other_sum).clamp(0.0, 1.0) } else { 0.0 };
+            let p_pos = VADER_PROB_SMOOTHING + excess * pos_share;
+            let p_neu = VADER_PROB_SMOOTHING + excess * (1.0 - pos_share);
+            (p_pos, p_neg, p_neu)
+        }
+        Polarity::Neutral => {
+            let u = (c / COMPOUND_THRESHOLD).clamp(-1.0, 1.0);
+            let p_neu = 0.94 - 0.40 * u.abs();
+            let excess = 1.0 - p_neu - 2.0 * VADER_PROB_SMOOTHING;
+            let pos_share = 0.5 * (1.0 + u);
+            let p_pos = VADER_PROB_SMOOTHING + excess * pos_share;
+            let p_neg = VADER_PROB_SMOOTHING + excess * (1.0 - pos_share);
+            (p_pos, p_neg, p_neu)
+        }
     };
-    let scale = 1.0 - 3.0 * VADER_PROB_SMOOTHING;
-    let base = PolarityScores::new(
-        scale * raw_pos + VADER_PROB_SMOOTHING,
-        scale * raw_neg + VADER_PROB_SMOOTHING,
-        scale * raw_neu + VADER_PROB_SMOOTHING,
-    );
-    (polarity, base)
+    let scores = PolarityScores::new(p_pos, p_neg, p_neu);
+    (polarity, scores)
 }
 
 /// Blends lexicon and learned [`PolarityScores`] with `head_weight` in `0.0..=1.0`.
@@ -148,47 +173,7 @@ impl PolarityAnnotator {
         emoji: Option<&Emoji>,
     ) -> Result<(Polarity, PolarityScores), Error> {
         let text = view.text();
-        if let Some(s) = sentences {
-            if s.spans.view() != view.id() {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: "sentences are not in the given view".into(),
-                });
-            }
-            validation::checked(Self::ID, s)?;
-            validation::contiguous(Self::ID, &s.spans, text)?;
-        }
-        if let Some(t) = tokens {
-            if t.spans.view() != view.id() {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: "tokens are not in the given view".into(),
-                });
-            }
-            validation::tokens(Self::ID, t, sentences, text)?;
-        }
-        if let Some(e) = emoji {
-            if e.spans.view() != view.id() {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: "emoji layer is not in the given view".into(),
-                });
-            }
-            validation::checked(Self::ID, e)?;
-            validation::contiguous(Self::ID, &e.spans, text)?;
-        }
-        if let Some(d) = deps {
-            validation::checked(Self::ID, d)?;
-            let Some(t) = tokens else {
-                return Err(Error::Annotator { annotator: Self::ID, detail: "dependencies require tokens".into() });
-            };
-            if d.len() != t.len() {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: "dependencies must align with tokens".into(),
-                });
-            }
-        }
+        validate_lexicon_inputs(Self::ID, view, sentences, tokens, deps, emoji)?;
 
         if let (Some(sents), Some(toks)) = (sentences, tokens)
             && !sents.is_empty()
@@ -212,23 +197,14 @@ impl PolarityAnnotator {
                 let sent_tok_end = tok_cursor;
                 let range = IxRange::new(sent_tok_start as u32, sent_tok_end as u32);
                 let res = self.lexicon.score_sentence(text, sent_span, toks, range, deps, emoji);
-                let (_, scores) = vader_to_polarity_scores(res.score);
-                pos_sum += scores.positive;
-                neg_sum += scores.negative;
-                neu_sum += scores.neutral;
+                pos_sum += res.score.pos;
+                neg_sum += res.score.neg;
+                neu_sum += res.score.neu;
                 compound_sum += res.score.compound;
             }
-            let mean_compound = compound_sum / n;
-            let polarity = if mean_compound >= COMPOUND_THRESHOLD {
-                Polarity::Positive
-            } else if mean_compound <= -COMPOUND_THRESHOLD {
-                Polarity::Negative
-            } else {
-                Polarity::Neutral
-            };
-            let scores = validate_polarity_scores(PolarityScores::new(pos_sum / n, neg_sum / n, neu_sum / n))
-                .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
-            return Ok((polarity, scores));
+            let doc_vader =
+                VaderScore { pos: pos_sum / n, neg: neg_sum / n, neu: neu_sum / n, compound: compound_sum / n };
+            return Ok(vader_to_polarity_scores(doc_vader));
         }
 
         if let Some(toks) = tokens
@@ -303,52 +279,15 @@ impl Annotator for SentencePolarityAnnotator {
         (view, sentences, tokens, deps, emoji, vectors): Refs<'_, Self>,
     ) -> Result<(Opinions, Categories<Sentences>), Error> {
         validate_head_weight(Self::ID, self.head_weight)?;
-        if sentences.spans.view() != view.id() {
-            return Err(Error::Annotator { annotator: Self::ID, detail: "sentences are not in the given view".into() });
-        }
         let text = view.text();
-        validation::checked(Self::ID, sentences)?;
-        validation::contiguous(Self::ID, &sentences.spans, text)?;
-
         let need_lexicon = matches!(self.stage, PolarityStage::Lexicon | PolarityStage::Hybrid);
         let need_head = matches!(self.stage, PolarityStage::Learned | PolarityStage::Hybrid);
-
-        if let Some(t) = tokens {
-            if t.spans.view() != view.id() {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: "tokens are not in the given view".into(),
-                });
-            }
-            validation::tokens(Self::ID, t, Some(sentences), text)?;
-        } else if need_lexicon {
+        validate_lexicon_inputs(Self::ID, view, Some(sentences), tokens, deps, emoji)?;
+        if tokens.is_none() && need_lexicon {
             return Err(Error::Annotator {
                 annotator: Self::ID,
                 detail: "lexicon or hybrid sentence polarity requires Tokens".into(),
             });
-        }
-
-        if let Some(e) = emoji {
-            if e.spans.view() != view.id() {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: "emoji layer is not in the given view".into(),
-                });
-            }
-            validation::checked(Self::ID, e)?;
-            validation::contiguous(Self::ID, &e.spans, text)?;
-        }
-        if let Some(d) = deps {
-            validation::checked(Self::ID, d)?;
-            let Some(t) = tokens else {
-                return Err(Error::Annotator { annotator: Self::ID, detail: "dependencies require tokens".into() });
-            };
-            if d.len() != t.len() {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: "dependencies must align with tokens".into(),
-                });
-            }
         }
 
         let scorer_and_vecs = if need_head {
@@ -477,6 +416,47 @@ fn check_encoder_model(
             annotator,
             detail: format!("polarity head expects encoder {expected:?}, got {actual:?}"),
         });
+    }
+    Ok(())
+}
+
+fn validate_lexicon_inputs(
+    annotator: &'static str,
+    view: &View,
+    sentences: Option<&Sentences>,
+    tokens: Option<&Tokens>,
+    deps: Option<&Dependencies>,
+    emoji: Option<&Emoji>,
+) -> Result<(), Error> {
+    let text = view.text();
+    if let Some(s) = sentences {
+        if s.spans.view() != view.id() {
+            return Err(Error::Annotator { annotator, detail: "sentences are not in the given view".into() });
+        }
+        validation::checked(annotator, s)?;
+        validation::contiguous(annotator, &s.spans, text)?;
+    }
+    if let Some(t) = tokens {
+        if t.spans.view() != view.id() {
+            return Err(Error::Annotator { annotator, detail: "tokens are not in the given view".into() });
+        }
+        validation::tokens(annotator, t, sentences, text)?;
+    }
+    if let Some(e) = emoji {
+        if e.spans.view() != view.id() {
+            return Err(Error::Annotator { annotator, detail: "emoji layer is not in the given view".into() });
+        }
+        validation::checked(annotator, e)?;
+        validation::contiguous(annotator, &e.spans, text)?;
+    }
+    if let Some(d) = deps {
+        validation::checked(annotator, d)?;
+        let Some(t) = tokens else {
+            return Err(Error::Annotator { annotator, detail: "dependencies require tokens".into() });
+        };
+        if d.len() != t.len() {
+            return Err(Error::Annotator { annotator, detail: "dependencies must align with tokens".into() });
+        }
     }
     Ok(())
 }
