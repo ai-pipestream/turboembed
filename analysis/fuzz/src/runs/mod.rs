@@ -28,7 +28,7 @@ use turbo_analysis::{Analyzer, Document};
 use turbo_analysis_layers::Tokens;
 use turbo_goldens::{Golden, Mismatch};
 
-pub use catalog::{NOT_COVERED, RUNS, open};
+pub use catalog::{NOT_COVERED, RUNS, is_retired, native_runs, open};
 
 /// What comparing one golden with the Rust side found.
 #[derive(Clone, Debug, PartialEq)]

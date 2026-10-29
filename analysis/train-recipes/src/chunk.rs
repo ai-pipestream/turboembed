@@ -1,13 +1,11 @@
 //! The English chunker trained on MASC's noun and verb chunks, and its
-//! gate against OpenNLP's English chunker, `en-chunker.bin`.
+//! gate. It has no OpenNLP reference model (#1509).
 //!
 //! The recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! as `ChunkerME.train` trains with its defaults: the `ChunkerFactory` and
 //! its default context generator, and `TrainingParameters.defaultParams()`
 //! ([`training_parameters`]: GIS, 100 iterations, cutoff 5, one thread,
 //! beam size 10). Training uses no randomness, so the recipe has no seed.
-//! The reference's manifest records OpenNLP 1.5.0 and the same iterations
-//! and cutoff.
 //!
 //! The samples are [`MascChunkReader`]'s, one per sentence: its Penn
 //! tokens, their `msd` tags, and chunk tags of MASC's noun chunks (`NP`)
@@ -49,14 +47,10 @@
 //! recipes read the same sentences, so their samples do not have that
 //! text either.
 //!
-//! The reference is OpenNLP's English chunker from the 1.5 models
-//! ([`EN_CHUNKER`]), OpenNLP's only English chunker. Its training data is
-//! not published (its chunk types are CoNLL-2000's, which is drawn from
-//! the Wall Street Journal part of the Penn Treebank, an LDC corpus), and
-//! the zoo does not list it: a run reads it from its references
-//! directory, checks it against the recorded size and SHA-256, and only
-//! scores it. It is never shipped or bundled, and the trained model is
-//! trained on MASC alone.
+//! The recipe has no reference model. It was once gated against
+//! OpenNLP 1.5's English chunker, which is no longer fetched, scored or
+//! run anywhere (#1509): MASC gates compare with the gold chunks, majority
+//! baselines and spaCy or Stanza only.
 //!
 //! Both models are scored on the same held-out samples, one unit per
 //! sentence, each with its own `ChunkerEvaluator` given the sample's
@@ -101,19 +95,10 @@ use crate::error::{Error, LeftOut, Result};
 use crate::postag::ReferenceMapping;
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
 use crate::spans::{self, SpanTypes};
-use crate::{GateRun, Limit, RecordedReference, Reference, Trained};
+use crate::{GateRun, Limit, Reference, Trained};
 
 use self::samples::check_skipped;
 pub use self::samples::{HeldOutChunks, Skipped, chunk_counts, read_samples, scored_tag};
-
-/// OpenNLP's English chunker of the 1.5 models, as published.
-pub const EN_CHUNKER: RecordedReference = RecordedReference {
-    id: "opennlp-en-chunker-1.5",
-    file: "en-chunker.bin",
-    url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin",
-    size: 2_560_304,
-    sha256: "7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc",
-};
 
 /// The chunker the recipe trains and the OpenNLP model it is gated
 /// against.
@@ -121,11 +106,12 @@ pub const EN_CHUNKER: RecordedReference = RecordedReference {
 pub struct ChunkRecipe {
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
-    pub reference: Reference,
+    /// The model it is gated against: none, as no OpenNLP 1.5 model is
+    /// fetched or scored (#1509).
+    pub reference: Option<Reference>,
 }
 
-pub const CHUNKS: ChunkRecipe =
-    ChunkRecipe { model_id: "turbo-en-masc-3.0.0-chunks-1", reference: Reference::Recorded(EN_CHUNKER) };
+pub const CHUNKS: ChunkRecipe = ChunkRecipe { model_id: "turbo-en-masc-3.0.0-chunks-1", reference: None };
 
 /// The chunk types the gate scores: the two MASC annotates, which the
 /// reference gives too. No held-out type is renamed.

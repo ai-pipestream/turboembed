@@ -2188,16 +2188,24 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             }
             gemm(f16l, src, h, h, EPILOGUE_ROPE, {{&lw[RL_Q], s.q}, {&lw[RL_K], s.k}, {&lw[RL_V], s.v}}, {}, false,
                  f16_att);
+            if (f16_att) {
+                peak(s.q, h, 0);
+                peak(s.k, h, 1);
+                peak(s.v, h, 2);
+            }
             attend(f16_att, window);
+            if (f16_att) peak(s.att, h, 3);
             if (modern) {
                 gemm(f16l, s.att, h, h, EPILOGUE_RESIDUAL, {{&lw[RL_OUT], s.x}}, {}, f16_att);
                 norm_into(t(l, TURBO_MODERNBERT_FFN_LN_WEIGHT), s.x, s.tmp);
                 gemm(f16l, s.tmp, h, 2 * inter, gated, {{&lw[RL_FFN_IN], s.ffn}}, {}, false, f16l);
+                if (f16l) peak(s.ffn, inter, 4);
                 gemm(f16l, s.ffn, inter, h, EPILOGUE_RESIDUAL, {{&lw[RL_FFN_OUT], s.x}}, {}, f16l);
             } else {
                 uint32_t splits = gemm(f16l, s.att, h, h, EPILOGUE_NONE, {{&lw[RL_OUT], s.tmp}}, {}, f16_att);
                 add_ln(s.tmp, splits, zero, t(l, TURBO_NOMIC_ATTN_LN_WEIGHT), t(l, TURBO_NOMIC_ATTN_LN_BIAS));
                 gemm(f16l, s.x, h, 2 * inter, gated, {{&lw[RL_FFN_IN], s.ffn}}, {}, false, f16l);
+                if (f16l) peak(s.ffn, inter, 4);
                 splits = gemm(f16l, s.ffn, inter, h, EPILOGUE_NONE, {{&lw[RL_FFN_OUT], s.tmp}}, {}, f16l);
                 add_ln(s.tmp, splits, zero, t(l, TURBO_NOMIC_FFN_LN_WEIGHT), t(l, TURBO_NOMIC_FFN_LN_BIAS));
             }

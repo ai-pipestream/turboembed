@@ -180,7 +180,7 @@ impl MultiLabelDoccatModel {
         let generators = encode_feature_generators(&self.context_generator)
             .unwrap_or_else(|_| format!("custom:{:?}", self.context_generator));
         let gen_slice = &generators[..generators.floor_char_boundary(MAX_UTF_BYTES)];
-        let sha256 = turbo_maxent::sha256(&self.encode_body(gen_slice)).to_hex();
+        let sha256 = turbo_sha256::sha256(&self.encode_body(gen_slice)).to_hex();
         self.model_ref = ModelRef {
             id: format!("turbo:MultiLabelDoccat:{}", self.language),
             revision: FORMAT_VERSION.to_string(),
@@ -307,6 +307,7 @@ impl MultiLabelDoccatModel {
     /// The same model with the package-level identity recorded: the
     /// archive's OpenNLP-Version as the revision and the SHA-256 of the
     /// package's bytes, as [`super::open_package`] reads it.
+    #[cfg(feature = "classical")]
     pub(crate) fn with_package_identity(mut self, revision: &str, sha256: &str) -> Self {
         self.model_ref.revision = revision.to_owned();
         self.model_ref.sha256 = sha256.to_owned();

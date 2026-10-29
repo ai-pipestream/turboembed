@@ -1,5 +1,5 @@
 //! The trainer end to end on small event sets: the solvers, the refusals,
-//! and the model bytes written and read back.
+//! and the native text model round trips.
 
 use super::*;
 use crate::JavaString;
@@ -68,13 +68,9 @@ fn two_classes_have_one_weight_vector() {
 }
 
 #[test]
-fn the_model_bytes_read_back() {
+fn the_text_model_reads_back() {
     for solver in ["L2R_LR", "L2R_LR_DUAL", "L1R_LR"] {
         let (model, _) = train_events(&events(), &params(solver)).unwrap();
-        let bytes = format::write(&model).unwrap();
-        let read = format::read(&bytes).unwrap();
-        assert_eq!(read, model);
-        assert_eq!(format::write(&read).unwrap(), bytes);
         let text = format::save_model(model.linear());
         assert_eq!(&format::load_model(&text).unwrap(), model.linear());
         assert!(text.starts_with(&format!("solver_type {solver}\nnr_class 3\nlabel 0 1 2\n")), "{text}");
@@ -130,42 +126,37 @@ fn sample() -> Vec<u8> {
     format::write(&model).unwrap()
 }
 
-/// The sample's bytes with the text model replaced.
-fn with_text(text: &str) -> Vec<u8> {
+#[test]
+fn opennlp_binary_envelope_loading_is_disabled() {
     let bytes = sample();
-    let len = i32::from_be_bytes(bytes[..4].try_into().unwrap()) as usize;
-    let mut out = (text.len() as i32).to_be_bytes().to_vec();
-    out.extend_from_slice(text.as_bytes());
-    out.extend_from_slice(&bytes[4 + len..]);
-    out
+    for input in [bytes.as_slice(), &[], b"not a model", &bytes[..bytes.len() - 1]] {
+        assert_eq!(format::read(input), Err(ModelError::Disabled));
+    }
+    let mut trailing = bytes;
+    trailing.push(0);
+    assert_eq!(format::read(&trailing), Err(ModelError::Disabled));
 }
 
 #[test]
-fn the_reader_refuses_what_serialize_does_not_write() {
-    let bytes = sample();
-    let mut trailing = bytes.clone();
-    trailing.push(0);
-    assert_eq!(format::read(&trailing), Err(ModelError::Trailing(1)));
-    assert!(matches!(format::read(&bytes[..bytes.len() - 1]), Err(ModelError::Data(_))));
-
-    let len = i32::from_be_bytes(bytes[..4].try_into().unwrap()) as usize;
-    let text = std::str::from_utf8(&bytes[4..4 + len]).unwrap();
+fn the_text_reader_refuses_malformed_models() {
+    let (model, _) = train_events(&events(), &params("L2R_LR")).unwrap();
+    let text = format::save_model(model.linear());
     let svc = text.replacen("L2R_LR", "L2R_L2LOSS_SVC", 1);
-    assert!(matches!(format::read(&with_text(&svc)), Err(ModelError::Invalid(_))));
+    assert!(matches!(format::load_model(&svc), Err(ModelError::Invalid(_))));
     let swapped = text.replacen("nr_class 3\nlabel 0 1 2", "label 0 1 2\nnr_class 3", 1);
-    assert!(matches!(format::read(&with_text(&swapped)), Err(ModelError::Line { line: 2, .. })));
+    assert!(matches!(format::load_model(&swapped), Err(ModelError::Line { line: 2, .. })));
     let two_spaces = text.replacen("bias ", "bias  ", 1);
-    assert!(matches!(format::read(&with_text(&two_spaces)), Err(ModelError::Line { .. })));
+    assert!(matches!(format::load_model(&two_spaces), Err(ModelError::Line { .. })));
     let unended = text.strip_suffix('\n').unwrap();
-    assert!(matches!(format::read(&with_text(unended)), Err(ModelError::Invalid(_))));
+    assert!(matches!(format::load_model(unended), Err(ModelError::Invalid(_))));
     let no_space = text.strip_suffix(" \n").unwrap().to_owned() + "\n";
-    assert!(matches!(format::read(&with_text(&no_space)), Err(ModelError::Line { .. })));
+    assert!(matches!(format::load_model(&no_space), Err(ModelError::Line { .. })));
     let short_row = text.replacen(" \n", "\n", 1);
-    assert!(matches!(format::read(&with_text(&short_row)), Err(ModelError::Line { .. })));
+    assert!(matches!(format::load_model(&short_row), Err(ModelError::Line { .. })));
     let extra_row = text.to_owned() + "0 0 0 \n";
-    assert!(matches!(format::read(&with_text(&extra_row)), Err(ModelError::Line { .. })));
+    assert!(matches!(format::load_model(&extra_row), Err(ModelError::Line { .. })));
     let nan = text.replacen("bias 1.0000000000000000", "bias NaN", 1);
-    assert!(matches!(format::read(&with_text(&nan)), Err(ModelError::Line { line: 5, .. })));
+    assert!(matches!(format::load_model(&nan), Err(ModelError::Line { line: 5, .. })));
 }
 
 #[test]

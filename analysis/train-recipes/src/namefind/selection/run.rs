@@ -9,7 +9,7 @@ use turbo_train_components::namefind::{NameEventStream, train_name_model_from_ev
 
 use super::{Clearing, GRID, RECIPES, SelectionCard, invalid, training_samples};
 use crate::card::{CorpusCard, ModelCard, ParametersCard};
-use crate::error::{Result, io};
+use crate::error::{Error, Result, io};
 use crate::masc::{self, CorpusDigest, SplitCorpus};
 use crate::namefind::{NameRecipe, factory};
 use crate::segmentation::TIMESTAMP_MS;
@@ -88,7 +88,8 @@ pub fn finish(
     reference: &[u8],
 ) -> Result<(Outcome, SelectionCard)> {
     let SelectedTraining { recipe, trained, selection } = selected;
-    recipe.reference.check(reference)?;
+    let pinned = recipe.reference.ok_or(Error::NoReference { recipe: recipe.model_id })?;
+    pinned.check(reference)?;
     let setting = selection.candidates[selection.selected].setting;
     let mut held_out = recipe.held_out(&split.held_out)?;
     if setting.clearing == Clearing::Sentence {
@@ -100,7 +101,7 @@ pub fn finish(
             .map_err(|e| invalid(e.to_string()))?;
     }
     let GateRun { record: gate, held_out } =
-        recipe.gate(&trained.bytes, recipe.reference.id(), reference, &held_out, &held_out_name(), &digest.sha256)?;
+        recipe.gate(&trained.bytes, pinned.id(), reference, &held_out, &held_out_name(), &digest.sha256)?;
     let corpus = CorpusCard {
         name: masc::NAME.to_owned(),
         corpus_sha256: digest.sha256.clone(),
@@ -137,7 +138,7 @@ pub fn write_attempt(
     if recorded && (split.train.documents().len() != 351 || split.held_out.documents().len() != 39) {
         return Err(invalid("recorded -2 split must contain 351 training and 39 held-out documents"));
     }
-    recipe.reference.check(reference)?;
+    recipe.reference.ok_or(Error::NoReference { recipe: recipe.model_id })?.check(reference)?;
     let directory = out.join(recipe.model_id);
     reserve_attempt(out, &directory)?;
     let selection = super::select(recipe, &split.train)?;
