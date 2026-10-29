@@ -5,6 +5,7 @@
 use turbo::head::tagger::Work as CoreWork;
 use turbo::head::{SentenceBoundary, TokenSplitter};
 use turbo::manifest::{Decode, HeadKind, HeadSpec, Scheme, WordPooling};
+use turbo_trainer::fit::{score, score_boundary, score_split};
 use turbo_trainer::rng::Rng;
 use turbo_trainer::{Config, Example, Tagger, fit};
 
@@ -62,7 +63,17 @@ fn getter(t: &Tagger<f32>) -> impl Fn(&str) -> Option<Vec<f32>> {
 #[test]
 fn a_trained_boundary_head_ends_sentences_at_full_stops() {
     let s = spec(HeadKind::SentenceBoundary, &["inside", "last"], Decode::Argmax);
-    let (trained, report) = fit(&s, HIDDEN, &stops(1, 200), &stops(2, 40), &config()).unwrap();
+    // Each sequence ends with a full stop, as a document's last sentence
+    // does: the core ends every sequence at its last word.
+    let ended = |seed, n| {
+        let mut data = stops(seed, n);
+        for e in &mut data {
+            e.features.extend([0.0, 1.0, 0.0, 0.0]);
+            e.labels.push(1);
+        }
+        data
+    };
+    let (trained, report) = fit(&s, HIDDEN, &ended(1, 200), &ended(2, 40), &config()).unwrap();
     assert!(report.dev[report.best_epoch] > 0.95, "{report:?}");
     let head = SentenceBoundary::from_tensors(&s, HIDDEN, &getter(&trained)).unwrap();
     let (mut scores, mut ends, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
@@ -108,4 +119,42 @@ fn a_span_classifier_is_not_a_word_tagger() {
     let mut s = spec(HeadKind::SpanClassifier, &["O", "X"], Decode::SpansFlat);
     s.span = Some(turbo::manifest::SpanShape { max_words: 2, width_dim: 2 });
     assert!(Tagger::<f32>::new(&s, HIDDEN, &mut Rng::new(1)).is_err());
+}
+
+/// `n` sequences of one word whose feature is the unit vector 0, each
+/// labelled `label` with form `form`.
+fn ones(n: usize, label: u32, form: &str) -> Vec<Example> {
+    let mut features = vec![0.0f32; HIDDEN];
+    features[0] = 1.0;
+    (0..n).map(|_| Example { features: features.clone(), labels: vec![label], forms: vec![form.into()] }).collect()
+}
+
+#[test]
+fn boundary_dev_scores_are_the_deployed_decode_s() {
+    // Trained to call the word `inside`; the core still ends the sequence
+    // at its last word, so a dev set of one-word sentences scores 1.
+    let s = spec(HeadKind::SentenceBoundary, &["inside", "last"], Decode::Argmax);
+    let dev = ones(4, 1, "");
+    let dev: Vec<Example> = dev.into_iter().map(|e| Example { forms: Vec::new(), ..e }).collect();
+    let train: Vec<Example> = ones(40, 0, "").into_iter().map(|e| Example { forms: Vec::new(), ..e }).collect();
+    let (trained, report) = fit(&s, HIDDEN, &train, &dev, &config()).unwrap();
+    assert!(report.dev.iter().all(|&d| d == 1.0), "{report:?}");
+    assert_eq!(score_boundary(&trained.to_boundary().unwrap(), &dev).unwrap(), 1.0);
+    assert_eq!(score(&trained.to_token_tagger().unwrap(), &dev).unwrap(), 0.0, "argmax alone says inside");
+}
+
+#[test]
+fn split_dev_scores_skip_a_split_the_form_does_not_take() {
+    // Trained to split "del"; the same features on "casa" decode `_`,
+    // since the split does not apply to it, so the dev set scores 1
+    // where an argmax alone, splitting both, scores 0.5.
+    let s = spec(HeadKind::TokenSplit, &["_", DEL], Decode::EditTree);
+    let dev: Vec<Example> = ones(2, 1, "del").into_iter().chain(ones(2, 0, "casa")).collect();
+    let (trained, report) = fit(&s, HIDDEN, &ones(40, 1, "del"), &dev, &config()).unwrap();
+    assert_eq!(report.dev[report.best_epoch], 1.0, "{report:?}");
+    let head = trained.to_splitter().unwrap();
+    assert_eq!(score_split(&head, &dev).unwrap(), 1.0);
+    assert_eq!(score(&trained.to_token_tagger().unwrap(), &dev).unwrap(), 0.5);
+    let formless: Vec<Example> = dev.into_iter().map(|e| Example { forms: Vec::new(), ..e }).collect();
+    assert!(score_split(&head, &formless).is_err(), "a split head's dev examples need their forms");
 }

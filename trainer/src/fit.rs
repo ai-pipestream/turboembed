@@ -2,10 +2,11 @@
 //! gradients summed in a fixed order, AdamW, and early stopping on a dev
 //! split scored by the core's own inference path.
 
-use turbo::head::TokenTagger;
+use turbo::head::boundary::LAST;
 use turbo::head::crf::{WordSpan, spans};
 use turbo::head::tagger::{NO_WORD, Work as CoreWork};
-use turbo::manifest::{HeadSpec, Scheme};
+use turbo::head::{SentenceBoundary, TokenSplitter, TokenTagger};
+use turbo::manifest::{HeadKind, HeadSpec, Scheme};
 use turbo::status::{Result, invalid};
 
 use std::time::Instant;
@@ -169,6 +170,46 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     })
 }
 
+/// Accuracy of `head` on `examples`: whether each word ends a sentence as
+/// the core decodes it (the last word always does) against its gold label
+/// being `last`.
+pub fn score_boundary(head: &SentenceBoundary, examples: &[Example]) -> Result<f64> {
+    let hidden = head.hidden();
+    check_examples(examples, hidden, head.spec().labels.len(), head.reads_forms())?;
+    let (mut right, mut total) = (0usize, 0usize);
+    let (mut scores, mut ends, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
+    for e in examples {
+        let n = e.labels.len();
+        let words: Vec<u32> = (0..n as u32).collect();
+        head.scores(&e.features, &words, e.forms().as_deref(), &mut scores, &mut work)?;
+        head.decode(&scores, n, &mut ends)?;
+        right += ends.iter().zip(&e.labels).filter(|&(&end, &gold)| end == (gold == LAST)).count();
+        total += n;
+    }
+    Ok(if total == 0 { 0.0 } else { right as f64 / total as f64 })
+}
+
+/// Accuracy of `head` on `examples`: each token's label as the core
+/// decodes it, which skips a split that does not apply to the token's
+/// form. Refuses an example without a form per token.
+pub fn score_split(head: &TokenSplitter, examples: &[Example]) -> Result<f64> {
+    let hidden = head.hidden();
+    check_examples(examples, hidden, head.spec().labels.len(), true)?;
+    let (mut right, mut total) = (0usize, 0usize);
+    let (mut scores, mut labels, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
+    for e in examples {
+        let n = e.labels.len();
+        let words: Vec<u32> = (0..n as u32).collect();
+        let forms: Vec<&str> = e.forms.iter().map(String::as_str).collect();
+        let read = head.reads_forms().then_some(forms.as_slice());
+        head.scores(&e.features, &words, read, &mut scores, &mut work)?;
+        head.decode(&scores, &forms, &mut labels)?;
+        right += labels.iter().zip(&e.labels).filter(|(a, b)| a == b).count();
+        total += n;
+    }
+    Ok(if total == 0 { 0.0 } else { right as f64 / total as f64 })
+}
+
 /// What the training loop needs of a head in training.
 pub(crate) trait Model: Sized + Sync {
     type Example: Sync;
@@ -209,7 +250,11 @@ impl Model for Tagger<f32> {
         Ok((Tagger::loss_forms(self, &e.features, forms.as_deref(), &e.labels, grads, w)?, e.labels.len()))
     }
     fn score(&self, dev: &[Example]) -> Result<f64> {
-        score(&self.to_token_tagger()?, dev)
+        match self.spec().kind {
+            HeadKind::SentenceBoundary => score_boundary(&self.to_boundary()?, dev),
+            HeadKind::TokenSplit => score_split(&self.to_splitter()?, dev),
+            _ => score(&self.to_token_tagger()?, dev),
+        }
     }
 }
 
