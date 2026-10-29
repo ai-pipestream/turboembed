@@ -221,7 +221,12 @@ async fn the_catalog_lists_every_artifact_with_its_terms_and_files() {
 async fn mutations_need_the_admin_flag_and_every_call_needs_a_catalog() {
     let home = Home::new("admin");
     let (s, mut c) = start(&home.0, false, Arc::new(transport())).await;
-    let req = RecordLicenceAcceptanceRequest { user: "alice".into(), licence: "CC-BY-SA-4.0".into(), terms: "".into() };
+    let req = RecordLicenceAcceptanceRequest {
+        user: "alice".into(),
+        licence: "CC-BY-SA-4.0".into(),
+        terms: "".into(),
+        ..Default::default()
+    };
     let e = c.record_licence_acceptance(req).await.unwrap_err();
     assert_eq!(refusal(&e), (Code::Unimplemented, TURBO_E_UNSUPPORTED));
     let e = c.install_model(install_req("alice", "hello")).await.unwrap_err();
@@ -305,6 +310,7 @@ async fn a_share_alike_artifact_installs_only_after_its_terms_are_accepted() {
         user: "alice".into(),
         licence: licence.into(),
         terms: terms.into(),
+        ..Default::default()
     };
     for (bad, field) in [
         (record("GPL-9.0", ""), "2"),
@@ -443,8 +449,12 @@ async fn a_store_neither_serves_nor_keeps_a_local_only_artifact() {
     let index = Arc::new(Index::parse(json.as_bytes()).unwrap());
     let catalog = Catalog { home: home.0.clone(), index, transport: Arc::new(list) };
     let (s, mut c) = start_with(Serve { admin: true, catalog: Some(catalog), ..Serve::default() }).await;
-    let accept =
-        RecordLicenceAcceptanceRequest { user: "alice".into(), licence: "CC-BY-NC-4.0".into(), terms: "".into() };
+    let accept = RecordLicenceAcceptanceRequest {
+        user: "alice".into(),
+        licence: "CC-BY-NC-4.0".into(),
+        terms: "".into(),
+        ..Default::default()
+    };
     c.record_licence_acceptance(accept).await.unwrap();
     // The store's copy is passed over: the file comes from its publisher.
     let Some(Update::Installed(m)) = install(&mut c, "alice", "nc").await.unwrap().pop() else { panic!() };

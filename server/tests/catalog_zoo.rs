@@ -158,7 +158,12 @@ async fn a_user_accepts_for_themselves_and_the_first_read_fetches_the_model_once
     assert!(e.message().contains("CC-BY-SA-4.0"), "{e:?}");
     assert_eq!(origin.total.load(Ordering::SeqCst), 0, "a refused read fetches nothing");
     // No admin flag: in zoo mode the user records their own acceptance.
-    let req = RecordLicenceAcceptanceRequest { user: "alice".into(), licence: "CC-BY-SA-4.0".into(), terms: "".into() };
+    let req = RecordLicenceAcceptanceRequest {
+        user: "alice".into(),
+        licence: "CC-BY-SA-4.0".into(),
+        terms: "".into(),
+        ..Default::default()
+    };
     c.record_licence_acceptance(req).await.unwrap();
     assert_eq!(read(c.clone(), read_req("alice", "sa", "sa.txt", "")).await.unwrap(), SA);
     assert_eq!(read(c.clone(), read_req("alice", "sa", "sa.txt", "")).await.unwrap(), SA);
@@ -218,7 +223,12 @@ async fn outside_zoo_mode_a_read_never_fetches_and_accepting_needs_the_admin_fla
             .unwrap();
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model], MAX, serve).await.unwrap();
     let mut c = TurboCatalogServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let req = RecordLicenceAcceptanceRequest { user: "alice".into(), licence: "CC-BY-SA-4.0".into(), terms: "".into() };
+    let req = RecordLicenceAcceptanceRequest {
+        user: "alice".into(),
+        licence: "CC-BY-SA-4.0".into(),
+        terms: "".into(),
+        ..Default::default()
+    };
     let e = c.record_licence_acceptance(req).await.unwrap_err();
     assert_eq!(refusal(&e), (Code::Unimplemented, TURBO_E_UNSUPPORTED), "{e:?}");
     assert!(e.message().contains("--zoo"), "{e:?}");
