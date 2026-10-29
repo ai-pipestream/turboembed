@@ -159,6 +159,17 @@ impl NgramModel {
         let scores = self.scores(text);
         scores.iter().copied().reduce(f32::max)
     }
+
+    /// Returns the top-k languages with their scores.
+    pub fn top_k(&self, text: &str, k: usize) -> Vec<(&str, f32)> {
+        if text.trim().is_empty() {
+            return Vec::new();
+        }
+        let scores = self.scores(text);
+        let mut indexed: Vec<(usize, f32)> = scores.iter().copied().enumerate().collect();
+        indexed.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.into_iter().take(k).map(|(i, score)| (self.languages[i].as_str(), score)).collect()
+    }
 }
 
 /// A coarse script class for language priors.
