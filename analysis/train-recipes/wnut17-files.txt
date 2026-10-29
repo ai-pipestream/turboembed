@@ -1,0 +1,6 @@
+# The WNUT-17 Emerging Entities files the NER recipes read,
+# with each file's size and SHA-256 at the pinned commit.
+# repo	revision	path	size	sha256
+leondz/emerging_entities_17	e52a2d2a71ac1a051ca2d532eef28653c5c02603	wnut17train.conll	493781	731820e13f71af324c6b55a1575ec2ce59fbaa2a0806f8f0400b98d56cd6a7a5
+leondz/emerging_entities_17	e52a2d2a71ac1a051ca2d532eef28653c5c02603	emerging.dev.conll	114749	e053b752b8155113ca66e7db08af5f2f5f43ab993694e4774f1ec5bad42312d8
+leondz/emerging_entities_17	e52a2d2a71ac1a051ca2d532eef28653c5c02603	emerging.test.conll	194777	d28fad9efb7a676ee95b939804aba92f60fa87ff33eebcdf46f60f26c65d0d93

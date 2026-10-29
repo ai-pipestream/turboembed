@@ -9,7 +9,22 @@
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
 //!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//! turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir> --layers N
+//!     [--device ..] [--precision ..] [--pooling ..] [--max-batch N] [--splits train,dev,test]
+//!     [--commit <sha>] [--unrecorded-corpus]
+//! turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <dir>
+//!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
+//! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
+//!     [--min-tree-freq N])
+//! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
+//! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
+//!     --out <dir> [--column xpos|upos] [--map FROM=TO,...] [--commit <sha>]
+//! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
+//!     [--arc N] [--rel N])
 //! ```
+//!
+//! `cache` writes every split's word features at the encoder's last N
+//! layers, for heads on one layer or a mix of them (`cache` module).
 //!
 //! Exit status 2 on any error. `--out` must not exist yet. A run claims
 //! it before anything else, by making it, which fails when it exists, so
@@ -24,58 +39,21 @@ use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
+use turbo_trainer_recipes::cache::{self, CacheRecord};
+use turbo_trainer_recipes::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
 use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{
-    CHECKPOINT_DEV, CHECKPOINT_EPOCH, HASH_ROWS, HeadOptions, examples, named, predict, replace, spec, write,
+    CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, examples, named, predict, replace, spec, write,
 };
+use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
+mod peer_cmd;
+mod train_ud;
+
 const RESAMPLES: usize = 1000;
-
-/// The default patience of a head with a BiLSTM adapter: its dev score
-/// keeps creeping up by less than the tolerance an epoch for many epochs
-/// (MASC POS, hashed words and a 256x1 BiLSTM: 0.9733 at epoch 32, 0.9755
-/// at 57), and each better epoch is saved as it comes, so waiting costs
-/// only time.
-const BILSTM_PATIENCE: u32 = 15;
-
-struct Args {
-    rest: Vec<String>,
-}
-
-impl Args {
-    fn flag(&mut self, name: &str) -> bool {
-        let at = self.rest.iter().position(|a| a == name);
-        at.map(|i| self.rest.remove(i)).is_some()
-    }
-
-    fn value(&mut self, name: &str) -> Result<Option<String>> {
-        let Some(i) = self.rest.iter().position(|a| a == name) else { return Ok(None) };
-        if i + 1 >= self.rest.len() {
-            return Err(Error(format!("{name} needs a value")));
-        }
-        let v = self.rest.remove(i + 1);
-        self.rest.remove(i);
-        Ok(Some(v))
-    }
-
-    fn required(&mut self, name: &str) -> Result<String> {
-        self.value(name)?.ok_or_else(|| Error(format!("{name} is required")))
-    }
-
-    fn parsed<T: std::str::FromStr>(&mut self, name: &str, default: T) -> Result<T> {
-        match self.value(name)? {
-            None => Ok(default),
-            Some(v) => v.parse().map_err(|_| Error(format!("{name} {v:?} is not a valid value"))),
-        }
-    }
-
-    fn done(self) -> Result<()> {
-        if self.rest.is_empty() { Ok(()) } else { Err(Error(format!("unknown arguments: {}", self.rest.join(" ")))) }
-    }
-}
 
 fn main() -> ExitCode {
     match run(std::env::args().collect()) {
@@ -119,6 +97,7 @@ fn run(argv: Vec<String>) -> Result<()> {
                 corpus: c.record.clone(),
                 encoder: None,
                 head: None,
+                peer: None,
                 config: None,
                 training: None,
                 eval: EvalRecord {
@@ -132,6 +111,7 @@ fn run(argv: Vec<String>) -> Result<()> {
                         coarse(&corpus_id),
                     ),
                     comparison: None,
+                    uas: None,
                 },
                 timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
                 outputs: Vec::new(),
@@ -139,60 +119,100 @@ fn run(argv: Vec<String>) -> Result<()> {
             finish(out, receipt)
         }
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
-        _ => Err(Error(format!("unknown command {command:?}: check, baseline or train"))),
+        "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
+        "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
+        "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-lemma" | "train-parse" => {
+            let head = if command == "train-lemma" { UdHead::Lemma } else { UdHead::Deps };
+            train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
+        }
+        _ => Err(Error(format!(
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, cache, fit-cache, export or peer"
+        ))),
     }
 }
 
-fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+/// Writes the word features of every split at the encoder's last
+/// `--layers` layers, and `cache.json` last.
+fn cache(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let bundle = PathBuf::from(a.required("--bundle")?);
+    let mut out = OutDir::claim(&a.required("--out")?)?;
+    let (device, precision, pooling) = encoder_args(&mut a)?;
+    let taps: u32 = a.parsed("--layers", 0)?;
+    let max_batch: u32 = a.parsed("--max-batch", 32)?;
+    let wanted = a.value("--splits")?.unwrap_or_else(|| "train,dev,test".into());
+    let commit = commit(a.value("--commit")?);
+    a.done()?;
+    let wanted: Vec<&str> = wanted.split(',').collect();
+    if wanted.is_empty() || wanted.iter().any(|w| !["train", "dev", "test"].contains(w)) {
+        return Err(Error(format!("--splits {wanted:?}: train, dev and test, comma separated")));
+    }
+    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
+    let o = EncoderOptions { device, precision, max_batch: max_batch.max(taps), ..EncoderOptions::default() };
+    let mut enc = WordEncoder::open(&bundle, &o).map_err(|e| Error(e.message))?;
+    let encoder = encoder_record(&bundle, &enc)?;
+    let model_layers = encoder.layers.ok_or_else(|| Error(format!("{}: no architecture.layers", bundle.display())))?;
+    let t = Instant::now();
+    let s = &corpus.splits;
+    let splits: Vec<(&str, &[_])> = [("train", &s.train[..]), ("dev", &s.dev[..]), ("test", &s.test[..])]
+        .into_iter()
+        .filter(|(n, _)| wanted.contains(n))
+        .collect();
+    let (layers, splits) = cache::write(&mut enc, &splits, pooling, taps, model_layers, &out.path)?;
+    let record = CacheRecord {
+        schema: cache::SCHEMA.into(),
+        command: argv.to_vec(),
+        commit,
+        host: host(),
+        unix_time: unix_time(),
+        corpus: corpus.record.clone(),
+        encoder,
+        pooling,
+        layers,
+        splits,
+        features_s: t.elapsed().as_secs_f64(),
+    };
+    write(&out.path, "cache.json", serde_json::to_string_pretty(&record).expect("serializes").as_bytes())?;
+    out.keep = true;
+    let words: u64 = record.splits.iter().map(|s| s.words).sum();
+    println!(
+        "{}: layers {:?} of {words} words in {:.1} s, {:.0} words/s",
+        out.path.display(),
+        record.layers,
+        record.features_s,
+        words as f64 / record.features_s.max(1e-9)
+    );
+    Ok(())
+}
+
+/// The settings `train` and the UD commands share.
+struct Opts {
+    bundle: PathBuf,
+    out: OutDir,
+    device: Device,
+    precision: Precision,
+    pooling: WordPooling,
+    crf: bool,
+    bilstm: Option<(u32, u32)>,
+    hash: Option<HashEmbed>,
+    c: Config,
+    max_train: usize,
+    commit: String,
+}
+
+fn options(a: &mut Args) -> Result<Opts> {
     let bundle = PathBuf::from(a.required("--bundle")?);
     let out = OutDir::claim(&a.required("--out")?)?;
-    let device = match a.value("--device")?.as_deref() {
-        None | Some("cpu") => Device::Cpu,
-        Some(d) => Device::Backend(d.to_owned()),
-    };
-    let precision = match a.value("--precision")?.as_deref() {
-        None | Some("model") => Precision::Model,
-        Some("exact") => Precision::Exact,
-        Some(p) => return Err(Error(format!("--precision {p:?}: model or exact"))),
-    };
-    let pooling = match a.value("--pooling")?.as_deref() {
-        None | Some("first") => WordPooling::First,
-        Some("mean") => WordPooling::Mean,
-        Some(p) => return Err(Error(format!("--pooling {p:?}: first or mean"))),
-    };
-    let crf = a.flag("--crf");
-    let bilstm = match a.value("--bilstm")? {
-        None => None,
-        Some(v) => {
-            let parse = |s: &str| s.parse::<u32>().map_err(|_| Error(format!("--bilstm {v:?}: <hidden>x<layers>")));
-            let (h, l) = v.split_once('x').ok_or_else(|| Error(format!("--bilstm {v:?}: <hidden>x<layers>")))?;
-            Some((parse(h)?, parse(l)?))
-        }
-    };
-    let hash_dim: Option<u32> =
-        a.value("--hash-embed")?.map(|v| v.parse()).transpose().map_err(|_| Error("--hash-embed <dim>".into()))?;
-    let rows = match a.value("--hash-rows")? {
-        None => HASH_ROWS,
-        Some(v) => {
-            let r: Vec<u32> = v.split(',').map(str::parse).collect::<std::result::Result<_, _>>().unwrap_or_default();
-            r.try_into().map_err(|_| Error(format!("--hash-rows {v:?}: four counts, comma separated")))?
-        }
-    };
-    let hash = hash_dim.map(|dim| HashEmbed { dim, rows });
-    let d = Config::default();
-    let c = Config {
-        seed: a.parsed("--seed", d.seed)?,
-        epochs: a.parsed("--epochs", d.epochs)?,
-        batch: a.parsed("--batch", d.batch)?,
-        lr: a.parsed("--lr", d.lr)?,
-        patience: a.parsed("--patience", if bilstm.is_some() { BILSTM_PATIENCE } else { d.patience })?,
-        tolerance: a.parsed("--tolerance", d.tolerance)?,
-        threads: a.parsed("--threads", d.threads)?,
-        verbose: true,
-        ..d
-    };
+    let (device, precision, pooling) = encoder_args(a)?;
+    let HeadArgs { crf, bilstm, hash, config: c } = head_args(a)?;
     let max_train: usize = a.parsed("--max-train", 0)?;
     let commit = commit(a.value("--commit")?);
+    Ok(Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit })
+}
+
+fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
     let t = Instant::now();
@@ -254,6 +274,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         model: Some(evaluate(task, test, &predicted, &seen, coarse(corpus_id))),
         baseline: evaluate(task, test, &base, &seen, coarse(corpus_id)),
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
+        uas: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
@@ -273,6 +294,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         corpus: corpus.record.clone(),
         encoder: Some(encoder),
         head: Some(head),
+        peer: None,
         config: Some(ConfigRecord {
             seed: c.seed,
             epochs: c.epochs,
@@ -325,52 +347,9 @@ fn encoder_record(bundle: &Path, enc: &WordEncoder) -> Result<EncoderRecord> {
         precision: x.precision.clone(),
     })
 }
-
-/// A run's output directory, claimed before the run reads or writes
-/// anything: `create_dir` fails when the directory exists, so two runs
-/// given one `--out` cannot both have it. Dropped unkept, as when the run
-/// fails, it is removed with what the run wrote in it.
-struct OutDir {
-    path: PathBuf,
-    keep: bool,
-}
-
-impl OutDir {
-    fn claim(p: &str) -> Result<OutDir> {
-        let path = PathBuf::from(p);
-        if let Some(parent) = path.parent().filter(|q| !q.as_os_str().is_empty()) {
-            std::fs::create_dir_all(parent).map_err(|e| Error(format!("{}: {e}", parent.display())))?;
-        }
-        match std::fs::create_dir(&path) {
-            Ok(()) => Ok(OutDir { path, keep: false }),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                Err(Error(format!("{}: already there; a run writes a new directory", path.display())))
-            }
-            Err(e) => Err(Error(format!("{}: {e}", path.display()))),
-        }
-    }
-}
-
-impl Drop for OutDir {
-    fn drop(&mut self) {
-        if !self.keep {
-            let _ = std::fs::remove_dir_all(&self.path);
-        }
-    }
-}
-
 /// Whether a checkpoint was written into `dir`.
 fn saved_any(dir: &Path) -> bool {
     dir.join("head.safetensors").is_file()
-}
-
-fn commit(given: Option<String>) -> String {
-    given
-        .or_else(|| {
-            let o = std::process::Command::new("git").args(["rev-parse", "HEAD"]).output().ok()?;
-            o.status.success().then(|| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-        })
-        .unwrap_or_else(|| "unknown".into())
 }
 
 fn finish(mut out: OutDir, receipt: Receipt) -> Result<()> {

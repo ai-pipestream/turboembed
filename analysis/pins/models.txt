@@ -95,6 +95,7 @@ blobs/sha256/4ac96221ea772033f248df8c08fc546f62c384860bf3abc5d96e383a800497a2  f
 blobs/sha256/643023b738f8d1072fffa358000247b61c7027da720f4d310fd902f6cc59a99a  file  aspect-polarity-1.thead (analysis/embed/tests/aspect_masc_support/release.json)
 blobs/sha256/a0cc253cdcf8bdd6f28bc13f17a1d7012740bcfe2deb384ca212dbf9e3aef5de  file  pragmatics-1.thead (analysis/embed/tests/pragmatics_csc_support/release.json)
 blobs/sha256/26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba  file  MiniLM TIVH incivility head (analysis/embed/examples/incivility_eval/tests.rs)
+blobs/sha256/76fac774d60210b9279a47ebcb565e12e2b353897f560afa4806e43771e8a3b6  file  MASC 3.0.0 Penn POS head B over ModernBERT-base (trainer/recipes/records/masc-pos-1649/head-B.json)
 
 # Bundles CI makes from a pinned recipe before a test loads them.
 blobs/sha256/09275a1b537fd120d5ee10ed614aa8963c65100dda824b6c14fc9f9a7715de04  bundle  minishlab/potion-base-2M as the static-parity job of ci.yml makes it
