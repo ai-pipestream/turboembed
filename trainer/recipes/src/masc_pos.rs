@@ -18,6 +18,8 @@ use crate::corpus::{Corpus, CorpusRecord, Counts, Sentence, Splits, Task};
 use crate::{Error, Result};
 
 pub const ID: &str = "masc-pos";
+/// MASC's licence (`masc::TERMS`), as the zoo names it.
+pub const SPDX: &str = "CC-BY-3.0-US";
 /// Training-side documents at `DEV_EVERY - 1` modulo `DEV_EVERY`, in
 /// corpus order, are dev.
 pub const DEV_EVERY: usize = 10;
@@ -72,6 +74,7 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
         name: masc::NAME.into(),
         task: Task::Tags,
         licence: "CC BY 3.0 US".into(),
+        spdx: SPDX.into(),
         terms: masc::TERMS.into(),
         attribution: masc::ATTRIBUTION.into(),
         recorded,

@@ -19,6 +19,8 @@ use crate::{Error, Result};
 pub const ID: &str = "multiconer2-en";
 pub const NAME: &str = "MultiCoNER v2, English";
 pub const LICENCE: &str = "CC BY-SA 4.0";
+/// LICENCE as the zoo names it.
+pub const SPDX: &str = "CC-BY-SA-4.0";
 pub const TERMS: &str = "https://arxiv.org/abs/2310.13213";
 pub const ATTRIBUTION: &str = "Trained on MultiCoNER v2 (Fetahu et al., SemEval-2023 Task 2: Fine-grained \
      Multilingual Named Entity Recognition), by Amazon, published at https://registry.opendata.aws/multiconer/; \
@@ -137,6 +139,7 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
         name: NAME.into(),
         task: Task::Bio,
         licence: LICENCE.into(),
+        spdx: SPDX.into(),
         terms: TERMS.into(),
         attribution: ATTRIBUTION.into(),
         recorded: mismatches.is_empty(),

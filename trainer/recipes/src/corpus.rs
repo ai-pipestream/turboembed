@@ -74,6 +74,11 @@ pub struct CorpusRecord {
     pub name: String,
     pub task: Task,
     pub licence: String,
+    /// The licence's SPDX id, as the model zoo knows it, from which the
+    /// head's `license_class` is taken (`CorpusRecord::class`). Empty in
+    /// a receipt written before it was recorded.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub spdx: String,
     /// Where the publisher states the licence.
     pub terms: String,
     /// What a model trained on the corpus credits.
@@ -95,6 +100,33 @@ pub struct CorpusRecord {
     pub test: Counts,
     /// Sentences the reader left out (no words, a word without a label).
     pub skipped: usize,
+}
+
+impl CorpusRecord {
+    /// The class of the corpus's licence by the model zoo's rules
+    /// (docs/zoo.md): what a head trained on it carries as
+    /// `license_class`, so a bundle holding the head is offered only as
+    /// its terms allow (a CC BY-SA corpus makes the bundle accept-first).
+    ///
+    /// # Errors
+    ///
+    /// A licence the zoo does not know or refuses: no head is made from
+    /// such a corpus.
+    pub fn class(&self) -> Result<turbo::manifest::LicenseClass> {
+        use turbo::manifest::LicenseClass;
+        use turbo_zoo::{Licence, LicenceClass};
+        let licence: Licence = self.spdx.parse().map_err(|e| Error(format!("corpus {}: licence {e}", self.id)))?;
+        Ok(match licence.class() {
+            LicenceClass::Permissive => LicenseClass::Permissive,
+            LicenceClass::Lgpl => LicenseClass::Lgpl,
+            LicenceClass::ShareAlike => LicenseClass::ShareAlike,
+            LicenceClass::Gpl => LicenseClass::Gpl,
+            LicenceClass::LocalOnly => LicenseClass::LocalOnly,
+            LicenceClass::Refused => {
+                return Err(Error(format!("corpus {}: the zoo refuses its licence {licence}", self.id)));
+            }
+        })
+    }
 }
 
 /// A corpus read and checked.

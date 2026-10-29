@@ -73,3 +73,43 @@ fn the_recorded_release_reads_as_pinned() {
     assert_eq!(n(c.record.test), (249_980, 3_773_671));
     assert_eq!(c.labels().len(), 67);
 }
+
+/// A head trained on MultiCoNER (CC BY-SA 4.0) carries its class, so a
+/// bundle of a permissive encoder with it is share-alike: accept-first,
+/// never a default download.
+#[test]
+fn a_head_trained_on_multiconer_makes_its_bundle_share_alike() {
+    use turbo::manifest::{LicenseClass, Manifest};
+    use turbo_trainer_recipes::run::{HeadOptions, spec};
+
+    let dir = std::env::temp_dir().join(format!("turbo-multiconer-class-{}", std::process::id()));
+    fs::create_dir_all(dir.join("EN-English")).unwrap();
+    for f in ["en_train", "en_dev", "en_test"] {
+        fs::write(dir.join(format!("EN-English/{f}.conll")), TEXT).unwrap();
+    }
+    let c = read(&dir, true).unwrap();
+    assert_eq!(c.record.class().unwrap(), LicenseClass::ShareAlike);
+    let head = spec(&c, &HeadOptions::default()).unwrap();
+    assert_eq!(head.license_class, Some(LicenseClass::ShareAlike));
+
+    let testdata = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle/manifest.json");
+    let mut m: serde_json::Value = serde_json::from_slice(&fs::read(testdata).unwrap()).unwrap();
+    m["model"]["license_class"] = serde_json::json!("CLASS_PERMISSIVE");
+    m["heads"] = serde_json::json!([serde_json::to_value(&head).unwrap()]);
+    let m: Manifest = serde_json::from_value(m).unwrap();
+    assert_eq!(m.license_tier(), Some(LicenseClass::ShareAlike));
+    let zoo: turbo_zoo::Licence = turbo_trainer_recipes::multiconer::SPDX.parse().unwrap();
+    assert!(zoo.class().needs_acceptance(turbo_zoo::Policy::default()), "CC BY-SA is accept-first");
+
+    // A corpus whose licence the zoo does not know makes no head.
+    let mut unknown = c.clone();
+    unknown.record.spdx = "CC BY-SA 4.0".into();
+    assert!(spec(&unknown, &HeadOptions::default()).unwrap_err().0.contains("not a licence the zoo knows"));
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn masc_is_permissive() {
+    let zoo: turbo_zoo::Licence = turbo_trainer_recipes::masc_pos::SPDX.parse().unwrap();
+    assert_eq!(zoo.class(), turbo_zoo::LicenceClass::Permissive);
+}
