@@ -110,6 +110,17 @@ pub struct EvalRecord {
     /// The model against the baseline, by paired bootstrap.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comparison: Option<Comparison>,
+    /// A parser's unlabelled attachment, model and baseline; its labelled
+    /// attachment is the tag accuracy above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uas: Option<Uas>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Uas {
+    pub model: f64,
+    pub baseline: f64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]

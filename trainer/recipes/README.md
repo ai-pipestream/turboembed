@@ -46,7 +46,26 @@ turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bun
     [--device cpu|cuda|levelzero|metal] [--precision model|exact] [--pooling first|mean]
     [--crf] [--bilstm <hidden>x<layers>] [--seed N] [--epochs N] [--batch N] [--lr X]
     [--patience N] [--max-train N] [--commit <sha>]
+turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+    [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+    [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 ```
+
+`train-lemma` trains the edit-tree lemmatizer (`lemma` on
+`turboembed:lemmas`) over the trees that come up at least
+`--min-tree-freq` times in training (3, spaCy's default);
+`train-parse` trains the biaffine parser (`deps` on
+`turboembed:dependencies`, MST decoding, arc and relation widths 256
+and 64 by default) over the training relations. Both take the
+treebank's id, read its syntactic words, and write the same
+`head.safetensors`, `head.json` and receipt as `train`. They score as
+word labels: lemma accuracy for the lemmatizer, LAS for the parser
+(each word's label is `<head> <relation>`), with the parser's UAS
+beside it (`eval.uas`). Their baselines: each word's commonest
+training lemma, the word itself when unseen; and each word's
+commonest training attachment, the signed distance to its head with
+the relation, the commonest overall when unseen.
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for
@@ -65,7 +84,8 @@ baseline, the bootstrap, timings, and the outputs' digests).
 Majority baselines on the test splits (CPU, 2026-10-28, at the recorded
 releases): MASC Penn POS accuracy 0.8964 (85,292 words), MultiCoNER v2
 English span F1 0.1404 (377,805 gold spans). UD EWT r2.18 test (25,094
-words): UPOS 0.8617, XPOS 0.8381, features 0.8292.
+words): UPOS 0.8617, XPOS 0.8381, features 0.8292, lemmas 0.9503,
+LAS 0.3322, UAS 0.3707.
 
 ```text
 cargo test -p turbo-trainer-recipes
@@ -76,4 +96,4 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
 
 Not yet here: bundle output (a sealed bundle carrying the head), the
 learned mix of the last layers, WNUT-17 and MASC named entities, and
-the UD lemma and dependency heads (they read `ud::UdSentence`).
+a lemmatizer that reads the tagger's UPOS (`pos_input`).

@@ -9,6 +9,7 @@
 //! | `masc_pos` | MASC 3.0.0 Penn tags on the recipes' recorded release and split |
 //! | `multiconer` | MultiCoNER v2 English, pinned file by file, and its coarse groups |
 //! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
+//! | `ud_heads` | Lemma and dependency heads on a treebank, their examples and baselines |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
 //! | `run` | Head spec, encoder features, prediction, outputs |
 //! | `receipt` | `receipt.json` |
@@ -22,6 +23,7 @@ pub mod receipt;
 pub mod run;
 pub mod safetensors;
 pub mod ud;
+pub mod ud_heads;
 
 /// An error, as the message the command prints.
 #[derive(Debug, Clone, PartialEq, Eq)]
