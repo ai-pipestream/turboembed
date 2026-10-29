@@ -1,0 +1,157 @@
+{
+  "schema": "turboembed.throughput-receipt.v1",
+  "command": [
+    "docker",
+    "run",
+    "--rm",
+    "--network",
+    "none",
+    "-v",
+    "/work/ud-data:/gold:ro",
+    "-v",
+    "/tmp/spacy-tp:/out",
+    "turbo-peer-spacy:3.8.7-sm-3.8.0",
+    "/gold/en_ewt-ud-test.conllu",
+    "/out/spacy-sm.conllu"
+  ],
+  "commit": "2bd0bf648347dc6ef3c9c452a95d339bbb822714",
+  "working_tree": {
+    "dirty": false,
+    "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "sentences_per_run": 2077,
+  "output_file": "/tmp/spacy-tp/spacy-sm.conllu",
+  "runs": [
+    {
+      "seconds": 3.553150646010181,
+      "load1_before": 2.47,
+      "load1_after": 2.47,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5491354889963986,
+      "load1_before": 2.47,
+      "load1_after": 2.36,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.529887313998188,
+      "load1_before": 2.36,
+      "load1_after": 2.33,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.55031324698939,
+      "load1_before": 2.33,
+      "load1_after": 2.54,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.595588812007918,
+      "load1_before": 2.54,
+      "load1_after": 2.54,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5288793880026788,
+      "load1_before": 2.54,
+      "load1_after": 2.42,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5492021050013136,
+      "load1_before": 2.42,
+      "load1_after": 2.39,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5598725720046787,
+      "load1_before": 2.39,
+      "load1_after": 2.39,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5294504379999125,
+      "load1_before": 2.39,
+      "load1_after": 2.27,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5600841030100128,
+      "load1_before": 2.27,
+      "load1_after": 2.17,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5598163550021127,
+      "load1_before": 2.17,
+      "load1_after": 2.17,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5799116429989226,
+      "load1_before": 2.17,
+      "load1_after": 2.16,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5493992879928555,
+      "load1_before": 2.16,
+      "load1_after": 2.14,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.554645783995511,
+      "load1_before": 2.14,
+      "load1_after": 2.05,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.502624417000334,
+      "load1_before": 2.05,
+      "load1_after": 2.05,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5347878460015636,
+      "load1_before": 2.05,
+      "load1_after": 1.97,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5530382430006284,
+      "load1_before": 1.97,
+      "load1_after": 1.89,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5348227320064325,
+      "load1_before": 1.89,
+      "load1_after": 1.89,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5319444659980945,
+      "load1_before": 1.89,
+      "load1_after": 5.42,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    },
+    {
+      "seconds": 3.5422795889899135,
+      "load1_before": 5.42,
+      "load1_after": 5.07,
+      "output_sha256": "a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e"
+    }
+  ],
+  "seconds": {
+    "min": 3.502624417000334,
+    "mean": 3.547441723850352,
+    "p50": 3.5492021050013136,
+    "p99": 3.595588812007918,
+    "max": 3.595588812007918
+  },
+  "sentences_per_second_at_p50": 585.2019520311964,
+  "host_cores": 32,
+  "unix_time": 1793317256
+}

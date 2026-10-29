@@ -390,7 +390,7 @@ beside these records. The timing is the whole command, model load
 included. A receipt is only comparable at like host load, which is
 why every run's load is in the file.
 
-One receipt so far: `throughput/gliner-wnut17.json`, the GLiNER
+The first receipt is `throughput/gliner-wnut17.json`, the GLiNER
 peer command above over the 1287 WNUT-17 sentences, 20 runs on
 2026-10-29 from a clean tree at commit `e8e445c52db1`: min
 34.41 s, mean 37.55 s, p50 37.16 s (34.63 sentences/s), p99 and
@@ -405,6 +405,22 @@ the scored record's file. The mutable tag
 for this run. This replaces the 2026-10-28 receipt taken while
 other lanes loaded the host; that historical file remains in git
 history with the provenance correction recorded in #1655.
+
+Three spaCy receipts over the 2077 English EWT sentences followed
+from the same clean PR branch commit `2bd0bf648347`: `spacy-sm`
+min 3.50 s, mean 3.55 s, p50 3.55 s (585.20 sentences/s), p99 and
+max 3.60 s; `spacy-lg` min 4.07 s, mean 4.18 s, p50 4.16 s
+(499.65 sentences/s), p99 and max 4.41 s; and `spacy-trf` min
+14.62 s, mean 15.48 s, p50 15.31 s (135.66 sentences/s), p99 and
+max 16.20 s. Before each receipt, one run was scored and reproduced
+the committed record's sentence, UAS and LAS scores exactly; all
+20 timed runs then wrote one byte-identical prediction file per
+model. The mutable tags named image IDs
+`sha256:c2b1beb463f6e98b99124fcd734a946d03344bf32063357c716df7d92eca6470`
+(sm), `sha256:ac75f6a5866cad276de5aef167ccbe27cfb82d49a3f5a027e63090f94315ac7b`
+(lg), and
+`sha256:bd8fb6da4c3c2dc05f9477be3adc78be4ed5b332bb1552f45e0f2bcd2fe7a286`
+(trf).
 
 Receipts for the other analysis systems land as their booked runs
 complete; the records above still carry at most the single
