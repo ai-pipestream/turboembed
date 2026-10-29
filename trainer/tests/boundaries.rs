@@ -20,6 +20,7 @@ fn spec(labels: &[&str], scheme: Scheme, decode: Decode) -> HeadSpec {
         adapter: None,
         decode,
         biaffine: None,
+        pos_input: None,
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),
     }
@@ -104,6 +105,25 @@ fn one_step_and_short_schedules_move_every_trained_weight() {
             assert!(a.iter().zip(b).all(|(x, y)| x != y), "{epochs} epochs: tensor {i} {a:?} -> {b:?}");
         }
     }
+}
+
+#[test]
+fn attachment_refuses_gold_that_does_not_match_the_words() {
+    use turbo::manifest::Biaffine;
+    use turbo_trainer::fit_parse::{ParseExample, attachment};
+    use turbo_trainer::parser::Parser;
+    let mut s = spec(&["root", "dep"], Scheme::Tags, Decode::Mst);
+    s.kind = HeadKind::BiaffineParser;
+    s.biaffine = Some(Biaffine { arc: 2, rel: 2 });
+    assert!(Parser::<f32>::new(&s, 0, &mut Rng::new(1)).is_err(), "zero width");
+    let p = Parser::<f32>::new(&s, 1, &mut Rng::new(1)).unwrap();
+    let core = p.to_core().unwrap();
+    let short = [ParseExample { features: vec![1.0, 2.0], heads: vec![0], rels: vec![0] }];
+    assert!(attachment(&core, &short).is_err());
+    let own_head = [ParseExample { features: vec![1.0], heads: vec![1], rels: vec![0] }];
+    assert!(attachment(&core, &own_head).is_err());
+    let fine = [ParseExample { features: vec![1.0], heads: vec![0], rels: vec![0] }];
+    assert_eq!(attachment(&core, &fine).unwrap().words, 1);
 }
 
 #[test]

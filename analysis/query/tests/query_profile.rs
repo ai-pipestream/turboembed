@@ -5,8 +5,7 @@ use turbo_analysis_layers::{Currency, DAY_SECONDS, Date, DateTime, Origin, TimeG
 use turbo_chunker::terms::{Bm25, LocalCollection, TermCounter, TermForm, TermStats, Vocabulary};
 use turbo_geo::InMemoryGazetteer;
 use turbo_glossary::{Case, Glossary};
-use turbo_maxent::Dictionary;
-use turbo_namefind::DictionaryNameFinder;
+use turbo_namefind::{Dictionary, DictionaryNameFinder};
 use turbo_query::{FilterKind, QueryAnalysis, QueryAnalysisProfile, QueryProfileBuilder};
 use turbo_unicode::Script;
 
@@ -168,12 +167,14 @@ fn extracts_glossary_dictionary_and_regex_entities() {
     glossary.push("CONCEPT_ML", "machine learning").unwrap();
     glossary.push("CONCEPT_RAG", "retrieval augmented generation").unwrap();
 
-    let dict_xml = "<dictionary case_sensitive='false'>\
-        <entry><token>TurboEmbed</token></entry>\
-        <entry><token>OpenNLP</token><token>Addons</token></entry>\
-    </dictionary>";
-    let dict = Dictionary::read(dict_xml.as_bytes()).unwrap();
-    let dict_finder = DictionaryNameFinder::new(dict, "product");
+    let dict = Dictionary::from_entries(
+        false,
+        [
+            ("product".to_owned(), vec!["TurboEmbed".to_owned()]),
+            ("product".to_owned(), vec!["OpenNLP".to_owned(), "Addons".to_owned()]),
+        ],
+    );
+    let dict_finder = DictionaryNameFinder::new(dict).unwrap();
 
     let profile = QueryProfileBuilder::new()
         .with_reference_date(Date::new(2026, 7, 14).unwrap())
