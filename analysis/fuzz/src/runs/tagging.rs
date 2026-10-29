@@ -8,8 +8,9 @@
 use std::sync::Arc;
 
 use turbo_analysis::{Analyzer, Bound, Document};
-use turbo_analysis_layers::{ChunkTags, PhraseChunks, PosTags, Tokens};
+use turbo_analysis_layers::{ChunkTags, Lemmas, PhraseChunks, PosTags, Tokens};
 use turbo_goldens::{GOLDEN_KEY, Golden, Tolerance, golden_key, load_document, matches_golden};
+use turbo_lemmatizer::DictionaryLemmatizer;
 use turbo_phrase_chunker::{ChunkerModel, PhraseChunker};
 use turbo_postag::{PosModel, PosTagFormat, PosTagger};
 use turbo_tokenize::{SimpleTokenizer, TokenizerOptions};
@@ -119,6 +120,57 @@ fn default_check(run: &dyn Run, text: &str, golden: &Golden) -> super::Checked {
             super::Checked { doc: Some(doc), outcome }
         }
         Err(e) => super::Checked { doc: None, outcome: Outcome::Divergence(format!("the port failed: {e}")) },
+    }
+}
+
+/// The no-model dictionary lemmatizer with the checked-in fixture.
+pub(crate) struct DictionaryRun {
+    on_golden: Analyzer,
+    plain: Analyzer,
+}
+
+impl DictionaryRun {
+    pub(crate) fn open(res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
+        let path = res.fixture("lemmatizer-dictionary.txt")?;
+        let read =
+            || DictionaryLemmatizer::read(&path, "fixture").map_err(|e| broken(format!("{}: {e}", path.display())));
+        read()?;
+        let on_golden = Analyzer::builder()
+            .given(golden_key::<Tokens>())
+            .given(golden_key::<PosTags>())
+            .step(Bound::new(read().expect("the dictionary read once already")).read(1, GOLDEN_KEY).read(2, GOLDEN_KEY))
+            .build()
+            .map_err(broken)?;
+        let plain = Analyzer::builder()
+            .add(SimpleTokenizer::new(TokenizerOptions::default()))
+            .add(fixture_tagger(res, PosTagFormat::Ud)?)
+            .add(read().expect("the dictionary read once already"))
+            .build()
+            .map_err(broken)?;
+        Ok(Box::new(DictionaryRun { on_golden, plain }))
+    }
+}
+
+impl Run for DictionaryRun {
+    fn annotate(&self, text: &str, golden: Option<&Golden>) -> Result<Document, RustError> {
+        match golden {
+            Some(_) => analyze_document(&self.on_golden, document(text, golden)?),
+            None => analyze(&self.plain, text),
+        }
+    }
+
+    fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
+        if let Some(skipped) = cut(golden) {
+            return skipped;
+        }
+        outcome(matches_golden::<Lemmas>(doc, golden, Tolerance::exact()))
+    }
+
+    fn check(&self, text: &str, golden: &Golden) -> super::Checked {
+        if let Some(skipped) = cut(golden) {
+            return super::Checked { doc: None, outcome: skipped };
+        }
+        default_check(self, text, golden)
     }
 }
 

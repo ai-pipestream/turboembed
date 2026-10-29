@@ -166,7 +166,7 @@ impl ModelsRelease {
     /// compared with.
     pub(super) fn recipe_references(&self) -> Vec<Reference> {
         let masc = self.recipes().into_iter().filter_map(|r| r.reference().ok());
-        let ud = self.ud_recipes().into_iter().map(|r| r.reference);
+        let ud = self.ud_recipes().into_iter().filter_map(|r| r.reference);
         let language = self.language_recipes().into_iter().map(|r| r.reference);
         let web = self.web_language_recipes().into_iter().flat_map(|r| [r.tatoeba.reference, r.compared]);
         masc.chain(ud).chain(language).chain(web).collect()
