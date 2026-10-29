@@ -81,7 +81,11 @@ fn header_excluded(header: &str) -> bool {
     while let Some(at) = rest.find("catRef") {
         rest = &rest[at + "catRef".len()..];
         let Some(eq) = rest.find('=') else { break };
-        let after = rest[eq + 1..].trim_start();
+        // Advance past the `=` before anything can `continue`, so a
+        // malformed (unquoted) value cannot be re-found at the same
+        // offset forever.
+        rest = &rest[eq + 1..];
+        let after = rest.trim_start();
         let Some(quote) = after.chars().next().filter(|c| *c == '"' || *c == '\'') else { continue };
         let Some(end) = after[1..].find(quote) else { break };
         if after[1..1 + end].split_whitespace().any(|code| code == "TW") {
@@ -219,6 +223,14 @@ mod tests {
         assert!(header_excluded("<textClass catRef='TW'/>"));
         assert!(!header_excluded(r#"<textClass catRef="WR NW"/>"#));
         assert!(!header_excluded("<textClass/>"));
+    }
+
+    #[test]
+    fn malformed_catref_values_return_instead_of_hanging() {
+        assert!(!header_excluded("<textClass catRef=WR/>"));
+        assert!(!header_excluded("<textClass catRef = TW/>"));
+        assert!(!header_excluded(r#"<textClass catRef="WR"#));
+        assert!(header_excluded(r#"<textClass catRef=WR/><textClass catRef="TW"/>"#));
     }
 
     #[test]
