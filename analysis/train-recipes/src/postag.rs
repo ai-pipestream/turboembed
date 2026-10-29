@@ -49,12 +49,6 @@
 //! and SHA-256, and only scores it. It is never shipped or bundled, and
 //! the trained model is trained on MASC alone.
 //!
-//! The English UD tagger, `opennlp-en-ud-ewt-pos-1.3-2.5.4`, is not the
-//! reference: it was trained on UD tags, and asked for Penn tags
-//! `POSTagFormatMapper` converts each of its outcomes to one Penn tag
-//! (`VERB` to `VB`, `NOUN` to `NN`, `PUNCT` to `.`), so it can never give
-//! `VBD`, `NNS`, `,` or `TO`, and a gate against it would pass any tagger.
-//!
 //! Both models are scored on the same held-out samples, one unit per
 //! sentence: OpenNLP's `POSEvaluator` reads each sentence's tags, and the
 //! unit counts the scored tokens each model tags right. The units are

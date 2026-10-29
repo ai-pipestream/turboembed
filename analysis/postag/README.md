@@ -13,16 +13,27 @@ surprising.
 It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
 OpenNLP fork.
 
-## Classical models
+## Classical models and UPOS tagger replacements
 
-The published OpenNLP UD 1.3 taggers (English EWT, German GSD, built with
-OpenNLP 2.5.4) are OpenNLP 2.5 artifacts, which are not fetched, pinned or
-run (#1509). The accuracy test on the UD English EWT test split that read
-the English one is deleted, and #1532 removes the JVM goldens that still
-name them. The fixture model with a tag dictionary, `pos-fixture.bin`, is
-trained for this project on permissive data and checked in as one of the
-golden generator's fixtures, in `analysis/goldens/data/fixtures` (that
-directory's README says where it comes from).
+The published OpenNLP UD 1.3 taggers are OpenNLP 2.5 artifacts, which are
+not fetched, pinned or run (#1509, #1646). The accuracy test on the UD
+English EWT test split that read the English one and the JVM goldens under
+`analysis/goldens/data/postag` (plus the UD POS entries under `beam`,
+`tag-dictionary` and `tag-format`) are deleted (#1646). The fixture model
+with a tag dictionary, `pos-fixture.bin`, is trained for this project on
+permissive data and checked in as one of the golden generator's fixtures,
+in `analysis/goldens/data/fixtures` (that directory's README says where it
+comes from).
+
+UPOS and Penn POS tagging are replaced by our own tagger heads on a
+shared encoder:
+
+| Language / Tagset | Replacement |
+|---|---|
+| English (UPOS + XPOS on UD English EWT) | Tagger head on UD English EWT (#1523, user-downloaded CC BY-SA 4.0) |
+| English (Penn POS on MASC) | Tagger head on MASC Penn POS (#1649, CC BY 3.0 US, shippable) |
+| Spanish, Catalan, Finnish, Italian (UPOS) | UPOS tagger heads on AnCora, FTB and MarkIT (#1522, CC BY 4.0, shippable) |
+| German, Portuguese and other CC BY-SA UD treebanks (UPOS) | Recipes under #1651 (user-downloaded CC BY-SA 4.0) |
 
 ## BiLSTM-CRF on the CPU backend
 
