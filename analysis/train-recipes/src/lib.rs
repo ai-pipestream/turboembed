@@ -224,11 +224,11 @@ impl Recipe {
     ///
     /// # Errors
     ///
-    /// [`Error::NoReference`] for a recipe with none: the tagger, the
-    /// chunker and the name finders.
+    /// [`Error::NoReference`] for a recipe with none: the tokenizer,
+    /// the tagger, the chunker and the name finders.
     pub fn reference(&self) -> Result<Reference> {
         let reference = match self {
-            Recipe::Segmentation(r) => Some(Reference::Retired(r.reference_id)),
+            Recipe::Segmentation(r) => r.reference_id.map(Reference::Retired),
             Recipe::Pos(r) => r.reference,
             Recipe::Chunk(r) => r.reference,
             Recipe::Name(r) => r.reference,

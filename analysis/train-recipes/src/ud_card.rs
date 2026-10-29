@@ -204,7 +204,8 @@ impl UdModelCard {
         if let TextRights::NotSettled { .. } = recipe.treebank.text_rights {
             return Err(not("the rights to its treebank's text are not settled"));
         }
-        if self.gate.reference != recipe.reference.id() || self.gate.reference_sha256 != recipe.reference.sha256()? {
+        let reference = recipe.reference.ok_or(not("its recipe has no reference to gate against"))?;
+        if self.gate.reference != reference.id() || self.gate.reference_sha256 != reference.sha256()? {
             return Err(not("it was not gated against its recipe's reference"));
         }
         if !self.gate.pass {

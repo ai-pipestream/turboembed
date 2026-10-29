@@ -89,17 +89,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("sentdetect", "opennlp-de-ud-gsd-sentence-1.3-2.5.4"),
     ("sentdetect", "opennlp-en-ud-ewt-sentence-1.3-2.5.4"),
     ("sentdetect", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
-    ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-de-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary"),
-    ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-es-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-fr-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
-    ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
-    ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
     ("tokenize", "simple"),
     ("tokenize", "simple+keep-new-lines"),
     ("tokenize", "tokenizer-abbreviations"),
@@ -299,10 +288,7 @@ mod tests {
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }
-        assert!(matches!(
-            open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res),
-            Err(Unavailable::NotCovered(_))
-        ));
+        assert!(matches!(open("tokenize", "tokenizer-abbreviations", &res), Err(Unavailable::NotCovered(_))));
         assert!(matches!(open("train", "anything", &res), Err(Unavailable::NotCovered(_))));
         // There is one whitespace definition, so no run takes a mode.
         for (annotator, run) in [("sentdetect", "en-abbrev+legacy"), ("tokenize", "simple+legacy")] {
