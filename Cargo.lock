@@ -2172,6 +2172,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-calibration",
  "turbo-chunker",
+ "turbo-formats",
  "turbo-langspan",
  "turbo-pins",
  "turbo-sat",
