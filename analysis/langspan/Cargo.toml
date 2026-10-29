@@ -11,4 +11,5 @@ name = "turbo_langspan"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-langdetect = { path = "../langdetect" }
 turbo-unicode = { path = "../unicode" }
