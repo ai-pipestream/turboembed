@@ -203,6 +203,11 @@ impl NgramModel {
             .map(|(i, score)| (self.languages[i].as_str(), *score))
             .collect()
     }
+
+    /// Returns all languages with scores above or equal to a threshold.
+    pub fn at_least(&self, text: &str, threshold: f32) -> Vec<(&str, f32)> {
+        self.above_threshold(text, threshold)
+    }
 }
 
 /// A coarse script class for language priors.
