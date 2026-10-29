@@ -474,3 +474,9 @@ fn events_with_every_factory_option_are_the_jvms_over_every_train_events_golden(
     // lemmas drop).
     assert_eq!(lone_surrogates, 4, "lemma classes with half of a surrogate pair");
 }
+
+#[test]
+fn legal_errors_map_to_io_exceptions() {
+    let error = turbo_formats::FormatError::Legal(turbo_formats::legal::LegalError::MissingField("casebody"));
+    assert_eq!(common::java_class(&error), Some("java.io.IOException"));
+}

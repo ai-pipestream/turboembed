@@ -213,6 +213,7 @@ pub fn java_class(e: &FormatError) -> Option<&'static str> {
             Some("java.io.IOException")
         }
         OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+        Legal(_) => Some("java.io.IOException"),
         Ner(_) => None,
         ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
         SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,
