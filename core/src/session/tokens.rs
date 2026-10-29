@@ -37,60 +37,127 @@ pub unsafe extern "C" fn turbo_embed_write_ranges(
     opts: *const turbo_embed_options,
     err: *mut turbo_error,
 ) -> i32 {
+    unsafe { call(err, || write_ranges(s, batch, ranges, count, 1, opts)) }
+}
+
+/// # Safety
+/// As turbo_embed_write_ranges.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_embed_write_layer_ranges(
+    s: *mut turbo_session,
+    batch: *const turbo_token_batch,
+    ranges: *const turbo_token_range,
+    count: u32,
+    layers: u32,
+    opts: *const turbo_embed_options,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe { call(err, || write_ranges(s, batch, ranges, count, layers, opts)) }
+}
+
+/// A range write pooling each range from each of the last `taps` layers
+/// (turbo.h, turbo_embed_write_layer_ranges); 1 for the final alone.
+unsafe fn write_ranges(
+    s: *mut turbo_session,
+    batch: *const turbo_token_batch,
+    ranges: *const turbo_token_range,
+    count: u32,
+    taps: u32,
+    opts: *const turbo_embed_options,
+) -> Result<()> {
     unsafe {
-        call(err, || {
-            let s = &session(s)?.inner;
-            let mut state = begin_write(s)?;
-            let tb = token_batch(batch)?;
-            let o = embed_options(s, opts)?;
-            if o.pooling_given != TURBO_POOLING_MODEL && o.pooling_given != TURBO_POOLING_MEAN {
-                return Err(Error::field(
-                    UNSUPPORTED_OPTION,
-                    5,
+        let s = &session(s)?.inner;
+        let mut state = begin_write(s)?;
+        let tb = token_batch(batch)?;
+        let o = embed_options(s, opts)?;
+        if o.pooling_given != TURBO_POOLING_MODEL && o.pooling_given != TURBO_POOLING_MEAN {
+            return Err(Error::field(
+                UNSUPPORTED_OPTION,
+                5,
+                format!(
+                    "pooling {}: a range is pooled by the mean alone, so pooling is 0 or TURBO_POOLING_MEAN",
+                    o.pooling_given
+                ),
+            ));
+        }
+        no_text_options(&o)?;
+        check_tokens(s, &tb, o.max_tokens)?;
+        if ranges.is_null() && count > 0 {
+            return Err(Error::new(INVALID_ARGUMENT, format!("ranges is NULL and count is {count}")));
+        }
+        if count == 0 {
+            return Err(Error::new(INVALID_ARGUMENT, "count is 0: a run needs at least one range"));
+        }
+        check_taps(s, taps)?;
+        if count as u64 * taps as u64 > s.max_ranges as u64 {
+            return Err(Error::new(
+                CAPACITY,
+                if taps == 1 {
+                    format!("{count} ranges is over the session's max_ranges {}", s.max_ranges)
+                } else {
                     format!(
-                        "pooling {}: a range is pooled by the mean alone, so pooling is 0 or TURBO_POOLING_MEAN",
-                        o.pooling_given
-                    ),
-                ));
-            }
-            no_text_options(&o)?;
-            check_tokens(s, &tb, o.max_tokens)?;
-            if ranges.is_null() && count > 0 {
-                return Err(Error::new(INVALID_ARGUMENT, format!("ranges is NULL and count is {count}")));
-            }
-            if count == 0 {
-                return Err(Error::new(INVALID_ARGUMENT, "count is 0: a run needs at least one range"));
-            }
-            if count > s.max_ranges {
-                return Err(Error::new(
-                    CAPACITY,
-                    format!("{count} ranges is over the session's max_ranges {}", s.max_ranges),
-                ));
-            }
-            let len = array_len::<turbo_token_range>(count as u64, "ranges")?;
-            let ranges = std::slice::from_raw_parts(ranges, len);
-            // turbo.h: only the cpu backend's BERT and RoBERTa encoders
-            // compute mask-0 columns for a range holding no live token.
-            let masked_columns = s.backend.name() == "cpu"
-                && matches!(
-                    s.model.weights.family(),
-                    crate::backend::TURBO_FAMILY_BERT | crate::backend::TURBO_FAMILY_ROBERTA
-                );
-            check_ranges(&tb, ranges, masked_columns, s.backend.name())?;
-            // turbo.h: a range is pooled by the mean whatever the bundle says.
-            let mut rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
-            if let Some(h) = &s.model.span_head {
-                span_head_options(&o, s.model.info.dim)?;
-                let output_dim = h.classifier.out_dim as u32;
-                rows = turbo_backend_embed_rows { head: 1, output_dim, normalize: TURBO_NORMALIZE_NONE, ..rows };
-            }
-            let b = s.backend;
-            let write = backend::offered!(b, embed_write_ranges)?;
-            backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
-            record(&mut state, &o, count, rows.output_dim, false);
-            Ok(())
-        })
+                        "{count} ranges from {taps} layers is {} vectors, over the session's max_ranges {}",
+                        count as u64 * taps as u64,
+                        s.max_ranges
+                    )
+                },
+            ));
+        }
+        let len = array_len::<turbo_token_range>(count as u64, "ranges")?;
+        let ranges = std::slice::from_raw_parts(ranges, len);
+        // turbo.h: only the cpu backend's BERT and RoBERTa encoders
+        // compute mask-0 columns for a range holding no live token.
+        let masked_columns = s.backend.name() == "cpu"
+            && matches!(
+                s.model.weights.family(),
+                crate::backend::TURBO_FAMILY_BERT | crate::backend::TURBO_FAMILY_ROBERTA
+            );
+        check_ranges(&tb, ranges, masked_columns, s.backend.name())?;
+        // turbo.h: a range is pooled by the mean whatever the bundle says.
+        let mut rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
+        if let Some(h) = &s.model.span_head {
+            span_head_options(&o, s.model.info.dim)?;
+            let output_dim = h.classifier.out_dim as u32;
+            rows = turbo_backend_embed_rows { head: 1, output_dim, normalize: TURBO_NORMALIZE_NONE, ..rows };
+        }
+        rows.taps = taps;
+        let b = s.backend;
+        let write = backend::offered!(b, embed_write_ranges)?;
+        backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
+        record(&mut state, &o, count * taps, rows.output_dim, false);
+        Ok(())
     }
+}
+
+/// turbo.h: 1 to the model's layers, and above 1 only on the cpu
+/// backend's BERT, RoBERTa, ModernBERT and nomic-bert encoders, with no
+/// span head on the device.
+fn check_taps(s: &SessionInner, taps: u32) -> Result<()> {
+    if taps == 1 {
+        return Ok(());
+    }
+    let layers = s.model.weights.layers();
+    if taps == 0 || taps > layers {
+        return Err(Error::new(INVALID_ARGUMENT, format!("layers {taps}: the model has 1 to {layers} to read")));
+    }
+    use crate::backend::{TURBO_FAMILY_BERT, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT, TURBO_FAMILY_ROBERTA};
+    let family = s.model.weights.family();
+    let backend = s.backend.name();
+    if backend != "cpu"
+        || !matches!(
+            family,
+            TURBO_FAMILY_BERT | TURBO_FAMILY_ROBERTA | TURBO_FAMILY_MODERNBERT | TURBO_FAMILY_NOMIC_BERT
+        )
+    {
+        return Err(Error::new(
+            UNSUPPORTED_OPTION,
+            format!("layers {taps}: the {backend} backend reads only the final layer of this model"),
+        ));
+    }
+    if s.model.span_head.is_some() {
+        return Err(Error::new(UNSUPPORTED_OPTION, format!("layers {taps}: the span head reads the final layer")));
+    }
+    Ok(())
 }
 
 /// turbo.h: the span head reads a range's whole vector, so a range write

@@ -1,12 +1,14 @@
-//! `Tagger::loss` refuses gradient buffers shaped other than its weights
-//! (too few tensors, none, or tensors of the wrong length), for every
-//! head layout, before it runs: an error, never a panic, with the
-//! caller's buffers and the weights untouched.
+//! Every head's loss (`Tagger::loss`, `Parser::loss`) refuses gradient
+//! buffers shaped other than its weights (too few tensors, none, or
+//! tensors of the wrong length), for every head layout, before it runs:
+//! an error, never a panic, with the caller's buffers and the weights
+//! untouched.
 
-use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
-use turbo_trainer::Tagger;
+use turbo::manifest::{Adapter, Biaffine, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
+use turbo_trainer::parser::Work as ParserWork;
 use turbo_trainer::rng::Rng;
 use turbo_trainer::tagger::Work;
+use turbo_trainer::{Parser, Tagger};
 
 const SENTINEL: f32 = 7.25;
 
@@ -84,4 +86,31 @@ fn wrongly_shaped_gradients_are_refused_with_every_buffer_untouched() {
         }
     }
     assert!(checked > 6 * 5, "{checked}");
+}
+
+#[test]
+fn the_parser_refuses_wrongly_shaped_gradients_with_every_buffer_untouched() {
+    let hidden = 3;
+    let features = [0.5f32, -0.25, 1.0, 0.75, 0.0, -1.0];
+    let (heads, rels) = ([2u32, 0], [1u32, 0]);
+    for adapter in [None, Some((2, 1)), Some((2, 2))] {
+        let mut s = spec(Decode::Mst, adapter);
+        s.kind = HeadKind::BiaffineParser;
+        s.labels = ["root", "nsubj", "obj"].map(String::from).to_vec();
+        s.scheme = Scheme::Tags;
+        s.biaffine = Some(Biaffine { arc: 3, rel: 2 });
+        let p = Parser::<f32>::new(&s, hidden, &mut Rng::new(6)).unwrap();
+        let before = p.params().to_vec();
+        let lens: Vec<usize> = before.iter().map(Vec::len).collect();
+        for (what, mut grads) in wrong(&lens) {
+            let snapshot = grads.clone();
+            let r = p.loss(&features, &heads, &rels, &mut grads, &mut ParserWork::default());
+            assert!(r.is_err(), "{adapter:?}, {what}: {r:?}");
+            assert_eq!(grads, snapshot, "{adapter:?}, {what}: the buffers changed");
+            assert_eq!(p.params(), &before[..], "{adapter:?}, {what}: the weights changed");
+        }
+        let mut grads = p.zero_grads();
+        assert!(p.loss(&features, &heads, &rels, &mut grads, &mut ParserWork::default()).unwrap().is_finite());
+        assert!(grads.iter().flatten().any(|g| *g != 0.0));
+    }
 }

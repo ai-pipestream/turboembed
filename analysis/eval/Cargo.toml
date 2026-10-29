@@ -47,3 +47,6 @@ flate2 = "1"
 # ZSTD pages: FineWeb-2's text column is ZSTD-compressed, as the
 # models-fineweb run showed reading data/afr_Latn/train/000_00000.parquet.
 turbo-zstd = { path = "../zstd" }
+
+[dev-dependencies]
+turbo-pins = { path = "../pins" }

@@ -223,6 +223,8 @@ pub(super) fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u
         normalize: o.normalize,
         output_dim: o.output_dim,
         head: 0,
+        taps: 0,
+        reserved: 0,
     }
 }
 

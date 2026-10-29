@@ -19,13 +19,20 @@ What is here:
   decay, decoupled weight decay on matrices only.
 - `tagger`: a `HEAD_TOKEN_TAGGER` in training, seeded init, loss and
   gradients on one sequence, export to the core's `TokenTagger`.
+- `adapter`: the BiLSTM adapter forward and back, shared by both heads.
+- `parser`: a `HEAD_BIAFFINE_PARSER` in training (#1514): the core's
+  forward (root vector, LeakyReLU MLPs, arc and relation biaffines), the
+  arc cross-entropy over every head but the word itself plus the
+  relation cross-entropy under the gold head, export to the core's
+  `BiaffineParser`. `fit_parse` trains it on the same loop, dev scored by
+  labelled attachment through the core's decode.
 - `fit`: the loop. Seeded shuffles, minibatch gradients summed in a
   fixed order, dev scoring through the core's own inference path
   (accuracy, or exact span F1 under BIO and BILOU), early stopping that
   keeps the best weights. Two runs with one seed give identical bytes.
 
 Not yet here: the feature cache that runs the encoder over a corpus,
-recipes, and bundle output (R1b); the biaffine and edit-tree heads
+recipes, and bundle output (R1b); the edit-tree lemma head
 (R1c); encoder fine-tuning (R2, #1519); distillation (R3, #1520).
 
 ```text
