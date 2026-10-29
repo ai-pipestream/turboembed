@@ -16,5 +16,6 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-analysis-embed = { path = "../embed" }
 
 [dev-dependencies]
+turbo-pins = { path = "../pins" }
 serde_json = "1"
 turbo-formats = { path = "../formats" }

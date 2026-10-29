@@ -4,12 +4,11 @@
 //!
 //! Env-gated like the other trained receipts: `TURBO_EVAL_CACHE` names
 //! the set cache, `TURBO_HELDOUT955_BUNDLE` the dense bundle directory,
-//! `TURBO_GOLDENS_MODELS` the sentence model directory when it is not
-//! under the workspace target directory, and `TURBO_HELDOUT955_OUT`,
+//! and `TURBO_HELDOUT955_OUT`,
 //! when set, the directory for the JSON record. Without the bundle
 //! variable the receipt says so and passes.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use turbo_analysis_embed::{Device, Precision};
 use turbo_chunker::terms::Bm25;
@@ -25,14 +24,6 @@ use turbo_eval::sets;
 use turbo_structure::Syntax;
 
 const SETS: [&str; 4] = ["scifact", "nfcorpus", "arguana", "qasper"];
-
-fn sentence_model() -> PathBuf {
-    if let Ok(dir) = std::env::var("TURBO_GOLDENS_MODELS") {
-        return PathBuf::from(dir).join("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
-    }
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/turbo-goldens/models/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin")
-}
 
 fn embed_all(embedder: &mut dyn Embedder, texts: &[String], role: Role) -> Result<Vec<f32>> {
     let dim = embedder.dim();
@@ -94,18 +85,16 @@ fn choose(
 ///
 /// `TURBO_EVAL_CACHE=<cache> TURBO_HELDOUT955_BUNDLE=<bundle> TURBO_HELDOUT955_OUT=<dir> cargo test --locked --release -p turbo-eval --test heldout_hybrid -- --ignored --nocapture`
 #[test]
-#[ignore = "held-out hybrid weight receipt for docs/analysis.md (#955); needs a bundle, the sentence model and the set cache"]
+#[ignore = "held-out hybrid weight receipt for docs/analysis.md (#955); needs a bundle and the set cache"]
 fn heldout_hybrid_receipt() {
     let Ok(bundle) = std::env::var("TURBO_HELDOUT955_BUNDLE") else {
         eprintln!("TURBO_HELDOUT955_BUNDLE is not set: no dense bundle to run");
         return;
     };
     let cache = PathBuf::from(std::env::var("TURBO_EVAL_CACHE").expect("TURBO_EVAL_CACHE"));
-    let analysis = Analysis {
-        sentences: Sentencer::maxent(&sentence_model()).expect("sentence model"),
-        structure: Some(Syntax::Plain),
-    };
-    let mut embedder = TurboEmbedder::open(Path::new(&bundle), Device::Cpu, Precision::Model).expect("dense bundle");
+    let analysis = Analysis { sentences: Sentencer::rules("en"), structure: Some(Syntax::Plain) };
+    let mut embedder =
+        TurboEmbedder::open(&turbo_pins::require(&bundle), Device::Cpu, Precision::Model).expect("dense bundle");
     let chunker = TurboChunker {
         budget: Budget { max: 254, target: 200, size_weight: 1000, overhead: embedder.overhead(Role::Document) },
         costs: Costs::default(),

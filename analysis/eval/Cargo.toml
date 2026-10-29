@@ -17,9 +17,6 @@ turbo-calibration = { path = "../calibration" }
 # The record's provenance block reuses turbo-bench's types, which live in
 # the core's record module.
 turbo = { path = "../../core" }
-# The resamples of the bootstrap and the permutation test are drawn from
-# java.util.Random, so a JVM baseline can reproduce them.
-turbo-jvm = { path = "../jvm" }
 # SQuAD scoring's lowercasing, whitespace and character classes.
 turbo-unicode = { path = "../unicode" }
 # The pipeline: the document and its layers, sentences, structure, the
@@ -29,18 +26,18 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-analysis-embed = { path = "../embed" }
 turbo-chunker = { path = "../chunker" }
 turbo-sentdetect = { path = "../sentdetect" }
+turbo-sat = { path = "../sat" }
+# The language mode's script fallback reuses langspan's table of which
+# scripts each language is written in.
+turbo-langspan = { path = "../langspan" }
 turbo-structure = { path = "../structure" }
 # BM25 retrieval's terms: the word tokens, and Porter's stemmer for the
 # English rule.
 turbo-tokenize = { path = "../tokenize" }
 turbo-stem = { path = "../stem" }
 turbo-vector-index = { path = "../vector-index" }
-# The sentence model file and its SHA-256.
-turbo-maxent = { path = "../maxent" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
-# SHA-256 of the set files, and lower case hex.
-turbo-goldens = { path = "../goldens" }
 # Fetching the set files. The same version turbo-bundle and turbo-bench
 # use; it reads HTTPS_PROXY from the environment.
 ureq = "3"
@@ -50,3 +47,6 @@ flate2 = "1"
 # ZSTD pages: FineWeb-2's text column is ZSTD-compressed, as the
 # models-fineweb run showed reading data/afr_Latn/train/000_00000.parquet.
 turbo-zstd = { path = "../zstd" }
+
+[dev-dependencies]
+turbo-pins = { path = "../pins" }

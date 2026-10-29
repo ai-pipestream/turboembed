@@ -117,6 +117,16 @@ its licence, attribution and training data. Its fetcher refuses an
 artifact whose licence class has not been accepted with `turbo-zoo
 accept` ([zoo.md](docs/zoo.md), [licences.md](docs/licences.md)).
 
+`turbo-pins` (`analysis/pins`) pins every model a test, evaluation or
+record loads by the SHA-256 of its bytes (`analysis/pins/models.txt`,
+keys `blobs/sha256/<hex>` as the model store names them, #1613), and
+counts the zoo index and the score-only reference lists as pins too. A
+test that loads a model from a path it is given passes it through
+`turbo_pins::require`, which refuses a model that is not pinned; its
+tree test fails when a checked-in bundle, a bundle a record names, a
+recipe's upstream file or a test that reads a model path lacks a pin
+(#1621).
+
 ## Document analysis
 
 Analysis runs over a document model in `analysis/core`. Every
@@ -323,6 +333,7 @@ release.md.
 | `core/` | `libturbo` (crate `turbo`): runtime, bundle loader, tokenizers, sessions, heads, CPU and NPU backends in `core/src`, and the CUDA, Level Zero, Metal and Hailo backends in their own directories |
 | `include/turbo/` | the C header and the backend interface |
 | `bundle/` | `turbo-bundle`, recipes, and the conversion containers |
+| `trainer/` | `turbo-trainer`: training of bundle heads in Rust (#1518) |
 | `bench/` | `turbo-bench`, reference and peer programs, and the repository hygiene tests |
 | `benchmarks/records/` | committed benchmark records |
 | `server/` | `turbo-kserve` and its protos |
@@ -333,10 +344,10 @@ release.md.
 | `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/parser`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | OpenNLP ports |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
 | `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
-| `analysis/embed`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
+| `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
-| `analysis/zoo`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo and OpenNLP parity testing |
+| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo, the pins of tested models, and OpenNLP parity testing |
 | `docs/` | documentation; `docs/setup/` has per-machine setup |
 
 Crates with a `-layers` or `-gen` suffix next to these hold layer types
@@ -368,7 +379,7 @@ OpenNLP on the JVM and against Model2Vec, and Windows lint and tests.
 | Neural extraction and graphs | [neural-annotators.md](docs/neural-annotators.md), [namefind-dl.md](docs/namefind-dl.md), [gliner.md](docs/gliner.md), [schema-extract.md](docs/schema-extract.md), [gliner2-relations.md](docs/gliner2-relations.md), [glirel-relations.md](docs/glirel-relations.md), [relation.md](docs/relation.md), [events.md](docs/events.md), [modality.md](docs/modality.md), [entity-graph.md](docs/entity-graph.md), [entity-salience.md](docs/entity-salience.md), [discourse.md](docs/discourse.md) |
 | Classification and calibration | [dense-classifier.md](docs/dense-classifier.md), [model-routing.md](docs/model-routing.md), [calibration.md](docs/calibration.md) |
 | Chunking and retrieval | [chunker-cut-identity.md](docs/chunker-cut-identity.md), [chunker-text-signals.md](docs/chunker-text-signals.md), [keywords.md](docs/keywords.md), [turboquant.md](docs/turboquant.md), [splate.md](docs/splate.md), [quality-consumers.md](docs/quality-consumers.md) |
-| Training and evaluation | [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-evaluation.md](docs/namefinder-evaluation.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
+| Training and evaluation | [cut-artifact-storage.md](docs/cut-artifact-storage.md), [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
 | Server and demo | [integration.md](docs/integration.md), [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
 | Releases | [release.md](docs/release.md) |
 

@@ -40,6 +40,27 @@ Local-only sits above them because nothing in it ever leaves the user's
 machine, which also covers what the share-alike term of CC BY-NC-SA
 asks, and a refused licence anywhere still wins over everything.
 
+### Granite requires an explicit download decision
+
+Kristian clarified #1451: users may download
+`ibm-granite/granite-embedding-30m-english` at
+`9b5b096411652ec1189c68fcfb90d0a82c5b45af` after accepting the notice.
+TurboEmbed must not include the weights or generated bundles in releases
+or download them automatically. The distribution rules above still apply.
+
+The project inventory assigns `CLASS_SHARE_ALIKE` due to CC BY-SA training
+inputs. IBM licenses the weights under Apache-2.0. The recipe notice
+also identifies web-scraped and IBM-internal text with no auditable grant.
+The exception permits this named local download after user acceptance;
+it grants no rights to training text and approves no other model.
+
+`turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
+inputs. `turbo-fetch.json` saves the notice and acceptance. API clients
+must set `accept_terms=true` only after an explicit user decision through
+configuration or a prompt. The manifest identifies the weight licence;
+the notice adds the project download restriction. The existing handling
+of `deepset/roberta-base-squad2` is unchanged.
+
 ### Restricted but public data
 
 `CLASS_LOCAL_ONLY` holds two kinds of data: restricted but public data,
@@ -149,30 +170,30 @@ is in that form and a test keeps it there.
   "zoo_version": 1,
   "artifacts": [
     {
-      "id": "opennlp-en-ud-ewt-sentence-1.3-2.5.4",
-      "kind": "KIND_MODEL",
-      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "id": "turbo-en-civil-comments-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
       "language": "en",
-      "format": "FORMAT_OPENNLP_MODEL",
-      "version": "1.3-2.5.4",
+      "format": "FORMAT_HEAD",
+      "version": "1",
       "license": "Apache-2.0",
-      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
       "trained_on": [
         {
-          "name": "UD_English-EWT r2.16",
-          "license": "CC-BY-SA-4.0",
-          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
         }
       ],
-      "class": "CLASS_SHARE_ALIKE",
-      "attribution": "Apache OpenNLP 1.3 UD model (Apache-2.0, The Apache Software Foundation), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
       "files": [
         {
-          "path": "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "size": 20061,
-          "sha256": "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
-          "sha512": "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191"
+          "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "size": 9371,
+          "sha256": "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba",
+          "sha512": "35ce10567ed7c8e79bc2fc7f495ee2e6fde9e26068ea4741632d3d26b0f794530b1775568f097dcf0eb82ae1deeddf5219a990c2b851c284ca96411f3bff4b2c"
         }
       ]
     }
@@ -361,6 +382,32 @@ command uses (`$TURBO_ZOO_HOME`, else `$XDG_DATA_HOME/turbo-zoo`, else
 `~/.local/share/turbo-zoo`), with the cache at `Home::artifacts` and the
 acceptance file at `Home::acceptances`; `UserId::from_env` reads `$USER`,
 else `$USERNAME`.
+
+### Other sources: a content-addressed store and a list of sources
+
+The zoo asks its transport for each file with `Transport::get_file`,
+which gets the artifact and the index's record of the file. By default
+it fetches the file's address, as before; a transport that finds files
+another way overrides it (#1613).
+
+- `Blobs::new(root)` is a content-addressed store on disk: each file,
+  unpacked, at `<root>/blobs/sha256/<hex>` of its SHA-256. The same
+  layout serves a zoo server's store, a library's local copy and an S3
+  bucket, so any one can seed another, and a key always names the bytes
+  the index pins. `Blobs::put(bytes)` keeps bytes under their own
+  SHA-256, written whole through a temporary name. As a transport it
+  serves a file by its SHA-256 alone, never by address, and refuses a
+  symlink or anything but a plain file.
+- `Sources::new().then(name, source)...` tries its sources in order for
+  each file and keeps the first answer that verifies by size, SHA-256
+  and SHA-512 (after the wire check, for a file served compressed); a
+  source that lacks the file, fails or serves other bytes passes the
+  request on. When none has it, the error names what each said. A
+  typical list is the local store, then a zoo server, then `Http`
+  for the index's own address.
+
+Whatever the source, the licence check runs first: no source is asked
+for an artifact whose terms the user has not accepted.
 
 ## Reading the index from OpenNLP
 

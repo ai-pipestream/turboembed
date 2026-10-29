@@ -363,6 +363,8 @@ fn options(pooling: u32, normalize: u32) -> turbo_embed_options {
         normalize,
         pooling,
         output_dim: 0,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     }
 }
 

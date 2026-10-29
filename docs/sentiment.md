@@ -1,118 +1,60 @@
 # Sentiment
 
-`turbo-doccat` (`analysis/doccat/`) ports OpenNLP 3.x's sentiment
-detector, `SentimentME` in `opennlp.tools.sentiment`, at prediction, and
-`turbo-train-components` (`analysis/train-components/`) ports its training.
-A model trained in Rust is the JVM's model byte for byte, and its
-probabilities are the JVM's bit for bit.
+`turbo-doccat` (`analysis/doccat/`) and `turbo-analysis-embed`
+(`analysis/embed/`) implement polarity, aspect, emotion, incivility, and
+pragmatics analysis across lexicon, rule, and vector-head stages. The OpenNLP
+`SentimentME` archive loader and its JVM training comparisons are disabled under
+#1511; no current recipe should train an OpenNLP archive or fetch one to enable
+sentiment:
 
-Dataset, lexicon and checkpoint permissions are recorded in the
+- **Scorer traits and layer types (`turbo_doccat::scorers`)**:
+  `PragmaticsVectorScorer`, `EmotionVectorScorer`, `IncivilityVectorScorer`, and
+  `AspectCategoryScorer` define the vector-head interfaces and re-export the
+  sentiment and pragmatics layers (`Opinions`, `Aspects`, `EmotionLayer`,
+  `Incivility`, `Pragmatics`) with no direct module imports of `SentimentModel`,
+  `SentimentMe`, or `turbo-maxent` (while crate-level transitive paths via
+  `turbo-formats`, `turbo-sequence`, and `turbo-train` remain pending the
+  deletion work in `#1532`).
+- **Lexicon and dependency-negation polarity (`LexiconSentiment`)**:
+  VADER valence scoring with three-token window or dependency-tree negation,
+  producing token-level `Opinions` (`turbo:opinions`) and sentence-level
+  `Categories<Sentences>` (`turbo:categories`).
+- **Embedding classifier heads and label centroids (`turbo_analysis_embed`)**:
+  `LabelCentroids` (`TCENT001`) and 1-layer/2-layer `ClassifierHead` (`THEAD001`)
+  scoring sentence, chunk, opinion, and aspect embeddings.
+- **Sarcasm and irony (`PragmaticsAnnotator`)**:
+  combines surface positive/negative incongruity rules, text-against-emoji
+  polarity mismatch, and a `PragmaticsVectorScorer` sentence head into
+  `Pragmatics` (`turbo:pragmatics`).
+- **Aspect and opinion extraction (`RuleAspectSentiment` and
+  `LearnedAspectSentiment`)**:
+  extracts `(Opinions, Aspects)` (`turbo:opinions` and `turbo:aspects`) via
+  dependency double propagation (`R1`..`R4`) and phrase/POS fallback or via
+  subword BIO tagging and span-pooled polarity/category heads.
+- **Incivility and toxicity (`IncivilityAnnotator` and `IncivilityVectorHead`)**:
+  scores six multi-label dimensions (`Insult`, `Profanity`, `Threat`,
+  `IdentityAttack`, `Intolerance`, `SevereToxicity`) on `Incivility`
+  (`turbo:incivility`) across `Lexicon`, `Learned`, and `Fused` stages with
+  token evidence spans, reply-context conflict scoring, and identity-term bias
+  evaluation.
+- **28-label emotion classification (`EmotionAnnotator` and
+  `EmotionVectorHead`)**:
+  scores the 27 GoEmotions dimensions plus `neutral` on `EmotionLayer`
+  (`turbo:emotion`) across `Lexicon`, `Learned`, and `Hybrid` stages.
+- **Sentiment and aspect shift boundaries (`SentimentBoundaries` and
+  `ChunkFacets`)**:
+  scores polarity, aspect, and incivility shifts across sentence gaps into
+  `Boundaries` (`SENTIMENT` instance) and summarizes per-chunk facets in
+  `ChunkFacets` (`turbo:chunk-facets`).
+- **Classical token-context sentiment (`SentimentMe`, `classical` feature)**:
+  gated behind the off-by-default `classical` Cargo feature pending `#1526` and
+  `#1532`.
+
+Dataset, lexicon and checkpoint permissions remain recorded in the
 [complex sentiment licence audit](licences.md#complex-sentiment-licence-audit-326).
 It distinguishes shipped material, local evaluation and candidates awaiting
-source permissions.
-
-## What it does
-
-`SentimentME` is a maxent document classifier. Its context is the
-document's tokens, each one a feature exactly as written, with no prefix.
-The factory in the model's manifest decides what else goes in:
-
-- `SentimentFactory`: nothing; the context is the tokens.
-- `EmojiSentimentFactory`: after the tokens, for each token in turn, the
-  features OpenNLP's `EmojiAnnotator.collectFeatures` gives it:
-  `emojiSentiment=<score>`, `emojiType=<type>`,
-  `emojiCategory=<group>` and `emojiRegion=<region>`, those that apply.
-  A token must start with a character beyond ASCII and be one emoji (a
-  presentation selector is ignored, so `❤️` and `❤` are one symbol); a
-  flag gives `emojiType=FLAG`, `emojiCategory=FLAGS` and its region. The
-  lookups are `turbo_normalize::emoji::features`
-  (`analysis/normalize/src/emoji/annotate.rs`).
-
-The `emojiSentiment` scores come from OpenNLP's `emoji-annotations.txt`,
-which its project wrote, -2 to 2 per pictograph. That file states that the
-Emoji Sentiment Ranking (Kralj Novak et al. 2015, CC BY-SA 4.0) is not
-used in any form, and neither this port nor its test data uses it.
-
-`turbo_doccat::sentiment` has:
-
-- `SentimentModel::open`, which reads a `SentimentModel` file: component
-  `SentimentME`, the classifier in `sentiment.model`, and `factory` naming
-  one of the two factories. A file without `factory` is refused: OpenNLP
-  loads it and then fails in the `SentimentME` constructor, since
-  `SentimentModel` has no default factory. A model whose outcome holds
-  half of a surrogate pair is refused too, a limit of this port, since
-  labels are handed out as `&str`. The manifest's `sentiment.tokenizer`
-  names the tokenizer `predict(String)` uses; this port takes tokens and
-  does not read it.
-- `SentimentFactory::context`, the context of a token list.
-- `SentimentMe`: `probabilities` (`probabilities(String[])`, by outcome
-  index), `predict`, `best_sentiment` (`getBestSentiment`, the first
-  highest probability) and `rank` (best first by `Double.compare`, ties in
-  outcome order).
-
-As an annotator (`turbo-doccat:sentiment`) `SentimentMe` reads
-`opennlp:tokens` and writes `turbo:categories`: the best outcome and
-every outcome's probability, ranked best first by `Categories::ranked`. That is the layer a document categorizer writes,
-so no layer type of its own is needed. `SentimentMe::bound` binds the
-output to the `sentiment` instance (`turbo_doccat::sentiment::SENTIMENT`),
-so a pipeline can run a topic categorizer into the default instance and
-sentiment beside it. The layer describes the whole token list it is given,
-as `SentimentME.predict(String[])` does; scoring each sentence or span is a
-matter of running it on a view of that sentence.
-
-```rust
-use turbo_doccat::sentiment::{Scratch, SentimentMe, SentimentModel};
-use turbo_maxent::ModelFile;
-
-let model = SentimentModel::open(ModelFile::read("sentiment.bin")?)?;
-let detector = SentimentMe::new(model);
-let mut scratch = Scratch::new();
-let label = detector.predict(&["a", "lovely", "garden", "\u{1F49A}"], &mut scratch);
-```
-
-## Training
-
-`turbo_train_components::sentiment` is `SentimentME.train`:
-
-- The samples are read as `SentimentSampleStream` reads them: one per
-  line, the sentiment and then the tokens, split by `WhitespaceTokenizer`.
-  It is the document category format, refusing a line with fewer than two
-  tokens with the same message, so `turbo_formats::native::DocumentReader`
-  reads them.
-- `sentiment_events` is `SentimentEventStream`: one event per sample, its
-  sentiment as the outcome and the factory's context as the predicates.
-- `train_sentiment_model` trains with the event trainer the parameters
-  name (`turbo_train::trainer::train_events`: GIS, L-BFGS or the
-  perceptron), putting nothing into the parameters, and writes the model
-  file: the manifest with the caller's language, the trainer's entries and
-  `factory`, and the `sentiment.model` entry.
-
-OpenNLP publishes no sentiment model, so there is no published file to
-compare with; the parity comes from training on the same samples on both
-sides.
-
-## Parity
-
-`SentimentGolden.java` in `analysis/goldens-tool` trains five models on
-`analysis/goldens/data/inputs/sentiment-train/feedback.txt`, 56 feedback
-lines written for this project with emoji, flags and a character outside
-the Basic Multilingual Plane: the token factory with GIS and cutoff 1, and
-the emoji factory with GIS and cutoff 1, with the command line trainer's
-defaults (GIS, cutoff 5), with L-BFGS and with the perceptron. It writes
-the events, the digest of the classifier entry, the manifest and the zip
-entries of each model, and for each of the 12 documents in
-`analysis/goldens/data/inputs/sentiment` the tokens, the context and the
-`turbo:categories` layer.
-
-`analysis/train-components/tests/sentiment.rs` trains each model in Rust
-and checks the events, the classifier entry by SHA-256, the manifest and
-the entries, then opens the file it wrote and checks every document's
-context and probabilities bit for bit. It skips, naming
-`cargo run -p turbo-goldens-tool -- generate`, while
-`analysis/goldens/data/sentiment` is absent.
-
-`analysis/doccat/tests/sentiment.rs` covers the contexts, the model
-checks and the annotator on small models trained in the test.
+source permissions. Historical maxent parity results do not establish native
+head accuracy.
 
 ## Lexicon and negation sentiment baseline (`LexiconSentiment`, #320)
 
@@ -120,16 +62,15 @@ checks and the annotator on small models trained in the test.
 `VaderScore`, `SentenceSentiment`, `NegationMode`) provides a deterministic,
 explainable rule- and lexicon-based sentiment baseline that produces exact
 token evidence spans (`turbo:opinions`) and sentence-level polarity
-(`turbo:categories<opennlp:sentences>`):
+(`Categories<Sentences>`):
 
 - **Lexicon (`VaderLexicon`)**: bundles the MIT-licensed VADER lexicon
   (`vader_lexicon.txt`, 7,506 entries, Copyright (c) 2016 C.J. Hutto) and
   also reads caller-supplied TSV tables (`VaderLexicon::from_tsv`).
 - **Emoji features**: Unicode emoji tokens that are not in the ASCII VADER
-  lexicon fall back to OpenNLP's Apache-2.0 `emoji-annotations.txt` coarse
-  polarity scores (`-2..=2`, via `turbo_normalize::emoji::opennlp_annotation`
-  or the document's `turbo:emoji` layer when present). The Emoji Sentiment
-  Ranking (CC BY-SA 4.0) is never used.
+  lexicon fall back to the Apache-2.0 emoji polarity table (`-2..=2`, via
+  `turbo_normalize::emoji` or the document's `turbo:emoji` layer when present).
+  The Emoji Sentiment Ranking (CC BY-SA 4.0) is never used.
 - **VADER-compatible mode (`LexiconSentiment::score_text`)**: reproduces
   Python `vaderSentiment`'s `SentimentIntensityAnalyzer.polarity_scores`:
   punctuation stripping that preserves short emoticons (`:)`, `:D`),
@@ -170,7 +111,7 @@ token evidence spans (`turbo:opinions`) and sentence-level polarity
 
 ### How dependency negation mode differs from VADER's three-token window
 
-`NegationMode::Auto` (the default) uses `opennlp:dependencies` when present
+`NegationMode::Auto` (the default) uses `Dependencies` when present
 on the document and falls back to VADER's three-token preceding window when
 absent, recording the active inputs in the layer's `Provenance.reads` and
 the mode in `ModelRef` (`vader:lexicon:auto`, `vader:lexicon:window`, or
@@ -199,15 +140,11 @@ document, sentence, chunk, opinion, and aspect vectors produced by the
 turboembed encoder (`#262` and `#263`):
 
 - **Centroids (`centroid`, `CentroidNorm`, `category_sentence_centroids`)**:
-  generalizes `org.apache.opennlp.grpc.chunk.Centroids` and
-  `ChunkEmbedProcessor.buildCategoryGroup` from `opennlp-sandbox`
-  (`OPENNLP-1833-grpc-uber-server`). `centroid` computes the element-wise
-  arithmetic mean of a non-empty slice of equal-length `f32` vectors in `f64`,
-  with optional post-mean L2 normalization (`CentroidNorm::None` or
-  `CentroidNorm::L2`), and is tested against all five cases of
-  `CentroidsTest.java`. `category_sentence_centroids` groups a document's
-  sentences by their `Categories<Sentences>` label and averages each category's
-  sentence vectors into one prototype vector.
+  `centroid` computes the element-wise arithmetic mean of a non-empty slice of
+  equal-length `f32` vectors in `f64`, with optional post-mean L2 normalization
+  (`CentroidNorm::None` or `CentroidNorm::L2`). `category_sentence_centroids`
+  groups a document's sentences by their `Categories<Sentences>` label and
+  averages each category's sentence vectors into one prototype vector.
 - **Prototype classification (`LabelCentroids`)**: each label in a `TagSet` is
   defined by a set of example sentences (`LabelCentroids::from_text_examples`)
   or example vectors (`LabelCentroids::from_vector_examples`) averaged into one
@@ -227,11 +164,11 @@ turboembed encoder (`#262` and `#263`):
 - **Vector and span-pooling annotators (`ScoringHead`, `VectorHeadAnnotator`,
   `SentenceSpanHead`, `ChunkSpanHead`, `OpinionSpanHead`, `AspectSpanHead`,
   `IncivilityHeadAnnotator`, `PragmaticsHeadAnnotator`)**:
-  - `VectorHeadAnnotator<L>` reads `(L, Vectors<L>)` (`opennlp:embeddings<L>`)
+  - `VectorHeadAnnotator<L>` reads `(L, Vectors<L>)`
     and writes `Categories<L>` (`turbo:categories<L>`).
   - `SentenceSpanHead`, `ChunkSpanHead`, `OpinionSpanHead`, and
     `AspectSpanHead` pool exact subword ranges from `Subwords`
-    (`opennlp:subwords`) through the stage 2 range write (`#263`,
+    through the stage 2 range write (`#263`,
     `VectorAnnotator::embed_spans`). Because `OpinionSpanHead` and
     `AspectSpanHead` pool only the subword range of each opinion expression or
     aspect term within its enclosing sentence window, two opinion spans or two
@@ -292,7 +229,7 @@ and combines three signals:
    delayed."*) and excluded from incongruity triggering.
 2. **Text against emoji polarity mismatch (`Some(Incongruity)`)**: contrasts
    positive text opinions against negative emoji (`turbo:emoji` from `#183`,
-   scored via OpenNLP's `opennlp_annotation` and Unicode 18.0 CLDR short names,
+   scored via the emoji polarity table in `turbo_normalize::emoji` and Unicode 18.0 CLDR short names,
    such as `😭`, `😒`, `🙄`, `💔`, `😡`), or negative text opinions and
    situations against positive emoji (`😍`, `🎉`, `🥳`, `😂`, `👍`), recording
    the positive and negative token spans in `Incongruity { positive, negative }`.
@@ -395,7 +332,7 @@ paths that write the same `(Opinions, Aspects)` layers (`turbo:opinions` and
    - Reads `(View, Sentences, Tokens, Option<Dependencies>, Option<PhraseChunks>, Option<PosTags>)`
      and writes `(Opinions, Aspects)`.
    - **Qiu, Liu, Bu, and Chen (2011) double propagation (`R1`..`R4`)**: when
-     `opennlp:dependencies` (`Dependencies`) is present on the document,
+     `Dependencies` is present on the document,
      propagates seed opinion words from the VADER lexicon and the seed
      aspect terms across dependency arcs for up to three passes or until
      nothing new is found. Relation labels are matched on their part before
@@ -406,7 +343,7 @@ paths that write the same `(Opinions, Aspects)` layers (`turbo:opinions` and
        `nsubj`, `obj`, `dobj`, `iobj`, `obl` or `nmod`; or a sibling under a
        shared governor when the opinion is a complement (`acomp`, `xcomp`,
        `ccomp`, `attr`, `advmod`, `amod`, `obj`, `dobj`).
-     - `R2`: with `opennlp:pos` present, a known aspect extracts its `amod`
+     - `R2`: with `PosTags` present, a known aspect extracts its `amod`
        children that carry an adjectival POS tag; the opinion takes the
        lexicon prior when the lexicon has the word and `+1.0` otherwise.
      - `R3`: a known aspect extracts conjoined aspects over `conj` and `appos`,
@@ -416,10 +353,10 @@ paths that write the same `(Opinions, Aspects)` layers (`turbo:opinions` and
        `"yet"`, `"although"`, `"though"`, `"whereas"`) sits between them.
      Without POS tags any word in those positions can become a target, so
      verbs and pronouns are extracted as aspects on bare dependency input;
-     `opennlp:pos` restricts targets to nouns.
-   - **Clause-aware fallback**: when `opennlp:dependencies` is absent (or
-     alongside it), extracts candidate aspect spans from `opennlp:chunks`
-     (`PhraseChunks` `NP` spans), `opennlp:pos` (`PosTags` noun sequences),
+     `PosTags` restricts targets to nouns.
+   - **Clause-aware fallback**: when `Dependencies` is absent (or
+     alongside it), extracts candidate aspect spans from `PhraseChunks`
+     (`NP` spans), `PosTags` (noun sequences),
      and the English aspect phrase table, and links each aspect to the closest
      opinion(s) in the same clause (or dependency arc when available).
    - **Implicit aspects (`AspectTarget::Implicit`)**: when a sentence contains
@@ -538,7 +475,7 @@ across the six multi-label dimensions of `Incivility` (`turbo:incivility` from
 and writes `Incivility`:
 
 1. **Lexicon and phrase matching (`IncivilityLexicon`)**: deterministic,
-   zero-regex token and multi-token phrase matching over `opennlp:tokens`
+   zero-regex token and multi-token phrase matching over `Tokens`
    that assigns per-label weights in `0.0..=1.0`, guards against negated mild
    adjectives (`"not stupid"`, `"not dumb"`), and records the exact
    `IxRange<Tokens>` evidence span for every matched expression. Each
@@ -908,7 +845,7 @@ In the within-binary configuration timing check over 10,000 units
 `[char_start, char_end)` from `ipavlopoulos/toxic_spans` (`beaf170538df8275c3447b2e26070f2f82e55272`,
 zoo entry `"toxic-spans"`) to a UTF-8 byte `Span` on `ViewId::SOURCE` via
 `View::span_from_code_point`. `char_span_to_token_range` maps that byte span to
-the overlapping `IxRange<Tokens>` in `opennlp:tokens`. `evaluate_toxic_spans`
+the overlapping `IxRange<Tokens>` in `Tokens`. `evaluate_toxic_spans`
 computes per-unit macro token P / R / F1 (Following Pavlopoulos et al., SemEval
 2021 Task 5, where a unit with both gold and predicted empty sets scores `1.0`),
 gold-positive macro token and character-offset P / R / F1, corpus-wide micro
@@ -1201,8 +1138,8 @@ and the two trained linear heads (`turbo-en-goemotions-minilm-l6-v2-head-1` and
 
 ## Sentiment and aspect shift as a boundary signal (`SentimentBoundaries` and `ChunkFacets`, `#325`)
 
-`turbo_chunker` generalizes `ChunkEmbedProcessor` and `Centroids` from
-`opennlp-sandbox` (`OPENNLP-1833-grpc-uber-server`): instead of forcing a hard
+`turbo_chunker` scores sentiment, aspect, and incivility transitions across
+sentence boundaries: instead of forcing a hard
 chunk cut whenever the sentence sentiment label changes, sentiment, aspect, and
 incivility shifts write a soft boundary signal on `turbo:boundaries`
 (`Boundaries`, instance `SENTIMENT = "sentiment"`) that is weighed alongside

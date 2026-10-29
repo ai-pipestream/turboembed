@@ -20,9 +20,11 @@ use std::sync::{Arc, Barrier};
 use common::{Loaded, first_of};
 
 fn bundle() -> PathBuf {
-    std::env::var_os("TURBO_TEST_BUNDLE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle"))
+    turbo_pins::require(
+        std::env::var_os("TURBO_TEST_BUNDLE")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle")),
+    )
 }
 
 fn gpu(rt: *mut turbo::turbo_runtime) -> u32 {

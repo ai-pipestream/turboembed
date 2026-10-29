@@ -2,6 +2,7 @@
 members = [
     "core",
     "bundle",
+    "trainer",
     "bench",
     "server",
     "demo",
@@ -32,6 +33,7 @@ members = [
     "analysis/maxent",
     "analysis/namefind",
     "analysis/namefind-dl",
+    "analysis/tagger",
     "analysis/ngram",
     "analysis/normalize",
     "analysis/normalize-layers",
@@ -71,6 +73,7 @@ members = [
     "analysis/vector-index",
     "analysis/wordnet",
     "analysis/hunspell",
+    "analysis/pins",
     "analysis/zoo",
     "analysis/zstd",
 ]

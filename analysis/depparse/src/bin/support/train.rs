@@ -7,7 +7,6 @@ use turbo_depparse::{
 };
 use turbo_formats::conllu::{ConlluDependencySample, Tagset, words::ConlluWordReader};
 use turbo_train::TrainingParameters;
-use turbo_unicode::WhitespaceMode;
 
 fn checked_keys(params: &TrainingParameters, allowed: &[&str]) -> Result<()> {
     for (key, _) in params.iter() {
@@ -112,7 +111,6 @@ pub(super) fn run(args: &[String]) -> Result<()> {
         let sample = ConlluDependencySample::read_sentence(
             &input[span.start as usize..span.end as usize],
             Tagset::U,
-            WhitespaceMode::Unicode,
             ViewId::SOURCE,
         )
         .map_err(|error| format!("sentence {}: {error}", index + 1))?;

@@ -1,6 +1,8 @@
 //! The core's tokenizer against upstream `tokenizers` on the upstream
 //! all-MiniLM-L6-v2 tokenizer.json, through the C interface.
 
+#[path = "tokenizer/added.rs"]
+mod added;
 #[path = "tokenizer/bpe.rs"]
 mod bpe;
 mod common;

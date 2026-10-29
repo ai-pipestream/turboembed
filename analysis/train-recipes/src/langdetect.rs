@@ -49,9 +49,9 @@ pub use card::{
     write_language_dir,
 };
 
+use crate::Reference;
 use crate::error::Result;
 use crate::tatoeba::{Export, SentenceLicence, TatoebaError};
-use crate::{RecordedReference, Reference};
 
 /// The trained model's zoo id, also its file name without `.bin`.
 pub const MODEL_ID: &str = "turbo-mul-tatoeba-langdetect-1";
@@ -70,16 +70,10 @@ pub const SENTENCES_FILE: &str = "training-sentences.txt";
 pub const SENTENCE_URL: &str = "https://tatoeba.org/sentences/show/";
 
 /// OpenNLP's language detector, trained on the Leipzig corpora: the
-/// reference the trained model is gated against. The zoo does not list
-/// it (its data's terms are not confirmed, docs/licences.md), so the
-/// recipe records it.
-pub const LANGDETECT_183: RecordedReference = RecordedReference {
-    id: "opennlp-langdetect-183",
-    file: "langdetect-183.bin",
-    url: "https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin",
-    size: 10_568_188,
-    sha256: "2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4",
-};
+/// reference the trained model was gated against. It is an OpenNLP 2.5
+/// artifact, which is not fetched or pinned (#1509), so the recipe names
+/// it by id alone and #1532 removes the gate.
+pub const LANGDETECT_183: Reference = Reference::Retired("opennlp-langdetect-183");
 
 /// The sentence licences the licence check keeps.
 pub const ACCEPTED_LICENCES: [SentenceLicence; 1] = [SentenceLicence::CcBy20Fr];
@@ -217,7 +211,7 @@ pub struct LanguageRecipe {
 /// The language detector recipe.
 pub const LANGDETECT: LanguageRecipe = LanguageRecipe {
     model_id: MODEL_ID,
-    reference: Reference::Recorded(LANGDETECT_183),
+    reference: LANGDETECT_183,
     languages: &LANGUAGES,
     split: SPLIT,
     iterations: turbo_train::params::DEFAULT_ITERATIONS,

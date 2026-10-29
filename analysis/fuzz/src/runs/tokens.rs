@@ -18,7 +18,7 @@ use turbo_tokenize::{
 };
 use turbo_unicode::utf16::byte_to_utf16;
 
-use super::sentences::whitespace_mode;
+use super::sentences::no_options;
 use super::{Checked, Outcome, Run, RustError, analyze, has_cut, jvm_threw, outcome, token_spans};
 use crate::resources::{Resources, Unavailable};
 
@@ -123,7 +123,7 @@ impl Run for Maxent {
 }
 
 /// `SimpleTokenizer` or `WhitespaceTokenizer`, with or without
-/// `keepNewLines`, in either whitespace mode.
+/// `keepNewLines`.
 pub(crate) struct Plain {
     simple: bool,
     options: TokenizerOptions,
@@ -136,7 +136,8 @@ impl Plain {
             ["keep-new-lines", rest @ ..] => (true, rest),
             rest => (false, rest),
         };
-        let options = TokenizerOptions { whitespace: whitespace_mode(rest)?, keep_newlines };
+        no_options(rest)?;
+        let options = TokenizerOptions { keep_newlines };
         let builder = Analyzer::builder();
         let analyzer = if simple {
             builder.add(SimpleTokenizer::new(options)).build()
@@ -150,7 +151,7 @@ impl Plain {
     /// it follows.
     fn plain_spans(&self, text: &str) -> Vec<(u32, u32)> {
         let mut out = Vec::new();
-        let options = TokenizerOptions { keep_newlines: false, ..self.options };
+        let options = TokenizerOptions { keep_newlines: false };
         if self.simple {
             simple_spans(text, options, &mut out);
         } else {
@@ -194,7 +195,7 @@ impl Run for Plain {
             );
             return Checked { doc: Some(doc), outcome: Outcome::Divergence(what) };
         }
-        let model = jvm_simple_newline_spans(text, self.options.whitespace);
+        let model = jvm_simple_newline_spans(text);
         let outcome = match (&golden.header.error, model) {
             (Some(e), Err(class)) if e.class.ends_with("IllegalArgumentException") && class == e.class => {
                 Outcome::Documented(format!(
@@ -322,18 +323,18 @@ impl Run for Uax29 {
     }
 }
 
-/// The unigram segmenter with a fixture lexicon in either mode.
+/// The unigram segmenter with a fixture lexicon.
 pub(crate) struct Unigram {
     analyzer: Analyzer,
 }
 
 impl Unigram {
     pub(crate) fn open(lexicon: &str, options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let mode = whitespace_mode(options)?;
+        no_options(options)?;
         let path = res.fixture(&format!("{lexicon}.txt"))?;
-        let lexicon = UnigramLexicon::read(&path, mode).map_err(|e| broken(format!("{}: {e}", path.display())))?;
+        let lexicon = UnigramLexicon::read(&path).map_err(|e| broken(format!("{}: {e}", path.display())))?;
         let analyzer = Analyzer::builder()
-            .add(UnigramSegmenter::new(lexicon, mode).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp))
+            .add(UnigramSegmenter::new(lexicon).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp))
             .build()
             .map_err(broken)?;
         Ok(Box::new(Unigram { analyzer }))
@@ -364,16 +365,16 @@ pub(crate) struct Lattice {
 
 impl Lattice {
     pub(crate) fn open(dictionary: &str, options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let mode = whitespace_mode(options)?;
+        no_options(options)?;
         let dir = if dictionary.starts_with("mecab-fixture-") {
             res.fixture(dictionary)?
         } else if dictionary.starts_with("mecab-ipadic-") {
-            res.model(&format!("{dictionary}.utf8"))?
+            res.dictionary(&format!("{dictionary}.utf8"))?
         } else {
-            res.model(dictionary)?
+            res.dictionary(dictionary)?
         };
-        let loaded = MecabDictionary::load(&dir, mode).map_err(|e| broken(format!("{}: {e}", dir.display())))?;
-        Ok(Box::new(Lattice { tokenizer: LatticeTokenizer::new(loaded, mode) }))
+        let loaded = MecabDictionary::load(&dir).map_err(|e| broken(format!("{}: {e}", dir.display())))?;
+        Ok(Box::new(Lattice { tokenizer: LatticeTokenizer::new(loaded) }))
     }
 
     /// The byte offset the tokenizer finds no candidate at, if any.

@@ -58,7 +58,7 @@ are not taken from any corpus.
   tab, ideographic, no-break, `U+0085`, `U+001C`, `U+2028`, `U+2029`), a
   long run without punctuation, classical text, Chinese, fullwidth and
   Roman numerals, the fixture lexicon's words (`fixture-words.txt`) and
-  the words of the whitespace mode lexicon (`modes.txt`). Two files are
+  the words of the lexicon `zh-unigram-modes.txt` (`modes.txt`). Two files are
   not new text: `classical.txt` quotes Li Bai's poem 静夜思 and the
   opening of the Analects, both in the public domain, and the sentences
   of `ambiguity.txt` are the stock examples of segmentation ambiguity
@@ -169,15 +169,16 @@ are not taken from any corpus.
   backwards, past the words, past Java's `int`, out of order, repeated
   and overlapping, a bad `text_` language, forms missing from the text,
   a form found inside an inserted `<SPLIT>`, empty forms, CR LF and lone
-  CR, and whitespace that only one whitespace mode splits on. The
+  CR, and `U+0085` and `U+001C`, on which Unicode `White_Space` and
+  Java's `isWhitespace` disagree. The
   `pairs-` files hold a reference sample and then a prediction for it,
   pair after pair: predictions that are right, wrong, shorter and
   longer than the reference, chunk tags with no phrase, token and
   sentence spans past the reference's text (also after accented
   letters and emoji, whose UTF-16 offsets differ from their byte
   offsets), a name predicted twice,
-  pairs with nothing to find, and sentence ends that only one
-  whitespace mode trims.
+  pairs with nothing to find, and sentence ends next to `U+0085` or
+  `U+001C`.
 
   The `conll02`, `conll03` and `conllx` files, and `chunk-conll2000.txt`,
   are sentences written for this project in the layouts of the CoNLL
@@ -220,8 +221,8 @@ are not taken from any corpus.
   not count from 1, with a leading zero, past Java's `int` or out of
   order, `_` tags, relations and heads, heads with a sign, a leading
   zero, an Arabic-Indic digit, an empty node's id or past the sentence,
-  self heads, two roots, none, a cycle, blank relations in one
-  whitespace mode or both, nine and eleven columns, an empty last
+  self heads, two roots, none, a cycle, blank relations of
+  `U+0085`, `U+001C` or spaces, nine and eleven columns, an empty last
   column, a comment after spaces, sentences of a multiword token or an
   empty node only, separator lines of spaces, `U+0085`, `U+001C` and
   no-break spaces, CR LF and no line feed at the end. The `corefud-`
@@ -465,7 +466,7 @@ that differs.
 | `ner-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/names.txt` as `NameFinderME.train` does with no parameters file (the default descriptor, the BIO codec, GIS, 300 iterations, cutoff 0, one thread, beam size 3; the same test); the JVM loads it with `TokenNameFinderModel` and finds names with it |
 | `langdetect-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/langdetect/samples.txt` as `LanguageDetectorME.train` does with the command line trainer's defaults (GIS, 100 iterations, cutoff 5, one thread; the same test); the JVM loads it with `LanguageDetectorModel`, and its `langdetect` goldens are compared by `analysis/langdetect/tests/fixture.rs` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
-| `chunker-fixture.bin` | a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`train-fixtures/train-chunk.txt`, by `FixtureModels.java`; `analysis/sequence/README.md`); the only chunker model OpenNLP trained here, since the published chunker models are OpenNLP 1.5 models, which only the sequence crate's beam search goldens run; `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
+| `chunker-fixture.bin` | a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`train-fixtures/train-chunk.txt`, by `FixtureModels.java`; `analysis/sequence/README.md`); the only chunker model the goldens run, since the published chunker models are OpenNLP 1.5 models, which this repository does not fetch or run; `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
 | `chunker-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/chunks.txt` (GIS, 100 iterations, cutoff 1, one thread, beam size 10; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `ChunkerModel` and chunks with it (`chunk/chunker-fixture-rust`) |
 | `ner-bio-fixture.bin`, `ner-bilou-fixture.bin`, `ner-qn-fixture.bin` | name finder models OpenNLP trained on the names in 14 sentences (`train-fixtures/train-names.txt`, by `FixtureModels.java`): perceptron with `featuregen/everything.xml` and BIO, GIS with `featuregen/nesting.xml` and BILOU, QN with the default descriptor and BIO (`analysis/sequence/README.md`) |
 | `tags-cases.tagdict`, `tags-exact.tagdict` | the same 40 entries case-insensitive and case sensitive, with words that lowercase to the same word, a word listed twice, and tags separated by two spaces or ending in one, written for this project |
@@ -477,7 +478,7 @@ that differs.
 | `en-detokenizer.xml`, `fr-detokenizer.xml`, `pt-detokenizer.xml` | Apache OpenNLP's English, French and Portuguese detokenizer dictionaries, `opennlp-tools/lang/{en,fr,pt}/tokenizer/`, unchanged (license header kept) |
 | `quotes-detokenizer.xml` | two `RIGHT_LEFT_MATCHING` entries, written for this project |
 | `zh-unigram-fixture.txt` | a frequency lexicon written for this project: the eight words of OpenNLP's `UnigramSegmenterTest`, pairs of words whose counts have equal products (`研究` 6 `生命` 4 and `研究生` 8 `命` 3, `研究` 6 `生物` 12 and `研究生` 8 `物` 9, `人民` 1 `大会` 148 and `人民大` 2 `会` 74, `a` 3 `bc` 2 and `ab` 2 `c` 3), CR LF and lone CR line ends, an empty and a blank line, a tab, a no-break space and an ideographic space before the count, fullwidth digits and a `+` sign in a count, a leading ideographic space, a word outside the Basic Multilingual Plane, Latin words and a word listed twice |
-| `zh-unigram-modes.txt` | a frequency lexicon written for this project whose words depend on the whitespace mode: `U+001C` ends a word in the legacy mode only and `U+0085` in the Unicode mode only |
+| `zh-unigram-modes.txt` | a frequency lexicon written for this project whose lines hold `U+0085`, which is whitespace and ends a word, and `U+001C`, which is not and stays in the word |
 | `jieba-dict-subset.txt` | the lines of jieba's `jieba/dict.txt` (github.com/fxsjy/jieba, commit `67fa2e36e72f69d9134b8a1037b83fbb070b9775`, MIT license, see below) whose word occurs in an input of the `zh`, `multi` or `edge` set, unchanged and in the order of `dict.txt`; made with the command below |
 | `mecab-fixture-ja/` | a MeCab dictionary directory written for this project: two lexicon files (`A-nouns.csv`, `b-others.csv`) of 37 entries with IPADIC-style part-of-speech features, a 5 by 5 `matrix.def`, a `char.def` with overlapping categories, a category without grouping and supplementary ranges, and an `unk.def`. Its costs make ties of each kind the lattice tokenizer breaks, and one surface has a comma in it (quoted, as MeCab quotes it) |
 | `mecab-fixture-ko/` | a MeCab dictionary directory written for this project: one lexicon file of 23 entries with mecab-ko-dic-style features, a 4 by 4 `matrix.def`, and a `char.def` and `unk.def` with Hangul, jamo and Hanja categories |
@@ -662,7 +663,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `<annotator>/<model>/<set>/<id>.golden` is what the OpenNLP annotator
 `<annotator>` produced with model `<model>` (the model file's name
 without `.bin`, `.xml` or `.txt`) on `inputs/<set>/<id>.txt`. A run with options
-has `+` and their names after the model (`+legacy`, `+keep-new-lines`,
+has `+` and their names after the model (`+keep-new-lines`,
 `+alphanumeric`, `+english-dictionary`, `+penn`, `+beam1`), and a run without a model names
 itself there (`simple`, `whitespace`, `uax29`, `newline`). Each file's
 header names the OpenNLP commit, the JDK, the input's hash, each model's

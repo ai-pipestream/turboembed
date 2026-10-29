@@ -21,15 +21,19 @@ pub(super) struct EmbedOptions {
     /// The caller's pooling, 0 when it gave none: a range write takes 0
     /// or TURBO_POOLING_MEAN alone.
     pub(super) pooling_given: u32,
+    pub(super) quantization: Quantization,
+    /// The caller's [2, output_dim] int8 ranges, valid for the write call
+    /// and checked; NULL unless quantization is int8.
+    pub(super) int8_ranges: *const f32,
 }
 
 pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_options) -> Result<EmbedOptions> {
-    let o = match unsafe { opts.as_ref() } {
-        Some(o) => {
-            sized(o.struct_size, size_of::<turbo_embed_options>(), "turbo_embed_options")?;
-            *o
-        }
-        None => turbo_embed_options {
+    // A caller built against the header before quantization gives fields
+    // 1 to 6 alone, which are read without a reference to the whole
+    // struct; the rest are then 0.
+    let size = if opts.is_null() { 0 } else { unsafe { *(opts as *const u32) } };
+    let o = if opts.is_null() {
+        turbo_embed_options {
             struct_size: 0,
             truncate: 0,
             max_tokens: 0,
@@ -37,7 +41,25 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
             normalize: 0,
             pooling: 0,
             output_dim: 0,
-        },
+            quantization: 0,
+            int8_ranges: std::ptr::null(),
+        }
+    } else if size as usize == TURBO_EMBED_OPTIONS_SIZE_V1 {
+        let v1 = unsafe { std::slice::from_raw_parts(opts as *const u32, 7) };
+        turbo_embed_options {
+            struct_size: size,
+            truncate: v1[1],
+            max_tokens: v1[2],
+            prompt_role: v1[3],
+            normalize: v1[4],
+            pooling: v1[5],
+            output_dim: v1[6],
+            quantization: 0,
+            int8_ranges: std::ptr::null(),
+        }
+    } else {
+        sized(size, size_of::<turbo_embed_options>(), "turbo_embed_options")?;
+        unsafe { *opts }
     };
     let enumerated = |name: &str, v: u32, last: u32, prefix: &str| {
         if v > last {
@@ -49,6 +71,7 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
     let prompt = prompt_role(o.prompt_role)?;
     enumerated("normalize", o.normalize, TURBO_NORMALIZE_L2, "NORMALIZE")?;
     enumerated("pooling", o.pooling, TURBO_POOLING_LAST, "POOLING")?;
+    enumerated("quantization", o.quantization, TURBO_QUANTIZE_UBINARY, "QUANTIZE")?;
 
     honored(&o, s.honored, s.backend.name())?;
 
@@ -80,6 +103,12 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
             ));
         }
     };
+    let quantization = match o.quantization {
+        TURBO_QUANTIZE_INT8 => Quantization::Int8,
+        TURBO_QUANTIZE_UBINARY => Quantization::UBinary,
+        _ => Quantization::F32,
+    };
+    unsafe { int8_ranges(quantization, o.int8_ranges, output_dim) }?;
     Ok(EmbedOptions {
         truncation: match o.truncate {
             TURBO_TRUNCATE_MODEL => s.model.tokenizer.truncation(),
@@ -95,7 +124,27 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
         truncate_given: o.truncate != 0,
         prompt_given: o.prompt_role != 0,
         pooling_given: o.pooling,
+        quantization,
+        int8_ranges: o.int8_ranges,
     })
+}
+
+/// Field 8 is given exactly when field 7 asks for int8, and then holds a
+/// usable [2, output_dim] table: nothing is ignored.
+unsafe fn int8_ranges(q: Quantization, ranges: *const f32, output_dim: u32) -> Result<()> {
+    match (q, ranges.is_null()) {
+        (Quantization::Int8, true) => {
+            Err(Error::field(INVALID_ARGUMENT, 8, "int8_ranges is NULL: TURBO_QUANTIZE_INT8 needs the caller's ranges"))
+        }
+        (Quantization::Int8, false) => {
+            let r = unsafe { std::slice::from_raw_parts(ranges, 2 * output_dim as usize) };
+            quantize::check_int8_ranges(r).map_err(|m| Error::field(INVALID_ARGUMENT, 8, m))
+        }
+        (_, false) => {
+            Err(Error::field(INVALID_ARGUMENT, 8, "int8_ranges is given, but quantization is not TURBO_QUANTIZE_INT8"))
+        }
+        (_, true) => Ok(()),
+    }
 }
 
 /// A field the device does not honor may only be left to the bundle: any
@@ -108,6 +157,8 @@ pub(super) fn honored(o: &turbo_embed_options, honored: u32, backend: &str) -> R
         ("normalize", o.normalize),
         ("pooling", o.pooling),
         ("output_dim", o.output_dim),
+        ("quantization", o.quantization),
+        ("int8_ranges", !o.int8_ranges.is_null() as u32),
     ];
     for (i, (name, v)) in fields.iter().enumerate() {
         if *v != 0 && honored & (1 << i) == 0 {
@@ -144,8 +195,19 @@ pub(super) fn write_rows(
     let b = s.backend;
     let write = backend::offered!(b, embed_write)?;
     backend::check(b, "embed_write", |err| unsafe { write(s.raw, &rows, err) })?;
-    state.written = Some(Written { batch: rows.batch, output_dim: o.output_dim, tokenized });
+    record(state, o, rows.batch, o.output_dim, tokenized);
     Ok(())
+}
+
+/// What a write left for its run, and the int8 ranges it gave, copied into
+/// the session's own memory.
+pub(super) fn record(state: &mut State, o: &EmbedOptions, batch: u32, output_dim: u32, tokenized: bool) {
+    if o.quantization == Quantization::Int8 {
+        let n = 2 * output_dim as usize;
+        let given = unsafe { std::slice::from_raw_parts(o.int8_ranges, n) };
+        state.int8_ranges[..n].copy_from_slice(given);
+    }
+    state.written = Some(Written { batch, output_dim, tokenized, quantization: o.quantization });
 }
 
 pub(super) fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u32) -> turbo_backend_embed_rows {
@@ -161,6 +223,8 @@ pub(super) fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u
         normalize: o.normalize,
         output_dim: o.output_dim,
         head: 0,
+        taps: 0,
+        reserved: 0,
     }
 }
 

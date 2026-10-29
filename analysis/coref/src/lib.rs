@@ -1,5 +1,4 @@
-//! Coreference resolution for `turbo-analysis` documents, ported from
-//! OpenNLP's `opennlp.tools.coref`.
+//! Coreference resolution for `turbo-analysis` documents.
 //!
 //! - [`layer`]: the typed [`Mentions`] layer (`opennlp:mentions`), the
 //!   optional [`Speakers`] input layer, and the codecs that carry them,

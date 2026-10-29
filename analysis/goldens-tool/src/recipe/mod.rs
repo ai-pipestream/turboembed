@@ -78,11 +78,11 @@ pub use self::excerpts::{EXCERPTS, Excerpt};
 pub use self::fixtures::{FIXTURES, Fixture};
 pub use self::models::{
     CORPORA, Corpus, DICTIONARIES, Dictionary, DictionaryEncoding, HUNSPELL_DICTIONARIES_COMMIT, HUNSPELL_FILES,
-    HunspellFile, LOCAL_MODELS, MODELS, Model, POOLING_SOURCE, UTF8_COPY_SUFFIX,
+    HunspellFile, MODELS, Model, POOLING_SOURCE, UTF8_COPY_SUFFIX,
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 49] = [
+pub const INPUT_SETS: [&str; 46] = [
     "en",
     "multi",
     "norm",
@@ -121,9 +121,6 @@ pub const INPUT_SETS: [&str; 49] = [
     "tag-format",
     "namefind",
     "stem",
-    "stopword",
-    "hunspell",
-    "glossary",
     "svm-doccat",
     "svm-doccat-train",
     "sentiment",
@@ -145,7 +142,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 54] = [
+pub const ANNOTATORS: [&str; 50] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -190,10 +187,6 @@ pub const ANNOTATORS: [&str; 54] = [
     "tag-dictionary",
     "tag-format",
     "namefind",
-    "stem",
-    "stopword",
-    "hunspell",
-    "glossary",
     "svm-doccat",
     "sentiment",
     "doccat",

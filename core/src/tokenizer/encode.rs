@@ -8,8 +8,9 @@ impl Tokenizer {
         self.truncation
     }
 
+    /// The vocabulary's entries and the added tokens past them.
     pub fn vocab_size(&self) -> u32 {
-        self.kind.vocab_size()
+        self.vocab_size
     }
 
     /// `turbo_tokenizer_info.kind`.
@@ -19,6 +20,18 @@ impl Tokenizer {
             Kind::Unigram(_) => "unigram",
             Kind::Bpe(_) => "bpe",
             Kind::SentencePiece(_) => "sentencepiece",
+        }
+    }
+
+    /// The words a WordPiece tokenizer cuts `text` into before WordPiece,
+    /// under this tokenizer's own normalizer settings (see
+    /// [`pre_words`](super::pre_words)); None for any other model.
+    pub fn wordpiece_words(&self, text: &str) -> Option<Vec<(usize, usize)>> {
+        match &self.kind {
+            Kind::WordPiece { normalizer, .. } => {
+                Some(normalize::words_under(text, normalizer.clean_text, normalizer.split_cjk))
+            }
+            _ => None,
         }
     }
 

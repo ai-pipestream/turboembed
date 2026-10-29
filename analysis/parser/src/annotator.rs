@@ -235,29 +235,20 @@ impl ParserTool {
     ///
     /// Mirrors `ParserTool.parseLine(String line, Parser parser, int numParses)`:
     /// 1. Spaces untokenized parentheses via [`space_untokenized_parens`].
-    /// 2. Splits into tokens on the characters `mode` counts as whitespace, as
-    ///    `WhitespaceTokenizer` does with `StringUtil.isWhitespace`; a line with
-    ///    no token gives no parses.
+    /// 2. Splits into tokens at Unicode `White_Space`, as `WhitespaceTokenizer`
+    ///    does; a line with no token gives no parses.
     /// 3. Builds a flat `INC` tree with [`TOK_NODE`] children, runs
     ///    `parser.parse_n(&flat, num_parses)`, and adjusts every node's span
     ///    and the shared backing text back to `line`.
     pub fn parse_line(line: &str, parser: &dyn Parser, num_parses: usize) -> Result<Vec<Parse>, ParseError> {
-        Self::parse_line_with_mode(line, parser, turbo_unicode::WhitespaceMode::Unicode, num_parses)
-    }
-
-    /// Like [`Self::parse_line`], with an explicit [`turbo_unicode::WhitespaceMode`].
-    pub fn parse_line_with_mode(
-        line: &str,
-        parser: &dyn Parser,
-        mode: turbo_unicode::WhitespaceMode,
-        num_parses: usize,
-    ) -> Result<Vec<Parse>, ParseError> {
         if num_parses == 0 {
             return Ok(Vec::new());
         }
-        let spaced = space_untokenized_parens(line, mode);
-        let raw_tokens: Vec<&str> =
-            spaced.split(|c: char| mode.is_whitespace(c as u32)).filter(|s| !s.is_empty()).collect();
+        let spaced = space_untokenized_parens(line);
+        let raw_tokens: Vec<&str> = spaced
+            .split(|c: char| turbo_unicode::whitespace::is_whitespace(c as u32))
+            .filter(|s| !s.is_empty())
+            .collect();
         if raw_tokens.is_empty() {
             return Ok(Vec::new());
         }

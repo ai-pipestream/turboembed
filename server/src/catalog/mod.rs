@@ -2,11 +2,15 @@
 //! docs/grpc-catalog.md): the zoo index the server was started with, the
 //! artifacts in its cache, licence acceptances, and installs. Recording an
 //! acceptance and installing are admin calls, served only with the admin
-//! flag. Without a catalog every call refuses UNIMPLEMENTED.
+//! flag. Describing, resolving and reading a model are not. Without a
+//! catalog every call refuses UNIMPLEMENTED.
 
 mod disk;
 mod entry;
 mod install;
+mod read;
+
+pub use read::READ_CHUNK_BYTES;
 
 use std::fmt;
 use std::path::PathBuf;
@@ -24,8 +28,9 @@ use crate::api::{
 use crate::kserve::Reply;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogService;
 use crate::proto::training::{
-    InstallModelRequest, LicenceTerms, ListInstalledModelsRequest, ListInstalledModelsResponse,
-    ListModelCatalogRequest, ListModelCatalogResponse, RecordLicenceAcceptanceRequest, RecordLicenceAcceptanceResponse,
+    DescribeModelRequest, DescribeModelResponse, InstallModelRequest, LicenceTerms, ListInstalledModelsRequest,
+    ListInstalledModelsResponse, ListModelCatalogRequest, ListModelCatalogResponse, ReadModelFileRequest,
+    RecordLicenceAcceptanceRequest, RecordLicenceAcceptanceResponse, ResolveModelRequest, ResolveModelResponse,
 };
 use crate::status::to_status;
 
@@ -168,6 +173,7 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Status> + Sen
 #[tonic::async_trait]
 impl TurboCatalogService for CatalogService {
     type InstallModelStream = install::UpdateStream;
+    type ReadModelFileStream = read::ChunkStream;
 
     async fn list_model_catalog(&self, req: Request<ListModelCatalogRequest>) -> Reply<ListModelCatalogResponse> {
         let catalog = self.catalog()?;
@@ -225,6 +231,31 @@ impl TurboCatalogService for CatalogService {
         let req = req.into_inner();
         let who = user(1, &req.user)?;
         let stream = install::start(catalog, who, req.artifact_id, self.installing.clone()).await?;
+        Ok(Response::new(stream))
+    }
+
+    async fn describe_model(&self, req: Request<DescribeModelRequest>) -> Reply<DescribeModelResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
+        let entry = blocking(move || read::describe(&catalog, who.as_ref(), &req.artifact_id)).await?;
+        Ok(Response::new(DescribeModelResponse { entry: Some(entry) }))
+    }
+
+    async fn resolve_model(&self, req: Request<ResolveModelRequest>) -> Reply<ResolveModelResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(3, &req.user)?) };
+        let (entry, path) =
+            blocking(move || read::resolve(&catalog, who.as_ref(), &req.sha256, &req.artifact_id)).await?;
+        Ok(Response::new(ResolveModelResponse { entry: Some(entry), path }))
+    }
+
+    async fn read_model_file(&self, req: Request<ReadModelFileRequest>) -> Reply<Self::ReadModelFileStream> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let stream = read::start(catalog, who, req.artifact_id, req.path, req.sha256).await?;
         Ok(Response::new(stream))
     }
 }
