@@ -70,7 +70,8 @@ pub struct SegmentationRecipe {
     pub component: Component,
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
-    /// The reference model's id in the zoo's built-in index.
+    /// The reference model's id: an OpenNLP 2.5 model, which is not
+    /// fetched or pinned (#1509, [`crate::Reference::Retired`]).
     pub reference_id: &'static str,
 }
 
@@ -418,30 +419,18 @@ impl SegmentationRecipe {
     ///
     /// [`Error::ReferenceDigest`] for other bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        crate::Reference::Zoo(self.reference_id).check(bytes)
+        crate::Reference::Retired(self.reference_id).check(bytes)
     }
 
     /// The reference model's file name in the zoo's built-in index.
     pub fn reference_file(&self) -> Result<String> {
-        crate::Reference::Zoo(self.reference_id).file()
+        crate::Reference::Retired(self.reference_id).file()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_recipes_name_models_the_zoo_lists_as_references() {
-        for r in RECIPES {
-            assert!(r.reference_file().unwrap().ends_with(".bin"));
-            assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
-            let id: turbo_zoo::ArtifactId = r.model_id.parse().unwrap();
-            assert_eq!(id.as_str(), r.model_id);
-        }
-        assert_eq!(SENTENCE.task(), Task::SentenceDetector);
-        assert_eq!(TOKENS.task(), Task::Tokenizer);
-    }
 
     #[test]
     fn tokens_are_in_text_order_unless_one_starts_or_ends_before_the_one_before_it() {

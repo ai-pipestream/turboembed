@@ -29,7 +29,7 @@ fn cascade_latency_receipt() {
         eprintln!("TURBO_CASCADE879_BUNDLES is not set: no trained bundles to run");
         return;
     };
-    let root = PathBuf::from(bundles_root);
+    let root = turbo_pins::require_in(bundles_root, &["potion-base-8m", "all-minilm-l6-v2"]);
     let cache = PathBuf::from(std::env::var("TURBO_EVAL_CACHE").expect("TURBO_EVAL_CACHE"));
     let rounds: usize = std::env::var("TURBO_CASCADE879_ROUNDS").ok().and_then(|v| v.parse().ok()).unwrap_or(3);
     let analysis = Analysis { sentences: Sentencer::rules("en"), structure: Some(Syntax::Plain) };

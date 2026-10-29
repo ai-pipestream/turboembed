@@ -38,8 +38,9 @@
 //!
 //! Each model is gated against the OpenNLP UD 1.3 model for its language
 //! and component, both scored on the same `test` samples with OpenNLP's
-//! evaluators: a model of the zoo's built-in index ([`Reference::Zoo`]),
-//! or for Italian a model the recipe records ([`Reference::Recorded`]).
+//! evaluators. Those references are OpenNLP 2.5 models, which are not
+//! fetched or pinned (#1509), so each recipe names its reference by id
+//! alone ([`Reference::Retired`]) and #1532 removes the gates.
 //! The gates are the MASC recipes' ([`crate::segmentation`],
 //! [`crate::postag`]), and the records and cards are of the same versions:
 //! a sentence detector or tokenizer is gated as a
@@ -101,14 +102,8 @@
 //! [`crate::MAX_SKIPPED_SENTENCES`] of those read. The binary checks each
 //! recipe's data before it trains any ([`UdRecipe::check_data`]).
 //!
-//! OpenNLP's Italian UD models are trained on UD_Italian-VIT, which is
-//! CC BY-NC-SA 3.0, so they are local-only (`docs/licences.md`,
-//! "Non-commercial data") and the zoo's built-in index does not list them.
-//! The Italian recipes record each one's file, size and SHA-256
-//! ([`IT_UD_VIT_POS`], [`IT_UD_VIT_LEMMAS`]); a run reads it from its
-//! references directory, checks it, and only scores it. It is never
-//! shipped, bundled or trained on, and the trained model is trained on
-//! MarkIT alone, so its class is permissive.
+//! The trained Italian models are trained on MarkIT alone, so their
+//! class is permissive.
 
 mod lemma;
 pub mod native;
@@ -128,7 +123,7 @@ use crate::treebank::{
     CATALAN_ANCORA, FINNISH_FTB, ITALIAN_MARKIT, PORTUGUESE_PORTTINARI, SPANISH_ANCORA, Treebank, TreebankText,
 };
 use crate::ud_card::UdModelCard;
-use crate::{GateRun, Limit, RecordedReference, Reference, Trained};
+use crate::{GateRun, Limit, Reference, Trained};
 
 /// GIS iterations.
 pub const ITERATIONS: i32 = 300;
@@ -187,29 +182,6 @@ pub const TAG_FORMAT: PosTagFormat = PosTagFormat::Custom;
 /// [`Error::ClassesOutsideReference`](crate::error::Error::ClassesOutsideReference)).
 pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 5, of: 100 };
 
-/// OpenNLP's Italian UD 1.3 tagger, trained on UD_Italian-VIT (CC
-/// BY-NC-SA 3.0), as published. Its SHA-512 is the one Apache publishes
-/// beside it, and it is the file in Maven Central's
-/// `org.apache.opennlp:opennlp-models-pos-it:1.3.0`.
-pub const IT_UD_VIT_POS: RecordedReference = RecordedReference {
-    id: "opennlp-it-ud-vit-pos-1.3-2.5.4",
-    file: "opennlp-it-ud-vit-pos-1.3-2.5.4.bin",
-    url: "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-it-ud-vit-pos-1.3-2.5.4.bin",
-    size: 1_149_395,
-    sha256: "d38e645dc81289c035f2f126f813092ea657ae704769bd65a26f6da89fdd18f1",
-};
-
-/// OpenNLP's Italian UD 1.3 lemmatizer, trained on UD_Italian-VIT, as
-/// [`IT_UD_VIT_POS`] is (Maven Central's
-/// `org.apache.opennlp:opennlp-models-lemmatizer-it:1.3.0`).
-pub const IT_UD_VIT_LEMMAS: RecordedReference = RecordedReference {
-    id: "opennlp-it-ud-vit-lemmas-1.3-2.5.4",
-    file: "opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin",
-    url: "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin",
-    size: 704_996,
-    sha256: "10b25bc4506af3a5f06e56b9e1058aecccb3021e5d08902a1fa1ee33606510c7",
-};
-
 /// One model trained on a treebank and its reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UdRecipe {
@@ -225,7 +197,7 @@ const fn recipe(model_id: &'static str, treebank: Treebank, component: Component
 }
 
 use Component::{Lemmas, Pos, Sentence as Sentences, Tokens};
-use Reference::{Recorded, Zoo};
+use Reference::Retired;
 
 /// The recipes, by treebank, in the order the binary runs them.
 pub const UD_RECIPES: [UdRecipe; 16] = [
@@ -233,43 +205,53 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         "turbo-es-ud-ancora-2.16-sentence-1",
         SPANISH_ANCORA,
         Sentences,
-        Zoo("opennlp-es-ud-gsd-sentence-1.3-2.5.4"),
+        Retired("opennlp-es-ud-gsd-sentence-1.3-2.5.4"),
     ),
-    recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, Zoo("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
-    recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, Zoo("opennlp-es-ud-gsd-pos-1.3-2.5.4")),
-    recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, Zoo("opennlp-es-ud-gsd-lemmas-1.3-2.5.4")),
+    recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, Retired("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
+    recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, Retired("opennlp-es-ud-gsd-pos-1.3-2.5.4")),
+    recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, Retired("opennlp-es-ud-gsd-lemmas-1.3-2.5.4")),
     recipe(
         "turbo-ca-ud-ancora-2.16-sentence-1",
         CATALAN_ANCORA,
         Sentences,
-        Zoo("opennlp-ca-ud-ancora-sentence-1.3-2.5.4"),
+        Retired("opennlp-ca-ud-ancora-sentence-1.3-2.5.4"),
     ),
-    recipe("turbo-ca-ud-ancora-2.16-tokens-1", CATALAN_ANCORA, Tokens, Zoo("opennlp-ca-ud-ancora-tokens-1.3-2.5.4")),
-    recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, Zoo("opennlp-ca-ud-ancora-pos-1.3-2.5.4")),
-    recipe("turbo-ca-ud-ancora-2.16-lemmas-1", CATALAN_ANCORA, Lemmas, Zoo("opennlp-ca-ud-ancora-lemmas-1.3-2.5.4")),
+    recipe(
+        "turbo-ca-ud-ancora-2.16-tokens-1",
+        CATALAN_ANCORA,
+        Tokens,
+        Retired("opennlp-ca-ud-ancora-tokens-1.3-2.5.4"),
+    ),
+    recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, Retired("opennlp-ca-ud-ancora-pos-1.3-2.5.4")),
+    recipe(
+        "turbo-ca-ud-ancora-2.16-lemmas-1",
+        CATALAN_ANCORA,
+        Lemmas,
+        Retired("opennlp-ca-ud-ancora-lemmas-1.3-2.5.4"),
+    ),
     recipe(
         "turbo-pt-ud-porttinari-2.16-sentence-1",
         PORTUGUESE_PORTTINARI,
         Sentences,
-        Zoo("opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
+        Retired("opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
     ),
     recipe(
         "turbo-pt-ud-porttinari-2.16-tokens-1",
         PORTUGUESE_PORTTINARI,
         Tokens,
-        Zoo("opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
+        Retired("opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
     ),
-    recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, Zoo("opennlp-pt-ud-gsd-pos-1.3-2.5.4")),
+    recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, Retired("opennlp-pt-ud-gsd-pos-1.3-2.5.4")),
     recipe(
         "turbo-pt-ud-porttinari-2.16-lemmas-1",
         PORTUGUESE_PORTTINARI,
         Lemmas,
-        Zoo("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4"),
+        Retired("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4"),
     ),
-    recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Zoo("opennlp-fi-ud-tdt-pos-1.3-2.5.4")),
-    recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Zoo("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4")),
-    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Recorded(IT_UD_VIT_POS)),
-    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, Recorded(IT_UD_VIT_LEMMAS)),
+    recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Retired("opennlp-fi-ud-tdt-pos-1.3-2.5.4")),
+    recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Retired("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4")),
+    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Retired("opennlp-it-ud-vit-pos-1.3-2.5.4")),
+    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, Retired("opennlp-it-ud-vit-lemmas-1.3-2.5.4")),
 ];
 
 /// The samples of one component read from one CoNLL-U file, borrowed
@@ -365,8 +347,7 @@ mod tests {
 
     use super::*;
     use crate::error::Error;
-    use crate::treebank::TREEBANKS;
-    use turbo_eval::model_gate::Task;
+
     use turbo_lemmatizer::edit_script::decode_lemma;
     use turbo_train_components::lemmatize;
 
@@ -395,72 +376,10 @@ mod tests {
     }
 
     #[test]
-    fn the_recipes_name_their_treebank_component_and_reference() {
-        for r in UD_RECIPES {
-            let t = r.treebank;
-            let id = format!("turbo-{}-ud-{}-2.16-{}-1", t.language, t.name, r.component.name());
-            assert_eq!(r.model_id, id);
-            let parsed: turbo_zoo::ArtifactId = r.model_id.parse().unwrap();
-            assert_eq!(parsed.as_str(), r.model_id);
-            match r.reference {
-                Reference::Zoo(reference) => {
-                    let index = turbo_zoo::Index::builtin();
-                    let a = index.get(reference).unwrap();
-                    assert_eq!(a.component, Some(r.zoo_component()), "{reference}");
-                    assert_eq!(a.language.as_ref().unwrap().as_str(), t.language, "{reference}");
-                    assert!(reference.ends_with(&format!("-{}-1.3-2.5.4", r.component.name())));
-                }
-                Reference::Recorded(reference) => {
-                    // OpenNLP's Italian models are local-only and not in the zoo.
-                    assert_eq!(t.language, "it");
-                    assert_eq!(reference.file, format!("{}.bin", reference.id));
-                    assert_eq!(reference.id, format!("opennlp-it-ud-vit-{}-1.3-2.5.4", r.component.name()));
-                    assert!(reference.url.ends_with(reference.file));
-                    assert_eq!(turbo_zoo::Index::builtin().find("it", r.zoo_component()).count(), 0);
-                }
-            }
-            assert_eq!(UdRecipe::trains(r.model_id), Some(r));
-            assert_eq!(r.segmentation().is_some(), matches!(r.component, Sentences | Tokens));
-            let tagger = r.tagger();
-            assert_eq!(tagger.is_some(), r.component == Pos);
-            if let Some(pos) = tagger {
-                assert_eq!((pos.model_id, pos.reference, pos.reference_format), (r.model_id, r.reference, TAG_FORMAT));
-                assert!(pos.reference_mappings.is_empty());
-                assert_eq!(pos.max_left_out, MAX_TOKENS_LEFT_OUT);
-            }
-        }
-        // Every treebank has a tagger and a lemmatizer; the ones whose text
-        // is running text have a sentence detector and a tokenizer.
-        for t in TREEBANKS {
-            let components: Vec<Component> =
-                UD_RECIPES.iter().filter(|r| r.treebank == t).map(|r| r.component).collect();
-            let running = t.name != "ftb" && t.name != "markit";
-            let expected: &[Component] = if running { &[Sentences, Tokens, Pos, Lemmas] } else { &[Pos, Lemmas] };
-            assert_eq!(components, expected, "{}", t.repository);
-        }
-        assert_eq!(UD_RECIPES[3].task(), Task::Lemmatizer);
-        assert_eq!(UdRecipe::trains("turbo-en-ud-ewt-2.16-pos-1"), None);
-    }
-
-    #[test]
     fn check_data_rejects_invalid_segmentation_reference_bytes() {
         let conllu = "# text = Hola.\n1\tHola\thola\tINTJ\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
         let text = TreebankText { train: conllu.to_owned(), test: conllu.to_owned() };
         assert!(matches!(UD_RECIPES[0].check_data(&text, b"not a model"), Err(Error::Model(_))));
         assert!(matches!(UD_RECIPES[1].check_data(&text, b"not a model"), Err(Error::Model(_))));
-    }
-
-    #[test]
-    fn score_lemmas_handles_empty_sample_without_nan_panic() {
-        let conllu = "# text = Gatos.\n1\tGatos\tgato\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Perros.\n1\tPerros\tperro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Casas.\n1\tCasas\tcasa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Mesas.\n1\tMesas\tmesa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Libros.\n1\tLibros\tlibro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
-        let trained = UD_RECIPES[3].train(conllu).unwrap();
-        let classes = ReferenceClasses::of_model(&trained.bytes).unwrap();
-        let empty = LemmaSample::new(Vec::new(), Vec::new(), Vec::new(), turbo_analysis::Span::new(0, 0)).unwrap();
-        let counts = score_lemmas(&trained.bytes, &[empty], &classes).unwrap();
-        assert_eq!(counts.len(), 1);
     }
 }

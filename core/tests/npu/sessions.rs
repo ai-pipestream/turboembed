@@ -5,7 +5,9 @@ use super::*;
 /// TURBO_TEST_BUNDLE: a bundle with an OpenVINO IR whose artifacts[]
 /// backends lists "npu".
 fn ir_bundle() -> std::path::PathBuf {
-    std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"))
+    turbo_pins::require(std::path::PathBuf::from(
+        std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"),
+    ))
 }
 
 fn on_npu() -> Loaded {

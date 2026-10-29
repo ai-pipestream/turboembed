@@ -19,7 +19,9 @@ use common::*;
 use turbo::*;
 
 fn bundle() -> std::path::PathBuf {
-    std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"))
+    turbo_pins::require(std::path::PathBuf::from(
+        std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"),
+    ))
 }
 
 fn ms(d: Duration) -> f64 {

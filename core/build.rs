@@ -42,9 +42,9 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const SOURCES: [&str; 5] =
-    ["cuda/kernels.cu", "cuda/deberta.cu", "cuda/backend.cpp", "cuda/autotune.cpp", "cuda/lstm.cu"];
-const DEPENDS: [&str; 3] = ["cuda/kernels.h", "cuda/deberta.h", "cuda/autotune.h"];
+const SOURCES: [&str; 6] =
+    ["cuda/kernels.cu", "cuda/deberta.cu", "cuda/backend.cpp", "cuda/autotune.cpp", "cuda/lstm.cu", "cuda/rotary.cpp"];
+const DEPENDS: [&str; 5] = ["cuda/kernels.h", "cuda/deberta.h", "cuda/autotune.h", "cuda/rotary.h", "cuda/rotary.cuh"];
 const API: [&str; 2] = ["../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
 
 fn main() {
