@@ -8097,8 +8097,46 @@ async function revoke(t) {
   return r.wasAccepted ? `${r.user} revoked ${t.licence}.` : `${r.user} had not accepted ${t.licence}.`;
 }
 
+// demo/web/src/modelfile.ts
+function nc(licence) {
+  return /^CC-BY-NC(-|$)/.test(licence);
+}
+function nonCommercial(e) {
+  return nc(e.licence) || e.trainedOn.some((s) => nc(s.licence));
+}
+function mismatch(f, got, sha256) {
+  if (BigInt(got) !== f.size) return `${f.path}: ${got} bytes arrived, the catalog lists ${f.size}`;
+  if (sha256 !== f.sha256) return `${f.path}: the bytes have SHA-256 ${sha256}, the catalog lists ${f.sha256}`;
+  return "";
+}
+
+// demo/web/src/tabs/download.ts
+async function download2(e, f, status3, signal) {
+  const parts = [];
+  const hash = new Sha256();
+  let got = 0;
+  for await (const m of catalog.readModelFile({ artifactId: e.id, path: f.path, sha256: f.sha256 }, { signal })) {
+    if (m.frame.case !== "data") continue;
+    const bytes2 = new Uint8Array(m.frame.value);
+    parts.push(bytes2);
+    hash.update(bytes2);
+    got += bytes2.length;
+    status3.textContent = `${e.id}/${f.path}: ${size(got)} of ${size(f.size)}`;
+  }
+  const wrong = mismatch(f, got, hash.hex());
+  if (wrong) throw new Error(wrong);
+  const url = URL.createObjectURL(new Blob(parts, { type: "application/octet-stream" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = f.path.split("/").pop() ?? f.path;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 6e4);
+  status3.textContent = `${e.id}/${f.path}: ${size(f.size)}, SHA-256 checked, saved.`;
+}
+
 // demo/web/src/tabs/models.ts
 var installing = null;
+var saving = null;
 var trainingRun = null;
 var note2 = () => $("models-note");
 function bar(done, total) {
@@ -8125,7 +8163,35 @@ function entryRow(e, w) {
     b.addEventListener("click", () => void installModel(e));
     install = b;
   }
-  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), el("span", { text: e.licence }), el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install)];
+  const licence = el("span", { text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
+  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), licence, el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install, saveButtons(e, w))];
+}
+function saveButtons(e, w) {
+  if (!w.user || e.missingTerms.length > 0) return null;
+  return el(
+    "div",
+    {},
+    e.files.map((f) => {
+      const b = el("button", { type: "button", text: `Save ${f.path}` });
+      b.addEventListener("click", () => void saveFile(e, f));
+      return b;
+    })
+  );
+}
+async function saveFile(e, f) {
+  saving?.abort();
+  const ac = new AbortController();
+  saving = ac;
+  const status3 = el("p", { class: "muted", text: `Reading ${e.id}/${f.path}\u2026` });
+  $("models-install").replaceChildren(el("h3", { text: `Save ${e.id}/${f.path}` }), status3);
+  try {
+    await download2(e, f, status3, ac.signal);
+  } catch (err) {
+    status3.className = "error";
+    status3.textContent = describe(err);
+  } finally {
+    if (saving === ac) saving = null;
+  }
 }
 async function loadCatalog() {
   const box5 = $("models-catalog");
@@ -8277,6 +8343,8 @@ function stopTraining() {
 function stop3() {
   installing?.abort();
   installing = null;
+  saving?.abort();
+  saving = null;
   stopTraining();
 }
 function init6() {

@@ -152,6 +152,9 @@ pub struct Args {
     /// they are permitted, a read fetches a permitted artifact not yet in
     /// the cache, and the server may start with no model.
     pub zoo: bool,
+    /// `--catalog-prefetch permissive`: install every permissive artifact
+    /// in the background at start.
+    pub catalog_prefetch: bool,
     /// The directory static models are trained into, made when absent.
     pub training_dir: Option<String>,
     /// Optional TLS and mutual-TLS (mTLS) certificates for the gRPC listener.
@@ -185,6 +188,9 @@ pub fn max_reply_bytes(max_message_bytes: usize) -> usize {
 /// The variable `--admin` reads when absent.
 pub const ENV_ADMIN: &str = "TURBO_KSERVE_ADMIN";
 
+/// The variable `--catalog-prefetch` reads when absent.
+pub const ENV_CATALOG_PREFETCH: &str = "TURBO_KSERVE_CATALOG_PREFETCH";
+
 /// The variable `--zoo` reads when absent.
 pub const ENV_ZOO: &str = "TURBO_KSERVE_ZOO";
 
@@ -213,12 +219,12 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL] [--zoo]] \
+[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL] [--catalog-prefetch permissive] [--zoo]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
-TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
+TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
 TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
 
@@ -286,6 +292,7 @@ impl Args {
         let mut vocabulary_dir = None;
         let (mut sink_endpoint, mut sink_items, mut sink_bytes) = (None, None, None);
         let (mut catalog_dir, mut catalog_index, mut catalog_store) = (None, None, None);
+        let mut catalog_prefetch = None;
         let mut training_dir = None;
         let mut bundle_dir = None;
         let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
@@ -333,6 +340,7 @@ impl Args {
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
                 "--catalog-store" => once(&flag, value()?, &mut catalog_store)?,
+                "--catalog-prefetch" => once(&flag, value()?, &mut catalog_prefetch)?,
                 "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
                 "--tls-cert" => path_once(&flag, value()?, &mut tls_cert)?,
                 "--tls-key" => path_once(&flag, value()?, &mut tls_key)?,
@@ -417,6 +425,14 @@ impl Args {
         if catalog_store.is_some() && catalog_dir.is_none() {
             return Err("--catalog-store needs --catalog-dir".into());
         }
+        let catalog_prefetch = match catalog_prefetch.or_else(|| env(ENV_CATALOG_PREFETCH).filter(|v| !v.is_empty())) {
+            None => false,
+            Some(v) if v == "permissive" => true,
+            Some(v) => return Err(format!("--catalog-prefetch {v}: the one mode is permissive")),
+        };
+        if catalog_prefetch && catalog_dir.is_none() {
+            return Err("--catalog-prefetch needs --catalog-dir".into());
+        }
         if zoo && catalog_dir.is_none() {
             return Err("--zoo needs --catalog-dir".into());
         }
@@ -459,6 +475,7 @@ impl Args {
             catalog_index,
             catalog_store,
             zoo,
+            catalog_prefetch,
             training_dir,
             tls,
             metrics_listen,

@@ -234,3 +234,35 @@ async fn outside_zoo_mode_a_read_never_fetches_and_accepting_needs_the_admin_fla
     assert!(e.message().contains("--zoo"), "{e:?}");
     s.stop().await;
 }
+
+#[tokio::test]
+async fn prefetch_installs_every_permissive_artifact_and_nothing_else() {
+    let (home, origin) = (Home::new("prefetch"), Origin::new());
+    let catalog = Catalog { home: home.0.clone(), index: Arc::new(index()), transport: Arc::new(origin.clone()) };
+    let serve = Serve { zoo: true, prefetch: true, catalog: Some(catalog), ..Serve::default() };
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), Vec::new(), MAX, serve).await.unwrap();
+    let mut c = TurboCatalogServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let installed = loop {
+        let m = c.list_installed_models(ListInstalledModelsRequest {}).await.unwrap().into_inner().models;
+        if !m.is_empty() || std::time::Instant::now() > deadline {
+            break m.into_iter().map(|m| m.id).collect::<Vec<_>>();
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    };
+    assert_eq!(installed, ["tiny"]);
+    assert_eq!((origin.gets("hello.txt"), origin.gets("weights.bin"), origin.gets("sa.txt")), (1, 1, 0));
+    // The first read finds the prefetched files and fetches nothing more.
+    assert_eq!(read(c.clone(), read_req("alice", "tiny", "hello.txt", "")).await.unwrap(), TEXT);
+    assert_eq!(origin.total.load(Ordering::SeqCst), 2);
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn prefetch_needs_a_catalog() {
+    let serve = Serve { prefetch: true, ..Serve::default() };
+    let Err(e) = Server::start("127.0.0.1:0".parse().unwrap(), Vec::new(), MAX, serve).await else {
+        panic!("a prefetch with no catalog started");
+    };
+    assert!(e.contains("catalog"), "{e}");
+}
