@@ -123,7 +123,7 @@ use crate::treebank::{
     CATALAN_ANCORA, FINNISH_FTB, ITALIAN_MARKIT, PORTUGUESE_PORTTINARI, SPANISH_ANCORA, Treebank, TreebankText,
 };
 use crate::ud_card::UdModelCard;
-use crate::{GateRun, Limit, RecordedReference, Reference, Trained};
+use crate::{GateRun, Limit, Reference, Trained};
 
 /// GIS iterations.
 pub const ITERATIONS: i32 = 300;
@@ -197,7 +197,7 @@ const fn recipe(model_id: &'static str, treebank: Treebank, component: Component
 }
 
 use Component::{Pos, Sentence as Sentences, Tokens};
-use Reference::{Recorded, Retired};
+use Reference::Retired;
 
 /// The recipes, by treebank, in the order the binary runs them.
 pub const UD_RECIPES: [UdRecipe; 11] = [
