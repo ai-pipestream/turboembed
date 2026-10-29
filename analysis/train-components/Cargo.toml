@@ -40,8 +40,6 @@ turbo-parser = { path = "../parser" }
 # `Span`, which the part-of-speech samples made of parse trees carry and
 # the tests build samples with; the analyzer the sentiment detector runs in.
 turbo-analysis = { path = "../core" }
-
-turbo-depparse = { path = "../depparse" }
 turbo-analysis-layers = { path = "../layers" }
 
 [dev-dependencies]
