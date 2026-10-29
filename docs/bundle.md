@@ -340,6 +340,8 @@ router.
 `heads` lists the task heads a bundle carries beside its encoder, so
 one encoder pass serves several tasks (part of speech, entities,
 morphology) and each head is a few small tensors, not a second model.
+`turbo-tagger`'s `MultiTask` runs them that way: each window read once,
+every head decoding from the same states (analysis/tagger/README.md).
 A head runs on the host from the last layer's hidden states, whichever
 device ran the encoder, the way the classifier and the sparse head do.
 Its weights live in a `FORMAT_SAFETENSORS` artifact and are named by the
@@ -350,13 +352,16 @@ so any number of heads fit one artifact.
 |---|---|
 | `name` | Unique in the bundle; lowercase ASCII letters, digits, `_` and `-`, at most 64 bytes. |
 | `layer` | The layer id the analysis annotator writes the output to: `turboembed:` and a lowercase name, such as `turboembed:pos`. |
-| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. |
+| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. |
 | `labels` | The labels in output order: 1 to 4096, unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
-| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. |
+| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). |
+| `hash_embed` | Optional, `HEAD_TOKEN_TAGGER` only: `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
 | `biaffine` | A parser's MLP widths, `arc` and `rel`, each 1 to 4096; required for `HEAD_BIAFFINE_PARSER`, refused for any other kind. A parser's `scheme` is `SCHEME_TAGS` and its labels are the dependency relations. |
+| `pos_input` | A lemmatizer's optional tag input: `head` names a `SCHEME_TAGS` token tagger head of the same bundle with `labels` labels, and the lemmatizer reads each word's decoded tag as a learned `dim`-wide embedding (1 to 1024) beside the word vector. Refused for any other kind. A lemmatizer's `scheme` is `SCHEME_TAGS` and its labels are edit trees, each written as `turbo::head::edit_tree::EditTree::label` writes it. |
+| `license_class` | Optional: the class (as `model.license_class` names classes, docs/zoo.md) of the strictest licence among the corpora the head was trained on. The bundle's tier (`Manifest::license_tier`) is the strictest of `model.license_class` and every head's, so a permissive encoder with a head trained on CC BY-SA data is `CLASS_SHARE_ALIKE`. Refused when `model.license_class` is not recorded, since the tier would leave the encoder out. |
 | `artifact` | The name of the `FORMAT_SAFETENSORS` artifact holding the tensors, as `from` and `host_weights` name artifacts. |
 | `tensor_prefix` | Each tensor is named `<tensor_prefix>.<suffix>`. |
 
@@ -365,10 +370,11 @@ wide and `L` labels, in the order the loader reads them:
 
 | Suffix | Shape | When |
 |---|---|---|
-| `lstm.{k}.fwd.w`, `lstm.{k}.bwd.w` | `[4h, in]` | adapter layer `k`; `in` is `hidden` for layer 0, `2h` after |
+| `lstm.{k}.fwd.w`, `lstm.{k}.bwd.w` | `[4h, in]` | adapter layer `k`; `in` is `hidden` (plus `4 * hash_embed.dim`) for layer 0, `2h` after |
 | `lstm.{k}.fwd.u`, `lstm.{k}.bwd.u` | `[4h, h]` | adapter layer `k` |
 | `lstm.{k}.fwd.b`, `lstm.{k}.bwd.b` | `[4h]` | adapter layer `k`; one bias, so weights from a framework that keeps two (PyTorch's `bias_ih` and `bias_hh`) are stored as their sum |
-| `out.weight` | `[L, width]` | always; `width` is `hidden`, or `2h` with an adapter |
+| `hash.norm`, `hash.prefix`, `hash.suffix`, `hash.shape` | `[rows[k], dim]` | with `hash_embed`, after the adapter's tensors |
+| `out.weight` | `[L, width]` | always; `width` is `hidden` (plus `4 * hash_embed.dim`), or `2h` with an adapter |
 | `out.bias` | `[L]` | always |
 | `crf.transitions` | `[L, L]` | `DECODE_CRF`; row is the label before, column the label after |
 | `crf.start`, `crf.end` | `[L]` | `DECODE_CRF` |
@@ -406,6 +412,27 @@ dependent side for arcs and on both sides for relations, so its trained
 weights load by a reshape. Arc scores are computed for every dependent
 and head; relations only for each word's chosen head, after the tree
 decode. Tree decodes sum in f64 and give every tie to the lower index.
+
+The tensors of a `HEAD_EDIT_TREE_LEMMATIZER`, F32, with `T` trees, `P` =
+`pos_input.labels`, `D` = `pos_input.dim` (0 without one) and `width`
+as above (the adapter's tensors come first, as for a tagger):
+
+| Suffix | Shape | When |
+|---|---|---|
+| `pos.embedding` | `[P, D]` | `pos_input` |
+| `out.weight` | `[T, width + D]` | always; a word's tag embedding follows its vector |
+| `out.bias` | `[T]` | always |
+
+An edit tree (Chrupała 2008; Müller et al. 2015) is built as spaCy's
+edit-tree lemmatizer builds it (MIT, v3.7.5): the longest common
+substring of form and lemma is kept and the parts around it rewrite by
+their own trees, or the whole part is substituted when nothing is
+common. Its label is an S-expression: `(m P S X Y)` keeps all but the
+first `P` and last `S` characters (Unicode scalar values) and rewrites
+those by `X` and `Y` (`()` for none); `(s 'from' 'to')` substitutes, with
+`\'` and `\\` escaped inside quotes. `walked` to `walk` is
+`(m 0 2 () (s 'ed' ''))`. Only the canonical form of a label is
+accepted, so one tree has one label.
 
 A manifest whose heads break any rule above is refused at open with
 `BUNDLE_INVALID`, the field named; a missing or misshapen tensor is

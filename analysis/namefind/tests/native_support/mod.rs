@@ -1,13 +1,12 @@
 #![allow(dead_code)]
 use turbo_analysis::{Annotator, Document, Layer, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{Entities, Tokens};
-use turbo_maxent::Dictionary;
-use turbo_namefind::DictionaryNameFinder;
+use turbo_namefind::{Dictionary, DictionaryNameFinder};
 
 pub fn finder(extra: usize, kind: &str) -> DictionaryNameFinder {
-    let mut entries = vec![vec!["Zoë".to_owned()], vec!["李明".to_owned()]];
-    entries.extend((0..extra).map(|i| vec![format!("Extra{i}")]));
-    DictionaryNameFinder::new(Dictionary::from_entries(true, entries.iter().map(Vec::as_slice)), kind)
+    let mut entries = vec![(kind.to_owned(), vec!["Zoë".to_owned()]), (kind.to_owned(), vec!["李明".to_owned()])];
+    entries.extend((0..extra).map(|i| (kind.to_owned(), vec![format!("Extra{i}")])));
+    DictionaryNameFinder::new(Dictionary::from_entries(true, entries)).unwrap()
 }
 
 pub fn input() -> (Document, Tokens) {

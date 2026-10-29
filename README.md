@@ -334,6 +334,7 @@ release.md.
 | `include/turbo/` | the C header and the backend interface |
 | `bundle/` | `turbo-bundle`, recipes, and the conversion containers |
 | `trainer/` | `turbo-trainer`: training of bundle heads in Rust (#1518) |
+| `trainer/recipes` | `turbo-trainer-recipes`: pinned corpora (MASC Penn POS, MultiCoNER v2 English), the majority baseline, receipts, and the `turbo-train-head` command (#1518) |
 | `bench/` | `turbo-bench`, reference and peer programs, and the repository hygiene tests |
 | `benchmarks/records/` | committed benchmark records |
 | `server/` | `turbo-kserve` and its protos |
@@ -341,7 +342,7 @@ release.md.
 | `analysis/core`, `analysis/layers` | the document model, views, alignments and shared layer types |
 | `analysis/unicode`, `analysis/encoding`, `analysis/zstd`, `analysis/normalize` | text input and normalization |
 | `analysis/structure`, `analysis/sentdetect`, `analysis/sat`, `analysis/tokenize`, `analysis/langdetect`, `analysis/langspan` | structure, segmentation and language |
-| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/parser`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | OpenNLP ports |
+| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | OpenNLP ports |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
 | `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |

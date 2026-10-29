@@ -167,8 +167,10 @@ fn send(o: Opened, tx: mpsc::Sender<Result<ModelFileChunk, Status>>) {
         }
     }
     let got: Sha256 = turbo_zoo::digest::Hex(hash.finalize().into());
-    let fail = if sent != o.file.size {
-        Some(format!("{what}: the cache holds {sent} bytes or more, the index {}", o.file.size))
+    let fail = if sent > o.file.size {
+        Some(format!("{what}: the cache holds more than {} bytes, the index {0}", o.file.size))
+    } else if sent < o.file.size {
+        Some(format!("{what}: the cache holds {sent} bytes, the index {}", o.file.size))
     } else if got != o.file.sha256 {
         Some(format!("{what}: the cached bytes have SHA-256 {got}, the index {}", o.file.sha256))
     } else {

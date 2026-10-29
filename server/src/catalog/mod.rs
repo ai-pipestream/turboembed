@@ -52,8 +52,12 @@ impl fmt::Debug for Catalog {
 
 impl Catalog {
     /// The catalog over HTTPS: the index at `index`, or the built-in one.
+    /// With `store` (`file:///dir` or `s3://bucket/prefix`, docs/zoo.md),
+    /// each file is read from the store first, and the store keeps every
+    /// file fetched from its index address, so a store several servers
+    /// share, or one seeded ahead, saves the fetch.
     #[cfg(feature = "catalog-http")]
-    pub fn http(home: PathBuf, index: Option<&std::path::Path>) -> Result<Catalog, String> {
+    pub fn http(home: PathBuf, index: Option<&std::path::Path>, store: Option<&str>) -> Result<Catalog, String> {
         let index = match index {
             Some(p) => {
                 let bytes = std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -61,7 +65,12 @@ impl Catalog {
             }
             None => Index::builtin(),
         };
-        Ok(Catalog { home, index: Arc::new(index), transport: Arc::new(turbo_zoo::Http::new()) })
+        let origin = turbo_zoo::Http::new();
+        let transport: Arc<dyn Transport + Send + Sync> = match store {
+            None => Arc::new(origin),
+            Some(store) => Arc::new(store_first(store, origin)?),
+        };
+        Ok(Catalog { home, index: Arc::new(index), transport })
     }
 
     fn cache(&self) -> PathBuf {
@@ -77,6 +86,23 @@ impl Catalog {
         let p = self.acceptances_path();
         if p.exists() { Acceptances::load(&p) } else { Ok(Acceptances::default()) }
     }
+}
+
+/// `store`, which keeps what it lacks, then the index's own addresses.
+#[cfg(feature = "catalog-http")]
+fn store_first(store: &str, origin: turbo_zoo::Http) -> Result<turbo_zoo::Sources, String> {
+    let list = turbo_zoo::Sources::new();
+    let list = if let Some(dir) = store.strip_prefix("file://") {
+        if !dir.starts_with('/') {
+            return Err(format!("{store}: a file:// store names an absolute directory"));
+        }
+        list.then_keep(store, turbo_zoo::Blobs::new(dir))
+    } else if store.starts_with("s3://") {
+        list.then_keep(store, turbo_zoo::S3Bucket::new(store)?)
+    } else {
+        return Err(format!("{store}: a catalog store is file:///dir or s3://bucket/prefix"));
+    };
+    Ok(list.then("origin", origin))
 }
 
 pub(crate) struct CatalogService {

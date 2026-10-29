@@ -11,8 +11,6 @@
 //! - [`postag`]: the English part-of-speech tagger trained on MASC's Penn
 //!   tags, with no reference model (no OpenNLP 1.5 model is fetched or
 //!   scored, #1509).
-//! - [`chunk`]: the English chunker trained on MASC's noun and verb
-//!   chunks, with no reference model.
 //! - [`namefind`]: English name finders trained on MASC's named entities,
 //!   one per type (person, location, organization, date), with no
 //!   reference model.
@@ -59,12 +57,12 @@
 //! ([`release`]).
 
 pub mod card;
-pub mod chunk;
 pub mod depparse;
 pub mod error;
 pub mod fineweb;
 pub mod langdetect;
 pub mod langdetect_web;
+pub mod litbank;
 pub mod masc;
 pub mod namefind;
 pub mod namefind_eval;
@@ -78,6 +76,7 @@ pub mod tatoeba;
 pub mod treebank;
 pub mod ud;
 pub mod ud_card;
+pub mod wnut17;
 
 use std::fmt::{self, Write as _};
 
@@ -88,7 +87,6 @@ pub use error::{Error, LeftOut, Result};
 pub use reference::{RecordedReference, Reference};
 
 use card::{ChunksCard, CorpusCard, HeldOutCard, ModelCard, NamesCard, ParametersCard};
-use chunk::ChunkRecipe;
 use masc::{CorpusDigest, SPLIT, SplitCorpus};
 use namefind::NameRecipe;
 use postag::PosRecipe;
@@ -186,18 +184,16 @@ pub(crate) fn check_skipped(what: LeftOut, skipped: usize, read: usize) -> Resul
 pub enum Recipe {
     Segmentation(SegmentationRecipe),
     Pos(PosRecipe),
-    Chunk(ChunkRecipe),
     Name(NameRecipe),
 }
 
 /// The recipes, in the order the binary runs them: the sentence detector,
-/// the tokenizer, the part-of-speech tagger, the chunker, then the name
-/// finders of [`namefind::RECIPES`].
-pub const RECIPES: [Recipe; 8] = [
+/// the tokenizer, the part-of-speech tagger, then the name finders of
+/// [`namefind::RECIPES`].
+pub const RECIPES: [Recipe; 7] = [
     Recipe::Segmentation(segmentation::SENTENCE),
     Recipe::Segmentation(segmentation::TOKENS),
     Recipe::Pos(postag::POS),
-    Recipe::Chunk(chunk::CHUNKS),
     Recipe::Name(namefind::PERSON),
     Recipe::Name(namefind::LOCATION),
     Recipe::Name(namefind::ORGANIZATION),
@@ -215,7 +211,6 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.model_id,
             Recipe::Pos(r) => r.model_id,
-            Recipe::Chunk(r) => r.model_id,
             Recipe::Name(r) => r.model_id,
         }
     }
@@ -230,7 +225,6 @@ impl Recipe {
         let reference = match self {
             Recipe::Segmentation(r) => Some(Reference::Retired(r.reference_id)),
             Recipe::Pos(r) => r.reference,
-            Recipe::Chunk(r) => r.reference,
             Recipe::Name(r) => r.reference,
         };
         reference.ok_or(Error::NoReference { recipe: self.model_id() })
@@ -250,7 +244,6 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.task(),
             Recipe::Pos(r) => r.task(),
-            Recipe::Chunk(r) => r.task(),
             Recipe::Name(r) => r.task(),
         }
     }
@@ -263,27 +256,18 @@ impl Recipe {
                 Component::Tokens => turbo_zoo::Component::Tokenizer,
             },
             Recipe::Pos(_) => turbo_zoo::Component::Pos,
-            Recipe::Chunk(_) => turbo_zoo::Component::Chunker,
             Recipe::Name(_) => turbo_zoo::Component::NameFinder,
         }
     }
 
-    /// Whether the recipe reads the corpus's noun and verb chunks, so the
-    /// corpus is to be read with its chunk files
-    /// ([`MascCorpus::read_with_chunks`]).
-    pub fn reads_chunks(&self) -> bool {
-        matches!(self, Recipe::Chunk(_))
-    }
-
     /// The training parameters, as the card records them: the MASC settings
-    /// for the segmentation recipes and the tagger, the chunker's, and
+    /// for the segmentation recipes and the tagger, and
     /// `NameFinderME.train`'s defaults for the name finders
     /// ([`namefind::training_parameters`]).
     pub fn parameters(&self) -> ParametersCard {
         use turbo_train_components::namefind as names;
         let (iterations, cutoff, threads) = match self {
             Recipe::Segmentation(_) | Recipe::Pos(_) => (ud::ITERATIONS, ud::CUTOFF, masc::THREADS),
-            Recipe::Chunk(_) => (chunk::ITERATIONS, chunk::CUTOFF, chunk::THREADS),
             Recipe::Name(_) => (names::DEFAULT_ITERATIONS, names::DEFAULT_CUTOFF, 1),
         };
         ParametersCard { algorithm: "MAXENT".to_owned(), iterations, cutoff, threads }
@@ -298,7 +282,6 @@ impl Recipe {
         match self {
             Recipe::Segmentation(r) => r.train(train),
             Recipe::Pos(r) => r.train(train),
-            Recipe::Chunk(r) => r.train(train),
             Recipe::Name(r) => r.train(train),
         }
     }
@@ -325,9 +308,6 @@ impl Recipe {
                 r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
             }
             Recipe::Pos(r) => r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256),
-            Recipe::Chunk(r) => {
-                r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
-            }
             Recipe::Name(r) => {
                 r.gate(trained, reference_id, reference, &r.held_out(held_out)?, set_name, corpus_sha256)
             }
@@ -338,10 +318,8 @@ impl Recipe {
     /// `split`, without training or scoring, and checks what [`run`]
     /// checks of them: each side has a sample, and the recipe's reader
     /// skips at most [`MAX_SKIPPED_SENTENCES`] of the sentences of either
-    /// side, and on the recorded release (`recorded`) the counts the
-    /// recipe records ([`Recipe::check_recorded_skips`]); and for the
-    /// tagger, given the bytes of its reference (named `reference_id`),
-    /// that the reference can give the tags of all but
+    /// side; and for the tagger, given the bytes of its reference (named
+    /// `reference_id`), that the reference can give the tags of all but
     /// [`MAX_TOKENS_LEFT_OUT`] of the held-out tokens. The binary runs it
     /// for every recipe before it trains any, so a run that would fail on
     /// its data writes nothing.
@@ -349,13 +327,12 @@ impl Recipe {
     /// # Errors
     ///
     /// [`Error::EmptySplit`], [`Error::TooManyLeftOut`],
-    /// [`Error::SkippedNotRecorded`], [`Error::TagsOutsideReference`], a
-    /// sample the corpus fails on, or a reference that is not a
-    /// part-of-speech model.
+    /// [`Error::TagsOutsideReference`], a sample the corpus fails on, or a
+    /// reference that is not a part-of-speech model.
     pub fn check_data(
         &self,
         split: &SplitCorpus,
-        recorded: bool,
+        _recorded: bool,
         reference_id: &str,
         reference: Option<&[u8]>,
     ) -> Result<()> {
@@ -371,35 +348,12 @@ impl Recipe {
                     r.check_coverage(reference_id, &r.reference_tags(reference)?, &held_out)?;
                 }
             }
-            Recipe::Chunk(r) => {
-                let skipped = r.check_training(&split.train)?;
-                self.check_recorded_skips(recorded, LeftOut::TrainingSentences, skipped.total())?;
-                let held_out = r.held_out(&split.held_out)?;
-                self.check_recorded_skips(recorded, LeftOut::HeldOutSentences, held_out.skipped().total())?;
-            }
             Recipe::Name(r) => {
                 r.check_training(&split.train)?;
                 r.held_out(&split.held_out)?;
             }
         }
         Ok(())
-    }
-
-    /// On the recorded release (`recorded`), checks `skipped`, the
-    /// sentences of `what` the recipe's reader skipped, against the count
-    /// the recipe records: the chunker's
-    /// ([`chunk::RECORDED_SKIPPED_SENTENCES`]). The other recipes record
-    /// none, and a corpus that is not the recorded release is checked by
-    /// the bound on skipped sentences alone.
-    ///
-    /// # Errors
-    ///
-    /// [`Error::SkippedNotRecorded`].
-    pub fn check_recorded_skips(&self, recorded: bool, what: LeftOut, skipped: usize) -> Result<()> {
-        match self {
-            Recipe::Chunk(_) if recorded => chunk::check_recorded_skips(what, skipped),
-            _ => Ok(()),
-        }
     }
 
     /// The reference model's file name ([`Reference::file`]).
@@ -457,12 +411,10 @@ pub fn held_out_name() -> String {
 ///
 /// # Errors
 ///
-/// What training, reading the samples, scoring or the gate fail on,
+/// What training, reading the samples, scoring or the gate fail on, and
 /// [`Error::TooManyLeftOut`] when the recipe's reader skips more than
 /// [`MAX_SKIPPED_SENTENCES`] of the training or of the held-out
-/// sentences, and [`Error::SkippedNotRecorded`] when, on the recorded
-/// release, it skips other counts than the recipe records
-/// ([`Recipe::check_recorded_skips`]).
+/// sentences.
 pub fn run(
     recipe: &Recipe,
     split: &SplitCorpus,
@@ -472,10 +424,8 @@ pub fn run(
     reference: &[u8],
 ) -> Result<Outcome> {
     let trained = recipe.train(&split.train)?;
-    recipe.check_recorded_skips(recorded, LeftOut::TrainingSentences, trained.skipped_sentences)?;
     let GateRun { record: gate, held_out } =
         recipe.gate(&trained.bytes, reference_id, reference, &split.held_out, &held_out_name(), &digest.sha256)?;
-    recipe.check_recorded_skips(recorded, LeftOut::HeldOutSentences, held_out.skipped_sentences)?;
     let corpus = CorpusCard {
         name: masc::NAME.to_owned(),
         corpus_sha256: digest.sha256.clone(),

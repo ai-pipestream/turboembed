@@ -797,8 +797,10 @@ cargo test -p turbo --features metal
 
 # The runs and FASTEST's tests, with what they print (the largest
 # difference from the f64 encoder and the CPU, each choice's lowest
-# cosine with the CPU), in release:
-cargo test --release -p turbo --features metal --test metal_runs --test metal_f16 -- --nocapture
+# cosine with the CPU), in release; metal_f16_wide.rs is the same
+# F16 path at full-tile widths (hidden 128, intermediate 256, heads
+# of 64), printing each F16 tensor's largest magnitude:
+cargo test --release -p turbo --features metal --test metal_runs --test metal_f16 --test metal_f16_wide -- --nocapture
 
 # FASTEST at a real bundle's longest rows against the CPU, with the
 # largest magnitude of each tensor it stores in F16:
