@@ -100,6 +100,7 @@ fn heldout_hybrid_receipt() {
         costs: Costs::default(),
         signals: Signals::Structure,
         cohesion: None,
+        clauses: false,
     };
     let weights: Vec<f64> = (0..=10).map(|i| f64::from(i) / 10.0).collect();
     let model = embedder.identity().model_ref();
