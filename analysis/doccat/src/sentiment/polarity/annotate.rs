@@ -33,27 +33,27 @@ pub fn vader_to_polarity_scores(score: VaderScore) -> (Polarity, PolarityScores)
     let (p_pos, p_neg, p_neu) = match polarity {
         Polarity::Positive => {
             let t = ((c - COMPOUND_THRESHOLD) / (1.0 - COMPOUND_THRESHOLD)).clamp(0.0, 1.0);
-            let p_pos = 0.50 + 0.44 * t;
+            let p_pos = 0.88 + 0.06 * t;
             let excess = 1.0 - p_pos - 2.0 * VADER_PROB_SMOOTHING;
             let other_sum = neg_raw + neu_raw;
-            let neg_share = if other_sum > 0.0 { (neg_raw / other_sum).clamp(0.0, 1.0) } else { 0.0 };
+            let neg_share = if other_sum > 0.0 { (neg_raw / other_sum).clamp(0.0, 1.0) } else { 0.5 };
             let p_neg = VADER_PROB_SMOOTHING + excess * neg_share;
             let p_neu = VADER_PROB_SMOOTHING + excess * (1.0 - neg_share);
             (p_pos, p_neg, p_neu)
         }
         Polarity::Negative => {
             let t = ((-c - COMPOUND_THRESHOLD) / (1.0 - COMPOUND_THRESHOLD)).clamp(0.0, 1.0);
-            let p_neg = 0.50 + 0.44 * t;
+            let p_neg = 0.88 + 0.06 * t;
             let excess = 1.0 - p_neg - 2.0 * VADER_PROB_SMOOTHING;
             let other_sum = pos_raw + neu_raw;
-            let pos_share = if other_sum > 0.0 { (pos_raw / other_sum).clamp(0.0, 1.0) } else { 0.0 };
+            let pos_share = if other_sum > 0.0 { (pos_raw / other_sum).clamp(0.0, 1.0) } else { 0.5 };
             let p_pos = VADER_PROB_SMOOTHING + excess * pos_share;
             let p_neu = VADER_PROB_SMOOTHING + excess * (1.0 - pos_share);
             (p_pos, p_neg, p_neu)
         }
         Polarity::Neutral => {
             let u = (c / COMPOUND_THRESHOLD).clamp(-1.0, 1.0);
-            let p_neu = 0.94 - 0.40 * u.abs();
+            let p_neu = 0.94 - 0.06 * u.abs();
             let excess = 1.0 - p_neu - 2.0 * VADER_PROB_SMOOTHING;
             let pos_share = 0.5 * (1.0 + u);
             let p_pos = VADER_PROB_SMOOTHING + excess * pos_share;
