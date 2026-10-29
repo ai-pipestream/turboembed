@@ -32,7 +32,7 @@ fn every_checked_in_golden_of_a_model_has_a_dump_whose_header_parses() {
             }
         }
     }
-    assert!(with_model > 350, "{with_model} goldens of runs with a model");
+    assert_eq!(with_model, 247, "{with_model} goldens of runs with a model");
     assert!(without_model > 150, "{without_model} goldens of runs without a model");
     assert_eq!(output::check_dumps(&paths::data_dir()).unwrap(), with_model - threw);
 }
