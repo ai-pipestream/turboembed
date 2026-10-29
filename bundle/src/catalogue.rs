@@ -35,6 +35,10 @@ pub const BY_PATH: &[(&str, &str)] = &[
     ("dslim-bert-base-ner.json", "trained on CoNLL-2003, whose text is not under an open licence"),
     ("sat-1l-sm.json", "trained on UD treebanks of several licences, some share-alike"),
     ("sat-3l.json", "a sentence segmenter, not an embedding; the zoo fetches it as segment-any-text-sat-3l"),
+    (
+        "xlm-roberta-base.json",
+        "a masked-LM encoder under the frozen-encoder UD heads (#1522, #1651), not an embedding model",
+    ),
     ("nli-minilm2-l6-h768.json", "trained on SNLI and MultiNLI (CC BY-SA); the zoo fetches it after acceptance"),
     (
         "opensearch-neural-sparse-encoding-v1.json",
