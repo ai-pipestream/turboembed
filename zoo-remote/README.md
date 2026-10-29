@@ -62,6 +62,11 @@ index served from memory, so nothing is downloaded. It checks that:
 - the list parser refuses empty entries, `origin` named twice, unknown
   schemes, relative `file://` paths and addresses with a path.
 
+`tests/zoo_image.rs` does the same against a running zoo container, and
+`scripts/test-zoo-image.sh` runs it with the image's smoke test
+(docs/zoo-container.md, The smoke test). Without that script's variables
+it passes with nothing to read.
+
 The S3 bucket itself, `S3Bucket`, is turbo-zoo's (docs/zoo.md), so a
 zoo server can keep its files in one too; its tests are turbo-zoo's
 `tests/s3.rs`.

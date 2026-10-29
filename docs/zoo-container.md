@@ -143,6 +143,16 @@ read returns has therefore come through the store.
 - the user records their own acceptance without `--admin`;
 - each file reads through from the store and verifies.
 
+`zoo-remote/tests/zoo_image.rs` then loads the same models with the
+library, through `TURBO_ZOO_SOURCE=grpc://...` into a local cache of its
+own, as a user who has accepted nothing yet:
+
+- a permissive model loads, each file verified;
+- a share-alike model is refused locally before the zoo is asked;
+- accepted locally but not on the zoo, the zoo sends nothing;
+- accepted on both sides, it loads;
+- the local cache then serves both models with no source at all.
+
 The script also checks that the page is served and that the page's
 calls need the token, and that with the token the page acts for the
 image's default user. Then it runs the image alone with the page on
