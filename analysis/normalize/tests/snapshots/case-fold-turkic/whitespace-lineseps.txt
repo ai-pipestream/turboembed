@@ -1,0 +1,12 @@
+===OUT===
+line one line two after ls paragraph after ps
+nextafter nelvertical tabform feed end
+
+===EDITS===
+26	27	l
+27	28	s
+47	48	p
+48	49	s
+62	63	n
+63	64	e
+64	65	l

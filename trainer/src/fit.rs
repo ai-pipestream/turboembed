@@ -57,6 +57,12 @@ pub struct Config {
     /// Threads a batch's examples are spread over; 0 takes every core.
     /// The weights a run gives do not depend on it.
     pub threads: usize,
+    /// Examples whose gradients and activations are held at once: a
+    /// batch runs in rounds of this many, each round's gradients added
+    /// to the step's in example order, so the bytes do not depend on it
+    /// either, and memory does not grow with the batch (gradient
+    /// accumulation). 0 holds the whole batch.
+    pub lanes: usize,
     /// Logs each epoch's loss, dev score and time, and progress within
     /// it, to standard error.
     pub verbose: bool,
@@ -75,6 +81,7 @@ impl Default for Config {
             patience: 6,
             tolerance: 1e-3,
             threads: 0,
+            lanes: 0,
             verbose: false,
         }
     }
@@ -141,7 +148,7 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     let spec = tagger.spec();
     let hidden = tagger.hidden();
     check_examples(examples, hidden, spec.labels.len(), tagger.reads_forms())?;
-    let (mut right, mut total, mut found, mut gold_n) = (0usize, 0usize, 0usize, 0usize);
+    let mut tally = Tally::new(spec);
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
         let n = e.features.len() / hidden;
@@ -149,31 +156,62 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
         debug_assert!(!words.contains(&NO_WORD));
         tagger.scores_forms(&e.features, &words, e.forms().as_deref(), &mut scores, &mut work)?;
         tagger.decode(&scores, n, &mut tags)?;
+        tally.add(&tags, &e.labels)?;
+    }
+    Ok(tally.score())
+}
+
+/// The running dev score of a tagger head: right words of all under
+/// SCHEME_TAGS, found and gold spans and the right ones under BIO and
+/// BILOU.
+pub(crate) struct Tally<'a> {
+    spec: &'a HeadSpec,
+    right: usize,
+    total: usize,
+    found: usize,
+    gold: usize,
+}
+
+impl<'a> Tally<'a> {
+    pub(crate) fn new(spec: &'a HeadSpec) -> Tally<'a> {
+        Tally { spec, right: 0, total: 0, found: 0, gold: 0 }
+    }
+
+    /// One sentence's decoded `tags` against its `labels`.
+    pub(crate) fn add(&mut self, tags: &[u32], labels: &[u32]) -> Result<()> {
+        let spec = self.spec;
         if spec.scheme == Scheme::Tags {
-            right += tags.iter().zip(&e.labels).filter(|(a, b)| a == b).count();
-            total += n;
+            self.right += tags.iter().zip(labels).filter(|(a, b)| a == b).count();
+            self.total += labels.len();
         } else {
-            let want: Vec<WordSpan> = spans(spec.scheme, &spec.labels, &e.labels)?;
-            let got = spans(spec.scheme, &spec.labels, &tags)?;
-            right += got.iter().filter(|s| want.contains(s)).count();
-            found += got.len();
-            gold_n += want.len();
+            let want: Vec<WordSpan> = spans(spec.scheme, &spec.labels, labels)?;
+            let got = spans(spec.scheme, &spec.labels, tags)?;
+            self.right += got.iter().filter(|s| want.contains(s)).count();
+            self.found += got.len();
+            self.gold += want.len();
+        }
+        Ok(())
+    }
+
+    /// Accuracy, or exact span F1; 1 when there is nothing to find and
+    /// nothing was found.
+    pub(crate) fn score(&self) -> f64 {
+        if self.spec.scheme == Scheme::Tags {
+            if self.total == 0 { 0.0 } else { self.right as f64 / self.total as f64 }
+        } else if self.found + self.gold == 0 {
+            1.0
+        } else {
+            2.0 * self.right as f64 / (self.found + self.gold) as f64
         }
     }
-    Ok(if spec.scheme == Scheme::Tags {
-        if total == 0 { 0.0 } else { right as f64 / total as f64 }
-    } else if found + gold_n == 0 {
-        1.0
-    } else {
-        2.0 * right as f64 / (found + gold_n) as f64
-    })
 }
 
 /// What the training loop needs of a head in training.
 pub(crate) trait Model: Sized + Sync {
     type Example: Sync;
     type Work: Default + Send;
-    fn params(&self) -> &[Vec<f32>];
+    /// The weights, copied: what a run keeps as its best.
+    fn params(&self) -> Vec<Vec<f32>>;
     /// Replaces every weight; refused unless each tensor keeps its length.
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()>;
     /// One optimizer step on the weights.
@@ -189,8 +227,8 @@ pub(crate) trait Model: Sized + Sync {
 impl Model for Tagger<f32> {
     type Example = Example;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        Tagger::params(self)
+    fn params(&self) -> Vec<Vec<f32>> {
+        Tagger::params(self).to_vec()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         Tagger::set_params(self, params)
@@ -269,7 +307,8 @@ fn check_examples(examples: &[Example], hidden: usize, labels: usize, forms: boo
 pub type OnBest<'a, M> = &'a mut dyn FnMut(&M, usize, f64) -> Result<()>;
 
 /// The loop: seeded shuffles, minibatch gradients summed in a fixed
-/// order (across `c.threads` threads, see [`Batch`]) and scaled per word,
+/// order (across `c.threads` threads, `c.lanes` examples at once, see
+/// [`Batch`]) and scaled per word,
 /// AdamW, dev scoring each epoch, early stopping, the best weights kept;
 /// `on_best` sees the model and the epoch and dev score each time the
 /// best improves, so a caller can save it while the run goes on.
@@ -285,7 +324,7 @@ pub(crate) fn train<M: Model>(
     let mut opt = AdamW::new(settings(c, train.len()), &shapes)?;
     let decay = model.decays();
     let mut order: Vec<usize> = (0..train.len()).collect();
-    let mut batch = Batch::new(c.threads);
+    let mut batch = Batch::new(c.threads, c.lanes);
     let mut grads = model.zero_grads();
     let mut report = Report { train_loss: Vec::new(), dev: Vec::new(), best_epoch: 0, epoch_seconds: Vec::new() };
     let mut best: Option<Vec<Vec<f32>>> = None;
@@ -336,7 +375,7 @@ pub(crate) fn train<M: Model>(
         }
         let (better, done) = stop.update(epoch, s);
         if better {
-            best = Some(model.params().to_vec());
+            best = Some(model.params());
             report.best_epoch = epoch;
             on_best(&model, epoch, s)?;
         }
@@ -360,7 +399,7 @@ pub fn batch_gradients(model: &Tagger<f32>, examples: &[Example], threads: usize
     check_examples(examples, model.hidden(), model.spec().labels.len(), model.spec().hash_embed.is_some())?;
     let mut grads = model.zero_grads();
     let refs: Vec<&Example> = examples.iter().collect();
-    let (loss, _) = Batch::new(threads).gradients(model, &refs, &mut grads)?;
+    let (loss, _) = Batch::new(threads, 0).gradients(model, &refs, &mut grads)?;
     Ok((grads, loss))
 }
 

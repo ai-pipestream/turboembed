@@ -8,7 +8,7 @@ use std::process::ExitCode;
 use turbo_kserve_demo::{Allow, Demo, Options, Tls, gate};
 
 const USAGE: &str = "usage: turbo-kserve-demo [--listen ADDR:PORT] [--server http://HOST:PORT] [--allow METHOD]...
-         [--token-file PATH] [--cors-origin ORIGIN]... [--tls-cert PEM --tls-key PEM]
+         [--token-file PATH] [--user NAME] [--cors-origin ORIGIN]... [--tls-cert PEM --tls-key PEM]
   --listen       where the page is served (TURBO_DEMO_LISTEN; default 127.0.0.1:8080)
   --server       the turbo-kserve to call (TURBO_DEMO_SERVER; default http://127.0.0.1:8081)
   --allow        also forward a method that changes the server, named
@@ -17,6 +17,8 @@ const USAGE: &str = "usage: turbo-kserve-demo [--listen ADDR:PORT] [--server htt
   --token-file   a file holding the bearer token every call must carry
                  (TURBO_DEMO_TOKEN_FILE, or the token itself in TURBO_DEMO_TOKEN);
                  required off loopback when a method that changes the server is allowed
+  --user         who the page's licence acceptances and installs are for (TURBO_DEMO_USER);
+                 without it the page's catalog calls name no user and change nothing
   --cors-origin  another origin whose pages may call, http(s)://HOST[:PORT]; repeat
                  for more (TURBO_DEMO_CORS_ORIGINS, comma-separated); none by default
   --tls-cert     serve HTTPS with this PEM certificate chain (TURBO_DEMO_TLS_CERT)
@@ -28,6 +30,7 @@ struct Args {
     server: String,
     allow: Vec<String>,
     token_file: Option<PathBuf>,
+    user: Option<String>,
     origins: Vec<String>,
     tls: Option<Tls>,
 }
@@ -43,6 +46,7 @@ fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
     let env = |k: &str| std::env::var(k).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
     let (mut listen, mut server, mut allow) = (None, None, Vec::new());
     let (mut token_file, mut origins, mut cert, mut key) = (None, Vec::new(), None, None);
+    let mut user = None;
     let mut args = args.into_iter();
     while let Some(a) = args.next() {
         let (flag, inline) = match a.split_once('=') {
@@ -62,6 +66,7 @@ fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
             "--server" => server = Some(value()?),
             "--allow" => add(&mut allow, &value()?),
             "--token-file" => token_file = Some(value()?),
+            "--user" => user = Some(value()?),
             "--cors-origin" => add(&mut origins, &gate::origin(&value()?)?),
             "--tls-cert" => cert = Some(value()?),
             "--tls-key" => key = Some(value()?),
@@ -96,7 +101,11 @@ fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
         (None, None) => None,
         _ => return Err("--tls-cert and --tls-key go together".into()),
     };
-    Ok(Args { listen, server, allow, token_file, origins, tls })
+    let user = user.or_else(|| env("TURBO_DEMO_USER"));
+    if let Some(u) = &user {
+        turbo_kserve_demo::user::check(u)?;
+    }
+    Ok(Args { listen, server, allow, token_file, user, origins, tls })
 }
 
 /// The token from its file, else from TURBO_DEMO_TOKEN.
@@ -135,7 +144,7 @@ async fn main() -> ExitCode {
     if token.is_some() && args.tls.is_none() && !args.listen.ip().is_loopback() {
         eprintln!("turbo-kserve-demo: the token crosses the network in the clear; use --tls-cert and --tls-key");
     }
-    let options = Options { allow, token, origins: args.origins, tls: args.tls };
+    let options = Options { allow, token, origins: args.origins, tls: args.tls, user: args.user };
     let demo = match Demo::start_with(args.listen, &args.server, options).await {
         Ok(d) => d,
         Err(e) => {
@@ -211,5 +220,13 @@ mod tests {
         assert!(run(&["--cors-origin", "https://app.example/page"]).is_err());
         assert_eq!(run(&["--tls-cert", "cert.pem"]), Err("--tls-cert and --tls-key go together".into()));
         assert!(token(Some(&PathBuf::from("no-such-token-file"))).is_err());
+    }
+
+    #[test]
+    fn parse_takes_the_user_the_page_acts_for() {
+        assert_eq!(run(&["--user", "alice"]).unwrap().user, Some("alice".into()));
+        assert_eq!(run(&["--user=Ålice"]).unwrap().user, Some("Ålice".into()));
+        assert!(run(&["--user", "a\u{7}b"]).is_err());
+        assert!(run(&["--user", ""]).is_err());
     }
 }

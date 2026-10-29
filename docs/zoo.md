@@ -264,13 +264,16 @@ Which user accepted which licence, in the zoo's home directory as
 
 | Field | Type | Meaning |
 |---|---|---|
-| `acceptances_version` | uint32 | 1. |
+| `acceptances_version` | uint32 | 1, or 2 when an acceptance holds `artifact` or `license_text_sha256`. The file is written at the lowest version that holds it, so a reader of version 1 reads every file made without a page. Both versions read. |
 | `accepted[].user` | string | Who accepted: 1 to 256 bytes, no control characters, no leading or trailing whitespace. |
 | `accepted[].license` | SPDX string | A licence of `CLASS_LGPL`, `CLASS_SHARE_ALIKE`, `CLASS_GPL` or `CLASS_LOCAL_ONLY`. A permissive licence needs no acceptance and a refused one cannot be accepted; either rejects the file. |
 | `accepted[].license_text` | https URL | The text the user was shown. For a licence with one text, the zoo's address for it; for `LicenseRef-RestrictedPublic`, the host's terms page as the index gives it (`license_terms`), so each host's terms are accepted on their own. |
 | `accepted[].accepted_at` | uint64 | Seconds since the Unix epoch, UTC. |
+| `accepted[].artifact` | artifact id | Version 2, optional: the artifact whose page showed the terms (the demo's Models tab, through `RecordLicenceAcceptance`). For audit only; the acceptance covers every artifact under the same terms. |
+| `accepted[].license_text_sha256` | SHA-256 | Version 2, optional: the SHA-256 of `license_text` as the page displayed it. A digest of other text rejects the file. |
 
-Every field is required. One user accepts one licence and text at most
+Every field of version 1 is required; a version 1 file with a version 2
+field is rejected. One user accepts one licence and text at most
 once. An absent file means nothing has been accepted. The zoo never
 writes the file on its own: only the user's explicit action adds an
 entry. `turbo-zoo accept <licence>` (or `turbo-zoo accept
@@ -405,6 +408,39 @@ another way overrides it (#1613).
   request on. When none has it, the error names what each said. A
   typical list is the local store, then a zoo server, then `Http`
   for the index's own address.
+- `Sources::then_keep(name, store)` adds a store (anything that is a
+  `Transport` and a `Keep`: `Blobs` or `S3Bucket`) that also keeps every
+  file a later source serves, once it verifies, so the next read is
+  local. A file it cannot keep is still handed over. The keeping store
+  neither serves nor keeps an artifact whose class may not be
+  redistributed (`CLASS_LOCAL_ONLY`, refused): such a file comes only
+  from the sources after it, and no copy of it is made, on a server's
+  store or on a user's own machine.
+- `S3Bucket` (the `http` feature) is an S3 bucket or prefix, on AWS or
+  an S3-compatible store such as RustFS, in the same
+  `<prefix>/blobs/sha256/<hex>` layout: a file is read with one GET and
+  kept with one PUT, each signed with AWS Signature Version 4 (computed
+  over `sha2`, no AWS SDK), or unsigned for a public bucket.
+  `S3Bucket::new("s3://bucket/prefix")` is configured the way the AWS
+  tools are: `AWS_ENDPOINT_URL_S3` or `AWS_ENDPOINT_URL` for a store
+  other than AWS (addressed path-style), `AWS_REGION` or
+  `AWS_DEFAULT_REGION` (else `us-east-1`), and `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. Redirects are not
+  followed, so a signed request is not replayed elsewhere.
+  `analysis/zoo/tests/s3.rs` runs it against an in-process stand-in that checks each
+  signature; `analysis/zoo/src/fetch/sigv4.rs` checks HMAC-SHA-256 against RFC 4231
+  and the signatures against the S3 documentation's GET and PUT Object
+  examples.
+
+A zoo server keeps its files in such a store with
+`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
+(docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
+its first read, so a library pointed at it with `grpc(s)://` needs no
+separate install step. docs/zoo-container.md packs that server, the
+page and a RustFS store into one `docker compose`. `turbo-zoo-remote`
+(top-level `zoo-remote/`) adds the library's remote sources: a zoo
+server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, and the
+`TURBO_ZOO_SOURCE` list that names them.
 
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.

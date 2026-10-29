@@ -51,6 +51,13 @@ backend-agnostic scorer traits:
   (`CalibratedCategorizer` over
   `turbo_calibration::Transform::{Temperature, Platt, Isotonic}` and
   `turbo_calibration::metrics::reliability`).
+- **Classical and SVM categorizers (`categorizer`, `svm`, `train`)**:
+  behind the off-by-default `classical` feature: `DocumentCategorizerME`,
+  `DoccatModel`, `SpanCategorizer`, `SvmCategorizer` and `SvmDoccatModel`
+  (pure-Rust LIBSVM 3.35 SMO predictor, Wu-Lin-Weng 2004 multiclass pairwise
+  probability coupling, and binary/TF/TF-IDF/log-normalized-TF feature
+  weighting), and `SentimentMe` / `SentimentModel`. `DoccatFactory` and
+  `DoccatEventStream` remain always available in `train`.
 
 ## Multi-label categorization (`MultiLabelDoccatModel`)
 

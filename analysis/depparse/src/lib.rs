@@ -1,4 +1,6 @@
-//! Typed dependency trees and the OpenNLP 3.x greedy arc-standard parser.
+//! Typed dependency trees, CoNLL-U sample alignment, and UAS/LAS evaluation.
+//! Dependency parsing models and document annotation use the biaffine parser
+//! head on the shared encoder (`turbo-core` / `turbo-tagger`, #1514).
 //! Node indexes are zero-based; `None` is the artificial root's outgoing arc.
 //!
 //! Word and token graph indexes cannot be mixed:
@@ -10,27 +12,17 @@
 //!     graph.children(token).unwrap();
 //! }
 //! ```
-mod annotator;
-mod context;
-mod encoding;
 mod evaluation;
-pub use encoding::LabelEncoding;
 mod graph;
-mod model;
-mod projective;
+mod held_out;
 mod sample;
-mod training;
-mod transition;
 
-pub use annotator::{DependencyAnnotator, DependencyBackend};
-pub use context::{DependencyContextGenerator, ParserInput};
-pub use evaluation::{AttachmentScores, DependencyCrossValidator, DependencyEvaluator};
+pub use evaluation::{AttachmentScores, DependencyCrossValidator, DependencyEvaluator, DependencyParser};
 pub use graph::{ArcDirection, DependencyArc, DependencyGraph, PathStep};
-pub use model::{DependencyModel, DependencyParser, DependencyParserME};
-pub use sample::{DependencyEventStream, DependencySample};
-pub use transition::{ArcStandardOracle, ArcStandardState, Position, Transition};
+pub use held_out::{EvaluationSubset, HeldOutEvaluation};
+pub use sample::DependencySample;
 
-/// A checked public boundary, invalid model, or unavailable transition.
+/// A checked public boundary or invalid dependency graph.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Error(pub String);
 impl std::fmt::Display for Error {
@@ -43,15 +35,3 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub(crate) fn error(e: impl std::fmt::Display) -> Error {
     Error(e.to_string())
 }
-
-pub mod feedforward;
-pub use feedforward::{
-    Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel, FeedforwardDependencyParser,
-    FeedforwardDependencyTrainer, FeedforwardFeatureIds, FeedforwardSettings, NeuralWeights, Vocabulary,
-};
-
-mod swap;
-pub use swap::SwapOracle;
-
-mod held_out;
-pub use held_out::{EvaluationSubset, HeldOutEvaluation};

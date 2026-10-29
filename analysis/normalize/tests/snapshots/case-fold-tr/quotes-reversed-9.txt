@@ -1,0 +1,8 @@
+===OUT===
+das wort ⹂wort“ und „wort“ stehen nebeneinander.
+
+===EDITS===
+0	1	d
+4	5	w
+12	13	w
+27	28	w

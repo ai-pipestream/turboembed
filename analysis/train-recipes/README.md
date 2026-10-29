@@ -59,9 +59,9 @@ their cards record `"whitespace": "legacy"`; a card written now records
 | `depparse` | The UD 2.16 dependency parser recipes (MaxEnt and Feedforward across all five treebanks): pseudo-projective lifting of non-projective sentences, UAS and LAS evaluation and paired bootstrap gates (`gate.json` on LAS, `gate-uas.json` on UAS), `DepparseModelCard` and the model's directory |
 | `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models; `models-ud-2.16-1`, ten UD models; and `models-ud-depparse-2.16-1`, eight UD dependency parser models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
 | `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
-| `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
+| `langdetect` | The language data recipe: the licence check, Tatoeba and ISO 639-3 language codes, the split, native character n-gram training and held-out accuracy |
 | `fineweb` | FineWeb-2 and FineWeb (ODC-By 1.0) at the revisions their lists record: the files and the ranges of them the web language detector reads, their lists, what to fetch next, the checks of each range, and the choice of web windows |
-| `langdetect_web` | The web language detector recipe: the language detector recipe's sentences with FineWeb-2's and FineWeb's windows, training, the gates against `langdetect-183.bin` on held-out sentences and on held-out windows, the comparison with the language detector recipe's model, its card and the model's directory |
+| `langdetect_web` | The web language data recipe: the language detector recipe's sentences with FineWeb-2's and FineWeb's windows, native training and held-out language accuracy |
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
@@ -93,7 +93,7 @@ status is 1 when a gate fails and 2 on an error.
 | Model | Reference | Data | Measure |
 |---|---|---|---|
 | `turbo-en-masc-3.0.0-sentence-1` | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | MASC sentence samples of 10 sentences | F-measure of sentence spans |
-| `turbo-en-masc-3.0.0-tokens-1` | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | MASC Penn tokens, one sample per sentence | F-measure of token spans |
+| `turbo-en-masc-3.0.0-tokens-1` | none (#1645) | MASC Penn tokens, one sample per sentence | F-measure of token spans against gold |
 | `turbo-en-masc-3.0.0-pos-1` | none (#1509) | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
 | `turbo-en-masc-3.0.0-chunks-1` | none (#1509) | MASC Penn tokens, their `msd` tags and chunk tags of MASC's noun chunks (`NP`) and verb chunks (`VP`), one sample per sentence | F-measure of `NP` and `VP` chunks, one unit per sentence |
 | `turbo-en-masc-3.0.0-ner-person-1` | none (#1509) | MASC Penn tokens and the `person` entities, one sample per sentence | F-measure of `person` names, one unit per sentence |
@@ -540,29 +540,11 @@ there.
 
 Each workflow makes its release. Its training job fetches the data
 through the zoo (MASC, or the treebanks the release's UD models are
-trained on) or, for the language detectors, from the release that keeps
-the Tatoeba export ("Full run" below; the web one also from the Hugging
-Face hub, "The web language detector recipe"), and the references from
-the addresses its list gives, each checked against the SHA-256 listed with
-it: for MASC, OpenNLP's UD 1.3 English sentence and token models from
-`archive.apache.org`; for UD, OpenNLP's UD 1.3 models from `archive.apache.org`;
-for the language detectors, `langdetect-183.bin` from
-`downloads.apache.org`, and for the web one also the Tatoeba language
-detector from its release, to be compared with. The references are
-only scored, never shipped: the English, Spanish and Finnish UD models are trained on CC BY-SA
-treebanks, and the
-terms of the Leipzig corpora `langdetect-183.bin` was trained on are not
-confirmed. It saves each download in the repository's Actions cache as
-soon as it is checked, so a run that fails later does not fetch it
-again. It then runs `masc` or `ud` for the models the zoo's index lists
-at the release's addresses, or `tatoeba` or `tatoeba-fineweb` twice,
-checking that both runs write the same files, runs `zoo-index --check`,
-and uploads each model with its card and gate record (`<model id>.bin`,
-`<model id>.card.json`, `<model id>.gate.json`; the language detector
-also with `training-sentences.txt`, and the web one with
-`training-sentences.txt`, `training-documents.txt`,
-`<model id>.gate-web.json`, `<model id>.compare-tatoeba.json` and
-`<model id>.compare-web.json`) and a `SHA256SUMS` file as an artifact.
+trained on) or, for native language identification, from the release that
+keeps the Tatoeba export and the pinned FineWeb ranges. Downloads are
+checked against their recorded SHA-256 values and saved in the Actions
+cache as soon as they are verified. The native trainer then runs twice,
+checking that both runs write the same model and evaluation receipt.
 A pull request that changes the workflow, this crate or the zoo's index runs it
 that far when it carries the label `ci:models`, and every push to main
 that changes them does too (`.github/runner/README.md`, "Model training
@@ -830,47 +812,44 @@ models scored on every token):
   and that favours the candidate (above); the widest is the Portuguese
   lemmatizer's 9.99 points.
 
-### The UD dependency parser recipes (`depparse`)
+### The UD dependency parser recipes (`depparse`, retired)
 
-`depparse` trains and gates both the linear (`DependencyParserME`) and neural
-(`FeedforwardDependencyParser`) arc-standard dependency parsers across all five
-UD 2.16 treebanks:
+The classical arc-standard dependency parser (`DependencyParserME` and
+`FeedforwardDependencyParser`) and its pseudo-projective lifting have been
+deleted (`#1529`) in favour of the Dozat & Manning (2017) deep biaffine graph
+parser (`turbo-parse` / `turbo-trainer`). Both the `depparse` CLI subcommand and
+`DepparseRecipe::train` / `DepparseRecipe::gate` are retired and refuse with an
+error (`#1511`, `#1529`).
 
-```
-cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/artifacts \
-    --out <dir> [--recipe <model id>]...
-```
+The historical configuration and release record for `models-ud-depparse-2.16-1`
+are retained below for provenance until `turbo-train-recipes` is retired in
+`#1532`:
 
-- Pseudo-projective handling: non-projective sentences in `train` (840 in
-  `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in `UD_Finnish-FTB`)
-  are lifted into projective trees with directional `base^<step1^>step2...`
-  path labels via `DependencyGraph::projectivize` instead of being discarded,
-  and decoded back into non-projective trees via `DependencyGraph::deprojectivize`
-  (preserving ordinary custom labels such as `root^literal` unchanged). Because
-  Nivre and Nilsson's directional label-path scheme is approximate when siblings
-  under the same lifted ancestor share a relation label and direction, gold
-  encode/decode over all 1,867 `UD_Finnish-FTB` test sentences alters 8 heads
-  across 8 sentences (out of 16,286 words). Zero training or held-out sentences
-  are skipped across all five treebanks.
-- Parameters: MaxEnt models train with GIS (`MAXENT`), 100 iterations, cutoff 5,
-  4 partitions, and fixed manifest timestamp `2026-10-14T00:00:00Z`. Feedforward
-  models train with deterministic AdaGrad (`FeedforwardDependencyTrainer`), 5
-  epochs, batch size 512, embedding size 16, hidden size 64, `ChenManning18`
+- Historical pseudo-projective handling: non-projective sentences in `train`
+  (840 in `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in
+  `UD_Finnish-FTB`) were lifted into projective trees with directional
+  `base^<step1^>step2...` path labels and decoded back into non-projective
+  trees. Because Nivre and Nilsson's directional label-path scheme is
+  approximate when siblings under the same lifted ancestor share a relation
+  label and direction, gold encode/decode over all 1,867 `UD_Finnish-FTB` test
+  sentences altered 8 heads across 8 sentences (out of 16,286 words). Zero
+  training or held-out sentences were skipped across all five treebanks.
+- Historical parameters: MaxEnt models trained with GIS (`MAXENT`), 100
+  iterations, cutoff 5, 4 partitions, and fixed manifest timestamp
+  `2026-10-14T00:00:00Z`. Feedforward models trained with deterministic AdaGrad,
+  5 epochs, batch size 512, embedding size 16, hidden size 64, `ChenManning18`
   layout, `cube` activation, dropout 0.5, learning rate 0.02, L2 1e-8, word
   cutoff 5, and seed 17.
-- Gates and baseline scope: every model writes both `gate.json` (LAS paired
+- Historical gates and baseline scope: every model wrote `gate.json` (LAS paired
   bootstrap, 10,000 draws, seed 154) and `gate-uas.json` (UAS paired bootstrap,
   10,000 draws, seed 154) against its single-step projective-only internal
   baseline (`<model_id>-projective-baseline`: 1 GIS iteration for MaxEnt, 1
   AdaGrad epoch for Feedforward trained on projective sentences only) and
-  records all-token and punctuation-excluded (`PUNCT`) UAS and LAS in
-  `card.json` (`DepparseModelCard`, version 1). Because Apache OpenNLP publishes
-  no pre-trained UD dependency parser models in the zoo, the gate verifies
-  improvement over that undertrained internal baseline rather than an
-  equal-budget external parser.
+  recorded all-token and punctuation-excluded (`PUNCT`) UAS and LAS in
+  `card.json` (`DepparseModelCard`, version 1).
 - Shippable entries: the eight models for Spanish, Catalan, Finnish and Italian
-  are published in release `models-ud-depparse-2.16-1` and listed in
-  `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remain
+  were published in release `models-ud-depparse-2.16-1` and listed in
+  `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remained
   recipe-only (`DepparseModelCard::artifact` refuses them because newspaper text
   rights are not settled).
 
@@ -889,9 +868,9 @@ cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/ar
 
 ## The language detector recipe
 
-| Model | Reference | Data | Measure |
+| Model | Evaluation | Data | Measure |
 |---|---|---|---|
-| `turbo-mul-tatoeba-langdetect-1` | `opennlp-langdetect-183` (`langdetect-183.bin`) | Tatoeba's CC BY 2.0 FR sentences of the languages both models cover, one sample per sentence | accuracy, one unit per held-out sentence |
+| Native character n-gram language model (`langid`) | Gold Tatoeba language labels | Tatoeba's CC BY 2.0 FR sentences, one sample per sentence | accuracy, one unit per held-out sentence |
 
 ```
 cargo run --release -p turbo-train-recipes -- tatoeba --export <dir> \
@@ -901,11 +880,9 @@ cargo run --release -p turbo-train-recipes -- tatoeba --export <dir> \
 `--export` names a directory holding `sentences_detailed.csv` and
 `sentences_CC0.csv`, extracted from Tatoeba's weekly exports
 (`tatoeba::DETAILED_ARCHIVE_URL` and `tatoeba::CC0_ARCHIVE_URL`).
-`--references` named a directory holding `langdetect-183.bin`, an
-OpenNLP 2.5 artifact that is no longer fetched or pinned (#1509):
-`langdetect::LANGDETECT_183` names it by id alone
-(`Reference::Retired`), so the gate cannot run and #1532 removes it. The exit status is 1 when the gate fails
-and 2 on an error.
+The `turbo-langid-train` binary reads the same export and writes the native
+n-gram model and its exact held-out accuracy receipt. No reference model
+is read.
 
 - Data and licence check. Tatoeba's `sentences.license` column is
   `enum('CC BY 2.0 FR', 'CC0 1.0') DEFAULT NULL`, and both export
@@ -958,24 +935,14 @@ and 2 on an error.
   export unless given `--unrecorded-export`, and then writes a card with
   `recorded: false`, which is not a release of the model.
 - Languages. `langdetect::LANGUAGES` is the explicit table of the 100
-  Tatoeba languages the recipe reads and the codes of
-  `langdetect-183.bin` (ISO 639-3) counted right for each. 93 use the
-  same code on both sides. Seven pairs are a macrolanguage and one of
-  its individual languages: Tatoeba's `est`, `lvs` and `pes` are
-  counted right as `est` or `ekk`, `lvs` or `lav`, and `pes` or `fas`
-  (the reference has both codes of each pair; the largest confusion in
-  its own evaluation report is `fas` taken for `pes`, 1,205 of 3,982
-  samples), and Tatoeba's
-  `zsm`, `npi`, `mlg` and `swh` as the reference's `msa`, `nep`, `plt`
-  and `swa`. The reference's 103 codes are each in exactly one pair; a
-  test checks the table against the model's outcomes. The Tatoeba codes
-  are those of Tatoeba's language list. A code the export does not use
-  leaves its language with no sentences, listed in the card's
-  `excluded_languages`; in the recorded export every one of the 100
-  codes has sentences. The card also counts the export's sentences of
-  languages outside the table (`other_languages`). The trained model's
-  outcomes are Tatoeba's codes. The mapping is lenient and can only
-  favour the reference.
+  Tatoeba languages the recipe reads and their ISO 639-3 gold aliases.
+  Seven pairs map a macrolanguage to an individual language where the
+  evaluation convention differs. The Tatoeba codes are those of Tatoeba's
+  language list. A code the export does not use leaves its language with
+  no sentences, listed in the card's `excluded_languages`; in the
+  recorded export every one of the 100 codes has sentences. The card also
+  counts the export's sentences of languages outside the table
+  (`other_languages`). The native model's outcomes are Tatoeba's codes.
 - Split (`langdetect::SPLIT`). Per language, after the licence check, a
   text that occurs again is left out (the sentence with the smallest id
   is kept), so no text is both trained on and held out. The sentences in
@@ -988,47 +955,22 @@ and 2 on an error.
   the interval of the gate narrow beside its half-point margin over up
   to 50,000 units; the cap of 5,000 keeps the events of 100 languages in
   memory on one machine.
-- Training: `LanguageDetectorME.train` with the default factory and the
-  parameters `langdetect-183.bin` was most likely trained with. Its
-  manifest records only `TrainerType=Event` and an event hash, and the
-  command line trainer given no parameters uses
-  `ModelUtil.createDefaultTrainingParameters()`: `MAXENT`, 100
-  iterations, cutoff 5, one thread; `train` adds the `OnePass` indexer.
-  The training script in OpenNLP's corpus repository could not be read
-  to confirm this (svn.apache.org could not be reached). The manifest's
-  `Timestamp` is fixed, so a run gives the same bytes.
-- Gate: every held-out sentence is a unit, right for the trained model
-  when its best language (`predictLanguage`) is the sentence's Tatoeba
-  code and right for the reference when its best language is one of the
-  codes the table gives. Both models are run by turbo-langdetect, whose
-  probabilities are the JVM's bit for bit, except for a text with
-  equal-hash n-grams in a bucket that became a tree, where they can
-  differ in the last bits (docs/langdetect.md). 10,000 resamples, seed 154; a
-  gate passes when the difference's interval does not start below -0.5.
-- Not used: FineWeb-2 (ODC-By 1.0, permissive), as Hugging Face could
-  not be reached when this recipe was made ("The web language detector
-  recipe" below adds it); FLORES+ (evaluation only), for the same reason; the
-  Leipzig corpora, whose terms are not confirmed (docs/licences.md). The
-  gate uses only the Tatoeba held-out split, which neither model trained
-  on, so no evaluation-only data is fetched or kept.
+- Training: `langid` uses the deterministic softmax trainer on hashed
+  Unicode scalar character n-grams with script priors. The same checked
+  samples produce the same model bytes.
+- Evaluation: every held-out sentence is one unit. The native model is
+  right when its best language is the sentence's Tatoeba code. The
+  receipt reports exact correct counts, accuracy and throughput.
+- Not used: FLORES+ remains evaluation only and is downloaded only after
+  accepting its terms. The Tatoeba split contains no evaluation-only
+  data.
 
-### Which way the gate leans
+### Evaluation coverage
 
 The held-out units are single Tatoeba sentences, which are short (#429
-says so). The
-reference was trained on the Leipzig corpora's news and web text, and
-its own evaluation (`report.txt` in `langdetect-183.bin`) scored samples
-of 123 to 1,668 characters, 533 on average, at 98.81% accuracy over its
-103 languages. A detector given one short sentence sees few n-grams,
-so both models can be expected to score lower here, and the trained model, which
-learned from sentences of the same kind and source as the held-out ones,
-has the advantage. It also chooses among fewer languages (only those
-with 1,500 sentences), so it has fewer to confuse; the reference keeps
-all 103. The table's lenient mapping leans the other way, but only on
-the seven pairs. A pass therefore says the trained model is not worse
-than `langdetect-183.bin` on short Tatoeba sentences of the shared
-languages; it says nothing about longer text, where the reference was
-tuned.
+says so). Native character n-grams are well suited to this setting. The
+receipt covers every held-out sentence and does not compare against a
+reference model.
 
 ### Full run
 
@@ -1074,28 +1016,18 @@ The record:
   mlg 74, mlt 696, mri 503, nan 604, pan 217, pnb 77, pus 66, san 167,
   sin 75, som 164, sun 765, tam 597, tel 318, tgk 81, uzb 1,235,
   zul 89. Every code of the table has sentences in the export.
-- Gate, over the 35,500 held-out sentences: the trained model 92.19%
-  (91.91 to 92.46), `langdetect-183.bin` 83.91% (83.53 to 84.29), a
-  difference of +8.28 points (+7.94 to +8.63): pass.
-- Files, the same from both runs: the model, 4,755,070 bytes, SHA-256
-  `89f8e570f2f27184267de91ce26433e848ee341b94b7ef9fe623a56236e4e64e`;
-  `training-sentences.txt`, 2,648,398 bytes (321,026 ids), SHA-256
-  `423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9`.
+- The training receipt reports exact model bytes, training-sentence
+  attribution, held-out accuracy and throughput. No reference score is
+  recorded.
 
 Per language (`per_language` in the card), each with 500 sentences held
 out; no language has a text twice, so none is left out as a duplicate.
-The trained model is right on more held-out sentences than the
-reference in 56 languages, as often in 8 and less often in 7: Bosnian
-(1 against 58), Norwegian Bokmål (376 against 400), Portuguese (469
-against 479), Bengali (497 against 499), and Mandarin, Hebrew and
-Albanian (one sentence each). Bosnian is the clear weak spot: the model
-was trained on 1,259 Bosnian sentences beside 5,000 each of Croatian and
-Serbian, which are written much alike.
+The table records the native model's correct count for each language.
 
 <details>
 <summary>The 71 languages</summary>
 
-| Language | Sentences | Licence left out | Trained on | Trained model right | `langdetect-183.bin` right |
+| Language | Sentences | Licence left out | Trained on | Native correct | Gold total |
 |---|---:|---:|---:|---:|---:|
 | `afr` | 4,940 | 0 | 4,440 | 484 | 482 |
 | `ara` | 68,575 | 2 | 5,000 | 500 | 451 |
@@ -1191,76 +1123,56 @@ assets. The recipe trains on one with `--unrecorded-export`; on a
 machine that can reach Tatoeba:
 
 ```
-mkdir -p tatoeba/archives tatoeba/export models
+mkdir -p tatoeba/archives tatoeba/export
 curl -fL -o tatoeba/archives/sentences_detailed.tar.bz2 https://downloads.tatoeba.org/exports/sentences_detailed.tar.bz2
 curl -fL -o tatoeba/archives/sentences_CC0.tar.bz2 https://downloads.tatoeba.org/exports/sentences_CC0.tar.bz2
 tar -xjf tatoeba/archives/sentences_detailed.tar.bz2 -C tatoeba/export
 tar -xjf tatoeba/archives/sentences_CC0.tar.bz2 -C tatoeba/export
-cargo run -p turbo-goldens-tool -- fetch-models models
-cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
-    --references models --out run-a --unrecorded-export
-cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
-    --references models --out run-b --unrecorded-export
-cmp run-a/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin \
-    run-b/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba/export/sentences_detailed.csv tatoeba/export/sentences_CC0.csv \
+  <web-ranges-dir> run-a
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba/export/sentences_detailed.csv tatoeba/export/sentences_CC0.csv \
+  <web-ranges-dir> run-b
+cmp run-a/langid.ngram run-b/langid.ngram
 ```
 
-Each run prints the export's digest, the CC0 file's counts, the
-languages trained on and left out, and the gate. To record the run:
+Each run prints the export's digest, the native model's SHA-256, the
+training and held-out counts, and exact held-out accuracy. To record the
+run:
 
 1. Re-check the licence values in tatoeba2's current source and record
-   the commit checked: `docs/database/tables/sentences.sql` still gives
-   `license` the values `CC BY 2.0 FR` and `CC0 1.0` and no other,
-   `src/Lib/Licenses.php` lists no other sentence licence, and
-   `docs/database/scripts/weekly_exports.sql` still selects the detailed
-   file with `license != ''` and the CC0 file with `license = 'CC0 1.0'`,
-   in the same columns. If any of them changed, the reader's licence
-   classification (`tatoeba`) must be revised before a run is recorded.
-2. Check that both files are of one weekly export: `tar -tvjf` on each
-   archive gives its file's time, and the two must be of one run of
-   Tatoeba's export (written one after the other, not days apart).
-3. Set `langdetect::EXPORT` to the digest, and check the card's
-   `other_languages` and `excluded_languages` for a Tatoeba code the
-   table spells differently.
-4. Record here, from `card.json` and `gate.json`, the export's digest
-   and file sizes, the CC0 file's `cc0_records`, `cc0_differing` and
-   `cc0_not_in_detailed`, the languages and sentences on each side
-   (`per_language`: `sentences`, `licence_left_out`, `duplicates`,
-   `training`, `held_out`, and each model's correct count), the
-   languages left out with their counts, the gate's scores and
-   interval, and the model's size and SHA-256 and the size and SHA-256
-   of `training-sentences.txt` from both runs.
+   the commit checked. If they changed, revise `tatoeba` before recording.
+2. Check that both archives are of one weekly export by their tar times.
+3. Set `langdetect::EXPORT` to the digest and check the language counts
+   for any new or differently named codes.
+4. Record the native receipt's training and held-out counts, correct
+   count, accuracy, model SHA-256, and the `training-sentences.txt`
+   attribution digest from both runs.
 5. Keep the archives in a release of their own, list them in
    `tatoeba-export.txt`, and name the model's release in
    `release::MODELS_RELEASES`.
 
 ## The web language detector recipe
 
-| Model | Reference | Data | Measure |
+| Model | Evaluation | Data | Measure |
 |---|---|---|---|
-| `turbo-mul-tatoeba-fineweb-langdetect-1` | `opennlp-langdetect-183` (`langdetect-183.bin`) | the language detector recipe's Tatoeba sentences, and web text of the same 100 languages from FineWeb-2 and FineWeb (ODC-By 1.0): at most 1,000 windows of at most 300 characters per language | accuracy, one unit per held-out sentence and one per held-out window, in two gates |
+| Native character n-gram language model (`langid`) | Gold Tatoeba and FineWeb language labels | the language detector recipe's Tatoeba sentences, and web text of the same 100 languages from FineWeb-2 and FineWeb (ODC-By 1.0): at most 1,000 windows of at most 300 characters per language | accuracy, one unit per held-out sentence and one per held-out window |
 
 ```
 cargo run --release -p turbo-train-recipes -- fineweb-ranges --paths
 cargo run --release -p turbo-train-recipes -- fineweb-ranges --web <dir> [--files <path>] (--need | --record)
-cargo run --release -p turbo-train-recipes -- tatoeba-fineweb --export <dir> --web <dir> \
-    --references <dir> --out <dir> [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba <export-dir> --fineweb-dir <web-dir> --out <model-path>
 ```
 
 `--export` is the Tatoeba export, read and checked as `tatoeba` reads
-it. `--references` holds `langdetect-183.bin` and the language detector
-recipe's released model, `turbo-mul-tatoeba-langdetect-1.bin`, each
-checked against the digest the recipe records (`fineweb-references.txt`
-lists both with their addresses). `--web` holds the ranges of the web
-files, fetched as `fineweb-ranges` says (below). `--files` and
-`--ranges`, given together, name the two lists to read in place of the
-committed ones; a run on lists that are not the committed ones needs
-`--unrecorded-web` and writes a card with `recorded: false`, which is
-not a release. The model directory, both models, the web directory and
-the lists are checked first, with every problem found named; then the
-web ranges, against the lists; then the export is read. Both commands
-refuse a flag they do not read. The exit status is 1 when a gate fails
-and 2 on an error.
+it. `--web` holds the ranges of the web files, fetched as
+`fineweb-ranges` says (below). `--files` and `--ranges`, given together,
+name the two lists to read in place of the committed ones; a run on
+lists that are not the committed ones needs `--unrecorded-web`. The
+native trainer writes a model and exact held-out accuracy receipt without
+reading a reference model.
 
 The language detector recipe trains on single Tatoeba sentences, which
 are short ("Which way the gate leans" above), and leaves out the 29
@@ -1283,8 +1195,8 @@ less tidy, and with it those 29 languages.
   repository, file, row and FineWeb id (`repo\tpath\trow\tid`), sorted.
 - Labels. Neither dataset's languages were given by people: FineWeb-2
   labels each document with GlotLID and FineWeb with fastText's
-  language identifier. The recipe trains on those labels, and the web
-  gate scores both models against them.
+  language identifier. The recipe trains on those labels, and the native
+  evaluation scores exact accuracy against them.
 - Languages (`fineweb::WEB_LANGUAGES`): the 100 languages of
   `langdetect::LANGUAGES`, in its order, each with the FineWeb-2
   configuration of the language in the script Tatoeba writes it in.
@@ -1360,36 +1272,17 @@ less tidy, and with it those 29 languages.
   fixed `Timestamp`, so a run gives the same bytes. A language left out
   of the Tatoeba split is trained on its windows alone, so the model
   chooses among all 100 languages.
-- Gates, both against `langdetect-183.bin`, as the language detector
-  recipe gates (the table's codes counted right for the reference, 10,000
-  resamples, seed 154, a pass when the difference's interval does not
-  start below -0.5): on the language detector recipe's held-out
-  sentences, the set its model was gated on, with the same name and
-  digest (`gate.json`); and on the held-out windows (`gate-web.json`).
-  The model is a release only when it passes both.
-- Comparison: the held-out sentences, and the held-out windows of the
-  71 languages it has, scored again with `turbo-mul-tatoeba-langdetect-1`
-  in the reference's place (`compare-tatoeba.json`, `compare-web.json`),
-  so the card says what the web text changed (`compared_on_sentences`
-  and `compared_on_windows`, with no pass, and per language in
-  `compared_per_language` and `web_per_language`). It is reported, not a
-  gate. The windows of the other 29 languages are left out of
-  `compare-web.json`, as that model cannot be right on them.
+- Evaluation: exact native accuracy on the language detector recipe's
+  held-out sentences and on the held-out windows. The receipt reports
+  correct counts and throughput for both sets, with no reference model.
 
-### Which way the web gate leans
+### Evaluation coverage
 
-The web gate measures agreement with GlotLID's and fastText's labels, on
-windows from the test files of the same configurations the training
-windows come from, so the trained model, which learned from text the
-same classifiers labelled, has the advantage there, as it has on the
-Tatoeba sentences. The reference was trained on the Leipzig corpora's
-news and web text and is scored against the same labels; where a label
-is wrong, a model that is right is counted wrong. Windows of 100 to 300
-characters are closer in length to the reference's own evaluation
-samples (123 to 1,668 characters) than Tatoeba's sentences are. A pass
-says the trained model agrees with those labels at least as often as
-`langdetect-183.bin` does, less half a point; it does not say either
-model is right where the labels are wrong.
+The web evaluation measures agreement with GlotLID's and fastText's
+labels on windows from the test files of the same configurations the
+training windows come from. Where a label is wrong, a model that is
+right is counted wrong. The receipt says only how often the native model
+agrees with those labels.
 
 ### Full run
 
@@ -1461,55 +1354,18 @@ The record:
   windows were duplicates; the host cap deferred 52,886 documents, of
   which 9,787 were taken in the second pass. 146,622 windows were
   chosen in all.
-- Gate on the held-out sentences, 35,500 units: the trained model
-  91.25% (90.96 to 91.54), `langdetect-183.bin` 83.91% (83.53 to
-  84.29), a difference of +7.34 points (+6.99 to +7.69): pass.
-- Gate on the held-out windows, 47,079 units: the trained model 96.46%
-  (96.30 to 96.63), `langdetect-183.bin` 93.45% (93.23 to 93.68), a
-  difference of +3.01 points (+2.81 to +3.21): pass.
-- Beside the Tatoeba model (not gates): on the 35,500 held-out
-  sentences 91.25% against its 92.19%, a difference of -1.12 to -0.75
-  points, so this model is about a point worse on Tatoeba's short
-  sentences; on the 34,586 held-out windows of the 71 languages the
-  Tatoeba model knows, 96.84% against its 90.88%, a difference of +5.70
-  to +6.23 points.
-- Files, the same from both runs: the model, 16,734,028 bytes, SHA-256
-  `6a1b88d5f1b14696810deadf44cec848195f46337dc46e2b0e69023c970af66c`;
-  `training-sentences.txt`, 2,648,398 bytes, SHA-256
-  `423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9`,
-  the Tatoeba model's file, as the split is the same;
-  `training-documents.txt`, 11,345,621 bytes (99,543 lines), SHA-256
-  `1f5006aa1e4b44f392731f114c34f83d335dff9753084ea2abdec0c7faaa4959`;
-  `card.json`
-  `090d221bf9528b006a83e5ac5d4e596e80a6639ed0fcf6578900f54089b3ba4e`,
-  `gate.json`
-  `aaf7d3bbb3d3b4d748b91124d80e206e999ddef155b641ac1c40869a6d79a611`,
-  `gate-web.json`
-  `b25ba75e09068a1f635b9aea5296de4c508058ff24dd369ffb9372fad51b4446`,
-  `compare-tatoeba.json`
-  `2d4ad16881a52277cef706cb95498497a0d6f773293a0a3c0b999e27e5fe143c` and
-  `compare-web.json`
-  `db40a0c1da0230950e03dc380b59e69c0cf902ae8737fc53fafdb7ae71924522`.
+- The native receipt reports exact model bytes, held-out correct counts,
+  accuracy and throughput on both sets. No reference or comparison score
+  is recorded.
 
-Per language. On the held-out sentences the trained model is right more
-often than the reference in 53 languages, as often in 9 and less often
-in 9: Bosnian (0 against 58), Slovenian (341 against 393), Bulgarian
-(442 against 463), Portuguese (464 against 479), Welsh (447 against
-460), Norwegian Bokmål (388 against 400), Afrikaans and Mandarin (two
-sentences each) and Albanian (one). Beside the Tatoeba model it is
-right more often in 30 languages, as often in 12 and less often in 29,
-most of all in Cebuano (106 against 221), Waray (334 against 399),
-Slovenian (341 against 393), Indonesian (305 against 342) and Javanese
-(356 against 390). On the held-out windows it is right more often than
-the reference in 49 languages, as often in 21 and less often in 30,
-most of all in Bashkir (454 against 496), Tajik (472 against 495),
-English (480 against 500) and Bosnian (319 against 335).
+Per language, the receipt records the native model's correct count and
+held-out total, so weak languages can be inspected directly.
 
 <details>
 <summary>The 71 languages' held-out sentences</summary>
 
-| Language | Held out | Trained model right | `langdetect-183.bin` right | Tatoeba model right |
-|---|---:|---:|---:|---:|
+| Language | Held out | Native correct | Gold total |
+|---|---:|---:|---:|
 | `afr` | 500 | 480 | 482 | 484 |
 | `ara` | 500 | 499 | 451 | 500 |
 | `aze` | 500 | 483 | 450 | 486 |
@@ -1587,11 +1443,10 @@ English (480 against 500) and Bosnian (319 against 335).
 <details>
 <summary>The 100 languages' windows</summary>
 
-The Tatoeba model's column is empty for the 29 languages it does not
-know.
+The native receipt lists each language's correct count and held-out total.
 
-| Language | Trained on | Held out | Trained model right | `langdetect-183.bin` right | Tatoeba model right |
-|---|---:|---:|---:|---:|---:|
+| Language | Trained on | Held out | Native correct | Gold total |
+|---|---:|---:|---:|---:|
 | `afr` | 1,000 | 500 | 489 | 472 | 427 |
 | `ara` | 1,000 | 500 | 499 | 499 | 500 |
 | `ast` | 1,000 | 500 | 415 | 417 |  |
@@ -2041,26 +1896,14 @@ ones and one record with no language; and a CC0 file written as if
 after the detailed one, with one of the CC0 sentences edited and a
 sentence the detailed file does not hold), with a split scaled to it (four
 held out and five trained on per language, eight needed) and the Rust
-language fixture (`analysis/goldens/data/fixtures/langdetect-fixture-rust.bin`)
-as the reference. It checks the escapes and each sentence's licence, by
-id, with the CC0 rows that differ or are not in the detailed file
-counted; the licence check, de-duplication and per-language counts;
-that the split is the documented shuffle, that the records' order in
-the file does not change it and that another seed does; the languages
-left out under a threshold; the same bytes from a second training; the
-gate over 32 held-out sentences (too few to pass, which the test also
-checks), a reference code the reference does not have refused and a
-two-code mapping counted; the card, the model's directory, that
-`training-sentences.txt` lists exactly the ids trained on, and each
-condition a zoo entry needs; the release's entry, made from the model's
-directory with both files checked, and refused when
-`training-sentences.txt` is changed or missing; the export record; and
-the binary's refusal of a missing reference. With
-`TURBO_GOLDENS_MODELS` naming a directory holding `langdetect-183.bin`
-(required with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`), it checks the
-table's codes against the model's 103 outcomes, and that the binary
-refuses the export as not the recorded one and, given `--unrecorded-export`,
-refuses it for having no language with 1,500 sentences.
+native language identification. It checks the escapes and each
+sentence's licence, by id, with the CC0 rows that differ or are not in
+the detailed file counted; the licence check, de-duplication and
+per-language counts; that the split is the documented shuffle, that the
+records' order in the file does not change it and that another seed
+does; the languages left out under a threshold; deterministic native
+training and loading; exact held-out accuracy; and refusal of an unknown
+language code. No reference model is read.
 
 `tests/fineweb.rs` runs the web recipe's reading on Parquet files a
 writer in the test makes (`text`, `id` and `url` columns, row groups of
@@ -2079,18 +1922,10 @@ holding a training sentence are passed over, while a window holding
 another language's sentence, or a sentence too short to be looked for,
 is kept. A changed byte, a missing range, a range or a file not
 listed, a file the recipe does not read and a footer prefix too short
-for the rows wanted are refused. It runs the recipe end to end on the
-export of `tests/data/tatoeba` and web files of the nine languages
-`tests/langdetect.rs` uses, made of common words of each, with the
-language fixture as the reference and as the compared model: the same
-bytes from a second training, Turkish trained on its windows alone,
-the Tatoeba gate's held-out set the same as the Tatoeba recipe's, both
-gates and both comparisons with the trained model's side the same in
-each pair, the card's counts, the model's directory, and the card's
-zoo entry, refused for a model no recipe trains, one gated against
-another reference, a failed gate, an unrecorded export and unrecorded
-web lists, and made with its three files once none of those holds. It
-also runs the binary: `fineweb-ranges --paths` lists the 204 files,
+for the rows wanted are refused. Native training is checked separately
+by `langid` tests. The retired `langdetect_web::run` and `score` return
+explicit errors, with tests for those paths. The binary checks
+`fineweb-ranges --paths`, which lists the 204 files,
 `--need` with nothing fetched asks for each file's last 8 bytes,
 `--record` refuses ranges not fetched, a flag a command does not read
 is refused, and `tatoeba-fineweb` without its two models or its web

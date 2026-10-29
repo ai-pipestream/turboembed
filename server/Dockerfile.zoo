@@ -1,0 +1,78 @@
+# syntax=docker/dockerfile:1
+#
+# The model zoo image (docs/zoo-container.md): turbo-kserve serving its
+# model catalog in zoo mode (docs/grpc-catalog.md, Zoo mode) and the demo
+# page (docs/demo.md) in front of it, built from the tree on the same
+# slim Debian base as server/Dockerfile. The build context is the
+# repository root:
+#
+#   docker build -f server/Dockerfile.zoo -t turbo-zoo .
+#
+# The image holds no model. The zoo home is the /zoo volume; a model is
+# fetched from its origin, or from the store named by
+# TURBO_KSERVE_CATALOG_STORE, only when a user it is permitted to reads it
+# or installs it. gRPC listens on 0.0.0.0:8081, the page on 0.0.0.0:8080.
+# docker-compose.zoo.yml runs it beside RustFS as the store.
+
+ARG BUILD_BASE=rust:1.98-slim-bookworm@sha256:ff521445a372125ed4f76e1453a1f8098f2d05332d1601d30db1c1f62757e730
+ARG RUNTIME_BASE=debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+
+FROM ${BUILD_BASE} AS build
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Bound build parallelism; callers may raise it on dedicated builders.
+ARG CARGO_BUILD_JOBS=2
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates g++; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . .
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target,sharing=locked \
+    set -eux; \
+    cargo build --locked --release -p turbo-kserve -p turbo-kserve-demo; \
+    mkdir -p /out/bin /out/licenses; \
+    cp target/release/turbo-kserve target/release/turbo-kserve-demo /out/bin/; \
+    cp server/zoo/zoo-start server/zoo/zoo-bucket server/zoo/zoo-health /out/bin/; \
+    cp LICENSE /out/licenses/LICENSE; \
+    cp NOTICE /out/licenses/NOTICE
+
+FROM ${RUNTIME_BASE}
+# libstdc++ for the backends' C++ host side; ca-certificates for the
+# catalog's HTTPS fetches; curl for zoo-bucket and the health check.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl libstdc++6; \
+    rm -rf /var/lib/apt/lists/*; \
+    useradd --uid 10001 --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin turbo; \
+    mkdir -p /zoo; \
+    chown 10001:10001 /zoo
+
+COPY --from=build /out /opt/turbo
+
+ENV PATH=/opt/turbo/bin:${PATH} \
+    TURBO_KSERVE_LISTEN=0.0.0.0:8081 \
+    TURBO_KSERVE_CATALOG_DIR=/zoo \
+    TURBO_KSERVE_ZOO=1 \
+    TURBO_DEMO_LISTEN=0.0.0.0:8080 \
+    TURBO_DEMO_SERVER=http://127.0.0.1:8081 \
+    TURBO_DEMO_ALLOW=/turbo.training.v1.TurboCatalogService/RecordLicenceAcceptance,/turbo.training.v1.TurboCatalogService/RevokeLicenceAcceptance,/turbo.training.v1.TurboCatalogService/InstallModel \
+    NVIDIA_VISIBLE_DEVICES=void
+
+LABEL org.opencontainers.image.title="turbo-zoo" \
+      org.opencontainers.image.description="turboembed's model zoo: the model catalog over gRPC and a page to browse, accept and install models" \
+      org.opencontainers.image.source="https://github.com/ai-pipestream/turboembed" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+USER 10001:10001
+VOLUME ["/zoo"]
+EXPOSE 8080 8081
+STOPSIGNAL SIGTERM
+# The server answers SERVING and the page answers, over HTTPS when the
+# page serves it (server/zoo/zoo-health).
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 CMD ["zoo-health"]
+ENTRYPOINT ["zoo-start"]

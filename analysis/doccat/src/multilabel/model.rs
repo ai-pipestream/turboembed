@@ -7,8 +7,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use turbo_analysis::{ModelRef, Tag, TagSet};
+use turbo_train::crc32c;
 
-use super::bytes::{MAX_UTF_BYTES, Reader, crc32c, put_utf};
+use super::bytes::{MAX_UTF_BYTES, Reader, put_utf};
 use super::error::MultiLabelError;
 use super::head::LinearHead;
 use super::validate::{check_label_names, check_thresholds};
@@ -301,6 +302,16 @@ impl MultiLabelDoccatModel {
     /// The model reference recorded in layer provenance.
     pub fn model_ref(&self) -> &ModelRef {
         &self.model_ref
+    }
+
+    /// The same model with the package-level identity recorded: the
+    /// archive's OpenNLP-Version as the revision and the SHA-256 of the
+    /// package's bytes, as [`super::open_package`] reads it.
+    #[cfg(feature = "classical")]
+    pub(crate) fn with_package_identity(mut self, revision: &str, sha256: &str) -> Self {
+        self.model_ref.revision = revision.to_owned();
+        self.model_ref.sha256 = sha256.to_owned();
+        self
     }
 
     /// Scores `text` with empty extra information: every label's sigmoid

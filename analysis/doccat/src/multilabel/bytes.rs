@@ -1,35 +1,8 @@
 //! The model entry's byte codec: `DataOutputStream`-style big-endian
-//! writes (`writeUTF` length-prefixed strings), Castagnoli CRC-32C, and the
-//! bounds-checked reader, which fails on truncated input instead of panicking.
+//! writes (`writeUTF` length-prefixed strings) and the bounds-checked
+//! reader, which fails on truncated input instead of panicking.
 
 use super::error::MultiLabelError;
-
-const CRC32C_POLYNOMIAL: u32 = 0x82F6_3B78;
-
-const CRC32C_TABLE: [u32; 256] = {
-    let mut table = [0u32; 256];
-    let mut i = 0;
-    while i < 256 {
-        let mut crc = i as u32;
-        let mut bit = 0;
-        while bit < 8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ CRC32C_POLYNOMIAL } else { crc >> 1 };
-            bit += 1;
-        }
-        table[i] = crc;
-        i += 1;
-    }
-    table
-};
-
-/// Castagnoli CRC-32C checksum over `data`.
-pub fn crc32c(data: &[u8]) -> u32 {
-    let mut state = 0xFFFF_FFFFu32;
-    for &b in data {
-        state = CRC32C_TABLE[((state ^ u32::from(b)) & 0xFF) as usize] ^ (state >> 8);
-    }
-    !state
-}
 
 /// `writeUTF`'s limit on a string's bytes, which the entry format keeps.
 pub(crate) const MAX_UTF_BYTES: usize = u16::MAX as usize;

@@ -17,9 +17,13 @@
 //!   ([`PragmaticsAnnotator`], [`PragmaticsVectorScorer`]).
 
 pub mod aspect;
+#[cfg(feature = "classical")]
+mod detector;
 pub mod emotion;
 pub mod incivility;
 pub mod lexicon;
+#[cfg(feature = "classical")]
+mod model;
 pub mod polarity;
 pub mod pragmatics;
 mod token_key;
@@ -34,6 +38,8 @@ pub use crate::scorers::{
 pub use aspect::{
     AbsaMetrics, AbsaTriplet, DEFAULT_ASPECT_CATEGORIES, RuleAspectSentiment, evaluate_absa_corpus, extract_triplets,
 };
+#[cfg(feature = "classical")]
+pub use detector::{Scratch, SentimentMe};
 pub use emotion::{
     DEFAULT_EMOTION_THRESHOLD, EmotionAnnotator, EmotionFitOptions, EmotionHeadError, EmotionMetrics,
     EmotionVectorHead, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD, GoldEmotionUnit,
@@ -51,6 +57,10 @@ pub use incivility::{
 pub use lexicon::{
     B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,
     SENTENCE_SENTIMENT, SentenceSentiment, VaderLexicon, VaderScore,
+};
+#[cfg(feature = "classical")]
+pub use model::{
+    COMPONENT, EMOJI_FACTORY, MODEL_ENTRY, SentimentFactory, SentimentModel, SentimentModelError, TOKEN_FACTORY,
 };
 pub use polarity::{
     DEFAULT_HEAD_WEIGHT, POLARITY_COUNT, POLARITY_NAMES, PolarityAnnotator, PolarityClassMetrics, PolarityExample,

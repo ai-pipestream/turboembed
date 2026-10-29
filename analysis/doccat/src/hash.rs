@@ -5,14 +5,14 @@
 //! by. The vocabulary is fixed once loaded and needs no defence against
 //! chosen collisions.
 
-#[cfg(test)]
+#[cfg(any(test, feature = "classical"))]
 use std::hash::BuildHasherDefault;
 use std::hash::Hasher;
 
 #[derive(Default, Clone, Copy)]
 pub(crate) struct FoldHasher(u64);
 
-#[cfg(test)]
+#[cfg(any(test, feature = "classical"))]
 pub(crate) type BuildFoldHasher = BuildHasherDefault<FoldHasher>;
 
 impl FoldHasher {

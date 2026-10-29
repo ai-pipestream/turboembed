@@ -1,0 +1,9 @@
+MASKED	Mail ops.team+alerts@mail.eu.example.co.uk and keep a copy.
+
+MASK_ALL	Mail ops.team+alerts@mail.eu.example.co.uk and keep a copy.
+
+REWRITE	pseudonymize	OK	Mail ops.team+alerts@mail.eu.example.co.uk and keep a copy.
+
+REWRITE	hmac	OK	Mail ops.team+alerts@mail.eu.example.co.uk and keep a copy.
+
+AUDIT_REPORT	no pii found

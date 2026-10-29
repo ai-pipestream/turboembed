@@ -54,6 +54,9 @@ pragmatics analysis across lexicon, rule, and vector-head stages:
   scores polarity, aspect, and incivility shifts across sentence gaps into
   `Boundaries` (`SENTIMENT` instance) and summarizes per-chunk facets in
   `ChunkFacets` (`turbo:chunk-facets`).
+- **Classical maxent sentiment (`SentimentMe`, `SentimentModel`)**:
+  available behind the off-by-default `classical` feature in `turbo-doccat`,
+  with training support in `turbo_train_components::sentiment`.
 
 Dataset, lexicon and checkpoint permissions remain recorded in the
 [complex sentiment licence audit](licences.md#complex-sentiment-licence-audit-326).

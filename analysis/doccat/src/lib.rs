@@ -35,19 +35,27 @@
 //! See `docs/doccat.md` and `docs/sentiment.md` for architecture and testing details.
 
 pub mod calibrated;
+#[cfg(feature = "classical")]
+pub mod categorizer;
 pub mod claim_verify;
 pub mod dl;
 pub mod error;
 pub mod features;
 mod hash;
+pub mod java;
 pub mod layer;
 pub mod model;
 pub mod multilabel;
 pub mod scorers;
 pub mod selection;
 pub mod sentiment;
+#[cfg(feature = "classical")]
+pub mod svm;
+pub mod train;
 pub mod zeroshot;
 
+#[cfg(feature = "classical")]
+pub use categorizer::{DocumentCategorizerME, SpanCategorizer};
 pub use claim_verify::{ClaimVerificationAnnotator, ClaimVerifyConfig};
 pub use dl::{
     AverageClassificationScoringStrategy, ClassificationScoringStrategy, DlChunkingMode, DlDoccatError,
@@ -61,18 +69,22 @@ pub use features::{
     PatternMode,
 };
 pub use layer::SpanCategorizable;
-pub use model::{DoccatFactory, parse_feature_generators};
+#[cfg(feature = "classical")]
+pub use model::DoccatModel;
+pub use model::{COMPONENT_NAME, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators};
 pub use multilabel::{
     COMPONENT_NAME as MULTILABEL_COMPONENT_NAME, LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel,
     MultiLabelError, MultiLabelReport, MultiLabelSample, MultiLabelSpanCategorizer, MultiLabelTrainingParameters, Prf,
     ThresholdCalibrator, evaluate, train_multilabel,
 };
+#[cfg(feature = "classical")]
+pub use multilabel::{open_package as open_multilabel_package, package_multilabel_model};
 pub use scorers::{
     AspectCategoryScorer, EmotionEvidence, EmotionStage, EmotionUnit, EmotionVectorScorer, INCIVILITY_DIMENSIONS,
     IncivilityEvidenceSpan, IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorScorer,
     PolarityStage, PolarityVectorScorer, PragmaticsVectorScorer,
 };
-pub use selection::{FeatureDocument, FeatureSelection, SelectedFeatures, SelectionMetric};
+pub use selection::{DoccatTrainer, FeatureSelection, SelectedFeatures, SelectionMetric};
 pub use sentiment::{
     AbsaMetrics, AbsaTriplet, CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD, CIVIL_COMMENTS_BGE_SMALL_HEAD,
     CIVIL_COMMENTS_MINILM_CONTEXT_HEAD, CIVIL_COMMENTS_MINILM_HEAD, DEFAULT_ASPECT_CATEGORIES,
@@ -91,6 +103,16 @@ pub use sentiment::{
     extract_triplets, incivility_token_key, index_polarity, majority_baseline, parse_polarity_label,
     parse_polarity_tsv, polarity_index, roc_auc, softmax_polarity, vader_to_polarity_scores, validate_polarity_scores,
 };
+#[cfg(feature = "classical")]
+pub use sentiment::{
+    COMPONENT as SENTIMENT_COMPONENT, EMOJI_FACTORY, MODEL_ENTRY as SENTIMENT_MODEL_ENTRY, Scratch as SentimentScratch,
+    SentimentFactory, SentimentMe, SentimentModel, SentimentModelError, TOKEN_FACTORY,
+};
+#[cfg(feature = "classical")]
+pub use svm::{SvmCategorizer, SvmDoccatModel};
+#[cfg(feature = "classical")]
+pub use train::doccat_index;
+pub use train::{DoccatEventStream, DoccatFactory, doccat_events};
 pub use zeroshot::{
     NliScorer, WindowAggregation, ZeroShotAnnotator, ZeroShotCategorizer, ZeroShotConfig, ZeroShotError, ZeroShotMode,
     ZeroShotSpanAnnotator,

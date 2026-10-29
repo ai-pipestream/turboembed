@@ -8,7 +8,7 @@ use turbo_zoo::{Licence, LicenceClass, class_of};
 fn the_recipe_is_the_tatoeba_recipe_under_its_own_id() {
     let r = LANGDETECT_WEB;
     assert_eq!(r.tatoeba.model_id, MODEL_ID);
-    assert_eq!(r.tatoeba.reference.id(), LANGDETECT.reference.id());
+    assert_eq!(r.tatoeba.reference, LANGDETECT.reference);
     assert_eq!(r.tatoeba.split, LANGDETECT.split);
     assert_eq!(r.tatoeba.parameters(), LANGDETECT.parameters());
     assert_eq!(r.tatoeba.languages, LANGDETECT.languages);
@@ -55,4 +55,15 @@ fn train_and_score_reject_mismatched_web_and_tatoeba_languages() {
     let web_plan = WebPlan { training: Vec::new(), held_out: Vec::new(), files: Vec::new() };
     assert!(matches!(r.train(&plan, &web_plan, &[]), Err(Error::Model(_))));
     assert!(matches!(r.score(&[], &[], &[], &mut plan, &web_plan, "0", "0"), Err(Error::Model(_))));
+}
+
+#[test]
+fn classical_web_run_is_retired() {
+    let export = Export::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tatoeba")).unwrap();
+    let dir = std::env::temp_dir().join(format!("langdetect-web-retired-{}", std::process::id()));
+    let store = Store::new(&dir, None);
+    let input = WebInput { web: WEB, files: &[], ranges: &[], recorded: false, store: &store };
+    let error = run(&LANGDETECT_WEB, &export, false, &input, &[], &[]).unwrap_err();
+    assert!(matches!(error, Error::Model(_)));
+    let _ = std::fs::remove_dir_all(dir);
 }

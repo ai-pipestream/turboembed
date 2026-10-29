@@ -258,14 +258,6 @@ impl CalibratableCategorizer for PolarityAnnotator {
     fn calibration_labels(&self) -> Vec<String> {
         POLARITY_NAMES.iter().map(|&s| s.to_owned()).collect()
     }
-
-    fn calibration_sha256(&self) -> Option<String> {
-        Some(self.effective_model_ref().sha256.to_string())
-    }
-
-    fn calibration_inference_hash(&self) -> u64 {
-        Annotator::config_hash(self)
-    }
 }
 
 impl Annotator for SentencePolarityAnnotator {

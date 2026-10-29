@@ -23,6 +23,7 @@ fn leveled(level: Retrieve, vectors: Option<(Arc<VectorAnnotator>, VectorKind)>)
         costs: Costs::default(),
         signals: Signals::Structure,
         cohesion: None,
+        clauses: false,
     };
     LevelChunker { chunker, level, vectors }
 }

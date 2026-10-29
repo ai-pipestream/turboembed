@@ -82,7 +82,7 @@ final class LanguageTrainGolden implements AnnotatorGolden {
     this.cutoff = cutoff;
   }
 
-  /** The runs: the parameters langdetect-183 was most likely trained with, and every predicate kept. */
+  /** The runs: default training parameters (cutoff 5) and every predicate kept (cutoff 1). */
   static List<LanguageTrainGolden> all() {
     return List.of(new LanguageTrainGolden("default", 5), new LanguageTrainGolden("cutoff1", 1));
   }

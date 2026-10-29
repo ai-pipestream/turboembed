@@ -1,180 +1,144 @@
-//! Sparse feature selection by mutual information or chi-squared ranking.
-//!
-//! Operates on native [`FeatureDocument`] records (`outcome`, `context`,
-//! optional `values`) without depending on the classical maxent event stream.
-
-use std::cmp::Ordering;
+//! Binary feature-presence MI and Pearson chi-squared selection across classes.
+//! Fit on training events only, then filter before indexing or optimization.
+//! Repeated predicates count once for ranking; filtering preserves their original
+//! multiplicity and numeric values for the chosen downstream trainer.
+use crate::{DoccatFactory, doccat_events};
 use std::collections::{BTreeMap, BTreeSet};
-
-/// A labeled sparse-feature document for feature selection.
-#[derive(Clone, Debug, PartialEq)]
-pub struct FeatureDocument {
-    outcome: String,
-    context: Vec<String>,
-    values: Option<Vec<f32>>,
-}
-
-impl FeatureDocument {
-    /// Creates a binary-presence [`FeatureDocument`] from `outcome` and `features`.
-    pub fn from_strs(outcome: &str, features: &[&str]) -> Self {
-        Self { outcome: outcome.to_owned(), context: features.iter().map(|&f| f.to_owned()).collect(), values: None }
-    }
-
-    /// Creates a weighted [`FeatureDocument`] with optional feature `values`.
-    pub fn with_values(
-        outcome: impl Into<String>,
-        context: Vec<String>,
-        values: Option<Vec<f32>>,
-    ) -> Result<Self, String> {
-        if let Some(vs) = &values
-            && vs.len() != context.len()
-        {
-            return Err(format!("values length {} != context length {}", vs.len(), context.len()));
-        }
-        Ok(Self { outcome: outcome.into(), context, values })
-    }
-
-    /// Outcome label.
-    pub fn outcome(&self) -> &str {
-        &self.outcome
-    }
-
-    /// Feature predicates.
-    pub fn context(&self) -> &[String] {
-        &self.context
-    }
-
-    /// Optional feature values aligned with [`Self::context`].
-    pub fn values(&self) -> Option<&[f32]> {
-        self.values.as_deref()
-    }
-}
+use turbo_formats::DocumentSample;
+use turbo_train::{Event, JavaString};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SelectionMetric {
     MutualInformation,
     Chi2,
 }
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FeatureSelection {
     pub metric: SelectionMetric,
     pub top_k: usize,
 }
-
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct SelectedFeatures {
-    kept: BTreeSet<String>,
-    ranked: Vec<(String, f64)>,
+    ranked: Vec<(JavaString, f64)>,
+    kept: BTreeSet<JavaString>,
 }
-
 impl FeatureSelection {
-    /// Ranks every feature present in `docs` against the class distribution,
-    /// returning the top `top_k` features.
-    pub fn fit(&self, docs: &[FeatureDocument]) -> Result<SelectedFeatures, String> {
-        if self.top_k == 0 {
-            return Err("top_k must be positive".into());
+    pub fn fit(&self, events: &[Event]) -> Result<SelectedFeatures, String> {
+        if self.top_k == 0 || events.is_empty() {
+            return Err("feature selection needs positive top_k and training events".into());
         }
-        if docs.is_empty() {
-            return Err("feature selection requires at least one document".into());
-        }
-        let n = docs.len() as f64;
-        let mut classes: BTreeMap<String, usize> = BTreeMap::new();
-        let mut features: BTreeMap<String, BTreeMap<String, usize>> = BTreeMap::new();
-        for doc in docs {
-            if let Some(vs) = doc.values()
-                && vs.iter().any(|v| !v.is_finite() || *v < 0.0)
-            {
-                return Err("feature selection requires finite non-negative feature values".into());
-            }
-            *classes.entry(doc.outcome().to_owned()).or_default() += 1;
-            let mut seen = BTreeSet::new();
-            for (i, pred) in doc.context().iter().enumerate() {
-                if doc.values().is_none_or(|vs| vs[i] > 0.0) && seen.insert(pred.clone()) {
-                    *features.entry(pred.clone()).or_default().entry(doc.outcome().to_owned()).or_default() += 1;
-                }
-            }
-        }
+        let classes: BTreeSet<_> = events.iter().map(Event::outcome).collect();
         if classes.len() < 2 {
             return Err("feature selection requires at least two classes".into());
         }
-        if features.is_empty() {
-            return Err("feature selection requires at least one active feature".into());
+        let classes: BTreeMap<_, _> = classes.into_iter().enumerate().map(|(i, c)| (c, i)).collect();
+        let mut totals = vec![0usize; classes.len()];
+        let mut present: BTreeMap<JavaString, Vec<usize>> = BTreeMap::new();
+        for e in events {
+            let c = classes[e.outcome()];
+            totals[c] += 1;
+            if e.values().is_some_and(|v| v.iter().any(|v| !v.is_finite() || *v < 0.)) {
+                return Err("feature selection needs finite nonnegative feature values".into());
+            }
+            let unique: BTreeSet<_> = e
+                .context()
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| e.values().is_none_or(|v| v[*i] > 0.))
+                .map(|(_, f)| f)
+                .collect();
+            for f in unique {
+                present.entry(f.clone()).or_insert_with(|| vec![0; classes.len()])[c] += 1;
+            }
         }
-        let mut ranked: Vec<(String, f64)> = features
-            .into_iter()
-            .map(|(f, by_class)| {
-                let n1: usize = by_class.values().sum();
-                let n1f = n1 as f64;
-                let n0f = n - n1f;
-                let mut score = 0.0;
-                for (c, &nc) in &classes {
-                    let n11 = *by_class.get(c).unwrap_or(&0) as f64;
-                    let n10 = n1f - n11;
-                    let n01 = nc as f64 - n11;
-                    let n00 = n0f - n01;
-                    let ncf = nc as f64;
-                    let nc0f = n - ncf;
+        let n = events.len() as f64;
+        let mut ranked = Vec::with_capacity(present.len());
+        for (feature, counts) in present {
+            let has = counts.iter().sum::<usize>() as f64;
+            let mut score = 0.;
+            for (c, &nc) in totals.iter().enumerate() {
+                for (observed, nf) in [(counts[c] as f64, has), ((nc - counts[c]) as f64, n - has)] {
+                    let expected = nf * (nc as f64 / n);
+                    if expected == 0. {
+                        continue;
+                    }
                     match self.metric {
                         SelectionMetric::MutualInformation => {
-                            for (nij, ni, nj) in [(n11, n1f, ncf), (n10, n1f, nc0f), (n01, n0f, ncf), (n00, n0f, nc0f)]
-                            {
-                                if nij > 0.0 {
-                                    score += (nij / n) * ((n * nij) / (ni * nj)).ln();
-                                }
+                            if observed > 0. {
+                                score += observed / n * (observed / expected).ln();
                             }
                         }
                         SelectionMetric::Chi2 => {
-                            let num = n * (n11 * n00 - n10 * n01).powi(2);
-                            let den = n1f * n0f * ncf * nc0f;
-                            if den > 0.0 {
-                                score += num / den;
-                            }
+                            let delta = observed - expected;
+                            score += delta * (delta / expected);
                         }
                     }
                 }
-                if matches!(self.metric, SelectionMetric::MutualInformation | SelectionMetric::Chi2)
-                    && classes.len() == 2
-                {
-                    score *= 0.5;
-                }
-                (f, score)
-            })
-            .collect();
-        ranked.sort_by(|(fa, sa), (fb, sb)| match sb.total_cmp(sa) {
-            Ordering::Equal => fa.cmp(fb),
-            ord => ord,
-        });
+            }
+            if !score.is_finite() {
+                return Err("non-finite feature selection score".into());
+            }
+            ranked.push((feature, score.max(0.)));
+        }
+        ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         let kept = ranked.iter().take(self.top_k).map(|(f, _)| f.clone()).collect();
-        Ok(SelectedFeatures { kept, ranked })
+        Ok(SelectedFeatures { ranked, kept })
     }
 }
-
 impl SelectedFeatures {
-    pub fn kept(&self) -> &BTreeSet<String> {
-        &self.kept
-    }
-
-    pub fn ranked(&self) -> &[(String, f64)] {
+    pub fn ranked(&self) -> &[(JavaString, f64)] {
         &self.ranked
     }
-
-    /// Filters `docs` so each document retains only predicates in [`Self::kept`].
-    pub fn filter(&self, docs: &[FeatureDocument]) -> Result<Vec<FeatureDocument>, String> {
-        docs.iter()
-            .map(|doc| {
+    pub fn kept(&self) -> &BTreeSet<JavaString> {
+        &self.kept
+    }
+    /// The output can feed MaxEnt or a Liblinear index builder unchanged.
+    pub fn filter(&self, events: &[Event]) -> Result<Vec<Event>, String> {
+        events
+            .iter()
+            .map(|e| {
                 let mut context = Vec::new();
-                let mut values = doc.values().map(|_| Vec::new());
-                for (i, pred) in doc.context().iter().enumerate() {
-                    if self.kept.contains(pred) {
-                        context.push(pred.clone());
-                        if let (Some(out), Some(vs)) = (&mut values, doc.values()) {
-                            out.push(vs[i]);
+                let mut values = e.values().map(|_| Vec::new());
+                for (i, f) in e.context().iter().enumerate() {
+                    if self.kept.contains(f) {
+                        context.push(f.clone());
+                        if let Some(v) = &mut values {
+                            v.push(e.values().unwrap()[i]);
                         }
                     }
                 }
-                FeatureDocument::with_values(doc.outcome().to_owned(), context, values)
+                Event::with_values(e.outcome().clone(), context, values).map_err(|e| e.to_string())
             })
             .collect()
+    }
+}
+/// Prepares document events with optional selection before a downstream
+/// optimizer. Use the retained model predicates at inference; unseen terms
+/// have no learned weight and do not need a second feature filter.
+#[derive(Clone, Debug)]
+pub struct DoccatTrainer {
+    factory: DoccatFactory,
+    selection: Option<FeatureSelection>,
+}
+impl DoccatTrainer {
+    pub fn new(factory: DoccatFactory) -> Self {
+        Self { factory, selection: None }
+    }
+    pub fn with_feature_selection(mut self, selection: FeatureSelection) -> Self {
+        self.selection = Some(selection);
+        self
+    }
+    pub fn events<'a, 's>(
+        &self,
+        samples: impl IntoIterator<Item = &'s DocumentSample<'a>>,
+    ) -> Result<Vec<Event>, String>
+    where
+        'a: 's,
+    {
+        let events = doccat_events(samples, &self.factory);
+        match self.selection {
+            Some(s) => s.fit(&events)?.filter(&events),
+            None => Ok(events),
+        }
     }
 }
