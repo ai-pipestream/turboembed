@@ -392,37 +392,20 @@ why every run's load is in the file.
 
 One receipt so far: `throughput/gliner-wnut17.json`, the GLiNER
 peer command above over the 1287 WNUT-17 sentences, 20 runs on
-2026-10-28 at commit `8dc59814ce5b`: min 54.21 s, mean 129.29 s,
-p50 99.60 s (12.92 sentences/s), p99 368.54 s, with the host's
-1-minute load between 21.5 and 67.5 on 32 cores while other lanes
-ran. Those numbers say more about that load than about GLiNER;
-they are the receipt form pinned down, not a speed claim, and an
-idle-host rerun should replace them before anyone compares
-systems by them. Only the final run's predictions survive (every
-run overwrote the same file) and they are byte-identical to the
-scored record's (SHA-256 `9638a97e...` above); this receipt shows
-nothing about the earlier runs' outputs, and no determinism claim
-rests on it. Receipts written with `--output` keep every run's
-output digest, which is what such a claim needs.
+2026-10-29 from a clean tree at commit `e8e445c52db1`: min
+34.41 s, mean 37.55 s, p50 37.16 s (34.63 sentences/s), p99 and
+max 47.23 s. The run began at host 1-minute load 2.28 on 32 cores;
+later per-run loads in the receipt rise to about 16 to 19 as the
+timed command itself saturates its CPU threads. All 20 runs wrote
+byte-identical predictions, SHA-256
+`9638a97e64eeeaba95d0d0287da7dc5c325296bbff4ce7efedc42d6bab2977a2`,
+the scored record's file. The mutable tag
+`turbo-peer-gliner:0.2.21-small-v2.1` named image
+`sha256:614fedccce1528a481546dece6378f6344f1a8619c38987732266470158fda09`
+for this run. This replaces the 2026-10-28 receipt taken while
+other lanes loaded the host; that historical file remains in git
+history with the provenance correction recorded in #1655.
 
-Provenance correction for that receipt (2026-10-29, codex review
-of #1655): its `commit` is the checkout's HEAD when it ran
-(`8dc59814ce5b6f97ea0582f44fee969bda7621f9`), but the harness and
-runner it timed were uncommitted working-tree files at that
-moment; they are not in that commit's tree. They were first
-committed minutes after the receipt finished, in `2bbbb4647` (the
-only commit touching them before this note), with SHA-256 digests:
-`analysis/eval/reference/throughput_receipt.py`
-`886eca997327e3aecaced7d4cd9c35618aa5cecac2ede93b6a7066923c3f886b`,
-`analysis/eval/reference/peers/gliner/Dockerfile`
-`6dc52303814a84a86c2d02602823ee47ff20c7c76fb1326e9c8f89de47c77ece`,
-`analysis/eval/reference/peers/gliner/ner_predict.py`
-`bd048354c6bbe5b892619d460ac4eead05c580cb9979eb7f42f174c22105d036`.
-The image the mutable tag `turbo-peer-gliner:0.2.21-small-v2.1`
-named is `sha256:614fedccce1528a481546dece6378f6344f1a8619c38987732266470158fda09`
-(full id; the record above first carried its short form). No later
-commit is substituted for the historical run; receipts now record
-the working-tree state so this cannot recur silently.
 Receipts for the other analysis systems land as their booked runs
 complete; the records above still carry at most the single
 in-process timing their own sections state.
