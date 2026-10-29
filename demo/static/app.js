@@ -6923,7 +6923,7 @@ var DistanceMetric = /* @__PURE__ */ ((DistanceMetric2) => {
 var TurboSearchService = /* @__PURE__ */ serviceDesc(file_turbo_search, 0);
 
 // demo/web/src/gen/turbo_training_pb.ts
-var file_turbo_training = /* @__PURE__ */ fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwiTgoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiOAoTSW5zdGFsbE1vZGVsUmVxdWVzdBIMCgR1c2VyGAEgASgJEhMKC2FydGlmYWN0X2lkGAIgASgJIoYBCg9JbnN0YWxsUHJvZ3Jlc3MSLgoFc3RhZ2UYASABKA4yHy50dXJiby50cmFpbmluZy52MS5JbnN0YWxsU3RhZ2USEgoKZmlsZV9pbmRleBgCIAEoDRISCgpmaWxlX2NvdW50GAMgASgNEgwKBHBhdGgYBCABKAkSDQoFYnl0ZXMYBSABKAQijgEKEkluc3RhbGxNb2RlbFVwZGF0ZRI2Cghwcm9ncmVzcxgBIAEoCzIiLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxQcm9ncmVzc0gAEjYKCWluc3RhbGxlZBgCIAEoCzIhLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxlZE1vZGVsSABCCAoGdXBkYXRlIjkKFERlc2NyaWJlTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkiRwoVRGVzY3JpYmVNb2RlbFJlc3BvbnNlEi4KBWVudHJ5GAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuQ2F0YWxvZ0VudHJ5IkgKE1Jlc29sdmVNb2RlbFJlcXVlc3QSDgoGc2hhMjU2GAEgASgJEhMKC2FydGlmYWN0X2lkGAIgASgJEgwKBHVzZXIYAyABKAkiVAoUUmVzb2x2ZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkSDAoEcGF0aBgCIAEoCSJXChRSZWFkTW9kZWxGaWxlUmVxdWVzdBIMCgR1c2VyGAEgASgJEhMKC2FydGlmYWN0X2lkGAIgASgJEgwKBHBhdGgYAyABKAkSDgoGc2hhMjU2GAQgASgJIlkKDk1vZGVsRmlsZUNodW5rEi4KBGZpbGUYASABKAsyHi50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRmlsZUgAEg4KBGRhdGEYAiABKAxIAEIHCgVmcmFtZSJ4CgdUZWFjaGVyEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEg4KBmhpZGRlbhgFIAEoDRISCgp2b2NhYl9zaXplGAYgASgNIhUKE0xpc3RUZWFjaGVyc1JlcXVlc3QiRAoUTGlzdFRlYWNoZXJzUmVzcG9uc2USLAoIdGVhY2hlcnMYASADKAsyGi50dXJiby50cmFpbmluZy52MS5UZWFjaGVyIvkBChdUcmFpblN0YXRpY01vZGVsUmVxdWVzdBIMCgRuYW1lGAEgASgJEg8KB3RlYWNoZXIYAiABKAkSEAoIcGNhX2RpbXMYAyABKA0SFwoPc2lmX2NvZWZmaWNpZW50GAQgASgBEi0KBWR0eXBlGAUgASgOMh4udHVyYm8udHJhaW5pbmcudjEuU3RhdGljRHR5cGUSEgoKbWF4X2xlbmd0aBgGIAEoDRIeChZ2b2NhYnVsYXJ5X2FydGlmYWN0X2lkGAcgASgJEg0KBXRlcm1zGAggAygJEhAKCHJldmlzaW9uGAkgASgJEhAKCHNlc3Npb25zGAogASgNIvYBChhUcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3MSLAoFc3RhZ2UYASABKA4yHS50dXJiby50cmFpbmluZy52MS5UcmFpblN0YWdlEhcKD2NvbXBsZXRlZF9pdGVtcxgCIAEoBBITCgt0b3RhbF9pdGVtcxgDIAEoBBITCgthZGRlZF90ZXJtcxgEIAEoBBIVCg1yZWZ1c2VkX3Rlcm1zGAUgASgEEhoKEmV4cGxhaW5lZF92YXJpYW5jZRgGIAEoARI2CgdxdWFsaXR5GAcgASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5IlAKEVRlYWNoZXJQcm92ZW5hbmNlEhAKCG1vZGVsX2lkGAEgASgJEhAKCHJldmlzaW9uGAIgASgJEhcKD21hbmlmZXN0X3NoYTI1NhgDIAEoCSJZChJTdGF0aWNNb2RlbFF1YWxpdHkSEQoJYmFzZV90b3AxGAEgASgBEhMKC3N0YXRpY190b3AxGAIgASgBEhsKE3NpbWlsYXJpdHlfc3BlYXJtYW4YAyABKAEiOgoMQXJ0aWZhY3RGaWxlEgwKBHBhdGgYASABKAkSDAoEc2l6ZRgCIAEoBBIOCgZzaGEyNTYYAyABKAki/AIKFVN0YXRpY01vZGVsRGVzY3JpcHRvchIMCgRuYW1lGAEgASgJEhAKCG1vZGVsX2lkGAIgASgJEhAKCHJldmlzaW9uGAMgASgJEhcKD21hbmlmZXN0X3NoYTI1NhgEIAEoCRIMCgRkaW1zGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0SFQoNbGVhcm5lZF90ZXJtcxgHIAEoDRINCgVkdHlwZRgIIAEoCRI1Cgd0ZWFjaGVyGAkgASgLMiQudHVyYm8udHJhaW5pbmcudjEuVGVhY2hlclByb3ZlbmFuY2USNgoHcXVhbGl0eRgKIAEoCzIlLnR1cmJvLnRyYWluaW5nLnYxLlN0YXRpY01vZGVsUXVhbGl0eRIuCgVmaWxlcxgLIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkFydGlmYWN0RmlsZRIQCgh2ZXJpZmllZBgMIAEoCBIPCgdwcm9ibGVtGA0gASgJEg4KBnNlcnZlZBgOIAEoCCIrCgtSZWZ1c2VkVGVybRIMCgR0ZXJtGAEgASgJEg4KBnJlYXNvbhgCIAEoCSLUAQoSVHJhaW5lZFN0YXRpY01vZGVsEjcKBW1vZGVsGAEgASgLMigudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxEZXNjcmlwdG9yEhMKC2FkZGVkX3Rlcm1zGAIgAygJEjUKDXJlZnVzZWRfdGVybXMYAyADKAsyHi50dXJiby50cmFpbmluZy52MS5SZWZ1c2VkVGVybRIeChZ2b2NhYnVsYXJ5X2FydGlmYWN0X2lkGAQgASgJEhkKEXZvY2FidWxhcnlfc2hhMjU2GAUgASgJIp0BChZUcmFpblN0YXRpY01vZGVsVXBkYXRlEj8KCHByb2dyZXNzGAEgASgLMisudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFByb2dyZXNzSAASOAoHdHJhaW5lZBgCIAEoCzIlLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluZWRTdGF0aWNNb2RlbEgAQggKBnVwZGF0ZSIZChdMaXN0U3RhdGljTW9kZWxzUmVxdWVzdCJUChhMaXN0U3RhdGljTW9kZWxzUmVzcG9uc2USOAoGbW9kZWxzGAEgAygLMigudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxEZXNjcmlwdG9yIigKGERlbGV0ZVN0YXRpY01vZGVsUmVxdWVzdBIMCgRuYW1lGAEgASgJIi0KGURlbGV0ZVN0YXRpY01vZGVsUmVzcG9uc2USEAoIdW5sb2FkZWQYASABKAgqogEKDEluc3RhbGxTdGFnZRIdChlJTlNUQUxMX1NUQUdFX1VOU1BFQ0lGSUVEEAASGgoWSU5TVEFMTF9TVEFHRV9BRE1JVFRFRBABEh0KGUlOU1RBTExfU1RBR0VfRE9XTkxPQURJTkcQAhIcChhJTlNUQUxMX1NUQUdFX0RPV05MT0FERUQQAxIaChZJTlNUQUxMX1NUQUdFX1ZFUklGSUVEEAQqVwoLU3RhdGljRHR5cGUSHAoYU1RBVElDX0RUWVBFX1VOU1BFQ0lGSUVEEAASFAoQU1RBVElDX0RUWVBFX0YzMhABEhQKEFNUQVRJQ19EVFlQRV9GMTYQAirXAQoKVHJhaW5TdGFnZRIbChdUUkFJTl9TVEFHRV9VTlNQRUNJRklFRBAAEhgKFFRSQUlOX1NUQUdFX0FETUlUVEVEEAESFAoQVFJBSU5fU1RBR0VfS0VQVBACEhkKFVRSQUlOX1NUQUdFX0VNQkVERElORxADEhcKE1RSQUlOX1NUQUdFX1JFRFVDRUQQBBIYChRUUkFJTl9TVEFHRV9NRUFTVVJFRBAFEhYKElRSQUlOX1NUQUdFX1NFQUxFRBAGEhYKElRSQUlOX1NUQUdFX0xPQURFRBAHMoAGChNUdXJib0NhdGFsb2dTZXJ2aWNlEmsKEExpc3RNb2RlbENhdGFsb2cSKi50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxDYXRhbG9nUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXNwb25zZRJ0ChNMaXN0SW5zdGFsbGVkTW9kZWxzEi0udHVyYm8udHJhaW5pbmcudjEuTGlzdEluc3RhbGxlZE1vZGVsc1JlcXVlc3QaLi50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USgAEKF1JlY29yZExpY2VuY2VBY2NlcHRhbmNlEjEudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0GjIudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXNwb25zZRJfCgxJbnN0YWxsTW9kZWwSJi50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxSZXF1ZXN0GiUudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbE1vZGVsVXBkYXRlMAESYgoNRGVzY3JpYmVNb2RlbBInLnR1cmJvLnRyYWluaW5nLnYxLkRlc2NyaWJlTW9kZWxSZXF1ZXN0GigudHVyYm8udHJhaW5pbmcudjEuRGVzY3JpYmVNb2RlbFJlc3BvbnNlEl8KDFJlc29sdmVNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLlJlc29sdmVNb2RlbFJlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5SZXNvbHZlTW9kZWxSZXNwb25zZRJdCg1SZWFkTW9kZWxGaWxlEicudHVyYm8udHJhaW5pbmcudjEuUmVhZE1vZGVsRmlsZVJlcXVlc3QaIS50dXJiby50cmFpbmluZy52MS5Nb2RlbEZpbGVDaHVuazABMsEDChRUdXJib1RyYWluaW5nU2VydmljZRJfCgxMaXN0VGVhY2hlcnMSJi50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXF1ZXN0GicudHVyYm8udHJhaW5pbmcudjEuTGlzdFRlYWNoZXJzUmVzcG9uc2USawoQVHJhaW5TdGF0aWNNb2RlbBIqLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxSZXF1ZXN0GikudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFVwZGF0ZTABEmsKEExpc3RTdGF0aWNNb2RlbHMSKi50dXJiby50cmFpbmluZy52MS5MaXN0U3RhdGljTW9kZWxzUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRJuChFEZWxldGVTdGF0aWNNb2RlbBIrLnR1cmJvLnRyYWluaW5nLnYxLkRlbGV0ZVN0YXRpY01vZGVsUmVxdWVzdBosLnR1cmJvLnRyYWluaW5nLnYxLkRlbGV0ZVN0YXRpY01vZGVsUmVzcG9uc2ViBnByb3RvMw");
+var file_turbo_training = /* @__PURE__ */ fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwieAoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCRITCgthcnRpZmFjdF9pZBgEIAEoCRITCgt0ZXh0X3NoYTI1NhgFIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiTgoeUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMAoHcmV2b2tlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIUCgx3YXNfYWNjZXB0ZWQYAyABKAgiggEKEUxpY2VuY2VBY2NlcHRhbmNlEi4KBXRlcm1zGAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhMKC2FjY2VwdGVkX2F0GAIgASgEEhMKC2FydGlmYWN0X2lkGAMgASgJEhMKC3RleHRfc2hhMjU2GAQgASgJIi0KHUxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0EgwKBHVzZXIYASABKAkidQoeTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEgwKBHVzZXIYASABKAkSNgoIYWNjZXB0ZWQYAiADKAsyJC50dXJiby50cmFpbmluZy52MS5MaWNlbmNlQWNjZXB0YW5jZRINCgVhZG1pbhgDIAEoCCI4ChNJbnN0YWxsTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkihgEKD0luc3RhbGxQcm9ncmVzcxIuCgVzdGFnZRgBIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxTdGFnZRISCgpmaWxlX2luZGV4GAIgASgNEhIKCmZpbGVfY291bnQYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVieXRlcxgFIAEoBCKOAQoSSW5zdGFsbE1vZGVsVXBkYXRlEjYKCHByb2dyZXNzGAEgASgLMiIudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFByb2dyZXNzSAASNgoJaW5zdGFsbGVkGAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWxIAEIICgZ1cGRhdGUiOQoURGVzY3JpYmVNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSJHChVEZXNjcmliZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkiSAoTUmVzb2x2ZU1vZGVsUmVxdWVzdBIOCgZzaGEyNTYYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEdXNlchgDIAEoCSJUChRSZXNvbHZlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeRIMCgRwYXRoGAIgASgJIlcKFFJlYWRNb2RlbEZpbGVSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZzaGEyNTYYBCABKAkiWQoOTW9kZWxGaWxlQ2h1bmsSLgoEZmlsZRgBIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlSAASDgoEZGF0YRgCIAEoDEgAQgcKBWZyYW1lIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCqiAQoMSW5zdGFsbFN0YWdlEh0KGUlOU1RBTExfU1RBR0VfVU5TUEVDSUZJRUQQABIaChZJTlNUQUxMX1NUQUdFX0FETUlUVEVEEAESHQoZSU5TVEFMTF9TVEFHRV9ET1dOTE9BRElORxACEhwKGElOU1RBTExfU1RBR0VfRE9XTkxPQURFRBADEhoKFklOU1RBTExfU1RBR0VfVkVSSUZJRUQQBCpXCgtTdGF0aWNEdHlwZRIcChhTVEFUSUNfRFRZUEVfVU5TUEVDSUZJRUQQABIUChBTVEFUSUNfRFRZUEVfRjMyEAESFAoQU1RBVElDX0RUWVBFX0YxNhACKtcBCgpUcmFpblN0YWdlEhsKF1RSQUlOX1NUQUdFX1VOU1BFQ0lGSUVEEAASGAoUVFJBSU5fU1RBR0VfQURNSVRURUQQARIUChBUUkFJTl9TVEFHRV9LRVBUEAISGQoVVFJBSU5fU1RBR0VfRU1CRURESU5HEAMSFwoTVFJBSU5fU1RBR0VfUkVEVUNFRBAEEhgKFFRSQUlOX1NUQUdFX01FQVNVUkVEEAUSFgoSVFJBSU5fU1RBR0VfU0VBTEVEEAYSFgoSVFJBSU5fU1RBR0VfTE9BREVEEAcygggKE1R1cmJvQ2F0YWxvZ1NlcnZpY2USawoQTGlzdE1vZGVsQ2F0YWxvZxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsQ2F0YWxvZ1Jlc3BvbnNlEnQKE0xpc3RJbnN0YWxsZWRNb2RlbHMSLS50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdBouLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RJbnN0YWxsZWRNb2RlbHNSZXNwb25zZRKAAQoXUmVjb3JkTGljZW5jZUFjY2VwdGFuY2USMS50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QaMi50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEl8KDEluc3RhbGxNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxNb2RlbFJlcXVlc3QaJS50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxVcGRhdGUwARJiCg1EZXNjcmliZU1vZGVsEicudHVyYm8udHJhaW5pbmcudjEuRGVzY3JpYmVNb2RlbFJlcXVlc3QaKC50dXJiby50cmFpbmluZy52MS5EZXNjcmliZU1vZGVsUmVzcG9uc2USXwoMUmVzb2x2ZU1vZGVsEiYudHVyYm8udHJhaW5pbmcudjEuUmVzb2x2ZU1vZGVsUmVxdWVzdBonLnR1cmJvLnRyYWluaW5nLnYxLlJlc29sdmVNb2RlbFJlc3BvbnNlEl0KDVJlYWRNb2RlbEZpbGUSJy50dXJiby50cmFpbmluZy52MS5SZWFkTW9kZWxGaWxlUmVxdWVzdBohLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsRmlsZUNodW5rMAESgAEKF1Jldm9rZUxpY2VuY2VBY2NlcHRhbmNlEjEudHVyYm8udHJhaW5pbmcudjEuUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0GjIudHVyYm8udHJhaW5pbmcudjEuUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXNwb25zZRJ9ChZMaXN0TGljZW5jZUFjY2VwdGFuY2VzEjAudHVyYm8udHJhaW5pbmcudjEuTGlzdExpY2VuY2VBY2NlcHRhbmNlc1JlcXVlc3QaMS50dXJiby50cmFpbmluZy52MS5MaXN0TGljZW5jZUFjY2VwdGFuY2VzUmVzcG9uc2UywQMKFFR1cmJvVHJhaW5pbmdTZXJ2aWNlEl8KDExpc3RUZWFjaGVycxImLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1JlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXNwb25zZRJrChBUcmFpblN0YXRpY01vZGVsEioudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QaKS50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsVXBkYXRlMAESawoQTGlzdFN0YXRpY01vZGVscxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1Jlc3BvbnNlEm4KEURlbGV0ZVN0YXRpY01vZGVsEisudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZWIGcHJvdG8z");
 var InstallStage = /* @__PURE__ */ ((InstallStage2) => {
   InstallStage2[InstallStage2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
   InstallStage2[InstallStage2["ADMITTED"] = 1] = "ADMITTED";
@@ -7843,46 +7843,296 @@ function init5() {
   capabilities().catch((e) => say($("embed-error"), describe(e), "error"));
 }
 
+// demo/web/src/sha256.ts
+var K = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
+var Sha256 = class {
+  h = new Uint32Array([
+    1779033703,
+    3144134277,
+    1013904242,
+    2773480762,
+    1359893119,
+    2600822924,
+    528734635,
+    1541459225
+  ]);
+  block = new Uint8Array(64);
+  filled = 0;
+  total = 0;
+  w = new Uint32Array(64);
+  update(data) {
+    let i = 0;
+    this.total += data.length;
+    if (this.filled) {
+      const take = Math.min(64 - this.filled, data.length);
+      this.block.set(data.subarray(0, take), this.filled);
+      this.filled += take;
+      i = take;
+      if (this.filled < 64) return this;
+      this.compress(this.block, 0);
+      this.filled = 0;
+    }
+    for (; i + 64 <= data.length; i += 64) this.compress(data, i);
+    if (i < data.length) {
+      this.block.set(data.subarray(i));
+      this.filled = data.length - i;
+    }
+    return this;
+  }
+  /** The digest as lowercase hex. The hasher is spent. */
+  hex() {
+    const bits = this.total * 8;
+    const pad = new Uint8Array((this.filled < 56 ? 56 : 120) - this.filled + 8);
+    pad[0] = 128;
+    const dv = new DataView(pad.buffer);
+    dv.setUint32(pad.length - 8, Math.floor(bits / 4294967296), false);
+    dv.setUint32(pad.length - 4, bits >>> 0, false);
+    this.update(pad);
+    let out = "";
+    for (const v of this.h) out += v.toString(16).padStart(8, "0");
+    return out;
+  }
+  compress(b, at) {
+    const w = this.w;
+    for (let t = 0; t < 16; t++) {
+      const j = at + t * 4;
+      w[t] = b[j] << 24 | b[j + 1] << 16 | b[j + 2] << 8 | b[j + 3];
+    }
+    for (let t = 16; t < 64; t++) {
+      const x = w[t - 15];
+      const y = w[t - 2];
+      const s0 = (x >>> 7 | x << 25) ^ (x >>> 18 | x << 14) ^ x >>> 3;
+      const s1 = (y >>> 17 | y << 15) ^ (y >>> 19 | y << 13) ^ y >>> 10;
+      w[t] = w[t - 16] + s0 + w[t - 7] + s1 | 0;
+    }
+    const h = this.h;
+    let [a, bb, c, d, e, f, g, hh] = [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]];
+    for (let t = 0; t < 64; t++) {
+      const S1 = (e >>> 6 | e << 26) ^ (e >>> 11 | e << 21) ^ (e >>> 25 | e << 7);
+      const ch = e & f ^ ~e & g;
+      const t1 = hh + S1 + ch + K[t] + w[t] | 0;
+      const S0 = (a >>> 2 | a << 30) ^ (a >>> 13 | a << 19) ^ (a >>> 22 | a << 10);
+      const maj = a & bb ^ a & c ^ bb & c;
+      const t2 = S0 + maj | 0;
+      hh = g;
+      g = f;
+      f = e;
+      e = d + t1 | 0;
+      d = c;
+      c = bb;
+      bb = a;
+      a = t1 + t2 | 0;
+    }
+    h[0] += a;
+    h[1] += bb;
+    h[2] += c;
+    h[3] += d;
+    h[4] += e;
+    h[5] += f;
+    h[6] += g;
+    h[7] += hh;
+  }
+};
+async function sha256Blob(b, progress) {
+  const s = new Sha256();
+  const reader = b.stream().getReader();
+  let read = 0;
+  for (; ; ) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    s.update(value);
+    read += value.length;
+    progress?.(read);
+  }
+  return s.hex();
+}
+
+// demo/web/src/tabs/licences.ts
+function who(r) {
+  if (!r.user) return { user: "", canChange: false, why: "read-only: the demo was started without --user" };
+  if (!r.admin) return { user: r.user, canChange: false, why: "read-only: the server was started without --admin" };
+  return { user: r.user, canChange: true, why: "" };
+}
+var NOTICES = {
+  CLASS_SHARE_ALIKE: "Share-alike: you may use it, and what you share that is built from it carries the same licence. This project does not redistribute it.",
+  CLASS_LGPL: "LGPL: you may use it; changes to it that you distribute are released under the LGPL.",
+  CLASS_GPL: "GPL: software you distribute that includes it is released under the GPL.",
+  CLASS_LOCAL_ONLY: "Local only: restricted or non-commercial terms. It is fetched only from its publisher, stays on this machine, and no model trained on it is shipped. Not for commercial use."
+};
+function textSha256(text) {
+  return new Sha256().update(new TextEncoder().encode(text)).hex();
+}
+function address(text) {
+  if (!text.startsWith("https://")) return el("code", { text });
+  return el("a", { href: text, target: "_blank", rel: "noopener noreferrer", text });
+}
+function termsBlock(e, t, w, accepted) {
+  const sources = e.trainedOn.map((s) => `${s.name} (${s.licence})`).join(", ");
+  const facts2 = el(
+    "dl",
+    {},
+    el("dt", { text: "Licence" }),
+    el("dd", { text: `${t.licence}, ${e.licenceClass}` }),
+    el("dt", { text: "Terms" }),
+    el("dd", {}, address(t.text)),
+    e.attribution ? [el("dt", { text: "Attribution" }), el("dd", { text: e.attribution })] : null,
+    sources ? [el("dt", { text: "Trained on" }), el("dd", { text: sources })] : null
+  );
+  const notice = el("p", { class: "muted", text: NOTICES[e.licenceClass] ?? "" });
+  const body2 = [facts2, notice];
+  if (w.canChange) {
+    const read = el("input", { type: "checkbox" });
+    const button = el("button", { type: "button", text: `Accept ${t.licence}` });
+    button.disabled = true;
+    read.addEventListener("change", () => button.disabled = !read.checked);
+    button.addEventListener("click", () => void accepted(t));
+    body2.push(el("label", {}, read, ` I have read the ${t.licence} terms above and accept them`), " ", button);
+  } else {
+    body2.push(el("p", { class: "muted", text: w.why }));
+  }
+  return el("details", {}, el("summary", { text: `${t.licence} terms to accept` }), body2);
+}
+async function accept(e, t) {
+  const r = await catalog.recordLicenceAcceptance({
+    licence: t.licence,
+    terms: t.licence.startsWith("LicenseRef-") ? t.text : "",
+    artifactId: e.id,
+    textSha256: textSha256(t.text)
+  });
+  return `${r.user} accepted ${r.accepted?.licence ?? t.licence} at ${when(r.acceptedAt)}.`;
+}
+function when(seconds) {
+  return new Date(Number(seconds) * 1e3).toLocaleString();
+}
+function acceptedTable(r, w, revoked) {
+  if (!w.user) return el("p", { class: "muted", text: w.why });
+  if (!r.accepted.length) return el("p", { class: "muted", text: `${w.user} has accepted no terms.` });
+  return table(
+    ["licence", "terms", "accepted", "on the page of", ""],
+    r.accepted.map((a) => {
+      const t = a.terms;
+      let control = "";
+      if (t && w.canChange) {
+        const b = el("button", { type: "button", text: "Revoke" });
+        b.addEventListener("click", () => void revoked(t));
+        control = b;
+      }
+      return [t?.licence ?? "", t ? address(t.text) : "", when(a.acceptedAt), a.artifactId, control];
+    })
+  );
+}
+async function revoke(t) {
+  const r = await catalog.revokeLicenceAcceptance({ licence: t.licence, terms: t.licence.startsWith("LicenseRef-") ? t.text : "" });
+  return r.wasAccepted ? `${r.user} revoked ${t.licence}.` : `${r.user} had not accepted ${t.licence}.`;
+}
+
 // demo/web/src/tabs/models.ts
 var installing = null;
 var trainingRun = null;
-var user = () => input("models-user").value.trim();
 var note2 = () => $("models-note");
 function bar(done, total) {
   const p = el("progress", { max: String(Math.max(1, total)) });
   p.value = Math.min(done, Math.max(1, total));
   return p;
 }
-function acceptButton(t) {
-  const b = el("button", { type: "button", text: `Accept ${t.licence}` });
-  b.addEventListener("click", async () => {
-    try {
-      const r = await catalog.recordLicenceAcceptance({ user: user(), licence: t.licence, terms: t.licence.startsWith("LicenseRef-") ? t.text : "" });
-      await loadCatalog();
-      say(note2(), `${r.user} accepted ${r.accepted?.licence ?? t.licence} at ${new Date(Number(r.acceptedAt) * 1e3).toLocaleString()}.`);
-    } catch (e) {
-      say(note2(), describe(e), "error");
-    }
-  });
-  return b;
+async function act(change) {
+  try {
+    const done = await change();
+    await loadCatalog();
+    say(note2(), done);
+  } catch (e) {
+    say(note2(), describe(e), "error");
+  }
 }
-function entryRow(e) {
-  const terms = e.missingTerms.map((t) => el("details", {}, el("summary", { text: `${t.licence} terms` }), el("pre", { class: "export", text: t.text }), acceptButton(t)));
-  const install = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
-  install.disabled = e.missingTerms.length > 0;
-  install.title = install.disabled ? "Accept the licence terms first" : "";
-  install.addEventListener("click", () => void installModel(e));
+function entryRow(e, w) {
+  const terms = e.missingTerms.map((t) => termsBlock(e, t, w, (t2) => act(() => accept(e, t2))));
+  let install = "";
+  if (w.canChange) {
+    const b = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
+    b.disabled = e.missingTerms.length > 0;
+    b.title = b.disabled ? "Accept the licence terms first" : "";
+    b.addEventListener("click", () => void installModel(e));
+    install = b;
+  }
   return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), el("span", { text: e.licence }), el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install)];
 }
 async function loadCatalog() {
   const box5 = $("models-catalog");
   say(note2(), "Reading the catalog\u2026", "busy");
   try {
-    const [cat, installed] = await Promise.all([catalog.listModelCatalog({ user: user() }), catalog.listInstalledModels({})]);
+    const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
+    const w = who(acc);
     box5.replaceChildren(
       el("h3", { text: "Catalog" }),
-      el("p", { class: "muted", text: `Licence terms still to accept are those for the user ${user() || "(none)"}; read them before accepting.` }),
-      table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map(entryRow)),
+      el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
+      table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map((e) => entryRow(e, w))),
+      el("h3", { text: "Accepted terms" }),
+      acceptedTable(acc, w, (t) => act(() => revoke(t))),
       el("h3", { text: "Installed" }),
       table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]))
     );
@@ -7900,7 +8150,7 @@ async function installModel(e) {
   const progress = bar(0, 1);
   log.replaceChildren(el("h3", { text: `Install ${e.id}` }), progress, status3);
   try {
-    for await (const u of catalog.installModel({ user: user(), artifactId: e.id }, { signal: ac.signal })) {
+    for await (const u of catalog.installModel({ artifactId: e.id }, { signal: ac.signal })) {
       if (u.update.case === "progress") {
         const p = u.update.value;
         progress.max = Math.max(1, p.fileCount);
@@ -8676,175 +8926,6 @@ function init10() {
   $("server-load").addEventListener("submit", load);
   void status();
   void reload();
-}
-
-// demo/web/src/sha256.ts
-var K = new Uint32Array([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298
-]);
-var Sha256 = class {
-  h = new Uint32Array([
-    1779033703,
-    3144134277,
-    1013904242,
-    2773480762,
-    1359893119,
-    2600822924,
-    528734635,
-    1541459225
-  ]);
-  block = new Uint8Array(64);
-  filled = 0;
-  total = 0;
-  w = new Uint32Array(64);
-  update(data) {
-    let i = 0;
-    this.total += data.length;
-    if (this.filled) {
-      const take = Math.min(64 - this.filled, data.length);
-      this.block.set(data.subarray(0, take), this.filled);
-      this.filled += take;
-      i = take;
-      if (this.filled < 64) return this;
-      this.compress(this.block, 0);
-      this.filled = 0;
-    }
-    for (; i + 64 <= data.length; i += 64) this.compress(data, i);
-    if (i < data.length) {
-      this.block.set(data.subarray(i));
-      this.filled = data.length - i;
-    }
-    return this;
-  }
-  /** The digest as lowercase hex. The hasher is spent. */
-  hex() {
-    const bits = this.total * 8;
-    const pad = new Uint8Array((this.filled < 56 ? 56 : 120) - this.filled + 8);
-    pad[0] = 128;
-    const dv = new DataView(pad.buffer);
-    dv.setUint32(pad.length - 8, Math.floor(bits / 4294967296), false);
-    dv.setUint32(pad.length - 4, bits >>> 0, false);
-    this.update(pad);
-    let out = "";
-    for (const v of this.h) out += v.toString(16).padStart(8, "0");
-    return out;
-  }
-  compress(b, at) {
-    const w = this.w;
-    for (let t = 0; t < 16; t++) {
-      const j = at + t * 4;
-      w[t] = b[j] << 24 | b[j + 1] << 16 | b[j + 2] << 8 | b[j + 3];
-    }
-    for (let t = 16; t < 64; t++) {
-      const x = w[t - 15];
-      const y = w[t - 2];
-      const s0 = (x >>> 7 | x << 25) ^ (x >>> 18 | x << 14) ^ x >>> 3;
-      const s1 = (y >>> 17 | y << 15) ^ (y >>> 19 | y << 13) ^ y >>> 10;
-      w[t] = w[t - 16] + s0 + w[t - 7] + s1 | 0;
-    }
-    const h = this.h;
-    let [a, bb, c, d, e, f, g, hh] = [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]];
-    for (let t = 0; t < 64; t++) {
-      const S1 = (e >>> 6 | e << 26) ^ (e >>> 11 | e << 21) ^ (e >>> 25 | e << 7);
-      const ch = e & f ^ ~e & g;
-      const t1 = hh + S1 + ch + K[t] + w[t] | 0;
-      const S0 = (a >>> 2 | a << 30) ^ (a >>> 13 | a << 19) ^ (a >>> 22 | a << 10);
-      const maj = a & bb ^ a & c ^ bb & c;
-      const t2 = S0 + maj | 0;
-      hh = g;
-      g = f;
-      f = e;
-      e = d + t1 | 0;
-      d = c;
-      c = bb;
-      bb = a;
-      a = t1 + t2 | 0;
-    }
-    h[0] += a;
-    h[1] += bb;
-    h[2] += c;
-    h[3] += d;
-    h[4] += e;
-    h[5] += f;
-    h[6] += g;
-    h[7] += hh;
-  }
-};
-async function sha256Blob(b, progress) {
-  const s = new Sha256();
-  const reader = b.stream().getReader();
-  let read = 0;
-  for (; ; ) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    s.update(value);
-    read += value.length;
-    progress?.(read);
-  }
-  return s.hex();
 }
 
 // demo/web/src/tabs/vocabulary.ts

@@ -125,7 +125,12 @@ async fn install(address: &str, id: &str) {
 }
 
 async fn accept_on_server(address: &str, user: &str) {
-    let req = RecordLicenceAcceptanceRequest { user: user.into(), licence: "CC-BY-SA-4.0".into(), terms: "".into() };
+    let req = RecordLicenceAcceptanceRequest {
+        user: user.into(),
+        licence: "CC-BY-SA-4.0".into(),
+        terms: "".into(),
+        ..Default::default()
+    };
     admin(address).await.record_licence_acceptance(req).await.unwrap();
 }
 

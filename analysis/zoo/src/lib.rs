@@ -31,7 +31,7 @@ pub mod index;
 pub mod licence;
 pub mod transfer;
 
-pub use accept::{Acceptance, Acceptances, UserId};
+pub use accept::{Acceptance, Acceptances, Shown, UserId};
 pub use digest::{Sha256, Sha512};
 pub use error::{Check, ZooError};
 pub use fetch::{Blobs, CacheStatus, Fetched, Keep, Offline, Sources, Transport, Zoo, most_bytes, unpack, verify};

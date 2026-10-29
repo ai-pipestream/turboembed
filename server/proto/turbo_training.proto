@@ -31,6 +31,13 @@ service TurboCatalogService {
   // An installed file's bytes, for a user who accepted every term the
   // artifact needs: its catalog file first, then the bytes.
   rpc ReadModelFile(ReadModelFileRequest) returns (stream ModelFileChunk);
+  // Admin. Withdraws a user's acceptance of a licence's terms. Files
+  // already installed stay, but none is served to that user again until
+  // the terms are accepted again.
+  rpc RevokeLicenceAcceptance(RevokeLicenceAcceptanceRequest) returns (RevokeLicenceAcceptanceResponse);
+  // The terms a user accepted, in the order accepted, and whether the
+  // server serves the admin calls.
+  rpc ListLicenceAcceptances(ListLicenceAcceptancesRequest) returns (ListLicenceAcceptancesResponse);
 }
 
 // A licence and the address of the text a user accepts for it.
@@ -120,13 +127,58 @@ message RecordLicenceAcceptanceRequest {
   // The terms address, only for a licence without a text of its own
   // (LicenseRef-RestrictedPublic): the entry's LicenceTerms.text.
   string terms = 3;
+  // The artifact whose page showed the terms, recorded for audit. When
+  // set, it is an artifact the index lists that needs these terms.
+  string artifact_id = 4;
+  // The SHA-256, as 64 lowercase hex digits, of the LicenceTerms.text the
+  // page displayed. When set, it must be the digest of the text the
+  // server serves for these terms, so the acceptance names that text.
+  string text_sha256 = 5;
 }
 
 message RecordLicenceAcceptanceResponse {
   string user = 1;
   LicenceTerms accepted = 2;
-  // Seconds since the Unix epoch.
+  // Seconds since the Unix epoch. Accepting again keeps the first time.
   uint64 accepted_at = 3;
+}
+
+message RevokeLicenceAcceptanceRequest {
+  string user = 1;
+  // As RecordLicenceAcceptanceRequest names them.
+  string licence = 2;
+  string terms = 3;
+}
+
+message RevokeLicenceAcceptanceResponse {
+  string user = 1;
+  LicenceTerms revoked = 2;
+  // Whether there was an acceptance to withdraw.
+  bool was_accepted = 3;
+}
+
+// One acceptance as the zoo's acceptances.json records it (docs/zoo.md).
+message LicenceAcceptance {
+  LicenceTerms terms = 1;
+  // Seconds since the Unix epoch.
+  uint64 accepted_at = 2;
+  // The artifact whose page showed the terms, when one was recorded.
+  string artifact_id = 3;
+  // The SHA-256 of the text as the page displayed it, when recorded.
+  string text_sha256 = 4;
+}
+
+message ListLicenceAcceptancesRequest {
+  // Empty lists nothing.
+  string user = 1;
+}
+
+message ListLicenceAcceptancesResponse {
+  string user = 1;
+  repeated LicenceAcceptance accepted = 2;
+  // Whether the server serves RecordLicenceAcceptance,
+  // RevokeLicenceAcceptance and InstallModel (its admin flag).
+  bool admin = 3;
 }
 
 message InstallModelRequest {
