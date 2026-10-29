@@ -6,6 +6,7 @@ members = [
     "trainer/recipes",
     "bench",
     "server",
+    "zoo-remote",
     "demo",
     "examples/docling",
     "analysis/core",
