@@ -4553,7 +4553,8 @@ by range alone, since its cuts inside a sentence have no margin to
 price). CUDA's nDCG@10 differs from the CPU's only from its vectors'
 numerics (arguana on up to 58 of 1406 queries, nfcorpus on up to 4),
 with the same chunks. Metal matches the CPU query for query. Sentence
-windows stays the eval default until they do.
+windows is still the eval default; making this pipeline the default is
+separate follow-up work.
 
 ### Structure in the chunker
 
