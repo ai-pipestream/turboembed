@@ -62,6 +62,7 @@ pub mod error;
 pub mod fineweb;
 pub mod langdetect;
 pub mod langdetect_web;
+pub mod litbank;
 pub mod masc;
 pub mod namefind;
 pub mod namefind_eval;
@@ -75,6 +76,7 @@ pub mod tatoeba;
 pub mod treebank;
 pub mod ud;
 pub mod ud_card;
+pub mod wnut17;
 
 use std::fmt::{self, Write as _};
 
