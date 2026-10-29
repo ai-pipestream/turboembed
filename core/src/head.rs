@@ -15,6 +15,7 @@ mod words;
 pub use linear::Linear;
 pub mod crf;
 pub mod edit_tree;
+pub mod hash_embed;
 pub mod lemmatizer;
 pub mod parser;
 pub mod tagger;
@@ -24,6 +25,8 @@ pub use parser::BiaffineParser;
 pub use tagger::TokenTagger;
 #[cfg(test)]
 mod edit_tree_tests;
+#[cfg(test)]
+mod hash_embed_tests;
 #[cfg(test)]
 mod lemmatizer_tests;
 #[cfg(test)]

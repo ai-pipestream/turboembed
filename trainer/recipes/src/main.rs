@@ -6,8 +6,9 @@
 //! turbo-train-head baseline --corpus <id> --dir <corpus dir> --out <dir> [--unrecorded-corpus]
 //! turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
 //!     [--device cpu|cuda|levelzero|metal] [--precision model|exact] [--pooling first|mean] [--crf]
-//!     [--bilstm <hidden>x<layers>] [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N]
-//!     [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
+//!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
+//!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
 //! ```
 //!
 //! Exit status 2 on any error. `--out` must not exist yet. A run claims
@@ -19,17 +20,26 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
-use turbo::manifest::WordPooling;
+use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
 use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
-use turbo_trainer_recipes::run::{HeadOptions, examples, named, predict, spec, write};
+use turbo_trainer_recipes::run::{
+    CHECKPOINT_DEV, CHECKPOINT_EPOCH, HASH_ROWS, HeadOptions, examples, named, predict, replace, spec, write,
+};
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 const RESAMPLES: usize = 1000;
+
+/// The default patience of a head with a BiLSTM adapter: its dev score
+/// keeps creeping up by less than the tolerance an epoch for many epochs
+/// (MASC POS, hashed words and a 256x1 BiLSTM: 0.9733 at epoch 32, 0.9755
+/// at 57), and each better epoch is saved as it comes, so waiting costs
+/// only time.
+const BILSTM_PATIENCE: u32 = 15;
 
 struct Args {
     rest: Vec<String>,
@@ -159,13 +169,26 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             Some((parse(h)?, parse(l)?))
         }
     };
+    let hash_dim: Option<u32> =
+        a.value("--hash-embed")?.map(|v| v.parse()).transpose().map_err(|_| Error("--hash-embed <dim>".into()))?;
+    let rows = match a.value("--hash-rows")? {
+        None => HASH_ROWS,
+        Some(v) => {
+            let r: Vec<u32> = v.split(',').map(str::parse).collect::<std::result::Result<_, _>>().unwrap_or_default();
+            r.try_into().map_err(|_| Error(format!("--hash-rows {v:?}: four counts, comma separated")))?
+        }
+    };
+    let hash = hash_dim.map(|dim| HashEmbed { dim, rows });
     let d = Config::default();
     let c = Config {
         seed: a.parsed("--seed", d.seed)?,
         epochs: a.parsed("--epochs", d.epochs)?,
         batch: a.parsed("--batch", d.batch)?,
         lr: a.parsed("--lr", d.lr)?,
-        patience: a.parsed("--patience", d.patience)?,
+        patience: a.parsed("--patience", if bilstm.is_some() { BILSTM_PATIENCE } else { d.patience })?,
+        tolerance: a.parsed("--tolerance", d.tolerance)?,
+        threads: a.parsed("--threads", d.threads)?,
+        verbose: true,
         ..d
     };
     let max_train: usize = a.parsed("--max-train", 0)?;
@@ -175,7 +198,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let t = Instant::now();
     let corpus = read_corpus(corpus_id, dir, unrecorded)?;
     let read = t.elapsed().as_secs_f64();
-    let head = spec(&corpus, &HeadOptions { pooling, crf, bilstm })?;
+    let head = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
@@ -190,9 +213,32 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let features = t.elapsed().as_secs_f64();
     let feature_words = train_ex.iter().chain(&dev_ex).map(|e| e.labels.len() as u64).sum();
 
+    // The best epoch's head is on disk whenever it improves, the epoch and
+    // its dev score in the same file's metadata, so a run stopped midway
+    // keeps a head and the epoch it is from, replaced together by one
+    // rename; from the first one on, the directory stays if the run fails.
     let t = Instant::now();
-    let (model, report) =
-        turbo_trainer::fit(&head, enc.hidden(), &train_ex, &dev_ex, &c).map_err(|e| Error(e.message))?;
+    let spec_json = serde_json::to_vec_pretty(&head).expect("a head spec serializes");
+    let hidden = enc.hidden();
+    let mut out = out;
+    let (model, report) = {
+        let dir = out.path.clone();
+        let mut saved = false;
+        let mut save = |m: &turbo_trainer::Tagger<f32>, epoch: usize, dev: f64| -> turbo_trainer_recipes::Result<()> {
+            if !saved {
+                replace(&dir, "head.json", &spec_json)?;
+                saved = true;
+            }
+            let at = [(CHECKPOINT_EPOCH, epoch.to_string()), (CHECKPOINT_DEV, dev.to_string())];
+            replace(&dir, "head.safetensors", &safetensors::write_with(&named(&head, hidden, m.tensors()), &at))?;
+            Ok(())
+        };
+        let r = turbo_trainer::fit_with(&head, hidden, &train_ex, &dev_ex, &c, &mut |m, e, d| {
+            save(m, e, d).map_err(|x| turbo::status::invalid(x.0))
+        });
+        out.keep = out.keep || saved_any(&dir);
+        r.map_err(|e| Error(e.message))?
+    };
     drop((train_ex, dev_ex));
     let trained = t.elapsed().as_secs_f64();
 
@@ -211,9 +257,13 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     };
     let eval_s = t.elapsed().as_secs_f64();
 
-    let weights = safetensors::write(&named(&head, enc.hidden(), model.tensors()));
-    let spec_json = serde_json::to_vec_pretty(&head).expect("a head spec serializes");
-    let outputs = vec![write(&out.path, "head.safetensors", &weights)?, write(&out.path, "head.json", &spec_json)?];
+    // The final head is the best checkpoint's, published with the same
+    // epoch and dev score, so no moment of finishing leaves weights
+    // without the record of where they are from.
+    let best = report.best_epoch;
+    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
+    let weights = safetensors::write_with(&named(&head, enc.hidden(), model.tensors()), &at);
+    let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
@@ -232,6 +282,8 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             clip: c.clip,
             warmup: c.warmup,
             patience: c.patience,
+            tolerance: c.tolerance,
+            threads: c.threads,
             max_train,
             dev_left_out,
         }),
@@ -239,6 +291,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             train_loss: report.train_loss,
             dev: report.dev,
             best_epoch: report.best_epoch,
+            epoch_seconds: report.epoch_seconds,
         }),
         eval,
         timing_s: Timing { read, features, train: trained, eval: eval_s, feature_words },
@@ -304,6 +357,11 @@ impl Drop for OutDir {
             let _ = std::fs::remove_dir_all(&self.path);
         }
     }
+}
+
+/// Whether a checkpoint was written into `dir`.
+fn saved_any(dir: &Path) -> bool {
+    dir.join("head.safetensors").is_file()
 }
 
 fn commit(given: Option<String>) -> String {

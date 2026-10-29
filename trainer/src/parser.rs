@@ -345,7 +345,7 @@ impl<R: Real> Parser<R> {
             *g += *d;
         }
         if shape.layers > 0 {
-            adapter::backward(shape, &self.params, features, dnodes[width..].to_vec(), &mut local, &w.adapter);
+            adapter::backward(shape, &self.params, features, dnodes[width..].to_vec(), &mut local, &w.adapter, false);
         }
         if !total.is_finite() || !local.iter().flatten().all(|v| v.to_f64().is_finite()) {
             return Err(invalid("trainer: the parser's loss or a gradient is not finite"));

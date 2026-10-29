@@ -74,6 +74,13 @@ pub struct ConfigRecord {
     pub clip: f64,
     pub warmup: f64,
     pub patience: u32,
+    /// The gain over the last counted dev score that resets patience.
+    #[serde(default)]
+    pub tolerance: f64,
+    /// Threads a batch ran on, 0 for every core; the weights do not
+    /// depend on it.
+    #[serde(default)]
+    pub threads: usize,
     /// The first this many training sentences, or every one when 0.
     pub max_train: usize,
     /// Dev sentences left out of early stopping because training never
@@ -87,6 +94,9 @@ pub struct TrainingRecord {
     pub train_loss: Vec<f64>,
     pub dev: Vec<f64>,
     pub best_epoch: usize,
+    /// Wall seconds each epoch took, dev scoring included.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub epoch_seconds: Vec<f64>,
 }
 
 /// Scores on the test split.
