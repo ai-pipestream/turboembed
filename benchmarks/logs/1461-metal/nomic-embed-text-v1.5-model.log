@@ -1,0 +1,15 @@
+== nomic-embed-text-v1.5 model 2026-10-28T06:06:46Z head 4cc4468fe7e1734e7880fb9d67a3abe7b8b6ce23
+ 2:06  up 18 days, 19:16, 6 users, load averages: 5.54 7.54 5.92
+"Device Utilization %"=19
+cmd: cargo run --release -p turbo-bench --features metal -- record --bundle <bundles>/nomic-embed-text-v1.5 --device metal --precision model --batch 8 --seq 512 --rows dense --warmup 5 --iterations 20 --no-tei --no-mlx --out <out>
+    Finished `release` profile [optimized] target(s) in 0.07s
+     Running `target/release/turbo-bench record --bundle ~/turbo-bundles/nomic-embed-text-v1.5 --device metal --precision model --batch 8 --seq 512 --rows dense --warmup 5 --iterations 20 --no-tei --no-mlx --out $SCRATCH/rec1461/out`
+metal Apple M2: p50 800.8552 ms, p99 863.5362 ms over 20 runs of [8, 512] ROWS_DENSE, 4096 live tokens, 4096 computed; min cosine 0.9999999999992145, max abs diff 4.76837158203125e-6
+library (metal Apple M2): p50 800.8552 ms, p99 863.5362 ms on [8, 512] ROWS_DENSE: 4096 token positions computed of 4096 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): not run: disabled on the command line (--no-mlx)
+$SCRATCH/rec1461/out/m2.metal.embed.model-dense.nomic-embed-text-v1-5-d5877f3f.4cc4468fe7e1.json
+exit 0
+== end 2026-10-28T06:07:10Z
+ 2:07  up 18 days, 19:16, 6 users, load averages: 5.34 7.34 5.90
+"Device Utilization %"=97

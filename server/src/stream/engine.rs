@@ -337,7 +337,7 @@ impl Engine {
         answers: &mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
         dead: &Arc<Dead>,
     ) -> std::result::Result<(), ()> {
-        let Outcome { model, version, dim, rows } = outcome;
+        let Outcome { model, version, dim, quantization, rows } = outcome;
         match rows {
             Ok(rows) => {
                 for row in rows {
@@ -348,8 +348,24 @@ impl Engine {
                                 version: version.clone(),
                                 dim,
                                 data,
+                                quantization,
                             };
                             ok_response(row.id, vectors)
+                        }
+                        RowPayload::Codes(data) => {
+                            let codes = crate::proto::result::VectorCodesResult {
+                                model: model.clone(),
+                                version: version.clone(),
+                                dim,
+                                data,
+                                quantization,
+                            };
+                            AnalyzeStreamResponse {
+                                id: row.id,
+                                outcome: Some(crate::proto::result::analyze_stream_response::Outcome::VectorCodes(
+                                    codes,
+                                )),
+                            }
                         }
                         RowPayload::Outcome(outcome) => AnalyzeStreamResponse { id: row.id, outcome: Some(*outcome) },
                     };

@@ -3,7 +3,6 @@ use turbo_formats::FormatError;
 use turbo_formats::conllu::{ConlluReader, ConlluSentenceReader, ConlluTokenReader, Sentence, WordLine};
 use turbo_formats::sample::{LemmaSample, PosSample};
 use turbo_train::TrainingConfiguration;
-use turbo_train_components::ud::Component;
 use turbo_train_components::{
     LemmaEventStream, LemmatizerFactory, PosEventStream, PosTaggerFactory, SdEventStream, SentenceDetectorFactory,
     Stamp, TokSpanEventStream, TokenizerFactory, lemmatize, postag, sentdetect, tokenize,
@@ -12,13 +11,13 @@ use turbo_zoo::Sha256;
 
 use super::lemma::{ReferenceClasses, lemma_samples_sha256, lemma_scores, lemma_tokens, score_lemmas};
 use super::{
-    MAX_TOKENS_LEFT_OUT, ReadSamples, SENTENCES_PER_SAMPLE, TAG_FORMAT, TAGSET, UD_RECIPES, UdRecipe, UdSamples,
-    component_name,
+    Component, MAX_TOKENS_LEFT_OUT, ReadSamples, SENTENCES_PER_SAMPLE, TAG_FORMAT, TAGSET, UD_RECIPES, UdRecipe,
+    UdSamples, component_name,
 };
 use crate::card::{HeldOutCard, TagCount, TokenCoverage};
 use crate::error::{Error, LeftOut, Result};
 use crate::postag::{HeldOutTags, PosRecipe, Scored};
-use crate::segmentation::{self, HeldOut, SegmentationRecipe, TIMESTAMP_MS, WHITESPACE};
+use crate::segmentation::{self, HeldOut, SegmentationRecipe, TIMESTAMP_MS};
 use crate::treebank::{RELEASE, TreebankText};
 use crate::{GateRun, Trained, check_skipped};
 
@@ -75,6 +74,17 @@ pub fn lemma_samples(conllu: &str) -> std::result::Result<(Vec<LemmaSample<'_>>,
 }
 
 impl UdRecipe {
+    /// The model the recipe is gated against.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NoReference`] for the tokenizers, part-of-speech
+    /// taggers and lemmatizers, which have none since #1645, #1646
+    /// and #1647.
+    pub fn reference(&self) -> Result<crate::Reference> {
+        self.reference.ok_or(Error::NoReference { recipe: self.model_id })
+    }
+
     /// The recipe of [`UD_RECIPES`] that trains the model `id`.
     pub fn trains(id: &str) -> Option<UdRecipe> {
         UD_RECIPES.into_iter().find(|r| r.model_id == id)
@@ -108,7 +118,7 @@ impl UdRecipe {
             Component::Tokens => segmentation::Component::Tokens,
             Component::Pos | Component::Lemmas => return None,
         };
-        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference.id() })
+        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference.map(|r| r.id()) })
     }
 
     /// For a tagger, the MASC tagger's gate for it: a [`PosRecipe`] of the
@@ -151,7 +161,7 @@ impl UdRecipe {
             ),
             Component::Tokens => (
                 UdSamples::Segments(HeldOut::Tokens {
-                    samples: ConlluTokenReader::new(conllu, WHITESPACE)
+                    samples: ConlluTokenReader::new(conllu)
                         .map_err(conllu_error)?
                         .collect::<std::result::Result<_, _>>()
                         .map_err(conllu_error)?,
@@ -217,7 +227,7 @@ impl UdRecipe {
             }
             (_, Some(tagger), UdSamples::Tags(samples)) => {
                 let tags = tagger.reference_tags(reference)?;
-                tagger.check_coverage(self.reference.id(), &tags, &HeldOutTags::new(samples, held_out.skipped))?;
+                tagger.check_coverage(self.reference()?.id(), &tags, &HeldOutTags::new(samples, held_out.skipped))?;
             }
             (None, None, UdSamples::Lemmas(samples)) => {
                 self.check_classes(&ReferenceClasses::of_model(reference)?, &samples)?;
@@ -242,7 +252,7 @@ impl UdRecipe {
             Ok(left_out)
         } else {
             Err(Error::ClassesOutsideReference {
-                reference: self.reference.id().to_owned(),
+                reference: self.reference()?.id().to_owned(),
                 left_out,
                 of: tokens,
                 limit: MAX_TOKENS_LEFT_OUT,
@@ -272,14 +282,14 @@ impl UdRecipe {
         let (bytes, report) = match &read.samples {
             UdSamples::Segments(HeldOut::Sentences(samples)) => {
                 let factory = SentenceDetectorFactory::new(language, true, None, None)?;
-                let mut stream = SdEventStream::new(&factory, WHITESPACE);
+                let mut stream = SdEventStream::new(&factory);
                 samples.iter().for_each(|s| stream.events(s, &mut events));
                 let t = sentdetect::train_sentence_model_from_events(&events, &factory, &params, &mut config, stamp)?;
                 (t.package.to_bytes(), t.report)
             }
             UdSamples::Segments(HeldOut::Tokens { samples, .. }) => {
                 let factory = TokenizerFactory::new(language, None, false, None)?;
-                let mut stream = TokSpanEventStream::new(&factory, WHITESPACE);
+                let mut stream = TokSpanEventStream::new(&factory);
                 for s in samples {
                     stream.events(s, &mut events)?;
                 }
@@ -359,7 +369,7 @@ impl UdRecipe {
     /// ([`Error::ClassesOutsideReference`]), samples of another component,
     /// what scoring fails on, or the gate's errors.
     pub fn gate(&self, trained: &[u8], reference: &[u8], held_out: ReadSamples<'_>) -> Result<GateRun> {
-        let reference_id = self.reference.id();
+        let reference_id = self.reference()?.id();
         let (name, corpus_sha256) = (self.held_out_name(), self.treebank.test.sha256);
         match (self.segmentation(), self.tagger(), held_out.samples) {
             (Some(s), _, UdSamples::Segments(samples)) => {

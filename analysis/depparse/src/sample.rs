@@ -1,11 +1,9 @@
-use crate::{ArcStandardState, DependencyContextGenerator, DependencyGraph, ParserInput, Result, error};
+use crate::{DependencyGraph, Result, error};
 use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::{Dependencies, Tokens, WordOrTokenAnchor};
 use turbo_formats::conllu::ConlluDependencySample;
 use turbo_formats::sample::dependency::{DependencySample as FormatSample, DependencyTree, Head};
 use turbo_formats::source::Field;
-use turbo_train::Event;
-use turbo_unicode::WhitespaceMode;
 
 /// Sentence data and its tree. Optional CoNLL-U metadata survives a graph/layer
 /// round trip through this carrier; a bare dependency layer has no text offsets.
@@ -27,10 +25,9 @@ impl<A: WordOrTokenAnchor> Clone for DependencySample<A> {
 }
 impl<A: WordOrTokenAnchor> DependencySample<A> {
     pub fn new(tokens: Vec<String>, tags: Vec<String>, graph: DependencyGraph<A>) -> Result<Self> {
-        ParserInput::check(
-            &tokens.iter().map(String::as_str).collect::<Vec<_>>(),
-            &tags.iter().map(String::as_str).collect::<Vec<_>>(),
-        )?;
+        if tokens.is_empty() || tokens.len() != tags.len() || tokens.len() > u32::MAX as usize {
+            return Err(error("nonempty, aligned tokens and tags required"));
+        }
         graph.check_tree()?;
         if tokens.len() != graph.len() {
             return Err(error("one graph node per token required"));
@@ -109,48 +106,10 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
                 )
             })
             .collect();
-        let tree = DependencyTree::new(heads, relations, WhitespaceMode::Unicode).map_err(error)?;
+        let tree = DependencyTree::new(heads, relations).map_err(error)?;
         out.sample =
             FormatSample::new(out.sample.tokens().to_vec(), out.sample.tags().to_vec(), tree, out.sample.source())
                 .map_err(error)?;
-        Ok(out)
-    }
-}
-/// Oracle events in sentence/transition order. Non-projective samples are
-/// pseudo-projectivized before extracting arc-standard oracle transitions.
-#[derive(Default)]
-pub struct DependencyEventStream {
-    pub events: Vec<Event>,
-    pub skipped_nonprojective: usize,
-    /// Number of source trees with crossing dependencies retained in the events.
-    pub included_nonprojective: usize,
-}
-impl DependencyEventStream {
-    pub fn generate<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
-        Self::generate_with_mode(samples, crate::training::TrainingMode::PseudoProjective)
-    }
-    /// Generate native SWAP events, retaining ordinary source relation labels.
-    pub fn generate_swap<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
-        Self::generate_with_mode(samples, crate::training::TrainingMode::Swap)
-    }
-    pub(crate) fn generate_with_mode<A: WordOrTokenAnchor>(
-        samples: &[DependencySample<A>],
-        mode: crate::training::TrainingMode,
-    ) -> Result<Self> {
-        let mut out = Self::default();
-        for sample in samples {
-            let graph = mode.graph(sample.graph())?;
-            out.included_nonprojective += usize::from(!sample.graph().is_projective());
-            let steps = mode.transitions(&graph)?;
-            let mut state = ArcStandardState::<A>::new(sample.tokens.len())?;
-            let tokens: Vec<_> = sample.tokens.iter().map(String::as_str).collect();
-            let tags: Vec<_> = sample.tags.iter().map(String::as_str).collect();
-            for step in steps {
-                let context = DependencyContextGenerator::context(&state, &tokens, &tags)?;
-                out.events.push(Event::new(step.encode(), context.into_iter().map(Into::into).collect()));
-                state.apply(&step)?;
-            }
-        }
         Ok(out)
     }
 }

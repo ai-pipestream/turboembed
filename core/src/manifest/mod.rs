@@ -155,6 +155,7 @@ mod validate;
 mod validate_architecture;
 mod validate_artifacts;
 mod validate_positions;
+mod validate_rotary;
 mod validate_tokenizer;
 pub use architecture::*;
 pub use artifact::*;

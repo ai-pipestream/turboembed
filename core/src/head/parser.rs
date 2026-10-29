@@ -76,6 +76,14 @@ pub struct Work {
     n: usize,
 }
 
+/// Refuses `scores` holding a value that is not finite.
+fn finite(head: &str, what: &str, scores: &[f32]) -> Result<()> {
+    if scores.iter().all(|v| v.is_finite()) {
+        return Ok(());
+    }
+    Err(Error::new(INVALID_ARGUMENT, format!("head {head:?}: an {what} score is not finite in f64 either")))
+}
+
 fn leaky(v: &mut [f32]) {
     v.iter_mut().for_each(|x| {
         if *x < 0.0 {
@@ -181,10 +189,37 @@ impl BiaffineParser {
             w.projected.chunks_exact(a + 1).flat_map(|p| p[..a].iter().copied()).collect(),
             w.projected.chunks_exact(a + 1).map(|p| p[a]).collect(),
         );
-        let heads = Linear::new(a, rows, weights, bias)?;
         out.resize(n * rows, 0.0);
-        heads.apply_rows(&w.dep[a..rows * a], n, out);
+        // A projection past f32's range would make inf or NaN of a score
+        // the sums in f64 keep finite: such a sentence is scored again in
+        // f64 throughout, and a score not finite even so is refused.
+        let packed = weights.iter().chain(&bias).all(|v| v.is_finite());
+        if packed {
+            Linear::new(a, rows, weights, bias)?.apply_rows(&w.dep[a..rows * a], n, out);
+        }
+        if !packed || !out.iter().all(|v| v.is_finite()) {
+            self.arcs_f64(n, out, w);
+        }
+        finite(&self.spec.name, "arc", out)?;
         Ok(n)
+    }
+
+    /// The arc scores of [`BiaffineParser::arcs`] summed in f64 alone.
+    fn arcs_f64(&self, n: usize, out: &mut [f32], w: &Work) {
+        let (a, rows, u) = (self.arc_dep.out_dim, n + 1, self.arc.weight());
+        for d in 1..rows {
+            let x = &w.dep[d * a..][..a];
+            for h in 0..rows {
+                let y = &w.head[h * a..][..a];
+                let s: f64 = (0..=a)
+                    .map(|i| {
+                        let ui: f64 = u[i * a..][..a].iter().zip(y).map(|(p, q)| *p as f64 * *q as f64).sum();
+                        if i < a { x[i] as f64 * ui } else { ui }
+                    })
+                    .sum();
+                out[(d - 1) * rows + h] = s as f32;
+            }
+        }
     }
 
     /// Each word's head (0 the root) from its arc scores, by the head's
@@ -228,7 +263,33 @@ impl BiaffineParser {
                 out[(d - 1) * labels + l] = s as f32;
             }
         }
-        Ok(())
+        // As for arcs: a projection past f32's range is summed again in
+        // f64 throughout, and a score not finite even so is refused.
+        if !projected.iter().chain(out.iter()).all(|v| v.is_finite()) {
+            self.relations_f64(heads, out, w);
+        }
+        finite(&self.spec.name, "relation", out)
+    }
+
+    /// The relation scores of [`BiaffineParser::relations`] summed in f64
+    /// alone.
+    fn relations_f64(&self, heads: &[u32], out: &mut [f32], w: &Work) {
+        let (r, labels, m) = (self.rel_dep.out_dim, self.spec.labels.len(), self.rel.weight());
+        let k = r + 1;
+        let one = |v: &[f32], i: usize| if i < r { v[i] as f64 } else { 1.0 };
+        for (d, &h) in (1..).zip(heads) {
+            let x = &w.rel_dep[d * r..][..r];
+            let y = &w.rel_head[h as usize * r..][..r];
+            for l in 0..labels {
+                let s: f64 = (0..k)
+                    .map(|i| {
+                        let row = &m[(l * k + i) * k..][..k];
+                        one(x, i) * (0..k).map(|j| row[j] as f64 * one(y, j)).sum::<f64>()
+                    })
+                    .sum();
+                out[(d - 1) * labels + l] = s as f32;
+            }
+        }
     }
 
     /// The best relation of each word from its relation scores.

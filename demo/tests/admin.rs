@@ -19,6 +19,7 @@ use turbo_kserve::proto::training::train_static_model_update::Update;
 use turbo_kserve::proto::training::turbo_training_service_client::TurboTrainingServiceClient;
 use turbo_kserve::proto::training::*;
 use turbo_kserve::proto::{ModelMetadataRequest, ServerLiveResponse};
+use turbo_kserve_demo::{Allow, Options};
 use turbo_zoo::{Index, Sha256, Sha512, Transport, Url};
 
 const TRAIN: &str = "/turbo.training.v1.TurboTrainingService/TrainStaticModel";
@@ -158,7 +159,13 @@ async fn install_model_streams_its_progress_when_allowed() {
     let (_, end) = stream(&demo(&s, &[]).await, INSTALL, &req).await.frames::<ServerLiveResponse>().await;
     assert!(end.starts_with(r#"{"error":{"code":"permission_denied""#), "{end}");
 
+    // An install acts for a user, so a demo without one refuses it.
     let d = demo(&s, &[INSTALL]).await;
+    let (_, end) = stream(&d, INSTALL, &req).await.frames::<InstallModelUpdate>().await;
+    assert!(end.starts_with(r#"{"error":{"code":"permission_denied""#) && end.contains("--user"), "{end}");
+
+    let allow = Allow::with(&[INSTALL.to_string()]).unwrap();
+    let d = demo_with(s.local_addr(), Options { allow, user: Some("alice".into()), ..Options::default() }).await;
     let (updates, end) = stream(&d, INSTALL, &req).await.frames::<InstallModelUpdate>().await;
     assert_eq!(end, "{}");
     assert!(updates.iter().any(|u| matches!(u.update, Some(Install::Progress(_)))), "{updates:?}");

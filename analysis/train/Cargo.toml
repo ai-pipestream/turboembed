@@ -21,11 +21,3 @@ turbo-jvm = { path = "../jvm" }
 # The Unicode White_Space set that event lines are split on, Java's per
 # character case mapping, and modified UTF-8 lengths.
 turbo-unicode = { path = "../unicode" }
-
-[dev-dependencies]
-# The JVM's indexer results on real event data, which the indexers are
-# compared with.
-turbo-goldens = { path = "../goldens" }
-# Opens the sentence detector model trained here and the JVM's fixture,
-# and splits text with both.
-turbo-sentdetect = { path = "../sentdetect" }

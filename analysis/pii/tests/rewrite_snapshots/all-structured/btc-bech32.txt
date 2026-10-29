@@ -1,0 +1,14 @@
+MASKED	Segwit ****************************************** and ******************************************.
+
+MASK_ALL	Segwit ########################################## and ##########################################.
+
+REWRITE	pseudonymize	OK	Segwit BTC-ADDRESS-1 and BTC-ADDRESS-1.
+
+LABEL	pseudonymize	7	49	7	20	BTC-ADDRESS-1
+LABEL	pseudonymize	54	96	25	38	BTC-ADDRESS-1
+REWRITE	hmac	OK	Segwit BTC-ADDRESS-3e32bea8dc10b4f8 and BTC-ADDRESS-3e32bea8dc10b4f8.
+
+LABEL	hmac	7	49	7	35	BTC-ADDRESS-3e32bea8dc10b4f8
+LABEL	hmac	54	96	40	68	BTC-ADDRESS-3e32bea8dc10b4f8
+AUDIT	btc-address	2	1	BTC-ADDRESS-3e32bea8dc10b4f8
+AUDIT_REPORT	btc-address: 2 mentions, 1 distinct [BTC-ADDRESS-3e32bea8dc10b4f8]

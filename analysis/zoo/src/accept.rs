@@ -5,6 +5,11 @@
 //! every fetch of an artifact whose class needs acceptance and never
 //! writes it on its own: only [`Acceptances::accept`], called on the
 //! user's explicit action, adds to it.
+//!
+//! Version 2 adds two optional fields to an acceptance: the artifact whose
+//! page showed the terms, and the SHA-256 of the terms text as that page
+//! displayed it. A file is written as version 1 while no acceptance holds
+//! either field, so a build that reads only version 1 still reads it.
 
 use std::fmt;
 use std::fs;
@@ -13,13 +18,15 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::digest::Sha256;
 use crate::error::ZooError;
 use crate::fetch::write_atomic;
-use crate::index::Url;
+use crate::index::{ArtifactId, Url};
 use crate::licence::{Licence, LicenceClass, Requirement};
 
-/// The only `acceptances_version` this build reads.
-pub const ACCEPTANCES_VERSION: u32 = 1;
+/// The newest `acceptances_version` this build reads. It reads 1 as well,
+/// and writes 1 while no acceptance holds a field version 2 added.
+pub const ACCEPTANCES_VERSION: u32 = 2;
 
 /// Who accepted: a user name, 1 to 256 bytes, no control characters and
 /// no leading or trailing whitespace.
@@ -69,11 +76,41 @@ pub struct Acceptance {
     pub license_text: String,
     /// When, in seconds since the Unix epoch, UTC.
     pub accepted_at: u64,
+    /// The artifact whose page showed the terms, for audit only: the
+    /// acceptance covers every artifact under the same terms (version 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact: Option<ArtifactId>,
+    /// The SHA-256 of `license_text` as the page displayed it (version 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license_text_sha256: Option<Sha256>,
 }
 
 impl Acceptance {
     fn requirement(&self) -> Requirement {
         Requirement { licence: self.license, text: self.license_text.clone() }
+    }
+
+    /// Whether the acceptance holds a field version 1 does not have.
+    fn needs_version_2(&self) -> bool {
+        self.artifact.is_some() || self.license_text_sha256.is_some()
+    }
+}
+
+/// What the page that asked for an acceptance showed: the artifact it was
+/// for, and the SHA-256 of the terms text as it displayed it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Shown {
+    pub artifact: Option<ArtifactId>,
+    pub text_sha256: Option<Sha256>,
+}
+
+/// Check that `shown` names the text of `r`.
+fn check_shown(r: &Requirement, shown: &Shown) -> Result<(), String> {
+    match shown.text_sha256 {
+        Some(h) if h != Sha256::of(r.text.as_bytes()) => {
+            Err(format!("license_text_sha256 {h} is not the SHA-256 of {:?}", r.text))
+        }
+        _ => Ok(()),
     }
 }
 
@@ -108,21 +145,32 @@ fn check(r: &Requirement) -> Result<(), String> {
 
 impl Acceptances {
     /// Parse and check an acceptance file. An unknown field, a version
-    /// other than 1, terms that cannot be accepted (a permissive or refused
-    /// licence, a `license_text` that is not the licence's own address),
-    /// or the same user and terms twice is `ZooError::Acceptances`.
+    /// other than 1 or 2, a version 2 field in a version 1 file, terms
+    /// that cannot be accepted (a permissive or refused licence, a
+    /// `license_text` that is not the licence's own address), a
+    /// `license_text_sha256` that is not the digest of `license_text`, or
+    /// the same user and terms twice is `ZooError::Acceptances`.
     pub fn parse(bytes: &[u8]) -> Result<Acceptances, ZooError> {
         let file: AcceptancesFile = serde_json::from_slice(bytes).map_err(|e| ZooError::Acceptances(e.to_string()))?;
-        if file.acceptances_version != ACCEPTANCES_VERSION {
+        let version = file.acceptances_version;
+        if !(1..=ACCEPTANCES_VERSION).contains(&version) {
             return Err(ZooError::Acceptances(format!(
-                "acceptances_version {} is not {ACCEPTANCES_VERSION}",
-                file.acceptances_version
+                "acceptances_version {version} is not 1 to {ACCEPTANCES_VERSION}"
             )));
         }
         let mut out = Acceptances::default();
         for (i, a) in file.accepted.into_iter().enumerate() {
             let r = a.requirement();
-            check(&r).map_err(|e| ZooError::Acceptances(format!("accepted[{i}] ({}): {e}", a.user)))?;
+            let shown = Shown { artifact: a.artifact.clone(), text_sha256: a.license_text_sha256 };
+            check(&r)
+                .and_then(|()| check_shown(&r, &shown))
+                .map_err(|e| ZooError::Acceptances(format!("accepted[{i}] ({}): {e}", a.user)))?;
+            if version == 1 && a.needs_version_2() {
+                return Err(ZooError::Acceptances(format!(
+                    "accepted[{i}] ({}): artifact and license_text_sha256 need acceptances_version 2",
+                    a.user
+                )));
+            }
             if out.has(&a.user, &r) {
                 return Err(ZooError::Acceptances(format!("accepted[{i}]: {} accepted {r} twice", a.user)));
             }
@@ -151,9 +199,11 @@ impl Acceptances {
         write_atomic(path, self.to_canonical_json().as_bytes())
     }
 
-    /// The canonical form: serde_json's pretty printer and a final newline.
+    /// The canonical form: serde_json's pretty printer and a final newline,
+    /// at version 1 unless an acceptance holds a version 2 field.
     pub fn to_canonical_json(&self) -> String {
-        let file = AcceptancesFile { acceptances_version: ACCEPTANCES_VERSION, accepted: self.accepted.clone() };
+        let version = if self.accepted.iter().any(Acceptance::needs_version_2) { 2 } else { 1 };
+        let file = AcceptancesFile { acceptances_version: version, accepted: self.accepted.clone() };
         let mut s = serde_json::to_string_pretty(&file).expect("an acceptance file always serializes");
         s.push('\n');
         s
@@ -182,13 +232,30 @@ impl Acceptances {
     /// the host's terms page, so each host's terms are accepted on their
     /// own.
     pub fn accept_terms(&mut self, user: &UserId, r: &Requirement, accepted_at: u64) -> Result<(), ZooError> {
-        check(r).map_err(ZooError::Acceptances)?;
+        self.accept_shown(user, r, &Shown::default(), accepted_at)
+    }
+
+    /// [`Acceptances::accept_terms`] from a page that showed the terms:
+    /// `shown` names the artifact it was for and the SHA-256 of the text
+    /// as it displayed it, recorded for audit. A digest that is not the
+    /// SHA-256 of `r.text` is `ZooError::Acceptances`. Accepting again
+    /// keeps the first acceptance as it was.
+    pub fn accept_shown(
+        &mut self,
+        user: &UserId,
+        r: &Requirement,
+        shown: &Shown,
+        accepted_at: u64,
+    ) -> Result<(), ZooError> {
+        check(r).and_then(|()| check_shown(r, shown)).map_err(ZooError::Acceptances)?;
         if !self.has(user, r) {
             self.accepted.push(Acceptance {
                 user: user.clone(),
                 license: r.licence,
                 license_text: r.text.clone(),
                 accepted_at,
+                artifact: shown.artifact.clone(),
+                license_text_sha256: shown.text_sha256,
             });
         }
         Ok(())
@@ -205,7 +272,17 @@ impl Acceptances {
 
     /// Whether `user` accepted the terms `r`.
     pub fn has(&self, user: &UserId, r: &Requirement) -> bool {
-        self.accepted.iter().any(|a| a.user == *user && a.license == r.licence && a.license_text == r.text)
+        self.find(user, r).is_some()
+    }
+
+    /// `user`'s acceptance of the terms `r`, if there is one.
+    pub fn find(&self, user: &UserId, r: &Requirement) -> Option<&Acceptance> {
+        self.accepted.iter().find(|a| a.user == *user && a.license == r.licence && a.license_text == r.text)
+    }
+
+    /// `user`'s acceptances, in the order they were made.
+    pub fn of_user<'a>(&'a self, user: &'a UserId) -> impl Iterator<Item = &'a Acceptance> {
+        self.accepted.iter().filter(move |a| a.user == *user)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Acceptance> {
@@ -214,199 +291,4 @@ impl Acceptances {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn user(s: &str) -> UserId {
-        s.parse().unwrap()
-    }
-
-    fn req(l: Licence) -> Requirement {
-        Requirement::of(l).unwrap()
-    }
-
-    fn restricted(text: &str) -> Requirement {
-        Requirement { licence: Licence::RestrictedPublic, text: text.to_owned() }
-    }
-
-    #[test]
-    fn restricted_terms_are_accepted_per_host() {
-        let imdb = restricted("https://ai.stanford.edu/~amaas/data/sentiment/");
-        let other = restricted("https://example.org/terms");
-        let mut a = Acceptances::default();
-        // There is no one text to accept for the licence as a whole.
-        assert!(a.accept(&user("alice"), Licence::RestrictedPublic, 0).is_err());
-        a.accept_terms(&user("alice"), &imdb, 7).unwrap();
-        assert!(a.has(&user("alice"), &imdb));
-        assert!(!a.has(&user("alice"), &other));
-        assert!(!a.has(&user("bob"), &imdb));
-        let back = Acceptances::parse(a.to_canonical_json().as_bytes()).unwrap();
-        assert_eq!(back, a);
-        assert!(a.revoke(&user("alice"), &imdb));
-        assert!(!a.has(&user("alice"), &imdb));
-        // The text must be an https address.
-        assert!(a.accept_terms(&user("alice"), &restricted("not a url"), 0).is_err());
-        assert!(a.accept_terms(&user("alice"), &restricted("http://example.org/terms"), 0).is_err());
-        // A licence with its own text accepts that text only.
-        let wrong = Requirement { licence: Licence::CcBySa40, text: "https://example.org/terms".into() };
-        assert!(a.accept_terms(&user("alice"), &wrong, 0).is_err());
-    }
-
-    #[test]
-    fn accept_round_trips_through_the_file() {
-        let mut a = Acceptances::default();
-        a.accept(&user("alice"), Licence::CcBySa40, 1_792_000_000).unwrap();
-        a.accept(&user("alice"), Licence::Lgpl30Only, 1_792_000_001).unwrap();
-        a.accept(&user("bob"), Licence::CcBySa40, 1_792_000_002).unwrap();
-        // A second acceptance keeps the first time.
-        a.accept(&user("alice"), Licence::CcBySa40, 1_800_000_000).unwrap();
-        let text = a.to_canonical_json();
-        let back = Acceptances::parse(text.as_bytes()).unwrap();
-        assert_eq!(back, a);
-        assert_eq!(back.to_canonical_json(), text);
-        assert_eq!(back.iter().next().unwrap().accepted_at, 1_792_000_000);
-        assert!(back.has(&user("alice"), &req(Licence::CcBySa40)));
-        assert!(!back.has(&user("carol"), &req(Licence::CcBySa40)));
-        assert!(!back.has(&user("bob"), &req(Licence::Lgpl30Only)));
-    }
-
-    #[test]
-    fn the_canonical_form_is_documented() {
-        let mut a = Acceptances::default();
-        a.accept(&user("alice"), Licence::CcBySa40, 1_792_000_000).unwrap();
-        assert_eq!(
-            a.to_canonical_json(),
-            r#"{
-  "acceptances_version": 1,
-  "accepted": [
-    {
-      "user": "alice",
-      "license": "CC-BY-SA-4.0",
-      "license_text": "https://creativecommons.org/licenses/by-sa/4.0/legalcode",
-      "accepted_at": 1792000000
-    }
-  ]
-}
-"#
-        );
-    }
-
-    #[test]
-    fn permissive_and_refused_licences_cannot_be_accepted() {
-        let mut a = Acceptances::default();
-        assert!(a.accept(&user("alice"), Licence::Apache2, 0).is_err());
-        assert!(a.accept(&user("alice"), Licence::CcByNcNd40, 0).is_err());
-        assert!(a.accept(&user("alice"), Licence::CcByNd40, 0).is_err());
-        assert!(a.accept(&user("alice"), Licence::Unconfirmed, 0).is_err());
-        assert_eq!(a, Acceptances::default());
-        let nd = r#"{"acceptances_version":1,"accepted":[{"user":"a","license":"CC-BY-NC-ND-4.0","license_text":"https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode","accepted_at":1}]}"#;
-        assert!(Acceptances::parse(nd.as_bytes()).is_err());
-    }
-
-    /// A non-commercial licence is accepted as one text, its legal code,
-    /// for every host, and each licence on its own.
-    #[test]
-    fn non_commercial_licences_are_accepted_by_their_legal_code() {
-        let mut a = Acceptances::default();
-        a.accept(&user("alice"), Licence::CcByNcSa40, 9).unwrap();
-        assert!(a.has(&user("alice"), &req(Licence::CcByNcSa40)));
-        assert!(!a.has(&user("alice"), &req(Licence::CcByNcSa30)));
-        assert!(!a.has(&user("alice"), &req(Licence::CcByNc40)));
-        assert!(!a.has(&user("bob"), &req(Licence::CcByNcSa40)));
-        let back = Acceptances::parse(a.to_canonical_json().as_bytes()).unwrap();
-        assert_eq!(back, a);
-        assert!(
-            a.to_canonical_json()
-                .contains("\"license_text\": \"https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode\"")
-        );
-        // A host's page in place of the legal code is not the licence's text.
-        let host = Requirement {
-            licence: Licence::CcByNcSa40,
-            text: "https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md".into(),
-        };
-        assert!(a.accept_terms(&user("alice"), &host, 0).is_err());
-        assert!(a.revoke(&user("alice"), &req(Licence::CcByNcSa40)));
-        assert_eq!(a, Acceptances::default());
-    }
-
-    #[test]
-    fn revoke_removes_one_users_acceptance() {
-        let mut a = Acceptances::default();
-        a.accept(&user("alice"), Licence::Gpl30Only, 0).unwrap();
-        a.accept(&user("bob"), Licence::Gpl30Only, 0).unwrap();
-        assert!(a.revoke(&user("alice"), &req(Licence::Gpl30Only)));
-        assert!(!a.revoke(&user("alice"), &req(Licence::Gpl30Only)));
-        assert!(!a.has(&user("alice"), &req(Licence::Gpl30Only)));
-        assert!(a.has(&user("bob"), &req(Licence::Gpl30Only)));
-    }
-
-    #[test]
-    fn parse_is_strict() {
-        let ok = r#"{"acceptances_version":1,"accepted":[{"user":"a","license":"CC-BY-SA-4.0","license_text":"https://creativecommons.org/licenses/by-sa/4.0/legalcode","accepted_at":1}]}"#;
-        assert!(Acceptances::parse(ok.as_bytes()).is_ok());
-        for bad in [
-            ok.replace("\"acceptances_version\":1", "\"acceptances_version\":2"),
-            ok.replace("\"accepted_at\":1", "\"accepted_at\":1,\"note\":\"x\""),
-            ok.replace("\"accepted_at\":1", "\"accepted_at\":\"1\""),
-            ok.replace(",\"accepted_at\":1", ""),
-            ok.replace("CC-BY-SA-4.0", "cc-by-sa-4.0"),
-            ok.replace("CC-BY-SA-4.0\",\"license_text\":\"https://creativecommons.org/licenses/by-sa/4.0/legalcode", "MIT\",\"license_text\":\"https://opensource.org/license/mit"),
-            ok.replace("by-sa/4.0/legalcode", "by-sa/3.0/legalcode"),
-            ok.replace("\"user\":\"a\"", "\"user\":\"\""),
-            ok.replace("\"user\":\"a\"", "\"user\":\" a\""),
-            ok.replace("}]}", "},{\"user\":\"a\",\"license\":\"CC-BY-SA-4.0\",\"license_text\":\"https://creativecommons.org/licenses/by-sa/4.0/legalcode\",\"accepted_at\":2}]}"),
-        ] {
-            assert!(Acceptances::parse(bad.as_bytes()).is_err(), "{bad}");
-        }
-    }
-
-    #[test]
-    fn a_missing_file_is_no_acceptances() {
-        let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-{}", std::process::id()));
-        let path = dir.join("absent").join("acceptances.json");
-        assert_eq!(Acceptances::load(&path).unwrap(), Acceptances::default());
-        let mut a = Acceptances::default();
-        a.accept(&user("alice"), Licence::CcBySa30, 5).unwrap();
-        a.save(&path).unwrap();
-        assert_eq!(Acceptances::load(&path).unwrap(), a);
-        fs::remove_dir_all(&dir).unwrap();
-    }
-
-    #[test]
-    fn an_unusable_entry_is_named_with_the_file() {
-        let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-bad-{}", std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("acceptances.json");
-        let text = r#"{"acceptances_version":1,"accepted":[{"user":"a","license":"CC-BY-SA-4.0","license_text":"https://creativecommons.org/licenses/by-sa/4.0/legalcode","accepted_at":1},{"user":"a","license":"MIT","license_text":"https://opensource.org/license/mit","accepted_at":2}]}"#;
-        fs::write(&path, text).unwrap();
-        let msg = Acceptances::load(&path).unwrap_err().to_string();
-        assert!(
-            msg.contains(&path.display().to_string()) && msg.contains("accepted[1]") && msg.contains("MIT"),
-            "{msg}"
-        );
-        fs::remove_dir_all(&dir).unwrap();
-    }
-
-    /// A symlink left at a temporary name is never written through: each
-    /// write makes a name of its own, and leaves no temporary file.
-    #[cfg(unix)]
-    #[test]
-    fn save_never_writes_through_a_symlinked_temporary_file() {
-        let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-link-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(dir.join("home")).unwrap();
-        let victim = dir.join("victim");
-        fs::write(&victim, b"untouched").unwrap();
-        let path = dir.join("home").join("acceptances.json");
-        std::os::unix::fs::symlink(&victim, dir.join("home").join("acceptances.json.partial")).unwrap();
-        let mut a = Acceptances::default();
-        a.accept(&user("alice"), Licence::CcBySa40, 5).unwrap();
-        a.save(&path).unwrap();
-        assert_eq!(fs::read(&victim).unwrap(), b"untouched");
-        assert!(!fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
-        assert_eq!(Acceptances::load(&path).unwrap(), a);
-        let names: Vec<_> = fs::read_dir(dir.join("home")).unwrap().map(|e| e.unwrap().file_name()).collect();
-        assert_eq!(names.len(), 2, "acceptances.json and the symlink left before: {names:?}");
-        fs::remove_dir_all(&dir).unwrap();
-    }
-}
+mod tests;

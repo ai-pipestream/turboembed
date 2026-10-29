@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 
-use super::{Lowercase, lowercase_at, to_lowercase};
+use super::{lowercase_code_points_changes, to_lowercase};
 
 /// Java ROOT lowercasing, borrowing the input when no character changes.
 pub fn lowercase_cow(text: &str) -> Cow<'_, str> {
-    if text.char_indices().all(|(i, c)| lowercase_at(text, i, c) == Lowercase::Char(c)) {
+    if !lowercase_code_points_changes(text) {
         Cow::Borrowed(text)
     } else {
         let mut lower = String::with_capacity(text.len());

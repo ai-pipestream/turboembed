@@ -1,0 +1,12 @@
+MASKED	lower case: gb82 west 1234 **** **** ** and nl91abna0417164300
+
+MASK_ALL	lower case: gb82 west 1234 ############ and nl91abna0417164300
+
+REWRITE	pseudonymize	OK	lower case: gb82 west 1234 PHONE-1 and nl91abna0417164300
+
+LABEL	pseudonymize	27	39	27	34	PHONE-1
+REWRITE	hmac	OK	lower case: gb82 west 1234 PHONE-166e908f4e3a1a6f and nl91abna0417164300
+
+LABEL	hmac	27	39	27	49	PHONE-166e908f4e3a1a6f
+AUDIT	phone	1	1	PHONE-166e908f4e3a1a6f
+AUDIT_REPORT	phone: 1 mentions, 1 distinct [PHONE-166e908f4e3a1a6f]

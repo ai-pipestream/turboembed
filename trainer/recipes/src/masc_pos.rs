@@ -92,6 +92,7 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
         dev: Counts::of(&dev),
         test: Counts::of(&test),
         skipped: a + b + c,
+        recipe_only: false,
     };
     Ok(Corpus { record, splits: Splits { train, dev, test } })
 }

@@ -3,7 +3,7 @@
 //! `CategoryTable` read them.
 //!
 //! A line is cut at its first `#`, trimmed of Unicode `White_Space` and
-//! split at whitespace in the configured mode. A line whose first field
+//! split at Unicode whitespace. A line whose first field
 //! starts with `0x` (in either case) maps a code point, or a range
 //! `0xA..0xB`, to one or more categories, the first of which supplies the
 //! unknown word settings; any other line defines a category: its name,
@@ -13,8 +13,6 @@
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
-
-use turbo_unicode::WhitespaceMode;
 
 use super::error::{CharDefProblem, DictionaryError, DictionaryFile};
 use super::number::{after_two_units, parse_java_int};
@@ -101,7 +99,7 @@ pub(crate) struct CharDefSource {
 }
 
 impl CharDefSource {
-    pub(crate) fn parse(text: &str, mode: WhitespaceMode) -> Result<CharDefSource, DictionaryError> {
+    pub(crate) fn parse(text: &str) -> Result<CharDefSource, DictionaryError> {
         let mut categories: Vec<Category> = Vec::new();
         let mut names: HashMap<String, CategoryId> = HashMap::new();
         let mut mappings = Vec::new();
@@ -117,11 +115,9 @@ impl CharDefSource {
                 continue;
             }
             fields.clear();
-            fields.extend(whitespace_fields(trimmed, mode));
-            // A trimmed line that is not empty can still be all whitespace
-            // in legacy mode (U+001C), and then has no field. Java reads
-            // fields[0] of an empty array there and throws; this refuses
-            // the line as a malformed category.
+            fields.extend(whitespace_fields(trimmed));
+            // A trimmed line that is not empty has a first field; the check
+            // refuses rather than panics should that ever change.
             let Some(&first) = fields.first() else {
                 return Err(problem(CharDefProblem::MalformedCategory));
             };
@@ -322,7 +318,7 @@ mod tests {
     use super::*;
 
     fn parse(text: &str) -> Result<CharDef, DictionaryError> {
-        CharDefSource::parse(text, WhitespaceMode::Unicode)?.resolve()
+        CharDefSource::parse(text)?.resolve()
     }
 
     fn message(text: &str) -> String {
@@ -424,9 +420,13 @@ mod tests {
     }
 
     #[test]
-    fn a_legacy_separator_alone_on_a_line_is_refused_not_a_panic() {
-        let e = CharDefSource::parse("DEFAULT 0 1 0\n\u{1c}\n", WhitespaceMode::Legacy).err().unwrap();
+    fn an_information_separator_is_a_category_name_not_whitespace() {
+        // U+001C is not White_Space, so the line is a category named U+001C
+        // with no flags, which is malformed; U+0085 separates the fields.
+        let e = CharDefSource::parse("DEFAULT 0 1 0\n\u{1c}\n").err().unwrap();
         assert_eq!(e.to_string(), "malformed category at char.def line 2");
+        let def = parse("DEFAULT\u{85}1\u{85}0\u{85}3\n").unwrap();
+        assert_eq!(def.categories[0], Category { name: "DEFAULT".into(), invoke: true, group: false, length: 3 });
     }
 
     #[test]

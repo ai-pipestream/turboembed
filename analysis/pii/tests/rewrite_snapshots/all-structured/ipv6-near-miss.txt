@@ -1,0 +1,9 @@
+MASKED	Not peers: ::1, ::, 12:30:45, std::vector, a:b:c, fe:ed
+
+MASK_ALL	Not peers: ::1, ::, 12:30:45, std::vector, a:b:c, fe:ed
+
+REWRITE	pseudonymize	OK	Not peers: ::1, ::, 12:30:45, std::vector, a:b:c, fe:ed
+
+REWRITE	hmac	OK	Not peers: ::1, ::, 12:30:45, std::vector, a:b:c, fe:ed
+
+AUDIT_REPORT	no pii found

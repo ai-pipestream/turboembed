@@ -1,42 +1,23 @@
-//! The language detector recipe (issue #429): `LanguageDetectorME`
-//! trained on Tatoeba's CC BY 2.0 FR sentences, gated against OpenNLP's
-//! `langdetect-183.bin` on held-out Tatoeba sentences of the languages
-//! both cover.
+//! Language data planning for native language identification (#1525).
 //!
 //! - Data: the sentences of a Tatoeba export ([`crate::tatoeba`]) whose
 //!   language is one of [`LANGUAGES`]. The licence check keeps a sentence
-//!   only when its licence is one of [`ACCEPTED_LICENCES`], CC BY 2.0 FR,
-//!   as the issue asks; the CC0 sentences, which the policy would also
-//!   allow, are left out and counted per language. A text that occurs
-//!   twice in a language is kept once, with its smallest id, so no text is
-//!   both trained on and held out.
-//! - Languages: [`LANGUAGES`] maps each Tatoeba code to the codes of
-//!   `langdetect-183.bin` counted right for it: the 96 codes both use, and
-//!   seven pairs of a macrolanguage and one of its individual languages
-//!   where the two use different codes of ISO 639-3 (Tatoeba's `est`,
-//!   `pes` and `lvs`, which the reference also has, beside its `ekk`,
-//!   `fas` and `lav`; Tatoeba's `zsm`, `npi`, `mlg` and `swh` for its
-//!   `msa`, `nep`, `plt` and `swa`). A language with fewer than
+//!   only when its licence is one of [`ACCEPTED_LICENCES`], CC BY 2.0 FR.
+//!   A text that occurs twice in a language is kept once, with its
+//!   smallest id, so no text is both trained on and held out.
+//! - Languages: [`LANGUAGES`] maps each Tatoeba code to ISO 639-3 codes
+//!   used for gold evaluation. A language with fewer than
 //!   [`Split::min_sentences`] sentences left after the licence check is
-//!   left out of training and of the gate, and listed in the card.
+//!   left out of training and evaluation, and listed in the card.
 //! - Split: per language, the sentences in id order shuffled as
 //!   `Collections.shuffle(list, new Random(seed))` does; the first
 //!   [`Split::held_out`] are held out and the next ones, at most
 //!   [`Split::max_training`], trained on. Each language has its own
 //!   `Random` with the same seed, so a language's split depends on its
 //!   own sentences alone.
-//! - Training: `LanguageDetectorME.train` with the default factory and the
-//!   parameters `langdetect-183.bin` was most likely trained with, those
-//!   of the command line trainer given none (`MAXENT`, 100 iterations,
-//!   cutoff 5, one thread, the `OnePass` indexer `train` puts in), and a
-//!   fixed manifest `Timestamp`, so a run gives the same bytes.
-//! - Gate: every held-out sentence is a unit of `turbo_eval::model_gate`
-//!   ([`Task::LanguageDetector`](turbo_eval::model_gate::Task::LanguageDetector),
-//!   [`Scoring::Labels`](turbo_eval::model_gate::Scoring::Labels)), right when the
-//!   model's best language (`predictLanguage`) is its language: as written
-//!   for the trained model, through [`LANGUAGES`] for the reference. Both
-//!   are run by turbo-langdetect, whose probabilities are the JVM's bit for
-//!   bit. The reference is only scored; it is never shipped or bundled.
+//! - Native model: `langid` trains a hashed character n-gram linear
+//!   classifier with script priors and scores it on these held-out samples.
+//!   The classical model comparison is retired (#1648).
 
 mod card;
 mod plan;
@@ -49,9 +30,9 @@ pub use card::{
     write_language_dir,
 };
 
-use crate::error::Result;
+use crate::Reference;
+use crate::error::{Error, Result};
 use crate::tatoeba::{Export, SentenceLicence, TatoebaError};
-use crate::{RecordedReference, Reference};
 
 /// The trained model's zoo id, also its file name without `.bin`.
 pub const MODEL_ID: &str = "turbo-mul-tatoeba-langdetect-1";
@@ -68,18 +49,6 @@ pub const SENTENCES_FILE: &str = "training-sentences.txt";
 /// Where Tatoeba shows a sentence, with its author: this address followed
 /// by the sentence's id.
 pub const SENTENCE_URL: &str = "https://tatoeba.org/sentences/show/";
-
-/// OpenNLP's language detector, trained on the Leipzig corpora: the
-/// reference the trained model is gated against. The zoo does not list
-/// it (its data's terms are not confirmed, docs/licences.md), so the
-/// recipe records it.
-pub const LANGDETECT_183: RecordedReference = RecordedReference {
-    id: "opennlp-langdetect-183",
-    file: "langdetect-183.bin",
-    url: "https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin",
-    size: 10_568_188,
-    sha256: "2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4",
-};
 
 /// The sentence licences the licence check keeps.
 pub const ACCEPTED_LICENCES: [SentenceLicence; 1] = [SentenceLicence::CcBy20Fr];
@@ -101,8 +70,7 @@ macro_rules! pairs {
 }
 
 /// Every Tatoeba language whose sentences the recipe reads, in Tatoeba
-/// code order, with the codes of `langdetect-183.bin` (ISO 639-3) counted
-/// right for it. The reference's 103 codes are each in exactly one pair.
+/// code order, with its ISO 639-3 gold aliases.
 pub const LANGUAGES: [LanguagePair; 100] = pairs![
     "afr" => ["afr"], "ara" => ["ara"], "ast" => ["ast"], "aze" => ["aze"], "bak" => ["bak"],
     "bel" => ["bel"], "ben" => ["ben"], "bos" => ["bos"], "bre" => ["bre"], "bul" => ["bul"],
@@ -202,12 +170,12 @@ pub fn check_export(export: &Export, record: ExportRecord, allow_unrecorded: boo
     }
 }
 
-/// The recipe: the model, its reference, the languages, the split and the
-/// training parameters.
+/// The recipe: the model, its optional reference, the languages, the split and
+/// the training parameters.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct LanguageRecipe {
     pub model_id: &'static str,
-    pub reference: Reference,
+    pub reference: Option<Reference>,
     pub languages: &'static [LanguagePair],
     pub split: Split,
     pub iterations: i32,
@@ -217,7 +185,7 @@ pub struct LanguageRecipe {
 /// The language detector recipe.
 pub const LANGDETECT: LanguageRecipe = LanguageRecipe {
     model_id: MODEL_ID,
-    reference: Reference::Recorded(LANGDETECT_183),
+    reference: None,
     languages: &LANGUAGES,
     split: SPLIT,
     iterations: turbo_train::params::DEFAULT_ITERATIONS,
@@ -330,21 +298,13 @@ pub struct LanguageOutcome {
     pub card: LanguageCard,
 }
 
-/// Reads the recipe's sentences from `export`, plans, trains, gates the
-/// model against `reference` (the bytes of the reference's file) and
-/// makes the card. `recorded` is whether the export is the recorded one.
+/// Classical training and gating is retired; `langid` trains the native model.
 ///
 /// # Errors
 ///
-/// What reading, training, scoring or the gate fail on.
-pub fn run(recipe: &LanguageRecipe, export: &Export, recorded: bool, reference: &[u8]) -> Result<LanguageOutcome> {
-    recipe.reference.check(reference)?;
-    let mut plan = recipe.plan(recipe.sentences(export)?)?;
-    let trained = recipe.train(&plan)?;
-    let digest = export.digest();
-    let gate = recipe.gate(&trained.bytes, reference, &mut plan, &recipe.held_out_name(&digest), &digest)?;
-    let card = LanguageCard::new(recipe, export, recorded, &plan, &trained, &gate);
-    Ok(LanguageOutcome { trained, gate, card })
+/// Always returns a retirement error.
+pub fn run(_recipe: &LanguageRecipe, _export: &Export, _recorded: bool, _reference: &[u8]) -> Result<LanguageOutcome> {
+    Err(Error::Model("classical language detector training and gating is retired (#1648); use native n-gram language identification (#1525)".into()))
 }
 
 #[cfg(test)]

@@ -3,7 +3,6 @@
 
 use turbo_analysis::Span;
 use turbo_tokenize::detok::Detokenizer;
-use turbo_unicode::WhitespaceMode;
 
 use super::{EvalError, Verdict};
 use crate::evaluate::measure::{FMeasure, LabeledSpan};
@@ -103,18 +102,16 @@ impl DetokenizerEvaluator {
 
 /// The sentence detector evaluator, `SentenceDetectorEvaluator`:
 /// precision and recall of the predicted sentence spans, both they and
-/// the reference's trimmed of whitespace first (`Span.trim`, which
-/// follows the whitespace mode).
+/// the reference's trimmed of Unicode whitespace first (`Span.trim`).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct SentenceDetectorEvaluator {
     fmeasure: FMeasure,
-    mode: WhitespaceMode,
 }
 
 impl SentenceDetectorEvaluator {
-    /// An evaluator that trims spans of whitespace in `mode`.
-    pub fn new(mode: WhitespaceMode) -> SentenceDetectorEvaluator {
-        SentenceDetectorEvaluator { fmeasure: FMeasure::default(), mode }
+    /// An evaluator that trims spans of Unicode whitespace.
+    pub fn new() -> SentenceDetectorEvaluator {
+        SentenceDetectorEvaluator { fmeasure: FMeasure::default() }
     }
 
     /// Scores the sentence spans `predicted`, byte spans of `reference`'s
@@ -128,7 +125,7 @@ impl SentenceDetectorEvaluator {
     /// empty prediction past it, after the scores are counted.
     pub fn evaluate(&mut self, reference: &SentenceSample<'_>, predicted: &[Span]) -> Result<Verdict, EvalError> {
         let document = reference.document();
-        let trim = |spans: &[Span]| spans.iter().map(|&s| trim(document, s, self.mode)).collect::<Result<Vec<_>, _>>();
+        let trim = |spans: &[Span]| spans.iter().map(|&s| trim(document, s)).collect::<Result<Vec<_>, _>>();
         let predictions = trim(predicted)?;
         let references = trim(reference.sentences())?;
         self.fmeasure.update(&untyped(&references), &untyped(&predictions));
@@ -151,7 +148,7 @@ impl SentenceDetectorEvaluator {
 /// `Span.trim(text)` on bytes: the whitespace at the span's ends removed,
 /// an empty span at its start when it is all whitespace. A byte inside a
 /// character is not whitespace.
-pub(super) fn trim(text: &str, span: Span, mode: WhitespaceMode) -> Result<Span, EvalError> {
+pub(super) fn trim(text: &str, span: Span) -> Result<Span, EvalError> {
     let len = text.len();
     let (start, end) = (span.start as usize, span.end as usize);
     let past_end = |index: usize| EvalError::TrimOutOfText {
@@ -165,14 +162,16 @@ pub(super) fn trim(text: &str, span: Span, mode: WhitespaceMode) -> Result<Span,
             return Err(past_end(i));
         }
         let c = text.get(i..).and_then(|t| t.chars().next());
-        Ok(c.filter(|&c| mode.is_whitespace(c as u32)).map(char::len_utf8))
+        Ok(c.filter(|&c| turbo_unicode::whitespace::is_whitespace(c as u32)).map(char::len_utf8))
     };
     let space_before = |i: usize| -> Result<Option<usize>, EvalError> {
         if i > len {
             return Err(past_end(i - 1));
         }
         let c = text.get(..i).and_then(|t| t.chars().next_back());
-        Ok(c.filter(|&c| mode.is_whitespace(c as u32)).map(char::len_utf8).filter(|&n| i - n >= start))
+        Ok(c.filter(|&c| turbo_unicode::whitespace::is_whitespace(c as u32))
+            .map(char::len_utf8)
+            .filter(|&n| i - n >= start))
     };
     let mut new_start = start;
     while new_start < end {

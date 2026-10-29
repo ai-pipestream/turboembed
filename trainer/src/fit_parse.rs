@@ -8,7 +8,7 @@ use turbo::manifest::HeadSpec;
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
-use crate::fit::{Config, Model, Report, check_config, train};
+use crate::fit::{Config, Model, OnBest, Report, check_config, train};
 use crate::parser::{Parser, Work};
 use crate::rng::Rng;
 
@@ -90,8 +90,8 @@ pub fn attachment(parser: &BiaffineParser, examples: &[ParseExample]) -> Result<
 impl Model for Parser<f32> {
     type Example = ParseExample;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        Parser::params(self)
+    fn params(&self) -> Vec<Vec<f32>> {
+        Parser::params(self).to_vec()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         Parser::set_params(self, params)
@@ -122,10 +122,23 @@ pub fn fit_parser(
     dev: &[ParseExample],
     c: &Config,
 ) -> Result<(Parser<f32>, Report)> {
+    fit_parser_with(spec, hidden, train_set, dev, c, &mut |_, _, _| Ok(()))
+}
+
+/// [`fit_parser`], calling `on_best` with the model, its epoch and dev
+/// score each time the best improves (a checkpoint to publish).
+pub fn fit_parser_with(
+    spec: &HeadSpec,
+    hidden: usize,
+    train_set: &[ParseExample],
+    dev: &[ParseExample],
+    c: &Config,
+    on_best: OnBest<'_, Parser<f32>>,
+) -> Result<(Parser<f32>, Report)> {
     check_config(c, train_set.len())?;
     check_parses(train_set, hidden, spec.labels.len())?;
     check_parses(dev, hidden, spec.labels.len())?;
     let mut rng = Rng::new(c.seed);
     let model = Parser::<f32>::new(spec, hidden, &mut rng)?;
-    train(model, &mut rng, train_set, dev, c, &mut |_, _, _| Ok(()))
+    train(model, &mut rng, train_set, dev, c, on_best)
 }

@@ -48,8 +48,8 @@ pub fn span_f1(head: &SpanClassifier, examples: &[SpanExample]) -> Result<f64> {
 impl Model for Spans<f32> {
     type Example = SpanExample;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        Spans::params(self)
+    fn params(&self) -> Vec<Vec<f32>> {
+        Spans::params(self).to_vec()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         Spans::set_params(self, params)

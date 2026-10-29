@@ -1,0 +1,9 @@
+MASKED	𐐨𐐩 user@example.com after Deseret letters, 192.0.2.1 after.
+
+MASK_ALL	𐐨𐐩 user@example.com after Deseret letters, 192.0.2.1 after.
+
+REWRITE	pseudonymize	OK	𐐨𐐩 user@example.com after Deseret letters, 192.0.2.1 after.
+
+REWRITE	hmac	OK	𐐨𐐩 user@example.com after Deseret letters, 192.0.2.1 after.
+
+AUDIT_REPORT	no pii found

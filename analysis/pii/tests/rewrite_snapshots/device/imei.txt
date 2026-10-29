@@ -1,0 +1,14 @@
+MASKED	IMEI: *************** recorded; imei **-******-******-* too.
+
+MASK_ALL	IMEI: ############### recorded; imei ################## too.
+
+REWRITE	pseudonymize	OK	IMEI: IMEI-1 recorded; imei IMEI-2 too.
+
+LABEL	pseudonymize	6	21	6	12	IMEI-1
+LABEL	pseudonymize	37	55	28	34	IMEI-2
+REWRITE	hmac	OK	IMEI: IMEI-d112aac93d89d69e recorded; imei IMEI-b4ca9cadc42ce43f too.
+
+LABEL	hmac	6	21	6	27	IMEI-d112aac93d89d69e
+LABEL	hmac	37	55	43	64	IMEI-b4ca9cadc42ce43f
+AUDIT	imei	2	2	IMEI-d112aac93d89d69e, IMEI-b4ca9cadc42ce43f
+AUDIT_REPORT	imei: 2 mentions, 2 distinct [IMEI-d112aac93d89d69e, IMEI-b4ca9cadc42ce43f]

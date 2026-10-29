@@ -1,4 +1,7 @@
-use super::{DIRECTORY, HEADER, MAGIC, PrebuiltError, PrebuiltImage, SECTIONS, Table, Text, VERSION, validate};
+use super::{
+    DIRECTORY, HEADER, MAGIC, PrebuiltError, PrebuiltImage, SECTIONS, Table, Text, VERSION, WHITESPACE_UNICODE,
+    validate,
+};
 use crate::lattice::chardef::{Assignment, Category, CategoryId, CharDef};
 use crate::lattice::entries::FeatureStore;
 use crate::lattice::matrix::Matrix;
@@ -6,7 +9,6 @@ use crate::lattice::trie::SurfaceTrie;
 use crate::lattice::{DictionaryLimits, MecabDictionary};
 use turbo_analysis_layers::TagSet;
 use turbo_maxent::{Digest, sha256};
-use turbo_unicode::WhitespaceMode;
 
 pub(super) fn word(bytes: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
@@ -53,11 +55,10 @@ impl MecabDictionary {
         if sha256(&bytes[..bytes.len() - 32]).0 != bytes[bytes.len() - 32..] {
             return Err(PrebuiltError::Invalid("image checksum"));
         }
-        let whitespace = match word(bytes, 16) {
-            0 => WhitespaceMode::Legacy,
-            1 => WhitespaceMode::Unicode,
-            _ => return Err(PrebuiltError::Invalid("whitespace mode")),
-        };
+        match word(bytes, 16) {
+            WHITESPACE_UNICODE => {}
+            other => return Err(PrebuiltError::UnsupportedWhitespace(other)),
+        }
         if bytes[DIRECTORY + SECTIONS * 16..HEADER].iter().any(|&b| b != 0) {
             return Err(PrebuiltError::Invalid("reserved header"));
         }
@@ -143,7 +144,6 @@ impl MecabDictionary {
             features,
             pos,
             tags,
-            whitespace,
             sha256: Digest(bytes[40..72].try_into().unwrap()),
         };
         validate::dictionary(&dict, limits)?;

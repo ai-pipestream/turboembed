@@ -18,7 +18,6 @@
 use std::borrow::Cow;
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use crate::error::FormatError;
 use crate::sample::token::{SplitMarker, TokenSample};
@@ -28,26 +27,21 @@ use crate::source::{Line, Lines, Piece, whitespace_tokens};
 #[derive(Clone, Debug)]
 pub struct TokenReader<'a, 'm> {
     lines: Lines<'a>,
-    mode: WhitespaceMode,
     marker: SplitMarker<'m>,
 }
 
 impl<'a> TokenReader<'a, 'static> {
-    /// A reader of `source` with the `<SPLIT>` marker, splitting lines on
-    /// whitespace in `mode`.
-    pub fn new(source: &'a str, mode: WhitespaceMode) -> Result<TokenReader<'a, 'static>, FormatError> {
-        TokenReader::with_marker(source, mode, SplitMarker::default())
+    /// A reader of `source` with the `<SPLIT>` marker, splitting lines at
+    /// Unicode whitespace.
+    pub fn new(source: &'a str) -> Result<TokenReader<'a, 'static>, FormatError> {
+        TokenReader::with_marker(source, SplitMarker::default())
     }
 }
 
 impl<'a, 'm> TokenReader<'a, 'm> {
     /// A reader of `source` with another split marker.
-    pub fn with_marker(
-        source: &'a str,
-        mode: WhitespaceMode,
-        marker: SplitMarker<'m>,
-    ) -> Result<TokenReader<'a, 'm>, FormatError> {
-        Ok(TokenReader { lines: Lines::new(source)?, mode, marker })
+    pub fn with_marker(source: &'a str, marker: SplitMarker<'m>) -> Result<TokenReader<'a, 'm>, FormatError> {
+        Ok(TokenReader { lines: Lines::new(source)?, marker })
     }
 }
 
@@ -56,17 +50,13 @@ impl<'a> Iterator for TokenReader<'a, '_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.lines.next()?;
-        Some(parse_line(line, self.mode, self.marker))
+        Some(parse_line(line, self.marker))
     }
 }
 
 /// `TokenSample.parse` of one line.
-pub fn parse_line<'a>(
-    line: Line<'a>,
-    mode: WhitespaceMode,
-    marker: SplitMarker<'_>,
-) -> Result<TokenSample<'a>, FormatError> {
-    parse_text(line.piece, mode, marker, |span| span, line.span())
+pub fn parse_line<'a>(line: Line<'a>, marker: SplitMarker<'_>) -> Result<TokenSample<'a>, FormatError> {
+    parse_text(line.piece, marker, |span| span, line.span())
 }
 
 /// `TokenSample.parse` of `text`, a piece of a source or a text made from
@@ -74,7 +64,6 @@ pub fn parse_line<'a>(
 /// piece's span) to its bytes in the source.
 pub(crate) fn parse_text<'a>(
     text: Piece<'_>,
-    mode: WhitespaceMode,
     marker: SplitMarker<'_>,
     to_source: impl Fn(Span) -> Span,
     source: Span,
@@ -85,7 +74,7 @@ pub(crate) fn parse_text<'a>(
     let mut out = String::with_capacity(text.text.len() + 1);
     let mut tokens = Vec::new();
     let mut sources = Vec::new();
-    for piece in whitespace_tokens(text, mode) {
+    for piece in whitespace_tokens(text) {
         let mut at = 0;
         for part in piece.text.split(marker.as_str()) {
             let start = out.len() as u32;
@@ -104,7 +93,7 @@ mod tests {
     use super::*;
 
     fn read(s: &str) -> Vec<TokenSample<'_>> {
-        TokenReader::new(s, WhitespaceMode::Unicode).unwrap().map(Result::unwrap).collect()
+        TokenReader::new(s).unwrap().map(Result::unwrap).collect()
     }
 
     #[test]
@@ -130,7 +119,7 @@ mod tests {
     #[test]
     fn another_marker() {
         let m = SplitMarker::new("|").unwrap();
-        let samples: Vec<_> = TokenReader::with_marker("a|b c", WhitespaceMode::Unicode, m).unwrap().collect();
+        let samples: Vec<_> = TokenReader::with_marker("a|b c", m).unwrap().collect();
         let s = samples[0].as_ref().unwrap();
         assert_eq!(s.text(), "ab c ");
         let mut out = String::new();

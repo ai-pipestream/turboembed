@@ -1,0 +1,100 @@
+load_error	
+unsupported	0
+words	97
+walk	walk	walk	st:walk
+walked	walk	walk	st:walk fl:D
+walks	walk	walk	st:walk fl:S
+walking	walking	walkingwalk	st:walkingst:walk fl:G
+Walking	walking	walkingwalk	st:walkingst:walk fl:G
+WALKING	walking	walkingwalk	st:walkingst:walk fl:G
+ponies	pony	pony	st:pony fl:S
+flies	fly	fly	st:fly fl:S
+happily	happily	happily	st:happily
+unhappy	unhappy	unhappyhappy	st:unhappyun st:happy fl:U
+reenter	enter	enter	re st:enter fl:A
+re-enter	re	reenter	pa:re st:re pa:enter st:enter
+eBook	eBook	eBook	
+eBooks	eBooks	eBooks	
+EBOOKS	EBOOKS	EBOOKS	
+Ebooks	Ebooks	Ebooks	
+ACME	acme	acme	st:acme
+ACME'S	acme	acme	st:acme fl:M
+NASA	NASA	NASANasa	st:NASAst:Nasa
+nasa	nasa	nasa	
+Nasa	Nasa	Nasa	
+Paris	Paris	Paris	st:Paris
+PARIS	Paris	Paris	st:Paris
+paris	paris	paris	
+Dr.	Dr	Dr	st:Dr
+dr.	dr.	dr.	
+DR.	Dr	Dr	st:Dr
+U.S.	U.S.	U.S.	
+e.g.	e.g.	e.g.	
+etc.	etc	etc	st:etc
+co-op	co	coop	pa:co st:co pa:op st:op
+ice-cream	ice	icecream	pa:ice st:ice pa:cream st:cream
+mother-in-law	mother	motherinlaw	pa:mother st:mother pa:in st:in pa:law st:law
+mothers-in-law	mother	motherinlaw	pa:mothers st:mother fl:S pa:in st:in pa:law st:law
+running	running	running	st:running
+Running	running	running	st:running
+RUNNING	running	running	st:running
+they're	they're	they're	st:they're
+o'clock	o'clock	o'clock	st:o'clock
+O'CLOCK	o'clock	o'clock	st:o'clock
+can't	can't	can't	st:can't
+won't	won't	won't	st:won't
+1st	1st	1st	st:1st
+2nd	2nd	2nd	st:2nd
+3rd	3rd	3rd	st:3rd
+4th	4th	4th	st:4th
+11th	1	11th	pa:1 st:1 pa:1th
+12th	1	12th	pa:1 st:1 pa:2th
+13th	1	13th	pa:1 st:1 pa:3th
+21st	2	21st	pa:2 st:2 pa:1st
+22nd	2	22nd	pa:2 st:2 pa:2nd
+101st	1	101st	pa:1 st:1 pa:0 st:0 pa:1st
+111th	1	11th	pa:1 st:1 pa:1 st:1 pa:1th
+1990s	1990s	1990s	
+children	children	children	st:children
+children's	children	children	st:children fl:M
+mice	mice	mice	st:mice
+geese	geese	geese	st:geese
+unbelievable	believable	believable	un st:believable fl:U
+unbelievably	believably	believably	un st:believably fl:U
+nationalization	nationalization	nationalization	st:nationalization
+denationalization	denationalization	denationalization	st:denationalization
+reorganizations	organization	organization	fl:A st:organization fl:S
+antidisestablishmentarianism	antidisestablishmentarianism	antidisestablishmentarianism	
+McDonald	McDonald	McDonald	st:McDonald
+MCDONALD	Mcdonald	Mcdonald	st:Mcdonald
+iPhone	iPhone	iPhone	st:iPhone
+IPHONE	Iphone	Iphone	st:Iphone
+Jones's	Jones	Jones	st:Jones fl:M
+Joneses	Joneses	Joneses	
+JONESES	JONESES	JONESES	
+OK	OK	OKOk	st:OKst:Ok
+ok	ok	ok	
+Ok	Ok	Ok	
+TV	TV	TVTv	st:TVst:Tv
+TVs	TV	TV	st:TV fl:S
+I	I	Ii	st:Ist:i
+i	i	i	st:i
+I'm	I'm	I'm	st:I'm
+café	café	café	
+cafe	cafe	cafe	st:cafe
+naïve	naïve	naïve	
+résumé	résumé	résumé	
+Zürich	Zürich	Zürich	
+fiancée	fiancée	fiancée	
+x-ray	x	xray	pa:x st:x pa:ray st:ray
+X-rays	X	Xxray	pa:X st:X pa:rays st:ray fl:Spa:X st:x pa:rays st:ray fl:S
+well-known	well	wellknown	pa:well st:well pa:known st:known
+self-esteem	self	selfesteem	pa:self st:self pa:esteem st:esteem
+high-school	high	highschool	pa:high st:high pa:school st:school
+e-mail	e	email	pa:e st:e pa:mail st:mail
+emails	email	email	st:email fl:S
+sang	sang	sang	st:sang
+sung	sung	sung	st:sung
+better	better	better	st:better
+best	best	bestb	st:bestst:b fl:T
+worse	worse	worse	st:worse

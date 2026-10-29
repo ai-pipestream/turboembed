@@ -1,0 +1,14 @@
+MASKED	Reply to ****@*******.***, not to ****@*******.***.
+
+MASK_ALL	Reply to ################, not to ################.
+
+REWRITE	pseudonymize	OK	Reply to EMAIL-1, not to EMAIL-2.
+
+LABEL	pseudonymize	9	25	9	16	EMAIL-1
+LABEL	pseudonymize	34	50	25	32	EMAIL-2
+REWRITE	hmac	OK	Reply to EMAIL-04704fa5417ffbca, not to EMAIL-298b0701b3b6a46b.
+
+LABEL	hmac	9	25	9	31	EMAIL-04704fa5417ffbca
+LABEL	hmac	34	50	40	62	EMAIL-298b0701b3b6a46b
+AUDIT	email	2	2	EMAIL-04704fa5417ffbca, EMAIL-298b0701b3b6a46b
+AUDIT_REPORT	email: 2 mentions, 2 distinct [EMAIL-04704fa5417ffbca, EMAIL-298b0701b3b6a46b]

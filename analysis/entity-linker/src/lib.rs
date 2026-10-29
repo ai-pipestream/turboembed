@@ -25,9 +25,11 @@
 
 pub mod consolidate;
 mod fuzzy_index;
+pub use fuzzy_index::FuzzyLookupWork;
 pub mod kb;
 pub mod layer;
 pub mod linker;
+mod policy;
 pub mod providers;
 pub mod salience;
 pub mod scorer;

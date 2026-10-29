@@ -12,7 +12,7 @@ use turbo::manifest::{HeadSpec, MAX_LABELS};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
-use crate::fit::{Config, Model, Report, check_config, train};
+use crate::fit::{Config, Model, OnBest, Report, check_config, train};
 use crate::lemma::{Lemmatizer, Work};
 use crate::rng::Rng;
 
@@ -106,8 +106,8 @@ fn check<'a>(examples: impl Iterator<Item = &'a LemmaExample>, hidden: usize, ta
 impl Model for Lemmatizer<f32> {
     type Example = Prepared;
     type Work = Work<f32>;
-    fn params(&self) -> &[Vec<f32>] {
-        Lemmatizer::params(self)
+    fn params(&self) -> Vec<Vec<f32>> {
+        Lemmatizer::params(self).to_vec()
     }
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
         Lemmatizer::set_params(self, params)
@@ -141,6 +141,19 @@ pub fn fit_lemmatizer(
     dev: Vec<LemmaExample>,
     c: &Config,
 ) -> Result<(Lemmatizer<f32>, Report)> {
+    fit_lemmatizer_with(spec, hidden, train_set, dev, c, &mut |_, _, _| Ok(()))
+}
+
+/// [`fit_lemmatizer`], calling `on_best` with the model, its epoch and
+/// dev score each time the best improves (a checkpoint to publish).
+pub fn fit_lemmatizer_with(
+    spec: &HeadSpec,
+    hidden: usize,
+    train_set: Vec<LemmaExample>,
+    dev: Vec<LemmaExample>,
+    c: &Config,
+    on_best: OnBest<'_, Lemmatizer<f32>>,
+) -> Result<(Lemmatizer<f32>, Report)> {
     check_config(c, train_set.len())?;
     let tags = spec.pos_input.as_ref().map(|p| p.labels);
     check(train_set.iter(), hidden, tags)?;
@@ -159,5 +172,5 @@ pub fn fit_lemmatizer(
     let dev: Vec<Prepared> = dev.into_iter().map(prepare).collect();
     let mut rng = Rng::new(c.seed);
     let model = Lemmatizer::<f32>::new(spec, hidden, &mut rng)?;
-    train(model, &mut rng, &train_set, &dev, c, &mut |_, _, _| Ok(()))
+    train(model, &mut rng, &train_set, &dev, c, on_best)
 }

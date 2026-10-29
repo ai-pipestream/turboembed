@@ -4,7 +4,8 @@
 //! per-word features the encoder gives for a corpus, and writes exactly
 //! the tensors the core reads (`turbo::head::tagger::tensors`), so the
 //! head a run holds in memory and the same head loaded from a bundle
-//! score identically.
+//! score identically. Stage R2 (#1519): the encoder itself in training
+//! (`encoder`), on the CPU, alone or under a head on the same loop.
 //!
 //! Every op is generic over [`Real`]: training runs in f32, and the
 //! gradient checks run the same code in f64 against finite differences.
@@ -18,15 +19,18 @@ pub mod adapter;
 mod batch;
 pub mod coref;
 pub mod crf;
+pub mod encoder;
 pub mod fit;
 pub mod fit_coref;
 pub mod fit_lemma;
 pub mod fit_parse;
 pub mod fit_span;
+pub mod langid;
 pub mod lemma;
 pub mod linear;
 pub mod logspace;
 pub mod lstm;
+pub mod mix;
 pub mod parser;
 pub mod real;
 pub mod rng;
@@ -35,10 +39,11 @@ pub mod span;
 pub mod tagger;
 pub mod xent;
 
+pub use encoder::tuned::{Tuned, TunedExample, fit_tuned, fit_tuned_with, tuned_gradients};
 pub use fit::{Config, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
 pub use fit_coref::{CorefExample, fit_coref};
-pub use fit_lemma::{LemmaExample, fit_lemmatizer, mine_trees};
-pub use fit_parse::{ParseExample, fit_parser};
+pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};
+pub use fit_parse::{ParseExample, fit_parser, fit_parser_with};
 pub use fit_span::{SpanExample, fit_spans};
 pub use lemma::Lemmatizer;
 pub use parser::Parser;
