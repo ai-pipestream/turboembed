@@ -4,8 +4,8 @@
 
 use crate::command::run;
 use crate::recipe::{
-    CORPORA, DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, LOCAL_MODELS, MODELS, Model,
-    POOLING_SOURCE, UTF8_COPY_SUFFIX,
+    CORPORA, DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, MODELS, Model, POOLING_SOURCE,
+    UTF8_COPY_SUFFIX,
 };
 use crate::sha512::{Sha512, hex};
 use std::fs::{self, File};
@@ -16,10 +16,23 @@ use std::process::Command;
 /// Which models [`fetch`] makes sure of.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Models {
-    /// [`MODELS`], the ones CI fetches.
+    /// [`MODELS`] (none, #1509), the Hunspell files and the corpora.
     Published,
-    /// [`MODELS`] and [`LOCAL_MODELS`], every model the generator loads.
+    /// [`MODELS`] and [`POOLING_SOURCE`], from which the pooled copy the
+    /// generator loads is derived.
     WithLocal,
+}
+
+/// The generator's runs open OpenNLP 2.5 models (the UD 1.3 `-2.5.4`
+/// models and `langdetect-183.bin`), which are no longer fetched (#1509).
+/// `generate`, `verify` and `fuzz` refuse with this until #1532 deletes
+/// those runs and their goldens, instead of failing inside the container.
+pub const GENERATOR_RETIRED: &str = "the generator's runs open OpenNLP 2.5 models, which are no longer fetched \
+     (#1509); generate, verify and fuzz are unavailable until #1532 deletes those runs and their goldens";
+
+/// Fails with [`GENERATOR_RETIRED`]: no command may run the generator.
+pub fn generator_runs() -> Result<(), String> {
+    Err(GENERATOR_RETIRED.to_string())
 }
 
 /// Makes sure every model of `which`, every MeCab dictionary, every
@@ -30,10 +43,6 @@ pub enum Models {
 /// differs is reported and left for the caller to look at.
 pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let local: &[Model] = match which {
-        Models::Published => &[],
-        Models::WithLocal => &LOCAL_MODELS,
-    };
     let source: &[Model] = match which {
         Models::Published => &[],
         Models::WithLocal => std::slice::from_ref(&POOLING_SOURCE),
@@ -41,7 +50,7 @@ pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
     let hunspell: Vec<Model> =
         HUNSPELL_FILES.iter().map(|f| Model { file: f.file, url: f.url, sha512: f.sha512 }).collect();
     let corpora: Vec<Model> = CORPORA.iter().map(|c| Model { file: c.file, url: c.url, sha512: c.sha512 }).collect();
-    for m in MODELS.iter().chain(local).chain(source).chain(&hunspell).chain(&corpora) {
+    for m in MODELS.iter().chain(source).chain(&hunspell).chain(&corpora) {
         let target = dir.join(m.file);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
@@ -172,7 +181,7 @@ pub fn dictionary_files(dir: &Path) -> Result<Vec<String>, String> {
 /// Checks that every model, Hunspell dictionary file and training corpus
 /// the generator loads is in `dir` with the recipe's SHA-512.
 pub fn check_all(dir: &Path) -> Result<(), String> {
-    MODELS.iter().chain(&LOCAL_MODELS).try_for_each(|m| check(&dir.join(m.file), m))?;
+    MODELS.iter().try_for_each(|m| check(&dir.join(m.file), m))?;
     HUNSPELL_FILES
         .iter()
         .try_for_each(|f| check(&dir.join(f.file), &Model { file: f.file, url: f.url, sha512: f.sha512 }))?;
@@ -259,7 +268,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("model.bin");
         fs::write(&path, b"abc").unwrap();
-        let m = Model { file: "model.bin", url: "https://example.org/model.bin", sha512: MODELS[0].sha512 };
+        let m = Model { file: "model.bin", url: "https://example.org/model.bin", sha512: POOLING_SOURCE.sha512 };
         let err = check(&path, &m).unwrap_err();
         assert!(err.contains("ddaf35a193617aba"), "{err}");
         let ok = Model {
@@ -285,5 +294,11 @@ mod tests {
         let err = check_fixtures(&dir).unwrap_err();
         assert!(err.contains("mecab-x/extra.csv"), "{err}");
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_generator_refuses_to_run_until_its_2_5_runs_are_gone() {
+        let err = generator_runs().unwrap_err();
+        assert!(err.contains("#1532") && err.contains("OpenNLP 2.5"), "{err}");
     }
 }

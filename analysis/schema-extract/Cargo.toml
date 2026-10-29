@@ -22,6 +22,7 @@ turbo-geo = { path = "../geo" }
 turbo-glossary-layers = { path = "../glossary-layers" }
 
 [dev-dependencies]
+turbo-pins = { path = "../pins" }
 # Packages the GLiNER2 encoder for the parity tests, as `turbo-bundle
 # deberta-convert` does, and fetches the real checkpoint by digest.
 turbo-bundle = { path = "../../bundle" }

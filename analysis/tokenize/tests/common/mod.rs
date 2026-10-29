@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use turbo_analysis::{Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Confidence, Tokens};
 use turbo_goldens::expect::{joined_me_spans, jvm_token_spans};
-pub use turbo_goldens::published_model;
 use turbo_goldens::{Dump, Golden, Tolerance, Unit, assert_matches_golden, data_dir, segmentation_shapes, sha512};
 
 pub use turbo_goldens::expect::JvmSpan;
@@ -127,29 +126,6 @@ pub fn read_model(path: &Path) -> TokenizerModel {
 /// A fixture model of the generator, by file name.
 pub fn fixture_model(name: &str) -> TokenizerModel {
     read_model(&fixtures_dir().join(name))
-}
-
-pub const LANGUAGES: [&str; 5] = ["en", "de", "es", "fr", "pt"];
-
-/// The file name of the UD tokenizer model for `language`, one of
-/// `LANGUAGES`.
-pub fn ud_model_name(language: &str) -> &'static str {
-    match language {
-        "en" => "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
-        "de" => "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
-        "es" => "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
-        "fr" => "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
-        "pt" => "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
-        _ => panic!("no UD model for {language}"),
-    }
-}
-
-/// The path of each language's UD model, in the order of `LANGUAGES`, or
-/// `None` when any of them is not downloaded (`published_model` says
-/// which).
-pub fn ud_models() -> Option<Vec<(&'static str, PathBuf)>> {
-    let found: Vec<_> = LANGUAGES.iter().map(|&l| published_model(ud_model_name(l)).map(|p| (l, p))).collect();
-    found.into_iter().collect()
 }
 
 /// The run directory of a model file: its name without `.bin`.

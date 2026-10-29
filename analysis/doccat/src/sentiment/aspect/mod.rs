@@ -53,6 +53,7 @@ use turbo_analysis_layers::{
 
 use super::lexicon::VaderLexicon;
 
+pub use crate::scorers::AspectCategoryScorer;
 pub use tables::DEFAULT_ASPECT_CATEGORIES;
 
 use link::{
@@ -63,25 +64,6 @@ use tables::{
     IMPLICIT_OPINION_CATEGORY_CUES, clean_word_lower, domain_opinion_valence, is_pure_aspect_noun,
     single_word_aspect_category,
 };
-
-/// Optional scorer that assigns an aspect category [`Tag`] from a [`TagSet`]
-/// to an aspect (explicit or implicit) given its surface text and enclosing
-/// sentence text.
-///
-/// Implemented in `turbo-analysis-embed` by `LabelCentroids`-backed category
-/// scorers as well as keyword/centroid hybrid scorers.
-pub trait AspectCategoryScorer: Send + Sync + fmt::Debug {
-    /// The aspect category [`TagSet`] produced by this scorer.
-    fn categories(&self) -> &Arc<TagSet>;
-
-    /// Scores the aspect described by `aspect_text` (empty for implicit
-    /// aspects), `opinion_text`, and `sentence_text`, returning the best
-    /// category [`Tag`] if confidence exceeds the scorer's threshold.
-    fn score_category(&self, aspect_text: &str, opinion_text: &str, sentence_text: &str) -> Option<Tag>;
-
-    /// Deterministic configuration digest for provenance.
-    fn config_hash(&self) -> u64;
-}
 
 /// Rule-based aspect and opinion extractor (`turbo-doccat:aspect-sentiment-rule`,
 /// `#322`).
