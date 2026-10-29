@@ -17,6 +17,7 @@ fn spec() -> HeadSpec {
         scheme: Scheme::Tags,
         word_pooling: WordPooling::First,
         adapter: None,
+        pos_input: None,
         decode: Decode::Mst,
         biaffine: Some(Biaffine { arc: 1, rel: 1 }),
         artifact: "weights".into(),

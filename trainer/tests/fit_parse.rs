@@ -19,6 +19,7 @@ fn spec(decode: Decode) -> HeadSpec {
         scheme: Scheme::Tags,
         word_pooling: WordPooling::First,
         adapter: Some(Adapter { bilstm: Bilstm { hidden: 8, layers: 1 } }),
+        pos_input: None,
         decode,
         biaffine: Some(Biaffine { arc: 16, rel: 8 }),
         artifact: "weights".into(),
