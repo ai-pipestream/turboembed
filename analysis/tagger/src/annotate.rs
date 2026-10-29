@@ -43,8 +43,40 @@ pub fn same_layer(head: &str, id: &str) -> bool {
     name(head) == name(id)
 }
 
-fn refuse(m: String) -> CoreError {
+pub(crate) fn refuse(m: String) -> CoreError {
     CoreError::new(INVALID_ARGUMENT, m)
+}
+
+/// The head of `bundle` named `name`, or, with no name, the one head that
+/// writes `layer`; refused unless it is of `kind`.
+pub(crate) fn find_head<'a>(
+    bundle: &'a Bundle,
+    name: Option<&str>,
+    layer: &str,
+    kind: HeadKind,
+) -> Result<&'a HeadSpec, CoreError> {
+    let heads = &bundle.manifest.heads;
+    let spec: &HeadSpec = match name {
+        Some(n) => heads.iter().find(|h| h.name == n).ok_or_else(|| refuse(format!("no head {n:?}")))?,
+        None => {
+            let mut found = heads.iter().filter(|h| same_layer(&h.layer, layer));
+            match (found.next(), found.next()) {
+                (Some(h), None) => h,
+                (None, _) => return Err(refuse(format!("no head writes {layer}"))),
+                _ => return Err(refuse(format!("several heads write {layer}; name one"))),
+            }
+        }
+    };
+    if spec.kind != kind {
+        return Err(refuse(format!("head {:?} is not a {kind:?} head", spec.name)));
+    }
+    Ok(spec)
+}
+
+/// The model a bundle's annotators name.
+pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
+    let m = &bundle.manifest.model;
+    ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() }
 }
 
 impl HeadRunner {
@@ -52,21 +84,7 @@ impl HeadRunner {
     /// one head that writes `layer`.
     pub fn open(dir: &Path, name: Option<&str>, layer: &str, o: &EncoderOptions) -> Result<HeadRunner, CoreError> {
         let bundle = Bundle::open(dir)?;
-        let heads = &bundle.manifest.heads;
-        let spec: &HeadSpec = match name {
-            Some(n) => heads.iter().find(|h| h.name == n).ok_or_else(|| refuse(format!("no head {n:?}")))?,
-            None => {
-                let mut found = heads.iter().filter(|h| same_layer(&h.layer, layer));
-                match (found.next(), found.next()) {
-                    (Some(h), None) => h,
-                    (None, _) => return Err(refuse(format!("no head writes {layer}"))),
-                    _ => return Err(refuse(format!("several heads write {layer}; name one"))),
-                }
-            }
-        };
-        if spec.kind != HeadKind::TokenTagger {
-            return Err(refuse(format!("head {:?} is not a token tagger", spec.name)));
-        }
+        let spec = find_head(&bundle, name, layer, HeadKind::TokenTagger)?;
         let tagger = TokenTagger::load(&bundle, &spec.name)?;
         let words = WordEncoder::open(dir, o)?;
         if words.hidden() != tagger.hidden() {
@@ -76,12 +94,11 @@ impl HeadRunner {
                 words.hidden()
             )));
         }
-        let m = &bundle.manifest.model;
         Ok(HeadRunner {
             execution: words.execution().clone(),
             width: words.width(),
             words: Mutex::new(words),
-            model: ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() },
+            model: model_ref(&bundle),
             tagger,
         })
     }
