@@ -355,10 +355,7 @@ mod tests {
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }
-        assert!(matches!(
-            open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res),
-            Err(Unavailable::NotCovered(_))
-        ));
+        assert!(matches!(open("tokenize", "tokenizer-abbreviations", &res), Err(Unavailable::NotCovered(_))));
         assert!(matches!(open("train", "anything", &res), Err(Unavailable::NotCovered(_))));
         // There is one whitespace definition, so no run takes a mode.
         for (annotator, run) in [("sentdetect", "en-abbrev+legacy"), ("tokenize", "simple+legacy")] {

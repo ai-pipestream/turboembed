@@ -56,6 +56,10 @@ impl Maxent {
                 let pattern = m.alphanumeric_pattern().to_string();
                 m = m.with_alphanumeric_optimization(Some(&pattern)).map_err(broken)?;
             }
+            // The English abbreviation dictionary run was the published
+            // UD tokenizer model's; those models are retired (#1645), so
+            // no maxent run takes a dictionary here. The default
+            // tokenizer fuzz coverage is the UAX #29 run below.
             ["english-dictionary"] => {
                 return Err(Unavailable::NotCovered(format!(
                     "tokenize/{model}+english-dictionary: published OpenNLP models are retired"
