@@ -41,7 +41,6 @@ members = [
     "analysis/normalize-layers",
     "analysis/numeric",
     "analysis/pii",
-    "analysis/parser",
     "analysis/postag",
     "analysis/sentdetect",
     "analysis/sequence",
