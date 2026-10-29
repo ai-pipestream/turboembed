@@ -445,11 +445,13 @@ inline Epilogue gemm_epilogue(Gemm g, bool fused_ln, int gelu, bool product16) {
 /* gemm_epilogue for a session's shape: the rotary families' QKV
  * rotates, and a gated MLP's first product takes its gated epilogue (the
  * tanh form of GELU at an F16 output where the session's GELU is it, else
- * erff). */
+ * erff); its second writes the F32 product, whatever product16 says, as
+ * its inputs reach F16's limit at the middle product's clamp (#1632). */
 inline Epilogue layer_epilogue(Gemm g, bool fused_ln, const Shape &s) {
     if (g == GEMM_QKV && s.rope) return EPI_QKV_ROPE;
     if (g == GEMM_FFN1 && s.gated == GATED_SILU) return EPI_GATED_SILU;
     if (g == GEMM_FFN1 && s.gated == GATED_GELU) return s.half && s.gelu == GELU_TANH ? EPI_GATED_TANH : EPI_GATED_ERF;
+    if (g == GEMM_FFN2 && s.gated != GATED_NONE) return EPI_PLAIN;
     return gemm_epilogue(g, fused_ln, s.gelu, s.product16);
 }
 

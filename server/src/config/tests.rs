@@ -158,6 +158,14 @@ fn the_catalog_comes_from_its_flags_or_their_variables() {
     assert!(args(&format!("{base} --catalog-dir /z --catalog-dir /y")).is_err());
     assert!(args(&format!("{base} --catalog-dir=")).is_err());
     assert_eq!(args(&format!("{base} --catalog-index /i")).unwrap_err(), "--catalog-index needs --catalog-dir");
+    let a = args(&format!("{base} --catalog-dir /z --catalog-store s3://models/zoo")).unwrap();
+    assert_eq!(a.catalog_store.as_deref(), Some("s3://models/zoo"));
+    let env = |k: &str| (k == ENV_CATALOG_STORE).then(|| "file:///store".to_string());
+    let parsed = Args::parse_with(format!("{base} --catalog-dir /z").split_whitespace().map(String::from), env);
+    assert_eq!(parsed.unwrap().catalog_store.as_deref(), Some("file:///store"));
+    assert!(args(&format!("{base} --catalog-dir /z --catalog-store /a --catalog-store /b")).is_err());
+    let e = args(&format!("{base} --catalog-store file:///s")).unwrap_err();
+    assert_eq!(e, "--catalog-store needs --catalog-dir");
 }
 
 #[test]

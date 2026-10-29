@@ -10,6 +10,7 @@
 //! | `multiconer` | MultiCoNER v2 English, pinned file by file, and its coarse groups |
 //! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
 //! | `ud_heads` | Lemma and dependency heads on a treebank, their examples and baselines |
+//! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
 //! | `run` | Head spec, encoder features, prediction, outputs |
 //! | `receipt` | `receipt.json` |
@@ -22,6 +23,7 @@ pub mod eval;
 pub mod fit_cache;
 pub mod masc_pos;
 pub mod multiconer;
+pub mod peer;
 pub mod receipt;
 pub mod run;
 pub mod safetensors;

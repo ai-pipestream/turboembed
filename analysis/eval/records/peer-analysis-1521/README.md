@@ -171,6 +171,48 @@ Spanish: sentences 99.71, LAS 83.43. Catalan: sentences 99.88, LAS
 gold XPOS is the EAGLES tagset, so XPOS scores exactly 0.00 there;
 that is a tagset difference, not a tagging failure.
 
+## Tokenizers: word segmentation (#1645)
+
+The `turbo-tokenize-<split>-test.json` records score our own
+tokenizers (the `--tokenize` tiers of `turbo-eval analysis`) on the
+same five pinned splits and by the same form alignment as the peer
+systems above: each tier receives only the per-document space-joined
+`# text`. `turbo-uax29` is UAX #29 word segments with
+whitespace-only segments dropped, so punctuation segments stand as
+words, as UD counts them; `turbo-whitespace` is the deterministic
+baseline of Unicode `White_Space` runs. Token F1 in points, as
+scored by this bench (the peer numbers are the `tokens` scores of
+the records named above, not the UD scorer's):
+
+| split | gold words | turbo-uax29 | turbo-whitespace | spaCy | Stanza | Trankit |
+|---|---:|---:|---:|---:|---:|---:|
+| en-ewt | 25094 | 88.84 | 77.57 | 97.44 | 99.11 | 98.42 |
+| es-ancora | 53622 | 95.83 | 78.02 | - | 99.94 | 97.00 |
+| ca-ancora | 59610 | 88.52 | 70.69 | - | 99.96 | 95.47 |
+| fi-ftb | 16286 | 98.31 | 99.77 | - | 99.77 | 99.50 |
+| it-markit | 10196 | 87.60 | 91.24 | - | 99.41 | 99.75 |
+| en-masc (held out) | 85292 | 94.37 | 73.00 | - | - | - |
+
+Reading notes: the peers tokenize with models trained on UD-style
+segmentation, so the gap to a rule segmenter is the price of
+contractions and clitics UD splits and UAX #29 keeps whole (and, in
+the other direction, of punctuation clusters UAX #29 splits). Where
+the gold segmentation is itself whitespace-oriented (fi-ftb), the
+whitespace baseline beats UAX #29 and matches Stanza's bench score;
+it-markit goes the same way. The fi-ftb and it-markit test files are
+single documents for this scorer, so their bootstrap intervals
+degenerate to the point score. The token-split head's row lands
+here when a trained bundle exists.
+
+The en-masc row (`turbo-tokenize-en-masc-test.json`, via
+`--gold-masc`) scores the same tiers against MASC 3.0.0's Penn
+tokens on the trainer recipes' held-out split: every tenth document
+in corpus order at 9 modulo 10, the Twitter genre left out, at the
+recorded corpus digest `445449f5…`. Its 6384 gold sentences and
+85292 gold words are the test counts the MASC POS receipts record,
+which is the split-parity check. No peer system has a MASC token
+row yet.
+
 ## Entities: WNUT-17
 
 Entity records use the `--ner-gold` form on the WNUT-17 test split
@@ -201,6 +243,49 @@ while WNUT-17 is noisy user-generated text with emerging entities,
 so these rows are the off-the-shelf peer bar on a hard split, not
 tuned WNUT systems. There is no turbo entity row yet: that waits on
 an entity bundle and label policy.
+
+### MultiCoNER v2 (English)
+
+The same entity form on MultiCoNER v2 English test
+(`en_test.conll` from the `MultiCoNER/multiconer_v2` dataset at
+revision `4be2d62c912977ee26ed14d2553a4fe17ca3d980`, source SHA-256
+`be7e85f1542a9643de5f01cc99465ec0cb9d96a20bdc3c58418d391e194aff9a`:
+249980 sentences, 3773671 tokens, 377805 entities). MultiCoNER
+labels 33 fine-grained kinds on lowercased text; peers are compared
+at the dataset's six coarse groups (PER, LOC, GRP, PROD, CW, MED)
+because the peer label sets are coarse OntoNotes types. Gold is
+converted by `analysis/eval/reference/peers/multiconer/convert_gold.py`
+(fine-to-coarse taxonomy map, refusal on an unmapped kind) to
+`multiconer-en-test.tsv`, SHA-256
+`200c831eebb31201c19894149a3b4a1bb0a1f3a2651af67811970c485822a498`,
+which is the pinned bench input. Peer runners take
+`multiconer` as their label set: PERSON to PER, ORG and NORP to GRP,
+GPE, LOC and FAC to LOC, PRODUCT to PROD, WORK_OF_ART to CW, the
+rest dropped (so MED is unreachable for both peers and scores 0 by
+construction). Gold tokens are given, as on WNUT-17.
+
+- `spacy-multiconer-en-test.json`: spaCy 3.8.7, `en_core_web_sm`
+  3.8.0, predictions SHA-256
+  `2a51c1c4d1a468786607249068c5fe6113df703700531950948fa5a88b3949fc`.
+  Entities 25.24 F1 (69265 correct of 170941 selected); PER 44.79
+  and LOC 25.74 carry it, CW 0.03 (58 selected against 53164 gold)
+  and PROD 0.50 show where the OntoNotes label set and the
+  lowercased fine-grained gold do not meet.
+- `stanza-multiconer-en-test.json`: Stanza 1.10.1 English NER,
+  pretokenized, predictions SHA-256
+  `5275d49d5b3492f971096bddcb4729ea4bd6684e97a3eb26fe95d82ef1ddd66e`.
+  Entities 18.33 F1 (41233 correct of 72170 selected); PER 32.72
+  and LOC 23.52 carry it, GRP 2.86 (5997 selected, where spaCy
+  selects 39353) and CW 0.35 show the same label-set gap. The
+  predictions were made in four 512-aligned shards and joined;
+  the first shard's first 20480 sentences are byte-identical to
+  an earlier unsharded partial run, so the sharding changed no
+  output.
+
+Reading note: these are off-the-shelf peers on a lowercased,
+fine-grained benchmark whose tuned systems train on MultiCoNER
+itself; the numbers are a peer bar under a coarse-label protocol,
+not a MultiCoNER leaderboard entry.
 
 ## Language: FLORES+ (harness ready, record pending dataset access)
 
@@ -271,6 +356,17 @@ turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
   --system turbo-sat-1l-sm-cpu --sentences sat \
   --sat-bundle <sat-1l-sm-bundle-dir> --out <new-record>.json
 
+# Tokenizer tiers on the same five splits (en shown; the other pins
+# are in the inputs table above and in each record)
+turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
+  --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
+  --tokenize uax29 --tokenize whitespace --out <new-record>.json
+
+# Tokenizer tiers on the MASC held-out split (the extracted release
+# directory; its corpus digest is checked against the recorded one)
+turbo-eval analysis --gold-masc <masc-dir>/MASC-3.0.0 \
+  --tokenize uax29 --tokenize whitespace --out <new-record>.json
+
 # Multilingual Stanza (per language; es shown)
 docker build --build-arg STANZA_LANG=es \
   -t turbo-peer-stanza:1.10.1-es analysis/eval/reference/peers/stanza
@@ -300,8 +396,10 @@ turbo-eval analysis --lang-gold <out-dir>/flores-plus-devtest-73.tsv \
   --script-fallback --out <new-record>.json
 ```
 
-Recorded 2026-10-28 under load average about 31 to 36 (accuracy
-record; no timing claimed).
+Recorded 2026-10-28 under load average about 31 to 36, except
+the Stanza MultiCoNER predictions, which ran 2026-10-28 under
+load average about 65 to 120 (accuracy record; no timing
+claimed).
 
 Scoring correction: sentence boundaries are within-document on
 every bench path (a document's final sentence end is never a

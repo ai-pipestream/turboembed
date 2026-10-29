@@ -1,0 +1,23 @@
+===OUT===
+zerowidthspace, joiner‍and non‌joiner, bominside, wordjoiner here. marks left-to-right and right-to-left and embedding and isolate . controls      and softhyphen, variation selectors, ᠎ mongolian, .
+===EDITS===
+4	7	
+12	15	
+52	55	
+67	70	
+82	83	 
+83	84	m
+88	93	 
+110	115	 
+132	137	 
+146	151	 
+162	167	 
+167	170	
+171	172	 
+172	173	c
+201	203	
+220	223	
+239	240	m
+249	254	 
+254	257	
+258	259	

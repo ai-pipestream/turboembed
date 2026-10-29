@@ -17,10 +17,6 @@ prost = "0.14"
 tokio = { version = "1", features = ["rt", "time"] }
 tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "channel"] }
 tonic-prost = "0.14"
-# s3://: one signed GET per file over the HTTP client and digest the zoo
-# already uses (SigV4 is computed here; no AWS SDK).
-sha2 = { version = "0.11", optional = true }
-ureq = { version = "3", optional = true, default-features = false, features = ["rustls"] }
 
 [features]
 default = ["tls", "s3"]
@@ -28,9 +24,16 @@ default = ["tls", "s3"]
 # or a private CA. Without it the crate builds with no TLS stack, which
 # the arm64 check in CI needs, and a grpcs:// address is refused.
 tls = ["tonic/tls-ring", "tonic/tls-webpki-roots"]
-# s3://: an S3 bucket (AWS, RustFS, MinIO) holding blobs/sha256/<hex>.
+# s3://: an S3 bucket (AWS, RustFS) holding blobs/sha256/<hex>.
 # Its HTTPS stack also reaches ring, so the arm64 check leaves it out too.
-s3 = ["dep:sha2", "dep:ureq"]
+# The bucket itself is turbo-zoo's S3Bucket, over its HTTPS transport.
+s3 = ["turbo-zoo/http"]
+# Real service coverage, run by scripts/test-rustfs.sh.
+rustfs-tests = ["s3"]
+
+[[test]]
+name = "rustfs"
+required-features = ["rustfs-tests"]
 
 [build-dependencies]
 # Compiles the server's turbo_training.proto without protoc, as the

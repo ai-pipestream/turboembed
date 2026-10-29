@@ -1,6 +1,6 @@
 # The OpenNLP models the MASC recipes' gates read as references: none.
 # The sentence detector and tokenizer were gated against the OpenNLP UD
-# 1.3 models built with OpenNLP 2.5.4, and the tagger, chunker and name
-# finders against OpenNLP 1.5 models; neither is fetched, pinned or
-# scored (#1509), and #1532 removes the gates. A test in
-# release/tests.rs checks that this file lists no reference.
+# 1.3 models built with OpenNLP 2.5.4, and the tagger and name finders
+# against OpenNLP 1.5 models; neither is fetched, pinned or scored
+# (#1509), and #1532 removes the gates. A test in release/tests.rs
+# checks that this file lists no reference.

@@ -113,6 +113,18 @@ impl Transport for Blobs {
     }
 }
 
+/// A store a [`Sources`] list fills as it reads ([`Sources::then_keep`]).
+pub trait Keep {
+    /// Keeps `bytes` under their own SHA-256.
+    fn keep(&self, bytes: &[u8]) -> Result<(), String>;
+}
+
+impl Keep for Blobs {
+    fn keep(&self, bytes: &[u8]) -> Result<(), String> {
+        self.put(bytes).map(|_| ()).map_err(|e| e.to_string())
+    }
+}
+
 /// Sources tried in order for each file: the first whose bytes verify as
 /// the file is kept, so a source that lacks the file, fails, or serves
 /// other bytes passes the request to the next. When none has it, the error
@@ -120,7 +132,7 @@ impl Transport for Blobs {
 pub struct Sources {
     sources: Vec<(String, Box<dyn Transport + Send + Sync>)>,
     /// The store [`Sources::then_keep`] added, and its place in the list.
-    keep: Option<(usize, Blobs)>,
+    keep: Option<(usize, Box<dyn Keep + Send + Sync>)>,
 }
 
 impl Sources {
@@ -138,12 +150,18 @@ impl Sources {
 
     /// `store`, tried here in order like any source, which also keeps
     /// every file a later source serves once it verifies: a library's own
-    /// copy, in the layout a zoo server's store uses, filled as it reads.
+    /// copy or a server's bucket ([`Blobs`], `S3Bucket`), in the one
+    /// layout they share, filled as it reads.
     /// A file that cannot be kept (a read-only store, a full disk) is
     /// still handed over. Only one store keeps; a second call replaces the
-    /// first as the keeper and leaves it in the list as a plain source.
-    pub fn then_keep(mut self, name: impl Into<String>, store: Blobs) -> Sources {
-        self.keep = Some((self.sources.len(), store.clone()));
+    /// first as the keeper and leaves it in the list as a plain source. The
+    /// keeper is passed over for an artifact whose class may not be
+    /// redistributed ([`crate::LicenceClass::may_redistribute`]).
+    pub fn then_keep<S>(mut self, name: impl Into<String>, store: S) -> Sources
+    where
+        S: Transport + Keep + Clone + Send + Sync + 'static,
+    {
+        self.keep = Some((self.sources.len(), Box::new(store.clone())));
         self.then(name, store)
     }
 
@@ -176,9 +194,16 @@ impl Transport for Sources {
         Err(none_had(failed))
     }
 
+    /// The keeping store neither serves nor keeps an artifact whose class
+    /// may not be redistributed (`LocalOnly`, `Refused`): such a file comes
+    /// only from the sources after it, and no copy is made of it.
     fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
+        let keep = self.keep.as_ref().filter(|_| artifact.class.may_redistribute());
         let mut failed = Vec::new();
         for (at, (name, s)) in self.sources.iter().enumerate() {
+            if keep.is_none() && self.keep.as_ref().is_some_and(|(k, _)| *k == at) {
+                continue;
+            }
             let bytes = match s.get_file(artifact, file) {
                 Ok(b) => b,
                 Err(e) => {
@@ -188,9 +213,9 @@ impl Transport for Sources {
             };
             match unpack(artifact, file, bytes).and_then(|b| verify(artifact, file, &b).map(|()| b)) {
                 Ok(b) => {
-                    if let Some((_, store)) = self.keep.as_ref().filter(|(k, _)| *k != at) {
+                    if let Some((_, store)) = keep.filter(|(k, _)| *k != at) {
                         // Kept when it can be; the file is handed over either way.
-                        let _ = store.put(&b);
+                        let _ = store.keep(&b);
                     }
                     return Ok(b);
                 }

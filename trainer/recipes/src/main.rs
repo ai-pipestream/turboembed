@@ -16,6 +16,9 @@
 //!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
 //! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N])
+//! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
+//! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
+//!     --out <dir> [--column xpos|upos] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--arc N] [--rel N])
 //! ```
@@ -47,6 +50,7 @@ use turbo_trainer_recipes::run::{
 use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
+mod peer_cmd;
 mod train_ud;
 
 const RESAMPLES: usize = 1000;
@@ -93,6 +97,7 @@ fn run(argv: Vec<String>) -> Result<()> {
                 corpus: c.record.clone(),
                 encoder: None,
                 head: None,
+                peer: None,
                 config: None,
                 training: None,
                 eval: EvalRecord {
@@ -116,12 +121,14 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
+        "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
         "train-lemma" | "train-parse" => {
             let head = if command == "train-lemma" { UdHead::Lemma } else { UdHead::Deps };
             train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
         }
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, cache or fit-cache"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, cache, fit-cache, export or peer"
         ))),
     }
 }
@@ -287,6 +294,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         corpus: corpus.record.clone(),
         encoder: Some(encoder),
         head: Some(head),
+        peer: None,
         config: Some(ConfigRecord {
             seed: c.seed,
             epochs: c.epochs,

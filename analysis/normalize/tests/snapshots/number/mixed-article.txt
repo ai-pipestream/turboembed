@@ -1,0 +1,13 @@
+===OUT===
+“The re-
+sults,” wrote Dr. Müller—a well‑known expert—“were surprising…”
+See https://example.com/paper.pdf. Cost: £ .  (≈ € ). Contact: m.mueller@example.org
+• item one　with ideographic space
+• item two   with  extra   spaces
+It’s  % done :) 😀 #win
+
+===EDITS===
+133	135	 
+136	138	 
+147	149	 
+266	269	 

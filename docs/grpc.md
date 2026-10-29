@@ -85,6 +85,7 @@ no way to stop a load part way.
 | `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
 | `--catalog-index FILE` | The zoo index the catalog serves. Needs `--catalog-dir`. | The built-in index. |
+| `--catalog-store URL` | The store installs read first and fill: `file:///dir` or `s3://bucket/prefix` (docs/grpc-catalog.md). Needs `--catalog-dir`. | No store: each file is fetched from its address. |
 | `--training-dir PATH` | The directory static models are trained into, one sealed bundle per child, made when it does not exist (docs/grpc-training.md). | No training directory: every training call but `ListTeachers` refuses with `UNIMPLEMENTED`. |
 | `--sink-endpoint URI` | Forward every document an `AnalyzeStream` completes to the `TurboSinkService` at this address, such as `http://sink:8081` (docs/grpc-sink.md). | No forwarding. |
 | `--sink-queue-items N` | The most documents waiting for the sink; one more is dropped and counted. Needs `--sink-endpoint`. | 1024. |
@@ -162,6 +163,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_SINK_QUEUE_BYTES` | `--sink-queue-bytes` |
 | `TURBO_KSERVE_CATALOG_DIR` | `--catalog-dir` |
 | `TURBO_KSERVE_CATALOG_INDEX` | `--catalog-index` |
+| `TURBO_KSERVE_CATALOG_STORE` | `--catalog-store` |
 | `TURBO_KSERVE_TRAINING_DIR` | `--training-dir` |
 
 ```

@@ -11,7 +11,11 @@ fn every_checked_in_golden_of_a_model_has_a_dump_whose_header_parses() {
     // run without a model (the plain tokenizers and the newline detector).
     let (mut with_model, mut without_model, mut threw) = (0, 0, 0);
     for annotator in recipe::DUMPED_ANNOTATORS {
-        let mut stack = vec![paths::data_dir().join(annotator)];
+        let root = paths::data_dir().join(annotator);
+        if !root.exists() {
+            continue;
+        }
+        let mut stack = vec![root];
         while let Some(dir) = stack.pop() {
             for entry in std::fs::read_dir(&dir).unwrap() {
                 let p = entry.unwrap().path();

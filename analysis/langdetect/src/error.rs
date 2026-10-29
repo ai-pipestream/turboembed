@@ -21,6 +21,12 @@ pub enum ModelError {
     EmptyOutcome,
     /// Two classifier outcomes have the same language code.
     DuplicateOutcome(String),
+    /// The n-gram weight vector has the wrong length.
+    Weights { expected: usize, found: usize },
+    /// The n-gram bias vector has the wrong length.
+    Bias { expected: usize, found: usize },
+    /// The serialized n-gram model is malformed.
+    Format(String),
 }
 
 impl fmt::Display for ModelError {
@@ -43,6 +49,13 @@ impl fmt::Display for ModelError {
             ModelError::DuplicateOutcome(c) => {
                 write!(f, "language detector model: duplicate outcome {c:?}")
             }
+            ModelError::Weights { expected, found } => {
+                write!(f, "language detector model: expected {expected} weights, found {found}")
+            }
+            ModelError::Bias { expected, found } => {
+                write!(f, "language detector model: expected {expected} biases, found {found}")
+            }
+            ModelError::Format(detail) => write!(f, "language detector model: {detail}"),
         }
     }
 }

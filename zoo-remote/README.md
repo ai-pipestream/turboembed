@@ -1,7 +1,7 @@
 # turbo-zoo-remote
 
 Remote sources for the model zoo (#1613). The library can load a model from a
-turboembed zoo server over gRPC, from an S3 bucket (AWS, RustFS, MinIO), or
+turboembed zoo server over gRPC, from an S3 bucket (AWS, RustFS), or
 from a list of sources tried in order,
 the way DJL loads a model from an `s3://` address. The local zoo keeps its
 own index, cache and licence check. Every file from any source is checked
@@ -31,7 +31,7 @@ let fetched = zoo.fetch("segment-any-text-sat-3l", &user, &acceptances)?;
   `prefix/blobs/sha256/<hex>` layout (`S3Bucket`), read with one
   SigV4-signed GET per file, or unsigned when no key is set. It is
   configured the way the AWS tools are: `AWS_ENDPOINT_URL_S3` or
-  `AWS_ENDPOINT_URL` for RustFS, MinIO or another S3-compatible store
+  `AWS_ENDPOINT_URL` for RustFS or another S3-compatible store
   (addressed path-style), `AWS_REGION` or `AWS_DEFAULT_REGION` (else
   `us-east-1`), and `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and
   `AWS_SESSION_TOKEN`. A local store syncs to a bucket as is
@@ -62,25 +62,24 @@ index served from memory, so nothing is downloaded. It checks that:
 - the list parser refuses empty entries, `origin` named twice, unknown
   schemes, relative `file://` paths and addresses with a path.
 
-`tests/s3.rs` starts a small S3 stand-in in-process that checks each
-request's signature. It checks that:
-
-- a model loads from a bucket path-style with a signed GET, carrying the
-  session token;
-- a wrong secret is refused, and a public bucket is read unsigned;
-- other bytes from a bucket are not kept;
-- the first local store keeps what a bucket serves, and serves it with
-  the bucket gone;
-- bucket names, prefixes, regions and endpoints are checked before any
-  request.
-
-`src/sigv4.rs` checks HMAC-SHA-256 against RFC 4231 and the signature
-against the S3 documentation's GET Object example.
+The S3 bucket itself, `S3Bucket`, is turbo-zoo's (docs/zoo.md), so a
+zoo server can keep its files in one too; its tests are turbo-zoo's
+`tests/s3.rs`.
 
 ## Features
 
 - `tls` (default): `grpcs://`. Without it a `grpcs://` source is refused.
-- `s3` (default): `s3://`. Without it an `s3://` source is refused.
+- `s3` (default): `s3://`, through turbo-zoo's `http` feature. Without
+  it an `s3://` source is refused.
 
 Both reach `ring`, so the arm64 check in CI builds the crate with
 neither.
+
+## RustFS integration
+
+`bash scripts/test-rustfs.sh` starts an isolated RustFS service, exercises signed
+downloads, uploads, access checks, digest verification and the local cache, then removes the
+service and its generated data. It requires Docker, curl with SigV4 support,
+OpenSSL and Rust. `TMPDIR` chooses the temporary data directory. The RustFS CI
+workflow runs this check for relevant changes and daily; every run pulls
+`rustfs/rustfs:latest` and reports the resolved image digest.

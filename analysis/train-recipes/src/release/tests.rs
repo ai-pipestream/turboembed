@@ -65,9 +65,9 @@ fn masc_references_list_no_model() {
     assert_eq!(references, Vec::<&str>::new());
 }
 
-/// No OpenNLP 1.5 model is fetched or scored (#1509): the MASC tagger,
-/// chunker and name finders have no reference model, no reference a
-/// release reads is one, and masc-references.txt lists none.
+/// No OpenNLP 1.5 model is fetched or scored (#1509): the MASC tagger
+/// and name finders have no reference model, no reference a release
+/// reads is one, and masc-references.txt lists none.
 #[test]
 fn no_masc_recipe_or_listed_reference_is_an_opennlp_1_5_model() {
     for recipe in crate::RECIPES {

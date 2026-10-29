@@ -1,6 +1,7 @@
 package ai.pipestream.turbo.goldens;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -47,12 +48,12 @@ final class TagDictionaryGolden implements AnnotatorGolden {
   }
 
   static List<TagDictionaryGolden> all(Path models, Path fixtures) throws IOException {
+    Objects.requireNonNull(models, "models"); // published POS models retired (#1653)
     List<TagDictionaryGolden> out = new ArrayList<>();
     for (String name : List.of(Runs.TAG_DICTIONARY, Runs.TAG_DICTIONARY_CASES, Runs.TAG_DICTIONARY_EXACT)) {
       out.add(new TagDictionaryGolden(ModelFile.read(fixtures.resolve(name)), false, true));
     }
     out.add(new TagDictionaryGolden(ModelFile.read(fixtures.resolve(Runs.POS_FIXTURE)), true, true));
-    out.add(new TagDictionaryGolden(ModelFile.read(models.resolve(Runs.POS_MODEL_EN)), true, false));
     return out;
   }
 

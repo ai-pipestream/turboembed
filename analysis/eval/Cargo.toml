@@ -19,6 +19,8 @@ turbo-calibration = { path = "../calibration" }
 turbo = { path = "../../core" }
 # SQuAD scoring's lowercasing, whitespace and character classes.
 turbo-unicode = { path = "../unicode" }
+# The MASC corpus reader for the tokenizer tiers' gold side (#1645).
+turbo-formats = { path = "../formats" }
 # The pipeline: the document and its layers, sentences, structure, the
 # embedder's subwords and vectors, and the chunker under test.
 turbo-analysis = { path = "../core" }

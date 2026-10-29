@@ -23,12 +23,11 @@ pub enum Models {
     WithLocal,
 }
 
-/// The generator's runs open OpenNLP 2.5 models (the UD 1.3 `-2.5.4`
-/// models and `langdetect-183.bin`), which are no longer fetched (#1509).
-/// `generate`, `verify` and `fuzz` refuse with this until #1532 deletes
-/// those runs and their goldens, instead of failing inside the container.
-pub const GENERATOR_RETIRED: &str = "the generator's runs open OpenNLP 2.5 models, which are no longer fetched \
-     (#1509); generate, verify and fuzz are unavailable until #1532 deletes those runs and their goldens";
+/// The generator's published OpenNLP 2.5 UD and language-detector model runs
+/// are retired (#1509, #1653). `generate`, `verify` and `fuzz` refuse with
+/// this until #1532 finishes deleting the remaining goldens, instead of
+/// failing inside the container.
+pub const GENERATOR_RETIRED: &str = "the generator's published OpenNLP 2.5 model runs are retired      (#1509, #1653); generate, verify and fuzz are unavailable until #1532 deletes the remaining goldens";
 
 /// Fails with [`GENERATOR_RETIRED`]: no command may run the generator.
 pub fn generator_runs() -> Result<(), String> {

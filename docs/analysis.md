@@ -45,7 +45,7 @@ layers over them (`server/src/analysis.rs`, docs/grpc-analysis.md).
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the explicit `BeamSearch::opennlp` session for QN probability carry between evaluations and sentences; `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Published OpenNLP models match the JVM bit for bit; native models use a case-preserving class format. The crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
-| `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
+| `turbo-phrase-chunker` | `analysis/phrase-chunker/` | Zero-training rule-driven POS-tag pattern chunker (`TagPatternRule`, `PatternChunker`) and model-free composition (`PatternChunkComposer`, `ComposeMode`) writing `opennlp:chunks` (`PhraseChunks`) over `opennlp:tokens` and `opennlp:pos`. It is not `turbo-chunker`, which cuts retrieval units |
 | `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, the merge of several entity layers by `dropOverlappingSpans`, and `ConsensusEntityMerger`, which merges several recognizers' entity instances by `EntityMergePolicy` (`RawUnion`, `PriorityFallback` or `Consensus { min_votes, overlap_rule }`) and writes an `Evidence<Entities>` record per entity naming every recognizer that voted for it. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a direct bytecode matcher or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
 | `turbo-wordnet` | `analysis/wordnet/` | OpenNLP's WordNet API: WNDB and WN-LMF readers, `InMemoryWordNetLexicon`, the Morphy lemmatizer, `LexicalExpander`, taxonomy similarity and hypernym typing, and `WordNetAnnotator`, which writes `WordNetSenses` (`turbo:wordnet-senses`) and `LexicalExpansions` (`turbo:lexical-expansions`) per token from `Tokens` and, when present, `PosTags` and `Lemmas` |
 | `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
@@ -59,10 +59,9 @@ layers over them (`server/src/analysis.rs`, docs/grpc-analysis.md).
 | `turbo-langspan` | `analysis/langspan/` | Model-free Unicode script evidence with exact source spans; language is `und` and confidence is `0.0`. Protocol layer identifiers remain unchanged ([langdetect.md](langdetect.md)). |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
-| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer, the phrase chunker, the language detector, the sentiment detector (`SentimentEventStream` and the `SentimentModel` file, [sentiment.md](sentiment.md)) and the chunking and tree-insertion constituency parsers (their `ParserEventStream`s, `Parser.train`, the `ParserModel` file, `ParserEvaluator` and `ParserCrossValidator`): `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream`, `ChunkerEventStream` and `LanguageDetectorEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel`, `ChunkerModel` and `LanguageDetectorModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order). Its own crate because `turbo-formats` depends on `turbo-tokenize` and `turbo-parser`; "Training the components" below |
-| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, the sentence detector's and tokenizer's gates against the OpenNLP English UD models (the tagger, chunker and name finders have no reference model: no OpenNLP 1.5 model is fetched or scored, #1509); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
-| `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the OntoNotes name, parse and part-of-speech readers and the French Treebank parse reader (`turbo_parser::Parse` trees), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component; true positives are a multiset intersection, so recall is at most 1). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora`, `ontonotes`, `frenchtreebank` and `evaluate` goldens |
-| `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`); and the `CHUNKING` and `TREEINSERT` bottom-up parsers: reading a `ParserModel` file, the context generators, the shared search of `AbstractBottomUpParser`, `ParserTool.parseLine` and `ParserAnnotator` (the `Phrases` layer). Training the parsers is `turbo-train-components`. `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
+| `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer, the language detector and the sentiment detector (`SentimentEventStream` and the `SentimentModel` file, [sentiment.md](sentiment.md)): `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream` and `LanguageDetectorEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel` and `LanguageDetectorModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order). Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
+| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer and part-of-speech tagger trained on it, the sentence detector's and tokenizer's gates against the OpenNLP English UD models (the tagger and name finders have no reference model: no OpenNLP 1.5 model is fetched or scored, #1509); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
+| `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component; true positives are a multiset intersection, so recall is at most 1). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora` and `evaluate` goldens |
 | `turbo-coref` | `analysis/coref/` | OpenNLP's coreference resolver: mention detection from entities, noun phrases (chunks or parse phrases) and pronouns, the precision-ordered sieves (speaker, exact, relaxed, acronym, person name, the strict and relaxed head sieves, pronoun match), the pair classifier and mention ranker read from a `CorefModel` file, word vectors for head similarity (or trained from a corpus by the skip-gram and CBOW `Word2VecTrainer`) and token vectors for span features, `CorefAnnotator` writing `opennlp:mentions` (`Mentions`), the chains as `Groups<Mentions>` and the antecedent links as `Edges<Mentions, Mentions>` tagged with the deciding sieve, the pairwise and ranking trainers, and `CorefScorer` (MUC, B-cubed, CEAF-m, CEAF-e, mention detection and the CoNLL average); [coref.md](coref.md) |
 | `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
 | `turbo-encoding-layers` | `analysis/encoding-layers/` | The `Encoding` enum with the standard's labels, and the `turbo:encoding` layer (`SourceEncoding`) |
@@ -3111,7 +3110,6 @@ The generator writes these layers, in this order within a golden:
 | `postag` (`POSTaggerME.tag` on each sentence `SentenceDetectorME` and `TokenizerME` cut) | `opennlp:sentences` and `opennlp:tokens` as above, then `opennlp:pos` aligned to the tokens (`tag:str`, `prob:f64` from `probs()`) |
 | `lemmatize` (`LemmatizerME.lemmatize` on each sentence, tagged by `POSTaggerME`) | `opennlp:sentences`, `opennlp:tokens` and `opennlp:pos` as above, then `opennlp:lemmas` aligned to the tokens (`lemma:str`) and `turbo:confidence<opennlp:lemmas>` (`value:f64` from `probs()`) |
 | `lemmatize-dictionary` (`DictionaryLemmatizer.lemmatize`) | the same without the confidence; `O` where the dictionary has no entry |
-| `chunk` (`ChunkerME.chunk` on each sentence, tagged by `POSTaggerME` asked for Penn Treebank tags) | `opennlp:sentences`, `opennlp:tokens` and `opennlp:pos` as above, then `opennlp:chunk-tags` aligned to the tokens (`tag:str`, `prob:f64` from `probs()`) and `opennlp:chunks`, the phrases `ChunkSample.phrasesAsSpanList` reads off those tags (what `chunkAsSpans` returns): the span from the first token's start to the last token's end, `token_start:u32`, `token_end:u32` and `kind:str`, with `turbo:utf16<opennlp:chunks>` when a phrase's token cuts a character |
 | `sentdetect` (`NewlineSentenceDetector.sentPosDetect`) | `opennlp:sentences` |
 | `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer` `tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character |
 | `tokenize` (`WordTokenizer.tokenizeTyped`, UAX #29) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:word-types` |
@@ -3140,11 +3138,6 @@ The generator writes these layers, in this order within a golden:
 | `ad` (`ADPOSSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:sample-tags` |
 | `ad` (`ADChunkSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:sample-tags`, `turbo:sample-chunks`, `turbo:phrases`, `turbo:phrase-errors` |
 | `ad` (`ADSentenceSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-texts`, `turbo:sample-spans` |
-| `ontonotes` (`OntoNotesNameSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:names`, `turbo:listing` |
-| `ontonotes` (`OntoNotesParseSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:parse-texts`, `turbo:parse-nodes`, `turbo:pos-samples`, `turbo:chunk-samples`, `turbo:listing` |
-| `ontonotes` (`ParseToPOSSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:sample-tags`, `turbo:listing` |
-| `ontonotes` (`DocumentToLineStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:lines`, `turbo:listing` |
-| `frenchtreebank` (`ConstitParseSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:parse-texts`, `turbo:parse-nodes`, `turbo:pos-samples`, `turbo:chunk-samples`, `turbo:listing` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:
@@ -3248,7 +3241,7 @@ each outcome that `eval` returned. A Rust context generator and the
 Rust maxent and perceptron evaluation can be checked against it one
 decision at a time, before a whole annotator's golden lines up. The
 generator writes them for `SentenceDetectorME`, `TokenizerME`,
-`POSTaggerME`, `LemmatizerME`, `ChunkerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
+`POSTaggerME`, `LemmatizerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
 header (the golden's `Header` type) and a `Point` per decision, with the
 contexts as UTF-16 units, since a context can hold half of a surrogate
 pair, and the outcome labels as `JavaString`s, since a lemma class can.
@@ -3487,20 +3480,9 @@ exactly the ones the golden tests list:
   with `keepNewLines` (`analysis/tokenize/tests/golden.rs`,
   `simple_newlines`), the exception on a text that starts with a line
   break among them.
-- `normalize`: for each normalizer whose section of `docs/normalizers.md`
-  records a deliberate difference ("Differences from OpenNLP"), a rule in
-  `analysis/fuzz/src/runs/normalize/mod.rs` recognizes that construct and no
-  other: every region of the source the two sides change differently
-  must be it (U+2E42 folded by `Quotes`, the five added bullets, the
-  three added ellipsis forms, U+206A to U+206F deleted by `Invisible`, a
-  word ending in combining marks joined by `Dehyphenate`, `y'all` and the
-  added subjects of `EnglishContractions`, a symbol in running text for
-  `SymbolWords`, an internationalized e-mail address for `BoundedUrls`,
-  and for `ConfusableSkeleton` a JVM skeleton from the 17.0 data whose
-  18.0 skeleton is the port's). The edits that are equivalent to the
-  golden's though not the same rows are a match. `EmojiRemove` in its
-  supplementary mode compares exactly: its documented differences are
-  the sequence mode and the annotator.
+- `normalize`: the differences recorded under "Differences from OpenNLP"
+  in `docs/normalizers.md` are pinned per input, with the documented
+  output, in the `Divergence` table of `analysis/normalize/tests/goldens.rs`.
 - `subwords`: the four differences of `analysis/embed/tests/goldens.rs`
   and the special token strings. The run models how `WordpieceEncoder`
   maps its normalized text back to the source (controls dropped,
@@ -3658,11 +3640,9 @@ mark in a span, 1,763 confusable skeletons (Unicode 18.0 confusables
 against the JVM's), 2,381 simple tokenizer goldens with `keepNewLines`
 (443 of them the exception), 303 bounded URL goldens (internationalized
 e-mail addresses), 224 symbol word goldens (symbols in running text), 148
-WordPiece goldens with final sigma, 100 language goldens. For the
-normalizers with a "Differences from OpenNLP" section, the rule per
-normalizer in `analysis/fuzz/src/runs/normalize/mod.rs` (listed above) names
-the difference each mismatch is, and a region no rule recognizes is a
-divergence. No OpenNLP bug was found that the crate docs did not already
+WordPiece goldens with final sigma, 100 language goldens. The
+documented normalizer differences are pinned per input in
+`analysis/normalize/tests/goldens.rs`. No OpenNLP bug was found that the crate docs did not already
 record.
 
 ## Evaluation
@@ -3934,6 +3914,123 @@ match the CPU and Level Zero records query for query on all four sets,
 with the same chunk counts and the same `tokens_embedded`,
 `chunk_bytes` and `chunk_tokens`, and both gates FAIL with the same
 numbers. Every cut is the same on the CPU, CUDA, Level Zero and Metal.
+
+### Chunker v1 (#172)
+
+Chunker v1 is the structure-cost hybrid: `turbo-chunker --max 254
+--target 200` with `--retrieval hybrid` at its defaults (weighted
+fusion, BM25 weight 0.35), all-MiniLM-L6-v2 (manifest `0f17adc4`). Its
+cuts read no vectors. Beside it runs
+`turbo-chunker-254-200-cohesion-1000-hybrid`, whose cohesion term reads
+sentence vectors, so a backend's numerics could move its cuts: it is the
+cut-identity check. Each backend gates the candidate against the three
+hybrid baselines run on that same backend. Every record is at main
+`0d58e862`, with turbo-sentdetect's rule splitter as the sentence
+default (#1568), under `analysis/eval/records/v1-172/<backend>/<name>/`
+for the CPU, Level Zero (Arc Pro B70), CUDA (RTX 4080 SUPER) and Metal
+(Apple M2), with the run logs beside them and the gate and cut reports in
+`analysis/eval/records/v1-172/reports/`. (The first records, at
+`16e74c04` with the 2.5.4 OpenNLP sentence model, gave the same
+verdicts; their cut dumps predate the dumps' completion record and could
+not be re-verified, so they are not kept.)
+
+The document gate FAILs on every backend, with the same verdicts (the
+sets below the -0.5 floor; CPU, Level Zero and Metal number for number,
+CUDA where it differs):
+
+| Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
+| :--- | :--- | :--- | :--- |
+| structure-cost hybrid (v1) | FAIL, 0 gains; `scifact` -1.34, `qasper` -0.95 | FAIL, 0 gains; `arguana` -0.68 (CUDA -0.55) | FAIL, 2 gains; `qasper` -1.34 (Level Zero -1.30, CUDA -1.32) |
+| cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.20, `qasper` -0.74 | FAIL, 0 gains; `arguana` -0.77 (CUDA -0.59) | FAIL, 2 gains; `qasper` -1.12 (Level Zero -1.09, CUDA -1.10) |
+
+v1's nDCG@10 is `69.07` / `34.22` / `51.49` / `37.64` (scifact,
+nfcorpus, arguana, qasper) on the CPU. Against like-for-like baselines
+it is not 2 points better on any set; the per-document diagnosis on #172
+explains why (most judged BEIR documents are one or two chunks under any
+chunker) and what v1 does better: on qasper it cuts through 7.7% of the
+judged evidence spans against sentence windows' 51%.
+
+Cut identity: `turbo-eval run --dump-cuts` wrote each turbo-chunker
+run's cuts, and `turbo-eval cuts` (with #1595, which also compares every
+chunk's full range) compared every document against the CPU's. Each
+dump read as complete; for both pipelines, on all four sets, every
+document has the same chunks on the CPU, Level Zero, CUDA and Metal:
+the same full ranges (start, end, level and parent) and the same cut
+starts (structure-cost 55854 shared cuts, cohesion 57804; 0 documents
+differ). With no differing cut, the reports hold no margins to set
+against a precision tier. The dumps are not committed (about 107 MB per
+pipeline and backend); `reports/cut-dumps.sha256` names each one's
+SHA-256 and size. Metal matches the CPU query for query on every
+record; Level Zero on every record but the sandbox semantic chunker's
+on qasper (2 of 1451 queries differ, same chunk count and sizes); CUDA
+differs on up to 62 of arguana's 1406 queries (v1 +0.18 points,
+cohesion +0.24) with the same chunks, so from its vectors' numerics. The
+sandbox semantic chunker cuts on sentence-vector thresholds and writes
+no cut dump; on Metal its arguana run has one chunk fewer than the
+CPU's (49147 against 49148) with the same per-query scores. The Intel
+NPU leg is #1480.
+
+### The chunker gate on evidence (#172)
+
+The document gate (`turbo-eval gate`: +2 nDCG@10 points on two sets)
+measures document ranking. On scifact, nfcorpus and arguana most judged
+documents are one or two chunks under any chunker, and even the better
+of chunker v1 and sentence windows per query stays under +2 on scifact
+and nfcorpus (#172, diagnosis of 2026-10-28). So from 2026-10-28 a
+chunker is gated on what it hands a reader instead, by `turbo-eval
+chunk-gate <candidate> <sentence-windows> [<baseline> ...]`
+(`analysis/eval/src/chunk_gate.rs`, its thresholds in one place):
+
+- **Evidence**, on every set with judged evidence spans that is not
+  mostly one- or two-chunk documents (under half of them, by the smaller
+  of the candidate's and the reference's shares): span recall@10 and
+  contained@10 above sentence-windows-5, each with the 95% paired
+  bootstrap interval's low end above zero, and fewer judged spans cut
+  through. At least one set must be gated.
+- **Floor**, on every set: against the baseline with the best mean
+  nDCG@10 there, the interval's high end of the candidate's difference
+  is at least -0.5 points.
+
+Records carry what it reads in `metrics.span`: the evidence integrity
+(share of judged spans no chunk holds whole, share of judged documents
+in at most two chunks) and per-query recall and containment at 10.
+Records made before lack them, and the chunk gate refuses them, so no
+record is read against the wrong bar.
+
+Chunker v1 is `turbo-chunker --max 254 --target 200 --clauses` with
+`--retrieval hybrid`, all-MiniLM-L6-v2 (manifest `0f17adc4`). `--clauses`
+splits a sentence over `--max` at clause punctuation and else by token
+windows: gutenqa has unpunctuated stretches the sentence splitter cannot
+break, up to 116k tokens, which were one truncated chunk and cost v1
+1.46 points of nDCG@10 against fixed-tokens-200. Records at
+`8051f4d7` (gate reports from `957dc00a`, byte-identical to `e28b80d0`'s), six sets, under
+`analysis/eval/records/v1-clauses-172/<backend>/<name>/`, with the gate
+and cut reports in `reports/`. On the CPU, Level Zero (Arc Pro B70), CUDA (RTX 4080 SUPER) and Metal
+(Apple M2; its records at `e28b80d0`, which differs from `8051f4d7` only
+in the gate's code, not in chunking or scoring) the evidence numbers
+are the same, and Metal's floors are the CPU's; the floors that differ are qasper's (CPU
+-1.31, Level Zero -1.27, CUDA -1.29) and, on CUDA, arguana (-0.57) and
+nfcorpus (+0.34):
+
+| Set | recall@10 vs sw-5 | contained@10 vs sw-5 | evidence cut through, v1 / sw-5 | nDCG@10 vs best baseline, mean (high end) |
+| :--- | ---: | ---: | ---: | ---: |
+| qasper | +5.68 (+4.44..+6.95) | +13.78 (+12.05..+15.56) | 7.7% / 51.0% | -1.31 (-0.01) CPU, -1.27 (+0.02) Level Zero, -1.29 (+0.01) CUDA, sandbox semantic |
+| gutenqa | +10.80 (+9.11..+12.52) | +12.05 (+10.18..+13.92) | 5.8% / 9.0% | +0.01 (+0.44), fixed-tokens |
+| conteb-squad | reported: 98% short | | 0.1% / 0.2% | -0.68 (+0.08), sandbox semantic |
+| scifact | | | | -1.34 (-0.03), sentence windows |
+| arguana | | | | -0.68 (-0.16), CUDA -0.57 (-0.02), fixed-tokens |
+| nfcorpus | | | | +0.39 (+0.99), CUDA +0.34 (+0.93), sentence windows |
+
+The gate PASSes on all four backends, and the cohesion-1000 variant
+(`--cohesion 1000 --clauses`) passes too. Both pipelines cut every
+document of the six sets the same on the CPU, Level Zero, CUDA and Metal (`turbo-eval
+cuts`, every chunk's full range; a `--clauses` run's chunks are compared
+by range alone, since its cuts inside a sentence have no margin to
+price). CUDA's nDCG@10 differs from the CPU's only from its vectors'
+numerics (arguana on up to 58 of 1406 queries, nfcorpus on up to 4),
+with the same chunks. Metal matches the CPU query for query. Sentence
+windows is still the eval default; making this pipeline the default is
+separate follow-up work.
 
 ### Structure in the chunker
 
@@ -4659,9 +4756,7 @@ runs them on any machine:
   `matches_golden_key` (`analysis/postag/README.md`); the tests of
   `turbo-lemmatizer` do the same with the tokens and tags of each
   `lemmatize` and `lemmatize-dictionary` golden
-  (`analysis/lemmatizer/README.md`), and those of `turbo-phrase-chunker`
-  with the tokens and tags of each `chunk` golden
-  (`analysis/phrase-chunker/README.md`).
+  (`analysis/lemmatizer/README.md`).
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 
