@@ -135,9 +135,9 @@ copy of the recipe.
 | `modernbert-base.json` | answerdotai/ModernBERT-base | 8192 | none (`weights-f32` only, the upstream F32 safetensors); the masked-language-model checkpoint, served as mean pooling of `final_norm`'s output: a conformance target and a base for heads, not a trained embedding |
 | `nomic-embed-text-v1.5.json` | nomic-ai/nomic-embed-text-v1.5 | 8192 | none (`weights-f32` only); trained to 2048 tokens and served to 8192 with the unscaled rotary table, as upstream's `n_positions` gives and text-embeddings-inference serves it (the model card's long-context example instead loads it with `rotary_scaling_factor=2`, an NTK-scaled table this bundle does not build, so vectors past 2048 tokens follow the unscaled model); prefixes `search_query: ` and `search_document: `; not normalized, as its `modules.json` has no Normalize module (ask for L2 at run time) |
 
-The two rotary recipes (#1461) are made by path. The CPU, CUDA and
-Metal backends run both families (docs/cpu.md, docs/cuda.md,
-docs/metal.md), and the bundles' reference vectors are their conformance
+The two rotary recipes (#1461) are made by path. The CPU, CUDA, Level
+Zero and Metal backends run both families (docs/cpu.md, docs/cuda.md,
+docs/levelzero.md, docs/metal.md), and the bundles' reference vectors are their conformance
 target: on CUDA both pass at MODEL and FASTEST (docs/receipts/cuda-1461/).
 Their references carry cases of 6827 and 7051 tokens and one cut at
 8192, and a case that meets ModernBERT's added tokens. nomic's recipe
