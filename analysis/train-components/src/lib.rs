@@ -24,12 +24,10 @@
 //!   `DocumentCategorizerEventStream` and `DoccatFactory`'s feature
 //!   generators, and the `DoccatModel` file.
 //! - [`dictionary`][]: the token n-gram dictionary as `Dictionary.serialize`
-//!   writes it (entries in Java's hash set order), `Dictionary.parseOneEntryPerLine`
+//!   writes it (entries in insertion order), `Dictionary.parseOneEntryPerLine`
 //!   (`DictionaryBuilderTool`) and `CensusDictionaryCreatorTool.createDictionary`.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
-//!   it, entries in Java's hash map order.
-//! - [`java_hash`][]: `String.hashCode` and the order a `java.util.HashMap`
-//!   iterates in, which those orders and the zip entry order depend on.
+//!   it, entries in insertion order.
 //! - [`package`][]: the factory and serializer manifest entries and the
 //!   zip entry order of `BaseModel.serialize`.
 //!
@@ -134,7 +132,6 @@ pub mod depparse;
 pub mod dictionary;
 pub mod doccat;
 pub mod error;
-pub mod java_hash;
 pub mod langdetect;
 pub mod lemmatize;
 pub mod namefind;

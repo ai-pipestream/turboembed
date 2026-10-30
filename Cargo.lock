@@ -2721,7 +2721,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-train",
  "turbo-unicode",
@@ -2821,7 +2820,6 @@ name = "turbo-train"
 version = "0.1.0"
 dependencies = [
  "turbo-calibration",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-unicode",
@@ -2837,7 +2835,6 @@ dependencies = [
  "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-namefind",

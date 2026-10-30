@@ -1,6 +1,5 @@
 //! `TokenPatternFeatureGenerator`.
 
-use turbo_jvm::chars::Utf16Units;
 use turbo_unicode::java::code_point::{is_alphabetic, is_digit};
 
 use super::FeatureGenerator;
@@ -87,7 +86,7 @@ impl FeatureGenerator for TokenPattern {
     fn create_features(&mut self, out: &mut Features, tokens: &[&str], index: usize, _previous: &[&str]) {
         let token = tokens[index];
         self.units.clear();
-        self.units.extend(Utf16Units::new(token).map(|u| u.unit));
+        self.units.extend(token.encode_utf16());
         self.split();
         let n = self.pieces.len();
         if n == 1 {

@@ -1,7 +1,5 @@
 //! `NegLogLikelihood`, `ParallelNegLogLikelihood`, and `QNMinimizer.L2RegFunction`.
 
-use turbo_jvm::strict_math;
-
 use crate::index::DataIndex;
 
 use super::{QnParams, inner_product, log_sum_of_exps};
@@ -100,7 +98,7 @@ impl<'i> NegLogLikelihood<'i> {
             self.sums(ei, x, expectation);
             let lse = log_sum_of_exps(expectation);
             for e in expectation.iter_mut() {
-                *e = strict_math::exp(*e - lse);
+                *e = (*e - lse).exp();
             }
             let context = self.index.context(ei);
             let values = self.index.values(ei);

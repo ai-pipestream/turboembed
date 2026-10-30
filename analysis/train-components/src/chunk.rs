@@ -223,7 +223,7 @@ mod tests {
         let f = ChunkerFactory::new("de");
         let report = TrainingReport { event_hash: Some(1), trainer_type: TrainerType::Event };
         let package = package_chunker_model(&f, &report, vec![1], 5, Stamp::at(0)).unwrap();
-        assert_eq!(package.entry_names(), ["chunker.model", "manifest.properties"]);
+        assert_eq!(package.entry_names(), ["manifest.properties", "chunker.model"]);
         assert_eq!(package.manifest().get("BeamSize"), Some("5"));
         assert_eq!(package.manifest().get("factory"), Some(FACTORY));
         assert_eq!(package.manifest().get("TrainerType"), Some("Event"));
