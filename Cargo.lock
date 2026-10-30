@@ -2250,7 +2250,6 @@ dependencies = [
  "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-matcher",
  "turbo-normalize",
  "turbo-numeric",
