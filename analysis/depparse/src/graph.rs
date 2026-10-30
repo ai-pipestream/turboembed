@@ -1,21 +1,62 @@
 use crate::{Error, Result, error};
-use turbo_analysis::{Ix, Layer, Tag, TagSet};
-use turbo_analysis_layers::{Dependencies, Tokens, WordOrTokenAnchor};
+use turbo_analysis::{CodePointSpan, Ix, Layer, Span, Tag, TagSet, Utf16Span, View};
+use turbo_analysis_layers::{Dependencies, MorphPosTags, Tokens, Word, WordOrTokenAnchor};
 
 /// One labeled edge. A root has no head index.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct DependencyArc<'a, A: WordOrTokenAnchor = Tokens> {
     pub dependent: Ix<A>,
     pub head: Option<Ix<A>>,
     pub relation: &'a str,
 }
+
+/// A dependency node resolved against its document [`View`], surface [`Tokens`],
+/// anchor layer (`A = Tokens` or `A = Words`), and optional POS layer (`A::Pos`).
+#[derive(Debug, PartialEq, Eq)]
+pub struct ResolvedDependencyNode<'a, A: WordOrTokenAnchor = Tokens> {
+    /// Strongly-typed index into the anchor layer (`Ix<Tokens>` or `Ix<Words>`).
+    pub index: Ix<A>,
+    /// Resolved syntactic word with surface `IxRange<Tokens>`, `token_span`,
+    /// optional clitic `subspan`, and borrowed `form`.
+    pub word: Word<'a>,
+    /// UTF-16 code-unit span of the node's surface token(s) in `View`.
+    pub utf16_span: Utf16Span,
+    /// Unicode code-point span of the node's surface token(s) in `View`.
+    pub code_point_span: CodePointSpan,
+    /// Strongly-typed POS tag label from `A::Pos`, when provided.
+    pub pos: Option<&'a str>,
+}
+impl<A: WordOrTokenAnchor> Copy for ResolvedDependencyNode<'_, A> {}
+impl<A: WordOrTokenAnchor> Clone for ResolvedDependencyNode<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+/// A bidirectional, offset-tracked dependency arc linking a resolved dependent
+/// to its resolved head (or root) and incoming dependents (`children`).
+#[derive(Debug, PartialEq, Eq)]
+pub struct ResolvedDependencyArc<'a, A: WordOrTokenAnchor = Tokens> {
+    pub dependent: ResolvedDependencyNode<'a, A>,
+    pub head: Option<ResolvedDependencyNode<'a, A>>,
+    pub children: &'a [Ix<A>],
+    pub relation_tag: Tag,
+    pub relation: &'a str,
+}
+impl<A: WordOrTokenAnchor> Copy for ResolvedDependencyArc<'_, A> {}
+impl<A: WordOrTokenAnchor> Clone for ResolvedDependencyArc<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArcDirection {
     ToHead,
     ToDependent,
 }
 /// A step along the undirected tree, with its dependency direction intact.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct PathStep<'a, A: WordOrTokenAnchor = Tokens> {
     pub from: Ix<A>,
     pub to: Ix<A>,
@@ -28,10 +69,16 @@ pub struct DependencyGraph<A: WordOrTokenAnchor = Tokens> {
     layer: Dependencies<A>,
     children: Vec<Vec<Ix<A>>>,
     roots: Vec<Ix<A>>,
+    pub(crate) label_encoding: crate::LabelEncoding,
 }
 impl<A: WordOrTokenAnchor> Clone for DependencyGraph<A> {
     fn clone(&self) -> Self {
-        Self { layer: self.layer.clone(), children: self.children.clone(), roots: self.roots.clone() }
+        Self {
+            layer: self.layer.clone(),
+            children: self.children.clone(),
+            roots: self.roots.clone(),
+            label_encoding: self.label_encoding,
+        }
     }
 }
 impl<A: WordOrTokenAnchor> std::fmt::Debug for DependencyGraph<A> {
@@ -86,7 +133,7 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
                 roots.push(node);
             }
         }
-        Ok(Self { layer, children, roots })
+        Ok(Self { layer, children, roots, label_encoding: crate::LabelEncoding::Plain })
     }
     pub fn to_layer(&self) -> Dependencies<A> {
         self.layer.clone()
@@ -119,6 +166,87 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
     }
     pub fn children(&self, node: Ix<A>) -> Result<&[Ix<A>]> {
         self.children.get(node.get()).map(Vec::as_slice).ok_or_else(|| error("node out of range"))
+    }
+    /// Returns the incoming dependency arcs for all dependents whose head is `head`.
+    pub fn incoming_arcs(&self, head: Ix<A>) -> Result<Vec<DependencyArc<'_, A>>> {
+        let deps = self.children(head)?;
+        deps.iter().map(|&d| self.arc(d)).collect()
+    }
+    /// Returns all nodes in the syntactic subtree rooted at `root`, in surface order.
+    pub fn subtree(&self, root: Ix<A>) -> Result<Vec<Ix<A>>> {
+        self.children(root)?;
+        let mut out = Vec::new();
+        let mut stack = vec![root];
+        while let Some(node) = stack.pop() {
+            out.push(node);
+            for &child in self.children[node.get()].iter().rev() {
+                stack.push(child);
+            }
+        }
+        out.sort_by_key(|ix| ix.get());
+        Ok(out)
+    }
+    /// Computes the bounding UTF-8 byte [`Span`] in `view` covering the entire
+    /// syntactic subtree rooted at `root`.
+    pub fn subtree_span(&self, root: Ix<A>, view: &View, tokens: &Tokens, anchor: &A) -> Result<Span> {
+        let words = anchor.resolved(view, tokens).map_err(error)?;
+        if words.len() != self.len() {
+            return Err(error("anchor length does not match dependency graph"));
+        }
+        let nodes = self.subtree(root)?;
+        let mut start = u32::MAX;
+        let mut end = 0u32;
+        for node in nodes {
+            let span = words[node.get()].token_span;
+            start = start.min(span.start);
+            end = end.max(span.end);
+        }
+        Ok(Span::new(start, end))
+    }
+    /// Resolves every node and arc against `view`, `tokens`, `anchor`, and
+    /// optional `pos` into bidirectional, offset-tracked [`ResolvedDependencyArc`]s.
+    pub fn resolve_arcs<'a>(
+        &'a self,
+        view: &'a View,
+        tokens: &'a Tokens,
+        anchor: &'a A,
+        pos: Option<&'a A::Pos>,
+    ) -> Result<Vec<ResolvedDependencyArc<'a, A>>> {
+        let words = anchor.resolved(view, tokens).map_err(error)?;
+        if words.len() != self.len() {
+            return Err(error("anchor length does not match dependency graph"));
+        }
+        if let Some(pos) = pos {
+            pos.check().map_err(error)?;
+            if pos.len() != self.len() {
+                return Err(error("POS length does not match dependency graph"));
+            }
+        }
+        let nodes: Vec<ResolvedDependencyNode<'a, A>> = words
+            .into_iter()
+            .enumerate()
+            .map(|(i, word)| {
+                let pos_label = match pos {
+                    Some(p) => Some(p.label(i).ok_or_else(|| error("invalid POS tag"))?),
+                    None => None,
+                };
+                Ok(ResolvedDependencyNode {
+                    index: Ix::new(i as u32),
+                    utf16_span: view.span_to_utf16(word.token_span),
+                    code_point_span: view.span_to_code_point(word.token_span),
+                    word,
+                    pos: pos_label,
+                })
+            })
+            .collect::<Result<_>>()?;
+        let mut out = Vec::with_capacity(self.len());
+        for (i, &dependent) in nodes.iter().enumerate() {
+            let head = self.layer.head[i].map(|h| nodes[h.get()]);
+            let relation_tag = self.layer.relation[i];
+            let relation = self.layer.relations.label(relation_tag);
+            out.push(ResolvedDependencyArc { dependent, head, children: &self.children[i], relation_tag, relation });
+        }
+        Ok(out)
     }
     pub fn is_projective(&self) -> bool {
         // Include the artificial-root arc, as the arc-standard oracle does.
