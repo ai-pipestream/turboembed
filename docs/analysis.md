@@ -147,6 +147,26 @@ a typed error before any document is processed. Named layer and view instances
 multiple recognizers or views of the same Rust type to coexist in one
 `Document` without collision.
 
+### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)
+
+`Analyzer::analyze_incremental` and `Analyzer::run_incremental` execute a
+pipeline DAG incrementally using 256-bit SHA-256 digests (`turbo-sha256`):
+
+- **`ProvenanceDigest`**: chained 256-bit SHA-256 identity combining the step's
+  `Annotator::ID`, `VERSION`, `config_hash()`, `ModelRef`, memoized source and
+  read-view text digests (`ViewTextDigest`, `SourceBytesDigest`), and the
+  sorted `ProvenanceDigest` values of all upstream `reads`.
+- **`ContentDigest` and `InputSnapshotDigest`**: when a layer type opts into
+  `Layer::content_hash(&self) -> Option<u64>` (including `TagSet::content_hash()`
+  for tag-indexed layers and all payload columns), `Document::add` computes a
+  256-bit `ContentDigest` covering its spans, cross-layer index bounds, schema,
+  and payload hash, alongside an `InputSnapshotDigest` over its upstream inputs.
+- **Batch coalescing and wire persistence**: `Analyzer::run_incremental`
+  coalesces all uncached documents at each stage into a single batched
+  `Annotator::annotate_batch_placed` call, and `DocumentGraph` persists
+  `provenance_digest` and `input_snapshot` on `ProvenanceRecord` across binary
+  wire export and import.
+
 ## Binary wire export and import (`analysis/core/src/export/`)
 
 `DocumentGraph` (`analysis/core/src/export/mod.rs`) serializes a `Document`,
@@ -382,3 +402,19 @@ GutenQA (100 documents, 339,809 level units, 50 queries):
 | Contextual only | 0.6200 | 0.4374 | 339809 |
 | Cascade C=5 | 0.5800 | 0.4105 | 968 |
 | Cascade C=64 | 0.6000 | 0.4268 | 11651 |
+
+## Content-addressed incremental DAG execution
+
+`Analyzer` (`analysis/core/src/analyzer.rs`, `analysis/core/src/analyzer/incremental.rs`, `analysis/core/src/doc/digest.rs`) supports Bazel-like content-addressed incremental execution and provenance-skip caching across both in-memory `Document` instances and exported/imported `DocumentGraph` payloads:
+
+1. **Stage dependency declarations and DAG validation**:
+   - `Annotator::requires(&self) -> &[KeyId]` and `Annotator::produces(&self) -> &[KeyId]` declare each annotator's required upstream keys and produced output keys (`Key::id` is `const fn`).
+   - `Analyzer::validate_dag(&self)` (and `Builder::validate_dag(&self)`) verifies at build time that every layer name maps to one Rust type, no two stages produce the same `KeyId`, every required upstream key has a producer, every aligned output's anchor is valid, and no cycle exists.
+2. **Chained 256-bit SHA-256 provenance and content digests (`Document::provenance_digest`, `Document::content_digest`, `DocumentGraph::layer_provenance_digest`)**:
+   - Every layer added to `Document` computes a deterministic 256-bit SHA-256 (`[u8; 32]`) chained `ProvenanceDigest` over `(annotator_id, version, config_hash, model_ref, source_view_text_digest, sorted_view_read_digests, sorted_upstream_input_layer_digests)` alongside a deterministic structural 256-bit `ContentDigest` and `InputSnapshotDigest` (`upstream_content_hash`).
+   - Exporting a `Document` via `export(&doc, &codecs)` to binary `DocumentGraph` wire bytes (`to_bytes`) and importing it back (`DocumentGraph::from_bytes` + `import`) preserves identical chained provenance digests on every view and layer.
+3. **$O(1)$ incremental stage skipping and parallel branch execution (`Analyzer::analyze_incremental`)**:
+   - `Analyzer::analyze_incremental(&self, doc: &mut Document) -> Result<IncrementalReport, Error>` walks topological stage levels: if all `produces()` keys of a stage are present on `doc` with matching chained provenance digests and upstream content hashes, the stage is skipped in $O(1)$ (`StageCacheStatus::Skipped`).
+   - When an upstream stage's `config_hash`, `model`, or output changes, `analyze_incremental` invalidates and recomputes that stage and all transitive downstream dependents while leaving unaffected upstream stages and sibling branches untouched.
+   - Independent stages at the same topological level execute concurrently on `std::thread::scope` and merge into canonical stage order, producing byte-identical `DocumentGraph` wire payloads to `Analyzer::run_sequential`.
+   - `analysis/core/tests/incremental_dag.rs` verifies $O(1)$ skipping across `DocumentGraph` wire round-trips, selective downstream invalidation on mid-pipeline `config_hash` / `model` / content mutations, and bit-identical wire output between parallel and sequential DAG execution.

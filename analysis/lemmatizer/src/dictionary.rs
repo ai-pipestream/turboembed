@@ -149,6 +149,20 @@ impl Annotator for DictionaryLemmatizer {
     fn model(&self) -> Option<ModelRef> {
         Some(self.model_ref.clone())
     }
+
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[
+            turbo_analysis::Key::<View>::DEFAULT.id(),
+            turbo_analysis::Key::<Tokens>::DEFAULT.id(),
+            turbo_analysis::Key::<PosTags>::DEFAULT.id(),
+        ];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Lemmas>::DEFAULT.id()];
+        PRODUCES
+    }
 }
 
 #[cfg(test)]

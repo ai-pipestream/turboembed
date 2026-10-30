@@ -289,6 +289,19 @@ impl Annotator for SentenceDetector {
         Some(self.model.model_ref().clone())
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<View>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[
+            turbo_analysis::Key::<Sentences>::DEFAULT.id(),
+            turbo_analysis::Key::<Confidence<Sentences>>::DEFAULT.id(),
+        ];
+        PRODUCES
+    }
+
     /// The whitespace definition, and the abbreviation inventory when
     /// there is one; in JVM parity mode the hash is what it was before
     /// inventories.

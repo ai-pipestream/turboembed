@@ -93,6 +93,12 @@ impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
         layer.check_forest().map_err(fail)?;
         Ok((layer,))
     }
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        <Self::Reads as turbo_analysis::annotate::Reads>::DEFAULT_REQUIRED_IDS
+    }
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        <Self::Writes as turbo_analysis::annotate::Writes>::DEFAULT_IDS
+    }
     fn config_hash(&self) -> u64 {
         self.parser.config_hash()
     }

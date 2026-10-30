@@ -104,6 +104,15 @@ impl Strs {
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         (0..self.len()).map(|i| self.get(i))
     }
+
+    pub fn content_hash(&self) -> u64 {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.usize(self.end.len());
+        for s in self.iter() {
+            h.str(s);
+        }
+        h.finish()
+    }
 }
 
 // What a token costs, column by column: its span (8 bytes), its sentence
@@ -152,6 +161,7 @@ pub mod modality;
 mod money;
 mod numbers;
 mod ordinals;
+mod payload_hash;
 mod pii;
 mod predicate;
 mod project;

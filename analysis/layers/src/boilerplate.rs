@@ -96,6 +96,19 @@ impl<L: Layer> Layer for Boilerplate<L> {
         self.kind.len()
     }
 
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.usize(self.kind.len());
+        for (&k, &s) in self.kind.iter().zip(&self.score) {
+            match k {
+                None => h.u8(0),
+                Some(bk) => h.u8(1).u8(bk.code()),
+            };
+            h.f32(s);
+        }
+        Some(h.finish())
+    }
+
     fn check(&self) -> Result<(), String> {
         if self.score.len() != self.kind.len() {
             return Err(format!("{} scores for {} items", self.score.len(), self.kind.len()));

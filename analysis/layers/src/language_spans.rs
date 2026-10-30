@@ -83,6 +83,14 @@ impl LanguageSpans {
 impl Layer for LanguageSpans {
     const ID: &'static str = "turbo:language-spans";
     positional!(LanguageSpans);
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(self.languages.content_hash()).usize(self.language.len());
+        for i in 0..self.language.len() {
+            h.u16(self.language[i].0).str(self.script[i].name()).f64(self.confidence[i]);
+        }
+        Some(h.finish())
+    }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.language.len() != n || self.script.len() != n || self.confidence.len() != n {

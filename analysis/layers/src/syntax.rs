@@ -21,6 +21,9 @@ impl Layer for PosTags {
     fn len(&self) -> usize {
         self.tags.len()
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
             return Err(format!("a tag outside {}", self.tagset.name));
@@ -45,6 +48,9 @@ impl Layer for Lemmas {
     fn len(&self) -> usize {
         self.lemma.len()
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.lemma.content_hash())
+    }
 }
 
 /// A stem per token: item `i` is the stem of token `i`
@@ -61,6 +67,9 @@ impl Layer for Stems {
     }
     fn len(&self) -> usize {
         self.stem.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.stem.content_hash())
     }
 }
 
@@ -111,6 +120,9 @@ impl Layer for Terms {
     }
     fn len(&self) -> usize {
         self.surface.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.surface.len();
@@ -170,6 +182,9 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     }
     fn len(&self) -> usize {
         self.head.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.head.len();
@@ -265,6 +280,9 @@ impl Layer for Entities {
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.tokens.len() != n || self.kind.len() != n || self.score.len() != n {
@@ -301,6 +319,9 @@ impl Layer for ChunkTags {
     fn len(&self) -> usize {
         self.tags.len()
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
             return Err(format!("a tag outside {}", self.tagset.name));
@@ -331,6 +352,9 @@ impl Layer for PhraseChunks {
     positional!(PhraseChunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
@@ -384,6 +408,9 @@ impl Layer for Phrases {
     positional!(Phrases);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();

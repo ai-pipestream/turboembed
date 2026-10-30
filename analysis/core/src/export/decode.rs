@@ -142,6 +142,11 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
                     let view = View::derived(parent_view, text.clone(), alignment);
                     doc.add(&key, view, provenance)
                         .map_err(|e| ExportError::InvalidLayer { layer: View::ID.to_owned(), detail: e.to_string() })?;
+                    doc.restore_imported_snapshot(
+                        key.id(),
+                        record.provenance.provenance_digest,
+                        record.provenance.input_snapshot,
+                    );
                     let added = doc.get_key(&key).expect("the view just added");
                     cx.views.insert(record.instance.clone(), added.id());
                     cx.lens.insert((View::ID.to_owned(), record.instance.clone()), 1);
@@ -183,6 +188,12 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
                         detail: format!("the record counts {} items, the codec restored {len}", record.len),
                     });
                 }
+                let key = (codec.key)(cx.intern(&record.instance.clone()));
+                doc.restore_imported_snapshot(
+                    key,
+                    record.provenance.provenance_digest,
+                    record.provenance.input_snapshot,
+                );
                 cx.lens.insert((record.layer.clone(), record.instance.clone()), len);
             }
             StatusRecord::Skipped(reason) => {

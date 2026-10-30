@@ -1976,6 +1976,7 @@ name = "turbo-analysis"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis-layers",
+ "turbo-sha256",
 ]
 
 [[package]]
