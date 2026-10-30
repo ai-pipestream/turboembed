@@ -296,6 +296,7 @@ fn workspace_manifests_do_not_depend_on_regex() {
 #[test]
 fn obsolete_source_tree_is_absent() {
     assert!(!workspace().join("ai-slop-generated-shit").exists());
+    assert!(!workspace().join("analysis/jvm").exists());
 }
 
 #[test]

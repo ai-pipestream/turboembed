@@ -2350,13 +2350,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "turbo-jvm"
-version = "0.1.0"
-dependencies = [
- "turbo-unicode",
-]
-
-[[package]]
 name = "turbo-keywords"
 version = "0.1.0"
 dependencies = [

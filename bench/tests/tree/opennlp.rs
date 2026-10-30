@@ -96,7 +96,6 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ("analysis/geo/data/README.md", "GeoNames gazetteer data attribution"),
     ("analysis/goldens/data/README.md", "Legacy golden fixture README slated for removal under #1511/#1529"),
     ("analysis/goldens-tool/README.md", "Legacy goldens-tool crate slated for removal under #1529"),
-    ("analysis/jvm/README.md", "Legacy jvm crate slated for removal under #1529"),
     ("analysis/maxent/tests/fixtures/README.md", "Legacy maxent fixture README slated for removal under #1530"),
     ("analysis/ngram/README.md", "Legacy ngram crate slated for removal under #1532"),
     ("analysis/normalize/tests/data/spellcheck/README.md", "Spellcheck evaluation corpus attribution"),
