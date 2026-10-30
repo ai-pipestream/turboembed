@@ -144,6 +144,7 @@ async fn turbo_search_service_end_to_end() {
                             TokenVectorInput { values: vec16(1), span_start: 29, span_end: 34, has_span: true },
                         ],
                         attributes: HashMap::from([("region".into(), "eu".into())]),
+                        ..Default::default()
                     },
                     ChunkInput {
                         chunk_id: "doc-1#1".into(),
@@ -169,9 +170,28 @@ async fn turbo_search_service_end_to_end() {
                             has_span: true,
                         }],
                         attributes: HashMap::from([("region".into(), "eu".into())]),
+                        ..Default::default()
                     },
                 ],
                 attributes: HashMap::new(),
+                layout_boxes: vec![
+                    LayoutBoxInput {
+                        span: Some(SpanProto { start: 0, end: 45 }),
+                        page: 1,
+                        x0: 10.0,
+                        y0: 20.0,
+                        x1: 200.0,
+                        y1: 40.0,
+                    },
+                    LayoutBoxInput {
+                        span: Some(SpanProto { start: 46, end: doc1_text.len() as u32 }),
+                        page: 2,
+                        x0: 10.0,
+                        y0: 50.0,
+                        x1: 220.0,
+                        y1: 80.0,
+                    },
+                ],
             },
             IndexDocumentRequest {
                 index_name: target.into(),
@@ -202,8 +222,17 @@ async fn turbo_search_service_end_to_end() {
                         has_span: true,
                     }],
                     attributes: HashMap::from([("region".into(), "de".into())]),
+                    ..Default::default()
                 }],
                 attributes: HashMap::new(),
+                layout_boxes: vec![LayoutBoxInput {
+                    span: Some(SpanProto { start: 0, end: 43 }),
+                    page: 3,
+                    x0: 15.0,
+                    y0: 25.0,
+                    x1: 180.0,
+                    y1: 45.0,
+                }],
             },
         ]
     };
@@ -237,6 +266,12 @@ async fn turbo_search_service_end_to_end() {
     assert_eq!(nl_res.hits.len(), 1);
     assert_eq!(nl_res.hits[0].chunk_id, "doc-1#0");
     assert_eq!(nl_res.hits[0].parent_text, doc1_text);
+    assert!(nl_res.hits[0].has_page_span);
+    assert_eq!((nl_res.hits[0].page_start, nl_res.hits[0].page_end), (1, 1));
+    assert_eq!(
+        nl_res.hits[0].page_boxes,
+        vec![PageBoundingBoxProto { page: 1, x0: 10.0, y0: 20.0, x1: 200.0, y1: 40.0 }]
+    );
     assert!(!nl_res.document_heat.is_empty());
 
     // Phrase query with slop = 0 vs slop = 1

@@ -186,7 +186,7 @@ fn embed_is_offered_in_i8_and_exact_is_refused() {
         let c = cap(p);
         assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
         assert_eq!(c.dtype, TURBO_DTYPE_I8);
-        assert_eq!(c.options_honored, 0b111111, "every field of turbo_embed_options");
+        assert_eq!(c.options_honored, 0b1111_1111, "every field of turbo_embed_options");
     }
     let c = cap(TURBO_PRECISION_EXACT);
     assert_eq!((c.status, c.dtype, c.options_honored), (backend::TURBO_CAP_UNSUPPORTED, 0, 0));
@@ -294,7 +294,9 @@ fn raw_weights_are_not_an_artifact_for_hailo() {
 
 /// TURBO_TEST_BUNDLE: a bundle with a HEF for the first hailo device.
 fn hef_bundle() -> std::path::PathBuf {
-    std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"))
+    turbo_pins::require(std::path::PathBuf::from(
+        std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"),
+    ))
 }
 
 fn on_hailo() -> Loaded {

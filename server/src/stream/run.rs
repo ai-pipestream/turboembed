@@ -9,7 +9,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::OwnedSemaphorePermit;
-use turbo::{TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_embed_options, turbo_text};
+use turbo::{
+    TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_DTYPE_U8, TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED,
+    turbo_embed_options, turbo_text,
+};
 
 use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_INVALID_UTF8};
 use crate::offsets::OffsetMode;
@@ -27,6 +30,9 @@ pub(crate) struct Doc {
     pub(crate) id: String,
     pub(crate) text: Vec<u8>,
     pub(crate) opts: turbo_embed_options,
+    /// The caller's int8 table, checked against the width; the run points
+    /// opts.int8_ranges at it.
+    pub(crate) int8_ranges: Option<Arc<[f32]>>,
     pub(crate) output: AnalyzeOutput,
     pub(crate) offsets: OffsetMode,
     pub(crate) sparse_top_k: u32,
@@ -42,6 +48,7 @@ pub(crate) struct Doc {
 /// The computed payload for one document in a batch.
 pub(crate) enum RowPayload {
     Vector(prost::bytes::Bytes),
+    Codes(prost::bytes::Bytes),
     Outcome(Box<ProtoOutcome>),
 }
 
@@ -70,6 +77,8 @@ pub(crate) struct Outcome {
     pub(crate) model: String,
     pub(crate) version: String,
     pub(crate) dim: u32,
+    /// TURBO_QUANTIZE_* of each row, as the documents asked.
+    pub(crate) quantization: u32,
     pub(crate) rows: std::result::Result<Vec<Row>, Whole>,
 }
 
@@ -79,23 +88,27 @@ pub(crate) struct Outcome {
 pub(crate) fn key(d: &Doc) -> BatchKey {
     let o = &d.opts;
     let (offsets, top_k, floor, stride) = match d.output {
-        AnalyzeOutput::Vectors => (0, 0, 0, 0),
+        AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes => (0, 0, 0, 0),
         AnalyzeOutput::SparseTerms => (d.offsets.to_proto(), d.sparse_top_k, d.sparse_floor.to_bits(), 0),
         AnalyzeOutput::TokenVectors => (d.offsets.to_proto(), 0, 0, d.token_stride),
     };
+    let ranges = d.int8_ranges.as_ref().map(|r| r.iter().map(|v| v.to_bits()).collect()).unwrap_or_default();
     (
-        Arc::as_ptr(&d.loaded) as usize,
-        d.output as i32,
-        offsets,
-        o.truncate,
-        o.max_tokens,
-        o.prompt_role,
-        o.normalize,
-        o.pooling,
-        o.output_dim,
-        top_k,
-        floor,
-        stride,
+        (
+            Arc::as_ptr(&d.loaded) as usize,
+            d.output as i32,
+            offsets,
+            o.truncate,
+            o.max_tokens,
+            o.prompt_role,
+            o.normalize,
+            o.pooling,
+            o.output_dim,
+            top_k,
+            floor,
+            stride,
+        ),
+        (o.quantization, ranges),
     )
 }
 
@@ -112,13 +125,19 @@ pub(crate) fn run(
 ) -> Outcome {
     let (model, version) = (docs[0].model.clone(), docs[0].version.clone());
     let output = docs[0].output;
-    if output != AnalyzeOutput::Vectors {
+    if !matches!(output, AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes) {
         return run_structured(shared, dead, held, docs, opts, permits, model, version);
     }
+    let quantization = opts.quantization;
+    // The batch shares one table (the key holds it); it lives in docs[0]
+    // through the write.
+    let ranges = docs[0].int8_ranges.clone();
+    let opts = &turbo_embed_options { int8_ranges: ranges.as_ref().map_or(std::ptr::null(), |r| r.as_ptr()), ..*opts };
     let fail = |failure, docs, permits| Outcome {
         model: model.clone(),
         version: version.clone(),
         dim: 0,
+        quantization,
         rows: Err(Whole { failure, docs, permits }),
     };
     if dead.load(Ordering::Acquire) {
@@ -143,31 +162,30 @@ pub(crate) fn run(
         return fail(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"), docs, permits);
     }
     drop(texts);
-    let (dim, data) = match read(&result, docs.len()) {
+    let (dim, dtype, data) = match read(&result, docs.len()) {
         Ok(v) => v,
         Err(f) => return fail(f, docs, permits),
     };
+    drop(ranges);
     // One copy out of the result, which frees the session for the next
     // batch; each document's vector is a slice of it.
-    let row = dim as usize * 4;
-    if data.len() < docs.len() * row {
-        let f = Failure::new(TURBO_E_INTERNAL, 0, format!("{} bytes for {} rows of {row}", data.len(), docs.len()));
-        return fail(f, docs, permits);
-    }
-    let data = prost::bytes::Bytes::from(data);
+    let slices = match split(data, docs.len(), dtype, dim) {
+        Ok(s) => s,
+        Err(f) => return fail(f, docs, permits),
+    };
     let mut permits = permits.into_iter();
-    let rows: Vec<Row> = (0..docs.len())
-        .map(|i| data.slice(i * row..(i + 1) * row))
+    let rows: Vec<Row> = slices
+        .into_iter()
         .zip(docs)
         .map(|(c, d)| Row {
             seq: d.seq,
             id: d.id,
-            payload: RowPayload::Vector(c),
+            payload: if output == AnalyzeOutput::VectorCodes { RowPayload::Codes(c) } else { RowPayload::Vector(c) },
             room: d.room,
             window: permits.next().expect("one window permit per document"),
         })
         .collect();
-    Outcome { model, version, dim, rows: Ok(rows) }
+    Outcome { model, version, dim, quantization, rows: Ok(rows) }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -185,6 +203,7 @@ fn run_structured(
         model: model.clone(),
         version: version.clone(),
         dim: 0,
+        quantization: 0,
         rows: Err(Whole { failure, docs, permits }),
     };
     let loaded = docs[0].loaded.clone();
@@ -214,7 +233,7 @@ fn run_structured(
         AnalyzeOutput::TokenVectors => {
             embed.run_token_vectors_batch(shared, dead, slot, &texts, opts, offsets, docs[0].token_stride)
         }
-        AnalyzeOutput::Vectors => unreachable!(),
+        AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes => unreachable!(),
     };
     drop(texts);
     let outcomes = match computed {
@@ -233,12 +252,12 @@ fn run_structured(
             window: permits.next().expect("one window permit per document"),
         })
         .collect();
-    Outcome { model, version, dim: 0, rows: Ok(rows) }
+    Outcome { model, version, dim: 0, quantization: 0, rows: Ok(rows) }
 }
 
 /// The result's whole bytes and dim, read the way the single-document
 /// call reads them, whatever placement the backend produced.
-fn read(result: &Output, want_rows: usize) -> Result<(u32, Vec<u8>)> {
+fn read(result: &Output, want_rows: usize) -> Result<(u32, u32, Vec<u8>)> {
     let first = result.info()?;
     let data = match first.placement {
         TURBO_PLACE_HOST | TURBO_PLACE_PINNED | TURBO_PLACE_SHARED => {
@@ -263,5 +282,45 @@ fn read(result: &Output, want_rows: usize) -> Result<(u32, Vec<u8>)> {
             format!("the result carries {} rows for {} documents", info.batch, want_rows),
         ));
     }
-    Ok((info.dim, data))
+    Ok((info.dim, info.dtype, data))
+}
+
+/// `data` as `n` rows of a result of `dtype` and `dim`, one slice each:
+/// f32 rows of `dim * 4` bytes, int8 of `dim`, packed bits of
+/// `ceil(dim / 8)`. A result that does not hold exactly that is refused.
+fn split(data: Vec<u8>, n: usize, dtype: u32, dim: u32) -> Result<Vec<prost::bytes::Bytes>> {
+    let dim = dim as usize;
+    let row = match dtype {
+        TURBO_DTYPE_F32 => dim * 4,
+        TURBO_DTYPE_I8 => dim,
+        TURBO_DTYPE_U8 => dim.div_ceil(8),
+        d => return Err(Failure::new(TURBO_E_INTERNAL, 0, format!("a result of dtype {d} is not vectors"))),
+    };
+    if data.len() != n * row {
+        return Err(Failure::new(TURBO_E_INTERNAL, 0, format!("{} bytes for {n} rows of {row}", data.len())));
+    }
+    let data = prost::bytes::Bytes::from(data);
+    Ok((0..n).map(|i| data.slice(i * row..(i + 1) * row)).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rows_are_the_dtypes_width_and_a_result_of_another_length_is_refused() {
+        let rows = |dtype, dim, len: usize| split((0..len as u8).collect(), 2, dtype, dim);
+        let ok = rows(TURBO_DTYPE_U8, 12, 4).unwrap();
+        assert_eq!(ok.iter().map(|b| b.to_vec()).collect::<Vec<_>>(), [vec![0, 1], vec![2, 3]]);
+        assert_eq!(rows(TURBO_DTYPE_I8, 3, 6).unwrap()[1].as_ref(), [3, 4, 5]);
+        assert_eq!(rows(TURBO_DTYPE_F32, 1, 8).unwrap()[1].as_ref(), [4, 5, 6, 7]);
+        // One byte short, or one over, of two 2-byte rows of 12 bits.
+        for len in [3, 5] {
+            let e = rows(TURBO_DTYPE_U8, 12, len).unwrap_err();
+            assert_eq!(e.code, TURBO_E_INTERNAL, "{len} bytes");
+            assert!(e.message.contains(&format!("{len} bytes for 2 rows of 2")), "{}", e.message);
+        }
+        assert!(rows(TURBO_DTYPE_F32, 1, 7).is_err());
+        assert!(rows(9, 1, 8).is_err());
+    }
 }

@@ -19,7 +19,7 @@ use common::{Case, compare_layers, fixtures_dir, run};
 use turbo_analysis::{Annotator, Document, View};
 use turbo_goldens::sha512;
 use turbo_tokenize::lattice::Scratch;
-use turbo_tokenize::{LatticeTokenizer, MecabDictionary, WhitespaceMode};
+use turbo_tokenize::{LatticeTokenizer, MecabDictionary};
 use turbo_unicode::utf16::byte_to_utf16;
 
 const CLASS: &str = "opennlp.tools.tokenize.lattice.LatticeTokenizer";
@@ -83,19 +83,19 @@ struct Counts {
 
 /// Analyzes every input of `run_name` with the dictionary at `dir` (whose
 /// golden model records are `models`) and compares with the JVM.
-fn matches(run_name: &str, dir: &Path, models: &[&Path], mode: WhitespaceMode) -> Counts {
-    let dictionary = MecabDictionary::load(dir, mode).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+fn matches(run_name: &str, dir: &Path, models: &[&Path]) -> Counts {
+    let dictionary = MecabDictionary::load(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
     let bytes = dictionary.to_prebuilt().unwrap();
     let compiled =
         MecabDictionary::from_prebuilt(turbo_tokenize::lattice::PrebuiltImage::copy_from(&bytes), Default::default())
             .unwrap();
-    let source = matches_loaded(run_name, dictionary, models, mode);
-    assert_eq!(matches_loaded(run_name, compiled, models, mode), source);
+    let source = matches_loaded(run_name, dictionary, models);
+    assert_eq!(matches_loaded(run_name, compiled, models), source);
     source
 }
 
-fn matches_loaded(run_name: &str, dictionary: MecabDictionary, models: &[&Path], mode: WhitespaceMode) -> Counts {
-    let tokenizer = LatticeTokenizer::new(dictionary, mode);
+fn matches_loaded(run_name: &str, dictionary: MecabDictionary, models: &[&Path]) -> Counts {
+    let tokenizer = LatticeTokenizer::new(dictionary);
     let mut counts = Counts::default();
     let records: Vec<(&str, [u8; 64])> =
         models.iter().map(|d| (d.file_name().unwrap().to_str().unwrap(), manifest_sha512(d))).collect();
@@ -104,7 +104,7 @@ fn matches_loaded(run_name: &str, dictionary: MecabDictionary, models: &[&Path],
     for case in run("lattice", run_name) {
         case.assert_annotator(CLASS, "analyze");
         assert_dictionaries(&case, &records);
-        assert_eq!(case.whitespace(), mode, "{}", case.path.display());
+        case.assert_unicode_whitespace();
         assert!(!case.has_cut(), "{}", case.path.display());
         let text = &case.text;
         out.clear();
@@ -166,21 +166,14 @@ fn counts(goldens: usize, morphemes: usize, unknown: usize, errors: usize) -> Co
 #[test]
 fn japanese_fixture() {
     let dir = fixture("mecab-fixture-ja");
-    let got = matches("mecab-fixture-ja", &dir, &[&dir], WhitespaceMode::Unicode);
+    let got = matches("mecab-fixture-ja", &dir, &[&dir]);
     assert_eq!(got, counts(65, 1497, 1244, 0));
-}
-
-#[test]
-fn japanese_fixture_legacy() {
-    let dir = fixture("mecab-fixture-ja");
-    let got = matches("mecab-fixture-ja+legacy", &dir, &[&dir], WhitespaceMode::Legacy);
-    assert_eq!(got, counts(65, 1494, 1241, 0));
 }
 
 #[test]
 fn korean_fixture() {
     let dir = fixture("mecab-fixture-ko");
-    let got = matches("mecab-fixture-ko", &dir, &[&dir], WhitespaceMode::Unicode);
+    let got = matches("mecab-fixture-ko", &dir, &[&dir]);
     assert_eq!(got, counts(55, 1310, 1155, 0));
 }
 
@@ -190,7 +183,7 @@ fn korean_fixture() {
 #[test]
 fn a_dictionary_without_a_default_template() {
     let dir = fixture("mecab-fixture-partial");
-    let got = matches("mecab-fixture-partial", &dir, &[&dir], WhitespaceMode::Unicode);
+    let got = matches("mecab-fixture-partial", &dir, &[&dir]);
     assert_eq!(got, counts(48, 17, 11, 44));
 }
 
@@ -202,7 +195,7 @@ fn ipadic() {
     let models = dictionaries_dir();
     let original = models.join("mecab-ipadic-2.7.0-20070801");
     let copy = models.join("mecab-ipadic-2.7.0-20070801.utf8");
-    let got = matches("mecab-ipadic-2.7.0-20070801", &copy, &[&original, &copy], WhitespaceMode::Unicode);
+    let got = matches("mecab-ipadic-2.7.0-20070801", &copy, &[&original, &copy]);
     assert_eq!(got, counts(65, 1512, 1068, 0));
 }
 
@@ -210,7 +203,7 @@ fn ipadic() {
 #[ignore = "needs mecab-ko-dic from turbo-goldens fetch-models"]
 fn mecab_ko_dic() {
     let dir = dictionaries_dir().join("mecab-ko-dic-2.1.1-20180720");
-    let got = matches("mecab-ko-dic-2.1.1-20180720", &dir, &[&dir], WhitespaceMode::Unicode);
+    let got = matches("mecab-ko-dic-2.1.1-20180720", &dir, &[&dir]);
     assert_eq!(got, counts(61, 1360, 971, 0));
 }
 
@@ -218,7 +211,7 @@ fn mecab_ko_dic() {
 #[ignore = "needs UniDic from turbo-goldens fetch-models"]
 fn unidic() {
     let dir = dictionaries_dir().join("unidic-mecab-2.1.2");
-    let got = matches("unidic-mecab-2.1.2", &dir, &[&dir], WhitespaceMode::Unicode);
+    let got = matches("unidic-mecab-2.1.2", &dir, &[&dir]);
     assert_eq!(got, counts(65, 2016, 519, 0));
 }
 
@@ -299,7 +292,8 @@ fn unidic_goldens_round_trip() {
     let mut dumps = Vec::new();
     collect_files(&turbo_goldens::data_dir(), "dump", &mut dumps);
     dumps.sort();
-    assert!(dumps.len() > 1000, "{} checked-in dumps", dumps.len());
+    // The six retired classical langdetect runs took 140 dumps with them.
+    assert_eq!(dumps.len(), 247, "{} checked-in dumps", dumps.len());
     for path in dumps {
         let raw = std::fs::read_to_string(&path).unwrap();
         assert!(!raw.contains('\u{2014}'), "{}", path.display());

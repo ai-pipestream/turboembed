@@ -27,6 +27,9 @@ use crate::{turbo_error, turbo_log_fn, turbo_text};
 
 mod accept;
 mod args;
+pub(crate) mod blob;
+#[cfg(test)]
+mod blob_tests;
 #[cfg(test)]
 mod boundary_tests;
 mod buffers;
@@ -129,6 +132,10 @@ pub(crate) struct Context {
     /// device's compiler takes, from the listing probe.
     formats_supported: u32,
     max_opset: u32,
+    /// The driver's version and the device's arch, for a native blob's
+    /// key.
+    driver_version: &'static str,
+    arch: &'static str,
     ordinal: u32,
     log: turbo_log_fn,
     log_user_data: *mut c_void,
@@ -226,6 +233,8 @@ pub(crate) fn create(
         compiler: dev.compiler,
         formats_supported: dev.formats_supported,
         max_opset: dev.max_opset,
+        driver_version: &dev.driver_version,
+        arch: &dev.arch,
         ordinal,
         log,
         log_user_data,

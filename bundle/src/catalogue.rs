@@ -11,6 +11,7 @@ pub const MODELS: &[(&str, &str)] = &[
     ("BAAI/bge-base-en-v1.5", include_str!("../recipes/bge-base-en-v1.5.json")),
     ("BAAI/bge-large-en-v1.5", include_str!("../recipes/bge-large-en-v1.5.json")),
     ("BAAI/bge-m3", include_str!("../recipes/bge-m3.json")),
+    ("ibm-granite/granite-embedding-30m-english", include_str!("../recipes/granite-embedding-30m-english.json")),
     ("cross-encoder/ms-marco-MiniLM-L6-v2", include_str!("../recipes/ms-marco-minilm-l6-v2-rerank.json")),
     ("BAAI/bge-reranker-base", include_str!("../recipes/bge-reranker-base.json")),
     ("minishlab/potion-base-2M", include_str!("../recipes/potion/potion-base-2M.json")),
@@ -34,6 +35,10 @@ pub const BY_PATH: &[(&str, &str)] = &[
     ("dslim-bert-base-ner.json", "trained on CoNLL-2003, whose text is not under an open licence"),
     ("sat-1l-sm.json", "trained on UD treebanks of several licences, some share-alike"),
     ("sat-3l.json", "a sentence segmenter, not an embedding; the zoo fetches it as segment-any-text-sat-3l"),
+    (
+        "xlm-roberta-base.json",
+        "a masked-LM encoder under the frozen-encoder UD heads (#1522, #1651), not an embedding model",
+    ),
     ("nli-minilm2-l6-h768.json", "trained on SNLI and MultiNLI (CC BY-SA); the zoo fetches it after acceptance"),
     (
         "opensearch-neural-sparse-encoding-v1.json",

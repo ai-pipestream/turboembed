@@ -2,137 +2,137 @@ use super::*;
 
 #[test]
 fn whitespace_collapse() {
-    check("whitespace", Edits::Reported, &Whitespace::collapse(), &[]);
+    check("whitespace", &Whitespace::collapse(), &[]);
 }
 
 #[test]
 fn whitespace_keep_line_breaks() {
-    check("whitespace-keep-lines", Edits::Reported, &Whitespace::keep_line_breaks(), &[]);
+    check("whitespace-keep-lines", &Whitespace::keep_line_breaks(), &[]);
 }
 
 #[test]
 fn whitespace_keep_paragraphs() {
-    check("whitespace-keep-paragraphs", Edits::Reported, &Whitespace::keep_paragraphs(), &[]);
+    check("whitespace-keep-paragraphs", &Whitespace::keep_paragraphs(), &[]);
 }
 
 #[test]
 fn dashes() {
-    check("dash", Edits::Reported, &Dashes::new(), &[]);
+    check("dash", &Dashes::new(), &[]);
 }
 
 #[test]
 fn quotes() {
-    check("quote", Edits::Reported, &Quotes, QUOTE);
+    check("quote", &Quotes, QUOTE);
 }
 
 #[test]
 fn bullets() {
-    check("bullet", Edits::Reported, &Bullets, BULLET);
+    check("bullet", &Bullets, BULLET);
 }
 
 #[test]
 fn ellipsis() {
-    check("ellipsis", Edits::Reported, &Ellipsis, ELLIPSIS);
+    check("ellipsis", &Ellipsis, ELLIPSIS);
 }
 
 #[test]
 fn digits() {
-    check("digit", Edits::Reported, &Digits, &[]);
+    check("digit", &Digits, &[]);
 }
 
 #[test]
 fn invisible() {
-    check("invisible", Edits::Reported, &Invisible, INVISIBLE);
+    check("invisible", &Invisible, INVISIBLE);
 }
 
 #[test]
 fn dehyphenation() {
-    check("dehyphenation", Edits::Reported, &Dehyphenate::new(), DEHYPHENATION);
+    check("dehyphenation", &Dehyphenate::new(), DEHYPHENATION);
 }
 
 #[test]
 fn nfc() {
-    check("nfc", Edits::Reconstructed, &UnicodeForm::nfc(), &[]);
+    check("nfc", &UnicodeForm::nfc(), &[]);
 }
 
 #[test]
 fn nfkc() {
-    check("nfkc", Edits::Reconstructed, &UnicodeForm::nfkc(), &[]);
+    check("nfkc", &UnicodeForm::nfkc(), &[]);
 }
 
 #[test]
 fn case_fold_lowercase() {
-    check("case-fold", Edits::Reconstructed, &CaseFold::lowercase(), &[]);
+    check("case-fold", &CaseFold::lowercase(), &[]);
 }
 
 #[test]
 fn case_fold_full() {
-    check("full-case-fold", Edits::Reported, &CaseFold::full(), &[]);
+    check("full-case-fold", &CaseFold::full(), &[]);
 }
 
 #[test]
 fn accent_fold() {
-    check("accent-fold", Edits::Reconstructed, &AccentFold::new(), &[]);
+    check("accent-fold", &AccentFold::new(), &[]);
 }
 
 #[test]
 fn german_umlauts() {
-    check("german-umlaut", Edits::Reported, &GermanUmlauts::new(), &[]);
+    check("german-umlaut", &GermanUmlauts::new(), &[]);
 }
 
 #[test]
 fn confusable_skeleton() {
-    check("confusable-skeleton", Edits::Reconstructed, &ConfusableSkeleton, CONFUSABLE_SKELETON);
+    check("confusable-skeleton", &ConfusableSkeleton, CONFUSABLE_SKELETON);
 }
 
 #[test]
 fn urls() {
-    check("url", Edits::Reconstructed, &Urls, &[]);
+    check("url", &Urls, &[]);
 }
 
 #[test]
 fn bounded_urls() {
-    check("bounded-url", Edits::Reconstructed, &BoundedUrls, BOUNDED_URL);
+    check("bounded-url", &BoundedUrls, BOUNDED_URL);
 }
 
 #[test]
 fn social_media() {
-    check("social-media", Edits::Reconstructed, &SocialMedia, &[]);
+    check("social-media", &SocialMedia, &[]);
 }
 
 #[test]
 fn numbers() {
-    check("number", Edits::Reconstructed, &Numbers, &[]);
+    check("number", &Numbers, &[]);
 }
 
 #[test]
 fn shrink() {
-    check("shrink", Edits::Reconstructed, &Shrink, &[]);
+    check("shrink", &Shrink, &[]);
 }
 
 #[test]
 fn english_contractions() {
-    check("english-contraction", Edits::Reported, &EnglishContractions, ENGLISH_CONTRACTION);
+    check("english-contraction", &EnglishContractions, ENGLISH_CONTRACTION);
 }
 
 #[test]
 fn emoji() {
-    check("emoji", Edits::Reconstructed, &EmojiRemove::supplementary(), EMOJI);
+    check("emoji", &EmojiRemove::supplementary(), EMOJI);
 }
 
 #[test]
 fn emoji_to_emoticon() {
-    check("emoji-to-emoticon", Edits::Reported, &EmojiToEmoticon, &[]);
+    check("emoji-to-emoticon", &EmojiToEmoticon, &[]);
 }
 
 #[test]
 fn emoticon_to_emoji() {
-    check("emoticon-to-emoji", Edits::Reported, &EmoticonToEmoji, &[]);
+    check("emoticon-to-emoji", &EmoticonToEmoji, &[]);
 }
 
 #[test]
 fn symbol_words() {
-    check("symbol-joiner", Edits::Reconstructed, &SymbolWords, SYMBOL_JOINER);
+    check("symbol-joiner", &SymbolWords, SYMBOL_JOINER);
 }
 
 #[test]
@@ -145,22 +145,22 @@ fn default_chain() {
         .then(Dashes::new())
         .then(CaseFold::lowercase())
         .then(AccentFold::new());
-    check("default-chain", Edits::Reconstructed, &chain, DEFAULT_CHAIN);
+    check("default-chain", &chain, DEFAULT_CHAIN);
 }
 
 #[test]
 fn case_fold_turkish() {
-    check("case-fold-tr", Edits::Reconstructed, &CaseFold::turkish_lowercase(), &[]);
+    check("case-fold-tr", &CaseFold::turkish_lowercase(), &[]);
 }
 
 #[test]
 fn case_fold_azerbaijani() {
-    check("case-fold-tr", Edits::Reconstructed, &CaseFold::azerbaijani_lowercase(), &[]);
+    check("case-fold-tr", &CaseFold::azerbaijani_lowercase(), &[]);
 }
 
 #[test]
 fn case_fold_turkic_remains_context_free() {
-    check("case-fold-tr", Edits::Reconstructed, &CaseFold::turkic_simple(), CASE_FOLD_TR);
+    check("case-fold-turkic", &CaseFold::turkic_simple(), CASE_FOLD_TR);
 }
 
 // The texts on which a normalizer is documented to differ from OpenNLP, with the output it is

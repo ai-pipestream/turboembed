@@ -64,5 +64,8 @@ pins all eight.
 
 ## Not done
 
-- Timings: `snap-store` holds the B70's render engine about 67 percent
-  busy, and this session cannot stop it, so no clean timing is taken.
+- Timings on a quiet host: GLiREL's timings, on an idle B70 with the
+  host loaded, are in docs/receipts/gliner2-levelzero-920: CPU p50 over
+  B70 p50 is 3.89x, so the pass with its encoder on the B70 is 3.89
+  times as fast; GLiREL's entity and pair scoring are not in the timed
+  pass.

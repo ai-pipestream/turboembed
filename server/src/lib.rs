@@ -12,6 +12,7 @@ pub mod deadline;
 pub mod format;
 mod health;
 mod infer;
+mod infer_ranges;
 pub mod inspect;
 mod kserve;
 pub mod metrics;
@@ -144,6 +145,13 @@ pub struct Server {
 #[derive(Debug, Clone, Default)]
 pub struct Serve {
     pub admin: bool,
+    /// Zoo mode, which needs a catalog: any user records their own
+    /// acceptance and installs, a read fetches a permitted artifact not yet
+    /// cached, and the server starts with no model (docs/grpc-catalog.md).
+    pub zoo: bool,
+    /// Installs every permissive artifact in the background at start,
+    /// which needs a catalog (docs/grpc-catalog.md, Prefetch).
+    pub prefetch: bool,
     pub vocabulary: Option<PathBuf>,
     pub catalog: Option<catalog::Catalog>,
     pub training: Option<PathBuf>,
@@ -172,7 +180,13 @@ impl Server {
         max_message_bytes: usize,
         serve: Serve,
     ) -> std::result::Result<Server, String> {
-        let names = config::names_with(&models, serve.admin)?;
+        if serve.zoo && serve.catalog.is_none() {
+            return Err("zoo mode needs a model catalog".into());
+        }
+        if serve.prefetch && serve.catalog.is_none() {
+            return Err("prefetch needs a model catalog".into());
+        }
+        let names = config::names_with(&models, serve.admin || serve.zoo)?;
         let builder = tls::configure_server(tonic::transport::Server::builder(), serve.tls.as_ref())?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
@@ -215,6 +229,7 @@ impl Server {
             state: state.clone(),
             admin: serve.admin,
             sink: sink.clone(),
+            catalog: serve.catalog.clone(),
         })
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);
@@ -234,9 +249,14 @@ impl Server {
         let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
             .max_decoding_message_size(max_message_bytes)
             .max_encoding_message_size(max_reply_bytes);
-        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin))
-            .max_decoding_message_size(max_message_bytes)
-            .max_encoding_message_size(max_reply_bytes);
+        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(
+            serve.catalog,
+            serve.admin,
+            serve.zoo,
+            serve.prefetch,
+        ))
+        .max_decoding_message_size(max_message_bytes)
+        .max_encoding_message_size(max_reply_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
         // does not reach a listener served with serve_with_incoming, and

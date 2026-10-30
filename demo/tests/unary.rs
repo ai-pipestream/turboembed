@@ -46,7 +46,7 @@ async fn the_page_is_served_and_only_the_page_answers_get() {
     let s = server(&[NAME], Serve::default()).await;
     let d = demo(&s, &[]).await;
     for (path, kind, has) in [
-        ("/", "text/html; charset=utf-8", "<script src=\"app.js\"></script>"),
+        ("/", "text/html; charset=utf-8", "<script type=\"module\" src=\"app.js\"></script>"),
         ("/app.js", "text/javascript; charset=utf-8", "function"),
         ("/style.css", "text/css; charset=utf-8", "prefers-color-scheme"),
     ] {
@@ -54,8 +54,13 @@ async fn the_page_is_served_and_only_the_page_answers_get() {
         assert_eq!((r.status, r.header("content-type")), (200, Some(kind)), "{path}");
         let body = String::from_utf8(r.all().await).unwrap();
         assert!(body.contains(has), "{path}");
-        // Nothing is loaded from anywhere but the demo.
-        assert!(!body.contains("http://") && !body.contains("https://"), "{path} names another host");
+        // Nothing is loaded from anywhere but the demo. The bundled
+        // libraries keep a few comments, which may cite a page.
+        let mut code = body.lines().filter(|l| {
+            let t = l.trim_start();
+            !t.starts_with("//") && !t.starts_with('*')
+        });
+        assert!(!code.any(|l| l.contains("http://") || l.contains("https://")), "{path} names another host");
     }
     assert_eq!(http(&d, "GET", "/nothing", &[], b"").await.status, 404);
     assert_eq!(http(&d, "GET", "/a/b/c", &[], b"").await.status, 404);

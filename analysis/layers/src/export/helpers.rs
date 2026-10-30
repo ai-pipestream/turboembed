@@ -70,6 +70,22 @@ pub(super) fn get_tags(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Tag>, 
     Ok(tags)
 }
 
+pub(super) fn put_f32s(w: &mut Writer, values: &[f32]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for v in values {
+        w.u32(v.to_bits());
+    }
+    Ok(())
+}
+
+pub(super) fn get_f32s(r: &mut Reader<'_>) -> Result<Vec<f32>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(f32::from_bits(r.u32()?));
+    }
+    Ok(values)
+}
+
 pub(super) fn put_f64s(w: &mut Writer, values: &[f64]) -> Result<(), ExportError> {
     w.usize(values.len())?;
     for v in values {

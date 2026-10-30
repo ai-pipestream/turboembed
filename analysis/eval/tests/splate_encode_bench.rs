@@ -23,14 +23,17 @@ fn pct(mut v: Vec<f64>, p: f64) -> f64 {
 #[test]
 #[ignore = "needs TURBO_SPLATE913_BUNDLES with colbertv2 and neural-sparse bundles"]
 fn query_encode_timing() {
-    let root = std::path::PathBuf::from(std::env::var("TURBO_SPLATE913_BUNDLES").expect("bundles"));
+    let root = turbo_pins::require_in(
+        std::env::var("TURBO_SPLATE913_BUNDLES").expect("bundles"),
+        &["colbertv2", "neural-sparse"],
+    );
     let options = EncoderOptions::default();
     let mut colbert = ColbertProtocol::open(&root.join("colbertv2"), &options).expect("colbert bundle");
     let sparse_bundle = Bundle::open(&root.join("neural-sparse")).expect("sparse bundle");
     let mlm = MlmHead::load(&sparse_bundle).expect("mlm head");
     let sparse_ann = VectorAnnotator::open(
         &root.join("neural-sparse"),
-        &VectorOptions { encoder: EncoderOptions::default(), prompt: PromptRole::None, stride: 0 },
+        &VectorOptions { prompt: PromptRole::None, ..VectorOptions::default() },
     )
     .expect("sparse annotator");
     let tuned = EncoderOptions { cpu_threads: 4, ..EncoderOptions::default() };

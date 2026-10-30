@@ -37,7 +37,8 @@ pub(super) fn read_model_file(path: &str, what: &str) -> Result<ModelFile> {
     if !p.exists() {
         return Err(Error::new(BUNDLE_NOT_FOUND, format!("{what}: file not found at {path}")));
     }
-    ModelFile::read(p).map_err(|e| Error::new(BUNDLE_INVALID, format!("{what} ({path}): {e}")))
+    let bytes = std::fs::read(p).map_err(|e| Error::new(BUNDLE_INVALID, format!("{what} ({path}): {e}")))?;
+    ModelFile::from_trained_archive(bytes).map_err(|e| Error::new(BUNDLE_INVALID, format!("{what} ({path}): {e}")))
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -201,6 +201,13 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
         by.clone(),
     )
     .unwrap();
+    let m = ModelRef { id: "m".into(), revision: "r".into(), sha256: "s".into() };
+    doc.add(
+        &Key::DEFAULT,
+        VectorCodes::<Sentences>::new(CodeKind::UBinary, 10, vec![0xA0, 0x40, 0, 0], vec![Ix::new(1)], m),
+        by.clone(),
+    )
+    .unwrap();
     doc.add(&Key::DEFAULT, Confidence::<Tokens>::new(vec![0.5; 6]), by.clone()).unwrap();
     doc.add(
         &Key::DEFAULT,
@@ -244,6 +251,9 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     let vectors = back.get::<Vectors<Sentences>>().unwrap();
     assert_eq!(vectors.row(Ix::new(0)), [1.0, 2.0, 3.0]);
     assert!(vectors.is_empty(Ix::new(1)));
+    let codes = back.get::<VectorCodes<Sentences>>().unwrap();
+    assert_eq!((codes.kind, codes.dim, codes.row(Ix::new(0))), (CodeKind::UBinary, 10, &[0xA0, 0x40][..]));
+    assert!(codes.is_empty(Ix::new(1)));
     assert_eq!(back.get::<Confidence<Tokens>>().unwrap().value, [0.5; 6]);
     assert_eq!(back.get::<Utf16Spans<Tokens>>().unwrap().cut, [false, true, false, false, false, false]);
     assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());

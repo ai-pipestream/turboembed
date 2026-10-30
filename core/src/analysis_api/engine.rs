@@ -10,7 +10,7 @@ use turbo_analysis_layers::export::register_codecs;
 use turbo_analysis_layers::{Confidence, Entities, Lemmas, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens};
 use turbo_lemmatizer::{DictionaryLemmatizer, LemmatizerModel, MaxentLemmatizer};
 use turbo_pii::{Pack, PiiDetector};
-use turbo_sentdetect::{RuleSplitter, SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{RuleSplitter, SentenceDetector, SentenceModel};
 use turbo_sequence::TokenTag;
 use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_tokenize::{TokenizerOptions, simple_spans};
@@ -70,7 +70,7 @@ impl AnalyzerEngine {
             let file = read_model_file(sent_path, "sent_model_path")?;
             let model =
                 SentenceModel::open(file).map_err(|e| Error::new(BUNDLE_INVALID, format!("sent_model_path: {e}")))?;
-            Some(SentenceDetector::new(model, WhitespaceMode::Unicode))
+            Some(SentenceDetector::new(model))
         };
         let rule_splitter = RuleSplitter::new(lang);
 

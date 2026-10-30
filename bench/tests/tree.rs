@@ -4,14 +4,19 @@
 //! benchmarks/ranges are what their names say, the README and the
 //! docs point at files that exist, no committed text names a home
 //! directory on one of our machines, no committed file holds a private
-//! key block (tree/secrets.rs), and the demo has no JSON front end
-//! (tree/front_end.rs).
+//! key block (tree/secrets.rs), no committed file names an OpenNLP 1.5
+//! model or pins or addresses an OpenNLP 2.5 one (tree/retired_opennlp.rs),
+//! and the demo has no JSON front end (tree/front_end.rs).
 
 mod common;
 #[path = "tree/dependencies.rs"]
 mod dependencies;
 #[path = "tree/front_end.rs"]
 mod front_end;
+#[path = "tree/opennlp.rs"]
+mod opennlp;
+#[path = "tree/retired_opennlp.rs"]
+mod retired_opennlp;
 #[path = "tree/secrets.rs"]
 mod secrets;
 
@@ -243,7 +248,17 @@ fn the_committed_text_carries_no_host_path() {
     files.extend(committed_postag_records().iter().map(|(n, _)| root.join(postag::POSTAG_DIR).join(n)));
     files.extend(committed_tag_records().iter().map(|(n, _)| root.join(tag::TAG_DIR).join(n)));
     files.extend(committed_throughput_records().iter().map(|(n, _)| root.join(throughput::THROUGHPUT_DIR).join(n)));
-    for dir in ["bundle/recipes", "include/turbo", ".github/workflows", "demo/web", "demo/web/src/gen"] {
+    for dir in [
+        "bundle/recipes",
+        "include/turbo",
+        ".github/workflows",
+        "demo/web",
+        "demo/web/src",
+        "demo/web/src/tabs",
+        "demo/web/src/gen",
+        "demo/web/test",
+        "demo/static",
+    ] {
         if let Ok(rd) = std::fs::read_dir(root.join(dir)) {
             files.extend(rd.map(|e| e.unwrap().path()).filter(|p| p.is_file()));
         }

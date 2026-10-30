@@ -122,6 +122,7 @@ async fn embed_bundle_and_rerank_bundle_with_real_models() {
             graph: Vec::new(),
             chunks: Vec::new(),
             attributes: HashMap::new(),
+            ..Default::default()
         },
         IndexDocumentRequest {
             index_name: "live-embed".into(),
@@ -130,6 +131,7 @@ async fn embed_bundle_and_rerank_bundle_with_real_models() {
             graph: Vec::new(),
             chunks: Vec::new(),
             attributes: HashMap::new(),
+            ..Default::default()
         },
     ];
     let ing = client.index_documents(tokio_stream::iter(docs)).await.unwrap().into_inner();
@@ -309,6 +311,7 @@ async fn admin_gate_snapshot_confinement_and_error_codes() {
         graph: Vec::new(),
         chunks: vec![ChunkInput { span_start: 1, span_end: 5, ..Default::default() }],
         attributes: HashMap::new(),
+        ..Default::default()
     };
     assert_eq!(
         c.index_documents(tokio_stream::iter(vec![bad_span_doc])).await.unwrap_err().code(),
@@ -322,6 +325,7 @@ async fn admin_gate_snapshot_confinement_and_error_codes() {
         graph: Vec::new(),
         chunks: vec![ChunkInput { span_start: 0, span_end: 5, dense_vector: vec![1.0; 7], ..Default::default() }],
         attributes: HashMap::new(),
+        ..Default::default()
     };
     assert_eq!(
         c.index_documents(tokio_stream::iter(vec![bad_dim_doc])).await.unwrap_err().code(),
@@ -335,6 +339,7 @@ async fn admin_gate_snapshot_confinement_and_error_codes() {
         graph: Vec::new(),
         chunks: vec![ChunkInput { span_start: 0, span_end: 11, dense_vector: vec16(0), ..Default::default() }],
         attributes: HashMap::new(),
+        ..Default::default()
     };
     c.index_documents(tokio_stream::iter(vec![good_doc])).await.unwrap();
 

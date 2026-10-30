@@ -1,0 +1,9 @@
+MASKED	The meeting moved to room 4, floor 12, at 3 pm; bring 2 copies.
+
+MASK_ALL	The meeting moved to room 4, floor 12, at 3 pm; bring 2 copies.
+
+REWRITE	pseudonymize	OK	The meeting moved to room 4, floor 12, at 3 pm; bring 2 copies.
+
+REWRITE	hmac	OK	The meeting moved to room 4, floor 12, at 3 pm; bring 2 copies.
+
+AUDIT_REPORT	no pii found

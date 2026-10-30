@@ -1,13 +1,12 @@
 # Chinese unigram modes and evaluation
 
-`UnigramSegmenter::new` now defaults to `UnigramMode::Dictionary`: ASCII
+`UnigramSegmenter::new` defaults to `UnigramMode::Dictionary`: ASCII
 letters and digits form maximal runs, including mixed runs such as `abc123`.
 The dictionary path and tie rules are otherwise unchanged. The optional
-`UnigramMode::Chinese` adds jieba's trained BMES unknown-word model;
-`UnigramMode::OpenNlp` preserves the previous behavior, including splitting
-unlisted ASCII characters, for JVM goldens and differential fuzzing.
-Use `.with_mode(UnigramMode::Chinese)` or `.with_mode(UnigramMode::OpenNlp)`
-to select those policies.
+`UnigramMode::Chinese` adds jieba's trained BMES unknown-word model, while the
+character-splitting mode preserves the single-character fallback behavior, including splitting
+unlisted ASCII characters.
+Use `.with_mode(UnigramMode::Chinese)` to select the BMES policy.
 
 Chinese mode runs Viterbi on contiguous single-character Han words from
 the dictionary path, unless the entire run is itself a known word. Listed
@@ -21,7 +20,7 @@ All offsets refer to the unchanged input view. Sentence ownership,
 UTF-8/UTF-16 round trips, append behavior, whitespace gaps, supplementary
 Han and emoji are tested. Each policy has a distinct configuration hash;
 Chinese mode includes the SHA-256 of the HMM. The lexicon remains the
-annotator's model reference. OpenNLP mode retains its previous hash.
+annotator's model reference. The character-splitting mode retains its previous hash.
 The [model source and generator](../analysis/tokenize/data/jieba-hmm/README.md)
 include the MIT licence and input checksums. This adds no workspace dependency.
 
@@ -38,12 +37,12 @@ repository and is used only for this bakeoff evaluation.
 
 | Corpus | Mode | Precision | Recall | F1 | Correct / returned / gold | OOV found / total |
 |---|---|---:|---:|---:|---|---|
-| PKU | OpenNlp | 0.824292061 | 0.807122600 | 0.815616982 | 84241 / 102198 / 104372 | 2519 / 6006 |
+| PKU | Character-split | 0.824292061 | 0.807122600 | 0.815616982 | 84241 / 102198 / 104372 | 2519 / 6006 |
 | PKU | Dictionary (default) | 0.858555755 | 0.814250949 | 0.835816639 | 84985 / 98986 / 104372 | 3262 / 6006 |
 | PKU | Chinese (BMES) | 0.850614113 | 0.786963937 | 0.817552032 | 82137 / 96562 / 104372 | 3481 / 6006 |
 | PKU | jieba-rs without HMM | 0.858600554 | 0.814260530 | 0.835842914 | 84986 / 98982 / 104372 | 3264 / 6006 |
 | PKU | jieba-rs with HMM | 0.852800947 | 0.786609435 | 0.818368944 | 82100 / 96271 / 104372 | 3500 / 6006 |
-| MSR | OpenNlp | 0.820005155 | 0.833578172 | 0.826735958 | 89087 / 108642 / 106873 | 955 / 2829 |
+| MSR | Character-split | 0.820005155 | 0.833578172 | 0.826735958 | 89087 / 108642 / 106873 | 955 / 2829 |
 | MSR | Dictionary (default) | 0.820005155 | 0.833578172 | 0.826735958 | 89087 / 108642 / 106873 | 955 / 2829 |
 | MSR | Chinese (BMES) | 0.817131722 | 0.812169584 | 0.814643097 | 86799 / 106224 / 106873 | 1271 / 2829 |
 | MSR | jieba-rs without HMM | 0.820005155 | 0.833578172 | 0.826735958 | 89087 / 108642 / 106873 | 955 / 2829 |
@@ -53,7 +52,7 @@ Grouped dictionary mode raises PKU F1 from 0.815617 to 0.835817 and leaves
 MSR unchanged at 0.826736. BMES increases OOV recall but lowers whole-corpus
 F1 on both sets relative to grouped dictionary mode. This is why it is an
 explicit option rather than the default. The new modes do not claim exact
-jieba parity: forward dictionary ties remain OpenNLP's, ASCII runs are
+jieba parity: forward dictionary ties use the standard lattice tie-breaking, ASCII runs are
 atomic, and HMM eligibility follows the shared Han script property and
 observed model characters, rather than jieba's block matching rules.
 
@@ -75,12 +74,12 @@ public segmentation paths, not equal allocator behavior or startup cost.
 
 | Corpus | Mode | Median ms |
 |---|---|---:|
-| PKU | OpenNlp | 3.393527 |
+| PKU | Character-split | 3.393527 |
 | PKU | Dictionary (default) | 3.657739 |
 | PKU | Chinese (BMES) | 4.473805 |
 | PKU | jieba-rs without HMM | 4.226767 |
 | PKU | jieba-rs with HMM | 4.398955 |
-| MSR | OpenNlp | 3.748905 |
+| MSR | Character-split | 3.748905 |
 | MSR | Dictionary (default) | 4.025402 |
 | MSR | Chinese (BMES) | 4.939541 |
 | MSR | jieba-rs without HMM | 4.578814 |
@@ -91,12 +90,12 @@ is slightly slower than jieba-rs with HMM. These are host-specific timings,
 not a throughput guarantee. Eight per-pass values, in milliseconds:
 
 ```text
-pku OpenNlp: 3.423816, 3.366349, 3.411678, 3.354231, 3.426417, 3.366257, 3.411309, 3.375745
+pku Character-split: 3.423816, 3.366349, 3.411678, 3.354231, 3.426417, 3.366257, 3.411309, 3.375745
 pku Dictionary (default): 3.644682, 3.628422, 3.664342, 3.660865, 3.670135, 3.670794, 3.654613, 3.651022
 pku Chinese (BMES): 4.456200, 4.435294, 4.471290, 4.463729, 4.481841, 4.476320, 4.502668, 4.493825
 pku jieba-rs without HMM: 4.172029, 4.513133, 4.205296, 4.250620, 4.184513, 4.248239, 4.190096, 4.255172
 pku jieba-rs with HMM: 4.380921, 4.397756, 4.385482, 4.416588, 4.400155, 4.447414, 4.438074, 4.389988
-msr OpenNlp: 3.733581, 3.733176, 4.150462, 3.769320, 3.767323, 3.682820, 3.764228, 3.716416
+msr Character-split: 3.733581, 3.733176, 4.150462, 3.769320, 3.767323, 3.682820, 3.764228, 3.716416
 msr Dictionary (default): 4.026764, 4.085646, 4.412223, 3.999618, 4.006987, 4.016621, 4.031961, 4.024039
 msr Chinese (BMES): 4.935269, 4.973110, 4.934966, 4.943813, 4.917814, 4.907122, 4.969048, 5.052650
 msr jieba-rs without HMM: 4.573899, 4.605562, 4.517818, 4.583729, 4.528827, 4.781332, 4.521852, 4.866359
@@ -107,7 +106,7 @@ msr jieba-rs with HMM: 4.681131, 4.803852, 4.679871, 4.719884, 4.712554, 5.01444
 
 The corrected path prepares characters once, detects ASCII during that
 preparation, and decodes non-ASCII ranges from the prepared buffers. Dictionary
-and OpenNLP modes append directly to the output; only BMES needs intermediate
+and character-split modes append directly to the output; only BMES needs intermediate
 dictionary words. Shared character helpers, score/tie rules, configuration
 hashes and the trained BMES checkpoint are unchanged.
 
@@ -120,7 +119,7 @@ inside the fixed comparison process under a private package alias. Model load,
 file reading and scoring are excluded. All modes retain their full token-output
 fingerprints and the exact accuracy/OOV counts above.
 
-| Corpus | Main source | Dictionary default | OpenNlp | Chinese BMES | jieba-rs without HMM | jieba-rs with HMM |
+| Corpus | Main source | Dictionary default | Character-split | Chinese BMES | jieba-rs without HMM | jieba-rs with HMM |
 |---|---:|---:|---:|---:|---:|---:|
 | PKU | 4.134205 | 4.054950 | 3.711934 | 5.201425 | 5.182298 | 5.784470 |
 | MSR | 4.461030 | 4.373875 | 4.069040 | 5.550318 | 5.352145 | 5.604904 |
@@ -128,7 +127,7 @@ fingerprints and the exact accuracy/OOV counts above.
 Values are median milliseconds per complete corpus within the fixed process.
 The median of twelve paired default/main ratios is 0.991857 on PKU and
 0.946148 on MSR. This run shows no default slowdown against main. The explicit
-OpenNLP path also benefits from removing copies: default/OpenNLP paired ratios
+character-split path also benefits from removing copies: default/character-split paired ratios
 remain 1.079423 and 1.043576, respectively. Those costs are reported separately
 from the comparison against main, rather than using the faster new compatibility
 path as a substitute for the missing old baseline.

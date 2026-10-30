@@ -30,7 +30,7 @@ each with its SHA-256:
 The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 `grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
 in-process Java 22+ Panama Foreign Function and Memory (FFM) bindings over
-`include/turbo/turbo.h` and its OpenNLP-style adapters live in
+`include/turbo/turbo.h` and its analysis adapters live in
 `clients/java-panama/pom.xml` (`ai.pipestream:turboembed-panama:<version>`,
 requiring Java 22 or newer with `--enable-native-access=ALL-UNNAMED` and the
 platform's `libturbo` shared library from the binary archive). The
@@ -44,7 +44,10 @@ protos by the `proto` CI job. Its pins are exact, in
 `demo/web/package.json` and its lockfile: the `buf` CLI 1.70.0
 (`@bufbuild/buf`, the version the `proto` job lints with),
 `@bufbuild/protoc-gen-es` 2.16.0, `@bufbuild/protobuf` 2.16.0, and
-`@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0.
+`@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0. The page
+itself is bundled into `demo/static/app.js` by `scripts/build-web.sh`
+with TypeScript 7.0.2 and esbuild 0.28.2, pinned the same way and
+checked by the same job.
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
 builds and checks the release archives and client stubs and keeps them,

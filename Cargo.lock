@@ -1825,6 +1825,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -1952,6 +1953,7 @@ dependencies = [
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-pii",
+ "turbo-pins",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-sha256",
@@ -1965,7 +1967,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
+ "turbo-sha256",
  "turbo-unicode",
 ]
 
@@ -1990,6 +1992,7 @@ dependencies = [
  "turbo-doccat",
  "turbo-goldens",
  "turbo-normalize",
+ "turbo-pins",
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
@@ -2016,6 +2019,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-grammar",
+ "turbo-pins",
  "turbo-postag",
  "turbo-tokenize",
  "ureq",
@@ -2043,7 +2047,6 @@ dependencies = [
  "serde_path_to_error",
  "turbo",
  "turbo-gliner",
- "turbo-goldens",
  "turbo-postag",
  "turbo-zoo",
  "ureq",
@@ -2096,8 +2099,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-formats",
- "turbo-jvm",
- "turbo-maxent",
+ "turbo-sha256",
  "turbo-train",
  "turbo-unicode",
 ]
@@ -2117,7 +2119,9 @@ dependencies = [
  "turbo-normalize",
  "turbo-normalize-layers",
  "turbo-sequence",
+ "turbo-sha256",
  "turbo-train",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-zoo",
 ]
@@ -2153,6 +2157,7 @@ dependencies = [
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-matcher",
  "turbo-maxent",
  "turbo-namefind",
  "turbo-normalize",
@@ -2176,9 +2181,10 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-calibration",
  "turbo-chunker",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
+ "turbo-formats",
+ "turbo-langspan",
+ "turbo-pins",
+ "turbo-sat",
  "turbo-sentdetect",
  "turbo-stem",
  "turbo-structure",
@@ -2220,7 +2226,6 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
- "turbo-parser",
  "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",
@@ -2240,8 +2245,8 @@ dependencies = [
  "turbo-maxent",
  "turbo-normalize",
  "turbo-numeric",
- "turbo-phrase-chunker",
  "turbo-pii",
+ "turbo-pins",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-tokenize",
@@ -2257,9 +2262,10 @@ dependencies = [
  "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-goldens",
- "turbo-jvm",
+ "turbo-matcher",
  "turbo-normalize",
  "turbo-numeric",
+ "turbo-sha256",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -2275,6 +2281,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
+ "turbo-pins",
  "turbo-zoo",
 ]
 
@@ -2286,7 +2293,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-glossary-layers",
- "turbo-goldens",
  "turbo-matcher",
  "turbo-normalize",
  "turbo-stem",
@@ -2311,6 +2317,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-maxent",
+ "turbo-pins",
  "turbo-unicode",
 ]
 
@@ -2320,6 +2327,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-fuzz",
  "turbo-goldens",
+ "turbo-pins",
 ]
 
 [[package]]
@@ -2349,7 +2357,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
+ "turbo-pins",
  "turbo-stem-layers",
  "turbo-unicode",
 ]
@@ -2381,6 +2389,7 @@ dependencies = [
  "prost",
  "protox",
  "serde_json",
+ "sha2",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2408,8 +2417,11 @@ dependencies = [
  "turbo-maxent",
  "turbo-normalize",
  "turbo-normalize-layers",
+ "turbo-numeric",
+ "turbo-pii",
  "turbo-query",
  "turbo-relation",
+ "turbo-sat",
  "turbo-schema-extract",
  "turbo-sentdetect",
  "turbo-sequence",
@@ -2448,12 +2460,7 @@ name = "turbo-langdetect"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
- "turbo-analysis-layers",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
- "turbo-normalize",
- "turbo-unicode",
+ "turbo-trainer",
 ]
 
 [[package]]
@@ -2463,11 +2470,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",
- "turbo-goldens",
  "turbo-langdetect",
- "turbo-maxent",
  "turbo-normalize",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2522,11 +2526,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
+ "turbo-matcher",
  "turbo-sequence",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2540,6 +2541,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-pins",
 ]
 
 [[package]]
@@ -2592,26 +2594,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "turbo-parser"
-version = "0.1.0"
-dependencies = [
- "turbo-analysis",
- "turbo-analysis-layers",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
- "turbo-postag",
- "turbo-sequence",
- "turbo-unicode",
-]
-
-[[package]]
 name = "turbo-phrase-chunker"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
@@ -2627,6 +2614,14 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-pins"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo-sha256",
 ]
 
 [[package]]
@@ -2686,6 +2681,7 @@ dependencies = [
  "turbo-bundle",
  "turbo-depparse",
  "turbo-matcher",
+ "turbo-pins",
  "turbo-unicode",
  "turbo-zoo",
 ]
@@ -2699,6 +2695,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-pins",
  "turbo-sentdetect",
  "turbo-unicode",
 ]
@@ -2716,6 +2713,7 @@ dependencies = [
  "turbo-glossary-layers",
  "turbo-numeric",
  "turbo-pii",
+ "turbo-pins",
  "turbo-relation",
  "turbo-unicode",
  "turbo-zoo",
@@ -2737,6 +2735,7 @@ name = "turbo-sequence"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
@@ -2754,7 +2753,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-normalize",
@@ -2777,7 +2775,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
+ "turbo-sha256",
  "turbo-stopword-layers",
  "turbo-unicode",
 ]
@@ -2799,6 +2797,19 @@ dependencies = [
  "turbo-chunker",
  "turbo-normalize",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-tagger"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-morfologik",
+ "turbo-wordnet",
 ]
 
 [[package]]
@@ -2827,10 +2838,8 @@ name = "turbo-train"
 version = "0.1.0"
 dependencies = [
  "turbo-calibration",
- "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
- "turbo-sentdetect",
  "turbo-sequence",
  "turbo-unicode",
 ]
@@ -2846,12 +2855,12 @@ dependencies = [
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
- "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-namefind",
- "turbo-parser",
+ "turbo-normalize",
  "turbo-phrase-chunker",
+ "turbo-postag",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-tokenize",
@@ -2866,8 +2875,10 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
  "turbo-depparse",
  "turbo-eval",
  "turbo-formats",
@@ -2876,14 +2887,37 @@ dependencies = [
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-namefind",
- "turbo-phrase-chunker",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-sequence",
+ "turbo-sha256",
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",
+ "turbo-trainer",
  "turbo-unicode",
+ "turbo-zoo",
+]
+
+[[package]]
+name = "turbo-trainer"
+version = "0.1.0"
+dependencies = [
+ "turbo",
+]
+
+[[package]]
+name = "turbo-trainer-recipes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-analysis-embed",
+ "turbo-formats",
+ "turbo-tagger",
+ "turbo-train-recipes",
+ "turbo-trainer",
  "turbo-zoo",
 ]
 
@@ -2924,10 +2958,23 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "turbo-goldens",
  "turbo-maxent",
  "turbo-zstd",
  "ureq",
+]
+
+[[package]]
+name = "turbo-zoo-remote"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protox",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "turbo-kserve",
+ "turbo-zoo",
 ]
 
 [[package]]

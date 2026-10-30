@@ -147,8 +147,10 @@ typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans an
                                       benchmark record named in the cell exists; the rule
                                       is in docs/benchmarks.md */
 
-#define TURBO_DTYPE_I8    6   /* a compute dtype (a session's or a capability's) or a static
-                                  model's stored table, never a buffer's */
+#define TURBO_DTYPE_I8    6   /* a compute dtype (a session's or a capability's), a static
+                                  model's stored table, or an embed result's int8 codes
+                                  (TURBO_QUANTIZE_INT8) */
+#define TURBO_DTYPE_U8    7   /* an embed result's packed sign bits (TURBO_QUANTIZE_UBINARY) */
 #define TURBO_DTYPE_I32   8
 #define TURBO_DTYPE_I64   9   /* a static model's stored token mapping, never a buffer's */
 #define TURBO_DTYPE_F16  10
@@ -203,6 +205,18 @@ typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans an
 #define TURBO_POOLING_MEAN  1   /* the mean over the tokens whose mask is 1 */
 #define TURBO_POOLING_CLS   2   /* the row's first column, whatever its mask */
 #define TURBO_POOLING_LAST  3   /* the last token whose mask is 1 */
+
+/* What an embed result's vectors are returned as. The codes are
+ * sentence-transformers' quantize_embeddings layout (docs/embeddings.md),
+ * made by the core on the host from the cut, normalized f32 vectors. */
+#define TURBO_QUANTIZE_MODEL   0   /* the bundle's: F32 */
+#define TURBO_QUANTIZE_NONE    1   /* F32 */
+#define TURBO_QUANTIZE_INT8    2   /* I8, a byte a dimension: with step = (max - min) / 255,
+                                      or 1 where that is 0, a value's code is
+                                      clamp(floor((x - min) / step), 0, 255) - 128 */
+#define TURBO_QUANTIZE_UBINARY 3   /* U8, (dim + 7) / 8 bytes a row: bit x > 0, eight to a
+                                      byte, the first dimension in the top bit, a last
+                                      byte padded with 0 bits */
 
 /* How a session computes. The artifact is chosen at load, in manifest
  * order; precision chooses how that artifact computes, never another one. */
@@ -534,6 +548,15 @@ typedef struct turbo_embed_options {
                                output_dim. Above turbo_model_info.dim is
                                TURBO_E_INVALID_ARGUMENT; neither dim nor one of
                                turbo_model_info.output_dims is TURBO_E_UNSUPPORTED_OPTION */
+    /* A struct_size of 28 ends here; the fields below are then 0. */
+    uint32_t quantization;  /* 7: TURBO_QUANTIZE_*, applied after the cut and normalize */
+    const float *int8_ranges;  /* 8: for TURBO_QUANTIZE_INT8 alone, and then required:
+                               [2, output_dim] f32, each dimension's minimum, then each
+                               one's maximum, over the caller's calibration vectors at
+                               the same model, output_dim and normalize; read during the
+                               write call only. NULL with INT8, a value that is not
+                               finite, a minimum over its maximum, or ranges given with
+                               another quantization is TURBO_E_INVALID_ARGUMENT */
 } turbo_embed_options;
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
@@ -632,11 +655,31 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * TURBO_NORMALIZE_NONE (the bundle's included, with opts NULL) is
  * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim that
  * resolves to other than the model's dim the same naming field 6.
+ * A quantization other than F32 is TURBO_E_UNSUPPORTED_OPTION naming
+ * field 7 there: the rows are logits.
  * Elsewhere a QA model's range rows are the vectors, as for any model,
  * and the caller applies the head. */
 int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batch,
                                  const turbo_token_range *ranges, uint32_t count,
                                  const turbo_embed_options *opts, turbo_error *err);
+
+/* turbo_embed_write_ranges, each range pooled from each of the encoder's
+ * last `layers` layers in one pass: the run's rows are [layers, count,
+ * dim], block k from layer L - layers + k + 1 of the model's L, so the
+ * last block is what turbo_embed_write_ranges writes, bit for bit. A
+ * ModernBERT's final_norm is applied to every layer read, as to the
+ * last, so each block is on the scale of the final states. layers of 1
+ * is turbo_embed_write_ranges; 0 or over the model's layers is
+ * TURBO_E_INVALID_ARGUMENT; above 1 on a backend or model that does not
+ * read the earlier layers (the cpu backend's BERT, RoBERTa, ModernBERT
+ * and nomic-bert encoders do), or on a model whose device applies a span
+ * head, is TURBO_E_UNSUPPORTED_OPTION. count times layers over the
+ * session's max_ranges is TURBO_E_CAPACITY. Everything else is as for
+ * turbo_embed_write_ranges, each row cut and normalized as there. */
+int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
+                                       const turbo_token_range *ranges, uint32_t count,
+                                       uint32_t layers, const turbo_embed_options *opts,
+                                       turbo_error *err);
 
 /* Run what was written. A write replaces what an earlier write left, and
  * a run takes it, even when the run fails: a run with nothing written
@@ -694,8 +737,9 @@ typedef struct turbo_result_info {
     uint32_t task;                             /* TURBO_TASK_* */
     uint32_t batch;
     uint32_t dim;                              /* values per row: the vector width for embed */
-    uint32_t dtype;                            /* TURBO_DTYPE_* of the output: F32 in this cut,
-                                                  whatever the compute dtype */
+    uint32_t dtype;                            /* TURBO_DTYPE_* of the output: F32 whatever the
+                                                  compute dtype, or I8 or U8 as the write's
+                                                  quantization says */
     uint32_t compute_dtype;                    /* TURBO_DTYPE_* the session's precision ran in */
     uint32_t placement;                        /* TURBO_PLACE_* where they are now */
     uint32_t device;                           /* runtime device index */
@@ -720,6 +764,14 @@ int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_err
 
 /* The output of a run is one block, the vectors: [batch, dim] values of
  * turbo_result_info.dtype, packed row-major, turbo_result_info.bytes long.
+ * Packed bits (U8) are [batch, (dim + 7) / 8] bytes, and dim still counts
+ * dimensions. A quantized result is in host memory. When the backend
+ * offers buffer_quantize, the codes are made on the device and only those
+ * bytes are counted in d2h_bytes, the device memory that takes in
+ * device_allocs, and the int8 ranges sent to a device with its own memory
+ * in h2d_bytes; otherwise the core copies the vectors
+ * back as F32 first (counted in d2h_bytes, and the first such run's
+ * host_allocs) and quantizes them on the host.
  * After turbo_embed_write_ranges, batch is the count of ranges written and
  * a row is a range's vector. */
 

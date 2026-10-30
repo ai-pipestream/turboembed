@@ -1,0 +1,15 @@
+# FLORES+ (openlanguagedata/flores_plus): the dataset card at the pinned
+# revision, read on 2026-10-28 (75,546 bytes). The card states CC BY-SA
+# 4.0, that the dataset is intended to evaluate multilingual NLP
+# applications and should not be used as training data, and gates the
+# download on accepting that. The recipe pins the terms document; the
+# corpus files are accepted and hashed separately at fetch time.
+name: flores-plus
+tier: eval-only
+url: https://huggingface.co/datasets/openlanguagedata/flores_plus/resolve/1147e2dc59f37fbb5c22fd8478770de02cd399f9/README.md
+sha256: 67f3da8810ef1ba26246ab6b0fd4776ef42efdb839e5f25a2cdad426018a8f4b
+license-url: https://huggingface.co/datasets/openlanguagedata/flores_plus/blob/1147e2dc59f37fbb5c22fd8478770de02cd399f9/README.md
+license: CC BY-SA 4.0
+note: Evaluation only, per the card: it should not be used as training data, and accepting the gate also agrees the contents stay out of training data and are not re-hosted where crawlers can pick them up.
+note: Attribution: FLORES+ by the Open Language Data Initiative, built on FLORES and FLORES-200 by Meta FAIR; the card asks for the FLORES papers and shared task papers to be cited.
+note: docs/licences.md records the same evaluation-only terms from the card, checked 2026-10-14; no file of the corpus is kept here.

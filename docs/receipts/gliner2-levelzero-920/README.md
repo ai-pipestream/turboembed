@@ -85,52 +85,64 @@ print are not a timing receipt.
 
 ## Timings
 
-`timings.log` is the run: three release runs at `fbba0d32` (this
-receipt's parent) of
+Host loaded, B70 idle. `timings.log` is the run: twenty release runs,
+from 26 Oct 23:21 to 27 Oct 00:11 UTC, at `04f89fcb`, before main's
+later changes to the Level Zero `gpu/mod.rs` and its encoder rows, of
 
 ```
-GLINER2_PACKAGE=... GLINER2_BUNDLE=... GLINER2_CHECKPOINT=... DEVICE_REPS=50 \
+GLINER2_PACKAGE=... GLINER2_BUNDLE=... GLINER2_CHECKPOINT=... \
+  GLIREL_PACKAGE=... GLIREL_BUNDLE=... GLIREL_SPM=... DEVICE_REPS=50 \
   TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model \
   cargo test --release --locked --features turbo/levelzero -p turbo-relation -p turbo-schema-extract \
-  --test device_real -- --ignored --nocapture gliner2 schema
+  --test device_real -- --ignored --nocapture --test-threads 1
 ```
 
-each started once no B70 CI runner container had a cargo, test or
-nextest process and the host's one-minute load was under 8 (1.8, 4.4
-and 6.5 at the starts). Each test first runs its 50 parity passes over
-the fixture (each held to the CPU's logits and decisions), then times a
-further 50 passes over the same texts without comparing them: the timed
-passes are not themselves checked. A pass is timed in milliseconds, the
-CPU encoder and the device interleaved. The relations fixture has three
-texts (150 timed passes a side) and the schema fixture four (200), so
-each distribution mixes the texts' lengths: its spread is the texts as
-much as the device. Only the encoder moves: the heads run on the host in
-both columns, so the B70 column is the encoder on the B70 plus the heads
-on the CPU, and the CPU column is both on the CPU. Host: AMD Ryzen 9
-9950X, 32 threads.
+after `snap-store` was stopped. Before each run the B70 CI runner
+containers had no cargo, test or nextest process and no other client
+held the card: in the 5 s before each run and over each run, no other
+xe client had compute engine time, nor render engine time over 1
+percent (gnome-shell at most, the log records each). The host was not
+quiet: its one-minute load was between 17.9 and 53.6 over the twenty
+runs (before and after each), so the CPU column ran beside other work
+and is slower and wider than on an idle host. Each test first runs its
+50 parity passes over the fixture (each held to the CPU's logits and
+decisions), then times a further 50 passes over the same texts without
+comparing them: the timed passes are not themselves checked. A pass is
+timed in milliseconds, the CPU encoder and the device interleaved; the
+relations fixture has three texts and the schema fixture four, so each
+distribution mixes the texts' lengths. The timed section is each
+model's `pass`: the prompt built, the encoder, and the heads that pass
+runs (GLiNER2's count, query and span heads; GLiREL's projection, LSTM
+and label rows). Decoding is outside it, and so are GLiREL's entity and
+pair scoring, which run after its pass. Only the encoder moves: the
+heads run on the host in both columns, so the B70 column is the encoder
+on the B70 plus the heads on the CPU. Host: AMD Ryzen 9 9950X, 32
+threads.
 
-| Pass | CPU encoder and heads p50 (min, mean, p99) | B70 encoder, CPU heads p50 (min, mean, p99) | CPU p50 over B70 p50 |
+Over the twenty runs: the median of each run's p50, the range of the
+runs' p50s, the least min, the mean of the means and the largest p99,
+and the median and range of each run's CPU p50 over its B70 p50: above
+1 the B70 column is the faster, by that factor.
+
+| Pass | CPU encoder and heads: p50 (runs), min, mean, p99 | B70 encoder, CPU heads: p50 (runs), min, mean, p99 | CPU p50 over B70 p50 |
 |---|---|---|---|
-| GLiNER2 relations, run 1 | 20.1 (16.5, 21.0, 32.1) | 36.9 (28.9, 37.1, 45.9) | 0.54x |
-| GLiNER2 relations, run 2 | 18.3 (16.1, 18.4, 23.1) | 38.6 (6.8, 36.4, 40.7) | 0.47x |
-| GLiNER2 relations, run 3 | 18.5 (15.6, 18.8, 22.4) | 33.6 (6.6, 33.6, 40.2) | 0.55x |
-| Schema extraction, run 1 | 56.9 (20.9, 58.1, 103.4) | 22.9 (7.7, 27.1, 67.8) | 2.49x |
-| Schema extraction, run 2 | 32.9 (17.3, 31.7, 42.9) | 25.9 (13.6, 26.1, 37.3) | 1.27x |
-| Schema extraction, run 3 | 33.0 (17.8, 31.7, 43.6) | 26.0 (12.6, 25.8, 37.4) | 1.27x |
+| GLiNER2 relations | 22.5 (16.7 to 37.1), 15.0, 24.9, 69.0 | 7.8 (7.2 to 10.1), 6.7, 8.6, 18.9 | 2.83x (2.30 to 3.86) |
+| GLiREL | 47.6 (28.6 to 73.6), 25.2, 54.1, 150.5 | 12.2 (10.8 to 16.4), 10.5, 13.1, 26.7 | 3.89x (2.64 to 5.06) |
+| Schema extraction | 39.2 (29.2 to 64.9), 15.8, 39.8, 110.1 | 13.4 (11.1 to 19.7), 6.8, 13.7, 34.5 | 2.83x (2.62 to 3.29) |
 
-Neither the host nor the B70 stayed quiet. The host's load rose to 22.3
-during run 1, which shows in that run's CPU schema numbers (p50 56.9
-against 32.9 and 33.0 in the others); runs 2 and 3 ended at 15.6 and
-8.9. `snap-store` held the B70's render engine 61 to 65 percent busy
-through every run (xe fdinfo, read before and after each). So these are
-timings under that load, not on an idle device: with the encoder on the
-B70, the relations pass runs at about half the all-CPU pass's speed, and
-schema extraction at about 1.3 times its speed in the two runs the host
-left alone.
+Every run's parity passes held: logits within 4.6e-6 (relations),
+5.7e-6 (GLiREL) and 7.5e-6 (schema extraction) of the CPU encoder's.
+
+The earlier timings, `timings-desktop-load.log` (three runs at
+`fbba0d32`), were taken while `snap-store` held the B70's render engine
+61 to 65 percent busy; under that load the relations pass ran at about
+half the CPU's speed and schema extraction at about 1.3 times it. They
+are kept for the record and are superseded by the runs above.
 
 ## Not done
 
-- GLiREL on the real checkpoint: there is no core bundle recipe for its
-  DeBERTa-v3-large encoder, so GLiREL stands at tiny-bundle parity.
-- Timings on an idle B70: `snap-store` held the render engine busy
-  through every run above.
+- GLiREL on the real checkpoint: since done, in
+  docs/receipts/glirel-levelzero-920 (its recipe is
+  `bundle/recipes/glirel-large-v0-encoder.json`).
+- Timings on a quiet host: the B70 was idle for the runs above, the
+  host was not.

@@ -1,4 +1,6 @@
-//! Typed dependency trees and the OpenNLP 3.x greedy arc-standard parser.
+//! Typed dependency trees, arc-standard linear and feedforward neural
+//! transition parsers, non-projective `SWAP` and pseudo-projective lifting,
+//! bidirectional offset-tracked document annotation, and UAS/LAS evaluation.
 //! Node indexes are zero-based; `None` is the artificial root's outgoing arc.
 //!
 //! Word and token graph indexes cannot be mixed:
@@ -16,18 +18,25 @@ mod encoding;
 mod evaluation;
 pub use encoding::LabelEncoding;
 mod graph;
+mod held_out;
 mod model;
 mod projective;
 mod sample;
+mod swap;
 mod training;
 mod transition;
 
 pub use annotator::{DependencyAnnotator, DependencyBackend};
 pub use context::{DependencyContextGenerator, ParserInput};
-pub use evaluation::{AttachmentScores, DependencyCrossValidator, DependencyEvaluator};
-pub use graph::{ArcDirection, DependencyArc, DependencyGraph, PathStep};
-pub use model::{DependencyModel, DependencyParser, DependencyParserME};
+pub use evaluation::{AttachmentScores, DependencyCrossValidator, DependencyEvaluator, DependencyParser};
+pub use graph::{
+    ArcDirection, DependencyArc, DependencyGraph, PathStep, ResolvedDependencyArc, ResolvedDependencyNode,
+};
+pub use held_out::{EvaluationSubset, HeldOutEvaluation};
+pub use model::{DependencyModel, DependencyParserME};
 pub use sample::{DependencyEventStream, DependencySample};
+pub use swap::SwapOracle;
+pub use training::TrainingMode;
 pub use transition::{ArcStandardOracle, ArcStandardState, Position, Transition};
 
 /// A checked public boundary, invalid model, or unavailable transition.
@@ -49,9 +58,3 @@ pub use feedforward::{
     Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel, FeedforwardDependencyParser,
     FeedforwardDependencyTrainer, FeedforwardFeatureIds, FeedforwardSettings, NeuralWeights, Vocabulary,
 };
-
-mod swap;
-pub use swap::SwapOracle;
-
-mod held_out;
-pub use held_out::{EvaluationSubset, HeldOutEvaluation};

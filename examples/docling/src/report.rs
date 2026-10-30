@@ -9,6 +9,7 @@
 use serde_json::{Value, json};
 use turbo_analysis::{Document, Ix, Key, Layer, Span, View, ViewId};
 use turbo_analysis_layers::{Chunks, Entities, Subwords, Tokens, Vectors};
+use turbo_chunker::{ChunkCitation, ChunkCitations};
 
 use crate::CLEAN;
 use crate::docling::Docling;
@@ -19,6 +20,13 @@ pub const VECTOR_HEAD: usize = 4;
 /// How far a vector value or score may move across machines, whose
 /// kernels may round differently.
 pub const TOLERANCE: f64 = 1e-3;
+
+/// Returns the per-chunk 2D layout citations ([`ChunkCitation`]) computed
+/// on `doc`.
+pub fn chunk_citations(doc: &Document) -> Result<Vec<ChunkCitation>, String> {
+    let citations = doc.get::<ChunkCitations>().ok_or("no chunk citations")?;
+    Ok(citations.iter().collect())
+}
 
 fn clean(doc: &Document) -> Result<&View, String> {
     doc.get_key(&Key::<View>::named(CLEAN)).ok_or_else(|| "no clean view".to_owned())

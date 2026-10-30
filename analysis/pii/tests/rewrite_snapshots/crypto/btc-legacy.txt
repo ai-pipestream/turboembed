@@ -1,0 +1,14 @@
+MASKED	Wallets ********************************** and ********************************** paid.
+
+MASK_ALL	Wallets ################################## and ################################## paid.
+
+REWRITE	pseudonymize	OK	Wallets BTC-ADDRESS-1 and BTC-ADDRESS-2 paid.
+
+LABEL	pseudonymize	8	42	8	21	BTC-ADDRESS-1
+LABEL	pseudonymize	47	81	26	39	BTC-ADDRESS-2
+REWRITE	hmac	OK	Wallets BTC-ADDRESS-a1fbacb08edeef92 and BTC-ADDRESS-aefa99d66711abd9 paid.
+
+LABEL	hmac	8	42	8	36	BTC-ADDRESS-a1fbacb08edeef92
+LABEL	hmac	47	81	41	69	BTC-ADDRESS-aefa99d66711abd9
+AUDIT	btc-address	2	2	BTC-ADDRESS-a1fbacb08edeef92, BTC-ADDRESS-aefa99d66711abd9
+AUDIT_REPORT	btc-address: 2 mentions, 2 distinct [BTC-ADDRESS-a1fbacb08edeef92, BTC-ADDRESS-aefa99d66711abd9]

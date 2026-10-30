@@ -336,8 +336,9 @@ fn a_released_checkpoint_matches_wtpsplit() {
         }
         (b, f) => panic!("TURBO_TEST_SAT_BUNDLE ({b:?}) and TURBO_TEST_SAT_FIXTURES ({f:?}) go together"),
     };
+    let bundle = turbo_pins::require(&bundle);
     for path in fixtures.split(',') {
-        let s = compare_at(Path::new(path), Path::new(&bundle));
+        let s = compare_at(Path::new(path), &bundle);
         eprintln!("{path}: {s:?}");
         assert_eq!((s.texts, s.near_threshold, s.widened), (90, 0, 6), "{path}: texts, near the threshold, widened");
         assert!(s.pad_in_text <= 1, "{path}: {} texts compared for their tokens only", s.pad_in_text);

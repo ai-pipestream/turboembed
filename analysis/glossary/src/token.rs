@@ -6,10 +6,11 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use turbo_analysis::{Span, Spans};
 use turbo_analysis_layers::{Strs, Tokens};
 use turbo_glossary_layers::{EntryIx, Glossary, is_blank};
-use turbo_matcher::{Attr, Field, Input, PatternError, PhraseMatch, PhraseMatcher};
+use turbo_matcher::{Attr, Field, FuzzyMatchPolicy, Input, PatternError, PhraseMatch, PhraseMatcher};
 
 use crate::error::{BuildError, MatchError};
 use crate::select::{Candidate, GlossaryMatch, select};
+use crate::token_fuzzy::TokenFuzzy;
 
 /// What a token is matched by.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -42,6 +43,7 @@ pub struct TokenMatcher {
     /// Per phrase, the first entry that gave it and its length in tokens.
     entry_of_phrase: Vec<EntryIx>,
     len_of_phrase: Vec<u32>,
+    fuzzy: Option<Box<TokenFuzzy>>,
     /// A hash of the phrases and the entry each one reports.
     fingerprint: u64,
 }
@@ -61,6 +63,18 @@ impl TokenMatcher {
         TokenMatcher::over(glossary, &all, value, analyze)
     }
 
+    /// The matcher of [`TokenMatcher::new`] with optional edit-distance and
+    /// phonetic candidates. Only this constructor retains a fuzzy index.
+    pub fn new_with_fuzzy_policy(
+        glossary: &Glossary,
+        value: TokenValue,
+        analyze: impl FnMut(&str, &mut Vec<String>),
+        policy: FuzzyMatchPolicy,
+    ) -> Result<TokenMatcher, BuildError> {
+        let all: Vec<EntryIx> = glossary.iter().map(|(ix, _)| ix).collect();
+        TokenMatcher::build(glossary, &all, value, analyze, policy)
+    }
+
     /// The matcher over the terms of the entries `entries` of `glossary`,
     /// in that order, as [`TokenMatcher::new`] builds it; its matches name
     /// the entries by their place in `glossary`. A composite can then hold
@@ -70,7 +84,17 @@ impl TokenMatcher {
         glossary: &Glossary,
         entries: &[EntryIx],
         value: TokenValue,
+        analyze: impl FnMut(&str, &mut Vec<String>),
+    ) -> Result<TokenMatcher, BuildError> {
+        TokenMatcher::build(glossary, entries, value, analyze, FuzzyMatchPolicy::default())
+    }
+
+    fn build(
+        glossary: &Glossary,
+        entries: &[EntryIx],
+        value: TokenValue,
         mut analyze: impl FnMut(&str, &mut Vec<String>),
+        policy: FuzzyMatchPolicy,
     ) -> Result<TokenMatcher, BuildError> {
         if entries.is_empty() {
             return Err(BuildError::Empty);
@@ -87,11 +111,13 @@ impl TokenMatcher {
             value,
             entry_of_phrase: Vec::new(),
             len_of_phrase: Vec::new(),
+            fuzzy: None,
             fingerprint: 0,
         };
         let mut h = DefaultHasher::new();
         value.hash(&mut h);
         let mut tokens = Vec::new();
+        let mut phrase_keys = Vec::new();
         for &ix in entries {
             tokens.clear();
             analyze(glossary.term(ix), &mut tokens);
@@ -109,11 +135,17 @@ impl TokenMatcher {
             if id.0 as usize == m.entry_of_phrase.len() {
                 m.entry_of_phrase.push(ix);
                 m.len_of_phrase.push(refs.len() as u32);
+                if policy.is_enabled() {
+                    phrase_keys.push(refs.join("\0"));
+                }
                 ix.hash(&mut h);
                 refs.hash(&mut h);
             }
         }
         m.fingerprint = h.finish();
+        if policy.is_enabled() {
+            m.fuzzy = Some(Box::new(TokenFuzzy::new(phrase_keys, policy)));
+        }
         Ok(m)
     }
 
@@ -125,12 +157,22 @@ impl TokenMatcher {
     /// reports, which differs between matchers built with different
     /// analyzers.
     pub(crate) fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        if let Some(fuzzy) = &self.fuzzy {
+            let mut h = DefaultHasher::new();
+            self.fingerprint.hash(&mut h);
+            fuzzy.policy().fingerprint().hash(&mut h);
+            h.finish()
+        } else {
+            self.fingerprint
+        }
     }
 
     /// The bytes the matcher holds on the heap.
     pub fn heap_bytes(&self) -> usize {
-        self.phrases.heap_bytes() + self.entry_of_phrase.capacity() * 4 + self.len_of_phrase.capacity() * 4
+        self.phrases.heap_bytes()
+            + self.entry_of_phrase.capacity() * 4
+            + self.len_of_phrase.capacity() * 4
+            + self.fuzzy.as_ref().map_or(0, |f| f.heap_bytes())
     }
 
     /// Appends to `out` the matches over `tokens`, whose spans index
@@ -230,7 +272,11 @@ impl TokenMatcher {
         if let Some(v) = values {
             input = input.with_norms(v).map_err(convert)?;
         }
-        self.phrases.find(&input).map_err(convert)
+        let mut found = self.phrases.find(&input).map_err(convert)?;
+        if let Some(fuzzy) = &self.fuzzy {
+            fuzzy.append(text, tokens, values, &mut found);
+        }
+        Ok(found)
     }
 }
 

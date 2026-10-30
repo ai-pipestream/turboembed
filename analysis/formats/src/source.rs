@@ -8,10 +8,10 @@
 //! the Basic Multilingual Plane and none of them is a surrogate.
 
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::fmt;
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use crate::error::FormatError;
 
@@ -205,16 +205,16 @@ pub(crate) fn java_trim(field: Piece<'_>) -> Piece<'_> {
 }
 
 /// The tokens `WhitespaceTokenizer.INSTANCE.tokenizePos` finds in a
-/// field: the runs of characters that are not whitespace in `mode`.
-pub(crate) fn whitespace_tokens<'a>(field: Piece<'a>, mode: WhitespaceMode) -> impl Iterator<Item = Piece<'a>> {
+/// field: the runs of characters that are not Unicode whitespace.
+pub(crate) fn whitespace_tokens<'a>(field: Piece<'a>) -> impl Iterator<Item = Piece<'a>> {
     let text = field.text;
     let mut chars = text.char_indices().peekable();
     std::iter::from_fn(move || {
-        while chars.next_if(|&(_, c)| mode.is_whitespace(c as u32)).is_some() {}
+        while chars.next_if(|&(_, c)| turbo_unicode::whitespace::is_whitespace(c as u32)).is_some() {}
         let (start, _) = chars.next()?;
         let mut end = text.len();
         while let Some(&(i, c)) = chars.peek() {
-            if mode.is_whitespace(c as u32) {
+            if turbo_unicode::whitespace::is_whitespace(c as u32) {
                 end = i;
                 break;
             }
@@ -244,6 +244,25 @@ pub(crate) fn split_fields<'a>(field: Piece<'a>, separator: char) -> Vec<Piece<'
         out.pop();
     }
     out
+}
+
+/// Java `String.compareTo`: lexicographic order by UTF-16 code unit.
+pub(crate) fn compare_utf16(a: &str, b: &str) -> Ordering {
+    let mut a = a.encode_utf16();
+    let mut b = b.encode_utf16();
+    loop {
+        match (a.next(), b.next()) {
+            (Some(x), Some(y)) => {
+                let order = x.cmp(&y);
+                if order != Ordering::Equal {
+                    return order;
+                }
+            }
+            (Some(_), None) => return Ordering::Greater,
+            (None, Some(_)) => return Ordering::Less,
+            (None, None) => return Ordering::Equal,
+        }
+    }
 }
 
 /// The byte offset in `text` after its first `units` UTF-16 code units,
@@ -302,14 +321,13 @@ mod tests {
     }
 
     #[test]
-    fn whitespace_tokens_follow_the_mode() {
+    fn whitespace_tokens_split_at_unicode_whitespace() {
+        // U+0085 separates; U+001C is part of a token.
         let s = " a\u{85}b\u{1c}c  d ";
         let f = Piece { text: s, span: Span::new(0, s.len() as u32) };
-        let unicode: Vec<&str> = whitespace_tokens(f, WhitespaceMode::Unicode).map(|t| t.text).collect();
-        let legacy: Vec<&str> = whitespace_tokens(f, WhitespaceMode::Legacy).map(|t| t.text).collect();
+        let unicode: Vec<&str> = whitespace_tokens(f).map(|t| t.text).collect();
         assert_eq!(unicode, ["a", "b\u{1c}c", "d"]);
-        assert_eq!(legacy, ["a\u{85}b", "c", "d"]);
-        let spans: Vec<Span> = whitespace_tokens(f, WhitespaceMode::Unicode).map(|t| t.span).collect();
+        let spans: Vec<Span> = whitespace_tokens(f).map(|t| t.span).collect();
         assert_eq!(spans, [Span::new(1, 2), Span::new(4, 7), Span::new(9, 10)]);
     }
 

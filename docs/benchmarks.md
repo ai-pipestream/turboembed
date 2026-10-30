@@ -151,8 +151,22 @@ so eight reference cases fit seq and the rows list all eight.
 to SUPPORTED on a Windows build of library `0.1.0` whose device
 arch is `arl-npu` and whose graph format is `NGRAPH_LITE`. The
 library p50 is the sum of the eight frames, about 30 ms. Another
-arch, a `NATIVE` graph, and a build whose OS is not windows stay
-EXPERIMENTAL with no record for the cell.
+arch and a build whose OS is not windows stay EXPERIMENTAL with no
+record for the cell.
+
+The `NATIVE` cells of the same device, which a load on AI Boost
+creates (docs/npu.md), are backed by two ROWS_MIXED MiniLM records of
+the same IR measured at library commit `db05141`, cases 0 through 7,
+`TURBO_NPU_GRAPH_FORMAT=NATIVE`, `conformance.min_cosine`
+0.999996097954919, OpenVINO measured on the same frames:
+`benchmarks/records/arl-npu.npu.native.embed.model.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`
+(library p50 30.0209 ms; OpenVINO IR p50 30.08 ms; `speed_ratio`
+0.9980352393617021) and
+`benchmarks/records/arl-npu.npu.native.embed.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`
+(library p50 29.9576 ms; OpenVINO IR p50 30.1 ms; `speed_ratio`
+0.9952691029900333). `decide_embedded` sets `MODEL` and `FASTEST` to
+SUPPORTED on a Windows build of library `0.1.0` whose device arch is
+`arl-npu` and whose graph format is `NATIVE`.
 
 Two ROWS_DENSE records of the same IR are committed at `00aa734`,
 measured at library commit `febfed530`, case 8, and are reference
@@ -1119,16 +1133,16 @@ docs/analysis.md ("BiLSTM-CRF numerics") reads the committed record.
 
 ## Tagger records
 
-`turbo-bench tag --model <bundle-dir | file> --corpus <file.conllu>
+`turbo-bench tag --model <native-bundle-dir> --corpus <file.conllu>
 [--device cpu] [--precision exact|model|fastest] [--sentences-per-call <n>]
 [--rounds <n>] [--cpus <list>]`, in a build with `--features postag`, is
 the tagger mode every backend records through: it measures one tier of
 the BiLSTM-CRF part-of-speech tagger, a device and a precision, on the
 syntactic words of a CoNLL-U corpus. `--model` takes the bundle form
-`turbo-bundle postag-convert` writes (`analysis/postag/README.md`,
-"Bundle form"), verified before it is read, or the `ONLP-BLPT` file
-itself. The CPU tiers are `exact` (the `JvmParity` f64 numerics, on the
-file's f64 or the bundle's F32 weights), `model` (the `Packed` numerics on
+`turbo_bundle::postag::export` writes (`analysis/postag/README.md`,
+"Bundle form"), verified before it is read. Archive-file inputs are
+rejected under #1511. The CPU tiers are `exact` (the `JvmParity` f64 numerics, on the
+bundle's F32 weights), `model` (the `Packed` numerics on
 the same weights) and `fastest` (`Packed` on the bundle's F16 copy, so a
 bundle is needed). Another device is refused: no tier of the tagger runs
 there yet. The records go to `benchmarks/records/tag/`, read by neither
@@ -1137,8 +1151,8 @@ there yet. The records go to `benchmarks/records/tag/`, read by neither
 `turbo_bench::tag::check`. The provenance is the embed record's.
 
 The record (`bench/src/tag/mod.rs`, `TagRecord`) names the model (its
-ModelRef, the source file's SHA-256, the bundle manifest's SHA-256 when
-a bundle was read, the weights and the tag count), the tier (device,
+ModelRef, the native F32 parameter-file SHA-256, the bundle manifest's
+SHA-256, the weights and the tag count), the tier (device,
 precision, numerics and the tagger's `config_hash`) and the corpus,
 then the words tagged as the corpus does and two speeds, each words per
 second with the p50 and p99 of a call's time: cold, the first pass of a

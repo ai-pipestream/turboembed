@@ -43,7 +43,7 @@ public final class TestPaths {
     }
 
     public static Path fixture(String fileName) {
-        Path path = repoRoot().resolve("analysis/goldens/data/fixtures").resolve(fileName);
+        Path path = repoRoot().resolve("clients/java-panama/src/test/resources/fixtures").resolve(fileName);
         if (!Files.isRegularFile(path)) {
             throw new AssertionError("missing test fixture: " + path);
         }
@@ -59,7 +59,7 @@ public final class TestPaths {
     }
 
     private static boolean looksLikeRepoRoot(Path dir) {
-        return Files.isDirectory(dir.resolve("analysis/goldens/data/fixtures"))
+        return Files.isDirectory(dir.resolve("clients/java-panama/src/test/resources/fixtures"))
                 && Files.isDirectory(dir.resolve("testdata/tiny-bert-bundle"))
                 && Files.isRegularFile(dir.resolve("clients/java-panama/pom.xml"));
     }

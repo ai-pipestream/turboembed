@@ -19,6 +19,3 @@ turbo-tokenize = { path = "../tokenize" }
 # Character.isLetter, for the French light and minimal stemmers.
 turbo-unicode = { path = "../unicode" }
 
-[dev-dependencies]
-# The goldens of the stemmers, made by OpenNLP on a JVM.
-turbo-goldens = { path = "../goldens" }

@@ -4,11 +4,10 @@
 //! whitespace (the sentence detectors trim, the tokenizers split on it).
 //! A row whose UTF-16 span cuts a surrogate pair (its `turbo:utf16<L>` row
 //! has `cut` 1) holds the whole character, so it overlaps its neighbour
-//! over that character. Three kinds of run are let off part of it, each for
+//! over that character. Two kinds of run are let off part of it, each for
 //! what OpenNLP does there: a tokenizer that keeps line breaks makes them
 //! tokens (and the simple tokenizer gives some of them the wrong span, out
-//! of order), a run in the legacy whitespace mode does not count every
-//! Unicode space as whitespace, and the tokenizer with an abbreviation
+//! of order), and the tokenizer with an abbreviation
 //! dictionary emits a listed token whole and then goes on splitting inside
 //! it, so its spans overlap. Spans over emoji and CJK Extension B characters
 //! are checked by text.
@@ -127,7 +126,6 @@ fn every_span_lands_on_characters_of_its_input() {
             let spans = read_spans(&path);
             let text = input_text(&spans.input);
             let keeps_new_lines = spans.has_config("keepNewLines", "true");
-            let legacy = spans.has_config("whitespace", "legacy");
             let abbreviations = path.iter().any(|p| {
                 let dir = p.to_string_lossy();
                 dir == "tokenizer-abbreviations" || dir.ends_with("+english-dictionary")
@@ -146,7 +144,7 @@ fn every_span_lands_on_characters_of_its_input() {
                     }
                     assert!(text.is_char_boundary(s) && text.is_char_boundary(e), "{at}");
                     let slice = &text[s..e];
-                    if !keeps_new_lines && !legacy {
+                    if !keeps_new_lines {
                         assert_eq!(slice.trim(), slice, "{at}");
                     }
                     (previous_start, previous_end) = (s, e);
@@ -160,16 +158,23 @@ fn every_span_lands_on_characters_of_its_input() {
 
 #[test]
 fn tokens_over_emoji_and_supplementary_characters_hold_them_whole() {
-    let tokens = texts("tokenize", "en/emoji");
-    for t in ["🎉", "🍕", "👍🏽", "❤️", "🇺🇸"] {
-        assert!(tokens.iter().any(|x| x == t), "{t} is not a token of en/emoji: {tokens:?}");
+    // The UAX#29 run is the tokenize run whose spans hold supplementary
+    // characters whole; the retired published-model runs that used to
+    // carry this check were deleted with their goldens (#1645).
+    let tokens = texts("tokenize/uax29", "edge/emoji-single");
+    for t in ["😀", "👍🏽", "❤️", "☺"] {
+        assert!(tokens.iter().any(|x| x == t), "{t} is not a token of edge/emoji-single: {tokens:?}");
     }
-    let tokens = texts("tokenize", "multi/mixed");
-    for t in ["東京", "𝐀", "𝔅", "👋🏽"] {
-        assert!(tokens.iter().any(|x| x == t), "{t} is not a token of multi/mixed: {tokens:?}");
+    let tokens = texts("tokenize/uax29", "edge/emoji-flags");
+    for t in ["🇩🇪", "🇫🇷", "🇺🇸", "🇯🇵"] {
+        assert!(tokens.iter().any(|x| x == t), "{t} is not a token of edge/emoji-flags: {tokens:?}");
     }
-    assert!(tokens.iter().any(|x| x.contains("𠮷")), "{tokens:?}");
-    assert!(tokens.iter().any(|x| x.contains("𠀀")), "{tokens:?}");
+    let tokens = texts("tokenize/uax29", "edge/emoji-zwj");
+    assert!(tokens.iter().any(|x| x == "👨\u{200d}👩\u{200d}👧\u{200d}👦"), "{tokens:?}");
+    let tokens = texts("tokenize/uax29", "edge/supplementary");
+    for t in ["𝐀𝐁𝐂", "𝐚𝐛𝐜", "𐐀𐐨𐑅", "𠀀"] {
+        assert!(tokens.iter().any(|x| x == t), "{t} is not a token of edge/supplementary: {tokens:?}");
+    }
 }
 
 #[test]
@@ -181,7 +186,10 @@ fn sentences_of_a_text_with_emoji_start_and_end_on_its_words() {
 
 #[test]
 fn tokens_that_cut_an_emoji_hold_it_whole_and_keep_their_utf16_spans() {
-    let path = goldens("tokenize").into_iter().find(|p| p.ends_with("en/emoji-split.golden")).unwrap();
+    // The simple tokenizer run is the surviving run whose UTF-16 spans cut
+    // surrogate pairs; the published-model run that used to carry this
+    // check was deleted with its goldens (#1645).
+    let path = goldens("tokenize/simple").into_iter().find(|p| p.ends_with("edge/emoji-single.golden")).unwrap();
     let spans = read_spans(&path);
     let text = input_text(&spans.input);
     let (layer, tokens) = &spans.layers[0];
@@ -199,9 +207,14 @@ fn tokens_that_cut_an_emoji_hold_it_whole_and_keep_their_utf16_spans() {
         assert_eq!(String::from_utf16(&units[w16..x16]).unwrap(), text[s..e], "token {i}");
         cut += usize::from(c);
     }
-    // Three emoji, each split between two tokens.
+    // Six UTF-16 spans end or start inside a surrogate pair, and each
+    // widened byte span holds its character whole (the simple tokenizer
+    // also repeats the emoji spans, as this file's header notes).
     assert_eq!(cut, 6);
     let texts: Vec<&str> = tokens.iter().map(|&(s, e)| &text[s..e]).collect();
-    assert_eq!(texts.iter().filter(|t| **t == "😀").count(), 5, "{texts:?}");
-    assert!(texts.contains(&"&😀"), "{texts:?}");
+    assert_eq!(
+        texts,
+        ["Smile", "😀", "😀", "ok", "👍", "👍", "🏽", "🏽", "done", "❤", "\u{fe0f}", "☺", "end"],
+        "{texts:?}"
+    );
 }

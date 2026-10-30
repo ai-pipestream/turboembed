@@ -1,10 +1,9 @@
 //! A C program linked against libturbo, from the runtime to the embedding.
 
-use std::path::Path;
 use std::process::Command;
 
 use crate::common::*;
-use crate::{include, run, scratch};
+use crate::{compile, run};
 use turbo::*;
 
 const PROGRAM: &str = r#"
@@ -191,35 +190,7 @@ int main(int argc, char **argv) {
 
 #[test]
 fn a_c_program_loads_a_model_tokenizes_and_embeds() {
-    // target/<profile>/deps/abi-* -> target/<profile>/libturbo.{so,dylib}
-    let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
-    // `cargo test` builds the rlib the tests link, not the cdylib; build
-    // it here, with the same profile and target directory, so the program
-    // links the library as it is now.
-    let profile = lib_dir.file_name().unwrap().to_str().unwrap();
-    let profile = match profile {
-        "debug" => "dev",
-        p => p,
-    };
-    run(Command::new(env!("CARGO"))
-        .args(["build", "--lib", "--profile", profile, "--manifest-path"])
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
-        .arg("--target-dir")
-        .arg(lib_dir.parent().unwrap()));
-    let lib = format!("{}turbo{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
-    assert!(lib_dir.join(&lib).exists(), "{lib} is not in {}", lib_dir.display());
-    let d = scratch("program");
-    std::fs::write(d.join("p.c"), PROGRAM).unwrap();
-    run(Command::new("cc")
-        .args(["-std=c11", "-Wall", "-Werror", "-o"])
-        .arg(d.join("p"))
-        .arg(d.join("p.c"))
-        .arg("-I")
-        .arg(include())
-        .arg("-L")
-        .arg(&lib_dir)
-        .arg(format!("-Wl,-rpath,{}", lib_dir.display()))
-        .arg("-lturbo"));
+    let (d, program) = compile("program", PROGRAM);
 
     let f = Fixture::standard("c-program");
     f.write();
@@ -229,7 +200,7 @@ fn a_c_program_loads_a_model_tokenizes_and_embeds() {
     let text = "Café naïve RÉSUMÉ, 东京 🙂";
     let tiny = tiny_bundle();
     std::fs::write(d.join("text.txt"), text).unwrap();
-    let out = run(Command::new(d.join("p")).arg(&f.dir).arg(d.join("text.txt")).arg(&model.dir).arg(&tiny));
+    let out = run(Command::new(&program).arg(&f.dir).arg(d.join("text.txt")).arg(&model.dir).arg(&tiny));
     // The same two vectors through the library from Rust.
     let l = Loaded::load(&tiny).unwrap();
     let s = Session::create(l.m, Some(&session_desc(4, 0, TURBO_PRECISION_EXACT))).unwrap();

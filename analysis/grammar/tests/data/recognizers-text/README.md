@@ -47,6 +47,30 @@ pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case
 | `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
 | `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |
 
+## Japanese NumberWithUnit
+
+The Japanese NumberWithUnit files are unchanged copies at the same revision
+and MIT license. All 188 cases are run, including upstream unsupported entries.
+The two incorrect upstream unit labels are explicitly tested as native policy
+differences in `japanese_unit_specs.rs`, not counted as parity matches.
+
+| File here | Upstream path | SHA256 |
+|---|---|---|
+| `Japanese/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Japanese/AgeModel.json` | `130278bcce4feca64b3a66e62cd1eb8d6581661584f3347234684a67dff55a00` |
+| `Japanese/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Japanese/CurrencyModel.json` | `bb47bab4033b335dffc8f5f17ddc9c74b8eb1bf5718625a0a568c0350c18d679` |
+| `Japanese/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Japanese/DimensionModel.json` | `c1122b55305825f172ba949a5b18026570fe2f14c23796a9a7f8e244d7719820` |
+| `Japanese/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Japanese/TemperatureModel.json` | `8d88e5679f477f667f21ba16771518c3837ca76b14e1b966afd21cb9ea6f642a` |
+
+## Chinese NumberWithUnit
+
+The four `Chinese/NumberWithUnit/*Model.json` files are unchanged copies from
+revision `da7edcff59f669b2a460ab9d400e36298f0d658e` of
+[Microsoft Recognizers-Text](https://github.com/microsoft/Recognizers-Text/tree/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/NumberWithUnit/Chinese),
+under the existing vendored MIT license. `chinese_unit_specs.rs` checks all
+91 cases, including upstream unsupported cases, with original offsets and
+all supplied resolution fields. Optional absent subtype fields are unspecified.
+See `docs/grammar-units-chinese.md` for exact unit conventions and native tests.
+
 The Italian NumberWithUnit files below are unchanged copies at the same
 pinned revision and MIT license. `tests/italian_unit_specs.rs` checks all
 210 cases, including upstream-unsupported Age cases 3 and 7 and Currency
@@ -60,6 +84,8 @@ the other 207 cases use exact-span comparison.
 | `Italian/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Italian/CurrencyModel.json` |
 | `Italian/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Italian/DimensionModel.json` |
 | `Italian/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Italian/TemperatureModel.json` |
+
+## Portuguese NumberWithUnit
 
 The Portuguese NumberWithUnit files are unchanged copies at the same pinned
 revision and MIT license. `tests/portuguese_unit_specs.rs` checks all 253 cases

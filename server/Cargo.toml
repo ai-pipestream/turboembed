@@ -43,6 +43,9 @@ turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
 turbo-vector-index = { path = "../analysis/vector-index", features = ["turboquant"] }
 turbo-query = { path = "../analysis/query" }
 turbo-sentdetect = { path = "../analysis/sentdetect" }
+turbo-sat = { path = "../analysis/sat" }
+turbo-pii = { path = "../analysis/pii" }
+turbo-numeric = { path = "../analysis/numeric" }
 turbo-stem = { path = "../analysis/stem" }
 # The vocabulary store's readers: each upload is parsed by the crate that
 # owns its format, and the learner counts UAX #29 words.
@@ -58,6 +61,9 @@ turbo-zoo = { path = "../analysis/zoo", default-features = false }
 # Static model distillation and sealing for TurboTrainingService; it
 # fetches nothing, so without the HTTPS stack.
 turbo-bundle = { path = "../bundle", default-features = false }
+# ReadModelFile hashes a file as it streams it; the zoo's own SHA-256, already
+# in the tree under turbo-zoo.
+sha2 = "0.11"
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 # The request body trait, to count a stream's bytes (ceiling.rs) and for

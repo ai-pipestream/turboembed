@@ -1,206 +1,206 @@
-use super::{Activation, FeatureLayout, FeedforwardDependencyModel, NeuralWeights, Vocabulary};
-use crate::{Result, Transition, error};
 use std::collections::BTreeMap;
-use turbo_maxent::JavaString;
+use std::path::Path;
 
-pub(super) const MAGIC: &str = "ONLP-FFDP-1";
-pub(super) struct Reader<'a> {
-    pub data: &'a [u8],
-    pub values: usize,
-    pub utf8: bool,
-}
-impl<'a> Reader<'a> {
-    pub fn take(&mut self, n: usize) -> Result<&'a [u8]> {
-        let bytes = self.data.get(..n).ok_or_else(|| error("truncated neural model"))?;
-        self.data = &self.data[n..];
-        Ok(bytes)
+use super::{Activation, FeatureLayout, FeedforwardDependencyModel, NeuralWeights, Vocabulary};
+use crate::{Error, LabelEncoding, Result, Transition, error};
+use turbo_analysis::ModelRef;
+
+const MAGIC: &[u8] = b"TURBO-DEPPARSE-FF-V1\n";
+
+impl FeedforwardDependencyModel {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        Self::from_bytes(&std::fs::read(path).map_err(error)?)
     }
-    pub fn int(&mut self) -> Result<usize> {
-        let n = i32::from_be_bytes(self.take(4)?.try_into().unwrap());
-        usize::try_from(n).map_err(|_| error("negative wire count"))
+
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
+        let bytes = self.to_bytes()?;
+        std::fs::write(path, bytes).map_err(error)
     }
-    pub fn string(&mut self) -> Result<String> {
-        if self.utf8 {
-            let n = self.int()?;
-            if n > 10_000_000 {
-                return Err(error("model string exceeds UTF-8 limit"));
-            }
-            return std::str::from_utf8(self.take(n)?).map(str::to_owned).map_err(error);
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        self.check()?;
+        let mut out = Vec::from(MAGIC);
+        out.push(match self.layout {
+            FeatureLayout::OpenNlp14 => 0,
+            FeatureLayout::ChenManning18 => 1,
+        });
+        out.push(match self.activation {
+            Activation::Cube => 0,
+            Activation::Relu => 1,
+        });
+        out.push(match self.label_encoding {
+            LabelEncoding::Plain => 0,
+            LabelEncoding::EscapedV1 => 1,
+        });
+        write_len(&mut out, self.default_beam_size)?;
+        write_vocab_map(&mut out, &self.vocabulary.words)?;
+        write_vocab_map(&mut out, &self.vocabulary.pos)?;
+        write_vocab_map(&mut out, &self.vocabulary.labels)?;
+        write_len(&mut out, self.transitions.len())?;
+        for t in &self.transitions {
+            write_str(&mut out, &t.encode())?;
         }
-        let n = u16::from_be_bytes(self.take(2)?.try_into().unwrap()) as usize;
-        JavaString::from_modified_utf8(self.take(n)?)
-            .and_then(|s| s.to_str().map(|s| s.into_owned()))
-            .ok_or_else(|| error("invalid Unicode model string"))
-    }
-    pub fn end(self) -> Result<()> {
-        if self.data.is_empty() { Ok(()) } else { Err(error("trailing neural model data")) }
-    }
-    fn vector(&mut self, expected: usize) -> Result<Vec<f32>> {
-        if self.int()? != expected {
-            return Err(error("wire vector dimension mismatch"));
-        }
-        self.floats(expected)
-    }
-    fn matrix(&mut self, rows: usize, cols: usize) -> Result<Vec<f32>> {
-        if self.int()? != rows || self.int()? != cols {
-            return Err(error("wire matrix dimension mismatch"));
-        }
-        self.floats(rows.checked_mul(cols).ok_or_else(|| error("matrix size overflow"))?)
-    }
-    fn floats(&mut self, n: usize) -> Result<Vec<f32>> {
-        self.values = self.values.checked_add(n).ok_or_else(|| error("model size overflow"))?;
-        if self.values > 100_000_000 {
-            return Err(error("neural allocation limit"));
-        }
-        // Check available bytes before allocating for an untrusted count.
-        let bytes = self.take(n.checked_mul(4).ok_or_else(|| error("float byte size overflow"))?)?;
-        let mut out = Vec::with_capacity(n);
-        for b in bytes.as_chunks::<4>().0 {
-            let v = f32::from_be_bytes(*b);
-            if !v.is_finite() {
-                return Err(error("non-finite wire parameter"));
-            }
-            out.push(v);
-        }
+        let w = &self.weights;
+        write_len(&mut out, w.embedding_size)?;
+        write_f32s(&mut out, &w.embeddings)?;
+        write_f32s(&mut out, &w.hidden_bias)?;
+        write_f32s(&mut out, &w.hidden_weights)?;
+        write_f32s(&mut out, &w.output_weights)?;
+        write_f32s(&mut out, &w.output_bias)?;
         Ok(out)
     }
-    pub fn vocabulary(&mut self) -> Result<Vocabulary> {
-        let mut total = 0usize;
-        let mut map = || -> Result<BTreeMap<String, usize>> {
-            let n = self.int()?;
-            total = total.checked_add(n).ok_or_else(|| error("vocabulary count overflow"))?;
-            if total > 2_000_000 || n > self.data.len() / 6 {
-                return Err(error("invalid vocabulary count"));
-            }
-            let mut out = BTreeMap::new();
-            for _ in 0..n {
-                if out.insert(self.string()?, self.int()?).is_some() {
-                    return Err(error("duplicate vocabulary symbol"));
-                }
-            }
-            Ok(out)
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let mut r = Reader::new(bytes);
+        r.expect(MAGIC)?;
+        let layout = match r.u8()? {
+            0 => FeatureLayout::OpenNlp14,
+            1 => FeatureLayout::ChenManning18,
+            other => return Err(Error(format!("unknown feedforward layout tag {other}"))),
         };
-        let v = Vocabulary { words: map()?, pos: map()?, labels: map()? };
-        v.check()?;
-        Ok(v)
+        let activation = match r.u8()? {
+            0 => Activation::Cube,
+            1 => Activation::Relu,
+            other => return Err(Error(format!("unknown feedforward activation tag {other}"))),
+        };
+        let label_encoding = match r.u8()? {
+            0 => LabelEncoding::Plain,
+            1 => LabelEncoding::EscapedV1,
+            other => return Err(Error(format!("unknown feedforward label encoding tag {other}"))),
+        };
+        let default_beam_size = r.len()?;
+        if default_beam_size == 0 {
+            return Err(error("default beam size must be positive"));
+        }
+        let words = r.vocab_map()?;
+        let pos = r.vocab_map()?;
+        let labels = r.vocab_map()?;
+        let vocabulary = Vocabulary { words, pos, labels };
+        let n_transitions = r.len()?;
+        if n_transitions > r.bytes.len() / 4 {
+            return Err(error("transition count exceeds remaining bytes"));
+        }
+        let mut transitions = Vec::with_capacity(n_transitions);
+        for _ in 0..n_transitions {
+            transitions.push(Transition::decode(r.str()?)?);
+        }
+        let embedding_size = r.len()?;
+        let embeddings = r.f32s()?;
+        let hidden_bias = r.f32s()?;
+        let hidden_weights = r.f32s()?;
+        let output_weights = r.f32s()?;
+        let output_bias = r.f32s()?;
+        r.finish()?;
+        let weights =
+            NeuralWeights { embedding_size, embeddings, hidden_bias, hidden_weights, output_weights, output_bias };
+        let mut model = Self::new(vocabulary, transitions, layout, activation, weights)?;
+        model.default_beam_size = default_beam_size;
+        model.label_encoding = label_encoding;
+        Ok(model)
     }
-    pub fn transitions(&mut self) -> Result<Vec<Transition>> {
-        let n = self.int()?;
-        if n == 0 || n > 100_000 || n > self.data.len() / 2 {
-            return Err(error("invalid transition count"));
-        }
-        (0..n).map(|_| Transition::decode(&self.string()?)).collect()
-    }
-    pub fn weights(&mut self, v: usize, o: usize, layout: FeatureLayout) -> Result<NeuralWeights> {
-        let e = self.int()?;
-        if e == 0 || e > 4096 {
-            return Err(error("invalid embedding size"));
-        }
-        let embeddings = self.matrix(v, e)?;
-        let h = self.int()?;
-        let input = layout.feature_count() * e;
-        if h == 0 || h > 65536 || self.int()? != input {
-            return Err(error("invalid hidden dimensions"));
-        }
-        let hidden_weights = self.floats(h.checked_mul(input).ok_or_else(|| error("hidden size overflow"))?)?;
-        let hidden_bias = self.vector(h)?;
-        let output_weights = self.matrix(o, h)?;
-        let output_bias = self.vector(o)?;
-        Ok(NeuralWeights { embedding_size: e, embeddings, hidden_weights, hidden_bias, output_weights, output_bias })
+
+    pub fn identity(&self) -> Result<ModelRef> {
+        let bytes = self.to_bytes()?;
+        Ok(ModelRef {
+            id: "turbo:depparse-feedforward".into(),
+            revision: "1".into(),
+            sha256: turbo_sha256::sha256(&bytes).to_hex(),
+        })
     }
 }
-pub(super) fn int(out: &mut Vec<u8>, n: usize) -> Result<()> {
-    out.extend_from_slice(&i32::try_from(n).map_err(|_| error("wire integer overflow"))?.to_be_bytes());
+
+fn write_len(out: &mut Vec<u8>, n: usize) -> Result<()> {
+    let n = u32::try_from(n).map_err(|_| error("count exceeds u32"))?;
+    out.extend_from_slice(&n.to_le_bytes());
     Ok(())
 }
-pub(super) fn string(out: &mut Vec<u8>, s: &str) -> Result<()> {
-    let s = JavaString::new(s);
-    out.extend_from_slice(
-        &u16::try_from(s.len()).map_err(|_| error("wire string exceeds writeUTF limit"))?.to_be_bytes(),
-    );
+
+fn write_str(out: &mut Vec<u8>, s: &str) -> Result<()> {
+    write_len(out, s.len())?;
     out.extend_from_slice(s.as_bytes());
     Ok(())
 }
-pub(super) fn vocabulary(out: &mut Vec<u8>, v: &Vocabulary, transitions: &[Transition]) -> Result<()> {
-    vocabulary_with(out, v, transitions, string)
-}
-pub(super) fn vocabulary_utf8(out: &mut Vec<u8>, v: &Vocabulary, transitions: &[Transition]) -> Result<()> {
-    vocabulary_with(out, v, transitions, |out, s| {
-        if s.len() > 10_000_000 {
-            return Err(error("model string exceeds UTF-8 limit"));
-        }
-        int(out, s.len())?;
-        out.extend_from_slice(s.as_bytes());
-        Ok(())
-    })
-}
-fn vocabulary_with(
-    out: &mut Vec<u8>,
-    v: &Vocabulary,
-    transitions: &[Transition],
-    write_string: impl Fn(&mut Vec<u8>, &str) -> Result<()>,
-) -> Result<()> {
-    for map in [&v.words, &v.pos, &v.labels] {
-        int(out, map.len())?;
-        let mut entries: Vec<_> = map.iter().collect();
-        entries.sort_by_key(|(_, id)| **id);
-        for (s, &id) in entries {
-            write_string(out, s)?;
-            int(out, id)?;
-        }
-    }
-    int(out, transitions.len())?;
-    for t in transitions {
-        write_string(out, &t.encode())?;
+
+fn write_vocab_map(out: &mut Vec<u8>, map: &BTreeMap<String, usize>) -> Result<()> {
+    write_len(out, map.len())?;
+    for (k, &v) in map {
+        write_str(out, k)?;
+        write_len(out, v)?;
     }
     Ok(())
 }
-pub(super) fn weights(out: &mut Vec<u8>, w: &NeuralWeights) -> Result<()> {
-    fn vector(out: &mut Vec<u8>, v: &[f32], cols: Option<usize>) -> Result<()> {
-        int(out, v.len() / cols.unwrap_or(1))?;
-        if let Some(cols) = cols {
-            int(out, cols)?;
+
+fn write_f32s(out: &mut Vec<u8>, values: &[f32]) -> Result<()> {
+    write_len(out, values.len())?;
+    for &v in values {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    Ok(())
+}
+
+struct Reader<'a> {
+    bytes: &'a [u8],
+}
+
+impl<'a> Reader<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes }
+    }
+    fn expect(&mut self, prefix: &[u8]) -> Result<()> {
+        if !self.bytes.starts_with(prefix) {
+            return Err(error("invalid feedforward dependency model header"));
         }
-        for f in v {
-            out.extend_from_slice(&f.to_be_bytes());
-        }
+        self.bytes = &self.bytes[prefix.len()..];
         Ok(())
     }
-    let h = w.hidden_bias.len();
-    int(out, w.embedding_size)?;
-    vector(out, &w.embeddings, Some(w.embedding_size))?;
-    vector(out, &w.hidden_weights, Some(w.hidden_weights.len() / h))?;
-    vector(out, &w.hidden_bias, None)?;
-    vector(out, &w.output_weights, Some(h))?;
-    vector(out, &w.output_bias, None)
-}
-impl FeedforwardDependencyModel {
-    pub fn from_java_bytes(bytes: &[u8]) -> Result<Self> {
-        let mut r = Reader { data: bytes, values: 0, utf8: false };
-        if r.string()? != MAGIC {
-            return Err(error("unknown Java neural format"));
+    fn take(&mut self, n: usize) -> Result<&'a [u8]> {
+        if self.bytes.len() < n {
+            return Err(error("truncated feedforward dependency model"));
         }
-        let vocabulary = r.vocabulary()?;
-        let transitions = r.transitions()?;
-        let weights = r.weights(vocabulary.len(), transitions.len(), FeatureLayout::OpenNlp14)?;
-        r.end()?;
-        Self::new(vocabulary, transitions, FeatureLayout::OpenNlp14, Activation::Cube, weights)
+        let (head, tail) = self.bytes.split_at(n);
+        self.bytes = tail;
+        Ok(head)
     }
-    pub fn to_java_bytes(&self) -> Result<Vec<u8>> {
-        if self.transitions.contains(&Transition::Swap) {
-            return Err(error("SWAP models have no supported legacy Java export; use the native format"));
+    fn u8(&mut self) -> Result<u8> {
+        Ok(self.take(1)?[0])
+    }
+    fn u32(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+    fn len(&mut self) -> Result<usize> {
+        Ok(self.u32()? as usize)
+    }
+    fn str(&mut self) -> Result<&'a str> {
+        let n = self.len()?;
+        std::str::from_utf8(self.take(n)?).map_err(error)
+    }
+    fn vocab_map(&mut self) -> Result<BTreeMap<String, usize>> {
+        let n = self.len()?;
+        if n > 2_000_000 {
+            return Err(error("vocabulary limit exceeded"));
         }
-        if self.label_encoding != crate::LabelEncoding::Plain
-            || self.layout != FeatureLayout::OpenNlp14
-            || self.activation != Activation::Cube
-            || self.default_beam_size != 1
-        {
-            return Err(error("legacy Java raw format requires plain labels, OpenNlp14 cube model and default beam 1"));
+        let mut map = BTreeMap::new();
+        for _ in 0..n {
+            let k = self.str()?.to_owned();
+            let v = self.len()?;
+            if map.insert(k, v).is_some() {
+                return Err(error("duplicate vocabulary key"));
+            }
         }
-        let mut out = Vec::new();
-        string(&mut out, MAGIC)?;
-        vocabulary(&mut out, &self.vocabulary, &self.transitions)?;
-        weights(&mut out, &self.weights)?;
-        Ok(out)
+        Ok(map)
+    }
+    fn f32s(&mut self) -> Result<Vec<f32>> {
+        let n = self.len()?;
+        if n > 100_000_000 {
+            return Err(error("neural parameter count exceeds limit"));
+        }
+        let raw = self.take(n.checked_mul(4).ok_or_else(|| error("parameter byte length overflow"))?)?;
+        Ok(raw.as_chunks::<4>().0.iter().map(|&c| f32::from_le_bytes(c)).collect())
+    }
+    fn finish(self) -> Result<()> {
+        if !self.bytes.is_empty() {
+            return Err(error("trailing bytes in feedforward dependency model"));
+        }
+        Ok(())
     }
 }

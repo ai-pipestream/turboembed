@@ -3,8 +3,9 @@
 
 use super::*;
 use crate::proto::result::{
-    ChunkTableHeaderAnnotation, DocumentEntityAnnotation, EntitySalienceAnnotation, EventAnnotation,
-    KeyValuePairAnnotation, NBestAnnotation, SparseTermsAnnotation,
+    ChunkCitationAnnotation, ChunkTableHeaderAnnotation, DocumentEntityAnnotation, EntitySalienceAnnotation,
+    EventAnnotation, KeyValuePairAnnotation, LayoutBoxAnnotation, NBestAnnotation, PageBoundingBoxProto,
+    SparseTermsAnnotation,
 };
 
 pub(super) fn bound(ctx: &LayerCtx<'_>, layer: &str) -> Result<usize, Failure> {
@@ -97,6 +98,57 @@ pub(super) fn table_header(ctx: &LayerCtx<'_>, i: usize, header: &ChunkTableHead
         ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
     }
     Ok(())
+}
+
+pub(super) fn layout_box(ctx: &LayerCtx<'_>, i: usize, b: &LayoutBoxAnnotation) -> Result<(), Failure> {
+    if b.page == 0 {
+        return Err(bad(format!("{}[{i}] layout_box page must be >= 1", ctx.lid)));
+    }
+    if ![b.x0, b.y0, b.x1, b.y1].into_iter().all(f32::is_finite) || b.x0 > b.x1 || b.y0 > b.y1 {
+        return Err(bad(format!("{}[{i}] layout_box has non-finite or inverted bounds", ctx.lid)));
+    }
+    Ok(())
+}
+
+pub(super) fn citation_fields(
+    ctx: &LayerCtx<'_>,
+    i: usize,
+    page_start: Option<u32>,
+    page_end: Option<u32>,
+    boxes: &[PageBoundingBoxProto],
+) -> Result<(), Failure> {
+    for b in boxes {
+        if b.page == 0 || ![b.x0, b.y0, b.x1, b.y1].into_iter().all(f32::is_finite) || b.x0 > b.x1 || b.y0 > b.y1 {
+            return Err(bad(format!("{}[{i}] citation page_box has invalid page or bounds", ctx.lid)));
+        }
+    }
+    if !boxes.windows(2).all(|w| w[0].page < w[1].page) {
+        return Err(bad(format!("{}[{i}] citation page_boxes are not in strictly ascending page order", ctx.lid)));
+    }
+    match (page_start, page_end) {
+        (Some(start), Some(end)) => {
+            if start == 0 || start > end {
+                return Err(bad(format!("{}[{i}] citation page_span {start}..={end} is invalid", ctx.lid)));
+            }
+            if let (Some(first), Some(last)) = (boxes.first(), boxes.last())
+                && (first.page != start || last.page != end)
+            {
+                return Err(bad(format!("{}[{i}] citation page_span does not match page_boxes", ctx.lid)));
+            }
+        }
+        (None, None) => {
+            if !boxes.is_empty() {
+                return Err(bad(format!("{}[{i}] citation has page_boxes without page_span", ctx.lid)));
+            }
+        }
+        _ => return Err(bad(format!("{}[{i}] citation must set both page_start and page_end or neither", ctx.lid))),
+    }
+    Ok(())
+}
+
+pub(super) fn chunk_citation(ctx: &LayerCtx<'_>, i: usize, c: &ChunkCitationAnnotation) -> Result<(), Failure> {
+    check_aligned_index("chunk_index", ctx.lid, i, c.chunk_index, ctx.layer_len)?;
+    citation_fields(ctx, i, c.page_start, c.page_end, &c.page_boxes)
 }
 
 pub(super) fn nbest(ctx: &LayerCtx<'_>, i: usize, nbest: &NBestAnnotation) -> Result<(), Failure> {

@@ -1,0 +1,14 @@
+# MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National
+# Corpus: the release archive of github.com/nancyide/anc-website at tag
+# datasets-2026-09-25, the archive analysis/train-recipes/src/masc.rs
+# records as RELEASE. Its size and SHA-256 were re-verified from a
+# download on 2026-10-28 (36,358,521 bytes).
+name: masc-3.0.0
+tier: default
+url: https://github.com/nancyide/anc-website/releases/download/datasets-2026-09-25/MASC-3.0.0.zip
+sha256: 0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493
+license-url: https://web.archive.org/web/20261013191918/https://anc.org/data/masc/
+license: CC BY 3.0 US
+note: The licence statement was read at the pinned archive snapshot on 2026-10-28 (page SHA-256 13b6a192c2e3f7d8636170adf4c75bc623537e79ea5524f7b27acaa22c9318a7); the publisher's MASC page states the corpus is under a Creative Commons Attribution 3.0 United States license. The publisher's own page could not be reached from here, so the snapshot is the pinned location.
+note: The 3.0.0 release's README has no licence text of its own; the archive's Twitter genre (two documents, 24,180 words) has no terms of its own and the recipes leave it out of training and of the held-out set, as docs/licences.md records.
+note: That the publisher's MASC download page links this archive was reported but not checked; attribution is the American National Corpus project, https://anc.org/.
