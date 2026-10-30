@@ -162,3 +162,18 @@ fn an_adapter_gradient_past_f32_is_refused_and_leaves_gradients_alone() {
     assert!(model.loss(&[1e25, 1e25], &mentions, &chains, &mut full, &mut w).is_err());
     assert_eq!(full, before);
 }
+
+#[test]
+fn an_encoder_too_wide_for_the_mention_shape_is_refused_not_a_panic() {
+    let s = spec(0, 1);
+    for hidden in [usize::MAX / 2 + 1, usize::MAX] {
+        let err = Ranker::<f32>::new(&s, hidden, &mut Rng::new(1)).unwrap_err();
+        assert!(err.to_string().contains("too wide"), "{hidden}: {err}");
+        let err = Ranker::<f32>::with_params(&s, hidden, Vec::new()).unwrap_err();
+        assert!(err.to_string().contains("too wide"), "{hidden}: {err}");
+    }
+    // Too large to allocate, but refused by the size check, not a panic.
+    let err = Ranker::<f32>::new(&s, usize::MAX / 4, &mut Rng::new(1)).unwrap_err();
+    assert!(!err.to_string().contains("too wide"), "{err}");
+    assert!(Ranker::<f32>::new(&s, HIDDEN, &mut Rng::new(1)).is_ok());
+}

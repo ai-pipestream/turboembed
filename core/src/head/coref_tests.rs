@@ -138,3 +138,18 @@ fn a_ranker_needs_its_span_its_coref_shape_and_its_one_label() {
     tagger.coref = Some(CorefShape { dim: 2, antecedents: 2 });
     assert!(tagger.validate("h").is_err());
 }
+
+#[test]
+fn an_encoder_too_wide_for_the_mention_shape_is_refused_not_a_panic() {
+    let s = coref_spec(1);
+    // No tensor is ever handed over, so nothing large is allocated.
+    for hidden in [usize::MAX / 2 + 1, usize::MAX] {
+        let err = CorefRanker::from_tensors(&s, hidden, &|_| None).unwrap_err();
+        assert!(err.to_string().contains("too wide"), "{hidden}: {err}");
+    }
+    // A width whose shape fits still gets as far as the tensor check.
+    let err = CorefRanker::from_tensors(&s, usize::MAX / 4, &|_| None).unwrap_err();
+    assert!(!err.to_string().contains("too wide"), "{err}");
+    let w = weights(&s, 3);
+    head(&s, 3, &w);
+}

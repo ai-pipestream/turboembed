@@ -10,7 +10,7 @@
 //! core's (`turbo::head::coref`).
 
 use turbo::head::CorefRanker;
-use turbo::head::coref::{bucket, check_mentions, tensors};
+use turbo::head::coref::{bucket, check_mentions, check_width, tensors};
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo::status::{Result, invalid};
 
@@ -52,6 +52,7 @@ impl<R: Real> Ranker<R> {
     /// width embeddings, zero biases and distance scores but for each LSTM
     /// forget gate's (1).
     pub fn new(spec: &HeadSpec, hidden: usize, rng: &mut Rng) -> Result<Self> {
+        check_width(spec, hidden)?;
         let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
         let mut params = Vec::with_capacity(shapes.len());
         for ((suffix, shape), n) in &shapes {
@@ -75,6 +76,7 @@ impl<R: Real> Ranker<R> {
         if spec.kind != HeadKind::CorefRanker {
             return Err(invalid(format!("trainer: head {:?} is not a coreference ranker", spec.name)));
         }
+        check_width(spec, hidden)?;
         let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
         fits(spec, &shapes, &params)?;
         let names = shapes.into_iter().map(|((s, _), _)| s).collect();

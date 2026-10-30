@@ -39,11 +39,25 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
     let (max, e) = spec.span.map_or((0, 0), |s| (s.max_words as u64, s.width_dim as u64));
     let d = spec.coref.map_or(0, |c| c.dim as u64);
     out.push(("span.width".into(), vec![max, e]));
-    out.push(("mention.weight".into(), vec![d, 2 * width + e]));
+    // Saturates where `check_width` refuses, so the size check after it
+    // refuses the shape too.
+    out.push(("mention.weight".into(), vec![d, width.saturating_mul(2).saturating_add(e)]));
     out.push(("mention.bias".into(), vec![d]));
     out.push(("pair.weight".into(), vec![d, d]));
     out.push(("distance".into(), vec![BUCKETS.len() as u64]));
     out
+}
+
+/// Refuses an encoder `hidden` wide whose mention input, `2 * width +
+/// width_dim`, does not fit in a `u64`, before any shape is computed.
+pub fn check_width(spec: &HeadSpec, hidden: usize) -> Result<()> {
+    let hashed = spec.hash_embed.map_or(0, |h| 4 * h.dim as u64);
+    let e = spec.span.map_or(0, |s| s.width_dim as u64);
+    let fits = (hidden as u64).checked_add(hashed).is_some_and(|_| {
+        let (_, width) = words::tensors(spec, hidden);
+        width.checked_mul(2).and_then(|w| w.checked_add(e)).is_some()
+    });
+    if fits { Ok(()) } else { Err(invalid(format!("head {:?}: an encoder {hidden} wide is too wide", spec.name))) }
 }
 
 /// A loaded coreference ranker. Read-only after loading, so one head
@@ -84,6 +98,7 @@ impl CorefRanker {
         if hidden == 0 {
             return Err(invalid(format!("head {:?}: hidden 0", spec.name)));
         }
+        check_width(spec, hidden)?;
         let t = Take { name: &spec.name, sizes: words::sizes(spec, &tensors(spec, hidden))?, get };
         let reader = WordReader::new(spec, hidden, &t)?;
         let head = CorefRanker {
