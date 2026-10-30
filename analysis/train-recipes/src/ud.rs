@@ -368,7 +368,7 @@ mod tests {
                 assert_eq!(r.tagger().unwrap().reference, None, "{}", r.model_id);
             }
             if r.component == Component::Tokens {
-                assert_eq!(r.segmentation().unwrap().reference_id, None, "{}", r.model_id);
+                assert_eq!(r.segmentation().unwrap().reference, None, "{}", r.model_id);
             }
         }
     }
