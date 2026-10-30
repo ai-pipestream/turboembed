@@ -1,10 +1,8 @@
 //! Declarative POS-tag and token-literal pattern parser.
 
-use turbo_jvm::TagPattern;
-
 use super::{
-    MAX_AUTOMATON_STATES, MAX_NESTING_DEPTH, MAX_QUANTIFIER_BOUND, PatternError, TagCond, TokenMatcher, WordCond,
-    folded,
+    MAX_AUTOMATON_STATES, MAX_NESTING_DEPTH, MAX_QUANTIFIER_BOUND, PatternError, TagCond, TagPattern, TokenMatcher,
+    WordCond, folded,
 };
 
 #[derive(Clone, Debug)]

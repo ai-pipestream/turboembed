@@ -2103,7 +2103,6 @@ dependencies = [
  "turbo-calibration",
  "turbo-formats",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-normalize-layers",
@@ -2212,7 +2211,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-stopword-layers",
@@ -2492,7 +2490,6 @@ name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [
  "turbo-goldens",
- "turbo-jvm",
  "turbo-sha256",
  "turbo-unicode",
 ]
@@ -2587,7 +2584,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
@@ -2620,7 +2616,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
