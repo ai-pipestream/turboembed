@@ -10,9 +10,14 @@
 
 use std::cmp::Ordering;
 
-use turbo_jvm::chars::Utf16Units;
 use turbo_unicode::java::code_point::to_lower_case;
 use turbo_unicode::modified_utf8::push_modified_utf8;
+
+/// Returns the length of `s` in UTF-16 code units.
+#[inline]
+pub(crate) fn utf16_len(s: &str) -> usize {
+    if s.is_ascii() { s.len() } else { s.encode_utf16().count() }
+}
 
 /// Appends `s.substring(start, end)`, with `start` and `end` counted in
 /// UTF-16 code units, as modified UTF-8.
@@ -35,8 +40,8 @@ pub(crate) fn push_units(out: &mut Vec<u8>, s: &str, start: usize, end: usize) {
         }
     }
     let mut n = 0;
-    for unit in Utf16Units::new(s).skip(start).take(end - start) {
-        push_modified_utf8(out, u32::from(unit.unit));
+    for unit in s.encode_utf16().skip(start).take(end - start) {
+        push_modified_utf8(out, u32::from(unit));
         n += 1;
     }
     assert_eq!(n, end - start, "substring({start}, {end}) of a string of fewer units");

@@ -9,12 +9,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use turbo_jvm::chars::utf16_len;
-
 use super::FeatureGenerator;
 use crate::error::{Error, Result};
 use crate::features::Features;
-use crate::java::{lines, lowercase_into, parse_int, split_trimmed};
+use crate::java::{lines, lowercase_into, parse_int, split_trimmed, utf16_len};
 use crate::pattern::{PatternMode, token_feature};
 
 /// `BrownCluster`: each token's Brown cluster, a bit string naming its
