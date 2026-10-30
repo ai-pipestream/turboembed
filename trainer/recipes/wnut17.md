@@ -67,7 +67,7 @@ group without a separately documented evaluation protocol. A receipt
 records the prediction-file digest, peer name and mapping. Authored
 test predictions are protocol tests, never peer performance evidence.
 
-Full accelerator runs are booked with krick-1 in issue #1524, with the
+Full accelerator runs are booked in issue #1524, with the
 exact commit, encoder digest and command, before starting. The
 CPU fixture tests exercise fitting, export/reload agreement and test-set
 isolation; they do not establish corpus accuracy. MASC's cross-sentence

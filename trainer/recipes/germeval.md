@@ -24,9 +24,9 @@ The older Hamburg zip has different bytes and is refused by these pins.
 
 | File | Bytes | SHA-256 |
 |---|---:|---|
-| `NER-de-train.tsv` | 7882321 | `98682c21700e5bd7959ac361150679929e4af5d91e4dd7c379cc89133a810994` |
-| `NER-de-dev.tsv` | 723854 | `2ffe8405acc6bb6111b62a88623aa1e1f2e6db16b77fc005c54163541807aa05` |
-| `NER-de-test.tsv` | 1682725 | `ec6e6adce5ed71cee119ae758e569ea4be54c6be5319b3b49dfcdcb05e51301b` |
+| [`NER-de-train.tsv`](https://drive.google.com/file/d/1Jjhbal535VVz2ap4v4r_rN1UEHTdLK5P/view) | 7882321 | `98682c21700e5bd7959ac361150679929e4af5d91e4dd7c379cc89133a810994` |
+| [`NER-de-dev.tsv`](https://drive.google.com/file/d/1ZfRcQThdtAR5PPRjIDtrVP7BtXSCUBbm/view) | 723854 | `2ffe8405acc6bb6111b62a88623aa1e1f2e6db16b77fc005c54163541807aa05` |
+| [`NER-de-test.tsv`](https://drive.google.com/file/d/1u9mb7kNJHWQCWyweMDRMuTFoOHOfeBTH/view) | 1682725 | `ec6e6adce5ed71cee119ae758e569ea4be54c6be5319b3b49dfcdcb05e51301b` |
 
 The native reader accepts the documented token ID, token, outer BIO,
 inner BIO columns, checking both label columns even when training only
@@ -69,7 +69,7 @@ invent inner predictions or treat an unsupported subtype as O to make
 scores comparable. A coarse or combined official-task metric would need
 its own explicit scoring protocol and tests; it is not reported here.
 
-Book full accelerator training with krick-1 in #1524 using the exact
+Book full accelerator training in #1524 using the exact
 commit, encoder digest and command. CPU tests use authored fixtures and
 tiny BERT to prove real fitting, complete dev inclusion and saved-head
 inference agreement. They do not establish German accuracy. Full
