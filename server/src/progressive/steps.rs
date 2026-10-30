@@ -360,7 +360,7 @@ pub(crate) fn compile_analyzer_with_state(
             continue;
         }
 
-        let (next_builder, handled) = block5::add_step(builder, name, embed_cx.as_ref())?;
+        let (next_builder, handled) = block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names)?;
         builder = next_builder;
         if handled {
             continue;

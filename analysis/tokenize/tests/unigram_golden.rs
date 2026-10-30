@@ -8,7 +8,6 @@ mod common;
 
 use common::{Case, compare_layers, fixtures_dir, run};
 use turbo_analysis::{Annotator, Document, View};
-use turbo_jvm::{math, strict_math};
 use turbo_tokenize::{UnigramLexicon, UnigramSegmenter};
 use turbo_unicode::utf16::byte_to_utf16;
 
@@ -118,11 +117,7 @@ fn near_ties_follow_the_rounding_of_the_logarithm() {
     assert_eq!(words("研究生物"), ["研究生", "物"]);
     assert_eq!(words("人民大会"), ["人民大", "会"]);
 
-    // The last comparison with the scores computed by each logarithm.
-    let later_wins = |log: fn(f64) -> f64| {
-        let score = |c: f64| log(c) - log(total);
-        (score(2.0) + score(74.0)) > (score(1.0) + score(148.0))
-    };
-    assert!(later_wins(math::log));
-    assert!(!later_wins(strict_math::log));
+    // The last comparison with the scores computed by `f64::ln`.
+    let score = |c: f64| c.ln() - total.ln();
+    assert!((score(2.0) + score(74.0)) > (score(1.0) + score(148.0)));
 }

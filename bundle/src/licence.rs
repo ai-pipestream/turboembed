@@ -2,10 +2,16 @@
 //! rules (analysis/zoo/src/licence): the tool refuses a licence the zoo
 //! refuses, fetches a class that needs acceptance only once the caller
 //! accepts the licence, and records the class in `model.license_class`.
+//! The acceptance is the zoo's own: the `acceptances.json` the `turbo-zoo`
+//! command and the server's catalog keep (docs/zoo.md), so a licence
+//! accepted with any of them counts for the others.
+
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 use turbo::manifest::LicenseClass;
-use turbo_zoo::{Licence, LicenceClass, Policy, Requirement};
+use turbo_zoo::{Acceptances, Home, Licence, LicenceClass, Policy, Requirement, UserId};
 
 use crate::Result;
 
@@ -49,20 +55,81 @@ fn to_manifest(licence: Licence, class: LicenceClass) -> Result<LicenseClass> {
     })
 }
 
+/// How the caller accepts a licence: `--accept-terms` on this run, and
+/// the zoo's acceptance file for a user, which holds what was accepted
+/// before, with this tool, `turbo-zoo accept` or the demo's page.
+#[derive(Debug, Clone, Default)]
+pub struct Consent {
+    /// `--accept-terms`: the caller read the terms and accepts them now.
+    pub flag: bool,
+    /// The acceptance file and its user, when the environment names both.
+    pub store: Option<(PathBuf, UserId)>,
+}
+
+impl Consent {
+    /// The flag alone, with no acceptance file.
+    pub fn flag(flag: bool) -> Consent {
+        Consent { flag, store: None }
+    }
+
+    /// The flag and, as the `turbo-zoo` command finds them, the zoo's
+    /// acceptance file (`$TURBO_ZOO_HOME`, docs/zoo.md) and the user
+    /// (`$USER`). Without a home or a user name there is no file.
+    pub fn from_env(flag: bool) -> Consent {
+        let store = Home::from_env().zip(UserId::from_env().ok()).map(|(h, u)| (h.acceptances(), u));
+        Consent { flag, store }
+    }
+}
+
+fn store_error(path: &Path, e: impl std::fmt::Display) -> String {
+    format!("{}: {e}", path.display())
+}
+
 /// Whether the model may be fetched: never under a refused licence, and
 /// under a class that needs acceptance (CC BY-NC, CC BY-SA, LGPL, GPL)
 /// only when `accept_terms` says the caller accepted the licence.
 pub fn check_fetch(manifest: &Value, accept_terms: bool) -> Result<LicenseClass> {
+    check_fetch_with(manifest, &Consent::flag(accept_terms))
+}
+
+/// [`check_fetch`] with the zoo's acceptance file: a licence the user
+/// accepted before passes without the flag, and the flag records the
+/// acceptance there, as `turbo-zoo accept --yes` does, so the server and
+/// the zoo see it too. A licence without one text of its own
+/// (`LicenseRef-RestrictedPublic`) has no single record; only the flag
+/// passes it, and nothing is recorded.
+pub fn check_fetch_with(manifest: &Value, consent: &Consent) -> Result<LicenseClass> {
     let class = manifest_class(manifest)?;
     let (licence, zoo_class) = of(manifest)?;
-    if zoo_class.needs_acceptance(Policy::default()) && !accept_terms {
-        let text = Requirement::of(licence).map_or_else(|| "its terms".to_owned(), |r| r.text);
-        return Err(format!(
-            "manifest.model.license: {licence} is {zoo_class}, which must be accepted before a fetch: \
-             read {text}, then fetch with --accept-terms"
-        ));
+    if !zoo_class.needs_acceptance(Policy::default()) {
+        return Ok(class);
     }
-    Ok(class)
+    let requirement = Requirement::of(licence);
+    if let (Some(r), Some((path, user))) = (&requirement, &consent.store) {
+        let mut acceptances = Acceptances::load(path).map_err(|e| e.to_string())?;
+        if acceptances.has(user, r) {
+            println!("{user} accepted {licence} ({}) before", path.display());
+            return Ok(class);
+        }
+        if consent.flag {
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+            acceptances.accept_terms(user, r, now).map_err(|e| e.to_string())?;
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| store_error(dir, e))?;
+            }
+            acceptances.save(path).map_err(|e| e.to_string())?;
+            println!("{user} accepts {licence}, recorded in {}", path.display());
+            return Ok(class);
+        }
+    }
+    if consent.flag {
+        return Ok(class);
+    }
+    let text = requirement.map_or_else(|| "its terms".to_owned(), |r| r.text);
+    Err(format!(
+        "manifest.model.license: {licence} is {zoo_class}, which must be accepted before a fetch: \
+         read {text}, then fetch with --accept-terms (or accept it once with turbo-zoo accept)"
+    ))
 }
 
 #[cfg(test)]
@@ -95,5 +162,53 @@ mod tests {
         assert_eq!(check_fetch(&m, true).unwrap(), LicenseClass::LocalOnly);
         assert_eq!(check_fetch(&with("Apache-2.0"), false).unwrap(), LicenseClass::Permissive);
         assert!(check_fetch(&with("LicenseRef-Proprietary"), true).is_err());
+    }
+
+    fn store(name: &str) -> (PathBuf, UserId) {
+        let dir = std::env::temp_dir().join(format!("turbo-bundle-consent-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        (dir.join("home").join("acceptances.json"), "alice".parse().unwrap())
+    }
+
+    /// The flag records the acceptance in the zoo's file; a later fetch
+    /// passes without it, and another user's acceptance does not count.
+    #[test]
+    fn the_flag_records_in_the_zoo_file_and_a_later_fetch_needs_none() {
+        let (path, alice) = store("record");
+        let m = with("CC-BY-SA-4.0");
+        let alone = Consent { flag: false, store: Some((path.clone(), alice.clone())) };
+        assert!(check_fetch_with(&m, &alone).unwrap_err().contains("turbo-zoo accept"));
+        assert!(!path.exists());
+        let flagged = Consent { flag: true, ..alone.clone() };
+        assert_eq!(check_fetch_with(&m, &flagged).unwrap(), LicenseClass::ShareAlike);
+        let file = Acceptances::load(&path).unwrap();
+        assert!(file.has(&alice, &Requirement::of(Licence::CcBySa40).unwrap()));
+        assert_eq!(check_fetch_with(&m, &alone).unwrap(), LicenseClass::ShareAlike);
+        let bob = Consent { flag: false, store: Some((path.clone(), "bob".parse().unwrap())) };
+        assert!(check_fetch_with(&m, &bob).is_err());
+        // Another licence is its own acceptance.
+        assert!(check_fetch_with(&with("CC-BY-NC-4.0"), &alone).is_err());
+        // A permissive licence never touches the file.
+        let before = std::fs::read(&path).unwrap();
+        assert_eq!(check_fetch_with(&with("MIT"), &flagged).unwrap(), LicenseClass::Permissive);
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).unwrap();
+    }
+
+    /// An acceptance the zoo command made counts here.
+    #[test]
+    fn an_acceptance_made_elsewhere_counts() {
+        let (path, alice) = store("elsewhere");
+        let mut file = Acceptances::default();
+        file.accept(&alice, Licence::CcByNc40, 1_792_000_000).unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        file.save(&path).unwrap();
+        let consent = Consent { flag: false, store: Some((path.clone(), alice)) };
+        assert_eq!(check_fetch_with(&with("CC-BY-NC-4.0"), &consent).unwrap(), LicenseClass::LocalOnly);
+        // A file that does not parse is an error, not a pass or a rewrite.
+        std::fs::write(&path, b"{}").unwrap();
+        assert!(check_fetch_with(&with("CC-BY-NC-4.0"), &Consent { flag: true, ..consent }).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"{}");
+        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).unwrap();
     }
 }

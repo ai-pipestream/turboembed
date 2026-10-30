@@ -3,13 +3,15 @@
 // TrainStaticModel monitor, the teachers it can use and the static
 // models it made.
 
-import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type LicenceTerms } from "../gen/turbo_training_pb.js";
+import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
 import { catalog, describe, training } from "../rpc.js";
 import { refresh } from "../state.js";
 import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
+import { download, nonCommercial } from "./download.js";
 
 let installing: AbortController | null = null;
+let saving: AbortController | null = null;
 let trainingRun: AbortController | null = null;
 
 const note = () => $("models-note");
@@ -40,7 +42,38 @@ function entryRow(e: CatalogEntry, w: Who): HTMLElement[] {
     b.addEventListener("click", () => void installModel(e));
     install = b;
   }
-  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), el("span", { text: e.licence }), el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install)];
+  const licence = el("span", { text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
+  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), licence, el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install, saveButtons(e, w))];
+}
+
+/** A save button per file, once the user may have the artifact. */
+function saveButtons(e: CatalogEntry, w: Who): HTMLElement | null {
+  if (!w.user || e.missingTerms.length > 0) return null;
+  return el(
+    "div",
+    {},
+    e.files.map((f) => {
+      const b = el("button", { type: "button", text: `Save ${f.path}` });
+      b.addEventListener("click", () => void saveFile(e, f));
+      return b;
+    }),
+  );
+}
+
+async function saveFile(e: CatalogEntry, f: CatalogFile): Promise<void> {
+  saving?.abort();
+  const ac = new AbortController();
+  saving = ac;
+  const status = el("p", { class: "muted", text: `Reading ${e.id}/${f.path}\u2026` });
+  $("models-install").replaceChildren(el("h3", { text: `Save ${e.id}/${f.path}` }), status);
+  try {
+    await download(e, f, status, ac.signal);
+  } catch (err) {
+    status.className = "error";
+    status.textContent = describe(err);
+  } finally {
+    if (saving === ac) saving = null;
+  }
 }
 
 async function loadCatalog(): Promise<void> {
@@ -200,6 +233,8 @@ function stopTraining(): void {
 export function stop(): void {
   installing?.abort();
   installing = null;
+  saving?.abort();
+  saving = null;
   stopTraining();
 }
 

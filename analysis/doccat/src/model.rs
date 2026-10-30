@@ -40,6 +40,12 @@ pub struct DoccatModel {
 
 #[cfg(feature = "classical")]
 impl DoccatModel {
+    /// Opens a trained `DocumentCategorizerME` archive produced by `turbo-train-components`
+    /// (`TrainedDoccatModel::package`).
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<Self, DoccatError> {
+        Self::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
     /// Opens a `DoccatModel` from an OpenNLP `.bin` `ModelFile`.
     ///
     /// Validates `Component-Name == "DocumentCategorizerME"`, checks `factory`

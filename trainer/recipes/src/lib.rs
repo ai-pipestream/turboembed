@@ -10,6 +10,7 @@
 //! | `multiconer` | MultiCoNER v2 English, pinned file by file, and its coarse groups |
 //! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
 //! | `ud_heads` | Lemma and dependency heads on a treebank, their examples and baselines |
+//! | `ud_split` | A treebank as surface tokens, for the token split head, its labels and baseline |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
 //! | `run` | Head spec, encoder features, prediction, outputs |
@@ -32,6 +33,7 @@ pub mod safetensors;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_heads;
+pub mod ud_split;
 pub mod wnut17;
 
 /// An error, as the message the command prints.

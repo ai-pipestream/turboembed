@@ -43,9 +43,9 @@ fn rebuild(bytes: &[u8]) -> Rebuilt {
     };
     out.insert("turbo:profiles-load", vec![vec!["1".into(), String::new(), String::new()]]);
     out.insert("turbo:profiles-metrics", profiles.metrics().map(|m| vec![m.to_owned()]).collect());
-    // The generator sorts the ids with String.compareTo.
+    // Ids in code point order.
     let mut places: Vec<_> = profiles.places().collect();
-    places.sort_by(|&a, &b| turbo_jvm::chars::compare(profiles.id(a), profiles.id(b)));
+    places.sort_by(|&a, &b| profiles.id(a).cmp(profiles.id(b)));
     let index: BTreeMap<_, usize> = places.iter().enumerate().map(|(i, &p)| (p, i)).collect();
     out.insert("turbo:profiles-places", places.iter().map(|&p| vec![profiles.id(p).to_owned()]).collect());
     let mut values = Vec::new();

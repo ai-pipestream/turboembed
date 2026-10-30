@@ -22,9 +22,8 @@ turbo-tokenize = { path = "../tokenize" }
 turbo-sequence = { path = "../sequence" }
 # The lemmatizer's context generator and the edit scripts its classes are.
 turbo-lemmatizer = { path = "../lemmatizer" }
-# The language detector's context generator: the n-grams of a text in the
-# JVM's hash map order.
-turbo-langdetect = { path = "../langdetect" }
+# The language detector's five input normalizers.
+turbo-normalize = { path = "../normalize" }
 # The sentiment detector's context generators and model file names.
 turbo-doccat = { path = "../doccat", features = ["classical"] }
 # The abbreviation dictionary the context generators look up, dictionary
@@ -38,11 +37,14 @@ turbo-jvm = { path = "../jvm" }
 # detector runs in.
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-depparse = { path = "../depparse" }
 
 [dev-dependencies]
 # `Sha256`, to pin the digest of a trained model.
 turbo-zoo = { path = "../zoo" }
 turbo-namefind = { path = "../namefind" }
+turbo-postag = { path = "../postag" }
+turbo-phrase-chunker = { path = "../phrase-chunker" }
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }

@@ -267,6 +267,14 @@ message LoadBundleRequest
   // Select a device with turbo_runtime_select for the bundle's task
   // instead of indexing `device` (must leave `device` at 0).
   bool select_device = 11;
+
+  // Who loads the bundle. On a server with a model catalog
+  // (--catalog-dir), a bundle whose manifest names a licence that needs
+  // acceptance (docs/zoo.md) loads only for a user who accepted it in the
+  // catalog's acceptance file; otherwise FAILED_PRECONDITION names the
+  // terms. Without a catalog there is no acceptance file and nothing is
+  // checked.
+  string user = 12;
 }
 
 message LoadBundleResponse
@@ -831,6 +839,17 @@ message ChunkLevelsResult
   uint32 dim = 21;
   bytes data = 22;
   repeated uint32 empty = 23;
+
+  // Optional per-chunk 2D page and bounding-box citations (#1466).
+  repeated uint32 chunk_page_start = 26;
+  repeated uint32 chunk_page_end = 27;
+  repeated bool chunk_has_page_span = 28;
+  repeated uint32 chunk_box_row = 29;
+  repeated uint32 chunk_box_page = 30;
+  repeated float chunk_box_x0 = 31;
+  repeated float chunk_box_y0 = 32;
+  repeated float chunk_box_x1 = 33;
+  repeated float chunk_box_y1 = 34;
 }
 
 // Request for AnalyzeDocumentProgressive (issue #1218).

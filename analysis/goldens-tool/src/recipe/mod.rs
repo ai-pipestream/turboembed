@@ -76,13 +76,9 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 42] = [
+pub const INPUT_SETS: [&str; 38] = [
     "en",
     "multi",
-    "num",
-    "money",
-    "quantity",
-    "temporal",
     "edge",
     "surrogate",
     "abbreviations",
@@ -132,7 +128,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 45] = [
+pub const ANNOTATORS: [&str; 40] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -140,11 +136,6 @@ pub const ANNOTATORS: [&str; 45] = [
     "lemmatize-dictionary",
     "chunk",
     "langdetect",
-    "numbers",
-    "money",
-    "money-convert",
-    "quantity",
-    "temporal",
     "detokenize",
     "subwords",
     "sentvectors",
@@ -189,22 +180,6 @@ pub const ANNOTATORS: [&str; 45] = [
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "postag", "langdetect"];
-
-/// The input set the number scan runs on. It runs on no other set, and the
-/// other annotators do not run on this one.
-pub const NUMBER_INPUT_SET: &str = "num";
-
-/// The input set the money annotators run on. They run on no other set, and
-/// the other annotators do not run on this one.
-pub const MONEY_INPUT_SET: &str = "money";
-
-/// The input set the quantity extractor runs on. It runs on no other set,
-/// and the other annotators do not run on this one.
-pub const QUANTITY_INPUT_SET: &str = "quantity";
-
-/// The input set the temporal extractor runs on. It runs on no other set,
-/// and the other annotators do not run on this one.
-pub const TEMPORAL_INPUT_SET: &str = "temporal";
 
 /// The input sets of the SVM document categorizer: the documents its models
 /// categorize, and the corpora they are trained on. No other annotator runs

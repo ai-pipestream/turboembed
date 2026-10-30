@@ -267,7 +267,7 @@ fn the_model_is_the_bundles() {
     let a = wordpiece();
     let manifest = std::fs::read(wordpiece_dir().join("manifest.json")).unwrap();
     let m = Annotator::model(&a).unwrap();
-    assert_eq!(m.id, "sentence-transformers/all-MiniLM-L6-v2");
+    assert_eq!(m.id, "turboembed/tiny-bert");
     assert_eq!(m.revision, "1");
     assert_eq!(m.sha256, sha256_hex(&manifest));
 }

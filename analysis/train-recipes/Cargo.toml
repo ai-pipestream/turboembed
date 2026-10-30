@@ -34,9 +34,8 @@ turbo-maxent = { path = "../maxent" }
 # and the reference one over held-out text.
 turbo-sequence = { path = "../sequence" }
 # Running the trained language detector and the reference over held-out
-# text, and java.util.Random for the language detector's split.
+# text.
 turbo-langdetect = { path = "../langdetect" }
-turbo-jvm = { path = "../jvm" }
 # The span type the samples and models share.
 turbo-analysis = { path = "../core" }
 # The gate and its record.

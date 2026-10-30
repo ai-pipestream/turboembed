@@ -1,8 +1,10 @@
-# Language and script evidence
+# Language and script evidence (`turbo-langspan` and `turbo-langdetect`)
 
-OpenNLP language-model loading and the n-gram language decoder are disabled
-under #1511. The replacement trained language head is tracked in #1525.
-There is currently no statistical language-confidence claim for the fallback.
+Classical language-model loading (`LanguageDetector`, `LanguageModel`,
+`ProbingContext`, `ProbingConfig` in `analysis/langdetect/`) and the n-gram
+language decoder are disabled under #1511. The replacement trained language head
+is tracked in #1525. There is currently no statistical language-confidence claim
+for the fallback.
 
 ## Model-free fallback
 

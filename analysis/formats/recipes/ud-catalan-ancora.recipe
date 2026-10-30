@@ -1,0 +1,15 @@
+# UD Catalan AnCora r2.16: the training file at the UniversalDependencies
+# release tag, the digest analysis/train-recipes/src/treebank/catalog.rs
+# records, re-verified from a download on 2026-10-28 (39,714,229 bytes).
+# LICENSE.txt at the tag states CC BY 4.0 (SHA-256
+# 653702c7fdee69f7d7a439c9ba4c178c26e745479f6e6d2943bed1a9b9c7bf67,
+# re-verified the same day).
+name: ud-catalan-ancora
+tier: default
+url: https://raw.githubusercontent.com/UniversalDependencies/UD_Catalan-AnCora/r2.16/ca_ancora-ud-train.conllu
+sha256: bb5d06fb14336bae2c3aa64aa7e65afe183295a4669ce4f45bf0ed57c18ccccd
+license-url: https://raw.githubusercontent.com/UniversalDependencies/UD_Catalan-AnCora/r2.16/LICENSE.txt
+license: CC BY 4.0
+note: The recipes in analysis/train-recipes train on this treebank (docs/licences.md); the dev and test files at the tag are pinned with the same digests in the catalog.
+note: Attribution: Taulé, Martí and Recasens (LREC 2008), AnCora: Multilevel Annotated Corpora for Catalan and Spanish.
+note: The README's metadata and LICENSE.txt say CC BY 4.0 while one README paragraph still says the GNU license is inherited from the original dataset; the changelog entry 2021-11-15 v2.9 records the change to CC BY 4.0, so the CC BY 4.0 grant is what the pin relies on.

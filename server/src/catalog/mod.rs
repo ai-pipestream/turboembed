@@ -10,10 +10,12 @@
 mod accept;
 mod disk;
 mod entry;
+mod gate;
 mod install;
 mod read;
 mod through;
 
+pub(crate) use gate::check_load;
 pub use read::READ_CHUNK_BYTES;
 
 use std::fmt;
@@ -87,7 +89,7 @@ impl Catalog {
     }
 
     /// The acceptance file, empty when there is none yet.
-    fn acceptances(&self) -> Result<Acceptances, ZooError> {
+    pub(crate) fn acceptances(&self) -> Result<Acceptances, ZooError> {
         let p = self.acceptances_path();
         if p.exists() { Acceptances::load(&p) } else { Ok(Acceptances::default()) }
     }
@@ -123,11 +125,18 @@ pub(crate) struct CatalogService {
 }
 
 impl CatalogService {
-    pub(crate) fn new(catalog: Option<Catalog>, admin: bool, zoo: bool) -> CatalogService {
+    /// With `prefetch`, every permissive artifact is installed in the
+    /// background from now on (through.rs).
+    pub(crate) fn new(catalog: Option<Catalog>, admin: bool, zoo: bool, prefetch: bool) -> CatalogService {
+        let through = zoo.then(through::Fetching::default);
+        if prefetch && let Some(c) = &catalog {
+            let (c, gates) = (c.clone(), through.clone().unwrap_or_default());
+            tokio::task::spawn_blocking(move || through::prefetch(&c, &gates));
+        }
         CatalogService {
             catalog,
             admin,
-            through: zoo.then(through::Fetching::default),
+            through,
             installing: Arc::new(AtomicBool::new(false)),
             accepting: Arc::new(Mutex::new(())),
         }

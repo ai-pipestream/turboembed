@@ -125,9 +125,11 @@ pub mod evaluate;
 pub mod masc;
 pub mod native;
 pub mod ner;
+pub mod recipes;
 pub mod registry;
 pub mod sample;
 pub mod source;
+pub mod xml;
 
 use std::fmt;
 

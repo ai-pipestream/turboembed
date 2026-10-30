@@ -26,6 +26,7 @@ fn spec(labels: Vec<String>, adapter: Option<(u32, u32)>, tags: Option<u32>) -> 
         biaffine: None,
         pos_input: tags.map(|labels| PosInput { head: "pos".into(), labels, dim: 3 }),
         hash_embed: None,
+        span: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "lemma".into(),
@@ -123,23 +124,34 @@ const STEMS: [&str; 12] =
 /// and keeps it under tag 1 (a word that ends in s). Features say the
 /// class and nothing of the tag.
 fn data(seed: u64, n: usize, hidden: usize) -> Vec<LemmaExample> {
+    data_with(seed, n, hidden, false)
+}
+
+/// As [`data`]; `cased` capitalizes the first word of each sentence, its
+/// lemma staying lowercase, and feature 4 says whether a word is.
+fn data_with(seed: u64, n: usize, hidden: usize, cased: bool) -> Vec<LemmaExample> {
     let mut rng = Rng::new(seed);
     (0..n)
         .map(|_| {
             let len = 2 + rng.below(6);
             let mut e = LemmaExample { features: Vec::new(), tags: Vec::new(), forms: Vec::new(), lemmas: Vec::new() };
-            for _ in 0..len {
+            for k in 0..len {
                 let (c, stem) = (rng.below(4), STEMS[rng.below(STEMS.len())]);
                 let tag = rng.below(2) as u32;
-                let (form, lemma) = match (c, tag) {
+                let (mut form, lemma) = match (c, tag) {
                     (0, _) => (format!("{stem}ed"), stem.to_string()),
                     (1, _) => (format!("{stem}ing"), stem.to_string()),
                     (2, _) => (stem.to_string(), stem.to_string()),
                     (_, 0) => (format!("{stem}s"), stem.to_string()),
                     _ => (format!("{stem}s"), format!("{stem}s")),
                 };
+                let capital = cased && k == 0;
+                if capital {
+                    form[..1].make_ascii_uppercase();
+                }
                 for j in 0..hidden {
-                    e.features.push((if j == c { 1.0 } else { 0.0 }) + rng.uniform(0.2) as f32);
+                    let on = j == c || (j == 4 && capital);
+                    e.features.push((if on { 1.0 } else { 0.0 }) + rng.uniform(0.2) as f32);
                 }
                 e.tags.push(tag);
                 e.forms.push(form);
@@ -252,4 +264,36 @@ fn a_feature_that_is_not_finite_is_refused_with_the_gradients_untouched() {
         assert_eq!(model.loss(&[0.5, 0.25], &t, &[None, None], &mut g, &mut Work::default()).unwrap(), 0.0);
         assert!(g.iter().flatten().all(|v| *v == 0.0), "no gold tree, no gradient");
     }
+}
+
+#[test]
+fn capitalized_forms_share_the_lowercase_words_tree() {
+    let pairs = [("dogs", "dog"), ("Dogs", "dog"), ("Cats", "cat"), ("Birds", "bird"), ("Paris", "Paris")];
+    let all = mine_trees(pairs.iter().copied(), 1);
+    assert_eq!(all, ["(l (m 0 1 () (s 's' '')))", "(m 0 0 () ())", "(m 0 1 () (s 's' ''))"]);
+}
+
+#[test]
+fn a_cased_fixture_lemmatizes_sentence_initial_capitals_with_eight_trees() {
+    let hidden = 6;
+    let (train, dev) = (data_with(5, 300, hidden, true), data_with(6, 60, hidden, true));
+    let pairs: Vec<(&str, &str)> =
+        train.iter().flat_map(|e| e.forms.iter().zip(&e.lemmas).map(|(f, l)| (f.as_str(), l.as_str()))).collect();
+    let labels = mine_trees(pairs.iter().copied(), 1);
+    // Four rules, each plain and under `l`; spaCy's trees would be one
+    // per capital letter of the stems besides.
+    assert_eq!(labels.len(), 8, "{labels:?}");
+    assert_eq!(labels.iter().filter(|l| l.starts_with("(l ")).count(), 4);
+    let spacy: std::collections::BTreeSet<String> = pairs.iter().map(|(f, l)| EditTree::mine(f, l).label()).collect();
+    assert!(spacy.len() > 20, "{} trees without the lower node", spacy.len());
+    let c = Config { epochs: 20, lr: 2e-2, ..Config::default() };
+    let (model, report) = fit_lemmatizer(&spec(labels, None, Some(2)), hidden, train, dev.clone(), &c).unwrap();
+    let best = report.dev[report.best_epoch];
+    assert!(best >= 0.99, "dev lemma accuracy {best}: {report:?}");
+    let core = model.to_core().unwrap();
+    assert_eq!(accuracy(&core, &dev).unwrap(), best);
+    let first: Vec<&str> = dev.iter().flat_map(|e| e.forms.first().map(String::as_str)).collect();
+    assert!(first.iter().all(|f| f.as_bytes()[0].is_ascii_uppercase()), "every sentence starts with a capital");
+    let lemmas: Vec<&str> = dev.iter().flat_map(|e| e.lemmas.first().map(String::as_str)).collect();
+    assert!(lemmas.iter().all(|l| l.as_bytes()[0].is_ascii_lowercase()), "and its lemma is lowercase");
 }

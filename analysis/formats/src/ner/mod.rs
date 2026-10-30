@@ -74,6 +74,7 @@ mod germeval;
 mod litbank;
 mod litbank_coref;
 mod muc;
+mod multiconer2;
 mod tokens;
 mod wnut17;
 
@@ -89,6 +90,7 @@ pub use germeval::{GermEvalLayer, GermEvalReader, GermEvalTypes};
 pub use litbank::{LITBANK_TYPES, LitbankReader};
 pub use litbank_coref::{CorefToken, LitbankCorefDocument, LitbankCorefReader, Mention};
 pub use muc::{MUC_TYPES, MUC6_FORMAT, MucReader, MucSamples, muc_files};
+pub use multiconer2::{MULTICONER_TYPES, MulticonerReader};
 pub use tokens::{NewlineSentences, RuleTokenizer, SentenceSpans, TokenSpans};
 pub use wnut17::{Wnut17Reader, Wnut17Types};
 

@@ -44,20 +44,18 @@ fn every_reference_code_is_in_one_pair_and_the_tatoeba_codes_are_unique() {
 }
 
 #[test]
-fn the_recipe_trains_with_the_parameters_langdetect_183_was_most_likely_trained_with() {
+fn the_recipe_keeps_its_training_parameters_without_a_reference() {
     let ours = LANGDETECT.parameters();
     let theirs = turbo_train_components::langdetect::default_training_parameters();
     assert_eq!(ours, theirs);
-    assert_eq!(LANGDETECT.reference.id(), "opennlp-langdetect-183");
-    assert!(turbo_zoo::Index::builtin().get(LANGDETECT_183.id()).is_err(), "the zoo does not list the reference");
-    assert!(matches!(LANGDETECT_183.sha256(), Err(Error::RetiredReference { .. })), "langdetect-183 is not pinned");
+    assert_eq!(LANGDETECT.reference, None);
     let id: turbo_zoo::ArtifactId = MODEL_ID.parse().unwrap();
     assert_eq!(id.as_str(), MODEL_ID);
     assert!(ZOO_LANGUAGE.parse::<turbo_zoo::Language>().is_ok());
 }
 
 #[test]
-fn no_language_card_is_publishable_while_its_reference_is_retired() {
+fn no_language_card_is_publishable_without_a_gate_reference() {
     let sha256 = "0".repeat(64);
     let sha512 = "0".repeat(128);
     let export_file = ExportFile { name: "a.tar.bz2".to_owned(), size: 1, sha256: sha256.clone() };
@@ -116,7 +114,7 @@ fn no_language_card_is_publishable_while_its_reference_is_retired() {
         held_out: LanguageHeldOutCard { samples: 1, reference_mappings: Vec::new() },
         gate: GateCard {
             record: GATE_FILE.to_owned(),
-            reference: LANGDETECT_183.id().to_owned(),
+            reference: "unused".to_owned(),
             reference_sha256: "0".repeat(64),
             candidate_tag_format: None,
             reference_tag_format: None,
@@ -129,8 +127,7 @@ fn no_language_card_is_publishable_while_its_reference_is_retired() {
     };
     let url_m = "https://example.org/model.bin";
     let url_s = "https://example.org/training-sentences.txt";
-    // The gate read langdetect-183, an OpenNLP 2.5 artifact that is not
-    // pinned (#1509), so the card cannot show it was gated against it;
-    // #1532 removes the gate.
-    assert!(matches!(card.artifact(url_m, url_s), Err(Error::RetiredReference { id: "opennlp-langdetect-183" })));
+    assert!(
+        matches!(card.artifact(url_m, url_s), Err(Error::NotShippable { reason, .. }) if reason.contains("no reference"))
+    );
 }
