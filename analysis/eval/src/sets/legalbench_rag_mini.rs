@@ -6,7 +6,14 @@
 //! archive made on request, so it has no stable digest and no file by
 //! file URL. The folder could not be reached from where this was
 //! written; the reader follows the layout and types in the benchmark's
-//! repository.
+//! repository. The copy the committed records were made from is the
+//! byte-exact mirror `awinml/legalbench-rag` on Hugging Face at
+//! revision `2b9c248bc8179ef0908fd6ba01d50b156facd48b`, whose
+//! `SHA256SUMS` all verify (718 files); its licence file keeps each
+//! part under its source's terms, as the row below records. The
+//! records pin the read files by their `LoadedSet` digest
+//! (`45e6bdabdb9d62c2f343cf31f761a1219b83bc42b20ead309a93728d0066680d`
+//! for the stage 0 baseline records, #955).
 
 use super::{Set, Source, SpanUnit};
 use crate::read::legalbench_rag;

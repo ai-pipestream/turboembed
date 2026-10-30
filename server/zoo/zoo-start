@@ -17,6 +17,10 @@ for arg in "$@"; do
 done
 source "$(dirname "${BASH_SOURCE[0]}")/zoo-env"
 
+# The page acts for one user (docs/demo.md, The user); a library reading
+# from this zoo names the same user to read what that user accepted.
+export TURBO_DEMO_USER="${TURBO_DEMO_USER:-zoo}"
+
 if [[ -z "${TURBO_DEMO_TOKEN:-}" && -z "${TURBO_DEMO_TOKEN_FILE:-}" ]]; then
     TURBO_DEMO_TOKEN=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
     export TURBO_DEMO_TOKEN

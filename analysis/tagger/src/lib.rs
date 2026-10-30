@@ -13,6 +13,7 @@ pub mod annotate;
 pub mod lemma;
 pub mod multi;
 pub mod parse;
+pub mod segment;
 pub mod words;
 
 use std::path::Path;
@@ -28,6 +29,7 @@ pub use annotate::HeadRunner;
 pub use lemma::{LemmaDictionary, Lemmatizer};
 pub use multi::MultiTask;
 pub use parse::DependencyParser;
+pub use segment::{SentenceTagger, SpanTagger};
 pub use words::WordEncoder;
 
 /// Writes the part-of-speech layer from a SCHEME_TAGS head.

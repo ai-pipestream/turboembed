@@ -119,11 +119,13 @@ fn parse_with(args: impl IntoIterator<Item = String>, lookup: impl Fn(&str) -> O
     if let Some(u) = &user {
         turbo_kserve_demo::user::check(u)?;
     }
+    // Preserve explicit empty TLS settings so validation refuses them.
+    let tls_env = |k: &str| lookup(k).map(|v| v.trim().to_string());
     let upstream_tls = UpstreamTls::from_parts(
-        server_ca.or_else(|| env("TURBO_DEMO_SERVER_TLS_CA")),
-        server_cert.or_else(|| env("TURBO_DEMO_SERVER_TLS_CERT")),
-        server_key.or_else(|| env("TURBO_DEMO_SERVER_TLS_KEY")),
-        server_name.or_else(|| env("TURBO_DEMO_SERVER_TLS_NAME")),
+        server_ca.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_CA")),
+        server_cert.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_CERT")),
+        server_key.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_KEY")),
+        server_name.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_NAME")),
     )?;
     Ok(Args { listen, server, allow, token_file, user, origins, tls, upstream_tls })
 }
@@ -261,6 +263,25 @@ mod tests {
 #[cfg(test)]
 mod upstream_tests {
     use super::*;
+    #[test]
+    fn blank_upstream_tls_environment_is_rejected_unless_overridden() {
+        for suffix in ["CA", "CERT", "KEY", "NAME"] {
+            let name = format!("TURBO_DEMO_SERVER_TLS_{suffix}");
+            for blank in ["", " ", "\t\n"] {
+                assert_eq!(
+                    parse_with([], |key| (key == name).then(|| blank.into())),
+                    Err("upstream TLS values must not be empty".into()),
+                    "{name}={blank:?}"
+                );
+            }
+        }
+        let parsed = parse_with(["--server-tls-ca=explicit.pem".into()], |key| {
+            (key == "TURBO_DEMO_SERVER_TLS_CA").then(|| " ".into())
+        })
+        .unwrap();
+        assert_eq!(parsed.upstream_tls.unwrap().ca, PathBuf::from("explicit.pem"));
+    }
+
     #[test]
     fn tls_flags_override_environment_without_changing_page_tls() {
         let env = |k: &str| match k {

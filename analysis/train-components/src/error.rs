@@ -83,7 +83,7 @@ pub enum Error {
     Evaluate(turbo_formats::evaluate::EvalError),
     /// A language detector model trained for a cross-validation fold
     /// could not be read back.
-    LanguageModel(turbo_langdetect::ModelError),
+    LanguageModel(crate::langdetect::ModelError),
 }
 
 impl fmt::Display for Error {
@@ -162,8 +162,8 @@ impl From<turbo_formats::evaluate::EvalError> for Error {
     }
 }
 
-impl From<turbo_langdetect::ModelError> for Error {
-    fn from(e: turbo_langdetect::ModelError) -> Error {
+impl From<crate::langdetect::ModelError> for Error {
+    fn from(e: crate::langdetect::ModelError) -> Error {
         Error::LanguageModel(e)
     }
 }

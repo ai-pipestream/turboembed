@@ -2449,13 +2449,7 @@ name = "turbo-langdetect"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
- "turbo-analysis-layers",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
- "turbo-normalize",
  "turbo-trainer",
- "turbo-unicode",
 ]
 
 [[package]]
@@ -2842,10 +2836,10 @@ dependencies = [
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
- "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-namefind",
+ "turbo-normalize",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-tokenize",

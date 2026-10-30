@@ -9,11 +9,11 @@
 //! text, hashed as the core hashes it (`turbo::head::hash_embed`), and
 //! learns its tables.
 
-use turbo::head::TokenTagger;
 use turbo::head::crf::{Allowed, allowed};
 use turbo::head::hash_embed::{self, SEEDS};
 use turbo::head::tagger::tensors;
-use turbo::manifest::{Decode, HeadKind, HeadSpec};
+use turbo::head::{SentenceBoundary, TokenSplitter, TokenTagger};
+use turbo::manifest::{Decode, HeadSpec};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
@@ -80,8 +80,8 @@ impl<R: Real> Tagger<R> {
 
     /// A head from given weights, in `tensors` order.
     pub fn with_params(spec: &HeadSpec, hidden: usize, params: Vec<Vec<R>>) -> Result<Self> {
-        if spec.kind != HeadKind::TokenTagger {
-            return Err(invalid(format!("trainer: head {:?} is not a token tagger", spec.name)));
+        if !spec.kind.scores_words() {
+            return Err(invalid(format!("trainer: head {:?} does not score words as a token tagger does", spec.name)));
         }
         let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
         fits(spec, &shapes, &params)?;
@@ -333,8 +333,23 @@ impl Tagger<f32> {
     }
 
     /// The core's tagger over these weights: the inference path itself.
+    /// A sentence boundary or token split head scores through the same
+    /// tagger (`TokenTagger::scoring_words`); its own type decodes.
     pub fn to_token_tagger(&self) -> Result<TokenTagger> {
-        let get = |s: &str| self.names.iter().position(|n| n == s).map(|i| self.params[i].clone());
-        TokenTagger::from_tensors(&self.spec, self.hidden, &get)
+        TokenTagger::scoring_words(&self.spec, self.hidden, &|s| self.tensor(s))
+    }
+
+    /// The core's sentence boundary head over these weights.
+    pub fn to_boundary(&self) -> Result<SentenceBoundary> {
+        SentenceBoundary::from_tensors(&self.spec, self.hidden, &|s| self.tensor(s))
+    }
+
+    /// The core's token split head over these weights.
+    pub fn to_splitter(&self) -> Result<TokenSplitter> {
+        TokenSplitter::from_tensors(&self.spec, self.hidden, &|s| self.tensor(s))
+    }
+
+    fn tensor(&self, suffix: &str) -> Option<Vec<f32>> {
+        self.names.iter().position(|n| n == suffix).map(|i| self.params[i].clone())
     }
 }

@@ -16,9 +16,9 @@
 //! correct samples over all samples; [`LanguageCrossValidation::jvm_accuracy`]
 //! is the JVM's figure bit for bit, for comparing with it.
 
+use super::{LanguageDetector, LanguageModel, Scratch};
 use turbo_formats::LanguageSample;
 use turbo_formats::evaluate::{CrossValidation, LanguageDetectorEvaluator, Mean, Verdict};
-use turbo_langdetect::{LanguageDetector, LanguageModel, Scratch};
 use turbo_maxent::ModelFile;
 use turbo_train::event::checksum;
 use turbo_train::{TrainingConfiguration, TrainingParameters};
