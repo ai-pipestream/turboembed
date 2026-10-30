@@ -92,6 +92,12 @@ impl TokenizerModel {
         TokenizerModel::open(ModelFile::read(path)?)
     }
 
+    /// Opens a trained `TokenizerME` archive produced by `turbo-train-components`
+    /// (`TrainedTokenizerModel::package`).
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<TokenizerModel, ModelError> {
+        TokenizerModel::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
     /// Reads the tokenizer from an opened model file, checking what
     /// OpenNLP's `TokenizerModel` and `TokenizerFactory` check: the
     /// component is `TokenizerME`, `useAlphaNumericOptimization` is

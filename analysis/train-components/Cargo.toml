@@ -43,6 +43,8 @@ turbo-depparse = { path = "../depparse" }
 # `Sha256`, to pin the digest of a trained model.
 turbo-zoo = { path = "../zoo" }
 turbo-namefind = { path = "../namefind" }
+turbo-postag = { path = "../postag" }
+turbo-phrase-chunker = { path = "../phrase-chunker" }
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }

@@ -34,6 +34,7 @@ turbo-normalize-layers = { path = "../normalize-layers" }
 turbo-sequence = { path = "../sequence" }
 turbo-sha256 = { path = "../sha256" }
 turbo-train = { path = "../train" }
+turbo-trainer = { path = "../../trainer" }
 turbo-unicode = { path = "../unicode" }
 turbo-zoo = { path = "../zoo", default-features = false }
 

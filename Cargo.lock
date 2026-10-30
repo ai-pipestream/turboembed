@@ -2112,6 +2112,7 @@ dependencies = [
  "turbo-sequence",
  "turbo-sha256",
  "turbo-train",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-zoo",
 ]
@@ -2459,7 +2460,9 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-calibration",
  "turbo-langdetect",
+ "turbo-normalize",
  "turbo-unicode",
 ]
 
@@ -2588,6 +2591,9 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-jvm",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2844,6 +2850,8 @@ dependencies = [
  "turbo-maxent",
  "turbo-namefind",
  "turbo-normalize",
+ "turbo-phrase-chunker",
+ "turbo-postag",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-tokenize",

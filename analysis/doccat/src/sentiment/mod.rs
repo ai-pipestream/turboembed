@@ -1,5 +1,9 @@
-//! Sentiment, aspect, emotion, incivility, and pragmatics analysis.
+//! Sentiment, polarity, aspect, emotion, incivility, and pragmatics analysis.
 //!
+//! - [`polarity`]: document-level ([`PolarityAnnotator`]) and sentence-level
+//!   ([`SentencePolarityAnnotator`]) polarity classification combining
+//!   [`LexiconSentiment`] with a learned [`PolarityVectorHead`] trained with
+//!   `turbo-trainer`.
 //! - [`lexicon`]: VADER lexicon and dependency-negation sentiment scorer
 //!   ([`LexiconSentiment`]).
 //! - [`aspect`]: rule-based aspect and opinion extractor
@@ -11,8 +15,6 @@
 //!   [`IncivilityVectorScorer`]).
 //! - [`pragmatics`]: sentence-level sarcasm and irony annotator
 //!   ([`PragmaticsAnnotator`], [`PragmaticsVectorScorer`]).
-//! - Behind the off-by-default `classical` feature: `SentimentMe` and
-//!   `SentimentModel`.
 
 pub mod aspect;
 #[cfg(feature = "classical")]
@@ -22,6 +24,7 @@ pub mod incivility;
 pub mod lexicon;
 #[cfg(feature = "classical")]
 mod model;
+pub mod polarity;
 pub mod pragmatics;
 mod token_key;
 pub use token_key::{embed_token_key, token_key};
@@ -30,13 +33,13 @@ mod validation;
 pub use crate::scorers::{
     AspectCategoryScorer, EmotionEvidence, EmotionStage, EmotionUnit, EmotionVectorScorer, INCIVILITY_DIMENSIONS,
     IncivilityEvidenceSpan, IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorScorer,
-    PragmaticsVectorScorer,
+    PolarityStage, PolarityVectorScorer, PragmaticsVectorScorer,
 };
 pub use aspect::{
     AbsaMetrics, AbsaTriplet, DEFAULT_ASPECT_CATEGORIES, RuleAspectSentiment, evaluate_absa_corpus, extract_triplets,
 };
 #[cfg(feature = "classical")]
-pub use detector::{SENTIMENT, Scratch, SentimentMe};
+pub use detector::{Scratch, SentimentMe};
 pub use emotion::{
     DEFAULT_EMOTION_THRESHOLD, EmotionAnnotator, EmotionFitOptions, EmotionHeadError, EmotionMetrics,
     EmotionVectorHead, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD, GoldEmotionUnit,
@@ -58,6 +61,13 @@ pub use lexicon::{
 #[cfg(feature = "classical")]
 pub use model::{
     COMPONENT, EMOJI_FACTORY, MODEL_ENTRY, SentimentFactory, SentimentModel, SentimentModelError, TOKEN_FACTORY,
+};
+pub use polarity::{
+    DEFAULT_HEAD_WEIGHT, POLARITY_COUNT, POLARITY_NAMES, PolarityAnnotator, PolarityClassMetrics, PolarityExample,
+    PolarityFitConfig, PolarityFitReport, PolarityMetrics, PolarityVectorHead, SENTIMENT, SentencePolarityAnnotator,
+    blend_polarity_scores, evaluate_polarity, evaluate_predictions, index_polarity, majority_baseline,
+    parse_polarity_label, parse_polarity_tsv, polarity_index, softmax_polarity, vader_to_polarity_scores,
+    validate_polarity_scores,
 };
 pub use pragmatics::{
     DEFAULT_MIN_NEGATIVE_POLARITY, DEFAULT_MIN_POSITIVE_POLARITY, DEFAULT_PRAGMATICS_THRESHOLD, PragmaticsAnnotator,
