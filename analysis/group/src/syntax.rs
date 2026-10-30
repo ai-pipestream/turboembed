@@ -38,7 +38,11 @@ const SCHEMA: u64 = 0x7363_6865_6d61_0001;
 /// core argument (`nsubj`, `obj`, `iobj`, `ccomp`, `xcomp`, `obl`). An
 /// arc that leaves the item keeps the outside head's POS tag only.
 /// Every hash is seeded with the POS, relation and entity tag sets, so
-/// sketches made under different schemas never collide.
+/// sketches made under different schemas are in different hash
+/// namespaces and agree only by chance. An item with no treelet (one
+/// word, or no arc inside it) keeps its word count, and its MinHash row
+/// is the empty signature (`hash::is_empty_signature`), which the
+/// linker never bands or scores and an index must not key on.
 ///
 /// The columns mean what `Sketcher` writes: `words` the word count,
 /// `exact` the sequence of lowercased forms with their tags, `shape` the

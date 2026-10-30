@@ -268,6 +268,56 @@ fn blocks_cut_inside_a_sentence_keep_the_outside_head_as_its_tag_and_an_empty_bl
     assert_ne!(row(s, 0), row(s, 1));
 }
 
+const ROOTS: &str = "\
+# text = Hello
+1\tHello\thello\tINTJ\t_\t_\t0\troot\t_\t_
+
+# text = Goodbye
+1\tGoodbye\tgoodbye\tINTJ\t_\t_\t0\troot\t_\t_
+";
+
+/// A one-word sentence has no treelet: its MinHash row is the empty
+/// signature, and two such sentences are not near duplicates of each
+/// other, while two clauses with treelets still link.
+#[test]
+fn sentences_without_treelets_do_not_link_while_clauses_with_them_do() {
+    let mut docs = documents(ROOTS);
+    docs.extend(documents(CLAUSES).drain(..2));
+    sketch::<Sentences>(&mut docs, 2, false);
+    let s: Vec<&Sketches<Sentences>> = docs.iter().map(sketches::<Sentences>).collect();
+    assert_eq!((s[0].words[0], s[1].words[0]), (1, 1), "the word count is kept");
+    assert!(turbo_group::hash::is_empty_signature(s[0].row(Ix::new(0))));
+    assert!(turbo_group::hash::is_empty_signature(s[1].row(Ix::new(0))));
+    assert_eq!(turbo_group::hash::jaccard(s[0].row(Ix::new(0)), s[1].row(Ix::new(0))), 0.0);
+    assert_ne!(s[0].exact[0], s[1].exact[0]);
+    let batch: Vec<(&Sentences, &Sketches<Sentences>)> =
+        docs.iter().zip(&s).map(|(d, s)| (d.get::<Sentences>().unwrap(), *s)).collect();
+    let dupes = cross_duplicates(&batch, &Thresholds::default()).unwrap();
+    let links: Vec<(u32, u32)> = dupes.links.iter().map(|l| (l.from.doc, l.to.doc)).collect();
+    assert_eq!(links, [(2, 3)], "the one-word sentences are in no link: {dupes:?}");
+    assert!(dupes.groups.iter().flatten().all(|m| m.doc >= 2), "{dupes:?}");
+}
+
+/// The same one-word sentence under two tag set names is two sketches
+/// in two namespaces: not an exact copy, and with no treelet not a near
+/// duplicate either.
+#[test]
+fn the_same_root_only_sentence_under_two_schemas_does_not_link() {
+    let mut docs = documents(ROOTS);
+    docs.truncate(1);
+    let mut renamed = docs[0].clone();
+    retag(&mut renamed, &TagSet::new("penn", &UPOS), &TagSet::new("rels", &DEPREL));
+    docs.push(renamed);
+    sketch::<Sentences>(&mut docs, 2, false);
+    let s: Vec<&Sketches<Sentences>> = docs.iter().map(sketches::<Sentences>).collect();
+    assert_ne!(s[0].exact[0], s[1].exact[0]);
+    assert_ne!(s[0].shape[0], s[1].shape[0]);
+    let batch: Vec<(&Sentences, &Sketches<Sentences>)> =
+        docs.iter().zip(&s).map(|(d, s)| (d.get::<Sentences>().unwrap(), *s)).collect();
+    let dupes = cross_duplicates(&batch, &Thresholds::default()).unwrap();
+    assert!(dupes.links.is_empty() && dupes.groups.is_empty(), "{dupes:?}");
+}
+
 fn codecs() -> Codecs {
     let mut c = turbo_analysis_layers::export::codecs();
     turbo_group::export::register_codecs(&mut c);

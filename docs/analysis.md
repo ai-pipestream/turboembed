@@ -264,7 +264,13 @@ two-hop chains, and the core-argument frame of every head with a core
 argument (`nsubj`, `obj`, `iobj`, `ccomp`, `xcomp`, `obl`); an arc that
 leaves the item keeps only the outside head's POS tag. Every hash is
 seeded with the POS, relation and entity tag sets, so sketches made
-under different schemas never collide. `shingle` holds the treelet
+under different schemas are in different hash namespaces and agree only
+by chance. An item with no treelet (one word, or no arc inside it) keeps
+its word count and has the empty MinHash signature (every lane
+`u32::MAX`, `hash::is_empty_signature`), which `NearDuplicates`,
+`cross_duplicates` and `hash::jaccard` treat as similar to nothing, an
+empty row of another item included; an index over the band keys must
+skip such rows the same way. `shingle` holds the treelet
 depth, `exact` hashes the lowercased forms with their tags, and `shape`
 the sequence of nodes. `NearDuplicates<L>` and `cross_duplicates` link
 the instance as they link word sketches, and the search engine indexes
