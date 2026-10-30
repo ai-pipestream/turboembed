@@ -30,9 +30,15 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   it names tags each sentence first (on its own pooling); the core's
   `EditTreeLemmatizer` scores the trees and applies the best one that
   fits each word, the word itself when none fits. A `LemmaDictionary`
-  (any `Fn(form, tag) -> Option<String>`, so a Morfologik or WordNet
-  Morphy lookup as a closure) overrides the head where it lists a lemma;
-  its id is part of the config hash.
+  (any `Fn(form, tag) -> Option<String>`) overrides the head where it
+  lists a lemma; its id is part of the config hash.
+- `dictionaries`: the lexicon lookups as `LemmaDictionary`
+  implementations: `MorfologikLemmas` over a Morfologik dictionary (the
+  smallest lemma it lists under the tag, in byte order) and `MorphyLemmas`
+  over WordNet's Morphy on any lexicon it reads, Princeton's database or
+  an Open English WordNet LMF file (its first candidate under the tag's
+  part of speech). Both ask under the tag the head decoded, mapped by an
+  optional tag map, and give no override without one.
 - `segment`: `SentenceTagger` writes the sentence layer from a
   `HEAD_SENTENCE_BOUNDARY` head, reading the view's tokens as one
   sequence of words (in windows past a row) and ending a sentence after
