@@ -2835,7 +2835,6 @@ dependencies = [
  "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-namefind",

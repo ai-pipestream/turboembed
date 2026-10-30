@@ -31,8 +31,6 @@ turbo-doccat = { path = "../doccat", features = ["classical"] }
 turbo-maxent = { path = "../maxent" }
 # UTF-16 cursors and Java's case mapping.
 turbo-unicode = { path = "../unicode" }
-# UTF-16 lengths and `String.compareTo`.
-turbo-jvm = { path = "../jvm" }
 # `Span`, which the tests build samples with; the analyzer the sentiment
 # detector runs in.
 turbo-analysis = { path = "../core" }

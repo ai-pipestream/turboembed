@@ -255,15 +255,14 @@ mod tests {
     }
 
     #[test]
-    fn one_event_per_sample_with_the_first_map_s_order() {
+    fn one_event_per_sample_with_first_seen_order() {
         let f = LanguageDetectorFactory::new();
         let s = samples("eng\tabab\nfra\t\nnone\ndeu\t123\n");
         let (events, inexact) = language_events(&s, &f);
         assert_eq!(inexact, 0);
         assert_eq!(events.len(), 3);
         assert_eq!(*events[0].outcome(), "eng");
-        // The order of the turbo-langdetect test of `getContext` for "abab".
-        assert_eq!(strings(&events[0]), ["a", "ab", "b", "ba", "bab", "aba"]);
+        assert_eq!(strings(&events[0]), ["a", "b", "ab", "ba", "aba", "bab"]);
         // An empty text gives an event with no predicates.
         assert_eq!(*events[1].outcome(), "fra");
         assert!(events[1].context().is_empty());

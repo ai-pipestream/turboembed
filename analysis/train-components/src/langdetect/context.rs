@@ -1,34 +1,13 @@
 //! The language detector's context: the distinct character n-grams of a
-//! text, as OpenNLP's `DefaultLanguageDetectorContextGenerator` and
-//! `LanguageDetectorME.predictLanguages` produce them.
+//! text in deterministic first-seen order (shortest n-grams first, then in
+//! text order within each length), after the five normalizers
+//! `LanguageDetectorFactory` chains (`turbo_normalize::language_detection::prepare`)
+//! and code-point lowercasing (`Character.toLowerCase(int)`).
 //!
-//! What the JVM does, step by step:
-//!
-//! 1. The five normalizers `LanguageDetectorFactory` chains run on the
-//!    text (`turbo_normalize::language_detection::prepare`).
-//! 2. `NGramCharModel.add` lowercases it code point by code point with
-//!    `Character.toLowerCase(int)` into a `CharBuffer` of UTF-16 code
-//!    units, then takes every run of 1, 2 and 3 code units (all of length
-//!    1 first, each length in text order) as an n-gram. An n-gram can hold
-//!    one half of a surrogate pair. Each distinct n-gram is a key of a
-//!    `HashMap` keyed by `CharBuffer`, put the first time it is seen.
-//! 3. `getContext` lists that map's keys in its iteration order, and
-//!    `predictLanguages` puts them in that order into a second `HashMap`
-//!    (to count them) and hands its keys to the model in its own
-//!    iteration order, each with the value 1.
-//!
-//! The context here is the same n-grams in the same order, each written
-//! as Java modified UTF-8 (the form the model keys its predicates by, in
-//! which a lone surrogate is three bytes) into one buffer. The order and
-//! `CharBuffer.hashCode` come from [`turbo_jvm::hash_map`].
-//!
-//! Training sees the first order, not the second: `LanguageDetectorEventStream`
-//! makes each event's context from `getContext` directly, so its predicates
-//! are in the first map's iteration order
-//! ([`ContextGenerator::training_features`]), while `predictLanguages`
-//! hands the model the second map's ([`ContextGenerator::features`]).
+//! Each distinct n-gram is written as Java modified UTF-8 (the form the
+//! model keys its predicates by, in which a lone surrogate is three bytes)
+//! into one contiguous buffer.
 
-use turbo_jvm::hash_map::{HashMapOrder, Insert, char_buffer_hash, spread};
 use turbo_normalize::language_detection::prepare;
 use turbo_unicode::java::code_point::to_lower_case;
 use turbo_unicode::modified_utf8::push_modified_utf8;
@@ -39,7 +18,8 @@ pub const OPENNLP_MIN: usize = 1;
 pub const OPENNLP_MAX: usize = 3;
 
 /// One distinct n-gram: where its code units start in the lowercased
-/// text, how many there are, and `CharBuffer.hashCode` of them.
+/// text, how many there are, and a hash of its code units for open-addressing
+/// deduplication.
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct Gram {
     pub(crate) start: u32,
@@ -62,20 +42,9 @@ pub struct ContextGenerator {
     /// An open addressing set over `grams`: a gram's index plus one, or
     /// zero for an empty slot. Its length is a power of two.
     slots: Vec<u32>,
-    /// `HashMap.hash` of each gram, by gram index.
-    spread: Vec<u32>,
-    /// The first map's iteration order, the put order of the second.
-    counted: Vec<u32>,
-    /// The second map's iteration order: the order the model gets.
-    order: Vec<u32>,
     /// Each gram's modified UTF-8, by gram index, and where it ends.
     bytes: Vec<u8>,
     ends: Vec<u32>,
-    /// Whether `counted` is exactly the first map's order.
-    first_exact: bool,
-    /// Whether `order` is exactly the second map's order, given `counted`.
-    second_exact: bool,
-    order_scratch: HashMapOrder,
 }
 
 impl Default for ContextGenerator {
@@ -100,14 +69,8 @@ impl ContextGenerator {
             units: Vec::new(),
             grams: Vec::new(),
             slots: Vec::new(),
-            spread: Vec::new(),
-            counted: Vec::new(),
-            order: Vec::new(),
             bytes: Vec::new(),
             ends: Vec::new(),
-            first_exact: true,
-            second_exact: true,
-            order_scratch: HashMapOrder::default(),
         }
     }
 
@@ -119,17 +82,10 @@ impl ContextGenerator {
     }
 
     /// The context of a text that is already normalized: the distinct
-    /// n-grams of its lowercase form, in the order the model receives them.
+    /// n-grams of its lowercase form, in deterministic first-seen order.
     pub fn generate_prepared(&mut self, text: &str) {
         self.lowercase(text);
         self.collect_grams();
-
-        self.spread.clear();
-        self.spread.extend(self.grams.iter().map(|g| spread(g.hash)));
-        self.order_scratch.reset();
-        self.first_exact = self.order_scratch.order(&self.spread, Insert::Put, &mut self.counted);
-        self.order_scratch.reset();
-        self.second_exact = self.order_scratch.order_keys(&self.spread, &self.counted, Insert::Put, &mut self.order);
 
         self.bytes.clear();
         self.ends.clear();
@@ -141,27 +97,18 @@ impl ContextGenerator {
         }
     }
 
-    /// Generates the chunk's distinct lowercased n-grams and their first
-    /// `HashMap` iteration order (`DefaultLanguageDetectorContextGenerator.getContext`),
-    /// without computing the second map's order or modified UTF-8 bytes.
+    /// Generates the chunk's distinct lowercased n-grams in deterministic
+    /// first-seen order without materializing modified UTF-8 bytes.
     pub(crate) fn generate_chunk(&mut self, text: &str) {
         let prepared = prepare(text);
         self.lowercase(&prepared);
         self.collect_grams();
-        self.spread.clear();
-        self.spread.extend(self.grams.iter().map(|g| spread(g.hash)));
-        self.order_scratch.reset();
-        self.first_exact = self.order_scratch.order(&self.spread, Insert::Put, &mut self.counted);
     }
 
     /// Each distinct n-gram of the last [`generate_chunk`](Self::generate_chunk)
-    /// call as `(utf16_units, char_buffer_hash)` in the first map's
-    /// iteration order.
+    /// call as `(utf16_units, hash)` in deterministic first-seen order.
     pub(crate) fn counted_grams(&self) -> impl ExactSizeIterator<Item = (&[u16], i32)> + '_ {
-        self.counted.iter().map(move |&idx| {
-            let g = self.grams[idx as usize];
-            (&self.units[g.start as usize..(g.start + g.len) as usize], g.hash)
-        })
+        self.grams.iter().map(move |g| (&self.units[g.start as usize..(g.start + g.len) as usize], g.hash))
     }
 
     pub(crate) fn min_length(&self) -> usize {
@@ -174,24 +121,23 @@ impl ContextGenerator {
 
     /// The number of distinct n-grams.
     pub fn len(&self) -> usize {
-        self.order.len()
+        self.grams.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.order.is_empty()
+        self.grams.is_empty()
     }
 
-    /// The n-grams as Java modified UTF-8, in the order the JVM hands them
-    /// to the model.
+    /// The n-grams as Java modified UTF-8, in deterministic first-seen order.
     pub fn features(&self) -> impl ExactSizeIterator<Item = &[u8]> + Clone + '_ {
-        self.order.iter().map(move |&g| self.gram_bytes(g))
+        (0..self.grams.len() as u32).map(move |g| self.gram_bytes(g))
     }
 
-    /// The n-grams as Java modified UTF-8 in the order `getContext` returns
-    /// them, the first map's iteration order: the predicates of the event
-    /// `LanguageDetectorEventStream` makes of the text for training.
+    /// The n-grams as Java modified UTF-8 in deterministic first-seen order:
+    /// the predicates of the event `LanguageDetectorEventStream` makes of
+    /// the text for training.
     pub fn training_features(&self) -> impl ExactSizeIterator<Item = &[u8]> + Clone + '_ {
-        self.counted.iter().map(move |&g| self.gram_bytes(g))
+        (0..self.grams.len() as u32).map(move |g| self.gram_bytes(g))
     }
 
     fn gram_bytes(&self, g: u32) -> &[u8] {
@@ -200,26 +146,16 @@ impl ContextGenerator {
         &self.bytes[start..self.ends[g] as usize]
     }
 
-    /// Whether [`features`](Self::features) is exactly the JVM's order.
-    /// It is not when one of the JVM's maps turned a bucket into a tree
-    /// (nine or more n-grams in one bucket of a table of 64 or more) that
-    /// holds n-grams with equal hash codes: the JDK orders those by
-    /// `System.identityHashCode`, which no port can follow. The n-grams are
-    /// the same, and the sums the model makes over them can differ in the
-    /// last bits.
+    /// Whether [`features`](Self::features) is in deterministic order (always
+    /// `true` under native first-seen ordering).
     pub fn exact_order(&self) -> bool {
-        self.first_exact && self.second_exact
+        true
     }
 
-    /// Whether [`training_features`](Self::training_features) is exactly
-    /// the JVM's order, for the same reason as
-    /// [`exact_order`](Self::exact_order) but for the first map alone. A
-    /// trainer given the n-grams in another order indexes the same
-    /// predicates, but sorts and merges the event among the others by its
-    /// predicates in that order, and sums the parameters of its predicates
-    /// in that order.
+    /// Whether [`training_features`](Self::training_features) is in
+    /// deterministic order (always `true` under native first-seen ordering).
     pub fn training_exact_order(&self) -> bool {
-        self.first_exact
+        true
     }
 
     /// Releases an oversized context, including its feature indexes.
@@ -304,11 +240,21 @@ pub(crate) fn grow(slots: &mut Vec<u32>, grams: &[Gram]) {
     }
 }
 
+/// Hash of UTF-16 code units for open-addressing n-gram deduplication.
+#[inline]
+fn gram_hash(units: &[u16]) -> i32 {
+    let mut h: i32 = 1;
+    for &u in units.iter().rev() {
+        h = h.wrapping_mul(31).wrapping_add(i32::from(u));
+    }
+    h
+}
+
 /// Records `gram` (the units at `start` of `units`) unless an equal one
 /// is already in `grams`. The caller keeps the table at most half full.
 #[inline]
 fn insert(slots: &mut [u32], grams: &mut Vec<Gram>, units: &[u16], gram: &[u16], start: u32) {
-    let hash = char_buffer_hash(gram);
+    let hash = gram_hash(gram);
     let mask = slots.len() - 1;
     let mut slot = home_slot(hash, slots.len());
     loop {
