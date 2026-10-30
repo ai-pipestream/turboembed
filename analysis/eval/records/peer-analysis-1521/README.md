@@ -422,6 +422,18 @@ model. The mutable tags named image IDs
 `sha256:bd8fb6da4c3c2dc05f9477be3adc78be4ed5b332bb1552f45e0f2bcd2fe7a286`
 (trf).
 
+The Stanza English receipt (`throughput/stanza-en-ewt.json`, the
+same 2077 sentences, clean tree at `915af0568f25`) is min 50.27 s,
+mean 51.35 s, p50 51.33 s (40.46 sentences/s), p99 and max
+52.94 s, beginning at host load 1.31; the scored-once output
+reproduced the committed record's sentence, UAS and LAS scores
+exactly, and all 20 timed runs are byte-identical (SHA-256
+`ae0e58aa2c5045709bae07f100556286eaccf6570ebe28cb54c5314f0a801f90`).
+The mutable tag `turbo-peer-stanza:1.10.1-en` named image
+`sha256:e79ec7fc22750b287f7277980ae17797233e14b7e932572abeb39cd770675978`
+for this run. An earlier capture the same evening is not used: an
+external load spike to 39.9 crossed runs 10 to 12 of it.
+
 Receipts for the other analysis systems land as their booked runs
 complete; the records above still carry at most the single
 in-process timing their own sections state.
