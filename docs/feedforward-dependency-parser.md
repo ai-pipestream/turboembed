@@ -11,12 +11,13 @@ order for ties. Both use the checked arc-standard transition system.
 ## Templates and compatibility
 
 The assignment requests 18 word, 18 POS, and 12 dependency-label slots. The
-pinned Java implementation actually uses 14 word, 14 POS, and 8 label slots.
+compact 14-slot variant uses 14 word, 14 POS, and 8 label slots.
 Both layouts are explicit in `FeatureLayout`; training defaults to
-`ChenManning18`. Select `OpenNlp14` and cube activation for Java parity.
+`ChenManning18`, with the 14-slot layout and cube activation available for
+compatibility.
 
 Both templates start with the top three stack positions and first three
-buffer positions. `OpenNlp14` adds the first minimum/maximum-index dependent
+buffer positions. The 14-slot layout adds the first minimum/maximum-index dependent
 of s0 and s1, followed by each node's left-of-left and right-of-right dependent.
 It retains the reference's extrema convention even if all children are on
 one side. `ChenManning18` uses directional children: for s0 then s1, first

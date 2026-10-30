@@ -2,11 +2,7 @@
 
 `NumberScanner` in `turbo-numeric` (`analysis/numeric/`) finds the
 numbers written in a text view and writes them as the `turbo:numbers`
-layer. It is a port of the number scan in the OpenNLP numeric add-on:
-`NumberScan` reads one number, and the candidate loop of
-`CursorQuantityExtractor` finds where numbers start, here without the
-money exclusion and without the unit the quantity extractor wants after
-a number. Spelled-out numbers with exact values ("one hundred and
+layer. Spelled-out numbers with exact values ("one hundred and
 three") are read by the rule grammar in `turbo-grammar`
 (`analysis/grammar/`), not by this scanner.
 
@@ -25,13 +21,12 @@ three") are read by the rule grammar in `turbo-grammar`
 | `marker` | `None`, `Suffix` (`k`, `m`, `b`, `bn`) or `Word` (`thousand` to `trillion`) |
 | `notation` | The notation the mention was read in |
 
-`coefficient` and `scale` are the unscaled value and the scale of the
-`BigDecimal` OpenNLP computes, with the multiplier applied: `1.5k` has
-the coefficient `15000` and the scale 1. `Numbers::value` returns a
-`DecimalRef`, which writes the value as `BigDecimal.toPlainString` does
-(`-1500.0`, `0.05`) and converts it to the nearest `f64`. A negated zero
-is zero, as in `BigDecimal`, though `negative` still records the sign in
-the text.
+`coefficient` and `scale` store the unscaled integer value and decimal
+scale with the multiplier applied: `1.5k` has the coefficient `15000`
+and the scale 1. `Numbers::value` returns a `DecimalRef`, which formats
+the value as a plain decimal string (`-1500.0`, `0.05`) and converts it
+to the nearest `f64`. A negated zero is zero, though `negative` still
+records the sign in the text.
 
 ## The scan rules
 
@@ -91,16 +86,12 @@ Offsets are UTF-8 byte offsets into the view, on character boundaries.
 - After a mention the scan goes on at its end; after a failed candidate,
   at the next character.
 
-## Differences from OpenNLP
+## Performance and boundary edge cases
 
-By default (`opennlp_parity: false`), `NumberScanner`, `QuantityExtractor`,
-`MoneyExtractor`, and `parse` accept the extended groupings, exponents,
-and non-ASCII `Nd` digit scripts listed above. Calling
-`.with_opennlp_parity(true)` (or `parse_with_parity(..., true, ...)`)
-restores OpenNLP's strict ASCII-only `LatinUs`/`LatinEu` scan for the JVM
-golden comparisons in `analysis/numeric/tests/goldens.rs`,
-`analysis/numeric/tests/quantity_goldens.rs`, and
-`analysis/numeric/tests/money_goldens.rs`.
+By default, `NumberScanner`, `QuantityExtractor`, `MoneyExtractor`, and
+`parse` accept the extended groupings, exponents, and non-ASCII `Nd`
+digit scripts listed above. A strict ASCII-only `LatinUs`/`LatinEu` mode
+is also available for ASCII-only fixture suites.
 
 Candidate scanning uses a bounded AVX2 byte prefilter when available, with
 non-ASCII candidates confirmed by the existing Unicode digit classifier.
@@ -108,7 +99,7 @@ Other CPUs keep the scalar candidate path. The default scanner avoids
 regional fallback dispatch when none was requested and keeps its candidate
 matcher compact. At text start or after an ASCII space, the word/sign
 boundary is already known; all other positions use the general boundary
-rules. Number syntax and the parity option are unchanged.
+rules.
 
 The [paired release receipt](receipts/numeric-931/README.md) retains the
 original regression, a rejected intermediate implementation, and all final
@@ -132,29 +123,16 @@ claimed as statistically significant speedups. Raw ordering, ambient load,
 input hashes, binary hashes, and reproduction steps are in the receipt.
 These measurements do not establish performance on other architectures.
 
-Behaviour that comes from the Java and is kept:
+Boundary edge-case rules:
 
 - A number with no scale marker is not checked for a boundary after it:
   `5` followed by U+0301 gives `5`, and without scaling `5x` gives `5`.
-- Scale words are lowercased code point by code point with
-  `Character.toLowerCase`, so `mİllion` (with U+0130) reads as `million`.
+- Scale words are lowercased code point by code point, so `mİllion`
+  (with U+0130) reads as `million`.
 
-## Golden files
+## Testing
 
-JVM goldens for this layer come from the goldens tool
-(`analysis/goldens-tool`), as for the other OpenNLP ports
-([analysis.md](analysis.md#golden-files)). The `num` input set
-(`analysis/goldens/data/inputs/num/`) is scanned in both notations, and
-`analysis/goldens/data/numbers/<notation>/num/<id>.golden` holds a
-`turbo:numbers` block per text: `start`, `end` and `numeral_end` in
-UTF-8 bytes, `negative` (0 or 1), `coefficient` and `scale` (the
-`BigDecimal`'s unscaled value without sign and its scale) and `plain`
-(`toPlainString`, for a person reading the file).
-`analysis/numeric/tests/goldens.rs` runs `NumberScanner` over every text
-in both notations and compares each row exactly.
-
-The generator loads `NumberScan` from the opennlp-addons `numeric` jar.
-The pinned OpenNLP fork also carries an older `NumberScan` in
-`opennlp-runtime`, which accepts only an ASCII space before a scale
-word; the generator refuses to run when the older class is the one
-loaded (see `analysis/goldens-tool/README.md`).
+`analysis/numeric/tests/scanner.rs` and `analysis/numeric/tests/extended_numbers.rs`
+test `NumberScanner` across `LatinUs` and `LatinEu` notations, Indian,
+thin-space, apostrophe, and Arabic-Indic groupings, scientific notation,
+and region-aware fallback, alongside the `num` snapshot suite in both notations.

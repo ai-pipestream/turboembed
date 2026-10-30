@@ -1,7 +1,7 @@
 # Dependency parsing
 
-`turbo-depparse` implements OpenNLP 3.x arc-standard parsing, training,
-UAS/LAS evaluation and document annotation (inventory 68, 69, 72).
+`turbo-depparse` implements arc-standard transition-based dependency parsing,
+training, UAS/LAS evaluation and document annotation.
 Ten UD 2.16 dependency parser training recipes (five languages x MaxEnt and
 Feedforward: Spanish and Catalan AnCora, Finnish FTB, Italian MarkIT, and
 Portuguese Porttinari) are defined in `analysis/train-recipes/src/depparse.rs`

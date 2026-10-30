@@ -13,6 +13,8 @@ mod common;
 mod dependencies;
 #[path = "tree/front_end.rs"]
 mod front_end;
+#[path = "tree/opennlp.rs"]
+mod opennlp;
 #[path = "tree/retired_opennlp.rs"]
 mod retired_opennlp;
 #[path = "tree/secrets.rs"]

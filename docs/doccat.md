@@ -87,15 +87,12 @@ or span can receive zero, one, or many categories:
   default threshold.
 - `multilabel::metrics::evaluate` computes micro-, macro-, and sample-averaged
   precision, recall, and F1, plus Exact Match (the fraction of documents whose
-  predicted label set equals the gold set), under the crate's division
-  conventions (predicting nothing is precision `1.0`, no gold positive is recall
-  `1.0`, both `0` is an F of `0.0`).
+  predicted label set equals the gold set).
 - `MultiLabelDoccatModel::write` and `MultiLabelDoccatModel::open` serialize the
   model, feature generator chain, cardinality bounds, and calibrated thresholds
   with a trailing CRC-32C checksum (format version 2; version 1 payloads open
   with `min_labels = None`). Truncated or corrupted bytes return
-  `MultiLabelError` without panicking. Archive wrapping through `ModelFile` is
-  disabled; use the native entry codec.
+  `MultiLabelError` without panicking.
 
 ### Testing
 

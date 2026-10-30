@@ -58,7 +58,7 @@ pragmatics analysis across lexicon, rule, and vector-head stages:
   available behind the off-by-default `classical` feature in `turbo-doccat`,
   with training support in `turbo_train_components::sentiment`.
 
-Dataset, lexicon and checkpoint permissions remain recorded in the
+Dataset, lexicon and checkpoint permissions are recorded in the
 [complex sentiment licence audit](licences.md#complex-sentiment-licence-audit-326).
 It distinguishes shipped material, local evaluation and candidates awaiting
 source permissions.
@@ -1262,7 +1262,7 @@ per run; the median is descriptive on a shared host, not a throughput guarantee.
 
 No slowdown was observed in these probes. They isolate text preprocessing;
 encoder inference is not timed. The relation probe repeats multilingual text,
-URLs, punctuation and a legacy separator; SaT uses mixed ASCII/Unicode spaces
+URLs, punctuation and an information separator; SaT uses mixed ASCII/Unicode spaces
 at sentence boundaries. Run the checked-in probes with:
 
 ```sh

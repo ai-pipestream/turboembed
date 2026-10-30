@@ -8,7 +8,7 @@ schema, ownership, resource limits and calibration identity requirements.
 
 Archive-based `CrfNameFinder` and document annotator construction cannot load
 models after #1511. The former MASC fixture example was removed. A custom CRF
-payload inside an OpenNLP model archive does not bypass this restriction.
+payload inside a classical model archive does not bypass this restriction.
 Native document annotation is separate work in #1540; replacement heads are
 tracked in #1524. Numerical decoding support does not imply that this model
 integration or its calibration has been delivered.
