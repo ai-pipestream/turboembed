@@ -434,6 +434,21 @@ The mutable tag `turbo-peer-stanza:1.10.1-en` named image
 for this run. An earlier capture the same evening is not used: an
 external load spike to 39.9 crossed runs 10 to 12 of it.
 
+The Trankit English receipt (`throughput/trankit-en-ewt.json`,
+the same 2077 sentences, clean tree at `5d61b1f93d5f`, on
+2026-10-30) is min 128.53 s, mean 131.65 s, p50 131.39 s
+(15.81 sentences/s), p99 and max 134.66 s, beginning at host load
+2.06; later per-run loads sit at about 8 to 13 as Trankit's own
+CPU threads saturate, with no run's seconds leaving that band.
+One run was scored first and reproduced the committed record's
+headline scores exactly, and all 20 timed runs are byte-identical
+to the recorded predictions file (SHA-256
+`2c14aae8c6ae8d90a03996dcb3a48221916ccb0195c2be2dd8ff4891522314df`,
+the digest the Trankit section above records). The mutable tag
+`turbo-peer-trankit:1.1.2-en` named image
+`sha256:693b004911d6fb9bc1c70b4ed8f833e5b495bcc315e3f33cfde85ba9680cf540`
+for this run, the same image id as at record time.
+
 Receipts for the other analysis systems land as their booked runs
 complete; the records above still carry at most the single
 in-process timing their own sections state.
