@@ -49,11 +49,7 @@ impl<L: Layer> Layer for Vectors<L> {
     }
     fn content_hash(&self) -> Option<u64> {
         let mut h = Fnv1a::new();
-        h.u32(self.dim)
-            .str(&self.model.id)
-            .str(&self.model.revision)
-            .str(&self.model.sha256)
-            .usize(self.empty.len());
+        h.u32(self.dim).str(&self.model.id).str(&self.model.revision).str(&self.model.sha256).usize(self.empty.len());
         for &e in &self.empty {
             h.u32(e.get() as u32);
         }

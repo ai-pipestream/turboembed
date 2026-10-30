@@ -129,7 +129,11 @@ fn probe_1_derived_view_invalidation_cascade_removes_dependents_and_reuses_view_
     chain_doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, p_tok).unwrap();
     let p_pos = Provenance { reads: vec![Key::<Tokens>::DEFAULT.id()], ..Provenance::by("test:pos") };
     chain_doc
-        .add(&Key::<PosTags>::DEFAULT, PosTags { tagset: TagSet::new("upos", &["NOUN"]), tags: vec![Tag(0)], prob: None }, p_pos)
+        .add(
+            &Key::<PosTags>::DEFAULT,
+            PosTags { tagset: TagSet::new("upos", &["NOUN"]), tags: vec![Tag(0)], prob: None },
+            p_pos,
+        )
         .unwrap();
 
     assert!(chain_doc.remove(Key::<View>::named("v1").id()));
@@ -169,7 +173,9 @@ impl Annotator for OptionalBackedgeNormalizer {
 fn probe_2_optional_cycle_backedge_is_masked_and_wire_provenance_cycle_is_guarded() {
     let saw_tokens = Arc::new(AtomicUsize::new(0));
     let a1 = Analyzer::builder()
-        .step(Bound::new(OptionalBackedgeNormalizer { config: 1, saw_tokens: saw_tokens.clone() }).write(0, "normalized"))
+        .step(
+            Bound::new(OptionalBackedgeNormalizer { config: 1, saw_tokens: saw_tokens.clone() }).write(0, "normalized"),
+        )
         .step(Bound::new(ViewTokenizer).read(0, "normalized"))
         .build()
         .unwrap();
@@ -185,7 +191,9 @@ fn probe_2_optional_cycle_backedge_is_masked_and_wire_provenance_cycle_is_guarde
 
     // Re-running with mutated config at stage 0 must not record back-edge Tokens in View("normalized").reads.
     let a2 = Analyzer::builder()
-        .step(Bound::new(OptionalBackedgeNormalizer { config: 2, saw_tokens: saw_tokens.clone() }).write(0, "normalized"))
+        .step(
+            Bound::new(OptionalBackedgeNormalizer { config: 2, saw_tokens: saw_tokens.clone() }).write(0, "normalized"),
+        )
         .step(Bound::new(ViewTokenizer).read(0, "normalized"))
         .build()
         .unwrap();
@@ -196,7 +204,10 @@ fn probe_2_optional_cycle_backedge_is_masked_and_wire_provenance_cycle_is_guarde
     let c = codecs();
     let graph = export(&doc, &c).unwrap();
     assert_eq!(graph.layer_provenance_digest(Tokens::ID, ""), doc.provenance_digest(Key::<Tokens>::DEFAULT.id()));
-    assert_eq!(graph.view_provenance_digest("normalized"), doc.provenance_digest(Key::<View>::named("normalized").id()));
+    assert_eq!(
+        graph.view_provenance_digest("normalized"),
+        doc.provenance_digest(Key::<View>::named("normalized").id())
+    );
 
     let prov = |ann: &str, reads: Vec<LayerRef>| ProvenanceRecord {
         annotator: ann.into(),

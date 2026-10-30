@@ -211,8 +211,7 @@ impl Analyzer {
 
             // Fast path when every active step in this stage misses on all `docs`
             // (including single-document `analyze_incremental`).
-            let all_full_batch =
-                step_plans.iter().all(|(_, _, misses)| misses.is_empty() || misses.len() == n_docs);
+            let all_full_batch = step_plans.iter().all(|(_, _, misses)| misses.is_empty() || misses.len() == n_docs);
 
             if all_full_batch {
                 let to_run: Vec<usize> =
@@ -300,7 +299,9 @@ impl Analyzer {
                         for &w in &writes {
                             if let Some(entry) = b.sub_docs[k_idx].entries.iter().find(|e| e.key == w).cloned() {
                                 docs[d_idx].remove(w);
-                                if let Some(v) = entry.value.as_ref().and_then(|val| val.downcast_ref::<crate::doc::View>()) {
+                                if let Some(v) =
+                                    entry.value.as_ref().and_then(|val| val.downcast_ref::<crate::doc::View>())
+                                {
                                     let idx = v.id().0 as usize;
                                     if idx < docs[d_idx].views.len() {
                                         docs[d_idx].views[idx] = std::sync::Arc::new(v.clone());
@@ -335,12 +336,14 @@ impl Analyzer {
                         }
                         None => {
                             stages_run[d_idx] += 1;
-                            let d = writes.first().and_then(|&w| docs[d_idx].provenance_digest(w)).unwrap_or_else(|| {
-                                let taken = docs[d_idx].take_entries(backedges);
-                                let d = docs[d_idx].compute_provenance_digest(&step.expected_provenance(&docs[d_idx]));
-                                docs[d_idx].restore_entries(taken);
-                                d
-                            });
+                            let d =
+                                writes.first().and_then(|&w| docs[d_idx].provenance_digest(w)).unwrap_or_else(|| {
+                                    let taken = docs[d_idx].take_entries(backedges);
+                                    let d =
+                                        docs[d_idx].compute_provenance_digest(&step.expected_provenance(&docs[d_idx]));
+                                    docs[d_idx].restore_entries(taken);
+                                    d
+                                });
                             (StageCacheStatus::Executed, d)
                         }
                     };

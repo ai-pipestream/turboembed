@@ -296,10 +296,7 @@ impl<From: Layer, To: Layer> Layer for Edges<From, To> {
         let mut h = crate::hash::Fnv1a::new();
         h.key(self.from_key).key(self.to_key).u64(self.kinds.content_hash()).usize(self.from.len());
         for i in 0..self.from.len() {
-            h.u32(self.from[i].get() as u32)
-                .u32(self.to[i].get() as u32)
-                .u16(self.kind[i].0)
-                .f64(self.score[i]);
+            h.u32(self.from[i].get() as u32).u32(self.to[i].get() as u32).u16(self.kind[i].0).f64(self.score[i]);
         }
         Some(h.finish())
     }

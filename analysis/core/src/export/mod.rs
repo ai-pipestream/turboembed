@@ -85,7 +85,5 @@ pub use wire::{Reader, Writer};
 use columns::{get_layer_ref, put_layer_ref};
 use error::malformed;
 use error_wire::{get_error, put_error};
-use provenance::{
-    provenance_record_for_entry, rebuild_error, rebuild_provenance, ref_of, status_record,
-};
+use provenance::{provenance_record_for_entry, rebuild_error, rebuild_provenance, ref_of, status_record};
 use records::MAGIC;

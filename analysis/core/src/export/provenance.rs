@@ -225,12 +225,11 @@ impl DocumentGraph {
             return Ok(cached);
         }
         let p = if layer == View::ID {
-            let view = self.views.iter().find(|v| v.instance == instance).ok_or_else(|| {
-                ExportError::DanglingReference {
+            let view =
+                self.views.iter().find(|v| v.instance == instance).ok_or_else(|| ExportError::DanglingReference {
                     layer: layer.to_owned(),
                     reference: LayerRef { layer: layer.to_owned(), instance: instance.to_owned() },
-                }
-            })?;
+                })?;
             &view.provenance
         } else {
             let rec = self.layers.iter().find(|l| l.layer == layer && l.instance == instance).ok_or_else(|| {
