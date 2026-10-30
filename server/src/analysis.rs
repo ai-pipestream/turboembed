@@ -151,7 +151,13 @@ impl AnalysisService for Analysis {
     }
 
     async fn round_trip_chunk_levels(&self, req: Request<ChunkLevelsResult>) -> Reply<ChunkLevelsResult> {
-        round_trip::<_, ChunkLevels>(req)
+        let msg = req.into_inner();
+        let cl = ChunkLevels::from_msg(&msg).map_err(plain)?;
+        let out = match ChunkLevels::citations_from_msg(&msg).map_err(plain)? {
+            Some(c) => cl.to_msg_with_citations(&c),
+            None => cl.to_msg(),
+        };
+        Ok(Response::new(out))
     }
 
     async fn round_trip_document_graph(&self, req: Request<DocumentGraphRequest>) -> Reply<DocumentGraphResponse> {

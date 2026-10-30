@@ -123,6 +123,36 @@ impl LayerCodec for Structure {
     }
 }
 
+impl LayerCodec for LayoutBoxes {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_u32s(&mut w, &self.page)?;
+        put_f32s(&mut w, &self.x0)?;
+        put_f32s(&mut w, &self.y0)?;
+        put_f32s(&mut w, &self.x1)?;
+        put_f32s(&mut w, &self.y1)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let n = spans.len();
+        let page = get_u32s(&mut r)?;
+        let x0 = get_f32s(&mut r)?;
+        let y0 = get_f32s(&mut r)?;
+        let x1 = get_f32s(&mut r)?;
+        let y1 = get_f32s(&mut r)?;
+        want_len(page.len(), n, "pages")?;
+        want_len(x0.len(), n, "x0 coordinates")?;
+        want_len(y0.len(), n, "y0 coordinates")?;
+        want_len(x1.len(), n, "x1 coordinates")?;
+        want_len(y1.len(), n, "y1 coordinates")?;
+        done(&r, "layout boxes")?;
+        Ok(LayoutBoxes { spans, page, x0, y0, x1, y1 })
+    }
+}
+
 impl LayerCodec for Chunks {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
