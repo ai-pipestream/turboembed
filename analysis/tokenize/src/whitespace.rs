@@ -1,18 +1,16 @@
-//! OpenNLP's `WhitespaceTokenizer`: a token is a run of non-whitespace in
-//! the configured mode. With `keep_newlines`, every line feed and carriage
+//! OpenNLP's `WhitespaceTokenizer`: a token is a run of characters
+//! without the Unicode `White_Space` property. With `keep_newlines`, every line feed and carriage
 //! return is also a token of its own.
 //!
-//! The scan works on bytes, through a 256-entry table built for the mode:
-//! an ASCII byte is whitespace or not by the table alone, and only the
-//! four lead bytes that can start a non-ASCII whitespace character make
-//! the scan decode the character and ask the mode. Java tests UTF-16 code
-//! units, but
-//! no whitespace character is outside the BMP and a surrogate half is
+//! The scan works on bytes, through a 256-entry table: an ASCII byte is
+//! whitespace or not by the table alone, and only the four lead bytes that
+//! can start a non-ASCII whitespace character make the scan decode the
+//! character. Java tests UTF-16 code units, but no whitespace character is outside the BMP and a surrogate half is
 //! never whitespace, so testing whole characters gives the same tokens.
 
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{Sentences, Tokens};
-use turbo_unicode::WhitespaceMode;
+use turbo_unicode::whitespace;
 
 use crate::TokenizerOptions;
 use crate::unit::tokenize_units;
@@ -24,21 +22,20 @@ const TOKEN: u8 = 0;
 /// An ASCII whitespace character.
 const SPACE: u8 = 1;
 /// The first byte of a character that may be whitespace: decode it and
-/// ask the mode.
+/// check.
 const DECODE: u8 = 2;
 
-/// The byte table of one mode. ASCII whitespace is U+0009 to U+000D and
-/// the space in both modes, plus U+001C to U+001F in legacy mode. Every
-/// whitespace character at or above U+0080, in either mode, starts with
+/// The byte table. ASCII whitespace is U+0009 to U+000D and the space.
+/// Every whitespace character at or above U+0080 starts with
 /// the byte 0xC2 (U+0085, U+00A0), 0xE1 (U+1680), 0xE2 (U+2000 to
 /// U+205F) or 0xE3 (U+3000); a character starting with any other byte is
 /// never whitespace, and neither is a continuation byte, so the scan steps
 /// over them without decoding.
-const fn byte_table(mode: WhitespaceMode) -> [u8; 256] {
+const fn byte_table() -> [u8; 256] {
     let mut table = [TOKEN; 256];
     let mut b = 0;
     while b < 0x80 {
-        if mode.is_ascii_whitespace(b as u8) {
+        if whitespace::is_ascii_whitespace(b as u8) {
             table[b] = SPACE;
         }
         b += 1;
@@ -50,17 +47,12 @@ const fn byte_table(mode: WhitespaceMode) -> [u8; 256] {
     table
 }
 
-static UNICODE_BYTES: [u8; 256] = byte_table(WhitespaceMode::Unicode);
-static LEGACY_BYTES: [u8; 256] = byte_table(WhitespaceMode::Legacy);
+static BYTES: [u8; 256] = byte_table();
 
 /// Appends the whitespace tokens of `text` to `out`, as byte spans of
 /// `text`.
 pub fn whitespace_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Span>) {
-    let mode = options.whitespace;
-    let table = match mode {
-        WhitespaceMode::Unicode => &UNICODE_BYTES,
-        WhitespaceMode::Legacy => &LEGACY_BYTES,
-    };
+    let table = &BYTES;
     let bytes = text.as_bytes();
     let n = bytes.len();
     let mut i = 0;
@@ -78,7 +70,7 @@ pub fn whitespace_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Spa
                 }
                 _ => {
                     let (cp, len) = decode(bytes, i);
-                    if !mode.is_whitespace(cp) {
+                    if !whitespace::is_whitespace(cp) {
                         break;
                     }
                     i += len;
@@ -97,7 +89,7 @@ pub fn whitespace_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Spa
                 SPACE => break,
                 _ => {
                     let (cp, len) = decode(bytes, i);
-                    if mode.is_whitespace(cp) {
+                    if whitespace::is_whitespace(cp) {
                         break;
                     }
                     i += len;
@@ -157,22 +149,21 @@ mod tests {
     }
 
     #[test]
-    fn byte_tables_match_the_modes() {
-        for (mode, table) in [(WhitespaceMode::Unicode, &UNICODE_BYTES), (WhitespaceMode::Legacy, &LEGACY_BYTES)] {
-            for b in 0..0x80u8 {
-                assert_eq!(table[b as usize] == SPACE, mode.is_ascii_whitespace(b), "{b:#04x} {mode:?}");
-                assert_ne!(table[b as usize], DECODE);
-            }
-            // Every whitespace character above ASCII starts with a byte marked for decoding.
-            for c in (0x80..=0x10_FFFF).filter_map(char::from_u32) {
-                let mut buf = [0; 4];
-                let lead = c.encode_utf8(&mut buf).as_bytes()[0];
-                if mode.is_whitespace(c as u32) {
-                    assert_eq!(table[lead as usize], DECODE, "U+{:04X} {mode:?}", c as u32);
-                }
-            }
-            assert!((0x80..0xC0).all(|b| table[b] == TOKEN));
+    fn byte_table_matches_white_space() {
+        let table = &BYTES;
+        for b in 0..0x80u8 {
+            assert_eq!(table[b as usize] == SPACE, whitespace::is_ascii_whitespace(b), "{b:#04x}");
+            assert_ne!(table[b as usize], DECODE);
         }
+        // Every whitespace character above ASCII starts with a byte marked for decoding.
+        for c in (0x80..=0x10_FFFF).filter_map(char::from_u32) {
+            let mut buf = [0; 4];
+            let lead = c.encode_utf8(&mut buf).as_bytes()[0];
+            if whitespace::is_whitespace(c as u32) {
+                assert_eq!(table[lead as usize], DECODE, "U+{:04X}", c as u32);
+            }
+        }
+        assert!((0x80..0xC0).all(|b| table[b] == TOKEN));
     }
 
     #[test]
@@ -185,16 +176,17 @@ mod tests {
     }
 
     #[test]
-    fn modes_differ() {
-        let unicode = TokenizerOptions::default();
-        let legacy = TokenizerOptions { whitespace: WhitespaceMode::Legacy, keep_newlines: false };
-        assert_eq!(tokens("a\u{85}b\u{1c}c", unicode), ["a", "b\u{1c}c"]);
-        assert_eq!(tokens("a\u{85}b\u{1c}c", legacy), ["a\u{85}b", "c"]);
+    fn next_line_separates_and_information_separators_do_not() {
+        let o = TokenizerOptions::default();
+        assert_eq!(tokens("a\u{85}b\u{1c}c", o), ["a", "b\u{1c}c"]);
+        // A token holding U+001F is not split there, and U+0085 is trimmed.
+        assert_eq!(tokens("\u{85}x\u{1f}y\u{85}", o), ["x\u{1f}y"]);
+        assert_eq!(tokens("\u{1c}\u{1d}\u{1e}\u{1f}", o), ["\u{1c}\u{1d}\u{1e}\u{1f}"]);
     }
 
     #[test]
     fn keep_newlines() {
-        let o = TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: true };
+        let o = TokenizerOptions { keep_newlines: true };
         let mut out = Vec::new();
         whitespace_spans("\nab \r\ncd\u{2028}e", o, &mut out);
         let expected = [(0, 1), (1, 3), (4, 5), (5, 6), (6, 8), (11, 12)];

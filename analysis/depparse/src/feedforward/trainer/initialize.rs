@@ -1,27 +1,29 @@
 use super::*;
 use crate::feedforward::{NeuralWeights, Vocabulary, normalize::normalize};
 use std::collections::BTreeMap;
-use turbo_jvm::{hash_map::JavaHashMap, random::JavaRandom};
 
 pub(super) fn initialize<A: WordOrTokenAnchor>(
     samples: &[DependencySample<A>],
     settings: &FeedforwardSettings,
     mode: crate::training::TrainingMode,
 ) -> Result<FeedforwardDependencyModel> {
-    let mut counts = JavaHashMap::<String, usize>::new();
-    let mut tags = JavaHashMap::new();
-    let mut labels = JavaHashMap::new();
+    if samples.is_empty() {
+        return Err(error("no training samples"));
+    }
+    let mut counts = BTreeMap::<String, usize>::new();
+    let mut tags = BTreeMap::<String, ()>::new();
+    let mut labels = BTreeMap::<String, ()>::new();
     let mut transitions = BTreeMap::new();
     for sample in samples {
         let graph = mode.graph(sample.graph())?;
         for word in sample.tokens() {
-            counts.merge(normalize(word), 1, |n, v| *n += v);
+            *counts.entry(normalize(word)).or_insert(0) += 1;
         }
         for tag in sample.tags() {
-            tags.put(tag.clone(), ());
+            tags.insert(tag.clone(), ());
         }
         for i in 0..graph.len() {
-            labels.put(graph.arc(turbo_analysis::Ix::new(i as u32))?.relation.to_owned(), ());
+            labels.insert(graph.arc(turbo_analysis::Ix::new(i as u32))?.relation.to_owned(), ());
         }
         for t in mode.transitions(&graph)? {
             transitions.insert(t.encode(), t);
@@ -42,13 +44,12 @@ pub(super) fn initialize<A: WordOrTokenAnchor>(
         &["*UNK*", "*NULL*", "*ROOT*"],
         counts.iter().filter(|(_, n)| **n >= settings.word_cutoff).map(|(s, _)| s).collect(),
     );
-    let pos = vocab(&["*UNK*", "*NULL*", "*ROOT*"], tags.iter().map(|(s, _)| s).collect());
-    let labels = vocab(&["*UNK*", "*NULL*"], labels.iter().map(|(s, _)| s).collect());
+    let pos = vocab(&["*UNK*", "*NULL*", "*ROOT*"], tags.keys().collect());
+    let labels = vocab(&["*UNK*", "*NULL*"], labels.keys().collect());
     let vocabulary = Vocabulary { words, pos, labels };
-    let mut transitions: Vec<_> = transitions.into_values().collect();
-    transitions.sort_by(|a, b| turbo_jvm::chars::compare(&a.encode(), &b.encode()));
+    let transitions: Vec<_> = transitions.into_values().collect();
     settings.check_shape(row, transitions.len())?;
-    let mut random = JavaRandom::new(settings.seed);
+    let mut random = DeterministicRng::new(settings.seed);
     let mut uniform = |count, scale| (0..count).map(|_| ((random.next_double() * 2.0 - 1.0) * scale) as f32).collect();
     let (e, h, o) = (settings.embedding_size, settings.hidden_size, transitions.len());
     let input = settings.layout.feature_count() * e;

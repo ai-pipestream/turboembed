@@ -69,7 +69,7 @@ impl<A> Clone for Position<A> {
 pub struct ArcStandardState<A: WordOrTokenAnchor = Tokens> {
     pub(crate) stack: Vec<Position<A>>,
     pub(crate) front: usize,
-    // Requeued tokens, front at the end; stays unallocated on legacy parses.
+    // Requeued tokens, front at the end; stays unallocated on projective parses.
     pub(crate) requeued: Vec<Ix<A>>,
     actions: u64,
     pub(crate) heads: Vec<Option<Ix<A>>>,

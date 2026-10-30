@@ -1,5 +1,5 @@
-//! A chunker model: OpenNLP's `ChunkerModel` with the choices
-//! `ChunkerFactory` and `ChunkerME` make when they load it.
+//! A chunker model: `ChunkerModel` with the choices `ChunkerFactory` and
+//! `ChunkerME` make when they load it.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -20,10 +20,6 @@ pub const FACTORY: &str = "opennlp.tools.chunker.ChunkerFactory";
 
 /// An opened `ChunkerME` model: the classifier and the beam size, with the
 /// tag set of its outcomes and the tag set of the phrase kinds they name.
-///
-/// `ChunkerFactory` has one context generator and one validator, so there
-/// is nothing else to choose; the beam size is the manifest's `BeamSize`,
-/// or 10 without one, as `ChunkerModel.getChunkerSequenceModel` reads it.
 #[derive(Debug)]
 pub struct ChunkerModel {
     file: ModelFile,
@@ -35,21 +31,18 @@ pub struct ChunkerModel {
 }
 
 impl ChunkerModel {
-    /// Reads a model file from disk.
+    /// Reads a model file from disk (disabled for external `.bin` files under `#1511`).
     pub fn read(path: impl AsRef<Path>) -> Result<ChunkerModel, ModelError> {
         ChunkerModel::open(ModelFile::read(path)?)
     }
 
-    /// Reads the model from an opened model file. It checks what OpenNLP
-    /// checks when it loads and runs a model, and what would fail later:
-    /// the component is `ChunkerME`, the factory is `ChunkerFactory` (a
-    /// manifest without one means the default factory, as `BaseModel`
-    /// reads it), the classifier is there with at least one outcome, and
-    /// the manifest's `BeamSize` is a non-negative integer and not zero.
-    /// It also refuses a model with an outcome that is not text (one
-    /// holding half of a surrogate pair, [`ModelError::OutcomeNotText`]),
-    /// which the JVM loads and runs: the chunker hands tags out as
-    /// `&str`, so this is a limit of the port, not a check OpenNLP makes.
+    /// Opens a trained `ChunkerME` archive produced by `turbo-train-components`
+    /// (`TrainedChunkerModel::package`).
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<ChunkerModel, ModelError> {
+        ChunkerModel::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
+    /// Reads the model from an opened model file.
     pub fn open(file: ModelFile) -> Result<ChunkerModel, ModelError> {
         if file.component_name() != COMPONENT_NAME {
             return Err(ModelError::Component(file.component_name().into()));
@@ -69,9 +62,6 @@ impl ChunkerModel {
         }
         let outcomes = maxent.outcome_texts().map_err(|o| ModelError::OutcomeNotText(o.clone()))?;
         let tagset = TagSet::new("chunk", &outcomes);
-        // The kinds the outcomes can start a phrase with, in outcome
-        // order; an outcome without a kind is left out and refused when
-        // it starts one.
         let mut kinds: Vec<&str> = Vec::new();
         for outcome in &outcomes {
             if let Some(kind) = kind_of(outcome)
@@ -169,12 +159,10 @@ impl ChunkerModel {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    /// A chunker model file whose classifier, a GIS model the turbo-train
-    /// writer wrote, has the outcomes `outcome` and `O`.
-    fn model_with_outcome(outcome: turbo_train::JavaString) -> ModelFile {
+    fn model_with_outcome_and_component(component: &str, outcome: turbo_train::JavaString) -> ModelFile {
         use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
         let events = [Event::from_strs(outcome, &["w=a"]), Event::from_strs("O", &["w=b"])];
         let mut params = TrainingParameters::new();
@@ -182,40 +170,108 @@ mod tests {
         params.put(Key::CUTOFF, 0);
         let (model, _) =
             turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let mut package = ModelPackage::new(Manifest::new(component, "en", 0));
+        package.add_entry(MODEL_ENTRY_NAME, turbo_train::write_gis(&model).unwrap());
+        ModelFile::from_trained_archive(package.to_bytes()).unwrap()
+    }
+
+    fn model_with_outcome(outcome: turbo_train::JavaString) -> ModelFile {
+        model_with_outcome_and_component(COMPONENT_NAME, outcome)
+    }
+
+    pub(crate) fn test_fixture_model() -> ChunkerModel {
+        use turbo_sequence::Features;
+        use turbo_sequence::chunker::TokenTag;
+        use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
+        let sentences: &[&[(&str, &str, &str)]] = &[
+            &[
+                ("The", "DT", "B-NP"),
+                ("cat", "NN", "I-NP"),
+                ("sat", "VBD", "B-VP"),
+                ("on", "IN", "B-PP"),
+                ("the", "DT", "B-NP"),
+                ("mat", "NN", "I-NP"),
+                (".", ".", "O"),
+            ],
+            &[
+                ("Very", "RB", "B-ADJP"),
+                ("good", "JJ", "I-ADJP"),
+                ("because", "IN", "B-SBAR"),
+                ("dogs", "NN", "B-NP"),
+                ("bark", "VBD", "B-VP"),
+                (".", ".", "O"),
+            ],
+        ];
+        let mut events = Vec::new();
+        let mut feats = Features::new();
+        for sent in sentences {
+            let seq: Vec<TokenTag<'_>> = sent.iter().map(|&(token, tag, _)| TokenTag { token, tag }).collect();
+            let priors: Vec<&str> = sent.iter().map(|&(_, _, out)| out).collect();
+            for i in 0..seq.len() {
+                feats.clear();
+                DefaultChunkerContext.features(&mut feats, i, &seq, &priors[..i]);
+                let ctx: Vec<String> = (0..feats.len()).map(|k| feats.to_string_lossy(k)).collect();
+                let ctx_refs: Vec<&str> = ctx.iter().map(String::as_str).collect();
+                events.push(Event::from_strs(priors[i], &ctx_refs));
+            }
+        }
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 20);
+        params.put(Key::CUTOFF, 0);
+        let (model, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
         let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
         package.add_entry(MODEL_ENTRY_NAME, turbo_train::write_gis(&model).unwrap());
-        ModelFile::open(package.to_bytes()).unwrap()
+        ChunkerModel::from_trained_archive(package.to_bytes()).unwrap()
     }
 
     #[test]
     fn a_model_with_an_outcome_holding_half_a_surrogate_pair_is_refused() {
-        // "B" and a lone high surrogate, written as writeUTF writes
-        // it: 42 ED A0 BD.
+        use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
         let lone = turbo_train::JavaString::from_utf16(&[0x42, 0xD83D]);
-        let file = model_with_outcome(lone.clone());
-        let classifier = file.entry(MODEL_ENTRY_NAME).unwrap();
-        assert!(classifier.windows(4).any(|w| w == b"B\xED\xA0\xBD"));
-        let e = ChunkerModel::open(file).unwrap_err();
-        assert!(matches!(&e, ModelError::OutcomeNotText(o) if *o == lone), "{e:?}");
-        assert!(e.to_string().contains("holds half of a surrogate pair"), "{e}");
-        // The same model with a text outcome opens.
+        let events = [Event::from_strs(lone.clone(), &["w=a"]), Event::from_strs("O", &["w=b"])];
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 1);
+        params.put(Key::CUTOFF, 0);
+        let (model, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        assert_eq!(turbo_train::write_gis(&model), Err(turbo_train::Error::UnpairedSurrogate));
+
+        // Hand-crafted CESU-8 surrogate bytes on the wire are also refused by the reader.
+        let valid_bytes = turbo_train::write_gis(
+            &turbo_train::gis::train_events(
+                &[Event::from_strs("BXYZ", &["w=a"]), Event::from_strs("O", &["w=b"])],
+                &params,
+                &mut TrainingConfiguration::default(),
+            )
+            .unwrap()
+            .0,
+        )
+        .unwrap();
+        let pos = valid_bytes.windows(4).position(|w| w == b"BXYZ").unwrap();
+        let mut bad_bytes = valid_bytes;
+        bad_bytes[pos..pos + 4].copy_from_slice(b"B\xED\xA0\xBD");
+        let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
+        package.add_entry(MODEL_ENTRY_NAME, bad_bytes);
+        let file = ModelFile::from_trained_archive(package.to_bytes()).unwrap();
+        assert!(ChunkerModel::open(file).is_err());
+
         let text = model_with_outcome(turbo_train::JavaString::new("B"));
         assert!(ChunkerModel::open(text).is_ok());
     }
 
-    fn fixtures() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures")
-    }
-
     #[test]
-    fn reads_the_fixture_model() {
-        let m = ChunkerModel::read(fixtures().join("chunker-fixture.bin")).unwrap();
+    fn reads_the_trained_fixture_model_and_rejects_legacy_bin() {
+        let legacy = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin");
+        let legacy_bytes = std::fs::read(legacy).unwrap();
+        assert!(ChunkerModel::from_trained_archive(legacy_bytes).is_err());
+
+        let m = test_fixture_model();
         assert_eq!(m.language(), "en");
-        assert_eq!(m.opennlp_version(), "3.0.0-SNAPSHOT");
+        assert_eq!(m.opennlp_version(), "1");
         assert_eq!(m.beam_size(), 10);
-        assert_eq!(m.sha256().to_hex(), "cc68fdbac1ee51695e232e59ac02754dde51e5fb1dd50d15c565c805204f23b0");
         assert_eq!(m.model_ref().id, "opennlp:ChunkerME:en");
-        assert_eq!(m.model_ref().revision, "3.0.0-SNAPSHOT");
+        assert_eq!(m.model_ref().revision, "1");
         assert_eq!(m.tagset().name, "chunk");
         assert_eq!(m.tagset().len(), m.maxent().num_outcomes());
         for (i, outcome) in m.maxent().outcome_texts().unwrap().into_iter().enumerate() {
@@ -225,28 +281,25 @@ mod tests {
         }
         assert!(m.tag_of("B-NP").is_some());
         assert_eq!(m.tag_of("NP"), None);
-        // Every kind but the one `O` would name.
         assert_eq!(m.kinds().name, "phrase");
         let kinds: Vec<&str> = (0..m.kinds().len()).map(|i| m.kinds().label(Tag(i as u16))).collect();
-        // The training data has B and I tags for NP and VP, and only B
-        // tags for PP, SBAR and ADJP.
         assert_eq!(kinds, ["NP", "VP", "PP", "ADJP", "SBAR"]);
         assert_eq!(m.tagset().len(), 8);
     }
 
     #[test]
     fn beam_sizes() {
-        let m = ChunkerModel::read(fixtures().join("chunker-fixture.bin")).unwrap();
+        let m = test_fixture_model();
         assert_eq!(m.with_beam_size(1).unwrap().beam_size(), 1);
-        let m = ChunkerModel::read(fixtures().join("chunker-fixture.bin")).unwrap();
+        let m = test_fixture_model();
         assert!(matches!(m.with_beam_size(0), Err(ModelError::ZeroBeam)));
     }
 
     #[test]
     fn other_components_are_refused() {
-        let e = ChunkerModel::read(fixtures().join("pos-fixture.bin")).unwrap_err();
+        let e = ChunkerModel::open(model_with_outcome_and_component("POSTaggerME", "B".into())).unwrap_err();
         assert_eq!(e.to_string(), "chunker model: component \"POSTaggerME\" is not ChunkerME");
-        let e = ChunkerModel::read(fixtures().join("en-plain.bin")).unwrap_err();
+        let e = ChunkerModel::open(model_with_outcome_and_component("SentenceDetectorME", "B".into())).unwrap_err();
         assert_eq!(e.to_string(), "chunker model: component \"SentenceDetectorME\" is not ChunkerME");
     }
 }

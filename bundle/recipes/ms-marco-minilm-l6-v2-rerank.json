@@ -164,6 +164,7 @@
       ]
     }
   },
+  "notice": "This model was fine-tuned on MS MARCO, whose terms allow non-commercial use only; check them before using the model commercially.",
   "upstream": [
     {
       "path": "config.json",

@@ -3,18 +3,8 @@
 //! golden rules and specs, the pySBD tests, and Unicode's
 //! `SentenceBreakTest.txt` (UAX #29, Unicode 18.0).
 //!
-//! Three detectors run:
-//!
-//! - `rules`: the rule splitter with every tailoring and the bundled
-//!   abbreviation inventory, for the case's language;
-//! - `uax29`: the rule splitter with no tailoring, which is plain UAX #29;
-//! - `maxent-de`, `maxent-en`, `maxent-pt`: OpenNLP's sentence detector with
-//!   the published UD model of that language, in JVM parity mode (no
-//!   abbreviation inventory), on the cases in its
-//!   language (and `maxent-en` on `SentenceBreakTest.txt`);
-//!   `maxent-en-inventory` is the English model as it runs by default,
-//!   with the bundled inventory, on the text suites. Without the
-//!   models (`turbo-goldens fetch-models`) these say so and pass.
+//! Two native detectors run: `rules` with all language tailorings and the
+//! bundled abbreviation inventory, and `uax29` without tailorings.
 //!
 //! A text case passes when the detector's sentences, with every run of
 //! whitespace made one space and the ends trimmed, are the expected
@@ -33,31 +23,18 @@
 //! TURBO_WRITE_EXPECTED_FAILURES=1 cargo test -p turbo-sentdetect --test conformance
 //! ```
 
-mod common;
-
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
 use turbo_goldens::sentences::{
     BreakTestCase, SentenceCase, read_break_test, read_expected_failures, sentence_suite, sentences_dir,
 };
-use turbo_maxent::ModelFile;
-use turbo_sentdetect::{
-    AbbreviationInventories, LineBreaks, RuleSplitter, Rules, SentenceDetector, SentenceModel, WhitespaceMode,
-};
+use turbo_sentdetect::{LineBreaks, RuleSplitter, Rules};
 use turbo_unicode::sentence_break::sentence_break;
-
-/// The published models, by language.
-const MODELS: [(&str, &str); 3] = [
-    ("de", "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin"),
-    ("en", "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin"),
-    ("pt", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin"),
-];
 
 enum Detector {
     Rules,
     Uax29,
-    Maxent(&'static str, SentenceDetector),
 }
 
 impl Detector {
@@ -65,16 +42,6 @@ impl Detector {
         match self {
             Detector::Rules => "rules".into(),
             Detector::Uax29 => "uax29".into(),
-            Detector::Maxent(lang, d) if d.is_jvm_parity() => format!("maxent-{lang}"),
-            Detector::Maxent(lang, _) => format!("maxent-{lang}-inventory"),
-        }
-    }
-
-    /// Whether it runs on a case in language `tag`.
-    fn covers(&self, tag: &str) -> bool {
-        match self {
-            Detector::Maxent(lang, _) => tag.split(['-', '_']).next() == Some(lang),
-            _ => true,
         }
     }
 
@@ -83,11 +50,6 @@ impl Detector {
         match self {
             Detector::Rules => RuleSplitter::new(tag).split(text, &mut out),
             Detector::Uax29 => RuleSplitter::uax29().split(text, &mut out),
-            Detector::Maxent(_, d) => {
-                let mut with_probs = Vec::new();
-                d.detect(text, &mut with_probs);
-                out.extend(with_probs.iter().map(|&(s, _)| s));
-            }
         }
         out
     }
@@ -145,15 +107,6 @@ fn causes(detector: &Detector, tag: &str, text: &str, passes: impl Fn(&[Span]) -
         .map(|(name, _)| *name)
         .collect();
     if names.is_empty() { String::new() } else { format!("; passes without the {} rule", names.join(", ")) }
-}
-
-/// The maxent detector of `lang`, or `None` (having said so) without the
-/// model.
-fn maxent(lang: &'static str) -> Option<Detector> {
-    let file = MODELS.iter().find(|(l, _)| *l == lang).unwrap().1;
-    let path = common::published_model(file)?;
-    let model = SentenceModel::open(ModelFile::read(&path).unwrap()).unwrap();
-    Some(Detector::Maxent(lang, SentenceDetector::new(model, WhitespaceMode::Unicode).with_jvm_parity()))
 }
 
 /// Whitespace runs made one space, the ends trimmed.
@@ -267,9 +220,6 @@ fn text_suite(detector: &Detector, suite: &str) -> (usize, usize) {
     let mut failed = Vec::new();
     let mut run = 0;
     for case in sentence_suite(suite) {
-        if !detector.covers(&case.lang) {
-            continue;
-        }
         run += 1;
         let sentences = |spans: &[Span]| normalized(spans.iter().map(|s| &case.text[s.start as usize..s.end as usize]));
         let got = sentences(&detector.spans(&case.lang, &case.text));
@@ -386,41 +336,4 @@ fn uax29_on_pysbd() {
 #[test]
 fn uax29_on_uax29() {
     uax_suite(&Detector::Uax29);
-}
-
-#[test]
-fn maxent_on_pragmatic_segmenter() {
-    for (lang, _) in MODELS {
-        if let Some(d) = maxent(lang) {
-            text_suite(&d, "pragmatic-segmenter");
-        }
-    }
-}
-
-#[test]
-fn maxent_on_pysbd() {
-    for (lang, _) in MODELS {
-        if let Some(d) = maxent(lang) {
-            text_suite(&d, "pysbd");
-        }
-    }
-}
-
-/// Each published model as it runs by default, with its bundled inventory.
-#[test]
-fn maxent_with_inventory_on_text_suites() {
-    for (lang, _) in MODELS {
-        if let Some(Detector::Maxent(lang, d)) = maxent(lang) {
-            let d = Detector::Maxent(lang, d.with_abbreviations(AbbreviationInventories::for_language(lang)));
-            text_suite(&d, "pragmatic-segmenter");
-            text_suite(&d, "pysbd");
-        }
-    }
-}
-
-#[test]
-fn maxent_en_on_uax29() {
-    if let Some(d) = maxent("en") {
-        uax_suite(&d);
-    }
 }

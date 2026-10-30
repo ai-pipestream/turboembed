@@ -37,9 +37,10 @@ turbo-kserve --listen 0.0.0.0:8081 \
 ```
 
 `testdata/tiny-bert-bundle/manifest.json` is the small test model the
-example uses: `sentence-transformers/all-MiniLM-L6-v2` shrunk to 32
-dimensions and 64 tokens, with the same tokenizer. Real bundles, and how
-to make one, are in [bundle.md](bundle.md) and [zoo.md](zoo.md).
+example uses: `turboembed/tiny-bert`, a seed-0 two-layer BERT with 32
+dimensions and 64 tokens, using the MiniLM tokenizer. It is not the
+published MiniLM model. Real bundles, and how to make one, are in
+[bundle.md](bundle.md) and [zoo.md](zoo.md).
 
 ### Health
 

@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file turbo_training.proto.
  */
 export const file_turbo_training: GenFile = /*@__PURE__*/
-  fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwiTgoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiOAoTSW5zdGFsbE1vZGVsUmVxdWVzdBIMCgR1c2VyGAEgASgJEhMKC2FydGlmYWN0X2lkGAIgASgJIoYBCg9JbnN0YWxsUHJvZ3Jlc3MSLgoFc3RhZ2UYASABKA4yHy50dXJiby50cmFpbmluZy52MS5JbnN0YWxsU3RhZ2USEgoKZmlsZV9pbmRleBgCIAEoDRISCgpmaWxlX2NvdW50GAMgASgNEgwKBHBhdGgYBCABKAkSDQoFYnl0ZXMYBSABKAQijgEKEkluc3RhbGxNb2RlbFVwZGF0ZRI2Cghwcm9ncmVzcxgBIAEoCzIiLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxQcm9ncmVzc0gAEjYKCWluc3RhbGxlZBgCIAEoCzIhLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxlZE1vZGVsSABCCAoGdXBkYXRlIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCqiAQoMSW5zdGFsbFN0YWdlEh0KGUlOU1RBTExfU1RBR0VfVU5TUEVDSUZJRUQQABIaChZJTlNUQUxMX1NUQUdFX0FETUlUVEVEEAESHQoZSU5TVEFMTF9TVEFHRV9ET1dOTE9BRElORxACEhwKGElOU1RBTExfU1RBR0VfRE9XTkxPQURFRBADEhoKFklOU1RBTExfU1RBR0VfVkVSSUZJRUQQBCpXCgtTdGF0aWNEdHlwZRIcChhTVEFUSUNfRFRZUEVfVU5TUEVDSUZJRUQQABIUChBTVEFUSUNfRFRZUEVfRjMyEAESFAoQU1RBVElDX0RUWVBFX0YxNhACKtcBCgpUcmFpblN0YWdlEhsKF1RSQUlOX1NUQUdFX1VOU1BFQ0lGSUVEEAASGAoUVFJBSU5fU1RBR0VfQURNSVRURUQQARIUChBUUkFJTl9TVEFHRV9LRVBUEAISGQoVVFJBSU5fU1RBR0VfRU1CRURESU5HEAMSFwoTVFJBSU5fU1RBR0VfUkVEVUNFRBAEEhgKFFRSQUlOX1NUQUdFX01FQVNVUkVEEAUSFgoSVFJBSU5fU1RBR0VfU0VBTEVEEAYSFgoSVFJBSU5fU1RBR0VfTE9BREVEEAcy3AMKE1R1cmJvQ2F0YWxvZ1NlcnZpY2USawoQTGlzdE1vZGVsQ2F0YWxvZxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsQ2F0YWxvZ1Jlc3BvbnNlEnQKE0xpc3RJbnN0YWxsZWRNb2RlbHMSLS50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdBouLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RJbnN0YWxsZWRNb2RlbHNSZXNwb25zZRKAAQoXUmVjb3JkTGljZW5jZUFjY2VwdGFuY2USMS50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QaMi50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEl8KDEluc3RhbGxNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxNb2RlbFJlcXVlc3QaJS50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxVcGRhdGUwATLBAwoUVHVyYm9UcmFpbmluZ1NlcnZpY2USXwoMTGlzdFRlYWNoZXJzEiYudHVyYm8udHJhaW5pbmcudjEuTGlzdFRlYWNoZXJzUmVxdWVzdBonLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1Jlc3BvbnNlEmsKEFRyYWluU3RhdGljTW9kZWwSKi50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUmVxdWVzdBopLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxVcGRhdGUwARJrChBMaXN0U3RhdGljTW9kZWxzEioudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1JlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5MaXN0U3RhdGljTW9kZWxzUmVzcG9uc2USbgoRRGVsZXRlU3RhdGljTW9kZWwSKy50dXJiby50cmFpbmluZy52MS5EZWxldGVTdGF0aWNNb2RlbFJlcXVlc3QaLC50dXJiby50cmFpbmluZy52MS5EZWxldGVTdGF0aWNNb2RlbFJlc3BvbnNlYgZwcm90bzM");
+  fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwieAoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCRITCgthcnRpZmFjdF9pZBgEIAEoCRITCgt0ZXh0X3NoYTI1NhgFIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiTgoeUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMAoHcmV2b2tlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIUCgx3YXNfYWNjZXB0ZWQYAyABKAgiggEKEUxpY2VuY2VBY2NlcHRhbmNlEi4KBXRlcm1zGAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhMKC2FjY2VwdGVkX2F0GAIgASgEEhMKC2FydGlmYWN0X2lkGAMgASgJEhMKC3RleHRfc2hhMjU2GAQgASgJIi0KHUxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0EgwKBHVzZXIYASABKAkidQoeTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEgwKBHVzZXIYASABKAkSNgoIYWNjZXB0ZWQYAiADKAsyJC50dXJiby50cmFpbmluZy52MS5MaWNlbmNlQWNjZXB0YW5jZRINCgVhZG1pbhgDIAEoCCI4ChNJbnN0YWxsTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkihgEKD0luc3RhbGxQcm9ncmVzcxIuCgVzdGFnZRgBIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxTdGFnZRISCgpmaWxlX2luZGV4GAIgASgNEhIKCmZpbGVfY291bnQYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVieXRlcxgFIAEoBCKOAQoSSW5zdGFsbE1vZGVsVXBkYXRlEjYKCHByb2dyZXNzGAEgASgLMiIudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFByb2dyZXNzSAASNgoJaW5zdGFsbGVkGAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWxIAEIICgZ1cGRhdGUiOQoURGVzY3JpYmVNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSJHChVEZXNjcmliZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkiSAoTUmVzb2x2ZU1vZGVsUmVxdWVzdBIOCgZzaGEyNTYYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEdXNlchgDIAEoCSJUChRSZXNvbHZlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeRIMCgRwYXRoGAIgASgJIlcKFFJlYWRNb2RlbEZpbGVSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZzaGEyNTYYBCABKAkiWQoOTW9kZWxGaWxlQ2h1bmsSLgoEZmlsZRgBIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlSAASDgoEZGF0YRgCIAEoDEgAQgcKBWZyYW1lIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCqiAQoMSW5zdGFsbFN0YWdlEh0KGUlOU1RBTExfU1RBR0VfVU5TUEVDSUZJRUQQABIaChZJTlNUQUxMX1NUQUdFX0FETUlUVEVEEAESHQoZSU5TVEFMTF9TVEFHRV9ET1dOTE9BRElORxACEhwKGElOU1RBTExfU1RBR0VfRE9XTkxPQURFRBADEhoKFklOU1RBTExfU1RBR0VfVkVSSUZJRUQQBCpXCgtTdGF0aWNEdHlwZRIcChhTVEFUSUNfRFRZUEVfVU5TUEVDSUZJRUQQABIUChBTVEFUSUNfRFRZUEVfRjMyEAESFAoQU1RBVElDX0RUWVBFX0YxNhACKtcBCgpUcmFpblN0YWdlEhsKF1RSQUlOX1NUQUdFX1VOU1BFQ0lGSUVEEAASGAoUVFJBSU5fU1RBR0VfQURNSVRURUQQARIUChBUUkFJTl9TVEFHRV9LRVBUEAISGQoVVFJBSU5fU1RBR0VfRU1CRURESU5HEAMSFwoTVFJBSU5fU1RBR0VfUkVEVUNFRBAEEhgKFFRSQUlOX1NUQUdFX01FQVNVUkVEEAUSFgoSVFJBSU5fU1RBR0VfU0VBTEVEEAYSFgoSVFJBSU5fU1RBR0VfTE9BREVEEAcygggKE1R1cmJvQ2F0YWxvZ1NlcnZpY2USawoQTGlzdE1vZGVsQ2F0YWxvZxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsQ2F0YWxvZ1Jlc3BvbnNlEnQKE0xpc3RJbnN0YWxsZWRNb2RlbHMSLS50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdBouLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RJbnN0YWxsZWRNb2RlbHNSZXNwb25zZRKAAQoXUmVjb3JkTGljZW5jZUFjY2VwdGFuY2USMS50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QaMi50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEl8KDEluc3RhbGxNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxNb2RlbFJlcXVlc3QaJS50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxVcGRhdGUwARJiCg1EZXNjcmliZU1vZGVsEicudHVyYm8udHJhaW5pbmcudjEuRGVzY3JpYmVNb2RlbFJlcXVlc3QaKC50dXJiby50cmFpbmluZy52MS5EZXNjcmliZU1vZGVsUmVzcG9uc2USXwoMUmVzb2x2ZU1vZGVsEiYudHVyYm8udHJhaW5pbmcudjEuUmVzb2x2ZU1vZGVsUmVxdWVzdBonLnR1cmJvLnRyYWluaW5nLnYxLlJlc29sdmVNb2RlbFJlc3BvbnNlEl0KDVJlYWRNb2RlbEZpbGUSJy50dXJiby50cmFpbmluZy52MS5SZWFkTW9kZWxGaWxlUmVxdWVzdBohLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsRmlsZUNodW5rMAESgAEKF1Jldm9rZUxpY2VuY2VBY2NlcHRhbmNlEjEudHVyYm8udHJhaW5pbmcudjEuUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0GjIudHVyYm8udHJhaW5pbmcudjEuUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXNwb25zZRJ9ChZMaXN0TGljZW5jZUFjY2VwdGFuY2VzEjAudHVyYm8udHJhaW5pbmcudjEuTGlzdExpY2VuY2VBY2NlcHRhbmNlc1JlcXVlc3QaMS50dXJiby50cmFpbmluZy52MS5MaXN0TGljZW5jZUFjY2VwdGFuY2VzUmVzcG9uc2UywQMKFFR1cmJvVHJhaW5pbmdTZXJ2aWNlEl8KDExpc3RUZWFjaGVycxImLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1JlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXNwb25zZRJrChBUcmFpblN0YXRpY01vZGVsEioudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QaKS50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsVXBkYXRlMAESawoQTGlzdFN0YXRpY01vZGVscxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1Jlc3BvbnNlEm4KEURlbGV0ZVN0YXRpY01vZGVsEisudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZWIGcHJvdG8z");
 
 /**
  * A licence and the address of the text a user accepts for it.
@@ -378,6 +378,23 @@ export type RecordLicenceAcceptanceRequest = Message<"turbo.training.v1.RecordLi
    * @generated from field: string terms = 3;
    */
   terms: string;
+
+  /**
+   * The artifact whose page showed the terms, recorded for audit. When
+   * set, it is an artifact the index lists that needs these terms.
+   *
+   * @generated from field: string artifact_id = 4;
+   */
+  artifactId: string;
+
+  /**
+   * The SHA-256, as 64 lowercase hex digits, of the LicenceTerms.text the
+   * page displayed. When set, it must be the digest of the text the
+   * server serves for these terms, so the acceptance names that text.
+   *
+   * @generated from field: string text_sha256 = 5;
+   */
+  textSha256: string;
 };
 
 /**
@@ -402,7 +419,7 @@ export type RecordLicenceAcceptanceResponse = Message<"turbo.training.v1.RecordL
   accepted?: LicenceTerms | undefined;
 
   /**
-   * Seconds since the Unix epoch.
+   * Seconds since the Unix epoch. Accepting again keeps the first time.
    *
    * @generated from field: uint64 accepted_at = 3;
    */
@@ -415,6 +432,153 @@ export type RecordLicenceAcceptanceResponse = Message<"turbo.training.v1.RecordL
  */
 export const RecordLicenceAcceptanceResponseSchema: GenMessage<RecordLicenceAcceptanceResponse> = /*@__PURE__*/
   messageDesc(file_turbo_training, 10);
+
+/**
+ * @generated from message turbo.training.v1.RevokeLicenceAcceptanceRequest
+ */
+export type RevokeLicenceAcceptanceRequest = Message<"turbo.training.v1.RevokeLicenceAcceptanceRequest"> & {
+  /**
+   * @generated from field: string user = 1;
+   */
+  user: string;
+
+  /**
+   * As RecordLicenceAcceptanceRequest names them.
+   *
+   * @generated from field: string licence = 2;
+   */
+  licence: string;
+
+  /**
+   * @generated from field: string terms = 3;
+   */
+  terms: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.RevokeLicenceAcceptanceRequest.
+ * Use `create(RevokeLicenceAcceptanceRequestSchema)` to create a new message.
+ */
+export const RevokeLicenceAcceptanceRequestSchema: GenMessage<RevokeLicenceAcceptanceRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 11);
+
+/**
+ * @generated from message turbo.training.v1.RevokeLicenceAcceptanceResponse
+ */
+export type RevokeLicenceAcceptanceResponse = Message<"turbo.training.v1.RevokeLicenceAcceptanceResponse"> & {
+  /**
+   * @generated from field: string user = 1;
+   */
+  user: string;
+
+  /**
+   * @generated from field: turbo.training.v1.LicenceTerms revoked = 2;
+   */
+  revoked?: LicenceTerms | undefined;
+
+  /**
+   * Whether there was an acceptance to withdraw.
+   *
+   * @generated from field: bool was_accepted = 3;
+   */
+  wasAccepted: boolean;
+};
+
+/**
+ * Describes the message turbo.training.v1.RevokeLicenceAcceptanceResponse.
+ * Use `create(RevokeLicenceAcceptanceResponseSchema)` to create a new message.
+ */
+export const RevokeLicenceAcceptanceResponseSchema: GenMessage<RevokeLicenceAcceptanceResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 12);
+
+/**
+ * One acceptance as the zoo's acceptances.json records it (docs/zoo.md).
+ *
+ * @generated from message turbo.training.v1.LicenceAcceptance
+ */
+export type LicenceAcceptance = Message<"turbo.training.v1.LicenceAcceptance"> & {
+  /**
+   * @generated from field: turbo.training.v1.LicenceTerms terms = 1;
+   */
+  terms?: LicenceTerms | undefined;
+
+  /**
+   * Seconds since the Unix epoch.
+   *
+   * @generated from field: uint64 accepted_at = 2;
+   */
+  acceptedAt: bigint;
+
+  /**
+   * The artifact whose page showed the terms, when one was recorded.
+   *
+   * @generated from field: string artifact_id = 3;
+   */
+  artifactId: string;
+
+  /**
+   * The SHA-256 of the text as the page displayed it, when recorded.
+   *
+   * @generated from field: string text_sha256 = 4;
+   */
+  textSha256: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.LicenceAcceptance.
+ * Use `create(LicenceAcceptanceSchema)` to create a new message.
+ */
+export const LicenceAcceptanceSchema: GenMessage<LicenceAcceptance> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 13);
+
+/**
+ * @generated from message turbo.training.v1.ListLicenceAcceptancesRequest
+ */
+export type ListLicenceAcceptancesRequest = Message<"turbo.training.v1.ListLicenceAcceptancesRequest"> & {
+  /**
+   * Empty lists nothing.
+   *
+   * @generated from field: string user = 1;
+   */
+  user: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.ListLicenceAcceptancesRequest.
+ * Use `create(ListLicenceAcceptancesRequestSchema)` to create a new message.
+ */
+export const ListLicenceAcceptancesRequestSchema: GenMessage<ListLicenceAcceptancesRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 14);
+
+/**
+ * @generated from message turbo.training.v1.ListLicenceAcceptancesResponse
+ */
+export type ListLicenceAcceptancesResponse = Message<"turbo.training.v1.ListLicenceAcceptancesResponse"> & {
+  /**
+   * @generated from field: string user = 1;
+   */
+  user: string;
+
+  /**
+   * @generated from field: repeated turbo.training.v1.LicenceAcceptance accepted = 2;
+   */
+  accepted: LicenceAcceptance[];
+
+  /**
+   * Whether the server serves RecordLicenceAcceptance,
+   * RevokeLicenceAcceptance and InstallModel (its admin flag, or zoo mode).
+   *
+   * @generated from field: bool admin = 3;
+   */
+  admin: boolean;
+};
+
+/**
+ * Describes the message turbo.training.v1.ListLicenceAcceptancesResponse.
+ * Use `create(ListLicenceAcceptancesResponseSchema)` to create a new message.
+ */
+export const ListLicenceAcceptancesResponseSchema: GenMessage<ListLicenceAcceptancesResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 15);
 
 /**
  * @generated from message turbo.training.v1.InstallModelRequest
@@ -436,7 +600,7 @@ export type InstallModelRequest = Message<"turbo.training.v1.InstallModelRequest
  * Use `create(InstallModelRequestSchema)` to create a new message.
  */
 export const InstallModelRequestSchema: GenMessage<InstallModelRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 11);
+  messageDesc(file_turbo_training, 16);
 
 /**
  * @generated from message turbo.training.v1.InstallProgress
@@ -476,7 +640,7 @@ export type InstallProgress = Message<"turbo.training.v1.InstallProgress"> & {
  * Use `create(InstallProgressSchema)` to create a new message.
  */
 export const InstallProgressSchema: GenMessage<InstallProgress> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 12);
+  messageDesc(file_turbo_training, 17);
 
 /**
  * Progress, then one installed last.
@@ -507,7 +671,174 @@ export type InstallModelUpdate = Message<"turbo.training.v1.InstallModelUpdate">
  * Use `create(InstallModelUpdateSchema)` to create a new message.
  */
 export const InstallModelUpdateSchema: GenMessage<InstallModelUpdate> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 13);
+  messageDesc(file_turbo_training, 18);
+
+/**
+ * @generated from message turbo.training.v1.DescribeModelRequest
+ */
+export type DescribeModelRequest = Message<"turbo.training.v1.DescribeModelRequest"> & {
+  /**
+   * With a user, the entry's missing_terms are the ones that user has not
+   * accepted.
+   *
+   * @generated from field: string user = 1;
+   */
+  user: string;
+
+  /**
+   * @generated from field: string artifact_id = 2;
+   */
+  artifactId: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.DescribeModelRequest.
+ * Use `create(DescribeModelRequestSchema)` to create a new message.
+ */
+export const DescribeModelRequestSchema: GenMessage<DescribeModelRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 19);
+
+/**
+ * @generated from message turbo.training.v1.DescribeModelResponse
+ */
+export type DescribeModelResponse = Message<"turbo.training.v1.DescribeModelResponse"> & {
+  /**
+   * @generated from field: turbo.training.v1.CatalogEntry entry = 1;
+   */
+  entry?: CatalogEntry | undefined;
+};
+
+/**
+ * Describes the message turbo.training.v1.DescribeModelResponse.
+ * Use `create(DescribeModelResponseSchema)` to create a new message.
+ */
+export const DescribeModelResponseSchema: GenMessage<DescribeModelResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 20);
+
+/**
+ * @generated from message turbo.training.v1.ResolveModelRequest
+ */
+export type ResolveModelRequest = Message<"turbo.training.v1.ResolveModelRequest"> & {
+  /**
+   * The unpacked file's SHA-256, 64 lowercase hexadecimal digits.
+   *
+   * @generated from field: string sha256 = 1;
+   */
+  sha256: string;
+
+  /**
+   * When set, only that artifact's files are searched.
+   *
+   * @generated from field: string artifact_id = 2;
+   */
+  artifactId: string;
+
+  /**
+   * @generated from field: string user = 3;
+   */
+  user: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.ResolveModelRequest.
+ * Use `create(ResolveModelRequestSchema)` to create a new message.
+ */
+export const ResolveModelRequestSchema: GenMessage<ResolveModelRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 21);
+
+/**
+ * @generated from message turbo.training.v1.ResolveModelResponse
+ */
+export type ResolveModelResponse = Message<"turbo.training.v1.ResolveModelResponse"> & {
+  /**
+   * @generated from field: turbo.training.v1.CatalogEntry entry = 1;
+   */
+  entry?: CatalogEntry | undefined;
+
+  /**
+   * The file's path inside the artifact's directory.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.ResolveModelResponse.
+ * Use `create(ResolveModelResponseSchema)` to create a new message.
+ */
+export const ResolveModelResponseSchema: GenMessage<ResolveModelResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 22);
+
+/**
+ * @generated from message turbo.training.v1.ReadModelFileRequest
+ */
+export type ReadModelFileRequest = Message<"turbo.training.v1.ReadModelFileRequest"> & {
+  /**
+   * @generated from field: string user = 1;
+   */
+  user: string;
+
+  /**
+   * @generated from field: string artifact_id = 2;
+   */
+  artifactId: string;
+
+  /**
+   * The file's path inside the artifact's directory.
+   *
+   * @generated from field: string path = 3;
+   */
+  path: string;
+
+  /**
+   * When set, the SHA-256 the caller's own index pins: a file the server's
+   * index pins at another is refused.
+   *
+   * @generated from field: string sha256 = 4;
+   */
+  sha256: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.ReadModelFileRequest.
+ * Use `create(ReadModelFileRequestSchema)` to create a new message.
+ */
+export const ReadModelFileRequestSchema: GenMessage<ReadModelFileRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 23);
+
+/**
+ * @generated from message turbo.training.v1.ModelFileChunk
+ */
+export type ModelFileChunk = Message<"turbo.training.v1.ModelFileChunk"> & {
+  /**
+   * @generated from oneof turbo.training.v1.ModelFileChunk.frame
+   */
+  frame: {
+    /**
+     * The first frame: the file as the index records it.
+     *
+     * @generated from field: turbo.training.v1.CatalogFile file = 1;
+     */
+    value: CatalogFile;
+    case: "file";
+  } | {
+    /**
+     * Every later frame: the next bytes, at most 64 KiB.
+     *
+     * @generated from field: bytes data = 2;
+     */
+    value: Uint8Array;
+    case: "data";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message turbo.training.v1.ModelFileChunk.
+ * Use `create(ModelFileChunkSchema)` to create a new message.
+ */
+export const ModelFileChunkSchema: GenMessage<ModelFileChunk> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 24);
 
 /**
  * @generated from message turbo.training.v1.Teacher
@@ -555,7 +886,7 @@ export type Teacher = Message<"turbo.training.v1.Teacher"> & {
  * Use `create(TeacherSchema)` to create a new message.
  */
 export const TeacherSchema: GenMessage<Teacher> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 14);
+  messageDesc(file_turbo_training, 25);
 
 /**
  * @generated from message turbo.training.v1.ListTeachersRequest
@@ -568,7 +899,7 @@ export type ListTeachersRequest = Message<"turbo.training.v1.ListTeachersRequest
  * Use `create(ListTeachersRequestSchema)` to create a new message.
  */
 export const ListTeachersRequestSchema: GenMessage<ListTeachersRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 15);
+  messageDesc(file_turbo_training, 26);
 
 /**
  * @generated from message turbo.training.v1.ListTeachersResponse
@@ -585,7 +916,7 @@ export type ListTeachersResponse = Message<"turbo.training.v1.ListTeachersRespon
  * Use `create(ListTeachersResponseSchema)` to create a new message.
  */
 export const ListTeachersResponseSchema: GenMessage<ListTeachersResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 16);
+  messageDesc(file_turbo_training, 27);
 
 /**
  * @generated from message turbo.training.v1.TrainStaticModelRequest
@@ -670,7 +1001,7 @@ export type TrainStaticModelRequest = Message<"turbo.training.v1.TrainStaticMode
  * Use `create(TrainStaticModelRequestSchema)` to create a new message.
  */
 export const TrainStaticModelRequestSchema: GenMessage<TrainStaticModelRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 17);
+  messageDesc(file_turbo_training, 28);
 
 /**
  * @generated from message turbo.training.v1.TrainStaticModelProgress
@@ -717,7 +1048,7 @@ export type TrainStaticModelProgress = Message<"turbo.training.v1.TrainStaticMod
  * Use `create(TrainStaticModelProgressSchema)` to create a new message.
  */
 export const TrainStaticModelProgressSchema: GenMessage<TrainStaticModelProgress> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 18);
+  messageDesc(file_turbo_training, 29);
 
 /**
  * The bundle a static model was distilled from, as its manifest names it.
@@ -746,7 +1077,7 @@ export type TeacherProvenance = Message<"turbo.training.v1.TeacherProvenance"> &
  * Use `create(TeacherProvenanceSchema)` to create a new message.
  */
 export const TeacherProvenanceSchema: GenMessage<TeacherProvenance> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 19);
+  messageDesc(file_turbo_training, 30);
 
 /**
  * Each quality text's nearest other text shares its group in this share
@@ -777,7 +1108,7 @@ export type StaticModelQuality = Message<"turbo.training.v1.StaticModelQuality">
  * Use `create(StaticModelQualitySchema)` to create a new message.
  */
 export const StaticModelQualitySchema: GenMessage<StaticModelQuality> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 20);
+  messageDesc(file_turbo_training, 31);
 
 /**
  * A file of a bundle as its manifest lists it.
@@ -808,7 +1139,7 @@ export type ArtifactFile = Message<"turbo.training.v1.ArtifactFile"> & {
  * Use `create(ArtifactFileSchema)` to create a new message.
  */
 export const ArtifactFileSchema: GenMessage<ArtifactFile> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 21);
+  messageDesc(file_turbo_training, 32);
 
 /**
  * @generated from message turbo.training.v1.StaticModelDescriptor
@@ -905,7 +1236,7 @@ export type StaticModelDescriptor = Message<"turbo.training.v1.StaticModelDescri
  * Use `create(StaticModelDescriptorSchema)` to create a new message.
  */
 export const StaticModelDescriptorSchema: GenMessage<StaticModelDescriptor> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 22);
+  messageDesc(file_turbo_training, 33);
 
 /**
  * @generated from message turbo.training.v1.RefusedTerm
@@ -929,7 +1260,7 @@ export type RefusedTerm = Message<"turbo.training.v1.RefusedTerm"> & {
  * Use `create(RefusedTermSchema)` to create a new message.
  */
 export const RefusedTermSchema: GenMessage<RefusedTerm> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 23);
+  messageDesc(file_turbo_training, 34);
 
 /**
  * @generated from message turbo.training.v1.TrainedStaticModel
@@ -971,7 +1302,7 @@ export type TrainedStaticModel = Message<"turbo.training.v1.TrainedStaticModel">
  * Use `create(TrainedStaticModelSchema)` to create a new message.
  */
 export const TrainedStaticModelSchema: GenMessage<TrainedStaticModel> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 24);
+  messageDesc(file_turbo_training, 35);
 
 /**
  * @generated from message turbo.training.v1.TrainStaticModelUpdate
@@ -1000,7 +1331,7 @@ export type TrainStaticModelUpdate = Message<"turbo.training.v1.TrainStaticModel
  * Use `create(TrainStaticModelUpdateSchema)` to create a new message.
  */
 export const TrainStaticModelUpdateSchema: GenMessage<TrainStaticModelUpdate> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 25);
+  messageDesc(file_turbo_training, 36);
 
 /**
  * @generated from message turbo.training.v1.ListStaticModelsRequest
@@ -1013,7 +1344,7 @@ export type ListStaticModelsRequest = Message<"turbo.training.v1.ListStaticModel
  * Use `create(ListStaticModelsRequestSchema)` to create a new message.
  */
 export const ListStaticModelsRequestSchema: GenMessage<ListStaticModelsRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 26);
+  messageDesc(file_turbo_training, 37);
 
 /**
  * @generated from message turbo.training.v1.ListStaticModelsResponse
@@ -1032,7 +1363,7 @@ export type ListStaticModelsResponse = Message<"turbo.training.v1.ListStaticMode
  * Use `create(ListStaticModelsResponseSchema)` to create a new message.
  */
 export const ListStaticModelsResponseSchema: GenMessage<ListStaticModelsResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 27);
+  messageDesc(file_turbo_training, 38);
 
 /**
  * @generated from message turbo.training.v1.DeleteStaticModelRequest
@@ -1049,7 +1380,7 @@ export type DeleteStaticModelRequest = Message<"turbo.training.v1.DeleteStaticMo
  * Use `create(DeleteStaticModelRequestSchema)` to create a new message.
  */
 export const DeleteStaticModelRequestSchema: GenMessage<DeleteStaticModelRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 28);
+  messageDesc(file_turbo_training, 39);
 
 /**
  * @generated from message turbo.training.v1.DeleteStaticModelResponse
@@ -1068,7 +1399,7 @@ export type DeleteStaticModelResponse = Message<"turbo.training.v1.DeleteStaticM
  * Use `create(DeleteStaticModelResponseSchema)` to create a new message.
  */
 export const DeleteStaticModelResponseSchema: GenMessage<DeleteStaticModelResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_training, 29);
+  messageDesc(file_turbo_training, 40);
 
 /**
  * @generated from enum turbo.training.v1.InstallStage
@@ -1254,6 +1585,60 @@ export const TurboCatalogService: GenService<{
     methodKind: "server_streaming";
     input: typeof InstallModelRequestSchema;
     output: typeof InstallModelUpdateSchema;
+  },
+  /**
+   * One artifact the index lists, as ListModelCatalog gives it.
+   *
+   * @generated from rpc turbo.training.v1.TurboCatalogService.DescribeModel
+   */
+  describeModel: {
+    methodKind: "unary";
+    input: typeof DescribeModelRequestSchema;
+    output: typeof DescribeModelResponseSchema;
+  },
+  /**
+   * The artifact and file the index pins at a SHA-256.
+   *
+   * @generated from rpc turbo.training.v1.TurboCatalogService.ResolveModel
+   */
+  resolveModel: {
+    methodKind: "unary";
+    input: typeof ResolveModelRequestSchema;
+    output: typeof ResolveModelResponseSchema;
+  },
+  /**
+   * An installed file's bytes, for a user who accepted every term the
+   * artifact needs: its catalog file first, then the bytes.
+   *
+   * @generated from rpc turbo.training.v1.TurboCatalogService.ReadModelFile
+   */
+  readModelFile: {
+    methodKind: "server_streaming";
+    input: typeof ReadModelFileRequestSchema;
+    output: typeof ModelFileChunkSchema;
+  },
+  /**
+   * Admin. Withdraws a user's acceptance of a licence's terms. Files
+   * already installed stay, but none is served to that user again until
+   * the terms are accepted again.
+   *
+   * @generated from rpc turbo.training.v1.TurboCatalogService.RevokeLicenceAcceptance
+   */
+  revokeLicenceAcceptance: {
+    methodKind: "unary";
+    input: typeof RevokeLicenceAcceptanceRequestSchema;
+    output: typeof RevokeLicenceAcceptanceResponseSchema;
+  },
+  /**
+   * The terms a user accepted, in the order accepted, and whether the
+   * server serves the admin calls.
+   *
+   * @generated from rpc turbo.training.v1.TurboCatalogService.ListLicenceAcceptances
+   */
+  listLicenceAcceptances: {
+    methodKind: "unary";
+    input: typeof ListLicenceAcceptancesRequestSchema;
+    output: typeof ListLicenceAcceptancesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_turbo_training, 0);

@@ -1,0 +1,9 @@
+MASKED	Routing 021000021 confirmed; routing number 123456780 too.
+
+MASK_ALL	Routing 021000021 confirmed; routing number 123456780 too.
+
+REWRITE	pseudonymize	OK	Routing 021000021 confirmed; routing number 123456780 too.
+
+REWRITE	hmac	OK	Routing 021000021 confirmed; routing number 123456780 too.
+
+AUDIT_REPORT	no pii found

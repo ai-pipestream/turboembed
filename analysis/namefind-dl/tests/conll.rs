@@ -39,7 +39,7 @@ fn of_kind<'a>(names: &[LabeledSpan<'a>], kind: &str) -> Vec<LabeledSpan<'a>> {
 #[test]
 #[ignore = "needs TURBO_NER_BUNDLE (bundle/recipes/dslim-bert-base-ner.json) and TURBO_CONLL2003_TEST naming eng.testb"]
 fn conll2003_english_test_set() {
-    let bundle = PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE"));
+    let bundle = turbo_pins::require(PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE")));
     let source = std::fs::read_to_string(std::env::var("TURBO_CONLL2003_TEST").expect("TURBO_CONLL2003_TEST")).unwrap();
     let samples: Vec<_> = Conll03Reader::new(&source, Conll03Language::English, EntityTypes::ALL)
         .unwrap()
@@ -83,8 +83,8 @@ fn conll2003_english_test_set() {
             })
             .collect();
         // Two names of one word's pieces (`Ko` `##fi`, each a `B-`) cover
-        // the same token: one name there, as `FMeasure` would count a
-        // repeated one twice.
+        // the same token: one name there, or the repeat would count as a
+        // prediction that matches nothing.
         let mut seen = Vec::new();
         predicted.retain(|p| {
             let new = !seen.contains(p);

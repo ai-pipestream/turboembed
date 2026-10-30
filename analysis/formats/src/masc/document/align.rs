@@ -2,8 +2,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use turbo_jvm::hash_map::put_order;
-
 use super::super::error::MascError;
 use super::xml::{NamedEntities, Penn, Region};
 use super::{
@@ -15,7 +13,10 @@ impl MascDocument {
         // Each quark's tokens, built in the order the token map iterates,
         // each token put in front of the ones before it.
         let mut quark_tokens: HashMap<i32, Vec<usize>> = HashMap::new();
-        for t in put_order(penn.tokens.iter().map(|t| t.id)).0 {
+        let mut token_ids: Vec<i32> = penn.tokens.iter().map(|t| t.id).collect();
+        token_ids.sort_unstable();
+        for id in token_ids {
+            let t = penn.places[&id];
             for &q in &penn.tokens[t].quarks {
                 let tokens = quark_tokens.entry(q).or_default();
                 if !tokens.is_empty() {
@@ -24,8 +25,17 @@ impl MascDocument {
                 tokens.insert(0, t);
             }
         }
+        let document_places = document_quark_places(&self.quarks);
         for si in 0..self.sentences.len() {
-            let tokens = tokenize(si, &self.sentences[si], &self.quarks, penn, &quark_tokens, &mut self.warnings)?;
+            let tokens = tokenize(
+                si,
+                &self.sentences[si],
+                &self.quarks,
+                &document_places,
+                penn,
+                &quark_tokens,
+                &mut self.warnings,
+            )?;
             let sentence = &mut self.sentences[si];
             sentence.token_places = tokens.iter().enumerate().map(|(i, t)| (t.id, i)).collect();
             sentence.tokens = Some(tokens);
@@ -34,10 +44,10 @@ impl MascDocument {
         Ok(())
     }
 
-    /// The entities of `ne` that are in no sentence, and why: whether a
-    /// token of one has a quark in a region of the sentence file, those
-    /// the reader keeps (the sentences) or those it dropped (`dropped`). A
-    /// region holds a quark it overlaps, as `combineAnnotations` gives it
+    /// The entities of `ne` that have no complete sentence sample, and why:
+    /// whether a token of one has a quark in a region of the sentence file,
+    /// those the reader keeps (the sentences) or those it dropped (`dropped`).
+    /// A region holds a quark it overlaps, as `combineAnnotations` gives it
     /// the quark.
     pub(super) fn unplaced(&self, ne: &NamedEntities, penn: &Penn, dropped: &[Region]) -> Vec<MascUnplacedEntity> {
         let placed: HashSet<i32> = self.sentences.iter().flat_map(|s| s.token_places.keys().copied()).collect();
@@ -57,17 +67,25 @@ impl MascDocument {
         };
         let mut out = Vec::new();
         for entity in &ne.entities {
-            if entity.tokens.iter().any(|t| placed.contains(t)) {
+            let placed_everywhere = !entity.tokens.is_empty() && entity.tokens.iter().all(|t| placed.contains(t));
+            if placed_everywhere
+                && self.sentences.iter().any(|s| entity.tokens.iter().all(|t| s.token_places.contains_key(t)))
+            {
                 continue;
             }
-            let cause =
-                if in_a_region(&entity.tokens) { Unplaced::DroppedSentence } else { Unplaced::OutsideSentences };
+            let cause = if placed_everywhere {
+                Unplaced::CrossesSentences
+            } else if in_a_region(&entity.tokens) {
+                Unplaced::DroppedSentence
+            } else {
+                Unplaced::OutsideSentences
+            };
             out.push(MascUnplacedEntity { kind: ne.types.get(&entity.id).cloned().flatten(), cause });
         }
         out
     }
 
-    pub(super) fn add_named_entities(&mut self, ne: &NamedEntities) {
+    pub(super) fn add_named_entities_with(&mut self, ne: &NamedEntities) {
         if !self.has_penn_tags && !self.sentences.is_empty() {
             // the first sentence throws "Named entity labels provided for an
             // un-tokenized sentence.", which the document logs
@@ -80,6 +98,9 @@ impl MascDocument {
             let mut names = Vec::new();
             for &e in &ne.order {
                 let entity = &ne.entities[e];
+                if entity.tokens.is_empty() || !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t)) {
+                    continue;
+                }
                 let kind = ne.types.get(&entity.id).cloned().flatten();
                 let mut start = count;
                 let mut end = 0;
@@ -90,9 +111,7 @@ impl MascDocument {
                         if i < start {
                             start = i;
                         }
-                        // compared with the end so far, which is one past a
-                        // token: a name of the tokens 3 and 4 ends at 4
-                        if i > end {
+                        if i >= end {
                             end = i + 1;
                         }
                     }
@@ -109,6 +128,9 @@ impl MascDocument {
             sentence.names = names;
             let mut entities = Vec::new();
             for entity in &ne.entities {
+                if entity.tokens.is_empty() || !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t)) {
+                    continue;
+                }
                 let mut tokens: Vec<u32> =
                     entity.tokens.iter().filter_map(|t| sentence.token_places.get(t)).map(|&i| i as u32).collect();
                 tokens.sort_unstable();
@@ -125,47 +147,33 @@ impl MascDocument {
     }
 }
 
-/// The list of names `addNamedEntities` keeps of names sorted by start,
-/// or `None` when it finds no overlap and keeps them all.
-///
-/// It walks a left and a right name: when they overlap (the left contains
-/// or crosses the right) it marks the shorter (the right on a tie) and
-/// moves the right on; otherwise it moves the left on, until the left
-/// reaches the right and finds that a name contains itself. Then, if
-/// anything was marked, it keeps the unmarked names but the last.
+/// Removes the shorter of every overlapping pair, retaining every disjoint name.
 pub(super) fn remove_overlaps(names: &[MascName]) -> Option<Vec<MascName>> {
-    let contains = |a: &MascName, b: &MascName| a.start <= b.start && b.end <= a.end;
-    let crosses = |a: &MascName, b: &MascName| {
-        !contains(a, b)
-            && !contains(b, a)
-            && (a.start <= b.start && b.start < a.end || b.start <= a.start && a.start < b.end)
-    };
     let mut marked = HashSet::new();
-    let mut overlaps = false;
-    let mut left = 0;
-    let mut right = 1;
-    while right < names.len() {
-        let (l, r) = (&names[left], &names[right]);
-        if contains(l, r) || crosses(l, r) {
-            if r.end - r.start > l.end - l.start {
-                marked.insert(left);
-            } else {
-                marked.insert(right);
+    for left in 0..names.len() {
+        for right in left + 1..names.len() {
+            let (l, r) = (&names[left], &names[right]);
+            let overlaps = l.start < r.end && r.start < l.end || l.start == r.start && l.end == r.end;
+            if overlaps {
+                if r.end - r.start > l.end - l.start {
+                    marked.insert(left);
+                } else {
+                    marked.insert(right);
+                }
             }
-            overlaps = true;
-            right += 1;
-        } else {
-            left += 1;
         }
     }
-    overlaps.then(|| {
-        names[..names.len() - 1]
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| !marked.contains(i))
-            .map(|(_, n)| n.clone())
-            .collect()
-    })
+    (!marked.is_empty())
+        .then(|| names.iter().enumerate().filter(|(i, _)| !marked.contains(i)).map(|(_, n)| n.clone()).collect())
+}
+
+/// The first document position of each quark ID, built once per document.
+pub(super) fn document_quark_places(quarks: &[Quark]) -> HashMap<i32, usize> {
+    let mut places = HashMap::new();
+    for (index, quark) in quarks.iter().enumerate() {
+        places.entry(quark.id).or_insert(index);
+    }
+    places
 }
 
 /// `MascSentence.tokenizePenn` for sentence `si`: the tokens of its
@@ -176,6 +184,7 @@ fn tokenize(
     si: usize,
     sentence: &MascSentence,
     quarks: &[Quark],
+    document_places: &HashMap<i32, usize>,
     penn: &Penn,
     quark_tokens: &HashMap<i32, Vec<usize>>,
     warnings: &mut Vec<MascWarning>,
@@ -201,7 +210,7 @@ fn tokenize(
                 // the sentence's own quark, else the first in the document
                 let place = match sentence.quark_places.get(&q) {
                     Some(&p) => p,
-                    None => quarks.iter().position(|x| x.id == q).ok_or(MascError::MissingQuark { id: q })?,
+                    None => document_places.get(&q).copied().ok_or(MascError::MissingQuark { id: q })?,
                 };
                 places.push(place);
             }

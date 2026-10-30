@@ -1,0 +1,8 @@
+===OUT===
+The word caféteria is in decomposed form, and the Hindi किताबीका word ends in a vowel sign.
+Plain caféteria joins as before.
+
+===EDITS===
+15	17	
+78	80	
+125	127	

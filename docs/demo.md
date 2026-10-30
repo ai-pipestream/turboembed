@@ -1,9 +1,9 @@
 # The demo page
 
-`turbo-kserve-demo` is a small web page for trying a running
-`turbo-kserve` (docs/grpc.md) from a browser: paste a few texts, pick
-the served models, send them, and see each model's vectors and the
-cosine similarity between the texts, with several models side by side.
+`turbo-kserve-demo` is a small web workbench for trying a running
+`turbo-kserve` (docs/grpc.md) from a browser: compare embedding models,
+watch a document's analysis arrive step by step, build and search an
+index, learn and import vocabularies, and see what the server serves.
 
 It is a client of the server and nothing more. Browsers cannot make
 plain gRPC calls, so the demo is a separate binary that serves the page
@@ -15,9 +15,9 @@ on any backend. The page is plain HTML, CSS and JavaScript compiled into
 the binary: it loads nothing from any other host, so it works on a
 machine with no network beyond the one to the server.
 
-The page itself still calls the JSON routes this demo had before #1360
-and does not work until #1361 ports it to the generated Connect clients
-(`demo/web/src/gen`).
+The page is written in TypeScript under `demo/web/src` over the
+generated Connect clients (`demo/web/src/gen`) and bundled into
+`demo/static/app.js` (Building the page, below).
 
 ## No JSON front end
 
@@ -194,6 +194,25 @@ not answered. A certificate or key that does not load stops the demo at
 startup. A token sent off loopback without TLS crosses the network in
 the clear; the demo says so when it starts.
 
+### The user
+
+Every catalog method that names a user (`ListModelCatalog`,
+`RecordLicenceAcceptance`, `RevokeLicenceAcceptance`,
+`ListLicenceAcceptances`, `InstallModel`, `DescribeModel`,
+`ResolveModel`, `ReadModelFile`) acts for the user the demo was started
+with, `--user`, never for a name the page sends: the demo drops the
+message's user field and writes its own (`demo/src/user.rs`, the one
+place it looks inside a message). Without `--user` the field is
+cleared, so reads name no user, and a catalog write is refused
+`permission_denied` before the server sees it. `LoadBundle` names the
+same user (its field 12), so a bundle under terms that need acceptance
+loads only once that user accepted them; without `--user` the field is
+cleared and only bundles that need no acceptance load. A message that
+is not well formed protobuf is refused `invalid_argument`. The token
+says who may call; `--user` says who those calls are for, so a demo
+shared by several people should run one instance, with its own token,
+per person.
+
 ## Generated clients
 
 The page's protobuf and Connect-ES code is generated, never written by
@@ -206,6 +225,29 @@ lands with its regenerated TypeScript. The script needs Node and npm and
 installs the exact versions in `demo/web/package-lock.json`
 (docs/release.md); no `build.rs` runs it, and `cargo build` needs
 neither.
+
+## Building the page
+
+`scripts/build-web.sh` type checks `demo/web` with `tsc`, runs the unit
+tests in `demo/web/test` under Node (the page's SHA-256 against Node's,
+and the upload bodies decoded frame by frame), and bundles
+`demo/web/src/main.ts` with esbuild into `demo/static/app.js`, an
+unminified ES module. The bundle is committed, so `cargo build` needs no
+Node; the `proto` CI job rebuilds it with `--check` and fails on any
+difference. TypeScript 7.0.2 and esbuild 0.28.2 are pinned exactly in
+`demo/web/package.json`, beside the generator pins; the page has no UI
+framework.
+
+In `demo/web/src`, `rpc.ts` makes the one Connect transport (binary,
+POST only, the bearer token from the page's token field) and a client
+per service, and `upload.ts` makes the one `fetch`, the upload PUT;
+`frames.ts` builds the upload bodies as Blobs, so a picked file is sent
+from disk without being read into memory, and `sha256.ts` hashes a
+dictionary for its import header. The tree test
+(`bench/tests/tree/front_end.rs`) holds the page's own TypeScript to
+this: no `JSON.`, `toJson`, `fromJson`, `application/json` or
+`connect+json`, no JSON or GET transport, and no `fetch` outside
+`upload.ts`.
 
 ## Starting it
 
@@ -242,9 +284,13 @@ target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
 | Flag | Meaning | Absent |
 |---|---|---|
 | `--listen ADDR:PORT` | Where the page is served. | `TURBO_DEMO_LISTEN`, else `127.0.0.1:8080`. |
-| `--server URL` | The server to call, `http://HOST:PORT`. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
+| `--server URL` | The server to call, `http://HOST:PORT` or `https://HOST:PORT`. HTTPS requires an explicit trusted CA. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
+| `--server-tls-ca PEM` | Trust this CA certificate chain for the upstream gRPC server. | `TURBO_DEMO_SERVER_TLS_CA`, else no upstream TLS. |
+| `--server-tls-cert PEM`, `--server-tls-key PEM` | Present this client identity to the upstream server; both or neither. | `TURBO_DEMO_SERVER_TLS_CERT` and `TURBO_DEMO_SERVER_TLS_KEY`. |
+| `--server-tls-name NAME` | Verify this certificate name when dialing a different address. Trust and name verification stay enabled. | `TURBO_DEMO_SERVER_TLS_NAME`, else the URL host. |
 | `--allow METHOD` | Also forward this method that changes the server, `/<package>.<Service>/<Method>`; repeat for more. A name that is not a known method stops the demo at startup. | `TURBO_DEMO_ALLOW`, comma-separated, else the reads only. |
 | `--token-file PATH` | A file holding the bearer token every call must carry. | `TURBO_DEMO_TOKEN_FILE`, else the token in `TURBO_DEMO_TOKEN`, else none. |
+| `--user NAME` | Who the page's licence acceptances and installs are for (see The user). | `TURBO_DEMO_USER`, else none: the catalog calls name no user and the Models tab is read-only. |
 | `--cors-origin ORIGIN` | Another origin whose pages may call, `http(s)://HOST[:PORT]`; repeat for more. | `TURBO_DEMO_CORS_ORIGINS`, comma-separated, else none. |
 | `--tls-cert PEM`, `--tls-key PEM` | Serve HTTPS with this certificate chain and private key; both or neither. | `TURBO_DEMO_TLS_CERT` and `TURBO_DEMO_TLS_KEY`, else plain HTTP. |
 
@@ -252,28 +298,121 @@ The demo serves on the loopback address with no token unless told
 otherwise. It need not start after the server: it connects
 on each call, and a call while the server is down is `unavailable`.
 
+The upstream client settings are separate from the page's `--tls-cert`
+and `--tls-key`. For an mTLS upstream, mount a dedicated client identity
+and the server CA, then start the page with:
+
+```sh
+turbo-kserve-demo --server https://127.0.0.1:8081 \
+  --server-tls-ca certs/server-ca.pem --server-tls-name localhost \
+  --server-tls-cert certs/client.pem --server-tls-key certs/client.key
+```
+
+There is no plaintext retry or insecure certificate option. An HTTPS
+URL without a CA, an HTTP URL with TLS settings, or an incomplete client
+identity is refused. Flags override the corresponding environment values.
+Library callers use `Options.upstream_tls: Option<UpstreamTls>` and the
+paired `ClientIdentity` type. The server's private key is never used as
+the client's key automatically.
+
 ## What the page shows
 
-- The server's name, version, linked backends and readiness
-  (`ServerLive`, `ServerReady`, `ServerMetadata`).
-- Each offered model with its tier, model id, dimensions, compute type
-  and device, from `ModelMetadata`'s properties.
-- For each model picked, one `ModelInfer` with every text as one
-  batch: the vectors' dimensions, where it ran, the round trip, the
-  cosine similarity of every pair of texts, and the first values and
-  norm of each vector.
-- With more than one model picked, every pair's similarity side by
-  side with the spread between the models, and the lowest cosine between
-  each model's vector for a text and the first model's. This is where a
-  tier's trade-off shows: a device that runs FASTEST in a narrower type
-  gives slightly different numbers than at EXACT. The CPU computes every
-  tier in F32 (docs/cpu.md), so there the columns are the same.
+The page has a tab per area; leaving a tab cancels its streams and
+uploads. Writes (marked below) are refused with `permission_denied`
+unless the demo is started with `--allow` for them, and the tab says
+so with the call's code, `turbo-code`, field and message, as it does
+for any refused call.
 
-Optional request parameters are a prompt role (`prompt_role`) and a
-token budget per text (`max_tokens` with `truncate` `TRUNCATE_RIGHT`);
-everything else is what the bundle says (docs/kserve.md, Parameters). A
-refused request shows the server's status, `turbo-code`, field and
-message.
+- Embed: each served embedding bundle (from `Capabilities`) with its
+  tier, model id, dimensions, compute type and device from
+  `ModelMetadata`'s properties. For each model picked, one `ModelInfer`
+  with every text as one batch: the vectors' dimensions, where it ran,
+  the round trip, the cosine similarity of every pair of texts, and the
+  first values and norm of each vector. With more than one model picked,
+  every pair's similarity side by side with the spread between the
+  models, and the lowest cosine between each model's vector for a text
+  and the first model's. This is where a tier's trade-off shows: a
+  device that runs FASTEST in a narrower type gives slightly different
+  numbers than at EXACT. The CPU computes every tier in F32
+  (docs/cpu.md), so there the columns are the same. Optional parameters
+  are a prompt role (`prompt_role`) and a token budget per text
+  (`max_tokens` with `truncate` `TRUNCATE_RIGHT`).
+- Semantic: one query against passages, one per line. With an
+  embedding bundle, the query embedded with prompt role
+  `PROMPT_QUERY` and the passages with `PROMPT_DOCUMENT` (when the
+  bundle lists the role), the nearest passages by cosine, and the
+  passages' similarity matrix. With a reranker, `ModelInfer` with
+  `query` and `passages` (docs/kserve.md, Tasks), in calls of at most
+  the model's `max_batch` passages, ranked by logit. With an extractive
+  QA model, `ModelInfer` with `question` and the passages as one
+  `context`, the `top_k` answer spans decoded from their UTF-8 byte
+  offsets, with score, probability and the no-answer probability.
+- Analyze: `AnalyzeDocumentProgressive` as it streams, each step with
+  its time and layers and any failed step with what it skipped; then
+  the finished graph through `InspectDocumentWindow`, the text with its
+  annotations marked, a chip per layer to show only some, paging, and
+  heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
+  names, shown when it is text and offered as a download. Four panels
+  below it each call when opened, and again when the graph changes:
+  - Normalization X-Ray: `InspectDocumentWindow` with
+    `xray_target_view` between any two views, offsets in UTF-8 bytes,
+    UTF-16 units or code points, the text with each edit run inserted
+    or deleted inline, and a row per normalization step.
+  - Annotation drawer: `InspectDocumentGraph`'s typed layers for a
+    view, a chip per layer, and the picked layer's annotations, 200 to
+    a page, each with its span, text, kind, probability and fields
+    named from the protobuf descriptors; then the models that made them.
+  - Chunk projection: `ProjectChunks` in 2 or 3 dimensions, the chunk
+    vectors drawn on a canvas by level, the boundary drift curve with
+    its cuts, the term vector stacks, and the strategy matrix for the
+    budgets typed as `name:max:target`. A graph has vectors only when
+    its profile embeds (`default-v1` with an embedding bundle).
+  - Graph wire inspector: the graph's binary format (`TGRF`, as
+    `analysis/core/src/export/graph.rs` writes it) read in the page into
+    a tree of its parts with each one's offset,
+    size and share; `RoundTripDocumentGraph` and a byte comparison; the
+    graph saved as a file, or a graph file opened, checked by
+    `RoundTripDocumentGraph` and handed to every panel.
+- Search: `ListIndexes`; `CreateIndex` (write) from an embedding bundle,
+  its model, first width, cosine and flat F32 storage; typed paragraphs
+  and picked files added with the `IndexDocuments` upload (write); and
+  `Search` with each hit's score, signal scores and matched spans, and
+  the document heat. `DeleteIndex` is a write. Collections:
+  `ListCollections`, `SetCollection` and `DeleteCollection` (writes), an
+  index created with a collection name feeding it, and
+  `WatchCollection` streaming each vocabulary drift report (OOV ratio,
+  coverage, new terms) as documents are indexed, until stopped.
+- Vocabulary: the store's limits and formats, the stored dictionaries
+  and vocabularies, `ImportDictionary` and `LearnVocabulary` as uploads
+  (writes), `DownloadVocabulary` streamed into a file, and
+  `DeleteVocabularyArtifact` (write).
+- Server: the server's name, version and readiness (`ServerLive`,
+  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
+  profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
+- Models: `ListModelCatalog` for the demo's user, each artifact's
+  licence terms still to accept shown with the licence, its class and
+  what that class means in plain words, the attribution, the training
+  data and a link to the terms text. An "I have read and accept"
+  control enables `RecordLicenceAcceptance` (write), which sends the
+  artifact and the SHA-256 of the text shown. `InstallModel` (write)
+  streams its stages and files into a progress bar.
+  `ListLicenceAcceptances` lists the terms accepted, with when and on
+  which artifact's page, each with `RevokeLicenceAcceptance` (write).
+  An artifact whose licence, or any data it was trained on, is
+  non-commercial (`CC-BY-NC-*`) says "Non-commercial use only" beside
+  its licence. Once the user may have an artifact, a Save button per
+  file reads it through `ReadModelFile` (a read, the same stream the
+  library reads), hashes it as it arrives, and hands the browser the
+  file only when its size and SHA-256 are the ones the catalog lists
+  (demo/web/src/tabs/download.ts). The file is held in the page's
+  memory until it is saved.
+  Without `--user`, or on a server without `--admin`, the tab says it
+  is read-only and shows no controls. `ListInstalledModels`.
+  `ListTeachers`, `TrainStaticModel` (write) streaming each stage with
+  its counts, explained variance and quality, and `ListStaticModels`
+  with `DeleteStaticModel` (write). Without `--catalog-dir` or
+  `--training-dir` on the server, the calls that need one say
+  `unimplemented`.
 
 The time shown is the round trip the browser saw for one request,
 through the demo and the server, with the models called one after
@@ -301,7 +440,13 @@ the server's prost types. Nothing is mocked.
   after which the server has stopped the training and written nothing.
 - `demo/tests/refusals.rs`: 415 for JSON and other content types, the
   allowlist, compression and malformed envelopes.
-- `demo/tests/methods.rs`: the method table against the protos.
+- `demo/tests/methods.rs`: the method table against the protos, and every
+  request with a `user` field in the user table with its field number.
+- `demo/tests/licences.rs`: acceptances and revokes recorded for the
+  demo's `--user` whatever user the page sends, reads naming that user,
+  writes refused without one, a malformed message refused before
+  the server, and a share-alike bundle loading only for that user once
+  accepted.
 - `demo/tests/gate.rs`: with the server not there, every write and
   every unknown method refused without it and every read tried; the
   token; a write off loopback without a token refused at startup; the

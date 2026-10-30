@@ -23,6 +23,7 @@ fn leveled(level: Retrieve, vectors: Option<(Arc<VectorAnnotator>, VectorKind)>)
         costs: Costs::default(),
         signals: Signals::Structure,
         cohesion: None,
+        clauses: false,
     };
     LevelChunker { chunker, level, vectors }
 }
@@ -113,6 +114,7 @@ fn the_pipeline_retrieves_by_the_pooled_vectors() {
             hybrid: None,
             cascade: None,
             static_embedder: None,
+            dump_cuts: None,
         };
         p.evaluate(&set(Some("cat cat cat cat")))
     };

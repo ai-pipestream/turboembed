@@ -113,6 +113,17 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "lookahead", offset_of!(turbo_backend_model, lookahead)),
         ("turbo_backend_model", "position_buckets", offset_of!(turbo_backend_model, position_buckets)),
         ("turbo_backend_model", "max_relative_positions", offset_of!(turbo_backend_model, max_relative_positions)),
+        ("turbo_backend_model", "artifact_sha256", offset_of!(turbo_backend_model, artifact_sha256)),
+        ("turbo_backend_model", "artifact2_sha256", offset_of!(turbo_backend_model, artifact2_sha256)),
+        ("turbo_backend_model", "rope_global_theta", offset_of!(turbo_backend_model, rope_global_theta)),
+        ("turbo_backend_model", "rope_local_theta", offset_of!(turbo_backend_model, rope_local_theta)),
+        ("turbo_backend_model", "rope_table", offset_of!(turbo_backend_model, rope_table)),
+        ("turbo_backend_model", "rope_pairs", offset_of!(turbo_backend_model, rope_pairs)),
+        ("turbo_backend_model", "mlp", offset_of!(turbo_backend_model, mlp)),
+        ("turbo_backend_model", "activation", offset_of!(turbo_backend_model, activation)),
+        ("turbo_backend_model", "norm", offset_of!(turbo_backend_model, norm)),
+        ("turbo_backend_model", "attention_window", offset_of!(turbo_backend_model, attention_window)),
+        ("turbo_backend_model", "global_every", offset_of!(turbo_backend_model, global_every)),
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];
@@ -129,6 +140,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_embed_options", "normalize", offset_of!(turbo_embed_options, normalize)),
         ("turbo_embed_options", "pooling", offset_of!(turbo_embed_options, pooling)),
         ("turbo_embed_options", "output_dim", offset_of!(turbo_embed_options, output_dim)),
+        ("turbo_embed_options", "quantization", offset_of!(turbo_embed_options, quantization)),
+        ("turbo_embed_options", "int8_ranges", offset_of!(turbo_embed_options, int8_ranges)),
         ("turbo_token_batch", "batch", offset_of!(turbo_token_batch, batch)),
         ("turbo_token_batch", "seq", offset_of!(turbo_token_batch, seq)),
         ("turbo_token_batch", "row_stride", offset_of!(turbo_token_batch, row_stride)),
@@ -209,6 +222,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend", "embed_write_ranges", offset_of!(turbo_backend, embed_write_ranges)),
         ("turbo_backend", "token_head", offset_of!(turbo_backend, token_head)),
         ("turbo_backend", "reserved3", offset_of!(turbo_backend, reserved3)),
+        ("turbo_backend", "buffer_quantize", offset_of!(turbo_backend, buffer_quantize)),
         ("turbo_backend_session_desc", "task", offset_of!(turbo_backend_session_desc, task)),
         ("turbo_backend_session_desc", "max_batch", offset_of!(turbo_backend_session_desc, max_batch)),
         ("turbo_backend_session_desc", "max_seq", offset_of!(turbo_backend_session_desc, max_seq)),
@@ -364,13 +378,24 @@ fn the_late_pooling_layout_is_the_one_proposed() {
 fn the_token_head_layout_is_the_one_proposed() {
     use turbo::backend::{turbo_backend, turbo_backend_embed_rows, turbo_backend_model};
     assert_eq!(offset_of!(turbo_backend, reserved3), 188);
-    assert_eq!(size_of::<turbo_backend>(), 192);
+    assert_eq!(offset_of!(turbo_backend, buffer_quantize), 192);
+    assert_eq!(size_of::<turbo_backend>(), 200);
     assert_eq!(offset_of!(turbo_backend_model, head), 120);
     assert_eq!(offset_of!(turbo_backend_model, head_out), 128);
     // DeBERTa-v2's relative geometry was appended after lookahead.
     assert_eq!(offset_of!(turbo_backend_model, position_buckets), 136);
     assert_eq!(offset_of!(turbo_backend_model, max_relative_positions), 140);
-    assert_eq!(size_of::<turbo_backend_model>(), 144);
+    // The artifact files' manifest digests were appended after that.
+    assert_eq!(offset_of!(turbo_backend_model, artifact_sha256), 144);
+    assert_eq!(offset_of!(turbo_backend_model, artifact2_sha256), 176);
+    // The rotary families' fields were appended after those (#1461).
+    assert_eq!(offset_of!(turbo_backend_model, rope_global_theta), 208);
+    assert_eq!(offset_of!(turbo_backend_model, rope_table), 224);
+    assert_eq!(offset_of!(turbo_backend_model, global_every), 252);
+    assert_eq!(size_of::<turbo_backend_model>(), 256);
     assert_eq!(offset_of!(turbo_backend_embed_rows, head), 52);
-    assert_eq!(size_of::<turbo_backend_embed_rows>(), 56);
+    // taps was appended after head (#1616), with a reserved field so the
+    // struct has no padding.
+    assert_eq!(offset_of!(turbo_backend_embed_rows, taps), 56);
+    assert_eq!(size_of::<turbo_backend_embed_rows>(), 64);
 }

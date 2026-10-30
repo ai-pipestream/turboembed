@@ -1,8 +1,8 @@
 use crate::{ArcStandardOracle, DependencyGraph, LabelEncoding, Result, SwapOracle, Transition, error};
 use turbo_analysis_layers::WordOrTokenAnchor;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TrainingMode {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrainingMode {
     Projective,
     PseudoProjective,
     Swap,

@@ -12,7 +12,9 @@ tools) is described in the [README](../README.md).
 The C API (`include/turbo/turbo.h`) has three tasks:
 
 - `TURBO_TASK_EMBED`: text or token ids in, one pooled vector per row out,
-  or one vector per token range (`turbo_embed_write_ranges`, late pooling).
+  or one vector per token range (`turbo_embed_write_ranges`, late pooling),
+  or per range and per each of the last layers
+  (`turbo_embed_write_layer_ranges`, for heads that read earlier layers).
 - `TURBO_TASK_RERANK`: query and passage pairs in, one relevance logit per
   pair out (`turbo_rerank_write_pairs`, [reranking.md](reranking.md)).
 - `TURBO_TASK_EXTRACTIVE_QA`: question and context windows in, start and
@@ -137,6 +139,40 @@ flowchart LR
   benchmark record behind a SUPPORTED cell. Choosing among bundles that
   are already loaded is the analysis layer's job
   ([model-routing.md](model-routing.md)).
+
+### Narrower vectors: Matryoshka widths and int8 or ubinary codes
+
+`turbo_embed_options.output_dim` keeps the first `output_dim` values of
+each vector, one of the widths the bundle declares
+(`turbo_model_info.output_dims`), and normalizes after the cut.
+`quantization` (field 7) then returns the vectors as codes, in the layout
+sentence-transformers' `quantize_embeddings` makes
+(`sentence_transformers/util/quantization.py` at 145ef47d, Apache-2.0;
+`core/src/quantize.rs` is held byte for byte to its expressions by
+`testdata/quantize/`):
+
+| `quantization` | Result dtype | Bytes a row | Code |
+|---|---|---|---|
+| `TURBO_QUANTIZE_MODEL`, `_NONE` | F32 | 4 x dim | the vector |
+| `TURBO_QUANTIZE_INT8` | I8 | dim | step = (max - min) / 255, or 1 where that is 0; clamp(floor((x - min) / step), 0, 255) - 128 |
+| `TURBO_QUANTIZE_UBINARY` | U8 | (dim + 7) / 8 | bit x > 0, the first dimension in a byte's top bit, a last byte padded with 0 |
+
+- int8 needs `int8_ranges` (field 8): `[2, output_dim]` f32, each
+  dimension's minimum, then each one's maximum, over the caller's own
+  calibration vectors at the same model, `output_dim` and normalization.
+  The library never takes them from the batch it is quantizing, so a
+  text's code does not depend on what it was batched with.
+- ubinary rows load into a usearch `b1x8` index as they are (its
+  `cast_to_b1x8_gt` packs the same bits). faiss' `fvecs2bitvecs` packs
+  `x >= 0` from the low bit up: its codes and these differ, so do not
+  mix them in one index.
+- When the backend offers `buffer_quantize` (CUDA, Level Zero, Metal), the
+  codes are made on the device and only those bytes cross the bus (counted
+  in `d2h_bytes`). The run's `device_allocs` include the temporary codes
+  buffer (and the int8 ranges' buffer), and on CUDA and Level Zero its
+  `h2d_bytes` include the int8 ranges sent to the device; otherwise the core copies the vectors back as F32 first
+  and quantizes on the host. Either path yields the same codes for the
+  same f32 vectors (`core/src/quantize.rs`).
 
 ```mermaid
 sequenceDiagram

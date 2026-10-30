@@ -1,6 +1,6 @@
 //! OpenNLP's `SimpleTokenizer`: a token is a run of one character class.
 //!
-//! The classes are whitespace (in the configured mode), alphabetic
+//! The classes are whitespace (Unicode `White_Space`), alphabetic
 //! (`Character.isAlphabetic`), digit (`Character.isDigit`) and other.
 //! Whitespace separates tokens and is in none. A run of "other"
 //! characters splits wherever the character changes, so `...` is one
@@ -20,8 +20,8 @@
 
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{Sentences, Tokens};
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java::code_point as java;
+use turbo_unicode::whitespace;
 
 use crate::TokenizerOptions;
 use crate::unit::tokenize_units;
@@ -37,15 +37,14 @@ enum Class {
     Other,
 }
 
-/// The class of every ASCII character in one whitespace mode. ASCII
-/// letters are the only alphabetic ASCII characters and ASCII digits the
-/// only digits; the two modes differ on U+001C to U+001F.
-const fn ascii_classes(mode: WhitespaceMode) -> [Class; 128] {
+/// The class of every ASCII character. ASCII letters are the only
+/// alphabetic ASCII characters and ASCII digits the only digits.
+const fn ascii_classes() -> [Class; 128] {
     let mut table = [Class::Other; 128];
     let mut b = 0;
     while b < 128 {
         let c = b as u8;
-        table[b] = if mode.is_ascii_whitespace(c) {
+        table[b] = if whitespace::is_ascii_whitespace(c) {
             Class::Whitespace
         } else if c.is_ascii_alphabetic() {
             Class::Alphabetic
@@ -59,14 +58,13 @@ const fn ascii_classes(mode: WhitespaceMode) -> [Class; 128] {
     table
 }
 
-static UNICODE_ASCII: [Class; 128] = ascii_classes(WhitespaceMode::Unicode);
-static LEGACY_ASCII: [Class; 128] = ascii_classes(WhitespaceMode::Legacy);
+static ASCII: [Class; 128] = ascii_classes();
 
 /// The class of a character at or above U+0080. A character outside the
 /// BMP is "other", as each of its surrogate halves is in Java.
 #[inline]
-fn classify(cp: u32, mode: WhitespaceMode) -> Class {
-    if mode.is_whitespace(cp) {
+fn classify(cp: u32) -> Class {
+    if whitespace::is_whitespace(cp) {
         Class::Whitespace
     } else if cp >= 0x1_0000 {
         Class::Other
@@ -85,11 +83,7 @@ const NONE: u32 = u32::MAX;
 
 /// Appends the simple tokens of `text` to `out`, as byte spans of `text`.
 pub fn simple_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Span>) {
-    let mode = options.whitespace;
-    let table = match mode {
-        WhitespaceMode::Unicode => &UNICODE_ASCII,
-        WhitespaceMode::Legacy => &LEGACY_ASCII,
-    };
+    let table = &ASCII;
     let bytes = text.as_bytes();
     let mut state = Class::Whitespace;
     let mut start = 0u32;
@@ -101,7 +95,7 @@ pub fn simple_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Span>) 
             (u32::from(b), 1, table[b as usize])
         } else {
             let (cp, len) = decode(bytes, i);
-            (cp, len, classify(cp, mode))
+            (cp, len, classify(cp))
         };
         let at = i as u32;
         if state == Class::Whitespace {
@@ -166,24 +160,21 @@ mod tests {
         tokens(text, TokenizerOptions::default())
     }
 
-    const NEWLINES: TokenizerOptions = TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: true };
+    const NEWLINES: TokenizerOptions = TokenizerOptions { keep_newlines: true };
 
     #[test]
     fn ascii_table_matches_the_classifier() {
-        for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-            let table = if mode == WhitespaceMode::Unicode { &UNICODE_ASCII } else { &LEGACY_ASCII };
-            for cp in 0..0x80u32 {
-                let expected = if mode.is_whitespace(cp) {
-                    Class::Whitespace
-                } else if java::is_alphabetic(cp) {
-                    Class::Alphabetic
-                } else if java::is_digit(cp) {
-                    Class::Numeric
-                } else {
-                    Class::Other
-                };
-                assert_eq!(table[cp as usize], expected, "U+{cp:04X} {mode:?}");
-            }
+        for cp in 0..0x80u32 {
+            let expected = if whitespace::is_whitespace(cp) {
+                Class::Whitespace
+            } else if java::is_alphabetic(cp) {
+                Class::Alphabetic
+            } else if java::is_digit(cp) {
+                Class::Numeric
+            } else {
+                Class::Other
+            };
+            assert_eq!(ASCII[cp as usize], expected, "U+{cp:04X}");
         }
     }
 
@@ -202,16 +193,16 @@ mod tests {
     }
 
     #[test]
-    fn whitespace_modes() {
-        // U+0085 is whitespace in Unicode mode only, U+001F in legacy mode only.
-        let unicode = TokenizerOptions::default();
-        let legacy = TokenizerOptions { whitespace: WhitespaceMode::Legacy, keep_newlines: false };
-        assert_eq!(tokens("a\u{85}b", unicode), ["a", "b"]);
-        assert_eq!(tokens("a\u{85}b", legacy), ["a", "\u{85}", "b"]);
-        assert_eq!(tokens("a\u{1f}b", unicode), ["a", "\u{1f}", "b"]);
-        assert_eq!(tokens("a\u{1f}b", legacy), ["a", "b"]);
-        // The no-break space is whitespace in both.
-        assert_eq!(tokens("a\u{a0}b", legacy), ["a", "b"]);
+    fn next_line_separates_and_information_separators_do_not() {
+        // U+0085 is White_Space: it separates and is in no token.
+        assert_eq!(plain("a\u{85}b"), ["a", "b"]);
+        assert_eq!(plain("\u{85}a\u{85}"), ["a"]);
+        // U+001C to U+001F are not: each is an "other" token of its own.
+        for sep in '\u{1c}'..='\u{1f}' {
+            let text = format!("a{sep}b");
+            assert_eq!(plain(&text), ["a", &sep.to_string(), "b"]);
+        }
+        assert_eq!(plain("a\u{a0}b"), ["a", "b"]);
     }
 
     #[test]

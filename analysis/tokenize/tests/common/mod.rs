@@ -10,12 +10,11 @@ use std::path::{Path, PathBuf};
 use turbo_analysis::{Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Confidence, Tokens};
 use turbo_goldens::expect::{joined_me_spans, jvm_token_spans};
-pub use turbo_goldens::published_model;
 use turbo_goldens::{Dump, Golden, Tolerance, Unit, assert_matches_golden, data_dir, segmentation_shapes, sha512};
 
 pub use turbo_goldens::expect::JvmSpan;
 use turbo_tokenize::me::{Features, TokenizerModel, UnitFacts, token_context};
-use turbo_tokenize::{TokenizerOptions, WhitespaceMode, whitespace_spans};
+use turbo_tokenize::{TokenizerOptions, whitespace_spans};
 use turbo_unicode::Utf16Cursor;
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
 
@@ -47,14 +46,11 @@ impl Case {
         self.golden.header.config.iter().find(|c| c.key == key).map(|c| c.value.as_str())
     }
 
-    /// The whitespace mode the run used: `config whitespace legacy`, or
-    /// the default.
-    pub fn whitespace(&self) -> WhitespaceMode {
-        match self.config("whitespace") {
-            None => WhitespaceMode::Unicode,
-            Some("legacy") => WhitespaceMode::Legacy,
-            Some(other) => panic!("{}: whitespace mode {other}", self.path.display()),
-        }
+    /// Asserts the run used the JVM's default whitespace, Unicode
+    /// `White_Space`: the golden has no `whitespace` config record.
+    #[track_caller]
+    pub fn assert_unicode_whitespace(&self) {
+        assert_eq!(self.config("whitespace"), None, "{}", self.path.display());
     }
 
     /// Asserts the annotator that ran.
@@ -132,29 +128,6 @@ pub fn fixture_model(name: &str) -> TokenizerModel {
     read_model(&fixtures_dir().join(name))
 }
 
-pub const LANGUAGES: [&str; 5] = ["en", "de", "es", "fr", "pt"];
-
-/// The file name of the UD tokenizer model for `language`, one of
-/// `LANGUAGES`.
-pub fn ud_model_name(language: &str) -> &'static str {
-    match language {
-        "en" => "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
-        "de" => "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
-        "es" => "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
-        "fr" => "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
-        "pt" => "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
-        _ => panic!("no UD model for {language}"),
-    }
-}
-
-/// The path of each language's UD model, in the order of `LANGUAGES`, or
-/// `None` when any of them is not downloaded (`published_model` says
-/// which).
-pub fn ud_models() -> Option<Vec<(&'static str, PathBuf)>> {
-    let found: Vec<_> = LANGUAGES.iter().map(|&l| published_model(ud_model_name(l)).map(|p| (l, p))).collect();
-    found.into_iter().collect()
-}
-
 /// The run directory of a model file: its name without `.bin`.
 pub fn run_name(model_file: &str) -> &str {
     model_file.strip_suffix(".bin").expect("a .bin model file")
@@ -230,7 +203,7 @@ pub fn check_dump(case: &Case, model: &TokenizerModel) -> usize {
     let mut n = 0;
     let text = case.text.as_str();
     let mut units = Vec::new();
-    whitespace_spans(text, TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: false }, &mut units);
+    whitespace_spans(text, TokenizerOptions { keep_newlines: false }, &mut units);
     for unit in &units {
         let (a, b) = (unit.start as usize, unit.end as usize);
         let token = &text[a..b];
@@ -256,7 +229,7 @@ pub fn check_dump(case: &Case, model: &TokenizerModel) -> usize {
             for _ in 0..index {
                 at.step_forward();
             }
-            token_context(&at, facts, WhitespaceMode::Unicode, &mut features);
+            token_context(&at, facts, &mut features);
             assert_eq!(features.len(), p.contexts.len(), "{what}");
             for (i, want) in p.contexts.iter().enumerate() {
                 assert_eq!(features.get(i), modified_utf8(want), "{what}, feature {i}");

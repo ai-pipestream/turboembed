@@ -9,46 +9,8 @@ use crate::{
     turbo_token_range, write_str,
 };
 
-pub const TURBO_CAP_UNSUPPORTED: u32 = 0;
-pub const TURBO_CAP_EXPERIMENTAL: u32 = 1;
-pub const TURBO_CAP_SUPPORTED: u32 = 2;
-
-pub const TURBO_BERT_EMBEDDING_TENSORS: u32 = 5;
-pub const TURBO_BERT_LAYER_TENSORS: u32 = 16;
-
-pub const TURBO_FAMILY_BERT: u32 = 1;
-pub const TURBO_FAMILY_ROBERTA: u32 = 2;
-pub const TURBO_FAMILY_STATIC: u32 = 3;
-pub const TURBO_FAMILY_DEBERTA_V2: u32 = 4;
-
-pub const TURBO_DEBERTA_WORD_EMBEDDINGS: u32 = 0;
-pub const TURBO_DEBERTA_EMBEDDINGS_LN_WEIGHT: u32 = 1;
-pub const TURBO_DEBERTA_EMBEDDINGS_LN_BIAS: u32 = 2;
-pub const TURBO_DEBERTA_RELATIVE_EMBEDDINGS: u32 = 3;
-pub const TURBO_DEBERTA_RELATIVE_LN_WEIGHT: u32 = 4;
-pub const TURBO_DEBERTA_RELATIVE_LN_BIAS: u32 = 5;
-pub const TURBO_DEBERTA_EMBEDDING_TENSORS: u32 = 6;
-
-pub const TURBO_STATIC_EMBEDDINGS: u32 = 0;
-pub const TURBO_STATIC_WEIGHTS: u32 = 1;
-pub const TURBO_STATIC_MAPPING: u32 = 2;
-pub const TURBO_STATIC_TENSORS: u32 = 3;
-
-pub const TURBO_FORMAT_SAFETENSORS: u32 = 1;
-pub const TURBO_FORMAT_OPENVINO_IR: u32 = 2;
-pub const TURBO_FORMAT_HEF: u32 = 3;
-pub const TURBO_FORMAT_GGUF: u32 = 4;
-pub const TURBO_FORMAT_ONNX: u32 = 5;
-
-/// TURBO_FORMAT_BIT: format `f`'s bit in turbo_backend.formats.
-pub const fn format_bit(f: u32) -> u32 {
-    1 << (f - 1)
-}
-
-pub const TURBO_NUMERIC_F32_FMA: u32 = 1;
-pub const TURBO_NUMERIC_TF32: u32 = 2;
-pub const TURBO_NUMERIC_F16_F32ACC: u32 = 4;
-pub const TURBO_NUMERIC_F16_CHUNKACC: u32 = 8;
+mod consts;
+pub use consts::*;
 
 /// The core's tuning policy for a session, and what the backend chose.
 #[repr(C)]
@@ -120,6 +82,29 @@ pub struct turbo_backend_model {
     /// distance its log buckets reach; 0 for every other family.
     pub position_buckets: u32,
     pub max_relative_positions: u32,
+    /// The manifest's SHA-256 of artifact's and artifact2's file, as the
+    /// core verified them; zero where there is no file.
+    pub artifact_sha256: [u8; 32],
+    pub artifact2_sha256: [u8; 32],
+    /// The rotary families' bases: on full-attention layers, and on
+    /// sliding-window layers (the global one again without a window); 0
+    /// for a family without rotary positions.
+    pub rope_global_theta: f64,
+    pub rope_local_theta: f64,
+    /// The cos/sin table the core built (crate::rope), `[2 (global,
+    /// local)][2 (cos, sin)][max_positions][rope_pairs]` F32; NULL for a
+    /// family without rotary positions.
+    pub rope_table: *const f32,
+    /// Each head's rotation pairs, half its width; 0 without a table.
+    pub rope_pairs: u32,
+    /// TURBO_MLP_*, TURBO_ACTIVATION_* and TURBO_NORM_* of the encoder.
+    pub mlp: u32,
+    pub activation: u32,
+    pub norm: u32,
+    /// Sliding-window layers' total width, 0 for every layer full; layer
+    /// l is full iff `l % global_every == 0`.
+    pub attention_window: u32,
+    pub global_every: u32,
 }
 
 /// A session as session_open receives it: turbo_session_desc's fields with
@@ -151,6 +136,10 @@ pub struct turbo_backend_embed_rows {
     pub normalize: u32,
     pub output_dim: u32,
     pub head: u32,
+    /// turbo_backend.h: 0 or 1 for the final layer; T > 1 on a range
+    /// write for the last T layers, [T, count, output_dim].
+    pub taps: u32,
+    pub reserved: u32,
 }
 
 #[repr(C)]
@@ -288,6 +277,18 @@ pub struct turbo_backend {
     >,
     pub token_head: u32,
     pub reserved3: u32,
+    #[allow(clippy::type_complexity)]
+    pub buffer_quantize: Option<
+        unsafe extern "C" fn(
+            buf: *mut c_void,
+            quantization: u32,
+            int8_ranges: *const f32,
+            rows: u32,
+            dim: u32,
+            run: *mut turbo_backend_run,
+            err: *mut turbo_error,
+        ) -> i32,
+    >,
 }
 
 // The table is immutable static data, read from any thread.
@@ -356,7 +357,7 @@ static LINKED: &[&turbo_backend] = &[
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 9] = [
+const TABLE_SIZES: [usize; 10] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
     std::mem::offset_of!(turbo_backend, session_create),
@@ -365,6 +366,7 @@ const TABLE_SIZES: [usize; 9] = [
     std::mem::offset_of!(turbo_backend, session_create_tuned),
     std::mem::offset_of!(turbo_backend, session_open),
     std::mem::offset_of!(turbo_backend, token_head),
+    std::mem::offset_of!(turbo_backend, buffer_quantize),
     size_of::<turbo_backend>(),
 ];
 

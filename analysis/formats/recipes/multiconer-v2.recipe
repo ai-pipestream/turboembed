@@ -1,0 +1,15 @@
+# MultiCoNER v2 (MultiCoNER/multiconer_v2 on Hugging Face): the English
+# training file at the pinned revision, downloaded and hashed on
+# 2026-10-28 (4,348,311 bytes). The dataset card at the same revision
+# states license: cc-by-4.0 and was read on 2026-10-28 (SHA-256
+# 759f41d21762e28bf0edee42bf760ef1402871d8934179e3f9e15100fa104882).
+# The task's page is https://multiconer.github.io and the AWS Open Data
+# registry lists the corpus at https://registry.opendata.aws/multiconer/.
+name: multiconer-v2
+tier: default
+url: https://huggingface.co/datasets/MultiCoNER/multiconer_v2/resolve/4be2d62c912977ee26ed14d2553a4fe17ca3d980/EN-English/en_train.conll
+sha256: 1e1af77f95e92aa287c40feb7c10b384192c8ff026c916114a54713f331138ea
+license-url: https://huggingface.co/datasets/MultiCoNER/multiconer_v2/blob/4be2d62c912977ee26ed14d2553a4fe17ca3d980/README.md
+license: CC BY 4.0
+note: docs/licences.md recorded CC BY 4.0 from the registry page as plan-level on 2026-10-14; the card at the pinned revision read here confirms it, so this claim is read-verified, not plan-level.
+note: Attribution: the MultiCoNER 2 shared task (SemEval-2023 Task 2), Fine-grained Multilingual Named Entity Recognition, 12 languages.

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use turbo_geo::*;
 
 fn fixture(name: &str) -> PathBuf {
-    turbo_goldens::data_dir().join("fixtures").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)
 }
 
 fn ids(found: &[Entry<'_>]) -> Vec<String> {
@@ -48,7 +48,6 @@ fn geonames_rows_give_their_names_location_class_and_population() {
     let ocean = g.by_id("geonames", "2363254").unwrap();
     assert_eq!((ocean.country_code(), ocean.population(), ocean.feature_class()), (None, 0, Some(FEATURE_CLASS_POI)));
     assert_eq!(g.by_id("geonames", "2951839").unwrap().feature_class(), Some(FEATURE_CLASS_ADMIN));
-    // "11.57549d" is a Java double.
     assert_eq!(g.by_id("geonames", "2867714").unwrap().location().longitude(), 11.57549);
     // Unicode white space is trimmed from every cell.
     let madrid = g.by_id("geonames", "3117735").unwrap();
@@ -58,7 +57,7 @@ fn geonames_rows_give_their_names_location_class_and_population() {
 }
 
 #[test]
-fn ties_fall_to_the_feature_class_then_the_record_id_as_java_compares_it() {
+fn ties_fall_to_the_feature_class_then_the_record_id_in_code_point_order() {
     let g = GeoNamesGazetteer::load(fixture("gazetteer-geonames.txt")).unwrap();
     // 155929 first; then the three of population 0: the two cities by id
     // ("10" before "9" as strings), then the POI.
@@ -66,7 +65,7 @@ fn ties_fall_to_the_feature_class_then_the_record_id_as_java_compares_it() {
 }
 
 #[test]
-fn a_geonames_row_needs_nineteen_columns_and_java_numbers() {
+fn a_geonames_row_needs_nineteen_columns_and_decimal_numbers() {
     let ok = geonames_row(["1", "A", "", "", "1", "2", "P", "", ""]);
     let wide = format!("{ok}\textra");
     let e = GeoNamesGazetteer::from_bytes(format!("{ok}\n{wide}\n").as_bytes()).err().unwrap();
@@ -74,6 +73,11 @@ fn a_geonames_row_needs_nineteen_columns_and_java_numbers() {
     let bad = geonames_row(["2", "B", "", "", "north", "2", "P", "", ""]);
     let e = GeoNamesGazetteer::from_bytes(format!("{ok}\n\n{bad}").as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (3, RowProblem::Number(NumberFormat("north".into()))));
+    for java in ["11.5d", "0x1p3", "NaN", "Infinity"] {
+        let row = geonames_row(["2", "B", "", "", "1", java, "P", "", ""]);
+        let e = GeoNamesGazetteer::from_bytes(row.as_bytes()).err().unwrap();
+        assert_eq!(row_problem(e), (1, RowProblem::Number(NumberFormat(java.into()))), "{java}");
+    }
     let far = geonames_row(["2", "B", "", "", "91", "2", "P", "", ""]);
     let e = GeoNamesGazetteer::from_bytes(far.as_bytes()).err().unwrap();
     assert_eq!(row_problem(e), (1, RowProblem::Entry(EntryError::Latitude(91.0))));

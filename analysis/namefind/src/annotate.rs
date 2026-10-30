@@ -44,15 +44,18 @@ impl Annotator for DictionaryNameFinder {
         // The dictionary's entries in no particular order, so combined by
         // a sum, which does not depend on the order.
         let mut sum = 0u64;
-        for entry in self.dictionary().entries() {
+        for (_, entry) in self.dictionary().entries() {
             let mut h = Fnv::default();
-            entry.for_each(|t| {
+            entry.split('\0').for_each(|t| {
                 t.hash(&mut h);
             });
             sum = sum.wrapping_add(h.finish());
         }
         let mut h = Fnv::default();
-        (sum, self.dictionary().is_case_sensitive(), self.kinds().label(turbo_analysis_layers::Tag(0))).hash(&mut h);
+        (sum, self.dictionary().is_case_sensitive()).hash(&mut h);
+        for kind in self.types() {
+            kind.hash(&mut h);
+        }
         h.finish()
     }
 }
@@ -85,7 +88,7 @@ impl Annotator for RegexNameFinder {
             for p in patterns {
                 match p {
                     Pattern::BuiltIn(b) => (0u8, b.java_name()).hash(&mut h),
-                    Pattern::Java(r) => (1u8, r.as_str(), r.flags().case_insensitive, r.flags().dotall).hash(&mut h),
+                    Pattern::Tokens(t) => (1u8, format!("{:?}", t.toks())).hash(&mut h),
                 }
             }
         }

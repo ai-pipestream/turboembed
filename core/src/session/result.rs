@@ -28,14 +28,22 @@ pub unsafe extern "C" fn turbo_session_run(
             } else {
                 backend::check(b, "session_run", |err| (s.run)(s.raw, &mut r, err))?;
                 check_run(b, &r, w.tokenized)?;
+                if w.quantization != Quantization::F32 {
+                    quantized(s, &mut state, &w, &mut r)?;
+                }
             }
 
             let res = &mut *s.result;
             let i = &mut res.info;
             i.batch = w.batch;
             i.dim = w.output_dim;
+            i.dtype = match w.quantization {
+                Quantization::F32 => TURBO_DTYPE_F32,
+                Quantization::Int8 => TURBO_DTYPE_I8,
+                Quantization::UBinary => TURBO_DTYPE_U8,
+            };
             i.placement = r.placement;
-            i.bytes = w.batch as u64 * w.output_dim as u64 * 4;
+            i.bytes = w.batch as u64 * w.quantization.row_bytes(w.output_dim as usize) as u64;
             i.h2d_bytes = r.h2d_bytes;
             i.d2h_bytes = r.d2h_bytes;
             i.host_allocs = r.host_allocs + CORE_RUN_ALLOCS;
@@ -52,6 +60,86 @@ pub unsafe extern "C" fn turbo_session_run(
             Ok(())
         })
     }
+}
+
+/// The run's f32 vectors as the write's codes, in the session's own host
+/// memory, which the result then points at. When the backend offers
+/// buffer_quantize and the vectors sit in DEVICE or SHARED memory, the
+/// codes are made on the device and only those bytes cross the bus (or,
+/// for SHARED, are copied on the host from the shared buffer). Otherwise
+/// a DEVICE result is copied back as F32 first, into memory the first
+/// such run makes, and the host codes them.
+unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut turbo_backend_run) -> Result<()> {
+    let dim = w.output_dim as usize;
+    let n = w.batch as usize * dim;
+    let code_bytes = w.batch as usize * w.quantization.row_bytes(dim);
+    let q = match w.quantization {
+        Quantization::Int8 => TURBO_QUANTIZE_INT8,
+        Quantization::UBinary => TURBO_QUANTIZE_UBINARY,
+        Quantization::F32 => unreachable!("quantized is not called for F32"),
+    };
+    let b = s.backend;
+    let on_device = r.host.is_null();
+    let shared = !on_device && r.placement == TURBO_PLACE_SHARED;
+    let device_path = (on_device || shared) && backend::offered!(b, buffer_quantize).is_ok();
+    if device_path {
+        let quantize = backend::offered!(b, buffer_quantize).unwrap();
+        let ranges_ptr =
+            if w.quantization == Quantization::Int8 { state.int8_ranges.as_ptr() } else { std::ptr::null() };
+        let (output, run) = (r.output, &mut *r as *mut turbo_backend_run);
+        backend::check(b, "buffer_quantize", |err| unsafe {
+            quantize(output, q, ranges_ptr, w.batch, w.output_dim, run, err)
+        })?;
+        let out = &mut state.codes[..code_bytes];
+        if on_device {
+            let read = backend::offered!(b, buffer_read).map_err(|_| {
+                Error::new(
+                    UNSUPPORTED,
+                    format!("the vectors are in device memory, and the {} backend reads none", b.name()),
+                )
+            })?;
+            let bytes = code_bytes as u64;
+            backend::check(b, "buffer_read", |err| unsafe { read(r.output, out.as_mut_ptr().cast(), bytes, err) })?;
+            r.d2h_bytes += bytes;
+        } else {
+            unsafe {
+                std::ptr::copy_nonoverlapping(r.host as *const u8, out.as_mut_ptr(), code_bytes);
+            }
+        }
+        r.output = std::ptr::null_mut();
+        r.host = out.as_mut_ptr().cast();
+        r.placement = TURBO_PLACE_HOST;
+        return Ok(());
+    }
+
+    let State { codes, int8_ranges, staged, .. } = state;
+    let src: &[f32] = if on_device {
+        let read = backend::offered!(b, buffer_read).map_err(|_| {
+            Error::new(
+                UNSUPPORTED,
+                format!("the vectors are in device memory, and the {} backend reads none", b.name()),
+            )
+        })?;
+        if staged.len() < n {
+            // As many values as the codes have bytes: the most a run makes.
+            *staged = vec![0.0; codes.len()];
+            r.host_allocs += 1;
+        }
+        let bytes = n as u64 * 4;
+        backend::check(b, "buffer_read", |err| unsafe { read(r.output, staged.as_mut_ptr().cast(), bytes, err) })?;
+        r.d2h_bytes += bytes;
+        &staged[..n]
+    } else {
+        unsafe { std::slice::from_raw_parts(r.host as *const f32, n) }
+    };
+    let out = &mut codes[..code_bytes];
+    quantize::rows(w.quantization, src, dim, &int8_ranges[..2 * dim], out);
+    // Codes belong to the core, not to a backend buffer object. Native
+    // handle export uses the host-only path when there is no such object.
+    r.output = std::ptr::null_mut();
+    r.host = out.as_mut_ptr().cast();
+    r.placement = TURBO_PLACE_HOST;
+    Ok(())
 }
 
 /// What the backend reported is something turbo.h can say.
@@ -165,7 +253,8 @@ pub unsafe extern "C" fn turbo_result_buffer(
                 placement: i.placement,
                 dtype: i.dtype,
                 ndim: 2,
-                shape: [i.batch as u64, i.dim as u64],
+                // Packed bits are a row's bytes wide, not its dimensions.
+                shape: [i.batch as u64, if i.dtype == TURBO_DTYPE_U8 { i.dim.div_ceil(8) } else { i.dim } as u64],
                 bytes: i.bytes,
             };
             s.holders.fetch_add(1, Ordering::AcqRel);

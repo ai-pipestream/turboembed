@@ -1,0 +1,142 @@
+# Every model a test, gate, evaluation or record loads, pinned by the
+# SHA-256 of its bytes, written as its key in the content-addressed model
+# store of #1613: blobs/sha256/<64 hex>. One pin per line: the key, the
+# kind, and a name for people (for a bundle seen only in a record, the
+# model id and the first record that names it).
+#
+# Kinds, and the bytes each digest is over:
+#   bundle   a bundle's manifest.json, which names every file of the
+#            bundle with its size and SHA-256; Bundle::open and every
+#            verified read check those, so the manifest pin pins them all
+#   package  a GLiNER, GLiREL or DeBERTa package's own manifest
+#            (gliner.json, glirel.json, deberta.json), which binds its
+#            files' digests the same way. A model directory inside a
+#            bundle or package (a GLiREL package's encoder/) must be bound
+#            too: named by digest in the outer manifest (gliner.json names
+#            encoder/deberta.json) or pinned by its own line here
+#   file     one model file (an OpenNLP model, a head, a checkpoint file)
+#   tree     a directory with no manifest: the SHA-256 of its listing, one
+#            line "<sha256>  <relative path>\n" per regular file, in
+#            byte order of the path (turbo_pins::digest)
+#
+# Also pinned, without a line here: every file of the zoo index
+# (analysis/zoo/index/zoo.json) and every score-only reference model in
+# analysis/train-recipes/*-references.txt, which pin their files already,
+# except a retired model's (OpenNLP 1.5 and 2.5 models, #1509).
+#
+# A test that loads a model from a path it is given goes through
+# turbo_pins::require, which refuses a model whose digest is not here;
+# `cargo run -p turbo-pins -- <path>` prints the line to add, which goes
+# in with the record or test that first uses the model.
+
+# Bundles checked in under testdata/.
+blobs/sha256/35f69b13899b0fa0b7ccb88876f56db625197332695f7ea8117143fe08f5c741  bundle  testdata/tiny-bert-bundle
+blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
+blobs/sha256/223fe30ed3eec3abac9281ae1cc543d634eab145b3286fe9887a87273bf9d231  bundle  testdata/tiny-modernbert-bundle
+blobs/sha256/8b12f898db464a68fa09e1bb996472c0c2ece0564daad20e6a3ffc332fb0ecd5  bundle  testdata/tiny-nomic-bundle
+blobs/sha256/a84dc0f5806a827fba920bbd2f1f3a459cd53546381f2128de216742ff24daac  bundle  testdata/tiny-sat-bundle
+blobs/sha256/ac7828a81a121b72c338eb5fd1662226cc44c2fe248e8e4e2c94d0fb46e14176  bundle  testdata/tiny-static-bundle
+
+# Bundles the benchmark records, eval records and receipts were made with.
+blobs/sha256/0ecbae3e134445be5963318db4ff8a94cbb0757e0864c96d3653d1279ab92848  bundle  BAAI/bge-base-en-v1.5 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.bge-base-en-v1-5-0ecbae3e.63c64065f42f.json)
+blobs/sha256/16dfb6a8b98742cff180a357db2a1adcda7ffec8c320fcc7030f875c6f1bf09a  bundle  BAAI/bge-base-en-v1.5 (first recorded in analysis/eval/records/bge-base-turbo-chunker-254-200-hybrid/arguana.json)
+blobs/sha256/5e903b0140e1c3efce0ac0cd7a9911005012086907c741e39b8bab75dd02795a  bundle  BAAI/bge-base-en-v1.5 (first recorded in benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json)
+blobs/sha256/fd11eab406647ca0c909e1618b8a24c9866310c1493e8020e7ce23e659f0546b  bundle  BAAI/bge-base-en-v1.5 (first recorded in analysis/eval/records/bge-base-turbo-chunker-254-200-instruction-hybrid/arguana.json)
+blobs/sha256/6961016910fa740056d8719fa8a6d40f2796ffad6a83239c19114e5922a49407  bundle  BAAI/bge-large-en-v1.5 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.bge-large-en-v1-5-69610169.63c64065f42f.json)
+blobs/sha256/7ff68f5c3f3a570e49a15d300621f00c93c5462c50fe20bf4e4c71d8b386caf3  bundle  BAAI/bge-large-en-v1.5 (first recorded in benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json)
+blobs/sha256/dce186f35bcbed9ddd41204960713357608ec4d22734488c6c2c09965af242ab  bundle  BAAI/bge-reranker-base (first recorded in benchmarks/rerank/aarch64.cpu.rerank.exact.bge-reranker-base-dce186f3.e051ae76366b.json)
+blobs/sha256/094ef1aa8a61db376e638e4991dbd5f77be22fc0734304768085b556eb2d3ef5  bundle  BAAI/bge-small-en-v1.5 (first recorded in docs/receipts/goemotions-926/bge-small-en-v1.5.json)
+blobs/sha256/1ce4999d83fb7b5d774cbfce3352e94220e6222c4e759e7cb2344225fffe7b8f  bundle  BAAI/bge-small-en-v1.5 (first recorded in analysis/eval/records/bge-small-turbo-chunker-254-200-instruction-hybrid/arguana.json)
+blobs/sha256/352402c205716d9ea3325b4e4df5e5e5ca34ada21c643be5719885572030605b  bundle  BAAI/bge-small-en-v1.5 (first recorded in analysis/eval/records/bge-small-turbo-chunker-254-200-hybrid/arguana.json)
+blobs/sha256/cb28c3c7cd30bfafe809994c0c9ea0df921f75b2bc9c5856275854b14bcfcbaa  bundle  BAAI/bge-small-en-v1.5 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.bge-small-en-v1-5-cb28c3c7.63c64065f42f.json)
+blobs/sha256/d44a36cd22071f7545443839fcc6878adbe3af2b69282a7cbc2c448822f0f0cc  bundle  BAAI/bge-small-en-v1.5 (first recorded in benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json)
+blobs/sha256/65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8  bundle  answerdotai/ModernBERT-base (first recorded in benchmarks/records/m2.metal.embed.fastest-dense.modernbert-base-65a07202.4cc4468fe7e1.json)
+blobs/sha256/bb57a12c1646762a831dac4e7d7f52ab8ab4ab2edfd0dfa826d7f8d486a650ea  bundle  cross-encoder/ms-marco-MiniLM-L6-v2 (first recorded in benchmarks/rerank/aarch64.cpu.rerank.exact.ms-marco-minilm-l6-v2-bb57a12c.e051ae76366b.json)
+blobs/sha256/da0398773c5b3c8d547dd5b46f5f7d030eb42ebb74c3a4693ce081a3bb792630  bundle  deepset/roberta-base-squad2 (first recorded in benchmarks/qa/rtx4080super.cuda.qa.exact.roberta-base-squad2-da039877.27e47015da91.json)
+blobs/sha256/1a25f8579ed92b10a8963f366b14bf9103ea6d6e886c0526d5802ee7cc46a30d  bundle  ibm-granite/granite-embedding-30m-english (first recorded in analysis/eval/records/granite-embedding-30m-document/arguana.json)
+blobs/sha256/f017e2c45618572636b1979f14357b03744a02ee1425b9ce6fcb5f313e2267c0  bundle  minishlab/potion-base-2M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-2m-f017e2c4.d95afdbd0727.json)
+blobs/sha256/9658fd0ee34121759206942116c1ed9058acb202f0fa29aad90fe4816684dc0e  bundle  minishlab/potion-base-32M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-32m-9658fd0e.d95afdbd0727.json)
+blobs/sha256/166fe1cf950c45b3c837d59b217740bb0252f52a8d95fb59e7268a2a7faee346  bundle  minishlab/potion-base-4M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-4m-166fe1cf.d95afdbd0727.json)
+blobs/sha256/246591f84bb828e2482b23f4e22a000b9f0930b96373f357771d625dea35feeb  bundle  minishlab/potion-base-8M (first recorded in analysis/eval/records/potion-base-8m-document/arguana.json)
+blobs/sha256/6353f1df582faf2c73a5542f06d24e70539799dba3281ce895b1240ede20f3eb  bundle  minishlab/potion-base-8M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-8m-6353f1df.d95afdbd0727.json)
+blobs/sha256/6aa8a4101c7a06cf87ad62e6cfce31a3dfc7261d671facfb9b325914fd5451ef  bundle  minishlab/potion-code-16M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-code-16m-6aa8a410.d95afdbd0727.json)
+blobs/sha256/50b7d0bd522f67037e3dc0241ac28e10f814021b612d79310734194bf5aacb3d  bundle  minishlab/potion-code-16M-v2 (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-code-16m-v2-50b7d0bd.d95afdbd0727.json)
+blobs/sha256/a095d52bc7d09862f7739ab1c6bde93a2a59145e42304aa259f533f91eb4e669  bundle  minishlab/potion-multilingual-128M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-multilingual-128m-a095d52b.d95afdbd0727.json)
+blobs/sha256/5c6a9f6a04563236ce9b3f07c9fde9618c3ecea6a8c8df377ec66c599d186662  bundle  minishlab/potion-science-32M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-science-32m-5c6a9f6a.d95afdbd0727.json)
+blobs/sha256/d5877f3f1087c39095e3363927a37df73679b6e5fcd685008f36ffe4ee591ab6  bundle  nomic-ai/nomic-embed-text-v1.5 (first recorded in benchmarks/records/m2.metal.embed.fastest-dense.nomic-embed-text-v1-5-d5877f3f.4cc4468fe7e1.json)
+blobs/sha256/0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in analysis/eval/records/bm25-document/arguana.json)
+blobs/sha256/2d16573646925a45fcd353dd485c50429b552986e88b6f470702908eb1b53817  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in analysis/eval/records/all-minilm-l6-v2-document/arguana.json)
+blobs/sha256/3c305237a79d0b4bcae9513683b2373c84190d8a2d96941aacb25e035c30b9ea  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/ranges/m2.metal.ranges.fastest.all-minilm-l6-v2-3c305237.1b452912e881.json)
+blobs/sha256/7fe901c239aadde712292259deb7f98ee68772ab16d573030728da90008cd125  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in analysis/eval/records/fixed-tokens-200/legalbench-rag-mini.json)
+blobs/sha256/a8cbd482abd96cee824791f9ad59a84d8a69b3f44c5a168bfc07a8ddb972e2b0  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.all-minilm-l6-v2-a8cbd482.176d0ce81418.json)
+blobs/sha256/aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in analysis/eval/records/fixed-tokens-200-hybrid/arguana.json)
+blobs/sha256/da08a0f9f04985288e22252d16dd05ad277570913d03456527b93669603b07ec  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/ranges/arl-npu.npu.ranges.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json)
+blobs/sha256/e57c4f36615d3e5f3fdbf0439103247cb0e4a28cfd09c2fb5b1464e9e2a93305  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/records/hailo10h.hailo.embed.fastest.all-minilm-l6-v2-e57c4f36.94a833f60389.json)
+blobs/sha256/f4256cb3162b4272d50d028c08d0965d34f65f672c7d179d90a53709314a3ff5  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/records/hailo8.hailo.embed.fastest.all-minilm-l6-v2-f4256cb3.94a833f60389.json)
+
+# The files turbo-goldens fetch-models fetches, which
+# analysis/goldens-tool/src/recipe/models.rs pins by SHA-512 at fetch:
+# these are the SHA-256 of the same bytes, which
+# turbo_goldens::published_model checks at load. The OpenNLP 2.5 models
+# it still fetches (the UD 1.3 models built with 2.5.4, langdetect-183)
+# are retired and pinned nowhere (#1509, turbo_pins::retired); #1532
+# removes them and their loaders.
+blobs/sha256/6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452  file  all-minilm-l6-v2.onnx
+blobs/sha256/e746c882dd6f303c2c46e7452804b9201115a6942cfeb15f18f8edf774d2e24e  file  hunspell/en_US.aff
+blobs/sha256/f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647  file  hunspell/en_US.dic
+blobs/sha256/646bf3333ac69c23e9d794533ee5241d6f755c359e8fe10a648f87613743d594  file  hunspell/de_DE_frami.aff
+blobs/sha256/4ca3c958b0e5545910999bc246f668840bf8ede3df8e5e6790d05edd5a586c38  file  hunspell/de_DE_frami.dic
+blobs/sha256/f3a2748dd535cfde2142ab17d0f7f8e4787b03fb25a60829c69ac8d493db4802  file  hunspell/hu_HU.aff
+blobs/sha256/97293d670ad4a3b8e7eebef7e25c6e8e939b914c64b6b4672b2bf416b768f990  file  hunspell/hu_HU.dic
+blobs/sha256/7d039a24a6083ed9ef0f806ebad56bbb976e3aeb8de05669173bfdc4996c239d  file  corpora/sms-spam-collection.tsv
+
+# Heads published as release files, which their tests also check against
+# the digests in their release.json and source.
+blobs/sha256/4ac96221ea772033f248df8c08fc546f62c384860bf3abc5d96e383a800497a2  file  aspect-bio-1.thead (analysis/embed/tests/aspect_masc_support/release.json)
+blobs/sha256/643023b738f8d1072fffa358000247b61c7027da720f4d310fd902f6cc59a99a  file  aspect-polarity-1.thead (analysis/embed/tests/aspect_masc_support/release.json)
+blobs/sha256/a0cc253cdcf8bdd6f28bc13f17a1d7012740bcfe2deb384ca212dbf9e3aef5de  file  pragmatics-1.thead (analysis/embed/tests/pragmatics_csc_support/release.json)
+blobs/sha256/26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba  file  MiniLM TIVH incivility head (analysis/embed/examples/incivility_eval/tests.rs)
+blobs/sha256/76fac774d60210b9279a47ebcb565e12e2b353897f560afa4806e43771e8a3b6  file  MASC 3.0.0 Penn POS head B over ModernBERT-base (trainer/recipes/records/masc-pos-1649/head-B.json)
+
+# Bundles CI makes from a pinned recipe before a test loads them.
+blobs/sha256/09275a1b537fd120d5ee10ed614aa8963c65100dda824b6c14fc9f9a7715de04  bundle  minishlab/potion-base-2M as the static-parity job of ci.yml makes it
+
+# Bundles in the device machines' caches that tests are run with, from
+# `turbo-pins` on each machine (#1621).
+blobs/sha256/3c520dec8d833a3594b15567d1de0c8c039a571c728fbf2a6247d4fa885a64b4  bundle  answerdotai/ModernBERT-base, 12-layer cut for the #1607 receipt (RTX 4080 machine)
+blobs/sha256/1c3b7bc10bd32729227801704b9e22f9a333b50bd899e4494dc3e7d49f3afb21  bundle  sentence-transformers/all-MiniLM-L6-v2 revision 3 (RTX 4080 machine)
+blobs/sha256/8dc4c5f58d474c5714b2b5c33782a8ce8d14033c0b13336c9400301cff254842  bundle  BAAI/bge-m3 revision 1 (RTX 4080 machine)
+blobs/sha256/c38aa631f6b5a02f8f198ec6e9bbed4e98b8a3e7437032898950245458192c70  bundle  BAAI/bge-m3 revision 2 (RTX 4080 machine)
+blobs/sha256/4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52  bundle  FacebookAI/xlm-roberta-base revision 1, from bundle/recipes/xlm-roberta-base.json (RTX 4080 machine)
+blobs/sha256/1956a158b18b776704b5a15f7ebf1b0181f070a81163ac6955e0d50ac3c144c5  bundle  gliner2-base-v1 encoder bundle (fastino/gliner2-base-v1) (B70 machine)
+blobs/sha256/5e7f64fdadc68e8fd4710ca2b903213871a8e80f6496e6d8120294562a071b34  bundle  gliner-small-v2.1 encoder bundle (urchade/gliner_small-v2.1) (B70 machine)
+blobs/sha256/c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506  bundle  SaT 1l-sm, xlm-roberta tokenizer bundle (B70 machine)
+blobs/sha256/b5285611dd564973d4b90ce148a5f62aef766ad11859cc62bcb801157309c146  bundle  sentence-transformers/all-MiniLM-L6-v2 static distillation, 256 dims (B70 machine)
+blobs/sha256/311365014225a874972577dabf2fac85f26141613ce42d726a707257038055d4  bundle  BAAI/bge-base-en-v1.5 static distillation, 256 dims (B70 machine)
+blobs/sha256/bec30f885845797c7be22bac5e731de8d30971c8343b2dd41ebb5b2c451e2cf4  bundle  minishlab/potion-base-2M static-1024 build (B70 machine)
+blobs/sha256/e63431912f43863e6e40b62dffd5a7d3ea93d7d33e1f5266dfa19cb7cd86aa11  bundle  minishlab/potion-base-2M static build (B70 machine)
+blobs/sha256/bca2c0b83a3aa3394e2c08befde30db757dcc785222206a6b47a8895965be12f  bundle  minishlab/potion-base-2M static-rust build (B70 machine)
+blobs/sha256/2b3102cbce5bd2828825ce5f1d22c0d2edd7282183e1a6288450d9fe40c94f4f  bundle  minishlab/potion-base-4M static-1024 build (B70 machine)
+blobs/sha256/b08f5820a92013bffc4cd34133586561f6c76afe61c91781ac33614f73df9b2b  bundle  minishlab/potion-base-4M static build (B70 machine)
+blobs/sha256/31c167821de2af7a72bfa447d3ea6a9ef70d456cbf8c631406ae10e10de4fc60  bundle  minishlab/potion-base-4M static-rust build (B70 machine)
+blobs/sha256/00bb4268a77326432281cda65be5b5653d2f9161f325bf0728a8b9b1fb768141  bundle  minishlab/potion-base-8M static-1024 build (B70 machine)
+blobs/sha256/5f54c2e24d2e33053803e03ae7e7374d32796f5df6cb0107f859bac304decc70  bundle  minishlab/potion-base-8M static build (B70 machine)
+blobs/sha256/dbe928a846e71d2e717c0615439706dc04b8c649de66d472e6a462229fd36b7e  bundle  minishlab/potion-base-8M static-rust build (B70 machine)
+blobs/sha256/428cc6aeae6dee360f033d15bf1c9b70ea79a6171dbf7b8fe88e6dcacdd2f2c1  bundle  minishlab/potion-base-32M static-1024 build (B70 machine)
+blobs/sha256/52024a25e715115a7e518562ee98336cc4d57fcd09e2bd74ba422fefbf68ba36  bundle  minishlab/potion-base-32M static build (B70 machine)
+blobs/sha256/d73c3a680f45237fd5dcd2702fcc81b68611e53fbe372172d76be5b2642698aa  bundle  minishlab/potion-base-32M static-rust build (B70 machine)
+blobs/sha256/a203744ab993356916df94807f48995f30d57bc1b09634a179c2935f4db00d35  bundle  minishlab/potion-code-16M static-1024 build (B70 machine)
+blobs/sha256/a39f21f4a70b40e2566d963fd932d218454c8d705308f8bd803f3fd19d51b87d  bundle  minishlab/potion-code-16M static build (B70 machine)
+blobs/sha256/a0b1ca987561732398df0de5979246008aa0c5e9f8842b2748887537dc59216e  bundle  minishlab/potion-code-16M static-rust build (B70 machine)
+blobs/sha256/b5defab164fdfc2f814f00b7773e714df8e4fc6a9677483073b100baf2add8fb  bundle  minishlab/potion-code-16M-v2 static-1024 build (B70 machine)
+blobs/sha256/1e6b99e4202abb5e9caafff563792717622c9b5e865131a1568171766016d9f6  bundle  minishlab/potion-code-16M-v2 static build (B70 machine)
+blobs/sha256/b5d140795c93ee52e3de61017ffa8a09f860a4ac6f9e531d455bb5060bfff8d6  bundle  minishlab/potion-code-16M-v2 static-rust build (B70 machine)
+blobs/sha256/22ae1a4bb5670b1e26111868effea2afdee6eafe627687b97c70c9b313a21e0e  bundle  minishlab/potion-multilingual-128M static-1024 build (B70 machine)
+blobs/sha256/3d9d661a0351c67f49b1d97662d72f3f150e42a900bbd94942907ca4bd0ffd02  bundle  minishlab/potion-multilingual-128M static build (B70 machine)
+blobs/sha256/4c5a780c538721d29eccae59ea2fbc9068fe6782f1b57ea914beb40f6cf89863  bundle  minishlab/potion-multilingual-128M static-rust build (B70 machine)
+blobs/sha256/bd9ce7d9492b7f7af4f57304d31be05be2d72ee815cdfcdd2364972adff626eb  bundle  minishlab/potion-retrieval-32M static-1024 build (B70 machine)
+blobs/sha256/4ceb16c0949b9f3a836a1091f63a7063db867f785949ca018fbb9e74e77be3f0  bundle  minishlab/potion-retrieval-32M static build (B70 machine)
+blobs/sha256/8ed0496acf19df9b7ba2698f4d8987a309d430d659fd8189ecfb210bc7caab89  bundle  minishlab/potion-retrieval-32M static-rust build (B70 machine)
+blobs/sha256/7b8e5673dc75b38da41f3d842bcc6941dccb4670ce472a915fd2547cfb6c0d03  bundle  minishlab/potion-science-32M static-1024 build (B70 machine)
+blobs/sha256/3d885ff5da3bb79e6b975e421248e810d74bbf63ed4f1af753e36403e34de61a  bundle  minishlab/potion-science-32M static build (B70 machine)
+blobs/sha256/dd3ea37954bdac157b691b2e7157da45f0bf258badb52eb130b25c1df0dcbcba  bundle  minishlab/potion-science-32M static-rust build (B70 machine)

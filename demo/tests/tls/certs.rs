@@ -21,10 +21,22 @@ pub fn dir() -> &'static PathBuf {
         let ca_name = name("turbo-kserve-demo test CA");
         let ca_cert = cert(&rng, &ca, 1, &ca_name, &ca_name, ca.public_key().as_ref(), &ca_extensions());
         let leaf_cert =
-            cert(&rng, &ca, 2, &ca_name, &name("localhost"), leaf.public_key().as_ref(), &leaf_extensions());
+            cert(&rng, &ca, 2, &ca_name, &name("localhost"), leaf.public_key().as_ref(), &leaf_extensions(false));
         std::fs::write(dir.join("ca.pem"), pem("CERTIFICATE", &ca_cert)).unwrap();
         std::fs::write(dir.join("cert.pem"), pem("CERTIFICATE", &leaf_cert)).unwrap();
         std::fs::write(dir.join("key.pem"), pem("PRIVATE KEY", &leaf_pkcs8)).unwrap();
+        let (_, client_ca) = key(&rng);
+        let client_name = name("test client CA");
+        let client_ca_cert =
+            cert(&rng, &client_ca, 3, &client_name, &client_name, client_ca.public_key().as_ref(), &ca_extensions());
+        std::fs::write(dir.join("client-ca.pem"), pem("CERTIFICATE", &client_ca_cert)).unwrap();
+        for (prefix, issuer, issuer_name) in [("client", &client_ca, &client_name), ("rogue", &ca, &ca_name)] {
+            let (pkcs8, leaf) = key(&rng);
+            let leaf_cert =
+                cert(&rng, issuer, 4, issuer_name, &name(prefix), leaf.public_key().as_ref(), &leaf_extensions(true));
+            std::fs::write(dir.join(format!("{prefix}.pem")), pem("CERTIFICATE", &leaf_cert)).unwrap();
+            std::fs::write(dir.join(format!("{prefix}.key")), pem("PRIVATE KEY", &pkcs8)).unwrap();
+        }
         dir
     })
 }
@@ -45,6 +57,8 @@ const SUBJECT_ALT_NAME: &[u8] = &[0x06, 0x03, 0x55, 0x1d, 0x11];
 const BASIC_CONSTRAINTS: &[u8] = &[0x06, 0x03, 0x55, 0x1d, 0x13];
 const EXT_KEY_USAGE: &[u8] = &[0x06, 0x03, 0x55, 0x1d, 0x25];
 const SERVER_AUTH: &[u8] = &[0x06, 0x08, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01];
+
+const CLIENT_AUTH: &[u8] = &[0x06, 0x08, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x02];
 
 fn tlv(tag: u8, body: &[u8]) -> Vec<u8> {
     let mut out = vec![tag];
@@ -84,14 +98,14 @@ fn ca_extensions() -> Vec<u8> {
     [extension(BASIC_CONSTRAINTS, true, &ca), extension(KEY_USAGE, true, &usage)].concat()
 }
 
-fn leaf_extensions() -> Vec<u8> {
+fn leaf_extensions(client: bool) -> Vec<u8> {
     // digitalSignature.
     let usage = tlv(0x03, &[0x07, 0x80]);
     let names = seq(&[&tlv(0x82, b"localhost"), &tlv(0x87, &[127, 0, 0, 1])]);
     [
         extension(BASIC_CONSTRAINTS, true, &seq(&[])),
         extension(KEY_USAGE, true, &usage),
-        extension(EXT_KEY_USAGE, false, &seq(&[SERVER_AUTH])),
+        extension(EXT_KEY_USAGE, false, &seq(&[if client { CLIENT_AUTH } else { SERVER_AUTH }])),
         extension(SUBJECT_ALT_NAME, false, &names),
     ]
     .concat()

@@ -1,0 +1,17 @@
+===OUT===
+OMG!!!!   check this http://bit.ly/xyz     sooooo goood      
+   BREAKING: something happened. Details: https://example.com/news/1  
+lol that's   haha   tweet “quoted”
+
+===EDITS===
+8	14	 
+44	52	 
+53	61	 
+75	77	 
+78	80	 
+81	83	 
+84	87	 
+87	93	 
+160	169	 
+181	186	 
+192	199	 

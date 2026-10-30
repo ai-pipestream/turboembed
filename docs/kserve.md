@@ -126,6 +126,18 @@ mapping `SERVING` to the same state as `ServerReady` (or `ModelReady`
 when `service` names a served bundle) and `NOT_SERVING` before load and
 during drain.
 
+`turbo-kserve health` checks that service and exits zero only on
+`SERVING`. For TLS, pass `--tls-ca certs/server-ca.pem`; for mTLS, also
+pass `--tls-cert certs/client.pem --tls-key certs/client.key`. Use
+`--tls-name localhost` when the certificate name differs from the dialed
+IP address. The equivalent variables are `TURBO_KSERVE_HEALTH_TLS_CA`,
+`TURBO_KSERVE_HEALTH_TLS_CERT`, `TURBO_KSERVE_HEALTH_TLS_KEY` and
+`TURBO_KSERVE_HEALTH_TLS_NAME`; flags take precedence. The existing
+`--timeout-ms` includes the TLS handshake. The certificate chain and
+server name are always verified. Client credentials are separate from
+the server's listener certificate and key; they are not inferred from
+listener settings. The build must enable the server's `tls` feature.
+
 ## Metadata
 
 `ModelMetadataResponse`:
@@ -135,8 +147,8 @@ during drain.
 | `name` | The model name. |
 | `versions` | One entry, `turbo_model_info.revision`. |
 | `platform` | Empty. The protocol's platform names are a fixed list of other frameworks' formats, and the header reports no artifact format. |
-| `inputs` | `texts` BYTES `[-1]`; `ids` INT32 `[-1, -1]`; `mask` INT32 `[-1, -1]`; `types` INT32 `[-1, -1]`. A request uses `texts` alone, or `ids` and `mask` with `types` optional (Inference). |
-| `outputs` | `vectors` FP32 `[-1, -1]`. The second extent is `dim`, or the request's `output_dim`: one of `model_info.output_dims`. |
+| `inputs` | `texts` BYTES `[-1]`; `ids` INT32 `[-1, -1]`; `mask` INT32 `[-1, -1]`; `types` INT32 `[-1, -1]`; `int8_ranges` FP32 `[2, -1]`. A request uses `texts` alone, or `ids` and `mask` with `types` optional, with `int8_ranges` beside either (Inference). |
+| `outputs` | `vectors` FP32 `[-1, -1]`. The second extent is `dim`, or the request's `output_dim`: one of `model_info.output_dims`. A request's `quantization` makes it INT8 or UINT8 instead (Output); metadata names one datatype per tensor, so it lists the default. |
 | `properties` | Below. |
 
 The properties are the header's facts about the model on its device,
@@ -177,6 +189,7 @@ names are the header's parameter and field names.
 |---|---|---|
 | `texts` | BYTES `[batch]` | `turbo_embed_write_text(s, texts, count = batch, opts)`, each element one `turbo_text` |
 | `ids`, `mask`, and optionally `types` | INT32 `[batch, seq]` each, the same shape | `turbo_embed_write_tokens(s, batch, opts)`, with `turbo_token_batch` `batch`, `seq`, `row_stride` 0, and `ids`, `mask`, `types` pointing at the tensors; `types` absent is `types` NULL, all zero |
+| `int8_ranges`, optional beside either set | FP32 `[2, width]` | `turbo_embed_options.int8_ranges` (field 8): each dimension's minimum, then each one's maximum, for `quantization` `QUANTIZE_INT8` (Parameters). The server copies it into memory of its own; its width must be the request's `output_dim`, or `dim` when that is 0, else `TURBO_E_INVALID_ARGUMENT` naming field 8 before the library reads it. Typed in `fp32_contents`, raw as little-endian f32, 8 × width bytes. Given without `QUANTIZE_INT8`, or absent with it, is the library's `TURBO_E_INVALID_ARGUMENT` naming field 8. |
 
 Any other set of inputs, a name given twice, or another datatype (INT64
 ids, say) is `TURBO_E_INVALID_ARGUMENT`; nothing is converted. A shape
@@ -202,6 +215,7 @@ inputs, is `TURBO_E_INVALID_ARGUMENT`.
 |---|---|---|
 | `texts` | `bytes_contents`, one element per text | Each element a 4-byte little-endian unsigned length followed by that many bytes, back to back, with nothing left over. The protocol leaves the raw BYTES layout open; this is the one its common clients write. A malformed entry is `TURBO_E_INVALID_ARGUMENT`. |
 | `ids`, `mask`, `types` | `int_contents` | Little-endian int32, row-major, 4 × batch × seq bytes. |
+| `int8_ranges` | `fp32_contents` | Little-endian f32, row-major, 8 × width bytes. |
 
 Contents in any other typed field are `TURBO_E_INVALID_ARGUMENT`.
 
@@ -231,7 +245,8 @@ header's (`turbo_token_batch`).
 ### Output
 
 One output tensor, `vectors`, datatype FP32, shape `[batch, dim]` from
-`turbo_result_info.batch` and `.dim`, in `raw_output_contents[0]`: the
+`turbo_result_info.batch` and `.dim` (for packed bits, below,
+`[batch, (dim + 7) / 8]`), in `raw_output_contents[0]`: the
 `turbo_result_info.bytes` bytes of the result, little-endian, row-major,
 exactly as the library gives them. The block is the one the header
 describes above `turbo_result_read`; `vectors` is its name on the wire
@@ -239,9 +254,14 @@ only. The server does not normalize, cut,
 reorder, round or convert them. The response always uses
 `raw_output_contents`; `contents` is never set.
 
-`turbo_result_info.dtype` names the datatype: F32 in this cut. Were it
-another, the datatype would be its name in the protocol (`DTYPE_F16`
-FP16, `DTYPE_BF16` BF16, `DTYPE_I32` INT32), never a conversion. BF16
+`turbo_result_info.dtype` names the datatype: F32, or as the request's
+`quantization` says, `DTYPE_I8` INT8 (int8 codes, `[batch, dim]`) or
+`DTYPE_U8` UINT8 (packed sign bits, `[batch, (dim + 7) / 8]`, while the
+`dim` response parameter still counts dimensions). The codes are
+turbo.h's `TURBO_QUANTIZE_*` layout, sentence-transformers'
+(docs/embeddings.md). Were it another, the datatype would be its name in
+the protocol (`DTYPE_F16` FP16, `DTYPE_BF16` BF16, `DTYPE_I32` INT32),
+never a conversion. BF16
 is the proto's own name for it, from the note on `raw_input_contents`.
 A result dtype with no protocol name is `TURBO_E_INTERNAL`.
 
@@ -300,6 +320,7 @@ says; the server has no default of its own.
 | `normalize` | 4 | `string_param`: `NORMALIZE_MODEL`, `NORMALIZE_NONE`, `NORMALIZE_L2` | Normalization of each vector. | `NORMALIZE_MODEL`: the bundle's `embed.normalize`. |
 | `pooling` | 5 | `string_param`: `POOLING_MODEL`, `POOLING_MEAN`, `POOLING_CLS`, `POOLING_LAST` | How token states become one vector. | `POOLING_MODEL`: the bundle's `embed.pooling`. |
 | `output_dim` | 6 | `int64_param`, 0 to 4294967295 | Keep the first `output_dim` values of each vector, cut before normalize. Above `dim` is `TURBO_E_INVALID_ARGUMENT` naming field 6; neither `dim` nor one of `model_info.output_dims` is `TURBO_E_UNSUPPORTED_OPTION` naming field 6. | 0: what the bundle says, the full `dim`. |
+| `quantization` | 7 | `string_param`: `QUANTIZE_MODEL`, `QUANTIZE_NONE`, `QUANTIZE_INT8`, `QUANTIZE_UBINARY` | Return each vector, after the cut and normalize, as F32, int8 codes or packed sign bits (Output). `QUANTIZE_INT8` needs the `int8_ranges` input (Inputs), field 8, which is an input tensor rather than a parameter. | `QUANTIZE_MODEL`: F32. |
 
 For rows given as tokens, `truncate` and `prompt_role` other than their
 0 value are `TURBO_E_INVALID_ARGUMENT` naming the field, from

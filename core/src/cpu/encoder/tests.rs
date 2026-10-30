@@ -4,9 +4,9 @@ use crate::{TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN};
 
 /// A small BERT with synthetic weights: 2 layers, hidden 96 in 3
 /// heads of 32, intermediate 192.
-struct Model {
-    desc: turbo_backend_model,
-    tensors: Vec<Vec<f32>>,
+pub(super) struct Model {
+    pub(super) desc: turbo_backend_model,
+    pub(super) tensors: Vec<Vec<f32>>,
 }
 
 impl Model {
@@ -14,7 +14,7 @@ impl Model {
         Model::shaped(2, 96, 3, 192, 128)
     }
 
-    fn shaped(layers: usize, h: usize, heads: u32, i: usize, positions: usize) -> Model {
+    pub(super) fn shaped(layers: usize, h: usize, heads: u32, i: usize, positions: usize) -> Model {
         let vocab = 500usize;
         let mut shapes = vec![vocab * h, positions * h, 2 * h, h, h];
         for _ in 0..layers {
@@ -52,15 +52,26 @@ impl Model {
             lookahead: 0,
             position_buckets: 0,
             max_relative_positions: 0,
+            artifact_sha256: [0; 32],
+            artifact2_sha256: [0; 32],
+            rope_global_theta: 0.0,
+            rope_local_theta: 0.0,
+            rope_table: std::ptr::null(),
+            rope_pairs: 0,
+            mlp: 0,
+            activation: 0,
+            norm: 0,
+            attention_window: 0,
+            global_every: 0,
         };
         Model { desc, tensors }
     }
 
-    fn slices(&self) -> Vec<&[f32]> {
+    pub(super) fn slices(&self) -> Vec<&[f32]> {
         self.tensors.iter().map(Vec::as_slice).collect()
     }
 
-    fn packed(&self, isa: Isa) -> Packed {
+    pub(super) fn packed(&self, isa: Isa) -> Packed {
         let t = self.slices();
         let layer = |l: usize, r: usize| t[5 + l * 16 + r];
         Packed::new(&self.desc, layer, isa).unwrap()
@@ -100,6 +111,8 @@ impl Model {
             normalize: TURBO_NORMALIZE_L2,
             output_dim: self.desc.hidden,
             head: 0,
+            taps: 0,
+            reserved: 0,
         };
         let mut out = vec![f32::NAN; batch * self.desc.hidden as usize];
         // More than once, to see later runs on the same session agree.
@@ -199,6 +212,8 @@ fn ranged(
         normalize,
         output_dim: output_dim as u32,
         head: 0,
+        taps: 0,
+        reserved: 0,
     };
     let mut out = vec![f32::NAN; ranges.len() * output_dim];
     e.write_ranges(&rows, ids, mask, None, ranges);
@@ -334,6 +349,8 @@ fn a_write_of_rows_after_ranges_pools_rows() {
         normalize: TURBO_NORMALIZE_L2,
         output_dim: h as u32,
         head: 0,
+        taps: 0,
+        reserved: 0,
     };
     let mut out = vec![f32::NAN; b * h];
     e.write_ranges(&rows, &ids, &mask, None, &[range(0, 0, 5), range(1, 0, 1), range(2, 0, 3)]);

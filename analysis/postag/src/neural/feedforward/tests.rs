@@ -5,20 +5,6 @@ use crate::neural::{NeuralError, PosSample};
 use turbo_analysis::{Annotator, Document, Error, Span, Spans, View, ViewId};
 use turbo_analysis_layers::Tokens;
 
-fn corpus() -> Vec<PosSample> {
-    let distinct = vec![
-        PosSample::new(["the", "dog", "barks"], ["DT", "NN", "VBZ"]).unwrap(),
-        PosSample::new(["the", "cat", "sleeps"], ["DT", "NN", "VBZ"]).unwrap(),
-        PosSample::new(["dogs", "bark"], ["NNS", "VBP"]).unwrap(),
-        PosSample::new(["she", "eats", "fish"], ["PRP", "VBZ", "NN"]).unwrap(),
-    ];
-    let mut out = Vec::with_capacity(40 * distinct.len());
-    for _ in 0..40 {
-        out.extend_from_slice(&distinct);
-    }
-    out
-}
-
 #[test]
 fn shapes_and_suffixes_match_java_conformance() {
     // Each row is what Java's FeedforwardPOSContext.shape returns.
@@ -91,6 +77,20 @@ fn shapes_and_suffixes_match_java_conformance() {
     assert_eq!(&symbols[5..10], ["cd", "bcd", ABSENT, "*allcaps*", "*cap*"]);
 }
 
+fn corpus() -> Vec<PosSample> {
+    let distinct = vec![
+        PosSample::new(["the", "dog", "barks"], ["DT", "NN", "VBZ"]).unwrap(),
+        PosSample::new(["the", "cat", "sleeps"], ["DT", "NN", "VBZ"]).unwrap(),
+        PosSample::new(["dogs", "bark"], ["NNS", "VBP"]).unwrap(),
+        PosSample::new(["she", "eats", "fish"], ["PRP", "VBZ", "NN"]).unwrap(),
+    ];
+    let mut out = Vec::with_capacity(40 * distinct.len());
+    for _ in 0..40 {
+        out.extend_from_slice(&distinct);
+    }
+    out
+}
+
 #[test]
 fn training_inference_and_round_trip_match_java_exact_outputs() {
     let settings = FeedforwardSettings::new(16, 32, 80, 32, 0.05, 0.0, 0.0, 1, 1, 17).unwrap();
@@ -113,7 +113,7 @@ fn training_inference_and_round_trip_match_java_exact_outputs() {
 
     let mut buf = Vec::new();
     model.serialize(&mut buf).unwrap();
-    let reloaded = FeedforwardPosModel::load(&buf[..]).unwrap();
+    let reloaded = FeedforwardPosModel::from_trained_bytes(&buf).unwrap();
     let reloaded_tagger = FeedforwardPosTagger::new(reloaded);
     assert_eq!(tagger.tag(&["the", "wug", "barks"]).unwrap(), reloaded_tagger.tag(&["the", "wug", "barks"]).unwrap());
 }
@@ -146,8 +146,9 @@ fn pretrained_vectors_and_lexicon_separate_indistinguishable_words() {
 
     let mut buf = Vec::new();
     model.serialize(&mut buf).unwrap();
-    assert_eq!(&buf[2..2 + buf[1] as usize], b"ONLP-FFPT-2");
-    let loaded = FeedforwardPosModel::load(&buf[..]).unwrap();
+    let len = u16::from_le_bytes([buf[0], buf[1]]) as usize;
+    assert_eq!(&buf[2..2 + len], b"TURBO-FFPT-2");
+    let loaded = FeedforwardPosModel::from_trained_bytes(&buf).unwrap();
     assert_eq!(
         FeedforwardPosTagger::new(loaded).tag(&["aazqx", "eezqx", "zzzqx"]).unwrap(),
         tagger.tag(&["aazqx", "eezqx", "zzzqx"]).unwrap()

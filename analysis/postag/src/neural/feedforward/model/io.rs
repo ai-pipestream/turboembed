@@ -1,9 +1,9 @@
-//! The `ONLP-FFPT-1` / `ONLP-FFPT-2` binary format: writing and reading a
-//! [`FeedforwardPosModel`] and checking every table it declares.
+//! Binary serialization and deserialization for trained [`FeedforwardPosModel`]
+//! instances, with external legacy `load` / `load_from_path` disabled under `#1511`.
 
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufWriter, Cursor, Read, Write};
 use std::path::Path;
 
 use crate::neural::feedforward::context::{PRETRAINED_SLOTS, SLOTS, UNKNOWN};
@@ -12,14 +12,19 @@ use crate::neural::{DataReader, DataWriter, NeuralError};
 use super::*;
 
 impl FeedforwardPosModel {
-    /// Serializes this model in `ONLP-FFPT-1` or `ONLP-FFPT-2` format to `writer`.
+    /// Writes this model to `writer` in `ONLP-FFPT-1` or `ONLP-FFPT-2` format.
     pub fn serialize<W: Write>(&self, writer: W) -> Result<(), NeuralError> {
         let mut out = DataWriter::new(writer);
-        out.write_utf(if self.pretrained_size > 0 { MAGIC_V2 } else { MAGIC_V1 })?;
+        if self.uses_pretrained_vectors() {
+            out.write_utf(MAGIC_V2)?;
+        } else {
+            out.write_utf(MAGIC_V1)?;
+        }
         write_vocab(&mut out, &self.word_entries)?;
         write_vocab(&mut out, &self.suffix_entries)?;
         write_vocab(&mut out, &self.shape_entries)?;
         write_vocab(&mut out, &self.tag_feature_entries)?;
+
         out.write_i32(self.tags.len() as i32)?;
         for tag in &self.tags {
             out.write_utf(tag)?;
@@ -30,7 +35,8 @@ impl FeedforwardPosModel {
         write_f32_vector(&mut out, &self.hidden_bias)?;
         write_f32_matrix(&mut out, &self.output_weights)?;
         write_f32_vector(&mut out, &self.output_bias)?;
-        if self.pretrained_size > 0 {
+
+        if self.uses_pretrained_vectors() {
             out.write_i32(self.pretrained_size as i32)?;
             write_vocab(&mut out, &self.pretrained_entries)?;
             write_f32_matrix(&mut out, &self.pretrained_vectors)?;
@@ -39,18 +45,27 @@ impl FeedforwardPosModel {
         Ok(())
     }
 
-    /// Serializes this model to a file path.
+    /// Writes this model to a file at `path`.
     pub fn serialize_to_path(&self, path: impl AsRef<Path>) -> Result<(), NeuralError> {
         let file = File::create(path)?;
-        let mut writer = BufWriter::new(file);
-        self.serialize(&mut writer)?;
-        writer.flush()?;
+        self.serialize(BufWriter::new(file))?;
         Ok(())
     }
 
-    /// Reads and validates a `FeedforwardPosModel` from a stream in `ONLP-FFPT-1` or `ONLP-FFPT-2` format.
-    pub fn load<R: Read>(reader: R) -> Result<Self, NeuralError> {
-        let mut inp = DataReader::new(reader);
+    /// Returns the retirement error without reading the supplied stream.
+    /// Use [`FeedforwardPosModel::from_trained_bytes`] to decode models serialized by [`FeedforwardPosModel::serialize`].
+    pub fn load<R: Read>(_reader: R) -> Result<Self, NeuralError> {
+        Err(NeuralError::Disabled)
+    }
+
+    /// Returns the retirement error without accessing the filesystem.
+    pub fn load_from_path(_path: impl AsRef<Path>) -> Result<Self, NeuralError> {
+        Err(NeuralError::Disabled)
+    }
+
+    /// Reads and validates a [`FeedforwardPosModel`] from bytes produced by [`FeedforwardPosModel::serialize`].
+    pub fn from_trained_bytes(bytes: &[u8]) -> Result<Self, NeuralError> {
+        let mut inp = DataReader::new(Cursor::new(bytes));
         let magic = inp.read_utf()?;
         if magic != MAGIC_V1 && magic != MAGIC_V2 {
             return Err(NeuralError::Format(format!("not a FeedforwardPOSModel stream (magic '{magic}')")));
@@ -146,12 +161,6 @@ impl FeedforwardPosModel {
             pretrained_entries,
             pretrained_vectors,
         ))
-    }
-
-    /// Reads and validates a `FeedforwardPosModel` from a file path.
-    pub fn load_from_path(path: impl AsRef<Path>) -> Result<Self, NeuralError> {
-        let file = File::open(path)?;
-        Self::load(BufReader::new(file))
     }
 }
 

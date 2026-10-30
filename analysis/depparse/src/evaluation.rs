@@ -1,6 +1,11 @@
-use crate::{DependencyGraph, DependencyParser, DependencySample, Result, error};
+use crate::{DependencyGraph, DependencySample, Result, error};
 use turbo_analysis::Ix;
-use turbo_analysis_layers::WordOrTokenAnchor;
+use turbo_analysis_layers::{Tokens, WordOrTokenAnchor};
+
+/// A parser can be substituted in evaluation without erasing its anchor type.
+pub trait DependencyParser<A: WordOrTokenAnchor = Tokens> {
+    fn parse(&self, tokens: &[&str], tags: &[&str]) -> Result<DependencyGraph<A>>;
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct AttachmentScores {

@@ -33,6 +33,7 @@ pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Eve
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use heatmap::{DocumentHeatmap, HeatmapLane, HeatmapLaneKind, HeatmapSegment};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
+pub use layout::{LayoutBox, LayoutBoxes, PageBoundingBox};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
 pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
@@ -64,6 +65,7 @@ pub use tables::{
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use vector_codes::{CodeKind, VectorCodes};
 pub use wordnet::{
     ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
 };
@@ -143,6 +145,7 @@ pub mod export;
 mod generic;
 mod heatmap;
 mod language_spans;
+mod layout;
 mod levels;
 mod matches;
 pub mod modality;
@@ -164,5 +167,6 @@ pub mod tables;
 mod temporal;
 mod times;
 pub mod unit;
+mod vector_codes;
 mod wordnet;
 mod words;

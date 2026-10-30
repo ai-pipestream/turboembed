@@ -1,29 +1,6 @@
 //! Training the phrase chunker: `ChunkerFactory`, the events of
 //! `ChunkerEventStream`, and the model file `ChunkerME.train` returns as a
 //! `ChunkerModel`.
-//!
-//! `ChunkerEventStream` makes one event per token of a sample: the token's
-//! chunk tag (`B-NP`, `I-NP`, `O`) as the outcome, and as the context the
-//! 41 features of `DefaultChunkerContextGenerator` for that token, with
-//! the sample's own chunk tags as the tags decided before it. The
-//! generator is `turbo_sequence::chunker::DefaultChunkerContext`, the one
-//! the chunker runs with (`turbo-phrase-chunker`), so training and
-//! inference share it. `ChunkerFactory` has no settings and no artifacts:
-//! the model file holds the manifest, with `factory` and `BeamSize`, and
-//! `chunker.model`.
-//!
-//! `ChunkerME.train` asks `TrainerFactory.getTrainerType` which kind of
-//! trainer the `Algorithm` parameter names. An event trainer (`MAXENT`,
-//! the default, `MAXENT_QN`, `PERCEPTRON` or `NAIVEBAYES`) is trained on
-//! the events ([`train_chunker_model`]). The sequence perceptron
-//! (`PERCEPTRON_SEQUENCE`) is an event model sequence trainer, which
-//! `ChunkerME.train` does not take: it throws
-//! `IllegalArgumentException("Trainer type is not supported:
-//! EVENT_MODEL_SEQUENCE_TRAINER")` ([`Error::UnsupportedTrainerType`]),
-//! as it does for an algorithm it cannot resolve (`null`). Its branch for a
-//! sequence trainer (`SEQUENCE_TRAINER`) is reached only by a trainer
-//! class loaded as an extension, which OpenNLP has none of built in and
-//! this crate does not load.
 
 use turbo_formats::ChunkSample;
 use turbo_sequence::Features;
@@ -84,15 +61,6 @@ impl ChunkerEventStream {
         ChunkerEventStream { context: factory.context_generator(), features: Features::new() }
     }
 
-    /// `createEvents(sample)`: appends one event per token of the sample
-    /// to `out`, in token order. The sample's chunk tags stand in for the
-    /// tags decided so far; the generator reads only the two before the
-    /// token.
-    ///
-    /// The tokens and the two tag vectors are built per sample: the
-    /// generator reads `&str`, and a sample's fields may own their text,
-    /// so they cannot outlive the sample and be kept on the stream. Each
-    /// token's event allocates far more than these vectors.
     pub fn events(&mut self, sample: &ChunkSample<'_>, out: &mut Vec<Event>) {
         let words: Vec<TokenTag<'_>> = sample
             .tokens()
@@ -149,11 +117,7 @@ pub fn check_trainer_type(params: &TrainingParameters) -> Result<()> {
     }
 }
 
-/// `new ChunkerModel(languageCode, chunkerModel, beamSize,
-/// manifestInfoEntries, factory)` serialized: the manifest with the
-/// trainer's entries, `factory` and `BeamSize`, and the `chunker.model`
-/// entry holding `model_bytes`, after the manifest in the zip as the JVM's
-/// artifact map orders them.
+/// `new ChunkerModel(...)` serialized.
 pub fn package_chunker_model(
     factory: &ChunkerFactory,
     report: &TrainingReport,
@@ -172,16 +136,7 @@ pub fn package_chunker_model(
     Ok(package)
 }
 
-/// `ChunkerME.train(languageCode, samples, mlParams, factory)`: the events
-/// of [`chunk_events`], the event trainer the `Algorithm` parameter names
-/// (with the event checksum and `TrainerType` for the manifest), the beam
-/// size of the parameters, and the model file stamped with `stamp`.
-///
-/// # Errors
-///
-/// [`Error::UnsupportedTrainerType`] for a parameter set that names no
-/// event trainer, checked before any event is made, as the JVM checks it
-/// before it reads a sample; or what the trainer fails on.
+/// `ChunkerME.train(languageCode, samples, mlParams, factory)`.
 pub fn train_chunker_model<'a, 's>(
     samples: impl IntoIterator<Item = &'s ChunkSample<'a>>,
     factory: &ChunkerFactory,
@@ -246,12 +201,9 @@ mod tests {
         assert_eq!(third[20], "p_1=B-VP");
         assert_eq!(third[21], "p_2=B-NPp_1=B-VP");
         assert_eq!(third[40], "p_1=B-VPw0=thew1=deficit");
-        // The last token sees the end of the sentence on both sides of
-        // the window ahead.
         let fifth = strings(&events[4]);
         assert_eq!((fifth[3].as_str(), fifth[4].as_str()), ("w1=eos", "w2=eos"));
         assert_eq!((fifth[10].as_str(), fifth[11].as_str()), ("t1=eos", "t2=eos"));
-        // Each sample starts from the beginning of a sentence.
         let sixth = strings(&events[5]);
         assert_eq!(&sixth[..2], ["w_2=bos", "w_1=bos"]);
         assert_eq!(&sixth[19..22], ["p_2=bos", "p_1=bos", "p_2=bosp_1=bos"]);
@@ -259,8 +211,6 @@ mod tests {
 
     #[test]
     fn the_history_is_the_samples_tags_whatever_they_are() {
-        // An I- tag after O, and a tag of another kind, are what the
-        // features name; the event stream does not check the tags.
         let s = samples("a DT O\nb NN I-NP\nc NN X\n");
         let events = chunk_events(&s, &ChunkerFactory::new("en"));
         assert_eq!(*events[1].outcome(), "I-NP");
@@ -273,8 +223,6 @@ mod tests {
         let f = ChunkerFactory::new("de");
         let report = TrainingReport { event_hash: Some(1), trainer_type: TrainerType::Event };
         let package = package_chunker_model(&f, &report, vec![1], 5, Stamp::at(0)).unwrap();
-        // The JVM's artifact map puts chunker.model before the manifest
-        // (the fixture chunker-fixture.bin has them in this order).
         assert_eq!(package.entry_names(), ["chunker.model", "manifest.properties"]);
         assert_eq!(package.manifest().get("BeamSize"), Some("5"));
         assert_eq!(package.manifest().get("factory"), Some(FACTORY));
@@ -300,16 +248,16 @@ mod tests {
         p.put(Key::ITERATIONS, 5);
         p.put(Key::CUTOFF, 0);
         for (algorithm, model_type) in [
-            (None, "GIS"),
-            (Some(Algorithm::MaxentQn), "QN"),
-            (Some(Algorithm::Perceptron), "Perceptron"),
-            (Some(Algorithm::NaiveBayes), "NaiveBayes"),
+            (None, "TURBO-GIS-1"),
+            (Some(Algorithm::MaxentQn), "TURBO-QN-1"),
+            (Some(Algorithm::Perceptron), "TURBO-PERCEPTRON-1"),
+            (Some(Algorithm::NaiveBayes), "TURBO-NAIVE-BAYES-1"),
         ] {
             if let Some(a) = algorithm {
                 p.put_str(Key::ALGORITHM, a.name());
             }
             let t = train_chunker_model(&s, &f, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap();
-            let file = turbo_maxent::ModelFile::open(t.package.to_bytes()).unwrap();
+            let file = turbo_maxent::ModelFile::from_trained_archive(t.package.to_bytes()).unwrap();
             let entry = file.entry(MODEL_ENTRY).unwrap();
             assert_eq!(&entry[2..2 + model_type.len()], model_type.as_bytes(), "{algorithm:?}");
             assert_eq!(file.manifest().get("BeamSize"), Some("10"));

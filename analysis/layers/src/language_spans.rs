@@ -26,10 +26,8 @@ pub const UNDETERMINED: &str = "und";
 ///
 /// The confidence ranks spans of one detector against each other; it is
 /// not a calibrated probability, and readers should not threshold on it.
-/// For `turbo-langspan` over OpenNLP's `langdetect-183.bin` it is the
-/// model's probability of the span's language over the languages of its
-/// script, and that model's probabilities are flat: a clear French
-/// sentence gets about 0.07 among 65 Latin-script languages.
+/// For `turbo-langspan` it is the native model's probability of the span's
+/// language over the languages of its script.
 pub struct LanguageSpans {
     pub spans: Spans<LanguageSpans>,
     pub language: Vec<Tag>,

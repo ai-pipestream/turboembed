@@ -40,6 +40,12 @@ pub struct SentenceModel {
 }
 
 impl SentenceModel {
+    /// Opens a trained `SentenceDetectorME` archive produced by `turbo-train-components`
+    /// (`TrainedSentenceModel::package`).
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<SentenceModel, ModelError> {
+        SentenceModel::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
     /// Reads the model from an opened model file, checking what OpenNLP
     /// checks: the component, the factory, a `useTokenEnd` property and the
     /// outcomes `s` and `n`.

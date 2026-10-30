@@ -1,0 +1,9 @@
+MASKED	Write to support@example.com or sales@example.org before Friday.
+
+MASK_ALL	Write to support@example.com or sales@example.org before Friday.
+
+REWRITE	pseudonymize	OK	Write to support@example.com or sales@example.org before Friday.
+
+REWRITE	hmac	OK	Write to support@example.com or sales@example.org before Friday.
+
+AUDIT_REPORT	no pii found

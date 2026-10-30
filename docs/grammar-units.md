@@ -330,4 +330,17 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Chinese and Japanese remain separate #929 language slices.
+
+## Japanese
+
+`JAPANESE_UNITS` adds source-preserving Japanese measures, temperatures, ages
+and money. [Japanese units](grammar-units-japanese.md) documents supported
+combinations, the shared CJK arithmetic, all 188 unchanged upstream cases,
+186 exact matches, and two separately tested upstream label corrections.
+
+## Chinese
+
+`CHINESE_UNITS` runs through `GrammarAnnotator::new(&CHINESE_UNITS)` with source
+spans intact. Its 91-case pinned corpus, currency composition, CJK boundaries,
+modern mainland conversion conventions and explicit limits are documented in
+[Chinese unit conventions](grammar-units-chinese.md).

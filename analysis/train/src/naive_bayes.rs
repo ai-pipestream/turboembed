@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(model.outcome_totals(), &[7.0, 5.0]);
 
         let bytes = write_naive_bayes(&model).unwrap();
-        let read = MaxentModel::read(&bytes).unwrap();
+        let read = MaxentModel::from_trained_bytes(&bytes).unwrap();
         assert_eq!(read.kind(), ModelKind::NaiveBayes);
 
         let cases: &[(&str, &[&str], f64)] = &[

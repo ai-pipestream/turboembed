@@ -11,7 +11,7 @@ use turbo_zoo::{Acceptances, Home, Http, Index, Policy, UserId, Zoo};
 
 fn load_or_fetch(env_var: &str, id: &str, tokenizer_id: &str, repo: &str, weights_file: &str) -> Arc<Model> {
     if let Some(root) = std::env::var_os(env_var).filter(|v| !v.is_empty()) {
-        return Arc::new(Manifest::load(Path::new(&root)).unwrap());
+        return Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
     }
     static ONCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
