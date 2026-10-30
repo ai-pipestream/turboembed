@@ -147,6 +147,7 @@ pub fn spec(head: UdHead, labels: Vec<String>, corpus: &CorpusRecord, o: &UdOpti
         pos_input: None,
         hash_embed: None,
         license_class: Some(corpus.class()?),
+        span: None,
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),
     };
