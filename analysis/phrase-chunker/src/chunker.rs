@@ -14,14 +14,6 @@ use crate::phrases::phrases;
 
 /// Chunks the tagged tokens of each sentence with a maxent model: a chunk
 /// tag and its probability per token, and the phrases the tags make.
-///
-/// The search is `BeamSearch.bestSequence` over
-/// `DefaultChunkerContextGenerator` and `DefaultChunkerSequenceValidator`,
-/// as `ChunkerME.chunk(String[], String[])` runs it, so the tags are the
-/// JVM's and the probabilities (`probs()`) are bit for bit the JVM's
-/// doubles; the phrases are `ChunkSample.phrasesAsSpanList` over those
-/// tags, as `chunkAsSpans` returns them. A sentence is chunked on its
-/// own.
 #[derive(Clone, Debug)]
 pub struct PhraseChunker {
     model: Arc<ChunkerModel>,
@@ -45,14 +37,11 @@ impl PhraseChunker {
         Self::outcomes_with(&self.search(), words, &mut self.model.context(), &self.model.validator(), outcomes, probs)
     }
 
-    /// The search over the model, built once per call of `outcomes` and
-    /// once per document of `annotate`.
     fn search(&self) -> BeamSearch<'_> {
         BeamSearch::new(self.model.beam_size(), self.model.maxent())
             .expect("the outcomes were checked to be text when the model was opened")
     }
 
-    /// One sentence through `search`: what `outcomes` appends.
     fn outcomes_with<'m>(
         search: &BeamSearch<'m>,
         words: &[TokenTag<'_>],
@@ -92,11 +81,6 @@ impl Annotator for PhraseChunker {
     type Reads = (View, Tokens, PosTags);
     type Writes = (ChunkTags, PhraseChunks);
 
-    /// Chunks each sentence of the tokens (each run of tokens with the
-    /// same sentence, or all the tokens when they were not made per
-    /// sentence) with the tags' labels. The tokens must be spans of the
-    /// view read, and the tags one per token. A phrase's span runs from
-    /// the start of its first token to the end of its last.
     fn annotate(&self, (view, tokens, tags): Refs<'_, Self>) -> Result<(ChunkTags, PhraseChunks), Error> {
         if tokens.spans.view() != view.id() {
             return Err(Error::Annotator {
@@ -208,9 +192,202 @@ impl Annotator for PhraseChunker {
         Some(self.model.model_ref().clone())
     }
 
-    /// FNV-1a over the beam size, the one setting a `ChunkerME` is built
-    /// with.
     fn config_hash(&self) -> u64 {
         turbo_analysis::Fnv1a::new().u64(self.model.beam_size() as u64).finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Status, ViewId};
+    use turbo_analysis_layers::{Sentences, TagSet};
+
+    use super::*;
+
+    fn fixture() -> PhraseChunker {
+        PhraseChunker::new(crate::model::tests::test_fixture_model())
+    }
+
+    fn tagged<'a>(words: &[(&'a str, &'a str)]) -> Vec<TokenTag<'a>> {
+        words.iter().map(|&(token, tag)| TokenTag { token, tag }).collect()
+    }
+
+    fn labels(c: &PhraseChunker, words: &[(&str, &str)]) -> Vec<String> {
+        let (mut tags, mut probs) = (Vec::new(), Vec::new());
+        assert!(c.chunk(&tagged(words), &mut tags, &mut probs));
+        assert_eq!(tags.len(), probs.len());
+        assert!(probs.iter().all(|p| (0.0..=1.0).contains(p)));
+        tags.iter().map(|&t| c.chunker_model().tagset().label(t).to_string()).collect()
+    }
+
+    #[test]
+    fn chunks_a_sentence_it_was_trained_on() {
+        let c = fixture();
+        let words =
+            [("The", "DT"), ("cat", "NN"), ("sat", "VBD"), ("on", "IN"), ("the", "DT"), ("mat", "NN"), (".", ".")];
+        assert_eq!(labels(&c, &words), ["B-NP", "I-NP", "B-VP", "B-PP", "B-NP", "I-NP", "O"]);
+        assert_eq!(labels(&c, &[]), Vec::<String>::new());
+        let (mut outcomes, mut probs) = (Vec::new(), Vec::new());
+        assert!(c.outcomes(&tagged(&words), &mut outcomes, &mut probs));
+        assert_eq!(outcomes, ["B-NP", "I-NP", "B-VP", "B-PP", "B-NP", "I-NP", "O"]);
+        assert_eq!(probs.len(), 7);
+    }
+
+    fn tokens(view: ViewId, spans: &[(u32, u32, u32)]) -> Tokens {
+        let mut out = Spans::new(view);
+        for &(a, b, _) in spans {
+            out.push(Span::new(a, b));
+        }
+        Tokens { spans: out, sentence: Some(spans.iter().map(|&(_, _, s)| Ix::new(s)).collect()) }
+    }
+
+    fn penn(labels: &[&str]) -> PosTags {
+        let tagset = TagSet::new("penn", &["DT", "NN", "VBD", "IN", "."]);
+        PosTags { tagset: tagset.clone(), tags: labels.iter().map(|l| tagset.tag(l).unwrap()).collect(), prob: None }
+    }
+
+    #[test]
+    fn the_annotator_writes_tags_and_phrases_per_sentence() {
+        let text = "The cat sat on the mat . Dogs bark .";
+        let mut doc = Document::new(text);
+        let view = doc.get::<View>().unwrap().id();
+        let mut sentences = Spans::new(view);
+        sentences.push(Span::new(0, 24));
+        sentences.push(Span::new(25, 36));
+        let toks = tokens(
+            view,
+            &[
+                (0, 3, 0),
+                (4, 7, 0),
+                (8, 11, 0),
+                (12, 14, 0),
+                (15, 18, 0),
+                (19, 22, 0),
+                (23, 24, 0),
+                (25, 29, 1),
+                (30, 34, 1),
+                (35, 36, 1),
+            ],
+        );
+        let tags = penn(&["DT", "NN", "VBD", "IN", "DT", "NN", ".", "NN", "VBD", "."]);
+        let by = || Provenance::by("test");
+        doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: sentences }, by()).unwrap();
+        doc.add(&Key::<Tokens>::DEFAULT, toks, by()).unwrap();
+        doc.add(&Key::<PosTags>::DEFAULT, tags, by()).unwrap();
+        let chunker = fixture();
+        let config = chunker.config_hash();
+        let analyzer = Analyzer::builder()
+            .given(Key::<Tokens>::DEFAULT)
+            .given(Key::<PosTags>::DEFAULT)
+            .add(chunker)
+            .build()
+            .unwrap();
+        assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);
+        let key = Key::<ChunkTags>::DEFAULT;
+        assert_eq!(doc.status(key.id()), Some(&Status::Complete));
+        let tags = doc.get::<ChunkTags>().unwrap();
+        let got: Vec<&str> = tags.tags.iter().map(|&t| tags.tagset.label(t)).collect();
+        assert_eq!(got[..7], ["B-NP", "I-NP", "B-VP", "B-PP", "B-NP", "I-NP", "O"]);
+        assert_eq!(got.len(), 10);
+        assert_eq!(tags.prob.as_ref().unwrap().len(), 10);
+        let chunks = doc.get::<PhraseChunks>().unwrap();
+        let (start, end) = chunks.spans.columns();
+        let shown: Vec<(&str, &str, (usize, usize))> = (0..chunks.spans.len())
+            .map(|i| {
+                let r = &chunks.tokens[i];
+                (
+                    &text[start[i] as usize..end[i] as usize],
+                    chunks.kinds.label(chunks.kind[i]),
+                    (r.start.get(), r.end.get()),
+                )
+            })
+            .collect();
+        assert_eq!(
+            shown[..4],
+            [("The cat", "NP", (0, 2)), ("sat", "VP", (2, 3)), ("on", "PP", (3, 4)), ("the mat", "NP", (4, 6))]
+        );
+        assert!(shown[4..].iter().all(|&(_, _, (s, _))| s >= 7), "{shown:?}");
+        let p = doc.provenance(key.id()).unwrap();
+        assert_eq!(p.annotator, "turbo-phrase-chunker:maxent");
+        assert_eq!(p.config, config);
+        assert_eq!(p.model.as_ref().unwrap().id, "opennlp:ChunkerME:en");
+        assert_eq!(p.reads, [Key::<View>::DEFAULT.id(), Key::<Tokens>::DEFAULT.id(), Key::<PosTags>::DEFAULT.id()]);
+        let p = doc.provenance(Key::<PhraseChunks>::DEFAULT.id()).unwrap();
+        assert_eq!(p.annotator, "turbo-phrase-chunker:maxent");
+    }
+
+    #[test]
+    fn sentences_are_chunked_one_at_a_time() {
+        let c = fixture();
+        let text = "The cat . The cat .";
+        let doc = Document::new(text);
+        let view = doc.get::<View>().unwrap();
+        let two = tokens(view.id(), &[(0, 3, 0), (4, 7, 0), (8, 9, 0), (10, 13, 1), (14, 17, 1), (18, 19, 1)]);
+        let tags = penn(&["DT", "NN", ".", "DT", "NN", "."]);
+        let (got, _) = c.annotate((view, &two, &tags)).unwrap();
+        let (mut want, mut probs) = (Vec::new(), Vec::new());
+        c.chunk(&tagged(&[("The", "DT"), ("cat", "NN"), (".", ".")]), &mut want, &mut probs);
+        c.chunk(&tagged(&[("The", "DT"), ("cat", "NN"), (".", ".")]), &mut want, &mut probs);
+        assert_eq!(got.tags, want);
+        assert_eq!(got.prob.as_deref().unwrap(), &probs[..]);
+        let mut one = two;
+        one.sentence = None;
+        let (got, _) = c.annotate((view, &one, &tags)).unwrap();
+        want.clear();
+        probs.clear();
+        let all = [("The", "DT"), ("cat", "NN"), (".", "."), ("The", "DT"), ("cat", "NN"), (".", ".")];
+        c.chunk(&tagged(&all), &mut want, &mut probs);
+        assert_eq!(got.tags, want);
+        assert_eq!(got.prob.as_deref().unwrap(), &probs[..]);
+    }
+
+    #[test]
+    fn tokens_in_another_view_and_tag_counts_are_checked() {
+        let doc = Document::new("ab cd");
+        let view = doc.get::<View>().unwrap();
+        let c = fixture();
+        let e = c.annotate((view, &tokens(ViewId(3), &[(0, 2, 0)]), &penn(&["DT"]))).err().unwrap();
+        assert_eq!(
+            e,
+            Error::Annotator {
+                annotator: "turbo-phrase-chunker:maxent",
+                detail: "the tokens are in view 3, not in view 0 that is chunked".into()
+            }
+        );
+        let e = c.annotate((view, &tokens(view.id(), &[(0, 2, 0), (3, 5, 0)]), &penn(&["DT"]))).err().unwrap();
+        assert_eq!(
+            e,
+            Error::Annotator { annotator: "turbo-phrase-chunker:maxent", detail: "1 tags for 2 tokens".into() }
+        );
+    }
+
+    #[test]
+    fn malformed_token_spans_sentence_column_and_tag_indices_are_rejected() {
+        let doc = Document::new("The \u{00E9} cat");
+        let view = doc.get::<View>().unwrap();
+        let c = fixture();
+
+        let mut short_sent = tokens(view.id(), &[(0, 3, 0), (7, 10, 0)]);
+        short_sent.sentence = Some(vec![Ix::new(0)]);
+        assert!(matches!(c.annotate((view, &short_sent, &penn(&["DT", "NN"]))), Err(Error::Annotator { .. })));
+        let mut long_sent = tokens(view.id(), &[(0, 3, 0)]);
+        long_sent.sentence = Some(vec![Ix::new(0), Ix::new(0)]);
+        assert!(matches!(c.annotate((view, &long_sent, &penn(&["DT"]))), Err(Error::Annotator { .. })));
+
+        let bad_tags = PosTags { tagset: TagSet::new("penn", &["DT"]), tags: vec![Tag(5)], prob: None };
+        assert!(matches!(
+            c.annotate((view, &tokens(view.id(), &[(0, 3, 0)]), &bad_tags)),
+            Err(Error::Annotator { .. })
+        ));
+
+        for (s, e) in [(5, 3), (0, 99), (4, 5)] {
+            let mut spans = Spans::new(view.id());
+            spans.push(Span { start: s, end: e });
+            let bad_span = Tokens { spans, sentence: None };
+            assert!(matches!(c.annotate((view, &bad_span, &penn(&["DT"]))), Err(Error::Annotator { .. })));
+        }
+
+        let unsorted = tokens(view.id(), &[(7, 10, 0), (0, 3, 0)]);
+        assert!(matches!(c.annotate((view, &unsorted, &penn(&["DT", "NN"]))), Err(Error::Annotator { .. })));
     }
 }

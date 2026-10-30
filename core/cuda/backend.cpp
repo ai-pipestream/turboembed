@@ -758,6 +758,83 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
     });
 }
 
+/* int8 or ubinary codes of the first rows * dim F32 values of buf, into
+ * the leading bytes of the same buffer, matching core/src/quantize.rs.
+ * A temporary device allocation holds the codes so the write never races
+ * the read of the floats. When run is not NULL the allocations made
+ * here and the int8 ranges sent to the device are added to it. */
+int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
+                        turbo_backend_run *run, turbo_error *err) {
+    const uint64_t host0 = host_here, device0 = device_here;
+    uint64_t sent = 0;
+    const int32_t status = guarded(err, [&]() -> int32_t {
+        Buffer *b = static_cast<Buffer *>(buf);
+        if (rows == 0 || dim == 0) return TURBO_OK;
+        if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "quantization %u is not TURBO_QUANTIZE_INT8 or UBINARY",
+                          quantization);
+        if (quantization == TURBO_QUANTIZE_INT8 && !int8_ranges)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "int8_ranges is NULL");
+        const uint64_t floats = (uint64_t)rows * (uint64_t)dim;
+        const uint64_t code_bytes =
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (uint64_t)rows * (((uint64_t)dim + 7) / 8);
+        if (b->bytes < floats * 4)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT,
+                          "buffer of %llu bytes is under the %llu F32 values to quantize",
+                          (unsigned long long)b->bytes, (unsigned long long)floats);
+        if (b->bytes < code_bytes)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "buffer of %llu bytes is under the %llu code bytes",
+                          (unsigned long long)b->bytes, (unsigned long long)code_bytes);
+        ON_DEVICE(b->ctx->ordinal);
+        std::lock_guard<std::mutex> g(b->ctx->lock);
+        cudaStream_t s = b->ctx->stream;
+        void *codes = nullptr;
+        TRY_CUDA(device_malloc(&codes, code_bytes), "codes for buffer_quantize");
+        float *ranges_dev = nullptr;
+        int32_t rc = TURBO_OK;
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            const uint64_t rb = (uint64_t)dim * 2 * 4;
+            const cudaError_t ae = device_malloc(reinterpret_cast<void **>(&ranges_dev), rb);
+            if (ae != cudaSuccess) {
+                cudaFree(codes);
+                return cuda_failed(err, ae, "int8_ranges for buffer_quantize");
+            }
+            const cudaError_t ce =
+                cudaMemcpyAsync(ranges_dev, int8_ranges, rb, cudaMemcpyHostToDevice, s);
+            if (ce != cudaSuccess) {
+                cudaFree(ranges_dev);
+                cudaFree(codes);
+                return cuda_failed(err, ce, "copying int8_ranges to the device");
+            }
+            sent = rb;
+            const cudaError_t qe = quantize_int8(s, static_cast<const float *>(b->ptr), ranges_dev, (int)rows,
+                                                 (int)dim, static_cast<int8_t *>(codes));
+            if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_int8");
+        } else {
+            const cudaError_t qe =
+                quantize_ubinary(s, static_cast<const float *>(b->ptr), (int)rows, (int)dim, static_cast<uint8_t *>(codes));
+            if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_ubinary");
+        }
+        if (rc == TURBO_OK) {
+            const cudaError_t ce = cudaMemcpyAsync(b->ptr, codes, code_bytes, cudaMemcpyDeviceToDevice, s);
+            const cudaError_t done = cudaStreamSynchronize(s);
+            if (ce != cudaSuccess) rc = cuda_failed(err, ce, "copying codes into the output buffer");
+            else if (done != cudaSuccess) rc = cuda_failed(err, done, "copying codes into the output buffer");
+        } else {
+            (void)cudaStreamSynchronize(s);
+        }
+        if (ranges_dev) cudaFree(ranges_dev);
+        cudaFree(codes);
+        return rc;
+    });
+    if (run) {
+        run->host_allocs += host_here - host0;
+        run->device_allocs += device_here - device0;
+        if (status == TURBO_OK) run->h2d_bytes += sent;
+    }
+    return status;
+}
+
 // ---- Models --------------------------------------------------------------------
 //
 // Loading copies each tensor, in the dtype it is stored in, into one
@@ -2153,20 +2230,23 @@ int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
         g.w = weight(l, TURBO_BERT_FFN_OUT_WEIGHT);
         g.n = h;
         g.k = inter;
-        g.bias = prod16 ? layer(l, TURBO_BERT_FFN_OUT_BIAS) : nullptr;
+        // The F32 product (layer_epilogue), whatever product16 says, from a
+        // tile summing in F32 (canonical_tile) (#1632): the middle product
+        // reaches F16's 65504 at its clamp, and a sum of such terms can pass it.
+        g.bias = nullptr;
         g.out = s.part;
-        TRY_CUDA(gemm_as(GEMM_FFN2, prod16 ? EPI_BIAS : EPI_PLAIN, g), "the MLP's output");
+        TRY_CUDA(gemm_as(GEMM_FFN2, layer_epilogue(GEMM_FFN2, false, sh), g), "the MLP's output");
         if (modern && l + 1 < d.layers)
-            TRY_CUDA(add_norm_into(st, s.x, s.part, prod16 ? part16 : nullptr,
+            TRY_CUDA(add_norm_into(st, s.x, s.part, nullptr,
                                    layer(l + 1, TURBO_BERT_ATTN_LN_WEIGHT), zero, eps, info, h,
                                    half ? nullptr : s.xn, half ? s.x16 : nullptr, plan),
                      "the MLP residual and the next attention norm");
         else if (modern)
-            TRY_CUDA(add_layer_norm(st, s.x, s.part, prod16 ? part16 : nullptr, zero, w[ROTARY_FINAL_NORM], zero, eps,
+            TRY_CUDA(add_layer_norm(st, s.x, s.part, nullptr, zero, w[ROTARY_FINAL_NORM], zero, eps,
                                     info, h, nullptr, false, plan),
                      "the MLP residual and the final norm");
         else
-            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, prod16 ? part16 : nullptr,
+            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, nullptr,
                                     layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                                     layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the MLP LayerNorm");
@@ -3555,10 +3635,68 @@ const turbo_backend turbo_cuda_backend = {
     embed_write_ranges,
     1,
     0,
+    buffer_quantize,
 };
 
 /* Every allocation this backend has made in the process, host and device,
  * for the tests that hold a warm run to none. */
+
+/* Host F32 rows quantized on the device, codes back on the host: for the
+ * tests that hold the kernels to core/src/quantize.rs. quantization is
+ * TURBO_QUANTIZE_INT8 or UBINARY; ranges is host [2, dim] for INT8. */
+int32_t turbo_cuda_quantize(uint32_t ordinal, uint32_t quantization, const float *x, const float *ranges, int32_t rows,
+                            int32_t dim, uint8_t *out) {
+    try {
+        if (rows <= 0 || dim <= 0) return TURBO_OK;
+        if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
+            return TURBO_E_INVALID_ARGUMENT;
+        if (quantization == TURBO_QUANTIZE_INT8 && !ranges) return TURBO_E_INVALID_ARGUMENT;
+        DeviceScope scope_((int)ordinal);
+        if (scope_.status() != cudaSuccess) {
+            (void)cudaGetLastError();
+            return TURBO_E_RUNTIME;
+        }
+        const size_t floats = (size_t)rows * (size_t)dim;
+        const size_t code_bytes =
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (size_t)rows * (((size_t)dim + 7) / 8);
+        float *dx = nullptr;
+        float *dr = nullptr;
+        void *dc = nullptr;
+        cudaError_t e = device_malloc(reinterpret_cast<void **>(&dx), floats * 4);
+        if (e != cudaSuccess) return TURBO_E_OUT_OF_MEMORY;
+        e = device_malloc(&dc, code_bytes);
+        if (e != cudaSuccess) {
+            cudaFree(dx);
+            return TURBO_E_OUT_OF_MEMORY;
+        }
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            e = device_malloc(reinterpret_cast<void **>(&dr), (size_t)dim * 2 * 4);
+            if (e != cudaSuccess) {
+                cudaFree(dx);
+                cudaFree(dc);
+                return TURBO_E_OUT_OF_MEMORY;
+            }
+        }
+        e = cudaMemcpy(dx, x, floats * 4, cudaMemcpyHostToDevice);
+        if (e == cudaSuccess && dr)
+            e = cudaMemcpy(dr, ranges, (size_t)dim * 2 * 4, cudaMemcpyHostToDevice);
+        if (e == cudaSuccess) {
+            if (quantization == TURBO_QUANTIZE_INT8)
+                e = quantize_int8(nullptr, dx, dr, rows, dim, static_cast<int8_t *>(dc));
+            else
+                e = quantize_ubinary(nullptr, dx, rows, dim, static_cast<uint8_t *>(dc));
+        }
+        if (e == cudaSuccess) e = cudaDeviceSynchronize();
+        if (e == cudaSuccess) e = cudaMemcpy(out, dc, code_bytes, cudaMemcpyDeviceToHost);
+        if (dr) cudaFree(dr);
+        cudaFree(dc);
+        cudaFree(dx);
+        return e == cudaSuccess ? TURBO_OK : TURBO_E_RUNTIME;
+    } catch (...) {
+        return TURBO_E_INTERNAL;
+    }
+}
+
 void turbo_cuda_allocations(uint64_t *host, uint64_t *device) {
     *host = host_total.load(std::memory_order_relaxed);
     *device = device_total.load(std::memory_order_relaxed);

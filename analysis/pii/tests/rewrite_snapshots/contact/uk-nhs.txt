@@ -1,0 +1,14 @@
+MASKED	NHS *** *** **** recorded; 9434765919 and ***-***-**** too.
+
+MASK_ALL	NHS ############ recorded; 9434765919 and ############ too.
+
+REWRITE	pseudonymize	OK	NHS PHONE-1 recorded; 9434765919 and PHONE-1 too.
+
+LABEL	pseudonymize	4	16	4	11	PHONE-1
+LABEL	pseudonymize	42	54	37	44	PHONE-1
+REWRITE	hmac	OK	NHS PHONE-258496d3f67ec84f recorded; 9434765919 and PHONE-258496d3f67ec84f too.
+
+LABEL	hmac	4	16	4	26	PHONE-258496d3f67ec84f
+LABEL	hmac	42	54	52	74	PHONE-258496d3f67ec84f
+AUDIT	phone	2	1	PHONE-258496d3f67ec84f
+AUDIT_REPORT	phone: 2 mentions, 1 distinct [PHONE-258496d3f67ec84f]

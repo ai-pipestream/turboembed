@@ -9,7 +9,6 @@
 
 use std::collections::HashMap;
 
-use turbo_jvm::strict_math;
 use turbo_unicode::modified_utf8::push_str_modified_utf8;
 
 use crate::hash::BuildFoldHasher;
@@ -282,7 +281,7 @@ impl MaxentModel {
                         0.0
                     };
                     let prob = (numerator + LIDSTONE_DELTA) / (denominator + LIDSTONE_DELTA * self.vocabulary);
-                    *sum += strict_math::log(prob);
+                    *sum += prob.ln();
                 }
             } else {
                 for (&o, &w) in self.pred_outcome[range.clone()].iter().zip(&self.pred_param[range]) {
@@ -299,7 +298,7 @@ impl MaxentModel {
             ModelKind::Qn => {
                 let lse = log_sum_of_exps(out);
                 for x in out.iter_mut() {
-                    *x = strict_math::exp(*x - lse);
+                    *x = (*x - lse).exp();
                 }
             }
             ModelKind::Perceptron => {
@@ -317,7 +316,7 @@ impl MaxentModel {
                     total += outcome_total;
                 }
                 for (x, &numerator) in out.iter_mut().zip(&self.outcome_totals) {
-                    *x += strict_math::log(numerator / total);
+                    *x += (numerator / total).ln();
                 }
                 let mut highest_log_probability = f64::NEG_INFINITY;
                 for &p in out.iter() {
@@ -327,7 +326,7 @@ impl MaxentModel {
                 }
                 let mut sum = 0.0;
                 for p in out.iter_mut() {
-                    let temp_p = strict_math::exp(*p - highest_log_probability);
+                    let temp_p = (*p - highest_log_probability).exp();
                     if !temp_p.is_nan() {
                         sum += temp_p;
                         *p = temp_p;
@@ -345,6 +344,11 @@ impl MaxentModel {
             }
         }
     }
+}
+
+/// Each label as text, `None` where it holds half of a surrogate pair.
+pub(crate) fn outcome_texts(outcomes: &[JavaString]) -> Vec<Option<Box<str>>> {
+    outcomes.iter().map(|o| o.to_str().map(Box::from)).collect()
 }
 
 /// `s` as Java modified UTF-8, written into `buffer`, or `None` when `s`
@@ -376,7 +380,7 @@ pub fn best_outcome(probabilities: &[f64]) -> usize {
 fn exp_normalize(out: &mut [f64], divisor: f64) {
     let mut sum = 0.0;
     for x in out.iter_mut() {
-        *x = if divisor == 1.0 { strict_math::exp(*x) } else { strict_math::exp(*x / divisor) };
+        *x = if divisor == 1.0 { (*x).exp() } else { (*x / divisor).exp() };
         sum += *x;
     }
     for x in out.iter_mut() {
@@ -391,10 +395,10 @@ fn log_sum_of_exps(x: &[f64]) -> f64 {
     let mut sum = 0.0;
     for &v in x {
         if v != f64::NEG_INFINITY {
-            sum += strict_math::exp(v - max);
+            sum += (v - max).exp();
         }
     }
-    max + strict_math::log(sum)
+    max + sum.ln()
 }
 
 /// `ArrayMath.argmax`: an element replaces the best so far only when the

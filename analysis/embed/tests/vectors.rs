@@ -186,7 +186,7 @@ fn provenance_names_the_model_and_where_it_ran() {
         assert_ne!(p.config, 0);
     }
     assert_eq!(sentence_vectors(&docs[0]).model, sub.model);
-    assert_eq!(chunk_vectors(&docs[0]).model.id, "sentence-transformers/all-MiniLM-L6-v2");
+    assert_eq!(chunk_vectors(&docs[0]).model.id, "turboembed/tiny-bert");
     assert_eq!(
         a.execution(),
         docs[0].provenance(Key::<Vectors<Chunks>>::DEFAULT.id()).unwrap().execution.as_ref().unwrap()

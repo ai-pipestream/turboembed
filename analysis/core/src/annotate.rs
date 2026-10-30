@@ -1,6 +1,9 @@
 //! Annotators: typed steps that read layers and write layers.
 
-use std::any::{Any, TypeId};
+#[path = "annotate/tuples.rs"]
+mod tuples;
+
+use std::any::Any;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::doc::{Document, Status};
@@ -14,6 +17,7 @@ use crate::layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Pr
 pub trait Slot: 'static {
     type Ref<'d>;
     const REQUIRED: bool;
+    const DEFAULT_ID: KeyId;
     fn id(name: &'static str) -> KeyId;
     fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<Self::Ref<'d>, Error>;
 }
@@ -21,6 +25,7 @@ pub trait Slot: 'static {
 impl<L: Layer> Slot for L {
     type Ref<'d> = &'d L;
     const REQUIRED: bool = true;
+    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
     fn id(name: &'static str) -> KeyId {
         Key::<L>::named(name).id()
     }
@@ -32,6 +37,7 @@ impl<L: Layer> Slot for L {
 impl<L: Layer> Slot for Option<L> {
     type Ref<'d> = Option<&'d L>;
     const REQUIRED: bool = false;
+    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
     fn id(name: &'static str) -> KeyId {
         Key::<L>::named(name).id()
     }
@@ -45,6 +51,9 @@ impl<L: Layer> Slot for Option<L> {
 pub trait Reads: 'static {
     type Refs<'d>;
     const N: usize;
+    const ALL_IDS: &'static [KeyId] = &[];
+    const REQUIRED_FLAGS: &'static [bool] = &[];
+    const DEFAULT_REQUIRED_IDS: &'static [KeyId] = &[];
     fn ids(names: &[&'static str]) -> Vec<KeyId>;
     fn required() -> Vec<bool>;
     fn fetch<'d>(doc: &'d Document, names: &[&'static str]) -> Result<Self::Refs<'d>, Error>;
@@ -56,84 +65,11 @@ pub trait Reads: 'static {
 /// it, and is made on the instance the step wrote.
 pub trait Writes: Send + 'static {
     const N: usize;
+    const DEFAULT_IDS: &'static [KeyId] = &[];
     fn ids(names: &[&'static str]) -> Vec<KeyId>;
     fn anchors() -> Vec<Anchor>;
     fn store(self, doc: &mut Document, names: &[&'static str], p: &Provenance) -> Result<(), Error>;
 }
-
-impl Reads for () {
-    type Refs<'d> = ();
-    const N: usize = 0;
-    fn ids(_: &[&'static str]) -> Vec<KeyId> {
-        Vec::new()
-    }
-    fn required() -> Vec<bool> {
-        Vec::new()
-    }
-    fn fetch(_: &Document, _: &[&'static str]) -> Result<(), Error> {
-        Ok(())
-    }
-}
-
-macro_rules! tuples {
-    ($($L:ident $i:tt),+) => {
-        impl<$($L: Slot),+> Reads for ($($L,)+) {
-            type Refs<'d> = ($($L::Ref<'d>,)+);
-            const N: usize = [$($i),+].len();
-            fn ids(names: &[&'static str]) -> Vec<KeyId> {
-                vec![$($L::id(names[$i])),+]
-            }
-            fn required() -> Vec<bool> {
-                vec![$($L::REQUIRED),+]
-            }
-            fn fetch<'d>(doc: &'d Document, names: &[&'static str]) -> Result<Self::Refs<'d>, Error> {
-                Ok(($($L::fetch(doc, names[$i])?,)+))
-            }
-        }
-        impl<$($L: Layer),+> Writes for ($($L,)+) {
-            const N: usize = [$($i),+].len();
-            fn ids(names: &[&'static str]) -> Vec<KeyId> {
-                vec![$(Key::<$L>::named(names[$i]).id()),+]
-            }
-            fn anchors() -> Vec<Anchor> {
-                vec![$($L::anchor()),+]
-            }
-            fn store(self, doc: &mut Document, names: &[&'static str], p: &Provenance) -> Result<(), Error> {
-                let ids = <Self as Writes>::ids(names);
-                $({
-                    let p = made_on_own(&self.$i, &ids[..$i], p);
-                    doc.add(&Key::<$L>::named(names[$i]), self.$i, p)?;
-                })+
-                Ok(())
-            }
-        }
-    };
-}
-/// The provenance of one output: its step's, with `on` listing the outputs
-/// the step wrote before it (`earlier`) that this one is aligned to or
-/// indexes, so the document checks it against those instances.
-fn made_on_own<L: Layer>(layer: &L, earlier: &[KeyId], p: &Provenance) -> Provenance {
-    let mut types: Vec<TypeId> = layer.indexes().into_iter().map(|(k, _)| k.ty).collect();
-    if let Anchor::Aligned { ty, .. } = L::anchor() {
-        types.push(ty);
-    }
-    let mut p = p.clone();
-    p.on = earlier.iter().copied().filter(|k| types.contains(&k.ty)).collect();
-    p
-}
-
-tuples!(A 0);
-tuples!(A 0, B 1);
-tuples!(A 0, B 1, C 2);
-tuples!(A 0, B 1, C 2, D 3);
-tuples!(A 0, B 1, C 2, D 3, E 4);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10, L 11);
 
 pub type Refs<'d, A> = <<A as Annotator>::Reads as Reads>::Refs<'d>;
 
@@ -175,7 +111,23 @@ pub trait Annotator: Send + Sync + 'static {
         self.annotate_batch(inputs).into_iter().map(|r| r.map(|w| (w, None))).collect()
     }
 
+    /// Upstream layer keys required by this annotator. Defaults to the
+    /// required slots of [`Self::Reads`].
+    fn requires(&self) -> &[KeyId] {
+        <Self::Reads as Reads>::DEFAULT_REQUIRED_IDS
+    }
+
+    /// Output layer keys produced by this annotator. Defaults to
+    /// [`Self::Writes`].
+    fn produces(&self) -> &[KeyId] {
+        <Self::Writes as Writes>::DEFAULT_IDS
+    }
+
     /// The model it runs, recorded on every layer it writes.
+    ///
+    /// [`Analyzer::analyze_incremental`](crate::Analyzer::analyze_incremental) and
+    /// [`Analyzer::run_incremental`](crate::Analyzer::run_incremental) include
+    /// [`Self::model`] in the provenance digest of every produced layer.
     fn model(&self) -> Option<ModelRef> {
         None
     }
@@ -185,8 +137,27 @@ pub trait Annotator: Send + Sync + 'static {
         None
     }
 
+    /// Deterministic configuration fingerprint recorded in [`Provenance::config`].
+    ///
+    /// [`Analyzer::analyze_incremental`](crate::Analyzer::analyze_incremental) and
+    /// [`Analyzer::run_incremental`](crate::Analyzer::run_incremental) key their
+    /// provenance-skip cache on `(ID, VERSION, config_hash(), model())`. Any
+    /// annotator whose output depends on runtime configuration or weights must
+    /// either incorporate all behavior-affecting parameters into [`Self::config_hash`]
+    /// / [`Self::model`] or return `false` from [`Self::is_cacheable`].
     fn config_hash(&self) -> u64 {
         0
+    }
+
+    /// Whether [`Analyzer::analyze_incremental`](crate::Analyzer::analyze_incremental)
+    /// and [`Analyzer::run_incremental`](crate::Analyzer::run_incremental) may skip
+    /// this annotator on a provenance cache hit. Defaults to `true`.
+    ///
+    /// Annotators wrapping opaque closures or external state not captured by
+    /// [`Self::config_hash`] and [`Self::model`] should return `false` so they are
+    /// always executed during incremental runs.
+    fn is_cacheable(&self) -> bool {
+        true
     }
 }
 
@@ -215,15 +186,34 @@ impl<A: Annotator> Bound<A> {
         self
     }
 
+    fn effective_reads(&self) -> (Vec<KeyId>, Vec<bool>) {
+        let mut ids = A::Reads::ids(&self.reads);
+        let mut reqs = A::Reads::required();
+        for &r in self.annotator.requires() {
+            if !ids.iter().any(|k| k.ty == r.ty && (k.name == r.name || r.name.is_empty())) {
+                ids.push(r);
+                reqs.push(true);
+            }
+        }
+        (ids, reqs)
+    }
+
+    fn effective_writes(&self) -> Vec<KeyId> {
+        let mut ids = A::Writes::ids(&self.writes);
+        for &w in self.annotator.produces() {
+            if !ids.iter().any(|k| k.ty == w.ty && (k.name == w.name || w.name.is_empty())) {
+                ids.push(w);
+            }
+        }
+        ids
+    }
+
     /// The provenance of this step's layers on one document: its optional
     /// inputs are listed only when the document had them.
     fn provenance(&self, doc: &Document) -> Provenance {
-        let reads = A::Reads::ids(&self.reads)
-            .into_iter()
-            .zip(A::Reads::required())
-            .filter(|&(k, required)| required || doc.present(k))
-            .map(|(k, _)| k)
-            .collect();
+        let (ids, reqs) = self.effective_reads();
+        let reads =
+            ids.into_iter().zip(reqs).filter(|&(k, required)| required || doc.present(k)).map(|(k, _)| k).collect();
         Provenance {
             annotator: A::ID,
             version: A::VERSION,
@@ -239,12 +229,8 @@ impl<A: Annotator> Bound<A> {
     /// step writes before it, or else on the required input of that type.
     /// The document resolves the anchor in the same order.
     fn anchors(&self) -> Vec<AnchorUse> {
-        let reads: Vec<KeyId> = A::Reads::ids(&self.reads)
-            .into_iter()
-            .zip(A::Reads::required())
-            .filter(|&(_, r)| r)
-            .map(|(k, _)| k)
-            .collect();
+        let (read_ids, read_reqs) = self.effective_reads();
+        let reads: Vec<KeyId> = read_ids.into_iter().zip(read_reqs).filter(|&(_, r)| r).map(|(k, _)| k).collect();
         let writes = A::Writes::ids(&self.writes);
         A::Writes::anchors()
             .into_iter()
@@ -268,13 +254,12 @@ impl<A: Annotator> Bound<A> {
     /// The first required input that was skipped or failed on this
     /// document, and why.
     fn skipped_input(&self, doc: &Document) -> Option<String> {
-        A::Reads::ids(&self.reads).into_iter().zip(A::Reads::required()).filter(|&(_, r)| r).find_map(
-            |(k, _)| match doc.status(k) {
-                Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
-                Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
-                _ => None,
-            },
-        )
+        let (ids, reqs) = self.effective_reads();
+        ids.into_iter().zip(reqs).filter(|&(_, r)| r).find_map(|(k, _)| match doc.status(k) {
+            Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
+            Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
+            _ => None,
+        })
     }
 
     /// An input this step would read beside the wrong instance of the
@@ -282,7 +267,7 @@ impl<A: Annotator> Bound<A> {
     /// predicted ones. Reading that instance as well is fine (an
     /// evaluation compares the two).
     fn unaligned(&self, doc: &Document) -> Option<Error> {
-        let reads = A::Reads::ids(&self.reads);
+        let (reads, _) = self.effective_reads();
         reads.iter().find_map(|&layer| {
             doc.made_on(layer).iter().filter(|on| !reads.contains(on)).find_map(|&on| {
                 let read = reads.iter().copied().find(|&r| r.ty == on.ty && doc.present(r))?;
@@ -343,14 +328,50 @@ pub enum AnchorUse {
 /// store adds the results.
 pub trait Step: Send + Sync {
     fn id(&self) -> &'static str;
+    fn version(&self) -> &'static str {
+        "0"
+    }
     fn reads(&self) -> Vec<KeyId>;
     /// For each read, whether the step needs it or only uses it when there.
     fn required(&self) -> Vec<bool>;
     fn writes(&self) -> Vec<KeyId>;
     /// For each output, what it is aligned to.
     fn anchors(&self) -> Vec<AnchorUse>;
+    fn requires(&self) -> Vec<KeyId> {
+        self.reads().into_iter().zip(self.required()).filter_map(|(k, req)| req.then_some(k)).collect()
+    }
+    fn produces(&self) -> Vec<KeyId> {
+        self.writes()
+    }
+    fn model(&self) -> Option<ModelRef> {
+        None
+    }
+    fn execution(&self) -> Option<Execution> {
+        None
+    }
     fn config_hash(&self) -> u64 {
         0
+    }
+    fn is_cacheable(&self) -> bool {
+        true
+    }
+    fn expected_provenance(&self, doc: &Document) -> Provenance {
+        let reads = self
+            .reads()
+            .into_iter()
+            .zip(self.required())
+            .filter(|&(k, required)| required || doc.present(k))
+            .map(|(k, _)| k)
+            .collect();
+        Provenance {
+            annotator: self.id(),
+            version: self.version(),
+            config: self.config_hash(),
+            model: self.model(),
+            execution: self.execution(),
+            reads,
+            on: Vec::new(),
+        }
     }
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send>;
     /// Adds what `compute` made. An output the step did not deliver on a
@@ -364,30 +385,51 @@ impl<A: Annotator> Step for Bound<A> {
         A::ID
     }
 
+    fn version(&self) -> &'static str {
+        A::VERSION
+    }
+
     fn reads(&self) -> Vec<KeyId> {
-        A::Reads::ids(&self.reads)
+        self.effective_reads().0
     }
 
     fn required(&self) -> Vec<bool> {
-        A::Reads::required()
+        self.effective_reads().1
     }
 
     fn writes(&self) -> Vec<KeyId> {
-        A::Writes::ids(&self.writes)
+        self.effective_writes()
     }
 
     fn anchors(&self) -> Vec<AnchorUse> {
         Bound::anchors(self)
     }
 
+    fn model(&self) -> Option<ModelRef> {
+        self.annotator.model()
+    }
+
+    fn execution(&self) -> Option<Execution> {
+        self.annotator.execution()
+    }
+
     fn config_hash(&self) -> u64 {
         self.annotator.config_hash()
+    }
+
+    fn is_cacheable(&self) -> bool {
+        self.annotator.is_cacheable()
+    }
+
+    fn expected_provenance(&self, doc: &Document) -> Provenance {
+        self.provenance(doc)
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
         let mut out: Vec<Option<Placed<A::Writes>>> = (0..docs.len()).map(|_| None).collect();
         let mut inputs = Vec::new();
         let mut at = Vec::new();
+        let (eff_reads, eff_reqs) = self.effective_reads();
         for (i, d) in docs.iter().enumerate() {
             if let Some(why) = self.skipped_input(d) {
                 out[i] = Some(Err(Error::Skipped(why)));
@@ -395,6 +437,12 @@ impl<A: Annotator> Step for Bound<A> {
             }
             if let Some(e) = self.unaligned(d) {
                 out[i] = Some(Err(e));
+                continue;
+            }
+            if let Some((missing_key, _)) =
+                eff_reads.iter().copied().zip(eff_reqs.iter().copied()).find(|&(k, req)| req && !d.present(k))
+            {
+                out[i] = Some(Err(Error::Missing(missing_key)));
                 continue;
             }
             match A::Reads::fetch(d, &self.reads) {
@@ -413,7 +461,7 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
         let out = *out.downcast::<Vec<Option<Placed<A::Writes>>>>().expect("this step's own output");
-        let writes = A::Writes::ids(&self.writes);
+        let writes = self.effective_writes();
         for (i, r) in out.into_iter().enumerate() {
             let Some(r) = r else { continue };
             let mut p = self.provenance(&docs[i]);
@@ -429,18 +477,18 @@ impl<A: Annotator> Step for Bound<A> {
                 }
                 Err(e) => Some(e),
             };
-            let Some(e) = failure else { continue };
-            // Every output not stored is failed with the error, so the
-            // document says why it is missing and what needs it is skipped.
-            // Recording is refused only when another layer type holds the
-            // id, and the document's result still says what failed.
-            for &k in &writes {
-                if !docs[i].has(k) {
-                    let _ = docs[i].fail(k, e.clone(), p.clone());
+            if let Some(e) = failure {
+                for &k in &writes {
+                    if !docs[i].has(k) {
+                        let _ = docs[i].fail(k, e.clone(), p.clone());
+                    }
+                }
+                if status[i].is_ok() {
+                    status[i] = Err(e);
                 }
             }
-            if status[i].is_ok() {
-                status[i] = Err(e);
+            for &k in &writes {
+                docs[i].mark_pipeline_stored(k);
             }
         }
     }

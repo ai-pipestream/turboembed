@@ -40,17 +40,14 @@ const FED: &[&str] = &[
     "ja",
     "ko",
     "langdetect",
-    "money",
     "multi",
+    "money",
     "namefind",
     "ner",
-    "norm",
     "num",
     "ontonotes",
     "parse",
     "parse-treebank",
-    "pii",
-    "place-profiles",
     "quantity",
     "sentence-fixture",
     "sentiment",
@@ -68,19 +65,11 @@ const FED: &[&str] = &[
 ];
 
 /// The input sets the runs are not given, each with the reason.
-const NOT_FED: &[(&str, &str)] = &[
-    (
-        "gazetteer",
-        "about half a megabyte of place names, record ids, region codes and small \
-         tables, read only by the gazetteer goldens; fed, the test runs for more \
-         than half an hour instead of seconds and gives the covered runs nothing new",
-    ),
-    (
-        "stem",
-        "about half a megabyte of words, one per line, read only by the stemmers; \
+const NOT_FED: &[(&str, &str)] = &[(
+    "stem",
+    "about half a megabyte of words, one per line, read only by the stemmers; \
          it more than doubles the test's time and gives the covered runs nothing new",
-    ),
-];
+)];
 
 /// The names of the subdirectories of `dir`.
 fn subdirectories(dir: &Path) -> BTreeSet<String> {

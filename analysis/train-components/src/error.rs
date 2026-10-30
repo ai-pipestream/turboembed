@@ -20,12 +20,6 @@ pub enum Error {
     /// generators keeps one, so the pair is refused rather than looked up
     /// differently.
     CaseVariants { first: String, second: String },
-    /// A `java.util.HashMap` bucket that the JVM turns into a tree (nine
-    /// entries in a table of 64 or more) holds two entries with one hash
-    /// code, which the JVM orders by `System.identityHashCode`, differently
-    /// from run to run; the serialized dictionary's entry order would be a
-    /// guess, so it is refused.
-    TreeBucketTie,
     /// A dictionary token holds a character XML 1.0 cannot carry (a control
     /// character other than tab, line feed and carriage return, or U+FFFE
     /// or U+FFFF): the JDK's XML serializer throws `SAXException` and
@@ -83,22 +77,12 @@ pub enum Error {
     Model(turbo_maxent::Error),
     /// A file could not be read.
     Io { path: std::path::PathBuf, message: String },
-    /// A constituency parser model written here could not be read back,
-    /// or its parts do not fit its parser type.
-    ParserModel(turbo_parser::model::ParserModelError),
-    /// A parse sample a parser's event stream or `ParserEvaluator` fails
-    /// on where OpenNLP throws, as `Parse.pruneParse` throws on a node
-    /// whose only child has its type.
-    ParseSample(turbo_parser::ParseError),
-    /// The tree insertion event stream failed where OpenNLP throws or
-    /// exits.
-    TreeInsert(turbo_parser::treeinsert::TreeInsertError),
     /// A cross-validation fold's prediction the evaluator refuses where
     /// the JVM's evaluator throws.
     Evaluate(turbo_formats::evaluate::EvalError),
     /// A language detector model trained for a cross-validation fold
     /// could not be read back.
-    LanguageModel(turbo_langdetect::ModelError),
+    LanguageModel(crate::langdetect::ModelError),
 }
 
 impl fmt::Display for Error {
@@ -110,9 +94,6 @@ impl fmt::Display for Error {
             Error::EmptyEntry => f.write_str("tokens must not be empty"),
             Error::CaseVariants { first, second } => {
                 write!(f, "a case-sensitive dictionary with {first:?} and {second:?}, which differ only in case")
-            }
-            Error::TreeBucketTie => {
-                f.write_str("a HashMap bucket that would be a tree holds two entries with one hash code")
             }
             Error::InvalidXmlCharacter(c) => {
                 write!(f, "An invalid XML character (Unicode: 0x{c:x}) was found in the node's character data content.")
@@ -148,9 +129,6 @@ impl fmt::Display for Error {
             }
             Error::Model(e) => write!(f, "model file: {e}"),
             Error::Io { path, message } => write!(f, "{}: {message}", path.display()),
-            Error::ParserModel(e) => write!(f, "{e}"),
-            Error::ParseSample(e) => write!(f, "parser sample: {e}"),
-            Error::TreeInsert(e) => write!(f, "parser training events: {e}"),
             Error::Evaluate(e) => write!(f, "evaluation: {e}"),
             Error::LanguageModel(e) => write!(f, "language detector model: {e}"),
         }
@@ -183,32 +161,14 @@ impl From<turbo_sequence::Error> for Error {
     }
 }
 
-impl From<turbo_parser::model::ParserModelError> for Error {
-    fn from(e: turbo_parser::model::ParserModelError) -> Error {
-        Error::ParserModel(e)
-    }
-}
-
-impl From<turbo_parser::ParseError> for Error {
-    fn from(e: turbo_parser::ParseError) -> Error {
-        Error::ParseSample(e)
-    }
-}
-
-impl From<turbo_parser::treeinsert::TreeInsertError> for Error {
-    fn from(e: turbo_parser::treeinsert::TreeInsertError) -> Error {
-        Error::TreeInsert(e)
-    }
-}
-
 impl From<turbo_formats::evaluate::EvalError> for Error {
     fn from(e: turbo_formats::evaluate::EvalError) -> Error {
         Error::Evaluate(e)
     }
 }
 
-impl From<turbo_langdetect::ModelError> for Error {
-    fn from(e: turbo_langdetect::ModelError) -> Error {
+impl From<crate::langdetect::ModelError> for Error {
+    fn from(e: crate::langdetect::ModelError) -> Error {
         Error::LanguageModel(e)
     }
 }

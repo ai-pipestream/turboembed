@@ -1,0 +1,14 @@
+MASKED	Rotate ******************** now; ******************** too.
+
+MASK_ALL	Rotate #################### now; #################### too.
+
+REWRITE	pseudonymize	OK	Rotate AWS-ACCESS-KEY-1 now; AWS-ACCESS-KEY-2 too.
+
+LABEL	pseudonymize	7	27	7	23	AWS-ACCESS-KEY-1
+LABEL	pseudonymize	33	53	29	45	AWS-ACCESS-KEY-2
+REWRITE	hmac	OK	Rotate AWS-ACCESS-KEY-1fa18a48e0c36b3d now; AWS-ACCESS-KEY-ab7f5667a0a6bece too.
+
+LABEL	hmac	7	27	7	38	AWS-ACCESS-KEY-1fa18a48e0c36b3d
+LABEL	hmac	33	53	44	75	AWS-ACCESS-KEY-ab7f5667a0a6bece
+AUDIT	aws-access-key	2	2	AWS-ACCESS-KEY-1fa18a48e0c36b3d, AWS-ACCESS-KEY-ab7f5667a0a6bece
+AUDIT_REPORT	aws-access-key: 2 mentions, 2 distinct [AWS-ACCESS-KEY-1fa18a48e0c36b3d, AWS-ACCESS-KEY-ab7f5667a0a6bece]

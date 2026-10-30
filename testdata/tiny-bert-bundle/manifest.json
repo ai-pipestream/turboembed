@@ -1,11 +1,11 @@
 {
   "bundle_version": 1,
   "model": {
-    "id": "sentence-transformers/all-MiniLM-L6-v2",
+    "id": "turboembed/tiny-bert",
     "revision": "1",
     "source": {
-      "repository": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2",
-      "commit": "c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
+      "repository": "https://github.com/ai-pipestream/turboembed",
+      "commit": "af146a9213260f30554ba972a9c79d6053b84ad0"
     },
     "license": "Apache-2.0"
   },

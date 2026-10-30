@@ -1,0 +1,4 @@
+5	32	iban	checksum	DE89370400440532013000
+20	32	phone	format	0532013000
+52	64	uk-nhs	checksum	9434765919
+52	64	phone	format	9434765919

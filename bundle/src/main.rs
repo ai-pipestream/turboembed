@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
+use turbo_bundle::licence::Consent;
 use turbo_bundle::recipe::Recipe;
 use turbo_bundle::{Result, catalogue, distill, fetch, seal};
 
@@ -31,7 +32,9 @@ usage:
       fetch the upstream files at the recipe's commit. A model with terms
       beyond its licence, or under a licence the zoo fetches only once it
       is accepted (CC BY-NC, CC BY-SA, LGPL, GPL), is fetched only with
-      --accept-terms. A licence the zoo refuses is never fetched
+      --accept-terms, or for a licence $USER accepted before in the zoo's
+      acceptance file ($TURBO_ZOO_HOME, docs/zoo.md), which the flag
+      writes. A licence the zoo refuses is never fetched
   turbo-bundle catalogue
       the models a model-id names, with their licences (docs/static.md)
   turbo-bundle reference <recipe.json> <upstream-dir> <bundle-dir>
@@ -116,10 +119,12 @@ fn run(args: &[&str]) -> Result<()> {
         }
         ["make", recipe, upstream, bundle] => {
             let r = Recipe::load(Path::new(recipe))?;
-            fetch::fetch(&r, Path::new(upstream), accept)?;
+            fetch::fetch_with(&r, Path::new(upstream), &Consent::from_env(accept))?;
             turbo_bundle::make(&r, Path::new(upstream), Path::new(bundle))
         }
-        ["fetch", recipe, upstream] => fetch::fetch(&Recipe::load(Path::new(recipe))?, Path::new(upstream), accept),
+        ["fetch", recipe, upstream] => {
+            fetch::fetch_with(&Recipe::load(Path::new(recipe))?, Path::new(upstream), &Consent::from_env(accept))
+        }
         ["reference", recipe, upstream, bundle] => {
             turbo_bundle::make(&Recipe::load(Path::new(recipe))?, Path::new(upstream), Path::new(bundle))
         }

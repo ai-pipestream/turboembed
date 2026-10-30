@@ -2,26 +2,34 @@
 
 `turbo-doccat` (`analysis/doccat/`) and `turbo-analysis-embed`
 (`analysis/embed/`) implement polarity, aspect, emotion, incivility, and
-pragmatics analysis across lexicon, rule, and vector-head stages. The OpenNLP
-`SentimentME` archive loader and its JVM training comparisons are disabled under
-#1511; no current recipe should train an OpenNLP archive or fetch one to enable
-sentiment:
+pragmatics analysis across lexicon, rule, and vector-head stages:
 
 - **Scorer traits and layer types (`turbo_doccat::scorers`)**:
-  `PragmaticsVectorScorer`, `EmotionVectorScorer`, `IncivilityVectorScorer`, and
-  `AspectCategoryScorer` define the vector-head interfaces and re-export the
-  sentiment and pragmatics layers (`Opinions`, `Aspects`, `EmotionLayer`,
-  `Incivility`, `Pragmatics`) with no direct module imports of `SentimentModel`,
-  `SentimentMe`, or `turbo-maxent` (while crate-level transitive paths via
-  `turbo-formats`, `turbo-sequence`, and `turbo-train` remain pending the
-  deletion work in `#1532`).
+  `PolarityVectorScorer`, `PragmaticsVectorScorer`, `EmotionVectorScorer`,
+  `IncivilityVectorScorer`, and `AspectCategoryScorer` define the vector-head
+  interfaces and re-export the sentiment and pragmatics layers (`Opinions`,
+  `Aspects`, `EmotionLayer`, `Incivility`, `Pragmatics`, `Polarity`,
+  `PolarityScores`).
+- **Learned and hybrid polarity classification (`PolarityAnnotator`,
+  `SentencePolarityAnnotator`, and `PolarityVectorHead`, `#1526`)**:
+  `PolarityVectorHead` (`analysis/doccat/src/sentiment/polarity/`) is a
+  three-class (`positive`, `negative`, `neutral`) dense linear head (`TPVH` v1)
+  trained end to end with `turbo-trainer` (`AdamW`, `linear::forward`,
+  `linear::backward`, `xent::loss`, and `Rng`) with validation early stopping
+  and majority-baseline gating (`evaluate_polarity`, `majority_baseline`).
+  `PolarityAnnotator` (`turbo-doccat:polarity`) writes document-level
+  `Categories` (bound to `SENTIMENT`) and `SentencePolarityAnnotator`
+  (`turbo-doccat:sentence-polarity`) writes `(Opinions, Categories<Sentences>)`
+  (bound to `SENTENCE_SENTIMENT`) across `PolarityStage::{Lexicon, Learned,
+  Hybrid}`.
 - **Lexicon and dependency-negation polarity (`LexiconSentiment`)**:
   VADER valence scoring with three-token window or dependency-tree negation,
   producing token-level `Opinions` (`turbo:opinions`) and sentence-level
   `Categories<Sentences>` (`turbo:categories`).
 - **Embedding classifier heads and label centroids (`turbo_analysis_embed`)**:
   `LabelCentroids` (`TCENT001`) and 1-layer/2-layer `ClassifierHead` (`THEAD001`)
-  scoring sentence, chunk, opinion, and aspect embeddings.
+  scoring sentence, chunk, opinion, and aspect embeddings (and implementing
+  `PolarityVectorScorer` for `ClassifierHead`).
 - **Sarcasm and irony (`PragmaticsAnnotator`)**:
   combines surface positive/negative incongruity rules, text-against-emoji
   polarity mismatch, and a `PragmaticsVectorScorer` sentence head into
@@ -46,15 +54,14 @@ sentiment:
   scores polarity, aspect, and incivility shifts across sentence gaps into
   `Boundaries` (`SENTIMENT` instance) and summarizes per-chunk facets in
   `ChunkFacets` (`turbo:chunk-facets`).
-- **Classical token-context sentiment (`SentimentMe`, `classical` feature)**:
-  gated behind the off-by-default `classical` Cargo feature pending `#1526` and
-  `#1532`.
+- **Classical maxent sentiment (`SentimentMe`, `SentimentModel`)**:
+  available behind the off-by-default `classical` feature in `turbo-doccat`,
+  with training support in `turbo_train_components::sentiment`.
 
-Dataset, lexicon and checkpoint permissions remain recorded in the
+Dataset, lexicon and checkpoint permissions are recorded in the
 [complex sentiment licence audit](licences.md#complex-sentiment-licence-audit-326).
 It distinguishes shipped material, local evaluation and candidates awaiting
-source permissions. Historical maxent parity results do not establish native
-head accuracy.
+source permissions.
 
 ## Lexicon and negation sentiment baseline (`LexiconSentiment`, #320)
 
@@ -180,7 +187,7 @@ turboembed encoder (`#262` and `#263`):
 
 ### Sentiment classification comparison and CPU/GPU parity
 
-`analysis/embed/tests/heads.rs` compares `LexiconSentiment` (`#320`),
+`analysis/embed/tests/heads_sentiment.rs` compares `LexiconSentiment` (`#320`),
 `LabelCentroids` (`#321`), and `ClassifierHead` (`#321`) on a self-contained
 12-sentence evaluation benchmark (`testdata/tiny-bert-bundle`, 32-dim) and on
 471 MPQA subjective polarity spans from MASC 3.0.0 (`CC BY 3.0 US`, 376 train /
@@ -193,7 +200,7 @@ mean-pooled, L2-normalized):
 | MASC 3.0.0 MPQA polarity spans (376 train, 95 test) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | `87 / 95` (`91.6%`) | `81 / 95` (`85.3%`) | `84 / 95` (`88.4%`) |
 
 CPU and CUDA parity (`heads_and_centroids_cpu_and_device_parity` in
-`analysis/embed/tests/heads.rs`) was verified on `NVIDIA GeForce RTX 4080 SUPER`
+`analysis/embed/tests/heads_parity.rs`) was verified on `NVIDIA GeForce RTX 4080 SUPER`
 (`Execution { backend: "cuda", device: "NVIDIA GeForce RTX 4080 SUPER", precision: "f32 (model)" }`):
 repeated GPU runs produce bit-for-bit identical probability vectors, and CPU
 and CUDA `LabelCentroids` and `ClassifierHead` scores agree within `1e-5` with
@@ -256,7 +263,7 @@ and emoji-mismatch positive carries non-empty, non-overlapping
 `Some(Incongruity { positive, negative })` token spans inside its sentence;
 head-only positives carry `evidence: None`). It says nothing about how the
 rules generalise, and the scores are rule weights on a `0.0..=1.0` scale,
-not calibrated probabilities. `analysis/embed/tests/heads.rs`
+not calibrated probabilities. `analysis/embed/tests/heads_pragmatics.rs`
 (`pragmatics_annotator_combines_incongruity_emoji_and_embedding_head`) runs
 the three signals end to end over `tiny-bert-bundle` with a fitted
 `ClassifierHead` as the sentence scorer and a `LabelCentroids` head written
@@ -410,7 +417,7 @@ terms and are not committed to the repository.
   fallback, and exact-span `evaluate_absa_corpus` metrics (`aspect_f1`,
   `opinion_f1`, `triplet_f1`) on a 10-sentence regression fixture written
   beside the rules.
-- `analysis/embed/tests/heads.rs`
+- `analysis/embed/tests/heads_aspects.rs`
   (`learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device`)
   trains `LearnedAspectSentiment::fit` on a 9-sentence fixture over
   `tiny-bert-bundle` (32-dim) and runs both `RuleAspectSentiment` and
@@ -487,7 +494,7 @@ and writes `Incivility`:
    head type implements the trait itself: a small wrapper calls
    `ClassifierHead::score_incivility_vector` or
    `LabelCentroids::score_incivility_vector` from `#321` (the adapters in
-   `analysis/embed/tests/heads.rs` show both). A scorer that names its
+   `analysis/embed/tests/heads_incivility.rs` show both). A scorer that names its
    encoder makes the annotator refuse vectors from any other encoder. A
    unit with no tokens is scored by the head but gets no evidence span,
    since there is nothing to attribute it to. When the embedding
@@ -933,7 +940,7 @@ incivility rules and fixtures use the repository licence.
   `analysis/embed/examples/incivility_eval/tests.rs` checks UTF-8, UTF-16, and
   Unicode codepoint span projection and production `Analyzer` parity on
   corpus comments.
-- `analysis/embed/tests/heads.rs`
+- `analysis/embed/tests/heads_incivility.rs`
   (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
   fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label
   `LabelCentroids` head on `tiny-bert-bundle` (32-dim), runs
@@ -1255,7 +1262,7 @@ per run; the median is descriptive on a shared host, not a throughput guarantee.
 
 No slowdown was observed in these probes. They isolate text preprocessing;
 encoder inference is not timed. The relation probe repeats multilingual text,
-URLs, punctuation and a legacy separator; SaT uses mixed ASCII/Unicode spaces
+URLs, punctuation and an information separator; SaT uses mixed ASCII/Unicode spaces
 at sentence boundaries. Run the checked-in probes with:
 
 ```sh

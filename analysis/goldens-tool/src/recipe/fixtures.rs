@@ -17,7 +17,7 @@ pub struct Fixture {
 /// of the name finder's dictionaries and patterns (`namefind`) or a
 /// hand-written Hunspell dictionary (`hunspell`), and `Runs` opens the
 /// directory.
-pub const FIXTURES: [Fixture; 109] = [
+pub const FIXTURES: [Fixture; 104] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd",
@@ -59,10 +59,6 @@ pub const FIXTURES: [Fixture; 109] = [
         sha512: "c9e30b48571cd106396a9f84c0692216b5934cd7cae4ec277ceb867b93a5b9ed4285349d48c2e3d7c508bb824697a2e68055b54817b0f9fbc06e011c510ef070",
     },
     Fixture {
-        file: "langdetect-fixture-rust.bin",
-        sha512: "631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99",
-    },
-    Fixture {
         file: "tags.tagdict",
         sha512: "cbd3dee98987711b48b42967df8e6e3e8400dcba70336fa2c83bfdba03a8c42b3bd7d5f6f0c80c2f35dc01173795792e117489f11fd23f03f9fcba3fa453417d",
     },
@@ -93,22 +89,6 @@ pub const FIXTURES: [Fixture; 109] = [
     Fixture {
         file: "es-regex-head-rules.txt",
         sha512: "d75363b131a71c1b6fd243e9f339ee97393fe36a9ed89d857c49d89da793dc9b1e48b92ca0e67fb65c04305fba81d17754b896b2cba90a166348c00feff19a6b",
-    },
-    Fixture {
-        file: "gazetteer-geonames.txt",
-        sha512: "69e2ef02c7ae86751635496c5b46895854cd95977fb4e6a6756df9aa69dc6bbf8487983af8803650627067167e3f5212ef0c9adb6a9b225e3a99837cfeb9a95d",
-    },
-    Fixture {
-        file: "gazetteer-overture.txt",
-        sha512: "851543d2634344f6764f3210f18a8da8f1e5400a637b312960e4c0eb1e3e6419af3c22f4b2917753f4b141158d15a1500e5cf0491b1f7211f13ecc352171db57",
-    },
-    Fixture {
-        file: "gazetteer-user.txt",
-        sha512: "68f44c6be8bbc9c3d3d697681eb121f0593087066eaf3dba7b5e6a44780f0c05bcfe79894c8cc26d609459c8362ab1f65d8540ba4799468d69356746e72aac49",
-    },
-    Fixture {
-        file: "gazetteer-suppressions.txt",
-        sha512: "50db213abd6c0dab3409a1e8ad77aee22bd05920f2fb23c393fccec01f342d128a336761acb8bb3df401549ad319cd6551ba3b06558e4d4cf0604025d1ef39d6",
     },
     Fixture {
         file: "en-detokenizer.xml",

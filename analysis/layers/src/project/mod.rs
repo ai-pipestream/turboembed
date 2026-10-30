@@ -12,8 +12,8 @@ use self::verify::{
     check_invariants, verify_levels, verify_sentence_ixs, verify_sentence_ranges, verify_token_ixs, verify_token_ranges,
 };
 use crate::{
-    Chunks, Entities, Levels, Money, Numbers, Ordinals, PhraseChunks, Phrases, Pii, Quantities, Quotations, Sentences,
-    Structure, Subwords, Temporals, Times, Tokens,
+    Chunks, Entities, LayoutBoxes, Levels, Money, Numbers, Ordinals, PhraseChunks, Phrases, Pii, Quantities,
+    Quotations, Sentences, Structure, Subwords, Temporals, Times, Tokens,
 };
 
 fn map_opt_spans(doc: &Document, from: ViewId, to: ViewId, spans: &[Option<Span>]) -> Result<Vec<Option<Span>>, Error> {
@@ -27,6 +27,21 @@ impl ProjectableLayer for Structure {
             kind: self.kind.clone(),
             parent: self.parent.clone(),
             depth: self.depth.clone(),
+        };
+        check_invariants(&out)?;
+        Ok(out)
+    }
+}
+
+impl ProjectableLayer for LayoutBoxes {
+    fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
+        let out = LayoutBoxes {
+            spans: doc.project_spans_monotonic(&self.spans, to)?,
+            page: self.page.clone(),
+            x0: self.x0.clone(),
+            y0: self.y0.clone(),
+            x1: self.x1.clone(),
+            y1: self.y1.clone(),
         };
         check_invariants(&out)?;
         Ok(out)

@@ -123,6 +123,16 @@ impl Annotator for WhitespaceTokenizer {
         Ok((tokens,))
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<View>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Tokens>::DEFAULT.id()];
+        PRODUCES
+    }
+
     fn config_hash(&self) -> u64 {
         self.options.config_hash()
     }

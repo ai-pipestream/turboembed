@@ -1,0 +1,24 @@
+===OUT===
+i don’t know. we can’t go and they won’t come. i’m sure you’re right; he’s here. they’ve left, we’ve won, i’ll try, i’d say. don’t shout, isn’t it? possessive john's book, the dogs' bowls, 'tis and 'twas, rock 'n' roll, 'cause, gonna, it's, let's go.
+===EDITS===
+0	1	i
+16	17	w
+53	54	i
+92	93	 
+93	94	t
+122	123	i
+134	135	i
+145	146	d
+146	147	o
+147	148	n
+151	152	t
+153	154	s
+154	155	h
+155	156	o
+156	157	u
+157	158	t
+160	161	i
+171	172	 
+172	173	p
+183	184	j
+274	275	

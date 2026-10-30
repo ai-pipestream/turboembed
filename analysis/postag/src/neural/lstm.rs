@@ -1,7 +1,6 @@
 //! Single-direction LSTM layer (`LstmLayer`) with forward and backward passes.
 
 use crate::neural::{JavaRng, NeuralError};
-use turbo_jvm::strict_math;
 
 const ACCUMULATE_BLOCK: usize = 32;
 
@@ -224,10 +223,10 @@ impl LstmLayer {
             for j in 0..h_size {
                 let ig = sigmoid(gates[j]);
                 let fg = sigmoid(gates[h_size + j]);
-                let gg = strict_math::tanh(gates[2 * h_size + j]);
+                let gg = gates[2 * h_size + j].tanh();
                 let og = sigmoid(gates[3 * h_size + j]);
                 let cj = fg * c_prev[j] + ig * gg;
-                let tanh_cj = strict_math::tanh(cj);
+                let tanh_cj = cj.tanh();
                 let hj = og * tanh_cj;
                 c_curr[j] = cj;
                 h[t][j] = hj;
@@ -472,6 +471,6 @@ mod tests {
         let layer = LstmLayer::of_weights(4, 1, w, u, b).unwrap();
         let mut cache = ForwardCache::of(1, 1);
         layer.run(&[vec![1.0; 4]], Some(&mut cache)).unwrap();
-        assert_eq!(cache.g_gate[0][0].to_bits(), strict_math::tanh(1.0).to_bits());
+        assert_eq!(cache.g_gate[0][0].to_bits(), 1.0_f64.tanh().to_bits());
     }
 }

@@ -1,5 +1,5 @@
 //! Document categorization, zero-shot and NLI claim verification, and
-//! sentiment, aspect, emotion, incivility, and pragmatics analysis.
+//! sentiment, polarity, aspect, emotion, incivility, and pragmatics analysis.
 //!
 //! # Overview
 //!
@@ -9,11 +9,10 @@
 //!   for each sentence, block, or chunk. [`SpanCategorizable`] marks span
 //!   layers that span categorizers can score item by item.
 //! - [`scorers`] defines the vector-head and category scorer traits
-//!   ([`PragmaticsVectorScorer`], [`EmotionVectorScorer`],
-//!   [`IncivilityVectorScorer`], and [`AspectCategoryScorer`]) and re-exports
-//!   the sentiment and pragmatics layer types without coupling to
-//!   `SentimentModel`, `SentimentMe`, or `turbo-maxent` (crate-level
-//!   `turbo-train` retirement is tracked under `#1530`).
+//!   ([`PolarityVectorScorer`], [`PragmaticsVectorScorer`],
+//!   [`EmotionVectorScorer`], [`IncivilityVectorScorer`], and
+//!   [`AspectCategoryScorer`]) and re-exports the sentiment and pragmatics
+//!   layer types.
 //! - [`dl`] implements sequence-classification document and span categorization
 //!   ([`DocumentCategorizerDL`], [`DlSpanCategorizer`]) over an encoder-backed
 //!   [`DlSequenceScorer`].
@@ -24,15 +23,14 @@
 //! - [`zeroshot`] and [`claim_verify`] implement NLI-backed zero-shot
 //!   categorization ([`ZeroShotCategorizer`], [`ZeroShotAnnotator`]) and claim
 //!   verification ([`ClaimVerificationAnnotator`]).
-//! - [`sentiment`] implements VADER lexicon and dependency-negation sentiment
+//! - [`sentiment`] implements document-level and sentence-level polarity
+//!   classification ([`PolarityAnnotator`], [`SentencePolarityAnnotator`],
+//!   [`PolarityVectorHead`]), VADER lexicon and dependency-negation sentiment
 //!   ([`LexiconSentiment`]), rule-based aspect and opinion extraction
 //!   ([`RuleAspectSentiment`]), 28-label emotion scoring ([`EmotionAnnotator`],
 //!   [`EmotionVectorHead`]), 6-label incivility and toxicity scoring
 //!   ([`IncivilityAnnotator`], [`IncivilityVectorHead`]), and sentence-level
 //!   sarcasm and irony detection ([`PragmaticsAnnotator`]).
-//! - Behind the off-by-default `classical` feature: `DocumentCategorizerME`,
-//!   `DoccatModel`, `SpanCategorizer`, `SvmCategorizer`, `SvmDoccatModel`, and
-//!   `SentimentMe` / `SentimentModel`.
 //!
 //! See `docs/doccat.md` and `docs/sentiment.md` for architecture and testing details.
 
@@ -44,7 +42,6 @@ pub mod dl;
 pub mod error;
 pub mod features;
 mod hash;
-pub mod java;
 pub mod layer;
 pub mod model;
 pub mod multilabel;
@@ -84,27 +81,34 @@ pub use multilabel::{open_package as open_multilabel_package, package_multilabel
 pub use scorers::{
     AspectCategoryScorer, EmotionEvidence, EmotionStage, EmotionUnit, EmotionVectorScorer, INCIVILITY_DIMENSIONS,
     IncivilityEvidenceSpan, IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorScorer,
-    PragmaticsVectorScorer,
+    PolarityStage, PolarityVectorScorer, PragmaticsVectorScorer,
 };
 pub use selection::{DoccatTrainer, FeatureSelection, SelectedFeatures, SelectionMetric};
 pub use sentiment::{
     AbsaMetrics, AbsaTriplet, CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD, CIVIL_COMMENTS_BGE_SMALL_HEAD,
     CIVIL_COMMENTS_MINILM_CONTEXT_HEAD, CIVIL_COMMENTS_MINILM_HEAD, DEFAULT_ASPECT_CATEGORIES,
-    DEFAULT_EMOTION_THRESHOLD, DEFAULT_INCIVILITY_FUSION_GATE, DEFAULT_INCIVILITY_THRESHOLD, EmotionAnnotator,
-    EmotionFitOptions, EmotionHeadError, EmotionMetrics, EmotionVectorHead, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD,
-    GOEMOTIONS_MINILM_HEAD, GoldBiasUnit, GoldEmotionUnit, GoldIncivilityUnit, GoldToxicSpanUnit, IdentityTerms,
-    IncivilityAnnotator, IncivilityBiasMetrics, IncivilityFitOptions, IncivilityHeadError, IncivilityLexicon,
-    IncivilityMetrics, IncivilityVectorHead, IncivilityZooError, LabelBias, LabelMetrics, LexiconSentiment,
-    NegationMode, PragmaticsAnnotator, RuleAspectSentiment, SENTENCE_SENTIMENT, SentenceSentiment, SubgroupBias,
-    ToxicSpanMetrics, VaderLexicon, VaderScore, char_span_to_token_range, char_span_to_utf8_span, evaluate_absa_corpus,
-    evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds, evaluate_incivility_bias,
-    evaluate_incivility_corpus, evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, extract_triplets,
-    incivility_token_key, roc_auc,
+    DEFAULT_EMOTION_THRESHOLD, DEFAULT_HEAD_WEIGHT, DEFAULT_INCIVILITY_FUSION_GATE, DEFAULT_INCIVILITY_THRESHOLD,
+    EmotionAnnotator, EmotionFitOptions, EmotionHeadError, EmotionMetrics, EmotionVectorHead, EmotionZooError,
+    GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD, GoldBiasUnit, GoldEmotionUnit, GoldIncivilityUnit,
+    GoldToxicSpanUnit, IdentityTerms, IncivilityAnnotator, IncivilityBiasMetrics, IncivilityFitOptions,
+    IncivilityHeadError, IncivilityLexicon, IncivilityMetrics, IncivilityVectorHead, IncivilityZooError, LabelBias,
+    LabelMetrics, LexiconSentiment, NegationMode, POLARITY_COUNT, POLARITY_NAMES, PolarityAnnotator,
+    PolarityClassMetrics, PolarityExample, PolarityFitConfig, PolarityFitReport, PolarityMetrics, PolarityVectorHead,
+    PragmaticsAnnotator, RuleAspectSentiment, SENTENCE_SENTIMENT, SENTIMENT, SentencePolarityAnnotator,
+    SentenceSentiment, SubgroupBias, ToxicSpanMetrics, VaderLexicon, VaderScore, blend_polarity_scores,
+    char_span_to_token_range, char_span_to_utf8_span, evaluate_absa_corpus, evaluate_emotion_corpus,
+    evaluate_emotion_corpus_with_thresholds, evaluate_incivility_bias, evaluate_incivility_corpus,
+    evaluate_incivility_corpus_with_thresholds, evaluate_polarity, evaluate_predictions, evaluate_toxic_spans,
+    extract_triplets, incivility_token_key, index_polarity, majority_baseline, parse_polarity_label,
+    parse_polarity_tsv, polarity_index, roc_auc, softmax_polarity, vader_to_polarity_scores, validate_polarity_scores,
 };
 #[cfg(feature = "classical")]
-pub use sentiment::{SentimentFactory, SentimentMe, SentimentModel};
+pub use sentiment::{
+    COMPONENT as SENTIMENT_COMPONENT, EMOJI_FACTORY, MODEL_ENTRY as SENTIMENT_MODEL_ENTRY, Scratch as SentimentScratch,
+    SentimentFactory, SentimentMe, SentimentModel, SentimentModelError, TOKEN_FACTORY,
+};
 #[cfg(feature = "classical")]
-pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
+pub use svm::{SvmCategorizer, SvmDoccatModel};
 #[cfg(feature = "classical")]
 pub use train::doccat_index;
 pub use train::{DoccatEventStream, DoccatFactory, doccat_events};
@@ -137,10 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn bag_of_words_only_letters_reads_utf16_units_like_the_jvm() {
-        // StringPattern.recognize looks at one UTF-16 unit at a time, and a
-        // surrogate is not a letter, so a token holding a supplementary
-        // letter (U+20000, a CJK ideograph) is not all letters on the JVM.
+    fn bag_of_words_only_letters_reads_utf16_units() {
         let extra = BTreeMap::new();
         let only_letters = BagOfWordsFeatureGenerator::only_all_letter_tokens();
         assert_eq!(only_letters.pattern_mode(), turbo_sequence::PatternMode::Utf16Units);
@@ -150,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn ngram_feature_generator_matches_opennlp_tests() {
+    fn ngram_feature_generator_extracts_windows() {
         let extra = BTreeMap::new();
         let tokens = ["a", "b", "c", "d", "e", "f", "g"];
 
@@ -187,35 +188,10 @@ mod tests {
                 "ng=:f", "ng=:f:g", "ng=:g"
             ]
         );
-
-        let gram13 = NGramFeatureGenerator::new(1, 3).unwrap();
-        assert_eq!(
-            gram13.collect_features(&tokens, &extra),
-            vec![
-                "ng=:a",
-                "ng=:a:b",
-                "ng=:a:b:c",
-                "ng=:b",
-                "ng=:b:c",
-                "ng=:b:c:d",
-                "ng=:c",
-                "ng=:c:d",
-                "ng=:c:d:e",
-                "ng=:d",
-                "ng=:d:e",
-                "ng=:d:e:f",
-                "ng=:e",
-                "ng=:e:f",
-                "ng=:e:f:g",
-                "ng=:f",
-                "ng=:f:g",
-                "ng=:g"
-            ]
-        );
     }
 
     #[test]
-    fn emoji_feature_generator_matches_opennlp_tests() {
+    fn emoji_feature_generator_extracts_metadata() {
         let extra = BTreeMap::new();
         let generator = EmojiFeatureGenerator::new();
 

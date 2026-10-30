@@ -7,7 +7,7 @@ use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordP
 use turbo_trainer::fit::score;
 use turbo_trainer::rng::Rng;
 use turbo_trainer::tagger::Work;
-use turbo_trainer::{Config, Example, Tagger, fit};
+use turbo_trainer::{Config, Example, Tagger, fit, fit_with};
 
 const HIDDEN: usize = 8;
 
@@ -22,6 +22,10 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
         biaffine: None,
+        pos_input: None,
+        hash_embed: None,
+        span: None,
+        license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "toy".into(),
     }
@@ -51,7 +55,7 @@ fn tags_data(seed: u64, n: usize) -> Vec<Example> {
                 labels.push(if c == 3 && prev == 0 { 0 } else { c as u32 });
                 prev = c;
             }
-            Example { features, labels }
+            Example { features, labels, forms: Vec::new() }
         })
         .collect()
 }
@@ -79,7 +83,7 @@ fn bio_data(seed: u64, n: usize) -> Vec<Example> {
                 });
                 prev = c;
             }
-            Example { features, labels }
+            Example { features, labels, forms: Vec::new() }
         })
         .collect()
 }
@@ -122,7 +126,9 @@ fn two_runs_give_identical_bytes_and_another_seed_does_not() {
     let (a, ra) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
     let (b, rb) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
     assert_eq!(bytes(&a), bytes(&b));
-    assert_eq!(ra, rb);
+    // Everything but the wall time.
+    assert_eq!((&ra.train_loss, &ra.dev, ra.best_epoch), (&rb.train_loss, &rb.dev, rb.best_epoch));
+    assert_eq!(ra.epoch_seconds.len(), ra.dev.len());
     let (other, _) = fit(&s, HIDDEN, &train, &dev, &Config { seed: 2, ..c }).unwrap();
     assert_ne!(bytes(&a), bytes(&other));
 }
@@ -152,9 +158,9 @@ fn trained_weights_score_the_same_through_the_core() {
 #[test]
 fn ill_fitting_examples_are_refused() {
     let s = spec(&["A", "B"], Scheme::Tags, None, Decode::Argmax);
-    let good = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 1] };
-    let short = Example { features: vec![0.0; HIDDEN], labels: vec![0, 1] };
-    let label = Example { features: vec![0.0; HIDDEN], labels: vec![2] };
+    let good = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 1], forms: Vec::new() };
+    let short = Example { features: vec![0.0; HIDDEN], labels: vec![0, 1], forms: Vec::new() };
+    let label = Example { features: vec![0.0; HIDDEN], labels: vec![2], forms: Vec::new() };
     let c = Config::default();
     assert!(fit(&s, HIDDEN, &[short], &[], &c).is_err());
     assert!(fit(&s, HIDDEN, std::slice::from_ref(&good), &[label], &c).is_err());
@@ -162,6 +168,39 @@ fn ill_fitting_examples_are_refused() {
     assert!(fit(&s, HIDDEN, &[good], &[], &Config { batch: 0, ..c }).is_err());
     // A gold sequence the scheme forbids cannot be a CRF target.
     let bio = spec(&["O", "B-X", "I-X"], Scheme::Bio, None, Decode::Crf);
-    let bad = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 2] };
+    let bad = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 2], forms: Vec::new() };
     assert!(fit(&bio, HIDDEN, &[bad], &[], &c).is_err());
+}
+
+#[test]
+fn on_best_sees_every_improvement_and_last_the_weights_kept() {
+    let s = spec(&["A", "B", "C", "D"], Scheme::Tags, None, Decode::Argmax);
+    let (train, dev) = (tags_data(1, 120), tags_data(2, 30));
+    let c = Config { epochs: 8, lr: 1e-2, patience: 0, ..Config::default() };
+    let mut seen: Vec<(usize, f64, Vec<Vec<f32>>)> = Vec::new();
+    let (model, report) = fit_with(&s, HIDDEN, &train, &dev, &c, &mut |m, e, d| {
+        seen.push((e, d, m.params().to_vec()));
+        Ok(())
+    })
+    .unwrap();
+    // Called on each epoch whose dev score beats every earlier one.
+    let mut want = Vec::new();
+    let mut best = f64::NEG_INFINITY;
+    for (e, &d) in report.dev.iter().enumerate() {
+        if d > best {
+            best = d;
+            want.push(e);
+        }
+    }
+    assert_eq!(seen.iter().map(|(e, _, _)| *e).collect::<Vec<_>>(), want);
+    let (e, d, params) = seen.last().unwrap();
+    assert_eq!((*e, *d), (report.best_epoch, report.dev[report.best_epoch]));
+    assert_eq!(params.as_slice(), model.params(), "the last weights seen are the ones kept");
+    // The same run through fit gives the same bytes.
+    let (plain, _) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
+    assert_eq!(plain.params(), model.params());
+    // An error from on_best stops the run with it.
+    let e =
+        fit_with(&s, HIDDEN, &train, &dev, &c, &mut |_, _, _| Err(turbo::status::invalid("disk full"))).err().unwrap();
+    assert!(e.message.contains("disk full"));
 }

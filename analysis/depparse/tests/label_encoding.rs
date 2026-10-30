@@ -4,7 +4,16 @@ use turbo_depparse::*;
 
 #[test]
 fn label_contents_do_not_select_decoding_and_escaped_roundtrips_are_exact() {
-    for label in ["root^literal", "root^>literal", r"root\^literal", r"root\\^>literal", "r<oot>", "根^>𝄞"] {
+    for label in [
+        "root^literal",
+        "root^>literal",
+        r"root\^literal",
+        r"root\\^>literal",
+        "r<oot>",
+        "obl:tmod",
+        r"obl\:tmod",
+        "根^>𝄞",
+    ] {
         for heads in [vec![None], vec![Some(Ix::new(2)), None, Some(Ix::new(1))]] {
             let labels =
                 if heads.len() == 1 { vec![label.into()] } else { vec!["det".into(), label.into(), "obj".into()] };

@@ -50,6 +50,21 @@ impl TagSet {
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
     }
+
+    /// The ordered label definitions in this tag set (`Tag(i)` maps to `labels()[i]`).
+    pub fn labels(&self) -> &[Box<str>] {
+        &self.names
+    }
+
+    /// Deterministic fingerprint of this tag set's name and ordered label definitions.
+    pub fn content_hash(&self) -> u64 {
+        let mut h = crate::hash::Fnv1a::new();
+        h.str("turbo:tagset:v1").str(&self.name).usize(self.names.len());
+        for label in &self.names {
+            h.str(label);
+        }
+        h.finish()
+    }
 }
 
 /// A layer: one typed, columnar result over a document. Each layer is its
@@ -125,6 +140,33 @@ pub trait Layer: Any + Send + Sync + Sized {
     fn check_document(&self, _doc: &crate::Document, _on: &[KeyId]) -> Result<(), String> {
         Ok(())
     }
+
+    /// Deterministic fingerprint for payload fields not covered by `len()`,
+    /// `text_spans()`, and `indexes()`.
+    ///
+    /// Returning `Some(hash)` certifies that `hash` covers all semantically
+    /// significant payload columns of `Self`, enabling upstream content-cutoff
+    /// caching when a producer re-runs and yields an identical layer value.
+    /// Returning `None` (the default) marks the layer as having no complete
+    /// payload fingerprint, so downstream steps reading `Self` never skip on
+    /// structural-only equality.
+    fn content_hash(&self) -> Option<u64> {
+        None
+    }
+
+    /// Feeds all semantically significant payload columns directly into a
+    /// 256-bit [`turbo_sha256::Sha256`] hasher for [`Document::content_digest`](crate::Document::content_digest),
+    /// returning `true` when this layer provides a complete payload fingerprint.
+    /// Defaults to folding [`Self::content_hash`] when present.
+    fn content_sha256(&self, hasher: &mut turbo_sha256::Sha256) -> bool {
+        match self.content_hash() {
+            Some(hash) => {
+                hasher.u64(hash);
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 /// What a layer's items hang on.
@@ -161,7 +203,7 @@ impl<L: Layer> Key<L> {
         Key { name, _l: PhantomData }
     }
 
-    pub fn id(&self) -> KeyId {
+    pub const fn id(&self) -> KeyId {
         KeyId { ty: TypeId::of::<L>(), layer: L::NAME, name: self.name }
     }
 }
@@ -190,6 +232,17 @@ pub struct LayerName {
     pub id: &'static str,
     pub of: Option<&'static LayerName>,
     pub to: Option<&'static LayerName>,
+}
+
+impl LayerName {
+    /// Returns this layer name as a borrowed `'static` string when it has no
+    /// generic type parameters, or formats its full parameterized name.
+    pub fn as_cow(&self) -> std::borrow::Cow<'static, str> {
+        match (self.of, self.to) {
+            (None, None) => std::borrow::Cow::Borrowed(self.id),
+            _ => std::borrow::Cow::Owned(self.to_string()),
+        }
+    }
 }
 
 impl fmt::Display for LayerName {
@@ -295,6 +348,12 @@ impl Provenance {
             reads: Vec::new(),
             on: Vec::new(),
         }
+    }
+
+    /// Computes the deterministic 256-bit SHA-256 chained provenance digest
+    /// for this provenance record against `doc`.
+    pub fn chained_digest(&self, doc: &crate::Document) -> crate::doc::ProvenanceDigest {
+        doc.compute_provenance_digest(self)
     }
 }
 

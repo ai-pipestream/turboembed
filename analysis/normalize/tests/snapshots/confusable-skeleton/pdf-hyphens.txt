@@ -1,0 +1,12 @@
+===OUT===
+The new inforrna-
+tion about the cornpu-
+ter was well-
+known to the engi-
+neers. A real hyphen-ated cornpound stays.
+The soft­hyphen in a long­word is invisible.
+
+===EDITS===
+13	14	rn
+34	35	rn
+100	101	rn

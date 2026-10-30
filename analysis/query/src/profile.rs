@@ -33,6 +33,7 @@ pub struct QueryProfileBuilder {
     term_form: TermForm,
     notation: NumberNotation,
     reference_datetime: Option<DateTime>,
+    span_detector: Option<turbo_langspan::NgramDetector>,
     geo_installer: Option<GeoStepInstaller>,
     glossary: Option<(Arc<Glossary>, Case)>,
     dictionary_finder: Option<DictionaryNameFinder>,
@@ -61,11 +62,18 @@ impl QueryProfileBuilder {
             term_form: TermForm::Stem,
             notation: NumberNotation::LatinUs,
             reference_datetime: None,
+            span_detector: None,
             geo_installer: Some(installer),
             glossary: None,
             dictionary_finder: None,
             regex_finder: Some((RegexNameFinder::defaults(&BuiltIn::ALL), true)),
         }
+    }
+
+    /// Uses a trained n-gram model for query language evidence.
+    pub fn with_ngram_detector(mut self, detector: turbo_langspan::NgramDetector) -> Self {
+        self.span_detector = Some(detector);
+        self
     }
 
     /// Sets the fallback language code used when a query contains no letters
@@ -143,7 +151,10 @@ impl QueryProfileBuilder {
 
     /// Builds the configured [`QueryAnalysisProfile`].
     pub fn build(mut self) -> Result<QueryAnalysisProfile, Error> {
-        let make_span_detector = || QuerySpanDetector::new(default_span_detector());
+        let make_span_detector = || match &self.span_detector {
+            Some(detector) => QuerySpanDetector::with_ngram(detector.clone()),
+            None => QuerySpanDetector::new(default_span_detector()),
+        };
 
         let document_analyzer = install_lexical_backbone(
             SequentialBuilder::new(),

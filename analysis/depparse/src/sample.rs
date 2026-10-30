@@ -8,6 +8,7 @@ use turbo_train::Event;
 
 /// Sentence data and its tree. Optional CoNLL-U metadata survives a graph/layer
 /// round trip through this carrier; a bare dependency layer has no text offsets.
+#[derive(Debug)]
 pub struct DependencySample<A: WordOrTokenAnchor = Tokens> {
     tokens: Vec<String>,
     tags: Vec<String>,

@@ -32,11 +32,11 @@ use crate::temporal::{DocumentDate, Granularity, Origin, Temporals};
 use crate::words::{MorphFeatures, WordLemmas, WordOrTokenAnchor, WordPosTags, Words};
 use crate::{
     Abbreviations, Aspects, Block, Boundaries, ChunkTags, Chunks, CodeKind, Confidence, Containment, Currency, Cut,
-    Dependencies, Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, Lemmas, Levels,
-    Matches, Modifier, Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals, PhraseChunks,
-    Phrases, Pii, PiiConfidence, PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation,
-    ScaleMarker, Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows,
-    Tokens, Unit, Utf16Spans, VectorCodes, Vectors,
+    Dependencies, Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, LayoutBoxes, Lemmas,
+    Levels, Matches, Modifier, Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals,
+    PhraseChunks, Phrases, Pii, PiiConfidence, PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions,
+    Relation, ScaleMarker, Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times,
+    TokenVectorWindows, Tokens, Unit, Utf16Spans, VectorCodes, Vectors,
 };
 use crate::{LexicalExpansions, WordNetSenses};
 
@@ -100,6 +100,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<PhraseChunks>()
         .register::<Boundaries>()
         .register::<Structure>()
+        .register::<LayoutBoxes>()
         .register::<crate::Tables>()
         .register::<crate::KeyValuePairs>()
         .register::<crate::ChunkTableHeaders>()
@@ -156,6 +157,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<VectorCodes<Levels>>()
         .register::<Confidence<Tokens>>()
         .register::<Confidence<Sentences>>()
+        .register::<Confidence<Lemmas>>()
         .register::<Confidence<Entities>>()
         .register::<Utf16Spans<Tokens>>()
         .register::<Utf16Spans<Sentences>>()

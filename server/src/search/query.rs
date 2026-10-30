@@ -201,6 +201,10 @@ pub(crate) fn execute_search(
             parent_text,
             attribution: Some(ChunkAttribution { matched_spans, signal_scores }),
             attributes: ch.attributes.clone().into_iter().collect(),
+            page_start: ch.page_span.map_or(0, |(a, _)| a),
+            page_end: ch.page_span.map_or(0, |(_, b)| b),
+            has_page_span: ch.page_span.is_some(),
+            page_boxes: ch.page_boxes.clone(),
         });
     }
 

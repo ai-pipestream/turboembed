@@ -91,6 +91,8 @@ fn provenance(annotator: &str, config: u64) -> ProvenanceRecord {
         execution: None,
         reads: vec![],
         on: vec![],
+        provenance_digest: None,
+        input_snapshot: None,
     }
 }
 

@@ -23,11 +23,12 @@ pub enum Error {
     /// `InsufficientTrainingDataException` with OpenNLP's message: no event
     /// survived the cutoff, or the events have a single outcome.
     InsufficientTrainingData(&'static str),
-    /// `TwoPassDataIndexer` writes every outcome and context with
-    /// `DataOutputStream.writeUTF`, which throws `UTFDataFormatException`
-    /// for a string over 65535 bytes of modified UTF-8. `what` says which
-    /// string, `bytes` its encoded length.
+    /// A string exceeds the 65535-byte UTF-8 wire limit. `what` names the
+    /// string and `bytes` is its UTF-8 byte length.
     StringTooLong { what: &'static str, bytes: usize },
+    /// A label or predicate holds an unpaired UTF-16 surrogate that cannot
+    /// be encoded as standard UTF-8 on the native model wire.
+    UnpairedSurrogate,
     /// A parameter holds a value of another Java type than the getter
     /// casts to, where OpenNLP throws `ClassCastException`: an `Integer`
     /// asked for as a string, a `Double` asked for as an integer, and so on.
@@ -131,7 +132,10 @@ impl fmt::Display for Error {
             }
             Error::InsufficientTrainingData(message) => f.write_str(message),
             Error::StringTooLong { what, bytes } => {
-                write!(f, "the {what} is {bytes} bytes of modified UTF-8, over the 65535 writeUTF can write")
+                write!(f, "the {what} is {bytes} bytes of UTF-8, over the 65535-byte wire limit")
+            }
+            Error::UnpairedSurrogate => {
+                f.write_str("a model label or predicate holds an unpaired surrogate, which is not valid UTF-8")
             }
             Error::ParameterType { key, expected, found } => {
                 write!(f, "parameter {key:?}: expected a {expected}, found a {found} (ClassCastException)")
@@ -148,10 +152,10 @@ impl fmt::Display for Error {
             }
             Error::NoAlgorithm => f.write_str("Trainer type couldn't be determined!"),
             Error::Tolerance(t) => {
-                write!(f, "tolerance must be a positive number but is {}!", turbo_jvm::text::double_to_string(*t))
+                write!(f, "tolerance must be a positive number but is {}!", crate::text::double_to_string(*t))
             }
             Error::StepSizeDecrease(d) => {
-                write!(f, "decrease must be between 0 and 100 but is {}!", turbo_jvm::text::double_to_string(*d))
+                write!(f, "decrease must be between 0 and 100 but is {}!", crate::text::double_to_string(*d))
             }
             Error::NoParameters => f.write_str("every parameter is zero, which PerceptronModelWriter cannot write"),
             Error::SequenceLength { expected, got } => {

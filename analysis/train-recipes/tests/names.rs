@@ -5,7 +5,7 @@
 mod common;
 
 use common::{SENTENCES, temp_dir, write_document};
-use turbo_formats::masc::MascCorpus;
+use turbo_formats::masc::{MascCorpus, MascNameReader};
 use turbo_formats::{Field, NameSample};
 use turbo_train_recipes::card::NamesCard;
 use turbo_train_recipes::namefind::{DATE, LOCATION, NameRecipe, ORGANIZATION, PERSON, read_samples};
@@ -71,6 +71,7 @@ fn gapped_names_are_kept_and_overlaps_and_other_types_are_left_out_and_counted()
         other_types,
         outside_sentences: 0,
         in_dropped_sentences: 0,
+        crossing_sentences: 0,
     };
     assert_eq!(counts, card(6, 2, 6, 3));
 
@@ -92,6 +93,13 @@ fn the_recipes_read_whole_names_and_clear_adaptive_data_per_document() {
     let root = temp_dir("names-whole");
     write_document(&root.join("written/news"), "a", SENTENCES, &[2, 6, 7]);
     let corpus = MascCorpus::read(&root).unwrap();
+    let opennlp: Vec<NameSample<'_>> = MascNameReader::new(&corpus).unwrap().map(|s| s.unwrap().sample).collect();
+    // Both tokens of `that week` are kept, as is the name at the start.
+    assert_eq!(names(&opennlp[0]), ["5 6 location", "6 8 date"]);
+    assert_eq!(names(&opennlp[1]), ["0 1 person", "6 7 person"]);
+    assert_eq!(names(&opennlp[2]), ["1 2 person", "4 5 person", "6 8 date", "9 10 date"]);
+    assert!(opennlp.iter().all(NameSample::clear_adaptive_data));
+
     let (dates, _, _) = read(&corpus, &DATE);
     assert_eq!(words(&dates[0])[6..8], ["that", "week"]);
     assert_eq!(names(&dates[0]), ["6 8 date"]);
@@ -124,6 +132,18 @@ fn entity_link_order_does_not_drop_tokens_from_names() {
     write_document(&root.join("written/news"), "a", ORDERS, &[0, 1, 2, 3, 4, 5]);
     let corpus = MascCorpus::read(&root).unwrap();
     let one = |s: &str| vec![s.to_owned()];
+    let opennlp: Vec<NameSample<'_>> = MascNameReader::new(&corpus).unwrap().map(|s| s.unwrap().sample).collect();
+    assert_eq!(
+        opennlp.iter().map(names).collect::<Vec<_>>(),
+        [
+            one("2 4 person"),
+            one("2 4 person"),
+            one("2 5 person"),
+            one("0 2 person"),
+            one("0 3 person"),
+            one("0 3 person")
+        ]
+    );
     let (persons, _, _) = read(&corpus, &PERSON);
     let ours: Vec<Vec<String>> = persons.iter().map(names).collect();
     assert_eq!(

@@ -33,6 +33,10 @@ fn spec(decode: Decode) -> HeadSpec {
         adapter: None,
         decode,
         biaffine: Some(Biaffine { arc: 5, rel: 3 }),
+        pos_input: None,
+        hash_embed: None,
+        span: None,
+        license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.deps".into(),
     }
@@ -211,4 +215,41 @@ fn missing_and_misshapen_weights_are_refused() {
     w.iter_mut().find(|(k, _)| k == "arc.weight").unwrap().1[0] = f32::NAN;
     let g = |k: &str| w.iter().find(|(x, _)| x == k).map(|(_, v)| v.clone());
     assert!(BiaffineParser::from_tensors(&s, hidden, &g).unwrap_err().message.contains("not finite"));
+}
+
+/// A parser one wide throughout, of two labels, every weight 0 but `set`.
+fn one_wide(set: &[(&str, usize, f32)]) -> BiaffineParser {
+    let s = HeadSpec {
+        labels: ["a", "b"].map(String::from).to_vec(),
+        biaffine: Some(Biaffine { arc: 1, rel: 1 }),
+        ..spec(Decode::Mst)
+    };
+    let mut w: Vec<(String, Vec<f32>)> =
+        tensors(&s, 1).into_iter().map(|(k, shape)| (k, vec![0.0; shape.iter().product::<u64>() as usize])).collect();
+    for &(k, i, v) in set {
+        w.iter_mut().find(|(n, _)| n == k).unwrap().1[i] = v;
+    }
+    parser(&s, 1, &w)
+}
+
+#[test]
+fn a_projection_past_f32_is_scored_in_f64() {
+    // The head views are 1e20 and the biaffine weights 1e20, so the
+    // projections are 1e40, past f32, against dependent views of 0: in
+    // f64 every score is 0.
+    let (mut arcs, mut rels, mut work) = (Vec::new(), Vec::new(), Work::default());
+    let p = one_wide(&[("arc_head.bias", 0, 1e20), ("arc.weight", 0, 1e20)]);
+    assert_eq!(p.arcs(&[1.0], &[0], &mut arcs, &mut work).unwrap(), 1);
+    assert_eq!(arcs, [0.0, 0.0]);
+    let p = one_wide(&[("rel_head.bias", 0, 1e20), ("rel.weight", 0, 1e20), ("rel.weight", 4, 1e20)]);
+    p.arcs(&[1.0], &[0], &mut arcs, &mut work).unwrap();
+    p.relations(&[0], &mut rels, &work).unwrap();
+    assert_eq!(rels, [0.0, 0.0]);
+    // With dependent views of 1e20 too, the scores are 1e60 in f64 as
+    // well, past f32: refused rather than returned.
+    let p = one_wide(&[("arc_dep.bias", 0, 1e20), ("arc_head.bias", 0, 1e20), ("arc.weight", 0, 1e20)]);
+    assert_eq!(p.arcs(&[1.0], &[0], &mut arcs, &mut work).unwrap_err().code, INVALID_ARGUMENT);
+    let p = one_wide(&[("rel_dep.bias", 0, 1e20), ("rel_head.bias", 0, 1e20), ("rel.weight", 0, 1e20)]);
+    p.arcs(&[1.0], &[0], &mut arcs, &mut work).unwrap();
+    assert_eq!(p.relations(&[0], &mut rels, &work).unwrap_err().code, INVALID_ARGUMENT);
 }

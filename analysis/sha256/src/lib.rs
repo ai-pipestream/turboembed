@@ -23,10 +23,13 @@ const K: [u32; 64] = [
 ];
 
 /// A SHA-256 digest.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Digest(pub [u8; 32]);
 
 impl Digest {
+    /// The all-zero 256-bit digest, used as a sentinel when an optional digest is absent.
+    pub const ZERO: Digest = Digest([0u8; 32]);
+
     /// The digest as 64 lower case hex digits, as `sha256sum` prints it.
     pub fn to_hex(&self) -> String {
         const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -37,32 +40,114 @@ impl Digest {
         }
         s
     }
+
+    /// Raw 32-byte digest array.
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+/// Streaming SHA-256 hasher with length-prefixed framing helpers for
+/// structured provenance and content digests.
+#[derive(Clone, Debug)]
+pub struct Sha256 {
+    state: [u32; 8],
+    buf: [u8; 64],
+    buf_len: usize,
+    total_len: u64,
+}
+
+impl Default for Sha256 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Sha256 {
+    /// Creates a new streaming SHA-256 state at the FIPS 180-4 initial vector.
+    pub const fn new() -> Self {
+        Self { state: H0, buf: [0u8; 64], buf_len: 0, total_len: 0 }
+    }
+
+    /// Feeds raw bytes into the SHA-256 state.
+    pub fn update(&mut self, mut data: &[u8]) -> &mut Self {
+        self.total_len = self.total_len.wrapping_add(data.len() as u64);
+        if self.buf_len > 0 {
+            let take = (64 - self.buf_len).min(data.len());
+            self.buf[self.buf_len..self.buf_len + take].copy_from_slice(&data[..take]);
+            self.buf_len += take;
+            data = &data[take..];
+            if self.buf_len == 64 {
+                compress(&mut self.state, &self.buf);
+                self.buf_len = 0;
+            }
+        }
+        let (blocks, rest) = data.as_chunks::<64>();
+        for block in blocks {
+            compress(&mut self.state, block);
+        }
+        if !rest.is_empty() {
+            self.buf[..rest.len()].copy_from_slice(rest);
+            self.buf_len = rest.len();
+        }
+        self
+    }
+
+    /// Feeds a length-prefixed UTF-8 string (`u64` little-endian length followed by bytes).
+    pub fn str(&mut self, s: &str) -> &mut Self {
+        self.u64(s.len() as u64).update(s.as_bytes())
+    }
+
+    /// Feeds a single byte.
+    pub fn u8(&mut self, v: u8) -> &mut Self {
+        self.update(&[v])
+    }
+
+    /// Feeds a `u16` in little-endian byte order.
+    pub fn u16(&mut self, v: u16) -> &mut Self {
+        self.update(&v.to_le_bytes())
+    }
+
+    /// Feeds a `u32` in little-endian byte order.
+    pub fn u32(&mut self, v: u32) -> &mut Self {
+        self.update(&v.to_le_bytes())
+    }
+
+    /// Feeds a `u64` in little-endian byte order.
+    pub fn u64(&mut self, v: u64) -> &mut Self {
+        self.update(&v.to_le_bytes())
+    }
+
+    /// Feeds a `usize` canonically as a little-endian `u64`.
+    pub fn usize(&mut self, v: usize) -> &mut Self {
+        self.u64(v as u64)
+    }
+
+    /// Finalizes padding and returns the 256-bit [`Digest`].
+    pub fn finish(mut self) -> Digest {
+        let mut tail = [0u8; 128];
+        tail[..self.buf_len].copy_from_slice(&self.buf[..self.buf_len]);
+        tail[self.buf_len] = 0x80;
+        let tail_len = if self.buf_len < 56 { 64 } else { 128 };
+        let bits = self.total_len.wrapping_mul(8);
+        tail[tail_len - 8..tail_len].copy_from_slice(&bits.to_be_bytes());
+        let (tail_blocks, _) = tail[..tail_len].as_chunks::<64>();
+        for block in tail_blocks {
+            compress(&mut self.state, block);
+        }
+        let mut out = [0u8; 32];
+        for (word, bytes) in self.state.iter().zip(out.as_chunks_mut::<4>().0) {
+            *bytes = word.to_be_bytes();
+        }
+        Digest(out)
+    }
 }
 
 /// The SHA-256 digest of `data`.
 pub fn sha256(data: &[u8]) -> Digest {
-    let mut state = H0;
-    let (blocks, rest) = data.as_chunks::<64>();
-    for block in blocks {
-        compress(&mut state, block);
-    }
-    // The padding: a one bit, zeros, then the message length in bits as a
-    // big-endian u64, filling one or two final blocks.
-    let mut tail = [0u8; 128];
-    tail[..rest.len()].copy_from_slice(rest);
-    tail[rest.len()] = 0x80;
-    let tail_len = if rest.len() < 56 { 64 } else { 128 };
-    let bits = (data.len() as u64).wrapping_mul(8);
-    tail[tail_len - 8..tail_len].copy_from_slice(&bits.to_be_bytes());
-    let (tail_blocks, _) = tail[..tail_len].as_chunks::<64>();
-    for block in tail_blocks {
-        compress(&mut state, block);
-    }
-    let mut out = [0u8; 32];
-    for (word, bytes) in state.iter().zip(out.as_chunks_mut::<4>().0) {
-        *bytes = word.to_be_bytes();
-    }
-    Digest(out)
+    let mut h = Sha256::new();
+    h.update(data);
+    h.finish()
 }
 
 /// Processes one 64-byte block.

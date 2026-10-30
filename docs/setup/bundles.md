@@ -114,7 +114,7 @@ copy of the recipe.
 
 | Command | What it does |
 |---|---|
-| `turbo-bundle fetch <recipe> <upstream-dir>` | Fetch only. A file already there is kept when its hash matches the pin. Writes `turbo-fetch.json`, where the files came from and their hashes. A model with terms beyond its licence needs `--accept-terms`, here and in `make`. |
+| `turbo-bundle fetch <recipe> <upstream-dir>` | Fetch only. A file already there is kept when its hash matches the pin. Writes `turbo-fetch.json`, where the files came from and their hashes. A model with terms beyond its licence needs `--accept-terms`, here and in `make`; a licence the user (`$USER`) already accepted in the zoo's acceptance file (`$TURBO_ZOO_HOME`, docs/zoo.md) needs no flag, and the flag records it there. |
 | `turbo-bundle catalogue` | The models `make` and `fetch` take by name instead of a recipe path, with their licences. |
 | `turbo-bundle reference <recipe> <upstream-dir> <bundle-dir>` | Everything `make` does after the fetch: the offline path, for an upstream directory filled another way. |
 | `turbo-bundle seal <recipe> <upstream-dir> <bundle-dir>` | Stage and seal with no container, from a reference and conversion reports a container already wrote into the bundle directory (see [../../bundle/README.md](../../bundle/README.md)). |

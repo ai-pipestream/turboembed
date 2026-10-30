@@ -33,10 +33,16 @@ pub mod topk;
 pub mod xray;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
-pub use analyzer::{Analyzer, ExecutionReport, LayerExecution, StepEvent, StepExecution, StepTiming};
+pub use analyzer::{
+    Analyzer, ExecutionReport, IncrementalReport, LayerExecution, StageCacheStatus, StageIncrementalReport, StepEvent,
+    StepExecution, StepTiming,
+};
 pub use annotate::{Annotator, Bound, Placed, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
-pub use doc::{Document, DuplicateLayerPolicy, LayerStatus, Status, View};
+pub use doc::{
+    ContentDigest, Document, DuplicateLayerPolicy, InputSnapshotDigest, LayerStatus, ProvenanceDigest,
+    SourceBytesDigest, Status, View, ViewTextDigest,
+};
 pub use error::Error;
 pub use evidence::{Evidence, EvidenceError, EvidenceStep, Evidenced, Producer, Support};
 pub use export::{

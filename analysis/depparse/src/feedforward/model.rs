@@ -64,7 +64,7 @@ pub struct NeuralWeights {
     pub output_weights: Vec<f32>,
     pub output_bias: Vec<f32>,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FeedforwardDependencyModel {
     pub(super) vocabulary: Vocabulary,
     pub(super) transitions: Vec<Transition>,

@@ -38,15 +38,10 @@ pub struct ModelsRelease {
 }
 
 /// The release that publishes the models of the MASC sentence detector,
-/// tokenizer, part-of-speech tagger and chunker recipes.
+/// tokenizer and part-of-speech tagger recipes.
 pub const MASC_MODELS: ModelsRelease = ModelsRelease {
     tag: "models-masc-3.0.0-1",
-    models: &[
-        "turbo-en-masc-3.0.0-sentence-1",
-        "turbo-en-masc-3.0.0-tokens-1",
-        "turbo-en-masc-3.0.0-pos-1",
-        "turbo-en-masc-3.0.0-chunks-1",
-    ],
+    models: &["turbo-en-masc-3.0.0-sentence-1", "turbo-en-masc-3.0.0-tokens-1", "turbo-en-masc-3.0.0-pos-1"],
 };
 
 /// The release that publishes the models of the UD recipes that passed
@@ -166,9 +161,10 @@ impl ModelsRelease {
     /// compared with.
     pub(super) fn recipe_references(&self) -> Vec<Reference> {
         let masc = self.recipes().into_iter().filter_map(|r| r.reference().ok());
-        let ud = self.ud_recipes().into_iter().map(|r| r.reference);
-        let language = self.language_recipes().into_iter().map(|r| r.reference);
-        let web = self.web_language_recipes().into_iter().flat_map(|r| [r.tatoeba.reference, r.compared]);
+        let ud = self.ud_recipes().into_iter().filter_map(|r| r.reference);
+        let language = self.language_recipes().into_iter().filter_map(|r| r.reference);
+        let web =
+            self.web_language_recipes().into_iter().flat_map(|r| [r.tatoeba.reference, Some(r.compared)]).flatten();
         masc.chain(ud).chain(language).chain(web).collect()
     }
 }
