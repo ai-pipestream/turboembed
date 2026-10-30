@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "gold_file": "wnut17-test.tsv",
+  "gold_sha256": "2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0",
+  "sentences": 1287,
+  "tokens": 23394,
+  "resamples": 1000,
+  "seed": 42,
+  "conditioning": [
+    "entities: exact-span F1 from BIO labels; lenient decoding (an I- with no open span of its type starts one); paired bootstrap resampling sentences",
+    "tokenization: gold tokens are given to every system; a prediction must label every gold token",
+    "label mapping: each peer runner maps its label set to the gold labels and documents the map beside its record"
+  ],
+  "systems": [
+    {
+      "system": "gliner-0.2.21-small-v2.1",
+      "entities": {
+        "correct": 562,
+        "selected": 1573,
+        "target": 1079,
+        "score": 42.38310708898944,
+        "low": 39.52498297162855,
+        "high": 44.881578645520406
+      },
+      "per_type": [
+        {
+          "kind": "corporation",
+          "correct": 40,
+          "selected": 143,
+          "target": 66,
+          "score": 38.277511961722496
+        },
+        {
+          "kind": "creative-work",
+          "correct": 13,
+          "selected": 34,
+          "target": 142,
+          "score": 14.772727272727273
+        },
+        {
+          "kind": "group",
+          "correct": 34,
+          "selected": 144,
+          "target": 165,
+          "score": 22.006472491909385
+        },
+        {
+          "kind": "location",
+          "correct": 100,
+          "selected": 249,
+          "target": 150,
+          "score": 50.125313283208015
+        },
+        {
+          "kind": "person",
+          "correct": 345,
+          "selected": 912,
+          "target": 429,
+          "score": 51.45413870246085
+        },
+        {
+          "kind": "product",
+          "correct": 30,
+          "selected": 91,
+          "target": 127,
+          "score": 27.522935779816514
+        }
+      ]
+    }
+  ]
+}

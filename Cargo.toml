@@ -2,8 +2,11 @@
 members = [
     "core",
     "bundle",
+    "trainer",
+    "trainer/recipes",
     "bench",
     "server",
+    "zoo-remote",
     "demo",
     "examples/docling",
     "analysis/core",
@@ -38,7 +41,6 @@ members = [
     "analysis/normalize-layers",
     "analysis/numeric",
     "analysis/pii",
-    "analysis/parser",
     "analysis/postag",
     "analysis/sentdetect",
     "analysis/sequence",
@@ -72,6 +74,7 @@ members = [
     "analysis/vector-index",
     "analysis/wordnet",
     "analysis/hunspell",
+    "analysis/pins",
     "analysis/zoo",
     "analysis/zstd",
 ]

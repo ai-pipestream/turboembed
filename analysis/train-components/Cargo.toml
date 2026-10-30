@@ -22,11 +22,10 @@ turbo-tokenize = { path = "../tokenize" }
 turbo-sequence = { path = "../sequence" }
 # The lemmatizer's context generator and the edit scripts its classes are.
 turbo-lemmatizer = { path = "../lemmatizer" }
-# The language detector's context generator: the n-grams of a text in the
-# JVM's hash map order.
-turbo-langdetect = { path = "../langdetect" }
+# The language detector's five input normalizers.
+turbo-normalize = { path = "../normalize" }
 # The sentiment detector's context generators and model file names.
-turbo-doccat = { path = "../doccat" }
+turbo-doccat = { path = "../doccat", features = ["classical"] }
 # The abbreviation dictionary the context generators look up, dictionary
 # XML, and the model files the cross validators read back.
 turbo-maxent = { path = "../maxent" }
@@ -34,14 +33,9 @@ turbo-maxent = { path = "../maxent" }
 turbo-unicode = { path = "../unicode" }
 # UTF-16 lengths and `String.compareTo`.
 turbo-jvm = { path = "../jvm" }
-# The constituency parse trees, head rules, context generators and model
-# reader the parsers' event streams, trainers and evaluator use.
-turbo-parser = { path = "../parser" }
-# `Span`, which the part-of-speech samples made of parse trees carry and
-# the tests build samples with; the analyzer the sentiment detector runs in.
+# `Span`, which the tests build samples with; the analyzer the sentiment
+# detector runs in.
 turbo-analysis = { path = "../core" }
-
-turbo-depparse = { path = "../depparse" }
 turbo-analysis-layers = { path = "../layers" }
 
 [dev-dependencies]
@@ -51,5 +45,3 @@ turbo-namefind = { path = "../namefind" }
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }
-# Opens the chunker models trained here as the chunker opens them.
-turbo-phrase-chunker = { path = "../phrase-chunker" }

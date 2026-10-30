@@ -11,16 +11,5 @@ name = "turbo_langspan"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
-# The n-gram scorer: OpenNLP's language detector and its model.
 turbo-langdetect = { path = "../langdetect" }
-# The normalizers OpenNLP's detector runs, to drop what it would not see.
-turbo-normalize = { path = "../normalize" }
-# The Script property, for script runs.
 turbo-unicode = { path = "../unicode" }
-
-turbo-calibration = { path = "../calibration" }
-
-[dev-dependencies]
-turbo-train = { path = "../train" }
-turbo-goldens = { path = "../goldens" }
-turbo-maxent = { path = "../maxent" }

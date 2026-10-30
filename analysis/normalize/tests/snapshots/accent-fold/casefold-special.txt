@@ -1,0 +1,19 @@
+===OUT===
+STRASSE Strasse SS I i ﬃ ŉ j ι υ h υ α ρ.
+Mixed Case: Hello World, MiXeD cAsE, ECOLE, NANDU, ΑΒΓ, АБВ, Ꭰ ꭰ.
+Titlecase ǅ ǈ ǋ ǲ and ligature ﬆ ﬓ և.
+
+===EDITS===
+12	14	ss
+16	19	SS
+20	22	I
+23	25	i
+33	35	j
+36	38	ι
+39	41	υ
+42	45	h
+46	49	υ
+50	53	α
+54	57	ρ
+96	98	E
+104	106	N

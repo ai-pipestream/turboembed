@@ -40,9 +40,11 @@ pub(super) enum Step<'a> {
         w: &'a [f32],
         b: &'a [f32],
     },
-    /// Each written range's vector from x, `per_task` ranges a task,
-    /// into `out`, [ranges, output_dim] packed.
+    /// Each written range's vector from `src`, x or a tap's states in
+    /// xn, `per_task` ranges a task, into `out`, [ranges, output_dim]
+    /// packed.
     PoolRanges {
+        src: *const f32,
         out: *mut f32,
         per_task: usize,
     },
@@ -85,7 +87,7 @@ impl Job<'_> {
                 Step::Norm(w, b) => self.norm(t, w, b),
                 Step::NormInto(w, b) => self.norm_into(t, w, b),
                 Step::Embed { ty, w, b } => self.embed(t, *ty, w, b),
-                Step::PoolRanges { out, per_task } => self.pool_ranges(t, *out, *per_task),
+                Step::PoolRanges { src, out, per_task } => self.pool_ranges(t, *src, *out, *per_task),
             }
         }
     }
@@ -170,11 +172,11 @@ impl Job<'_> {
     /// # Safety
     /// `out` holds a vector of output_dim values for every written range.
     #[inline(always)]
-    unsafe fn pool_ranges(&self, t: usize, out: *mut f32, per_task: usize) {
+    unsafe fn pool_ranges(&self, t: usize, src: *const f32, out: *mut f32, per_task: usize) {
         let e = self.e;
         let od = e.output_dim;
-        // SAFETY: no task of this step writes x.
-        let x = unsafe { std::slice::from_raw_parts(self.bufs.x, self.tokens * e.hidden) };
+        // SAFETY: src is x or xn, which no task of this step writes.
+        let x = unsafe { std::slice::from_raw_parts(src, self.tokens * e.hidden) };
         let first = t * per_task;
         for (i, range) in e.ranges.iter().enumerate().skip(first).take(per_task) {
             let (row, len) = (range.row as usize, e.rows[range.row as usize].1);

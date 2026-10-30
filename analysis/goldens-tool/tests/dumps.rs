@@ -11,7 +11,11 @@ fn every_checked_in_golden_of_a_model_has_a_dump_whose_header_parses() {
     // run without a model (the plain tokenizers and the newline detector).
     let (mut with_model, mut without_model, mut threw) = (0, 0, 0);
     for annotator in recipe::DUMPED_ANNOTATORS {
-        let mut stack = vec![paths::data_dir().join(annotator)];
+        let root = paths::data_dir().join(annotator);
+        if !root.exists() {
+            continue;
+        }
+        let mut stack = vec![root];
         while let Some(dir) = stack.pop() {
             for entry in std::fs::read_dir(&dir).unwrap() {
                 let p = entry.unwrap().path();
@@ -28,7 +32,7 @@ fn every_checked_in_golden_of_a_model_has_a_dump_whose_header_parses() {
             }
         }
     }
-    assert!(with_model > 600, "{with_model} goldens of runs with a model");
+    assert_eq!(with_model, 247, "{with_model} goldens of runs with a model");
     assert!(without_model > 150, "{without_model} goldens of runs without a model");
     assert_eq!(output::check_dumps(&paths::data_dir()).unwrap(), with_model - threw);
 }

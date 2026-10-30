@@ -32,7 +32,7 @@ use turbo_schema_extract::model::{Gliner2Extractor, Scores};
 const REAL_BOUND: f32 = 1e-4;
 
 fn env(name: &str) -> PathBuf {
-    std::env::var_os(name).map(PathBuf::from).unwrap_or_else(|| panic!("set {name}"))
+    turbo_pins::require(std::env::var_os(name).map(PathBuf::from).unwrap_or_else(|| panic!("set {name}")))
 }
 
 #[test]

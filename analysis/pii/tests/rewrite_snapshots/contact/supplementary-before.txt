@@ -1,0 +1,12 @@
+MASKED	𐐨𐐩 ****@*******.*** after Deseret letters, 192.0.2.1 after.
+
+MASK_ALL	𐐨𐐩 ################ after Deseret letters, 192.0.2.1 after.
+
+REWRITE	pseudonymize	OK	𐐨𐐩 EMAIL-1 after Deseret letters, 192.0.2.1 after.
+
+LABEL	pseudonymize	9	25	9	16	EMAIL-1
+REWRITE	hmac	OK	𐐨𐐩 EMAIL-8afbd74c31f47786 after Deseret letters, 192.0.2.1 after.
+
+LABEL	hmac	9	25	9	31	EMAIL-8afbd74c31f47786
+AUDIT	email	1	1	EMAIL-8afbd74c31f47786
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-8afbd74c31f47786]

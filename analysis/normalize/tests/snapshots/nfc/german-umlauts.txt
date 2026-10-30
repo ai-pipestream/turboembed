@@ -1,0 +1,9 @@
+===OUT===
+Müller, König, Bäcker und Öl für Ärzte. Straße, Große, Fuß, weiß, ẞeta.
+GRÖßE und GRÜẞE; Schlüssel, über, Übung, Äßer, Käse, möglich.
+Already ASCII: Mueller, Koenig, Strasse, Aepfel; but decomposed ü ö ä too.
+
+===EDITS===
+222	225	ü
+226	229	ö
+230	233	ä

@@ -28,19 +28,6 @@ The inputs of the inflate and zip fixtures are not checked in. `Inputs.java` mak
 with a 64-bit linear congruential generator, and `tests/inflate.rs` rebuilds the same
 bytes with the same generator and checks their size and CRC-32 against the index.
 
-`RealModelValues.java` prints the values in `tests/models.rs` for the OpenNLP 2.5.4 UD
-Spanish and French tokenizer models, which are not checked in (about 540 KB each):
-
-| Model | SHA-256 |
-|---|---|
-| `opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin` | `309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7` |
-| `opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin` | `a06dbc9b72600ba0886f64a632636e136e5fc225955913c4c1a926a9333bc14a` |
-
-`turbo-goldens fetch-models` downloads them, and `tests/models.rs` reads them from
-`TURBO_GOLDENS_MODELS` (or `target/turbo-goldens/models`) through
-`turbo_goldens::published_model`; without them it skips, unless
-`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`.
-
 ## Provenance
 
 - OpenNLP: the 3.0.0-SNAPSHOT jars built from the OpenNLP checkout at commit
@@ -59,11 +46,7 @@ java -cp "$CLASSES:$CP" MakeInflateFixtures .
 java -cp "$CLASSES:$CP" MakeZipFixtures .
 java -cp "$CLASSES:$CP" MakeModelFixtures .
 java -cp "$CLASSES:$CP" MakeTextFixtures .
-java -Dstdout.encoding=UTF-8 -cp "$CLASSES:$CP" RealModelValues "$MODELS/opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin"
-java -Dstdout.encoding=UTF-8 -cp "$CLASSES:$CP" RealModelValues "$MODELS/opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin"
 ```
 
 Training is deterministic, so the models and expected values come out the same on a
 rerun; `tokenizer.bin` differs only in its manifest timestamp and the zip entry times.
-`RealModelValues` prints Rust source lines; paste them into the case tables of
-`tests/models.rs`.

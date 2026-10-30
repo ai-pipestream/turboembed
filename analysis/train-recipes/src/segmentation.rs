@@ -1,5 +1,8 @@
-//! The English sentence detector and tokenizer trained on MASC, and their
-//! gates against the OpenNLP English UD models.
+//! The English sentence detector and tokenizer trained on MASC. The
+//! sentence detector's gate reference is retired (#1509); the tokenizer
+//! has none since #1645 retired the OpenNLP UD tokenizer models, so
+//! its scores read the gold token spans alone and it has no
+//! reference gate.
 //!
 //! Each recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults and the released MASC parameters: GIS,
@@ -64,27 +67,29 @@ pub const SENTENCES_PER_SAMPLE: usize = crate::ud::SENTENCES_PER_SAMPLE;
 /// recipe gives the same bytes on every run: 2026-10-14T00:00:00Z.
 pub const TIMESTAMP_MS: i64 = 1_791_936_000_000;
 
-/// One trained model and the OpenNLP model it is gated against.
+/// One trained model and the reference model it is gated against, if any.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SegmentationRecipe {
     pub component: Component,
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
-    /// The reference model's id in the zoo's built-in index.
-    pub reference_id: &'static str,
+    /// The reference model's id: an OpenNLP 2.5 model, which is not
+    /// fetched or pinned (#1509, [`crate::Reference::Retired`]).
+    /// `None` when the recipe has no reference model: the tokenizer's
+    /// was retired with the OpenNLP UD tokenizer models (#1645), so
+    /// its [`Recipe::reference`](crate::Recipe::reference) is
+    /// [`Error::NoReference`](crate::error::Error::NoReference).
+    pub reference_id: Option<&'static str>,
 }
 
 pub const SENTENCE: SegmentationRecipe = SegmentationRecipe {
     component: Component::Sentence,
     model_id: "turbo-en-masc-3.0.0-sentence-1",
-    reference_id: "opennlp-en-ud-ewt-sentence-1.3-2.5.4",
+    reference_id: Some("opennlp-en-ud-ewt-sentence-1.3-2.5.4"),
 };
 
-pub const TOKENS: SegmentationRecipe = SegmentationRecipe {
-    component: Component::Tokens,
-    model_id: "turbo-en-masc-3.0.0-tokens-1",
-    reference_id: "opennlp-en-ud-ewt-tokens-1.3-2.5.4",
-};
+pub const TOKENS: SegmentationRecipe =
+    SegmentationRecipe { component: Component::Tokens, model_id: "turbo-en-masc-3.0.0-tokens-1", reference_id: None };
 
 /// The recipes, sentence detector first.
 pub const RECIPES: [SegmentationRecipe; 2] = [SENTENCE, TOKENS];
@@ -417,30 +422,24 @@ impl SegmentationRecipe {
     ///
     /// [`Error::ReferenceDigest`] for other bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        crate::Reference::Zoo(self.reference_id).check(bytes)
+        match self.reference_id {
+            Some(id) => crate::Reference::Retired(id).check(bytes),
+            None => Err(Error::NoReference { recipe: self.model_id }),
+        }
     }
 
     /// The reference model's file name in the zoo's built-in index.
     pub fn reference_file(&self) -> Result<String> {
-        crate::Reference::Zoo(self.reference_id).file()
+        match self.reference_id {
+            Some(id) => crate::Reference::Retired(id).file(),
+            None => Err(Error::NoReference { recipe: self.model_id }),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_recipes_name_models_the_zoo_lists_as_references() {
-        for r in RECIPES {
-            assert!(r.reference_file().unwrap().ends_with(".bin"));
-            assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
-            let id: turbo_zoo::ArtifactId = r.model_id.parse().unwrap();
-            assert_eq!(id.as_str(), r.model_id);
-        }
-        assert_eq!(SENTENCE.task(), Task::SentenceDetector);
-        assert_eq!(TOKENS.task(), Task::Tokenizer);
-    }
 
     #[test]
     fn tokens_are_in_text_order_unless_one_starts_or_ends_before_the_one_before_it() {

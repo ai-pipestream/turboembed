@@ -1,0 +1,14 @@
+MASKED	IMEI: ***********7518 recorded; imei **-******-***148-1 too.
+
+MASK_ALL	IMEI: ############### recorded; imei ################## too.
+
+REWRITE	pseudonymize	OK	IMEI: CARD-1 recorded; imei CARD-2 too.
+
+LABEL	pseudonymize	6	21	6	12	CARD-1
+LABEL	pseudonymize	37	55	28	34	CARD-2
+REWRITE	hmac	OK	IMEI: CARD-562fad218fa2f0bb recorded; imei CARD-af09deeae5378ead too.
+
+LABEL	hmac	6	21	6	27	CARD-562fad218fa2f0bb
+LABEL	hmac	37	55	43	64	CARD-af09deeae5378ead
+AUDIT	card	2	2	CARD-562fad218fa2f0bb, CARD-af09deeae5378ead
+AUDIT_REPORT	card: 2 mentions, 2 distinct [CARD-562fad218fa2f0bb, CARD-af09deeae5378ead]

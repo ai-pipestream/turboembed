@@ -1,0 +1,5 @@
+arguana: 41.33 -> 51.40, +10.07 points (95% interval +8.61 to +11.56, p = 0.0001, 1406 queries)  gain
+nfcorpus: 32.31 -> 34.06, +1.75 points (95% interval +0.58 to +2.94, p = 0.0042, 323 queries)
+qasper: 38.97 -> 37.85, -1.12 points (95% interval -2.41 to +0.16, p = 0.0855, 1451 queries)  below the floor
+scifact: 66.53 -> 69.21, +2.68 points (95% interval +0.88 to +4.57, p = 0.0053, 300 queries)  gain
+FAIL: 2 of 4 sets gained at least 2 points with an interval above zero (2 needed), floor -0.5

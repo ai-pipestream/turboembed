@@ -321,7 +321,7 @@ impl WebLanguageCard {
         if self.id != LANGDETECT_WEB.model_id {
             return Err(not("no recipe trains it"));
         }
-        let reference = LANGDETECT_WEB.tatoeba.reference;
+        let reference = LANGDETECT_WEB.tatoeba.reference.ok_or(not("its recipe has no reference to gate against"))?;
         for gate in [&self.gate, &self.web_gate] {
             if gate.reference != reference.id() || gate.reference_sha256 != reference.sha256()? {
                 return Err(not("it was not gated against its recipe's reference"));

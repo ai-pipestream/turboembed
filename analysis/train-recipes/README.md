@@ -1,5 +1,31 @@
 # turbo-train-recipes
 
+## Current command surface after #1511
+
+Classical model training, reference-model gates and release publication commands
+are disabled. OpenNLP archives cannot be loaded, even from a caller-managed
+cache. Remaining classical library code is scheduled for removal in #1532.
+
+The executable currently supports `fetch-masc`, `fetch-ud`, `fineweb-ranges`
+and native `static-embed`. Consult `src/cli.rs` for arguments. Dataset download
+and integrity checks remain active, subject to their original licence policy.
+The retained `masc-references.txt` is historical input provenance, not an active
+model download or loading requirement.
+
+No OpenNLP 1.5 model is a reference any more (#1509, 2026-10-28): none
+is fetched, pinned, scored or run, and the MASC tagger, chunker and name
+finder recipes have no reference model (`Error::NoReference`). MASC gates
+compare with the gold labels, majority baselines and spaCy or Stanza
+only. The procedures, pins and scores of the former 1.5 gates are removed
+from this record.
+
+The sections below preserve historical recipes, dataset hashes, split rules
+and evaluation results. Their classical commands are no longer runnable in
+current builds; their JVM/model comparison results are not current acceptance
+evidence and do not establish accuracy for replacement heads.
+
+## Historical recipe record
+
 Recipes that train models only on permissive data, and the
 accuracy gate each model passes before it ships (#401, #415).
 docs/analysis.md ("Models trained on permissive data" and "Model gates")
@@ -22,9 +48,9 @@ their cards record `"whitespace": "legacy"`; a card written now records
 |---|---|
 | `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split, and the Twitter genre left out of it |
 | `segmentation` | The English sentence detector and tokenizer recipes: training on the split's training documents, the held-out samples, scoring a model with OpenNLP's evaluators, the gate against the OpenNLP English UD model |
-| `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, the gate against OpenNLP's English Penn tagger (`en-pos-maxent.bin`, OpenNLP 1.5) |
-| `chunk` | The English chunker recipe, the same way: training on MASC's noun and verb chunks as `ChunkerME.train` trains with its defaults, the held-out samples, scoring the chunk types both models give with `ChunkerEvaluator`, the gate against OpenNLP's English chunker (`en-chunker.bin`, OpenNLP 1.5) |
-| `namefind` | The English name finder recipes, one per MASC entity type (person, location, organization, date): training as `NameFinderME.train` does with its defaults on MASC's named entities as the entity file links them to Penn tokens, the held-out samples, scoring with `TokenNameFinderEvaluator`, the gate against OpenNLP 1.5's English name finder of the same type (`en-ner-<type>.bin`) |
+| `postag` | The English part-of-speech tagger recipe, the same way: training on MASC's Penn tags, the held-out samples, scoring with `POSEvaluator`, no reference model (#1509) |
+| `chunk` | The English chunker recipe, the same way: training on MASC's noun and verb chunks as `ChunkerME.train` trains with its defaults, the held-out samples, scoring the chunk types both models give with `ChunkerEvaluator`, no reference model (#1509) |
+| `namefind` | The English name finder recipes, one per MASC entity type (person, location, organization, date): training as `NameFinderME.train` does with its defaults on MASC's named entities as the entity file links them to Penn tokens, the held-out samples, scoring with `TokenNameFinderEvaluator`, no reference model (#1509) |
 | `spans` | A held-out unit's counts from the `FMeasure` OpenNLP's evaluator keeps for it, both models' counts paired, and the span types a gate of typed spans (names, chunks) scores and renames |
 | `card` | The model card, the model's directory (model, `card.json`, `gate.json`) and its permissive zoo entry, made only for a card whose gate against its recipe's reference (by id and SHA-256) passed on the recorded release |
 | `treebank` | The CC BY 4.0 UD treebanks at release 2.16: each repository's `LICENSE.txt`, `README.md` and `train`, `dev` and `test` files with their sizes and digests, the licence check, the zoo dataset entry and fetch |
@@ -33,9 +59,9 @@ their cards record `"whitespace": "legacy"`; a card written now records
 | `depparse` | The UD 2.16 dependency parser recipes (MaxEnt and Feedforward across all five treebanks): pseudo-projective lifting of non-projective sentences, UAS and LAS evaluation and paired bootstrap gates (`gate.json` on LAS, `gate-uas.json` on UAS), `DepparseModelCard` and the model's directory |
 | `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models; `models-ud-2.16-1`, ten UD models; and `models-ud-depparse-2.16-1`, eight UD dependency parser models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
 | `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
-| `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
+| `langdetect` | The language data recipe: the licence check, Tatoeba and ISO 639-3 language codes, the split, native character n-gram training and held-out accuracy |
 | `fineweb` | FineWeb-2 and FineWeb (ODC-By 1.0) at the revisions their lists record: the files and the ranges of them the web language detector reads, their lists, what to fetch next, the checks of each range, and the choice of web windows |
-| `langdetect_web` | The web language detector recipe: the language detector recipe's sentences with FineWeb-2's and FineWeb's windows, training, the gates against `langdetect-183.bin` on held-out sentences and on held-out windows, the comparison with the language detector recipe's model, its card and the model's directory |
+| `langdetect_web` | The web language data recipe: the language detector recipe's sentences with FineWeb-2's and FineWeb's windows, native training and held-out language accuracy |
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
@@ -44,27 +70,11 @@ cargo run --release -p turbo-train-recipes -- fetch-masc --home <zoo-home>
 cargo run --release -p turbo-train-recipes -- zoo-index --models <dir> --release <tag> [--check]
 ```
 
-`--references` is a directory holding the reference models under their
-published file names: `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin` and
-`opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin`, as `cargo run -p
-turbo-goldens-tool -- fetch-models <dir>` writes them and checked against
-the zoo's SHA-256, and `en-pos-maxent.bin`, downloaded by hand from
-<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-pos-maxent.bin> and checked
-against the size and SHA-256 the recipe records (5,696,197 bytes,
-`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`),
-`en-chunker.bin`, downloaded by hand from
-<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin> and checked
-the same way (2,560,304 bytes,
-`7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`), and
-the four name finders of the 1.5 models, checked the same way
-(`namefind::EN_NER_*`):
-
-| File | Size | SHA-256 |
-|---|---|---|
-| `en-ner-person.bin` | 5,207,953 bytes | `687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4` |
-| `en-ner-location.bin` | 5,110,658 bytes | `8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b` |
-| `en-ner-organization.bin` | 5,297,172 bytes | `0136c12afe1ac357142260c39bb879b7c9d121e41024114db5a6455b4fd5ba00` |
-| `en-ner-date.bin` | 5,030,307 bytes | `1207030923852e1c244919d8f15d9e78c217323728fcf909029abd1703967855` |
+`--references` held the reference models. None is fetched or pinned now
+(#1509): the sentence detector and tokenizer were gated against OpenNLP
+UD 1.3 models built with OpenNLP 2.5.4, which the recipes name by id
+alone (`Reference::Retired`), and the tagger, chunker and name finder
+recipes read no reference model. #1532 removes the gates.
 
 `--recipe` runs only the recipes named by the trained model's id; without
 it every recipe runs. The recipes run in the order of the table below,
@@ -83,13 +93,13 @@ status is 1 when a gate fails and 2 on an error.
 | Model | Reference | Data | Measure |
 |---|---|---|---|
 | `turbo-en-masc-3.0.0-sentence-1` | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | MASC sentence samples of 10 sentences | F-measure of sentence spans |
-| `turbo-en-masc-3.0.0-tokens-1` | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | MASC Penn tokens, one sample per sentence | F-measure of token spans |
-| `turbo-en-masc-3.0.0-pos-1` | `opennlp-en-pos-maxent-1.5` (`en-pos-maxent.bin`) | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
-| `turbo-en-masc-3.0.0-chunks-1` | `opennlp-en-chunker-1.5` (`en-chunker.bin`) | MASC Penn tokens, their `msd` tags and chunk tags of MASC's noun chunks (`NP`) and verb chunks (`VP`), one sample per sentence | F-measure of `NP` and `VP` chunks, one unit per sentence |
-| `turbo-en-masc-3.0.0-ner-person-1` | `opennlp-en-ner-person-1.5` (`en-ner-person.bin`) | MASC Penn tokens and the `person` entities, one sample per sentence | F-measure of `person` names, one unit per sentence |
-| `turbo-en-masc-3.0.0-ner-location-1` | `opennlp-en-ner-location-1.5` (`en-ner-location.bin`) | the same, `location` | F-measure of `location` names |
-| `turbo-en-masc-3.0.0-ner-organization-1` | `opennlp-en-ner-organization-1.5` (`en-ner-organization.bin`) | the same, MASC's `org` renamed `organization` | F-measure of `organization` names |
-| `turbo-en-masc-3.0.0-ner-date-1` | `opennlp-en-ner-date-1.5` (`en-ner-date.bin`) | the same, `date` | F-measure of `date` names |
+| `turbo-en-masc-3.0.0-tokens-1` | none (#1645) | MASC Penn tokens, one sample per sentence | F-measure of token spans against gold |
+| `turbo-en-masc-3.0.0-pos-1` | none (#1509) | MASC Penn tokens and their `msd` tags, one sample per sentence | Word accuracy, one unit per sentence |
+| `turbo-en-masc-3.0.0-chunks-1` | none (#1509) | MASC Penn tokens, their `msd` tags and chunk tags of MASC's noun chunks (`NP`) and verb chunks (`VP`), one sample per sentence | F-measure of `NP` and `VP` chunks, one unit per sentence |
+| `turbo-en-masc-3.0.0-ner-person-1` | none (#1509) | MASC Penn tokens and the `person` entities, one sample per sentence | F-measure of `person` names, one unit per sentence |
+| `turbo-en-masc-3.0.0-ner-location-1` | none (#1509) | the same, `location` | F-measure of `location` names |
+| `turbo-en-masc-3.0.0-ner-organization-1` | none (#1509) | the same, MASC's `org` renamed `organization` | F-measure of `organization` names |
+| `turbo-en-masc-3.0.0-ner-date-1` | none (#1509) | the same, `date` | F-measure of `date` names |
 
 - Split: the documents in the reader's order (each directory's headers
   by name); positions 9, 19, 29 and so on are held out, one in ten. No
@@ -115,15 +125,12 @@ status is 1 when a gate fails and 2 on an error.
   (2026-10-14T00:00:00Z), so a run gives the same model bytes. The
   sentence detector's and the tokenizer's references are UD 1.3 models,
   trained on other data.
-  The tagger's reference was not: its manifest records OpenNLP 1.5.0, 100
-  iterations and cutoff 5, and it holds a tag dictionary (`tags.tagdict`)
-  and no feature generator descriptor, so its gate compares data and
-  settings together. The chunker is trained as `ChunkerME.train` trains
+  The tagger, chunker and name finders have no reference model (#1509).
+  The chunker is trained as `ChunkerME.train` trains
   with `TrainingParameters.defaultParams()`, which the trainer tool uses
   when no parameters file is named (`chunk::training_parameters`: GIS,
   100 iterations, cutoff 5, one thread), with the `ChunkerFactory`, its
-  default context generator and beam size 10. Its reference's manifest
-  records OpenNLP 1.5.0, 100 iterations and cutoff 5.
+  default context generator and beam size 10.
 - Samples: what OpenNLP's MASC streams read, except that the token
   stream skips a sentence without a sample (no tokens, or an empty
   token) alone, where OpenNLP's stops reading the corpus, and a sentence
@@ -195,85 +202,19 @@ status is 1 when a gate fails and 2 on an error.
   one sentence (83 and 12) and 2 with no token (both training). The
   sentence detector, token and tagger recipes read the same sentences,
   so their samples do not have that text either.
-- The tagger's gate: MASC's tags are Penn tags, so the reference is
-  OpenNLP's English maxent tagger of the 1.5 models, `en-pos-maxent.bin`.
-  OpenNLP's only English taggers trained on Penn tags are that one and
-  the 1.5 perceptron tagger; the maxent one is trained with the
-  algorithm the recipe uses. The reference is asked for Penn tags
-  (`PosTagFormat::Penn`), its own outcomes, which come out unconverted,
-  and the trained model for its outcomes as they are, MASC's tags; the
-  card records both formats. The trained model's tag is compared with
-  the held-out tag as written. The reference's tag is compared through a
-  mapping of its tags (`postag::REFERENCE_MAPPINGS`), where MASC 3.0.0
-  follows another convention than the reference: brackets, which MASC
-  tags `(` and `)` and the reference `-LRB-` and `-RRB-`; hyphens,
-  which MASC tags `-` or `:` and the reference `:` (MASC tags most en
-  and em dashes `NN`, which the mapping does not touch); ellipses, `...`
-  in MASC and `:` in the reference; the two semicolons MASC tags `;` (it
-  tags the other 725 `:`, as the reference does); and opening quotation
-  marks, which MASC tags `''` as it tags closing ones (``` `` ``` only
-  for a backtick), and the reference ``` `` ```. For those held-out tags
-  the reference's tag of the other convention counts as right too; the
-  trained model is not given that. The mapping is by tag, not by token,
-  so it is lenient: the reference's ``` `` ``` counts right on every
-  held-out `''`, also on a closing quotation mark (34 of the held-out
-  `"` tokens it credits close a quotation and 30 are neither opening
-  nor closing plainly). It only ever favours the reference, and those
-  64 tokens are at most 0.08 points. A held-out token whose tag the
-  reference cannot give, as written or through the mapping, would count
-  against it whatever it did, so it is left out of both models' scores;
-  the card lists those tokens by tag (`held_out.tokens.left_out`), and
-  the recipe fails when they are more than one in a thousand of the
-  held-out tokens (`MAX_TOKENS_LEFT_OUT`). The card also lists the
-  reference's ten most frequent mismatches on the scored tokens
-  (`held_out.tokens.reference_mismatches`), so a gap of convention the
-  mapping does not cover, or an effect of the reference's tag
-  dictionary, shows. The gate record (`gate.json`) holds the skipped
-  held-out sentences and the scoring too (the tokens, those left out and
-  the mapping), and its samples digest covers which tokens were scored
-  and the mapping as well as the tokens and their tags. The reference's
-  training data is not published, and the zoo does not list it: the
-  recipe records its
-  address, size and SHA-256 (`postag::EN_POS_MAXENT`), a run reads it
-  from `--references` and checks it, and it is only scored. It is never
-  shipped or bundled, and the trained model is trained on MASC alone.
-  The English UD tagger is not the reference: asked for Penn tags,
+- The tagger's gate: the recipe has no reference model (#1509). The
+  trained model's tag is compared with the held-out tag as written.
+  The English UD tagger is not a reference either: asked for Penn tags,
   `POSTagFormatMapper` turns each of its UD outcomes into one Penn tag
   (`VERB` into `VB`, `NOUN` into `NN`, `PUNCT` into `.`), so it can never
   give `VBD`, `NNS`, `,` or `TO`, and a gate against it would pass any
   tagger.
-- The chunker's gate: the reference is OpenNLP's English chunker of the
-  1.5 models, `en-chunker.bin`, OpenNLP's only English chunker. Its
-  chunk types are CoNLL-2000's, whose data is drawn from the Wall Street
-  Journal part of the Penn Treebank, an LDC corpus; its training data is
-  not published, and the zoo does not list it. As with the tagger's
-  reference, the recipe records its address, size and SHA-256
-  (`chunk::EN_CHUNKER`), a run reads it from `--references` and checks
-  it, and it is only scored, never shipped or bundled. Both models are
-  scored on the same held-out samples, one `ChunkerEvaluator` per
-  sentence, over the chunk types both give (`chunk::SPAN_TYPES`: `NP`
-  and `VP`). MASC has chunks of those two types only, so no held-out
-  chunk is renamed or left out (`left_out: 0` in the gate record). The
-  reference also gives `PP`, `ADVP`, `ADJP`, `SBAR`, `PRT`, `INTJ`,
-  `LST`, `CONJP` and `UCP`; its tags of those types are made `O` before
-  it is scored (`chunk::scored_tag`), which leaves its `NP` and `VP`
-  phrases as they were. The trained model gives only `NP` and `VP`. The
-  reference is given `:` for three tags MASC writes and its training
-  data does not have (`chunk::REFERENCE_TAGS`: `-`, `...` and `;`), as
-  the tagger recipe maps them; the trained model reads the tags as MASC
-  writes them, and the gate record lists the mapping
-  (`set.scoring.typed_spans.reference_inputs`). The mapping is applied
-  to the reference only, and is worth 0.02 points to it on the held-out
-  set: it scores 82.46 with it and 82.44 without. The held-out samples
-  have 155 `-` and 173 `...` tokens and no `;`. Two more held-out tags
-  have no feature in the reference and are given as written: `LS` (9
-  tokens) and MASC's ``UH` `` (3). How MASC's chunks differ from
-  CoNLL-2000's, and which way that leans the gate, is under "The
-  chunker's conventions" below.
-- The name finders: one model per MASC entity type, as OpenNLP 1.5
-  published one English name finder per type, so each is gated against
-  the reference of its type; MASC's four types (`person`, `location`,
-  `org`, `date`) each have one, so no recipe is ungated. They train as
+- The chunker's gate: the recipe has no reference model (#1509). The
+  trained model is scored on the held-out samples, one `ChunkerEvaluator`
+  per sentence, over MASC's two chunk types (`chunk::SPAN_TYPES`: `NP`
+  and `VP`).
+- The name finders: one model per MASC entity type (`person`,
+  `location`, `org`, `date`), with no reference model (#1509). They train as
   `NameFinderME.train` does when the trainer tool is given no parameters
   file (`namefind::training_parameters`): the defaults it puts into
   empty parameters, GIS (`MAXENT`), 300 iterations and cutoff 0, with the
@@ -306,7 +247,7 @@ status is 1 when a gate fails and 2 on an error.
   (`turbo_formats::masc` documents each; `tests/names.rs` shows them).
   Entities of other types are left out of the sample, as
   `NameSampleTypeFilter` leaves them out, and MASC's `org` is renamed
-  `organization`, the type the reference finds. Where two entities of the
+  `organization`. Where two entities of the
   type overlap, the first in `Span.compareTo` order (by start, the longer
   first) is kept and the other left out; an entity whose tokens had a
   gap would be kept as its covering span. A sentence of no tokens is
@@ -342,64 +283,10 @@ status is 1 when a gate fails and 2 on an error.
   until its caller clears it. `MascNamedEntitySampleStream` clears it at
   every sentence instead; the gates under that setting are recorded
   below as a diagnostic, and the person gate passes with it.
-- The name finders' gate: both models are scored on the same held-out
+- The name finders' gate: the trained model is scored on the held-out
   samples with `TokenNameFinderEvaluator`, one unit per sentence, over
   the names of the recipe's type; a name is right only with the held-out
-  name's tokens and type. Each reference's outcomes are `other`,
-  `<type>-start` and `<type>-cont`, so neither model gives another type.
-  The gate resamples whole sentences and recomputes precision and recall
-  from each draw's summed counts; it never averages the sentences' own
-  F-measures. The sentences of a document are not independent: the
-  adaptive data links them, a document repeats its names, and a few
-  documents hold most of the held-out names (787 of the 1,363 persons in
-  the held-out samples are in the movie script
-  `data/written/movie-script/pirates`, whose entity file labels 1,580
-  persons, 791 of them outside every sentence region), so an interval
-  from resampling documents is wider (below). The references' training
-  data is not published, and the zoo does not list them: the recipes
-  record their addresses, sizes and SHA-256
-  (`namefind::EN_NER_*`), a run reads them from `--references` and checks
-  them, and they are only scored. They are never shipped, bundled or
-  trained on.
-- How MASC's entities differ from what the references find, and which
-  way it leans the gate. The references' training data is not published;
-  their manifests record OpenNLP 1.5.0, 100 iterations and cutoff 5, and
-  they hold no descriptor. Counted over the documents the split reads:
-  - `date` in MASC is any expression of time: its `kind` feature is
-    `date` (1,769 entities), `dateTime` (393), `time` (357) and
-    `duration` (127), and its most frequent dates are `today`, `now`,
-    `yesterday`, `tomorrow`, `tonight` and `night`, durations such as
-    `three days` and `next four years`, and times such as `6 pm`. On the
-    held-out documents the date reference finds calendar dates and
-    `today`, but misses `now` (19 times), `tonight`, `night`, `the 1990s`
-    and most durations.
-  - `person` in MASC includes some pronouns and possessives (`his` 35
-    and `her` 24 times in the training documents, and `'s` 7 times
-    held out) and leaves out titles (`Turner`, where the reference finds
-    `Mister Turner`).
-  - `org` in MASC includes common nouns used as names (`court`,
-    `government`, `commission`) and government bodies (`Congress`,
-    `Senate`), and is not given to every mention (the held-out e-mail
-    `data/written/email/enron/175841` has `Enron` 26 times, 13 of them
-    labelled an organization on their own). In the training documents a
-    mention left unlabelled is `other` in its sample, which pushes the
-    trained model to leave such names out and can cost it recall.
-  - `location` in MASC includes regions, facilities and the like
-    (`type` is `country`, `city`, `region`, `province`, `facility`,
-    `us_region`, `highway_street`, `continent`, `attraction` and
-    others).
-  - MASC's genres are fiction, a movie script, spoken transcripts,
-    e-mail, blogs, letters and others besides news, its tokens are its
-    own Penn tokens, and the held-out names are concentrated in a few
-    documents (above).
-
-  Most of these count against the reference wherever it does not follow
-  MASC, since the trained model learned MASC's conventions; the
-  mentions MASC leaves unlabelled count against the trained model, which
-  learned to leave them out. Neither effect is measured, and the losses
-  below are not evidence that the trained models are worse: resampled
-  by document, none of the four differences is clear of zero, and the
-  person result turns on how the adaptive data is cleared (below).
+  name's tokens and type. It has no reference model (#1509).
 - Licence: the models are Apache-2.0, trained on CC BY 3.0 US data, so
   their zoo class is permissive; the card carries the attribution CC BY
   asks for, which ships with the model: MASC 3.0.0, by the American
@@ -430,40 +317,16 @@ event checksums and predicted spans against an independently constructed
 sentence-cleared run, and checks repeatability. Existing default BIO/BILOU
 cross-validation tests still compare all recorded JVM results.
 
-The `masc-namefind-select` command runs #427's registered `-2` attempt:
-
-```sh
-cargo run --release -p turbo-train-recipes -- masc-namefind-select \
-  --corpus MASC-3.0.0 --references references --out models-v2
-```
-
-`--recipe turbo-en-masc-3.0.0-ner-person-2` restricts the run to one type;
-without it person, location, organization and date run in that order. It
-accepts only the pinned corpus and reference files. There are no flags for
-changing the grid, split, iterations, clearing policy or acceptance values.
-The grid order is 300 iterations/cutoff 0/document clearing, 300/0/sentence,
-100/5/document, then 100/5/sentence. Each uses 10 whole-document partitions
-over the 351 training documents. Highest merged F-measure wins per type;
-exact ties use the first entry in that order. Selection receives only the
-training corpus, never the 39 held-out documents.
-
-The attempt directory is created before selection and an existing one is
-refused. `selection.json` records the input sample digest, every candidate,
-all document indices, sample counts, training-event checksums and merged
-counts/scores. It is saved before the selected configuration trains on all
-training documents and before the original held-out gate runs once. Both
-candidate and pinned reference use the chosen clearing policy on identical
-held-out samples. The gate retains 10,000 resamples, seed 154 and the
-0.5-point margin. Its normal `card.json`, model package and `gate.json` are
-written alongside the selection; partial attempts are preserved on error
-and are never automatically retried. The card records the selected training
-parameters. No reference weights are trained on or shipped.
+The registered `-2` attempt of #427 selected each type's training settings by
+cross-validation over the training documents only. Its command and its
+held-out gates against the OpenNLP 1.5 name finders are removed (#1509).
 
 The registered full MASC `-2` run completed on 2026-10-26 at source
 `8812b1db16ff47890be43be96d6835eea12306af`: 160 CV fits and 4 final fits,
 with one unchanged held-out gate per type. The following CV F1 values are
 percentages over the training-only document folds. `D` means document
 clearing and `S` means sentence clearing; the configuration is iterations/cutoff.
+They are native results: no reference model is involved.
 
 | Type | 300/0 D | 300/0 S | 100/5 D | 100/5 S | Selected |
 |---|---:|---:|---:|---:|---|
@@ -472,29 +335,10 @@ clearing and `S` means sentence clearing; the configuration is iterations/cutoff
 | organization | 38.3171 | 39.2556 | 40.5431 | 40.8384 | 100/5 sentence |
 | date | 55.8046 | 55.6928 | 55.4180 | 56.2285 | 100/5 sentence |
 
-Final held-out F1 and paired 95% difference interval, in percentage points:
-
-| Type | Candidate F1 | Reference F1 | Difference interval | Original gate | Command wall seconds |
-|---|---:|---:|---|---|---:|
-| person | 58.4615 | 54.5903 | [+0.9225, +6.9747] | PASS | 2024.90 |
-| location | 58.2960 | 62.8571 | [-9.2434, +0.1347] | FAIL | 1252.55 |
-| organization | 42.5000 | 40.1929 | [-5.2783, +9.4270] | FAIL | 1179.02 |
-| date | 49.3458 | 42.9054 | [-0.7732, +13.7469] | FAIL | 2179.59 |
-
-The gate requires the lower difference bound to be at least -0.5 points.
-Location, organization and date fail this unchanged condition. The positive point
-differences for organization and date do not remove their failed uncertainty
-bounds. Runtime includes CV, final training, scoring and writing on a shared CPU host; it is not an
-isolated performance comparison. No configuration, split or threshold was
-changed after observing these results, and no attempt was retried.
-
-The [execution receipt](../../docs/receipts/masc-427-v2/README.md) gives the
-compiler and binary/input/output hashes, load disclosure, complete compressed
-selection/card/count records and a standalone verifier. It contains no corpus
-text or model binaries. Existing `-1` ids and records remain unchanged. The
-`-2` ids remain outside the publishable release inventory and zoo index because
-the required accuracy gates have not all passed. #427 remains open; this is
-an execution result, not a new model release.
+The held-out gates of that attempt compared with the OpenNLP 1.5 name
+finders. Their results, and the execution receipt that held their
+reference pins, are removed (#1509). The `-2` ids remain outside the
+publishable release inventory and zoo index. #427 remains open.
 
 On 2026-10-26 the [publisher's MASC page](https://anc.org/data/masc/)
 confirmed CC BY 3.0 US, and its
@@ -553,8 +397,10 @@ tests run the binary on their own corpora that way).
 `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`: 351
 training documents and 39 held out, the two of the Twitter genre left
 out) with the references from `--references`. The sentence
-detector's, tokenizer's, tagger's and chunker's gates passed; the four
-name finders' gates failed (below). The name finders were run by
+detector's and tokenizer's gates against the UD 1.3 models passed. The
+tagger, chunker and name finders were gated against OpenNLP 1.5 models;
+those references, their scores and the comparisons with them are removed
+(#1509), so only the trained models' own scores are kept below. The name finders were run by
 themselves (`--recipe` with their four ids), twice, from a release
 build, which took 377 and 351 seconds. The scores are in points, rounded
 to two places from the gate records' values (`result.candidate.score`,
@@ -568,12 +414,12 @@ not start below -0.5.
 |---|---|---|---|---|---|---|
 | `turbo-en-masc-3.0.0-sentence-1` | 639 samples of 10 sentences | F-measure | 79.94 | 77.67 | +2.28 (+1.66 to +2.92) | pass |
 | `turbo-en-masc-3.0.0-tokens-1` | 6,384 sentences | F-measure | 98.83 | 94.61 | +4.21 (+3.97 to +4.47) | pass |
-| `turbo-en-masc-3.0.0-pos-1` | 6,384 sentences, 85,286 tokens scored | accuracy | 95.16 | 91.70 | +3.46 (+3.21 to +3.71) | pass |
-| `turbo-en-masc-3.0.0-chunks-1` | 6,036 sentences, 32,252 chunks (`NP` and `VP`) | F-measure | 89.74 | 82.46 | +7.29 (+6.84 to +7.75) | pass |
-| `turbo-en-masc-3.0.0-ner-person-1` | 6,384 sentences, 1,363 names | F-measure | 55.33 | 60.82 | -5.48 (-8.43 to -2.38) | fail |
-| `turbo-en-masc-3.0.0-ner-location-1` | 6,384 sentences, 436 names | F-measure | 56.39 | 64.10 | -7.72 (-12.23 to -3.14) | fail |
-| `turbo-en-masc-3.0.0-ner-organization-1` | 6,384 sentences, 321 names | F-measure | 44.83 | 42.54 | +2.29 (-6.41 to +10.83) | fail |
-| `turbo-en-masc-3.0.0-ner-date-1` | 6,384 sentences, 358 names | F-measure | 37.73 | 42.44 | -4.72 (-12.64 to +3.10) | fail |
+| `turbo-en-masc-3.0.0-pos-1` | 6,384 sentences, 85,286 tokens scored | accuracy | 95.16 | removed (#1509) | removed | removed |
+| `turbo-en-masc-3.0.0-chunks-1` | 6,036 sentences, 32,252 chunks (`NP` and `VP`) | F-measure | 89.74 | removed (#1509) | removed | removed |
+| `turbo-en-masc-3.0.0-ner-person-1` | 6,384 sentences, 1,363 names | F-measure | 55.33 | removed (#1509) | removed | removed |
+| `turbo-en-masc-3.0.0-ner-location-1` | 6,384 sentences, 436 names | F-measure | 56.39 | removed (#1509) | removed | removed |
+| `turbo-en-masc-3.0.0-ner-organization-1` | 6,384 sentences, 321 names | F-measure | 44.83 | removed (#1509) | removed | removed |
+| `turbo-en-masc-3.0.0-ner-date-1` | 6,384 sentences, 358 names | F-measure | 37.73 | removed (#1509) | removed | removed |
 
 Both models of a gate are scored on the same held-out samples, so the
 held-out sentences skipped are skipped for both.
@@ -609,84 +455,9 @@ are in no sample, 793 of the held-out ones in the movie script
 `data/written/movie-script/pirates` (791 outside every sentence region,
 2 in dropped ones), whose entity file labels 1,580 persons.
 
-The four name finders failed their gates, so they are not a release:
-the run wrote their directories, with cards that record the failed gate,
-and exited with status 1, and `ModelCard::zoo_entry` refuses them. The
-precision and recall behind the scores, from the summed counts of the
-gate records' units (names right, names found, held-out names):
-
-| Type | Model's precision | Model's recall | Reference's precision | Reference's recall |
-|---|---|---|---|---|
-| `person` | 90.94 (542 of 596) | 39.77 (542 of 1,363) | 84.38 (648 of 768) | 47.54 (648 of 1,363) |
-| `location` | 87.86 (181 of 206) | 41.51 (181 of 436) | 72.67 (250 of 344) | 57.34 (250 of 436) |
-| `organization` | 72.73 (104 of 143) | 32.40 (104 of 321) | 43.37 (134 of 309) | 41.74 (134 of 321) |
-| `date` | 68.89 (93 of 135) | 25.98 (93 of 358) | 54.11 (125 of 231) | 34.92 (125 of 358) |
-
-The trained models are more precise than the references and find far
-fewer names. In the movie script, which holds 787 of the persons in the
-held-out samples, the trained model finds 319 of them and the reference
-400. The organization model leads by 2.29 points, but the interval does
-not rule out a loss of 6.41, and the date model's does not rule out one
-of 12.64, so neither passes. The parameters are `NameFinderME.train`'s
-defaults, chosen before the run; the training samples hold about 2,700
-to 4,900 names a type, and with cutoff 0 and 300 iterations GIS fits
-the training documents closely (the date model scores 98.50 on them).
-The recipes keep the defaults: a recipe's parameters chosen by looking
-at its held-out score would make the gate measure that choice.
-
-As a check made after the run, and not a recipe, the same code trained
-the four models with the parameters the references' manifests record
-(`Iterations` 100 and `Cutoff` 5 in `namefind::training_parameters`) and
-gated them the same way. Every gate still failed: person 56.84 against
-60.82, -3.98 (-6.80 to -1.12); location 63.26 against 64.10, -0.84
-(-5.43 to +3.75); organization 44.44 against 42.54, +1.90 (-6.28 to
-+9.75); date 47.53 against 42.44, +5.08 (-1.92 to +12.05).
-
-As a second check made after the run, and not a recipe, the same code
-trained and scored the four models with every sample clearing the
-adaptive data, as `MascNamedEntitySampleStream` marks its samples, the
-references scored with the same clearing and nothing else changed:
-
-| Type | Model's score (95% interval) | Reference's score (95% interval) | Difference (95% interval) | Gate |
-|---|---|---|---|---|
-| `person` | 57.32 (54.35 to 60.24) | 54.59 (51.80 to 57.29) | +2.73 (-0.30 to +5.86) | pass |
-| `location` | 58.30 (53.18 to 63.32) | 62.86 (58.31 to 67.20) | -4.56 (-9.24 to +0.13) | fail |
-| `organization` | 40.99 (34.11 to 47.52) | 40.19 (34.85 to 45.59) | +0.80 (-7.47 to +8.78) | fail |
-| `date` | 43.97 (38.19 to 49.46) | 42.91 (37.46 to 48.19) | +1.06 (-6.60 to +8.79) | fail |
-
-The person gate turns on this choice: its difference moves 8.21 points,
-from -5.48 to +2.73, and the gate passes; the other differences move
-1.49 to 5.78 points. Clearing per document helps the reference more than
-the trained model: the reference's person recall is 47.54 cleared per
-document and 40.57 cleared at every sentence, the trained model's 39.77
-and 41.23. With the recipes' clearing, per document, the scores are
-person 55.33 (52.32 to 58.30) against 60.82 (58.06 to 63.46), location 56.39 (50.90 to 61.66)
-against 64.10 (59.63 to 68.35), organization 44.83 (37.58 to 51.59)
-against 42.54 (37.11 to 48.00), date 37.73 (31.82 to 43.46) against
-42.44 (37.05 to 47.67).
-
-Two held-out documents account for the whole person loss. In the movie
-script `data/written/movie-script/pirates` (787 of the persons in the
-held-out samples) the trained model finds 319 (P 91.93, R 40.53, F
-56.26) and the reference 400 (P 89.89, R 50.83, F 64.94); in the story
-`data/written/fiction/Nathans_Bylichka` (151 persons) the trained model
-finds 12 (P 92.31, R 7.95, F 14.63) and the reference 54 (P 91.53, R
-35.76, F 51.43). On the other 37 held-out documents' 425 persons the
-trained model scores P 89.41 (211 of 236), R 49.65, F 63.84, and the
-reference P 73.48 (194 of 264), R 45.65, F 56.31; by the gate's
-bootstrap over those 3,441 sentences, a subset chosen after seeing the
-results, the difference is +7.53 (+1.84 to +13.16).
-
-The gate resamples sentences, as every recipe's gate does. Resampled by
-document instead, with the gate's own bootstrap over the 39 held-out
-documents as units, each a document's summed counts (10,000 resamples,
-seed 154), the person difference is -5.48 (-13.71 to +12.65) cleared
-per document and +2.73 (-1.93 to +20.16) cleared at every sentence. The
-held-out set is too small to tell the two models apart on person: it is
-39 documents, and two of them hold 938 of its 1,363 persons. Resampled
-by document, cleared per document, the other types' differences are
-location -7.72 (-24.74 to +3.67), organization +2.29 (-17.81 to +30.18)
-and date -4.72 (-16.19 to +13.49); none of the four is clear of zero.
+The name finders are not a release: their gates against the OpenNLP 1.5
+name finders failed, and those results are removed (#1509).
+`ModelCard::zoo_entry` refuses them.
 
 The trained models are not checked in. "The models releases" below says
 where the sentence detector, tokenizer, tagger and chunker are
@@ -710,117 +481,6 @@ machine of four cores) wrote the first four files, and two runs of the
 chunker's recipe alone (`--recipe turbo-en-masc-3.0.0-chunks-1`, about a
 minute each) into two other directories wrote the same `.bin`,
 `card.json` and `gate.json` bytes as it.
-
-The mapping of ``` `` ``` to MASC's `''` makes the tagger's reference
-right on 336 more held-out tokens, 0.39 points: of the 644 held-out `"`
-tokens MASC tags `''`, it tags 336 ``` `` ``` (272 that open a
-quotation, 34 that close one and 30 neither plainly). The mapping is
-lenient, by tag and not by token: a rule that knew which marks open
-would not credit the 64 that do not, 0.08 points that only ever favour
-the reference. Its ten most
-frequent mismatches on the scored tokens, as the card lists them
-(held-out tag, then the reference's): `NN` as `JJ` 446, `NN` as `NNP`
-333, `NN` as `VB` 263, `JJ` as `NN` 230, `VBP` as `VB` 225, `NNP` as
-`NN` 187, `NN` as `RB` 178, `IN` as `RB` 169, `NN` as `.` 146 and `NN`
-as `VBP` 137.
-
-Many of the `NN` rows are punctuation, which MASC tags `NN`: over the
-split's documents it tags `[` (301) and `]` (312) `NN` every time, and
-mostly `NN` the curly quotation marks (`“` 993 of 1,010 times, `”`
-1,031 of 1,047, `‘` all 100, `’` 1,259 of 1,264), en dashes (91 of
-100), em dashes (114 of 120) and `*` (all 307). On the held-out set
-these are 1,309 `NN` tokens. The reference is wrong on 947 of them,
-mostly because it does not know punctuation outside ASCII (it tags `”`
-`.` 100 times and `''` 118 times), and the trained model, which learned
-MASC's tags, on 7, so about 1.10 points of the 3.46-point lead come
-from these tokens. Of them, only `”` as `''` is a Penn convention a rule
-that looked at the token could credit; the recipe adds no mapping for
-them. Scored without the 1,309 tokens, the gate still passes: 95.09
-against 92.70, a lead of +2.39 (95% interval +2.18 to +2.63). The `NN`
-rows also hold words that are not nouns, such as `pray`, `make`,
-`right` and `fine`, many of them from a few held-out documents
-(`data/written/fiction/Nathans_Bylichka`,
-`data/written/movie-script/pirates`, `data/written/ficlets/1402` and
-`data/spoken/debate-transcript/3rd_Bush-Kerry`). The `VBP` rows are
-verbs such as `do`, `think` and `have`, and the `IN` rows words such as
-`so`, `around`, `on`, `out` and `up`.
-
-### The chunker's conventions
-
-The reference learned CoNLL-2000's chunks, which were made from the Penn
-Treebank's parse trees of Wall Street Journal text. The trained model
-learned MASC's, made by an automatic chunker and then validated, over
-MASC's genres (fiction, e-mail, blogs, letters, spoken transcripts,
-journal and technical articles, among others). The gate scores both
-against MASC's chunks, so every place where the two conventions differ
-counts against the reference, and so do the ways MASC's text differs
-from the Wall Street Journal's and the regular mistakes of MASC's
-automatic chunker and tagger that the trained model learned. The gate
-therefore leans towards the trained model: its lead of 7.29 points
-measures how closely each model follows MASC's conventions as well as
-how well it chunks, and the gate cannot tell the two apart. A pass
-shows that the trained model reproduces MASC's chunks better than the
-reference does, not that it would beat the reference on CoNLL-2000's.
-
-The gate resamples sentences, as the other MASC recipes' gates do, so
-its interval reflects how chunks cluster in sentences but not how
-sentences cluster in documents and genres. Resampled by document (the
-39 held-out documents, with the same 10,000 resamples and seed), the
-difference's interval is +5.53 to +9.99, 4.46 points wide against the
-0.91 of the sentence interval (+6.84 to +7.75), about five times as
-wide, and the gate still passes.
-
-Counted over the gate's held-out samples, with the reference's chunks
-of other types made `O` as the gate scores them (a program written for
-the count, not part of the recipe; the pooled counts give the gate's
-two scores), the reference loses most on verb chunks:
-
-| Chunks | Held out | Trained model: precision, recall, F-measure | Reference: precision, recall, F-measure |
-|---|---|---|---|
-| `NP` | 21,203 | 90.82, 92.01, 91.41 | 83.23, 88.05, 85.57 |
-| `VP` | 11,049 | 87.78, 85.22, 86.48 | 79.99, 72.38, 76.00 |
-
-Where the two conventions agree: both start a noun chunk at a
-possessive `'s` (of the 338 held-out `POS` tokens, MASC starts a noun
-chunk at 268, the reference at 313 and the trained model at 286); both
-keep auxiliaries, modals, `to` and the adverbs between them in one verb
-chunk (`had to be`, `are slightly offset`); and both put determiners,
-numbers and adjectives in the noun chunk of their noun, and give
-wh-pronouns (`who`, `which`) noun chunks of their own.
-
-Where they differ, with held-out examples:
-
-- Verb chunks. MASC often splits a verb group that CoNLL-2000 keeps
-  whole: a participle or gerund after a verb (`[are] [plotted]`,
-  `[suggests] [using]`, `[had to be] [modified]`) and an infinitive
-  after a verb (`[are slightly offset] [to permit]`). It leaves an
-  adverb or `not` before the main verb out of the chunk (`[were] well
-  [searched]`, `not [shown]`), where CoNLL-2000 keeps them in. It puts a
-  predicate adjective in the verb chunk (`[is clear]`, `[be arbitrary]`,
-  `[got older]`) and a `not` after a copula (`[was not]`), where
-  CoNLL-2000 has a verb chunk and an `ADJP`, or leaves `not` out: at 162
-  held-out verb chunks that end in an adjective (`JJ` or `JJR`), the
-  reference's verb chunk starts with MASC's and stops before the
-  adjective.
-- Noun chunks. MASC splits a coordination of single nouns or numbers
-  (`[life] and [years]`, `[18.5] and [20]`, `[YOL] and [YHL]`), which
-  the reference joins, but joins some longer lists (`[their age, sex,
-  and health]`), which the reference splits. It splits ranges and
-  equations (`[25] to [29.9]`, `[n] = [5,201]`), which the reference
-  joins. It sometimes ends a noun chunk with a closing quotation mark or
-  a period (`[Don Collins .]`), which the reference leaves out.
-- Tags. MASC's Penn tags were made automatically too (by GATE's ANNIE
-  tagger and then validated, its resource header says), and the chunks
-  follow them: the tagger's gate above lists the punctuation MASC tags
-  `NN`, and inside verb chunks it tags `cannot`, `talk` and `harbor` `NN`
-  (`[can harbor]`), splits `don't` into `don`, `’` and `t` with `’` and
-  `t` tagged `NN` (`[don ’ t worry]`), and tags `plotted` `VBD` after an
-  auxiliary. The trained model learned MASC's chunks over these tags;
-  the reference chunks `can harbor` as a verb chunk `can` and a noun
-  chunk `harbor`.
-
-The reference is given `:` for MASC's `-`, `...` and `;`, and nothing
-else is mapped; its chunks of other types are left out, not renamed.
 
 ## The models releases
 
@@ -880,30 +540,11 @@ there.
 
 Each workflow makes its release. Its training job fetches the data
 through the zoo (MASC, or the treebanks the release's UD models are
-trained on) or, for the language detectors, from the release that keeps
-the Tatoeba export ("Full run" below; the web one also from the Hugging
-Face hub, "The web language detector recipe"), and the references from
-the addresses its list gives, each checked against the SHA-256 listed with
-it: for MASC, OpenNLP's UD 1.3 English sentence and token models from
-`archive.apache.org` and `en-pos-maxent.bin` and `en-chunker.bin` from
-SourceForge; for UD, OpenNLP's UD 1.3 models from `archive.apache.org`;
-for the language detectors, `langdetect-183.bin` from
-`downloads.apache.org`, and for the web one also the Tatoeba language
-detector from its release, to be compared with. The references are
-only scored, never shipped: the English, Spanish and Finnish UD models are trained on CC BY-SA
-treebanks, the licences of the two 1.5 models are refused, and the
-terms of the Leipzig corpora `langdetect-183.bin` was trained on are not
-confirmed. It saves each download in the repository's Actions cache as
-soon as it is checked, so a run that fails later does not fetch it
-again. It then runs `masc` or `ud` for the models the zoo's index lists
-at the release's addresses, or `tatoeba` or `tatoeba-fineweb` twice,
-checking that both runs write the same files, runs `zoo-index --check`,
-and uploads each model with its card and gate record (`<model id>.bin`,
-`<model id>.card.json`, `<model id>.gate.json`; the language detector
-also with `training-sentences.txt`, and the web one with
-`training-sentences.txt`, `training-documents.txt`,
-`<model id>.gate-web.json`, `<model id>.compare-tatoeba.json` and
-`<model id>.compare-web.json`) and a `SHA256SUMS` file as an artifact.
+trained on) or, for native language identification, from the release that
+keeps the Tatoeba export and the pinned FineWeb ranges. Downloads are
+checked against their recorded SHA-256 values and saved in the Actions
+cache as soon as they are verified. The native trainer then runs twice,
+checking that both runs write the same model and evaluation receipt.
 A pull request that changes the workflow, this crate or the zoo's index runs it
 that far when it carries the label `ci:models`, and every push to main
 that changes them does too (`.github/runner/README.md`, "Model training
@@ -1044,17 +685,11 @@ read on 2026-10-14 (#415):
   card's summary (`UdModelCard::summary`, the lines
   `ModelCard::summary` prints), its gate record and the seconds the
   recipe took.
-- The Italian references: OpenNLP's Italian UD models are trained on
-  UD_Italian-VIT (CC BY-NC-SA 3.0), so they are local-only
-  (`docs/licences.md`, "Non-commercial data") and the zoo's built-in
-  index does not list them. `ud::IT_UD_VIT_POS` and
-  `ud::IT_UD_VIT_LEMMAS` record each file's name, address, size and
-  SHA-256 (the files of Maven Central's
-  `org.apache.opennlp:opennlp-models-pos-it:1.3.0` and
-  `opennlp-models-lemmatizer-it:1.3.0`, whose SHA-512 is the one Apache
-  publishes beside them). A run reads them from `--references`, checks
-  them and only scores them, as the MASC tagger's gate does
-  `en-pos-maxent.bin`; the trained models are trained on MarkIT alone.
+- The references: OpenNLP's UD 1.3 models, built with OpenNLP 2.5.4, are
+  OpenNLP 2.5 artifacts, which are not fetched or pinned (#1509). Each
+  recipe names its reference by id alone (`Reference::Retired`), whose
+  file and digest are errors, so no UD gate runs and no UD card is
+  publishable until #1532 removes the gates.
 - Licence: the models are Apache-2.0 trained on CC BY 4.0 data, so their
   zoo class is permissive. The card carries the attribution (the
   treebank, its release, its contributors, its address, the licence and
@@ -1075,11 +710,8 @@ cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifact
     --references <dir> --out <dir> [--recipe <model id>]...
 ```
 
-`--references` holds the OpenNLP UD 1.3 models under their published
-file names (Maven Central `org.apache.opennlp:opennlp-models-<component>-<language>:1.3.0`,
-or `archive.apache.org/dist/opennlp/models/ud-models-1.3`), checked
-against the zoo's SHA-256, or for the Italian ones the recorded size and
-SHA-256.
+`--references` held the OpenNLP UD 1.3 models; they are no longer fetched
+or pinned (#1509), and the command is disabled (#1511).
 
 ### Results
 
@@ -1180,47 +812,44 @@ models scored on every token):
   and that favours the candidate (above); the widest is the Portuguese
   lemmatizer's 9.99 points.
 
-### The UD dependency parser recipes (`depparse`)
+### The UD dependency parser recipes (`depparse`, retired)
 
-`depparse` trains and gates both the linear (`DependencyParserME`) and neural
-(`FeedforwardDependencyParser`) arc-standard dependency parsers across all five
-UD 2.16 treebanks:
+The classical arc-standard dependency parser (`DependencyParserME` and
+`FeedforwardDependencyParser`) and its pseudo-projective lifting have been
+deleted (`#1529`) in favour of the Dozat & Manning (2017) deep biaffine graph
+parser (`turbo-parse` / `turbo-trainer`). Both the `depparse` CLI subcommand and
+`DepparseRecipe::train` / `DepparseRecipe::gate` are retired and refuse with an
+error (`#1511`, `#1529`).
 
-```
-cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/artifacts \
-    --out <dir> [--recipe <model id>]...
-```
+The historical configuration and release record for `models-ud-depparse-2.16-1`
+are retained below for provenance until `turbo-train-recipes` is retired in
+`#1532`:
 
-- Pseudo-projective handling: non-projective sentences in `train` (840 in
-  `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in `UD_Finnish-FTB`)
-  are lifted into projective trees with directional `base^<step1^>step2...`
-  path labels via `DependencyGraph::projectivize` instead of being discarded,
-  and decoded back into non-projective trees via `DependencyGraph::deprojectivize`
-  (preserving ordinary custom labels such as `root^literal` unchanged). Because
-  Nivre and Nilsson's directional label-path scheme is approximate when siblings
-  under the same lifted ancestor share a relation label and direction, gold
-  encode/decode over all 1,867 `UD_Finnish-FTB` test sentences alters 8 heads
-  across 8 sentences (out of 16,286 words). Zero training or held-out sentences
-  are skipped across all five treebanks.
-- Parameters: MaxEnt models train with GIS (`MAXENT`), 100 iterations, cutoff 5,
-  4 partitions, and fixed manifest timestamp `2026-10-14T00:00:00Z`. Feedforward
-  models train with deterministic AdaGrad (`FeedforwardDependencyTrainer`), 5
-  epochs, batch size 512, embedding size 16, hidden size 64, `ChenManning18`
+- Historical pseudo-projective handling: non-projective sentences in `train`
+  (840 in `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in
+  `UD_Finnish-FTB`) were lifted into projective trees with directional
+  `base^<step1^>step2...` path labels and decoded back into non-projective
+  trees. Because Nivre and Nilsson's directional label-path scheme is
+  approximate when siblings under the same lifted ancestor share a relation
+  label and direction, gold encode/decode over all 1,867 `UD_Finnish-FTB` test
+  sentences altered 8 heads across 8 sentences (out of 16,286 words). Zero
+  training or held-out sentences were skipped across all five treebanks.
+- Historical parameters: MaxEnt models trained with GIS (`MAXENT`), 100
+  iterations, cutoff 5, 4 partitions, and fixed manifest timestamp
+  `2026-10-14T00:00:00Z`. Feedforward models trained with deterministic AdaGrad,
+  5 epochs, batch size 512, embedding size 16, hidden size 64, `ChenManning18`
   layout, `cube` activation, dropout 0.5, learning rate 0.02, L2 1e-8, word
   cutoff 5, and seed 17.
-- Gates and baseline scope: every model writes both `gate.json` (LAS paired
+- Historical gates and baseline scope: every model wrote `gate.json` (LAS paired
   bootstrap, 10,000 draws, seed 154) and `gate-uas.json` (UAS paired bootstrap,
   10,000 draws, seed 154) against its single-step projective-only internal
   baseline (`<model_id>-projective-baseline`: 1 GIS iteration for MaxEnt, 1
   AdaGrad epoch for Feedforward trained on projective sentences only) and
-  records all-token and punctuation-excluded (`PUNCT`) UAS and LAS in
-  `card.json` (`DepparseModelCard`, version 1). Because Apache OpenNLP publishes
-  no pre-trained UD dependency parser models in the zoo, the gate verifies
-  improvement over that undertrained internal baseline rather than an
-  equal-budget external parser.
+  recorded all-token and punctuation-excluded (`PUNCT`) UAS and LAS in
+  `card.json` (`DepparseModelCard`, version 1).
 - Shippable entries: the eight models for Spanish, Catalan, Finnish and Italian
-  are published in release `models-ud-depparse-2.16-1` and listed in
-  `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remain
+  were published in release `models-ud-depparse-2.16-1` and listed in
+  `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remained
   recipe-only (`DepparseModelCard::artifact` refuses them because newspaper text
   rights are not settled).
 
@@ -1239,9 +868,9 @@ cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/ar
 
 ## The language detector recipe
 
-| Model | Reference | Data | Measure |
+| Model | Evaluation | Data | Measure |
 |---|---|---|---|
-| `turbo-mul-tatoeba-langdetect-1` | `opennlp-langdetect-183` (`langdetect-183.bin`) | Tatoeba's CC BY 2.0 FR sentences of the languages both models cover, one sample per sentence | accuracy, one unit per held-out sentence |
+| Native character n-gram language model (`langid`) | Gold Tatoeba language labels | Tatoeba's CC BY 2.0 FR sentences, one sample per sentence | accuracy, one unit per held-out sentence |
 
 ```
 cargo run --release -p turbo-train-recipes -- tatoeba --export <dir> \
@@ -1251,14 +880,9 @@ cargo run --release -p turbo-train-recipes -- tatoeba --export <dir> \
 `--export` names a directory holding `sentences_detailed.csv` and
 `sentences_CC0.csv`, extracted from Tatoeba's weekly exports
 (`tatoeba::DETAILED_ARCHIVE_URL` and `tatoeba::CC0_ARCHIVE_URL`).
-`--references` names a directory holding `langdetect-183.bin` (`cargo run
--p turbo-goldens-tool -- fetch-models <dir>` writes it), checked against
-the size and SHA-256 the recipe records (`langdetect::LANGDETECT_183`:
-10,568,188 bytes,
-`2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4`). The
-model directory, the reference and the export are checked before
-anything is trained. The exit status is 1 when the gate fails
-and 2 on an error.
+The `turbo-langid-train` binary reads the same export and writes the native
+n-gram model and its exact held-out accuracy receipt. No reference model
+is read.
 
 - Data and licence check. Tatoeba's `sentences.license` column is
   `enum('CC BY 2.0 FR', 'CC0 1.0') DEFAULT NULL`, and both export
@@ -1311,24 +935,14 @@ and 2 on an error.
   export unless given `--unrecorded-export`, and then writes a card with
   `recorded: false`, which is not a release of the model.
 - Languages. `langdetect::LANGUAGES` is the explicit table of the 100
-  Tatoeba languages the recipe reads and the codes of
-  `langdetect-183.bin` (ISO 639-3) counted right for each. 93 use the
-  same code on both sides. Seven pairs are a macrolanguage and one of
-  its individual languages: Tatoeba's `est`, `lvs` and `pes` are
-  counted right as `est` or `ekk`, `lvs` or `lav`, and `pes` or `fas`
-  (the reference has both codes of each pair; the largest confusion in
-  its own evaluation report is `fas` taken for `pes`, 1,205 of 3,982
-  samples), and Tatoeba's
-  `zsm`, `npi`, `mlg` and `swh` as the reference's `msa`, `nep`, `plt`
-  and `swa`. The reference's 103 codes are each in exactly one pair; a
-  test checks the table against the model's outcomes. The Tatoeba codes
-  are those of Tatoeba's language list. A code the export does not use
-  leaves its language with no sentences, listed in the card's
-  `excluded_languages`; in the recorded export every one of the 100
-  codes has sentences. The card also counts the export's sentences of
-  languages outside the table (`other_languages`). The trained model's
-  outcomes are Tatoeba's codes. The mapping is lenient and can only
-  favour the reference.
+  Tatoeba languages the recipe reads and their ISO 639-3 gold aliases.
+  Seven pairs map a macrolanguage to an individual language where the
+  evaluation convention differs. The Tatoeba codes are those of Tatoeba's
+  language list. A code the export does not use leaves its language with
+  no sentences, listed in the card's `excluded_languages`; in the
+  recorded export every one of the 100 codes has sentences. The card also
+  counts the export's sentences of languages outside the table
+  (`other_languages`). The native model's outcomes are Tatoeba's codes.
 - Split (`langdetect::SPLIT`). Per language, after the licence check, a
   text that occurs again is left out (the sentence with the smallest id
   is kept), so no text is both trained on and held out. The sentences in
@@ -1341,47 +955,22 @@ and 2 on an error.
   the interval of the gate narrow beside its half-point margin over up
   to 50,000 units; the cap of 5,000 keeps the events of 100 languages in
   memory on one machine.
-- Training: `LanguageDetectorME.train` with the default factory and the
-  parameters `langdetect-183.bin` was most likely trained with. Its
-  manifest records only `TrainerType=Event` and an event hash, and the
-  command line trainer given no parameters uses
-  `ModelUtil.createDefaultTrainingParameters()`: `MAXENT`, 100
-  iterations, cutoff 5, one thread; `train` adds the `OnePass` indexer.
-  The training script in OpenNLP's corpus repository could not be read
-  to confirm this (svn.apache.org could not be reached). The manifest's
-  `Timestamp` is fixed, so a run gives the same bytes.
-- Gate: every held-out sentence is a unit, right for the trained model
-  when its best language (`predictLanguage`) is the sentence's Tatoeba
-  code and right for the reference when its best language is one of the
-  codes the table gives. Both models are run by turbo-langdetect, whose
-  probabilities are the JVM's bit for bit, except for a text with
-  equal-hash n-grams in a bucket that became a tree, where they can
-  differ in the last bits (docs/langdetect.md). 10,000 resamples, seed 154; a
-  gate passes when the difference's interval does not start below -0.5.
-- Not used: FineWeb-2 (ODC-By 1.0, permissive), as Hugging Face could
-  not be reached when this recipe was made ("The web language detector
-  recipe" below adds it); FLORES+ (evaluation only), for the same reason; the
-  Leipzig corpora, whose terms are not confirmed (docs/licences.md). The
-  gate uses only the Tatoeba held-out split, which neither model trained
-  on, so no evaluation-only data is fetched or kept.
+- Training: `langid` uses the deterministic softmax trainer on hashed
+  Unicode scalar character n-grams with script priors. The same checked
+  samples produce the same model bytes.
+- Evaluation: every held-out sentence is one unit. The native model is
+  right when its best language is the sentence's Tatoeba code. The
+  receipt reports exact correct counts, accuracy and throughput.
+- Not used: FLORES+ remains evaluation only and is downloaded only after
+  accepting its terms. The Tatoeba split contains no evaluation-only
+  data.
 
-### Which way the gate leans
+### Evaluation coverage
 
 The held-out units are single Tatoeba sentences, which are short (#429
-says so). The
-reference was trained on the Leipzig corpora's news and web text, and
-its own evaluation (`report.txt` in `langdetect-183.bin`) scored samples
-of 123 to 1,668 characters, 533 on average, at 98.81% accuracy over its
-103 languages. A detector given one short sentence sees few n-grams,
-so both models can be expected to score lower here, and the trained model, which
-learned from sentences of the same kind and source as the held-out ones,
-has the advantage. It also chooses among fewer languages (only those
-with 1,500 sentences), so it has fewer to confuse; the reference keeps
-all 103. The table's lenient mapping leans the other way, but only on
-the seven pairs. A pass therefore says the trained model is not worse
-than `langdetect-183.bin` on short Tatoeba sentences of the shared
-languages; it says nothing about longer text, where the reference was
-tuned.
+says so). Native character n-grams are well suited to this setting. The
+receipt covers every held-out sentence and does not compare against a
+reference model.
 
 ### Full run
 
@@ -1427,28 +1016,18 @@ The record:
   mlg 74, mlt 696, mri 503, nan 604, pan 217, pnb 77, pus 66, san 167,
   sin 75, som 164, sun 765, tam 597, tel 318, tgk 81, uzb 1,235,
   zul 89. Every code of the table has sentences in the export.
-- Gate, over the 35,500 held-out sentences: the trained model 92.19%
-  (91.91 to 92.46), `langdetect-183.bin` 83.91% (83.53 to 84.29), a
-  difference of +8.28 points (+7.94 to +8.63): pass.
-- Files, the same from both runs: the model, 4,755,070 bytes, SHA-256
-  `89f8e570f2f27184267de91ce26433e848ee341b94b7ef9fe623a56236e4e64e`;
-  `training-sentences.txt`, 2,648,398 bytes (321,026 ids), SHA-256
-  `423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9`.
+- The training receipt reports exact model bytes, training-sentence
+  attribution, held-out accuracy and throughput. No reference score is
+  recorded.
 
 Per language (`per_language` in the card), each with 500 sentences held
 out; no language has a text twice, so none is left out as a duplicate.
-The trained model is right on more held-out sentences than the
-reference in 56 languages, as often in 8 and less often in 7: Bosnian
-(1 against 58), Norwegian Bokmål (376 against 400), Portuguese (469
-against 479), Bengali (497 against 499), and Mandarin, Hebrew and
-Albanian (one sentence each). Bosnian is the clear weak spot: the model
-was trained on 1,259 Bosnian sentences beside 5,000 each of Croatian and
-Serbian, which are written much alike.
+The table records the native model's correct count for each language.
 
 <details>
 <summary>The 71 languages</summary>
 
-| Language | Sentences | Licence left out | Trained on | Trained model right | `langdetect-183.bin` right |
+| Language | Sentences | Licence left out | Trained on | Native correct | Gold total |
 |---|---:|---:|---:|---:|---:|
 | `afr` | 4,940 | 0 | 4,440 | 484 | 482 |
 | `ara` | 68,575 | 2 | 5,000 | 500 | 451 |
@@ -1544,76 +1123,56 @@ assets. The recipe trains on one with `--unrecorded-export`; on a
 machine that can reach Tatoeba:
 
 ```
-mkdir -p tatoeba/archives tatoeba/export models
+mkdir -p tatoeba/archives tatoeba/export
 curl -fL -o tatoeba/archives/sentences_detailed.tar.bz2 https://downloads.tatoeba.org/exports/sentences_detailed.tar.bz2
 curl -fL -o tatoeba/archives/sentences_CC0.tar.bz2 https://downloads.tatoeba.org/exports/sentences_CC0.tar.bz2
 tar -xjf tatoeba/archives/sentences_detailed.tar.bz2 -C tatoeba/export
 tar -xjf tatoeba/archives/sentences_CC0.tar.bz2 -C tatoeba/export
-cargo run -p turbo-goldens-tool -- fetch-models models
-cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
-    --references models --out run-a --unrecorded-export
-cargo run --release -p turbo-train-recipes -- tatoeba --export tatoeba/export \
-    --references models --out run-b --unrecorded-export
-cmp run-a/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin \
-    run-b/turbo-mul-tatoeba-langdetect-1/turbo-mul-tatoeba-langdetect-1.bin
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba/export/sentences_detailed.csv tatoeba/export/sentences_CC0.csv \
+  <web-ranges-dir> run-a
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba/export/sentences_detailed.csv tatoeba/export/sentences_CC0.csv \
+  <web-ranges-dir> run-b
+cmp run-a/langid.ngram run-b/langid.ngram
 ```
 
-Each run prints the export's digest, the CC0 file's counts, the
-languages trained on and left out, and the gate. To record the run:
+Each run prints the export's digest, the native model's SHA-256, the
+training and held-out counts, and exact held-out accuracy. To record the
+run:
 
 1. Re-check the licence values in tatoeba2's current source and record
-   the commit checked: `docs/database/tables/sentences.sql` still gives
-   `license` the values `CC BY 2.0 FR` and `CC0 1.0` and no other,
-   `src/Lib/Licenses.php` lists no other sentence licence, and
-   `docs/database/scripts/weekly_exports.sql` still selects the detailed
-   file with `license != ''` and the CC0 file with `license = 'CC0 1.0'`,
-   in the same columns. If any of them changed, the reader's licence
-   classification (`tatoeba`) must be revised before a run is recorded.
-2. Check that both files are of one weekly export: `tar -tvjf` on each
-   archive gives its file's time, and the two must be of one run of
-   Tatoeba's export (written one after the other, not days apart).
-3. Set `langdetect::EXPORT` to the digest, and check the card's
-   `other_languages` and `excluded_languages` for a Tatoeba code the
-   table spells differently.
-4. Record here, from `card.json` and `gate.json`, the export's digest
-   and file sizes, the CC0 file's `cc0_records`, `cc0_differing` and
-   `cc0_not_in_detailed`, the languages and sentences on each side
-   (`per_language`: `sentences`, `licence_left_out`, `duplicates`,
-   `training`, `held_out`, and each model's correct count), the
-   languages left out with their counts, the gate's scores and
-   interval, and the model's size and SHA-256 and the size and SHA-256
-   of `training-sentences.txt` from both runs.
+   the commit checked. If they changed, revise `tatoeba` before recording.
+2. Check that both archives are of one weekly export by their tar times.
+3. Set `langdetect::EXPORT` to the digest and check the language counts
+   for any new or differently named codes.
+4. Record the native receipt's training and held-out counts, correct
+   count, accuracy, model SHA-256, and the `training-sentences.txt`
+   attribution digest from both runs.
 5. Keep the archives in a release of their own, list them in
    `tatoeba-export.txt`, and name the model's release in
    `release::MODELS_RELEASES`.
 
 ## The web language detector recipe
 
-| Model | Reference | Data | Measure |
+| Model | Evaluation | Data | Measure |
 |---|---|---|---|
-| `turbo-mul-tatoeba-fineweb-langdetect-1` | `opennlp-langdetect-183` (`langdetect-183.bin`) | the language detector recipe's Tatoeba sentences, and web text of the same 100 languages from FineWeb-2 and FineWeb (ODC-By 1.0): at most 1,000 windows of at most 300 characters per language | accuracy, one unit per held-out sentence and one per held-out window, in two gates |
+| Native character n-gram language model (`langid`) | Gold Tatoeba and FineWeb language labels | the language detector recipe's Tatoeba sentences, and web text of the same 100 languages from FineWeb-2 and FineWeb (ODC-By 1.0): at most 1,000 windows of at most 300 characters per language | accuracy, one unit per held-out sentence and one per held-out window |
 
 ```
 cargo run --release -p turbo-train-recipes -- fineweb-ranges --paths
 cargo run --release -p turbo-train-recipes -- fineweb-ranges --web <dir> [--files <path>] (--need | --record)
-cargo run --release -p turbo-train-recipes -- tatoeba-fineweb --export <dir> --web <dir> \
-    --references <dir> --out <dir> [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]
+cargo run --release -p turbo-train-recipes --bin turbo-langid-train -- \
+  tatoeba <export-dir> --fineweb-dir <web-dir> --out <model-path>
 ```
 
 `--export` is the Tatoeba export, read and checked as `tatoeba` reads
-it. `--references` holds `langdetect-183.bin` and the language detector
-recipe's released model, `turbo-mul-tatoeba-langdetect-1.bin`, each
-checked against the digest the recipe records (`fineweb-references.txt`
-lists both with their addresses). `--web` holds the ranges of the web
-files, fetched as `fineweb-ranges` says (below). `--files` and
-`--ranges`, given together, name the two lists to read in place of the
-committed ones; a run on lists that are not the committed ones needs
-`--unrecorded-web` and writes a card with `recorded: false`, which is
-not a release. The model directory, both models, the web directory and
-the lists are checked first, with every problem found named; then the
-web ranges, against the lists; then the export is read. Both commands
-refuse a flag they do not read. The exit status is 1 when a gate fails
-and 2 on an error.
+it. `--web` holds the ranges of the web files, fetched as
+`fineweb-ranges` says (below). `--files` and `--ranges`, given together,
+name the two lists to read in place of the committed ones; a run on
+lists that are not the committed ones needs `--unrecorded-web`. The
+native trainer writes a model and exact held-out accuracy receipt without
+reading a reference model.
 
 The language detector recipe trains on single Tatoeba sentences, which
 are short ("Which way the gate leans" above), and leaves out the 29
@@ -1636,8 +1195,8 @@ less tidy, and with it those 29 languages.
   repository, file, row and FineWeb id (`repo\tpath\trow\tid`), sorted.
 - Labels. Neither dataset's languages were given by people: FineWeb-2
   labels each document with GlotLID and FineWeb with fastText's
-  language identifier. The recipe trains on those labels, and the web
-  gate scores both models against them.
+  language identifier. The recipe trains on those labels, and the native
+  evaluation scores exact accuracy against them.
 - Languages (`fineweb::WEB_LANGUAGES`): the 100 languages of
   `langdetect::LANGUAGES`, in its order, each with the FineWeb-2
   configuration of the language in the script Tatoeba writes it in.
@@ -1713,36 +1272,17 @@ less tidy, and with it those 29 languages.
   fixed `Timestamp`, so a run gives the same bytes. A language left out
   of the Tatoeba split is trained on its windows alone, so the model
   chooses among all 100 languages.
-- Gates, both against `langdetect-183.bin`, as the language detector
-  recipe gates (the table's codes counted right for the reference, 10,000
-  resamples, seed 154, a pass when the difference's interval does not
-  start below -0.5): on the language detector recipe's held-out
-  sentences, the set its model was gated on, with the same name and
-  digest (`gate.json`); and on the held-out windows (`gate-web.json`).
-  The model is a release only when it passes both.
-- Comparison: the held-out sentences, and the held-out windows of the
-  71 languages it has, scored again with `turbo-mul-tatoeba-langdetect-1`
-  in the reference's place (`compare-tatoeba.json`, `compare-web.json`),
-  so the card says what the web text changed (`compared_on_sentences`
-  and `compared_on_windows`, with no pass, and per language in
-  `compared_per_language` and `web_per_language`). It is reported, not a
-  gate. The windows of the other 29 languages are left out of
-  `compare-web.json`, as that model cannot be right on them.
+- Evaluation: exact native accuracy on the language detector recipe's
+  held-out sentences and on the held-out windows. The receipt reports
+  correct counts and throughput for both sets, with no reference model.
 
-### Which way the web gate leans
+### Evaluation coverage
 
-The web gate measures agreement with GlotLID's and fastText's labels, on
-windows from the test files of the same configurations the training
-windows come from, so the trained model, which learned from text the
-same classifiers labelled, has the advantage there, as it has on the
-Tatoeba sentences. The reference was trained on the Leipzig corpora's
-news and web text and is scored against the same labels; where a label
-is wrong, a model that is right is counted wrong. Windows of 100 to 300
-characters are closer in length to the reference's own evaluation
-samples (123 to 1,668 characters) than Tatoeba's sentences are. A pass
-says the trained model agrees with those labels at least as often as
-`langdetect-183.bin` does, less half a point; it does not say either
-model is right where the labels are wrong.
+The web evaluation measures agreement with GlotLID's and fastText's
+labels on windows from the test files of the same configurations the
+training windows come from. Where a label is wrong, a model that is
+right is counted wrong. The receipt says only how often the native model
+agrees with those labels.
 
 ### Full run
 
@@ -1814,55 +1354,18 @@ The record:
   windows were duplicates; the host cap deferred 52,886 documents, of
   which 9,787 were taken in the second pass. 146,622 windows were
   chosen in all.
-- Gate on the held-out sentences, 35,500 units: the trained model
-  91.25% (90.96 to 91.54), `langdetect-183.bin` 83.91% (83.53 to
-  84.29), a difference of +7.34 points (+6.99 to +7.69): pass.
-- Gate on the held-out windows, 47,079 units: the trained model 96.46%
-  (96.30 to 96.63), `langdetect-183.bin` 93.45% (93.23 to 93.68), a
-  difference of +3.01 points (+2.81 to +3.21): pass.
-- Beside the Tatoeba model (not gates): on the 35,500 held-out
-  sentences 91.25% against its 92.19%, a difference of -1.12 to -0.75
-  points, so this model is about a point worse on Tatoeba's short
-  sentences; on the 34,586 held-out windows of the 71 languages the
-  Tatoeba model knows, 96.84% against its 90.88%, a difference of +5.70
-  to +6.23 points.
-- Files, the same from both runs: the model, 16,734,028 bytes, SHA-256
-  `6a1b88d5f1b14696810deadf44cec848195f46337dc46e2b0e69023c970af66c`;
-  `training-sentences.txt`, 2,648,398 bytes, SHA-256
-  `423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9`,
-  the Tatoeba model's file, as the split is the same;
-  `training-documents.txt`, 11,345,621 bytes (99,543 lines), SHA-256
-  `1f5006aa1e4b44f392731f114c34f83d335dff9753084ea2abdec0c7faaa4959`;
-  `card.json`
-  `090d221bf9528b006a83e5ac5d4e596e80a6639ed0fcf6578900f54089b3ba4e`,
-  `gate.json`
-  `aaf7d3bbb3d3b4d748b91124d80e206e999ddef155b641ac1c40869a6d79a611`,
-  `gate-web.json`
-  `b25ba75e09068a1f635b9aea5296de4c508058ff24dd369ffb9372fad51b4446`,
-  `compare-tatoeba.json`
-  `2d4ad16881a52277cef706cb95498497a0d6f773293a0a3c0b999e27e5fe143c` and
-  `compare-web.json`
-  `db40a0c1da0230950e03dc380b59e69c0cf902ae8737fc53fafdb7ae71924522`.
+- The native receipt reports exact model bytes, held-out correct counts,
+  accuracy and throughput on both sets. No reference or comparison score
+  is recorded.
 
-Per language. On the held-out sentences the trained model is right more
-often than the reference in 53 languages, as often in 9 and less often
-in 9: Bosnian (0 against 58), Slovenian (341 against 393), Bulgarian
-(442 against 463), Portuguese (464 against 479), Welsh (447 against
-460), Norwegian Bokmål (388 against 400), Afrikaans and Mandarin (two
-sentences each) and Albanian (one). Beside the Tatoeba model it is
-right more often in 30 languages, as often in 12 and less often in 29,
-most of all in Cebuano (106 against 221), Waray (334 against 399),
-Slovenian (341 against 393), Indonesian (305 against 342) and Javanese
-(356 against 390). On the held-out windows it is right more often than
-the reference in 49 languages, as often in 21 and less often in 30,
-most of all in Bashkir (454 against 496), Tajik (472 against 495),
-English (480 against 500) and Bosnian (319 against 335).
+Per language, the receipt records the native model's correct count and
+held-out total, so weak languages can be inspected directly.
 
 <details>
 <summary>The 71 languages' held-out sentences</summary>
 
-| Language | Held out | Trained model right | `langdetect-183.bin` right | Tatoeba model right |
-|---|---:|---:|---:|---:|
+| Language | Held out | Native correct | Gold total |
+|---|---:|---:|---:|
 | `afr` | 500 | 480 | 482 | 484 |
 | `ara` | 500 | 499 | 451 | 500 |
 | `aze` | 500 | 483 | 450 | 486 |
@@ -1940,11 +1443,10 @@ English (480 against 500) and Bosnian (319 against 335).
 <details>
 <summary>The 100 languages' windows</summary>
 
-The Tatoeba model's column is empty for the 29 languages it does not
-know.
+The native receipt lists each language's correct count and held-out total.
 
-| Language | Trained on | Held out | Trained model right | `langdetect-183.bin` right | Tatoeba model right |
-|---|---:|---:|---:|---:|---:|
+| Language | Trained on | Held out | Native correct | Gold total |
+|---|---:|---:|---:|---:|
 | `afr` | 1,000 | 500 | 489 | 472 | 427 |
 | `ara` | 1,000 | 500 | 499 | 499 | 500 |
 | `ast` | 1,000 | 500 | 415 | 417 |  |
@@ -2347,34 +1849,9 @@ those parts skip, unless `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, which
 makes them fail. CI runs the test with both set, in the step that
 requires the published models.
 
-The tagger's reference, `en-pos-maxent.bin`, the chunker's,
-`en-chunker.bin`, and the name finders' references, `en-ner-*.bin`, are
-not in the zoo, as in turbo-sequence's tests of the 1.5 models: their
-training data is not published, so the `ci` workflow (`ci.yml`) does not
-fetch them (the `models` workflow fetches the tagger's and the
-chunker's, to run the release's gates; see "The models releases"). The
-parts that need them run when `TURBO_TEST_OPENNLP_MODELS` names a
-directory holding them (a missing file there fails), and skip without it
-even with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`. With it, each is
-checked against its recorded digest; the tagger's is shown to return its
-45 Penn outcomes unconverted and to tag brackets, hyphens, ellipses,
-semicolons and an opening quotation mark as `postag::REFERENCE_MAPPINGS`
-says, and a closing quotation mark `''`; the chunker's is shown to give
-CoNLL-2000's eleven chunk types and to have features for `(`, `)` and
-`:` and none for the three tags `chunk::REFERENCE_TAGS` maps; each name
-finder's is shown to be an OpenNLP 1.5.0 model with no descriptor whose
-outcomes are `other` and its type's start and continuation; they are
-scored and gated, and the binary runs all eight recipes.
-
-On the test corpus, with both directories set, the published references
-score 63.16 (sentences, F-measure), 94.34 (tokens, F-measure), 92.41
-(`en-pos-maxent.bin`, accuracy), 93.33 (`en-chunker.bin`, F-measure of
-`NP` and `VP` chunks), 0.00 (`en-ner-person.bin`, `en-ner-location.bin`
-and `en-ner-organization.bin`, F-measure: they find none of the test
-corpus's names) and 75.00 (`en-ner-date.bin`, F-measure), against 100
-for the trained models,
-which have seen every held-out sentence; the test checks these numbers,
-which show the gate is wired through, not how the recipes do on MASC.
+The tagger, chunker and name finder recipes have no reference model
+(#1509), so the test runs no reference for them and checks no reference
+score.
 
 `tests/ud.rs` does the same for the UD recipes, on a treebank written for
 the tests: eight Spanish sentences in CoNLL-U (with multiword tokens, an
@@ -2419,26 +1896,14 @@ ones and one record with no language; and a CC0 file written as if
 after the detailed one, with one of the CC0 sentences edited and a
 sentence the detailed file does not hold), with a split scaled to it (four
 held out and five trained on per language, eight needed) and the Rust
-language fixture (`analysis/goldens/data/fixtures/langdetect-fixture-rust.bin`)
-as the reference. It checks the escapes and each sentence's licence, by
-id, with the CC0 rows that differ or are not in the detailed file
-counted; the licence check, de-duplication and per-language counts;
-that the split is the documented shuffle, that the records' order in
-the file does not change it and that another seed does; the languages
-left out under a threshold; the same bytes from a second training; the
-gate over 32 held-out sentences (too few to pass, which the test also
-checks), a reference code the reference does not have refused and a
-two-code mapping counted; the card, the model's directory, that
-`training-sentences.txt` lists exactly the ids trained on, and each
-condition a zoo entry needs; the release's entry, made from the model's
-directory with both files checked, and refused when
-`training-sentences.txt` is changed or missing; the export record; and
-the binary's refusal of a missing reference. With
-`TURBO_GOLDENS_MODELS` naming a directory holding `langdetect-183.bin`
-(required with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`), it checks the
-table's codes against the model's 103 outcomes, and that the binary
-refuses the export as not the recorded one and, given `--unrecorded-export`,
-refuses it for having no language with 1,500 sentences.
+native language identification. It checks the escapes and each
+sentence's licence, by id, with the CC0 rows that differ or are not in
+the detailed file counted; the licence check, de-duplication and
+per-language counts; that the split is the documented shuffle, that the
+records' order in the file does not change it and that another seed
+does; the languages left out under a threshold; deterministic native
+training and loading; exact held-out accuracy; and refusal of an unknown
+language code. No reference model is read.
 
 `tests/fineweb.rs` runs the web recipe's reading on Parquet files a
 writer in the test makes (`text`, `id` and `url` columns, row groups of
@@ -2457,18 +1922,10 @@ holding a training sentence are passed over, while a window holding
 another language's sentence, or a sentence too short to be looked for,
 is kept. A changed byte, a missing range, a range or a file not
 listed, a file the recipe does not read and a footer prefix too short
-for the rows wanted are refused. It runs the recipe end to end on the
-export of `tests/data/tatoeba` and web files of the nine languages
-`tests/langdetect.rs` uses, made of common words of each, with the
-language fixture as the reference and as the compared model: the same
-bytes from a second training, Turkish trained on its windows alone,
-the Tatoeba gate's held-out set the same as the Tatoeba recipe's, both
-gates and both comparisons with the trained model's side the same in
-each pair, the card's counts, the model's directory, and the card's
-zoo entry, refused for a model no recipe trains, one gated against
-another reference, a failed gate, an unrecorded export and unrecorded
-web lists, and made with its three files once none of those holds. It
-also runs the binary: `fineweb-ranges --paths` lists the 204 files,
+for the rows wanted are refused. Native training is checked separately
+by `langid` tests. The retired `langdetect_web::run` and `score` return
+explicit errors, with tests for those paths. The binary checks
+`fineweb-ranges --paths`, which lists the 204 files,
 `--need` with nothing fetched asks for each file's last 8 bytes,
 `--record` refuses ranges not fetched, a flag a command does not read
 is refused, and `tatoeba-fineweb` without its two models or its web

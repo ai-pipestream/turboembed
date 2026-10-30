@@ -94,6 +94,8 @@
       ],
       "backends": [
         "cpu",
+        "cuda",
+        "levelzero",
         "metal"
       ],
       "graph_input": "INPUT_TOKEN_IDS",
