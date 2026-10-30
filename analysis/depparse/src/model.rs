@@ -129,8 +129,8 @@ impl DependencyModel {
             other => return Err(Error(format!("unknown linear algorithm tag {other}"))),
         };
         let n_outcomes = r.len()?;
-        if n_outcomes == 0 {
-            return Err(error("linear dependency model has no outcomes"));
+        if n_outcomes == 0 || n_outcomes > r.bytes.len() / 4 {
+            return Err(error("linear dependency model has invalid outcome count"));
         }
         let mut outcomes = Vec::with_capacity(n_outcomes);
         let mut transitions = Vec::with_capacity(n_outcomes);
@@ -140,12 +140,18 @@ impl DependencyModel {
             outcomes.push(label);
         }
         let n_preds = r.len()?;
+        if n_preds > r.bytes.len() / 8 {
+            return Err(error("linear dependency model has invalid predicate count"));
+        }
         let mut predicates = HashMap::with_capacity(n_preds);
         let mut patterns = Vec::with_capacity(n_preds);
         let mut parameters = Vec::with_capacity(n_preds);
         for i in 0..n_preds {
             let pred = r.str()?.to_owned();
             let pat_len = r.len()?;
+            if pat_len > r.bytes.len() / 12 {
+                return Err(error("linear dependency model has invalid pattern length"));
+            }
             let mut pat = Vec::with_capacity(pat_len);
             for _ in 0..pat_len {
                 let o = r.u32()?;

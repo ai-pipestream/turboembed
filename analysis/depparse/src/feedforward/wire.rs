@@ -77,6 +77,9 @@ impl FeedforwardDependencyModel {
         let labels = r.vocab_map()?;
         let vocabulary = Vocabulary { words, pos, labels };
         let n_transitions = r.len()?;
+        if n_transitions > r.bytes.len() / 4 {
+            return Err(error("transition count exceeds remaining bytes"));
+        }
         let mut transitions = Vec::with_capacity(n_transitions);
         for _ in 0..n_transitions {
             transitions.push(Transition::decode(r.str()?)?);

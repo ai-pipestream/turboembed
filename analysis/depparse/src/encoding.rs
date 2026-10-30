@@ -6,8 +6,7 @@ pub enum LabelEncoding {
     /// Relation labels are literal strings; only in-memory `projectivize`
     /// sentinel frames are decoded.
     Plain,
-    /// Percent-escaped pseudo-projective encoding (`%25`, `%5C`, `%5E`, `%3C`,
-    /// `%3E`, `%3A`).
+    /// Backslash-escaped pseudo-projective encoding (`\\`, `\^`, `\<`, `\>`).
     #[default]
     EscapedV1,
 }
