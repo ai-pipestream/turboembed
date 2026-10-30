@@ -18,8 +18,12 @@ Carol writes a long letter. Dave reads it twice. The letter mentions London.\n\n
 Eve plays chess with Frank. Frank loses again. Everyone laughs loudly.";
 
 fn analyzed(text: &str) -> Document {
+    analyzed_by(&analyzer(), text)
+}
+
+fn analyzed_by(analyzer: &Analyzer, text: &str) -> Document {
     let mut docs = vec![Document::new(text)];
-    for r in analyzer().run(&mut docs) {
+    for r in analyzer.run(&mut docs) {
         r.unwrap();
     }
     docs.pop().unwrap()
@@ -161,6 +165,49 @@ fn a_declaration_the_pipeline_cannot_bear_is_downgraded_at_build_time() {
     assert_eq!(of(Tagger::ID), (Locality::Partition(sentences), Locality::Partition(sentences)));
     assert_eq!(of(Counter::ID), (Locality::Document, Locality::Document));
     assert_eq!(of(SectionTokens::ID).1, Locality::Partition(Key::<Structure>::DEFAULT.id()));
+}
+
+/// Splices `edits` onto `base` with `analyzer`, whose tagger differs
+/// from the base's: the tags and what is made from them are computed
+/// again, the rest is spliced, and the result is the analyzer's own.
+fn check_stale_tags(base: &Document, analyzer: &Analyzer, edits: &[(&str, &str)], reason: &str) -> Document {
+    let (text, alignment) = edited(BASE, edits);
+    let (spliced, report) = analyzer.run_spliced(base, text.as_str(), &alignment).unwrap();
+    let scratch = analyzed_by(analyzer, &text);
+    let codecs = codecs();
+    assert_eq!(export(&spliced, &codecs).unwrap(), export(&scratch, &codecs).unwrap(), "edits {edits:?}");
+    assert!(
+        matches!(report.step(Tagger::ID), Some(StepRun::Rerun(r)) if r.contains(reason)),
+        "{:?}",
+        report.step(Tagger::ID)
+    );
+    assert!(
+        matches!(report.step(Lemmatizer::ID), Some(StepRun::Rerun(r)) if r.contains("not spliced")),
+        "{:?}",
+        report.step(Lemmatizer::ID)
+    );
+    for id in [Tokenizer::ID, SectionTokens::ID, Parser::ID, NameFinder::ID] {
+        assert!(matches!(report.step(id), Some(StepRun::Spliced { .. })), "{id}: {:?}", report.step(id));
+    }
+    spliced
+}
+
+#[test]
+fn a_base_made_by_another_configuration_is_not_copied() {
+    let base = analyzed(BASE);
+    let retuned = analyzer_with(200);
+    let mut doc = check_stale_tags(&base, &retuned, &[("warm", "cold")], "another configuration");
+    assert_eq!(retuned.analyze_incremental(&mut doc).unwrap().stages_run, 0);
+    // The same text, aligned to itself: nothing to splice, yet the stale
+    // tags are still computed again.
+    check_stale_tags(&base, &retuned, &[], "another configuration");
+}
+
+#[test]
+fn a_step_that_may_not_be_cached_is_not_copied() {
+    let uncached = analyzer_uncached();
+    let base = analyzed_by(&uncached, BASE);
+    check_stale_tags(&base, &uncached, &[("warm", "cold")], "not cacheable");
 }
 
 /// A hundred sentences in ten sections.

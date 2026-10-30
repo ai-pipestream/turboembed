@@ -9,11 +9,13 @@ use crate::layer::{Key, KeyId};
 
 /// Each step's effective locality, in step order. A step is
 /// `Partition(P)` only when it declares that, writes no view, and every
-/// layer it reads is the source text, `P` or another output of `P`'s
-/// producer, or the output of a step that is itself `Partition(P)`.
-/// Anything else, a given layer included, makes it `Document`. Steps are
-/// visited in stage order, so a producer's effective locality is settled
-/// before its readers are.
+/// layer it reads is the source text, `P` itself, or the output of a
+/// step that is itself `Partition(P)`. Anything else makes it
+/// `Document`: a given layer, a document-wide step's output, and another
+/// output of `P`'s producer too, since that producer runs document-wide
+/// and only `P` is compared partition by partition across an edit. Steps
+/// are visited in stage order, so a producer's effective locality is
+/// settled before its readers are.
 pub(super) fn effective(given: &[KeyId], steps: &[Box<dyn Step>], stages: &[Vec<usize>]) -> Vec<Locality> {
     let mut producer: HashMap<KeyId, Option<usize>> = given.iter().map(|&k| (k, None)).collect();
     for (i, s) in steps.iter().enumerate() {
@@ -29,7 +31,9 @@ pub(super) fn effective(given: &[KeyId], steps: &[Box<dyn Step>], stages: &[Vec<
         if steps[i].writes().iter().any(|w| w.ty == view_ty) {
             continue;
         }
-        let Some(&p_producer) = producer.get(&p) else { continue };
+        if !producer.contains_key(&p) {
+            continue;
+        }
         let local = steps[i].reads().into_iter().all(|r| {
             if r == p || r == source {
                 return true;
@@ -37,7 +41,7 @@ pub(super) fn effective(given: &[KeyId], steps: &[Box<dyn Step>], stages: &[Vec<
             match producer.get(&r) {
                 None => true,
                 Some(None) => false,
-                Some(&Some(k)) => Some(k) == p_producer || effective[k] == Locality::Partition(p),
+                Some(&Some(k)) => effective[k] == Locality::Partition(p),
             }
         });
         if local {
@@ -62,20 +66,16 @@ pub(super) fn downgrade_reason(
         return Some("it writes a view".into());
     }
     let producer_of = |r: KeyId| steps.iter().position(|s| s.writes().contains(&r));
-    let Some(p_producer) = producer_of(p) else {
-        return Some(if given.contains(&p) {
-            format!("{p} is given, not made")
-        } else {
-            format!("nothing writes {p}")
-        });
-    };
+    if producer_of(p).is_none() && !given.contains(&p) {
+        return Some(format!("nothing writes {p}"));
+    }
     let source = Key::<View>::DEFAULT.id();
     for r in steps[i].reads() {
         if r == p || r == source {
             continue;
         }
         match producer_of(r) {
-            Some(k) if k == p_producer || effective[k] == Locality::Partition(p) => {}
+            Some(k) if effective[k] == Locality::Partition(p) => {}
             Some(k) => return Some(format!("it reads {r} from {}, which is document-wide", steps[k].id())),
             None if given.contains(&r) => return Some(format!("it reads {r}, which is given")),
             None => {}

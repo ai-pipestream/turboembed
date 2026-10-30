@@ -7,7 +7,7 @@
 mod plan;
 
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::annotate::Locality;
@@ -24,6 +24,17 @@ use plan::Plan;
 
 pub(super) type Splicers = HashMap<TypeId, Box<dyn LayerSplicer>>;
 
+/// What one `run_spliced` call carries from step to step: the base, the
+/// edit, the splicers by layer type, the plan per partition layer, and
+/// the layers spliced so far, which later local steps may read.
+struct Splicing<'a> {
+    base: &'a Document,
+    alignment: &'a Alignment,
+    splicers: Splicers,
+    plans: HashMap<KeyId, Plan>,
+    spliced: HashSet<KeyId>,
+}
+
 /// How one step ran in [`Analyzer::run_spliced`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StepRun {
@@ -34,9 +45,10 @@ pub enum StepRun {
     Spliced { windows: usize },
     /// A partition-local step that had to run over the whole new
     /// document anyway, and why: its declaration was not borne out by
-    /// the pipeline, an output has no splicer, the base document lacks
-    /// the output, an item or an index left its partition, or a window
-    /// run failed.
+    /// the pipeline, it is not cacheable, an output has no splicer, the
+    /// base document lacks the output or made it with another
+    /// configuration of the step, one of its inputs was itself re-run,
+    /// an item or an index left its partition, or a window run failed.
     Rerun(String),
 }
 
@@ -95,7 +107,7 @@ impl Analyzer {
         let mut doc = Document::new(new_text);
         let mut status = [Ok(())];
         let mut report = SpliceReport::default();
-        let mut plans: HashMap<KeyId, Plan> = HashMap::new();
+        let mut run = Splicing { base, alignment, splicers, plans: HashMap::new(), spliced: HashSet::new() };
         for stage in &self.stages {
             let whole: Vec<usize> = stage.iter().copied().filter(|&i| !self.is_local(i)).collect();
             let backedges: Vec<KeyId> = whole.iter().flat_map(|&i| self.backedge_reads[i].iter().copied()).collect();
@@ -104,14 +116,17 @@ impl Analyzer {
             for &i in stage {
                 let id = self.steps[i].id();
                 if self.is_local(i) {
-                    let run = match self.splice_step(i, base, &mut doc, alignment, &mut plans, &splicers) {
-                        Ok(windows) => StepRun::Spliced { windows },
+                    let how = match self.splice_step(i, &mut doc, &mut run) {
+                        Ok(windows) => {
+                            run.spliced.extend(self.steps[i].writes());
+                            StepRun::Spliced { windows }
+                        }
                         Err(reason) => {
                             self.run_steps(&[i], std::slice::from_mut(&mut doc), &mut status);
                             StepRun::Rerun(reason)
                         }
                     };
-                    report.steps.push((id, run));
+                    report.steps.push((id, how));
                     continue;
                 }
                 let out = outputs.next().expect("an output per whole step");
@@ -119,17 +134,17 @@ impl Analyzer {
                 for w in self.steps[i].writes() {
                     doc.mark_pipeline_stored(w);
                 }
-                let run = match self.locality_reason(i) {
+                let how = match self.locality_reason(i) {
                     Some(reason) => StepRun::Rerun(reason),
                     None => StepRun::Document,
                 };
-                report.steps.push((id, run));
+                report.steps.push((id, how));
             }
             doc.restore_entries(taken);
         }
         let [status] = status;
         status?;
-        for (p, plan) in plans {
+        for (p, plan) in run.plans {
             report.windows.push((p, plan.windows.iter().map(|w| w.span).collect()));
         }
         report.windows.sort_by_key(|(_, w)| w.first().map_or(0, |s| s.start));
@@ -153,22 +168,19 @@ impl Analyzer {
     /// Splices step `i`'s outputs into `doc`: `Ok` with the number of
     /// windows it ran on, or `Err` with why it has to run whole instead,
     /// with nothing added to `doc`.
-    fn splice_step(
-        &self,
-        i: usize,
-        base: &Document,
-        doc: &mut Document,
-        alignment: &Alignment,
-        plans: &mut HashMap<KeyId, Plan>,
-        splicers: &Splicers,
-    ) -> Result<usize, String> {
+    fn splice_step(&self, i: usize, doc: &mut Document, run: &mut Splicing<'_>) -> Result<usize, String> {
         let step = &self.steps[i];
+        let base = run.base;
         let Locality::Partition(p) = self.localities[i] else { return Err("not partition-local".into()) };
+        if !step.is_cacheable() {
+            return Err("the step is not cacheable".into());
+        }
         let writes = step.writes();
         let mut sps = step.splicers();
         if sps.len() != writes.len() {
             return Err("the step cannot say how its outputs are spliced".into());
         }
+        let expected = step.expected_provenance(base);
         for (w, sp) in writes.iter().zip(&sps) {
             if sp.is_none() {
                 return Err(format!("{w} has no splicer"));
@@ -176,11 +188,21 @@ impl Analyzer {
             if !base.present(*w) || base.status(*w) != Some(&Status::Complete) {
                 return Err(format!("{w} is not complete on the base document"));
             }
+            let found = base.provenance(*w).expect("a present layer has provenance");
+            if !same_step(found, &expected) {
+                return Err(format!("{w} on the base document was made by another configuration of the step"));
+            }
         }
-        let plan = match plans.entry(p) {
+        for r in step.reads() {
+            if r != p && r != Key::<View>::DEFAULT.id() && base.present(r) && !run.spliced.contains(&r) {
+                return Err(format!("it reads {r}, which was not spliced"));
+            }
+        }
+        let splicers = &run.splicers;
+        let plan = match run.plans.entry(p) {
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => {
-                let mut plan = Plan::build(p, base, doc, alignment, splicers)?;
+                let mut plan = Plan::build(p, base, doc, run.alignment, splicers)?;
                 self.seed_windows(p, &mut plan, doc, splicers)?;
                 e.insert(plan)
             }
@@ -243,6 +265,19 @@ impl Analyzer {
         }
         Ok(())
     }
+}
+
+/// Whether a base layer's provenance is this step's: the same annotator,
+/// version, configuration, model and inputs. The layers a step read are
+/// compared as a set; where its model ran is not, since the same model
+/// gives the same layer wherever it runs.
+fn same_step(found: &Provenance, expected: &Provenance) -> bool {
+    found.annotator == expected.annotator
+        && found.version == expected.version
+        && found.config == expected.config
+        && found.model == expected.model
+        && found.reads.len() == expected.reads.len()
+        && found.reads.iter().all(|r| expected.reads.contains(r))
 }
 
 /// Builds output `w` of a local step on the new document: the base's

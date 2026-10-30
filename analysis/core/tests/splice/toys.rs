@@ -117,7 +117,10 @@ pub fn tagset() -> Arc<TagSet> {
 /// rounds of hashing per token stand in for a model's cost in the timing.
 pub struct Tagger {
     pub tagset: Arc<TagSet>,
+    /// Rounds of hashing per token, to give the step a cost; part of
+    /// the configuration.
     pub work: u32,
+    pub cacheable: bool,
 }
 
 impl Annotator for Tagger {
@@ -144,6 +147,12 @@ impl Annotator for Tagger {
             prob.push((h % 10) as f64 / 10.0);
         }
         Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(prob) },))
+    }
+    fn config_hash(&self) -> u64 {
+        u64::from(self.work)
+    }
+    fn is_cacheable(&self) -> bool {
+        self.cacheable
     }
     fn locality(&self) -> Locality {
         Locality::Partition(Key::<Sentences>::DEFAULT.id())
@@ -281,13 +290,23 @@ pub fn analyzer() -> Analyzer {
     analyzer_with(0)
 }
 
+/// The pipeline with a tagger of `work` rounds.
 pub fn analyzer_with(work: u32) -> Analyzer {
+    analyzer_tagging(Tagger { tagset: tagset(), work, cacheable: true })
+}
+
+/// The pipeline with a tagger whose output may not be reused.
+pub fn analyzer_uncached() -> Analyzer {
+    analyzer_tagging(Tagger { tagset: tagset(), work: 0, cacheable: false })
+}
+
+fn analyzer_tagging(tagger: Tagger) -> Analyzer {
     Analyzer::builder()
         .add(Sentencer)
         .add(Structurer)
         .add(Tokenizer)
         .step(Bound::new(SectionTokens).write(0, "section"))
-        .add(Tagger { tagset: tagset(), work })
+        .add(tagger)
         .add(Lemmatizer)
         .add(Parser { relations: TagSet::new("deps", &["root", "dep"]) })
         .add(NameFinder { kinds: TagSet::new("kinds", &["NAME"]) })
