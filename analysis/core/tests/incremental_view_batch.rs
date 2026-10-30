@@ -1,9 +1,14 @@
-//! Regression tests for partial-batch `ViewId` allocation when multiple steps in the
-//! same topological stage produce derived [`View`] layers (`!all_full_batch`).
+//! Regression tests for cross-document batching (`Analyzer::run_incremental`),
+//! placed execution metadata, and partial-batch `ViewId` allocation when multiple
+//! steps in the same topological stage produce derived [`View`] layers (`!all_full_batch`).
 
+use std::sync::{Arc, Mutex};
+
+use turbo_analysis::annotate::Placed;
 use turbo_analysis::export::{Codecs, export};
 use turbo_analysis::{
-    Analyzer, Annotator, Bound, Document, Error, Ix, Key, Refs, Span, Spans, StageCacheStatus, View, ViewBuilder,
+    Analyzer, Annotator, Bound, Document, Error, Execution, Ix, Key, ProvenanceDigest, Refs, Span, Spans,
+    StageCacheStatus, View, ViewBuilder,
 };
 use turbo_analysis_layers::export::register_codecs;
 use turbo_analysis_layers::{Sentences, Tokens};
@@ -184,4 +189,64 @@ fn partial_batch_same_stage_view_producers_do_not_collide_view_ids() {
         updated_pipeline.run_sequential(std::slice::from_mut(&mut seq_doc)).pop().unwrap().unwrap();
         assert_eq!(export(doc, &c).unwrap().to_bytes().unwrap(), export(&seq_doc, &c).unwrap().to_bytes().unwrap());
     }
+}
+
+struct PlacedBatchTokenizer {
+    batch_sizes: Arc<Mutex<Vec<usize>>>,
+}
+
+impl Annotator for PlacedBatchTokenizer {
+    const ID: &'static str = "test:placed-batch-tokenizer";
+    const VERSION: &'static str = "1";
+    type Reads = (View,);
+    type Writes = (Tokens,);
+
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Tokens,), Error> {
+        let mut spans = Spans::new(view.id());
+        if !view.text().is_empty() {
+            spans.push(Span::new(0, view.text().len() as u32));
+        }
+        Ok((Tokens { spans, sentence: None },))
+    }
+
+    fn annotate_batch_placed<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Placed<Self::Writes>> {
+        let batch_len = inputs.len();
+        self.batch_sizes.lock().unwrap().push(batch_len);
+        let exec = Execution {
+            backend: "test-batch".into(),
+            device: format!("batch-size-{batch_len}"),
+            precision: "fp16".into(),
+        };
+        inputs.into_iter().map(|i| self.annotate(i).map(|w| (w, Some(exec.clone())))).collect()
+    }
+}
+
+#[test]
+fn run_incremental_coalesces_uncached_batch_and_preserves_placed_execution() {
+    let batch_sizes = Arc::new(Mutex::new(Vec::new()));
+    let analyzer = Analyzer::builder().add(PlacedBatchTokenizer { batch_sizes: batch_sizes.clone() }).build().unwrap();
+
+    let mut doc0 = Document::new("alpha");
+    let doc1 = Document::new("beta");
+    let mut doc2 = Document::new("gamma");
+    let doc3 = Document::new("delta");
+    analyzer.analyze_incremental(&mut doc0).unwrap();
+    analyzer.analyze_incremental(&mut doc2).unwrap();
+    batch_sizes.lock().unwrap().clear();
+
+    let mut docs = vec![doc0, doc1, doc2, doc3];
+    let reports = analyzer.run_incremental(&mut docs);
+    for r in &reports {
+        assert!(r.is_ok());
+    }
+    assert_eq!(reports[0].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Skipped);
+    assert_eq!(reports[1].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Executed);
+    assert_eq!(reports[2].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Skipped);
+    assert_eq!(reports[3].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Executed);
+
+    assert_eq!(*batch_sizes.lock().unwrap(), vec![2]);
+    let tok_key = Key::<Tokens>::DEFAULT.id();
+    assert_eq!(docs[1].provenance(tok_key).unwrap().execution.as_ref().unwrap().device, "batch-size-2");
+    assert_eq!(docs[3].provenance(tok_key).unwrap().execution.as_ref().unwrap().device, "batch-size-2");
+    assert_ne!(reports[1].as_ref().unwrap().stages[0].provenance_digest, ProvenanceDigest::ZERO);
 }

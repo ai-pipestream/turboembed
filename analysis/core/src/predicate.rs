@@ -335,6 +335,13 @@ impl Step for ConditionalAnnotator {
         ConditionalAnnotator::config_hash(self)
     }
 
+    fn is_cacheable(&self) -> bool {
+        !self.predicate_name.is_empty()
+            && self.predicate_name != "default"
+            && self.when_true.is_cacheable()
+            && self.when_false.as_ref().is_none_or(|wf| wf.is_cacheable())
+    }
+
     fn expected_provenance(&self, doc: &Document) -> Provenance {
         let branch = match catch_unwind(AssertUnwindSafe(|| (self.predicate)(doc))) {
             Ok(true) => Some(self.when_true.as_ref()),

@@ -66,6 +66,9 @@ impl IncrementalReport {
 }
 
 fn can_skip_step(step: &dyn Step, doc: &Document, recomputed_keys: &HashSet<KeyId>) -> Option<ProvenanceDigest> {
+    if !step.is_cacheable() {
+        return None;
+    }
     if step.reads().iter().any(|r| recomputed_keys.contains(r)) {
         return None;
     }

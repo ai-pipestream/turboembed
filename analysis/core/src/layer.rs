@@ -153,6 +153,20 @@ pub trait Layer: Any + Send + Sync + Sized {
     fn content_hash(&self) -> Option<u64> {
         None
     }
+
+    /// Feeds all semantically significant payload columns directly into a
+    /// 256-bit [`turbo_sha256::Sha256`] hasher for [`Document::content_digest`](crate::Document::content_digest),
+    /// returning `true` when this layer provides a complete payload fingerprint.
+    /// Defaults to folding [`Self::content_hash`] when present.
+    fn content_sha256(&self, hasher: &mut turbo_sha256::Sha256) -> bool {
+        match self.content_hash() {
+            Some(hash) => {
+                hasher.u64(hash);
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 /// What a layer's items hang on.

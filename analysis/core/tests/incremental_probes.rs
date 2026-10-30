@@ -1,23 +1,18 @@
-//! Regression tests for incremental DAG execution probes:
-//! 1. Derived-view cascade removal and `ViewId` slot reuse.
-//! 2. Optional-dependency cycle back-edge masking and wire cycle guard.
-//! 3. `DocumentGraph` wire persistence of `provenance_digest` and `input_snapshot`.
-//! 4. Complete payload `content_hash` (`Entities.score`, `TagSet` labels, opt-in `Option<u64>`).
-//! 5. Cross-document batching and `Execution` placement in `Analyzer::run_incremental`.
+//! Regression tests for incremental DAG execution probes: derived-view cascade
+//! removal, optional-dependency cycle back-edges, wire snapshot persistence,
+//! complete payload content hashing, and `Annotator::is_cacheable` / `FilterAnnotator`.
 
 use std::sync::{
-    Arc, Mutex,
+    Arc,
     atomic::{AtomicUsize, Ordering},
 };
-
-use turbo_analysis::annotate::Placed;
 use turbo_analysis::export::{
     Codecs, DocumentGraph, ExportError, LayerRecord, LayerRef, ProvenanceRecord, SourceRecord, StatusRecord,
     ViewRecord, export, import,
 };
 use turbo_analysis::{
-    Analyzer, Annotator, Bound, Document, Error, Execution, Ix, IxRange, Key, Layer, Provenance, ProvenanceDigest,
-    Refs, Span, Spans, StageCacheStatus, Tag, TagSet, View, ViewBuilder,
+    Analyzer, Annotator, Bound, Document, Error, FilterAnnotator, Ix, IxRange, Key, Layer, Provenance, Refs, Span,
+    Spans, Tag, TagSet, View, ViewBuilder,
 };
 use turbo_analysis_layers::export::register_codecs;
 use turbo_analysis_layers::{Entities, PosTags, Sentences, Tokens};
@@ -433,62 +428,70 @@ fn probe_4c_custom_layer_without_content_hash_never_falsely_skips() {
     assert_eq!(calls.load(Ordering::SeqCst), 2);
 }
 
-struct PlacedBatchTokenizer {
-    batch_sizes: Arc<Mutex<Vec<usize>>>,
-}
+struct UncacheableStep(Arc<AtomicUsize>);
 
-impl Annotator for PlacedBatchTokenizer {
-    const ID: &'static str = "test:placed-batch-tokenizer";
-    const VERSION: &'static str = "1";
+impl Annotator for UncacheableStep {
+    const ID: &'static str = "test:uncacheable-step";
     type Reads = (View,);
-    type Writes = (Tokens,);
+    type Writes = (Sentences,);
 
-    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Tokens,), Error> {
+    fn is_cacheable(&self) -> bool {
+        false
+    }
+
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Sentences,), Error> {
+        self.0.fetch_add(1, Ordering::SeqCst);
         let mut spans = Spans::new(view.id());
         if !view.text().is_empty() {
             spans.push(Span::new(0, view.text().len() as u32));
         }
-        Ok((Tokens { spans, sentence: None },))
-    }
-
-    fn annotate_batch_placed<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Placed<Self::Writes>> {
-        let batch_len = inputs.len();
-        self.batch_sizes.lock().unwrap().push(batch_len);
-        let exec = Execution {
-            backend: "test-batch".into(),
-            device: format!("batch-size-{batch_len}"),
-            precision: "fp16".into(),
-        };
-        inputs.into_iter().map(|i| self.annotate(i).map(|w| (w, Some(exec.clone())))).collect()
+        Ok((Sentences { spans },))
     }
 }
 
 #[test]
-fn probe_5_run_incremental_coalesces_uncached_batch_and_preserves_placed_execution() {
-    let batch_sizes = Arc::new(Mutex::new(Vec::new()));
-    let analyzer = Analyzer::builder().add(PlacedBatchTokenizer { batch_sizes: batch_sizes.clone() }).build().unwrap();
+fn probe_5_unnamed_filter_annotator_and_uncacheable_annotator_always_execute() {
+    let run_filter = |t: f64, doc: &mut Document| {
+        let filter =
+            FilterAnnotator::new(Key::named(""), Key::named("kept"), move |e: &Entities, ix| e.score[ix.get()] >= t)
+                .unwrap();
+        assert!(!filter.is_cacheable(), "unnamed FilterAnnotator must not be cacheable");
+        Analyzer::builder()
+            .add(ViewTokenizer)
+            .add(StaticEntityProducer { score: 0.7, label: "PER" })
+            .step(filter)
+            .build()
+            .unwrap()
+            .analyze_incremental(doc)
+            .unwrap()
+    };
+    let mut doc = Document::new("Alice");
+    let r1 = run_filter(0.5, &mut doc);
+    assert_eq!((r1.stages_run, r1.stages_skipped), (3, 0));
+    assert_eq!(doc.get_key(&Key::<Entities>::named("kept")).unwrap().len(), 1);
+    let r2 = run_filter(0.9, &mut doc);
+    assert_eq!((r2.stages_run, r2.stages_skipped), (1, 2));
+    assert_eq!(doc.get_key(&Key::<Entities>::named("kept")).unwrap().len(), 0);
 
-    let mut doc0 = Document::new("alpha");
-    let doc1 = Document::new("beta");
-    let mut doc2 = Document::new("gamma");
-    let doc3 = Document::new("delta");
-    analyzer.analyze_incremental(&mut doc0).unwrap();
-    analyzer.analyze_incremental(&mut doc2).unwrap();
-    batch_sizes.lock().unwrap().clear();
+    // Explicitly named FilterAnnotator is cacheable and invalidates when its name changes.
+    let named_09 =
+        FilterAnnotator::new(Key::named(""), Key::named("kept"), |e: &Entities, ix| e.score[ix.get()] >= 0.9)
+            .unwrap()
+            .named("score>=0.9");
+    assert!(named_09.is_cacheable());
+    let p_named = Analyzer::builder()
+        .add(ViewTokenizer)
+        .add(StaticEntityProducer { score: 0.7, label: "PER" })
+        .step(named_09)
+        .build()
+        .unwrap();
+    assert_eq!(p_named.analyze_incremental(&mut doc).unwrap().stages_run, 1);
+    assert_eq!(p_named.analyze_incremental(&mut doc).unwrap().stages_run, 0);
 
-    let mut docs = vec![doc0, doc1, doc2, doc3];
-    let reports = analyzer.run_incremental(&mut docs);
-    for r in &reports {
-        assert!(r.is_ok());
-    }
-    assert_eq!(reports[0].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Skipped);
-    assert_eq!(reports[1].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Executed);
-    assert_eq!(reports[2].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Skipped);
-    assert_eq!(reports[3].as_ref().unwrap().stages[0].cache_status, StageCacheStatus::Executed);
-
-    assert_eq!(*batch_sizes.lock().unwrap(), vec![2]);
-    let tok_key = Key::<Tokens>::DEFAULT.id();
-    assert_eq!(docs[1].provenance(tok_key).unwrap().execution.as_ref().unwrap().device, "batch-size-2");
-    assert_eq!(docs[3].provenance(tok_key).unwrap().execution.as_ref().unwrap().device, "batch-size-2");
-    assert_ne!(reports[1].as_ref().unwrap().stages[0].provenance_digest, ProvenanceDigest::ZERO);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let p_uncacheable = Analyzer::builder().add(UncacheableStep(calls.clone())).build().unwrap();
+    let mut udoc = Document::new("hello");
+    assert_eq!(p_uncacheable.analyze_incremental(&mut udoc).unwrap().stages_run, 1);
+    assert_eq!(p_uncacheable.analyze_incremental(&mut udoc).unwrap().stages_run, 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
 }

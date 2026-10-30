@@ -127,14 +127,15 @@ pub(crate) fn compute_layer_content_digest<L: Layer>(
     layer: &L,
     view_info: Option<(ViewTextDigest, &[Edit])>,
 ) -> Option<ContentDigest> {
-    let payload_hash = layer.content_hash()?;
     let mut h = Sha256::new();
     h.str("turbo:layer-content:v2");
     let layer_name = key.layer.as_cow();
     h.str(&layer_name).str(key.name);
     h.u16(L::SCHEMA);
     h.usize(layer.len());
-    h.u64(payload_hash);
+    if !layer.content_sha256(&mut h) {
+        return None;
+    }
     match layer.text_spans() {
         None => {
             h.u8(0);

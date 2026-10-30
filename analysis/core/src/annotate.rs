@@ -124,6 +124,10 @@ pub trait Annotator: Send + Sync + 'static {
     }
 
     /// The model it runs, recorded on every layer it writes.
+    ///
+    /// [`Analyzer::analyze_incremental`](crate::Analyzer::analyze_incremental) and
+    /// [`Analyzer::run_incremental`](crate::Analyzer::run_incremental) include
+    /// [`Self::model`] in the provenance digest of every produced layer.
     fn model(&self) -> Option<ModelRef> {
         None
     }
@@ -133,8 +137,27 @@ pub trait Annotator: Send + Sync + 'static {
         None
     }
 
+    /// Deterministic configuration fingerprint recorded in [`Provenance::config`].
+    ///
+    /// [`Analyzer::analyze_incremental`](crate::Analyzer::analyze_incremental) and
+    /// [`Analyzer::run_incremental`](crate::Analyzer::run_incremental) key their
+    /// provenance-skip cache on `(ID, VERSION, config_hash(), model())`. Any
+    /// annotator whose output depends on runtime configuration or weights must
+    /// either incorporate all behavior-affecting parameters into [`Self::config_hash`]
+    /// / [`Self::model`] or return `false` from [`Self::is_cacheable`].
     fn config_hash(&self) -> u64 {
         0
+    }
+
+    /// Whether [`Analyzer::analyze_incremental`](crate::Analyzer::analyze_incremental)
+    /// and [`Analyzer::run_incremental`](crate::Analyzer::run_incremental) may skip
+    /// this annotator on a provenance cache hit. Defaults to `true`.
+    ///
+    /// Annotators wrapping opaque closures or external state not captured by
+    /// [`Self::config_hash`] and [`Self::model`] should return `false` so they are
+    /// always executed during incremental runs.
+    fn is_cacheable(&self) -> bool {
+        true
     }
 }
 
@@ -329,6 +352,9 @@ pub trait Step: Send + Sync {
     fn config_hash(&self) -> u64 {
         0
     }
+    fn is_cacheable(&self) -> bool {
+        true
+    }
     fn expected_provenance(&self, doc: &Document) -> Provenance {
         let reads = self
             .reads()
@@ -389,6 +415,10 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn config_hash(&self) -> u64 {
         self.annotator.config_hash()
+    }
+
+    fn is_cacheable(&self) -> bool {
+        self.annotator.is_cacheable()
     }
 
     fn expected_provenance(&self, doc: &Document) -> Provenance {
