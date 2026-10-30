@@ -123,6 +123,14 @@ pub struct AnalysisResultInner {
     pub graph: Vec<u8>,
 }
 
+const _: () = {
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<AnalyzerEngine>();
+    assert_send_sync::<AnalysisResultInner>();
+    assert_send_sync::<turbo_analyzer>();
+    assert_send_sync::<turbo_analysis_result>();
+};
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct PoolRef {
     pub(crate) offset: u32,

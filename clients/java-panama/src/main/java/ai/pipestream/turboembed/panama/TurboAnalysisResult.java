@@ -74,6 +74,7 @@ public final class TurboAnalysisResult implements AutoCloseable {
     }
 
     private final MemorySegment handle;
+    private final Arena ownerArena = Arena.ofShared();
     private final MemorySegment spansSegment;
     private final int spanCount;
     private final MemorySegment poolSegment;
@@ -84,6 +85,7 @@ public final class TurboAnalysisResult implements AutoCloseable {
     TurboAnalysisResult(MemorySegment handle) {
         MemorySegment adopted = Objects.requireNonNull(handle, "handle");
         if (MemorySegment.NULL.equals(adopted)) {
+            ownerArena.close();
             throw new IllegalArgumentException("native analysis result handle is NULL");
         }
 
@@ -106,7 +108,8 @@ public final class TurboAnalysisResult implements AutoCloseable {
             spans = boundedSegment(
                     spansPtrOut.get(ValueLayout.ADDRESS, 0L),
                     Math.multiplyExact(unsignedCount, SPAN_STRIDE),
-                    "span array");
+                    "span array",
+                    ownerArena);
 
             MemorySegment poolPtrOut = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment poolLenOut = arena.allocate(ValueLayout.JAVA_LONG);
@@ -115,7 +118,8 @@ public final class TurboAnalysisResult implements AutoCloseable {
             pool = boundedSegment(
                     poolPtrOut.get(ValueLayout.ADDRESS, 0L),
                     checkedNativeLength(poolLenOut.get(ValueLayout.JAVA_LONG, 0L), "string pool"),
-                    "string pool");
+                    "string pool",
+                    ownerArena);
 
             MemorySegment graphPtrOut = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment graphLenOut = arena.allocate(ValueLayout.JAVA_LONG);
@@ -124,8 +128,14 @@ public final class TurboAnalysisResult implements AutoCloseable {
             graph = boundedSegment(
                     graphPtrOut.get(ValueLayout.ADDRESS, 0L),
                     checkedNativeLength(graphLenOut.get(ValueLayout.JAVA_LONG, 0L), "graph"),
-                    "graph");
+                    "graph",
+                    ownerArena);
         } catch (RuntimeException | Error e) {
+            try {
+                ownerArena.close();
+            } catch (RuntimeException arenaFailure) {
+                e.addSuppressed(arenaFailure);
+            }
             try {
                 releaseNative(adopted);
             } catch (RuntimeException releaseFailure) {
@@ -148,10 +158,24 @@ public final class TurboAnalysisResult implements AutoCloseable {
             MemorySegment poolSegment,
             MemorySegment graphSegment) {
         this.handle = handle;
-        this.spansSegment = spansSegment;
         this.spanCount = spanCount;
-        this.poolSegment = poolSegment;
-        this.graphSegment = graphSegment;
+        try {
+            this.spansSegment = rebindSegment(spansSegment, ownerArena);
+            this.poolSegment = rebindSegment(poolSegment, ownerArena);
+            this.graphSegment = rebindSegment(graphSegment, ownerArena);
+        } catch (RuntimeException | Error e) {
+            try {
+                ownerArena.close();
+            } catch (RuntimeException arenaFailure) {
+                e.addSuppressed(arenaFailure);
+            }
+            try {
+                releaseNative(handle);
+            } catch (RuntimeException releaseFailure) {
+                e.addSuppressed(releaseFailure);
+            }
+            throw e;
+        }
     }
 
     private static long offset(String field) {
@@ -192,14 +216,22 @@ public final class TurboAnalysisResult implements AutoCloseable {
         return length;
     }
 
-    private static MemorySegment boundedSegment(MemorySegment pointer, long length, String what) {
+    private static MemorySegment boundedSegment(
+            MemorySegment pointer, long length, String what, Arena arena) {
         if (length == 0L) {
             return MemorySegment.NULL;
         }
         if (pointer == null || MemorySegment.NULL.equals(pointer)) {
             throw new IllegalStateException("native " + what + " pointer is NULL for length " + length);
         }
-        return pointer.reinterpret(length);
+        return pointer.reinterpret(length, arena, null);
+    }
+
+    private static MemorySegment rebindSegment(MemorySegment segment, Arena arena) {
+        if (segment.byteSize() == 0L) {
+            return MemorySegment.NULL;
+        }
+        return segment.reinterpret(segment.byteSize(), arena, null);
     }
 
     static void releaseNative(MemorySegment result) {
@@ -367,45 +399,45 @@ public final class TurboAnalysisResult implements AutoCloseable {
      * Runs {@code action} with the borrowed, read-only native span segment while this result
      * cannot close. Its layout is {@link TurboLibrary#TURBO_SPAN_LAYOUT}. Prefer
      * {@link TurboSpanView} unless a bulk native consumer needs the column directly.
-     * The segment must not be retained after the callback returns.
+     * The segment is bound to a callback-confined {@link Arena} and becomes invalid as soon
+     * as the callback returns.
      */
     public <T> T withSpansSegment(Function<? super MemorySegment, ? extends T> action) {
-        Objects.requireNonNull(action, "action");
-        lifecycleLock.readLock().lock();
-        try {
-            requireOpen();
-            return action.apply(spansSegment.asReadOnly());
-        } finally {
-            lifecycleLock.readLock().unlock();
-        }
+        return withBorrowedSegment(spansSegment, action);
     }
 
     /**
      * Runs {@code action} with the borrowed, read-only native string-pool segment while this
      * result cannot close. Pool offsets are meaningful only together with native span rows.
-     * The segment must not be retained after the callback returns.
+     * The segment is bound to a callback-confined {@link Arena} and becomes invalid as soon
+     * as the callback returns.
      */
     public <T> T withStringPoolSegment(Function<? super MemorySegment, ? extends T> action) {
-        Objects.requireNonNull(action, "action");
-        lifecycleLock.readLock().lock();
-        try {
-            requireOpen();
-            return action.apply(poolSegment.asReadOnly());
-        } finally {
-            lifecycleLock.readLock().unlock();
-        }
+        return withBorrowedSegment(poolSegment, action);
     }
 
     /**
      * Runs {@code action} with the borrowed graph segment while this result cannot close.
-     * The segment must not be retained after the callback returns.
+     * The segment is bound to a callback-confined {@link Arena} and becomes invalid as soon
+     * as the callback returns.
      */
     public <T> T withGraphSegment(Function<? super MemorySegment, ? extends T> action) {
+        return withBorrowedSegment(graphSegment, action);
+    }
+
+    private <T> T withBorrowedSegment(
+            MemorySegment segment, Function<? super MemorySegment, ? extends T> action) {
         Objects.requireNonNull(action, "action");
         lifecycleLock.readLock().lock();
         try {
             requireOpen();
-            return action.apply(graphSegment.asReadOnly());
+            try (Arena callbackArena = Arena.ofConfined()) {
+                MemorySegment scoped =
+                        segment.byteSize() == 0L
+                                ? callbackArena.allocate(0L).asReadOnly()
+                                : segment.reinterpret(segment.byteSize(), callbackArena, null).asReadOnly();
+                return action.apply(scoped);
+            }
         } finally {
             lifecycleLock.readLock().unlock();
         }
@@ -447,12 +479,17 @@ public final class TurboAnalysisResult implements AutoCloseable {
 
     @Override
     public void close() {
+        if (lifecycleLock.getReadHoldCount() > 0) {
+            throw new IllegalStateException(
+                    "Cannot close TurboAnalysisResult from within a segment callback on the same thread");
+        }
         lifecycleLock.writeLock().lock();
         try {
             if (closed) {
                 return;
             }
             closed = true;
+            ownerArena.close();
             releaseNative(handle);
         } finally {
             lifecycleLock.writeLock().unlock();

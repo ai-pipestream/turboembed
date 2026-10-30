@@ -22,9 +22,9 @@
  *     threads; turbo_last_error_message is a separate per-thread diagnostic.
  *   - Handles are opaque and reference counted. A child keeps its parent
  *     alive. Release functions accept NULL.
- *   - Runtime, context, model and tokenizer may be used from any thread.
- *     A session and its results have one owner at a time; a second call on
- *     a busy session returns TURBO_E_BUSY.
+ *   - Runtime, context, model, tokenizer, analyzer and analysis_result may be
+ *     used from any thread. A session and its results have one owner at a
+ *     time; a second call on a busy session returns TURBO_E_BUSY.
  *   - An option the backend cannot honor for this model on this device
  *     fails the call with TURBO_E_UNSUPPORTED_OPTION and turbo_error.field
  *     naming the field (1-based). Nothing is ignored, clamped or replaced.
@@ -812,7 +812,7 @@ typedef struct turbo_analyzer_desc {
     uint32_t   struct_size;
     uint32_t   flags;
     turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
-    turbo_text sent_model_path;   /*2: optional OpenNLP sentence model .bin path */
+    turbo_text sent_model_path;   /*2: optional native sentence model .bin path */
     turbo_text tok_model_path;    /*3: optional OpenNLP tokenizer model .bin path */
     turbo_text pos_model_path;    /*4: optional OpenNLP POS model .bin path */
     turbo_text lemma_model_path;  /*5: optional OpenNLP lemmatizer model/dict path */
@@ -860,6 +860,10 @@ typedef struct turbo_span {
     double   prob;
 } turbo_span;
 
+/* Create, retain or release an analyzer handle. Both turbo_analyzer and
+ * turbo_analysis_result are thread-safe (Send + Sync): an analyzer may be
+ * called concurrently from multiple threads, and a result may be read or
+ * retained/released across threads while at least one reference remains. */
 int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **out, turbo_error *err);
 turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *a);
 void    turbo_analyzer_release(turbo_analyzer *a);

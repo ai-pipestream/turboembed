@@ -5,11 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /** Lifetime, retain, copy-out, and concurrency tests for typed native result views. */
@@ -58,9 +60,80 @@ final class TurboAnalysisResultTest {
         assertThrows(IllegalStateException.class, originalView::layerKind);
         assertEquals("views", retainedView.coveredSourceText(TEXT));
         assertEquals("views", retained.copySpan(1).coveredSourceText(TEXT));
+        assertTrue(retained.withSpansSegment(seg -> seg.byteSize()) > 0L);
+        assertTrue(retained.withStringPoolSegment(seg -> seg.byteSize()) > 0L);
         retained.close();
         retained.close();
         assertThrows(IllegalStateException.class, retainedView::layerKind);
+    }
+
+    @Test
+    void escapedSegmentsAndSlicesAreInvalidatedWhenCallbackReturns() {
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create();
+                TurboAnalysisResult result = analyzer.analyzeGraph(TEXT)) {
+            AtomicReference<MemorySegment> escapedSlice = new AtomicReference<>();
+            MemorySegment escapedSpans = result.withSpansSegment(segment -> {
+                escapedSlice.set(segment.asSlice(0L, TurboLibrary.TURBO_SPAN_LAYOUT.byteSize()));
+                assertTrue(segment.scope().isAlive());
+                return segment;
+            });
+            assertFalse(escapedSpans.scope().isAlive());
+            assertFalse(escapedSlice.get().scope().isAlive());
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> escapedSpans.get(ValueLayout.JAVA_INT, 0L));
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> escapedSlice.get().get(ValueLayout.JAVA_INT, 0L));
+
+            MemorySegment escapedPool = result.withStringPoolSegment(segment -> segment.asSlice(0L, 4L));
+            assertFalse(escapedPool.scope().isAlive());
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> escapedPool.get(ValueLayout.JAVA_BYTE, 0L));
+
+            MemorySegment escapedGraph = result.withGraphSegment(segment -> segment.asSlice(0L, 4L));
+            assertFalse(escapedGraph.scope().isAlive());
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> escapedGraph.get(ValueLayout.JAVA_BYTE, 0L));
+
+            assertFalse(result.isClosed());
+            assertEquals("Lifetime views stay typed.", result.span(0).coveredSourceText(TEXT));
+        }
+    }
+
+    @Test
+    void reentrantCloseInsideSegmentCallbackThrowsInsteadOfDeadlocking() {
+        TurboAnalysisResult result;
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create()) {
+            result = analyzer.analyzeGraph(TEXT);
+        }
+        try {
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> result.withSpansSegment(segment -> {
+                        result.close();
+                        return segment.byteSize();
+                    }));
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> result.withStringPoolSegment(segment -> {
+                        result.close();
+                        return segment.byteSize();
+                    }));
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> result.withGraphSegment(segment -> {
+                        result.close();
+                        return segment.byteSize();
+                    }));
+            assertFalse(result.isClosed());
+            assertEquals("Lifetime views stay typed.", result.span(0).coveredSourceText(TEXT));
+        } finally {
+            result.close();
+        }
+        assertTrue(result.isClosed());
     }
 
     @Test
