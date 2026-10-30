@@ -33,6 +33,14 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   (any `Fn(form, tag) -> Option<String>`, so a Morfologik or WordNet
   Morphy lookup as a closure) overrides the head where it lists a lemma;
   its id is part of the config hash.
+- `segment`: `SentenceTagger` writes the sentence layer from a
+  `HEAD_SENTENCE_BOUNDARY` head, reading the view's tokens as one
+  sequence of words (in windows past a row) and ending a sentence after
+  each word the core's `SentenceBoundary` marks, the last word always.
+  `SpanTagger` writes typed spans from a `HEAD_SPAN_CLASSIFIER` head into
+  the entity layer, nested or flat as the head decodes, a sentence at a
+  time; each span's score is its label's probability among the span's
+  scores. Both put every span on token bounds.
 - `multi`: `MultiTask<W>` writes several of those layers from one
   encoder pass (#1517). `W` is a tuple of the layers to write, such as
   `(PosTags, Entities, Dependencies<Tokens>, Lemmas)`, each from the head

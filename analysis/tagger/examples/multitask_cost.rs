@@ -167,6 +167,9 @@ fn with_heads(src: &Path, dst: &Path) {
             HeadKind::BiaffineParser => parser::tensors(&spec, hidden),
             HeadKind::EditTreeLemmatizer => lemmatizer::tensors(&spec, hidden),
             HeadKind::TokenTagger => tagger::tensors(&spec, hidden),
+            HeadKind::SentenceBoundary => turbo::head::boundary::tensors(&spec, hidden),
+            HeadKind::TokenSplit => turbo::head::split::tensors(&spec, hidden),
+            HeadKind::SpanClassifier => turbo::head::span::tensors(&spec, hidden),
         };
         for (k, (suffix, shape)) in shapes.into_iter().enumerate() {
             let start = data.len();
