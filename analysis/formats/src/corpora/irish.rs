@@ -10,16 +10,15 @@
 use std::borrow::Cow;
 
 use turbo_analysis::Span;
-use turbo_jvm::chars::utf16_len;
-use turbo_jvm::hash_map::JavaHashMap;
 
 use super::dom::{self, Element, Node};
 use super::error::CorpusError;
 use super::nkjp::shift;
 use crate::error::FormatError;
+use crate::java_map::JavaHashMap;
 use crate::masc::java::{equals_ignore_case_ascii, parse_int};
 use crate::sample::{SentenceSample, TokenSample};
-use crate::source::{check_len, utf16_cut};
+use crate::source::{check_len, utf16_cut, utf16_len};
 
 /// The lemmas of a token slot, with the token's text.
 #[derive(Clone, Debug, PartialEq, Eq)]

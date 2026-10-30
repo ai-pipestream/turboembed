@@ -122,6 +122,7 @@ pub mod doc_export;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
+mod java_map;
 pub mod masc;
 pub mod native;
 pub mod ner;

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use turbo_analysis::Span;
-use turbo_jvm::hash_map::JavaHashMap;
 
 use super::super::Tagset;
 use super::entity::{Bracket, BracketKind, entity_brackets, misc_attribute};
 use super::{COLUMNS, Cluster, CorefDocument, CorefError, CorefSentence, CorefToken, CorefWarning, Mention, SPEAKER};
+use crate::java_map::JavaHashMap;
 use crate::source::{Field, Line, Piece};
 
 /// A mention while it is read: its tokens and brackets.

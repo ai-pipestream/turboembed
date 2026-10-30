@@ -4,12 +4,11 @@ use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use turbo_jvm::hash_map::put_order;
-
 use super::annotation::{BratAnnotation, Parsed, parse_annotations};
 use crate::error::FormatError;
+use crate::java_map::put_order;
 use crate::masc::java::decode_utf8;
-use crate::source::check_len;
+use crate::source::{check_len, compare_utf16};
 
 /// A brat document (`BratDocument`): a text and its annotations.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -251,7 +250,7 @@ pub fn brat_documents(dir: &Path, recursive: bool) -> io::Result<Vec<PathBuf>> {
         let mut entries: Vec<(String, PathBuf)> = std::fs::read_dir(&dir)?
             .map(|e| e.map(|e| (e.file_name().to_string_lossy().into_owned(), e.path())))
             .collect::<io::Result<_>>()?;
-        entries.sort_by(|a, b| turbo_jvm::chars::compare(&a.0, &b.0));
+        entries.sort_by(|a, b| compare_utf16(&a.0, &b.0));
         for (name, path) in entries {
             if path.is_file() {
                 if let Some(base) = name.strip_suffix(".ann") {

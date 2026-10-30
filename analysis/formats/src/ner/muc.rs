@@ -378,7 +378,7 @@ pub fn muc_files(dir: &Path) -> io::Result<Vec<PathBuf>> {
             files.push(path);
         }
     }
-    files.sort_by(|a, b| turbo_jvm::chars::compare(&a.to_string_lossy(), &b.to_string_lossy()));
+    files.sort_by(|a, b| crate::source::compare_utf16(&a.to_string_lossy(), &b.to_string_lossy()));
     files.reverse();
     Ok(files)
 }

@@ -6,13 +6,12 @@
 //! the whole file: OpenNLP strips no headers, signatures or quotes.
 
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
-use turbo_jvm::hash_map::{JavaHash, JavaHashMap};
 
 use super::DirectoryError;
+use crate::java_map::{JavaHash, JavaHashMap};
 use crate::masc::java::decode_utf8;
 use crate::ner::TokenSpans;
 use crate::sample::DocumentSample;
@@ -100,16 +99,12 @@ fn unix_path(bytes: &[u8]) -> Vec<u8> {
 }
 
 /// A path as `sun.nio.fs.UnixPath` hashes and orders it: by its bytes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct UnixPath(Vec<u8>);
 
 impl JavaHash for UnixPath {
     fn java_hash(&self) -> i32 {
         self.0.iter().fold(0i32, |h, &b| h.wrapping_mul(31).wrapping_add(i32::from(b)))
-    }
-
-    fn tree_order(&self, other: &Self) -> Option<Ordering> {
-        Some(self.0.cmp(&other.0))
     }
 }
 

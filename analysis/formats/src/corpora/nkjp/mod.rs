@@ -14,14 +14,14 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use turbo_analysis::Span;
-use turbo_jvm::hash_map::JavaHashMap;
 
 use super::dom::{self, Element, Node};
 use super::error::CorpusError;
 use crate::error::FormatError;
+use crate::java_map::JavaHashMap;
 use crate::masc::java::{equals_ignore_case_ascii, parse_int};
 use crate::sample::SentenceSample;
-use crate::source::{check_len, utf16_cut};
+use crate::source::{check_len, utf16_cut, utf16_len};
 
 /// Where a segment is: `corresp="text.xml#string-range(p-1,5,3)"`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -437,7 +437,7 @@ fn cut(
         Err(length) => Err(out_of_bounds(length)),
     };
     if start > end {
-        return Err(out_of_bounds(turbo_jvm::chars::utf16_len(text)));
+        return Err(out_of_bounds(utf16_len(text)));
     }
     let to = to_byte(end)?;
     let from = to_byte(start)?;

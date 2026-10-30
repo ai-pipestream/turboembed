@@ -1,5 +1,12 @@
 use super::*;
-use turbo_jvm::strict_math::{exp, log};
+
+fn exp(x: f64) -> f64 {
+    x.exp()
+}
+
+fn log(x: f64) -> f64 {
+    x.ln()
+}
 
 /// A model with outcomes a, b, c and predicates p (a: 1, b: 2),
 /// q (c: -0.5), and two whose modified UTF-8 differs from UTF-8:
