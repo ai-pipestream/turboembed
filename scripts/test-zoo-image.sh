@@ -5,7 +5,8 @@
 # The zoo serves a small index whose own addresses answer nothing, and the
 # bucket is seeded with its files by SHA-256, so every byte a read returns
 # came through the store. Then server/tests/zoo_image_smoke.rs reads them
-# over gRPC, and the page is fetched once.
+# over gRPC, zoo-remote/tests/zoo_image.rs loads them with the library, and
+# the page is fetched once.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -91,6 +92,10 @@ done
 
 TURBO_ZOO_SMOKE_ADDR="$grpc" TURBO_ZOO_SMOKE_INDEX="$scratch/zoo.json" \
     cargo test --locked -p turbo-kserve --test zoo_image_smoke -- --nocapture
+# The library itself reads from the zoo, as TURBO_ZOO_SOURCE names it, into
+# a local cache with its own licence check (zoo-remote/tests/zoo_image.rs).
+TURBO_ZOO_SOURCE="grpc://$grpc" TURBO_ZOO_SMOKE_INDEX="$scratch/zoo.json" \
+    cargo test --locked -p turbo-zoo-remote --test zoo_image -- --nocapture
 
 # The page is served, and its calls need the token.
 curl --noproxy '*' --silent --show-error --fail "$page/" | grep -q '<html'
