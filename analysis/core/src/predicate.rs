@@ -455,14 +455,20 @@ impl Step for ConditionalAnnotator {
                 }
                 DocNonBranch::Failed(e) => Some(e),
             };
-            let Some(e) = failure else { continue };
-            for &k in &self.writes {
-                if !docs[i].has(k) {
-                    let _ = docs[i].fail(k, e.clone(), p_base.clone());
+            if let Some(e) = failure {
+                for &k in &self.writes {
+                    if !docs[i].has(k) {
+                        let _ = docs[i].fail(k, e.clone(), p_base.clone());
+                    }
+                }
+                if status[i].is_ok() {
+                    status[i] = Err(e);
                 }
             }
-            if status[i].is_ok() {
-                status[i] = Err(e);
+        }
+        for doc in docs.iter_mut() {
+            for &k in &self.writes {
+                doc.mark_pipeline_stored(k);
             }
         }
     }

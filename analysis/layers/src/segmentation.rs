@@ -49,6 +49,9 @@ impl Layer for Structure {
     const ID: &'static str = "turbo:structure";
     const OVERLAP: Overlap = Overlap::Nesting;
     positional!(Structure);
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.kind.len() != n || self.parent.len() != n || self.depth.len() != n {
@@ -100,6 +103,9 @@ impl Sentences {
 impl Layer for Sentences {
     const ID: &'static str = "opennlp:sentences";
     positional!(Sentences);
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.spans.len() as u64)
+    }
     fn check(&self) -> Result<(), String> {
         self.spans.check(Self::OVERLAP).map_err(|e| {
             if e == "spans in text order, not overlapping" {
@@ -202,6 +208,9 @@ impl Layer for Tokens {
         let Some(s) = &self.sentence else { return Vec::new() };
         vec![(Key::<Sentences>::DEFAULT.id(), s.last().map_or(0, |i| i.get() + 1))]
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         match &self.sentence {
             Some(s) if s.len() != self.spans.len() => Err("a sentence for every token".into()),
@@ -254,6 +263,9 @@ impl Layer for Subwords {
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let Some(t) = &self.token else { return Vec::new() };
         vec![(Key::<Tokens>::DEFAULT.id(), t.last().map_or(0, |i| i.get() + 1))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let (start, end) = self.spans.columns();
@@ -331,6 +343,9 @@ impl Layer for Boundaries {
     fn len(&self) -> usize {
         self.cost.len()
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         if self.reason.len() != self.cost.len() {
             return Err("a reason for every boundary".into());
@@ -379,6 +394,9 @@ impl Layer for Chunks {
     positional!(Chunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Sentences>::DEFAULT.id(), self.sentences.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let columns = [

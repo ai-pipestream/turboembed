@@ -1,4 +1,8 @@
+use std::borrow::Cow;
+
 use super::*;
+use crate::doc::digest::{ProvenanceDigestParts, compute_provenance_digest_from_parts};
+use crate::doc::{Entry, ProvenanceDigest, SourceBytesDigest, ViewTextDigest};
 
 pub(super) fn ref_of(key: KeyId) -> LayerRef {
     LayerRef { layer: key.layer.to_string(), instance: key.name.to_owned() }
@@ -13,7 +17,18 @@ pub(super) fn provenance_record(p: &Provenance) -> ProvenanceRecord {
         execution: p.execution.clone(),
         reads: p.reads.iter().copied().map(ref_of).collect(),
         on: p.on.iter().copied().map(ref_of).collect(),
+        provenance_digest: None,
+        input_snapshot: None,
     }
+}
+
+pub(super) fn provenance_record_for_entry(entry: &Entry) -> ProvenanceRecord {
+    let mut rec = provenance_record(&entry.provenance);
+    if entry.from_pipeline {
+        rec.provenance_digest = Some(entry.provenance_digest);
+        rec.input_snapshot = entry.upstream_content_hash;
+    }
+    rec
 }
 
 pub(super) fn error_record(error: &Error, cx: &ExportCx) -> Result<ErrorRecord, ExportError> {
@@ -136,60 +151,156 @@ pub(super) fn rebuild_provenance(
 }
 
 impl DocumentGraph {
-    /// Computes the deterministic 64-bit chained provenance digest for the view
+    /// Computes the deterministic 256-bit SHA-256 chained provenance digest for the view
     /// named `instance` on this wire [`DocumentGraph`], matching
-    /// [`Document::provenance_digest`].
-    pub fn view_provenance_digest(&self, instance: &str) -> Option<u64> {
-        let view = self.views.iter().find(|v| v.instance == instance)?;
-        Some(self.record_provenance_digest(&view.provenance))
+    /// [`Document::provenance_digest`]. Returns `None` if the view does not exist or if
+    /// the provenance graph contains a dependency cycle.
+    pub fn view_provenance_digest(&self, instance: &str) -> Option<ProvenanceDigest> {
+        self.try_view_provenance_digest(instance).ok()
     }
 
-    /// Computes the deterministic 64-bit chained provenance digest for the layer
+    /// Checked, memoized traversal computing the 256-bit SHA-256 chained provenance
+    /// digest for the view named `instance`, returning [`ExportError::InvalidLayer`]
+    /// if a provenance cycle is encountered.
+    pub fn try_view_provenance_digest(&self, instance: &str) -> Result<ProvenanceDigest, ExportError> {
+        let mut visiting = HashSet::new();
+        let mut memo = HashMap::new();
+        let mut view_texts = HashMap::new();
+        let source_text_digest = ViewTextDigest(turbo_sha256::sha256(self.source.text.as_bytes()));
+        let source_bytes_digest =
+            self.source.alignment.as_ref().map(|_| SourceBytesDigest(turbo_sha256::sha256(&self.source.bytes)));
+        self.eval_node_digest(
+            View::ID,
+            instance,
+            source_text_digest,
+            source_bytes_digest,
+            &mut visiting,
+            &mut memo,
+            &mut view_texts,
+        )
+    }
+
+    /// Computes the deterministic 256-bit SHA-256 chained provenance digest for the layer
     /// `(layer, instance)` on this wire [`DocumentGraph`], matching
-    /// [`Document::provenance_digest`].
-    pub fn layer_provenance_digest(&self, layer: &str, instance: &str) -> Option<u64> {
-        let rec = self.layers.iter().find(|l| l.layer == layer && l.instance == instance)?;
-        Some(self.record_provenance_digest(&rec.provenance))
+    /// [`Document::provenance_digest`]. Returns `None` if the layer does not exist or if
+    /// the provenance graph contains a dependency cycle.
+    pub fn layer_provenance_digest(&self, layer: &str, instance: &str) -> Option<ProvenanceDigest> {
+        self.try_layer_provenance_digest(layer, instance).ok()
     }
 
-    fn record_provenance_digest(&self, p: &ProvenanceRecord) -> u64 {
-        let source_text_hash = crate::hash::fnv1a(self.source.text.as_bytes());
-        let source_bytes_hash = self.source.alignment.as_ref().map(|_| crate::hash::fnv1a(&self.source.bytes));
-        let mut view_reads: Vec<(String, u64)> = p
-            .reads
-            .iter()
-            .filter(|r| r.layer == View::ID)
-            .map(|r| {
-                let text = self
-                    .views
-                    .iter()
-                    .find(|v| v.instance == r.instance)
-                    .and_then(|v| v.text.as_deref())
-                    .unwrap_or(&self.source.text);
-                (r.instance.clone(), crate::hash::fnv1a(text.as_bytes()))
-            })
-            .collect();
-        let mut upstream_digests: Vec<(String, String, u64)> = p
-            .reads
-            .iter()
-            .map(|r| {
-                let d = if r.layer == View::ID {
-                    self.view_provenance_digest(&r.instance).unwrap_or(0)
-                } else {
-                    self.layer_provenance_digest(&r.layer, &r.instance).unwrap_or(0)
-                };
-                (r.layer.clone(), r.instance.clone(), d)
-            })
-            .collect();
-        crate::doc::digest::compute_provenance_digest_from_parts(crate::doc::digest::ProvenanceDigestParts {
+    /// Checked, memoized traversal computing the 256-bit SHA-256 chained provenance
+    /// digest for `(layer, instance)`, returning [`ExportError::InvalidLayer`] if a
+    /// provenance cycle is encountered.
+    pub fn try_layer_provenance_digest(&self, layer: &str, instance: &str) -> Result<ProvenanceDigest, ExportError> {
+        let mut visiting = HashSet::new();
+        let mut memo = HashMap::new();
+        let mut view_texts = HashMap::new();
+        let source_text_digest = ViewTextDigest(turbo_sha256::sha256(self.source.text.as_bytes()));
+        let source_bytes_digest =
+            self.source.alignment.as_ref().map(|_| SourceBytesDigest(turbo_sha256::sha256(&self.source.bytes)));
+        self.eval_node_digest(
+            layer,
+            instance,
+            source_text_digest,
+            source_bytes_digest,
+            &mut visiting,
+            &mut memo,
+            &mut view_texts,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn eval_node_digest(
+        &self,
+        layer: &str,
+        instance: &str,
+        source_text_digest: ViewTextDigest,
+        source_bytes_digest: Option<SourceBytesDigest>,
+        visiting: &mut HashSet<(String, String)>,
+        memo: &mut HashMap<(String, String), ProvenanceDigest>,
+        view_texts: &mut HashMap<String, ViewTextDigest>,
+    ) -> Result<ProvenanceDigest, ExportError> {
+        let node_key = (layer.to_owned(), instance.to_owned());
+        if let Some(&cached) = memo.get(&node_key) {
+            return Ok(cached);
+        }
+        let p = if layer == View::ID {
+            let view = self.views.iter().find(|v| v.instance == instance).ok_or_else(|| {
+                ExportError::DanglingReference {
+                    layer: layer.to_owned(),
+                    reference: LayerRef { layer: layer.to_owned(), instance: instance.to_owned() },
+                }
+            })?;
+            &view.provenance
+        } else {
+            let rec = self.layers.iter().find(|l| l.layer == layer && l.instance == instance).ok_or_else(|| {
+                ExportError::DanglingReference {
+                    layer: layer.to_owned(),
+                    reference: LayerRef { layer: layer.to_owned(), instance: instance.to_owned() },
+                }
+            })?;
+            &rec.provenance
+        };
+        if !visiting.insert(node_key.clone()) {
+            return Err(ExportError::InvalidLayer {
+                layer: layer.to_owned(),
+                detail: format!("cyclic provenance dependency involving {layer}@{instance}"),
+            });
+        }
+        let mut view_reads: Vec<(Cow<'_, str>, ViewTextDigest)> = Vec::new();
+        let mut upstream_digests: Vec<(Cow<'_, str>, Cow<'_, str>, ProvenanceDigest)> =
+            Vec::with_capacity(p.reads.len());
+        for r in &p.reads {
+            if r.layer == View::ID {
+                let td = *view_texts.entry(r.instance.clone()).or_insert_with(|| {
+                    let text = self
+                        .views
+                        .iter()
+                        .find(|v| v.instance == r.instance)
+                        .and_then(|v| v.text.as_deref())
+                        .unwrap_or(&self.source.text);
+                    ViewTextDigest(turbo_sha256::sha256(text.as_bytes()))
+                });
+                view_reads.push((Cow::Borrowed(r.instance.as_str()), td));
+            }
+            let dep_key = (r.layer.clone(), r.instance.clone());
+            if visiting.contains(&dep_key) {
+                visiting.remove(&node_key);
+                return Err(ExportError::InvalidLayer {
+                    layer: layer.to_owned(),
+                    detail: format!("cyclic provenance dependency involving {}@{}", r.layer, r.instance),
+                });
+            }
+            let d = match self.eval_node_digest(
+                &r.layer,
+                &r.instance,
+                source_text_digest,
+                source_bytes_digest,
+                visiting,
+                memo,
+                view_texts,
+            ) {
+                Ok(digest) => digest,
+                Err(ExportError::DanglingReference { .. }) => ProvenanceDigest::ZERO,
+                Err(other) => {
+                    visiting.remove(&node_key);
+                    return Err(other);
+                }
+            };
+            upstream_digests.push((Cow::Borrowed(r.layer.as_str()), Cow::Borrowed(r.instance.as_str()), d));
+        }
+        visiting.remove(&node_key);
+        let digest = compute_provenance_digest_from_parts(ProvenanceDigestParts {
             annotator: &p.annotator,
             version: &p.version,
             config: p.config,
             model: p.model.as_ref(),
-            source_text_hash,
-            source_bytes_hash,
+            source_text_digest,
+            source_bytes_digest,
             view_reads: &mut view_reads,
             upstream_digests: &mut upstream_digests,
-        })
+        });
+        memo.insert(node_key, digest);
+        Ok(digest)
     }
 }

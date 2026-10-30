@@ -20,7 +20,7 @@ pub fn export(doc: &Document, codecs: &Codecs) -> Result<DocumentGraph, ExportEr
             on: entry.provenance.on.clone(),
             reads: entry.provenance.reads.clone(),
         };
-        let provenance = provenance_record(&entry.provenance);
+        let provenance = provenance_record_for_entry(entry);
         let status = status_record(&entry.status, &cx)?;
         if entry.key.ty == TypeId::of::<View>() {
             let (parent, text, edits) = match entry.value.as_ref().and_then(|v| v.downcast_ref::<View>()) {

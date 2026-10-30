@@ -395,6 +395,15 @@ impl Layer for Pii {
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Pii);
 
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.usize(self.kind.len()).u64(self.normalized.content_hash());
+        for (&k, &c) in self.kind.iter().zip(&self.confidence) {
+            h.str(k.name()).str(c.name());
+        }
+        Some(h.finish())
+    }
+
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.kind.len() != n || self.confidence.len() != n || self.normalized.len() != n {

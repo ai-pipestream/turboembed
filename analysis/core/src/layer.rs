@@ -50,6 +50,21 @@ impl TagSet {
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
     }
+
+    /// The ordered label definitions in this tag set (`Tag(i)` maps to `labels()[i]`).
+    pub fn labels(&self) -> &[Box<str>] {
+        &self.names
+    }
+
+    /// Deterministic fingerprint of this tag set's name and ordered label definitions.
+    pub fn content_hash(&self) -> u64 {
+        let mut h = crate::hash::Fnv1a::new();
+        h.str("turbo:tagset:v1").str(&self.name).usize(self.names.len());
+        for label in &self.names {
+            h.str(label);
+        }
+        h.finish()
+    }
 }
 
 /// A layer: one typed, columnar result over a document. Each layer is its
@@ -126,10 +141,17 @@ pub trait Layer: Any + Send + Sync + Sized {
         Ok(())
     }
 
-    /// Optional deterministic fingerprint for payload fields not covered by
-    /// `len()`, `text_spans()`, and `indexes()`.
-    fn content_hash(&self) -> u64 {
-        0
+    /// Deterministic fingerprint for payload fields not covered by `len()`,
+    /// `text_spans()`, and `indexes()`.
+    ///
+    /// Returning `Some(hash)` certifies that `hash` covers all semantically
+    /// significant payload columns of `Self`, enabling upstream content-cutoff
+    /// caching when a producer re-runs and yields an identical layer value.
+    /// Returning `None` (the default) marks the layer as having no complete
+    /// payload fingerprint, so downstream steps reading `Self` never skip on
+    /// structural-only equality.
+    fn content_hash(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -196,6 +218,17 @@ pub struct LayerName {
     pub id: &'static str,
     pub of: Option<&'static LayerName>,
     pub to: Option<&'static LayerName>,
+}
+
+impl LayerName {
+    /// Returns this layer name as a borrowed `'static` string when it has no
+    /// generic type parameters, or formats its full parameterized name.
+    pub fn as_cow(&self) -> std::borrow::Cow<'static, str> {
+        match (self.of, self.to) {
+            (None, None) => std::borrow::Cow::Borrowed(self.id),
+            _ => std::borrow::Cow::Owned(self.to_string()),
+        }
+    }
 }
 
 impl fmt::Display for LayerName {
@@ -303,9 +336,9 @@ impl Provenance {
         }
     }
 
-    /// Computes the deterministic 64-bit chained provenance digest for this
-    /// provenance record against `doc`.
-    pub fn chained_digest(&self, doc: &crate::Document) -> u64 {
+    /// Computes the deterministic 256-bit SHA-256 chained provenance digest
+    /// for this provenance record against `doc`.
+    pub fn chained_digest(&self, doc: &crate::Document) -> crate::doc::ProvenanceDigest {
         doc.compute_provenance_digest(self)
     }
 }

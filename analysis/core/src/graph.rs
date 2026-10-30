@@ -292,6 +292,18 @@ impl<From: Layer, To: Layer> Layer for Edges<From, To> {
         vec![(self.from_key.id(), from_bound), (self.to_key.id(), to_bound)]
     }
 
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = crate::hash::Fnv1a::new();
+        h.key(self.from_key).key(self.to_key).u64(self.kinds.content_hash()).usize(self.from.len());
+        for i in 0..self.from.len() {
+            h.u32(self.from[i].get() as u32)
+                .u32(self.to[i].get() as u32)
+                .u16(self.kind[i].0)
+                .f64(self.score[i]);
+        }
+        Some(h.finish())
+    }
+
     fn check(&self) -> Result<(), String> {
         let n = self.from.len();
         if self.to.len() != n || self.kind.len() != n || self.score.len() != n || self.by_to.len() != n {
@@ -434,6 +446,19 @@ impl<L: Layer> Layer for Groups<L> {
         // Each group is sorted, so its last member is its largest.
         let bound = self.iter().filter_map(|(_, g)| g.last()).map(|i| i.get() + 1).max().unwrap_or(0);
         vec![(self.of_key.id(), bound)]
+    }
+
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = crate::hash::Fnv1a::new();
+        h.key(self.of_key).usize(self.end.len());
+        for &e in &self.end {
+            h.u32(e);
+        }
+        h.usize(self.members.len());
+        for &m in &self.members {
+            h.u32(m.get() as u32);
+        }
+        Some(h.finish())
     }
 
     fn check(&self) -> Result<(), String> {

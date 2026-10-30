@@ -37,10 +37,12 @@ pub(super) fn put_provenance(w: &mut Writer, p: &ProvenanceRecord) -> Result<(),
             w.str(&model.sha256)?;
         }
     }
+    let has_snapshot = p.provenance_digest.is_some() || p.input_snapshot.is_some();
+    let flag = if has_snapshot { 0x80u8 } else { 0u8 };
     match &p.execution {
-        None => w.u8(0),
+        None => w.u8(flag),
         Some(execution) => {
-            w.u8(1);
+            w.u8(flag | 1);
             w.str(&execution.backend)?;
             w.str(&execution.device)?;
             w.str(&execution.precision)?;
@@ -50,6 +52,22 @@ pub(super) fn put_provenance(w: &mut Writer, p: &ProvenanceRecord) -> Result<(),
         w.usize(refs.len())?;
         for r in refs {
             put_layer_ref(w, r)?;
+        }
+    }
+    if has_snapshot {
+        match &p.provenance_digest {
+            None => w.u8(0),
+            Some(d) => {
+                w.u8(1);
+                w.out.extend_from_slice(d.as_bytes());
+            }
+        }
+        match &p.input_snapshot {
+            None => w.u8(0),
+            Some(s) => {
+                w.u8(1);
+                w.out.extend_from_slice(s.as_bytes());
+            }
         }
     }
     Ok(())
@@ -64,10 +82,12 @@ pub(super) fn get_provenance(r: &mut Reader<'_>) -> Result<ProvenanceRecord, Exp
         1 => Some(ModelRef { id: r.string()?, revision: r.string()?, sha256: r.string()? }),
         tag => return Err(malformed(format!("a model tag of {tag}"))),
     };
-    let execution = match r.u8()? {
+    let exec_tag = r.u8()?;
+    let has_snapshot = (exec_tag & 0x80) != 0;
+    let execution = match exec_tag & 0x7f {
         0 => None,
         1 => Some(Execution { backend: r.string()?, device: r.string()?, precision: r.string()? }),
-        tag => return Err(malformed(format!("an execution tag of {tag}"))),
+        _ => return Err(malformed(format!("an execution tag of {exec_tag}"))),
     };
     let mut read_refs = || -> Result<Vec<LayerRef>, ExportError> {
         let mut out = Vec::new();
@@ -78,7 +98,28 @@ pub(super) fn get_provenance(r: &mut Reader<'_>) -> Result<ProvenanceRecord, Exp
     };
     let reads = read_refs()?;
     let on = read_refs()?;
-    Ok(ProvenanceRecord { annotator, version, config, model, execution, reads, on })
+    let (provenance_digest, input_snapshot) = if has_snapshot {
+        let pd = match r.u8()? {
+            0 => None,
+            1 => {
+                let bytes: [u8; 32] = r.take(32)?.try_into().expect("32 bytes");
+                Some(crate::doc::ProvenanceDigest::from_bytes(bytes))
+            }
+            tag => return Err(malformed(format!("a provenance digest tag of {tag}"))),
+        };
+        let snap = match r.u8()? {
+            0 => None,
+            1 => {
+                let bytes: [u8; 32] = r.take(32)?.try_into().expect("32 bytes");
+                Some(crate::doc::InputSnapshotDigest::from_bytes(bytes))
+            }
+            tag => return Err(malformed(format!("an input snapshot tag of {tag}"))),
+        };
+        (pd, snap)
+    } else {
+        (None, None)
+    };
+    Ok(ProvenanceRecord { annotator, version, config, model, execution, reads, on, provenance_digest, input_snapshot })
 }
 
 pub(super) fn put_edits(w: &mut Writer, edits: &[Edit]) -> Result<(), ExportError> {

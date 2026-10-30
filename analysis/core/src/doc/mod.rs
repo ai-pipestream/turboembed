@@ -6,6 +6,7 @@ mod project;
 mod source;
 mod view;
 
+pub use digest::{ContentDigest, InputSnapshotDigest, ProvenanceDigest, SourceBytesDigest, ViewTextDigest};
 pub use merge::DuplicateLayerPolicy;
 pub use view::View;
 
@@ -29,10 +30,12 @@ pub(crate) struct Entry {
     /// The instances its items point into: an aligned layer's anchor
     /// first, then the layers it indexes.
     pub(crate) on: Vec<KeyId>,
+    pub(crate) text_view: Option<ViewId>,
     pub(crate) provenance: Arc<Provenance>,
-    pub(crate) provenance_digest: u64,
-    pub(crate) content_digest: u64,
-    pub(crate) upstream_content_hash: u64,
+    pub(crate) provenance_digest: ProvenanceDigest,
+    pub(crate) content_digest: Option<ContentDigest>,
+    pub(crate) upstream_content_hash: Option<InputSnapshotDigest>,
+    pub(crate) from_pipeline: bool,
     pub(crate) status: Status,
 }
 
@@ -76,29 +79,33 @@ impl Document {
             text: text.into(),
             alignment: Alignment::identity(),
             offsets: OnceLock::new(),
+            text_digest: OnceLock::new(),
         });
         let key = Key::<View>::DEFAULT.id();
         let prov = Provenance::by("turbo:source");
+        let source_text_digest = source.text_digest();
         let prov_digest = compute_provenance_digest_from_parts(ProvenanceDigestParts {
             annotator: prov.annotator,
             version: prov.version,
             config: prov.config,
             model: prov.model.as_ref(),
-            source_text_hash: crate::hash::fnv1a(source.text.as_bytes()),
-            source_bytes_hash: None,
+            source_text_digest,
+            source_bytes_digest: None,
             view_reads: &mut [],
             upstream_digests: &mut [],
         });
-        let content_digest = compute_layer_content_digest(key, &*source, Some((&source.text, &[])));
+        let content_digest = compute_layer_content_digest(key, &*source, Some((source_text_digest, &[])));
         let entry = Entry {
             key,
             len: 1,
             value: Some(source.clone()),
             on: Vec::new(),
+            text_view: None,
             provenance: Arc::new(prov),
             provenance_digest: prov_digest,
             content_digest,
-            upstream_content_hash: 0,
+            upstream_content_hash: None,
+            from_pipeline: false,
             status: Status::Complete,
         };
         Document { views: vec![source], entries: vec![Arc::new(entry)], bytes: None }
@@ -186,14 +193,46 @@ impl Document {
             len: 0,
             value: None,
             on: Vec::new(),
+            text_view: None,
             provenance: Arc::new(provenance),
             provenance_digest,
-            content_digest: 0,
+            content_digest: None,
             upstream_content_hash,
+            from_pipeline: false,
             status,
         };
         self.entries.push(Arc::new(entry));
         Ok(())
+    }
+
+    pub(crate) fn mark_pipeline_stored(&mut self, key: KeyId) {
+        if let Some(pos) = self.entries.iter().position(|e| e.key == key)
+            && matches!(self.entries[pos].status, Status::Complete)
+        {
+            Arc::make_mut(&mut self.entries[pos]).from_pipeline = true;
+        }
+    }
+
+    pub(crate) fn restore_imported_snapshot(
+        &mut self,
+        key: KeyId,
+        provenance_digest: Option<ProvenanceDigest>,
+        input_snapshot: Option<InputSnapshotDigest>,
+    ) {
+        if let Some(pos) = self.entries.iter().position(|e| e.key == key) {
+            let e = Arc::make_mut(&mut self.entries[pos]);
+            match provenance_digest {
+                Some(pd) => {
+                    e.provenance_digest = pd;
+                    e.upstream_content_hash = input_snapshot;
+                    e.from_pipeline = true;
+                }
+                None => {
+                    e.upstream_content_hash = None;
+                    e.from_pipeline = false;
+                }
+            }
+        }
     }
 
     /// Whether another layer type already has this key's id here: one id
@@ -254,11 +293,13 @@ impl Document {
         }
         layer.check().map_err(|detail| Error::Invalid { layer: id, detail })?;
         let mut on = Vec::new();
+        let mut text_view = None;
+        let live_views = self.live_view_ids();
         match L::anchor() {
             Anchor::Text => {
                 if let Some(ts) = layer.text_spans() {
                     ts.check(L::OVERLAP).map_err(|detail| Error::Invalid { layer: id, detail })?;
-                    let Some(v) = self.views.get(ts.view.0 as usize) else {
+                    let Some(v) = self.views.get(ts.view.0 as usize).filter(|_| live_views.contains(&ts.view)) else {
                         return Err(Error::Bounds { layer: id, view: ts.view, detail: "no such view".into() });
                     };
                     check_spans(&v.text, ts.start, ts.end).map_err(|detail| Error::Bounds {
@@ -273,6 +314,7 @@ impl Document {
                             detail,
                         })?;
                     }
+                    text_view = Some(ts.view);
                 }
             }
             Anchor::Aligned { ty, layer: of } => {
@@ -312,7 +354,7 @@ impl Document {
             let view = as_any_mut(&mut layer).downcast_mut::<View>().expect("a View");
             let parent =
                 view.parent.ok_or_else(|| Error::Invalid { layer: id, detail: "a view needs a parent".into() })?;
-            let Some(parent_view) = self.views.get(parent.0 as usize) else {
+            let Some(parent_view) = self.views.get(parent.0 as usize).filter(|_| live_views.contains(&parent)) else {
                 return Err(Error::Bounds { layer: id, view: parent, detail: "no such parent view".into() });
             };
             check_view_alignment(&parent_view.text, &view.text, &view.alignment).map_err(|detail| Error::Bounds {
@@ -320,19 +362,26 @@ impl Document {
                 view: parent,
                 detail,
             })?;
-            view.id = ViewId(self.views.len() as u16);
-            let content_digest = compute_layer_content_digest(id, view, Some((view.text(), view.alignment().edits())));
+            let reuse_slot = (1..self.views.len()).find(|&idx| !live_views.contains(&ViewId(idx as u16)));
+            view.id = ViewId(reuse_slot.unwrap_or(self.views.len()) as u16);
+            let content_digest =
+                compute_layer_content_digest(id, view, Some((view.text_digest(), view.alignment().edits())));
             let shared = Arc::new(view.clone());
-            self.views.push(shared.clone());
+            match reuse_slot {
+                Some(idx) => self.views[idx] = shared.clone(),
+                None => self.views.push(shared.clone()),
+            }
             let entry = Entry {
                 key: id,
                 len,
                 value: Some(shared),
                 on: Vec::new(),
+                text_view: None,
                 provenance: Arc::new(provenance),
                 provenance_digest,
                 content_digest,
                 upstream_content_hash,
+                from_pipeline: false,
                 status: Status::Complete,
             };
             self.entries.push(Arc::new(entry));
@@ -344,10 +393,12 @@ impl Document {
             len,
             value: Some(Arc::new(layer)),
             on,
+            text_view,
             provenance: Arc::new(provenance),
             provenance_digest,
             content_digest,
             upstream_content_hash,
+            from_pipeline: false,
             status: Status::Complete,
         };
         self.entries.push(Arc::new(entry));

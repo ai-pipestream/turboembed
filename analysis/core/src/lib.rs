@@ -39,7 +39,10 @@ pub use analyzer::{
 };
 pub use annotate::{Annotator, Bound, Placed, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
-pub use doc::{Document, DuplicateLayerPolicy, LayerStatus, Status, View};
+pub use doc::{
+    ContentDigest, Document, DuplicateLayerPolicy, InputSnapshotDigest, LayerStatus, ProvenanceDigest,
+    SourceBytesDigest, Status, View, ViewTextDigest,
+};
 pub use error::Error;
 pub use evidence::{Evidence, EvidenceError, EvidenceStep, Evidenced, Producer, Support};
 pub use export::{

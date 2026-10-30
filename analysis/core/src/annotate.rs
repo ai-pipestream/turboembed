@@ -447,14 +447,18 @@ impl<A: Annotator> Step for Bound<A> {
                 }
                 Err(e) => Some(e),
             };
-            let Some(e) = failure else { continue };
-            for &k in &writes {
-                if !docs[i].has(k) {
-                    let _ = docs[i].fail(k, e.clone(), p.clone());
+            if let Some(e) = failure {
+                for &k in &writes {
+                    if !docs[i].has(k) {
+                        let _ = docs[i].fail(k, e.clone(), p.clone());
+                    }
+                }
+                if status[i].is_ok() {
+                    status[i] = Err(e);
                 }
             }
-            if status[i].is_ok() {
-                status[i] = Err(e);
+            for &k in &writes {
+                docs[i].mark_pipeline_stored(k);
             }
         }
     }

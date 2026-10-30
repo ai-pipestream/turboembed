@@ -147,6 +147,26 @@ a typed error before any document is processed. Named layer and view instances
 multiple recognizers or views of the same Rust type to coexist in one
 `Document` without collision.
 
+### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)
+
+`Analyzer::analyze_incremental` and `Analyzer::run_incremental` execute a
+pipeline DAG incrementally using 256-bit SHA-256 digests (`turbo-sha256`):
+
+- **`ProvenanceDigest`**: chained 256-bit SHA-256 identity combining the step's
+  `Annotator::ID`, `VERSION`, `config_hash()`, `ModelRef`, memoized source and
+  read-view text digests (`ViewTextDigest`, `SourceBytesDigest`), and the
+  sorted `ProvenanceDigest` values of all upstream `reads`.
+- **`ContentDigest` and `InputSnapshotDigest`**: when a layer type opts into
+  `Layer::content_hash(&self) -> Option<u64>` (including `TagSet::content_hash()`
+  for tag-indexed layers and all payload columns), `Document::add` computes a
+  256-bit `ContentDigest` covering its spans, cross-layer index bounds, schema,
+  and payload hash, alongside an `InputSnapshotDigest` over its upstream inputs.
+- **Batch coalescing and wire persistence**: `Analyzer::run_incremental`
+  coalesces all uncached documents at each stage into a single batched
+  `Annotator::annotate_batch_placed` call, and `DocumentGraph` persists
+  `provenance_digest` and `input_snapshot` on `ProvenanceRecord` across binary
+  wire export and import.
+
 ## Binary wire export and import (`analysis/core/src/export/`)
 
 `DocumentGraph` (`analysis/core/src/export/mod.rs`) serializes a `Document`,

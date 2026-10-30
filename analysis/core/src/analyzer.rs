@@ -24,9 +24,13 @@ pub use report::{ExecutionReport, LayerExecution, StepExecution};
 /// before the next starts, so every step sees all of the batch's documents
 /// at once.
 pub struct Analyzer {
+    #[allow(dead_code)]
     given: Vec<KeyId>,
     steps: Vec<Box<dyn Step>>,
     stages: Vec<Vec<usize>>,
+    pub(super) dag_error: Option<Error>,
+    pub(super) backedge_reads: Vec<Vec<KeyId>>,
+    pub(super) order_map: HashMap<KeyId, usize>,
 }
 
 pub struct Builder {
@@ -57,6 +61,12 @@ impl Analyzer {
     pub fn run(&self, docs: &mut [Document]) -> Vec<Result<(), Error>> {
         let mut status: Vec<Result<(), Error>> = (0..docs.len()).map(|_| Ok(())).collect();
         for stage in &self.stages {
+            let backedges: Vec<KeyId> = stage.iter().flat_map(|&i| self.backedge_reads[i].iter().copied()).collect();
+            let taken: Vec<_> = if backedges.is_empty() {
+                Vec::new()
+            } else {
+                docs.iter_mut().map(|d| d.take_entries(&backedges)).collect()
+            };
             let outputs: Vec<_> = if stage.len() == 1 {
                 vec![self.steps[stage[0]].compute(docs)]
             } else {
@@ -68,10 +78,23 @@ impl Analyzer {
             };
             for (&i, out) in stage.iter().zip(outputs) {
                 self.steps[i].store(out, docs, &mut status);
+                let writes = self.steps[i].writes();
+                for doc in docs.iter_mut() {
+                    for &w in &writes {
+                        doc.mark_pipeline_stored(w);
+                    }
+                }
+            }
+            for (doc, entries) in docs.iter_mut().zip(taken) {
+                doc.restore_entries(entries);
             }
         }
         status
     }
+}
+
+fn build_order_map(stages: &[Vec<usize>], steps: &[Box<dyn Step>]) -> HashMap<KeyId, usize> {
+    stages.iter().flatten().flat_map(|&i| steps[i].writes()).enumerate().map(|(pos, k)| (k, pos)).collect()
 }
 
 impl Builder {
@@ -107,8 +130,13 @@ impl Builder {
     /// placing each step in its insertion order so callers can invoke
     /// `analyzer.validate_dag()` explicitly.
     pub fn build_unvalidated(self) -> Analyzer {
-        let stages = (0..self.steps.len()).map(|i| vec![i]).collect();
-        Analyzer { given: self.given, steps: self.steps, stages }
+        let stages: Vec<Vec<usize>> = (0..self.steps.len()).map(|i| vec![i]).collect();
+        let (dag_error, backedge_reads) = match validate_and_schedule(&self.given, &self.steps) {
+            Ok((_, backedges)) => (None, backedges),
+            Err(e) => (Some(e), vec![Vec::new(); self.steps.len()]),
+        };
+        let order_map = build_order_map(&stages, &self.steps);
+        Analyzer { given: self.given, steps: self.steps, stages, dag_error, backedge_reads, order_map }
     }
 
     /// Checks the graph and orders it: one layer type per id, every read
@@ -116,12 +144,15 @@ impl Builder {
     /// output's anchor one of its step's reads or an output the step writes
     /// before it, and no cycle.
     pub fn build(self) -> Result<Analyzer, Error> {
-        let stages = validate_and_schedule(&self.given, &self.steps)?;
-        Ok(Analyzer { given: self.given, steps: self.steps, stages })
+        let (stages, backedge_reads) = validate_and_schedule(&self.given, &self.steps)?;
+        let order_map = build_order_map(&stages, &self.steps);
+        Ok(Analyzer { given: self.given, steps: self.steps, stages, dag_error: None, backedge_reads, order_map })
     }
 }
 
-pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) -> Result<Vec<Vec<usize>>, Error> {
+pub(super) type ScheduleResult = Result<(Vec<Vec<usize>>, Vec<Vec<KeyId>>), Error>;
+
+pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) -> ScheduleResult {
     let mut types: HashMap<&LayerName, TypeId> = HashMap::new();
     let keys = steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
     for k in given.iter().copied().chain(keys) {
@@ -194,7 +225,26 @@ pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) ->
         }
         stages.push(ready);
     }
-    Ok(stages)
+    let backedge_reads = (0..steps.len())
+        .map(|i| {
+            steps[i]
+                .reads()
+                .into_iter()
+                .zip(steps[i].required())
+                .filter_map(|(r, req)| {
+                    if !req
+                        && let Some(Some(p)) = producer.get(&r)
+                        && level[*p] >= level[i]
+                    {
+                        Some(r)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    Ok((stages, backedge_reads))
 }
 
 fn on_optional_cycle(

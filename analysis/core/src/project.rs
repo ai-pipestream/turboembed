@@ -269,13 +269,15 @@ impl<L: ProjectableLayer> Step for ProjectView<L> {
                 Err(Error::Skipped(why)) => docs[i].skip(target_id, why, p.clone()).err(),
                 Err(e) => Some(e),
             };
-            let Some(e) = failure else { continue };
-            if !docs[i].has(target_id) {
-                let _ = docs[i].fail(target_id, e.clone(), p);
+            if let Some(e) = failure {
+                if !docs[i].has(target_id) {
+                    let _ = docs[i].fail(target_id, e.clone(), p);
+                }
+                if status[i].is_ok() {
+                    status[i] = Err(e);
+                }
             }
-            if status[i].is_ok() {
-                status[i] = Err(e);
-            }
+            docs[i].mark_pipeline_stored(target_id);
         }
     }
 }

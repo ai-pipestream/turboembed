@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::{
-    Anchor, FilterRule, Fnv1a, Ix, IxRange, Key, KeyId, Layer, LayerName, Overlap, Span, Spans, Tag, TagSet,
+    Anchor, FilterRule, Ix, IxRange, Key, KeyId, Layer, LayerName, Overlap, Span, Spans, Tag, TagSet,
 };
 
 use crate::{Strs, Tokens, WordOrTokenAnchor, Words};
@@ -21,21 +21,8 @@ impl Layer for PosTags {
     fn len(&self) -> usize {
         self.tags.len()
     }
-    fn content_hash(&self) -> u64 {
-        let mut h = Fnv1a::new();
-        h.str(&self.tagset.name).usize(self.tags.len());
-        for &t in &self.tags {
-            h.u16(t.0);
-        }
-        if let Some(prob) = &self.prob {
-            h.u8(1);
-            for &p in prob {
-                h.f64(p);
-            }
-        } else {
-            h.u8(0);
-        }
-        h.finish()
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
@@ -61,13 +48,8 @@ impl Layer for Lemmas {
     fn len(&self) -> usize {
         self.lemma.len()
     }
-    fn content_hash(&self) -> u64 {
-        let mut h = Fnv1a::new();
-        h.usize(self.lemma.len());
-        for i in 0..self.lemma.len() {
-            h.str(self.lemma.get(i));
-        }
-        h.finish()
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.lemma.content_hash())
     }
 }
 
@@ -85,6 +67,9 @@ impl Layer for Stems {
     }
     fn len(&self) -> usize {
         self.stem.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.stem.content_hash())
     }
 }
 
@@ -135,6 +120,9 @@ impl Layer for Terms {
     }
     fn len(&self) -> usize {
         self.surface.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.surface.len();
@@ -194,6 +182,9 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     }
     fn len(&self) -> usize {
         self.head.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.head.len();
@@ -289,6 +280,9 @@ impl Layer for Entities {
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.tokens.len() != n || self.kind.len() != n || self.score.len() != n {
@@ -325,6 +319,9 @@ impl Layer for ChunkTags {
     fn len(&self) -> usize {
         self.tags.len()
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
             return Err(format!("a tag outside {}", self.tagset.name));
@@ -355,6 +352,9 @@ impl Layer for PhraseChunks {
     positional!(PhraseChunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
@@ -408,6 +408,9 @@ impl Layer for Phrases {
     positional!(Phrases);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();

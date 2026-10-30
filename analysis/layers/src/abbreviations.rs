@@ -73,6 +73,19 @@ impl Layer for Abbreviations {
     const OVERLAP: Overlap = Overlap::Nesting;
     positional!(Abbreviations);
 
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.usize(self.form.len());
+        for &f in &self.form {
+            h.u8(match f {
+                AbbreviationForm::Short => 0,
+                AbbreviationForm::Long => 1,
+                AbbreviationForm::Mention => 2,
+            });
+        }
+        Some(h.finish())
+    }
+
     fn check(&self) -> Result<(), String> {
         if self.form.len() != self.spans.len() {
             return Err("a form for every span".into());

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use turbo_analysis::{Anchor, Ix, Layer, LayerName, ModelRef, Overlap, Spans, TextSpans};
+use turbo_analysis::{Anchor, Fnv1a, Ix, Layer, LayerName, ModelRef, Overlap, Spans, TextSpans};
 
 use crate::Strs;
 
@@ -47,6 +47,22 @@ impl<L: Layer> Layer for Vectors<L> {
     fn len(&self) -> usize {
         if self.dim == 0 { 0 } else { self.data.len() / self.dim as usize }
     }
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = Fnv1a::new();
+        h.u32(self.dim)
+            .str(&self.model.id)
+            .str(&self.model.revision)
+            .str(&self.model.sha256)
+            .usize(self.empty.len());
+        for &e in &self.empty {
+            h.u32(e.get() as u32);
+        }
+        h.usize(self.data.len());
+        for &x in &self.data {
+            h.f32(x);
+        }
+        Some(h.finish())
+    }
     fn check(&self) -> Result<(), String> {
         if self.dim == 0 || !self.data.len().is_multiple_of(self.dim as usize) {
             return Err("a whole number of rows".into());
@@ -87,6 +103,10 @@ impl Layer for TokenVectorWindows {
         Some(self.spans.text_spans())
     }
 
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.spans.len() as u64)
+    }
+
     fn check(&self) -> Result<(), String> {
         if self.spans.is_empty() {
             return Err("at least one encoder window".into());
@@ -118,6 +138,14 @@ impl<L: Layer> Layer for Confidence<L> {
     }
     fn len(&self) -> usize {
         self.value.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = Fnv1a::new();
+        h.usize(self.value.len());
+        for &v in &self.value {
+            h.f64(v);
+        }
+        Some(h.finish())
     }
     fn check(&self) -> Result<(), String> {
         if self.value.iter().any(|v| !(0.0..=1.0).contains(v)) {
@@ -161,6 +189,14 @@ impl<L: Layer> Layer for Utf16Spans<L> {
     }
     fn len(&self) -> usize {
         self.start16.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = Fnv1a::new();
+        h.usize(self.start16.len());
+        for i in 0..self.start16.len() {
+            h.u32(self.start16[i]).u32(self.end16[i]).bool(self.cut[i]);
+        }
+        Some(h.finish())
     }
     /// The columns are of one length and no span ends before it starts.
     /// Whether a span ends inside the view's UTF-16 length needs the text,
@@ -210,6 +246,14 @@ impl Layer for Language {
     }
     fn len(&self) -> usize {
         self.code.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = Fnv1a::new();
+        h.u64(self.code.content_hash()).usize(self.score.len());
+        for &s in &self.score {
+            h.f64(s);
+        }
+        Some(h.finish())
     }
     fn check(&self) -> Result<(), String> {
         if self.code.len() != self.score.len() {

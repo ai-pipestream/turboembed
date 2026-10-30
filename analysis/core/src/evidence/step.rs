@@ -245,13 +245,15 @@ impl<L: Evidenced> Step for EvidenceStep<L> {
                 Err(Error::Skipped(why)) => docs[i].skip(key.id(), why, p.clone()).err(),
                 Err(e) => Some(e),
             };
-            let Some(e) = failure else { continue };
-            if !docs[i].has(key.id()) {
-                let _ = docs[i].fail(key.id(), e.clone(), p);
+            if let Some(e) = failure {
+                if !docs[i].has(key.id()) {
+                    let _ = docs[i].fail(key.id(), e.clone(), p);
+                }
+                if status[i].is_ok() {
+                    status[i] = Err(e);
+                }
             }
-            if status[i].is_ok() {
-                status[i] = Err(e);
-            }
+            docs[i].mark_pipeline_stored(key.id());
         }
     }
 }
