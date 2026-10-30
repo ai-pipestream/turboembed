@@ -43,6 +43,7 @@ pub fn head() -> HeadSpec {
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        span: None,
         license_class: Some(turbo::manifest::LicenseClass::Permissive),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.masc-ner".into(),
