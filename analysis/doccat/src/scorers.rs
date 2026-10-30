@@ -1,11 +1,9 @@
 //! Vector-head and category scorer traits and layer re-exports for sentiment,
-//! emotion, incivility, aspect, and pragmatics annotators.
+//! polarity, emotion, incivility, aspect, and pragmatics annotators.
 //!
-//! This module imports only `turbo-analysis` and `turbo-analysis-layers`
-//! (never `SentimentModel`, `SentimentMe`, or `turbo-maxent`), so encoder-backed
-//! heads in `turbo-analysis-embed` and rule/lexicon annotators in `turbo-doccat`
-//! share these traits without coupling to the classical sentiment or categorizer
-//! types (crate-level `turbo-train` retirement is tracked under `#1530`).
+//! This module imports only `turbo-analysis` and `turbo-analysis-layers`, so
+//! encoder-backed heads in `turbo-analysis-embed` and rule/lexicon annotators
+//! in `turbo-doccat` share these traits directly.
 
 use std::fmt;
 use std::sync::Arc;
@@ -164,4 +162,49 @@ pub trait AspectCategoryScorer: Send + Sync + fmt::Debug {
 
     /// Deterministic configuration digest for provenance.
     fn config_hash(&self) -> u64;
+}
+
+/// Which signals [`crate::sentiment::polarity::PolarityAnnotator`] and
+/// [`crate::sentiment::polarity::SentencePolarityAnnotator`] score with.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum PolarityStage {
+    /// Deterministic VADER lexicon and negation rules alone.
+    #[default]
+    Lexicon = 0,
+    /// Learned [`PolarityVectorScorer`] head over `Vectors` / `Vectors<Sentences>` alone.
+    Learned = 1,
+    /// Convex combination of VADER lexicon polarity probabilities and the
+    /// learned [`PolarityVectorScorer`] head probabilities.
+    Hybrid = 2,
+}
+
+impl PolarityStage {
+    pub const fn model_id(self) -> &'static str {
+        match self {
+            PolarityStage::Lexicon => "polarity:lexicon:v1",
+            PolarityStage::Learned => "polarity:learned:v1",
+            PolarityStage::Hybrid => "polarity:hybrid:v1",
+        }
+    }
+}
+
+/// Three-class (`positive`, `negative`, `neutral`) dense-vector polarity scorer
+/// used by [`crate::sentiment::polarity::PolarityAnnotator`] and
+/// [`crate::sentiment::polarity::SentencePolarityAnnotator`].
+pub trait PolarityVectorScorer: Send + Sync {
+    /// Scores one dense embedding vector `vec` (`&[f32]`), returning normalized
+    /// [`PolarityScores`] in `0.0..=1.0` summing to `1.0`.
+    fn score_polarity(&self, vec: &[f32]) -> Result<PolarityScores, String>;
+
+    /// Optional [`ModelRef`] identifying the encoder that must have produced
+    /// the input vector layer.
+    fn model(&self) -> Option<ModelRef> {
+        None
+    }
+
+    /// Deterministic configuration and weight digest mixed into provenance.
+    fn config_hash(&self) -> u64 {
+        0
+    }
 }

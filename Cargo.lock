@@ -2112,6 +2112,7 @@ dependencies = [
  "turbo-sequence",
  "turbo-sha256",
  "turbo-train",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-zoo",
 ]
