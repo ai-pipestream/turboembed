@@ -831,6 +831,17 @@ message ChunkLevelsResult
   uint32 dim = 21;
   bytes data = 22;
   repeated uint32 empty = 23;
+
+  // Optional per-chunk 2D page and bounding-box citations (#1466).
+  repeated uint32 chunk_page_start = 26;
+  repeated uint32 chunk_page_end = 27;
+  repeated bool chunk_has_page_span = 28;
+  repeated uint32 chunk_box_row = 29;
+  repeated uint32 chunk_box_page = 30;
+  repeated float chunk_box_x0 = 31;
+  repeated float chunk_box_y0 = 32;
+  repeated float chunk_box_x1 = 33;
+  repeated float chunk_box_y1 = 34;
 }
 
 // Request for AnalyzeDocumentProgressive (issue #1218).

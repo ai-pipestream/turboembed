@@ -139,3 +139,56 @@ impl LayerCodec for ChunkAntecedents {
         checked(ChunkAntecedents { row, links, headers }, cx)
     }
 }
+
+impl LayerCodec for ChunkCitations {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_u32s(&mut w, &self.page_start)?;
+        put_u32s(&mut w, &self.page_end)?;
+        w.usize(self.has_page_span.len())?;
+        for &b in &self.has_page_span {
+            w.u8(u8::from(b));
+        }
+        put_u32s(&mut w, &self.box_row)?;
+        w.usize(self.boxes.len())?;
+        for b in &self.boxes {
+            w.u32(b.page);
+            w.u32(b.x0.to_bits());
+            w.u32(b.y0.to_bits());
+            w.u32(b.x1.to_bits());
+            w.u32(b.y1.to_bits());
+        }
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let page_start = get_u32s(&mut r)?;
+        let page_end = get_u32s(&mut r)?;
+        let mut has_page_span = Vec::new();
+        for _ in 0..r.usize()? {
+            has_page_span.push(match r.u8()? {
+                0 => false,
+                1 => true,
+                tag => return Err(malformed(format!("a boolean tag of {tag}"))),
+            });
+        }
+        let box_row = get_u32s(&mut r)?;
+        let mut boxes = Vec::new();
+        for _ in 0..r.usize()? {
+            boxes.push(turbo_analysis_layers::PageBoundingBox {
+                page: r.u32()?,
+                x0: f32::from_bits(r.u32()?),
+                y0: f32::from_bits(r.u32()?),
+                x1: f32::from_bits(r.u32()?),
+                y1: f32::from_bits(r.u32()?),
+            });
+        }
+        done(&r, "chunk citations")?;
+        let chunks = aligned_len::<Chunks>(cx)?;
+        if has_page_span.len() != chunks {
+            return Err(malformed(format!("{} chunk citation flags for {chunks} chunks", has_page_span.len())));
+        }
+        checked(ChunkCitations { page_start, page_end, has_page_span, box_row, boxes }, cx)
+    }
+}
