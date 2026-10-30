@@ -2023,7 +2023,6 @@ dependencies = [
  "tokenizers",
  "turbo",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -2074,7 +2073,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-sentdetect",
@@ -2539,7 +2537,6 @@ dependencies = [
 name = "turbo-ngram"
 version = "0.1.0"
 dependencies = [
- "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
 ]
