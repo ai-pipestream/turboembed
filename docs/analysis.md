@@ -46,6 +46,7 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-pii` | `analysis/pii/` | Structured PII detection across 20 built-in identifier kinds with checksum validation (Luhn, mod 97, mod 11, ISO 7064, base58check, bech32/bech32m, EIP-55 Keccak-256), caller `CustomExtractor` kinds, byte-preserving masking (`MaskedView`), pseudonymization, HMAC-SHA-256 tokenization, and redacted audit reports ([pii.md](pii.md)) |
 | `turbo-postag` | `analysis/postag/` | Universal Dependencies and Penn Treebank part-of-speech tagging (`PosTagger`, `BilstmPosTagger`, and `FeedforwardPosTagger`) writing `PosTags` ([neural-annotators.md](neural-annotators.md)) |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | Shortest-edit-script lemmatizer (`MaxentLemmatizer`, `LemmatizerModel`) and dictionary lookup lemmatizer (`DictionaryLemmatizer`) writing `Lemmas` ([lemma-case-evaluation.md](lemma-case-evaluation.md)) |
+| `turbo-phrase-chunker` | `analysis/phrase-chunker/` | Zero-training rule-driven POS-tag pattern chunker (`TagPatternRule`, `PatternChunker`) and model-free composition (`PatternChunkComposer`, `ComposeMode`) writing `PhraseChunks` over `Tokens` and `PosTags`. It is not `turbo-chunker`, which cuts retrieval units |
 | `turbo-morfologik` | `analysis/morfologik/` | Zero-copy `CFSA2` and `FSA5` finite-state morphological dictionary lookup and lemmatization |
 | `turbo-depparse` | `analysis/depparse/` | Arc-standard and Chen-Manning neural projective transition dependency parser and trainer writing `Dependencies` ([dependency-parser.md](dependency-parser.md), [feedforward-dependency-parser.md](feedforward-dependency-parser.md)) |
 | `turbo-namefind` | `analysis/namefind/` | Dictionary, compiled regex, linear-chain CRF (`CrfNameFinder`, [crf-namefinder.md](crf-namefinder.md)), and ONNX transformer/bi-LSTM-CRF (`NameFinderDL`, [namefind-dl.md](namefind-dl.md)) named entity recognizers, `FilterEntities`, and `ConsensusEntityMerger` ([namefinder-evaluation.md](namefinder-evaluation.md)) |
@@ -54,7 +55,7 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-doccat` | `analysis/doccat/` | Document and span categorization (`DocumentCategorizerME`, `SpanCategorizer`, `SvmCategorizer`, `DocumentCategorizerDL`, `DlSpanCategorizer`, `MultiLabelSpanCategorizer`, `ZeroShotCategorizer`, [doccat.md](doccat.md)), plus sentiment, emotion, incivility, and pragmatic analysis (`SentimentMe`, `SentenceSentiment`, `LexiconSentiment`, `VaderLexicon`, `PragmaticsAnnotator`, `PragmaticsVectorScorer`, `RuleAspectSentiment`, `AspectCategoryScorer`, `EmotionAnnotator`, `EmotionVectorScorer`, `IncivilityAnnotator`, `IncivilityVectorScorer`, [sentiment.md](sentiment.md)) |
 | `turbo-keywords` | `analysis/keywords/` | Unsupervised YAKE, TextRank, and RAKE keyword and keyphrase extraction writing `Keywords` (`turbo:keywords`, [keywords.md](keywords.md)) |
 | `turbo-langdetect` | `analysis/langdetect/` | Document-level character $n$-gram language detection (`LanguageDetector`, `LanguageModel`, `ProbingContext`, `ProbingConfig`) writing `Language` ([langdetect.md](langdetect.md)) |
-| `turbo-langspan` | `analysis/langspan/` | Model-free Unicode script segmentation (`ScriptDetector`) writing `LanguageSpans` (`turbo:language-spans`) and `Language` ([langdetect.md](langdetect.md)) |
+| `turbo-langspan` | `analysis/langspan/` | Model-free Unicode script segmentation (`ScriptDetector`) with exact source spans writing `LanguageSpans` (`turbo:language-spans`) and `Language` (`und`, confidence `0.0`, [langdetect.md](langdetect.md)) |
 | `turbo-geo` | `analysis/geo/` | Gazetteers (`BundledGazetteer`, `GeoNamesGazetteer`, `OvertureGazetteer`, `InMemoryGazetteer`, `UserGazetteer`, `OverlayGazetteer`), toponym matching (`NameFinder`, `NameAnnotator`), and geocoding and spatial disambiguation (`GeocodeAnnotator`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `GeoEntityLinker`, `HierarchyAnnotator`, `DocumentRegionAnnotator`) writing `Locations` (`turbo:locations`), `EntityLocationLinks`, `Containment` (`turbo:containment`), and `Regions` (`turbo:regions`) |
 | `turbo-wordnet` | `analysis/wordnet/` | WNDB (`WndbReader`) and WN-LMF WordNet lexicon reader, `MorphyLemmatizer`, synset sense disambiguation (`WordNetAnnotator`), and lexical expansion (`LexicalExpander`) writing `WordNetSenses` (`turbo:wordnet-senses`) and `LexicalExpansions` (`turbo:lexical-expansions`) |
 | `turbo-stem` | `analysis/stem/` | `PorterStemmer`, 21 `SnowballStemmer` languages, `LightStemmer`, and `StemAnnotator` / `TermAnnotator` writing `Stems` (`turbo:stems`) and `Terms` (`turbo:terms`) |
@@ -64,6 +65,10 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | Byte-level, SentencePiece, and word-bounded BPE vocabulary trainers ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-formats` | `analysis/formats/` | Corpus readers and evaluation scorers: Universal Dependencies CoNLL-U (`analysis/formats/src/conllu/` with byte-identical round trips), CoNLL-2003, GermEval 2014, WNUT-17, and MultiCoNER v2 NER (`analysis/formats/src/ner/`), LitBank brat entity and coreference standoff (`analysis/formats/src/ner/brat/`), MASC 3.0.0 standoff (`analysis/formats/src/masc/`), and precision/recall/$F_1$ evaluators (`analysis/formats/src/evaluate/`; true positives are a multiset intersection, so recall is at most 1) |
 | `turbo-zoo` | `analysis/zoo/` | JSON model and lexicon catalog (`analysis/zoo/index/zoo.json`, `Index`, `Artifact`, `Zoo`) with artifact byte-length, `Sha256`, and `Sha512` content-digest verification, `LicenceClass` gating (`Permissive`, `Lgpl`, `ShareAlike`, `Gpl`, `LocalOnly`, `Refused`) with `Acceptances`, and atomic cache layout ([zoo.md](zoo.md)) |
+| `turbo-entity-linker` | `analysis/entity-linker/` | Generic entity disambiguation and linking (`EntityLinker`, `LinkerConfig`, `LinkerWeights`) against pluggable `KbProvider` backends (`CatalogProvider` over `KnowledgeBase` CSV/TSV catalogs and binary snapshots with optional `VectorIndex` nearest-neighbor retrieval, `GazetteerProvider` over `turbo-geo` gazetteers, `WordNetProvider` over `turbo-wordnet` synsets, and `GlossaryProvider` over `turbo-glossary-layers` glossaries), scoring alias and popularity priors, NER entity-type compatibility, local and document context overlap, and document-level coherence with coreference cluster propagation (`Groups<Mentions>`, `Groups<Entities>`), writing `LinkedEntities` (`turbo:linked_entities`) aligned to `Entities` with explicit `NilReason` and `nil_cluster` assignments |
+| `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate, the four-arm SPLATE retrieval cascade study ([splate.md](splate.md)) and the `turbo-eval` binary |
+| `turbo-pins` | `analysis/pins/` | The SHA-256 pin of every model a test, evaluation or record loads (`models.txt`, keys `blobs/sha256/<hex>`), with the zoo index and the score-only reference lists counted as pins; `require` refuses a model given by path that is not pinned, and its tree test fails on an unpinned checked-in bundle, record bundle, recipe file or model-path variable (#1621) |
+| `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
 
 ## Document, views, and alignments (`analysis/core/src/doc/mod.rs`)
 
@@ -263,6 +268,24 @@ Held-out `bm25_weight` selection (`Hybrid::choose_bm25_weight_held_out`,
 | `arguana` | 0.30 | 703 | 0.5162 | 703 | 0.5179 | 0.4938 | 0.4474 |
 | `qasper` | 0.60 | 726 | 0.4050 | 725 | 0.3854 | 0.2706 | 0.3678 |
 
+### Chunker v1 and evidence gate (#172)
+
+Chunker v1 is `turbo-chunker --max 254 --target 200 --clauses` with
+`--retrieval hybrid`, all-MiniLM-L6-v2 (manifest `0f17adc4`). `--clauses`
+splits a sentence over `--max` at clause punctuation and else by token
+windows. Records at `8051f4d7`, six sets, under
+`analysis/eval/records/v1-clauses-172/<backend>/<name>/`, with the gate
+and cut reports in `reports/` (`analysis/eval/src/chunk_gate.rs`):
+
+| Set | recall@10 vs sw-5 | contained@10 vs sw-5 | evidence cut through, v1 / sw-5 | nDCG@10 vs best baseline, mean (high end) |
+| :--- | ---: | ---: | ---: | ---: |
+| qasper | +5.68 (+4.44..+6.95) | +13.78 (+12.05..+15.56) | 7.7% / 51.0% | -1.31 (-0.01) CPU, -1.27 (+0.02) Level Zero, -1.29 (+0.01) CUDA, sandbox semantic |
+| gutenqa | +10.80 (+9.11..+12.52) | +12.05 (+10.18..+13.92) | 5.8% / 9.0% | +0.01 (+0.44), fixed-tokens |
+| conteb-squad | reported: 98% short | | 0.1% / 0.2% | -0.68 (+0.08), sandbox semantic |
+| scifact | | | | -1.34 (-0.03), sentence windows |
+| arguana | | | | -0.68 (-0.16), CUDA -0.57 (-0.02), fixed-tokens |
+| nfcorpus | | | | +0.39 (+0.99), CUDA +0.34 (+0.93), sentence windows |
+
 Structure ablation (`--structure none`, `plain`, and `markdown`) at `--max 254 --target 200`:
 
 | Structure | scifact | nfcorpus | arguana | qasper | gutenqa |
@@ -327,7 +350,7 @@ Evaluation datasets registered under `analysis/eval/src/sets/`:
 | Set | Source | Licence | Spans | Digests |
 |---|---|---|---|---|
 | `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a recorded revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
-| `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points | none (no stable file URLs) |
+| `legalbench-rag-mini` | a shared folder, placed by hand (the recorded copy: the byte-exact Hugging Face mirror `awinml/legalbench-rag` at `2b9c248b`, its `SHA256SUMS` verified) | MIT for the benchmark; the documents under their sources' terms | code points, converted after Python's newline translation; the mini subset is chosen with a port of CPython's `random` | none in the set (no stable file URLs); the records pin the read files' manifest digest |
 | `conteb-covid-qa` | Parquet | none for the article text, so refused | the judged chunk | not recorded yet |
 | `conteb-squad` | Parquet, ConTEB's SQuAD set (`illuin-conteb/squad-conteb-eval`, revision 8f81cbd), validation split | CC BY-SA 4.0 (SQuAD over Wikipedia; downloaded at use, never bundled) | the judged chunk | recorded |
 | `gutenqa` | Parquet | MIT (dataset card) | the quoted passage | recorded |

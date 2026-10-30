@@ -13,21 +13,36 @@ use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 mod linear;
 mod words;
 pub use linear::Linear;
+pub mod boundary;
 pub mod crf;
 pub mod edit_tree;
+pub mod hash_embed;
 pub mod lemmatizer;
 pub mod parser;
+pub mod span;
+pub mod split;
 pub mod tagger;
 pub mod tree;
+pub use boundary::SentenceBoundary;
 pub use lemmatizer::EditTreeLemmatizer;
 pub use parser::BiaffineParser;
+pub use span::SpanClassifier;
+pub use split::TokenSplitter;
 pub use tagger::TokenTagger;
 #[cfg(test)]
+mod boundary_tests;
+#[cfg(test)]
 mod edit_tree_tests;
+#[cfg(test)]
+mod hash_embed_tests;
 #[cfg(test)]
 mod lemmatizer_tests;
 #[cfg(test)]
 mod parser_tests;
+#[cfg(test)]
+mod span_tests;
+#[cfg(test)]
+mod split_tests;
 #[cfg(test)]
 mod tagger_tests;
 #[cfg(test)]

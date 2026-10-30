@@ -1,5 +1,5 @@
-//! The tokenizer runs: the maxent tokenizer with every published or
-//! fixture model and its options, the simple and whitespace tokenizers in
+//! The tokenizer runs: the maxent tokenizer with every fixture model and its
+//! options, the simple and whitespace tokenizers in
 //! every mode, the UAX #29 word tokenizer, the unigram segmenter with
 //! each lexicon, and the lattice tokenizer with each dictionary.
 
@@ -9,7 +9,6 @@ use turbo_goldens::expect::{
     JvmSpan, joined_me_spans, jvm_simple_newline_spans, jvm_token_spans, simple_newline_spans, whole_character_spans,
 };
 use turbo_goldens::{Golden, Tolerance, matches_golden};
-use turbo_maxent::Dictionary;
 use turbo_tokenize::lattice::Scratch as LatticeScratch;
 use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_tokenize::{
@@ -21,10 +20,6 @@ use turbo_unicode::utf16::byte_to_utf16;
 use super::sentences::no_options;
 use super::{Checked, Outcome, Run, RustError, analyze, has_cut, jvm_threw, outcome, token_spans};
 use crate::resources::{Resources, Unavailable};
-
-/// The published tokenizer model whose run with the English abbreviation
-/// dictionary has goldens.
-const ENGLISH_MODEL: &str = "opennlp-en-ud-ewt-tokens-1.3-2.5.4";
 
 /// The probabilities the golden tests accept: `assert_close` in
 /// `analysis/tokenize/tests/common/mod.rs` allows 1e-9.
@@ -61,10 +56,14 @@ impl Maxent {
                 let pattern = m.alphanumeric_pattern().to_string();
                 m = m.with_alphanumeric_optimization(Some(&pattern)).map_err(broken)?;
             }
-            ["english-dictionary"] if model == ENGLISH_MODEL => {
-                let xml = res.fixture("english-dictionary.xml")?;
-                let bytes = std::fs::read(&xml).map_err(|e| broken(format!("{}: {e}", xml.display())))?;
-                m = m.with_abbreviations(Some(Dictionary::read(&bytes).map_err(broken)?));
+            // The English abbreviation dictionary run was the published
+            // UD tokenizer model's; those models are retired (#1645), so
+            // no maxent run takes a dictionary here. The default
+            // tokenizer fuzz coverage is the UAX #29 run below.
+            ["english-dictionary"] => {
+                return Err(Unavailable::NotCovered(format!(
+                    "tokenize/{model}+english-dictionary: published OpenNLP models are retired"
+                )));
             }
             other => return Err(Unavailable::NotCovered(format!("tokenize/{model} with {other:?}"))),
         }

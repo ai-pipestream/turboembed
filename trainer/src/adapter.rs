@@ -60,8 +60,10 @@ pub fn output<'a, R>(features: &'a [R], w: &'a Work<R>) -> &'a [R] {
 }
 
 /// Adds the adapter's weight gradients to `grads` from `dx`, the
-/// gradient of its output. Nothing to do without an adapter: the encoder
-/// is frozen.
+/// gradient of its output, and returns the gradient of its input (`dx`
+/// itself without an adapter) when `input` asks for it, which a head's
+/// hashed embeddings take; the encoder is frozen, so otherwise the first
+/// layer's input gradient is skipped and an empty vector returned.
 pub fn backward<R: Real>(
     s: Shape,
     params: &[Vec<R>],
@@ -69,20 +71,37 @@ pub fn backward<R: Real>(
     mut dx: Vec<R>,
     grads: &mut [Vec<R>],
     w: &Work<R>,
-) {
+    input: bool,
+) -> Vec<R> {
     let n = features.len() / s.hidden;
     for k in (0..s.layers).rev() {
         let inp = if k == 0 { s.hidden } else { 2 * s.h };
         let x = if k == 0 { features } else { &w.layers[k - 1] };
-        // Layer 0's input gradient is not needed, but computing it costs
-        // one product and keeps one code path.
-        let mut dprev = vec![R::ZERO; n * inp];
+        let want = k > 0 || input;
+        let mut dprev = if want { vec![R::ZERO; n * inp] } else { Vec::new() };
         for d in 0..2 {
             let i = 6 * k + 3 * d;
             let [gw, gu, gb] = grads.get_disjoint_mut([i, i + 1, i + 2]).expect("distinct");
             let g = lstm::Grad { w: gw, u: gu, b: gb };
-            lstm::backward(dir(params, k, d), x, inp, s.h, &dx, 2 * s.h, d * s.h, &w.caches[2 * k + d], g, &mut dprev);
+            let into = want.then_some(&mut dprev[..]);
+            lstm::backward(dir(params, k, d), x, inp, s.h, &dx, 2 * s.h, d * s.h, &w.caches[2 * k + d], g, into);
         }
         dx = dprev;
     }
+    dx
+}
+
+/// Adds `local`, one example's complete gradients (the adapter's
+/// included), into `grads`, or refuses and leaves `grads` as they were
+/// when a local gradient or a sum it would store is not finite.
+pub fn commit<R: Real>(grads: &mut [Vec<R>], local: &[Vec<R>], what: &str) -> turbo::status::Result<()> {
+    let finite = grads.iter().zip(local).all(|(g, l)| g.iter().zip(l).all(|(&a, &b)| (a + b).to_f64().is_finite()))
+        && local.iter().flatten().all(|v| v.to_f64().is_finite());
+    if !finite {
+        return Err(turbo::status::invalid(format!("trainer: a {what} gradient or its sum is not finite")));
+    }
+    for (g, l) in grads.iter_mut().zip(local) {
+        g.iter_mut().zip(l).for_each(|(a, &b)| *a += b);
+    }
+    Ok(())
 }

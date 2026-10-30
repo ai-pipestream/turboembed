@@ -104,10 +104,11 @@ pub fn names(models: &[ModelConfig]) -> Result<Vec<String>, String> {
     names_with(models, false)
 }
 
-/// Every model's name, allowing an empty model list when `admin` is true so
-/// an admin-enabled server can start empty and accept LoadBundle calls.
-pub fn names_with(models: &[ModelConfig], admin: bool) -> Result<Vec<String>, String> {
-    if models.is_empty() && !admin {
+/// Every model's name, allowing an empty model list when `empty_ok` is true:
+/// an admin server starts empty and accepts LoadBundle calls, and a zoo
+/// serves only its catalog.
+pub fn names_with(models: &[ModelConfig], empty_ok: bool) -> Result<Vec<String>, String> {
+    if models.is_empty() && !empty_ok {
         return Err("at least one --model is required".into());
     }
     let mut out: Vec<String> = Vec::new();
@@ -122,38 +123,6 @@ pub fn names_with(models: &[ModelConfig], admin: bool) -> Result<Vec<String>, St
         out.push(name.to_string());
     }
     Ok(out)
-}
-
-fn discover_bundles(dir: &str, models: &mut Vec<ModelConfig>) -> Result<(), String> {
-    let rd = std::fs::read_dir(dir).map_err(|e| format!("--bundle-dir {dir}: {e}"))?;
-    let mut paths = Vec::new();
-    for entry in rd {
-        let entry = entry.map_err(|e| format!("--bundle-dir {dir}: {e}"))?;
-        let path = entry.path();
-        if path.is_dir() && path.join("manifest.json").is_file() {
-            paths.push(path);
-        }
-    }
-    paths.sort();
-    let existing_names: Vec<String> = models.iter().filter_map(|m| m.name().map(str::to_owned)).collect();
-    for path in paths {
-        let bundle = path.to_string_lossy().into_owned();
-        let cfg = ModelConfig {
-            bundle,
-            name: None,
-            device: Device::Index(0),
-            precision: 0,
-            max_batch: 0,
-            max_seq: 0,
-            sessions: 1,
-        };
-        if let Some(n) = cfg.name()
-            && !existing_names.iter().any(|en| en == n)
-        {
-            models.push(cfg);
-        }
-    }
-    Ok(())
 }
 
 /// The command line.
@@ -176,6 +145,16 @@ pub struct Args {
     /// built-in one.
     pub catalog_dir: Option<String>,
     pub catalog_index: Option<String>,
+    /// The store the catalog reads first and fills: `file:///dir` or
+    /// `s3://bucket/prefix`.
+    pub catalog_store: Option<String>,
+    /// Zoo mode: any user records their own acceptance and installs what
+    /// they are permitted, a read fetches a permitted artifact not yet in
+    /// the cache, and the server may start with no model.
+    pub zoo: bool,
+    /// `--catalog-prefetch permissive`: install every permissive artifact
+    /// in the background at start.
+    pub catalog_prefetch: bool,
     /// The directory static models are trained into, made when absent.
     pub training_dir: Option<String>,
     /// Optional TLS and mutual-TLS (mTLS) certificates for the gRPC listener.
@@ -209,6 +188,12 @@ pub fn max_reply_bytes(max_message_bytes: usize) -> usize {
 /// The variable `--admin` reads when absent.
 pub const ENV_ADMIN: &str = "TURBO_KSERVE_ADMIN";
 
+/// The variable `--catalog-prefetch` reads when absent.
+pub const ENV_CATALOG_PREFETCH: &str = "TURBO_KSERVE_CATALOG_PREFETCH";
+
+/// The variable `--zoo` reads when absent.
+pub const ENV_ZOO: &str = "TURBO_KSERVE_ZOO";
+
 /// The variable `--bundle-dir` reads when absent.
 pub const ENV_BUNDLE_DIR: &str = "TURBO_KSERVE_BUNDLE_DIR";
 
@@ -222,6 +207,7 @@ pub const ENV_MAX_STREAM_BYTES: &str = "TURBO_KSERVE_MAX_STREAM_BYTES";
 pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
+pub const ENV_CATALOG_STORE: &str = "TURBO_KSERVE_CATALOG_STORE";
 pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
 pub const ENV_SINK_ENDPOINT: &str = "TURBO_KSERVE_SINK_ENDPOINT";
 pub const ENV_SINK_QUEUE_ITEMS: &str = "TURBO_KSERVE_SINK_QUEUE_ITEMS";
@@ -233,12 +219,12 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE]] \
+[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL] [--catalog-prefetch permissive] [--zoo]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
-TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
+TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
 TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
 
@@ -302,10 +288,11 @@ impl Args {
         let mut listen = None;
         let mut max_message_bytes = None;
         let mut max_stream_bytes = None;
-        let mut admin = None;
+        let (mut admin, mut zoo) = (None, None);
         let mut vocabulary_dir = None;
         let (mut sink_endpoint, mut sink_items, mut sink_bytes) = (None, None, None);
-        let (mut catalog_dir, mut catalog_index) = (None, None);
+        let (mut catalog_dir, mut catalog_index, mut catalog_store) = (None, None, None);
+        let mut catalog_prefetch = None;
         let mut training_dir = None;
         let mut bundle_dir = None;
         let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
@@ -341,12 +328,19 @@ impl Args {
                         return Err("--admin takes no value and may be given once".into());
                     }
                 }
+                "--zoo" => {
+                    if inline.is_some() || zoo.replace(true).is_some() {
+                        return Err("--zoo takes no value and may be given once".into());
+                    }
+                }
                 "--vocabulary-dir" => path_once(&flag, value()?, &mut vocabulary_dir)?,
                 "--sink-endpoint" => once(&flag, value()?, &mut sink_endpoint)?,
                 "--sink-queue-items" => once(&flag, value()?, &mut sink_items)?,
                 "--sink-queue-bytes" => once(&flag, value()?, &mut sink_bytes)?,
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
+                "--catalog-store" => once(&flag, value()?, &mut catalog_store)?,
+                "--catalog-prefetch" => once(&flag, value()?, &mut catalog_prefetch)?,
                 "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
                 "--tls-cert" => path_once(&flag, value()?, &mut tls_cert)?,
                 "--tls-key" => path_once(&flag, value()?, &mut tls_key)?,
@@ -407,21 +401,40 @@ impl Args {
         if max_stream_bytes < max_message_bytes as u64 {
             return Err(format!("max stream bytes {max_stream_bytes} is under max message bytes {max_message_bytes}"));
         }
-        if admin.is_none()
-            && let Some(v) = env(ENV_ADMIN).filter(|v| !v.is_empty())
-        {
-            admin = Some(match v.as_str() {
-                "1" | "true" | "yes" => true,
-                "0" | "false" | "no" => false,
-                _ => return Err(format!("{ENV_ADMIN}={v}: not one of 1, true, yes, 0, false, no")),
-            });
-        }
+        let switch = |slot: Option<bool>, k: &str| -> Result<bool, String> {
+            match (slot, env(k).filter(|v| !v.is_empty())) {
+                (Some(on), _) => Ok(on),
+                (None, None) => Ok(false),
+                (None, Some(v)) => match v.as_str() {
+                    "1" | "true" | "yes" => Ok(true),
+                    "0" | "false" | "no" => Ok(false),
+                    _ => Err(format!("{k}={v}: not one of 1, true, yes, 0, false, no")),
+                },
+            }
+        };
+        let admin = switch(admin, ENV_ADMIN)?;
+        let zoo = switch(zoo, ENV_ZOO)?;
         vocabulary_dir = vocabulary_dir.or_else(|| env(ENV_VOCABULARY_DIR).filter(|v| !v.is_empty()));
         catalog_dir = catalog_dir.or_else(|| env(ENV_CATALOG_DIR).filter(|v| !v.is_empty()));
         catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
         training_dir = training_dir.or_else(|| env(ENV_TRAINING_DIR).filter(|v| !v.is_empty()));
+        catalog_store = catalog_store.or_else(|| env(ENV_CATALOG_STORE).filter(|v| !v.is_empty()));
         if catalog_index.is_some() && catalog_dir.is_none() {
             return Err("--catalog-index needs --catalog-dir".into());
+        }
+        if catalog_store.is_some() && catalog_dir.is_none() {
+            return Err("--catalog-store needs --catalog-dir".into());
+        }
+        let catalog_prefetch = match catalog_prefetch.or_else(|| env(ENV_CATALOG_PREFETCH).filter(|v| !v.is_empty())) {
+            None => false,
+            Some(v) if v == "permissive" => true,
+            Some(v) => return Err(format!("--catalog-prefetch {v}: the one mode is permissive")),
+        };
+        if catalog_prefetch && catalog_dir.is_none() {
+            return Err("--catalog-prefetch needs --catalog-dir".into());
+        }
+        if zoo && catalog_dir.is_none() {
+            return Err("--zoo needs --catalog-dir".into());
         }
         let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
         let sink = sink(
@@ -446,11 +459,10 @@ impl Args {
             metrics_listen = Some(v.parse().map_err(|_| format!("{ENV_METRICS_LISTEN}={v}: not ADDR:PORT"))?);
         }
         if let Some(dir) = &bundle_dir {
-            discover_bundles(dir, &mut models)?;
+            bundles::discover(dir, &mut models)?;
         }
-        let admin = admin.unwrap_or(false);
         let listen = listen.ok_or("--listen is required")?;
-        names_with(&models, admin)?;
+        names_with(&models, admin || zoo)?;
         Ok(Args {
             listen,
             models,
@@ -461,12 +473,17 @@ impl Args {
             sink,
             catalog_dir,
             catalog_index,
+            catalog_store,
+            zoo,
+            catalog_prefetch,
             training_dir,
             tls,
             metrics_listen,
         })
     }
 }
+
+mod bundles;
 
 #[cfg(test)]
 mod tests;

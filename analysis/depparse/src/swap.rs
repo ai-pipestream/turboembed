@@ -6,7 +6,7 @@ use turbo_analysis_layers::WordOrTokenAnchor;
 
 pub struct SwapOracle;
 impl SwapOracle {
-    /// Retains the legacy oracle exactly on projective trees. For crossing
+    /// Retains the projective oracle on projective trees. For crossing
     /// trees, swaps original token indexes; text and source spans never move.
     pub fn transitions<A: WordOrTokenAnchor>(gold: &DependencyGraph<A>) -> Result<Vec<Transition>> {
         gold.check_tree()?;

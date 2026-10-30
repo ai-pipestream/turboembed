@@ -195,6 +195,7 @@ async fn unload_and_reload_under_one_name_never_share_a_batch() {
         max_batch: 0,
         max_seq: 8,
         select_device: false,
+        user: String::new(),
     })
     .await
     .unwrap();

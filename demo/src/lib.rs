@@ -2,7 +2,9 @@
 //! (docs/demo.md). Browsers do not speak gRPC, so this serves the page and
 //! bridges the Connect protocol to the server's gRPC: the page's protobuf
 //! goes to the server, and the server's back, as the same bytes. It holds
-//! no model, links no backend and decodes no message.
+//! no model and links no backend. It decodes no message, but for one
+//! field: the user of a catalog call, which it sets to its own identity
+//! (user.rs).
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,7 +17,7 @@ use axum::routing::{get, post, put};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::Channel;
 
 pub mod allow;
 mod budget;
@@ -26,9 +28,12 @@ pub mod gate;
 pub mod limits;
 mod tls;
 pub mod upload;
+mod upstream;
+pub mod user;
 
 pub use allow::Allow;
 pub use tls::Tls;
+pub use upstream::{ClientIdentity, UpstreamTls};
 
 const INDEX: &str = include_str!("../static/index.html");
 const SCRIPT: &str = include_str!("../static/app.js");
@@ -39,6 +44,7 @@ struct App {
     channel: Channel,
     allow: Arc<Allow>,
     gate: Arc<gate::Gate>,
+    user: Option<Arc<str>>,
 }
 
 /// How the demo is reached and what it forwards.
@@ -53,6 +59,12 @@ pub struct Options {
     pub origins: Vec<String>,
     /// TLS for the listener; plain HTTP without.
     pub tls: Option<Tls>,
+    /// TLS for the gRPC server; separate from the page listener.
+    pub upstream_tls: Option<UpstreamTls>,
+    /// Who the page's catalog calls act for: licence acceptances and
+    /// installs are recorded for this user, never for a name the page
+    /// sends. Without it those calls are read-only and name no user.
+    pub user: Option<String>,
 }
 
 /// The demo, answering HTTP until stopped or dropped.
@@ -64,7 +76,8 @@ pub struct Demo {
 
 impl Demo {
     /// Listens on `listen` and forwards the calls `allow` names to the
-    /// server at `server` (`http://HOST:PORT`). The server need not be up:
+    /// server at `server` (`http://HOST:PORT`). For HTTPS, use `start_with`
+    /// and explicit upstream TLS trust. The server need not be up:
     /// each call connects as needed.
     pub async fn start(listen: SocketAddr, server: &str, allow: Allow) -> Result<Demo, String> {
         Demo::start_with(listen, server, Options { allow, ..Options::default() }).await
@@ -78,12 +91,17 @@ impl Demo {
             ));
         }
         let gate = gate::Gate::new(options.token, &options.origins, options.tls.is_some())?;
-        let tls = options.tls.as_ref().map(tls::config).transpose()?;
-        let endpoint = Endpoint::from_shared(server.to_string()).map_err(|e| format!("server {server}: {e}"))?;
-        if !matches!(endpoint.uri().scheme_str(), Some("http" | "https")) || endpoint.uri().authority().is_none() {
-            return Err(format!("server {server}: must be an http:// or https:// URL"));
+        if let Some(u) = &options.user {
+            user::check(u)?;
         }
-        let app = App { channel: endpoint.connect_lazy(), allow: Arc::new(options.allow), gate: Arc::new(gate) };
+        let tls = options.tls.as_ref().map(tls::config).transpose()?;
+        let endpoint = upstream::endpoint(server, options.upstream_tls.as_ref())?;
+        let app = App {
+            channel: endpoint.connect_lazy(),
+            allow: Arc::new(options.allow),
+            gate: Arc::new(gate),
+            user: options.user.map(Arc::from),
+        };
         let router = Router::new()
             .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
             .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))

@@ -466,6 +466,7 @@
     {
       "id": "opensearch-neural-sparse-encoding-v1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_SPARSE_ENCODER",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "708f7e68f4aada15c2d59144a5187c521da6d8db",
@@ -520,6 +521,7 @@
     {
       "id": "colbert-ir-colbertv2.0",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_LATE_INTERACTION_ENCODER",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "c1e84128e85ef755c096a95bdb06b47793b13acf",
@@ -712,6 +714,7 @@
     {
       "id": "turbo-en-masc-3.0.0-aspect-sentiment-1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ASPECT_SENTIMENT",
       "language": "en",
       "format": "FORMAT_ZIP",
       "version": "1",

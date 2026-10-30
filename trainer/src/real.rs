@@ -75,3 +75,23 @@ macro_rules! real {
 
 real!(f32);
 real!(f64);
+
+/// The dot product of `a` and `b` over their common length, in eight
+/// running sums combined at the end, which the compiler keeps in vector
+/// registers where one running sum would hold it to a scalar chain.
+pub fn dot<R: Real>(a: &[R], b: &[R]) -> R {
+    let n = a.len().min(b.len());
+    let (ac, at) = a[..n].as_chunks::<8>();
+    let (bc, bt) = b[..n].as_chunks::<8>();
+    let mut s = [R::ZERO; 8];
+    for (x, y) in ac.iter().zip(bc) {
+        for k in 0..8 {
+            s[k] += x[k] * y[k];
+        }
+    }
+    let mut t = ((s[0] + s[4]) + (s[1] + s[5])) + ((s[2] + s[6]) + (s[3] + s[7]));
+    for (x, y) in at.iter().zip(bt) {
+        t += *x * *y;
+    }
+    t
+}

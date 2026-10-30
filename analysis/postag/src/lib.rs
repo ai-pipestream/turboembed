@@ -14,9 +14,8 @@
 //! `turbo-sequence`'s, whose documentation lists the OpenNLP behaviour
 //! they reproduce that is surprising.
 //!
-//! The tags are the JVM's and the probabilities are the JVM's doubles,
-//! bit for bit; the tests compare both with files the JVM wrote
-//! (`analysis/goldens/data/postag`, see `README.md` here).
+//! The classical maxent tagger's golden files are retired under #1646
+//! (see `README.md` here).
 //!
 //! # Where OpenNLP's behaviour is surprising
 //!

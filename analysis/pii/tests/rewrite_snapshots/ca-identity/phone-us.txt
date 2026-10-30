@@ -1,0 +1,9 @@
+MASKED	Office (202) 555-0143, mobile +1 202-555-0187, fax 202.555.0199.
+
+MASK_ALL	Office (202) 555-0143, mobile +1 202-555-0187, fax 202.555.0199.
+
+REWRITE	pseudonymize	OK	Office (202) 555-0143, mobile +1 202-555-0187, fax 202.555.0199.
+
+REWRITE	hmac	OK	Office (202) 555-0143, mobile +1 202-555-0187, fax 202.555.0199.
+
+AUDIT_REPORT	no pii found

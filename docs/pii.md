@@ -254,10 +254,40 @@ synthetic specimens:
   names by `example.com`.
 - An SSN known to have been published in an advertisement is left out.
 
-`analysis/pii/tests/rewrite_audit.rs` and the crate's snapshot suites
-verify pack detection, masking, `MaskedView` edits, pseudonymization,
-HMAC tokenization, and audit reports across the 61-document `pii` fixture
-set.
+## Snapshot tests
+
+The snapshots are reviewed outputs of this crate, checked in next to its
+tests. No other implementation produces or checks them.
+
+- Inputs: `analysis/pii/tests/inputs/`, 61 texts written for the packs
+  with only documented test values, example ranges and made up values.
+- Detection snapshots: `analysis/pii/tests/snapshots/<pack>/<id>.tsv`,
+  one directory per pack (`payment`, `contact`, `network`, `secrets`,
+  `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`,
+  `all-structured`), one row per `turbo:pii` mention with its `start`
+  and `end` (UTF-8 byte offsets), kind and TSV-escaped normalized form.
+- Rewrite snapshots: `analysis/pii/tests/rewrite_snapshots/<pack>/<id>.txt`,
+  what `MaskedView`, `mask_all`, `Pseudonymizer`, `HmacTokenizer` and
+  `PiiAuditReport` make of the pack's mentions under a fixed test key:
+  the masked text, the text with every mention masked, both rewrites (or
+  `OVERLAP` when both refuse overlapping mentions), their labels with the
+  spans they replaced, and the audit report.
+
+`analysis/pii/tests/goldens.rs` runs every pack with
+`PiiDetector::keeping_nested` over the inputs, checks each layer with
+`Layer::check`, that spans are in bounds and that kind names parse back,
+and compares the rows with the detection snapshots.
+`analysis/pii/tests/rewrite_goldens.rs` does the same for the rewrites,
+and also checks that every rewrite label maps back to a source mention
+and that both rewrites refuse the same overlaps. A missing snapshot fails
+the test. After a reviewed change in behaviour, rewrite them with
+
+```
+TURBO_BLESS=1 cargo test -p turbo-pii --test goldens --test rewrite_goldens
+```
+
+The fuzz catalog (`analysis/fuzz/src/runs/catalog.rs`) runs every pack
+natively over generated texts.
 
 ## Precision and recall
 
@@ -299,9 +329,11 @@ mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
 mentions across all 20 built-in kinds in
 `analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
 digests in `analysis/pii/tests/data/human-eval/README.md` and
-`docs/licences.md`). This is partial work for #968, not completion of its
-licensed human-written-text requirement per kind. Only `phone` is currently
-evaluated on unedited third-party prose (`masc-*.escaped`), `btc-address`
+`docs/licences.md`). On its own, this mixed set is partial work for
+#968; the external partition below completes its licensed
+human-written-text requirement per kind. In the mixed set, only
+`phone` is evaluated on unedited third-party prose
+(`masc-*.escaped`), `btc-address`
 and `eth-address` are evaluated on project-adapted specification summaries
 embedding the canonical BIP-173/350 and ERC-55 test vectors, and the
 remaining 17 kinds are evaluated on project-authored operational memos
@@ -361,8 +393,8 @@ remaining 17 kinds are evaluated on project-authored operational memos
 
 ### External prose partition (whole third-party documents)
 
-A separately scored partition of twenty-one whole third-party documents
-(`493,288` bytes, `485` gold mentions,
+A separately scored partition of twenty-three whole third-party documents
+(`496,469` bytes, `491` gold mentions,
 `precision_and_recall_on_external_prose`, gold in
 `analysis/pii/tests/data/human-eval/labels-external.tsv`, provenance in
 that directory's `README.md`): RFC 7519, RFC 5737, RFC 3849 and RFC 7042
@@ -372,17 +404,18 @@ Bank Account Number", "Social Security number", "Social insurance
 number", "NHS number", "International Mobile Equipment Identity",
 "Routing transit number", "Individual Taxpayer Identification
 Number", "Steuerliche Identifikationsnummer" and "Payment card
-number" (the ITIN and Steuer-ID articles carry no gold: no
-licensed source found so far prints a complete specimen of their
-kind, so they measure precision on identifier-dense prose with
-recall N/A; `card` positives come from the Test Payment Cards
-list below), the BIP-173
+number" (the ITIN and Steuer-ID articles carry no gold themselves
+and measure precision on identifier-dense prose; their positive
+specimens are in the validator READMEs below, as `card` positives
+are in the Test Payment Cards list), the BIP-173
 and BIP-350 specification texts (BSD-2-Clause) with ERC-55
 (CC0-1.0) at pinned source commits, the Everything curl URL
 authentication chapter (CC BY 4.0), two AWS documentation
 chapters (CC BY-SA 4.0) at pinned awsdocs commits, and the GitHub
 Docs REST data file for the credentials-revoke endpoint (CC BY 4.0),
-and the Test Payment Cards gateway list (CC BY-SA 4.0).
+the Test Payment Cards gateway list (CC BY-SA 4.0), and the Uphold
+`itin-validator` and Kontist `validate-steuerid` READMEs (both MIT)
+at pinned commits.
 These rows never pool with the mixed set above.
 
 | Kind | Source partition | true | false | missed | precision | recall |
@@ -392,6 +425,7 @@ These rows never pool with the mixed set above.
 | `btc-address` | external (BIP-173, BIP-350 mediawiki) | 8 | 0 | 3 | 1.000 | 0.727 |
 | `ca-sin` | external (Wikipedia SIN wikitext) | 0 | 0 | 2 | N/A | 0.000 |
 | `card` | external (Test Payment Cards gateway list) | 314 | 11 | 41 | 0.966 | 0.885 |
+| `de-steuer-id` | external (Kontist validate-steuerid README) | 2 | 0 | 0 | 1.000 | 1.000 |
 | `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042, BIP-173, BIP-350, ERC-55) | 22 | 2 | 1 | 0.917 | 0.957 |
 | `eth-address` | external (ERC-55 markdown) | 14 | 0 | 0 | 1.000 | 1.000 |
 | `github-token` | external (GitHub Docs REST credentials data) | 5 | 0 | 0 | 1.000 | 1.000 |
@@ -404,8 +438,9 @@ These rows never pool with the mixed set above.
 | `phone` | external (RFC 5737, RFC 7042) | 5 | 16 | 0 | 0.238 | 1.000 |
 | `url-credential` | external (Everything curl URL authentication chapter) | 1 | 0 | 0 | 1.000 | 1.000 |
 | `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 2 | 3 | 0.333 | 0.250 |
+| `us-itin` | external (Uphold itin-validator README) | 2 | 0 | 2 | 1.000 | 0.500 |
 | `us-ssn` | external (Wikipedia SSN wikitext) | 3 | 0 | 0 | 1.000 | 1.000 |
-| **all kinds** | **external (`485` gold; false mentions of kinds without gold included)** | **427** | **34** | **58** | **0.926** | **0.880** |
+| **all kinds** | **external (`491` gold; false mentions of kinds without gold included)** | **431** | **34** | **60** | **0.927** | **0.878** |
 
 Zero prediction or gold support makes the corresponding precision or
 recall **N/A**, including the card recall when no card is gold-labelled.
@@ -481,34 +516,35 @@ What the external false positives and misses are:
   excluded by this partition's annotation policy. The scanner requires
   contiguous nonempty segments; wrapping and the unsecured example's
   empty signature are unsupported. This subset's recall is `0.000`.
+- **`us-itin` misses (2)**: the compact `900700000` form printed
+  twice by the Uphold README. The scanner takes hyphen- and
+  space-grouped ITINs, so both dashed occurrences are found and
+  both compact occurrences are missed.
 
-#### Outstanding work for #968
+#### External coverage for #968
 
-#968 remains open with its original acceptance requirements. Independent
-human-written prose coverage with positive occurrences has not been
-established for `us-itin` and `de-steuer-id`: the ITIN and
-Steuer-ID articles and IRS Publication 1915 print format patterns
-and algorithms but no complete specimen, so those documents
-establish precision evidence only.
-The external partition above establishes coverage for
-`aba-routing`, `aws-access-key`, `btc-address`, `ca-sin`, `card`,
-`email`, `eth-address`, `github-token`, `iban`, `imei`, `ipv4`,
-`ipv6`, `jwt` (recall `0.000` on the signed/unsecured subset,
-which is display-wrapped), `mac`, `uk-nhs`, `url-credential`,
-`us-ssn`, and further third-party `phone`; the `btc-address` and
-`eth-address` coverage is the whole
-BIP-173, BIP-350 and ERC-55 specification texts, superseding the
-adapted summaries as the crypto evidence.
+The external partition establishes positive third-party coverage for
+every built-in kind: `aba-routing`, `aws-access-key`, `btc-address`,
+`ca-sin`, `card`, `de-steuer-id`, `email`, `eth-address`,
+`github-token`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt` (recall
+`0.000` on the signed/unsecured subset, which is display-wrapped),
+`mac`, `uk-nhs`, `url-credential`, `us-itin`, `us-ssn`, and further
+third-party `phone`. The ITIN and Steuer-ID Wikipedia articles and
+IRS Publication 1915 print format patterns and algorithms but no
+complete specimen, so those documents remain precision evidence;
+the positive specimens are in the MIT validator READMEs above. The
+`btc-address` and `eth-address` coverage is the whole BIP-173,
+BIP-350 and ERC-55 specification texts, superseding the adapted
+summaries as the crypto evidence.
 
-Further corpus additions need attributable, licensed source passages with
-appropriate context and per-occurrence gold labels, including scanner misses
-and negative examples. Preserve the fixture policy for safe specimen values;
-where a source requires replacement of a value, record that transformation
-and retain the source context rather than authoring replacement prose. Pin
-the source version, licence, text digest and final UTF-8 annotation offsets.
-Source-partition disclosure or an agent's scope decision does not waive the
-original requirement. The existing mixed metrics remain useful partial
-evidence and must stay separate from future measurements on external prose.
+Future corpus additions still need attributable, licensed source
+passages with appropriate context and per-occurrence gold labels,
+including scanner misses and negative examples. Preserve the fixture
+policy for safe specimen values; where a source requires replacement
+of a value, record that transformation and retain the source context
+rather than authoring replacement prose. Pin the source version,
+licence, text digest and final UTF-8 annotation offsets. The mixed
+metrics remain separate from measurements on external prose.
 
 What the false positives and misses are:
 

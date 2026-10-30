@@ -331,6 +331,7 @@ release.md.
 | `include/turbo/` | the C header and the backend interface |
 | `bundle/` | `turbo-bundle`, recipes, and the conversion containers |
 | `trainer/` | `turbo-trainer`: training of bundle heads in Rust (#1518) |
+| `trainer/recipes` | `turbo-trainer-recipes`: pinned corpora (MASC Penn POS, MultiCoNER v2 English), the majority baseline, receipts, and the `turbo-train-head` command (#1518) |
 | `bench/` | `turbo-bench`, reference and peer programs, and the repository hygiene tests |
 | `benchmarks/records/` | committed benchmark records |
 | `server/` | `turbo-kserve` and its protos |
@@ -338,7 +339,7 @@ release.md.
 | `analysis/core`, `analysis/layers` | the document model, views, alignments and shared layer types |
 | `analysis/unicode`, `analysis/encoding`, `analysis/zstd`, `analysis/normalize` | text input and normalization |
 | `analysis/structure`, `analysis/sentdetect`, `analysis/sat`, `analysis/tokenize`, `analysis/langdetect`, `analysis/langspan` | structure, segmentation and language |
-| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/parser`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | tagging, parsing, entity extraction, document categorization and coreference |
+| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | tagging, parsing, entity extraction, document categorization and coreference |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
 | `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
@@ -367,7 +368,7 @@ conformance checks, and Windows lint and tests.
 |---|---|
 | Library and backends | [embeddings.md](docs/embeddings.md), [cpu.md](docs/cpu.md), [cuda.md](docs/cuda.md), [levelzero.md](docs/levelzero.md), [npu.md](docs/npu.md), [metal.md](docs/metal.md), [hailo.md](docs/hailo.md), [autotune.md](docs/autotune.md), [conformance.md](docs/conformance.md) |
 | Tasks and models | [reranking.md](docs/reranking.md), [extractive-qa.md](docs/extractive-qa.md), [static.md](docs/static.md), [deberta.md](docs/deberta.md), [tokenizer.md](docs/tokenizer.md) |
-| Bundles, zoo and benchmarks | [bundle.md](docs/bundle.md), [zoo.md](docs/zoo.md), [licences.md](docs/licences.md), [benchmarks.md](docs/benchmarks.md), [reference-inventory.md](docs/reference-inventory.md) |
+| Bundles, zoo and benchmarks | [bundle.md](docs/bundle.md), [zoo.md](docs/zoo.md), [zoo-container.md](docs/zoo-container.md), [licences.md](docs/licences.md), [benchmarks.md](docs/benchmarks.md), [reference-inventory.md](docs/reference-inventory.md) |
 | Setup | [setup/README.md](docs/setup/README.md), [setup/bundles.md](docs/setup/bundles.md), [setup/release-archive.md](docs/setup/release-archive.md) |
 | Analysis model and text | [analysis.md](docs/analysis.md), [normalizers.md](docs/normalizers.md), [normalization-xray.md](docs/normalization-xray.md), [text-quality.md](docs/text-quality.md), [whitespace.md](docs/whitespace.md), [codepoint-lowercase.md](docs/codepoint-lowercase.md) |
 | Structure and segmentation | [tables.md](docs/tables.md), [structure-projection.md](docs/structure-projection.md), [structure-conformance.md](docs/structure-conformance.md), [segmentation.md](docs/segmentation.md), [lattice-prebuilt.md](docs/lattice-prebuilt.md), [unigram-chinese.md](docs/unigram-chinese.md), [langdetect.md](docs/langdetect.md) |

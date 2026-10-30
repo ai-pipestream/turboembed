@@ -249,7 +249,7 @@ this form before it is written or loaded.
 | `tokenizer.truncation` | enum | yes | What `TURBO_TRUNCATE_MODEL` means: `TRUNCATE_RIGHT` or `TRUNCATE_LEFT`. `TRUNCATE_NONE` is a caller option and is rejected here. |
 | `architecture.*` | message | when an artifact is raw weights, a HEF or an OpenVINO IR, except in a static model | Everything a kernel path needs that a weights file does not carry. `family` is `FAMILY_BERT`, `FAMILY_ROBERTA`, `FAMILY_DEBERTA_V2`, `FAMILY_MODERNBERT` or `FAMILY_NOMIC_BERT` (below). BERT and RoBERTa are the same encoder, RoBERTa counting positions from `position_offset` (its padding id plus one: 2 for XLM-RoBERTa, whose table of `max_positions` 8194 rows serves 8192 tokens). `position_offset` is 0 for BERT and required for RoBERTa; `max_seq` plus it must fit `max_positions`. `lookahead`, optional, for `FAMILY_BERT` and `FAMILY_ROBERTA` only and 1 or more, is limited lookahead: each layer's query attends to every key before it and to at most that many keys after it, as SaT's `sat-1l` to `sat-12l` were trained (wtpsplit's config `lookahead` divided by its layers, rounded down; seal checks a recipe's value against an upstream `config.json` and refuses `lookahead_split_layers` inside the encoder because later layers require a causal mask that this uniform band cannot express). Absent, attention reads the whole row. It reaches the backend as `turbo_backend_model.lookahead` (0 for none; the field was `reserved`, at the same offset), and only the CPU backend runs it: the others refuse the model at load with `TURBO_E_UNSUPPORTED`. |
 | `architecture.relative.position_buckets`, `.max_relative_positions` | uint32 | with `FAMILY_DEBERTA_V2` | `FAMILY_DEBERTA_V2` is DeBERTa-v2 and v3: shared-key disentangled attention over log-bucketed relative positions (Hugging Face's `DebertaV2Model` with `relative_attention`, `share_att_key`, `pos_att_type` c2p and p2c, `norm_rel_ebd` layer_norm). It takes `position_embedding` `POSITION_RELATIVE`, `token_types` 0 and `position_offset` 0, and both fields here: `position_buckets` even, 4 to 4096 (the relative table has twice as many rows), and `max_relative_positions` past `position_buckets / 2 + 1` and at most 65536. Its artifacts are `FORMAT_SAFETENSORS` only, and its `tensor_names` name `word_embeddings`, `embeddings_ln_weight` and `embeddings_ln_bias`, `relative_embeddings` (`[2 * position_buckets, hidden]`), `relative_ln_weight` and `relative_ln_bias`, and the BERT layer roles, with no `position_embeddings` or `token_type_embeddings`. They reach the backend as `turbo_backend_model.position_buckets` and `.max_relative_positions`. The CPU, cuda, levelzero and metal backends run the family so far, the devices in F32 at MODEL and EXACT and refusing FASTEST with `TURBO_E_UNSUPPORTED_OPTION` (docs/cuda.md, docs/levelzero.md, docs/metal.md); the others refuse the model at load with `TURBO_E_UNSUPPORTED` (#883). Sealing such a recipe reads the upstream `config.json`: it must be the shared-key profile (`model_type` `deberta-v2`, relative attention, `share_att_key`, `pos_att_type` c2p and p2c, the relative table LayerNormed, no absolute positions or token types), and every field of `architecture` must be what it gives (`hidden`, `heads`, `intermediate`, `layers`, `vocab_size`, `max_positions`, `layer_norm_eps`, the two relative fields, `token_types` 0), or the seal is refused naming the field. A DeBERTa-v2 bundle has no rerank pair template yet. |
-| `architecture.rope`, `.attention`, `.mlp`, `.norm` | message, message, enum, enum | with `FAMILY_MODERNBERT` and `FAMILY_NOMIC_BERT`, refused on every other family | The rotary families (#1461). Both take `position_embedding` `POSITION_ROTARY`, `mlp` `MLP_GATED` (`out(act(gate x) * up x)`; `MLP_DENSE`, the default, is not written), `rope.global_theta` (a finite base above 1), `position_offset` 0, no `lookahead` or `relative`, `max_positions` at most 32768, an even head width, `FORMAT_SAFETENSORS` artifacts only, and no classifier, projection, QA head or `embed.sparse` yet. `FAMILY_MODERNBERT` (answerdotai/ModernBERT): pre-norm layers, `activation` `ACTIVATION_GELU_ERF`, `norm` `NORM_LAYER_NO_BIAS`, `token_types` 0, `rope.local_theta`, and `attention { window, global_every }`: layer l attends to the whole row iff `l % global_every == 0` and otherwise query i reads keys j with `abs(i - j) <= window / 2` (`window` even, from 2, its half under `max_positions`). Its `tensor_names` are `word_embeddings`, `embeddings_ln_weight`, `final_norm_weight`, and per layer `attn_ln_weight` (absent from layer 0's file, which has no attention norm, and refused if present), `qkv_weight` (`[3 * hidden, hidden]`, Q's rows then K's then V's), `attn_out_weight`, `ffn_ln_weight`, `ffn_in_weight` (`[2 * intermediate, hidden]`, the activated outputs first) and `ffn_out_weight`; no bias role. `FAMILY_NOMIC_BERT` (nomic-embed-text): BERT's post-norm layers, `activation` `ACTIVATION_SILU`, `norm` `NORM_LAYER` (the default, not written), `token_types` 1 or more, no `attention` or `rope.local_theta`. Its `tensor_names` are `word_embeddings`, `token_type_embeddings`, `embeddings_ln_weight` and `_bias`, and per layer `qkv_weight`, `attn_out_weight`, `attn_ln_weight` and `_bias`, `ffn_gate_weight` (fc12, activated), `ffn_up_weight` (fc11), `ffn_out_weight`, `ffn_ln_weight` and `_bias`; no projection bias and no position table. `NORM_RMS` is named and refused until a backend runs it. Any role an encoder of the family does not read is refused. The fields reach the backend in `turbo_backend_model`'s rotary block, with the core's cos/sin table (`rope_table`, core/src/rope.rs); the CPU runs both (docs/cpu.md), cuda at every precision (docs/cuda.md), and metal at every precision, FASTEST with F16 linear layers and attention (docs/metal.md); every other backend refuses them at load with `TURBO_E_UNSUPPORTED`. |
+| `architecture.rope`, `.attention`, `.mlp`, `.norm` | message, message, enum, enum | with `FAMILY_MODERNBERT` and `FAMILY_NOMIC_BERT`, refused on every other family | The rotary families (#1461). Both take `position_embedding` `POSITION_ROTARY`, `mlp` `MLP_GATED` (`out(act(gate x) * up x)`; `MLP_DENSE`, the default, is not written), `rope.global_theta` (a finite base above 1), `position_offset` 0, no `lookahead` or `relative`, `max_positions` at most 32768, an even head width, `FORMAT_SAFETENSORS` artifacts only, and no classifier, projection, QA head or `embed.sparse` yet. `FAMILY_MODERNBERT` (answerdotai/ModernBERT): pre-norm layers, `activation` `ACTIVATION_GELU_ERF`, `norm` `NORM_LAYER_NO_BIAS`, `token_types` 0, `rope.local_theta`, and `attention { window, global_every }`: layer l attends to the whole row iff `l % global_every == 0` and otherwise query i reads keys j with `abs(i - j) <= window / 2` (`window` even, from 2, its half under `max_positions`). Its `tensor_names` are `word_embeddings`, `embeddings_ln_weight`, `final_norm_weight`, and per layer `attn_ln_weight` (absent from layer 0's file, which has no attention norm, and refused if present), `qkv_weight` (`[3 * hidden, hidden]`, Q's rows then K's then V's), `attn_out_weight`, `ffn_ln_weight`, `ffn_in_weight` (`[2 * intermediate, hidden]`, the activated outputs first) and `ffn_out_weight`; no bias role. `FAMILY_NOMIC_BERT` (nomic-embed-text): BERT's post-norm layers, `activation` `ACTIVATION_SILU`, `norm` `NORM_LAYER` (the default, not written), `token_types` 1 or more, no `attention` or `rope.local_theta`. Its `tensor_names` are `word_embeddings`, `token_type_embeddings`, `embeddings_ln_weight` and `_bias`, and per layer `qkv_weight`, `attn_out_weight`, `attn_ln_weight` and `_bias`, `ffn_gate_weight` (fc12, activated), `ffn_up_weight` (fc11), `ffn_out_weight`, `ffn_ln_weight` and `_bias`; no projection bias and no position table. `NORM_RMS` is named and refused until a backend runs it. Any role an encoder of the family does not read is refused. The fields reach the backend in `turbo_backend_model`'s rotary block, with the core's cos/sin table (`rope_table`, core/src/rope.rs); the CPU runs both (docs/cpu.md), cuda at every precision (docs/cuda.md), levelzero at MODEL and EXACT in F32, refusing FASTEST with `TURBO_E_UNSUPPORTED_OPTION` (docs/levelzero.md), and metal at every precision, FASTEST with F16 linear layers and attention (docs/metal.md); every other backend refuses them at load with `TURBO_E_UNSUPPORTED`. |
 | `architecture.layers` as a cut | uint32 | optional use | A bundle may run fewer encoder layers than its weights hold: `layers` below the upstream model's count cuts the encoder there, so every backend runs the first `layers` layers and then the model's final norm (ModernBERT's `final_norm`), and never reads the tensors of the layers past the cut (`analysis/embed/tests/layer_cut.rs`). The NLP heads read a cut encoder (#1518): a middle layer of a deep encoder tags better than its last, and the cut runs fewer layers. The reference container cuts the upstream model the same way (`num_hidden_layers`, or `n_layer`, set to `layers`) and refuses a checkpoint tensor left unused other than a later layer's, a count above the upstream one, and a cut model with a `classifier`. The carried weights keep the later layers' tensors. DeBERTa-v2 seals refuse a cut (their `layers` must equal the config's), and a `lookahead` model is never cut: its per-layer lookahead is computed over the upstream layers, and the seal refuses `layers` below the upstream config's `num_hidden_layers` for one. |
 | `static_embedding.vocab_size` | uint32 | in a static model | A static model (docs/static.md): one vector per vocabulary entry and no encoder, in place of `architecture`; the two never appear together. The tokenizer's entries; every special token's id is under it. Its artifacts are `FORMAT_SAFETENSORS`, naming `static_embeddings` (`[vocab_size, dim]`, or `[rows, dim]` with a mapping) in F32, F16, BF16, F64 or I8, and optionally `static_weights` (`[vocab_size]`, F32, F16 or F64) and `static_mapping` (`[vocab_size]`, I32 or I64, each value under `rows`). |
 | `static_embedding.rows` | uint32 | with `static_mapping` | The table's rows when a token mapping picks them, as Model2Vec's vocabulary quantization stores the table; absent (0) without one. |
@@ -340,6 +340,8 @@ router.
 `heads` lists the task heads a bundle carries beside its encoder, so
 one encoder pass serves several tasks (part of speech, entities,
 morphology) and each head is a few small tensors, not a second model.
+`turbo-tagger`'s `MultiTask` runs them that way: each window read once,
+every head decoding from the same states (analysis/tagger/README.md).
 A head runs on the host from the last layer's hidden states, whichever
 device ran the encoder, the way the classifier and the sparse head do.
 Its weights live in a `FORMAT_SAFETENSORS` artifact and are named by the
@@ -350,14 +352,17 @@ so any number of heads fit one artifact.
 |---|---|
 | `name` | Unique in the bundle; lowercase ASCII letters, digits, `_` and `-`, at most 64 bytes. |
 | `layer` | The layer id the analysis annotator writes the output to: `turboembed:` and a lowercase name, such as `turboembed:pos`. |
-| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. |
+| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. `HEAD_SENTENCE_BOUNDARY`: whether each word ends its sentence. `HEAD_TOKEN_SPLIT`: the syntactic words of each token, as UD splits a multi-word token. `HEAD_SPAN_CLASSIFIER`: a label for every span of up to `span.max_words` words. |
 | `labels` | The labels in output order: 1 to 4096, unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
-| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). |
+| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's: `DECODE_SPANS_NESTED` (every span whose best label is not `O`) or `DECODE_SPANS_FLAT` (those spans from the highest margin over `O` down, each kept unless it overlaps one kept, ties to the earlier span). |
+| `hash_embed` | Optional, for the kinds that score words as a tagger does (`HEAD_TOKEN_TAGGER`, `HEAD_SENTENCE_BOUNDARY`, `HEAD_TOKEN_SPLIT`): `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
 | `biaffine` | A parser's MLP widths, `arc` and `rel`, each 1 to 4096; required for `HEAD_BIAFFINE_PARSER`, refused for any other kind. A parser's `scheme` is `SCHEME_TAGS` and its labels are the dependency relations. |
 | `pos_input` | A lemmatizer's optional tag input: `head` names a `SCHEME_TAGS` token tagger head of the same bundle with `labels` labels, and the lemmatizer reads each word's decoded tag as a learned `dim`-wide embedding (1 to 1024) beside the word vector. Refused for any other kind. A lemmatizer's `scheme` is `SCHEME_TAGS` and its labels are edit trees, each written as `turbo::head::edit_tree::EditTree::label` writes it. |
+| `span` | A span classifier's spans: `max_words` (1 to 128), the longest span scored, and `width_dim` (1 to 256), the width of its learned span-width embedding; required for `HEAD_SPAN_CLASSIFIER`, refused for any other kind. Its `scheme` is `SCHEME_TAGS` and its labels include `O`, no span. |
+| `license_class` | Optional: the class (as `model.license_class` names classes, docs/zoo.md) of the strictest licence among the corpora the head was trained on. The bundle's tier (`Manifest::license_tier`) is the strictest of `model.license_class` and every head's, so a permissive encoder with a head trained on CC BY-SA data is `CLASS_SHARE_ALIKE`. Refused when `model.license_class` is not recorded, since the tier would leave the encoder out. |
 | `artifact` | The name of the `FORMAT_SAFETENSORS` artifact holding the tensors, as `from` and `host_weights` name artifacts. |
 | `tensor_prefix` | Each tensor is named `<tensor_prefix>.<suffix>`. |
 
@@ -366,10 +371,11 @@ wide and `L` labels, in the order the loader reads them:
 
 | Suffix | Shape | When |
 |---|---|---|
-| `lstm.{k}.fwd.w`, `lstm.{k}.bwd.w` | `[4h, in]` | adapter layer `k`; `in` is `hidden` for layer 0, `2h` after |
+| `lstm.{k}.fwd.w`, `lstm.{k}.bwd.w` | `[4h, in]` | adapter layer `k`; `in` is `hidden` (plus `4 * hash_embed.dim`) for layer 0, `2h` after |
 | `lstm.{k}.fwd.u`, `lstm.{k}.bwd.u` | `[4h, h]` | adapter layer `k` |
 | `lstm.{k}.fwd.b`, `lstm.{k}.bwd.b` | `[4h]` | adapter layer `k`; one bias, so weights from a framework that keeps two (PyTorch's `bias_ih` and `bias_hh`) are stored as their sum |
-| `out.weight` | `[L, width]` | always; `width` is `hidden`, or `2h` with an adapter |
+| `hash.norm`, `hash.prefix`, `hash.suffix`, `hash.shape` | `[rows[k], dim]` | with `hash_embed`, after the adapter's tensors |
+| `out.weight` | `[L, width]` | always; `width` is `hidden` (plus `4 * hash_embed.dim`), or `2h` with an adapter |
 | `out.bias` | `[L]` | always |
 | `crf.transitions` | `[L, L]` | `DECODE_CRF`; row is the label before, column the label after |
 | `crf.start`, `crf.end` | `[L]` | `DECODE_CRF` |
@@ -426,8 +432,48 @@ common. Its label is an S-expression: `(m P S X Y)` keeps all but the
 first `P` and last `S` characters (Unicode scalar values) and rewrites
 those by `X` and `Y` (`()` for none); `(s 'from' 'to')` substitutes, with
 `\'` and `\\` escaped inside quotes. `walked` to `walk` is
-`(m 0 2 () (s 'ed' ''))`. Only the canonical form of a label is
-accepted, so one tree has one label.
+`(m 0 2 () (s 'ed' ''))`. One node is ours: `(l T)` lowercases every
+character of the word by its simple Unicode 18 mapping (no special
+casing, no final sigma) and rewrites the result by `T`, which is not
+itself an `l`. The trainer mines it when it substitutes fewer characters
+than the plain tree, so `Dogs` to `dog` is `(l (m 0 1 () (s 's' '')))`,
+the tree of `dogs` to `dog`, and a capital at the start of a sentence
+does not give the table one tree per letter; `Paris` to `Paris` stays
+`(m 0 0 () ())`. Only the canonical form of a label is accepted, so one
+tree has one label.
+
+A `HEAD_SENTENCE_BOUNDARY` and a `HEAD_TOKEN_SPLIT` have a tagger's
+tensors and differ only in their labels and decode. A sentence boundary
+head's `scheme` is `SCHEME_TAGS` and its labels are exactly `inside` and
+`last`, in that order; a word whose decoded label is `last` ends its
+sentence, and the last word of a sequence always does, so the sentences
+cover every word. It reads words, the unit UD marks sentences in, so it
+trains on the same words as the bundle's other heads; SaT's boundary
+head, which reads subword pieces of raw text, stays its own model.
+
+A token split head's `scheme` is `SCHEME_TAGS` and its labels are `_`,
+which keeps a token one word, and splits: two to eight edit trees
+separated by single spaces, the k-th tree rewriting the whole token into
+its k-th word. Spanish `del` is `de` and `el` by
+`(m 0 1 () (s 'l' '')) (m 1 0 (s 'd' '') ())`. A split fits a token when
+every tree applies to it and gives a word that is not empty.
+
+The tensors of a `HEAD_SPAN_CLASSIFIER`, F32, with `M` =
+`span.max_words`, `E` = `span.width_dim`, `L` labels and `width` as
+above (the adapter's tensors come first, as for a tagger):
+
+| Suffix | Shape | What |
+|---|---|---|
+| `span.width` | `[M, E]` | row `w - 1` embeds a span of `w` words |
+| `out.weight` | `[L, 2 * width + E]` | a span's first word vector, its last, then its width embedding |
+| `out.bias` | `[L]` | |
+
+Every span of 1 to `M` words is scored, in order of first word then
+last; a sequence of `n` words has `n - w + 1` spans of each width `w`
+up to `M` (`SpanClassifier::span_count`). Each word's start and end parts of the score
+are computed once and summed per span, so a span's score is the same
+sum the joined layer gives. A kept span carries its label and its
+margin, its label's score less `O`'s.
 
 A manifest whose heads break any rule above is refused at open with
 `BUNDLE_INVALID`, the field named; a missing or misshapen tensor is

@@ -1,0 +1,16 @@
+MASKED	email: *@*******.***
+ip: 198.51.100.1
+
+MASK_ALL	email: #############
+ip: 198.51.100.1
+
+REWRITE	pseudonymize	OK	email: EMAIL-1
+ip: 198.51.100.1
+
+LABEL	pseudonymize	7	20	7	14	EMAIL-1
+REWRITE	hmac	OK	email: EMAIL-e65203dbd067c437
+ip: 198.51.100.1
+
+LABEL	hmac	7	20	7	29	EMAIL-e65203dbd067c437
+AUDIT	email	1	1	EMAIL-e65203dbd067c437
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-e65203dbd067c437]

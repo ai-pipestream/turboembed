@@ -1,0 +1,8 @@
+== sentence-windows-5-hybrid 2026-10-28T08:43:55Z 0d58e8629e85345b5c585c4beffa39b66a63c248 load 92.80 79.83 74.82
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cuda --retrieval hybrid --out <records>/cuda/sentence-windows-5-hybrid --chunker sentence-windows --window 5
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/cuda/sentence-windows-5-hybrid/scifact.json
+<records>/cuda/sentence-windows-5-hybrid/nfcorpus.json
+<records>/cuda/sentence-windows-5-hybrid/arguana.json
+<records>/cuda/sentence-windows-5-hybrid/qasper.json

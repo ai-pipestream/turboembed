@@ -27,6 +27,9 @@ fn spec(pos: Option<PosInput>) -> HeadSpec {
         decode: Decode::EditTree,
         biaffine: None,
         pos_input: pos,
+        hash_embed: None,
+        span: None,
+        license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.lemma".into(),
     }

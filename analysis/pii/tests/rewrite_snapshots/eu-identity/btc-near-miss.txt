@@ -1,0 +1,9 @@
+MASKED	Not wallets: 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdx, bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5, Bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+
+MASK_ALL	Not wallets: 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdx, bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5, Bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+
+REWRITE	pseudonymize	OK	Not wallets: 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdx, bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5, Bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+
+REWRITE	hmac	OK	Not wallets: 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdx, bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5, Bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+
+AUDIT_REPORT	no pii found

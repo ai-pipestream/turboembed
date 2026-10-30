@@ -31,10 +31,6 @@
 //! - [`ad`]: the Floresta Sinta(c)tica treebank in the Arvores Deitadas
 //!   format, and the name, part-of-speech, chunk, sentence and token
 //!   samples OpenNLP reads from it.
-//! - [`ontonotes`]: the OntoNotes 4.0 name and parse files, and the
-//!   name, parse and part-of-speech samples OpenNLP reads from them.
-//! - [`frenchtreebank`]: the French Treebank's XML files and the parses
-//!   OpenNLP reads from them.
 //! - [`directory`]: the files of a corpus directory in the order OpenNLP's
 //!   `DirectorySampleStream` lists them.
 //! - [`ner`]: the GermEval 2014, BioNLP 2004, Evalita, MUC-6 and brat
@@ -114,9 +110,7 @@
 //!   U+FFFD.
 //! - `NameSample` and `POSSample` can carry additional context and
 //!   `DocumentSample` extra information; no native format writes them,
-//!   and the samples here do not hold them. The parse samples of the
-//!   parser are `turbo_parser::Parse`, which the OntoNotes and French
-//!   Treebank readers make.
+//!   and the samples here do not hold them.
 
 pub mod ad;
 pub mod conll;
@@ -128,14 +122,14 @@ pub mod doc_export;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
-pub mod frenchtreebank;
 pub mod masc;
 pub mod native;
 pub mod ner;
-pub mod ontonotes;
+pub mod recipes;
 pub mod registry;
 pub mod sample;
 pub mod source;
+pub mod xml;
 
 use std::fmt;
 

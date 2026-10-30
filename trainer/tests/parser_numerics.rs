@@ -17,9 +17,12 @@ fn spec() -> HeadSpec {
         scheme: Scheme::Tags,
         word_pooling: WordPooling::First,
         adapter: None,
-        pos_input: None,
         decode: Decode::Mst,
         biaffine: Some(Biaffine { arc: 1, rel: 1 }),
+        pos_input: None,
+        hash_embed: None,
+        span: None,
+        license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "review".into(),
     }
@@ -101,4 +104,37 @@ fn a_loss_that_overflows_is_refused_without_mutating_gradients() {
     let before = g.clone();
     assert!(p.loss(&[0.0], &[0], &[1], &mut g, &mut Work::default()).is_err());
     assert_eq!(g, before);
+}
+
+#[test]
+fn nonfinite_hash_tables_are_refused_at_load() {
+    use turbo::head::TokenTagger;
+    use turbo::head::tagger::tensors;
+    use turbo::manifest::HashEmbed;
+    let s = HeadSpec {
+        kind: HeadKind::TokenTagger,
+        decode: Decode::Argmax,
+        biaffine: None,
+        hash_embed: Some(HashEmbed { dim: 1, rows: [1; 4] }),
+        span: None,
+        license_class: None,
+        ..spec()
+    };
+    for table in ["hash.norm", "hash.prefix", "hash.suffix", "hash.shape"] {
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let values: Vec<(String, Vec<f32>)> = tensors(&s, 1)
+                .into_iter()
+                .map(|(n, shape)| {
+                    let mut data = vec![0.0; shape.iter().product::<u64>() as usize];
+                    if n == table {
+                        data[0] = bad;
+                    }
+                    (n, data)
+                })
+                .collect();
+            let get = |n: &str| values.iter().find(|(name, _)| name == n).map(|(_, v)| v.clone());
+            let e = TokenTagger::from_tensors(&s, 1, &get).expect_err("a non-finite table is refused");
+            assert!(e.message.contains(table) && e.message.contains("not finite"), "{table} {bad}: {e:?}");
+        }
+    }
 }

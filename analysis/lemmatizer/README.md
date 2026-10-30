@@ -10,5 +10,5 @@ Dictionary and statistical edit-script lemmatization (`DictionaryLemmatizer`, `M
 
 ## Testing, Accuracy, and Speed
 
-- **Test suite**: Covered by `analysis/lemmatizer/tests/dictionary_allocations.rs` and `analysis/lemmatizer/src/edit_script/tests.rs`, plus case-restoration evaluation in `docs/lemma-case-evaluation.md`.
+- **Test suite**: Covered by `analysis/lemmatizer/tests/dictionary_allocations.rs`, `analysis/lemmatizer/tests/dictionary_snapshot.rs`, and `analysis/lemmatizer/src/edit_script/tests.rs`, plus case-restoration evaluation in `docs/lemma-case-evaluation.md`.
 - **Accuracy and speed**: Lowercase dictionary hits and misses run with zero per-token heap allocations (`analysis/lemmatizer/tests/dictionary_allocations.rs`); see `docs/lemma-case-evaluation.md` for Universal Dependencies accuracy numbers.

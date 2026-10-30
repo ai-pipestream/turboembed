@@ -194,6 +194,25 @@ not answered. A certificate or key that does not load stops the demo at
 startup. A token sent off loopback without TLS crosses the network in
 the clear; the demo says so when it starts.
 
+### The user
+
+Every catalog method that names a user (`ListModelCatalog`,
+`RecordLicenceAcceptance`, `RevokeLicenceAcceptance`,
+`ListLicenceAcceptances`, `InstallModel`, `DescribeModel`,
+`ResolveModel`, `ReadModelFile`) acts for the user the demo was started
+with, `--user`, never for a name the page sends: the demo drops the
+message's user field and writes its own (`demo/src/user.rs`, the one
+place it looks inside a message). Without `--user` the field is
+cleared, so reads name no user, and a catalog write is refused
+`permission_denied` before the server sees it. `LoadBundle` names the
+same user (its field 12), so a bundle under terms that need acceptance
+loads only once that user accepted them; without `--user` the field is
+cleared and only bundles that need no acceptance load. A message that
+is not well formed protobuf is refused `invalid_argument`. The token
+says who may call; `--user` says who those calls are for, so a demo
+shared by several people should run one instance, with its own token,
+per person.
+
 ## Generated clients
 
 The page's protobuf and Connect-ES code is generated, never written by
@@ -265,15 +284,36 @@ target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
 | Flag | Meaning | Absent |
 |---|---|---|
 | `--listen ADDR:PORT` | Where the page is served. | `TURBO_DEMO_LISTEN`, else `127.0.0.1:8080`. |
-| `--server URL` | The server to call, `http://HOST:PORT`. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
+| `--server URL` | The server to call, `http://HOST:PORT` or `https://HOST:PORT`. HTTPS requires an explicit trusted CA. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
+| `--server-tls-ca PEM` | Trust this CA certificate chain for the upstream gRPC server. | `TURBO_DEMO_SERVER_TLS_CA`, else no upstream TLS. |
+| `--server-tls-cert PEM`, `--server-tls-key PEM` | Present this client identity to the upstream server; both or neither. | `TURBO_DEMO_SERVER_TLS_CERT` and `TURBO_DEMO_SERVER_TLS_KEY`. |
+| `--server-tls-name NAME` | Verify this certificate name when dialing a different address. Trust and name verification stay enabled. | `TURBO_DEMO_SERVER_TLS_NAME`, else the URL host. |
 | `--allow METHOD` | Also forward this method that changes the server, `/<package>.<Service>/<Method>`; repeat for more. A name that is not a known method stops the demo at startup. | `TURBO_DEMO_ALLOW`, comma-separated, else the reads only. |
 | `--token-file PATH` | A file holding the bearer token every call must carry. | `TURBO_DEMO_TOKEN_FILE`, else the token in `TURBO_DEMO_TOKEN`, else none. |
+| `--user NAME` | Who the page's licence acceptances and installs are for (see The user). | `TURBO_DEMO_USER`, else none: the catalog calls name no user and the Models tab is read-only. |
 | `--cors-origin ORIGIN` | Another origin whose pages may call, `http(s)://HOST[:PORT]`; repeat for more. | `TURBO_DEMO_CORS_ORIGINS`, comma-separated, else none. |
 | `--tls-cert PEM`, `--tls-key PEM` | Serve HTTPS with this certificate chain and private key; both or neither. | `TURBO_DEMO_TLS_CERT` and `TURBO_DEMO_TLS_KEY`, else plain HTTP. |
 
 The demo serves on the loopback address with no token unless told
 otherwise. It need not start after the server: it connects
 on each call, and a call while the server is down is `unavailable`.
+
+The upstream client settings are separate from the page's `--tls-cert`
+and `--tls-key`. For an mTLS upstream, mount a dedicated client identity
+and the server CA, then start the page with:
+
+```sh
+turbo-kserve-demo --server https://127.0.0.1:8081 \
+  --server-tls-ca certs/server-ca.pem --server-tls-name localhost \
+  --server-tls-cert certs/client.pem --server-tls-key certs/client.key
+```
+
+There is no plaintext retry or insecure certificate option. An HTTPS
+URL without a CA, an HTTP URL with TLS settings, or an incomplete client
+identity is refused. Flags override the corresponding environment values.
+Library callers use `Options.upstream_tls: Option<UpstreamTls>` and the
+paired `ClientIdentity` type. The server's private key is never used as
+the client's key automatically.
 
 ## What the page shows
 
@@ -349,10 +389,25 @@ for any refused call.
 - Server: the server's name, version and readiness (`ServerLive`,
   `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
   profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
-- Models: for a user name, `ListModelCatalog` with each artifact's
-  licence terms the user has still to accept, each shown before its
-  `RecordLicenceAcceptance` (write), and `InstallModel` (write) with its
-  stages and files streamed into a progress bar; `ListInstalledModels`.
+- Models: `ListModelCatalog` for the demo's user, each artifact's
+  licence terms still to accept shown with the licence, its class and
+  what that class means in plain words, the attribution, the training
+  data and a link to the terms text. An "I have read and accept"
+  control enables `RecordLicenceAcceptance` (write), which sends the
+  artifact and the SHA-256 of the text shown. `InstallModel` (write)
+  streams its stages and files into a progress bar.
+  `ListLicenceAcceptances` lists the terms accepted, with when and on
+  which artifact's page, each with `RevokeLicenceAcceptance` (write).
+  An artifact whose licence, or any data it was trained on, is
+  non-commercial (`CC-BY-NC-*`) says "Non-commercial use only" beside
+  its licence. Once the user may have an artifact, a Save button per
+  file reads it through `ReadModelFile` (a read, the same stream the
+  library reads), hashes it as it arrives, and hands the browser the
+  file only when its size and SHA-256 are the ones the catalog lists
+  (demo/web/src/tabs/download.ts). The file is held in the page's
+  memory until it is saved.
+  Without `--user`, or on a server without `--admin`, the tab says it
+  is read-only and shows no controls. `ListInstalledModels`.
   `ListTeachers`, `TrainStaticModel` (write) streaming each stage with
   its counts, explained variance and quality, and `ListStaticModels`
   with `DeleteStaticModel` (write). Without `--catalog-dir` or
@@ -385,7 +440,13 @@ the server's prost types. Nothing is mocked.
   after which the server has stopped the training and written nothing.
 - `demo/tests/refusals.rs`: 415 for JSON and other content types, the
   allowlist, compression and malformed envelopes.
-- `demo/tests/methods.rs`: the method table against the protos.
+- `demo/tests/methods.rs`: the method table against the protos, and every
+  request with a `user` field in the user table with its field number.
+- `demo/tests/licences.rs`: acceptances and revokes recorded for the
+  demo's `--user` whatever user the page sends, reads naming that user,
+  writes refused without one, a malformed message refused before
+  the server, and a share-alike bundle loading only for that user once
+  accepted.
 - `demo/tests/gate.rs`: with the server not there, every write and
   every unknown method refused without it and every read tried; the
   token; a write off loopback without a token refused at startup; the

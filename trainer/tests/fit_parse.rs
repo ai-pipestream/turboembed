@@ -19,9 +19,12 @@ fn spec(decode: Decode) -> HeadSpec {
         scheme: Scheme::Tags,
         word_pooling: WordPooling::First,
         adapter: Some(Adapter { bilstm: Bilstm { hidden: 8, layers: 1 } }),
-        pos_input: None,
         decode,
         biaffine: Some(Biaffine { arc: 16, rel: 8 }),
+        pos_input: None,
+        hash_embed: None,
+        span: None,
+        license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "deps".into(),
     }
@@ -82,7 +85,7 @@ fn data(seed: u64, count: usize) -> Vec<ParseExample> {
 #[test]
 fn a_toy_grammar_is_learned_and_runs_repeat_exactly() {
     let (train, dev) = (data(1, 300), data(2, 80));
-    let c = Config { epochs: 25, batch: 8, lr: 5e-3, patience: 0, ..Config::default() };
+    let c = Config { epochs: 25, batch: 8, lr: 5e-3, patience: 0, threads: 3, ..Config::default() };
     let (model, report) = fit_parser(&spec(Decode::Mst), HIDDEN, &train, &dev, &c).unwrap();
     let a = attachment(&model.to_core().unwrap(), &dev).unwrap();
     // Every word on the first word: the trivial tree's score.
@@ -90,7 +93,8 @@ fn a_toy_grammar_is_learned_and_runs_repeat_exactly() {
     println!("UAS {:.3} LAS {:.3} trivial {trivial:.3} best epoch {}", a.uas(), a.las(), report.best_epoch);
     assert!(a.uas() >= 0.97 && a.las() >= 0.97 && trivial < 0.3, "UAS {} LAS {}", a.uas(), a.las());
     assert!((report.dev[report.best_epoch] - a.las()).abs() < 1e-12);
-    let (again, _) = fit_parser(&spec(Decode::Mst), HIDDEN, &train, &dev, &c).unwrap();
+    // Another thread count, the same bytes.
+    let (again, _) = fit_parser(&spec(Decode::Mst), HIDDEN, &train, &dev, &Config { threads: 1, ..c }).unwrap();
     assert_eq!(again.tensors(), model.tensors());
 }
 

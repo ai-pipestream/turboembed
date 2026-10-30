@@ -132,9 +132,7 @@ are not taken from any corpus.
   text, text holding tabs, a run of spaces, a run of one letter, a
   backslash, a CR LF line end and no newline at the end; and two lines
   the sample stream skips (one starting with a tab, one without a tab).
-  The fixture `langdetect-fixture-rust.bin` was trained on them, and the
-  `langdetect` (`+probing`, `+probing-chunk50`), `train-langdetect` and
-  `cross-validate` goldens run on them.
+  They remain inputs for the train-components language trainer (#1532).
 
 - `inputs/langdetect/tree-bucket.txt`: six language samples written for
   this project, three of the local-use code `qaa` and three of `qab`,
@@ -142,8 +140,8 @@ are not taken from any corpus.
   plus the code unit) are multiples of 64, so they share one bucket of
   the n-gram maps, which becomes a tree; the order `getContext` gives
   them (which training reads) then differs from the order `predict`
-  counts them in. The `langdetect` (`+probing`, `+probing-chunk50`) and
-  `train-langdetect` goldens run on them.
+  counts them in. They remain inputs for the train-components language
+  trainer (#1532).
 
 - `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
   in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
@@ -464,7 +462,6 @@ that differs.
 | `pos-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/wordtag.txt` with the default descriptor and `tags.tagdict` (GIS, 100 iterations, cutoff 1, one thread; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `POSModel` so the goldens of the two taggers can be compared |
 | `lemma-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/lemmas.txt` (GIS, 100 iterations, cutoff 1, one thread; the same test); the JVM loads it with `LemmatizerModel` |
 | `ner-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/names.txt` as `NameFinderME.train` does with no parameters file (the default descriptor, the BIO codec, GIS, 300 iterations, cutoff 0, one thread, beam size 3; the same test); the JVM loads it with `TokenNameFinderModel` and finds names with it |
-| `langdetect-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/langdetect/samples.txt` as `LanguageDetectorME.train` does with the command line trainer's defaults (GIS, 100 iterations, cutoff 5, one thread; the same test); the JVM loads it with `LanguageDetectorModel`, and its `langdetect` goldens are compared by `analysis/langdetect/tests/fixture.rs` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
 | `chunker-fixture.bin` | a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`train-fixtures/train-chunk.txt`, by `FixtureModels.java`; `analysis/sequence/README.md`); the only chunker model the goldens run, since the published chunker models are OpenNLP 1.5 models, which this repository does not fetch or run; `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
 | `chunker-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/chunks.txt` (GIS, 100 iterations, cutoff 1, one thread, beam size 10; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `ChunkerModel` and chunks with it (`chunk/chunker-fixture-rust`) |
@@ -749,13 +746,6 @@ names and the probabilities of every outcome of each best sequence the
 JVM's `NameFinderME` finds over the same inputs with
 `ner-fixture-rust.bin`. `analysis/train-components/tests/namefind.rs`
 compares with them.
-
-`train-langdetect/<run>/<set>/<id>.golden` is what
-`LanguageDetectorME.train` did on `inputs/<set>/<id>.txt` with cutoff 5
-(`default`) or 1 (`cutoff1`): the events, a row each and a row per
-predicate, the checksum, the index, the GIS training iteration by
-iteration, and the manifest and zip entries of the model file.
-`analysis/train-components/tests/langdetect.rs` compares with them.
 
 `cross-validate/<run>/<set>/<id>.golden` is what
 `TokenNameFinderCrossValidator` (`namefind-bio`, `namefind-bilou`, on

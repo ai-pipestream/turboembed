@@ -44,12 +44,9 @@ fn texts(reader: MascTokenReader<'_>) -> Vec<(usize, String)> {
 }
 
 #[test]
-fn an_empty_sentence_ends_the_corpus_as_in_opennlp_or_is_skipped_alone() {
+fn an_empty_sentence_is_skipped_without_later_documents_being_lost() {
     let corpus = corpus_with_an_empty_sentence();
-    let opennlp = MascTokenReader::new(&corpus).unwrap();
-    assert_eq!(texts(opennlp), [(0, "One two.".to_owned())]);
-
-    let mut reader = MascTokenReader::with_empty_sentences(&corpus, EmptySentence::Skipped).unwrap();
+    let mut reader = MascTokenReader::new(&corpus).unwrap();
     let mut read = Vec::new();
     while let Some(s) = reader.read().unwrap() {
         read.push((s.document, s.sample.text().to_owned()));
@@ -62,6 +59,28 @@ fn an_empty_sentence_ends_the_corpus_as_in_opennlp_or_is_skipped_alone() {
     reader.reset();
     assert_eq!(reader.skipped(), 0);
     assert_eq!(texts(reader).len(), 4);
+}
+
+#[test]
+fn sentence_samples_join_without_edge_separators_and_keep_source_spans() {
+    let corpus = corpus_with_an_empty_sentence();
+    let mut reader = MascSentenceReader::new(&corpus, 2);
+    let mut samples = Vec::new();
+    while let Some(sample) = reader.read().unwrap() {
+        samples.push(sample);
+    }
+    assert_eq!(samples.len(), 3);
+    assert_eq!(samples[0].sample.document(), "One two. Three four.");
+    assert_eq!(samples[1].sample.document(), "Five six.\nOne two.");
+    assert_eq!(samples[2].sample.document(), "Three four. Five six.");
+    assert_eq!(samples[1].documents, [0, 1]);
+    for sample in samples {
+        for (i, source) in sample.sample.sources().iter().enumerate() {
+            let document = &corpus.documents()[sample.documents[i]];
+            assert_eq!(&document.text()[source.range()], sample.sample.sentence(i));
+        }
+    }
+    assert!(reader.read().unwrap().is_none());
 }
 
 #[test]

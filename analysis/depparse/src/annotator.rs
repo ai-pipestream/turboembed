@@ -125,7 +125,7 @@ impl DependencyBackend {
     }
     fn identity(&self) -> ModelRef {
         match self {
-            Self::Linear(p) => p.model.identity.clone(),
+            Self::Linear(p) => p.model().identity(),
             Self::Feedforward(p) => p.identity(),
         }
     }

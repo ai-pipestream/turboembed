@@ -68,6 +68,15 @@ impl TokenTagger {
         if spec.kind != HeadKind::TokenTagger {
             return Err(invalid(format!("head {:?} is not a token tagger", spec.name)));
         }
+        Self::scoring_words(spec, hidden, get)
+    }
+
+    /// The word scorer of any head that scores words as a tagger does
+    /// (`HeadKind::scores_words`); its kind's own type decodes the labels.
+    pub fn scoring_words(spec: &HeadSpec, hidden: usize, get: &dyn Fn(&str) -> Option<Vec<f32>>) -> Result<Self> {
+        if !spec.kind.scores_words() {
+            return Err(invalid(format!("head {:?} does not score words", spec.name)));
+        }
         spec.validate("head")?;
         if hidden == 0 {
             return Err(invalid(format!("head {:?}: hidden 0", spec.name)));
@@ -115,8 +124,28 @@ impl TokenTagger {
     /// Refused: states or map of the wrong size (INVALID_SHAPE); a word
     /// map out of order or a non-finite state (INVALID_ARGUMENT).
     pub fn scores(&self, states: &[f32], words: &[u32], out: &mut Vec<f32>, w: &mut Work) -> Result<usize> {
+        self.scores_forms(states, words, None, out, w)
+    }
+
+    /// Whether the head reads each word's text (a `hash_embed`), so its
+    /// scores need [`scores_forms`](Self::scores_forms).
+    pub fn reads_forms(&self) -> bool {
+        self.reader.reads_forms()
+    }
+
+    /// As [`scores`](Self::scores), with each word's text, which a head
+    /// with a `hash_embed` reads (refused without it) and any other head
+    /// ignores.
+    pub fn scores_forms(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        forms: Option<&[&str]>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<usize> {
         out.clear();
-        let n = self.reader.read(states, words, w)?;
+        let n = self.reader.read(states, words, forms, w)?;
         out.resize(n * self.out.out_dim, 0.0);
         if n > 0 {
             self.out.apply_rows(&w.pooled, n, out);

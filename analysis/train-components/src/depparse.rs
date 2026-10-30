@@ -4,8 +4,8 @@ use turbo_depparse::{DependencySample, FeedforwardDependencyModel, FeedforwardDe
 use turbo_formats::conllu::{ConlluDependencySample, Tagset};
 
 /// Reads separate CoNLL-U sentences, preserving the checked MWT/offset carrier
-/// until training derives oracle events. Non-projective trees are skipped by
-/// the trainer. Malformed input returns an error with its sentence number.
+/// until training derives oracle events. Non-projective trees are pseudo-projectivized
+/// by the trainer. Malformed input returns an error with its sentence number.
 pub fn train_feedforward_conllu(
     sentences: &[&str],
     tagset: Tagset,

@@ -1,9 +1,7 @@
 //! Training OpenNLP's components: the event streams, the factories that
-//! set them up, the model files the `train` methods of `SentenceDetectorME`,
-//! `TokenizerME`, `POSTaggerME`, `LemmatizerME`, `ChunkerME`,
-//! `NameFinderME`, `LanguageDetectorME` and `SentimentME` return, the
-//! and the bottom-up constituency parsers' event streams, trainers and
-//! evaluator.
+//! set them up, and the model files the `train` methods of `SentenceDetectorME`,
+//! `TokenizerME`, `POSTaggerME`, `LemmatizerME`,
+//! `NameFinderME`, `LanguageDetectorME` and `SentimentME` return.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
 //!   `SDEventStream`, and the `SentenceModel` file.
@@ -17,9 +15,6 @@
 //! - [`namefind`][]: `TokenNameFinderFactory` without resources, the
 //!   events of `NameFinderEventStream`, the defaults `NameFinderME.train`
 //!   puts into the parameters, and the `TokenNameFinderModel` file.
-//! - [`chunk`][]: `ChunkerFactory`, the events of `ChunkerEventStream`,
-//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN`,
-//!   `PERCEPTRON` or `NAIVEBAYES`.
 //! - [`langdetect`][]: `LanguageDetectorFactory`, the events of
 //!   `LanguageDetectorEventStream`, and the `LanguageDetectorModel` file.
 //! - [`sentiment`][]: the events of `SentimentEventStream` over
@@ -28,10 +23,6 @@
 //! - [`doccat`][]: `DocumentCategorizerME.train` over the events of
 //!   `DocumentCategorizerEventStream` and `DoccatFactory`'s feature
 //!   generators, and the `DoccatModel` file.
-//! - [`parser`][]: the events of the chunking and tree-insertion
-//!   `ParserEventStream`s, `chunking.Parser.train` and
-//!   `treeinsert.Parser.train`, the `ParserModel` file, and
-//!   `ParserEvaluator` and `ParserCrossValidator`.
 //! - [`dictionary`][]: the token n-gram dictionary as `Dictionary.serialize`
 //!   writes it (entries in Java's hash set order), `Dictionary.parseOneEntryPerLine`
 //!   (`DictionaryBuilderTool`) and `CensusDictionaryCreatorTool.createDictionary`.
@@ -43,14 +34,13 @@
 //!   zip entry order of `BaseModel.serialize`.
 //!
 //! The samples come from `turbo-formats`, the context generators from
-//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` (the tagger's
-//! and the chunker's), `turbo-lemmatizer`, `turbo-langdetect` and
-//! `turbo-parser`, and the trainer, writer and packaging from
-//! `turbo-train`; this crate connects them as the `train` methods do, so
-//! training and inference share one implementation of each context
-//! generator. It is a crate of its own because `turbo-formats` depends on
-//! `turbo-tokenize` and `turbo-parser`, so a training module inside the
-//! annotator crates would close a cycle.
+//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` (the tagger's),
+//! `turbo-lemmatizer` and `turbo-langdetect`, and the trainer, writer and
+//! packaging from `turbo-train`; this crate connects them as the `train`
+//! methods do, so training and inference share one implementation of each
+//! context generator. It is a crate of its own because `turbo-formats`
+//! depends on `turbo-tokenize`, so a training module inside the annotator
+//! crates would close a cycle.
 //!
 //! OpenNLP behaviour a reader may not expect, all kept and tested:
 //!
@@ -130,12 +120,6 @@
 //! - The trainers put `sort` into the caller's parameters before they read
 //!   the events (`false` for the perceptron); this crate's trainers put it
 //!   into a copy, so the parameters a caller passes are left as they were.
-//! - `ChunkerME.train` takes only event trainers: the sequence perceptron,
-//!   which the tagger and the name finder train with, is refused with
-//!   `Trainer type is not supported: EVENT_MODEL_SEQUENCE_TRAINER`
-//!   ([`Error::UnsupportedTrainerType`]). The chunker model file has
-//!   `chunker.model` before `manifest.properties`, the order of the JVM's
-//!   artifact map.
 //! - A language detector event's predicates are the n-grams in the
 //!   iteration order of the `HashMap` `getContext` counts them in, not the
 //!   order `predictLanguages` hands the model; the two differ only where a
@@ -145,7 +129,7 @@
 //!   its manifest, only `TrainerType=Event` and the event hash
 //!   ([`langdetect::default_training_parameters`]).
 
-pub mod chunk;
+pub mod depparse;
 pub mod dictionary;
 pub mod doccat;
 pub mod error;
@@ -154,14 +138,13 @@ pub mod langdetect;
 pub mod lemmatize;
 pub mod namefind;
 pub mod package;
-pub mod parser;
 pub mod postag;
 pub mod sentdetect;
 pub mod sentiment;
 pub mod tagdict;
 pub mod tokenize;
 
-pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
+pub use depparse::train_feedforward_conllu;
 pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
 pub use doccat::{TrainedDoccatModel, train_doccat};
 pub use error::{Error, Result};
@@ -169,12 +152,8 @@ pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_even
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
 pub use namefind::{NameEventStream, TokenNameFinderFactory, name_events, train_name_model};
 pub use package::Stamp;
-pub use parser::{ParserCrossValidator, ParserEvaluator, ParserTrainingParameters, train_parser};
 pub use postag::{PosEventStream, PosTaggerFactory, pos_events, train_pos_model};
 pub use sentdetect::{SdEventStream, SentenceDetectorFactory, sd_events, train_sentence_model};
 pub use sentiment::{SentimentEventStream, sentiment_events, train_sentiment_model};
 pub use tagdict::PosDictionary;
 pub use tokenize::{TokSpanEventStream, TokenizerFactory, tok_events, train_tokenizer_model};
-
-/// Neural dependency training from Universal Dependencies CoNLL-U sentences.
-pub mod depparse;

@@ -427,3 +427,36 @@ fn the_tiny_bundles_at_fastest_hold_on_every_kernel() {
         }
     }
 }
+
+/// #1617's overflow fixtures, whose layer 0 gated MLP middle product
+/// passes F16's 65504 on every token, at FASTEST on each kernel of
+/// fastest_kernels and over rows short, full and ragged: the F16 middle
+/// product saturates, so every output is finite (#1632). Without the
+/// clamp every value was infinite or NaN.
+#[test]
+fn a_gated_middle_past_f16_s_range_stays_finite_at_fastest() {
+    let test = "a_gated_middle_past_f16_s_range_stays_finite_at_fastest";
+    let _t = turn();
+    if !device(test) {
+        return;
+    }
+    for (name, f, types) in [
+        ("modernbert", rotary::overflow_modernbert("cu-rotary-overflow-mb"), false),
+        ("nomic", rotary::overflow_nomic("cu-rotary-overflow-nb"), true),
+    ] {
+        f.write();
+        let g = on_gpu(&f.dir);
+        for lens in [&[9usize, 1, 32][..], &[32usize, 32][..], &[64usize, 33, 17][..]] {
+            let t = rows(lens, &[], &[], types);
+            for (what, set) in fastest_kernels() {
+                let gs = session_with(g.m, 4, 64, TURBO_PRECISION_FASTEST, set);
+                assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F16, "{name}: {what}");
+                gs.write_tokens(&t.batch(), None).unwrap();
+                let got = gs.run().unwrap().rows();
+                let bad = got.iter().flatten().filter(|v| !v.is_finite()).count();
+                assert_eq!(bad, 0, "{name}: {what}: rows {lens:?}: {bad} values not finite");
+            }
+        }
+        println!("{test}: {name}: finite on every kernel and row shape");
+    }
+}
