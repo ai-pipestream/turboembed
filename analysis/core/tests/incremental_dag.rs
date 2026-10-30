@@ -452,3 +452,20 @@ fn parallel_dag_execution_matches_sequential_wire_bytes_bit_for_bit() {
     assert_eq!(par_bytes, seq_bytes);
     assert_eq!(par_bytes, inc_bytes);
 }
+
+#[test]
+fn mixed_required_and_optional_reads_tuple_reports_only_required_keys() {
+    struct MixedTupleAnnotator;
+    impl Annotator for MixedTupleAnnotator {
+        const ID: &'static str = "test:mixed-tuple";
+        type Reads = (View, Option<Sentences>, Tokens);
+        type Writes = (Lemmas,);
+        fn annotate(&self, (_view, _sents, _toks): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+            Ok((Lemmas { lemma: Strs::default() },))
+        }
+    }
+
+    let ann = MixedTupleAnnotator;
+    assert_eq!(ann.requires(), &[Key::<View>::DEFAULT.id(), Key::<Tokens>::DEFAULT.id()]);
+    assert_eq!(ann.produces(), &[Key::<Lemmas>::DEFAULT.id()]);
+}

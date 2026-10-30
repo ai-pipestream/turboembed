@@ -5,6 +5,7 @@ use std::any::TypeId;
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fmt;
+use std::sync::{Arc, OnceLock};
 
 use turbo_sha256::{Digest, Sha256};
 
@@ -12,7 +13,7 @@ use crate::bytes::SourceBytes;
 use crate::layer::{Key, KeyId, Layer, ModelRef, Provenance};
 use crate::text::{Edit, ViewId};
 
-use super::{Document, View};
+use super::{Document, Entry, View};
 
 macro_rules! define_digest {
     ($(#[$meta:meta])* $name:ident) => {
@@ -119,8 +120,25 @@ pub(crate) fn compute_provenance_digest_from_parts(parts: ProvenanceDigestParts<
     ProvenanceDigest(h.finish())
 }
 
-/// Computes the deterministic SHA-256 content digest of a layer value at insertion
-/// time, or returns `None` if the layer type does not provide a complete payload
+fn update_u32_pairs(h: &mut Sha256, starts: &[u32], ends: &[u32]) {
+    let mut buf = [0u8; 64];
+    let mut n = 0;
+    for (&s, &e) in starts.iter().zip(ends) {
+        buf[n..n + 4].copy_from_slice(&s.to_le_bytes());
+        buf[n + 4..n + 8].copy_from_slice(&e.to_le_bytes());
+        n += 8;
+        if n == 64 {
+            h.update(&buf);
+            n = 0;
+        }
+    }
+    if n > 0 {
+        h.update(&buf[..n]);
+    }
+}
+
+/// Computes the deterministic SHA-256 content digest of a layer value, or
+/// returns `None` if the layer type does not provide a complete payload
 /// `Layer::content_hash`.
 pub(crate) fn compute_layer_content_digest<L: Layer>(
     key: KeyId,
@@ -144,17 +162,13 @@ pub(crate) fn compute_layer_content_digest<L: Layer>(
             h.u8(1);
             h.u16(ts.view.0);
             h.usize(ts.start.len());
-            for (&s, &e) in ts.start.iter().zip(ts.end) {
-                h.u32(s).u32(e);
-            }
+            update_u32_pairs(&mut h, ts.start, ts.end);
             h.usize(ts.frag_item_end.len());
             for &ie in ts.frag_item_end {
                 h.u32(ie);
             }
             h.usize(ts.frag_start.len());
-            for (&fs, &fe) in ts.frag_start.iter().zip(ts.frag_end) {
-                h.u32(fs).u32(fe);
-            }
+            update_u32_pairs(&mut h, ts.frag_start, ts.frag_end);
         }
     }
     let indexes = layer.indexes();
@@ -177,25 +191,79 @@ pub(crate) fn compute_layer_content_digest<L: Layer>(
     Some(ContentDigest(h.finish()))
 }
 
+#[derive(Clone, Default)]
+pub(crate) struct EntryDigests {
+    pub(crate) provenance: OnceLock<ProvenanceDigest>,
+    pub(crate) content: OnceLock<Option<ContentDigest>>,
+    pub(crate) upstream: OnceLock<Option<InputSnapshotDigest>>,
+}
+
+impl Entry {
+    pub(crate) fn digests(&self) -> &EntryDigests {
+        self.digests.get_or_init(|| Box::new(EntryDigests::default()))
+    }
+
+    /// Lazily computes and memoizes the deterministic SHA-256 content digest for this entry.
+    pub(crate) fn content_digest(&self) -> Option<ContentDigest> {
+        *self.digests().content.get_or_init(|| {
+            let f = self.content_digest_fn?;
+            let val = self.value.as_deref()?;
+            f(self.key, val)
+        })
+    }
+}
+
 impl Document {
     /// Returns the stored 256-bit SHA-256 chained provenance digest for `key`, if present.
     pub fn provenance_digest(&self, key: KeyId) -> Option<ProvenanceDigest> {
-        self.entries.iter().find(|e| e.key == key).map(|e| e.provenance_digest)
+        let idx = self.entries.iter().position(|e| e.key == key)?;
+        Some(self.entry_provenance_digest_at(idx))
     }
 
     /// Returns the deterministic SHA-256 content digest for `key`, if present and cacheable.
     pub fn content_digest(&self, key: KeyId) -> Option<ContentDigest> {
-        self.entries.iter().find(|e| e.key == key).and_then(|e| e.content_digest)
+        self.entries.iter().find(|e| e.key == key)?.content_digest()
     }
 
     /// Returns the SHA-256 snapshot of upstream input content digests recorded when `key` was stored.
     pub fn upstream_content_hash(&self, key: KeyId) -> Option<InputSnapshotDigest> {
-        self.entries.iter().find(|e| e.key == key).and_then(|e| e.upstream_content_hash)
+        let idx = self.entries.iter().position(|e| e.key == key)?;
+        self.entry_upstream_content_hash_at(idx)
+    }
+
+    /// Materializes lazy digests on all current entries before an operation that
+    /// removes, reorders, or mutates entries.
+    pub(crate) fn materialize_digests(&self) {
+        for idx in 0..self.entries.len() {
+            let _ = self.entries[idx].content_digest();
+            let _ = self.entry_provenance_digest_at(idx);
+            let _ = self.entry_upstream_content_hash_at(idx);
+        }
+    }
+
+    fn entry_provenance_digest_at(&self, idx: usize) -> ProvenanceDigest {
+        let entry = &self.entries[idx];
+        *entry
+            .digests()
+            .provenance
+            .get_or_init(|| self.compute_provenance_digest_in(&entry.provenance, &self.entries[..idx]))
+    }
+
+    fn entry_upstream_content_hash_at(&self, idx: usize) -> Option<InputSnapshotDigest> {
+        let entry = &self.entries[idx];
+        *entry
+            .digests()
+            .upstream
+            .get_or_init(|| self.compute_upstream_content_hash_in(&entry.provenance.reads, &self.entries[..idx]))
     }
 
     /// Computes the deterministic 256-bit SHA-256 chained provenance digest for `provenance`
     /// against the current state of this [`Document`].
     pub fn compute_provenance_digest(&self, provenance: &Provenance) -> ProvenanceDigest {
+        self.compute_provenance_digest_in(provenance, &self.entries)
+    }
+
+    fn compute_provenance_digest_in(&self, provenance: &Provenance, prior: &[Arc<Entry>]) -> ProvenanceDigest {
         let source_text_digest = self.views[0].text_digest();
         let source_bytes_digest = self.source_bytes().map(SourceBytes::digest);
         let view_ty = TypeId::of::<View>();
@@ -204,15 +272,23 @@ impl Document {
             .iter()
             .filter(|k| k.ty == view_ty)
             .map(|k| {
-                let digest = self.get_key(&Key::<View>::named(k.name)).unwrap_or(&self.views[0]).text_digest();
-                (Cow::Borrowed(k.name), digest)
+                let view = prior
+                    .iter()
+                    .find(|e| e.key == *k)
+                    .and_then(|e| e.value.as_ref()?.downcast_ref::<View>())
+                    .unwrap_or(&self.views[0]);
+                (Cow::Borrowed(k.name), view.text_digest())
             })
             .collect();
         let mut upstream_digests: Vec<(Cow<'_, str>, Cow<'_, str>, ProvenanceDigest)> = provenance
             .reads
             .iter()
             .map(|&r| {
-                (r.layer.as_cow(), Cow::Borrowed(r.name), self.provenance_digest(r).unwrap_or(ProvenanceDigest::ZERO))
+                let d = prior
+                    .iter()
+                    .position(|e| e.key == r)
+                    .map_or(ProvenanceDigest::ZERO, |r_idx| self.entry_provenance_digest_at(r_idx));
+                (r.layer.as_cow(), Cow::Borrowed(r.name), d)
             })
             .collect();
         compute_provenance_digest_from_parts(ProvenanceDigestParts {
@@ -231,9 +307,13 @@ impl Document {
     /// values for `reads`, or returns `None` if any read layer is missing or lacks
     /// a complete payload `content_hash`.
     pub fn compute_upstream_content_hash(&self, reads: &[KeyId]) -> Option<InputSnapshotDigest> {
+        self.compute_upstream_content_hash_in(reads, &self.entries)
+    }
+
+    fn compute_upstream_content_hash_in(&self, reads: &[KeyId], prior: &[Arc<Entry>]) -> Option<InputSnapshotDigest> {
         let mut items: Vec<(Cow<'_, str>, &str, ContentDigest)> = Vec::with_capacity(reads.len());
         for &r in reads {
-            let cd = self.content_digest(r)?;
+            let cd = prior.iter().find(|e| e.key == r)?.content_digest()?;
             items.push((r.layer.as_cow(), r.name, cd));
         }
         items.sort_unstable_by(|a, b| (a.0.as_ref(), a.1).cmp(&(b.0.as_ref(), b.1)));
@@ -244,6 +324,18 @@ impl Document {
             h.str(&layer).str(inst).update(digest.as_bytes());
         }
         Some(InputSnapshotDigest(h.finish()))
+    }
+
+    /// Returns `true` if `id` is a live [`ViewId`] in `self.entries`.
+    pub(super) fn is_live_view(&self, id: ViewId) -> bool {
+        if id == ViewId::SOURCE {
+            return true;
+        }
+        let view_ty = TypeId::of::<View>();
+        self.entries.iter().any(|e| {
+            e.key.ty == view_ty
+                && e.value.as_ref().and_then(|val| val.downcast_ref::<View>()).is_some_and(|v| v.id() == id)
+        })
     }
 
     /// Returns the set of [`ViewId`]s currently live in `self.entries`.
@@ -272,9 +364,11 @@ impl Document {
         if key == Key::<View>::DEFAULT.id() {
             return false;
         }
-        let Some(pos) = self.entries.iter().position(|e| e.key == key) else {
+        if !self.entries.iter().any(|e| e.key == key) {
             return false;
-        };
+        }
+        self.materialize_digests();
+        let pos = self.entries.iter().position(|e| e.key == key).expect("checked above");
         let view_ty = TypeId::of::<View>();
         if key.ty == view_ty
             && let Some(root_view) = self.entries[pos].value.as_ref().and_then(|v| v.downcast_ref::<View>())
@@ -331,10 +425,11 @@ impl Document {
         true
     }
 
-    pub(crate) fn take_entries(&mut self, keys: &[KeyId]) -> Vec<std::sync::Arc<super::Entry>> {
-        if keys.is_empty() {
+    pub(crate) fn take_entries(&mut self, keys: &[KeyId]) -> Vec<Arc<super::Entry>> {
+        if keys.is_empty() || !self.entries.iter().any(|e| keys.contains(&e.key)) {
             return Vec::new();
         }
+        self.materialize_digests();
         let mut taken = Vec::new();
         let mut i = 0;
         while i < self.entries.len() {
@@ -347,7 +442,7 @@ impl Document {
         taken
     }
 
-    pub(crate) fn restore_entries(&mut self, entries: Vec<std::sync::Arc<super::Entry>>) {
+    pub(crate) fn restore_entries(&mut self, entries: Vec<Arc<super::Entry>>) {
         for entry in entries {
             if !self.has(entry.key) {
                 self.entries.push(entry);

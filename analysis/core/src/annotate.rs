@@ -8,7 +8,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::doc::{Document, Status};
 use crate::error::Error;
-use crate::layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance};
+use crate::layer::{Anchor, Execution, KeyId, LayerName, ModelRef, Provenance};
 
 /// One input of an annotator: a layer it needs (`Tokens`), or a layer it
 /// uses when the document has it (`Option<Sentences>`). An optional input
@@ -20,30 +20,6 @@ pub trait Slot: 'static {
     const DEFAULT_ID: KeyId;
     fn id(name: &'static str) -> KeyId;
     fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<Self::Ref<'d>, Error>;
-}
-
-impl<L: Layer> Slot for L {
-    type Ref<'d> = &'d L;
-    const REQUIRED: bool = true;
-    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
-    fn id(name: &'static str) -> KeyId {
-        Key::<L>::named(name).id()
-    }
-    fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<&'d L, Error> {
-        doc.require(&Key::<L>::named(name))
-    }
-}
-
-impl<L: Layer> Slot for Option<L> {
-    type Ref<'d> = Option<&'d L>;
-    const REQUIRED: bool = false;
-    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
-    fn id(name: &'static str) -> KeyId {
-        Key::<L>::named(name).id()
-    }
-    fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<Option<&'d L>, Error> {
-        Ok(doc.get_key(&Key::<L>::named(name)))
-    }
 }
 
 /// The layers an annotator reads, as a tuple of slots. The analyzer hands
@@ -210,10 +186,14 @@ impl<A: Annotator> Bound<A> {
 
     /// The provenance of this step's layers on one document: its optional
     /// inputs are listed only when the document had them.
-    fn provenance(&self, doc: &Document) -> Provenance {
-        let (ids, reqs) = self.effective_reads();
-        let reads =
-            ids.into_iter().zip(reqs).filter(|&(k, required)| required || doc.present(k)).map(|(k, _)| k).collect();
+    fn provenance(&self, doc: &Document, ids: &[KeyId], reqs: &[bool]) -> Provenance {
+        let reads = ids
+            .iter()
+            .copied()
+            .zip(reqs.iter().copied())
+            .filter(|&(k, required)| required || doc.present(k))
+            .map(|(k, _)| k)
+            .collect();
         Provenance {
             annotator: A::ID,
             version: A::VERSION,
@@ -253,9 +233,8 @@ impl<A: Annotator> Bound<A> {
 
     /// The first required input that was skipped or failed on this
     /// document, and why.
-    fn skipped_input(&self, doc: &Document) -> Option<String> {
-        let (ids, reqs) = self.effective_reads();
-        ids.into_iter().zip(reqs).filter(|&(_, r)| r).find_map(|(k, _)| match doc.status(k) {
+    fn skipped_input(doc: &Document, ids: &[KeyId], reqs: &[bool]) -> Option<String> {
+        ids.iter().copied().zip(reqs.iter().copied()).filter(|&(_, r)| r).find_map(|(k, _)| match doc.status(k) {
             Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
             Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
             _ => None,
@@ -266,8 +245,7 @@ impl<A: Annotator> Bound<A> {
     /// layer it was made on: tags made on the gold tokens, beside the
     /// predicted ones. Reading that instance as well is fine (an
     /// evaluation compares the two).
-    fn unaligned(&self, doc: &Document) -> Option<Error> {
-        let (reads, _) = self.effective_reads();
+    fn unaligned(doc: &Document, reads: &[KeyId]) -> Option<Error> {
         reads.iter().find_map(|&layer| {
             doc.made_on(layer).iter().filter(|on| !reads.contains(on)).find_map(|&on| {
                 let read = reads.iter().copied().find(|&r| r.ty == on.ty && doc.present(r))?;
@@ -422,7 +400,8 @@ impl<A: Annotator> Step for Bound<A> {
     }
 
     fn expected_provenance(&self, doc: &Document) -> Provenance {
-        self.provenance(doc)
+        let (ids, reqs) = self.effective_reads();
+        self.provenance(doc, &ids, &reqs)
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
@@ -430,17 +409,19 @@ impl<A: Annotator> Step for Bound<A> {
         let mut inputs = Vec::new();
         let mut at = Vec::new();
         let (eff_reads, eff_reqs) = self.effective_reads();
+        let extra_reads = &eff_reads[A::Reads::N..];
+        let extra_reqs = &eff_reqs[A::Reads::N..];
         for (i, d) in docs.iter().enumerate() {
-            if let Some(why) = self.skipped_input(d) {
+            if let Some(why) = Self::skipped_input(d, &eff_reads, &eff_reqs) {
                 out[i] = Some(Err(Error::Skipped(why)));
                 continue;
             }
-            if let Some(e) = self.unaligned(d) {
+            if let Some(e) = Self::unaligned(d, &eff_reads) {
                 out[i] = Some(Err(e));
                 continue;
             }
             if let Some((missing_key, _)) =
-                eff_reads.iter().copied().zip(eff_reqs.iter().copied()).find(|&(k, req)| req && !d.present(k))
+                extra_reads.iter().copied().zip(extra_reqs.iter().copied()).find(|&(k, req)| req && !d.present(k))
             {
                 out[i] = Some(Err(Error::Missing(missing_key)));
                 continue;
@@ -461,10 +442,11 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
         let out = *out.downcast::<Vec<Option<Placed<A::Writes>>>>().expect("this step's own output");
+        let (eff_reads, eff_reqs) = self.effective_reads();
         let writes = self.effective_writes();
         for (i, r) in out.into_iter().enumerate() {
             let Some(r) = r else { continue };
-            let mut p = self.provenance(&docs[i]);
+            let mut p = self.provenance(&docs[i], &eff_reads, &eff_reqs);
             let failure = match r {
                 Ok((w, placed)) => {
                     if placed.is_some() {
@@ -477,18 +459,18 @@ impl<A: Annotator> Step for Bound<A> {
                 }
                 Err(e) => Some(e),
             };
-            if let Some(e) = failure {
-                for &k in &writes {
-                    if !docs[i].has(k) {
-                        let _ = docs[i].fail(k, e.clone(), p.clone());
-                    }
-                }
-                if status[i].is_ok() {
-                    status[i] = Err(e);
+            // Every output not stored is failed with the error, so the
+            // document says why it is missing and what needs it is skipped.
+            // Recording is refused only when another layer type holds the
+            // id, and the document's result still says what failed.
+            let Some(e) = failure else { continue };
+            for &k in &writes {
+                if !docs[i].has(k) {
+                    let _ = docs[i].fail(k, e.clone(), p.clone());
                 }
             }
-            for &k in &writes {
-                docs[i].mark_pipeline_stored(k);
+            if status[i].is_ok() {
+                status[i] = Err(e);
             }
         }
     }

@@ -135,6 +135,9 @@ impl Document {
                 match policy {
                     DuplicateLayerPolicy::Refuse => return Err(Error::Duplicate(e.key)),
                     DuplicateLayerPolicy::KeepFirst => {
+                        if dropped.is_empty() {
+                            other.materialize_digests();
+                        }
                         dropped.insert(e.key);
                         continue;
                     }
