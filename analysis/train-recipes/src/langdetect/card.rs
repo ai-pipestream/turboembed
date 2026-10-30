@@ -240,7 +240,7 @@ impl LanguageCard {
         if self.id != LANGDETECT.model_id {
             return Err(not("no recipe trains it"));
         }
-        let reference = LANGDETECT.reference;
+        let reference = LANGDETECT.reference.ok_or(not("its recipe has no reference to gate against"))?;
         if self.gate.reference != reference.id() || self.gate.reference_sha256 != reference.sha256()? {
             return Err(not("it was not gated against its recipe's reference"));
         }

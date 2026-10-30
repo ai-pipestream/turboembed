@@ -1,0 +1,96 @@
+//! A language detector model: OpenNLP's `LanguageDetectorModel`.
+
+use turbo_analysis::ModelRef;
+use turbo_maxent::{MaxentModel, ModelFile};
+
+use super::error::ModelError;
+
+/// The classifier's entry in the model archive.
+pub const MODEL_ENTRY: &str = "langdetect.model";
+/// The one factory class whose behaviour this port reproduces.
+pub const FACTORY: &str = "opennlp.tools.langdetect.LanguageDetectorFactory";
+/// The component name OpenNLP checks.
+pub const COMPONENT: &str = "LanguageDetectorME";
+
+/// An opened `LanguageDetectorME` model: a maxent classifier whose
+/// outcomes are language codes (ISO 639-3 in the models OpenNLP
+/// publishes).
+#[derive(Debug)]
+pub struct LanguageModel {
+    maxent: MaxentModel,
+    model_ref: ModelRef,
+}
+
+impl LanguageModel {
+    /// Reads the model from an opened model file, checking what OpenNLP
+    /// checks: the component name and a classifier in `langdetect.model`.
+    /// A manifest without a `factory` gets OpenNLP's default factory, as
+    /// on the JVM; one naming any other factory is refused. It also
+    /// refuses a model with an outcome that is not text (one holding half
+    /// of a surrogate pair, [`ModelError::OutcomeNotText`]), which the JVM
+    /// loads and runs: language codes are handed out as `&str`, so this is
+    /// a limit of the port, not a check OpenNLP makes.
+    pub fn open(file: ModelFile) -> Result<LanguageModel, ModelError> {
+        if file.component_name() != COMPONENT {
+            return Err(ModelError::Component(file.component_name().into()));
+        }
+        if let Some(factory) = file.manifest().get("factory")
+            && factory != FACTORY
+        {
+            return Err(ModelError::Factory(factory.into()));
+        }
+        let maxent = file.maxent(MODEL_ENTRY)?;
+        let outcomes = match maxent.outcome_texts() {
+            Ok(outcomes) => outcomes,
+            Err(outcome) => return Err(ModelError::OutcomeNotText(outcome.clone())),
+        };
+        for (i, code) in outcomes.iter().enumerate() {
+            if code.is_empty() {
+                return Err(ModelError::EmptyOutcome);
+            }
+            if outcomes[..i].contains(code) {
+                return Err(ModelError::DuplicateOutcome((*code).into()));
+            }
+        }
+        let model_ref = ModelRef {
+            id: format!("opennlp:{COMPONENT}:{}", file.language()),
+            revision: file.opennlp_version().into(),
+            sha256: file.sha256().to_hex(),
+        };
+        Ok(LanguageModel { maxent, model_ref })
+    }
+
+    /// The classifier.
+    pub fn maxent(&self) -> &MaxentModel {
+        &self.maxent
+    }
+
+    /// The language codes the model can answer, in outcome order
+    /// (`getSupportedLanguages`).
+    pub fn supported_languages(&self) -> impl Iterator<Item = &str> {
+        (0..self.maxent.num_outcomes()).map(|i| self.code(i))
+    }
+
+    /// The language code of outcome `i`, or `None` when `i` is out of bounds.
+    pub fn try_code(&self, i: usize) -> Option<&str> {
+        (i < self.maxent.num_outcomes()).then(|| self.maxent.outcome_str(i)).flatten()
+    }
+
+    /// The language code of outcome `i`; `open` refused any model whose
+    /// outcomes are not text.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `i >= self.maxent().num_outcomes()`.
+    pub fn code(&self, i: usize) -> &str {
+        self.try_code(i)
+            .unwrap_or_else(|| panic!("outcome index {i} out of bounds for {} outcomes", self.maxent.num_outcomes()))
+    }
+
+    /// What layers record as their model: `opennlp:LanguageDetectorME:`
+    /// and the manifest's language (`und` for the published models), the
+    /// OpenNLP version that trained it, and the SHA-256 of the model file.
+    pub fn model_ref(&self) -> &ModelRef {
+        &self.model_ref
+    }
+}

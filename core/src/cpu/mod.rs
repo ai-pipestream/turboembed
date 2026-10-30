@@ -69,6 +69,7 @@ pub static BACKEND: turbo_backend = turbo_backend {
     embed_write_ranges: Some(embed_write_ranges),
     token_head: 0,
     reserved3: 0,
+    buffer_quantize: None,
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {

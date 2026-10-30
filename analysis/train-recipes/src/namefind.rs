@@ -1,6 +1,5 @@
 //! English name finders trained on MASC's named entities, one per entity
-//! type, and their gates against OpenNLP's English name finders of the
-//! 1.5 models.
+//! type, and their gates. They have no OpenNLP reference model (#1509).
 //!
 //! Each recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! as `NameFinderME.train` does with what the trainer tool gives it when
@@ -32,14 +31,15 @@
 //! longer first) is kept and the other left out and counted
 //! ([`crate::card::NamesCard::overlapping`]), since a sample's names may
 //! not overlap. A sentence of no tokens is skipped: it gives no event,
-//! and as a held-out unit it would count nothing. An entity in no
-//! sentence of the reader's ([`MascDocument::unplaced_entities`]: outside
-//! every region of the sentence file, or in a region the reader drops) is
-//! in no sample, and counted
+//! and as a held-out unit it would count nothing. An entity with no
+//! complete sentence sample ([`MascDocument::unplaced_entities`]: outside
+//! every region of the sentence file, in a region the reader drops, or
+//! crossing kept sentences) is in no sample, and counted
 //! ([`crate::card::NamesCard::outside_sentences`],
-//! [`crate::card::NamesCard::in_dropped_sentences`]); its tokens are in no
-//! sample either, so it is not a name the training samples mark as
-//! other. A document's first sample clears the feature generators'
+//! [`crate::card::NamesCard::in_dropped_sentences`],
+//! [`crate::card::NamesCard::crossing_sentences`]); its tokens are in no
+//! complete sample either, so they are not names the training samples mark
+//! as other. A document's first sample clears the feature generators'
 //! adaptive data, as an empty line does in OpenNLP's name format and in
 //! what `TokenNameFinderTool` reads, so what the previous-map feature
 //! generator learns of a document's names reaches only that document's
@@ -50,16 +50,10 @@
 //!
 //! # The gate
 //!
-//! The reference is OpenNLP 1.5's English name finder of the same type
-//! ([`EN_NER_PERSON`], [`EN_NER_LOCATION`], [`EN_NER_ORGANIZATION`],
-//! [`EN_NER_DATE`]); MASC's four entity types each have one, so no recipe
-//! is ungated. Their manifests record OpenNLP 1.5.0, 100 iterations and
-//! cutoff 5; they hold no feature generator descriptor, so they run with
-//! the feature generators OpenNLP gives a model without one. Their
-//! training data is not published, and the zoo does not list them: a run
-//! reads each from its references directory, checks it against the
-//! recorded size and SHA-256, and only scores it. They are never shipped
-//! or bundled, and the trained models are trained on MASC alone.
+//! The recipes have no reference model. They were once gated against
+//! OpenNLP 1.5's English name finders, which are no longer fetched, scored
+//! or run anywhere (#1509): MASC gates compare with the gold names,
+//! majority baselines and spaCy or Stanza only.
 //!
 //! Both models are scored on the same held-out samples with OpenNLP's
 //! `TokenNameFinderEvaluator`, one unit per sentence, over the names of
@@ -89,48 +83,12 @@ use crate::card::{HeldOutCard, NamesCard};
 use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
 use crate::spans::{self, SpanTypes};
-use crate::{GateRun, RecordedReference, Reference, Trained, check_skipped};
+use crate::{GateRun, Reference, Trained, check_skipped};
 
 mod samples;
 pub mod selection;
 
 pub use self::samples::{NameSamples, read_samples};
-
-/// OpenNLP 1.5's English person name finder, as published.
-pub const EN_NER_PERSON: RecordedReference = RecordedReference {
-    id: "opennlp-en-ner-person-1.5",
-    file: "en-ner-person.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-person.bin",
-    size: 5_207_953,
-    sha256: "687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4",
-};
-
-/// OpenNLP 1.5's English location name finder, as published.
-pub const EN_NER_LOCATION: RecordedReference = RecordedReference {
-    id: "opennlp-en-ner-location-1.5",
-    file: "en-ner-location.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-location.bin",
-    size: 5_110_658,
-    sha256: "8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b",
-};
-
-/// OpenNLP 1.5's English organization name finder, as published.
-pub const EN_NER_ORGANIZATION: RecordedReference = RecordedReference {
-    id: "opennlp-en-ner-organization-1.5",
-    file: "en-ner-organization.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-organization.bin",
-    size: 5_297_172,
-    sha256: "0136c12afe1ac357142260c39bb879b7c9d121e41024114db5a6455b4fd5ba00",
-};
-
-/// OpenNLP 1.5's English date name finder, as published.
-pub const EN_NER_DATE: RecordedReference = RecordedReference {
-    id: "opennlp-en-ner-date-1.5",
-    file: "en-ner-date.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-ner-date.bin",
-    size: 5_030_307,
-    sha256: "1207030923852e1c244919d8f15d9e78c217323728fcf909029abd1703967855",
-};
 
 /// The codec the recipes train with: `TokenNameFinderFactory`'s default.
 pub const CODEC: NameCodec = NameCodec::Bio;
@@ -144,31 +102,33 @@ pub struct NameRecipe {
     /// The one type the model finds and is scored on, and the MASC label
     /// renamed to it.
     pub types: SpanTypes,
-    pub reference: Reference,
+    /// The model it is gated against: none, as no OpenNLP 1.5 model is
+    /// fetched or scored (#1509).
+    pub reference: Option<Reference>,
 }
 
 pub const PERSON: NameRecipe = NameRecipe {
     model_id: "turbo-en-masc-3.0.0-ner-person-1",
     types: SpanTypes { types: &["person"], renamed: &[] },
-    reference: Reference::Recorded(EN_NER_PERSON),
+    reference: None,
 };
 
 pub const LOCATION: NameRecipe = NameRecipe {
     model_id: "turbo-en-masc-3.0.0-ner-location-1",
     types: SpanTypes { types: &["location"], renamed: &[] },
-    reference: Reference::Recorded(EN_NER_LOCATION),
+    reference: None,
 };
 
 pub const ORGANIZATION: NameRecipe = NameRecipe {
     model_id: "turbo-en-masc-3.0.0-ner-organization-1",
     types: SpanTypes { types: &["organization"], renamed: &[("org", "organization")] },
-    reference: Reference::Recorded(EN_NER_ORGANIZATION),
+    reference: None,
 };
 
 pub const DATE: NameRecipe = NameRecipe {
     model_id: "turbo-en-masc-3.0.0-ner-date-1",
     types: SpanTypes { types: &["date"], renamed: &[] },
-    reference: Reference::Recorded(EN_NER_DATE),
+    reference: None,
 };
 
 /// The name recipes, in the order the binary runs them.
@@ -370,14 +330,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn each_recipe_finds_one_type_and_names_the_reference_of_that_type() {
+    fn each_recipe_finds_one_type_and_has_no_reference_model() {
         for r in RECIPES {
             assert_eq!(r.types.types.len(), 1, "{}", r.model_id);
             assert_eq!(r.model_id, format!("turbo-en-masc-3.0.0-ner-{}-1", r.kind()));
-            let Reference::Recorded(rec) = r.reference else { panic!("{}: a recorded reference", r.model_id) };
-            assert_eq!(rec.file, format!("en-ner-{}.bin", r.kind()));
-            assert_eq!(rec.id, format!("opennlp-en-ner-{}-1.5", r.kind()));
-            assert_eq!(rec.url, format!("https://opennlp.sourceforge.net/models-1.5/{}", rec.file));
+            // No OpenNLP 1.5 name finder is a reference (#1509).
+            assert_eq!(r.reference, None, "{}", r.model_id);
             assert_eq!(r.task(), Task::NameFinder);
         }
         // MASC's `org` is the reference's `organization`.

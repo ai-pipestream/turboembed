@@ -96,6 +96,7 @@ mod deberta;
 mod encode;
 mod kernels;
 mod model;
+mod rotary;
 mod session;
 mod stages;
 mod staging;

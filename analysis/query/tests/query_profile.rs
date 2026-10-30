@@ -5,8 +5,7 @@ use turbo_analysis_layers::{Currency, DAY_SECONDS, Date, DateTime, Origin, TimeG
 use turbo_chunker::terms::{Bm25, LocalCollection, TermCounter, TermForm, TermStats, Vocabulary};
 use turbo_geo::InMemoryGazetteer;
 use turbo_glossary::{Case, Glossary};
-use turbo_maxent::Dictionary;
-use turbo_namefind::DictionaryNameFinder;
+use turbo_namefind::{Dictionary, DictionaryNameFinder};
 use turbo_query::{FilterKind, QueryAnalysis, QueryAnalysisProfile, QueryProfileBuilder};
 use turbo_unicode::Script;
 
@@ -168,12 +167,14 @@ fn extracts_glossary_dictionary_and_regex_entities() {
     glossary.push("CONCEPT_ML", "machine learning").unwrap();
     glossary.push("CONCEPT_RAG", "retrieval augmented generation").unwrap();
 
-    let dict_xml = "<dictionary case_sensitive='false'>\
-        <entry><token>TurboEmbed</token></entry>\
-        <entry><token>OpenNLP</token><token>Addons</token></entry>\
-    </dictionary>";
-    let dict = Dictionary::read(dict_xml.as_bytes()).unwrap();
-    let dict_finder = DictionaryNameFinder::new(dict, "product");
+    let dict = Dictionary::from_entries(
+        false,
+        [
+            ("product".to_owned(), vec!["TurboEmbed".to_owned()]),
+            ("product".to_owned(), vec!["OpenNLP".to_owned(), "Addons".to_owned()]),
+        ],
+    );
+    let dict_finder = DictionaryNameFinder::new(dict).unwrap();
 
     let profile = QueryProfileBuilder::new()
         .with_reference_date(Date::new(2026, 7, 14).unwrap())
@@ -209,7 +210,7 @@ fn extracts_glossary_dictionary_and_regex_entities() {
 }
 
 #[test]
-fn detects_mixed_language_spans_and_extracts_multilingual_filters() {
+fn preserves_script_evidence_and_extracts_multilingual_filters() {
     let ref_date = Date::new(2026, 7, 14).unwrap();
     let profile = QueryAnalysisProfile::with_reference_date(ref_date);
 
@@ -219,9 +220,10 @@ fn detects_mixed_language_spans_and_extracts_multilingual_filters() {
     assert_span_and_evidence_invariants(q_es_en, &a_es_en);
 
     let lang = a_es_en.language.as_ref().expect("language detected");
-    assert!(lang.spans.len() >= 2, "expected multiple language spans: {:?}", lang.spans);
-    assert!(lang.spans.iter().any(|s| s.code == "spa" && s.surface.contains("vuelos")));
-    assert!(lang.spans.iter().any(|s| s.code == "eng" && s.surface.contains("cheap")));
+    assert_eq!(lang.best_code, "und");
+    assert_eq!(lang.spans.len(), 1, "one Latin-script run");
+    assert_eq!(lang.spans[0].script, Script::Latin);
+    assert_eq!(lang.spans[0].confidence, 0.0);
 
     // Both Spanish "mañana" and English "tomorrow" resolve to 2026-07-15!
     let temporals: Vec<_> = a_es_en.temporal_filters().collect();
@@ -248,8 +250,8 @@ fn detects_mixed_language_spans_and_extracts_multilingual_filters() {
     let a_ru_en = profile.analyze(q_ru_en).unwrap();
     assert_span_and_evidence_invariants(q_ru_en, &a_ru_en);
     let ru_lang = a_ru_en.language.as_ref().unwrap();
-    assert!(ru_lang.spans.iter().any(|s| s.code == "rus" && s.script == Script::Cyrillic));
-    assert!(ru_lang.spans.iter().any(|s| s.code == "eng" && s.script == Script::Latin));
+    assert!(ru_lang.spans.iter().any(|s| s.code == "und" && s.script == Script::Cyrillic));
+    assert!(ru_lang.spans.iter().any(|s| s.code == "und" && s.script == Script::Latin));
 
     // 3. Mixed English + Spanish ASCII queries where whole-query language is "eng" still resolve Spanish time triggers
     let expected_today = DateTime::midnight(ref_date).local_seconds();
@@ -370,7 +372,7 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
     // 3. >= 4-token Spanish queries ("vuelos baratos para mañana" and "vuelos baratos para hoy") extract Spanish times.
     let a_es_4 = profile_14.analyze("vuelos baratos para mañana").unwrap();
     assert_span_and_evidence_invariants("vuelos baratos para mañana", &a_es_4);
-    assert_eq!(a_es_4.language.as_ref().unwrap().best_code, "spa");
+    assert_eq!(a_es_4.language.as_ref().unwrap().best_code, "und");
     let es_4_temp: Vec<_> = a_es_4.temporal_filters().collect();
     assert_eq!(es_4_temp.len(), 1);
     assert_eq!(es_4_temp[0].0.surface, "mañana");
@@ -378,20 +380,19 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
     assert_eq!(es_4_temp[0].1.start_epoch_seconds, Some(ref_july_15.local_seconds()));
 
     let a_es_hoy = profile_14.analyze("vuelos baratos para hoy").unwrap();
-    assert_eq!(a_es_hoy.language.as_ref().unwrap().best_code, "spa");
+    assert_eq!(a_es_hoy.language.as_ref().unwrap().best_code, "und");
     let es_hoy_temp: Vec<_> = a_es_hoy.temporal_filters().collect();
     assert_eq!(es_hoy_temp.len(), 1);
     assert_eq!(es_hoy_temp[0].0.surface, "hoy");
     assert_eq!(es_hoy_temp[0].1.start_epoch_seconds, Some(ref_july_14.local_seconds()));
 
-    // 4. Single-word ASCII Spanish ("barato") matches the underlying SpanDetector ("spa"), QuerySpanDetector hashes its flag,
-    // and queries activating >= 65 distinct PREDICATES trigrams succeed without overflowing feature deduplication state.
-    assert_eq!(profile_14.analyze("barato").unwrap().language.as_ref().unwrap().best_code, "spa");
+    // 4. Short and long Latin text remain undetermined without a language model.
+    assert_eq!(profile_14.analyze("barato").unwrap().language.as_ref().unwrap().best_code, "und");
     let dense_feat_q = "the flights tomorrow yesterday weekend under with from next discount direct baggage allowance passengers meeting invoices over quarter best near open now vuelos baratos para hoy comprar zapatos";
-    assert_eq!(profile_14.analyze(dense_feat_q).unwrap().language.as_ref().unwrap().best_code, "eng");
-    let qsd_fast = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector(), true);
-    let qsd_slow = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector(), false);
-    assert_ne!(qsd_fast.config_hash(), qsd_slow.config_hash());
+    assert_eq!(profile_14.analyze(dense_feat_q).unwrap().language.as_ref().unwrap().best_code, "und");
+    let qsd_fast = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector());
+    let qsd_slow = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector());
+    assert_eq!(qsd_fast.config_hash(), qsd_slow.config_hash());
 
     // 5. GazetteerCandidateAnnotator::config_hash() distinguishes custom gazetteers on non-sampled cities ("Rome").
     struct CustomGazetteer(InMemoryGazetteer);

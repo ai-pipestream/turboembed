@@ -8,10 +8,10 @@ table of datasets and checkpoints the index is built from.
 
 ```
 cargo run -p turbo-zoo -- list
-cargo run -p turbo-zoo -- show opennlp-en-ud-ewt-sentence-1.3-2.5.4
+cargo run -p turbo-zoo -- show turbo-en-civil-comments-minilm-l6-v2-head-1
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0          # prints the licence text address
 cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes    # records the acceptance
-cargo run -p turbo-zoo -- fetch opennlp-en-ud-ewt-sentence-1.3-2.5.4
+cargo run -p turbo-zoo -- fetch turbo-en-civil-comments-minilm-l6-v2-head-1
 ```
 
 From code:
@@ -21,7 +21,7 @@ use turbo_zoo::{Acceptances, Http, Index, Policy, Zoo};
 
 let zoo = Zoo::new(Index::builtin(), cache_dir, Policy::default(), &Http);
 let acceptances = Acceptances::load(&home.join("acceptances.json"))?;
-let fetched = zoo.fetch("opennlp-ca-ud-ancora-sentence-1.3-2.5.4", &user, &acceptances)?;
+let fetched = zoo.fetch("turbo-en-masc-3.0.0-aspect-sentiment-1", &user, &acceptances)?;
 let model_path = fetched.single().unwrap();
 ```
 
@@ -38,8 +38,10 @@ trains on those sentences and FineWeb-2 and FineWeb text, with
 `training-sentences.txt` and `training-documents.txt`, at their
 addresses in its release `models-tatoeba-fineweb-2026-10-10-1`.
 It also lists two published neural checkpoints at their Hugging Face
-revisions: `fastino-gliner2-base-v1` (Apache-2.0, the GLiNER2 relation
-scorer's, docs/gliner2-relations.md), and `jackboyla-glirel-large-v0`
+revisions: `fastino-gliner2-base-v1` (Apache-2.0 weights, local-only by
+its unreleased training data, fetched after the user accepts its card's
+terms and never bundled; the GLiNER2 relation scorer's,
+docs/gliner2-relations.md), and `jackboyla-glirel-large-v0`
 (CC BY-NC-SA 4.0, local-only, `FORMAT_PYTORCH`), which the zoo fetches
 from its publisher's own address only for a user who has accepted that
 licence. Nothing in this repository bundles or ships it. Its tokenizer,
@@ -82,6 +84,13 @@ checks it.
   cached file is fetched again; a symlink in the cache is refused; the
   index parser requires `attribution` whenever a licence asks for it and
   rejects every malformed field.
+- `tests/sources.rs`: a content-addressed store keeps a file under its
+  SHA-256 and serves it by that alone, unpacked even when the index
+  serves it compressed, refuses a symlink or other bytes, never writes
+  or reads through a symlinked directory inside the store, and putting
+  bytes again repairs a kept file that holds others; sources
+  are tried in order and only an answer that verifies is kept; the
+  licence is checked before any source is asked.
 - `tests/cli.rs`: before recording an acceptance, `turbo-zoo accept`
   shows the text's address and, for local-only terms, what the terms
   allow apart from this project's policy, which accepting agrees to; it

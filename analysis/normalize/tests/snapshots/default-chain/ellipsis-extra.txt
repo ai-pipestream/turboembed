@@ -1,0 +1,5 @@
+===OUT===
+one dot leader a․b, vertical ellipsis ︙ and vertical two dot ︰ and the usual … and ‥ here.
+===EDITS===
+0	1	o
+100	101	

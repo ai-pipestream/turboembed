@@ -2,7 +2,9 @@
 //! (docs/demo.md). Browsers do not speak gRPC, so this serves the page and
 //! bridges the Connect protocol to the server's gRPC: the page's protobuf
 //! goes to the server, and the server's back, as the same bytes. It holds
-//! no model, links no backend and decodes no message.
+//! no model and links no backend. It decodes no message, but for one
+//! field: the user of a catalog call, which it sets to its own identity
+//! (user.rs).
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -26,6 +28,7 @@ pub mod gate;
 pub mod limits;
 mod tls;
 pub mod upload;
+pub mod user;
 
 pub use allow::Allow;
 pub use tls::Tls;
@@ -39,6 +42,7 @@ struct App {
     channel: Channel,
     allow: Arc<Allow>,
     gate: Arc<gate::Gate>,
+    user: Option<Arc<str>>,
 }
 
 /// How the demo is reached and what it forwards.
@@ -53,6 +57,10 @@ pub struct Options {
     pub origins: Vec<String>,
     /// TLS for the listener; plain HTTP without.
     pub tls: Option<Tls>,
+    /// Who the page's catalog calls act for: licence acceptances and
+    /// installs are recorded for this user, never for a name the page
+    /// sends. Without it those calls are read-only and name no user.
+    pub user: Option<String>,
 }
 
 /// The demo, answering HTTP until stopped or dropped.
@@ -78,12 +86,20 @@ impl Demo {
             ));
         }
         let gate = gate::Gate::new(options.token, &options.origins, options.tls.is_some())?;
+        if let Some(u) = &options.user {
+            user::check(u)?;
+        }
         let tls = options.tls.as_ref().map(tls::config).transpose()?;
         let endpoint = Endpoint::from_shared(server.to_string()).map_err(|e| format!("server {server}: {e}"))?;
         if !matches!(endpoint.uri().scheme_str(), Some("http" | "https")) || endpoint.uri().authority().is_none() {
             return Err(format!("server {server}: must be an http:// or https:// URL"));
         }
-        let app = App { channel: endpoint.connect_lazy(), allow: Arc::new(options.allow), gate: Arc::new(gate) };
+        let app = App {
+            channel: endpoint.connect_lazy(),
+            allow: Arc::new(options.allow),
+            gate: Arc::new(gate),
+            user: options.user.map(Arc::from),
+        };
         let router = Router::new()
             .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
             .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))

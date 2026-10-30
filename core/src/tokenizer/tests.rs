@@ -287,22 +287,34 @@ fn added_token_word_classes_match_upstream_on_every_scalar() {
 fn a_long_run_of_combining_marks_encodes_in_linear_time() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
     let tok = Tokenizer::unchecked(&Bundle::open(&dir).unwrap()).unwrap();
-    const MARKS: usize = 400_000;
-    let text: String = (0..MARKS).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect();
+    let marks = |n: usize| -> String { (0..n).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect() };
     let opts =
         Encode { add_special_tokens: true, truncation: Truncation::Right, max_tokens: 64, prompt: PromptRole::None };
-    let start = std::time::Instant::now();
-    let ids = tok.encode(&text, opts).unwrap();
-    let took = start.elapsed();
-    assert!(took < std::time::Duration::from_secs(3), "{MARKS} marks took {took:?}");
-    assert_eq!(ids.len(), tok.specials_per_sequence() as usize);
-    let (mut spanned, mut spans) = (Vec::new(), Vec::new());
-    let start = std::time::Instant::now();
-    tok.encode_spans(&text, opts, &mut spanned, &mut spans).unwrap();
-    let took = start.elapsed();
-    assert!(took < std::time::Duration::from_secs(3), "{MARKS} marks with spans took {took:?}");
-    assert_eq!(spanned, ids);
-    assert!(spans.iter().all(|&s| s == NOWHERE));
+    let texts = [marks(50_000), marks(400_000)];
+    let encode = |text: &str| {
+        let ids = tok.encode(text, opts).unwrap();
+        assert_eq!(ids.len(), tok.specials_per_sequence() as usize);
+        let (mut spanned, mut spans) = (Vec::new(), Vec::new());
+        tok.encode_spans(text, opts, &mut spanned, &mut spans).unwrap();
+        assert_eq!(spanned, ids);
+        assert!(spans.iter().all(|&s| s == NOWHERE));
+    };
+    // Runs eight times apart, best of three rounds each, alternated after a
+    // warm-up so load on a shared runner hits both lengths alike. Linear
+    // work grows about eightfold and insertion sort 64-fold; 24 sits
+    // between. The old 3 s ceiling on one run timed the runner as well.
+    texts.iter().for_each(|t| encode(t));
+    let mut best = [std::time::Duration::MAX; 2];
+    for _ in 0..3 {
+        for (text, best) in texts.iter().zip(&mut best) {
+            let start = std::time::Instant::now();
+            encode(text);
+            *best = (*best).min(start.elapsed());
+        }
+    }
+    let [short, long] = best;
+    eprintln!("50k marks {short:?}, 400k marks {long:?}");
+    assert!(long < short * 24, "50k marks {short:?}, 400k marks {long:?}");
 }
 
 /// What clean_text deletes parts no words: the words either side are

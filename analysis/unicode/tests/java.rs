@@ -306,3 +306,146 @@ fn to_lowercase_applies_unconditional_special_casing_only() {
 fn lowercase_at_rejects_mismatched_character() {
     java::lowercase_at("ABC", 0, '\u{3A3}');
 }
+
+#[test]
+fn sigma_dense_property_suite_matches_per_character_oracle() {
+    const ALPHABET: &[char] = &[
+        '\u{3A3}',
+        '\u{3A3}',
+        '\u{3A3}',
+        '\u{3A3}',
+        '\u{3A3}',
+        '\u{3A3}',
+        '\u{391}',
+        '\u{3B1}',
+        'A',
+        'a',
+        '\u{130}',
+        '\u{345}',
+        '\u{37A}',
+        '\u{2B0}',
+        '\u{295}',
+        '\u{2160}',
+        '\u{4E00}',
+        '\u{3042}',
+        '\u{E02}',
+        '\u{301}',
+        '\u{3099}',
+        '\u{F7E}',
+        '\u{903}',
+        '\u{20DD}',
+        '\u{1D167}',
+        '\u{964}',
+        '\u{965}',
+        '1',
+        '\u{2460}',
+        '\u{660}',
+        '\u{1D7CE}',
+        '-',
+        '_',
+        '\u{AD}',
+        '\u{2027}',
+        '\u{203F}',
+        '\u{FE4F}',
+        '.',
+        '\'',
+        '"',
+        ',',
+        '\u{66B}',
+        '$',
+        '#',
+        '%',
+        '&',
+        '\u{A2}',
+        '\u{200B}',
+        '\u{2060}',
+        '\u{180E}',
+        '\u{FEFF}',
+        '\u{E0020}',
+        '\u{E0001}',
+        '\u{110BD}',
+        ' ',
+        '\t',
+        '\n',
+        ')',
+        '?',
+        '\u{1F600}',
+        '\u{20000}',
+        '\u{10400}',
+        '\u{10428}',
+        '\u{1D400}',
+        '\u{109B2}',
+    ];
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut next_u64 = || {
+        state ^= state >> 12;
+        state ^= state << 25;
+        state ^= state >> 27;
+        state.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    };
+
+    for case_idx in 0..2_500 {
+        let len = 1 + (next_u64() as usize % 36);
+        let mut text = String::with_capacity(len * 4);
+        for _ in 0..len {
+            let pick = if next_u64() & 1 == 0 { '\u{3A3}' } else { ALPHABET[next_u64() as usize % ALPHABET.len()] };
+            text.push(pick);
+        }
+        let whole = lower(&text);
+        let cow = java::lowercase_cow(&text);
+        assert_eq!(cow.as_ref(), whole, "case {case_idx}: lowercase_cow mismatch on {text:?}");
+
+        let mut per_char = String::with_capacity(whole.len());
+        for (at, c) in text.char_indices() {
+            match java::lowercase_at(&text, at, c) {
+                java::Lowercase::Char(ch) => per_char.push(ch),
+                java::Lowercase::Str(s) => per_char.push_str(s),
+            }
+        }
+        assert_eq!(whole, per_char, "case {case_idx}: to_lowercase vs lowercase_at mismatch on {text:?}");
+    }
+}
+
+#[test]
+fn ten_thousand_sigma_words_scale_linearly() {
+    use std::time::{Duration, Instant};
+
+    const N: usize = 10_000;
+    let budget = Duration::from_secs(1);
+
+    // 1. Contiguous 10,000-sigma word: first 9,999 become small sigma, last becomes final sigma.
+    let contiguous = "\u{3A3}".repeat(N);
+    let expected_contiguous = format!("{}\u{3C2}", "\u{3C3}".repeat(N - 1));
+    let start = Instant::now();
+    let got = java::lowercase_cow(&contiguous);
+    let elapsed = start.elapsed();
+    assert!(elapsed < budget, "contiguous 10k-sigma word took {elapsed:?}");
+    assert_eq!(got.as_ref(), expected_contiguous);
+
+    // 2. Cased mark U+0345 (not in fixes_tail) interleaved with 10,000 sigmas.
+    let mark_interleaved = format!("\u{391}{}", "\u{345}\u{3A3}".repeat(N));
+    let expected_marks = format!("\u{3B1}{}\u{345}\u{3C2}", "\u{345}\u{3C3}".repeat(N - 1));
+    let start = Instant::now();
+    let got = java::lowercase_cow(&mark_interleaved);
+    let elapsed = start.elapsed();
+    assert!(elapsed < budget, "mark-interleaved 10k-sigma word took {elapsed:?}");
+    assert_eq!(got.as_ref(), expected_marks);
+
+    // 3. Uncased mark + MidWord joiner interleaved with 10,000 sigmas.
+    let joiner_interleaved = format!("{}\u{3A3}", "\u{3A3}\u{301}-".repeat(N - 1));
+    let expected_joiners = format!("{}\u{3C2}", "\u{3C3}\u{301}-".repeat(N - 1));
+    let start = Instant::now();
+    let got = java::lowercase_cow(&joiner_interleaved);
+    let elapsed = start.elapsed();
+    assert!(elapsed < budget, "joiner-interleaved 10k-sigma word took {elapsed:?}");
+    assert_eq!(got.as_ref(), expected_joiners);
+
+    // 4. Joiner followed by a long run of Transparent format characters before the final sigma.
+    let sigma_transparent = format!("\u{391}-{}\u{3A3}", "\u{200B}".repeat(N));
+    let expected_sigma_transparent = format!("\u{3B1}-{}\u{3C2}", "\u{200B}".repeat(N));
+    let start = Instant::now();
+    let got = java::lowercase_cow(&sigma_transparent);
+    let elapsed = start.elapsed();
+    assert!(elapsed < budget, "transparent-run sigma word took {elapsed:?}");
+    assert_eq!(got.as_ref(), expected_sigma_transparent);
+}

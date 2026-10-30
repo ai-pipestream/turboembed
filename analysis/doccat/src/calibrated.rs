@@ -1,4 +1,5 @@
-//! Opt-in calibrated outputs for maxent and probabilistic SVM categorizers.
+//! Opt-in calibrated outputs for document categorizers.
+#[cfg(feature = "classical")]
 use crate::{DocumentCategorizerME, SvmCategorizer};
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Calibrated, Categories, Tokens};
@@ -9,6 +10,7 @@ pub trait CalibratableCategorizer: Annotator<Reads = (View, Tokens), Writes = (C
     /// Stable inference configuration; refuse unidentifiable custom features.
     fn calibration_config_hash(&self) -> Result<u64, String>;
 }
+#[cfg(feature = "classical")]
 impl CalibratableCategorizer for DocumentCategorizerME {
     fn calibration_config_hash(&self) -> Result<u64, String> {
         if !self.model().context_generator().custom().is_empty() {
@@ -41,6 +43,7 @@ impl CalibratableCategorizer for DocumentCategorizerME {
             .collect()
     }
 }
+#[cfg(feature = "classical")]
 impl CalibratableCategorizer for SvmCategorizer {
     fn calibration_config_hash(&self) -> Result<u64, String> {
         Ok(self.config_hash())

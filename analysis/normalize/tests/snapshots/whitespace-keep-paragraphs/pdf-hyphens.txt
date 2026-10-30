@@ -1,0 +1,9 @@
+===OUT===
+The new informa- tion about the compu- ter was well- known to the engi- neers. A real hyphen-ated compound stays. The soft­hyphen in a long­word is invisible.
+===EDITS===
+16	17	 
+38	39	 
+52	53	 
+71	72	 
+113	114	 
+160	161	

@@ -1,0 +1,22 @@
+MASKED	Customer record
+email: ********.***@*******.***
+phone: +** ** **** ****
+card: ****-****-****-1111
+iban: **** **** **** **** **** **
+ip: ***.*.***.*
+
+MASK_ALL	Customer record
+email: ########################
+phone: ################
+card: ###################
+iban: ###########################
+ip: ###########
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	card	1	1	CARD-f04eb250c58c67b2
+AUDIT	email	1	1	EMAIL-d3e16aedafe95883
+AUDIT	iban	1	1	IBAN-dabbf6affb27d778
+AUDIT	ipv4	1	1	IPV4-16869a831dca3b36
+AUDIT	phone	2	2	PHONE-76a7c210ec139369, PHONE-166e908f4e3a1a6f
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]\nemail: 1 mentions, 1 distinct [EMAIL-d3e16aedafe95883]\niban: 1 mentions, 1 distinct [IBAN-dabbf6affb27d778]\nipv4: 1 mentions, 1 distinct [IPV4-16869a831dca3b36]\nphone: 2 mentions, 2 distinct [PHONE-76a7c210ec139369, PHONE-166e908f4e3a1a6f]

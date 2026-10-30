@@ -1,0 +1,18 @@
+MASKED	連絡先：*******@*******.**、電話 +** ** **** ****、カード ************1111。
+
+MASK_ALL	連絡先：##################、電話 ################、カード ################。
+
+REWRITE	pseudonymize	OK	連絡先：EMAIL-1、電話 PHONE-1、カード CARD-1。
+
+LABEL	pseudonymize	12	30	12	19	EMAIL-1
+LABEL	pseudonymize	40	56	29	36	PHONE-1
+LABEL	pseudonymize	69	85	49	55	CARD-1
+REWRITE	hmac	OK	連絡先：EMAIL-55ba5ab74d82f065、電話 PHONE-95ea10556283af79、カード CARD-f04eb250c58c67b2。
+
+LABEL	hmac	12	30	12	34	EMAIL-55ba5ab74d82f065
+LABEL	hmac	40	56	44	66	PHONE-95ea10556283af79
+LABEL	hmac	69	85	79	100	CARD-f04eb250c58c67b2
+AUDIT	card	1	1	CARD-f04eb250c58c67b2
+AUDIT	email	1	1	EMAIL-55ba5ab74d82f065
+AUDIT	phone	1	1	PHONE-95ea10556283af79
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]\nemail: 1 mentions, 1 distinct [EMAIL-55ba5ab74d82f065]\nphone: 1 mentions, 1 distinct [PHONE-95ea10556283af79]

@@ -1,0 +1,42 @@
+head 9ce14a0fe8692e78fbe5a3d692a22e487e1cefb4
+start 2026-10-28T09:34:23Z load 61.33 53.37 45.86
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 cargo test --release -p turbo --features levelzero --test levelzero_rotary -- --nocapture --test-threads 1
+   Compiling turbo v0.1.0 (<repo>/core)
+    Finished `release` profile [optimized] target(s) in 3.05s
+     Running tests/levelzero_rotary.rs (target/release/deps/levelzero_rotary-00bd9d680159b649)
+
+running 2 tests
+test a_modernbert_matches_the_cpu ... a_modernbert_matches_the_cpu: precision 0: mixed lengths, padded, mean and L2: largest difference 4.4703484e-7
+a_modernbert_matches_the_cpu: precision 0: left padding and masked holes, mean: largest difference 1.3709068e-6
+a_modernbert_matches_the_cpu: precision 0: left padding and masked holes, CLS: largest difference 1.8924475e-6
+a_modernbert_matches_the_cpu: precision 0: one token, CLS and L2: largest difference 1.4156103e-7
+a_modernbert_matches_the_cpu: precision 0: a row of max_seq tokens: largest difference 1.6391277e-7
+a_modernbert_matches_the_cpu: precision 0: the last token: largest difference 1.1920929e-7
+a_modernbert_matches_the_cpu: precision 0: token ranges: largest difference 2.5331974e-7
+a_modernbert_matches_the_cpu: precision 2: mixed lengths, padded, mean and L2: largest difference 4.4703484e-7
+a_modernbert_matches_the_cpu: precision 2: left padding and masked holes, mean: largest difference 1.3709068e-6
+a_modernbert_matches_the_cpu: precision 2: left padding and masked holes, CLS: largest difference 1.8924475e-6
+a_modernbert_matches_the_cpu: precision 2: one token, CLS and L2: largest difference 1.4156103e-7
+a_modernbert_matches_the_cpu: precision 2: a row of max_seq tokens: largest difference 1.6391277e-7
+a_modernbert_matches_the_cpu: precision 2: the last token: largest difference 1.1920929e-7
+a_modernbert_matches_the_cpu: precision 2: token ranges: largest difference 2.5331974e-7
+ok
+test a_nomic_bert_matches_the_cpu ... a_nomic_bert_matches_the_cpu: precision 0: mixed lengths, padded, mean and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 0: left padding and masked holes, mean: largest difference 2.3841858e-7
+a_nomic_bert_matches_the_cpu: precision 0: left padding and masked holes, CLS: largest difference 1.1920929e-7
+a_nomic_bert_matches_the_cpu: precision 0: one token, CLS and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 0: a row of max_seq tokens: largest difference 8.940697e-8
+a_nomic_bert_matches_the_cpu: precision 0: the last token: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 0: token ranges: largest difference 8.940697e-8
+a_nomic_bert_matches_the_cpu: precision 2: mixed lengths, padded, mean and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 2: left padding and masked holes, mean: largest difference 2.3841858e-7
+a_nomic_bert_matches_the_cpu: precision 2: left padding and masked holes, CLS: largest difference 1.1920929e-7
+a_nomic_bert_matches_the_cpu: precision 2: one token, CLS and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 2: a row of max_seq tokens: largest difference 8.940697e-8
+a_nomic_bert_matches_the_cpu: precision 2: the last token: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 2: token ranges: largest difference 8.940697e-8
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+exit 0 end 2026-10-28T09:34:26Z load 59.22 53.07 45.80

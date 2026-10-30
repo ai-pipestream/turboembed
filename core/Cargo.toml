@@ -40,6 +40,8 @@ libloading = "0.9"
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 # In-house incremental SHA-256 and SHA-512 for SentencePiece fixtures.
 turbo-goldens = { path = "../analysis/goldens" }
+# The pin every bundle a test is given must have (analysis/pins).
+turbo-pins = { path = "../analysis/pins" }
 # The tests read where a model's weights are through `internals`.
 turbo = { path = ".", features = ["internals"] }
 

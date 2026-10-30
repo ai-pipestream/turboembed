@@ -74,10 +74,9 @@ pub struct MascName {
     pub kind: Option<String>,
 }
 
-/// The original token membership of a named entity within one sentence.
-/// Token places are sorted and deduplicated; `start..end` covers the first
-/// through last token without dropping interior or trailing tokens. An entity
-/// linked across sentences has one value per sentence.
+/// The complete original token membership of a named entity within one
+/// sentence. Token places are sorted and deduplicated; `start..end` covers
+/// the first through last token without dropping interior or trailing tokens.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascEntity {
     /// The first token.
@@ -98,8 +97,8 @@ impl MascEntity {
     }
 }
 
-/// Why an entity of the named entity file is in no sentence of its
-/// document ([`MascDocument::unplaced_entities`]).
+/// Why an entity of the named entity file has no complete sentence sample
+/// ([`MascDocument::unplaced_entities`]).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Unplaced {
     /// None of its tokens is in a region of the sentence file: MASC marks
@@ -112,11 +111,14 @@ pub enum Unplaced {
     /// `MascDocument` does. (A token of a kept region that the reader left
     /// out of its sentence would count here too; MASC 3.0.0 has none.)
     DroppedSentence,
+    /// Every token is in a kept sentence, but no one sentence contains the
+    /// whole entity. Its fragments are not complete gold entities.
+    CrossesSentences,
 }
 
-/// An entity of the named entity file that is in no sentence, so that
-/// neither OpenNLP's names nor [`MascSentence::entities`] hold it: its
-/// label and why. OpenNLP computes no such thing.
+/// An entity of the named entity file that has no complete sentence sample,
+/// so that neither OpenNLP's names nor [`MascSentence::entities`] hold it:
+/// its label and why. OpenNLP computes no such thing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascUnplacedEntity {
     pub kind: Option<String>,
@@ -370,10 +372,10 @@ impl MascDocument {
         self.has_named_entities
     }
 
-    /// The entities of the named entity file that are in no sentence, in
-    /// the order of their first edge in the file, with why; empty for a
-    /// document without named entities. An entity is in a sentence when
-    /// one of its tokens is one of the sentence's tokens.
+    /// The entities of the named entity file that have no complete sentence
+    /// sample, in the order of their first edge in the file, with why; empty
+    /// for a document without named entities. An entity is complete in a
+    /// sentence when every one of its tokens is one of the sentence's tokens.
     pub fn unplaced_entities(&self) -> &[MascUnplacedEntity] {
         &self.unplaced
     }

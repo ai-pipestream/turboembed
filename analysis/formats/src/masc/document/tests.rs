@@ -180,16 +180,16 @@ fn an_entity_spans_its_first_token_to_one_past_its_last_and_none_is_removed() {
     let first = doc.sentences()[0].entities();
     assert_eq!(
         first,
-        [
-            entity(0, 2, Some("person"), &[0, 1]),
-            entity(0, 1, Some("org"), &[0]),
-            entity(2, 5, Some("date"), &[2, 4]),
-            entity(4, 5, Some("location"), &[4]),
-        ]
+        [entity(0, 2, Some("person"), &[0, 1]), entity(0, 1, Some("org"), &[0]), entity(2, 5, Some("date"), &[2, 4]),]
     );
     assert!(first[0].is_contiguous() && !first[2].is_contiguous());
     assert_eq!(spans(doc.sentences()[0].names()), [(0, 2), (2, 5)]);
-    assert_eq!(doc.sentences()[1].entities(), [entity(0, 1, Some("location"), &[0]), entity(1, 2, None, &[1])]);
+    assert_eq!(doc.sentences()[1].entities(), [entity(1, 2, None, &[1])]);
+    assert!(doc.sentences()[1].names().iter().all(|n| n.kind.as_deref() != Some("location")));
+    assert_eq!(
+        doc.unplaced_entities(),
+        [MascUnplacedEntity { kind: Some("location".into()), cause: Unplaced::CrossesSentences }]
+    );
 }
 
 #[test]

@@ -253,7 +253,7 @@ pub fn train_pos_model_from_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testsupport::WordTagReader;
+    use turbo_formats::native::WordTagReader;
     use turbo_train::Key;
 
     fn samples(text: &str) -> Vec<PosSample<'_>> {

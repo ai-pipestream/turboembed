@@ -327,7 +327,7 @@ pub fn train_tokenizer_model_from_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testsupport::TokenReader;
+    use turbo_formats::native::TokenReader;
 
     fn samples(text: &str) -> Vec<TokenSample<'_>> {
         TokenReader::new(text).unwrap().map(|s| s.unwrap()).collect()

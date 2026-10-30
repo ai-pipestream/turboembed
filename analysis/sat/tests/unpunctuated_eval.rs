@@ -296,7 +296,7 @@ fn evaluate(label: &str, detector: &RuleSentenceDetector, paragraphs: &[(String,
 #[test]
 #[ignore = "needs TURBO_SAT_BUNDLE, TURBO_THAI_PUD and TURBO_KHPOS (and optional TURBO_LAO_POS)"]
 fn unpunctuated_scripts_against_gold() {
-    let sat_dir = PathBuf::from(std::env::var("TURBO_SAT_BUNDLE").expect("TURBO_SAT_BUNDLE"));
+    let sat_dir = turbo_pins::require(PathBuf::from(std::env::var("TURBO_SAT_BUNDLE").expect("TURBO_SAT_BUNDLE")));
     let thai_raw = std::fs::read_to_string(std::env::var("TURBO_THAI_PUD").expect("TURBO_THAI_PUD")).unwrap();
     let khmer_raw = std::fs::read_to_string(std::env::var("TURBO_KHPOS").expect("TURBO_KHPOS")).unwrap();
 

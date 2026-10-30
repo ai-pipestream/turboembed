@@ -253,6 +253,41 @@ fn at_k(mut f: impl FnMut(usize) -> SpanScores) -> SpanAtK {
     SpanAtK { at_1: f(a), at_5: f(b), at_10: f(c), at_100: f(d) }
 }
 
+/// How whole a chunking keeps the judged evidence (#172): over every
+/// (query, document, span) judgement, the share of spans that no chunk
+/// of their document holds whole; and over the documents with a
+/// judgement, the share cut into at most two chunks, where chunking has
+/// little to decide.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Integrity {
+    pub split: f64,
+    pub short_documents: f64,
+}
+
+/// The integrity of the chunks `spans`, `doc_of[i]` the document (an
+/// index into `ids`) of chunk i, against the judgements.
+pub fn integrity(rels: &SpanRels, ids: &[String], doc_of: &[u32], spans: &[Span]) -> Integrity {
+    let index: std::collections::BTreeMap<&str, usize> = ids.iter().enumerate().map(|(i, d)| (d.as_str(), i)).collect();
+    let mut chunks: Vec<Vec<Span>> = vec![Vec::new(); ids.len()];
+    for (&d, &s) in doc_of.iter().zip(spans) {
+        chunks[d as usize].push(s);
+    }
+    let (mut judged, mut split) = (0usize, 0usize);
+    let mut docs = std::collections::BTreeSet::new();
+    for relevant in rels.by_query.values() {
+        for (doc, rel) in relevant {
+            let Some(&i) = index.get(doc.as_str()) else { continue };
+            docs.insert(i);
+            judged += rel.len();
+            split += rel.iter().filter(|&&s| !chunks[i].iter().any(|c| c.contains(s))).count();
+        }
+    }
+    let short = docs.iter().filter(|&&i| chunks[i].len() <= 2).count();
+    let ratio = |a: usize, b: usize| if b == 0 { 0.0 } else { a as f64 / b as f64 };
+    Integrity { split: ratio(split, judged), short_documents: ratio(short, docs.len()) }
+}
+
 /// Scores every query with a relevant span. An error when none has one.
 pub fn evaluate_spans(run: &ChunkRun, rels: &SpanRels) -> Result<SpanEval> {
     let per_query: Vec<QuerySpanScores> = rels
@@ -404,5 +439,23 @@ mod tests {
             ChunkHit { doc: "d2".into(), span: Span::new(0, usize::MAX).unwrap(), score: 0.9 },
         ];
         assert_eq!(span_scores(&hits, &rel, 2), SpanScores { precision: 1.0, recall: 1.0, contained: 1.0 });
+    }
+
+    #[test]
+    fn integrity_counts_spans_no_chunk_holds_and_short_documents() {
+        let sp = |a, b| Span::new(a, b).unwrap();
+        let rels = SpanRels::new([
+            SpanRel { query: "q1".into(), doc: "d1".into(), span: sp(0, 10), grade: 1 },
+            SpanRel { query: "q1".into(), doc: "d1".into(), span: sp(15, 25), grade: 1 },
+            SpanRel { query: "q2".into(), doc: "d2".into(), span: sp(5, 8), grade: 1 },
+        ])
+        .unwrap();
+        let ids = vec!["d1".to_string(), "d2".to_string()];
+        // d1 in three chunks, cut at 20 (through the second span); d2 whole.
+        let (doc_of, spans) = (vec![0, 0, 0, 1], vec![sp(0, 12), sp(12, 20), sp(20, 30), sp(0, 9)]);
+        let i = integrity(&rels, &ids, &doc_of, &spans);
+        assert_eq!(i.split, 1.0 / 3.0);
+        // d2 is one chunk, d1 three: half the judged documents are short.
+        assert_eq!(i.short_documents, 0.5);
     }
 }

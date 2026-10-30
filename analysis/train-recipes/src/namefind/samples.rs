@@ -119,6 +119,7 @@ pub fn read_samples<'c>(
                 match entity.cause {
                     Unplaced::OutsideSentences => counts.outside_sentences += 1,
                     Unplaced::DroppedSentence => counts.in_dropped_sentences += 1,
+                    Unplaced::CrossesSentences => counts.crossing_sentences += 1,
                 }
             }
         }
