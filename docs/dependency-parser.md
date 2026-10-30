@@ -2,9 +2,11 @@
 
 `turbo-depparse` implements OpenNLP 3.x arc-standard parsing, training,
 UAS/LAS evaluation and document annotation (inventory 68, 69, 72).
-Eight permissive UD 2.16 dependency parser models (four languages x MaxEnt and
-Feedforward: Spanish and Catalan AnCora, Finnish FTB, and Italian MarkIT) are
-defined in `analysis/train-recipes/src/release.rs` under release
+Ten UD 2.16 dependency parser training recipes (five languages x MaxEnt and
+Feedforward: Spanish and Catalan AnCora, Finnish FTB, Italian MarkIT, and
+Portuguese Porttinari) are defined in `analysis/train-recipes/src/depparse.rs`
+(`DEPPARSE_RECIPES`), with the eight permissive release models listed in
+`analysis/train-recipes/src/release.rs` (`UD_DEPPARSE_MODELS`) under release
 `models-ud-depparse-2.16-1`.
 
 ## Graph and alignment
@@ -50,8 +52,8 @@ features, including relative stack/buffer order.
 Projective parsing uses 2n transitions (`SWAP` allows up to O(n²) steps).
 `DependencyModel::train` defaults to pseudo-projective lifting so non-projective
 trees are retained during training; `train_projective` refuses non-projective
-samples with an error (`Error::NonProjectiveSample`), and `train_swap` trains
-with the `SWAP` oracle. The greedy decoder picks the first highest-scoring
+samples with an `Error` (`"projective training requires plain projective trees"`),
+and `train_swap` trains with the `SWAP` oracle. The greedy decoder picks the first highest-scoring
 legal outcome and rejects malformed inventories or non-finite scores.
 
 `DependencyModel::from_bytes` and `DependencyModel::to_bytes` serialize the
