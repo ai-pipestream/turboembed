@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry as MapEntry;
 use std::sync::Arc;
 
-use turbo_jvm::hash_map::put_order;
 use turbo_maxent::{Entries, ModelFile};
 use turbo_unicode::java::lowercase_code_points_changes;
 
@@ -39,17 +38,14 @@ impl TagDictionary {
     /// the root element says `case_sensitive="false"`.
     ///
     /// In a case-insensitive dictionary every word is lowercased
-    /// (`StringUtil.toLowerCase`, per code point). Java does this after
-    /// reading, by walking the `HashMap` of the words as written and
-    /// putting each into a new map under its lowercase form, so when
-    /// several words lowercase to the same one, the word Java's hash order
-    /// visits last gives the tags, not the word last in the file. That
-    /// order is reproduced here ([`put_order`]).
+    /// (`StringUtil.toLowerCase`, per code point) in deterministic
+    /// first-seen entry order, so when several words lowercase to the same
+    /// form, the one first seen latest in the file gives the tags.
     pub fn read(xml: &[u8]) -> Result<TagDictionary> {
         let entries = Entries::read(xml)?;
         let case_sensitive = entries.is_case_sensitive();
-        // The words as written, in the order they were first put into
-        // Java's map, each with its last tags.
+        // The words as written, in first-seen entry order, each with its
+        // last tags.
         let mut words: Vec<(&str, Vec<String>)> = Vec::new();
         let mut index: HashMap<&str, usize> = HashMap::new();
         for entry in entries.iter() {
@@ -78,8 +74,7 @@ impl TagDictionary {
                 tags.insert(word.to_owned(), list);
             }
         } else {
-            for i in put_order(words.iter().map(|(w, _)| *w)).0 {
-                let (word, list) = std::mem::take(&mut words[i]);
+            for (word, list) in words {
                 let mut lower = String::with_capacity(word.len());
                 lowercase_into(&mut lower, word);
                 tags.insert(lower, list);
@@ -177,5 +172,15 @@ mod tests {
         let xml = b"<dictionary><entry tags=\"NN\"><token>a</token><token>b</token></entry></dictionary>";
         assert!(TagDictionary::read(xml).is_err());
         assert!(TagDictionary::read(b"<dictionary><entry><token>a</token></entry></dictionary>").is_err());
+    }
+
+    #[test]
+    fn case_insensitive_entries_resolve_in_first_seen_order() {
+        let xml = br#"<dictionary case_sensitive="false">
+            <entry tags="NNP"><token>Apple</token></entry>
+            <entry tags="NN"><token>apple</token></entry>
+        </dictionary>"#;
+        let d = TagDictionary::read(xml).unwrap();
+        assert_eq!(d.tags("APPLE").unwrap(), ["NN"]);
     }
 }
