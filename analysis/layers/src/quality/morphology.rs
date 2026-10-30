@@ -36,6 +36,7 @@ const IRREGULAR_PLURAL_MAP: &[(&str, &str)] = &[
     ("crisis", "crises"),
     ("criterion", "criteria"),
     ("curriculum", "curricula"),
+    ("datum", "data"),
     ("diagnosis", "diagnoses"),
     ("foot", "feet"),
     ("fungus", "fungi"),
@@ -49,6 +50,7 @@ const IRREGULAR_PLURAL_MAP: &[(&str, &str)] = &[
     ("loaf", "loaves"),
     ("man", "men"),
     ("matrix", "matrices"),
+    ("medium", "media"),
     ("mouse", "mice"),
     ("nucleus", "nuclei"),
     ("oasis", "oases"),
@@ -227,6 +229,11 @@ pub(crate) fn deinflect_3sg_verb(lower: &str) -> String {
             }
         }
     }
+    if let Some(stem) = lower.strip_suffix("es").filter(|s| s.ends_with("us") || s.ends_with("as"))
+        && !needs_silent_e(stem)
+    {
+        return stem.to_owned();
+    }
     if let Some(stem) = lower.strip_suffix('s').filter(|s| !s.ends_with('s')) {
         return stem.to_owned();
     }
@@ -314,7 +321,10 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
 }
 
 fn restore_regular_verb_stem(stem: &str) -> String {
-    if stem.len() >= 3 && ["bb", "dd", "gg", "mm", "nn", "pp", "rr", "tt", "zz"].iter().any(|d| stem.ends_with(d)) {
+    if stem == "quizz" {
+        return "quiz".to_owned();
+    }
+    if stem.len() >= 3 && ["bb", "dd", "gg", "mm", "nn", "pp", "rr", "tt"].iter().any(|d| stem.ends_with(d)) {
         return stem[..stem.len() - 1].to_owned();
     }
     if needs_silent_e(stem) {
@@ -323,9 +333,10 @@ fn restore_regular_verb_stem(stem: &str) -> String {
     stem.to_owned()
 }
 
-const NON_SILENT_E_STEMS: &[&str] = &[
-    "open", "iron", "edit", "exit", "omit", "emit", "echo", "arc", "sync", "zinc", "disc", "spec", "bus", "gas", "yes",
-    "plus", "bias", "unbias", "canvas", "atlas", "alias",
+const NON_SILENT_E_STEMS: &[&[&str]] = &[
+    &["open", "iron", "edit", "exit", "omit", "emit", "echo", "arc", "sync", "zinc", "disc", "spec", "bus", "gas"],
+    &["yes", "plus", "bias", "unbias", "canvas", "atlas", "alias", "abandon", "button", "pardon", "poison", "reason"],
+    &["season", "summon", "question", "mention", "function", "position", "condition"],
 ];
 
 const SILENT_E_STEMS: &[&[&str]] = &[
@@ -338,15 +349,13 @@ const SILENT_E_STEMS: &[&[&str]] = &[
     &["puls", "cleans", "invit", "ignit", "unit", "reunit", "excit", "recit", "incit", "complet", "compet", "delet"],
     &["deplet", "obsolet", "devot", "promot", "demot", "quot", "denot", "annot", "ignor", "explor", "restor"],
     &["underscor", "ador", "implor", "deplor", "abus", "accus", "amus", "confus", "diffus", "excus", "infus", "misus"],
-    &["perus", "refus", "reus", "postpon", "condon", "telephon", "microphon", "defin", "redefin", "confin", "combin"],
-    &["examin", "determin", "undermin", "imagin", "inclin", "declin", "outlin", "streamlin", "underlin", "disciplin"],
-    &["quarantin", "routin"],
+    &["perus", "refus", "reus", "suffus", "transfus", "disus", "overus"],
 ];
 
 fn needs_silent_e(stem: &str) -> bool {
     let bytes = stem.as_bytes();
     let n = bytes.len();
-    if n < 2 || NON_SILENT_E_STEMS.contains(&stem) {
+    if n < 2 || NON_SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
         return false;
     }
     if SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
@@ -370,16 +379,14 @@ fn needs_silent_e(stem: &str) -> bool {
     if last == b'l' && !is_vowel(prev) && !matches!(prev, b'l' | b'r' | b'm' | b'n' | b'w' | b'y') {
         return true;
     }
-    if n > 4
-        && ["en", "er", "el", "al", "ol", "it", "et", "ot", "op", "om", "an", "or", "us", "on", "in", "ar"]
-            .iter()
-            .any(|suf| stem.ends_with(suf))
+    if n > 4 && ["en", "er", "el", "al", "ol", "it", "et", "ot", "op", "or", "us"].iter().any(|suf| stem.ends_with(suf))
     {
         return false;
     }
     let is_vce_consonant =
         matches!(last, b'b' | b'd' | b'f' | b'g' | b'k' | b'l' | b'm' | b'n' | b'p' | b'r' | b's' | b't' | b'z');
-    is_vce_consonant && is_vowel(prev) && (n == 2 || !is_vowel(bytes[n - 3]))
+    let qu_before_vowel = n >= 4 && bytes[n - 4] == b'q' && bytes[n - 3] == b'u';
+    is_vce_consonant && is_vowel(prev) && (n == 2 || !is_vowel(bytes[n - 3]) || qu_before_vowel)
 }
 
 pub(crate) fn irregular_verb_base(lower: &str) -> Option<&'static str> {
