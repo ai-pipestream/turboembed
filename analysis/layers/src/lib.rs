@@ -172,6 +172,7 @@ pub mod rhetoric;
 mod segmentation;
 mod sentiment;
 mod sparse;
+mod splice;
 mod syntax;
 pub mod tables;
 mod temporal;

@@ -49,6 +49,9 @@ impl Layer for Structure {
     const ID: &'static str = "turbo:structure";
     const OVERLAP: Overlap = Overlap::Nesting;
     positional!(Structure);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn content_hash(&self) -> Option<u64> {
         Some(self.payload_hash())
     }
@@ -103,6 +106,9 @@ impl Sentences {
 impl Layer for Sentences {
     const ID: &'static str = "opennlp:sentences";
     positional!(Sentences);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn content_hash(&self) -> Option<u64> {
         Some(self.spans.len() as u64)
     }
@@ -204,6 +210,9 @@ impl Layer for Tokens {
     /// character.
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Tokens);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let Some(s) = &self.sentence else { return Vec::new() };
         vec![(Key::<Sentences>::DEFAULT.id(), s.last().map_or(0, |i| i.get() + 1))]

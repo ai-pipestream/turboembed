@@ -18,7 +18,7 @@
 //! break comes before the first token and gives a stale span to a line
 //! break that follows whitespace; both are fixed here.
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View};
+use turbo_analysis::{Annotator, Error, Key, Locality, Refs, Span, View};
 use turbo_analysis_layers::{Sentences, Tokens};
 use turbo_unicode::java::code_point as java;
 use turbo_unicode::whitespace;
@@ -143,6 +143,10 @@ impl Annotator for SimpleTokenizer {
 
     fn config_hash(&self) -> u64 {
         self.options.config_hash()
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
 }
 

@@ -2,15 +2,18 @@
 //! progressively as individual DAG branches complete.
 
 mod incremental;
+mod locality;
 mod progressive;
+mod splice;
 
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 
 pub use incremental::{IncrementalReport, StageCacheStatus, StageIncrementalReport};
 pub use progressive::{StepEvent, StepTiming};
+pub use splice::{SpliceReport, StepRun};
 
-use crate::annotate::{AnchorUse, Annotator, Bound, Step};
+use crate::annotate::{AnchorUse, Annotator, Bound, Locality, Step};
 use crate::doc::{Document, View};
 use crate::error::Error;
 use crate::layer::{Key, KeyId, Layer, LayerName};
@@ -24,13 +27,14 @@ pub use report::{ExecutionReport, LayerExecution, StepExecution};
 /// before the next starts, so every step sees all of the batch's documents
 /// at once.
 pub struct Analyzer {
-    #[allow(dead_code)]
     given: Vec<KeyId>,
     steps: Vec<Box<dyn Step>>,
     stages: Vec<Vec<usize>>,
     pub(super) dag_error: Option<Error>,
     pub(super) backedge_reads: Vec<Vec<KeyId>>,
     pub(super) order_map: HashMap<KeyId, usize>,
+    /// Each step's effective locality, as the pipeline bears it out.
+    localities: Vec<Locality>,
 }
 
 pub struct Builder {
@@ -53,6 +57,14 @@ impl Analyzer {
         self.stages.iter().flat_map(|s| s.iter().map(|&i| self.steps[i].id())).collect()
     }
 
+    /// Each step's declared and effective locality, in step order: the
+    /// two differ where the pipeline does not bear the declaration out
+    /// (the step reads a document-wide layer), and the step then runs as
+    /// `Locality::Document`.
+    pub fn localities(&self) -> Vec<(&'static str, Locality, Locality)> {
+        self.steps.iter().zip(&self.localities).map(|(s, &e)| (s.id(), s.locality(), e)).collect()
+    }
+
     /// Runs every stage over the batch. A step that fails on a document,
     /// by an error or a panic, fails only its own layers there: the steps
     /// that need them are skipped and say why, the others still run, and
@@ -61,35 +73,46 @@ impl Analyzer {
     pub fn run(&self, docs: &mut [Document]) -> Vec<Result<(), Error>> {
         let mut status: Vec<Result<(), Error>> = (0..docs.len()).map(|_| Ok(())).collect();
         for stage in &self.stages {
-            let backedges: Vec<KeyId> = stage.iter().flat_map(|&i| self.backedge_reads[i].iter().copied()).collect();
-            let taken: Vec<_> = if backedges.is_empty() {
-                Vec::new()
-            } else {
-                docs.iter_mut().map(|d| d.take_entries(&backedges)).collect()
-            };
-            let outputs: Vec<_> = if stage.len() == 1 {
-                vec![self.steps[stage[0]].compute(docs)]
-            } else {
-                let docs = &*docs;
-                std::thread::scope(|s| {
-                    let running: Vec<_> = stage.iter().map(|&i| s.spawn(move || self.steps[i].compute(docs))).collect();
-                    running.into_iter().map(|h| h.join().expect("an annotator's panics are caught")).collect()
-                })
-            };
-            for (&i, out) in stage.iter().zip(outputs) {
-                self.steps[i].store(out, docs, &mut status);
-                let writes = self.steps[i].writes();
-                for doc in docs.iter_mut() {
-                    for &w in &writes {
-                        doc.mark_pipeline_stored(w);
-                    }
-                }
-            }
-            for (doc, entries) in docs.iter_mut().zip(taken) {
-                doc.restore_entries(entries);
-            }
+            self.run_steps(stage, docs, &mut status);
         }
         status
+    }
+
+    /// Computes `steps`, side by side when there are several, then stores
+    /// their outputs in order. Layers a step reads from a later stage
+    /// (`backedge_reads`) are taken off the documents meanwhile.
+    pub(super) fn run_steps(&self, steps: &[usize], docs: &mut [Document], status: &mut [Result<(), Error>]) {
+        let backedges: Vec<KeyId> = steps.iter().flat_map(|&i| self.backedge_reads[i].iter().copied()).collect();
+        let taken: Vec<_> = if backedges.is_empty() {
+            Vec::new()
+        } else {
+            docs.iter_mut().map(|d| d.take_entries(&backedges)).collect()
+        };
+        for (&i, out) in steps.iter().zip(self.compute_steps(steps, docs)) {
+            self.steps[i].store(out, docs, status);
+            let writes = self.steps[i].writes();
+            for doc in docs.iter_mut() {
+                for &w in &writes {
+                    doc.mark_pipeline_stored(w);
+                }
+            }
+        }
+        for (doc, entries) in docs.iter_mut().zip(taken) {
+            doc.restore_entries(entries);
+        }
+    }
+
+    /// The outputs of `steps` over the batch, computed side by side when
+    /// there are several.
+    pub(super) fn compute_steps(&self, steps: &[usize], docs: &[Document]) -> Vec<Box<dyn std::any::Any + Send>> {
+        match steps {
+            [] => Vec::new(),
+            [one] => vec![self.steps[*one].compute(docs)],
+            _ => std::thread::scope(|s| {
+                let running: Vec<_> = steps.iter().map(|&i| s.spawn(move || self.steps[i].compute(docs))).collect();
+                running.into_iter().map(|h| h.join().expect("an annotator's panics are caught")).collect()
+            }),
+        }
     }
 }
 
@@ -136,7 +159,8 @@ impl Builder {
             Err(e) => (Some(e), vec![Vec::new(); self.steps.len()]),
         };
         let order_map = build_order_map(&stages, &self.steps);
-        Analyzer { given: self.given, steps: self.steps, stages, dag_error, backedge_reads, order_map }
+        let localities = locality::effective(&self.given, &self.steps, &stages);
+        Analyzer { given: self.given, steps: self.steps, stages, dag_error, backedge_reads, order_map, localities }
     }
 
     /// Checks the graph and orders it: one layer type per id, every read
@@ -146,7 +170,16 @@ impl Builder {
     pub fn build(self) -> Result<Analyzer, Error> {
         let (stages, backedge_reads) = validate_and_schedule(&self.given, &self.steps)?;
         let order_map = build_order_map(&stages, &self.steps);
-        Ok(Analyzer { given: self.given, steps: self.steps, stages, dag_error: None, backedge_reads, order_map })
+        let localities = locality::effective(&self.given, &self.steps, &stages);
+        Ok(Analyzer {
+            given: self.given,
+            steps: self.steps,
+            stages,
+            dag_error: None,
+            backedge_reads,
+            order_map,
+            localities,
+        })
     }
 }
 
