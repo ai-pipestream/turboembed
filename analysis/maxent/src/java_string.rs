@@ -371,7 +371,7 @@ mod tests {
         assert_eq!(order, ["\"Z\"", "\"a\"", "\"a\\0\"", "\"z\"", "\"😀\"", "\"\\u{ffff}\""]);
         assert_eq!(JavaString::new("\0").cmp(&JavaString::new("a")), Ordering::Less);
         for (a, b) in [("ab", "b"), ("", "a"), ("é", "z"), ("\u{10000}", "\u{FFFF}")] {
-            let expected = turbo_jvm::chars::compare(a, b);
+            let expected = a.encode_utf16().cmp(b.encode_utf16());
             assert_eq!(JavaString::new(a).cmp(&JavaString::new(b)), expected, "{a:?} vs {b:?}");
         }
     }

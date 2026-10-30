@@ -42,10 +42,8 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
-use turbo_jvm::text::{double_to_string, parse_double, parse_int};
-
 use super::error::{File, LineError, ModelError};
-use super::text::lines;
+use super::text::{double_to_string, lines, parse_double, parse_int};
 use super::weighting::{FeatureSelection, Scaling, TermWeighting};
 use crate::features::FeatureGenerator;
 use crate::hash::BuildFoldHasher;

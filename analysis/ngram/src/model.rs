@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::fmt::{self, Write as _};
 use std::hash::{BuildHasher, Hasher};
 
-use turbo_jvm::text::parse_int;
 use turbo_maxent::{Dictionary, Entries};
 use turbo_unicode::java::code_point::to_lower_case;
 
@@ -58,7 +57,7 @@ impl NGramModel {
             let Some(raw_count) = entry.attribute(COUNT_ATTR) else {
                 return Err(Error::MissingCountAttribute { entry_index });
             };
-            let Ok(count) = parse_int(raw_count) else {
+            let Some(count) = parse_int(raw_count) else {
                 return Err(Error::InvalidCountAttribute { entry_index, value: raw_count.to_string() });
             };
             model.add(&entry.tokens)?;
@@ -353,6 +352,28 @@ impl fmt::Display for NGramModel {
 
 fn tokens_eq<S: AsRef<str>>(stored: &[String], probe: &[S]) -> bool {
     stored.len() == probe.len() && stored.iter().zip(probe).all(|(a, b)| a.as_str() == b.as_ref())
+}
+
+/// Parses an optional ASCII sign followed by ASCII decimal digits in the
+/// range of `i32`.
+fn parse_int(s: &str) -> Option<i32> {
+    let (negative, digits) = match s.as_bytes().first() {
+        Some(b'-') => (true, &s[1..]),
+        Some(b'+') => (false, &s[1..]),
+        Some(_) => (false, s),
+        None => return None,
+    };
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let mut value: i64 = 0;
+    for b in digits.bytes() {
+        value = value * 10 + i64::from(b - b'0');
+        if value > i64::from(i32::MAX) + 1 {
+            return None;
+        }
+    }
+    i32::try_from(if negative { -value } else { value }).ok()
 }
 
 /// Converts `text` to UTF-16 code units after lowercasing each code point with

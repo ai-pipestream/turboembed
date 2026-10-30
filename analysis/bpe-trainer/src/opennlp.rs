@@ -7,39 +7,31 @@
 //!
 //! Of pairs with the same count, [`TieOrder`] says which merges:
 //!
-//! - [`TieOrder::Jvm`], the default: the JVM's. It takes the first in
-//!   the iteration order of the `HashMap` it counted the pairs in, which
-//!   follows Java hash codes and the history of its maps; the loop in
-//!   `jvm.rs` works that order out and makes the JVM's merges. Each merge
-//!   costs a pass over the distinct words, as on the JVM.
-//! - [`TieOrder::MadeFirst`]: the pair whose left symbol was made first,
-//!   then the one whose right symbol was. The symbols a word starts as
-//!   count as made before any merge, in Java's order of their strings
-//!   (`String.compareTo`); a merged symbol is made when it is first
-//!   merged. It does not depend on the order of the texts, and keeps
-//!   the counts as the merge loop of [`crate::merger`] does, visiting
-//!   only the words that hold the pair merged.
+//! - [`TieOrder::MadeFirst`], the default: the pair whose left symbol was
+//!   made first, then the one whose right symbol was. The symbols a word
+//!   starts as count as made before any merge, in Unicode code point order
+//!   (`str::cmp`); a merged symbol is made when it is first merged. It does
+//!   not depend on the order of the texts, and keeps the counts as the
+//!   merge loop of [`crate::merger`] does, visiting only the words that
+//!   hold the pair merged.
 //!
-//! Either way a symbol is a character (a Unicode code point), where the
-//! JVM's is a UTF-16 code unit: the JVM splits a character outside the
-//! Basic Multilingual Plane into its two surrogates and may merge each
-//! with its neighbours. Such a merge has a lone surrogate on one side,
-//! which no UTF-8 text can hold, and which the JVM itself writes as `?`
-//! when it saves the model. Both are tested in `tests/opennlp.rs`.
+//! A symbol is a character (a Unicode code point), where the JVM's is a
+//! UTF-16 code unit: the JVM splits a character outside the Basic
+//! Multilingual Plane into its two surrogates and may merge each with its
+//! neighbours. Such a merge has a lone surrogate on one side, which no
+//! UTF-8 text can hold, and which the JVM itself writes as `?` when it
+//! saves the model. This is tested in `tests/opennlp.rs`.
 //!
 //! [`OpenNlpTokenizer`] is `BPETokenizer`: each word's symbols are merged
 //! by the rank of their pair, lowest first, and `</w>` is taken off the
 //! end of each token.
 
-use turbo_jvm::chars::compare as java_order;
 use turbo_tokenize::{TokenizerOptions, whitespace_spans};
 
 use crate::byte_level::ById;
 use crate::merger::Merger;
 use crate::pieces::{FxMap, Pieces, SymbolId};
 use crate::{Merge, TrainError};
-
-mod jvm;
 
 /// What OpenNLP joins to the last symbol of a word (`BPETokenizer.END_OF_WORD`).
 pub const END_OF_WORD: &str = "</w>";
@@ -50,11 +42,9 @@ const WHITESPACE: TokenizerOptions = TokenizerOptions { keep_newlines: false };
 /// Which of the pairs with the highest count is merged.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TieOrder {
-    /// The first in the JVM's `HashMap` order: the JVM's merges.
-    #[default]
-    Jvm,
     /// The pair whose left symbol was made first, then the one whose
     /// right symbol was.
+    #[default]
     MadeFirst,
 }
 
@@ -62,26 +52,13 @@ pub enum TieOrder {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenNlpBpe {
     merges: Vec<Merge>,
-    jvm_exact: bool,
 }
 
 /// The words of `texts` cut at whitespace, each with how often it
 /// occurs, in the order first seen.
 pub fn words<'a>(texts: impl IntoIterator<Item = &'a str>) -> Vec<(&'a str, u64)> {
-    counted_words(texts).words
-}
-
-/// The words of a corpus, and whether a word occurs again after the last
-/// new word was first seen.
-struct CountedWords<'a> {
-    words: Vec<(&'a str, u64)>,
-    again: bool,
-}
-
-fn counted_words<'a>(texts: impl IntoIterator<Item = &'a str>) -> CountedWords<'a> {
     let mut at: FxMap<&'a str, usize> = FxMap::default();
     let mut out: Vec<(&'a str, u64)> = Vec::new();
-    let mut again = false;
     let mut spans = Vec::new();
     for text in texts {
         spans.clear();
@@ -91,17 +68,15 @@ fn counted_words<'a>(texts: impl IntoIterator<Item = &'a str>) -> CountedWords<'
             match at.get(word) {
                 Some(&i) => {
                     out[i].1 += 1;
-                    again = true;
                 }
                 None => {
                     at.insert(word, out.len());
                     out.push((word, 1));
-                    again = false;
                 }
             }
         }
     }
-    CountedWords { words: out, again }
+    out
 }
 
 /// A word's first symbols: its characters, the last with `</w>`.
@@ -115,9 +90,9 @@ pub fn symbols(word: &str) -> Vec<String> {
 
 impl OpenNlpBpe {
     /// `BPETokenizerTrainer.train(corpus, numMerges, language)`: at most
-    /// `num_merges` merges learned from `texts`, ties in the JVM's order.
+    /// `num_merges` merges learned from `texts`, ties in [`TieOrder::MadeFirst`].
     pub fn train<'a>(texts: impl IntoIterator<Item = &'a str>, num_merges: usize) -> Result<OpenNlpBpe, TrainError> {
-        OpenNlpBpe::train_with(texts, num_merges, TieOrder::Jvm)
+        OpenNlpBpe::train_with(texts, num_merges, TieOrder::MadeFirst)
     }
 
     /// At most `num_merges` merges learned from `texts`, ties in `ties`.
@@ -130,33 +105,15 @@ impl OpenNlpBpe {
             return Err(TrainError::NoMerges);
         }
         match ties {
-            TieOrder::Jvm => {
-                let c = counted_words(texts);
-                let (merges, jvm_exact) = jvm::learn_merges(&c.words, c.again, num_merges);
-                Ok(OpenNlpBpe { merges, jvm_exact })
-            }
-            TieOrder::MadeFirst => Ok(OpenNlpBpe { merges: made_first(texts, num_merges), jvm_exact: false }),
+            TieOrder::MadeFirst => Ok(OpenNlpBpe { merges: made_first(texts, num_merges) }),
         }
     }
 
-    /// Whether the merges are certainly the JVM's for the same corpus:
-    /// trained in [`TieOrder::Jvm`], on a corpus with no character
-    /// outside the Basic Multilingual Plane, and with no tree bin of the
-    /// JVM's maps (eight or more keys in one bin of a table of 64 or more)
-    /// that held keys with equal hash codes, which the JVM orders by
-    /// identity hash code and so differently from run to run. That order
-    /// changes the merges only when two pairs in that bin tie for the
-    /// highest count; false is not a difference found, only one not ruled
-    /// out.
-    pub fn is_jvm_exact(&self) -> bool {
-        self.jvm_exact
-    }
-
-    /// The model of a list of merges in rank order, such as the JVM's.
+    /// The model of a list of merges in rank order.
     /// Their counts are not known, and are 0.
     pub fn from_merges(pairs: impl IntoIterator<Item = (String, String)>) -> OpenNlpBpe {
         let merges = pairs.into_iter().map(|(left, right)| Merge { left, right, count: 0 }).collect();
-        OpenNlpBpe { merges, jvm_exact: false }
+        OpenNlpBpe { merges }
     }
 
     pub fn merges(&self) -> &[Merge] {
@@ -213,7 +170,7 @@ impl OpenNlpBpe {
 fn made_first<'a>(texts: impl IntoIterator<Item = &'a str>, num_merges: usize) -> Vec<Merge> {
     let words: Vec<(Vec<String>, u64)> = words(texts).into_iter().map(|(w, n)| (symbols(w), n)).collect();
     let mut first: Vec<&str> = words.iter().flat_map(|(s, _)| s.iter().map(String::as_str)).collect();
-    first.sort_unstable_by(|a, b| java_order(a, b));
+    first.sort_unstable();
     first.dedup();
     let mut pieces = Pieces::default();
     for s in first {

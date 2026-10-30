@@ -34,8 +34,7 @@ impl TermWeighting {
         TermWeighting::ALL.into_iter().find(|w| w.name() == name)
     }
 
-    /// `weight(termFrequency, inverseDocumentFrequency)`. The logarithm is
-    /// `Math.log`, which `turbo_jvm::math::log` matches on integers.
+    /// `weight(termFrequency, inverseDocumentFrequency)`.
     #[inline]
     pub fn weight(self, tf: i32, idf: f64) -> f64 {
         match self {
@@ -50,7 +49,7 @@ impl TermWeighting {
             TermWeighting::TfIdf => f64::from(tf) * idf,
             TermWeighting::LogNormalizedTf => {
                 if tf > 0 {
-                    1.0 + turbo_jvm::math::log(f64::from(tf))
+                    1.0 + f64::from(tf).ln()
                 } else {
                     0.0
                 }
