@@ -198,6 +198,12 @@ impl Analyzer {
                 return Err(format!("it reads {r}, which was not spliced"));
             }
         }
+        let producer =
+            self.steps.iter().find(|s| s.writes().contains(&p)).ok_or_else(|| format!("nothing writes {p}"))?;
+        let made = producer.expected_provenance(base);
+        if producer.writes().iter().any(|&w| !base.provenance(w).is_some_and(|f| same_step(f, &made))) {
+            return Err(format!("{p} on the base document was made by another configuration of its producer"));
+        }
         let splicers = &run.splicers;
         let plan = match run.plans.entry(p) {
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),

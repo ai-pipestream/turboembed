@@ -132,6 +132,10 @@ pub trait LayerSplicer: Send + Sync {
         range: Range<usize>,
         cx: &mut SpliceCx<'_>,
     ) -> Result<(), String>;
+    /// A digest of the layer's spans, fragments and payload, None when
+    /// the layer type gives no complete payload fingerprint
+    /// (`Layer::content_sha256`) or `layer` is another type.
+    fn fingerprint(&self, layer: &(dyn Any + Send + Sync)) -> Option<turbo_sha256::Digest>;
     /// Adds the assembled layer to `doc` as `key`, through the checked
     /// `Document::add`, with its step's provenance; `earlier` are the
     /// outputs the step writes before this one.
@@ -182,6 +186,20 @@ impl<L: Splice> LayerSplicer for Splicer<L> {
         let out = out.downcast_mut::<L>().ok_or_else(|| format!("the spliced layer is not a {}", L::NAME))?;
         let from = from.downcast_ref::<L>().ok_or_else(|| format!("the source layer is not a {}", L::NAME))?;
         out.append(from, range, cx)
+    }
+
+    fn fingerprint(&self, layer: &(dyn Any + Send + Sync)) -> Option<turbo_sha256::Digest> {
+        let layer = layer.downcast_ref::<L>()?;
+        let mut h = turbo_sha256::Sha256::new();
+        if let Some(ts) = layer.text_spans() {
+            for column in [ts.start, ts.end, ts.frag_start, ts.frag_end, ts.frag_item_end] {
+                h.usize(column.len());
+                for &x in column {
+                    h.u32(x);
+                }
+            }
+        }
+        layer.content_sha256(&mut h).then(|| h.finish())
     }
 
     fn add(
