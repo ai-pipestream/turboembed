@@ -18,7 +18,7 @@
 //!     [--min-tree-freq N])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
-//!     --out <dir> [--column xpos|upos] [--map FROM=TO,...] [--commit <sha>]
+//!     --out <dir> [--column xpos|upos|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--arc N] [--rel N])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
