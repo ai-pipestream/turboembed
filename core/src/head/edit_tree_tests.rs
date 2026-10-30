@@ -99,3 +99,72 @@ fn only_canonical_labels_parse() {
     assert_eq!(quoted.label(), r"(s 'it\'s' 'a\\b')");
     assert_eq!(EditTree::parse(&quoted.label()).unwrap(), quoted);
 }
+
+#[test]
+fn a_capitalized_form_takes_the_lowercase_words_tree_under_l() {
+    let dogs = EditTree::mine_cased("dogs", "dog");
+    let caps = EditTree::mine_cased("Dogs", "dog");
+    assert_eq!(dogs.label(), "(m 0 1 () (s 's' ''))");
+    assert_eq!(caps.label(), "(l (m 0 1 () (s 's' '')))");
+    assert_eq!(caps.apply("Dogs").as_deref(), Some("dog"));
+    assert_eq!(caps.apply("CATS").as_deref(), Some("cat"));
+    assert_eq!(caps.apply("cats").as_deref(), Some("cat"), "a lowercase word fits the tree too");
+    assert_eq!(caps.apply("Cat"), None, "the suffix must match after lowering");
+    assert_eq!(caps.apply("S"), None, "nor may the lemma be empty");
+    assert_eq!(EditTree::parse(&caps.label()).unwrap(), caps);
+    // spaCy's tree of the same pair is one tree per capital letter.
+    assert_eq!(EditTree::mine("Dogs", "dog").label(), "(m 1 1 (s 'D' 'd') (s 's' ''))");
+    assert_eq!(EditTree::mine_cased("Running", "run").label(), "(l (m 0 4 () (s 'ning' '')))");
+    // A lemma that keeps its capital stays plain, as does a tie.
+    assert_eq!(EditTree::mine_cased("Paris", "Paris").label(), "(m 0 0 () ())");
+    assert_eq!(EditTree::mine_cased("NASA", "NASA").label(), "(m 0 0 () ())");
+    assert_eq!(EditTree::mine_cased("Berlins", "Berlin").label(), "(m 0 1 () (s 's' ''))");
+    assert_eq!(EditTree::mine_cased("Bäume", "Baum"), EditTree::mine("Bäume", "Baum"));
+    assert_eq!(EditTree::mine_cased("I", "I").label(), "(m 0 0 () ())");
+    // The mapping is Unicode 18's simple lowercase, no special casing and
+    // no final sigma.
+    let ueber = EditTree::mine_cased("Über", "über");
+    assert_eq!(ueber.label(), "(l (m 0 0 () ()))");
+    assert_eq!(ueber.apply("ÜBER").as_deref(), Some("über"));
+    let sigma = EditTree::mine_cased("\u{3A3}\u{39F}\u{3A6}\u{38A}\u{391}", "\u{3C3}\u{3BF}\u{3C6}\u{3AF}\u{3B1}");
+    assert_eq!(sigma.label(), "(l (m 0 0 () ()))");
+    assert_eq!(sigma.apply("\u{39F}\u{3A3}").as_deref(), Some("\u{3BF}\u{3C3}"));
+    assert_eq!(EditTree::mine_cased("\u{130}stanbul", "istanbul").label(), "(l (m 0 0 () ()))");
+}
+
+#[test]
+fn cased_mining_round_trips_random_pairs() {
+    const ALPHA: [char; 8] = ['a', 'A', 'e', 'Ä', 'ä', '\u{1E9E}', 'ß', '\u{1F600}'];
+    let mut s = 19u64;
+    let mut next = || {
+        s ^= s << 13;
+        s ^= s >> 7;
+        s ^= s << 17;
+        s
+    };
+    let mut word = || (0..next() % 9).map(|_| ALPHA[(next() % 8) as usize]).collect::<String>();
+    let (mut lowered, mut plain) = (0, 0);
+    for _ in 0..3000 {
+        let (f, l) = (word(), word());
+        let t = EditTree::mine_cased(&f, &l);
+        let want = (f.is_empty() || !l.is_empty()).then_some(l.as_str());
+        assert_eq!(t.apply(&f).as_deref(), want, "{f:?} -> {l:?}: {}", t.label());
+        assert_eq!(EditTree::parse(&t.label()).unwrap(), t);
+        match t {
+            EditTree::Lower(_) => lowered += 1,
+            _ => plain += 1,
+        }
+    }
+    assert!(lowered > 100 && plain > 100, "{lowered} lowered, {plain} plain");
+}
+
+#[test]
+fn only_canonical_lower_labels_parse() {
+    for bad in ["(l ())", "(l (l (m 0 0 () ())))", "(l(m 0 0 () ()))", "(l (m 0 0 () ()) )", "(l)"] {
+        assert!(EditTree::parse(bad).is_err(), "{bad:?}");
+    }
+    let t = EditTree::parse("(l (s 'was' 'be'))").unwrap();
+    assert_eq!(t, EditTree::Lower(Box::new(EditTree::Subst { from: "was".into(), to: "be".into() })));
+    assert_eq!(t.apply("WAS").as_deref(), Some("be"));
+    assert_eq!(t.apply("is"), None);
+}

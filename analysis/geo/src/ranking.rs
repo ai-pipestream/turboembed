@@ -1,12 +1,10 @@
 //! The candidate order every gazetteer here ranks by (OpenNLP's
 //! `CandidateRanking.BY_PRIOR`): population descending, then the feature
 //! class (`CITY` before `ADMIN` before `POI` before anything else, absent
-//! included), then the source and the record id as `String.compareTo`
-//! orders them, by UTF-16 unit, so the order is total.
+//! included), then the source and the record id in code point order (the
+//! byte order of their UTF-8), so the order is total.
 
 use std::cmp::Ordering;
-
-use turbo_jvm::chars::compare_to;
 
 use crate::entry::{FEATURE_CLASS_ADMIN, FEATURE_CLASS_CITY, FEATURE_CLASS_POI};
 use crate::store::{EntryStore, NONE16};
@@ -40,9 +38,9 @@ pub(crate) fn by_prior(store: &EntryStore, ranks: &[u8], a: u32, b: u32) -> Orde
         .then_with(|| rank(a).cmp(&rank(b)))
         .then_with(|| {
             let (sa, sb) = (store.source[a], store.source[b]);
-            if sa == sb { Ordering::Equal } else { compare_to(store.codes.name(sa), store.codes.name(sb)).cmp(&0) }
+            if sa == sb { Ordering::Equal } else { store.codes.name(sa).cmp(store.codes.name(sb)) }
         })
-        .then_with(|| compare_to(store.string(store.strings[a]), store.string(store.strings[b])).cmp(&0))
+        .then_with(|| store.string(store.strings[a]).cmp(store.string(store.strings[b])))
 }
 
 /// What [`by_prior`] compares of one record, gathered once, so that a long
@@ -51,13 +49,12 @@ pub(crate) fn by_prior(store: &EntryStore, ranks: &[u8], a: u32, b: u32) -> Orde
 pub(crate) struct PriorKey {
     population: u64,
     rank: u8,
-    /// The place of the record's source among the store's codes in
-    /// `String.compareTo` order.
+    /// The place of the record's source among the store's codes in code
+    /// point order.
     source: u16,
-    /// The first sixteen bytes of the record id, big-endian, zero padded.
+    /// The first sixteen bytes of the record id, big-endian, zero padded:
+    /// when two differ, they order the ids as the whole ids would.
     prefix: u128,
-    /// Whether those bytes are ASCII, where byte order is UTF-16 order.
-    ascii: bool,
     record: u32,
 }
 
@@ -65,7 +62,7 @@ pub(crate) struct PriorKey {
 pub(crate) struct Ranker<'s> {
     store: &'s EntryStore,
     ranks: Vec<u8>,
-    /// For each code, its place among all codes in `String.compareTo` order.
+    /// For each code, its place among all codes in code point order.
     order: Vec<u16>,
 }
 
@@ -76,7 +73,7 @@ impl<'s> Ranker<'s> {
     pub(crate) fn new(store: &'s EntryStore) -> Ranker<'s> {
         let names = store.codes.names();
         let mut by_name: Vec<u16> = (0..names.len() as u16).collect();
-        by_name.sort_unstable_by(|&a, &b| compare_to(&names[usize::from(a)], &names[usize::from(b)]).cmp(&0));
+        by_name.sort_unstable_by(|&a, &b| names[usize::from(a)].cmp(&names[usize::from(b)]));
         let mut order = vec![0u16; names.len()];
         for (place, &code) in by_name.iter().enumerate() {
             order[usize::from(code)] = place as u16;
@@ -99,19 +96,18 @@ impl<'s> Ranker<'s> {
             },
             source: self.order[usize::from(store.source[i])],
             prefix: u128::from_be_bytes(bytes),
-            ascii: head.is_ascii(),
             record,
         }
     }
 
     fn compare(&self, a: &PriorKey, b: &PriorKey) -> Ordering {
         b.population.cmp(&a.population).then(a.rank.cmp(&b.rank)).then(a.source.cmp(&b.source)).then_with(|| {
-            if a.ascii && b.ascii && a.prefix != b.prefix {
+            if a.prefix != b.prefix {
                 a.prefix.cmp(&b.prefix)
             } else {
                 let store = self.store;
                 let id = |r: u32| store.string(store.strings[r as usize]);
-                compare_to(id(a.record), id(b.record)).cmp(&0)
+                id(a.record).cmp(id(b.record))
             }
         })
     }

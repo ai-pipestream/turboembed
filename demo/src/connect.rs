@@ -77,7 +77,7 @@ async fn forward(app: &App, req: Request) -> Response {
         return unsupported();
     }
     let user_field = crate::user::field(path);
-    if user_field.is_some() && method.is_write() && app.user.is_none() {
+    if user_field.is_some() && method.is_write() && app.user.is_none() && crate::user::needs_user(path) {
         let msg = format!("{path} acts for a user, and the demo was started without --user");
         return refuse(protocol, Refusal(Code::PermissionDenied, msg));
     }

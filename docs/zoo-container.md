@@ -87,10 +87,10 @@ docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo:/zoo \
 
 Any `turbo-kserve` flag after the image name is passed to the server
 (docs/grpc.md, Flags), and the `TURBO_KSERVE_*` and `TURBO_DEMO_*`
-variables work as they do for each binary. The exceptions are the
-server's listen address and TLS: the page and the health check dial
-`http://127.0.0.1:8081`, so keep `--listen` and the `--tls-*` flags as
-the image sets them (Who can do what, below). The image sets these:
+variables work as they do for each binary. Set the listener address and TLS
+through environment variables, not `--listen` or `--tls-*` arguments: Docker's
+separate health process must see the same settings. The entrypoint rejects
+those arguments. The image defaults are:
 
 | Variable | Value |
 |---|---|
@@ -98,7 +98,7 @@ the image sets them (Who can do what, below). The image sets these:
 | `TURBO_KSERVE_CATALOG_DIR` | `/zoo` |
 | `TURBO_KSERVE_ZOO` | `1` |
 | `TURBO_DEMO_LISTEN` | `0.0.0.0:8080` |
-| `TURBO_DEMO_SERVER` | `http://127.0.0.1:8081` |
+| `TURBO_DEMO_SERVER` | Derived from `TURBO_KSERVE_LISTEN`: loopback for wildcard binds, `https://` when server TLS is set; otherwise `http://`. |
 | `TURBO_DEMO_ALLOW` | `RecordLicenceAcceptance`, `RevokeLicenceAcceptance` and `InstallModel` |
 | `TURBO_DEMO_USER` | `zoo`, set by `zoo-start` when unset |
 
@@ -122,13 +122,60 @@ token. In zoo mode any caller records an acceptance, and the user a
 request names is the caller's own word (docs/grpc-catalog.md, Zoo
 mode). That suits a personal or LAN zoo.
 
-The image does not yet support the server's own TLS or mutual TLS. The
-page and the health check reach the server over plain gRPC on
-loopback, so setting `TURBO_KSERVE_TLS_CERT`, `TURBO_KSERVE_TLS_KEY` or
-`TURBO_KSERVE_TLS_CLIENT_CA` leaves the page failing every call and the
-container unhealthy (#1686). Until then, a shared zoo publishes 8081
-only on a trusted network, or behind a proxy that terminates TLS and
-checks client certificates itself.
+Use mutual TLS for a shared zoo: give the server its certificate/key and a
+client CA, and give the loopback clients their own certificate/key. The image
+uses the existing verified tonic transport for both the page's upstream RPCs
+and the gRPC health probe. A bad CA, wrong name, missing client identity or
+untrusted client is refused; there is no plaintext retry. TLS authenticates
+the connection, not the catalog's user field: that field is still the caller's
+claim, not a certificate-to-user authorization mapping.
+
+### Server TLS and mutual TLS
+
+Mount PEM files read-only, readable by container UID 10001. Keep private keys
+out of the image and give them only the file permissions needed by that user.
+The server and client CAs may be different. In a Compose override, for example:
+
+```yaml
+services:
+  zoo:
+    environment:
+      TURBO_KSERVE_TLS_CERT: /tls/server.pem
+      TURBO_KSERVE_TLS_KEY: /tls/server.key
+      TURBO_KSERVE_TLS_CLIENT_CA: /tls/client-ca.pem
+      TURBO_ZOO_TLS_CA: /tls/server-ca.pem
+      TURBO_ZOO_TLS_CERT: /tls/loopback-client.pem
+      TURBO_ZOO_TLS_KEY: /tls/loopback-client.key
+      TURBO_ZOO_TLS_NAME: zoo.example.org
+    volumes:
+      - ./tls:/tls:ro
+```
+
+Run with `docker compose -f docker-compose.zoo.yml -f zoo-tls.yml up -d`.
+The name must appear in the server certificate's subject alternative names.
+It permits verified loopback connections when the certificate names a public
+DNS address; it does not disable certificate verification.
+
+| Setting | Meaning |
+|---|---|
+| `TURBO_KSERVE_TLS_CERT`, `TURBO_KSERVE_TLS_KEY` | Server listener certificate chain and key; required together. |
+| `TURBO_KSERVE_TLS_CLIENT_CA` | Require client certificates signed by this CA. |
+| `TURBO_ZOO_TLS_CA` | Server CA trusted by both loopback clients. Required for TLS unless each client supplies its own CA. |
+| `TURBO_ZOO_TLS_CERT`, `TURBO_ZOO_TLS_KEY` | Dedicated client identity for both loopback clients; required together for mTLS. Never inferred from the listener key. |
+| `TURBO_ZOO_TLS_NAME` | Optional expected server certificate name; otherwise verify the dialed address. |
+
+`TURBO_DEMO_SERVER_TLS_{CA,CERT,KEY,NAME}` and
+`TURBO_KSERVE_HEALTH_TLS_{CA,CERT,KEY,NAME}` override the corresponding shared
+client defaults per binary. To use separate identities, set both the certificate
+and key for each client. For server-only TLS, omit the client CA and client
+identities. Incomplete credentials fail before either server or page launches.
+
+Both `zoo-start` and `zoo-health` source the same resolver
+(server/zoo/zoo-env); the health check does not depend on environment exports
+made in another process. Explicit `TURBO_DEMO_SERVER` must use the listener's
+TLS scheme. This does not enable HTTPS for the page itself: use the separate
+`TURBO_DEMO_TLS_CERT` and `TURBO_DEMO_TLS_KEY` settings for that. External gRPC
+clients likewise need the server CA and their own identity (docs/zoo.md).
 
 ## The smoke test
 
@@ -143,10 +190,23 @@ read returns has therefore come through the store.
 - the user records their own acceptance without `--admin`;
 - each file reads through from the store and verifies.
 
+`zoo-remote/tests/zoo_image.rs` then loads the same models with the
+library, through `TURBO_ZOO_SOURCE=grpc://...` into a local cache of its
+own, as a user who has accepted nothing yet:
+
+- a permissive model loads, each file verified;
+- a share-alike model is refused locally before the zoo is asked;
+- accepted locally but not on the zoo, the zoo sends nothing;
+- accepted on both sides, it loads;
+- the local cache then serves both models with no source at all.
+
 The script also checks that the page is served and that the page's
 calls need the token, and that with the token the page acts for the
-image's default user. Then it runs the image alone with the page on
-HTTPS, using a certificate made for the run, and waits for Docker to
-report the container healthy. The `Zoo image` workflow
+image's default user. It then recreates the zoo with a fresh cache, separate
+server/client CAs and mTLS, reuses the seeded RustFS store, decodes an
+actual binary protobuf catalog response through the page, verifies the Docker
+health check, and refuses missing/rogue identities and a wrong server name.
+Finally it runs the image alone with the page on HTTPS, using a certificate
+made for the run, and waits for Docker to report the container healthy. The `Zoo image` workflow
 (.github/workflows/zoo-image.yml) builds the image and runs the script
 whenever the image, the catalog or the demo changes.

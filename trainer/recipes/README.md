@@ -68,6 +68,8 @@ turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
 turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
+turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+    [as train, without --crf and --hash-embed] [--min-tree-freq N]
 ```
 
 `cache` (#1616) reads every split once and writes each word's features
@@ -112,6 +114,17 @@ beside it (`eval.uas`). Their baselines: each word's commonest
 training lemma, the word itself when unseen; and each word's
 commonest training attachment, the signed distance to its head with
 the relation, the commonest overall when unseen.
+
+`train-split` trains the token split head (`words` on
+`turboembed:words`, #1698) over the treebank's surface tokens, where
+the other UD commands read syntactic words: each multiword token's
+label is one edit tree a word, mined over the tokens that come up at
+least `--min-tree-freq` times, beside `_`, which keeps a token whole.
+It writes the same three files and scores as token labels, against
+each token's commonest training label (`_` when unseen). A treebank
+whose training split has no split that frequent is refused: English
+EWT's are its contractions, and Spanish or Catalan AnCora and Italian
+MarkIT hold the fused forms the head is for.
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for

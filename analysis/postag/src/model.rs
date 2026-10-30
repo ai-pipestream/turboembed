@@ -58,6 +58,18 @@ impl PosModel {
         PosModel::open(ModelFile::read(path)?)
     }
 
+    /// Opens a trained `POSTaggerME` archive produced by `turbo-train-components`
+    /// (`TrainedPosModel::package`), in the default tag format.
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<PosModel, ModelError> {
+        PosModel::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
+    /// Opens a trained `POSTaggerME` archive produced by `turbo-train-components`
+    /// (`TrainedPosModel::package`), returning tags in `format`.
+    pub fn from_trained_archive_with_format(bytes: Vec<u8>, format: PosTagFormat) -> Result<PosModel, ModelError> {
+        PosModel::open_with_format(ModelFile::from_trained_archive(bytes)?, format)
+    }
+
     /// Reads the model from an opened model file, in the default tag
     /// format.
     pub fn open(file: ModelFile) -> Result<PosModel, ModelError> {

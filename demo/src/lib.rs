@@ -17,7 +17,7 @@ use axum::routing::{get, post, put};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::Channel;
 
 pub mod allow;
 mod budget;
@@ -28,10 +28,12 @@ pub mod gate;
 pub mod limits;
 mod tls;
 pub mod upload;
+mod upstream;
 pub mod user;
 
 pub use allow::Allow;
 pub use tls::Tls;
+pub use upstream::{ClientIdentity, UpstreamTls};
 
 const INDEX: &str = include_str!("../static/index.html");
 const SCRIPT: &str = include_str!("../static/app.js");
@@ -57,6 +59,8 @@ pub struct Options {
     pub origins: Vec<String>,
     /// TLS for the listener; plain HTTP without.
     pub tls: Option<Tls>,
+    /// TLS for the gRPC server; separate from the page listener.
+    pub upstream_tls: Option<UpstreamTls>,
     /// Who the page's catalog calls act for: licence acceptances and
     /// installs are recorded for this user, never for a name the page
     /// sends. Without it those calls are read-only and name no user.
@@ -72,7 +76,8 @@ pub struct Demo {
 
 impl Demo {
     /// Listens on `listen` and forwards the calls `allow` names to the
-    /// server at `server` (`http://HOST:PORT`). The server need not be up:
+    /// server at `server` (`http://HOST:PORT`). For HTTPS, use `start_with`
+    /// and explicit upstream TLS trust. The server need not be up:
     /// each call connects as needed.
     pub async fn start(listen: SocketAddr, server: &str, allow: Allow) -> Result<Demo, String> {
         Demo::start_with(listen, server, Options { allow, ..Options::default() }).await
@@ -90,10 +95,7 @@ impl Demo {
             user::check(u)?;
         }
         let tls = options.tls.as_ref().map(tls::config).transpose()?;
-        let endpoint = Endpoint::from_shared(server.to_string()).map_err(|e| format!("server {server}: {e}"))?;
-        if !matches!(endpoint.uri().scheme_str(), Some("http" | "https")) || endpoint.uri().authority().is_none() {
-            return Err(format!("server {server}: must be an http:// or https:// URL"));
-        }
+        let endpoint = upstream::endpoint(server, options.upstream_tls.as_ref())?;
         let app = App {
             channel: endpoint.connect_lazy(),
             allow: Arc::new(options.allow),

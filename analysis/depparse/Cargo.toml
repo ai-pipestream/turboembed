@@ -9,4 +9,6 @@ publish = false
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-formats = { path = "../formats" }
+turbo-sha256 = { path = "../sha256" }
+turbo-train = { path = "../train" }
 turbo-unicode = { path = "../unicode" }

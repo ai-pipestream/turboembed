@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --locked --release -p turbo-kserve -p turbo-kserve-demo; \
     mkdir -p /out/bin /out/licenses; \
     cp target/release/turbo-kserve target/release/turbo-kserve-demo /out/bin/; \
-    cp server/zoo/zoo-start server/zoo/zoo-bucket server/zoo/zoo-health /out/bin/; \
+    cp server/zoo/zoo-start server/zoo/zoo-bucket server/zoo/zoo-health server/zoo/zoo-env /out/bin/; \
     cp LICENSE /out/licenses/LICENSE; \
     cp NOTICE /out/licenses/NOTICE
 
@@ -59,7 +59,6 @@ ENV PATH=/opt/turbo/bin:${PATH} \
     TURBO_KSERVE_CATALOG_DIR=/zoo \
     TURBO_KSERVE_ZOO=1 \
     TURBO_DEMO_LISTEN=0.0.0.0:8080 \
-    TURBO_DEMO_SERVER=http://127.0.0.1:8081 \
     TURBO_DEMO_ALLOW=/turbo.training.v1.TurboCatalogService/RecordLicenceAcceptance,/turbo.training.v1.TurboCatalogService/RevokeLicenceAcceptance,/turbo.training.v1.TurboCatalogService/InstallModel \
     NVIDIA_VISIBLE_DEVICES=void
 

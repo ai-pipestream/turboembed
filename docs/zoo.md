@@ -55,7 +55,13 @@ The exception permits this named local download after user acceptance;
 it grants no rights to training text and approves no other model.
 
 `turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
-inputs. `turbo-fetch.json` saves the notice and acceptance. API clients
+inputs. `turbo-fetch.json` saves the notice and acceptance. For a model
+whose licence itself needs acceptance, the tool also reads and writes the
+zoo's acceptance file (`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`):
+a licence that user accepted before, with the tool, `turbo-zoo accept` or
+the catalog service, needs no flag, and the flag records the acceptance
+there. A recipe notice is the project's own condition and has no single
+terms address, so it is never recorded and always needs the flag. API clients
 must set `accept_terms=true` only after an explicit user decision through
 configuration or a prompt. The manifest identifies the weight licence;
 the notice adds the project download restriction. The existing handling
@@ -206,7 +212,7 @@ is in that form and a test keeps it there.
 | `zoo_version` | uint32 | yes | 1. Anything else is rejected. |
 | `artifacts[].id` | string | yes | Unique. Lowercase ASCII letters, digits, `.`, `_`, `-`, starting with a letter or digit, at most 128 bytes. It names the artifact's cache directory. For a published file it is the file name without its extension. |
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
-| `.component` | enum | no | The component a model serves. `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_POS_GENERIC`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER` and `COMPONENT_PARSER` are OpenNLP's `ModelType` constants; `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA` and `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder) have no `ModelType`. A tokenizer fetched beside a model by id has none. |
+| `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
 | `.format` | enum | yes | `FORMAT_OPENNLP_MODEL` (an OpenNLP `.bin` archive), `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`). |
 | `.version` | string | yes | The publisher's version. Not empty. |

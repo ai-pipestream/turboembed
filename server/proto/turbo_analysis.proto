@@ -267,6 +267,14 @@ message LoadBundleRequest
   // Select a device with turbo_runtime_select for the bundle's task
   // instead of indexing `device` (must leave `device` at 0).
   bool select_device = 11;
+
+  // Who loads the bundle. On a server with a model catalog
+  // (--catalog-dir), a bundle whose manifest names a licence that needs
+  // acceptance (docs/zoo.md) loads only for a user who accepted it in the
+  // catalog's acceptance file; otherwise FAILED_PRECONDITION names the
+  // terms. Without a catalog there is no acceptance file and nothing is
+  // checked.
+  string user = 12;
 }
 
 message LoadBundleResponse
