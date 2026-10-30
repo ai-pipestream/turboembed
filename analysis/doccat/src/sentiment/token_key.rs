@@ -53,7 +53,7 @@ fn key_with(token: &str, keep_hyphen: bool, trim: Trim) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// [`token_key_cow`] as an owned string.
+/// Lowercases and trims edge punctuation from `token` into an owned lexicon lookup key.
 pub fn token_key(token: &str) -> String {
     token_key_cow(token, false).into_owned()
 }

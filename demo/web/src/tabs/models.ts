@@ -1,17 +1,19 @@
-// Models: the model catalog with licence acceptance and a streaming
-// InstallModel monitor, and static model distillation with a streaming
+// Models: the model catalog with licence acceptance (licences.ts) and a
+// streaming InstallModel monitor, and static model distillation with a streaming
 // TrainStaticModel monitor, the teachers it can use and the static
 // models it made.
 
-import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type LicenceTerms } from "../gen/turbo_training_pb.js";
+import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
 import { catalog, describe, training } from "../rpc.js";
 import { refresh } from "../state.js";
+import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
+import { download, nonCommercial } from "./download.js";
 
 let installing: AbortController | null = null;
+let saving: AbortController | null = null;
 let trainingRun: AbortController | null = null;
 
-const user = () => input("models-user").value.trim();
 const note = () => $("models-note");
 
 function bar(done: number, total: number): HTMLProgressElement {
@@ -20,38 +22,72 @@ function bar(done: number, total: number): HTMLProgressElement {
   return p;
 }
 
-function acceptButton(t: LicenceTerms): HTMLElement {
-  const b = el("button", { type: "button", text: `Accept ${t.licence}` });
-  b.addEventListener("click", async () => {
-    try {
-      const r = await catalog.recordLicenceAcceptance({ user: user(), licence: t.licence, terms: t.licence.startsWith("LicenseRef-") ? t.text : "" });
-      await loadCatalog();
-      say(note(), `${r.user} accepted ${r.accepted?.licence ?? t.licence} at ${new Date(Number(r.acceptedAt) * 1000).toLocaleString()}.`);
-    } catch (e) {
-      say(note(), describe(e), "error");
-    }
-  });
-  return b;
+async function act(change: () => Promise<string>): Promise<void> {
+  try {
+    const done = await change();
+    await loadCatalog();
+    say(note(), done);
+  } catch (e) {
+    say(note(), describe(e), "error");
+  }
 }
 
-function entryRow(e: CatalogEntry): HTMLElement[] {
-  const terms = e.missingTerms.map((t) => el("details", {}, el("summary", { text: `${t.licence} terms` }), el("pre", { class: "export", text: t.text }), acceptButton(t)));
-  const install = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
-  install.disabled = e.missingTerms.length > 0;
-  install.title = install.disabled ? "Accept the licence terms first" : "";
-  install.addEventListener("click", () => void installModel(e));
-  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), el("span", { text: e.licence }), el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install)];
+function entryRow(e: CatalogEntry, w: Who): HTMLElement[] {
+  const terms = e.missingTerms.map((t) => termsBlock(e, t, w, (t: LicenceTerms) => act(() => accept(e, t))));
+  let install: HTMLElement | string = "";
+  if (w.canChange) {
+    const b = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
+    b.disabled = e.missingTerms.length > 0;
+    b.title = b.disabled ? "Accept the licence terms first" : "";
+    b.addEventListener("click", () => void installModel(e));
+    install = b;
+  }
+  const licence = el("span", { text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
+  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), licence, el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install, saveButtons(e, w))];
+}
+
+/** A save button per file, once the user may have the artifact. */
+function saveButtons(e: CatalogEntry, w: Who): HTMLElement | null {
+  if (!w.user || e.missingTerms.length > 0) return null;
+  return el(
+    "div",
+    {},
+    e.files.map((f) => {
+      const b = el("button", { type: "button", text: `Save ${f.path}` });
+      b.addEventListener("click", () => void saveFile(e, f));
+      return b;
+    }),
+  );
+}
+
+async function saveFile(e: CatalogEntry, f: CatalogFile): Promise<void> {
+  saving?.abort();
+  const ac = new AbortController();
+  saving = ac;
+  const status = el("p", { class: "muted", text: `Reading ${e.id}/${f.path}\u2026` });
+  $("models-install").replaceChildren(el("h3", { text: `Save ${e.id}/${f.path}` }), status);
+  try {
+    await download(e, f, status, ac.signal);
+  } catch (err) {
+    status.className = "error";
+    status.textContent = describe(err);
+  } finally {
+    if (saving === ac) saving = null;
+  }
 }
 
 async function loadCatalog(): Promise<void> {
   const box = $("models-catalog");
   say(note(), "Reading the catalog\u2026", "busy");
   try {
-    const [cat, installed] = await Promise.all([catalog.listModelCatalog({ user: user() }), catalog.listInstalledModels({})]);
+    const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
+    const w = who(acc);
     box.replaceChildren(
       el("h3", { text: "Catalog" }),
-      el("p", { class: "muted", text: `Licence terms still to accept are those for the user ${user() || "(none)"}; read them before accepting.` }),
-      table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map(entryRow)),
+      el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
+      table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map((e) => entryRow(e, w))),
+      el("h3", { text: "Accepted terms" }),
+      acceptedTable(acc, w, (t: LicenceTerms) => act(() => revoke(t))),
       el("h3", { text: "Installed" }),
       table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir])),
     );
@@ -70,7 +106,7 @@ async function installModel(e: CatalogEntry): Promise<void> {
   const progress = bar(0, 1);
   log.replaceChildren(el("h3", { text: `Install ${e.id}` }), progress, status);
   try {
-    for await (const u of catalog.installModel({ user: user(), artifactId: e.id }, { signal: ac.signal })) {
+    for await (const u of catalog.installModel({ artifactId: e.id }, { signal: ac.signal })) {
       if (u.update.case === "progress") {
         const p = u.update.value;
         progress.max = Math.max(1, p.fileCount);
@@ -197,6 +233,8 @@ function stopTraining(): void {
 export function stop(): void {
   installing?.abort();
   installing = null;
+  saving?.abort();
+  saving = null;
   stopTraining();
 }
 

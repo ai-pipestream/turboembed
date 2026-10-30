@@ -1,0 +1,13 @@
+===OUT===
+アイウ ー あいう ヴ ヴ がきぐ がぎぐ゙ ÿ Ÿ.
+Combining dakuten after kana and ASCII voiced: ガギグ and パピ.
+
+===EDITS===
+28	34	ヴ
+45	51	が
+51	57	ぎ
+118	124	ガ
+124	130	ギ
+130	136	グ
+141	147	パ
+147	153	ピ

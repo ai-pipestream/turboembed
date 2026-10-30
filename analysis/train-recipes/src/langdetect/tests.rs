@@ -44,19 +44,18 @@ fn every_reference_code_is_in_one_pair_and_the_tatoeba_codes_are_unique() {
 }
 
 #[test]
-fn the_recipe_trains_with_the_parameters_langdetect_183_was_most_likely_trained_with() {
+fn the_recipe_keeps_its_training_parameters_without_a_reference() {
     let ours = LANGDETECT.parameters();
     let theirs = turbo_train_components::langdetect::default_training_parameters();
     assert_eq!(ours, theirs);
-    assert_eq!(LANGDETECT.reference.id(), "opennlp-langdetect-183");
-    assert!(turbo_zoo::Index::builtin().get(LANGDETECT_183.id).is_err(), "the zoo does not list the reference");
+    assert_eq!(LANGDETECT.reference, None);
     let id: turbo_zoo::ArtifactId = MODEL_ID.parse().unwrap();
     assert_eq!(id.as_str(), MODEL_ID);
     assert!(ZOO_LANGUAGE.parse::<turbo_zoo::Language>().is_ok());
 }
 
 #[test]
-fn language_card_artifact_validates_component_and_language() {
+fn no_language_card_is_publishable_without_a_gate_reference() {
     let sha256 = "0".repeat(64);
     let sha512 = "0".repeat(128);
     let export_file = ExportFile { name: "a.tar.bz2".to_owned(), size: 1, sha256: sha256.clone() };
@@ -115,8 +114,8 @@ fn language_card_artifact_validates_component_and_language() {
         held_out: LanguageHeldOutCard { samples: 1, reference_mappings: Vec::new() },
         gate: GateCard {
             record: GATE_FILE.to_owned(),
-            reference: LANGDETECT_183.id.to_owned(),
-            reference_sha256: LANGDETECT_183.sha256.to_owned(),
+            reference: "unused".to_owned(),
+            reference_sha256: "0".repeat(64),
             candidate_tag_format: None,
             reference_tag_format: None,
             candidate_score: 1.0,
@@ -128,13 +127,7 @@ fn language_card_artifact_validates_component_and_language() {
     };
     let url_m = "https://example.org/model.bin";
     let url_s = "https://example.org/training-sentences.txt";
-    assert!(card.artifact(url_m, url_s).is_ok());
-
-    let mut bad_comp = card.clone();
-    bad_comp.component = turbo_zoo::Component::Pos;
-    assert!(matches!(bad_comp.artifact(url_m, url_s), Err(Error::InvalidCard { field: "component", .. })));
-
-    let mut bad_lang = card;
-    bad_lang.language = "en".to_owned();
-    assert!(matches!(bad_lang.artifact(url_m, url_s), Err(Error::InvalidCard { field: "language", .. })));
+    assert!(
+        matches!(card.artifact(url_m, url_s), Err(Error::NotShippable { reason, .. }) if reason.contains("no reference"))
+    );
 }

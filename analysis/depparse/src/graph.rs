@@ -28,16 +28,10 @@ pub struct DependencyGraph<A: WordOrTokenAnchor = Tokens> {
     layer: Dependencies<A>,
     children: Vec<Vec<Ix<A>>>,
     roots: Vec<Ix<A>>,
-    pub(crate) label_encoding: crate::LabelEncoding,
 }
 impl<A: WordOrTokenAnchor> Clone for DependencyGraph<A> {
     fn clone(&self) -> Self {
-        Self {
-            layer: self.layer.clone(),
-            children: self.children.clone(),
-            roots: self.roots.clone(),
-            label_encoding: self.label_encoding,
-        }
+        Self { layer: self.layer.clone(), children: self.children.clone(), roots: self.roots.clone() }
     }
 }
 impl<A: WordOrTokenAnchor> std::fmt::Debug for DependencyGraph<A> {
@@ -92,7 +86,7 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
                 roots.push(node);
             }
         }
-        Ok(Self { layer, children, roots, label_encoding: crate::LabelEncoding::Plain })
+        Ok(Self { layer, children, roots })
     }
     pub fn to_layer(&self) -> Dependencies<A> {
         self.layer.clone()

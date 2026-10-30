@@ -1,0 +1,12 @@
+MASKED	📧 support@example.com 📞 +44 20 7946 0958 💳 **** **** **** 1111 😀
+
+MASK_ALL	📧 support@example.com 📞 +44 20 7946 0958 💳 ################### 😀
+
+REWRITE	pseudonymize	OK	📧 support@example.com 📞 +44 20 7946 0958 💳 CARD-1 😀
+
+LABEL	pseudonymize	52	71	52	58	CARD-1
+REWRITE	hmac	OK	📧 support@example.com 📞 +44 20 7946 0958 💳 CARD-f04eb250c58c67b2 😀
+
+LABEL	hmac	52	71	52	73	CARD-f04eb250c58c67b2
+AUDIT	card	1	1	CARD-f04eb250c58c67b2
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]

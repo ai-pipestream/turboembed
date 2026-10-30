@@ -26,10 +26,10 @@ use crate::{docker, models, paths, recipe};
 /// annotator the differential covers runs on each text. `en` brings the
 /// language detector, the taggers, the lemmatizers, the chunker and the
 /// English sentence and token models; `edge` every tokenizer, segmenter,
-/// sentence detector and the WordPiece encoder; the others their own
-/// annotators.
-pub const DEFAULT_SETS: [&str; 9] =
-    ["en", "edge", "norm", "num", "money", "quantity", "temporal", "pii", "sentence-fixture"];
+/// sentence detector and the WordPiece encoder; `norm` the normalizer.
+/// Number, money, quantity and temporal inputs stay under goldens for
+/// turbo-numeric and turbo-bench, but are not fuzz DEFAULT_SETS.
+pub const DEFAULT_SETS: [&str; 4] = ["en", "edge", "norm", "sentence-fixture"];
 
 /// The annotators the container is told to skip: the differential does
 /// not cover them (`turbo_fuzz::runs::NOT_COVERED`).
@@ -172,8 +172,10 @@ fn count_inputs(inputs: &Path) -> Result<usize, String> {
     Ok(read(set)?.filter_map(|e| e.ok()).filter(|e| e.path().extension().is_some_and(|x| x == "txt")).count())
 }
 
-/// Runs the whole command.
+/// Runs the whole command. Refused until #1532 (see
+/// [`models::GENERATOR_RETIRED`]).
 pub fn run(opts: &Options) -> Result<Summary, String> {
+    models::generator_runs()?;
     let out = opts.out_dir();
     let inputs = out.join("inputs");
     let jvm = out.join("jvm");

@@ -1,0 +1,9 @@
+MASKED	Reply to User@Example.COM, not to USER@EXAMPLE.NET.
+
+MASK_ALL	Reply to User@Example.COM, not to USER@EXAMPLE.NET.
+
+REWRITE	pseudonymize	OK	Reply to User@Example.COM, not to USER@EXAMPLE.NET.
+
+REWRITE	hmac	OK	Reply to User@Example.COM, not to USER@EXAMPLE.NET.
+
+AUDIT_REPORT	no pii found

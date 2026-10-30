@@ -71,7 +71,8 @@ fn splate_trained_receipt() {
         eprintln!("TURBO_SPLATE913_BUNDLES is not set: no trained bundles to run");
         return;
     };
-    let root = PathBuf::from(bundles_root);
+    let root =
+        turbo_pins::require_in(bundles_root, &["neural-sparse", "colbertv2", "potion-base-8m", "ms-marco-minilm"]);
     let bundles = TrainedBundles {
         sparse: root.join("neural-sparse"),
         colbert: root.join("colbertv2"),

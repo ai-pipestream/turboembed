@@ -1,0 +1,72 @@
+# The self-contained model zoo (docs/zoo-container.md): the turbo-zoo
+# image (server/Dockerfile.zoo) serving the model catalog over gRPC and the
+# page that browses, accepts and installs models, with RustFS as the
+# content-addressed store every redistributable model it fetches is kept
+# in (a local-only model never is).
+#
+#   export TURBO_ZOO_S3_ACCESS_KEY=... TURBO_ZOO_S3_SECRET_KEY=...
+#   export TURBO_DEMO_TOKEN=...      # optional: else the zoo logs one
+#   docker compose -f docker-compose.zoo.yml up -d --build
+#
+# The page is on port 8080 and gRPC (TURBO_ZOO_SOURCE=grpc://HOST:8081) on
+# 8081, both on every interface of the host unless TURBO_ZOO_BIND names
+# one. No model is in either image; each is fetched from its origin the
+# first time a user it is permitted to reads or installs it.
+
+name: turbo-zoo
+
+x-store: &store
+  TURBO_KSERVE_CATALOG_STORE: s3://${TURBO_ZOO_BUCKET:-turbo-zoo}/zoo
+  AWS_ENDPOINT_URL: http://rustfs:9000
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: ${TURBO_ZOO_S3_ACCESS_KEY:?set TURBO_ZOO_S3_ACCESS_KEY}
+  AWS_SECRET_ACCESS_KEY: ${TURBO_ZOO_S3_SECRET_KEY:?set TURBO_ZOO_S3_SECRET_KEY}
+
+services:
+  rustfs:
+    # RustFS 1.0.4, pinned by the digest of its multi-arch index;
+    # TURBO_ZOO_RUSTFS_IMAGE names the same image through a mirror.
+    image: ${TURBO_ZOO_RUSTFS_IMAGE:-rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2}
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${TURBO_ZOO_S3_ACCESS_KEY:?set TURBO_ZOO_S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${TURBO_ZOO_S3_SECRET_KEY:?set TURBO_ZOO_S3_SECRET_KEY}
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_OBS_LOG_DIRECTORY: /logs
+    volumes:
+      - rustfs-data:/data
+    tmpfs:
+      - /logs:uid=10001,gid=10001
+    restart: unless-stopped
+
+  bucket:
+    image: turbo-zoo
+    build:
+      context: .
+      dockerfile: server/Dockerfile.zoo
+    entrypoint: ["zoo-bucket"]
+    environment: *store
+    depends_on:
+      - rustfs
+    restart: "no"
+
+  zoo:
+    image: turbo-zoo
+    environment:
+      <<: *store
+      TURBO_DEMO_TOKEN: ${TURBO_DEMO_TOKEN:-}
+      TURBO_DEMO_USER: ${TURBO_DEMO_USER:-zoo}
+      TURBO_KSERVE_CATALOG_PREFETCH: ${TURBO_ZOO_PREFETCH:-}
+    ports:
+      - "${TURBO_ZOO_BIND:-0.0.0.0}:${TURBO_ZOO_PAGE_PORT:-8080}:8080"
+      - "${TURBO_ZOO_BIND:-0.0.0.0}:${TURBO_ZOO_GRPC_PORT:-8081}:8081"
+    volumes:
+      - zoo-home:/zoo
+    depends_on:
+      bucket:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  rustfs-data:
+  zoo-home:

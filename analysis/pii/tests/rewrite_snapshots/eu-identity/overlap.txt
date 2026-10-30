@@ -1,0 +1,12 @@
+MASKED	IBAN DE89 3704 0044 0532 0130 00 holds a phone; NHS *** *** **** is one too.
+
+MASK_ALL	IBAN DE89 3704 0044 0532 0130 00 holds a phone; NHS ############ is one too.
+
+REWRITE	pseudonymize	OK	IBAN DE89 3704 0044 0532 0130 00 holds a phone; NHS UK-NHS-1 is one too.
+
+LABEL	pseudonymize	52	64	52	60	UK-NHS-1
+REWRITE	hmac	OK	IBAN DE89 3704 0044 0532 0130 00 holds a phone; NHS UK-NHS-8ab298778f89ab6b is one too.
+
+LABEL	hmac	52	64	52	75	UK-NHS-8ab298778f89ab6b
+AUDIT	uk-nhs	1	1	UK-NHS-8ab298778f89ab6b
+AUDIT_REPORT	uk-nhs: 1 mentions, 1 distinct [UK-NHS-8ab298778f89ab6b]

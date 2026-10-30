@@ -292,7 +292,7 @@ fn device_bundle() -> PathBuf {
         if let Ok(p) = std::env::var(var)
             && !p.is_empty()
         {
-            return PathBuf::from(p);
+            return turbo_pins::require(PathBuf::from(p));
         }
     }
     bert()

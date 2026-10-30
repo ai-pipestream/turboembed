@@ -287,8 +287,9 @@ model's `name`, the `text`, `AnalyzeOptions` (the fields of
 and `int8_ranges` among them, plus `sparse_top_k`, `sparse_floor`, and
 `token_stride`), `output`
 (`ANALYZE_OUTPUT_VECTORS` by default, `ANALYZE_OUTPUT_SPARSE_TERMS` for
-learned sparse lexical expansion, or `ANALYZE_OUTPUT_TOKEN_VECTORS` for
-per-token contextual vectors and encoder window spans), and `offsets`
+learned sparse lexical expansion, `ANALYZE_OUTPUT_TOKEN_VECTORS` for
+per-token contextual vectors and encoder window spans, or
+`ANALYZE_OUTPUT_VECTOR_CODES` for the pooled vector's quantized codes), and `offsets`
 (`OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, or `OFFSET_MODE_CODE_POINT` for
 span offsets on `SparseTermsResult` and `TokenVectorsResult`). Every
 document answers exactly once as an `AnalyzeStreamResponse` tagged with
@@ -301,15 +302,21 @@ its id:
   model's `dim`; another length is the document's
   `TURBO_E_INVALID_ARGUMENT` naming field 8, and documents batch together
   only under the same table. A `quantization` other than 0 or
-  `TURBO_QUANTIZE_NONE` with another `output` is
-  `TURBO_E_UNSUPPORTED_OPTION` naming field 7;
+  `TURBO_QUANTIZE_NONE` with a sparse-terms or token-vectors `output`
+  is `TURBO_E_UNSUPPORTED_OPTION` naming field 7, as is a codes output
+  whose `quantization` names f32;
 - `SparseTermsResult` (`ANALYZE_OUTPUT_SPARSE_TERMS`, issue #917),
   computed on the model's pooled sessions with its MLM head (`SPLADE`
   max-log pooling) and matching `SparseAnnotator`;
 - `TokenVectorsResult` (`ANALYZE_OUTPUT_TOKEN_VECTORS`, issue #917),
   computed on the model's pooled sessions (with optional linear
   `ProjectionHead` for `ColBERT` / late-interaction bundles) and matching
-  `VectorAnnotator` (`SubwordVectors` and `TokenVectorWindows`); or
+  `VectorAnnotator` (`SubwordVectors` and `TokenVectorWindows`);
+- `VectorCodesResult` (`ANALYZE_OUTPUT_VECTOR_CODES`, issue #1601), the
+  pooled vector's codes as their own outcome: the same bytes
+  `AnalyzeVectors` carries under `TURBO_QUANTIZE_INT8` (with the
+  document's `int8_ranges` table) or `TURBO_QUANTIZE_UBINARY`, so a
+  client asks for codes without asking for vectors; or
 - `AnalyzeFailure` with the turbo status code, field and refusal the
   single-document call would carry.
 A failed document never ends the stream; unknown model, unknown option

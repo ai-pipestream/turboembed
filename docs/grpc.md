@@ -77,7 +77,7 @@ no way to stop a load part way.
 | `--tls-key FILE` | Server TLS private key in PEM format; requires `--tls-cert`. | Off (plaintext). |
 | `--tls-client-ca FILE` | Client CA bundle in PEM format for mutual TLS (mTLS); requires `--tls-cert` and `--tls-key`. Connections without a valid client certificate are refused during the TLS handshake. | Off. |
 | `--metrics-listen ADDR:PORT` | Serve Prometheus metrics in text exposition format (`0.0.4`) on `GET /metrics` over HTTP. | Off. |
-| `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` is set. |
+| `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` or `--zoo` is set. |
 | `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
 | `--max-stream-bytes N` | The most bytes one call's request carries in all, every frame and its five-byte prefix counted; the frame that passes it ends the call with `RESOURCE_EXHAUSTED`. At least `--max-message-bytes`. | 2 GiB. |
@@ -85,6 +85,9 @@ no way to stop a load part way.
 | `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
 | `--catalog-index FILE` | The zoo index the catalog serves. Needs `--catalog-dir`. | The built-in index. |
+| `--catalog-store URL` | The store installs read first and fill: `file:///dir` or `s3://bucket/prefix` (docs/grpc-catalog.md). Needs `--catalog-dir`. | No store: each file is fetched from its address. |
+| `--zoo` | Zoo mode (docs/grpc-catalog.md, Zoo mode): any caller records an acceptance and installs, a `ReadModelFile` of a permitted artifact not yet installed fetches it first, and the server may start with zero models. Needs `--catalog-dir`. | Off. |
+| `--catalog-prefetch permissive` | Install every permissive artifact in the background at start (docs/grpc-catalog.md, Prefetch). Needs `--catalog-dir`. | Off. |
 | `--training-dir PATH` | The directory static models are trained into, one sealed bundle per child, made when it does not exist (docs/grpc-training.md). | No training directory: every training call but `ListTeachers` refuses with `UNIMPLEMENTED`. |
 | `--sink-endpoint URI` | Forward every document an `AnalyzeStream` completes to the `TurboSinkService` at this address, such as `http://sink:8081` (docs/grpc-sink.md). | No forwarding. |
 | `--sink-queue-items N` | The most documents waiting for the sink; one more is dropped and counted. Needs `--sink-endpoint`. | 1024. |
@@ -162,6 +165,9 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_SINK_QUEUE_BYTES` | `--sink-queue-bytes` |
 | `TURBO_KSERVE_CATALOG_DIR` | `--catalog-dir` |
 | `TURBO_KSERVE_CATALOG_INDEX` | `--catalog-index` |
+| `TURBO_KSERVE_CATALOG_STORE` | `--catalog-store` |
+| `TURBO_KSERVE_CATALOG_PREFETCH` | `--catalog-prefetch` |
+| `TURBO_KSERVE_ZOO` | `--zoo` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 | `TURBO_KSERVE_TRAINING_DIR` | `--training-dir` |
 
 ```
