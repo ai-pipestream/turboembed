@@ -5,7 +5,6 @@ use turbo_analysis::Span;
 use super::super::Tagset;
 use super::entity::{Bracket, BracketKind, entity_brackets, misc_attribute};
 use super::{COLUMNS, Cluster, CorefDocument, CorefError, CorefSentence, CorefToken, CorefWarning, Mention, SPEAKER};
-use crate::java_map::JavaHashMap;
 use crate::source::{Field, Line, Piece};
 
 /// A mention while it is read: its tokens and brackets.
@@ -23,15 +22,14 @@ pub(super) struct Builder<'a> {
     sentences: Vec<CorefSentence<'a>>,
     tokens: Vec<CorefToken<'a>>,
     warnings: Vec<CorefWarning>,
-    /// The open mentions of each entity, innermost last (`openStarts`). It
-    /// is a model of the Java `HashMap` because the error for a mention
-    /// left open names the first entity in that map's order.
-    open: JavaHashMap<&'a str, Vec<(u32, Bracket<'a>)>>,
+    /// The open mentions of each entity in first-seen entity order,
+    /// innermost last.
+    open: Vec<Vec<(u32, Bracket<'a>)>>,
     /// The number of mentions open in `open`, so a boundary with none open
-    /// does not walk the map, whose keys are every entity opened so far.
+    /// does not walk the open list.
     open_mentions: usize,
     /// The finished mentions of each entity, entities in the order they
-    /// first appeared (`entities`, a `LinkedHashMap`).
+    /// first appeared.
     entities: Vec<(&'a str, Vec<Pending<'a>>)>,
     entity_index: HashMap<&'a str, usize>,
     /// The first token of the sentence being read, its speaker, the next
@@ -51,7 +49,7 @@ impl<'a> Builder<'a> {
             sentences: Vec::new(),
             tokens: Vec::new(),
             warnings: Vec::new(),
-            open: JavaHashMap::new(),
+            open: Vec::new(),
             open_mentions: 0,
             entities: Vec::new(),
             entity_index: HashMap::new(),
@@ -105,14 +103,14 @@ impl<'a> Builder<'a> {
         });
     }
 
-    /// `rejectOpenMentions`: the first entity in `HashMap` order that has a
+    /// `rejectOpenMentions`: the first entity in first-seen order that has a
     /// mention open.
     fn reject_open(&self, error: impl FnOnce(String) -> CorefError) -> Result<(), CorefError> {
         if self.open_mentions == 0 {
             return Ok(());
         }
-        match self.open.iter().find(|(_, open)| !open.is_empty()) {
-            Some((entity, _)) => Err(error((*entity).to_owned())),
+        match self.entities.iter().zip(&self.open).find(|(_, open)| !open.is_empty()) {
+            Some(((entity, _), _)) => Err(error((*entity).to_owned())),
             None => Ok(()),
         }
     }
@@ -189,33 +187,34 @@ impl<'a> Builder<'a> {
         let key = piece_text(&b.entity);
         match b.kind {
             BracketKind::Single => {
-                self.entity(key).push(Pending { first: token, last: token, open: b, close: None });
+                let at = self.entity_slot(key);
+                self.entities[at].1.push(Pending { first: token, last: token, open: b, close: None });
             }
             BracketKind::Open => {
-                self.entity(key);
-                // Java's `computeIfAbsent(id, ...).add(start)`: resizes and
-                // inserts at the head of a bin as `merge` does.
-                self.open.merge(key, vec![(token, b)], |open, new| open.extend(new));
+                let at = self.entity_slot(key);
+                self.open[at].push((token, b));
                 self.open_mentions += 1;
             }
             BracketKind::Close => {
-                let Some((first, open)) = self.open.get_mut(key).and_then(Vec::pop) else {
+                let Some((first, open)) = self.entity_index.get(key).and_then(|&at| self.open[at].pop()) else {
                     return Err(CorefError::NotOpen { line, entity: key.to_owned() });
                 };
                 self.open_mentions -= 1;
-                self.entity(key).push(Pending { first, last: token, open, close: Some(b) });
+                let at = self.entity_slot(key);
+                self.entities[at].1.push(Pending { first, last: token, open, close: Some(b) });
             }
         }
         Ok(())
     }
 
-    /// The finished mentions of an entity, added in first-seen order.
-    fn entity(&mut self, key: &'a str) -> &mut Vec<Pending<'a>> {
-        let at = *self.entity_index.entry(key).or_insert_with(|| {
+    /// The index of an entity in `entities` and `open`, allocated in
+    /// first-seen order.
+    fn entity_slot(&mut self, key: &'a str) -> usize {
+        *self.entity_index.entry(key).or_insert_with(|| {
+            self.open.push(Vec::new());
             self.entities.push((key, Vec::new()));
             self.entities.len() - 1
-        });
-        &mut self.entities[at].1
+        })
     }
 
     /// `chains`: the mentions in text order, the longer first at one start

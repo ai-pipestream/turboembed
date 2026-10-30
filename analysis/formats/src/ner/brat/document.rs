@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 
 use super::annotation::{BratAnnotation, Parsed, parse_annotations};
 use crate::error::FormatError;
-use crate::java_map::put_order;
 use crate::masc::java::decode_utf8;
 use crate::source::{check_len, compare_utf16};
 
@@ -61,9 +60,6 @@ impl BratDocument {
                 annotations[i].note = n.note;
             }
         }
-        let (order, _) = put_order(annotations.iter().map(|a| a.id.as_str()));
-        let mut slots: Vec<Option<BratAnnotation>> = annotations.into_iter().map(Some).collect();
-        let annotations = order.into_iter().map(|i| slots[i].take().expect("each key once")).collect();
         Ok(BratDocument { id, text, annotations })
     }
 
