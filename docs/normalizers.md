@@ -51,6 +51,124 @@ as a pipeline step via `NormalizeStep<N>`, or inside a composed `Chain`
 | `SpellCorrect` (`SpellCorrectMode`), `ContextSpellCorrector` (`SymSpell`, `ConfusableSet`) | `analysis/normalize/src/spellcheck/mod.rs` | Rewrites high-confidence spelling errors into a derived `View` and records `Corrections` (`turbo:corrections`) |
 | `AssetFold` | `analysis/normalize/src/assets/mod.rs` | Folds inline Base64 data URIs, PEM blocks, hex dumps, inline SVGs, and JSON blobs out of derived views while recording `Assets` (`turbo:assets`) and `Placeholders` (`turbo:placeholders`) |
 
+### Quotes
+
+`Quotes` (`turbo:normalize:quotes`) replaces the single quotation marks and
+apostrophes of `SINGLE_QUOTES` with `U+0027` (`'`) and the double quotation
+marks of `DOUBLE_QUOTES` with `U+0022` (`"`).
+
+Behavior notes: `U+2E42` (`DOUBLE LOW-REVERSED-9 QUOTATION MARK`) carries the
+Unicode `Quotation_Mark` property and folds to `U+0022` (`"`). CJK corner
+brackets (`U+300C..=U+300F`, `U+FE41..=U+FE44`, `U+FF62`, `U+FF63`) are
+preserved so opening and closing title/emphasis bracket directionality is not
+lost.
+
+### Bullets
+
+`Bullets` (`turbo:normalize:bullets`) replaces `U+2022` (`BULLET`), `U+2023`
+(`TRIANGULAR BULLET`), `U+2043` (`HYPHEN BULLET`), `U+204C` (`BLACK LEFTWARDS
+BULLET`), `U+204D` (`BLACK RIGHTWARDS BULLET`), `U+2219` (`BULLET OPERATOR`),
+`U+25D8` (`INVERSE BULLET`), `U+25E6` (`WHITE BULLET`), `U+29BE` (`CIRCLED
+WHITE BULLET`), and `U+29BF` (`CIRCLED BULLET`) with a single ASCII space.
+
+Behavior notes: All ten Unicode list-marker bullet characters fold to `" "`,
+while `U+00B7` (`MIDDLE DOT`, used inside Catalan words), ornamental floral
+bullets (`U+2619`, `U+2765`, `U+2767`), and `U+1F7DB` remain untouched.
+
+### Ellipsis
+
+`Ellipsis` (`turbo:normalize:ellipsis`) replaces `U+2026` (`HORIZONTAL
+ELLIPSIS`) and `U+FE19` (`PRESENTATION FORM FOR VERTICAL HORIZONTAL ELLIPSIS`)
+with `"..."`, `U+2025` (`TWO DOT LEADER`) and `U+FE30` (`PRESENTATION FORM FOR
+VERTICAL TWO DOT LEADER`) with `".."`, and `U+2024` (`ONE DOT LEADER`) with
+`"."`.
+
+Behavior notes: Each leader and vertical presentation ellipsis expands to its
+NFKC compatibility dot sequence with per-character source alignment, while
+`U+22EF` (`MIDLINE HORIZONTAL ELLIPSIS`) is preserved as a mathematical symbol.
+
+### Invisible characters
+
+`Invisible` (`turbo:normalize:invisible`) deletes the 26 format and ignorable
+code points in `INVISIBLE`: `U+00AD` (`SOFT HYPHEN`), `U+061C` (`ARABIC LETTER
+MARK`), `U+200B` (`ZERO WIDTH SPACE`), `U+200E..=U+200F`, `U+202A..=U+202E`,
+`U+2060..=U+2064`, `U+2066..=U+206F` (isolates and deprecated format controls),
+and `U+FEFF` (`BYTE ORDER MARK`).
+
+Behavior notes: `U+206A..=U+206F` (deprecated Unicode 3.0 `Cf` format controls)
+are stripped alongside zero-width spaces and directional controls, whereas
+`U+200C` (`ZWNJ`), `U+200D` (`ZWJ`), `U+180E` (`MONGOLIAN VOWEL SEPARATOR`),
+and variation selectors are preserved so shaping and emoji ZWJ sequences remain
+intact.
+
+### Dehyphenation
+
+`Dehyphenate` (`turbo:normalize:dehyphenate`) rejoins words split across a
+single line break after a hyphen (`U+002D`, `U+00AD`, or `U+2010`) and optional
+next-line indentation when both sides are letters.
+
+Behavior notes: The letter preceding the line-break hyphen may be followed by
+combining marks (`General_Category = M`), so decomposed (`NFD`) Latin words
+(`"cafe\u{0301}-\nteria"`) and Indic words ending in combining vowel signs
+rejoin cleanly across line breaks.
+
+### URLs and e-mail addresses (`url/`)
+
+`Urls` and `BoundedUrls` (`analysis/normalize/src/url/mod.rs`) strip or replace
+HTTP(S) URLs and e-mail addresses while recording `Placeholders`
+(`turbo:placeholders`).
+
+Behavior notes: `BoundedUrls` recognizes internationalized local parts and
+domains (including non-ASCII letters and combining marks in e-mail addresses)
+when delimited by word/whitespace boundaries.
+
+### English contractions (`contractions/`)
+
+`EnglishContractions` and `EnglishContractionsWithPos`
+(`analysis/normalize/src/contractions/mod.rs`) expand English clitic
+contractions (`can't` -> `can not`, `won't` -> `will not`, `shan't` -> `shall
+not`, `<aux>n't` -> `<aux> not`, `let's` -> `let us`, `y'all` -> `you all`, and
+unambiguous `'re`, `'ve`, `'ll`, `'m`) while preserving case.
+
+Behavior notes: `y'all` expands to `you all` (matching stem capitalization) and
+demonstrative/interrogative subjects (`here`, `there`, `these`, `those`,
+`this`, `what`, `where`, `which`) expand with `'re`, `'ve`, and `'ll`.
+
+### Symbols (`symbols/`)
+
+`SymbolJoiner` and `SymbolWords` (`analysis/normalize/src/symbols/mod.rs`) join
+multi-character technical symbol tokens (`DEFAULT_SYMBOL_SEQUENCES`) and expand
+isolated symbols (`&`, `+`, `@`, `%`, `§`, `¶`, `°`, `©`, `®`, `™`) to English
+words.
+
+Behavior notes: `SymbolWords` and `SymbolJoiner` expand standalone mapped
+symbols delimited by whitespace or text boundaries in running text while leaving
+variation-selector emoji sequences (`©\u{FE0F}`, `™\u{FE0F}`) and compound
+tokens (`AT&T`, `R&D`) intact.
+
+### Confusable skeleton (`analysis/normalize/src/confusables.rs`)
+
+`ConfusableSkeleton` (`turbo:normalize:confusable-skeleton`) computes the
+UTS #39 section 4 skeleton (`NFD` -> confusable prototype mapping -> `NFD`)
+with per-character alignment.
+
+Behavior notes: Prototype mappings are generated from Unicode 18.0.0
+`confusables.txt` via `turbo_unicode`.
+
+### Case folding (`case_fold.rs`)
+
+`CaseFold` (`turbo:normalize:case-fold`) performs root lowercasing
+(`CaseFold::lowercase()`), Turkic locale lowercasing
+(`CaseFold::turkish_lowercase()`, `CaseFold::azerbaijani_lowercase()`), or
+Unicode simple/full case folding (`CaseFold::simple()`, `CaseFold::full()`,
+`CaseFold::turkic_simple()`, `CaseFold::turkic_full()`).
+
+Behavior notes: `CaseFold::turkish_lowercase()` and
+`CaseFold::azerbaijani_lowercase()` evaluate the Unicode `Before_Dot`,
+`After_I`, and `Final_Sigma` context conditions on the original source text so
+`I + U+0307` folds to `i`, `I` without a dot above folds to `U+0131` (`ı`), and
+Greek final sigma (`U+03C2`) is selected at word ends.
+
 ## Diagnostic and extraction layers
 
 - **Spelling (`SymSpell`, `ConfusableSet`, `ContextSpellAnnotator`,
