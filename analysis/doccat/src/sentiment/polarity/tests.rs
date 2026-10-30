@@ -334,3 +334,16 @@ fn hybrid_zero_head_weight_preserves_vader_compound_decision_on_neutral_heavy_se
         .unwrap();
     assert_eq!(sent_cats.best_category(0), "positive");
 }
+
+#[test]
+fn fit_handles_oversized_and_usize_max_batch_size_without_capacity_overflow() {
+    let (train, dev) = synthetic_polarity_dataset();
+    for batch_size in [usize::MAX, usize::MAX / 2, 1_000_000] {
+        let config = PolarityFitConfig { epochs: 2, batch_size, warmup_steps: 0, ..PolarityFitConfig::default() };
+        let (head, report) = PolarityVectorHead::fit_with_dev(&train, &dev, &config, None).unwrap();
+        assert_eq!(head.dim(), 4);
+        assert_eq!(report.epochs_run, 2);
+        assert_eq!(report.steps_run, 2);
+        assert!(report.final_train_loss.is_finite());
+    }
+}

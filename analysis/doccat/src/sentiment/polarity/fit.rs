@@ -161,10 +161,12 @@ impl PolarityVectorHead {
 
         let mut order: Vec<usize> = (0..train.len()).collect();
         let cap = config.batch_size.min(train.len());
-        let mut x_batch = Vec::with_capacity(cap * dim);
+        let x_cap = cap.checked_mul(dim).ok_or("polarity batch buffer capacity overflow")?;
+        let logit_cap = cap.checked_mul(POLARITY_COUNT).ok_or("polarity batch logit capacity overflow")?;
+        let mut x_batch = Vec::with_capacity(x_cap);
         let mut targets = Vec::with_capacity(cap);
-        let mut logits = Vec::with_capacity(cap * POLARITY_COUNT);
-        let mut d_logits = Vec::with_capacity(cap * POLARITY_COUNT);
+        let mut logits = Vec::with_capacity(logit_cap);
+        let mut d_logits = Vec::with_capacity(logit_cap);
 
         let mut best_weights = params[0].clone();
         let mut best_biases: [f32; POLARITY_COUNT] = params[1].as_slice().try_into().unwrap();
