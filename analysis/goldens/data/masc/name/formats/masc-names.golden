@@ -1,27 +1,27 @@
 golden 1
-generator	turbo-goldens-java	1
+generator	turbo-formats	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	formats/masc-names	23556	23556	307a8a39da669c09c1867b6d06ce41a8049ff821fdedbbed419842bc76077c83
 annotator	opennlp.tools.formats.masc.MascNamedEntitySampleStream	read
-layer	turbo:samples	document	8	pass:u32	written:str
-0	\n<START:person> Ada Lovelace <END> met <START:person> Charles <END> Babbage in <START:location> London <END> in <START:date> June <END> 1833 .
+layer	turbo:samples	document	10	pass:u32	written:str
+0	\n<START:person> Ada Lovelace <END> met <START:person> Charles Babbage <END> in <START:location> London <END> in <START:date> June 1833 <END> .
 0	\nShe wrote notes on the <START:org> Analytical Engine for <END> <START:person> Babbage <END> .
-0	\n<START:thing> <END> Nothing here .
+0	\n<START:thing> Nothing <END> here .
 0	\nOne <START:a> two three four <END> <START:e> five <END> <START:d> six <END> .
-1	\n<START:person> Ada Lovelace <END> met <START:person> Charles <END> Babbage in <START:location> London <END> in <START:date> June <END> 1833 .
+0	\na <START:b> b c d <END> .
+1	\n<START:person> Ada Lovelace <END> met <START:person> Charles Babbage <END> in <START:location> London <END> in <START:date> June 1833 <END> .
 1	\nShe wrote notes on the <START:org> Analytical Engine for <END> <START:person> Babbage <END> .
-1	\n<START:thing> <END> Nothing here .
+1	\n<START:thing> Nothing <END> here .
 1	\nOne <START:a> two three four <END> <START:e> five <END> <START:d> six <END> .
+1	\na <START:b> b c d <END> .
 end	turbo:samples
-layer	turbo:read-errors	document	2	pass:u32	after:u32	class:str	message:str
-0	4	java.lang.RuntimeException	name spans [1..4) b and [1..4) c are overlapped in file: null, sentence: [a, b, c, d, .]
-1	8	java.lang.RuntimeException	name spans [1..4) b and [1..4) c are overlapped in file: null, sentence: [a, b, c, d, .]
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
 end	turbo:read-errors
 layer	turbo:open-errors	document	0	class:str	message:str
 end	turbo:open-errors
-layer	turbo:sample-tokens	document	62	sample:u32	text:str
+layer	turbo:sample-tokens	document	72	sample:u32	text:str
 0	Ada
 0	Lovelace
 0	met
@@ -53,57 +53,69 @@ layer	turbo:sample-tokens	document	62	sample:u32	text:str
 3	five
 3	six
 3	.
-4	Ada
-4	Lovelace
-4	met
-4	Charles
-4	Babbage
-4	in
-4	London
-4	in
-4	June
-4	1833
+4	a
+4	b
+4	c
+4	d
 4	.
-5	She
-5	wrote
-5	notes
-5	on
-5	the
-5	Analytical
-5	Engine
-5	for
+5	Ada
+5	Lovelace
+5	met
+5	Charles
 5	Babbage
+5	in
+5	London
+5	in
+5	June
+5	1833
 5	.
-6	Nothing
-6	here
+6	She
+6	wrote
+6	notes
+6	on
+6	the
+6	Analytical
+6	Engine
+6	for
+6	Babbage
 6	.
-7	One
-7	two
-7	three
-7	four
-7	five
-7	six
+7	Nothing
+7	here
 7	.
+8	One
+8	two
+8	three
+8	four
+8	five
+8	six
+8	.
+9	a
+9	b
+9	c
+9	d
+9	.
 end	turbo:sample-tokens
-layer	turbo:names	document	20	sample:u32	start:u32	end:u32	type:str	nulls:u32
+layer	turbo:names	document	22	sample:u32	start:u32	end:u32	type:str	nulls:u32
 0	0	2	person	0
-0	3	4	person	0
+0	3	5	person	0
 0	6	7	location	0
-0	8	9	date	0
+0	8	10	date	0
 1	5	8	org	0
 1	8	9	person	0
-2	0	0	thing	0
+2	0	1	thing	0
 3	1	4	a	0
 3	4	5	e	0
 3	5	6	d	0
-4	0	2	person	0
-4	3	4	person	0
-4	6	7	location	0
-4	8	9	date	0
-5	5	8	org	0
-5	8	9	person	0
-6	0	0	thing	0
-7	1	4	a	0
-7	4	5	e	0
-7	5	6	d	0
+4	1	4	b	0
+5	0	2	person	0
+5	3	5	person	0
+5	6	7	location	0
+5	8	10	date	0
+6	5	8	org	0
+6	8	9	person	0
+7	0	1	thing	0
+8	1	4	a	0
+8	4	5	e	0
+8	5	6	d	0
+9	1	4	b	0
 end	turbo:names
