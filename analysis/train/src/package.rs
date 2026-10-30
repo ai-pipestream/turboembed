@@ -144,6 +144,7 @@ impl Manifest {
             "OpenNLP-Version" => Some(&self.version),
             "Timestamp" => Some(&self.timestamp),
             "Manifest-Version" => Some(&self.manifest_version),
+            "Turbo-Format-Version" => Some("1"),
             _ => self.entries.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str()),
         }
     }
@@ -158,6 +159,7 @@ impl Manifest {
             ("OpenNLP-Version", &self.version),
             ("Timestamp", &self.timestamp),
             ("Component-Name", &self.component_name),
+            ("Turbo-Format-Version", "1"),
         ];
         entries.extend(self.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())));
         entries.sort_by(|a, b| turbo_jvm::chars::compare(a.0, b.0));

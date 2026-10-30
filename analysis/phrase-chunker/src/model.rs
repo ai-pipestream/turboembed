@@ -159,10 +159,10 @@ impl ChunkerModel {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    fn model_with_outcome(outcome: turbo_train::JavaString) -> ModelFile {
+    fn model_with_outcome_and_component(component: &str, outcome: turbo_train::JavaString) -> ModelFile {
         use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
         let events = [Event::from_strs(outcome, &["w=a"]), Event::from_strs("O", &["w=b"])];
         let mut params = TrainingParameters::new();
@@ -170,9 +170,59 @@ mod tests {
         params.put(Key::CUTOFF, 0);
         let (model, _) =
             turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
-        let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
+        let mut package = ModelPackage::new(Manifest::new(component, "en", 0));
         package.add_entry(MODEL_ENTRY_NAME, turbo_train::write_gis(&model).unwrap());
         ModelFile::from_trained_archive(package.to_bytes()).unwrap()
+    }
+
+    fn model_with_outcome(outcome: turbo_train::JavaString) -> ModelFile {
+        model_with_outcome_and_component(COMPONENT_NAME, outcome)
+    }
+
+    pub(crate) fn test_fixture_model() -> ChunkerModel {
+        use turbo_sequence::Features;
+        use turbo_sequence::chunker::TokenTag;
+        use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
+        let sentences: &[&[(&str, &str, &str)]] = &[
+            &[
+                ("The", "DT", "B-NP"),
+                ("cat", "NN", "I-NP"),
+                ("sat", "VBD", "B-VP"),
+                ("on", "IN", "B-PP"),
+                ("the", "DT", "B-NP"),
+                ("mat", "NN", "I-NP"),
+                (".", ".", "O"),
+            ],
+            &[
+                ("Very", "RB", "B-ADJP"),
+                ("good", "JJ", "I-ADJP"),
+                ("because", "IN", "B-SBAR"),
+                ("dogs", "NN", "B-NP"),
+                ("bark", "VBD", "B-VP"),
+                (".", ".", "O"),
+            ],
+        ];
+        let mut events = Vec::new();
+        let mut feats = Features::new();
+        for sent in sentences {
+            let seq: Vec<TokenTag<'_>> = sent.iter().map(|&(token, tag, _)| TokenTag { token, tag }).collect();
+            let priors: Vec<&str> = sent.iter().map(|&(_, _, out)| out).collect();
+            for i in 0..seq.len() {
+                feats.clear();
+                DefaultChunkerContext.features(&mut feats, i, &seq, &priors[..i]);
+                let ctx: Vec<String> = (0..feats.len()).map(|k| feats.to_string_lossy(k)).collect();
+                let ctx_refs: Vec<&str> = ctx.iter().map(String::as_str).collect();
+                events.push(Event::from_strs(priors[i], &ctx_refs));
+            }
+        }
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 20);
+        params.put(Key::CUTOFF, 0);
+        let (model, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
+        package.add_entry(MODEL_ENTRY_NAME, turbo_train::write_gis(&model).unwrap());
+        ChunkerModel::from_trained_archive(package.to_bytes()).unwrap()
     }
 
     #[test]
@@ -188,22 +238,16 @@ mod tests {
         assert!(ChunkerModel::open(text).is_ok());
     }
 
-    fn fixtures() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures")
-    }
-
-    fn open_fixture(name: &str) -> Result<ChunkerModel, ModelError> {
-        let bytes = std::fs::read(fixtures().join(name)).unwrap();
-        ChunkerModel::from_trained_archive(bytes)
-    }
-
     #[test]
-    fn reads_the_fixture_model() {
-        let m = open_fixture("chunker-fixture.bin").unwrap();
+    fn reads_the_trained_fixture_model_and_rejects_legacy_bin() {
+        let legacy = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin");
+        let legacy_bytes = std::fs::read(legacy).unwrap();
+        assert!(ChunkerModel::from_trained_archive(legacy_bytes).is_err());
+
+        let m = test_fixture_model();
         assert_eq!(m.language(), "en");
         assert_eq!(m.opennlp_version(), "3.0.0-SNAPSHOT");
         assert_eq!(m.beam_size(), 10);
-        assert_eq!(m.sha256().to_hex(), "cc68fdbac1ee51695e232e59ac02754dde51e5fb1dd50d15c565c805204f23b0");
         assert_eq!(m.model_ref().id, "opennlp:ChunkerME:en");
         assert_eq!(m.model_ref().revision, "3.0.0-SNAPSHOT");
         assert_eq!(m.tagset().name, "chunk");
@@ -223,17 +267,17 @@ mod tests {
 
     #[test]
     fn beam_sizes() {
-        let m = open_fixture("chunker-fixture.bin").unwrap();
+        let m = test_fixture_model();
         assert_eq!(m.with_beam_size(1).unwrap().beam_size(), 1);
-        let m = open_fixture("chunker-fixture.bin").unwrap();
+        let m = test_fixture_model();
         assert!(matches!(m.with_beam_size(0), Err(ModelError::ZeroBeam)));
     }
 
     #[test]
     fn other_components_are_refused() {
-        let e = open_fixture("pos-fixture.bin").unwrap_err();
+        let e = ChunkerModel::open(model_with_outcome_and_component("POSTaggerME", "B".into())).unwrap_err();
         assert_eq!(e.to_string(), "chunker model: component \"POSTaggerME\" is not ChunkerME");
-        let e = open_fixture("en-plain.bin").unwrap_err();
+        let e = ChunkerModel::open(model_with_outcome_and_component("SentenceDetectorME", "B".into())).unwrap_err();
         assert_eq!(e.to_string(), "chunker model: component \"SentenceDetectorME\" is not ChunkerME");
     }
 }

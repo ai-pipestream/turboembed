@@ -41,6 +41,21 @@ impl ModelFile {
         let manifest = archive.entry(MANIFEST_ENTRY)?;
         let manifest = Properties::load(&manifest)
             .map_err(|error| Error::Entry { entry: MANIFEST_ENTRY.into(), error: Box::new(error) })?;
+        match manifest.get("Turbo-Format-Version") {
+            Some("1") => {}
+            Some(_) => {
+                return Err(Error::Manifest {
+                    key: "Turbo-Format-Version",
+                    message: "unsupported native archive format version",
+                });
+            }
+            None => {
+                return Err(Error::Manifest {
+                    key: "Turbo-Format-Version",
+                    message: "missing native archive format version",
+                });
+            }
+        }
         let version =
             manifest.get("OpenNLP-Version").ok_or(Error::Manifest { key: "OpenNLP-Version", message: "missing" })?;
         let major = major_version(version).ok_or(Error::Manifest {
@@ -197,7 +212,12 @@ mod tests {
 
     #[test]
     fn a_complete_manifest_opens() {
-        let z = stored_archive(MANIFEST_ENTRY, b"OpenNLP-Version=+3.0.0\nComponent-Name=X\nLanguage=en\n", b"", b"");
+        let z = stored_archive(
+            MANIFEST_ENTRY,
+            b"Turbo-Format-Version=1\nOpenNLP-Version=+3.0.0\nComponent-Name=X\nLanguage=en\n",
+            b"",
+            b"",
+        );
         let file = ModelFile::from_trained_archive(z).unwrap();
         assert_eq!(file.opennlp_version(), "+3.0.0");
         assert_eq!(file.component_name(), "X");
@@ -211,23 +231,40 @@ mod tests {
             ModelFile::from_trained_archive(z).unwrap_err().to_string(),
             "the archive has no entry \"manifest.properties\""
         );
-        assert_eq!(manifest_error("Component-Name=X\nLanguage=en\n"), "manifest property OpenNLP-Version: missing");
-        assert_eq!(manifest_error("OpenNLP-Version=2.5.4\nLanguage=en\n"), "manifest property Component-Name: missing");
-        assert_eq!(manifest_error("OpenNLP-Version=2.5.4\nComponent-Name=X\n"), "manifest property Language: missing");
         assert_eq!(
-            manifest_error("OpenNLP-Version=2.5\nComponent-Name=X\nLanguage=en\n"),
+            manifest_error("OpenNLP-Version=2.5.4\nComponent-Name=X\nLanguage=en\n"),
+            "manifest property Turbo-Format-Version: missing native archive format version"
+        );
+        assert_eq!(
+            manifest_error("Turbo-Format-Version=2\nOpenNLP-Version=3.0.0\nComponent-Name=X\nLanguage=en\n"),
+            "manifest property Turbo-Format-Version: unsupported native archive format version"
+        );
+        assert_eq!(
+            manifest_error("Turbo-Format-Version=1\nComponent-Name=X\nLanguage=en\n"),
+            "manifest property OpenNLP-Version: missing"
+        );
+        assert_eq!(
+            manifest_error("Turbo-Format-Version=1\nOpenNLP-Version=2.5.4\nLanguage=en\n"),
+            "manifest property Component-Name: missing"
+        );
+        assert_eq!(
+            manifest_error("Turbo-Format-Version=1\nOpenNLP-Version=2.5.4\nComponent-Name=X\n"),
+            "manifest property Language: missing"
+        );
+        assert_eq!(
+            manifest_error("Turbo-Format-Version=1\nOpenNLP-Version=2.5\nComponent-Name=X\nLanguage=en\n"),
             "manifest property OpenNLP-Version: not a version of the form major.minor.patch"
         );
         assert_eq!(
-            manifest_error("OpenNLP-Version=1.2.3-rc.1\nComponent-Name=X\nLanguage=en\n"),
+            manifest_error("Turbo-Format-Version=1\nOpenNLP-Version=1.2.3-rc.1\nComponent-Name=X\nLanguage=en\n"),
             "manifest property OpenNLP-Version: not a version of the form major.minor.patch"
         );
         assert_eq!(
-            manifest_error("OpenNLP-Version=4.0.0\nComponent-Name=X\nLanguage=en\n"),
+            manifest_error("Turbo-Format-Version=1\nOpenNLP-Version=4.0.0\nComponent-Name=X\nLanguage=en\n"),
             "manifest property OpenNLP-Version: only models of major version 0 to 3 are supported"
         );
         assert_eq!(
-            manifest_error("OpenNLP-Version=-1.0.0.0\nComponent-Name=X\nLanguage=en\n"),
+            manifest_error("Turbo-Format-Version=1\nOpenNLP-Version=-1.0.0.0\nComponent-Name=X\nLanguage=en\n"),
             "manifest property OpenNLP-Version: only models of major version 0 to 3 are supported"
         );
     }

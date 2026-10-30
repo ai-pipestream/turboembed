@@ -55,7 +55,8 @@ fn serialization_round_trip_preserves_scores_pretrained_and_adapter() {
             .unwrap();
     buf.clear();
     model_a.serialize(&mut buf).unwrap();
-    assert_eq!(&buf[2..2 + buf[1] as usize], b"ONLP-BLPT-5");
+    let len = u16::from_le_bytes([buf[0], buf[1]]) as usize;
+    assert_eq!(&buf[2..2 + len], b"TURBO-BLPT-5");
     let loaded_a = BilstmPosModel::from_trained_bytes(&buf).unwrap();
     let sent4 = ["The", "dog", "sat", "unseen"];
     assert_eq!(model_a.score(&sent4).unwrap(), loaded_a.score(&sent4).unwrap());
@@ -71,8 +72,9 @@ fn serialization_round_trip_preserves_one_and_two_layer_crf() {
         let model = BilstmPosTrainer::train(&tiny_corpus(), settings).unwrap();
         let mut buf = Vec::new();
         model.serialize(&mut buf).unwrap();
-        let expected_magic = if layers == 1 { b"ONLP-BLPT-2" } else { b"ONLP-BLPT-4" };
-        assert_eq!(&buf[2..2 + buf[1] as usize], expected_magic);
+        let expected_magic = if layers == 1 { b"TURBO-BLPT-2" } else { b"TURBO-BLPT-4" };
+        let len = u16::from_le_bytes([buf[0], buf[1]]) as usize;
+        assert_eq!(&buf[2..2 + len], expected_magic);
         let loaded = BilstmPosModel::from_trained_bytes(&buf).unwrap();
         assert!(loaded.is_crf());
         let sent = ["The", "dog", "sat"];

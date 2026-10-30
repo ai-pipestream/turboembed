@@ -146,7 +146,8 @@ fn pretrained_vectors_and_lexicon_separate_indistinguishable_words() {
 
     let mut buf = Vec::new();
     model.serialize(&mut buf).unwrap();
-    assert_eq!(&buf[2..2 + buf[1] as usize], b"ONLP-FFPT-2");
+    let len = u16::from_le_bytes([buf[0], buf[1]]) as usize;
+    assert_eq!(&buf[2..2 + len], b"TURBO-FFPT-2");
     let loaded = FeedforwardPosModel::from_trained_bytes(&buf).unwrap();
     assert_eq!(
         FeedforwardPosTagger::new(loaded).tag(&["aazqx", "eezqx", "zzzqx"]).unwrap(),

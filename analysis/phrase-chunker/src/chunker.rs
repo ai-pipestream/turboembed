@@ -199,17 +199,13 @@ impl Annotator for PhraseChunker {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Status, ViewId};
     use turbo_analysis_layers::{Sentences, TagSet};
 
     use super::*;
 
     fn fixture() -> PhraseChunker {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin");
-        let bytes = std::fs::read(path).unwrap();
-        PhraseChunker::new(ChunkerModel::from_trained_archive(bytes).unwrap())
+        PhraseChunker::new(crate::model::tests::test_fixture_model())
     }
 
     fn tagged<'a>(words: &[(&'a str, &'a str)]) -> Vec<TokenTag<'a>> {

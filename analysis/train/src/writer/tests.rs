@@ -49,10 +49,8 @@ fn an_outcome_with_a_lone_surrogate_is_written_as_write_utf_writes_it() {
     params.put(Key::ITERATIONS, 5);
     let model = crate::gis::train(&index, &params, &mut TrainingConfiguration::default()).unwrap();
     let bytes = write_gis(&model).unwrap();
-    // After "GIS", the int, the double and the outcome count: the class
-    // as writeUTF writes it, each surrogate as three bytes.
-    let at = 5 + 4 + 8 + 4;
-    assert_eq!(&bytes[at..at + 2], &[0, 11]);
+    let at = 2 + GIS_TYPE.len() + 4;
+    assert_eq!(&bytes[at..at + 2], &(11u16).to_le_bytes());
     assert_eq!(&bytes[at + 2..at + 13], b"R1\xED\xB8\x80_D0\xED\xA0\xBD");
     let read = MaxentModel::from_trained_bytes(&bytes).unwrap();
     assert_eq!(read.outcome(0), &class);
@@ -69,19 +67,19 @@ fn the_qn_and_perceptron_writers_write_a_lone_surrogate_outcome_as_write_utf_doe
         Event::from_strs("O", &["w0=x", "t0=_"]),
         Event::from_strs("O", &["w0=y", "t0=_"]),
     ];
-    for (algorithm, kind) in [(Algorithm::MaxentQn, &b"\0\x02QN"[..]), (Algorithm::Perceptron, b"\0\x0aPerceptron")] {
+    for (algorithm, kind_str) in [(Algorithm::MaxentQn, QN_TYPE), (Algorithm::Perceptron, PERCEPTRON_TYPE)] {
         let mut params = TrainingParameters::new();
         params.put(Key::ALGORITHM, algorithm.name());
         params.put(Key::ITERATIONS, 5);
         params.put(Key::CUTOFF, 0);
         let (model, _) = crate::trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
         let bytes = model.write().unwrap();
-        assert!(bytes.starts_with(kind), "{algorithm:?}");
-        // The outcome count, then the class as writeUTF writes it, each
-        // surrogate as three bytes.
-        let at = kind.len();
-        assert_eq!(&bytes[at..at + 4], &[0, 0, 0, 2], "{algorithm:?}");
-        assert_eq!(&bytes[at + 4..at + 6], &[0, 11], "{algorithm:?}");
+        let mut expected_prefix = Vec::from((kind_str.len() as u16).to_le_bytes());
+        expected_prefix.extend_from_slice(kind_str.as_bytes());
+        assert!(bytes.starts_with(&expected_prefix), "{algorithm:?}");
+        let at = expected_prefix.len();
+        assert_eq!(&bytes[at..at + 4], &2i32.to_le_bytes(), "{algorithm:?}");
+        assert_eq!(&bytes[at + 4..at + 6], &11u16.to_le_bytes(), "{algorithm:?}");
         assert_eq!(&bytes[at + 6..at + 17], b"R1\xED\xB8\x80_D0\xED\xA0\xBD", "{algorithm:?}");
         let read = MaxentModel::from_trained_bytes(&bytes).unwrap();
         assert_eq!(read.outcome(0), &class, "{algorithm:?}");
@@ -94,23 +92,23 @@ fn the_layout_is_persist_byte_for_byte() {
     let model = trained();
     let bytes = write_gis(&model).unwrap();
     let mut expect = Vec::new();
-    expect.extend_from_slice(&[0, 3, b'G', b'I', b'S']);
-    expect.extend_from_slice(&1i32.to_be_bytes());
-    expect.extend_from_slice(&1.0f64.to_bits().to_be_bytes());
-    expect.extend_from_slice(&3i32.to_be_bytes());
+    expect.extend_from_slice(&(GIS_TYPE.len() as u16).to_le_bytes());
+    expect.extend_from_slice(GIS_TYPE.as_bytes());
+    expect.extend_from_slice(&3i32.to_le_bytes());
     for o in ["yes", "no", "maybe"] {
-        expect.extend_from_slice(&(o.len() as u16).to_be_bytes());
+        expect.extend_from_slice(&(o.len() as u16).to_le_bytes());
         expect.extend_from_slice(o.as_bytes());
     }
     // Patterns in sorted order: a [0], b [0 1], d [0 2], c [1].
-    expect.extend_from_slice(&4i32.to_be_bytes());
+    expect.extend_from_slice(&4i32.to_le_bytes());
     for g in ["1 0", "1 0 1", "1 0 2", "1 1"] {
-        expect.extend_from_slice(&(g.len() as u16).to_be_bytes());
+        expect.extend_from_slice(&(g.len() as u16).to_le_bytes());
         expect.extend_from_slice(g.as_bytes());
     }
-    expect.extend_from_slice(&4i32.to_be_bytes());
+    expect.extend_from_slice(&4i32.to_le_bytes());
     for p in ["a", "b", "d", "c"] {
-        expect.extend_from_slice(&[0, 1, p.as_bytes()[0]]);
+        expect.extend_from_slice(&1u16.to_le_bytes());
+        expect.push(p.as_bytes()[0]);
     }
     assert_eq!(&bytes[..expect.len()], &expect[..]);
     assert_eq!(bytes.len(), expect.len() + 6 * 8);
@@ -134,7 +132,7 @@ fn long_strings_are_chunked_by_utf8_bytes() {
     let mut out = ModelOutput { bytes: Vec::new() };
     out.write_utf(&long).unwrap();
     let signature = b"CHUNKED-MODEL-PARAMS:2";
-    assert_eq!(&out.bytes[..2 + signature.len()], [&[0, signature.len() as u8][..], signature].concat());
+    assert_eq!(&out.bytes[..2 + signature.len()], [&(signature.len() as u16).to_le_bytes()[..], signature].concat());
     assert_eq!(out.bytes.len(), 2 + signature.len() + 2 + 65535 + 2 + 24465);
 }
 

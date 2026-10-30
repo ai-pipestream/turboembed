@@ -46,14 +46,14 @@ use crate::naive_bayes::NaiveBayesModel;
 use crate::perceptron::PerceptronModel;
 use crate::qn::QnModel;
 
-/// The type string `GISModelWriter.persist` starts with.
-pub const GIS_TYPE: &str = "GIS";
-/// The type string `QNModelWriter.persist` starts with.
-pub const QN_TYPE: &str = "QN";
-/// The type string `PerceptronModelWriter.persist` starts with.
-pub const PERCEPTRON_TYPE: &str = "Perceptron";
-/// The type string `NaiveBayesModelWriter.persist` starts with.
-pub const NAIVE_BAYES_TYPE: &str = "NaiveBayes";
+/// The type string `write_gis` starts with.
+pub const GIS_TYPE: &str = "TURBO-GIS-1";
+/// The type string `write_qn` starts with.
+pub const QN_TYPE: &str = "TURBO-QN-1";
+/// The type string `write_perceptron` starts with.
+pub const PERCEPTRON_TYPE: &str = "TURBO-PERCEPTRON-1";
+/// The type string `write_naive_bayes` starts with.
+pub const NAIVE_BAYES_TYPE: &str = "TURBO-NAIVE-BAYES-1";
 /// `ModelParameterChunker.SIGNATURE_CHUNKED_PARAMS`.
 pub const CHUNKED_SIGNATURE: &str = "CHUNKED-MODEL-PARAMS:";
 /// `writeUTF`'s limit on a string's modified UTF-8 bytes.
@@ -162,8 +162,6 @@ pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
 pub fn write_gis_writable(model: &dyn WritableModel) -> Result<Vec<u8>> {
     let mut out = ModelOutput { bytes: Vec::new() };
     out.write_utf(&JavaString::new(GIS_TYPE))?;
-    out.write_int(1);
-    out.write_double(1.0);
     write_body(&mut out, model)?;
     Ok(out.bytes)
 }
@@ -329,14 +327,13 @@ struct ModelOutput {
 
 impl ModelOutput {
     fn write_int(&mut self, i: i32) {
-        self.bytes.extend_from_slice(&i.to_be_bytes());
+        self.bytes.extend_from_slice(&i.to_le_bytes());
     }
 
     fn write_double(&mut self, d: f64) {
-        self.bytes.extend_from_slice(&d.to_bits().to_be_bytes());
+        self.bytes.extend_from_slice(&d.to_bits().to_le_bytes());
     }
 
-    /// `ModelParameterChunker.writeUTF`.
     fn write_utf(&mut self, s: &JavaString) -> Result<()> {
         if s.len() <= MAX_UTF_BYTES {
             self.write_utf_plain(s.as_bytes());
@@ -353,9 +350,8 @@ impl ModelOutput {
         Ok(())
     }
 
-    /// `DataOutputStream.writeUTF` of bytes known to fit.
     fn write_utf_plain(&mut self, bytes: &[u8]) {
-        self.bytes.extend_from_slice(&(bytes.len() as u16).to_be_bytes());
+        self.bytes.extend_from_slice(&(bytes.len() as u16).to_le_bytes());
         self.bytes.extend_from_slice(bytes);
     }
 }

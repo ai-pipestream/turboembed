@@ -248,10 +248,10 @@ mod tests {
         p.put(Key::ITERATIONS, 5);
         p.put(Key::CUTOFF, 0);
         for (algorithm, model_type) in [
-            (None, "GIS"),
-            (Some(Algorithm::MaxentQn), "QN"),
-            (Some(Algorithm::Perceptron), "Perceptron"),
-            (Some(Algorithm::NaiveBayes), "NaiveBayes"),
+            (None, "TURBO-GIS-1"),
+            (Some(Algorithm::MaxentQn), "TURBO-QN-1"),
+            (Some(Algorithm::Perceptron), "TURBO-PERCEPTRON-1"),
+            (Some(Algorithm::NaiveBayes), "TURBO-NAIVE-BAYES-1"),
         ] {
             if let Some(a) = algorithm {
                 p.put_str(Key::ALGORITHM, a.name());
