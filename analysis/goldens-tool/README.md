@@ -770,7 +770,8 @@ golden's `profilesCommit` record names that commit. The layers are
 private map by reflection), `turbo:profiles-similarity` (every ordered pair)
 and `turbo:profiles-neighbors` (`mostSimilar` of every place with the
 counts 1, 2 and the number of places). `analysis/geo/tests/profile_goldens.rs`
-rebuilds every layer and compares the doubles bit for bit.
+rebuilds every layer, with the places in code point order, and compares it
+with its own reviewed snapshots, doubles bit for bit.
 
 ## Evaluator goldens
 
