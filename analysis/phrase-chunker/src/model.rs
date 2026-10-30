@@ -227,13 +227,35 @@ pub(crate) mod tests {
 
     #[test]
     fn a_model_with_an_outcome_holding_half_a_surrogate_pair_is_refused() {
+        use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
         let lone = turbo_train::JavaString::from_utf16(&[0x42, 0xD83D]);
-        let file = model_with_outcome(lone.clone());
-        let classifier = file.entry(MODEL_ENTRY_NAME).unwrap();
-        assert!(classifier.windows(4).any(|w| w == b"B\xED\xA0\xBD"));
-        let e = ChunkerModel::open(file).unwrap_err();
-        assert!(matches!(&e, ModelError::OutcomeNotText(o) if *o == lone), "{e:?}");
-        assert!(e.to_string().contains("holds half of a surrogate pair"), "{e}");
+        let events = [Event::from_strs(lone.clone(), &["w=a"]), Event::from_strs("O", &["w=b"])];
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 1);
+        params.put(Key::CUTOFF, 0);
+        let (model, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        assert_eq!(turbo_train::write_gis(&model), Err(turbo_train::Error::UnpairedSurrogate));
+
+        // Hand-crafted CESU-8 surrogate bytes on the wire are also refused by the reader.
+        let valid_bytes = turbo_train::write_gis(
+            &turbo_train::gis::train_events(
+                &[Event::from_strs("BXYZ", &["w=a"]), Event::from_strs("O", &["w=b"])],
+                &params,
+                &mut TrainingConfiguration::default(),
+            )
+            .unwrap()
+            .0,
+        )
+        .unwrap();
+        let pos = valid_bytes.windows(4).position(|w| w == b"BXYZ").unwrap();
+        let mut bad_bytes = valid_bytes;
+        bad_bytes[pos..pos + 4].copy_from_slice(b"B\xED\xA0\xBD");
+        let mut package = ModelPackage::new(Manifest::new(COMPONENT_NAME, "en", 0));
+        package.add_entry(MODEL_ENTRY_NAME, bad_bytes);
+        let file = ModelFile::from_trained_archive(package.to_bytes()).unwrap();
+        assert!(ChunkerModel::open(file).is_err());
+
         let text = model_with_outcome(turbo_train::JavaString::new("B"));
         assert!(ChunkerModel::open(text).is_ok());
     }

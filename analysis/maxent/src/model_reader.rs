@@ -2,11 +2,9 @@
 //! `turbo-train` into a [`MaxentModel`], while keeping external legacy
 //! [`MaxentModel::read`] disabled under `#1511`.
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::error::{Error, Result};
-use crate::java_data::{CHUNKED_SIGNATURE, canonical_modified_utf8, decode_modified_utf8};
 use crate::java_string::JavaString;
 use crate::model::{MaxentModel, ModelKind, outcome_texts};
 
@@ -25,13 +23,13 @@ impl MaxentModel {
     /// archive entry).
     pub fn from_trained_bytes(bytes: &[u8]) -> Result<MaxentModel> {
         let mut r = NativeReader::new(bytes);
-        let type_string = r.read_chunked_utf()?;
-        let kind = match &*type_string {
-            b"TURBO-GIS-1" => ModelKind::Gis,
-            b"TURBO-QN-1" => ModelKind::Qn,
-            b"TURBO-PERCEPTRON-1" => ModelKind::Perceptron,
-            b"TURBO-NAIVE-BAYES-1" => ModelKind::NaiveBayes,
-            other => return Err(Error::ModelType(decode_modified_utf8(other).into())),
+        let type_string = r.read_utf()?;
+        let kind = match type_string {
+            "TURBO-GIS-1" => ModelKind::Gis,
+            "TURBO-QN-1" => ModelKind::Qn,
+            "TURBO-PERCEPTRON-1" => ModelKind::Perceptron,
+            "TURBO-NAIVE-BAYES-1" => ModelKind::NaiveBayes,
+            other => return Err(Error::ModelType(other.into())),
         };
 
         let outcome_count = read_count(&mut r, "outcome")?;
@@ -40,13 +38,13 @@ impl MaxentModel {
         }
         let mut outcomes: Vec<JavaString> = Vec::with_capacity(capacity(&r, outcome_count));
         for _ in 0..outcome_count {
-            outcomes.push(JavaString::from_checked(&r.read_chunked_utf()?));
+            outcomes.push(JavaString::new(r.read_utf()?));
         }
 
         let pattern_count = read_count(&mut r, "outcome pattern")?;
         let mut patterns: Vec<Pattern> = Vec::with_capacity(capacity(&r, pattern_count));
         for index in 0..pattern_count {
-            patterns.push(Pattern::parse(&r.read_chunked_utf()?, index, outcome_count)?);
+            patterns.push(Pattern::parse(r.read_utf()?.as_bytes(), index, outcome_count)?);
         }
 
         let predicate_count = read_count(&mut r, "predicate")?;
@@ -56,8 +54,8 @@ impl MaxentModel {
         }
         let mut predicates = HashMap::with_capacity_and_hasher(capacity(&r, predicate_count), Default::default());
         for index in 0..predicate_count {
-            let name = r.read_chunked_utf()?;
-            predicates.insert(Box::from(&*canonical_modified_utf8(&name)), index);
+            let name = JavaString::new(r.read_utf()?);
+            predicates.insert(Box::from(name.as_bytes()), index);
         }
 
         let parameters: usize = patterns
@@ -150,25 +148,11 @@ impl<'a> NativeReader<'a> {
         Ok(f64::from_le_bytes(self.take(8)?.try_into().unwrap()))
     }
 
-    fn read_utf(&mut self) -> Result<&'a [u8]> {
+    fn read_utf(&mut self) -> Result<&'a str> {
         let len = self.read_u16()? as usize;
-        self.take(len)
-    }
-
-    fn read_chunked_utf(&mut self) -> Result<Cow<'a, [u8]>> {
-        let first = self.read_utf()?;
-        let Some(rest) = first.strip_prefix(CHUNKED_SIGNATURE) else {
-            return Ok(Cow::Borrowed(first));
-        };
-        let count = parse_int(rest)
-            .filter(|&n| n >= 0)
-            .ok_or(Error::Data { offset: self.pos, message: "invalid chunk count in CHUNKED-MODEL-PARAMS" })?
-            as usize;
-        let mut out = Vec::new();
-        for _ in 0..count {
-            out.extend_from_slice(self.read_utf()?);
-        }
-        Ok(Cow::Owned(out))
+        let offset = self.pos;
+        let slice = self.take(len)?;
+        std::str::from_utf8(slice).map_err(|_| Error::Data { offset, message: "invalid UTF-8 string" })
     }
 }
 
@@ -393,5 +377,28 @@ mod tests {
         let p = Pattern::parse(b"-3 0", 0, 1).unwrap();
         assert_eq!(p.predicates, 0);
         assert_eq!(p.outcomes, [0]);
+    }
+
+    #[test]
+    fn standard_utf8_strings_round_trip_and_modified_utf8_is_refused() {
+        let mut w = Writer::default();
+        w.utf("TURBO-QN-1").int(1).utf("o\0😀").int(1).utf("1 0").int(1).utf("p\0😀").double(1.5);
+        let m = MaxentModel::from_trained_bytes(&w.0).unwrap();
+        assert_eq!(m.outcome_str(0), Some("o\0😀"));
+        assert!(m.has_predicate("p\0😀"));
+
+        // Overlong modified UTF-8 NUL (0xC0 0x80) and CESU-8 surrogates (0xED 0xA0 0xBD) are refused.
+        for bad in [&b"o\xC0\x80"[..], &b"o\xED\xA0\xBD"[..]] {
+            let mut raw = Vec::new();
+            raw.extend_from_slice(&(10u16).to_le_bytes());
+            raw.extend_from_slice(b"TURBO-QN-1");
+            raw.extend_from_slice(&1i32.to_le_bytes());
+            raw.extend_from_slice(&(bad.len() as u16).to_le_bytes());
+            raw.extend_from_slice(bad);
+            assert!(matches!(
+                MaxentModel::from_trained_bytes(&raw),
+                Err(Error::Data { message: "invalid UTF-8 string", .. })
+            ));
+        }
     }
 }
