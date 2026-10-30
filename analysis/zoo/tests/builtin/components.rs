@@ -1,6 +1,6 @@
 //! The builtin index's lookups by language and component.
 
-use turbo_zoo::{Component, Index, LicenceClass};
+use turbo_zoo::{Component, Index, Kind, LicenceClass};
 
 #[test]
 fn the_neural_checkpoints_are_found_by_language_and_component() {
@@ -12,6 +12,9 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::EntityExtractor), ["urchade-gliner-small-v2.1"]);
     assert_eq!(ids("mul", Component::EntityExtractor), ["urchade-gliner-multi-v2.1"]);
     assert_eq!(ids("en", Component::ZeroShotCategorizer), ["cross-encoder-nli-minilm2-l6-h768"]);
+    assert_eq!(ids("en", Component::SparseEncoder), ["opensearch-neural-sparse-encoding-v1"]);
+    assert_eq!(ids("en", Component::LateInteractionEncoder), ["colbert-ir-colbertv2.0"]);
+    assert_eq!(ids("en", Component::AspectSentiment), ["turbo-en-masc-3.0.0-aspect-sentiment-1"]);
     for language in ["es", "ca", "fi", "it"] {
         assert!(ids(language, Component::DependencyParser).is_empty());
     }
@@ -38,4 +41,34 @@ fn retired_tasks_are_absent_and_neural_licence_filters_remain() {
     assert!(index.find_within("en", Component::ExtractiveQa, LicenceClass::Permissive).is_empty());
     // Trained on SNLI and MultiNLI, both share-alike.
     assert!(index.find_within("en", Component::ZeroShotCategorizer, LicenceClass::Permissive).is_empty());
+}
+
+#[test]
+fn every_listed_model_names_a_component_except_the_tokenizers() {
+    let index = Index::builtin();
+    let missing: Vec<&str> = index
+        .list()
+        .iter()
+        .filter(|a| a.kind == Kind::Model && a.component.is_none() && !a.id.as_str().ends_with("-tokenizer"))
+        .map(|a| a.id.as_str())
+        .collect();
+    assert!(missing.is_empty(), "models with no component: {missing:?}");
+}
+
+#[test]
+fn the_retrieval_encoders_and_the_aspect_heads_keep_their_classes() {
+    let index = Index::builtin();
+    // MS MARCO keeps both retrieval encoders local-only; the aspect heads are ours.
+    assert!(index.find_within("en", Component::SparseEncoder, LicenceClass::Permissive).is_empty());
+    assert!(index.find_within("en", Component::LateInteractionEncoder, LicenceClass::Permissive).is_empty());
+    let aspect = index.find_within("en", Component::AspectSentiment, LicenceClass::Permissive);
+    assert_eq!(aspect.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), ["turbo-en-masc-3.0.0-aspect-sentiment-1"]);
+}
+
+#[test]
+fn the_component_constants_round_trip() {
+    for c in Component::ALL {
+        assert_eq!(c.name().parse::<Component>(), Ok(*c));
+    }
+    assert!("COMPONENT_EMBEDDER".parse::<Component>().is_err());
 }
