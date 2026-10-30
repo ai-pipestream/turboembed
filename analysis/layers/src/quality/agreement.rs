@@ -303,13 +303,10 @@ fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectP
                 } else {
                     subj
                 };
-                if (start..end).contains(&eff_subj) {
-                    let has_conj = cx.dep_children[eff_subj - start].iter().any(|&t| {
-                        matches!(cx.dep_rel(t), Some("conj" | "cc")) || cx.surface(t).eq_ignore_ascii_case("and")
-                    });
-                    if has_conj {
-                        return Some((eff_subj, SubjectPersonNumber::SecondOrPlural));
-                    }
+                if (start..end).contains(&eff_subj)
+                    && let Some(coord) = resolve_dep_coord_subject(cx, eff_subj, v)
+                {
+                    return Some(coord);
                 }
                 if let Some(spn) = classify_subject_token(cx.surface(eff_subj), cx.pos_str(eff_subj)) {
                     return Some((eff_subj, spn));
@@ -363,6 +360,48 @@ fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectP
         return Some((head_ix, SubjectPersonNumber::SecondOrPlural));
     }
     Some((head_ix, classify_subject_token(cx.surface(head_ix), cx.pos_str(head_ix))?))
+}
+
+fn resolve_dep_coord_subject(cx: &SentCtx<'_>, eff_subj: usize, v: usize) -> Option<(usize, SubjectPersonNumber)> {
+    let start = cx.range.start.get();
+    let end = cx.range.end.get();
+    let mut conjuncts = vec![eff_subj];
+    let mut has_and = false;
+    let mut has_disj = false;
+
+    for &t in &cx.dep_children[eff_subj - start] {
+        let low = cx.surface(t).to_ascii_lowercase();
+        if matches!(low.as_str(), "or" | "nor" | "either" | "neither") {
+            has_disj = true;
+        } else if low == "and" {
+            has_and = true;
+        }
+        if cx.dep_rel(t) == Some("conj") && (start..end).contains(&t) {
+            conjuncts.push(t);
+            for &ct in &cx.dep_children[t - start] {
+                let clow = cx.surface(ct).to_ascii_lowercase();
+                if matches!(clow.as_str(), "or" | "nor" | "either" | "neither") {
+                    has_disj = true;
+                } else if clow == "and" {
+                    has_and = true;
+                }
+            }
+        }
+    }
+    if conjuncts.len() < 2 && !has_and && !has_disj {
+        return None;
+    }
+    let min_c = *conjuncts.iter().min().unwrap();
+    let max_c = *conjuncts.iter().max().unwrap();
+    if (min_c..=max_c).any(|i| matches!(cx.surface(i).to_ascii_lowercase().as_str(), "or" | "nor")) {
+        has_disj = true;
+    }
+    if has_disj {
+        let closest = *conjuncts.iter().min_by_key(|&&c| c.abs_diff(v)).unwrap_or(&eff_subj);
+        let spn = classify_subject_token(cx.surface(closest), cx.pos_str(closest))?;
+        return Some((closest, spn));
+    }
+    Some((eff_subj, SubjectPersonNumber::SecondOrPlural))
 }
 
 fn narrow_clause_bounds(cx: &SentCtx<'_>, punct_start: usize, v: usize) -> (usize, usize) {

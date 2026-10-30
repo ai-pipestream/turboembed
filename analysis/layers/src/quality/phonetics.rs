@@ -29,8 +29,12 @@ pub(crate) fn requires_an(word: &str, american_silent_h_herb: bool) -> Option<bo
         return Some(letter_name_has_vowel_onset(first_char));
     }
 
+    if first_segment == "SQL" {
+        return None;
+    }
+
     // Check explicit initialism overrides first (covers mixed-case like `NVMe`, `OAuth`, `XPath`
-    // and acronyms vs letter-by-letter initialisms like `SQL`, `REST`, `URL`, `MRI`, `HTTP`).
+    // and acronyms vs letter-by-letter initialisms like `REST`, `URL`, `MRI`, `HTTP`).
     if let Some(onset) = explicit_initialism_vowel_onset(first_segment) {
         return Some(onset);
     }
@@ -90,21 +94,21 @@ fn explicit_initialism_vowel_onset(segment: &str) -> Option<bool> {
     }
     match segment {
         // Vowel-sound initialisms (`A`, `E`, `F`, `H`, `I`, `L`, `M`, `N`, `O`, `R`, `S`, `X`).
-        "MRI" | "HTTP" | "HTTPS" | "HTML" | "FBI" | "NDA" | "SLA" | "SLO" | "SLI" | "SSD" | "RPC" | "SQL" | "LLM"
-        | "LSTM" | "LP" | "L1" | "L2" | "L3" | "MD5" | "MP3" | "MP4" | "MTU" | "MVC" | "MVP" | "MX" | "NPU" | "NLU"
-        | "NLP" | "NFT" | "NIC" | "NN" | "NNS" | "NP" | "NTP" | "NVMe" | "RFC" | "RFI" | "RGB" | "RMA" | "RMS"
-        | "RNG" | "RNN" | "ROI" | "RPM" | "RSA" | "RSS" | "RTOS" | "RTT" | "SDK" | "SFTP" | "SHA" | "SKU" | "SMB"
-        | "SML" | "SMP" | "SMS" | "SMTP" | "SNI" | "SNMP" | "SOA" | "SPI" | "SPDX" | "SRAM" | "SRE" | "SRL" | "SSE"
-        | "SSH" | "SSID" | "SSL" | "SSO" | "SSR" | "SST" | "SVG" | "SVM" | "SVN" | "S3" | "FPU" | "FPGA" | "FPS"
-        | "FQDN" | "FSM" | "FST" | "FTP" | "FTPS" | "FX" | "HDD" | "HDMI" | "HDFS" | "HMAC" | "HPC" | "HSM" | "HT"
-        | "HSTS" | "XHR" | "XML" | "XMPP" | "XOR" | "XPath" | "XSS" | "XSLT" | "X86" | "API" | "AST" | "ACL"
-        | "ACM" | "ADC" | "AES" | "AI" | "ALU" | "AMQP" | "ANSI" | "AOT" | "APK" | "ARP" | "ASIC" | "ASN" | "ASR"
-        | "AVX" | "AWS" | "EC2" | "ECC" | "ECDSA" | "EDA" | "EDI" | "EFI" | "EKS" | "ELF" | "ELK" | "EMR" | "EOF"
-        | "EOL" | "EOS" | "ERP" | "ESB" | "ETL" | "EULA" | "IAM" | "IANA" | "ICMP" | "IDE" | "IDL" | "IDS" | "IEEE"
-        | "IETF" | "IGMP" | "IMAP" | "IMEI" | "IOPS" | "IOT" | "IoT" | "IP" | "IPC" | "IPFS" | "IPMI" | "IPO"
-        | "IPS" | "IPv4" | "IPv6" | "IPV4" | "IPV6" | "IR" | "IRC" | "IRQ" | "ISA" | "ISO" | "ISP" | "ISR" | "IT"
-        | "ITU" | "OAuth" | "ODBC" | "OEM" | "OID" | "OIDC" | "OLAP" | "OLED" | "OLTP" | "ONNX" | "OOM" | "OOP"
-        | "OPA" | "ORM" | "OS" | "OSI" | "OSPF" | "OSS" | "OTA" | "OTP" | "OWASP" => Some(true),
+        "MRI" | "HTTP" | "HTTPS" | "HTML" | "FBI" | "NDA" | "SLA" | "SLO" | "SLI" | "SSD" | "RPC" | "LLM" | "LSTM"
+        | "LP" | "L1" | "L2" | "L3" | "MD5" | "MP3" | "MP4" | "MTU" | "MVC" | "MVP" | "MX" | "NPU" | "NLU" | "NLP"
+        | "NFT" | "NIC" | "NN" | "NNS" | "NP" | "NTP" | "NVMe" | "RFC" | "RFI" | "RGB" | "RMA" | "RMS" | "RNG"
+        | "RNN" | "ROI" | "RPM" | "RSA" | "RSS" | "RTOS" | "RTT" | "SDK" | "SFTP" | "SHA" | "SKU" | "SMB" | "SML"
+        | "SMP" | "SMS" | "SMTP" | "SNI" | "SNMP" | "SOA" | "SPI" | "SPDX" | "SRAM" | "SRE" | "SRL" | "SSE" | "SSH"
+        | "SSID" | "SSL" | "SSO" | "SSR" | "SST" | "SVG" | "SVM" | "SVN" | "S3" | "FPU" | "FPGA" | "FPS" | "FQDN"
+        | "FSM" | "FST" | "FTP" | "FTPS" | "FX" | "HDD" | "HDMI" | "HDFS" | "HMAC" | "HPC" | "HSM" | "HT" | "HSTS"
+        | "XHR" | "XML" | "XMPP" | "XOR" | "XPath" | "XSS" | "XSLT" | "X86" | "API" | "AST" | "ACL" | "ACM" | "ADC"
+        | "AES" | "AI" | "ALU" | "AMQP" | "ANSI" | "AOT" | "APK" | "ARP" | "ASIC" | "ASN" | "ASR" | "AVX" | "AWS"
+        | "EC2" | "ECC" | "ECDSA" | "EDA" | "EDI" | "EFI" | "EKS" | "ELF" | "ELK" | "EMR" | "EOF" | "EOL" | "EOS"
+        | "ERP" | "ESB" | "ETL" | "EULA" | "IAM" | "IANA" | "ICMP" | "IDE" | "IDL" | "IDS" | "IEEE" | "IETF"
+        | "IGMP" | "IMAP" | "IMEI" | "IOPS" | "IOT" | "IoT" | "IP" | "IPC" | "IPFS" | "IPMI" | "IPO" | "IPS"
+        | "IPv4" | "IPv6" | "IPV4" | "IPV6" | "IR" | "IRC" | "IRQ" | "ISA" | "ISO" | "ISP" | "ISR" | "IT" | "ITU"
+        | "OAuth" | "ODBC" | "OEM" | "OID" | "OIDC" | "OLAP" | "OLED" | "OLTP" | "ONNX" | "OOM" | "OOP" | "OPA"
+        | "ORM" | "OS" | "OSI" | "OSPF" | "OSS" | "OTA" | "OTP" | "OWASP" => Some(true),
         // Consonant-sound initialisms and acronyms (`U*` -> `/ju:/`, plus `JWT`, `CPU`, `GPU`, `REST`, `TLS`, etc.).
         "URL" | "URLs" | "URI" | "URIs" | "URN" | "URNs" | "UDP" | "UUID" | "USB" | "UTF" | "UI" | "UX" | "UAT"
         | "UDF" | "UEFI" | "UID" | "UML" | "UN" | "UPC" | "UPS" | "US" | "USA" | "UTC" | "JWT" | "CPU" | "GPU"

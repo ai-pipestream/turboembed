@@ -22,7 +22,7 @@ const PLURAL_SUBJECT_PRONOUNS: &[&str] =
     &["you", "we", "they", "these", "those", "both", "several", "many", "few", "fewer", "others"];
 
 const INVARIANT_NOUNS: &[&str] =
-    &["series", "species", "means", "headquarters", "sheep", "deer", "fish", "aircraft", "spacecraft"];
+    &["series", "species", "means", "headquarters", "sheep", "deer", "fish", "aircraft", "spacecraft", "data", "media"];
 
 const IRREGULAR_PLURAL_MAP: &[(&str, &str)] = &[
     ("alumnus", "alumni"),
@@ -36,7 +36,6 @@ const IRREGULAR_PLURAL_MAP: &[(&str, &str)] = &[
     ("crisis", "crises"),
     ("criterion", "criteria"),
     ("curriculum", "curricula"),
-    ("datum", "data"),
     ("diagnosis", "diagnoses"),
     ("foot", "feet"),
     ("fungus", "fungi"),
@@ -50,7 +49,6 @@ const IRREGULAR_PLURAL_MAP: &[(&str, &str)] = &[
     ("loaf", "loaves"),
     ("man", "men"),
     ("matrix", "matrices"),
-    ("medium", "media"),
     ("mouse", "mice"),
     ("nucleus", "nuclei"),
     ("oasis", "oases"),
@@ -215,15 +213,18 @@ pub(crate) fn deinflect_3sg_verb(lower: &str) -> String {
         "has" => return "have".into(),
         "does" => return "do".into(),
         "goes" => return "go".into(),
+        "quizzes" => return "quiz".into(),
         "is" | "are" | "am" => return "be".into(),
         _ => {}
     }
     if let Some(stem) = lower.strip_suffix("ies").filter(|s| !s.is_empty()) {
         return format!("{stem}y");
     }
-    for es_ending in ["shes", "ches", "sses", "xes", "zes", "oes"] {
-        if lower.ends_with(es_ending) {
-            return lower[..lower.len() - 2].to_owned();
+    if !matches!(lower, "caches" | "aches" | "niches" | "avalanches") {
+        for es_ending in ["shes", "ches", "sses", "xes", "zzes", "oes"] {
+            if lower.ends_with(es_ending) {
+                return lower[..lower.len() - 2].to_owned();
+            }
         }
     }
     if let Some(stem) = lower.strip_suffix('s').filter(|s| !s.ends_with('s')) {
@@ -237,6 +238,7 @@ pub(crate) fn inflect_3sg_verb(lower: &str) -> String {
         "have" => return "has".into(),
         "do" => return "does".into(),
         "go" => return "goes".into(),
+        "quiz" => return "quizzes".into(),
         "be" => return "is".into(),
         _ => {}
     }
@@ -254,6 +256,14 @@ pub(crate) fn inflect_3sg_verb(lower: &str) -> String {
 /// Converts a singular English count noun to its plural form, preserving case.
 pub(crate) fn pluralize_noun(surface: &str) -> String {
     let lower = surface.to_ascii_lowercase();
+    if lower.ends_with('o')
+        && !matches!(
+            lower.as_str(),
+            "potato" | "tomato" | "hero" | "echo" | "torpedo" | "veto" | "embargo" | "volcano" | "mosquito"
+        )
+    {
+        return match_case(surface, &format!("{lower}s"));
+    }
     let plural = IRREGULAR_PLURAL_MAP
         .iter()
         .find_map(|&(sg, pl)| (sg == lower).then(|| pl.to_owned()))
@@ -313,38 +323,39 @@ fn restore_regular_verb_stem(stem: &str) -> String {
     stem.to_owned()
 }
 
+const NON_SILENT_E_STEMS: &[&str] = &[
+    "open", "iron", "edit", "exit", "omit", "emit", "echo", "arc", "sync", "zinc", "disc", "spec", "bus", "gas", "yes",
+    "plus", "bias", "unbias", "canvas", "atlas", "alias",
+];
+
+const SILENT_E_STEMS: &[&[&str]] = &[
+    &["creat", "pleas", "displeas", "appeas", "teas", "releas", "increas", "decreas", "ceas", "deceas", "leas", "eas"],
+    &["diseas", "greas", "creas", "purchas", "paraphras", "prais", "apprais", "rais", "cruis", "bruis", "guis"],
+    &["disguis", "nois", "pois", "choos", "loos", "hous", "arous", "espous", "paus", "caus", "leav", "achiev"],
+    &["believ", "receiv", "perceiv", "conceiv", "reliev", "retriev", "pars", "laps", "collaps", "elaps", "relaps"],
+    &["eclips", "glimps", "rins", "sens", "licens", "condens", "dispens", "compens", "tens", "intens", "revers"],
+    &["convers", "travers", "immers", "dispers", "curs", "nurs", "purs", "reimburs", "endors", "impuls", "repuls"],
+    &["puls", "cleans", "invit", "ignit", "unit", "reunit", "excit", "recit", "incit", "complet", "compet", "delet"],
+    &["deplet", "obsolet", "devot", "promot", "demot", "quot", "denot", "annot", "ignor", "explor", "restor"],
+    &["underscor", "ador", "implor", "deplor", "abus", "accus", "amus", "confus", "diffus", "excus", "infus", "misus"],
+    &["perus", "refus", "reus", "postpon", "condon", "telephon", "microphon", "defin", "redefin", "confin", "combin"],
+    &["examin", "determin", "undermin", "imagin", "inclin", "declin", "outlin", "streamlin", "underlin", "disciplin"],
+    &["quarantin", "routin"],
+];
+
 fn needs_silent_e(stem: &str) -> bool {
     let bytes = stem.as_bytes();
     let n = bytes.len();
-    if n < 2 {
+    if n < 2 || NON_SILENT_E_STEMS.contains(&stem) {
         return false;
     }
-    if matches!(stem, "open" | "iron" | "edit" | "exit" | "omit" | "emit" | "echo") {
-        return false;
-    }
-    if matches!(
-        stem,
-        "creat"
-            | "pleas"
-            | "teas"
-            | "releas"
-            | "increas"
-            | "decreas"
-            | "ceas"
-            | "leav"
-            | "achiev"
-            | "believ"
-            | "receiv"
-            | "perceiv"
-            | "conceiv"
-            | "reliev"
-            | "retriev"
-    ) {
+    if SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
         return true;
     }
     let last = bytes[n - 1];
     let prev = bytes[n - 2];
     if matches!(last, b'c' | b'v' | b'u')
+        || (last == b'z' && prev != b'z' && !matches!(stem, "quiz" | "whiz" | "fez"))
         || stem.ends_with("dg")
         || stem.ends_with("rg")
         || stem.ends_with("lg")
@@ -356,19 +367,13 @@ fn needs_silent_e(stem: &str) -> bool {
         return true;
     }
     let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
-    if last == b'l' && !is_vowel(prev) && prev != b'l' {
+    if last == b'l' && !is_vowel(prev) && !matches!(prev, b'l' | b'r' | b'm' | b'n' | b'w' | b'y') {
         return true;
     }
     if n > 4
-        && (stem.ends_with("en")
-            || stem.ends_with("er")
-            || stem.ends_with("el")
-            || stem.ends_with("al")
-            || stem.ends_with("ol")
-            || stem.ends_with("it")
-            || stem.ends_with("et")
-            || stem.ends_with("ot")
-            || stem.ends_with("op"))
+        && ["en", "er", "el", "al", "ol", "it", "et", "ot", "op", "om", "an", "or", "us", "on", "in", "ar"]
+            .iter()
+            .any(|suf| stem.ends_with(suf))
     {
         return false;
     }

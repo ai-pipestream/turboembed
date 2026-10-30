@@ -22,6 +22,26 @@ const ARTICLE_QUANTIFIER_NOUNS: &[&str] = &[
 const ALLOWED_REDUPLICATIONS: &[&str] =
     &["had", "that", "so", "blah", "very", "ha", "bye", "no", "yes", "tut", "tsk", "there", "now", "well", "hear"];
 
+const PREPOSITIONAL_TO_GOVERNORS: &[&str] = &[
+    "according",
+    "due",
+    "prior",
+    "pursuant",
+    "subsequent",
+    "subject",
+    "thanks",
+    "contrary",
+    "relative",
+    "compared",
+    "objected",
+    "opposed",
+    "committed",
+    "dedicated",
+    "devoted",
+    "used",
+    "accustomed",
+];
+
 pub(crate) fn is_bare_infinitive_modal(lower: &str) -> bool {
     matches!(
         lower,
@@ -258,7 +278,10 @@ pub(crate) fn check_auxiliaries(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
         }
         let modal_lower = cx.surface(i).to_ascii_lowercase();
         let is_modal = is_bare_infinitive_modal(&modal_lower);
-        let is_inf_to = modal_lower == "to" && matches!(i_pos, "TO" | "PART" | "IN") && i > start;
+        let is_inf_to = modal_lower == "to"
+            && matches!(i_pos, "TO" | "PART")
+            && i > start
+            && !PREPOSITIONAL_TO_GOVERNORS.contains(&cx.surface(i - 1).to_ascii_lowercase().as_str());
         if !is_modal && !is_inf_to {
             continue;
         }
@@ -269,10 +292,13 @@ pub(crate) fn check_auxiliaries(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
         if j >= end {
             continue;
         }
+        if is_inf_to && cx.deps.is_some() && !(cx.dep_rel(i) == Some("mark") && cx.dep_head(i) == Some(j)) {
+            continue;
+        }
         let v_surf = cx.surface(j);
         let v_pos = cx.pos_str(j);
         let v_lower = v_surf.to_ascii_lowercase();
-        if is_inf_to && !matches!(v_pos, "VBZ" | "VBD" | "VBN") {
+        if is_inf_to && !matches!(v_pos, "VBZ" | "VBD") {
             continue;
         }
         let is_do_aux = matches!(modal_lower.as_str(), "do" | "does" | "did" | "don't" | "doesn't" | "didn't");
@@ -319,6 +345,9 @@ pub(crate) fn check_case_government(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagn
     let end = cx.range.end.get();
     for i in start..end.saturating_sub(1) {
         let surf = cx.surface(i);
+        if matches!(surf.to_ascii_lowercase().as_str(), "than" | "as") {
+            continue;
+        }
         if !surf.eq_ignore_ascii_case("to") && !is_preposition(surf, cx.pos_str(i)) {
             continue;
         }

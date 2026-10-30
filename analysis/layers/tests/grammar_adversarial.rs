@@ -77,6 +77,25 @@ fn common_correct_sentences_are_not_rewritten() {
         ("She does dishes.", "She/PRP does/VBZ dishes/NNS ./."),
         ("She wants a can opener.", "She/PRP wants/VBZ a/DT can/NN opener/NN ./."),
         ("The dog that I saw is sleeping.", "The/DT dog/NN that/WDT I/PRP saw/VBD is/VBZ sleeping/VBG ./."),
+        (
+            "According to published reports, sales rose.",
+            "According/VBG to/TO published/VBN reports/NNS ,/, sales/NNS rose/VBD ./.",
+        ),
+        (
+            "According to published reports, sales rose.",
+            "According/VBG to/IN published/VBN reports/NNS ,/, sales/NNS rose/VBD ./.",
+        ),
+        ("He objected to proposed changes.", "He/PRP objected/VBD to/TO proposed/VBN changes/NNS ./."),
+        ("We need much data.", "We/PRP need/VBP much/JJ data/NNS ./."),
+        ("This data is clean.", "This/DT data/NN is/VBZ clean/JJ ./."),
+        ("These data are clean.", "These/DT data/NNS are/VBP clean/JJ ./."),
+        ("He is taller than I.", "He/PRP is/VBZ taller/JJR than/IN I/PRP ./."),
+        (
+            "We queried a SQL database and an SQL database.",
+            "We/PRP queried/VBD a/DT SQL/NNP database/NN and/CC an/DT SQL/NNP database/NN ./.",
+        ),
+        ("Either Alice or Bob is ready.", "Either/CC Alice/NNP or/CC Bob/NNP is/VBZ ready/JJ ./."),
+        ("Neither Alice nor Bob is ready.", "Neither/CC Alice/NNP nor/CC Bob/NNP is/VBZ ready/JJ ./."),
     ];
     let mut failures = Vec::new();
     for (text, tags) in cases {
@@ -104,19 +123,77 @@ fn morph_features_mood_sub_suppresses_irrealis_were_rewrite() {
 #[test]
 fn missing_infinitive_and_regular_verb_repairs() {
     let cases = [
-        ("He wants to goes.", "He/PRP wants/VBZ to/TO goes/VBZ/go ./.", "go"),
-        ("He can danced.", "He/PRP can/MD danced/VBD ./.", "dance"),
-        ("He can swimming.", "He/PRP can/MD swimming/VBG ./.", "swim"),
-        ("They can smiling.", "They/PRP can/MD smiling/VBG ./.", "smile"),
+        ("He wants to goes.", "He/PRP wants/VBZ to/TO goes/VBZ/go ./.", "AUX-001", "go"),
+        ("He can danced.", "He/PRP can/MD danced/VBD ./.", "AUX-001", "dance"),
+        ("He can swimming.", "He/PRP can/MD swimming/VBG ./.", "AUX-001", "swim"),
+        ("They can smiling.", "They/PRP can/MD smiling/VBG ./.", "AUX-001", "smile"),
+        ("They realizes the risk.", "They/PRP realizes/VBZ the/DT risk/NN ./.", "SVA-001", "realize"),
+        ("They organizes the files.", "They/PRP organizes/VBZ the/DT files/NNS ./.", "SVA-001", "organize"),
+        ("They caches the response.", "They/PRP caches/VBZ the/DT response/NN ./.", "SVA-001", "cache"),
+        ("She will focused on the task.", "She/PRP will/MD focused/VBD on/IN the/DT task/NN ./.", "AUX-001", "focus"),
+        ("She will monitored the logs.", "She/PRP will/MD monitored/VBD the/DT logs/NNS ./.", "AUX-001", "monitor"),
+        ("She will honored the request.", "She/PRP will/MD honored/VBD the/DT request/NN ./.", "AUX-001", "honor"),
+        ("She took many photo.", "She/PRP took/VBD many/JJ photo/NN ./.", "DET-001", "photos"),
+        ("Either Alice or Bob are ready.", "Either/CC Alice/NNP or/CC Bob/NNP are/VBP ready/JJ ./.", "SVA-001", "is"),
     ];
     let mut failures = Vec::new();
-    for (text, tags, repair) in cases {
+    for (text, tags, rule, repair) in cases {
         let d = GrammarChecker::new().check_document(&build_doc(text, tags)).unwrap();
-        if !d.iter().any(|x| x.rule_id == "AUX-001" && x.replacements.iter().any(|r| r.as_ref() == repair)) {
-            failures.push(format!("{text}: expected {repair}, got {:?}", d.diagnostics));
+        if !d.iter().any(|x| x.rule_id == rule && x.replacements.iter().any(|r| r.as_ref() == repair)) {
+            failures.push(format!("{text}: expected {rule} -> {repair}, got {:?}", d.diagnostics));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn disjunctive_or_nor_dependencies_respect_proximity_agreement() {
+    let mut doc = build_doc("Either Alice or Bob is ready.", "Either/CC Alice/NNP or/CC Bob/NNP is/VBZ ready/JJ ./.");
+    let relations = TagSet::new("ud", &["cc:preconj", "nsubj", "cc", "conj", "cop", "root", "punct"]);
+    let d = Dependencies {
+        head: vec![
+            Some(Ix::new(1)),
+            Some(Ix::new(5)),
+            Some(Ix::new(3)),
+            Some(Ix::new(1)),
+            Some(Ix::new(5)),
+            None,
+            Some(Ix::new(5)),
+        ],
+        relation: ["cc:preconj", "nsubj", "cc", "conj", "cop", "root", "punct"]
+            .iter()
+            .map(|x| relations.tag(x).unwrap())
+            .collect(),
+        relations: relations.clone(),
+    };
+    doc.add(&Key::<Dependencies>::DEFAULT, d, Provenance::by("review:or_dep")).unwrap();
+    let diags = GrammarChecker::new().check_document(&doc).unwrap();
+    assert!(diags.is_empty(), "Either Alice or Bob is ready should not fire SVA-001: {diags:?}");
+
+    let mut bad_doc =
+        build_doc("Either Alice or Bob are ready.", "Either/CC Alice/NNP or/CC Bob/NNP are/VBP ready/JJ ./.");
+    let bad_deps = Dependencies {
+        head: vec![
+            Some(Ix::new(1)),
+            Some(Ix::new(5)),
+            Some(Ix::new(3)),
+            Some(Ix::new(1)),
+            Some(Ix::new(5)),
+            None,
+            Some(Ix::new(5)),
+        ],
+        relation: ["cc:preconj", "nsubj", "cc", "conj", "cop", "root", "punct"]
+            .iter()
+            .map(|x| relations.tag(x).unwrap())
+            .collect(),
+        relations,
+    };
+    bad_doc.add(&Key::<Dependencies>::DEFAULT, bad_deps, Provenance::by("review:or_dep")).unwrap();
+    let bad_diags = GrammarChecker::new().check_document(&bad_doc).unwrap();
+    assert!(
+        bad_diags.iter().any(|x| x.rule_id == "SVA-001" && x.replacements[0].as_ref() == "is"),
+        "expected SVA-001 -> is on 'Either Alice or Bob are ready.': {bad_diags:?}"
+    );
 }
 
 #[test]
