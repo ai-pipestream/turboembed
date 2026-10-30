@@ -140,10 +140,11 @@ impl From<io::Error> for NeuralError {
     }
 }
 
-/// `java.util.Random`, which the trainers draw weight initialization,
-/// dropout masks and shuffles from: `turbo_jvm`'s port, which is checked
-/// against values written by a JVM.
-pub use turbo_jvm::random::JavaRandom as JavaRng;
+mod rng;
+
+/// Seeded 48-bit linear congruential generator used for weight initialization,
+/// dropout masks and shuffles.
+pub use self::rng::JavaRng;
 
 /// Little-endian binary reader for native neural POS models.
 pub(crate) struct DataReader<R> {

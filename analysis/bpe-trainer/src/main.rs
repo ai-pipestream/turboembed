@@ -8,7 +8,7 @@
 //! turbo-bpe-trainer sentencepiece <corpus> <model> --vocab-size <n>
 //!     [--character-coverage <c>]
 //! turbo-bpe-trainer opennlp <corpus> <merges.txt> --merges <n>
-//!     [--ties jvm|made-first]
+//!     [--ties made-first]
 //! ```
 
 use std::process::ExitCode;
@@ -22,7 +22,7 @@ const USAGE: &str = "usage:
   turbo-bpe-trainer byte-level <corpus> <tokenizer.json> --vocab-size <n> [--min-frequency <n>]
       [--special <token>]... [--lstrip <token>]... [--add-prefix-space] [--roberta <cls> <sep>]
   turbo-bpe-trainer sentencepiece <corpus> <model> --vocab-size <n> [--character-coverage <c>]
-  turbo-bpe-trainer opennlp <corpus> <merges.txt> --merges <n> [--ties jvm|made-first]";
+  turbo-bpe-trainer opennlp <corpus> <merges.txt> --merges <n> [--ties made-first]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -119,19 +119,11 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         "opennlp" => {
             let ties = match o.value("--ties")? {
-                None | Some("jvm") => TieOrder::Jvm,
-                Some("made-first") => TieOrder::MadeFirst,
-                Some(other) => return Err(format!("--ties {other}: expected jvm or made-first")),
+                None | Some("made-first") => TieOrder::MadeFirst,
+                Some(other) => return Err(format!("--ties {other}: expected made-first")),
             };
             let m = OpenNlpBpe::train_with(lines, o.required("--merges")?, ties).map_err(|e| e.to_string())?;
             eprintln!("{} merges", m.merges().len());
-            if ties == TieOrder::Jvm && !m.is_jvm_exact() {
-                eprintln!(
-                    "the merges may differ from the JVM's: the corpus holds a character outside the Basic \
-                     Multilingual Plane, or a tree bin of the JVM's maps held keys with equal hash codes \
-                     (docs/bpe-trainer.md)"
-                );
-            }
             m.to_merges_text().into_bytes()
         }
         _ => return Err(USAGE.into()),

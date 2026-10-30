@@ -6,7 +6,6 @@
 //! (`coref.tokenVectorDimension`).
 
 use turbo_analysis::ModelRef;
-use turbo_jvm::strict_math;
 use turbo_maxent::{MaxentModel, ModelFile, ModelKind};
 use turbo_train::TrainingReport;
 use turbo_train::package::{Manifest, ModelPackage};
@@ -135,7 +134,7 @@ impl CorefModel {
             None => {
                 let context: Vec<&str> = names.iter().map(String::as_str).collect();
                 self.pair.eval(&context, &mut out);
-                // The JVM's eval overflows to NaN on large logits, and a
+                // Plain evaluation can overflow to NaN on large logits, and a
                 // QN eval can stay finite but unnormalized when
                 // max + ln(sum) rounds back to max; the real-valued path
                 // with every value one normalizes them.
@@ -169,7 +168,7 @@ impl CorefModel {
     fn eval_values(&self, names: &[String], values: &[f32], out: &mut [f64]) -> Result<(), String> {
         let n = out.len();
         let start = match self.pair.kind() {
-            ModelKind::Gis => strict_math::log(1.0 / n as f64),
+            ModelKind::Gis => (1.0 / n as f64).ln(),
             ModelKind::Qn | ModelKind::Perceptron => 0.0,
             ModelKind::NaiveBayes => return Err("a naive Bayes coreference model takes no real-valued features".into()),
         };
@@ -195,7 +194,7 @@ impl CorefModel {
                 let max = out.iter().copied().fold(f64::NEG_INFINITY, f64::max);
                 let mut sum = 0.0;
                 for x in out.iter_mut() {
-                    *x = strict_math::exp(*x - max);
+                    *x = (*x - max).exp();
                     sum += *x;
                 }
                 out.iter_mut().for_each(|x| *x /= sum);
@@ -214,21 +213,21 @@ impl CorefModel {
     }
 }
 
-/// `exp(x) / sum(exp)` over finite logits as the JVM computes it, and,
-/// where that overflows or underflows to a sum that is not a positive
-/// finite number, with the largest logit subtracted first.
+/// `exp(x) / sum(exp)` over finite logits, and, where that overflows or
+/// underflows to a sum that is not a positive finite number, with the
+/// largest logit subtracted first.
 fn softmax(out: &mut [f64]) {
     let logits = out.to_vec();
     let mut sum = 0.0;
     for (x, &l) in out.iter_mut().zip(&logits) {
-        *x = strict_math::exp(l);
+        *x = l.exp();
         sum += *x;
     }
     if !(sum.is_finite() && sum > 0.0) {
         let max = logits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         sum = 0.0;
         for (x, &l) in out.iter_mut().zip(&logits) {
-            *x = strict_math::exp(l - max);
+            *x = (l - max).exp();
             sum += *x;
         }
     }

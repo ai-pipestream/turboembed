@@ -8,10 +8,10 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, Layer, ModelRef, Refs, Tag, TagSet, View};
 use turbo_analysis_layers::{Categories, Tokens};
-use turbo_jvm::text::double_to_string;
 
 use super::error::ModelError;
 use super::model::SvmDoccatModel;
+use super::text::double_to_string;
 use super::vector::{Scratch, vectorize};
 
 /// `DocumentCategorizerSVM` over an [`SvmDoccatModel`].

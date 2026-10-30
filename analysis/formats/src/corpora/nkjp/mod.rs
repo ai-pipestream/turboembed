@@ -11,17 +11,16 @@
 mod tests;
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use turbo_analysis::Span;
-use turbo_jvm::hash_map::JavaHashMap;
 
 use super::dom::{self, Element, Node};
 use super::error::CorpusError;
 use crate::error::FormatError;
 use crate::masc::java::{equals_ignore_case_ascii, parse_int};
 use crate::sample::SentenceSample;
-use crate::source::{check_len, utf16_cut};
+use crate::source::{check_len, utf16_cut, utf16_len};
 
 /// Where a segment is: `corresp="text.xml#string-range(p-1,5,3)"`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -259,7 +258,7 @@ pub struct NkjpText {
     paragraphs: HashMap<String, NkjpParagraph>,
 }
 
-type Divisions = JavaHashMap<String, JavaHashMap<String, NkjpParagraph>>;
+type Divisions = BTreeMap<String, BTreeMap<String, NkjpParagraph>>;
 
 impl NkjpText {
     /// Reads a decoded text file (a byte order mark at its start is
@@ -277,7 +276,7 @@ impl NkjpText {
         if !equals_ignore_case_ascii(&root.name, "teiCorpus") {
             return Err(document("the root element is not teiCorpus"));
         }
-        let mut texts: JavaHashMap<String, Divisions> = JavaHashMap::new();
+        let mut texts: BTreeMap<String, Divisions> = BTreeMap::new();
         let teis = || root.children_named("TEI").filter(|_| root.name == "teiCorpus");
         let grouped: Vec<&Element> = teis()
             .flat_map(|e| e.children_named("text"))
@@ -287,10 +286,10 @@ impl NkjpText {
         let nodes = if grouped.is_empty() { teis().flat_map(|e| e.children_named("text")).collect() } else { grouped };
         for node in nodes {
             let id = required(node, "xml:id")?;
-            let mut divisions: Divisions = JavaHashMap::new();
+            let mut divisions: Divisions = BTreeMap::new();
             for div in node.children_named("body").flat_map(|e| e.children_named("div")) {
                 let div_id = required(div, "xml:id")?;
-                let mut paragraphs = JavaHashMap::new();
+                let mut paragraphs = BTreeMap::new();
                 for p in div.children.iter().filter_map(Node::as_element).filter(|e| e.name == "p" || e.name == "ab") {
                     let p_id = required(p, "xml:id")?;
                     if p.children.len() != 1 {
@@ -300,16 +299,16 @@ impl NkjpText {
                             Some(_) => return Err(document("a paragraph does not start with text")),
                         }
                     }
-                    paragraphs.put(p_id, NkjpParagraph { text: p.text_content(), source: p.span });
+                    paragraphs.insert(p_id, NkjpParagraph { text: p.text_content(), source: p.span });
                 }
-                divisions.put(div_id, paragraphs);
+                divisions.insert(div_id, paragraphs);
             }
-            texts.put(id, divisions);
+            texts.insert(id, divisions);
         }
         let mut paragraphs = HashMap::new();
-        for (_, divisions) in texts.into_ordered() {
-            for (_, ps) in divisions.into_ordered() {
-                for (id, p) in ps.into_ordered() {
+        for (_, divisions) in texts {
+            for (_, ps) in divisions {
+                for (id, p) in ps {
                     paragraphs.insert(id, p);
                 }
             }
@@ -437,7 +436,7 @@ fn cut(
         Err(length) => Err(out_of_bounds(length)),
     };
     if start > end {
-        return Err(out_of_bounds(turbo_jvm::chars::utf16_len(text)));
+        return Err(out_of_bounds(utf16_len(text)));
     }
     let to = to_byte(end)?;
     let from = to_byte(start)?;

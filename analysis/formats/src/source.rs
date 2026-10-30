@@ -265,6 +265,12 @@ pub(crate) fn compare_utf16(a: &str, b: &str) -> Ordering {
     }
 }
 
+/// The length of `text` in UTF-16 code units (`String.length()`).
+#[inline]
+pub(crate) fn utf16_len(text: &str) -> usize {
+    text.chars().map(char::len_utf16).sum()
+}
+
 /// The byte offset in `text` after its first `units` UTF-16 code units,
 /// as Java's `substring(units)` cuts it. `Err(len)` when the text has
 /// fewer units (`len` is its length in units), and `Ok(None)` when the

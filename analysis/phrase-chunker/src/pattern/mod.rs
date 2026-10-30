@@ -2,11 +2,12 @@
 //! `(tag, token_surface)` pairs without string concatenation or regexes.
 
 pub mod parser;
+pub mod tag_pattern;
 
 use std::cell::RefCell;
 use std::fmt;
 
-use turbo_jvm::TagPattern;
+pub use self::tag_pattern::{MAX_PATTERN_ATOMS, TagPattern};
 use turbo_sequence::chunker::TokenTag;
 use turbo_unicode::casefold::fold;
 
