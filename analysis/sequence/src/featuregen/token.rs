@@ -3,11 +3,11 @@
 
 use std::collections::HashSet;
 
-use turbo_jvm::chars::utf16_len;
 use turbo_unicode::java::code_point::to_lower_case;
 
 use super::FeatureGenerator;
 use crate::features::Features;
+use crate::java::utf16_len;
 use crate::pattern::{PatternMode, token_feature};
 
 /// `TokenFeatureGenerator`: `w=` and the token, lowercased by

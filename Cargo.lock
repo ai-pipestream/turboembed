@@ -2032,7 +2032,6 @@ dependencies = [
  "tokenizers",
  "turbo",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -2083,7 +2082,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-sentdetect",
@@ -2114,7 +2112,6 @@ dependencies = [
  "turbo-calibration",
  "turbo-formats",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-normalize-layers",
@@ -2223,7 +2220,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
  "turbo-stopword-layers",
@@ -2503,7 +2499,6 @@ name = "turbo-maxent"
 version = "0.1.0"
 dependencies = [
  "turbo-goldens",
- "turbo-jvm",
  "turbo-sha256",
  "turbo-unicode",
 ]
@@ -2548,7 +2543,6 @@ dependencies = [
 name = "turbo-ngram"
 version = "0.1.0"
 dependencies = [
- "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
 ]
@@ -2599,7 +2593,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
@@ -2632,7 +2625,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
@@ -2737,7 +2729,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-train",
  "turbo-unicode",
@@ -2819,7 +2810,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-maxent",
  "turbo-tokenize-layers",
  "turbo-unicode",
@@ -2882,7 +2872,6 @@ dependencies = [
  "turbo-depparse",
  "turbo-eval",
  "turbo-formats",
- "turbo-jvm",
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",

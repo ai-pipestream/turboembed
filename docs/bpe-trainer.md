@@ -43,10 +43,9 @@ set aside, and checks that both make the same merges with the same
 counts.
 
 Of pairs with the same count, each trainer gives an order, so the same
-corpus and settings always give the same model. For byte-level,
-sentencepiece and the `made-first` tie order, that model does not
-depend on the order of the texts either (`training_is_deterministic...`
-and `made_first_is_deterministic...` in the trainers' tests):
+corpus and settings always give the same model, independent of the order
+of the texts (`training_is_deterministic...` and
+`made_first_is_deterministic...` in the trainers' tests):
 
 - byte-level: the pair whose left piece has the smaller id, then the
   one whose right piece has, which is upstream's order;
@@ -54,11 +53,10 @@ and `made_first_is_deterministic...` in the trainers' tests):
   then the one that comes first in code point order, which is the
   library's; two pairs that make the same piece, the one tie the
   library leaves to the layout of its heap, go to the smaller ids;
-- word-merges: by default the hash-table tie order (below), which depends on the
-  order of the texts; with `--ties made-first`, the
-  pair whose left symbol was made first, then the one whose right symbol
-  was, the symbols a word starts as counting as made in lexicographic order of
-  their strings.
+- word-merges (`TieOrder::MadeFirst`, the default and `--ties made-first`):
+  the pair whose left symbol was made first, then the one whose right
+  symbol was, the symbols a word starts as counting as made in Unicode
+  code point order (`str::cmp`) of their strings.
 
 ## Byte-level
 
@@ -158,26 +156,24 @@ tokenizer applies merges in rank order: in each word the pair of lowest rank is
 merged everywhere, left to right, until no pair has a rank, and `</w>`
 is taken off the end of each token.
 
-With `--ties made-first`, ties among pairs with the same count are broken by
-the pair whose left symbol was created first, then whose right symbol was
-created first, using the shared incremental merge loop (`analysis/bpe-trainer/src/merger.rs`),
-so the learned merge table does not depend on the order of input lines.
-With `--ties jvm` (`TieOrder::Jvm`), tie breaking emulates `java.util.HashMap`
-bucket iteration (`analysis/jvm/src/hash_map/mod.rs`) across the word, symbol-list,
-and pair tables.
+Of pairs with the same count, the word-merge trainer merges in `TieOrder::MadeFirst`
+order (`--ties made-first`, the default): the pair whose left symbol was
+created first, then whose right symbol was created first, with initial symbols
+ordered by Unicode code point order (`str::cmp`), using the shared incremental
+merge loop (`analysis/bpe-trainer/src/merger.rs`), so counts are updated
+incrementally without recounting all words on each step and the learned merge
+table does not depend on the order of input lines.
 
 Symbols are always whole Unicode scalar values (`char`), never split across
 UTF-16 surrogate halves, so every learned merge is valid UTF-8 and round-trips
 cleanly when serialized.
 
 On the `bpe` golden fixtures (`analysis/goldens/data/bpe/merges-{40,400}/bpe/`,
-40 and 400 merges over the six texts of `inputs/bpe/`) and 160 synthetic random
-corpora of up to 3,000 words:
+40 and 400 merges over the six texts of `inputs/bpe/`):
 
-- The trainer produces all 686 reference merges on the ten whole-character
-  goldens (623 of them decided among tied pairs) and all 9,907 merges across
-  the 160 random corpora.
-- Every learned merge has the maximum pair frequency at its step, and
-  `made-first` agrees with `TieOrder::Jvm` up to the first tied count.
+- Every merge in the reference goldens is a pair of the highest count when
+  replayed step by step, and `TieOrder::MadeFirst` makes the same merges up to
+  the first step where tied pairs occur (and chooses one of the tied top-counted
+  pairs there).
 - Given a merge table, the tokenizer produces identical token boundaries on
   every fixture, including words containing literal `</w>` substrings.

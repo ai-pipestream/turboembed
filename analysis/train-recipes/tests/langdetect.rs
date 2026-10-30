@@ -15,10 +15,9 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use turbo_jvm::random::JavaRandom;
 use turbo_train_recipes::Error;
 use turbo_train_recipes::langdetect::{
-    EXPORT, ExcludedLanguage, ExportRecord, LanguagePair, LanguageRecipe, Split, check_export, run,
+    EXPORT, ExcludedLanguage, ExportRecord, LanguagePair, LanguageRecipe, Split, check_export, run, shuffle_with_seed,
 };
 use turbo_train_recipes::tatoeba::{Export, SentenceLicence, TatoebaError};
 use turbo_zoo::{Licence, LicenceClass};
@@ -143,7 +142,7 @@ fn the_plan_keeps_cc_by_sentences_and_splits_each_language_in_id_order() {
             .map(|s| s.id)
             .collect();
         ids.sort_unstable();
-        JavaRandom::new(429).shuffle(&mut ids);
+        shuffle_with_seed(429, &mut ids);
         let language = TEST_LANGUAGES.iter().position(|p| p.tatoeba == l.tatoeba).unwrap();
         let held: Vec<u32> = plan.held_out.iter().filter(|s| s.language == language).map(|s| s.id).collect();
         let trained: Vec<u32> = plan.training.iter().filter(|s| s.language == language).map(|s| s.id).collect();

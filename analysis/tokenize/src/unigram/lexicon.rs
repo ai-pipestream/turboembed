@@ -198,15 +198,10 @@ impl UnigramLexicon {
     }
 }
 
-/// `Math.log`, which OpenNLP calls for the scores: a correctly rounded
-/// logarithm, which matched the `Math.log` of the JVM build the goldens
-/// are made with on the integers compared (`turbo_jvm::math` says which,
-/// and the one where they differ). fdlibm, `StrictMath.log`, differs from
-/// that JVM on about one integer in 150, which would change which of two
-/// paths with equal exact sums wins.
+/// Natural logarithm (`f64::ln`) used for lexicon word scores.
 #[inline]
 pub(crate) fn java_log(x: f64) -> f64 {
-    turbo_jvm::math::log(x)
+    x.ln()
 }
 
 /// `Long.parseLong(s)`: an optional sign (not alone), then one or more

@@ -18,8 +18,6 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-maxent = { path = "../maxent" }
 # Java's character classes, case mapping and modified UTF-8.
 turbo-unicode = { path = "../unicode" }
-# StrictMath.log for sequence scores, and UTF-16 code units of a &str.
-turbo-jvm = { path = "../jvm" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }

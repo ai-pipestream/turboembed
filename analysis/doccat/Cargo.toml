@@ -11,7 +11,7 @@ name = "turbo_doccat"
 
 [features]
 default = []
-classical = ["dep:turbo-maxent", "dep:turbo-jvm"]
+classical = ["dep:turbo-maxent"]
 
 [[example]]
 name = "calibration_deployment"
@@ -27,7 +27,6 @@ turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-formats = { path = "../formats" }
 turbo = { path = "../../core" }
-turbo-jvm = { path = "../jvm", optional = true }
 turbo-maxent = { path = "../maxent", optional = true }
 turbo-normalize = { path = "../normalize" }
 turbo-normalize-layers = { path = "../normalize-layers" }
