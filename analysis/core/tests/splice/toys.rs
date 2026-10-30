@@ -62,6 +62,30 @@ impl Annotator for Structurer {
     }
 }
 
+/// One block per paragraph, every block a section when the paragraphs
+/// are odd in number and a paragraph when even (the other way round
+/// with `flip`): a document-wide producer whose untouched partitions
+/// change their payload, but not their spans, with an edit elsewhere.
+pub struct ParityStructurer {
+    pub flip: bool,
+}
+
+impl Annotator for ParityStructurer {
+    const ID: &'static str = "test:parity-structure";
+    type Reads = (View,);
+    type Writes = (Structure,);
+
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Structure,), Error> {
+        let (Structure { spans, parent, depth, .. },) = Structurer.annotate((view,))?;
+        let n = spans.len();
+        let kind = if (n % 2 == 1) != self.flip { Block::Section } else { Block::Paragraph };
+        Ok((Structure { spans, kind: vec![kind; n], parent, depth },))
+    }
+    fn config_hash(&self) -> u64 {
+        u64::from(self.flip)
+    }
+}
+
 /// Runs of non-space bytes inside each item of the partition layer.
 pub fn words_in<P: Layer>(view: &View, parts: &Spans<P>, sentence_column: bool) -> Tokens {
     let text = view.text();
@@ -103,6 +127,34 @@ impl Annotator for SectionTokens {
     type Writes = (Tokens,);
     fn annotate(&self, (view, structure): Refs<'_, Self>) -> Result<(Tokens,), Error> {
         Ok((words_in(view, &structure.spans, false),))
+    }
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Structure>::DEFAULT.id())
+    }
+}
+
+/// Per block, its words for a section and one token for a paragraph:
+/// an output that depends on the partition's payload.
+pub struct KindTokens;
+
+impl Annotator for KindTokens {
+    const ID: &'static str = "test:kind-tokens";
+    type Reads = (View, Structure);
+    type Writes = (Tokens,);
+    fn annotate(&self, (view, structure): Refs<'_, Self>) -> Result<(Tokens,), Error> {
+        let mut spans = Spans::new(view.id());
+        for (b, span) in structure.spans.iter() {
+            if structure.kind[b.get()] == Block::Paragraph {
+                spans.push(span);
+                continue;
+            }
+            let mut one: Spans<Structure> = Spans::new(view.id());
+            one.push(span);
+            for (_, word) in words_in(view, &one, false).spans.iter() {
+                spans.push(word);
+            }
+        }
+        Ok((Tokens { spans, sentence: None },))
     }
     fn locality(&self) -> Locality {
         Locality::Partition(Key::<Structure>::DEFAULT.id())
@@ -298,6 +350,18 @@ pub fn analyzer_with(work: u32) -> Analyzer {
 /// The pipeline with a tagger whose output may not be reused.
 pub fn analyzer_uncached() -> Analyzer {
     analyzer_tagging(Tagger { tagset: tagset(), work: 0, cacheable: false })
+}
+
+/// Sentences and tokens, with the parity structurer and the tokens that
+/// depend on each block's kind.
+pub fn analyzer_parity(flip: bool) -> Analyzer {
+    Analyzer::builder()
+        .add(Sentencer)
+        .add(ParityStructurer { flip })
+        .add(Tokenizer)
+        .step(Bound::new(KindTokens).write(0, "section"))
+        .build()
+        .unwrap()
 }
 
 fn analyzer_tagging(tagger: Tagger) -> Analyzer {
