@@ -449,6 +449,23 @@ the digest the Trankit section above records). The mutable tag
 `sha256:693b004911d6fb9bc1c70b4ed8f833e5b495bcc315e3f33cfde85ba9680cf540`
 for this run, the same image id as at record time.
 
+The wtpsplit receipt (`throughput/wtpsplit-en-ewt.json`, the
+same 2077 sentences as document text, clean tree at
+`ec8dbfca1293`, on 2026-10-30) is min 7.15 s, mean 7.53 s, p50
+7.46 s (278.48 sentences/s), p99 and max 8.14 s, beginning at
+host load 1.42; later per-run loads rise to about 11 under the
+timed command's own threads while its seconds stay in the same
+band. All 20 runs are byte-identical to the recorded predictions
+(SHA-256
+`1aa2702be1c99bcf1743337cfa5fc430ce4c173579f9265091e609a6e2c04841`,
+the digest the wtpsplit section above records). The mutable tag
+`turbo-peer-wtpsplit:2.2.2-sat-3l` named image
+`sha256:e9f66767399d34097ae89a0d6cb16af96dc799327f51fe4d1f045cc84cd14d32`
+for this run, the same image id as at record time. An earlier
+capture the same evening is not used: it began at host load
+13.74 under other lanes' CI and its seconds followed that load
+down from 10.15 s to 7.35 s.
+
 Receipts for the other analysis systems land as their booked runs
 complete; the records above still carry at most the single
 in-process timing their own sections state.
