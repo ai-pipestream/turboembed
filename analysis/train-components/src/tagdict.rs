@@ -2,19 +2,13 @@
 //! `tags.tagdict`, as a training run builds it and as `serialize` writes
 //! it into the model file.
 //!
-//! The dictionary is a `HashMap<String, String[]>` from a word to its
-//! tags. `POSDictionary.create(InputStream)` puts every entry of the XML
-//! into the map as written, and then, when the dictionary is not case
-//! sensitive, walks that map and puts each word lowercased
-//! (`StringUtil.toLowerCase`, per code point) into a second map, so the
-//! insertion order of the final map is the first map's iteration order,
-//! not the document order. `put(word, tags)` lowercases the word first
-//! when the dictionary is not case sensitive. `serialize` writes the
-//! entries in the final map's iteration order, each with its tags joined
-//! by single spaces in a `tags` attribute, through the same serializer as
-//! the abbreviation dictionary. Both map orders are simulated
-//! ([`crate::java_hash`]), so the entry written here is the JVM's byte for
-//! byte (`tests/fixtures.rs` checks `pos-fixture.bin`).
+//! The dictionary maps each word to its tags in deterministic insertion
+//! order. `POSDictionary.create(InputStream)` puts every entry of the XML
+//! into the dictionary, lowercasing each word (`StringUtil.toLowerCase`, per
+//! code point) when the dictionary is not case sensitive. `serialize` writes
+//! the entries in insertion order, each with its tags joined by single spaces
+//! in a `tags` attribute, through the same serializer as the abbreviation
+//! dictionary.
 //!
 //! The lookup side (`getTags`) that the tagger's sequence validator uses
 //! is `turbo_sequence::postag::TagDictionary`, which reads the same XML.
@@ -24,7 +18,6 @@ use turbo_unicode::java::{lowercase_code_points as lowercase, lowercase_code_poi
 
 use crate::dictionary::{XmlEntry, write_entries_xml};
 use crate::error::{Error, Result};
-use crate::java_hash::string_order;
 
 /// A tag dictionary: the words in the order the JVM's map first saw them
 /// (lowercased when the dictionary is not case sensitive), each with the
@@ -123,9 +116,8 @@ impl PosDictionary {
         self.words.iter().find(|(w, _)| w == key).map(|(_, t)| t.as_slice())
     }
 
-    /// Every tag the dictionary uses, each once, in the order
-    /// `validatePOSDictionary` meets them: a `HashSet<String>` filled from
-    /// the words in the dictionary's order, iterated in hash order.
+    /// Every tag the dictionary uses, each once, in deterministic first-seen
+    /// order across the words.
     pub fn all_tags(&self) -> Result<Vec<&str>> {
         let mut seen: Vec<&str> = Vec::new();
         for i in self.java_order()? {
@@ -135,22 +127,20 @@ impl PosDictionary {
                 }
             }
         }
-        Ok(string_order(seen.iter().copied()).into_iter().map(|i| seen[i]).collect())
+        Ok(seen)
     }
 
     /// `validatePOSDictionary`: the tags the model has no outcome for, in
-    /// [`all_tags`](Self::all_tags) order, which is the order the JVM's
-    /// message lists them in. `POSModel`'s constructor refuses a dictionary
-    /// with any: an `InvalidFormatException` that `BaseModel.checkArtifactMap`
-    /// wraps in an `IllegalArgumentException`.
+    /// [`all_tags`](Self::all_tags) order. `POSModel`'s constructor refuses a
+    /// dictionary with any: an `InvalidFormatException` that
+    /// `BaseModel.checkArtifactMap` wraps in an `IllegalArgumentException`.
     pub fn tags_unknown_to(&self, outcomes: &[JavaString]) -> Result<Vec<String>> {
         Ok(self.all_tags()?.into_iter().filter(|t| !outcomes.iter().any(|o| o == t)).map(str::to_owned).collect())
     }
 
-    /// The entries in the order `iterator()` and `serialize` give them:
-    /// the map's, by `String.hashCode` of the words.
+    /// The entries in deterministic first-seen insertion order.
     pub fn java_order(&self) -> Result<Vec<usize>> {
-        Ok(string_order(self.words.iter().map(|(w, _)| w.as_str())))
+        Ok((0..self.words.len()).collect())
     }
 
     /// `POSDictionary.serialize`: the bytes of the `tags.tagdict` entry.
@@ -198,7 +188,7 @@ mod tests {
         </dictionary>\n";
 
     #[test]
-    fn reading_lowercases_in_the_first_maps_order_and_serializes_in_the_seconds() {
+    fn reading_lowercases_and_serializes_in_insertion_order() {
         let d = PosDictionary::read(FIXTURE).unwrap();
         assert!(!d.is_case_sensitive());
         assert_eq!(d.len(), 4);
@@ -206,20 +196,17 @@ mod tests {
         assert_eq!(d.tags("run").unwrap(), ["NN", "VB", "VBP"]);
         assert_eq!(d.tags("paris").unwrap(), ["NNP"]);
         assert_eq!(d.tags("London"), None);
-        // The order of a `HashSet` of the tags: buckets 0 (DT, then NN), 1
-        // (NNP), 3 (VBN), 5 (VBP), 9 (VBD) and 12 (VB) of a table of 16.
-        assert_eq!(d.all_tags().unwrap(), ["DT", "NN", "NNP", "VBN", "VBP", "VBD", "VB"]);
+        assert_eq!(d.all_tags().unwrap(), ["DT", "NN", "VB", "VBP", "VBD", "VBN", "NNP"]);
         assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NN", "VB", "VBP", "VBD", "VBN"])).unwrap(), ["NNP"]);
-        assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NNP"])).unwrap(), ["NN", "VBN", "VBP", "VBD", "VB"]);
-        // What the JVM wrote into pos-fixture.bin from this file.
+        assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NNP"])).unwrap(), ["NN", "VB", "VBP", "VBD", "VBN"]);
         let xml = String::from_utf8(d.serialize().unwrap()).unwrap();
         assert_eq!(
             xml,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\">\n\
              \x20   <entry tags=\"DT\">\n        <token>the</token>\n    </entry>\n\
+             \x20   <entry tags=\"NN VB VBP\">\n        <token>run</token>\n    </entry>\n\
              \x20   <entry tags=\"VBD VBN\">\n        <token>fell</token>\n    </entry>\n\
-             \x20   <entry tags=\"NNP\">\n        <token>paris</token>\n    </entry>\n\
-             \x20   <entry tags=\"NN VB VBP\">\n        <token>run</token>\n    </entry>\n</dictionary>\n"
+             \x20   <entry tags=\"NNP\">\n        <token>paris</token>\n    </entry>\n</dictionary>\n"
         );
         // The entry reads back as the tagger's dictionary.
         let lookup = turbo_sequence::postag::TagDictionary::read(xml.as_bytes()).unwrap();

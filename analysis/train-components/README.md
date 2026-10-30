@@ -23,8 +23,7 @@ explicitly. See docs/lemma-case-evaluation.md.
 | `namefind` | `TokenNameFinderFactory` (the default descriptor or a given one without resources, the BIO or BILOU codec), `NameFinderEventStream` over `DefaultNameContextGenerator`, `NameFinderME.train` with an event trainer and its default parameters, `TokenNameFinderModel` with its `generator.featuregen` entry |
 | `langdetect` | `LanguageDetectorFactory`, `LanguageDetectorEventStream` over `DefaultLanguageDetectorContextGenerator` (the n-grams in `getContext`'s order, which differs from `predictLanguages`' when a bucket became a tree), `LanguageDetectorME.train`, `LanguageDetectorModel` |
 | `dictionary` | `Dictionary` as `new Dictionary(InputStream)` reads it and `Dictionary.serialize` writes it, through the JDK's `ToStream` with indentation |
-| `tagdict` | `POSDictionary` as `POSDictionary.create` reads it (a case-insensitive one is lowercased into a second map in the first map's order) and `POSDictionary.serialize` writes it |
-| `java_hash` | `String.hashCode`, `StringList.hashCode`, and the iteration order of a `java.util.HashMap` |
+| `tagdict` | `POSDictionary` as `POSDictionary.create` reads it and `POSDictionary.serialize` writes it |
 | `package` | The `factory` and `serializer-class-*` manifest entries and the zip entry order of `BaseModel.serialize` |
 
 The samples come from `turbo-formats` (native and CoNLL-U readers), the
