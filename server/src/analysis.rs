@@ -39,6 +39,9 @@ pub(crate) struct Analysis {
     pub(crate) admin: bool,
     /// Where completed stream documents are forwarded, when anywhere.
     pub(crate) sink: Option<Arc<crate::sink::SinkForwarder>>,
+    /// The model catalog, whose acceptance file LoadBundle checks a
+    /// bundle's licence against (catalog/gate.rs); none without one.
+    pub(crate) catalog: Option<crate::catalog::Catalog>,
 }
 
 fn plain(f: Failure) -> Status {
@@ -91,6 +94,13 @@ impl AnalysisService for Analysis {
         }
         let req = req.into_inner();
         let (name, config) = load_config(&req).map_err(plain)?;
+        if let Some(catalog) = self.catalog.clone() {
+            let (bundle, user) = (req.bundle.clone(), req.user.clone());
+            tokio::task::spawn_blocking(move || crate::catalog::check_load(&catalog, &bundle, &user, 12))
+                .await
+                .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the licence check failed: {e}"))))?
+                .map_err(plain)?;
+        }
         // The registration this request owns, by identity, through
         // loading, the answer, and rollback: a same-named replacement is
         // a different Arc and is never touched.

@@ -187,6 +187,15 @@ and until then they refuse with `TURBO_E_UNSUPPORTED` (`UNIMPLEMENTED`).
 bundle's task via `turbo_runtime_select`, and any load or session creation
 failure returns its mapped gRPC status code with `turbo-code` and
 `turbo-field` trailing metadata (docs/kserve.md, Errors).
+On a server started with a catalog (docs/grpc-catalog.md), a bundle whose
+`model.license` is in a class that needs acceptance (docs/zoo.md, licence
+classes) loads only for a user who accepted it in the catalog's
+acceptance file: `user` (field 12) names that user, and a load without
+one, or for a user who has not accepted, refuses with
+`TURBO_E_INVALID_STATE` (`FAILED_PRECONDITION`) naming the terms to read.
+A `LicenseRef-RestrictedPublic` bundle names no host, so any of the user's
+acceptances under that licence counts. A permissive bundle, or one on a
+server without a catalog, needs no user.
 Even with the flag they take a plaintext, unauthenticated gRPC port into
 trust, the same trust every request already carries; put the port behind
 what a deployment uses for that (docs/grpc.md, Starting it).

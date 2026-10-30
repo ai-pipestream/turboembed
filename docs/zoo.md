@@ -55,7 +55,13 @@ The exception permits this named local download after user acceptance;
 it grants no rights to training text and approves no other model.
 
 `turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
-inputs. `turbo-fetch.json` saves the notice and acceptance. API clients
+inputs. `turbo-fetch.json` saves the notice and acceptance. For a model
+whose licence itself needs acceptance, the tool also reads and writes the
+zoo's acceptance file (`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`):
+a licence that user accepted before, with the tool, `turbo-zoo accept` or
+the catalog service, needs no flag, and the flag records the acceptance
+there. A recipe notice is the project's own condition and has no single
+terms address, so it is never recorded and always needs the flag. API clients
 must set `accept_terms=true` only after an explicit user decision through
 configuration or a prompt. The manifest identifies the weight licence;
 the notice adds the project download restriction. The existing handling

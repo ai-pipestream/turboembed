@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use turbo::bundle::sha256_hex;
 
 use crate::Result;
+use crate::licence::Consent;
 use crate::recipe::Recipe;
 
 /// Where `path` is served at `commit` of a Hugging Face repository.
@@ -24,13 +25,21 @@ pub const PROVENANCE: &str = "turbo-fetch.json";
 /// PROVENANCE. A recipe with a notice, terms beyond its licence, is
 /// fetched only when `accept_terms` says the caller accepted them.
 pub fn fetch(recipe: &Recipe, dir: &Path, accept_terms: bool) -> Result<()> {
+    fetch_with(recipe, dir, &Consent::flag(accept_terms))
+}
+
+/// [`fetch`], with a licence that needs acceptance checked against, and
+/// recorded in, the zoo's acceptance file as [`crate::licence::check_fetch_with`]
+/// says. A notice still needs the flag on each fetch: it has no address
+/// of its own to record.
+pub fn fetch_with(recipe: &Recipe, dir: &Path, consent: &Consent) -> Result<()> {
     let (repository, commit) = recipe.source()?;
     let license = recipe.str_at("/model/license").unwrap_or("not stated");
     println!("{repository} at {commit}, licence {license}");
-    let class = crate::licence::check_fetch(&recipe.manifest, accept_terms)?;
+    let class = crate::licence::check_fetch_with(&recipe.manifest, consent)?;
     if let Some(n) = &recipe.notice {
         println!("notice: {n}");
-        if !accept_terms {
+        if !consent.flag {
             return Err("this model carries terms beyond its licence (the notice above): \
                         fetch it with --accept-terms once you have read them"
                 .into());
