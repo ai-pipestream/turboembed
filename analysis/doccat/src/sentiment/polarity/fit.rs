@@ -160,10 +160,11 @@ impl PolarityVectorHead {
         let decay = [true, false];
 
         let mut order: Vec<usize> = (0..train.len()).collect();
-        let mut x_batch = Vec::with_capacity(config.batch_size * dim);
-        let mut targets = Vec::with_capacity(config.batch_size);
-        let mut logits = Vec::with_capacity(config.batch_size * POLARITY_COUNT);
-        let mut d_logits = Vec::with_capacity(config.batch_size * POLARITY_COUNT);
+        let cap = config.batch_size.min(train.len());
+        let mut x_batch = Vec::with_capacity(cap * dim);
+        let mut targets = Vec::with_capacity(cap);
+        let mut logits = Vec::with_capacity(cap * POLARITY_COUNT);
+        let mut d_logits = Vec::with_capacity(cap * POLARITY_COUNT);
 
         let mut best_weights = params[0].clone();
         let mut best_biases: [f32; POLARITY_COUNT] = params[1].as_slice().try_into().unwrap();

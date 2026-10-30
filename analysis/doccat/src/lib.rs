@@ -42,7 +42,6 @@ pub mod dl;
 pub mod error;
 pub mod features;
 mod hash;
-pub mod java;
 pub mod layer;
 pub mod model;
 pub mod multilabel;

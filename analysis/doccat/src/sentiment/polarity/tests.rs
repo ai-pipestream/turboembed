@@ -204,7 +204,7 @@ fn document_polarity_annotator_scores_lexicon_learned_and_hybrid_modes() {
         vec![],
         encoder_ref("encoder:wrong"),
     );
-    let learned = PolarityAnnotator::from_head(head);
+    let learned = PolarityAnnotator::from_head(head.clone());
     assert!(
         learned
             .annotate((
@@ -214,6 +214,21 @@ fn document_polarity_annotator_scores_lexicon_learned_and_hybrid_modes() {
                 None,
                 None,
                 Some(&wrong_vecs),
+            ))
+            .is_err()
+    );
+
+    // Mismatched Vectors<Sentences> length vs Sentences length is rejected.
+    let one_row_vecs = Vectors::<Sentences>::new(4, vec![1.3, -0.3, 0.1, 0.4], vec![], enc);
+    assert!(
+        PolarityAnnotator::from_head(head)
+            .annotate((
+                doc.get::<View>().unwrap(),
+                doc.get::<Sentences>(),
+                doc.get::<Tokens>(),
+                None,
+                None,
+                Some(&one_row_vecs),
             ))
             .is_err()
     );

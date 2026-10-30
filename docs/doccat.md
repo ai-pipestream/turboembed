@@ -236,4 +236,3 @@ transformer model (`DlSequenceScorer`):
   accompanied by `turbo_calibration::metrics::reliability` returning
   `Reliability` (`ece` and `brier`). Tested in
   `analysis/doccat/tests/calibrated.rs` and `analysis/doccat/tests/evidence.rs`.
-

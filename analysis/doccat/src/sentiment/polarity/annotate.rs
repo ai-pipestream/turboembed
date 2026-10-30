@@ -113,6 +113,18 @@ impl PolarityAnnotator {
                 detail: "learned or hybrid polarity stage requires Vectors<Sentences>".into(),
             })?;
             validation::checked(Self::ID, vecs)?;
+            if let Some(s) = sentences
+                && vecs.len() != s.len()
+            {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!(
+                        "Vectors<Sentences> length {} does not match sentences length {}",
+                        vecs.len(),
+                        s.len()
+                    ),
+                });
+            }
             if Layer::len(vecs) == 0 {
                 return Err(Error::Annotator {
                     annotator: Self::ID,

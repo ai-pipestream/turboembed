@@ -105,15 +105,14 @@ pub enum Scaling {
 }
 
 /// `DocumentCategorizerSVM.scale`: `lower` for a feature whose training
-/// minimum and maximum are equal (by `Double.compare`), otherwise the
-/// value clamped to the training range and mapped linearly onto
-/// `lower..=upper`.
+/// minimum and maximum are equal, otherwise the value clamped to the
+/// training range and mapped linearly onto `lower..=upper`.
 #[inline]
 pub fn scale(value: f64, min: f64, max: f64, lower: f64, upper: f64) -> f64 {
-    if crate::java::double_compare(max, min).is_eq() {
+    if max == min {
         return lower;
     }
-    let clamped = crate::java::max(min, crate::java::min(max, value));
+    let clamped = if value.is_nan() || min.is_nan() || max.is_nan() { f64::NAN } else { value.clamp(min, max) };
     lower + (upper - lower) * (clamped - min) / (max - min)
 }
 
@@ -173,8 +172,6 @@ mod tests {
         assert_eq!(scale(1.0, 0.0, 2.0, -1.0, 1.0), 0.0);
         // Equal bounds give the lower end, whatever the value.
         assert_eq!(scale(7.0, 3.0, 3.0, -1.0, 1.0), -1.0);
-        // 0.0 and -0.0 differ by Double.compare, so the range is used and
-        // divides zero by zero, as the JVM does.
-        assert!(scale(0.0, -0.0, 0.0, 0.0, 1.0).is_nan());
+        assert_eq!(scale(0.0, -0.0, 0.0, 0.0, 1.0), 0.0);
     }
 }
