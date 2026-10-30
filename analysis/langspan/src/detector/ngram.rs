@@ -5,7 +5,7 @@ use turbo_analysis_layers::{Language, LanguageSpans, Sentences, Strs, Tokens};
 use turbo_langdetect::NgramModel;
 use turbo_unicode::{Script, category::general_category};
 
-use super::script_only::{append, letter_script};
+use crate::script_only::{append, letter_script};
 
 /// A language detector backed by the trained n-gram model. Every letter
 /// run carries the same whole-text prediction; runs are not classified
