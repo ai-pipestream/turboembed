@@ -18,7 +18,7 @@ turbo-bpe-trainer byte-level <corpus> <tokenizer.json> --vocab-size <n>
 turbo-bpe-trainer sentencepiece <corpus> <model> --vocab-size <n>
     [--character-coverage <c>]
 turbo-bpe-trainer opennlp <corpus> <merges.txt> --merges <n>
-    [--ties jvm|made-first]
+    [--ties made-first]
 ```
 
 The corpus is UTF-8, one text per line, split at line feeds only (a
@@ -45,10 +45,9 @@ set aside, and checks that both make the same merges with the same
 counts.
 
 Of pairs with the same count, each trainer gives an order, so the same
-corpus and settings always give the same model. For byte-level,
-sentencepiece and opennlp's `made-first` order, that model does not
-depend on the order of the texts either (`training_is_deterministic...`
-and `made_first_is_deterministic...` in the trainers' tests):
+corpus and settings always give the same model, independent of the order
+of the texts (`training_is_deterministic...` and
+`made_first_is_deterministic...` in the trainers' tests):
 
 - byte-level: the pair whose left piece has the smaller id, then the
   one whose right piece has, which is upstream's order;
@@ -56,11 +55,10 @@ and `made_first_is_deterministic...` in the trainers' tests):
   then the one that comes first in code point order, which is the
   library's; two pairs that make the same piece, the one tie the
   library leaves to the layout of its heap, go to the smaller ids;
-- opennlp: by default the JVM's order (below), which depends on the
-  order of the texts as the JVM's does; with `--ties made-first`, the
-  pair whose left symbol was made first, then the one whose right symbol
-  was, the symbols a word starts as counting as made in Java's order of
-  their strings.
+- opennlp (`TieOrder::MadeFirst`, the default and `--ties made-first`):
+  the pair whose left symbol was made first, then the one whose right
+  symbol was, the symbols a word starts as counting as made in Unicode
+  code point order (`str::cmp`) of their strings.
 
 ## Byte-level
 
@@ -161,63 +159,29 @@ merges as `BPETokenizer` does: in each word the pair of lowest rank is
 merged everywhere, left to right, until no pair has a rank, and `</w>`
 is taken off the end of each token.
 
-Of pairs with the same count, the JVM merges the first in the iteration
-order of the `HashMap` it counted them in. That order is the pairs' Java
-hash codes, spread and masked by the table's size, and within a bin the
-reverse of the order the pairs were first counted, which is the order of
-another `HashMap` of the words, rebuilt after every merge. The default
-order (`--ties jvm`, `TieOrder::Jvm`) follows the JVM's loop step for
-step (`analysis/bpe-trainer/src/opennlp/jvm.rs`): it works out the
-order of each of the JVM's three maps from the hash codes of the words,
-the symbol lists and the pairs, with the table growth of `put` and of
-`merge` (which also grows a full table when the key is already there),
-and without building the maps (`analysis/jvm/src/hash_map/mod.rs`).
-Like the JVM, it counts every pair again before each merge, so a merge
-costs a pass over the distinct words. `--ties made-first` keeps the
-counts as the shared merge loop does instead, and its order does not
-depend on the order of the texts.
+Of pairs with the same count, `OpenNlpBpe` merges in `TieOrder::MadeFirst`
+order (`--ties made-first`, the default): the pair whose left symbol was
+made first, then the one whose right symbol was, with initial symbols
+ordered by Unicode code point order (`str::cmp`). It uses the shared
+incremental merge loop (`analysis/bpe-trainer/src/merger.rs`), so counts
+are updated incrementally without recounting all words on each step, and
+its output does not depend on the order of the texts in the corpus.
 
-Two cases are not reproduced, and `OpenNlpBpe::is_jvm_exact` (and a
-warning from the command) says when either can apply:
+A symbol is a Unicode character (code point), where the JVM's is a
+UTF-16 unit: the JVM splits a character outside the Basic Multilingual
+Plane into its surrogates and spends merges joining them. Such a merge
+has a lone surrogate on one side, which a Rust string cannot hold and
+which the JVM writes as `?` when it saves the model (its serializer
+encodes UTF-8). `OpenNlpBpe` keeps whole Unicode characters as symbols
+from the start and never splits supplementary characters.
 
-- A bin of eight or more keys in a table of 64 or more becomes a
-  red-black tree in the JVM. The tree's order is reproduced, except
-  between keys with equal hash codes: the pairs (a record) and the
-  symbol lists are not classes `HashMap` compares, so the JVM orders
-  them by identity hash code, which changes from run to run. The words
-  are strings, which the JVM compares, but the trainer works from their
-  hash codes alone and reports equal ones in a tree bin the same way.
-  The order changes the merges only when two pairs in that bin tie for
-  the highest count.
-- A symbol is a Unicode character, where the JVM's is a UTF-16 unit: the
-  JVM splits a character outside the Basic Multilingual Plane into its
-  surrogates and spends merges joining them. Such a merge has a lone
-  surrogate on one side, which a Rust string cannot hold and which the
-  JVM writes as `?` when it saves the model (its serializer encodes
-  UTF-8), so a UTF-16 mode would make merges the JVM itself cannot save
-  and read back. The trainer does not split.
+Compared with the reference goldens (`analysis/goldens/data/bpe/merges-{40,400}/bpe/`,
+tested in `analysis/bpe-trainer/tests/opennlp.rs`):
 
-The JVM goldens are the `bpe` annotator of the goldens generator
-(`analysis/goldens/data/bpe/merges-{40,400}/bpe/`): `BPETokenizerTrainer`
-on each of the six texts of `inputs/bpe/` with 40 and with 400 merges,
-its merges in order (`turbo:bpe-merges`) and the tokens `BPETokenizer`
-gave for the same text (`opennlp:tokens`). Compared with them and with
-the JVM on random corpora (`analysis/bpe-trainer/tests/opennlp.rs`):
-
-- The trainer makes all 686 of the JVM's merges on the ten goldens whose
-  symbols are whole characters, 623 of them made among tied pairs.
-- `analysis/bpe-trainer/testdata/OpenNlpRandom.java` ran
-  `BPETokenizerTrainer` (the commit above, JDK 21) on 160 random corpora
-  of small alphabets and up to 3000 words, and wrote
-  `opennlp-random.jsonl`: the trainer makes the same 9907 merges. Six of
-  the corpora reach a bin that became a tree; five of them hold keys
-  with equal hash codes in it, which the trainer reports, and their
-  merges are the JVM's too.
-- A model of the JVM's loop with explicit `HashMap` bins, written in the
-  test, makes all 748 of the JVM's merges on the twelve goldens, the
-  emoji golden's surrogate merges among them.
-- Every merge the JVM made is a pair of the highest count when it is
-  made in turn here, and with `made-first` the trainer makes the JVM's
-  merges up to the first tie.
-- Given the JVM's merges, the tokenizer gives the JVM's tokens on every
-  golden, words holding `</w>` as text among them.
+- Every merge in the reference goldens is a pair of the highest count
+  when replayed step by step, and `OpenNlpBpe` makes the same merges up
+  to the first step where tied pairs occur (and chooses one of the tied
+  top-counted pairs there).
+- Given the reference merges, `OpenNlpTokenizer` produces the exact
+  reference tokens on every golden, words holding `</w>` as text among
+  them.
