@@ -1,6 +1,6 @@
 # turbo-tagger
 
-Part-of-speech and entity annotators over a bundle's own token tagger
+Part-of-speech, entity, dependency and lemma annotators over a bundle's own
 heads (`manifest.heads`, docs/bundle.md "Heads"), on any backend the
 encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
 
@@ -21,6 +21,46 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
 - `PosTagger` writes the part-of-speech layer from a `SCHEME_TAGS` head;
   `EntityTagger` writes the entity layer from a `SCHEME_BIO` or
   `SCHEME_BILOU` head, each span on token bounds.
+- `parse`: `DependencyParser` writes the dependency layer from a
+  `HEAD_BIAFFINE_PARSER` head: arcs scored by the core's `BiaffineParser`,
+  one tree a sentence by MST or Eisner as the head says, a relation for
+  each word under its head. A word under the root has no head.
+- `lemma`: `Lemmatizer` writes the lemma layer from a
+  `HEAD_EDIT_TREE_LEMMATIZER` head: with a `pos_input`, the tagger head
+  it names tags each sentence first (on its own pooling); the core's
+  `EditTreeLemmatizer` scores the trees and applies the best one that
+  fits each word, the word itself when none fits. A `LemmaDictionary`
+  (any `Fn(form, tag) -> Option<String>`) overrides the head where it
+  lists a lemma; its id is part of the config hash.
+- `dictionaries`: the lexicon lookups as `LemmaDictionary`
+  implementations: `MorfologikLemmas` over a Morfologik dictionary (the
+  smallest lemma it lists under the tag, in byte order) and `MorphyLemmas`
+  over WordNet's Morphy on any lexicon it reads, Princeton's database or
+  an Open English WordNet LMF file (its first candidate under the tag's
+  part of speech). Both ask under the tag the head decoded, mapped by an
+  optional tag map, and give no override without one.
+- `segment`: `SentenceTagger` writes the sentence layer from a
+  `HEAD_SENTENCE_BOUNDARY` head, reading the view's tokens as one
+  sequence of words (in windows past a row) and ending a sentence after
+  each word the core's `SentenceBoundary` marks, the last word always.
+  `SpanTagger` writes typed spans from a `HEAD_SPAN_CLASSIFIER` head into
+  the entity layer, nested or flat as the head decodes, a sentence at a
+  time; each span's score is its label's probability among the span's
+  scores. Both put every span on token bounds.
+- `multi`: `MultiTask<W>` writes several of those layers from one
+  encoder pass (#1517). `W` is a tuple of the layers to write, such as
+  `(PosTags, Entities, Dependencies<Tokens>, Lemmas)`, each from the head
+  named for it or the one head that writes its layer; two outputs of one
+  layer name their heads. Each window of words is read once, and every
+  pooling the heads ask for is taken from that read, so five heads cost
+  one encoder pass and five host decodes. Each layer is written exactly
+  as its single-head annotator writes it (the lemmatizer without a
+  dictionary). `license_tier` is the bundle's tier, the strictest class
+  of the encoder (`model.license_class`) and every head's training
+  corpora (`heads[].license_class`).
+- `examples/multitask_cost.rs`: the cost of one pass with five heads
+  against one head, on any bundle with an encoder (the heads are seeded
+  and added to a copy), in the receipt form.
 
 ```text
 cargo test -p turbo-tagger

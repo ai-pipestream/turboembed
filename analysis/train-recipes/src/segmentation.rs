@@ -1,5 +1,5 @@
 //! The English sentence detector and tokenizer trained on MASC, and their
-//! native sentence gold-label gate and the remaining legacy token recipe.
+//! native sentence gold-label gate. Token recipes have no reference model.
 //!
 //! Each recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults and the released MASC parameters: GIS,
@@ -8,9 +8,9 @@
 //!
 //! The samples are what OpenNLP's MASC streams read, with two changes
 //! ([`read_token_samples`]): the token stream skips a sentence without a
-//! sample alone ([`EmptySentence::Skipped`]) instead of ending the corpus
-//! there, so one such sentence does not lose the rest of the training
-//! data; and it skips a sentence whose tokens are out of text order
+//! sample and counts it instead of ending the corpus there, so one such
+//! sentence does not lose the rest of the training data; and it skips a
+//! sentence whose tokens are out of text order
 //! ([`in_text_order`]), which [`tokenize::TokSpanEventStream`] refuses. It
 //! skips held-out sentences the same way; the card records both counts,
 //! and a recipe fails when either is more than
@@ -70,21 +70,18 @@ pub struct SegmentationRecipe {
     pub component: Component,
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
-    /// Native sentence gold labels, or a remaining legacy reference.
-    pub reference: crate::Reference,
+    /// Native sentence gold labels, or no reference for token evaluation.
+    pub reference: Option<crate::Reference>,
 }
 
 pub const SENTENCE: SegmentationRecipe = SegmentationRecipe {
     component: Component::Sentence,
     model_id: "turbo-en-masc-3.0.0-sentence-1",
-    reference: crate::Reference::GoldSentences,
+    reference: Some(crate::Reference::GoldSentences),
 };
 
-pub const TOKENS: SegmentationRecipe = SegmentationRecipe {
-    component: Component::Tokens,
-    model_id: "turbo-en-masc-3.0.0-tokens-1",
-    reference: crate::Reference::Retired("opennlp-en-ud-ewt-tokens-1.3-2.5.4"),
-};
+pub const TOKENS: SegmentationRecipe =
+    SegmentationRecipe { component: Component::Tokens, model_id: "turbo-en-masc-3.0.0-tokens-1", reference: None };
 
 /// The recipes, sentence detector first.
 pub const RECIPES: [SegmentationRecipe; 2] = [SENTENCE, TOKENS];
@@ -154,10 +151,9 @@ pub fn in_text_order(tokens: &[Span]) -> bool {
 }
 
 /// Reads the token samples of `corpus` as `MascTokenSampleStream` reads
-/// them, giving each to `each`, except that a sentence without a sample
-/// ([`EmptySentence::Skipped`]) is skipped alone, and so is a sentence
-/// whose tokens are out of text order ([`in_text_order`]). Returns how
-/// many were skipped.
+/// them, giving each to `each`, except that a sentence without a sample is
+/// skipped alone and counted, and so is a sentence whose tokens are out of
+/// text order ([`in_text_order`]). Returns how many were skipped.
 ///
 /// # Errors
 ///
@@ -423,12 +419,12 @@ impl SegmentationRecipe {
     ///
     /// [`Error::ReferenceDigest`] for other bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        self.reference.check(bytes)
+        self.reference.ok_or(Error::NoReference { recipe: self.model_id })?.check(bytes)
     }
 
     /// The reference model's file name in the zoo's built-in index.
     pub fn reference_file(&self) -> Result<String> {
-        self.reference.file()
+        self.reference.ok_or(Error::NoReference { recipe: self.model_id })?.file()
     }
 }
 

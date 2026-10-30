@@ -1,414 +1,235 @@
 # Document categorization
 
-`turbo-doccat` retains native SVM, multi-label, neural and zero-shot
-categorization. The OpenNLP `DocumentCategorizerME` and `SentimentME` archive
-constructors are disabled under #1511. Their training/archive and JVM parity
-tests are no longer current acceptance coverage. Downloading a `.bin` model
-does not enable those paths; classical API removal is tracked in #1530.
+`turbo-doccat` (`analysis/doccat/`) implements document, chunk, block, and
+sentence categorization, zero-shot natural-language-inference (NLI)
+classification, intra-document claim verification, probability calibration, and
+the lexicon, rule, and vector-head sentiment and polarity suite described in
+[sentiment.md](sentiment.md).
 
-Native multi-label entry bytes, real SVM scoring and calibration, span
-validation and document provenance remain covered in `analysis/doccat/tests`.
-The following sections describe retained categorization paths.
+## Architecture and module layout
+
+The crate is organized around typed layers in `turbo-analysis-layers` and
+backend-agnostic scorer traits:
+
+- **Shared category layer (`Categories`, `SpanCategorizable`)**:
+  `Categories` (`turbo:categories`) stores the ranked category distribution for
+  a whole document, while `Categories<Sentences>`, `Categories<Structure>`, and
+  `Categories<Chunks>` store one category distribution per sentence, structure
+  block, or retrieval chunk.
+- **Vector-scorer traits (`turbo_doccat::scorers`)**:
+  `PolarityVectorScorer`, `PragmaticsVectorScorer`, `EmotionVectorScorer`,
+  `IncivilityVectorScorer`, and `AspectCategoryScorer` decouple rule and lexicon
+  annotators from the neural embedding heads in `turbo-analysis-embed`, and
+  re-export the sentiment and pragmatics layer types (`Opinions`, `Aspects`,
+  `EmotionLayer`, `Incivility`, `Pragmatics`, `Polarity`, `PolarityScores`).
+- **Document and sentence polarity (`turbo_doccat::sentiment::polarity`)**:
+  `PolarityAnnotator` (`turbo-doccat:polarity`) and
+  `SentencePolarityAnnotator` (`turbo-doccat:sentence-polarity`) score
+  `positive`, `negative`, and `neutral` polarity across `Lexicon`, `Learned`,
+  and `Hybrid` stages using `LexiconSentiment` and `PolarityVectorHead` (trained
+  with `turbo-trainer`).
+- **Multi-label linear categorization (`turbo_doccat::multilabel`)**:
+  one-vs-rest linear heads (`MultiLabelDoccatModel`, `MultiLabelCategorizer`,
+  `MultiLabelSpanCategorizer`) with per-label threshold calibration
+  (`ThresholdCalibrator`) and clean abstention (`Tag::NONE`).
+- **Zero-shot NLI categorization (`turbo_doccat::zeroshot`)**:
+  `ZeroShotCategorizer`, `ZeroShotAnnotator`, and `ZeroShotSpanAnnotator` over
+  any `NliScorer` (such as `turbo_analysis_embed::BundleNliScorer`).
+- **Intra-document claim verification (`turbo_doccat::claim_verify`)**:
+  `ClaimVerificationAnnotator` and `ClaimVerifyConfig`, writing
+  `Edges<L, L>` (`ClaimLinks` for chunks) with `Entails`, `Contradicts`, and
+  `Redundant` edges scored by an `NliScorer`.
+- **Sequence-classification categorization (`turbo_doccat::dl`)**:
+  `DocumentCategorizerDL` and `DlSpanCategorizer` over any `DlSequenceScorer`
+  (such as `turbo_analysis_embed::BundleSequenceScorer`).
+- **Feature extraction, feature selection, and calibration (`features`,
+  `selection`, `calibrated`)**:
+  `BagOfWordsFeatureGenerator`, `NGramFeatureGenerator`,
+  `EmojiFeatureGenerator`, chi-square and mutual-information feature selection
+  (`FeatureSelection`, `SelectionMetric::Chi2`,
+  `SelectionMetric::MutualInformation`), and post-hoc probability calibration
+  (`CalibratedCategorizer` over
+  `turbo_calibration::Transform::{Temperature, Platt, Isotonic}` and
+  `turbo_calibration::metrics::reliability`).
+- **Classical and SVM categorizers (`categorizer`, `svm`, `train`)**:
+  behind the off-by-default `classical` feature: `DocumentCategorizerME`,
+  `DoccatModel`, `SpanCategorizer`, `SvmCategorizer` and `SvmDoccatModel`
+  (pure-Rust LIBSVM 3.35 SMO predictor, Wu-Lin-Weng 2004 multiclass pairwise
+  probability coupling, and binary/TF/TF-IDF/log-normalized-TF feature
+  weighting), and `SentimentMe` / `SentimentModel`. `DoccatFactory` and
+  `DoccatEventStream` remain always available in `train`.
 
 ## Multi-label categorization (`MultiLabelDoccatModel`)
 
-`turbo_doccat::multilabel` (this crate's own design, not an OpenNLP port)
-extends categorization beyond mutually exclusive labels: a document or
-span scores every known label independently and receives zero, one, or
-many of them.
+`turbo_doccat::multilabel` scores every known label independently so a document
+or span can receive zero, one, or many categories:
 
-- `MultiLabelDoccatModel` holds one linear head per label (weights and a
-  bias, as `LinearHead`), trained one-vs-rest by `train_multilabel` with
-  full-batch gradient descent over the `DoccatFactory` feature
-  generators. The sigmoid turns each head's linear score into an
-  independent score in `0.0..=1.0`; the scores do not sum to 1.0.
-- Each label carries its own threshold in the open interval `(0.0, 1.0)`
-  (default 0.5). `MultiLabelCategorizer` emits every label whose score
-  reaches its threshold, optionally capped by `max_labels`, floored by
-  `min_score` (a hard floor: a label under it never emits), and, where
-  fewer than `min_labels` would emit, back-filled up to `min_labels`
-  with the highest-scoring labels that pass `min_score`. When no label
-  clears its threshold and `min_labels` is `None`, the prediction is
-  empty: the annotators write the item with best category `Tag::NONE`,
-  the clean abstention, never a forced argmax, and every score is still
-  in the item. `MultiLabelSpanCategorizer<L>` does the same per
-  sentence, structure block, or chunk.
-- `ThresholdCalibrator` fits the thresholds on a held-out validation set:
-  for each label it sweeps the validation scores as candidate cut points,
-  keeps the threshold maximizing that label's F_beta (beta configurable,
-  default 1.0), breaking ties toward the highest threshold, and can
-  restrict candidates to a minimum-precision floor (when no candidate
-  reaches the floor, the fallback is the candidate of the highest
-  precision). A label with no positive in the validation set keeps the
+- `MultiLabelDoccatModel` holds one linear head per label (`LinearHead`, weights
+  and bias), trained one-vs-rest by `train_multilabel` with full-batch gradient
+  descent over `DoccatContextGenerator` features. A logistic sigmoid maps each
+  head's linear score to an independent probability in `0.0..=1.0`; scores do
+  not sum to `1.0`.
+- Each label carries its own decision threshold in `(0.0, 1.0)` (default `0.5`).
+  `MultiLabelCategorizer` emits every label whose score reaches its threshold,
+  optionally capped by `max_labels`, floored by `min_score` (a hard floor below
+  which a label never emits), and back-filled up to `min_labels` with the
+  highest-scoring labels that clear `min_score`. When no label clears its
+  threshold and `min_labels` is `None`, the prediction is empty: the annotator
+  writes `Tag::NONE` (clean abstention rather than a forced argmax) while
+  retaining all label scores on the item. `MultiLabelSpanCategorizer<L>` applies
+  the same logic per sentence, structure block, or chunk.
+- `ThresholdCalibrator` tunes per-label thresholds on a held-out validation set:
+  for each label it sweeps validation scores as candidate cut points, selects
+  the threshold maximizing $F_\beta$ ($\beta$ configurable, default `1.0`,
+  breaking ties toward the highest threshold), and optionally enforces a
+  minimum-precision floor (falling back to the highest-precision candidate when
+  none reaches the floor). Labels with no validation positives retain the
   default threshold.
-- `multilabel::metrics::evaluate` scores a run: micro-, macro-, and
-  sample-averaged precision, recall, and F1, plus Exact Match (the
-  fraction of documents whose predicted set equals the gold set), under
-  the crate's division conventions (predicting nothing is precision 1.0,
-  no gold positive is recall 1.0, both 0 is an F of 0.0).
-- Native multi-label entry bytes preserve calibrated thresholds and reject
-  truncated or corrupt input. Archive wrapping through `ModelFile` is disabled;
-  use the native entry codec. Version 1 entries retain `min_labels = None`.
+- `multilabel::metrics::evaluate` computes micro-, macro-, and sample-averaged
+  precision, recall, and F1, plus Exact Match (the fraction of documents whose
+  predicted label set equals the gold set).
+- `MultiLabelDoccatModel::write` and `MultiLabelDoccatModel::open` serialize the
+  model, feature generator chain, cardinality bounds, and calibrated thresholds
+  with a trailing CRC-32C checksum (format version 2; version 1 payloads open
+  with `min_labels = None`). Truncated or corrupted bytes return
+  `MultiLabelError` without panicking.
 
+### Testing
 
-`analysis/doccat/tests/multilabel.rs` covers the scoring, the abstention
-into `Categories`, the calibration sweep (beta, floor, ties, zero
-positives), and trains on an imbalanced fixture whose rare label's
-optimal threshold is far from 0.5, proving the calibrated thresholds
-strictly improve macro-F1 over a flat 0.5.
-`analysis/doccat/tests/multilabel_extra.rs` covers the cardinality
-bounds, the format's backward compatibility, and the evaluation metrics
-against hand-computed values.
-
-## SVM categorization (`SvmCategorizer`)
-
-OpenNLP's SVM categorizer turns a document's tokens into a sparse vector and
-asks LIBSVM for it. `turbo-doccat` follows it step by step:
-
-1. The feature generators run over the tokens, in the model's order:
-   `BagOfWordsFeatureGenerator` (`bow=` and the token) and
-   `NGramFeatureGenerator` (`ng=` and the tokens of each n-gram, each
-   after a `:`). `turbo_doccat::FeatureGenerator` is both.
-2. Each feature in the vocabulary is counted; the others are dropped.
-3. Each count is weighted by the model's `TermWeightingStrategy`: `BINARY`
-   (1), `TERM_FREQUENCY` (the count), `TF_IDF` (the count times the
-   feature's inverse document frequency) or `LOG_NORMALIZED_TF`
-   (`1 + Math.log(count)`, with `turbo-jvm`'s port of `Math.log`).
-4. With scaling on, each weight is scaled to the model's range from the
-   feature's training minimum and maximum, clamped first, as
-   `buildFeatureVector` does, and a feature whose minimum and maximum are
-   equal gets the lower end.
-5. A value that is zero by `Double.compare` is dropped, both after
-   weighting and after scaling, so -0.0 stays. The features go to LIBSVM
-   in index order, as OpenNLP's `TreeMap` gives them.
-6. LIBSVM's `svm_predict_probability`: the kernel against every support
-   vector, the decision value of each class pair, Platt's sigmoid on each
-   (`sigmoid_predict`, with its 1e-7 floor) and the pairwise coupling
-   (`multiclass_probability`). Each probability goes to the category whose
-   index is the LIBSVM label, and a category without a label scores 0.
-
-`svm::libsvm` is a port of `svm.java` 3.35, the Java LIBSVM that zlibsvm
-3.0.0 wraps: `k_function` (the linear, polynomial, RBF and sigmoid kernels,
-with LIBSVM's `powi` and its merge order for the RBF distance),
-`svm_predict_values`, `svm_predict_probability`, the one-class density
-marks and the regression Laplace parameter. The categorizer takes C-SVC and
-nu-SVC models; the reader takes every kind but the precomputed kernel.
-
-`SvmCategorizer` is the categorizer: `categorize`, `best_category`
-(`getBestCategory`, the first highest score), `index` (`getIndex`, `None`
-for -1), `category`, `num_categories` and `all_results` (`getAllResults`,
-scores written as `Double.toString` writes them). As an annotator
-(`turbo-doccat:svm`) it reads `opennlp:tokens` and writes
-the document's `turbo:categories`: the best category and every
-category's probability, which `Categories::ranked` lists best first,
-ties in category order. The tokens are the strings the categorizer gets,
-so the annotator gives what `categorize` gives for those tokens.
-
-```rust
-use std::path::Path;
-use turbo_doccat::{Scratch, SvmCategorizer, SvmDoccatModel};
-
-let model = SvmDoccatModel::open(Path::new("model.txt"), Path::new("sidecar.txt"))?;
-let categorizer = SvmCategorizer::new(model)?;
-let mut scratch = Scratch::new();
-let scores = categorizer.categorize(&["heavy", "rain", "tonight"], &mut scratch);
-let best = categorizer.best_category(scores);
-```
-
-The probabilities decide the category, not the pairwise vote. The two can
-disagree, and do on some of the golden documents; the decision values and
-the vote are there for comparison (`SvmDoccatModel::decision_values`).
-
-A model's `ModelRef` is `opennlp:SvmDoccatModel:<language>` (`und` without
-one), revision `1`, and the SHA-256 of the LIBSVM file's bytes followed by
-the sidecar's.
-
-### OpenNLP SVM behaviour worth knowing
-
-- A model trained without probability estimates cannot categorize: zlibsvm
-  hands LIBSVM empty `probA` and `probB` arrays, and OpenNLP throws
-  `ArrayIndexOutOfBoundsException` on every document of a model with two
-  or more categories. `SvmCategorizer::new` refuses such a model
-  (`ModelError::NoProbabilityEstimates`).
-- A document with no token in the vocabulary is an empty vector, and its
-  decision values are the negated `rho` values, not zero.
-- Feature selection (`FeatureSelectionStrategy`) only chooses the
-  vocabulary at training; prediction never looks at it. The sidecar
-  records it for the reader.
-
-## The SVM model files
-
-OpenNLP saves an `SvmDoccatModel` with Java serialization, which this port
-does not read. The golden generator writes each model as two text files
-instead, and `SvmDoccatModel::from_text` and `SvmDoccatModel::open` read
-them:
-
-- The LIBSVM model as `svm.svm_save_model` writes it. The reader is strict:
-  each keyword must be exact and given once, `nr_class` comes before the
-  records sized by it, counts must add up, each support vector's indexes
-  ascend, and each kernel's parameters must be given. Numbers are read with
-  Java's grammar, so the shortest decimals the Java writer prints and the
-  `%.17g` of the C library both read back to the bits written.
-- The sidecar, a line based format that holds the rest: the language, the
-  weighting, the selection, the scaling range, the generators, the
-  categories and, for each feature index, its inverse document frequency,
-  its training minimum and maximum and its string. `svm::sidecar`
-  documents the format; `Sidecar::write` writes it and reads back to the
-  same model.
-
-```text
-svm-doccat 1
-language	eng
-weighting	TF_IDF
-selection	NONE	-1
-scaling	0.0	1.0
-generator	bag-of-words
-category	0	weather
-category	1	cooking
-category	2	sports
-category	3	finance
-feature	1	2.2617630984737906	0.0	2.2617630984737906	bow=for
-feature	2	3.871201010907891	0.0	3.871201010907891	bow=up
-```
-
-(the start of the sidecar of the `topics-linear-tfidf-none` run)
-
-Fields are separated by one tab, numbers are written as `Double.toString`
-writes them, and a name is the last field, escaped as golden files escape
-a string.
-
-## SVM parity with the JVM
-
-### The goldens
-
-`SvmDoccatGolden.java` in `analysis/goldens-tool` trains 32 models with
-`DocumentCategorizerSVM.train` on two corpora written for this project
-(`inputs/svm-doccat-train`, 48 and 12 sentences): every term weighting
-with every feature selection on the linear kernel, then the RBF,
-polynomial and sigmoid kernels, nu-SVC, no scaling, the range -1 to 1,
-n-grams and a higher cost. It exports each model as the two files above
-and runs `categorize` on 12 documents (`inputs/svm-doccat`). Each golden
-records the tokens, the feature vector, the decision values, the vote and
-the categories with their probabilities.
-`analysis/goldens-tool/README.md` ("SVM document categorizer goldens")
-lists the runs and layers.
-
-`analysis/doccat/tests/goldens.rs` reads each run's model from its
-training golden and compares every document. The goldens are checked in
-under `analysis/goldens/data/svm-doccat` and can be regenerated with:
-
-```
-cargo run -p turbo-goldens-tool -- generate
-```
-
-Across the 32 runs and 384 documents, 2,183 of 2,184 decision values match
-the JVM's bits (every linear, polynomial and sigmoid decision value is
-exact); the remaining RBF value is 1.8e-15 away.
-
-### The wider check
-
-A scratch program on the same JDK trained 114 models on generated corpora
-of 2, 3 and 5 categories (every weighting with every selection on the
-linear kernel; the RBF, polynomial and sigmoid kernels with every
-weighting; nu-SVC with the linear and RBF kernels; no scaling, the range
--1 to 1, n-grams and a higher cost) and categorized 300 documents with
-each, 34,200 in all, empty documents and unknown tokens among them:
-
-| What | Same bits as the JVM | Largest difference |
-|---|---|---|
-| Feature vectors | 34,200 of 34,200 | none |
-| Votes and best categories | 34,200 of 34,200 | none |
-| Decision values, linear kernel | 100,800 of 100,800 | none |
-| Decision values, polynomial kernel | 16,800 of 16,800 | none |
-| Decision values, RBF kernel | 25,033 of 25,200 | 1.42e-14 |
-| Decision values, sigmoid kernel | 16,759 of 16,800 (before `strict_math::tanh`) | 2.2e-16 |
-| Probabilities | 113,294 of 114,000 | 4.94e-15 |
-
-`getAllResults` gave the JVM's string wherever the probabilities had the
-JVM's bits. The wider scratch check above was recorded when the sigmoid
-kernel still called `f64::tanh`; with `k_function` calling
-`turbo_jvm::strict_math::tanh` (verified bit-exact across all committed
-sigmoid golden predictions in `topics-sigmoid-tfidf`), the sigmoid kernel
-matches JDK 21's `Math.tanh` and `StrictMath.tanh` to the bit.
-
-### Tolerances
-
-- Exact: the feature vector, the vote, the order of the categories and,
-  for the linear, polynomial and sigmoid kernels, the decision values.
-  These are sums and products in LIBSVM's order, which the port keeps,
-  and the sigmoid kernel calls `turbo_jvm::strict_math::tanh`.
-- Decision values of the RBF kernel: within 1e-12. The RBF kernel calls
-  `Math.exp`, and the port calls the platform's `exp`. On 2,000,000
-  arguments, `f64::exp` (glibc) differed from HotSpot's `Math.exp` in the
-  last place on 4,915. A last place error in one kernel value moves a
-  decision value by about the coefficient times 2.2e-16 per support
-  vector; the largest seen was 1.42e-14, so 1e-12 leaves room for other
-  platforms' `exp` without hiding a wrong kernel, which moves values by
-  far more.
-- Probabilities: within 1e-9. Platt's sigmoid calls `Math.exp` for every
-  kernel, and the pairwise coupling iterates on its results until a
-  stopping test, so a last place difference can carry through a different
-  number of iterations. The largest difference seen was 4.94e-15. 1e-9
-  leaves that room and still fails on a wrong sigmoid or coupling step,
-  which moves a probability by far more.
-
-`Math.exp` on HotSpot is an intrinsic, not fdlibm: `StrictMath.exp`
-(fdlibm, which `turbo-jvm` ports) differed from it on 192,922 of the same
-arguments, so the fdlibm port would be further from the JVM than the
-platform's `exp`. On JDK 21, HotSpot's `Math.tanh` delegates to
-`StrictMath.tanh` and agreed with it on every tested argument, so
-`turbo-jvm`'s port of fdlibm's `tanh` makes the sigmoid kernel exact.
-
-## Why an SVM port and not linfa-svm
-
-The SVM predictor is a port of LIBSVM's prediction code, a few hundred lines.
-Running a model OpenNLP trained with the JVM's numbers needs three things:
-a reader for LIBSVM's model file, LIBSVM's one-against-one vote and
-pairwise probability coupling, and LIBSVM's order of `f64` operations.
-General-purpose Rust SVM crates such as linfa-svm and smartcore train and
-store their own models, and any of them would be a new dependency, which
-the workspace does not allow. Bindings to the C LIBSVM would bring a C
-build, and the C library's `exp` is the platform's too.
-
-The port reads the file OpenNLP's LIBSVM writes, keeps LIBSVM's order of
-operations, so the linear, polynomial and sigmoid kernels give the JVM's
-bits, and depends on nothing new. It predicts only; SVM training stays on
-the JVM.
-
-## What the SVM categorizer does not do
-
-- SVM training and feature selection: SVM models are trained by OpenNLP and
-  exported (whereas maxent, perceptron, and Naive Bayes `DoccatModel`s are
-  trained directly by `turbo_train_components::doccat`).
-- Java serialized `SvmDoccatModel` files: only the exported text files.
-- SVM feature generators other than `BagOfWordsFeatureGenerator()` and
-  `NGramFeatureGenerator`; the letters only variant of the bag of words
-  generator is package private in OpenNLP's SVM module, and the sidecar has no
-  form for it.
-- The precomputed kernel, whose input is kernel values rather than
-  features.
-- Bit for bit RBF decision values and probabilities, for the reasons under
-  "Tolerances".
+- `analysis/doccat/tests/multilabel.rs` tests independent scoring, `Tag::NONE`
+  abstention in `Categories`, threshold calibration sweeps ($\beta$, precision
+  floor, tie-breaking, zero-positive labels), and training on an imbalanced
+  corpus where calibrated thresholds strictly improve macro-F1 over a flat
+  `0.5` threshold.
+- `analysis/doccat/tests/multilabel_extra.rs` tests cardinality bounds
+  (`min_labels`, `max_labels`, `min_score`), format v1/v2 backward
+  compatibility, corruption rejection, deterministic `config_hash` values, and
+  evaluation metrics against hand-computed values.
 
 ## Zero-shot categorization (`ZeroShotCategorizer`)
 
-Zero-shot categorization needs no per-label training: the caller supplies
-candidate labels at run time, and each label becomes the hypothesis of a
-natural-language-inference pair whose premise is the text (template:
-`"This example is {}."` by default, validated to hold exactly one `{}`
-with text around it). The model sits behind the `NliScorer` trait, so
-this crate owns the framing and the scoring modes without assuming a
-sequence-pair runtime; a scorer declares its outcome names, its pair
-token budget, and its own token counting.
+Zero-shot categorization requires no task-specific training data: the caller
+supplies candidate labels at runtime, and each label becomes the hypothesis of
+an NLI pair whose premise is the input text (default template
+`"This example is {}."`, validated to contain a single `{}` placeholder with
+surrounding text). The sequence-pair model sits behind the `NliScorer` trait,
+which declares its outcome names, pair token budget, and token counter.
 
-Outcome names resolve case-insensitively at construction: either the
-3-outcome head (entailment, neutral, contradiction) or the 2-outcome
-head (entailment, not_entailment); anything else is refused, as are an
-empty label list, a blank or duplicate label, and a hypothesis that
-already fills the pair budget. Single-label mode takes a softmax over
-the entailment logits across labels (scores sum to 1); multi-label
-mode takes an independent two-way softmax over (entailment,
-contradiction) per label. The neutral logit never enters either mode.
-
-A premise longer than the pair budget less the longest hypothesis
-and the scorer's pair special tokens (3 for BERT-style templates, 4
-for RoBERTa-style) is windowed by words (measured with the scorer's
-token counter, with an optional word overlap), every window
-carrying the full hypothesis;
-per-window logits combine by max, mean, or premise-length-weighted
-mean before the mode's softmax runs once. `ZeroShotAnnotator` writes
-the document's `Categories` and `ZeroShotSpanAnnotator` writes
-`Categories<L>` per sentence, block, or chunk, with the scorer's model
-as provenance and the template, labels, mode, aggregation, and overlap
-in the annotator config hash. Blank items score zero everywhere rather
-than failing the document.
+- Outcome names resolve case-insensitively at construction to either a 3-way NLI
+  head (`entailment`, `neutral`, `contradiction`) or a 2-way head
+  (`entailment`, `not_entailment`). Empty label lists, blank or duplicate
+  labels, and hypotheses that exceed the pair token budget are rejected with
+  `ZeroShotError`.
+- Single-label mode applies a softmax over entailment logits across candidate
+  labels (scores sum to `1.0`). Multi-label mode applies an independent two-way
+  softmax over `(entailment, contradiction)` for each label.
+- Premises longer than the pair budget (minus the longest hypothesis and the
+  model's pair special tokens: 3 for BERT-style templates, 4 for RoBERTa-style)
+  are split into word windows measured with `NliScorer::count_tokens`, with
+  optional word overlap. Per-window logits combine by max, mean, or
+  premise-length-weighted mean before the mode's softmax runs.
+- `ZeroShotAnnotator` writes document-level `Categories`, and
+  `ZeroShotSpanAnnotator<S, L>` writes `Categories<L>` per sentence, structure
+  block, or chunk. Blank spans receive zero scores rather than failing the
+  document.
 
 ### Native bundle NLI scorer (`turbo_analysis_embed::BundleNliScorer`)
 
 `turbo_analysis_embed::BundleNliScorer` implements `NliScorer` on a
-sequence-classification bundle (`TASK_EMBED` with a `CLASSIFIER_SEQUENCE`
-head in `head.bin`) on the CPU backend:
+sequence-classification bundle (`TASK_EMBED` with a `CLASSIFIER_SEQUENCE` head
+in `head.bin`):
 
-1. `BundleNliScorer::open(dir, &EncoderOptions)` opens the bundle's
-   `Tokenizer` (checking that `Tokenizer::pair_template()` resolves a
-   `PairTemplate` with `PairTemplate::specials()` equal to `3` for BERT or
-   `4` for RoBERTa), loads the `CLASSIFIER_SEQUENCE` head (`Head::load`), and
-   opens the `Encoder` session. It refuses a bundle whose `head.kind` is not
-   `ClassifierKind::Sequence`, whose `head.labels` do not resolve to a valid
-   3-way (`entailment`/`neutral`/`contradiction`) or 2-way
-   (`entailment`/`not_entailment`) NLI outcome set, whose `head.hidden` does
-   not match `info.dim`, or whose `max_seq` cannot fit at least two content
-   tokens beside `pair_template.specials()`. `BundleNliScorer::open_categorizer`
-   and `BundleNliScorer::open_annotator` construct a
-   `ZeroShotCategorizer<BundleNliScorer>` or `ZeroShotAnnotator<BundleNliScorer>`
-   directly from `dir`, `&EncoderOptions`, candidate `labels`, and
+1. `BundleNliScorer::open(dir, &EncoderOptions)` validates the bundle's
+   `PairTemplate`, loads the `CLASSIFIER_SEQUENCE` head, and opens the `Encoder`
+   session. `BundleNliScorer::open_categorizer` and
+   `BundleNliScorer::open_annotator` construct a `ZeroShotCategorizer` or
+   `ZeroShotAnnotator` directly from a bundle directory, candidate labels, and
    `ZeroShotConfig`.
-2. `NliScorer::count_tokens` encodes the single piece without special tokens
-   (`add_special_tokens = false`) so `ZeroShotCategorizer` budgets hypotheses
-   and windows long premises using exact subword counts.
-3. `NliScorer::score_pairs` encodes every `(premise, hypothesis)` pair of a
-   categorization call with `Tokenizer::encode_pair` (emitting both token IDs
-   and segment token types `0`/`1`) and batches all pairs of the document into
-   chunks of `max_batch` rows through `Rows::push_with_types`,
-   `Encoder::run_cls`, and `Head::logits_into`, recording the backend's
-   `Execution` provenance on the resulting `Categories` layer.
+2. `NliScorer::count_tokens` encodes text without special tokens so hypotheses
+   and long premises are budgeted using exact subword counts.
+3. `NliScorer::score_pairs` encodes each `(premise, hypothesis)` pair with
+   `Tokenizer::encode_pair` and batches pairs into chunks of `max_batch` rows
+   through `Encoder::run_cls` and `Head::logits_into`, recording backend
+   `Execution` provenance on the output `Categories` layer.
 4. `bundle/recipes/nli-minilm2-l6-h768.json` packages
    [`cross-encoder/nli-MiniLM2-L6-H768`](https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768)
    (revision `b95119ce93d3e065de6214e38cd4a97b0f2f2c6d`, 6-layer 768-dim
-   `RobertaForSequenceClassification` with outcomes
-   `["contradiction", "entailment", "neutral"]`, registered in the model zoo
-   as `cross-encoder-nli-minilm2-l6-h768` under `CLASS_SHARE_ALIKE`).
-   Verified against PyTorch `AutoModelForSequenceClassification` in
-   `analysis/embed/tests/zeroshot.rs`, the bundle matches all 8 reference
-   `(premise, hypothesis)` pairs to `worst_abs_diff = 3.81e-6` (`< 1e-4`
-   gate) and categorizes all 4 zero-shot topic examples (`food` `0.9660`,
-   `finance` `0.3593`, `sports` `0.9858`, `travel` `0.9870`) in one batched
-   encoder forward pass per document (`48.95 ms` total across 4 documents x
-   4 candidate labels, `12.24 ms/doc` on CPU).
+   `RobertaForSequenceClassification`, zoo entry
+   `cross-encoder-nli-minilm2-l6-h768`). In `analysis/embed/tests/zeroshot.rs`,
+   the bundle matches PyTorch `AutoModelForSequenceClassification` on all 8
+   reference pairs within `3.81e-6` (`< 1e-4` gate) and categorizes the 4 topic
+   examples (`food` `0.9660`, `finance` `0.3593`, `sports` `0.9858`, `travel`
+   `0.9870`) in one batched forward pass per document (`12.24 ms/doc` on CPU).
+
+## Intra-document claim verification (`ClaimVerificationAnnotator`)
+
+`turbo_doccat::claim_verify::ClaimVerificationAnnotator<S, L>` scores
+entailment, contradiction, and redundancy edges (`Edges<L, L>`, aliased as
+`ClaimLinks` for `Chunks`) between units of a document using any `NliScorer`:
+
+1. **Candidate pruning (`ClaimVerifyConfig`)**: to avoid scoring all $O(n^2)$
+   unit pairs, a pair of non-overlapping units becomes a candidate when the two
+   units share a named-entity surface (`Entities`), when their `Vectors<L>`
+   cosine similarity lies in `[min_similarity, max_similarity]`, or when their
+   content-word Jaccard overlap is at least `min_word_overlap`.
+2. **Ranking and budgeting**: pairs that exceed the scorer's token budget are
+   dropped upfront; remaining candidates are ranked by shared entity count,
+   vector similarity, and lexical overlap, and the top `max_pairs` (default
+   `64`) are scored in both directions in a single `score_pairs` batch.
+3. **Edge emission**: each direction's logits are softmaxed. Mutual entailment
+   at or above `entail_threshold` (default `0.8`) emits `ClaimRelationKind::Redundant`;
+   one-way entailment emits `ClaimRelationKind::Entails` from premise to
+   hypothesis; contradiction in either direction at or above
+   `contradict_threshold` (default `0.8`) emits `ClaimRelationKind::Contradicts`.
+   Unit tests in `analysis/doccat/src/claim_verify.rs` cover candidate pruning,
+   bidirectional NLI scoring, and edge emission.
 
 ## Transformer sequence classification (`DocumentCategorizerDL`)
 
-`turbo_doccat::dl` ports OpenNLP's `opennlp.dl.doccat.DocumentCategorizerDL`,
-`DocumentCategorizerConfig`, and `scoring.ClassificationScoringStrategy` /
-`AverageClassificationScoringStrategy`:
+`turbo_doccat::dl` classifies documents and spans with a sequence-classification
+transformer model (`DlSequenceScorer`):
 
 1. `DocumentCategorizerConfig::from_json` (or `read_categories_from_json`)
-   parses the `id2label` map from a Hugging Face `config.json` (or standalone
-   `id2label` object) into non-negative `u32` indices `0..N` and category names,
-   validating that indices are contiguous and names are non-empty.
-2. `DlInferenceOptions` configures OpenNLP DL's text preprocessing and
+   parses the `id2label` map from a model `config.json` into contiguous
+   indices `0..N` and non-empty category names.
+2. `DlInferenceOptions` configures text preprocessing and sliding-window
    chunking:
-   - `lower_case` (default `true`): folds text with `.to_lowercase()` before
-     splitting, matching `InferenceOptions.isLowerCase()`.
-   - `normalize_whitespace` and `normalize_dashes` (default `false`): collapse
-     whitespace runs to single ASCII spaces and normalize Unicode dashes to `-`.
+   - `lower_case` (default `true`), `normalize_whitespace` (default `false`),
+     and `normalize_dashes` (default `false`).
    - `document_split_size` (default `250`) and `split_overlap_size` (default
-     `50`): sliding window step `document_split_size - split_overlap_size`,
-     rejected when `document_split_size == 0` or `split_overlap_size >= document_split_size`.
-   - `chunking_mode`: `DlChunkingMode::WhitespaceWords` (default, matching
-     OpenNLP's `split("\\s+")` word windowing in `Inference.split`) or
-     `DlChunkingMode::Subwords` (windowing directly over pre-tokenized
-     `opennlp:subwords` IDs from the view).
-3. `DocumentCategorizerDL<S, C>` runs its `DlSequenceScorer` (`S`) over the
-   document's chunks, computes a numerically stable `f64` `softmax` over each
-   chunk's raw `f32` class logits (refusing non-finite logits), and combines
-   chunk probability distributions through `ClassificationScoringStrategy`
-   (`AverageClassificationScoringStrategy` by default, which takes the elementwise
-   mean across chunks). It exposes `categorize` (joining tokens with a space, as
-   `DocumentCategorizerDL.categorize(String[])` does), `categorize_text`,
-   `categorize_subwords`, `best_category`, `best_index`, `get_index`,
-   `get_category`, `number_of_categories`, `score_map`, `sorted_score_map`, and
-   `all_results`.
-4. As an annotator (`opennlp:doccat-dl`), `DocumentCategorizerDL` reads the view
-   (and optional `opennlp:subwords` when `DlChunkingMode::Subwords` is selected
-   and preprocessing is disabled) and writes a single-item `Categories`
-   (`turbo:categories`) layer anchored to the document. `DlSpanCategorizer<S, L, C>`
-   (`opennlp:doccat-dl-spans`) categorizes each span of `L: SpanCategorizable`
-   (`Chunks`, `Structure`, or `Sentences`) and writes `Categories<L>`.
+     `50`), with step `document_split_size - split_overlap_size`.
+   - `chunking_mode`: `DlChunkingMode::WhitespaceWords` (sliding windows over
+     whitespace-delimited words) or `DlChunkingMode::Subwords` (sliding windows
+     directly over pre-tokenized `Subwords` IDs on the view).
+3. `DocumentCategorizerDL<S, C>` runs its `DlSequenceScorer` (`S`) over each
+   window, applies a numerically stable `f64` softmax to each window's `f32`
+   logits (rejecting non-finite logits with `DlDoccatError`), and aggregates
+   window probability distributions through `ClassificationScoringStrategy`
+   (`AverageClassificationScoringStrategy` by default).
+4. As an annotator, `DocumentCategorizerDL` writes document-level `Categories`,
+   and `DlSpanCategorizer<S, L, C>` writes `Categories<L>` for `Chunks`,
+   `Structure`, or `Sentences`.
 5. `turbo_analysis_embed::BundleSequenceScorer` implements `DlSequenceScorer` on
-   turboembed's native backends (CPU, Metal, CUDA, Vulkan, HIP) without ONNX
-   Runtime: it opens the bundle's `Encoder` with `TURBO_POOLING_CLS` and
-   `TURBO_NORMALIZE_NONE`, loads the `CLASSIFIER_SEQUENCE` head from `head.bin`
-   (`turbo::head::Head::from_bundle`, applying the optional `pooler.dense` +
-   `tanh` and linear `classifier`), and scores either text chunks (via the
-   bundle's `Tokenizer`) or pre-tokenized subword windows (`Rows::from_ids`).
+   native backends (CPU, Metal, CUDA, Vulkan, HIP) using `Encoder` with CLS
+   pooling and the bundle's `CLASSIFIER_SEQUENCE` head (`head.bin`). Tested in
+   `analysis/doccat/src/dl/mod.rs` and `analysis/embed/tests/doccat_dl.rs`.
+
+## Feature extraction, selection, and probability calibration
+
+- **Feature generators (`turbo_doccat::features`)**:
+  `DoccatContextGenerator` runs a chain of `BagOfWordsFeatureGenerator`
+  (`bow=<token>`, with optional all-letter filtering via `PatternMode`),
+  `NGramFeatureGenerator` (`ng=:<t_1>:...:<t_k>`), and `EmojiFeatureGenerator`
+  (`emoji=<token>`).
+- **Feature selection (`turbo_doccat::selection`)**:
+  `FeatureSelection` and `SelectedFeatures` rank candidate features over
+  `FeatureDocument` instances by `SelectionMetric::Chi2` or
+  `SelectionMetric::MutualInformation` before model fitting, tested in
+  `analysis/doccat/src/selection.rs` and `analysis/doccat/tests/selection.rs`.
+- **Probability calibration and provenance evidence (`turbo_doccat::calibrated`)**:
+  `CalibratedCategorizer` wraps any `CalibratableCategorizer` (`PolarityAnnotator`
+  or `DocumentCategorizerDL`) with `turbo_calibration::Calibration`
+  (`Transform::Temperature`, `Transform::Isotonic`, or `Transform::Platt`),
+  accompanied by `turbo_calibration::metrics::reliability` returning
+  `Reliability` (`ece` and `brier`). Tested in
+  `analysis/doccat/tests/calibrated.rs` and `analysis/doccat/tests/evidence.rs`.

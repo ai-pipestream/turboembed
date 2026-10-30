@@ -42,8 +42,8 @@ fn canonical_sentence_recipes_have_no_model_reference() {
     assert_eq!(Recipe::Segmentation(segmentation::SENTENCE).reference().unwrap(), Reference::GoldSentences);
     for recipe in turbo_train_recipes::ud::UD_RECIPES {
         if recipe.component == turbo_train_recipes::ud::Component::Sentence {
-            assert_eq!(recipe.reference, Reference::GoldSentences);
-            assert_eq!(recipe.segmentation().unwrap().reference, Reference::GoldSentences);
+            assert_eq!(recipe.reference, Some(Reference::GoldSentences));
+            assert_eq!(recipe.segmentation().unwrap().reference, Some(Reference::GoldSentences));
         }
     }
     assert!(Reference::GoldSentences.file().is_err());
@@ -169,16 +169,14 @@ fn invalid_candidate_identity_cannot_make_a_receipt() {
 
 #[test]
 fn merging_retirement_keeps_non_sentence_references_disabled() {
-    let reference = Recipe::Segmentation(segmentation::TOKENS).reference().unwrap();
-    assert!(matches!(reference, Reference::Retired(_)));
-    assert!(reference.file().is_err());
-    assert!(reference.sha256().is_err());
-    assert!(reference.check(b"model").is_err());
+    assert!(Recipe::Segmentation(segmentation::TOKENS).reference().is_err());
+    assert!(segmentation::TOKENS.reference.is_none());
+    assert!(segmentation::TOKENS.reference_file().is_err());
+    assert!(segmentation::TOKENS.check_reference(b"model").is_err());
     for recipe in turbo_train_recipes::ud::UD_RECIPES {
         if recipe.component != turbo_train_recipes::ud::Component::Sentence {
-            assert!(matches!(recipe.reference, Reference::Retired(_)));
-            assert!(recipe.reference.file().is_err());
-            assert!(recipe.reference.sha256().is_err());
+            assert!(recipe.reference.is_none());
+            assert!(recipe.reference().is_err());
         }
     }
 }

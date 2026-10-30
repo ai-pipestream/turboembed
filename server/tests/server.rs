@@ -132,7 +132,7 @@ async fn model_metadata() {
     assert_eq!(p("model_info.max_seq"), "64");
     assert_eq!(p("model_info.max_batch"), "64");
     assert_eq!(p("model_info.dtype"), "DTYPE_F32");
-    assert_eq!(p("model_info.model_id"), "sentence-transformers/all-MiniLM-L6-v2");
+    assert_eq!(p("model_info.model_id"), "turboembed/tiny-bert");
     assert_eq!(p("model_info.revision"), "1");
     assert_eq!(p("model_info.prefix_query"), "query: ");
     assert_eq!(p("model_info.prefix_document"), "");

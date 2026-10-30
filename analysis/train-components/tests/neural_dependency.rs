@@ -2,6 +2,7 @@ use turbo_analysis_layers::Words;
 use turbo_depparse::{FeatureLayout, FeedforwardDependencyParser, FeedforwardSettings};
 use turbo_formats::conllu::Tagset;
 use turbo_train_components::depparse::train_feedforward_conllu;
+
 #[test]
 fn real_ud_corpus_trains_a_word_parser() {
     let source = include_str!("../../depparse/tests/data/ud-es.conllu");

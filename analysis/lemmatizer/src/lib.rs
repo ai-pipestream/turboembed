@@ -15,10 +15,8 @@
 //! and its tag, or `O`. The beam search and the feature buffer are
 //! `turbo-sequence`'s.
 //!
-//! For OpenNLP models, lemma text and probability bits match the JVM,
-//! bit for bit; the tests compare both with files the JVM wrote
-//! (`analysis/goldens/data/lemmatize` and `lemmatize-dictionary`, see
-//! `README.md` here).
+//! Native behaviour is covered by crate-local unit and snapshot tests;
+//! no JVM golden files are read.
 //!
 //! # Where OpenNLP's behaviour is surprising
 //!

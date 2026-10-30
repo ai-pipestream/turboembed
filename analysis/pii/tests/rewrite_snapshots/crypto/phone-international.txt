@@ -1,0 +1,9 @@
+MASKED	Call +44 20 7946 0958 or +44 (0)20 7946 0123 today.
+
+MASK_ALL	Call +44 20 7946 0958 or +44 (0)20 7946 0123 today.
+
+REWRITE	pseudonymize	OK	Call +44 20 7946 0958 or +44 (0)20 7946 0123 today.
+
+REWRITE	hmac	OK	Call +44 20 7946 0958 or +44 (0)20 7946 0123 today.
+
+AUDIT_REPORT	no pii found

@@ -6,11 +6,10 @@
 //! the whole file: OpenNLP strips no headers, signatures or quotes.
 
 use std::borrow::Cow;
-use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
-use turbo_jvm::hash_map::{JavaHash, JavaHashMap};
 
 use super::DirectoryError;
 use crate::masc::java::decode_utf8;
@@ -58,33 +57,26 @@ pub fn newsgroup_listing(dir: &Path) -> Result<Vec<NewsgroupFile>, DirectoryErro
     Ok(out)
 }
 
-/// The order the stream reads `listing` in, the files as the directories
-/// listed them under the corpus directory `dir`.
-///
-/// The stream keeps the files in a `HashMap` keyed by their `Path`, which
-/// it fills in listing order and iterates; a Unix path hashes its bytes,
-/// so the order depends on the whole path, the corpus directory included,
-/// as Java holds it (redundant slashes and a trailing slash removed). A
-/// file's key is `dir`, its newsgroup's directory name and its own name.
+/// Orders `listing` deterministically by normalized path under `dir`
+/// (`dir`, newsgroup directory name, and file name).
 pub fn newsgroup_order(dir: &Path, listing: Vec<NewsgroupFile>) -> Vec<NewsgroupFile> {
     let base = unix_path(dir.as_os_str().as_encoded_bytes());
-    let mut map: JavaHashMap<UnixPath, NewsgroupFile> = JavaHashMap::new();
+    let mut map: BTreeMap<Vec<u8>, NewsgroupFile> = BTreeMap::new();
     for file in listing {
         let mut key = base.clone();
         for part in [file.path.parent().and_then(Path::file_name), file.path.file_name()] {
-            // `resolve`: no slash after an empty path or after `/`
             if key.last().is_some_and(|&b| b != b'/') {
                 key.push(b'/');
             }
             key.extend_from_slice(part.map_or(&[][..], |p| p.as_encoded_bytes()));
         }
-        map.put(UnixPath(key), file);
+        map.insert(key, file);
     }
-    map.into_ordered().into_iter().map(|(_, f)| f).collect()
+    map.into_values().collect()
 }
 
-/// `UnixPath.normalizeAndCheck`: runs of slashes made one, and a slash at
-/// the end removed unless the path is `/`.
+/// Normalizes redundant slashes and removes a trailing slash unless the
+/// path is `/`.
 fn unix_path(bytes: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(bytes.len());
     for &b in bytes {
@@ -97,20 +89,6 @@ fn unix_path(bytes: &[u8]) -> Vec<u8> {
         out.pop();
     }
     out
-}
-
-/// A path as `sun.nio.fs.UnixPath` hashes and orders it: by its bytes.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct UnixPath(Vec<u8>);
-
-impl JavaHash for UnixPath {
-    fn java_hash(&self) -> i32 {
-        self.0.iter().fold(0i32, |h, &b| h.wrapping_mul(31).wrapping_add(i32::from(b)))
-    }
-
-    fn tree_order(&self, other: &Self) -> Option<Ordering> {
-        Some(self.0.cmp(&other.0))
-    }
 }
 
 /// One message read from its file.
@@ -169,25 +147,24 @@ mod tests {
     use crate::ner::RuleTokenizer;
 
     #[test]
-    fn paths_are_normalized_as_java_holds_them() {
+    fn paths_are_normalized() {
         assert_eq!(unix_path(b"/tmp//x/"), b"/tmp/x");
         assert_eq!(unix_path(b"/"), b"/");
         assert_eq!(unix_path(b"a"), b"a");
-        // Path.of("/tmp/x/a/b").hashCode() on JDK 21
-        assert_eq!(UnixPath(b"/tmp/x/a/b".to_vec()).java_hash(), -1090670122);
     }
 
     #[test]
-    fn the_order_follows_the_hash_of_the_whole_path() {
+    fn the_order_follows_the_normalized_path() {
         let file =
             |g: &str, f: &str| NewsgroupFile { category: g.into(), path: PathBuf::from(format!("/elsewhere/{g}/{f}")) };
         let listing: Vec<NewsgroupFile> =
-            (0..20).map(|i| file(if i % 2 == 0 { "sci.x" } else { "rec.y" }, &i.to_string())).collect();
+            (0..20).rev().map(|i| file(if i % 2 == 0 { "sci.x" } else { "rec.y" }, &format!("{i:02}"))).collect();
         let a = newsgroup_order(Path::new("/data/news"), listing.clone());
-        let b = newsgroup_order(Path::new("/data/news/"), listing.clone());
+        let b = newsgroup_order(Path::new("/data/news/"), listing);
         assert_eq!(a, b);
         assert_eq!(a.len(), 20);
-        assert_ne!(a, newsgroup_order(Path::new("/data/other"), listing));
+        assert!(a.iter().take(10).all(|f| f.category == "rec.y"));
+        assert!(a.iter().skip(10).all(|f| f.category == "sci.x"));
     }
 
     #[test]

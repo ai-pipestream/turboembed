@@ -74,6 +74,17 @@ pub fn lemma_samples(conllu: &str) -> std::result::Result<(Vec<LemmaSample<'_>>,
 }
 
 impl UdRecipe {
+    /// The model the recipe is gated against.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NoReference`] for the tokenizers, part-of-speech
+    /// taggers and lemmatizers, which have none since #1645, #1646
+    /// and #1647.
+    pub fn reference(&self) -> Result<crate::Reference> {
+        self.reference.ok_or(Error::NoReference { recipe: self.model_id })
+    }
+
     /// The recipe of [`UD_RECIPES`] that trains the model `id`.
     pub fn trains(id: &str) -> Option<UdRecipe> {
         UD_RECIPES.into_iter().find(|r| r.model_id == id)
@@ -116,7 +127,7 @@ impl UdRecipe {
     pub fn tagger(&self) -> Option<PosRecipe> {
         (self.component == Component::Pos).then_some(PosRecipe {
             model_id: self.model_id,
-            reference: Some(self.reference),
+            reference: self.reference,
             reference_format: TAG_FORMAT,
             reference_mappings: &[],
             max_left_out: MAX_TOKENS_LEFT_OUT,
@@ -216,7 +227,7 @@ impl UdRecipe {
             }
             (_, Some(tagger), UdSamples::Tags(samples)) => {
                 let tags = tagger.reference_tags(reference)?;
-                tagger.check_coverage(self.reference.id(), &tags, &HeldOutTags::new(samples, held_out.skipped))?;
+                tagger.check_coverage(self.reference()?.id(), &tags, &HeldOutTags::new(samples, held_out.skipped))?;
             }
             (None, None, UdSamples::Lemmas(samples)) => {
                 self.check_classes(&ReferenceClasses::of_model(reference)?, &samples)?;
@@ -241,7 +252,7 @@ impl UdRecipe {
             Ok(left_out)
         } else {
             Err(Error::ClassesOutsideReference {
-                reference: self.reference.id().to_owned(),
+                reference: self.reference()?.id().to_owned(),
                 left_out,
                 of: tokens,
                 limit: MAX_TOKENS_LEFT_OUT,
@@ -358,7 +369,7 @@ impl UdRecipe {
     /// ([`Error::ClassesOutsideReference`]), samples of another component,
     /// what scoring fails on, or the gate's errors.
     pub fn gate(&self, trained: &[u8], reference: &[u8], held_out: ReadSamples<'_>) -> Result<GateRun> {
-        let reference_id = self.reference.id();
+        let reference_id = self.reference()?.id();
         let (name, corpus_sha256) = (self.held_out_name(), self.treebank.test.sha256);
         match (self.segmentation(), self.tagger(), held_out.samples) {
             (Some(s), _, UdSamples::Segments(samples)) => {

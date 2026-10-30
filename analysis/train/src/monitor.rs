@@ -9,7 +9,7 @@
 
 use crate::error::Result;
 use crate::params::{DEFAULT_LL_THRESHOLD, DEFAULT_TOLERANCE, Key, TrainingParameters};
-use turbo_jvm::text::double_to_string;
+use crate::text::double_to_string;
 
 /// `TrainingMeasure`: what a trainer reports per iteration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

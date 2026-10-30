@@ -18,7 +18,7 @@ turbo = { path = "../../core" }
 # Typed top-k retrieval hits consumed by the reranking adapter.
 turbo-vector-index = { path = "../vector-index" }
 # DocumentCategorizerDL trait and scoring types (#208), plus the lexicon
-# sentiment baseline (#320) compared in tests/heads.rs.
+# sentiment baseline (#320) compared in tests/heads_sentiment.rs.
 turbo-doccat = { path = "../doccat" }
 # Coreference contextual TokenVectors trait (#960).
 turbo-coref = { path = "../coref" }

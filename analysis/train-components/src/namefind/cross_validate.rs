@@ -152,7 +152,7 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
                 stream.events(&samples[i], &mut events)?;
             }
             let trained = train_name_model_from_events(&events, self.factory, &self.params, config, stamp)?;
-            let file = ModelFile::open(trained.package.to_bytes()).map_err(crate::Error::Model)?;
+            let file = ModelFile::from_trained_archive(trained.package.to_bytes()).map_err(crate::Error::Model)?;
             let maxent = file.maxent(MODEL_ENTRY).map_err(crate::Error::Model)?;
             let mut finder = NameFinder::new(&file, &maxent, PatternMode::Utf16Units)?;
             let mut evaluator = NameFinderEvaluator::default();

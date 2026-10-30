@@ -76,6 +76,11 @@ async fn forward(app: &App, req: Request) -> Response {
     if protocol == Protocol::Unary && method.streaming {
         return unsupported();
     }
+    let user_field = crate::user::field(path);
+    if user_field.is_some() && method.is_write() && app.user.is_none() && crate::user::needs_user(path) {
+        let msg = format!("{path} acts for a user, and the demo was started without --user");
+        return refuse(protocol, Refusal(Code::PermissionDenied, msg));
+    }
     let budget = match Budget::new(&parts.headers, started) {
         Ok(b) => b,
         Err(s) => return refuse(protocol, Refusal(s.code(), s.message().into())),
@@ -85,6 +90,12 @@ async fn forward(app: &App, req: Request) -> Response {
             Ok(r) => r,
             Err(r) => return refuse(protocol, r),
         };
+        if let Some(field) = user_field {
+            match crate::user::set(request.get_ref(), field, app.user.as_deref()) {
+                Ok(m) => *request.get_mut() = m,
+                Err(m) => return refuse(protocol, Refusal(Code::InvalidArgument, format!("the request: {m}"))),
+            }
+        }
         let mut grpc = Grpc::new(app.channel.clone())
             .max_decoding_message_size(MAX_REPLY_BYTES)
             .max_encoding_message_size(MAX_REQUEST_BYTES);

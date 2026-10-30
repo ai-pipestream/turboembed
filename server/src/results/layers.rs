@@ -10,7 +10,8 @@
 use std::marker::PhantomData;
 
 use turbo_analysis::{Ix, IxRange, Layer, Span, Spans, ViewId};
-use turbo_analysis_layers::{Block, Chunks, Cut, Levels, Sentences, Structure, Unit, Vectors};
+use turbo_analysis_layers::{Block, Chunks, Cut, Levels, PageBoundingBox, Sentences, Structure, Unit, Vectors};
+use turbo_chunker::ChunkCitations;
 
 use super::{
     MAX_CHUNKS, MAX_FRAGMENTS, MAX_LEVELS, MAX_TOKEN_VECTOR_BYTES, Wire, ix_bounded, ix_from_wire, mismatched,
@@ -190,10 +191,100 @@ impl Wire for ChunkLevels {
             dim: self.vectors.dim,
             data: super::f32_bytes(&self.vectors.data).into(),
             empty: self.vectors.empty.iter().map(|i| i.get() as u32).collect(),
+            chunk_page_start: Vec::new(),
+            chunk_page_end: Vec::new(),
+            chunk_has_page_span: Vec::new(),
+            chunk_box_row: Vec::new(),
+            chunk_box_page: Vec::new(),
+            chunk_box_x0: Vec::new(),
+            chunk_box_y0: Vec::new(),
+            chunk_box_x1: Vec::new(),
+            chunk_box_y1: Vec::new(),
         }
     }
 
     fn from_msg(msg: &ChunkLevelsResult) -> Result<Self, Failure> {
+        Self::decode_msg(msg)
+    }
+}
+
+impl ChunkLevels {
+    /// Encodes `self` together with per-chunk 2D layout `citations`.
+    pub fn to_msg_with_citations(&self, citations: &ChunkCitations) -> ChunkLevelsResult {
+        let mut msg = self.to_msg();
+        msg.chunk_page_start = citations.page_start.clone();
+        msg.chunk_page_end = citations.page_end.clone();
+        msg.chunk_has_page_span = citations.has_page_span.clone();
+        msg.chunk_box_row = citations.box_row.clone();
+        msg.chunk_box_page = citations.boxes.iter().map(|b| b.page).collect();
+        msg.chunk_box_x0 = citations.boxes.iter().map(|b| b.x0).collect();
+        msg.chunk_box_y0 = citations.boxes.iter().map(|b| b.y0).collect();
+        msg.chunk_box_x1 = citations.boxes.iter().map(|b| b.x1).collect();
+        msg.chunk_box_y1 = citations.boxes.iter().map(|b| b.y1).collect();
+        msg
+    }
+
+    /// Decodes the optional per-chunk 2D layout citations from `msg`.
+    pub fn citations_from_msg(msg: &ChunkLevelsResult) -> Result<Option<ChunkCitations>, Failure> {
+        let has_any = !msg.chunk_page_start.is_empty()
+            || !msg.chunk_page_end.is_empty()
+            || !msg.chunk_has_page_span.is_empty()
+            || !msg.chunk_box_row.is_empty()
+            || !msg.chunk_box_page.is_empty()
+            || !msg.chunk_box_x0.is_empty()
+            || !msg.chunk_box_y0.is_empty()
+            || !msg.chunk_box_x1.is_empty()
+            || !msg.chunk_box_y1.is_empty();
+        if !has_any {
+            return Ok(None);
+        }
+        let n_chunks = msg.chunk_frag_at.len();
+        for (name, col) in [
+            ("chunk page start", msg.chunk_page_start.len()),
+            ("chunk page end", msg.chunk_page_end.len()),
+            ("chunk has page span", msg.chunk_has_page_span.len()),
+        ] {
+            if col != n_chunks {
+                return Err(mismatched(name, col, n_chunks));
+            }
+        }
+        if msg.chunk_box_row.len() != n_chunks + 1 {
+            return Err(mismatched("chunk box row", msg.chunk_box_row.len(), n_chunks + 1));
+        }
+        let n_boxes = msg.chunk_box_page.len();
+        for (name, col) in [
+            ("chunk box x0", msg.chunk_box_x0.len()),
+            ("chunk box y0", msg.chunk_box_y0.len()),
+            ("chunk box x1", msg.chunk_box_x1.len()),
+            ("chunk box y1", msg.chunk_box_y1.len()),
+        ] {
+            if col != n_boxes {
+                return Err(mismatched(name, col, n_boxes));
+            }
+        }
+        let boxes = (0..n_boxes)
+            .map(|i| PageBoundingBox {
+                page: msg.chunk_box_page[i],
+                x0: msg.chunk_box_x0[i],
+                y0: msg.chunk_box_y0[i],
+                x1: msg.chunk_box_x1[i],
+                y1: msg.chunk_box_y1[i],
+            })
+            .collect();
+        let citations = ChunkCitations {
+            page_start: msg.chunk_page_start.clone(),
+            page_end: msg.chunk_page_end.clone(),
+            has_page_span: msg.chunk_has_page_span.clone(),
+            box_row: msg.chunk_box_row.clone(),
+            boxes,
+        };
+        citations.check().map_err(bad)?;
+        Ok(Some(citations))
+    }
+}
+
+impl ChunkLevels {
+    fn decode_msg(msg: &ChunkLevelsResult) -> Result<Self, Failure> {
         let offsets = OffsetMode::from_proto(msg.offsets)?;
         let offsetter = Offsetter::new(&msg.text, offsets);
         if msg.view > u32::from(u16::MAX) {
@@ -330,6 +421,7 @@ impl Wire for ChunkLevels {
         if vectors.len() != n_chunks {
             return Err(mismatched("embedding rows", vectors.len(), n_chunks));
         }
+        let _ = Self::citations_from_msg(msg)?;
         Ok(ChunkLevels { text: msg.text.clone(), view, offsets, chunks, levels, vectors })
     }
 }

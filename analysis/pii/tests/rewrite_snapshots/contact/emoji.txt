@@ -1,0 +1,15 @@
+MASKED	📧 *******@*******.*** 📞 +** ** **** **** 💳 4111 1111 1111 1111 😀
+
+MASK_ALL	📧 ################### 📞 ################ 💳 4111 1111 1111 1111 😀
+
+REWRITE	pseudonymize	OK	📧 EMAIL-1 📞 PHONE-1 💳 4111 1111 1111 1111 😀
+
+LABEL	pseudonymize	5	24	5	12	EMAIL-1
+LABEL	pseudonymize	30	46	18	25	PHONE-1
+REWRITE	hmac	OK	📧 EMAIL-b5d08c9892fd5775 📞 PHONE-a959e925a02fa145 💳 4111 1111 1111 1111 😀
+
+LABEL	hmac	5	24	5	27	EMAIL-b5d08c9892fd5775
+LABEL	hmac	30	46	33	55	PHONE-a959e925a02fa145
+AUDIT	email	1	1	EMAIL-b5d08c9892fd5775
+AUDIT	phone	1	1	PHONE-a959e925a02fa145
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-b5d08c9892fd5775]\nphone: 1 mentions, 1 distinct [PHONE-a959e925a02fa145]

@@ -52,6 +52,11 @@ pub struct WordEncoder {
     manifest: String,
     /// Words this encoder has tokenized itself.
     tokenized: u64,
+    /// Rows this encoder has read.
+    rows: u64,
+    /// Layers each range is read at: the last `taps` (1, the final one,
+    /// but within `layer_features`).
+    taps: usize,
 }
 
 /// One window: its sequence, its words `first..end`, and each word's
@@ -60,6 +65,17 @@ struct Window {
     seq: usize,
     first: usize,
     offsets: Vec<usize>,
+}
+
+/// Where a range's states go: pooling, sequence, word. A range of one
+/// piece of `pieces` (`piece` counted from 0) feeds every pooling, which
+/// is pooled from the pieces here.
+struct Owner {
+    pooling: Option<usize>,
+    seq: usize,
+    word: usize,
+    piece: usize,
+    pieces: usize,
 }
 
 const BARE: Encode =
@@ -98,12 +114,20 @@ impl WordEncoder {
             sep,
             manifest: bundle.manifest_sha256.clone(),
             tokenized: 0,
+            rows: 0,
+            taps: 1,
         })
     }
 
     /// Words tokenized by this encoder so far, not read from subwords.
     pub fn tokenized(&self) -> u64 {
         self.tokenized
+    }
+
+    /// Rows read by the encoder so far: one a window, however many
+    /// poolings are taken from it.
+    pub fn rows(&self) -> u64 {
+        self.rows
     }
 
     /// Whether `sub` gives each token of `tokens` over `view` the pieces
@@ -155,6 +179,21 @@ impl WordEncoder {
         subwords: Option<&Subwords>,
         pooling: WordPooling,
     ) -> std::result::Result<Vec<Vec<f32>>, String> {
+        let mut out = self.token_features_pooled(view, tokens, sequences, subwords, &[pooling])?;
+        Ok(out.pop().expect("one pooling"))
+    }
+
+    /// As [`token_features`](Self::token_features), the features of every
+    /// pooling in `poolings` from one read of each window: `out[p]` is
+    /// `poolings[p]`'s.
+    pub fn token_features_pooled(
+        &mut self,
+        view: &View,
+        tokens: &Tokens,
+        sequences: &[Vec<usize>],
+        subwords: Option<&Subwords>,
+        poolings: &[WordPooling],
+    ) -> std::result::Result<Vec<Vec<Vec<f32>>>, String> {
         let sub = match subwords {
             Some(s) if self.reads(view, s, tokens)? => Some(s),
             _ => None,
@@ -174,7 +213,7 @@ impl WordEncoder {
             }
             pieces.push(words);
         }
-        self.features_of(&pieces, pooling).map_err(|e| e.to_string())
+        self.features_of(&pieces, poolings).map_err(|e| e.to_string())
     }
 
     /// A word's pieces as a row holds them: the unknown piece for none,
@@ -212,23 +251,72 @@ impl WordEncoder {
     /// Each sequence's word features [words, hidden], `sequences[s]` its
     /// words' text, pooled by `pooling`.
     pub fn features(&mut self, sequences: &[Vec<&str>], pooling: WordPooling) -> Result<Vec<Vec<f32>>> {
-        let pieces: Vec<Vec<Vec<i32>>> =
-            sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
-        self.features_of(&pieces, pooling)
+        Ok(self.features_pooled(sequences, &[pooling])?.pop().expect("one pooling"))
     }
 
-    /// As [`features`](Self::features), from each word's pieces, every
-    /// word one to `width` pieces.
-    fn features_of(&mut self, sequences: &[Vec<Vec<i32>>], pooling: WordPooling) -> Result<Vec<Vec<f32>>> {
-        let mut out: Vec<Vec<f32>> = sequences.iter().map(|s| vec![0.0; s.len() * self.hidden]).collect();
+    /// As [`features`](Self::features), the features of every pooling in
+    /// `poolings` from one read of each window: `out[p]` is
+    /// `poolings[p]`'s.
+    pub fn features_pooled(&mut self, sequences: &[Vec<&str>], poolings: &[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>> {
+        let pieces: Vec<Vec<Vec<i32>>> =
+            sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
+        self.features_of(&pieces, poolings)
+    }
+
+    /// Each sequence's word features at each of the encoder's last
+    /// `layers` layers, from one read of each window: `out[l]` is layer
+    /// `model layers - layers + 1 + l` (counted from 1), so the last is
+    /// what [`features`](Self::features) gives, and each is what the
+    /// encoder cut after that layer would give. The CPU backend reads
+    /// layers of BERT, RoBERTa, ModernBERT and nomic encoders; a run holds
+    /// a window's words at every layer, so `max_batch` must be at least
+    /// `layers`.
+    pub fn layer_features(
+        &mut self,
+        sequences: &[Vec<&str>],
+        pooling: WordPooling,
+        layers: u32,
+    ) -> Result<Vec<Vec<Vec<f32>>>> {
+        if layers == 0 || layers as usize > self.max_batch {
+            return Err(Error::new(
+                INVALID_ARGUMENT,
+                format!("{layers} layers: 1 to max_batch ({}) a read", self.max_batch),
+            ));
+        }
+        let pieces: Vec<Vec<Vec<i32>>> =
+            sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
+        self.taps = layers as usize;
+        let out = self.features_of(&pieces, &[pooling]);
+        self.taps = 1;
+        out
+    }
+
+    /// The features of each pooling of `poolings`, from each word's
+    /// pieces, every word one to `width` pieces. Each window is one row
+    /// whatever the poolings: a pooling is only which of the row's states
+    /// a range reads.
+    fn features_of(&mut self, sequences: &[Vec<Vec<i32>>], poolings: &[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>> {
+        // out[t * poolings + p]: pooling p at tap t.
+        let mut out: Vec<Vec<Vec<f32>>> = (0..self.taps * poolings.len())
+            .map(|_| sequences.iter().map(|s| vec![0.0; s.len() * self.hidden]).collect())
+            .collect();
+        let max_ranges = self.max_ranges / self.taps;
         let mut rows = Rows::new((self.width + self.cls.len() + self.sep.len()) as u32, self.tokenizer.fill_id());
-        let (mut ranges, mut owners, mut states) = (Vec::new(), Vec::<(usize, usize)>::new(), Vec::new());
+        let (mut ranges, mut owners, mut states) = (Vec::new(), Vec::<Owner>::new(), Vec::new());
         let mut row_ids = Vec::new();
         for (s, pieces) in sequences.iter().enumerate() {
             for (window, keep) in self.windows(s, pieces) {
-                let n: usize = keep.iter().filter(|&&k| k).count();
-                if rows.len() as usize == self.max_batch || ranges.len() + n > self.max_ranges {
-                    self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out)?;
+                let kept = keep.iter().filter(|&&k| k).count();
+                let kept_pieces: usize =
+                    keep.iter().enumerate().filter(|&(_, &k)| k).map(|(k, _)| pieces[window.first + k].len()).sum();
+                // A range a word and pooling, unless those outgrow a run
+                // (one row a batch): then a range a piece, which every
+                // pooling reads, so the row is still read once. A row's
+                // pieces never outgrow a run.
+                let per_piece = kept * poolings.len() > max_ranges;
+                let need = if per_piece { kept_pieces } else { kept * poolings.len() };
+                if rows.len() as usize == self.max_batch || ranges.len() + need > max_ranges {
+                    self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out, poolings)?;
                 }
                 row_ids.clear();
                 for p in &pieces[window.first..window.first + window.offsets.len()] {
@@ -239,18 +327,28 @@ impl WordEncoder {
                     if !keep[k] {
                         continue;
                     }
-                    let word = window.first + k;
-                    let start = (self.cls.len() + at) as u32;
-                    let len = match pooling {
-                        WordPooling::First => 1,
-                        WordPooling::Mean => pieces[word].len() as u32,
-                    };
-                    ranges.push(turbo_token_range { row, start, end: start + len });
-                    owners.push((window.seq, word));
+                    let (seq, word) = (window.seq, window.first + k);
+                    let (start, n) = ((self.cls.len() + at) as u32, pieces[word].len());
+                    if per_piece {
+                        for piece in 0..n {
+                            let at = start + piece as u32;
+                            ranges.push(turbo_token_range { row, start: at, end: at + 1 });
+                            owners.push(Owner { pooling: None, seq, word, piece, pieces: n });
+                        }
+                        continue;
+                    }
+                    for (p, pooling) in poolings.iter().enumerate() {
+                        let len = match pooling {
+                            WordPooling::First => 1,
+                            WordPooling::Mean => n as u32,
+                        };
+                        ranges.push(turbo_token_range { row, start, end: start + len });
+                        owners.push(Owner { pooling: Some(p), seq, word, piece: 0, pieces: n });
+                    }
                 }
             }
         }
-        self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out)?;
+        self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out, poolings)?;
         Ok(out)
     }
 
@@ -274,15 +372,49 @@ impl WordEncoder {
         &mut self,
         rows: &mut Rows,
         ranges: &mut Vec<turbo_token_range>,
-        owners: &mut Vec<(usize, usize)>,
+        owners: &mut Vec<Owner>,
         states: &mut Vec<f32>,
-        out: &mut [Vec<f32>],
+        out: &mut [Vec<Vec<f32>>],
+        poolings: &[WordPooling],
     ) -> Result<()> {
         if !ranges.is_empty() {
-            self.encoder.run_ranges(rows, ranges, states)?;
-            let h = self.hidden;
-            for (r, &(s, w)) in owners.iter().enumerate() {
-                out[s][w * h..][..h].copy_from_slice(&states[r * h..][..h]);
+            if self.taps == 1 {
+                self.encoder.run_ranges(rows, ranges, states)?;
+            } else {
+                self.encoder.run_layer_ranges(rows, ranges, self.taps as u32, states)?;
+            }
+            self.rows += u64::from(rows.len());
+            let (h, n, taps) = (self.hidden, ranges.len(), self.taps);
+            let per = out.len() / taps;
+            // states: [taps, ranges, hidden].
+            for t in 0..taps {
+                for (r, o) in owners.iter().enumerate() {
+                    let state = &states[(t * n + r) * h..][..h];
+                    let Some(p) = o.pooling else {
+                        // A word's pieces come in order in one run; the
+                        // mean is the cpu's: the sum in order, times 1 /
+                        // pieces.
+                        for (p, pooling) in poolings.iter().enumerate() {
+                            let dst = &mut out[t * per + p][o.seq][o.word * h..][..h];
+                            match pooling {
+                                WordPooling::First if o.piece == 0 => dst.copy_from_slice(state),
+                                WordPooling::First => {}
+                                WordPooling::Mean => {
+                                    if o.piece == 0 {
+                                        dst.fill(0.0);
+                                    }
+                                    dst.iter_mut().zip(state).for_each(|(d, &x)| *d += x);
+                                    if o.piece + 1 == o.pieces {
+                                        let inv = 1.0 / o.pieces as f32;
+                                        dst.iter_mut().for_each(|d| *d *= inv);
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    };
+                    out[t * per + p][o.seq][o.word * h..][..h].copy_from_slice(state);
+                }
             }
         }
         rows.clear();

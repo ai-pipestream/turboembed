@@ -1,0 +1,14 @@
+MASKED	SIN: *** *** *** recorded. Social insurance number ***-***-***.
+
+MASK_ALL	SIN: ########### recorded. Social insurance number ###########.
+
+REWRITE	pseudonymize	OK	SIN: CA-SIN-1 recorded. Social insurance number CA-SIN-1.
+
+LABEL	pseudonymize	5	16	5	13	CA-SIN-1
+LABEL	pseudonymize	51	62	48	56	CA-SIN-1
+REWRITE	hmac	OK	SIN: CA-SIN-5f88fe4819659353 recorded. Social insurance number CA-SIN-5f88fe4819659353.
+
+LABEL	hmac	5	16	5	28	CA-SIN-5f88fe4819659353
+LABEL	hmac	51	62	63	86	CA-SIN-5f88fe4819659353
+AUDIT	ca-sin	2	1	CA-SIN-5f88fe4819659353
+AUDIT_REPORT	ca-sin: 2 mentions, 1 distinct [CA-SIN-5f88fe4819659353]

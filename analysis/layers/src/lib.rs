@@ -33,6 +33,7 @@ pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Eve
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use heatmap::{DocumentHeatmap, HeatmapLane, HeatmapLaneKind, HeatmapSegment};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
+pub use layout::{LayoutBox, LayoutBoxes, PageBoundingBox};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
 pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
@@ -144,6 +145,7 @@ pub mod export;
 mod generic;
 mod heatmap;
 mod language_spans;
+mod layout;
 mod levels;
 mod matches;
 pub mod modality;

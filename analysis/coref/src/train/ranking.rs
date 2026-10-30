@@ -6,8 +6,6 @@
 
 use std::collections::HashMap;
 
-use turbo_jvm::random::JavaRandom;
-use turbo_jvm::strict_math;
 use turbo_train::{JavaString, WritableModel, write_gis_writable};
 
 use super::{Gold, TrainingDocument, now_ms};
@@ -25,6 +23,50 @@ pub const DEFAULT_L2: f64 = 0.001;
 const SHUFFLE_SEED: i64 = 17;
 /// The AdaGrad smoothing term.
 const ADAGRAD_EPSILON: f64 = 1e-8;
+
+/// Deterministic 48-bit linear congruential generator used to shuffle
+/// ranking instances within each epoch.
+struct ShuffleRng(u64);
+
+impl ShuffleRng {
+    const MULTIPLIER: u64 = 0x5_DEEC_E66D;
+    const ADDEND: u64 = 0xB;
+    const MASK: u64 = (1 << 48) - 1;
+
+    fn new(seed: i64) -> Self {
+        Self((seed as u64 ^ Self::MULTIPLIER) & Self::MASK)
+    }
+
+    fn next_bits(&mut self, bits: u32) -> i32 {
+        self.0 = (self.0.wrapping_mul(Self::MULTIPLIER).wrapping_add(Self::ADDEND)) & Self::MASK;
+        (self.0 >> (48 - bits)) as i32
+    }
+
+    fn next_bounded(&mut self, bound: i32) -> i32 {
+        let mut r = self.next_bits(31);
+        let m = bound - 1;
+        if bound & m == 0 {
+            ((bound as i64 * r as i64) >> 31) as i32
+        } else {
+            let mut u = r;
+            loop {
+                r = u % bound;
+                if u.wrapping_sub(r).wrapping_add(m) >= 0 {
+                    break r;
+                }
+                u = self.next_bits(31);
+            }
+        }
+    }
+
+    fn shuffle<T>(&mut self, items: &mut [T]) {
+        let size = i32::try_from(items.len()).expect("ranking instance count fits in i32");
+        for i in (2..=size).rev() {
+            let j = self.next_bounded(i);
+            items.swap((i - 1) as usize, j as usize);
+        }
+    }
+}
 
 /// One anaphor's options: feature ids per option, the anaphor's span
 /// vector, each option's antecedent vector (`None` for the new chain),
@@ -146,15 +188,15 @@ fn step(x: &Instance, w: &mut Weights, sq: &mut Weights, gradient: &mut [f64], r
         .collect();
     let max = scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let gold_max = scores.iter().zip(&x.gold).filter(|(_, g)| **g).map(|(&s, _)| s).fold(f64::NEG_INFINITY, f64::max);
-    let all: f64 = scores.iter().map(|s| strict_math::exp(s - max)).sum();
-    let gold: f64 = scores.iter().zip(&x.gold).filter(|(_, g)| **g).map(|(s, _)| strict_math::exp(s - gold_max)).sum();
+    let all: f64 = scores.iter().map(|s| (s - max).exp()).sum();
+    let gold: f64 = scores.iter().zip(&x.gold).filter(|(_, g)| **g).map(|(s, _)| (s - gold_max).exp()).sum();
     let dimension = x.anaphor.as_ref().map_or(0, Vec::len);
     let (mut pg, mut dg, mut ng) = (vec![0.0; dimension], vec![0.0; dimension], vec![0.0; dimension]);
     let mut touched = Vec::new();
     let mut queued = vec![false; gradient.len()];
     for (o, features) in x.options.iter().enumerate() {
-        let expected = strict_math::exp(scores[o] - max) / all;
-        let gold_expected = if x.gold[o] { strict_math::exp(scores[o] - gold_max) / gold } else { 0.0 };
+        let expected = (scores[o] - max).exp() / all;
+        let gold_expected = if x.gold[o] { (scores[o] - gold_max).exp() / gold } else { 0.0 };
         let delta = gold_expected - expected;
         if delta == 0.0 {
             continue;
@@ -214,8 +256,8 @@ impl WritableModel for RankerModel {
     }
 }
 
-/// Trains a ranking model: `epochs` passes in an order shuffled by
-/// `java.util.Random(17)`, AdaGrad with `learning_rate`, L2 weight `l2`.
+/// Trains a ranking model: `epochs` passes in a deterministically shuffled
+/// order (seed `17`), AdaGrad with `learning_rate`, L2 weight `l2`.
 pub fn train_ranking(
     language: &str,
     documents: &[TrainingDocument<'_>],
@@ -249,7 +291,7 @@ pub fn train_ranking(
     let mut weights = Weights::new(names.len(), dimension);
     let mut squares = Weights::new(names.len(), dimension);
     let mut gradient = vec![0.0; names.len()];
-    let mut random = JavaRandom::new(SHUFFLE_SEED);
+    let mut random = ShuffleRng::new(SHUFFLE_SEED);
     for _ in 0..epochs {
         random.shuffle(&mut all);
         for x in &all {

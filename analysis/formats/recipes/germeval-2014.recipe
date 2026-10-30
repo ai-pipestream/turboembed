@@ -1,0 +1,17 @@
+# GermEval 2014 NER: the training file NER-de-train.tsv as the shared
+# task's data page links it (a Google Drive file), downloaded and hashed
+# on 2026-10-28 (7,882,321 bytes). Its SHA-512
+# 62d786af76254a0682dd28e7b62221a1861979f54529b457148579450947bd799159f93b69f113b1e999f8fc39b6180c39795a713adf0b1a349b8b1a87c17a606
+# matches the digest analysis/goldens-tool/src/recipe/excerpts.rs
+# records, so the bytes are the ones the checked-in excerpt
+# ner/germeval-excerpt.txt was cut from.
+name: germeval-2014
+tier: default
+url: https://drive.usercontent.google.com/download?id=1Jjhbal535VVz2ap4v4r_rN1UEHTdLK5P&export=download
+sha256: 98682c21700e5bd7959ac361150679929e4af5d91e4dd7c379cc89133a810994
+license-url: https://web.archive.org/web/20260412144222/https://sites.google.com/site/germeval2014ner/data
+license: CC BY 4.0
+note: The licence statement was read at the pinned archive snapshot on 2026-10-28 (page SHA-256 ce4819f0eb6d09aeb5a97e59fb52590aa8d7b52c5843b24983ccecdc11be820b): the data page says the data set is distributed under the CC-BY license and links CC BY 4.0.
+note: The publisher's page is a Google Sites page with no version of its own, so the snapshot is the pinned location.
+note: The page warns the data changed slightly on 28/4/22 to fix an encoding error; this pin postdates that change and matches the recorded SHA-512.
+note: Attribution: D. Benikova, C. Biemann and M. Reznicek, NoSta-D Named Entity Annotation for German, LREC 2014, named in the checked-in excerpt's comments.

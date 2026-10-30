@@ -48,6 +48,7 @@ pub(crate) struct Doc {
 /// The computed payload for one document in a batch.
 pub(crate) enum RowPayload {
     Vector(prost::bytes::Bytes),
+    Codes(prost::bytes::Bytes),
     Outcome(Box<ProtoOutcome>),
 }
 
@@ -87,7 +88,7 @@ pub(crate) struct Outcome {
 pub(crate) fn key(d: &Doc) -> BatchKey {
     let o = &d.opts;
     let (offsets, top_k, floor, stride) = match d.output {
-        AnalyzeOutput::Vectors => (0, 0, 0, 0),
+        AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes => (0, 0, 0, 0),
         AnalyzeOutput::SparseTerms => (d.offsets.to_proto(), d.sparse_top_k, d.sparse_floor.to_bits(), 0),
         AnalyzeOutput::TokenVectors => (d.offsets.to_proto(), 0, 0, d.token_stride),
     };
@@ -124,7 +125,7 @@ pub(crate) fn run(
 ) -> Outcome {
     let (model, version) = (docs[0].model.clone(), docs[0].version.clone());
     let output = docs[0].output;
-    if output != AnalyzeOutput::Vectors {
+    if !matches!(output, AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes) {
         return run_structured(shared, dead, held, docs, opts, permits, model, version);
     }
     let quantization = opts.quantization;
@@ -179,7 +180,7 @@ pub(crate) fn run(
         .map(|(c, d)| Row {
             seq: d.seq,
             id: d.id,
-            payload: RowPayload::Vector(c),
+            payload: if output == AnalyzeOutput::VectorCodes { RowPayload::Codes(c) } else { RowPayload::Vector(c) },
             room: d.room,
             window: permits.next().expect("one window permit per document"),
         })
@@ -232,7 +233,7 @@ fn run_structured(
         AnalyzeOutput::TokenVectors => {
             embed.run_token_vectors_batch(shared, dead, slot, &texts, opts, offsets, docs[0].token_stride)
         }
-        AnalyzeOutput::Vectors => unreachable!(),
+        AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes => unreachable!(),
     };
     drop(texts);
     let outcomes = match computed {

@@ -1,9 +1,12 @@
-//! Document categorizer model (`DoccatModel`), ported from
-//! `opennlp.tools.doccat.DoccatModel`.
+//! Document categorizer model (`DoccatModel`) and feature generator parsing.
 
+#[cfg(feature = "classical")]
 use std::sync::Arc;
 
-use turbo_analysis::{Fnv1a, ModelRef, Tag, TagSet};
+use turbo_analysis::Fnv1a;
+#[cfg(feature = "classical")]
+use turbo_analysis::{ModelRef, Tag, TagSet};
+#[cfg(feature = "classical")]
 use turbo_maxent::{MaxentModel, ModelFile};
 
 use crate::error::DoccatError;
@@ -25,6 +28,7 @@ pub const FEATURE_GENERATORS_KEY: &str = "doccat.featureGenerators";
 /// An opened or trained `DoccatModel` holding the `doccat.model` classifier,
 /// the category `TagSet` in model outcome order, and the configured feature
 /// generators from `DoccatFactory`.
+#[cfg(feature = "classical")]
 #[derive(Clone, Debug)]
 pub struct DoccatModel {
     language: String,
@@ -34,7 +38,14 @@ pub struct DoccatModel {
     model_ref: ModelRef,
 }
 
+#[cfg(feature = "classical")]
 impl DoccatModel {
+    /// Opens a trained `DocumentCategorizerME` archive produced by `turbo-train-components`
+    /// (`TrainedDoccatModel::package`).
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<Self, DoccatError> {
+        Self::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
     /// Opens a `DoccatModel` from an OpenNLP `.bin` `ModelFile`.
     ///
     /// Validates `Component-Name == "DocumentCategorizerME"`, checks `factory`

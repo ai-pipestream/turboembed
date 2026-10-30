@@ -1,11 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use turbo_eval::model_gate::{
-    Counts, HeldOutSet, LabelMapping, LabelScoring, ModelGateRecord, ModelId, PairedUnit, Scoring, Task,
-};
-use turbo_jvm::random::JavaRandom;
-use turbo_langdetect::{LanguageDetector, LanguageModel, Scratch};
-use turbo_maxent::ModelFile;
+use turbo_eval::model_gate::{LabelMapping, ModelGateRecord};
 use turbo_train::{Algorithm, Key, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::langdetect::{
@@ -19,6 +14,42 @@ use super::{
 use crate::error::{Error, Result};
 use crate::segmentation::TIMESTAMP_MS;
 use crate::tatoeba::{self, Export, Sentences};
+
+/// Shuffles `items` deterministically using a 48-bit linear congruential
+/// generator seeded with `seed`.
+pub fn shuffle_with_seed<T>(seed: i64, items: &mut [T]) {
+    const MULTIPLIER: u64 = 0x5_DEEC_E66D;
+    const ADDEND: u64 = 0xB;
+    const MASK: u64 = (1 << 48) - 1;
+
+    let mut state = (seed as u64 ^ MULTIPLIER) & MASK;
+    let mut next_bits = |bits: u32| -> i32 {
+        state = (state.wrapping_mul(MULTIPLIER).wrapping_add(ADDEND)) & MASK;
+        (state >> (48 - bits)) as i32
+    };
+    let mut next_bounded = |bound: i32| -> i32 {
+        let mut r = next_bits(31);
+        let m = bound - 1;
+        if bound & m == 0 {
+            ((bound as i64 * r as i64) >> 31) as i32
+        } else {
+            let mut u = r;
+            loop {
+                r = u % bound;
+                if u.wrapping_sub(r).wrapping_add(m) >= 0 {
+                    break r;
+                }
+                u = next_bits(31);
+            }
+        }
+    };
+
+    let size = i32::try_from(items.len()).expect("sentence count fits in i32");
+    for i in (2..=size).rev() {
+        let j = next_bounded(i);
+        items.swap((i - 1) as usize, j as usize);
+    }
+}
 
 impl LanguageRecipe {
     /// The training parameters: `MAXENT`, the recipe's iterations and
@@ -94,7 +125,7 @@ impl LanguageRecipe {
                 });
                 continue;
             }
-            JavaRandom::new(self.split.seed).shuffle(&mut usable);
+            shuffle_with_seed(self.split.seed, &mut usable);
             let held_out = self.split.held_out.min(usable.len());
             let training = self.split.max_training.min(usable.len() - held_out);
             let mut it = usable.into_iter();
@@ -183,76 +214,22 @@ impl LanguageRecipe {
         Sha256::of(text.as_bytes()).to_string()
     }
 
-    /// Scores the trained model and the reference on the plan's held-out
-    /// sentences, one unit each, and runs the gate; `set_name` and
-    /// `corpus_sha256` name the held-out set. Fills in each language's
-    /// correct counts.
+    /// Classical held-out comparison is retired; native evaluation lives in `langid`.
     ///
     /// # Errors
     ///
-    /// A model file that is not a language detector, a reference without a
-    /// code the plan's languages map to, or what the gate fails on.
+    /// Always returns a retirement error.
     pub fn gate(
         &self,
-        trained: &[u8],
-        reference: &[u8],
-        plan: &mut Plan<'_>,
-        set_name: &str,
-        corpus_sha256: &str,
+        _trained: &[u8],
+        _reference: &[u8],
+        _plan: &mut Plan<'_>,
+        _set_name: &str,
+        _corpus_sha256: &str,
     ) -> Result<ModelGateRecord> {
-        let open = |what: &str, bytes: &[u8]| {
-            ModelFile::open(bytes.to_vec())
-                .map_err(|e| e.to_string())
-                .and_then(|f| LanguageModel::open(f).map_err(|e| e.to_string()))
-                .map(LanguageDetector::new)
-                .map_err(|e| Error::Model(format!("{what}: {e}")))
-        };
-        let candidate = open(self.model_id, trained)?;
-        let reference_model = open(self.reference.id(), reference)?;
-        let known: HashSet<&str> = reference_model.model().supported_languages().collect();
-        for l in &plan.languages {
-            if let Some(code) = l.reference.iter().find(|c| !known.contains(c.as_str())) {
-                return Err(Error::Model(format!(
-                    "{}: no outcome {code}, which the recipe counts right for {}",
-                    self.reference.id(),
-                    l.tatoeba
-                )));
-            }
-        }
-        let index = self.index();
-        let position: HashMap<usize, usize> =
-            plan.languages.iter().enumerate().map(|(k, l)| (index[l.tatoeba.as_str()], k)).collect();
-        for l in &mut plan.languages {
-            l.candidate_correct = 0;
-            l.reference_correct = 0;
-        }
-        let mut scratch = Scratch::new();
-        let mut units = Vec::with_capacity(plan.held_out.len());
-        for s in &plan.held_out {
-            let pair = self.languages[s.language];
-            let c = candidate.predict_language(&s.text, &mut scratch).code == pair.tatoeba;
-            let r = pair.reference.contains(&reference_model.predict_language(&s.text, &mut scratch).code);
-            let count = &mut plan.languages[position[&s.language]];
-            count.candidate_correct += usize::from(c);
-            count.reference_correct += usize::from(r);
-            units.push(PairedUnit {
-                candidate: Counts::accuracy(u64::from(c), 1),
-                reference: Counts::accuracy(u64::from(r), 1),
-            });
-        }
-        let set = HeldOutSet {
-            name: set_name.to_owned(),
-            corpus_sha256: corpus_sha256.to_owned(),
-            samples_sha256: self.samples_digest(plan),
-            skipped_sentences: 0,
-            scoring: Scoring::Labels(LabelScoring {
-                samples: plan.held_out.len() as u64,
-                reference_mappings: self.reference_mappings(plan),
-            }),
-        };
-        let candidate_id = ModelId { id: self.model_id.to_owned(), sha256: Sha256::of(trained).to_string() };
-        let reference_id = ModelId { id: self.reference.id().to_owned(), sha256: self.reference.sha256()? };
-        Ok(ModelGateRecord::new(Task::LanguageDetector, set, candidate_id, reference_id, units)?)
+        Err(Error::Model(
+            "classical language detector gating is retired (#1648); use native n-gram evaluation (#1525)".into(),
+        ))
     }
 
     /// The name of the held-out set in the gate record.

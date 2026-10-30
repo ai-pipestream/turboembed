@@ -150,7 +150,7 @@ fn write_treebank(dir: &Path, train: &str, test: &str) -> Treebank {
 
 fn recipe(treebank: Treebank, component: Component, reference: Reference) -> UdRecipe {
     let model_id = leak(format!("turbo-es-ud-test-2.16-{}-1", component.name()));
-    UdRecipe { model_id, treebank, component, reference }
+    UdRecipe { model_id, treebank, component, reference: Some(reference) }
 }
 
 /// The OpenNLP Spanish model of `component`, which the test recipes name

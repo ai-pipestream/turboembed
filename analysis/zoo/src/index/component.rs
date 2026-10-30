@@ -34,6 +34,12 @@ constant_enum! {
         ZeroShotCategorizer => "COMPONENT_ZERO_SHOT_CATEGORIZER",
         /// Typed dependency arcs between tokens.
         DependencyParser => "COMPONENT_DEPENDENCY_PARSER",
+        /// A vocabulary-sized sparse term-weight vector per text (SPLADE).
+        SparseEncoder => "COMPONENT_SPARSE_ENCODER",
+        /// One vector per token, scored by late interaction (ColBERT).
+        LateInteractionEncoder => "COMPONENT_LATE_INTERACTION_ENCODER",
+        /// Aspect spans and the polarity expressed towards each.
+        AspectSentiment => "COMPONENT_ASPECT_SENTIMENT",
     }
 }
 

@@ -121,6 +121,7 @@ pub(crate) use turbo_unicode::java::equals_ignore_case as equals_ignore_case_asc
 
 /// `MascIdentifiers.splitOnSpaces`: the runs of characters other than a
 /// space, in order.
+#[allow(dead_code)]
 pub(crate) fn split_on_spaces(value: &str) -> Vec<&str> {
     value.split(' ').filter(|s| !s.is_empty()).collect()
 }
@@ -129,6 +130,7 @@ pub(crate) fn split_on_spaces(value: &str) -> Vec<&str> {
 /// does: every space separates two fields, so leading and doubled spaces
 /// give empty fields, and the empty fields at the end are removed (an
 /// empty value is one empty field).
+#[allow(dead_code)]
 pub(crate) fn split_space(value: &str) -> Vec<&str> {
     if value.is_empty() {
         return vec![""];

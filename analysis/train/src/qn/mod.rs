@@ -23,7 +23,7 @@
 //!   rest) with each chunk's sums added in chunk order. Unlike `GISTrainer`,
 //!   the JVM adds the chunks in a fixed order here, so a run with several
 //!   threads is reproducible there too.
-//! - `StrictMath.exp` and `log` (`turbo_jvm::strict_math`) in the log sum
+//! - `f64::exp` and `f64::ln` in the log sum
 //!   of exponentials; `sqrt` is IEEE 754's in both.
 //! - A value from an `OnePassRealValue` index is read at the context
 //!   position, as the JVM reads it (see [`crate::index`]).
@@ -47,7 +47,6 @@ use crate::gis::TrainingReport;
 use crate::index::{DataIndex, IndexParams};
 use crate::java_string::JavaString;
 use crate::params::{DEFAULT_CUTOFF, DEFAULT_ITERATIONS, Key, TrainerType, TrainingParameters};
-use turbo_jvm::strict_math;
 
 mod generic;
 pub use generic::minimize_objective;
@@ -358,7 +357,7 @@ pub fn training_accuracy(index: &DataIndex, point: &[f64]) -> f64 {
         }
         let lse = log_sum_of_exps(&probs);
         for prob in probs.iter_mut() {
-            *prob = strict_math::exp(*prob - lse);
+            *prob = (*prob - lse).exp();
         }
         let seen = index.seen(ei) as i32;
         if argmax(&probs) == index.outcome(ei) as usize {
@@ -387,10 +386,10 @@ fn log_sum_of_exps(x: &[f64]) -> f64 {
     let mut sum = 0.0;
     for &v in x {
         if v != f64::NEG_INFINITY {
-            sum += strict_math::exp(v - max);
+            sum += (v - max).exp();
         }
     }
-    max + strict_math::log(sum)
+    max + sum.ln()
 }
 
 /// `ArrayMath.innerProduct`.

@@ -6,7 +6,7 @@ use std::fmt::{self, Write as _};
 use turbo_analysis::Span;
 
 use crate::error::FormatError;
-use crate::source::Field;
+use crate::source::{Field, compare_utf16};
 
 /// The type the name format gives a name whose start tag has none
 /// (`NameSample.DEFAULT_TYPE`).
@@ -59,7 +59,7 @@ impl<'a> Name<'a> {
     pub fn java_cmp(&self, other: &Name<'_>) -> Ordering {
         self.start.cmp(&other.start).then(other.end.cmp(&self.end)).then_with(|| match (self.kind, other.kind) {
             (None, None) => Ordering::Equal,
-            (Some(a), Some(b)) => turbo_jvm::chars::compare(a, b),
+            (Some(a), Some(b)) => compare_utf16(a, b),
             (Some(_), None) => Ordering::Less,
             (None, Some(_)) => Ordering::Greater,
         })
@@ -117,21 +117,6 @@ impl<'a> NameSample<'a> {
             return Err(FormatError::NameOutsideTokens { name: n.java_string(), tokens: tokens.len() });
         }
         Ok(NameSample { tokens, names, clear_adaptive_data, source })
-    }
-
-    /// A sample of `tokens` with `names` that are already in
-    /// `NameSample`'s order, do not overlap and lie inside the tokens, so
-    /// [`NameSample::new`]'s checks are left out. A reader whose names
-    /// cannot break them by construction makes its samples with this.
-    pub(crate) fn from_ordered_names(
-        tokens: Vec<Field<'a>>,
-        names: Vec<Name<'a>>,
-        clear_adaptive_data: bool,
-        source: Span,
-    ) -> NameSample<'a> {
-        debug_assert!(names.windows(2).all(|p| p[0].end <= p[1].start));
-        debug_assert!(names.iter().all(|n| n.start <= n.end && n.end as usize <= tokens.len()));
-        NameSample { tokens, names, clear_adaptive_data, source }
     }
 
     pub fn tokens(&self) -> &[Field<'a>] {

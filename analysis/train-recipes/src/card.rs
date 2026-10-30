@@ -84,8 +84,8 @@ pub struct ParametersCard {
 /// What a name finder's reader counted of the named entities of one side
 /// of the split ([`crate::namefind::read_samples`]). `names`,
 /// `overlapping` and `other_types` count an entity once for each sentence
-/// it has a token in; `outside_sentences` and `in_dropped_sentences`
-/// count the entities of the recipe's type in no sentence, once each.
+/// that holds it completely; the unplaced counts include each entity of the
+/// recipe's type with no complete sentence sample once.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NamesCard {
@@ -110,6 +110,11 @@ pub struct NamesCard {
     /// sentence file the reader drops, so in no sample
     /// ([`turbo_formats::masc::Unplaced::DroppedSentence`]).
     pub in_dropped_sentences: u64,
+    /// Entities of the recipe's type whose tokens are split across kept
+    /// sentences, so no complete sample contains them
+    /// ([`turbo_formats::masc::Unplaced::CrossesSentences`]).
+    #[serde(default)]
+    pub crossing_sentences: u64,
 }
 
 /// The chunks of one side of the split that are in no sentence the
@@ -356,7 +361,6 @@ impl ModelCard {
             ),
             Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
             Recipe::Name(_) => (None, None, None, None),
-            Recipe::Chunk(_) => (None, None, None, None),
         };
         ModelCard {
             card_version: CARD_VERSION,

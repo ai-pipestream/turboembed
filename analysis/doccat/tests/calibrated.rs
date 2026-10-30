@@ -1,3 +1,5 @@
+#![cfg(feature = "classical")]
+
 use turbo_analysis::{Annotator, Document, Layer, Span, Spans, View, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_calibration::{Calibration, DataIdentity, Policy, Transform, digest, metrics};
@@ -34,7 +36,7 @@ fn artifact<C: CalibratableCategorizer>(cat: &C) -> Calibration {
     .unwrap()
 }
 
-fn parity<C: CalibratableCategorizer>(cat: C) {
+fn parity<C: CalibratableCategorizer<Reads = (View, Tokens)>>(cat: C) {
     let doc = Document::new("good");
     let view = doc.get::<View>().unwrap();
     let t = tokens("good");
@@ -89,7 +91,7 @@ fn wrong_domain_or_producer_cannot_bind() {
     );
 }
 
-fn heldout<C: CalibratableCategorizer>(cat: C) {
+fn heldout<C: CalibratableCategorizer<Reads = (View, Tokens)>>(cat: C) {
     // Genuine producer probabilities, with independent seeded noisy labels.
     // This small synthetic domain is a wiring/calibration proof, not a corpus accuracy claim.
     let generate = |mut seed: u64, n: usize| {

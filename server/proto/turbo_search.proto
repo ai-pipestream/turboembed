@@ -188,6 +188,25 @@ message TokenVectorInput
   bool has_span = 4;
 }
 
+message PageBoundingBoxProto
+{
+  uint32 page = 1;
+  float x0 = 2;
+  float y0 = 3;
+  float x1 = 4;
+  float y1 = 5;
+}
+
+message LayoutBoxInput
+{
+  SpanProto span = 1;
+  uint32 page = 2;
+  float x0 = 3;
+  float y0 = 4;
+  float x1 = 5;
+  float y1 = 6;
+}
+
 message ChunkInput
 {
   string chunk_id = 1;
@@ -201,6 +220,10 @@ message ChunkInput
   repeated SparseEntryProto sparse_terms = 9;
   repeated TokenVectorInput token_vectors = 10;
   map<string, string> attributes = 11;
+  uint32 page_start = 12;
+  uint32 page_end = 13;
+  bool has_page_span = 14;
+  repeated PageBoundingBoxProto page_boxes = 15;
 }
 
 message IndexDocumentRequest
@@ -217,6 +240,8 @@ message IndexDocumentRequest
   // computes lexical terms (and embeddings if embed_bundle or document_vector is given).
   repeated ChunkInput chunks = 5;
   map<string, string> attributes = 6;
+  // Optional 2D layout boxes on the source text for chunk layout citations (#1466).
+  repeated LayoutBoxInput layout_boxes = 7;
 }
 
 message IndexDocumentsResponse
@@ -384,6 +409,10 @@ message SearchHit
   string parent_text = 9;
   ChunkAttribution attribution = 10;
   map<string, string> attributes = 11;
+  uint32 page_start = 12;
+  uint32 page_end = 13;
+  bool has_page_span = 14;
+  repeated PageBoundingBoxProto page_boxes = 15;
 }
 
 message HeatSegment

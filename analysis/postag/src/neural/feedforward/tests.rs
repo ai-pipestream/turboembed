@@ -77,6 +77,47 @@ fn shapes_and_suffixes_match_java_conformance() {
     assert_eq!(&symbols[5..10], ["cd", "bcd", ABSENT, "*allcaps*", "*cap*"]);
 }
 
+fn corpus() -> Vec<PosSample> {
+    let distinct = vec![
+        PosSample::new(["the", "dog", "barks"], ["DT", "NN", "VBZ"]).unwrap(),
+        PosSample::new(["the", "cat", "sleeps"], ["DT", "NN", "VBZ"]).unwrap(),
+        PosSample::new(["dogs", "bark"], ["NNS", "VBP"]).unwrap(),
+        PosSample::new(["she", "eats", "fish"], ["PRP", "VBZ", "NN"]).unwrap(),
+    ];
+    let mut out = Vec::with_capacity(40 * distinct.len());
+    for _ in 0..40 {
+        out.extend_from_slice(&distinct);
+    }
+    out
+}
+
+#[test]
+fn training_inference_and_round_trip_match_java_exact_outputs() {
+    let settings = FeedforwardSettings::new(16, 32, 80, 32, 0.05, 0.0, 0.0, 1, 1, 17).unwrap();
+    let model = FeedforwardPosTrainer::train(&corpus(), settings).unwrap();
+    let tagger = FeedforwardPosTagger::new(model.clone());
+
+    assert_eq!(tagger.tag(&["the", "dog", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+    assert_eq!(tagger.tag(&["she", "eats", "fish"]).unwrap(), vec!["PRP", "VBZ", "NN"]);
+    assert_eq!(tagger.tag(&["dog"]).unwrap(), vec!["NN"]);
+    assert_eq!(tagger.tag(&["the", "wug", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+    assert_eq!(tagger.tag(&["blorp", "quexination"]).unwrap(), vec!["NNS", "VBZ"]);
+    assert!(tagger.tag(&Vec::<&str>::new()).unwrap().is_empty());
+
+    let seqs = tagger.top_k_sequences(&["the", "dog", "barks"]).unwrap();
+    assert_eq!(seqs.len(), 1);
+    assert_eq!(seqs[0].outcomes(), &["DT", "NN", "VBZ"]);
+    for &p in seqs[0].probs() {
+        assert!(p > 0.9 && p <= 1.0);
+    }
+
+    let mut buf = Vec::new();
+    model.serialize(&mut buf).unwrap();
+    let reloaded = FeedforwardPosModel::from_trained_bytes(&buf).unwrap();
+    let reloaded_tagger = FeedforwardPosTagger::new(reloaded);
+    assert_eq!(tagger.tag(&["the", "wug", "barks"]).unwrap(), reloaded_tagger.tag(&["the", "wug", "barks"]).unwrap());
+}
+
 #[test]
 fn pretrained_vectors_and_lexicon_separate_indistinguishable_words() {
     let class_a = ["aazqx", "bazqx", "cazqx", "dazqx"];
@@ -102,6 +143,16 @@ fn pretrained_vectors_and_lexicon_separate_indistinguishable_words() {
     }
     assert_eq!(tagger.tag(&["aazqy"]).unwrap(), vec!["A"]);
     assert_eq!(tagger.tag(&["eezqy"]).unwrap(), vec!["B"]);
+
+    let mut buf = Vec::new();
+    model.serialize(&mut buf).unwrap();
+    let len = u16::from_le_bytes([buf[0], buf[1]]) as usize;
+    assert_eq!(&buf[2..2 + len], b"TURBO-FFPT-2");
+    let loaded = FeedforwardPosModel::from_trained_bytes(&buf).unwrap();
+    assert_eq!(
+        FeedforwardPosTagger::new(loaded).tag(&["aazqx", "eezqx", "zzzqx"]).unwrap(),
+        tagger.tag(&["aazqx", "eezqx", "zzzqx"]).unwrap()
+    );
 }
 
 #[test]

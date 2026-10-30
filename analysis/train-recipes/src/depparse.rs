@@ -247,9 +247,8 @@ impl DepparseRecipe {
                     .map_err(|e| Error::Model(e.to_string()))?;
                 let base = DependencyModel::train(lang, &projective, &maxent_parameters(1))
                     .map_err(|e| Error::Model(e.to_string()))?;
-                let bytes = model.bytes().ok_or_else(|| Error::Model("missing linear model bytes".into()))?.to_vec();
-                let ref_bytes =
-                    base.bytes().ok_or_else(|| Error::Model("missing baseline model bytes".into()))?.to_vec();
+                let bytes = model.to_bytes().map_err(|e| Error::Model(e.to_string()))?;
+                let ref_bytes = base.to_bytes().map_err(|e| Error::Model(e.to_string()))?;
                 (bytes, ref_bytes)
             }
             DepparseKind::Feedforward => {
@@ -344,7 +343,7 @@ fn score_model(
 ) -> Result<(Vec<Counts>, Vec<Counts>, DepparseScoresCard)> {
     match kind {
         DepparseKind::Maxent => {
-            let model = DependencyModel::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
+            let model = DependencyModel::from_bytes(bytes).map_err(|e| Error::Model(e.to_string()))?;
             score_with_parser(&DependencyParserME::new(model), samples)
         }
         DepparseKind::Feedforward => {

@@ -25,12 +25,6 @@ pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
 /// the two it needs from this commit into a jar of their own.
 pub const STRING_PATTERN_COMMIT: &str = "b2473ca80d65ae2ef10a24b08b1d0ae6a9231109";
 
-/// The commit of the OpenNLP fork's `OPENNLP-1927-hunspell-compatibility`
-/// branch whose Hunspell classes the generator runs for the Hunspell
-/// goldens. The container compiles them into a jar of their own, as it does
-/// the string pattern classes.
-pub const HUNSPELL_COMMIT: &str = "fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc";
-
 /// The commit of the OpenNLP addons fork, on its `ready/geo-place-profiles`
 /// branch, whose `PlaceProfiles` the generator runs. The class is not in
 /// [`ADDONS_COMMIT`]; the container compiles its source from this commit
@@ -82,15 +76,9 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 46] = [
+pub const INPUT_SETS: [&str; 38] = [
     "en",
     "multi",
-    "norm",
-    "num",
-    "money",
-    "quantity",
-    "temporal",
-    "pii",
     "edge",
     "surrogate",
     "abbreviations",
@@ -112,8 +100,6 @@ pub const INPUT_SETS: [&str; 46] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "langdetect",
     "sequence",
     "descriptor-errors",
@@ -142,7 +128,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 50] = [
+pub const ANNOTATORS: [&str; 40] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -150,14 +136,6 @@ pub const ANNOTATORS: [&str; 50] = [
     "lemmatize-dictionary",
     "chunk",
     "langdetect",
-    "normalize",
-    "numbers",
-    "money",
-    "money-convert",
-    "quantity",
-    "temporal",
-    "pii",
-    "pii-rewrite",
     "detokenize",
     "subwords",
     "sentvectors",
@@ -178,8 +156,6 @@ pub const ANNOTATORS: [&str; 50] = [
     "ontonotes",
     "frenchtreebank",
     "head-rules",
-    "gazetteer",
-    "place-profiles",
     "string-pattern",
     "features",
     "codec",
@@ -199,31 +175,11 @@ pub const ANNOTATORS: [&str; 50] = [
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers, the number scan, the money, quantity, temporal and PII
-/// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
+/// normalizers, the number scan, the money, quantity and temporal
+/// annotators, the detokenizer, the WordPiece encoder,
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
-pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
-
-/// The input set the normalizers run on. They run on no other set, and the
-/// other annotators do not run on this one.
-pub const NORMALIZER_INPUT_SET: &str = "norm";
-
-/// The input set the number scan runs on. It runs on no other set, and the
-/// other annotators do not run on this one.
-pub const NUMBER_INPUT_SET: &str = "num";
-
-/// The input set the money annotators run on. They run on no other set, and
-/// the other annotators do not run on this one.
-pub const MONEY_INPUT_SET: &str = "money";
-
-/// The input set the quantity extractor runs on. It runs on no other set,
-/// and the other annotators do not run on this one.
-pub const QUANTITY_INPUT_SET: &str = "quantity";
-
-/// The input set the temporal extractor runs on. It runs on no other set,
-/// and the other annotators do not run on this one.
-pub const TEMPORAL_INPUT_SET: &str = "temporal";
+pub const DUMPED_ANNOTATORS: [&str; 4] = ["sentdetect", "tokenize", "postag", "langdetect"];
 
 /// The input sets of the SVM document categorizer: the documents its models
 /// categorize, and the corpora they are trained on. No other annotator runs
@@ -244,8 +200,6 @@ pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
 pub const DOCCAT_INPUT_SET: &str = "doccat";
 pub const DOCCAT_TRAIN_SET: &str = "doccat-train";
 
-/// The input set the PII packs and the PII rewrites run on. They run on no
-/// other set, and the other annotators do not run on this one.
 /// The input set of the corpus readers: files and directories in the
 /// layouts of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig and
 /// 20 Newsgroups corpora. No other annotator runs on it.
@@ -256,10 +210,6 @@ pub const CORPORA_INPUT_SET: &str = "corpora";
 /// read by its own streams only.
 pub const ONTONOTES_INPUT_SET: &str = "ontonotes";
 pub const FRENCH_TREEBANK_INPUT_SET: &str = "frenchtreebank";
-
-/// The input set the PII packs run on. They run on no other set, and the
-/// other annotators do not run on this one.
-pub const PII_INPUT_SET: &str = "pii";
 
 /// The input set the Arvores Deitadas streams read: files in the format of
 /// the Floresta Sinta(c)tica treebank, written for the goldens. The streams

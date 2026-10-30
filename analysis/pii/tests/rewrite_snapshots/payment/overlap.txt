@@ -1,0 +1,12 @@
+MASKED	IBAN **** **** **** **** **30 00 holds a phone; NHS 943 476 5919 is one too.
+
+MASK_ALL	IBAN ########################### holds a phone; NHS 943 476 5919 is one too.
+
+REWRITE	pseudonymize	OK	IBAN IBAN-1 holds a phone; NHS 943 476 5919 is one too.
+
+LABEL	pseudonymize	5	32	5	11	IBAN-1
+REWRITE	hmac	OK	IBAN IBAN-12d2a2b8c32b1193 holds a phone; NHS 943 476 5919 is one too.
+
+LABEL	hmac	5	32	5	26	IBAN-12d2a2b8c32b1193
+AUDIT	iban	1	1	IBAN-12d2a2b8c32b1193
+AUDIT_REPORT	iban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]

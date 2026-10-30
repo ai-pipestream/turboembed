@@ -69,3 +69,58 @@ fn ranges_are_refused_by_reason() {
     assert!(check_int8_ranges(&[2.0, 1.0]).unwrap_err().contains("minimum 2 is over its maximum 1"));
     check_int8_ranges(&[1.0, 1.0]).unwrap();
 }
+
+#[test]
+fn nan_and_inf_int8_buckets() {
+    // NaN clamps to NaN and casts to the bottom bucket; +inf clamps to 255.
+    let ranges = [0.0f32, 0.0, 1.0, 1.0];
+    let mut out = [0u8; 2];
+    int8_row(&[f32::NAN, f32::INFINITY], &ranges, &mut out);
+    assert_eq!(out.map(|b| b as i8), [-128, 127]);
+}
+
+#[test]
+fn ubinary_pads_a_short_last_byte_with_zero() {
+    let mut out = [0xffu8; 1];
+    ubinary_row(&[1.0f32, -1.0, 1.0], &mut out);
+    assert_eq!(out, [0b1010_0000]);
+}
+
+#[test]
+fn int8_tie_at_step_boundary_floors() {
+    // min 0, max 255, step 1: 1.0 floors to 1 -> code -127; the exact
+    // midpoint between buckets is never a tie under floor.
+    let ranges = [0.0f32, 255.0];
+    let mut out = [0u8; 1];
+    int8_row(&[1.0], &ranges, &mut out);
+    assert_eq!(out[0] as i8, -127);
+    int8_row(&[1.999], &ranges, &mut out);
+    assert_eq!(out[0] as i8, -127);
+}
+
+const I8: u32 = crate::TURBO_QUANTIZE_INT8;
+const UB: u32 = crate::TURBO_QUANTIZE_UBINARY;
+
+#[test]
+fn device_call_sizes_ubinary_codes_per_row() {
+    // Each row is padded to whole bytes on its own: 2 rows of 9 values
+    // take 4 bytes, not (2 * 9 + 7) / 8 = 3.
+    assert_eq!(check_device_call(UB, 32, 0, 2, 16, 4), Ok(4));
+    assert_eq!(check_device_call(UB, 18, 0, 2, 9, 4), Ok(4));
+    assert_eq!(check_device_call(UB, 51, 0, 3, 17, 9), Ok(9));
+    assert_eq!(check_device_call(I8, 6, 6, 2, 3, 6), Ok(6));
+    assert_eq!(check_device_call(UB, 0, 0, 0, 0, 0), Ok(0));
+}
+
+#[test]
+fn device_call_refuses_short_slices_and_bad_shapes() {
+    assert!(check_device_call(UB, 17, 0, 2, 9, 4).unwrap_err().contains("x holds 17"));
+    assert!(check_device_call(UB, 18, 0, 2, 9, 3).unwrap_err().contains("out holds 3"));
+    assert!(check_device_call(I8, 6, 5, 2, 3, 6).unwrap_err().contains("ranges holds 5"));
+    assert_eq!(check_device_call(UB, 6, 0, 2, 3, 2), Ok(2), "ubinary needs no ranges");
+    assert!(check_device_call(7, 6, 6, 2, 3, 6).unwrap_err().contains("quantization 7"));
+    assert!(check_device_call(I8, 6, 6, -1, 3, 6).unwrap_err().contains("negative"));
+    assert!(check_device_call(I8, 6, 6, 2, -3, 6).unwrap_err().contains("negative"));
+    let big = check_device_call(I8, 0, 0, i32::MAX, i32::MAX, 0).unwrap_err();
+    assert!(big.contains("x holds 0"), "{big}");
+}

@@ -129,6 +129,12 @@ pub struct SentimentModel {
 }
 
 impl SentimentModel {
+    /// Opens a trained `SentimentME` archive produced by `turbo-train-components`
+    /// (`TrainedSentimentModel::package`).
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<SentimentModel, SentimentModelError> {
+        SentimentModel::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
     /// Reads the model from an opened model file, checking the component
     /// name, the factory and the classifier entry.
     pub fn open(file: ModelFile) -> Result<SentimentModel, SentimentModelError> {
