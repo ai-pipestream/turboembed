@@ -19,7 +19,7 @@ use crate::layer::{Anchor, Key, KeyId, Layer, Provenance, as_any_mut};
 use crate::text::{Alignment, ViewId};
 
 use digest::{ProvenanceDigestParts, compute_layer_content_digest, compute_provenance_digest_from_parts};
-use view::check_view_alignment;
+pub(crate) use view::check_view_alignment;
 
 #[derive(Clone)]
 pub(crate) struct Entry {
@@ -149,6 +149,16 @@ impl Document {
             .iter()
             .find(|e| e.value.is_some() && e.key.name == instance && e.key.layer.to_string() == layer)
             .map(|e| e.len)
+    }
+
+    /// A present layer's value with its type erased, for the splicers.
+    pub(crate) fn erased(&self, key: KeyId) -> Option<&(dyn Any + Send + Sync)> {
+        self.entries.iter().find(|e| e.key == key).and_then(|e| e.value.as_deref())
+    }
+
+    /// How many items a layer here has, 0 when it is absent.
+    pub(crate) fn layer_len(&self, key: KeyId) -> usize {
+        self.entries.iter().find(|e| e.key == key).map_or(0, |e| e.len)
     }
 
     /// What became of a layer: None when it was never written.

@@ -12,7 +12,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use turbo_analysis::{
-    Alternatives, Annotator, Error, Fnv1a, Ix, IxRange, Layer, ModeSet, ModelRef, Refs, Span, Spans, Tag, View,
+    Alternatives, Annotator, Error, Fnv1a, Ix, IxRange, Key, Layer, Locality, ModeSet, ModelRef, Refs, Span, Spans,
+    Tag, View,
 };
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 use turbo_sequence::crf::{CrfScores, EntityDecoder, ScoredEntity};
@@ -86,6 +87,10 @@ impl Annotator for CrfNameAnnotator {
 
     fn config_hash(&self) -> u64 {
         self.hash
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
     fn model(&self) -> Option<ModelRef> {
         Some(self.model_ref.clone())
