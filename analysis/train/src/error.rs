@@ -152,10 +152,10 @@ impl fmt::Display for Error {
             }
             Error::NoAlgorithm => f.write_str("Trainer type couldn't be determined!"),
             Error::Tolerance(t) => {
-                write!(f, "tolerance must be a positive number but is {}!", turbo_jvm::text::double_to_string(*t))
+                write!(f, "tolerance must be a positive number but is {}!", crate::text::double_to_string(*t))
             }
             Error::StepSizeDecrease(d) => {
-                write!(f, "decrease must be between 0 and 100 but is {}!", turbo_jvm::text::double_to_string(*d))
+                write!(f, "decrease must be between 0 and 100 but is {}!", crate::text::double_to_string(*d))
             }
             Error::NoParameters => f.write_str("every parameter is zero, which PerceptronModelWriter cannot write"),
             Error::SequenceLength { expected, got } => {

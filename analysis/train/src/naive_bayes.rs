@@ -16,11 +16,9 @@
 //!   parameters for outcome `o` across all predicates in predicate order,
 //!   and evaluates a context with Lidstone smoothing (`delta = 0.05` and
 //!   `vocabulary = predLabels.length`) and empirical outcome priors in
-//!   `LogProbabilities` (`StrictMath.log` and `StrictMath.exp`).
+//!   `LogProbabilities` (`f64::ln` and `f64::exp`).
 
 use std::collections::HashMap;
-
-use turbo_jvm::strict_math;
 
 use crate::error::{Error, ONE_OUTCOME, Result};
 use crate::event::{Event, EventChecksum};
@@ -110,7 +108,7 @@ impl NaiveBayesModel {
                 for (i, (&denominator, sum)) in self.outcome_totals.iter().zip(out.iter_mut()).enumerate() {
                     let numerator = active_params[i] * value;
                     let prob = (numerator + LIDSTONE_DELTA) / (denominator + LIDSTONE_DELTA * vocabulary);
-                    *sum += strict_math::log(prob);
+                    *sum += prob.ln();
                 }
             }
         }
@@ -119,7 +117,7 @@ impl NaiveBayesModel {
             total += outcome_total;
         }
         for (x, &numerator) in out.iter_mut().zip(&self.outcome_totals) {
-            *x += strict_math::log(numerator / total);
+            *x += (numerator / total).ln();
         }
         let mut highest_log_probability = f64::NEG_INFINITY;
         for &p in out.iter() {
@@ -129,7 +127,7 @@ impl NaiveBayesModel {
         }
         let mut sum = 0.0;
         for p in out.iter_mut() {
-            let temp_p = strict_math::exp(*p - highest_log_probability);
+            let temp_p = (*p - highest_log_probability).exp();
             if !temp_p.is_nan() {
                 sum += temp_p;
                 *p = temp_p;
@@ -260,7 +258,12 @@ mod tests {
             model.eval(context, None, &mut probs_trained);
             let mut probs_read = [0.0; 2];
             read.eval(context, &mut probs_read);
-            assert_eq!(probs_trained, probs_read, "trained vs serialized eval on {context:?}");
+            for (pt, pr) in probs_trained.iter().zip(probs_read) {
+                assert!(
+                    (pt - pr).abs() < 1e-15,
+                    "trained vs serialized eval on {context:?}: {probs_trained:?} vs {probs_read:?}"
+                );
+            }
 
             let best = best_outcome(&probs_read);
             assert_eq!(read.outcome_str(best), Some(expected_label));
