@@ -210,6 +210,56 @@ fn a_step_that_may_not_be_cached_is_not_copied() {
     check_stale_tags(&base, &uncached, &[("warm", "cold")], "not cacheable");
 }
 
+/// Splices `edits` with the parity pipeline onto `base`, checks the
+/// result against a from-scratch run, and returns the report.
+fn check_parity(base: &Document, analyzer: &Analyzer, edits: &[(&str, &str)]) -> (String, SpliceReport) {
+    let (text, alignment) = edited(BASE, edits);
+    let (mut spliced, report) = analyzer.run_spliced(base, text.as_str(), &alignment).unwrap();
+    let scratch = analyzed_by(analyzer, &text);
+    let codecs = codecs();
+    assert_eq!(export(&spliced, &codecs).unwrap(), export(&scratch, &codecs).unwrap(), "edits {edits:?}");
+    assert_eq!(analyzer.analyze_incremental(&mut spliced).unwrap().stages_run, 0);
+    (text, report)
+}
+
+fn structure_windows<'a>(report: &SpliceReport, text: &'a str) -> Vec<&'a str> {
+    let key = Key::<Structure>::DEFAULT.id();
+    let (_, windows) = report.windows.iter().find(|(k, _)| *k == key).expect("section windows");
+    windows.iter().map(|s| &text[s.range()]).collect()
+}
+
+#[test]
+fn a_partition_layer_from_another_configuration_of_its_producer_is_not_trusted() {
+    let base = analyzed_by(&analyzer_parity(false), BASE);
+    // The same spans, with every block's kind changed: the same text,
+    // aligned to itself.
+    let flipped = analyzer_parity(true);
+    let (_, report) = check_parity(&base, &flipped, &[]);
+    assert!(matches!(report.step(KindTokens::ID), Some(StepRun::Rerun(r)) if r.contains("producer")), "{report:?}");
+    assert!(matches!(report.step(Tokenizer::ID), Some(StepRun::Spliced { .. })), "{report:?}");
+}
+
+#[test]
+fn a_partition_whose_payload_changed_with_an_edit_elsewhere_is_dirty() {
+    let analyzer = analyzer_parity(false);
+    let base = analyzed_by(&analyzer, BASE);
+    // Three paragraphs become two: every block changes kind, the first
+    // paragraph's span and text included among the unchanged.
+    let third = "\n\nEve plays chess with Frank. Frank loses again. Everyone laughs loudly.";
+    let (text, report) = check_parity(&base, &analyzer, &[(third, "")]);
+    assert!(matches!(report.step(KindTokens::ID), Some(StepRun::Spliced { windows: 1 })), "{report:?}");
+    assert_eq!(structure_windows(&report, &text), [text.as_str()]);
+    // The control: an edit that keeps the count leaves the paragraph
+    // beyond the edited one's neighbour clean.
+    let (text, report) = check_parity(&base, &analyzer, &[("warm", "cold")]);
+    assert!(matches!(report.step(KindTokens::ID), Some(StepRun::Spliced { windows: 1 })), "{report:?}");
+    assert_eq!(
+        structure_windows(&report, &text),
+        ["Alice meets Bob in Paris. The weather is cold. They walk along the river.\n\n\
+Carol writes a long letter. Dave reads it twice. The letter mentions London."]
+    );
+}
+
 /// A hundred sentences in ten sections.
 fn long_text() -> String {
     let mut text = String::new();

@@ -8,7 +8,7 @@ use std::ops::Range;
 use crate::doc::Document;
 use crate::layer::{Anchor, KeyId};
 use crate::span::Span;
-use crate::splice::{partition_ranges, partitions};
+use crate::splice::{LayerSplicer, Shift, SpliceCx, partition_ranges, partitions};
 use crate::text::{Alignment, ViewId};
 
 use super::Splicers;
@@ -65,7 +65,8 @@ impl Plan {
         };
         let base_parts = cut(base, "base")?;
         let new_parts = cut(new, "new")?;
-        let clean = classify(&base_parts, &new_parts, alignment);
+        let mut clean = classify(&base_parts, &new_parts, alignment);
+        verify(p, sp.as_ref(), base, new, &base_parts, &new_parts, &mut clean)?;
         let text = new.get::<crate::doc::View>().expect("a source view").text();
         let mut windows = Vec::new();
         let mut window_of = vec![None; new_parts.len()];
@@ -176,4 +177,65 @@ fn classify(base: &[Span], new: &[Span], alignment: &Alignment) -> Vec<Option<us
         }
     }
     clean
+}
+
+/// Keeps a new partition a copy of a base partition only when the two
+/// partition items are the same in all but position: the base item,
+/// moved to the new text, has the new item's fingerprint, nested items
+/// and payload included. A document-wide producer may change an
+/// untouched partition because of a change elsewhere, and the local
+/// steps' outputs there depend on it. `Err` when the layer type gives no
+/// fingerprint to compare: nothing is then copied.
+fn verify(
+    p: KeyId,
+    sp: &dyn LayerSplicer,
+    base: &Document,
+    new: &Document,
+    base_parts: &[Span],
+    new_parts: &[Span],
+    clean: &mut [Option<usize>],
+) -> Result<(), String> {
+    let items = |doc: &Document, parts: &[Span]| -> Result<Vec<Range<usize>>, String> {
+        let value = doc.erased(p).ok_or_else(|| format!("{p} is not on the document"))?;
+        let ts = sp.text_spans(value).ok_or_else(|| format!("{p} has no spans"))?;
+        partition_ranges(&ts, parts).ok_or_else(|| format!("{p} does not follow its partitions"))
+    };
+    let (base_items, new_items) = (items(base, base_parts)?, items(new, new_parts)?);
+    let (base_value, new_value) = (base.erased(p).expect("checked"), new.erased(p).expect("checked"));
+    // The fingerprint of the given partitions' items, each moved by its
+    // delta, as one layer; None when they cannot be copied.
+    let copy = |value: &(dyn std::any::Any + Send + Sync), items: &[Range<usize>], picks: &[(usize, i64)]| {
+        let mut out = sp.start(value, ViewId::SOURCE)?;
+        let mut at = 0;
+        for &(part, delta) in picks {
+            let range = items[part].clone();
+            let shifts = [Shift { key: p, from: range.clone(), to: at }];
+            let mut map = |s: Span| Span::new((i64::from(s.start) + delta) as u32, (i64::from(s.end) + delta) as u32);
+            let mut cx = SpliceCx::new(&mut map, &shifts, p);
+            sp.append(&mut *out, value, range.clone(), &mut cx).ok()?;
+            at += range.len();
+        }
+        Some(sp.fingerprint(&*out))
+    };
+    let delta = |i: usize, j: usize| i64::from(new_parts[j].start) - i64::from(base_parts[i].start);
+    // Whether the pairs are copies: Err when the type has no fingerprint.
+    let same = |pairs: &[(usize, usize)]| -> Result<bool, String> {
+        let b: Vec<(usize, i64)> = pairs.iter().map(|&(i, j)| (i, delta(i, j))).collect();
+        let n: Vec<(usize, i64)> = pairs.iter().map(|&(_, j)| (j, 0)).collect();
+        match (copy(base_value, &base_items, &b), copy(new_value, &new_items, &n)) {
+            (Some(None), _) | (_, Some(None)) => Err(format!("{p} has no content fingerprint to compare")),
+            (Some(Some(b)), Some(Some(n))) => Ok(b == n),
+            _ => Ok(false),
+        }
+    };
+    let pairs: Vec<(usize, usize)> = clean.iter().enumerate().filter_map(|(j, c)| c.map(|i| (i, j))).collect();
+    if pairs.is_empty() || same(&pairs)? {
+        return Ok(());
+    }
+    for pair in pairs {
+        if !same(std::slice::from_ref(&pair))? {
+            clean[pair.1] = None;
+        }
+    }
+    Ok(())
 }
