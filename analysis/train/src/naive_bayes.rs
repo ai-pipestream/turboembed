@@ -16,7 +16,7 @@
 //!   parameters for outcome `o` across all predicates in predicate order,
 //!   and evaluates a context with Lidstone smoothing (`delta = 0.05` and
 //!   `vocabulary = predLabels.length`) and empirical outcome priors in
-//!   `LogProbabilities` (`StrictMath.log` and `StrictMath.exp`).
+//!   `LogProbabilities` (`f64::ln` and `f64::exp`).
 
 use std::collections::HashMap;
 
@@ -258,7 +258,7 @@ mod tests {
             model.eval(context, None, &mut probs_trained);
             let mut probs_read = [0.0; 2];
             read.eval(context, &mut probs_read);
-            assert_eq!(probs_trained, probs_read, "trained vs serialized eval on {context:?}");
+            assert_eq!(probs_trained, probs_read);
 
             let best = best_outcome(&probs_read);
             assert_eq!(read.outcome_str(best), Some(expected_label));

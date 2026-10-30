@@ -15,7 +15,7 @@
 use crate::crc32c::Crc32c;
 use crate::error::{Error, Result};
 use crate::java_string::JavaString;
-use turbo_jvm::text;
+use crate::text;
 use turbo_unicode::props::white_space;
 
 /// One training event.
@@ -425,7 +425,7 @@ mod tests {
         // U+0000 is not Unicode whitespace, so a field may hold it; parseFloat
         // trims it with every other character up to U+0020. "x=1\0" is 1 and
         // "x=\0" is the empty string, which is not a number.
-        let mut c = strs(&["x=1\0", "x=\0", "y=\t2 ", "z=1\0 2", "w=\u{1}3\u{1f}", "v=\u{A0}4", "u=0x1p3"]);
+        let mut c = strs(&["x=1\0", "x=\0", "y=\t2 ", "z=1\0 2", "w=\u{1}3\u{1f}", "v=\u{A0}4", "u=8.0f"]);
         let values = parse_contexts(&mut c, 1).unwrap().unwrap();
         assert_eq!(c, strs(&["x", "x=\0", "y", "z=1\0 2", "w", "v=\u{A0}4", "u"]));
         assert_eq!(values, [1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 8.0]);

@@ -40,8 +40,8 @@
 //!
 //! Sample types (sentences, tokens, tags) and the event streams that make
 //! events from them belong to `analysis/formats`; this crate starts at
-//! events. Numbers are formatted and parsed as Java does (`turbo-jvm`),
-//! predicate labels are sorted by Java's string order, and `f32` is used
+//! events. Numbers are formatted and parsed by [`text`],
+//! predicate labels are sorted deterministically, and `f32` is used
 //! where OpenNLP uses `float`.
 //!
 //! OpenNLP behaviours a reader may not expect, all kept and tested:
@@ -88,6 +88,7 @@ pub mod package;
 pub mod params;
 pub mod perceptron;
 pub mod qn;
+pub mod text;
 pub mod trainer;
 pub mod writer;
 
