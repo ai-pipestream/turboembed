@@ -16,7 +16,7 @@ or layer schema versions, missing codecs, duplicate instances,
 dangling provenance references and dangling edge or group endpoints,
 unknown views, inconsistent source records and malformed bytes.
 
-The round-trip test builds a document from legacy-encoded source
+The round-trip test builds a document from 8-bit-encoded source
 bytes (so source offsets and text offsets differ, around a
 supplementary-plane character), adds a transformed view, abbreviation
 spans with definition and mention edges, one group, one skipped layer

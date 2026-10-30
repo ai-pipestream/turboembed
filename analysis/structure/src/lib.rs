@@ -27,7 +27,7 @@ mod table_grid;
 mod tree;
 
 pub use kv::KeyValueAnnotator;
-pub use project::StructureProjector;
+pub use project::{LayoutProjector, StructureProjector};
 pub use table_grid::{TableGridAnnotator, detect_tables};
 
 use turbo_analysis::annotate::Step;

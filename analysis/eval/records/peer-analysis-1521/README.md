@@ -369,7 +369,7 @@ every other code is written as lingua names it. Ours: the
 script-based fallback (`--script-fallback`), a closed-set baseline
 over the gold label set. Both are the rows #1525's language model
 gate compares against, with gold labels and the majority baseline;
-no OpenNLP model is a peer or a target here.
+no legacy 1.5 or 2.5 model is a peer or a target here.
 
 No language record is committed yet: the dataset download is gated
 on accepting the FLORES+ terms, and the Hugging Face account on

@@ -7,9 +7,8 @@ use std::cell::RefCell;
 use std::fmt;
 
 use turbo_jvm::TagPattern;
+use turbo_sequence::chunker::TokenTag;
 use turbo_unicode::casefold::fold;
-
-use crate::pattern_chunker::TokenTag;
 
 thread_local! {
     /// Reused fold scratch for case-insensitive word matching.

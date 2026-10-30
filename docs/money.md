@@ -3,20 +3,17 @@
 The `money` module of `turbo-numeric` (`analysis/numeric/src/money/`)
 and the shared `region` module (`analysis/numeric/src/region/`)
 find amounts of money in a text view, write them as the `turbo:money`
-layer, and converts them into one currency with the European Central
-Bank's euro reference rates. It is a port of the money package of the
-OpenNLP numeric add-on:
+layer, and convert them into one currency with the European Central
+Bank's euro reference rates:
 
-| Rust | OpenNLP |
+| Type | Role |
 |---|---|
-| `MoneyExtractor` | `CursorMoneyExtractor` and `MoneyAnnotator` |
-| `MoneyExtractor::for_region` | `CursorMoneyExtractor.forRegion(Locale)` |
-| `RegionAwareMoneyAnnotator` | `RegionAwareMoneyAnnotator` |
-| `EcbRates` | `EcbFxRates` |
-| `FxRates` | `FxRates` |
-| `MoneyConverter` | `MoneyConversionAnnotator`, fixed-date mode |
-| `DatedMoneyConverter` | `MoneyConversionAnnotator`, document-date mode |
-| `Decimal`, `Date` | `BigDecimal`, `LocalDate`, as far as these need them |
+| `MoneyExtractor` | Extracts currency amounts into `Money` (`turbo:money`) |
+| `MoneyExtractor::for_region` | Configures regional number notation and local currency symbols |
+| `RegionAwareMoneyAnnotator` | Selects regional notation and symbols from `turbo:regions` |
+| `EcbRates`, `FxRates` | Loads and queries ECB euro reference rates |
+| `MoneyConverter`, `DatedMoneyConverter` | Converts `Money` into `CONVERTED_MONEY` at a fixed date or `DocumentDate` |
+| `Decimal`, `Date` | Exact base-10 decimal and calendar date types |
 
 The number inside a mention is read by the number scan of
 [numbers.md](numbers.md).
@@ -30,22 +27,20 @@ The number inside a mention is read by the number scan of
 | `spans` | The whole mention: a minus sign, the symbol or code, the number, its scale marker and a currency word after it |
 | `negative` | Whether the amount is below zero; never true for zero |
 | `coefficient` | The amount's digits without sign, decimal point or leading zeros, `0` for zero |
-| `scale` | `BigDecimal.scale()` of the amount, an `i32` |
+| `scale` | The decimal scale of the amount, an `i32` |
 | `currency` | A `Currency`: three ASCII capital letters, stored as three bytes |
 
-`coefficient` and `scale` are the unscaled value and the scale of the
-`BigDecimal` OpenNLP computes: `$1.2M` has the coefficient `12000000`
-and the scale 1. `Money::amount` returns a `DecimalRef`, which writes
-the value as `BigDecimal.toPlainString` does. An extracted amount has a
-scale of zero or more. A converted amount can have a scale below zero,
-since a `BigDecimal` rounded to 16 digits keeps its trailing zeros as a
-negative scale (`1085600000000000` at the scale -5 is
-108560000000000000000).
+`coefficient` and `scale` store the unscaled integer value and decimal
+scale: `$1.2M` has the coefficient `12000000` and the scale 1.
+`Money::amount` returns a `DecimalRef`, which formats the value as a
+plain decimal string. An extracted amount has a scale of zero or more.
+A converted amount can have a scale below zero, since a decimal rounded
+to 16 digits keeps its trailing zeros as a negative scale
+(`1085600000000000` at the scale -5 is 108560000000000000000).
 
 The extractor writes the default instance. `MoneyConverter` writes a
 second instance of the same type under the key `CONVERTED_MONEY` (the
-name `converted`), as OpenNLP writes `money.converted` beside
-`money-amounts`. The converted layer has the spans of the mentions it
+name `converted`). The converted layer has the spans of the mentions it
 could convert and leaves the others out.
 
 ## Extraction
@@ -88,18 +83,15 @@ and `renminbi` (CNY), `ruble(s)` and `rouble(s)` (RUB), `shekel(s)` (ILS)
 and `baht` (THB), in any case. A word followed by a hyphen is the start
 of a compound (`euro-cent`) and is not a currency.
 
-The known codes are the 233 alphabetic codes of
-`java.util.Currency.getAvailableCurrencies()` under JDK 21.0.12, written
-into the crate. OpenNLP takes the set from the running JDK, so a JVM of
-another version can know a few codes more or fewer.
+The known codes are 233 three-letter ISO 4217 currency codes compiled into
+the crate.
 
-`MoneyExtractor::for_region(RegionCode)` reproduces OpenNLP's
-`CursorMoneyExtractor.forRegion(Locale)` under JDK 21: it selects the
-region's number notation (`LatinEu` when the region's decimal separator
-is `,`, otherwise `LatinUs`) and overrides the region's local
-single-character `Sc` currency symbol (`$` -> `AUD` for `AU`, `$` ->
-`CAD` for `CA`, `\u{07FF}` -> `GNF` for `GN`) while preserving the default
-symbol mappings for all other symbols. `RegionAwareMoneyAnnotator`
+`MoneyExtractor::for_region(RegionCode)` selects the region's number
+notation (`LatinEu` when the region's decimal separator is `,`, otherwise
+`LatinUs`) and overrides the region's local single-character `Sc` currency
+symbol (`$` -> `AUD` for `AU`, `$` -> `CAD` for `CA`, `\u{07FF}` -> `GNF`
+for `GN`) while preserving the default symbol mappings for all other
+symbols. `RegionAwareMoneyAnnotator`
 (`turbo-numeric:region-aware-money`) reads `(View, Regions)` and writes
 `(Money,)`, delegating to `MoneyExtractor::for_region` when
 `Regions::winner(min_margin)` elects a winning region and falling back to
@@ -109,22 +101,20 @@ symbol mappings for all other symbols. `RegionAwareMoneyAnnotator`
 ## Rates
 
 `EcbRates` loads the ECB's history CSV from a path or from bytes the
-caller supplies; nothing is downloaded. The format is that of
-`EcbFxRates`:
+caller supplies; nothing is downloaded:
 
-- The bytes must be UTF-8. Lines end at `\n`, `\r` or `\r\n`, as
-  `BufferedReader.readLine` splits them, and blank lines
-  (`Character.isWhitespace` only) are skipped.
+- The bytes must be UTF-8. Lines end at `\n`, `\r` or `\r\n`, and blank
+  lines (whitespace only) are skipped.
 - The header starts with `Date,` and names unique codes of three ASCII
-  capitals. Fields are split at every comma and trimmed as `String.trim`
-  trims. A control character below U+0020 that is not
-  `Character.isWhitespace` refuses the file, so a NUL cannot be trimmed
-  away. A header or row may end with one more, empty field.
-- Each row has an ISO date (`LocalDate.parse`, strict) that no other row
-  has, and a field per currency. An empty field or `N/A` means no quote;
-  a quote is read as `new BigDecimal(String)` reads it, including an
-  exponent and any decimal digits of the Basic Multilingual Plane, and
-  must be above zero. An `EUR` quote must equal 1.
+  capitals. Fields are split at every comma and trimmed. A control
+  character below U+0020 that is not whitespace refuses the file, so a
+  NUL cannot be trimmed away. A header or row may end with one more,
+  empty field.
+- Each row has a strict ISO date (`YYYY-MM-DD`) that no other row has,
+  and a field per currency. An empty field or `N/A` means no quote; a
+  quote is parsed as a decimal (including an exponent and any decimal
+  digits of the Basic Multilingual Plane) and must be above zero. An
+  `EUR` quote must equal 1.
 
 A lookup takes the latest row on or before the date asked for, at most
 `MAX_STALENESS_DAYS` (7) days earlier, inclusive, so a weekend or holiday
@@ -135,9 +125,8 @@ row; an older row is not searched for a missing one. The euro is always
 ## Arithmetic
 
 The arithmetic is exact and written by hand: unbounded naturals in base
-10⁹ and a division rounded to 16 significant digits, half to even, as
-`BigDecimal.divide(divisor, MathContext.DECIMAL64)` divides. Every
-result was compared with the JVM's, scale included.
+10⁹ and a division rounded to 16 significant digits, half to even
+(IEEE 754 decimal64 precision):
 
 - A rate is the target quote divided by the source quote; the same
   currency gives exactly 1.
@@ -146,119 +135,65 @@ result was compared with the JVM's, scale included.
   currency is kept as it is, digits and scale, but still needs a quote.
 - A quotient's scale is the preferred scale (dividend scale minus
   divisor scale) when the exact quotient fits 16 digits there, and the
-  16-digit scale otherwise, as in `BigDecimal`. By default no rounding to a
+  16-digit scale otherwise. By default no rounding to a
   currency's minor unit follows (1 USD in EUR at 1.2 is
   `0.8333333333333333`); `MoneyConverter::with_minor_unit_rounding(true)`
   and `DatedMoneyConverter::with_minor_unit_rounding(true)` round converted
-  amounts half to even (`RoundingMode.HALF_EVEN`) to the target currency's
-  ISO 4217 minor unit (`minor_units`).
-- When a scale leaves the `int` range the JDK throws, and `EcbFxRates`
-  divides the unscaled values instead and applies the combined scale;
-  that fails only when the result itself does not fit. The port follows
-  both steps and returns `ScaleRangeError` where the Java throws
-  `ArithmeticException`. A zero amount converts to zero at any scale.
+  amounts half to even to the target currency's ISO 4217 minor unit
+  (`minor_units`).
+- When an intermediate scale leaves the `i32` range, the converter
+  divides the unscaled values instead and applies the combined scale,
+  returning `ScaleRangeError` only when the result itself does not fit.
+  A zero amount converts to zero at any scale.
 
 `FxRates` is the trait `MoneyConverter` reads rates through.
 `EcbRates` implements it; another provider implements `rate` and
-inherits `convert`, which multiplies the amount by the rate exactly, as
-the Java interface's default method does.
+inherits `convert`, which multiplies the amount by the rate.
 
 `MoneyConverter` converts the default money instance into one target
 currency as of one date and is added to a pipeline with
 `MoneyConverter::bound`, which names its output instance.
 
-`DatedMoneyConverter` is the Java annotator's document-date mode: it
-converts as of the date in the `turbo:document-date` layer, which
-`DocumentDateSelector` writes ([temporal.md](temporal.md)), and is added
-with `DatedMoneyConverter::bound` after that step. A pipeline without a
-step that writes the date layer is refused when it is built. A document
-without a date gets an empty converted layer and the rates are not
-asked, as in the Java.
+`DatedMoneyConverter` converts as of the date in the `turbo:document-date`
+layer, which `DocumentDateSelector` writes ([temporal.md](temporal.md)),
+and is added with `DatedMoneyConverter::bound` after that step. A pipeline
+without a step that writes the date layer is refused when it is built. A
+document without a date gets an empty converted layer and the rates are
+not asked.
 
-## Differences from OpenNLP
+## Extraction rules and edge cases
 
-None in the results are intended and none are known. The tests port
-the cases of the add-on's money tests, and a JVM oracle (outside the
-repository) compared the port with the Java on 2,000,000 generated
-texts in three extractor configurations, 200,000 conversions with
-scales up to the `int` limits, 200,000 rate strings, 100,000 date
-strings and 400,000 generated CSV files, with no difference.
+Default extraction rules:
 
-Where the APIs differ:
-
-- Null and blank arguments are not representable: a code is a
-  `Currency`, a date a `Date`, a symbol a `char`.
-- A provider returns only an amount, so it cannot change a mention's
-  span or currency, which the Java checks at run time.
-- The bytes are checked as UTF-8 before any line is read. The Java
-  decodes in blocks of 8192 characters as it reads, so in a larger file
-  with both a bad byte and a malformed row, which of the two is reported
-  can differ. Both refuse the file.
-- Error offsets for a control character are bytes into the line, not
-  UTF-16 units.
-- The character classes come from the Unicode 18.0 tables of
-  `turbo-unicode`, as in numbers.md.
-
-Where the default behaviour improves on OpenNLP (with OpenNLP's original
-behaviour preserved under `MoneyExtractor::with_opennlp_parity(true)` for
-the JVM goldens):
-
-- A minus before a code is kept (`-USD 5` is minus 5 USD with span `0..6`);
-  in parity mode the minus is dropped (`USD 5`, plus 5 USD).
+- A minus before a code is kept (`-USD 5` is minus 5 USD with span `0..6`).
 - Dollar-prefixed region symbols (`HK$50`, `US$50`, `CA$50`, `C$50`, `A$50`,
   `AU$50`, `NZ$50`, `R$50`, `S$50`, `SG$50`, `NT$50`, `MX$50`, `TW$50`,
   `Z$50`) resolve to their currencies when `$` is in the symbol table, and
   any Unicode letter before a single-character symbol (`Ü$5`) rejects the
-  symbol; in parity mode only an ASCII letter before a symbol marks it as
-  part of a longer symbol, so `HK$50` gives nothing and `Ü$5` gives 5 USD.
+  symbol.
 - The ISO 4217 testing and no-currency codes `XTS` and `XXX` (`is_test_currency`)
   are refused by default, while historical codes (`DEM`, `FRF`) remain
-  accepted; in parity mode `XTS` and `XXX` are accepted as money.
+  accepted.
 - Unscaled `pound` and `pounds` in a weight context (`3 pounds of flour`,
   `weighs 150 pounds`) are refused by default, and `3 pounds sterling`
-  includes `sterling` in the span; in parity mode `3 pounds of flour` is 3 GBP.
+  includes `sterling` in the span.
 - `MoneyConverter::with_minor_unit_rounding(true)` and
   `DatedMoneyConverter::with_minor_unit_rounding(true)` round converted
   amounts half to even to the target currency's ISO 4217 minor unit
   (`minor_units`); by default converted amounts keep all 16 digits of the
   division.
-
-Other behaviour that comes from the Java and is kept in both modes:
-
 - The one gap a shape allows is any `White_Space` character, a line
   break included: `$` at the end of a line and `100` on the next are
   one mention.
-- Currency words are lowercased code point by code point with
-  `Character.toLowerCase`, so `RENMİNBİ`, with U+0130, is `renminbi`.
-- A rate field accepts what `new BigDecimal(String)` accepts, a leading
-  `+`, an exponent and Arabic-Indic or fullwidth digits included, though
-  the file is described as ASCII.
-- DEL (U+007F) and U+0085 are not refused as control characters; they
-  stay in the field and make it an invalid code or rate.
+- Currency words are lowercased code point by code point, so `RENMİNBİ`,
+  with U+0130, is `renminbi`.
 
-## Golden files
+## Testing
 
-JVM goldens for money come from the goldens tool (`analysis/goldens-tool`),
-as for the other OpenNLP ports ([analysis.md](analysis.md#golden-files)).
-
-- Inputs: the `money` set, `analysis/goldens/data/inputs/money/`, 64 texts.
-- Rates: `analysis/goldens/data/rates/ecb-snapshot.csv`, a small hand made
-  file in the format of the ECB's `eurofxref-hist.csv` with invented
-  values (columns USD, JPY, GBP, CHF, CNY, INR, RUB; 12 weekdays from
-  2026-03-02 to 2026-03-17; `N/A` where there is no quote).
-- Extraction: `analysis/goldens/data/money/<notation>/money/<id>.golden`,
-  `latin-us` or `latin-eu`, from `MoneyAnnotator` over
-  `CursorMoneyExtractor`. Layer `turbo:money`.
-- Conversion: `analysis/goldens/data/money-convert/<notation>/money/<id>.golden`,
-  from `MoneyConversionAnnotator` over `EcbFxRates` into EUR as of
-  2026-03-15 (a Sunday, so the Friday 2026-03-13 row applies). Layer
-  `turbo:money` as well; a mention without a rate has no row.
-
-Both layers have the columns `start`, `end` (UTF-8 byte offsets of the
-whole mention, sign and symbol included), `coefficient` (unscaled value
-without sign), `negative` (0 or 1), `scale`, `plain` (`toPlainString()`)
-and `currency` (ISO 4217). The value is
-`(-1)^negative * coefficient / 10^scale`. The `config` records are
-`notation` (`LATIN_US` or `LATIN_EU`) and, for conversions, `target`,
-`as_of` and `snapshot` (`rates/ecb-snapshot.csv`, relative to
-`analysis/goldens/data`).
+`analysis/numeric/tests/money_extract.rs`,
+`analysis/numeric/tests/money_extract_fixes.rs`,
+`analysis/numeric/tests/money_convert.rs`, and
+`analysis/numeric/tests/money_rates.rs` test extraction, regional symbol
+disambiguation, weight-context exclusions, ECB rate parsing, and fixed-date
+and dated currency conversion, alongside the `money` and `money-convert`
+snapshot suites in both `LatinUs` and `LatinEu` notations.

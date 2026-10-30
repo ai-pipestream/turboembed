@@ -2,8 +2,7 @@
 
 TurboQuant storage in `turbo-vector-index` (`IndexBuilder::build_quantized`,
 feature `turboquant`), measured against the exact index in the same crate
-and against the OpenNLP Java reference
-`opennlp.embeddings.index.TurboQuantIndex`. The codes and search kernels
+and against the Java reference `TurboQuantIndex`. The codes and search kernels
 are the `turbovec` crate's, pinned to commit
 `acd0c1ee632acc2f5b6ad848443cf8e77d10ef2a` of `ai-pipestream/turbovec`
 (MIT).

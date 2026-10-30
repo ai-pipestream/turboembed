@@ -3,18 +3,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use turbo_analysis::export::{DocumentGraph, import};
-use turbo_analysis::{Document, Span};
+use turbo_analysis::{Document, Layer, Span, ViewId};
+use turbo_analysis_layers::LayoutBoxes;
 use turbo_vector_index::{IndexBuilder, Normalization, Space, TokenIndexBuilder};
 
 use crate::api::Result;
-use crate::proto::search::{ChunkInput, IndexDocumentRequest, VectorStorageKind};
+use crate::proto::search::{ChunkInput, IndexDocumentRequest, LayoutBoxInput, VectorStorageKind};
 use crate::results::document::codecs;
 use crate::results::{MAX_GRAPH_BYTES, over};
 use crate::search::registry::{
     CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, bad_state, io_err,
     verify_embed_bundle_matches_space,
 };
-use crate::search::segment::{extract_chunks_from_doc, segment_raw_text};
+use crate::search::segment::{apply_layout_boxes_to_chunks, extract_chunks_from_doc, segment_raw_text};
 use crate::state::State;
 
 pub(crate) struct StagedDocument {
@@ -64,6 +65,15 @@ pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocument
         if c.has_parent {
             validate_utf8_span(&doc_text, c.parent_start, c.parent_end, &format!("chunk {ci} parent_span"))?;
         }
+    }
+
+    if !req.layout_boxes.is_empty() {
+        let layout = build_request_layout_boxes(&doc_text, &req.layout_boxes)?;
+        apply_layout_boxes_to_chunks(imported_doc.as_ref(), ViewId::SOURCE, &layout, &mut prepared_chunks);
+    } else if let Some(d) = &imported_doc
+        && let Some(layout) = d.get::<LayoutBoxes>()
+    {
+        apply_layout_boxes_to_chunks(Some(d), ViewId::SOURCE, layout, &mut prepared_chunks);
     }
 
     if !ix.spec.embed_bundle.is_empty() {
@@ -122,6 +132,7 @@ pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocument
         }
         let chunk_id = if c.chunk_id.is_empty() { format!("{}#{}", req.doc_id, ci) } else { c.chunk_id.clone() };
         let level_kind = if c.level_kind.is_empty() { "chunk".to_owned() } else { c.level_kind.clone() };
+        let page_span = validate_chunk_layout(ci, c)?;
         staged_chunks.push(StoredChunk {
             chunk_id,
             doc_id: req.doc_id.clone(),
@@ -135,6 +146,8 @@ pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocument
             sparse_terms: c.sparse_terms.clone(),
             token_vectors: c.token_vectors.clone(),
             attributes: attrs,
+            page_span,
+            page_boxes: c.page_boxes.clone(),
         });
     }
 
@@ -189,6 +202,44 @@ fn validate_utf8_span(doc_text: &str, start: u32, end: u32, label: &str) -> Resu
         return Err(bad_arg(format!("{label} {start}..{end} is not on UTF-8 char boundaries")));
     }
     Ok(())
+}
+
+fn build_request_layout_boxes(doc_text: &str, boxes: &[LayoutBoxInput]) -> Result<LayoutBoxes> {
+    let mut layout = LayoutBoxes::with_capacity(ViewId::SOURCE, boxes.len());
+    for (i, b) in boxes.iter().enumerate() {
+        let sp = b.span.as_ref().ok_or_else(|| bad_arg(format!("layout_box {i} span is missing")))?;
+        validate_utf8_span(doc_text, sp.start, sp.end, &format!("layout_box {i} span"))?;
+        layout.push(Span::new(sp.start, sp.end), b.page, b.x0, b.y0, b.x1, b.y1);
+    }
+    layout.check().map_err(bad_arg)?;
+    Ok(layout)
+}
+
+fn validate_chunk_layout(ci: usize, c: &ChunkInput) -> Result<Option<(u32, u32)>> {
+    for (bi, b) in c.page_boxes.iter().enumerate() {
+        if b.page == 0 || ![b.x0, b.y0, b.x1, b.y1].into_iter().all(f32::is_finite) || b.x0 > b.x1 || b.y0 > b.y1 {
+            return Err(bad_arg(format!("chunk {ci} page_box {bi} has invalid page or bounds")));
+        }
+    }
+    if !c.page_boxes.windows(2).all(|w| w[0].page < w[1].page) {
+        return Err(bad_arg(format!("chunk {ci} page_boxes are not in strictly ascending page order")));
+    }
+    if c.has_page_span {
+        if c.page_start == 0 || c.page_start > c.page_end {
+            return Err(bad_arg(format!("chunk {ci} has invalid page_span {}..={}", c.page_start, c.page_end)));
+        }
+        if let (Some(first), Some(last)) = (c.page_boxes.first(), c.page_boxes.last())
+            && (first.page != c.page_start || last.page != c.page_end)
+        {
+            return Err(bad_arg(format!("chunk {ci} page_span does not match page_boxes")));
+        }
+        Ok(Some((c.page_start, c.page_end)))
+    } else {
+        if c.page_start != 0 || c.page_end != 0 || !c.page_boxes.is_empty() {
+            return Err(bad_arg(format!("chunk {ci} without has_page_span must have zero pages and no page_boxes")));
+        }
+        Ok(None)
+    }
 }
 
 pub fn rebuild_compiled_indexes(ix: &mut HybridIndex) -> Result<()> {

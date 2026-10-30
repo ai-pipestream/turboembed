@@ -19,20 +19,24 @@
 use serde_json::Value;
 use std::collections::BTreeSet;
 use turbo_analysis::{Ix, Span, Spans, ViewId};
-use turbo_analysis_layers::{Block, Structure};
+use turbo_analysis_layers::{Block, LayoutBoxes, PageBoundingBox, Structure};
 
 /// One docling text item, where its `text` lies in the source.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Item {
     /// The item's `self_ref`, `#/texts/N`.
     pub self_ref: String,
     pub label: String,
     pub span: Span,
+    /// 1-indexed physical page number from Docling `prov`, if present.
+    pub page: Option<u32>,
+    /// 2D bounding box on `page` from Docling `prov`, if present.
+    pub bbox: Option<PageBoundingBox>,
 }
 
 /// The part of one item a source span covers, in bytes, UTF-16 code units
 /// and code points of the item's own `text`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Located<'a> {
     pub item: &'a Item,
     pub bytes: (u32, u32),
@@ -64,6 +68,28 @@ impl Docling {
             })
             .collect()
     }
+
+    /// Builds the [`LayoutBoxes`] layer on [`ViewId::SOURCE`] from every
+    /// item with a [`PageBoundingBox`] or page provenance.
+    pub fn layout_boxes(&self) -> LayoutBoxes {
+        let mut boxes = LayoutBoxes::new(ViewId::SOURCE);
+        for item in &self.items {
+            if let Some(b) = item.bbox {
+                boxes.push(item.span, b.page, b.x0, b.y0, b.x1, b.y1);
+            } else if let Some(page) = item.page {
+                boxes.push(item.span, page, 0.0, 0.0, 0.0, 0.0);
+            }
+        }
+        boxes
+    }
+}
+
+/// Reads a `DoclingDocument`: the items laid over the source text, the
+/// structure, and the [`LayoutBoxes`] extracted from each item's `prov`.
+pub fn parse_with_layout(json: &str) -> Result<(Docling, Structure, LayoutBoxes), String> {
+    let (docling, structure) = parse(json)?;
+    let layout = docling.layout_boxes();
+    Ok((docling, structure, layout))
 }
 
 /// Reads a `DoclingDocument`: the items laid over the source text, and
@@ -233,7 +259,14 @@ impl<'a> Builder<'a> {
         self.text.push_str(text);
         let end = self.end();
         self.spans[b].1 = end;
-        self.items.push(Item { self_ref: r.to_owned(), label: label.to_owned(), span: Span::new(start, end) });
+        let (page, bbox) = parse_prov(r, node)?;
+        self.items.push(Item {
+            self_ref: r.to_owned(),
+            label: label.to_owned(),
+            span: Span::new(start, end),
+            page,
+            bbox,
+        });
         Ok(())
     }
 
@@ -267,4 +300,32 @@ impl<'a> Builder<'a> {
         }
         Ok(())
     }
+}
+
+fn parse_prov(r: &str, node: &Value) -> Result<(Option<u32>, Option<PageBoundingBox>), String> {
+    let Some(prov) = node.get("prov") else { return Ok((None, None)) };
+    if prov.is_null() {
+        return Ok((None, None));
+    }
+    let list = prov.as_array().ok_or_else(|| format!("{r}: prov must be an array"))?;
+    let Some(entry) = list.first() else { return Ok((None, None)) };
+    let page_u64 = entry.get("page_no").and_then(Value::as_u64).ok_or_else(|| format!("{r}: prov missing page_no"))?;
+    let page = u32::try_from(page_u64).map_err(|_| format!("{r}: prov page_no {page_u64} out of range"))?;
+    if page == 0 {
+        return Err(format!("{r}: prov page_no must be >= 1"));
+    }
+    let Some(bbox) = entry.get("bbox").filter(|b| !b.is_null()) else {
+        return Ok((Some(page), None));
+    };
+    let coord = |key: &str| -> Result<f32, String> {
+        let v = bbox.get(key).and_then(Value::as_f64).ok_or_else(|| format!("{r}: prov bbox missing {key}"))? as f32;
+        if !v.is_finite() {
+            return Err(format!("{r}: prov bbox {key} is not finite"));
+        }
+        Ok(v)
+    };
+    let (l, t, right, bottom) = (coord("l")?, coord("t")?, coord("r")?, coord("b")?);
+    let (x0, x1) = (l.min(right), l.max(right));
+    let (y0, y1) = (t.min(bottom), t.max(bottom));
+    Ok((Some(page), Some(PageBoundingBox::new(page, x0, y0, x1, y1))))
 }

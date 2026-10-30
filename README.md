@@ -10,10 +10,10 @@ of 71 crates that builds four things:
   Intel NPUs, Apple silicon and Hailo accelerators. Each backend is
   written against the vendor's own low-level interface.
 - A document analysis stack: typed annotation layers over exact source
-  offsets, normalization, segmentation, structure, Rust ports of the
-  Apache OpenNLP components, neural extractors (GLiNER, GLiNER2,
-  GLiREL), entity and relation graphs, and a chunker that picks chunk
-  boundaries by an exact optimization.
+  offsets, normalization, segmentation, structure, syntax and
+  morphological analyzers, lexical resources, neural extractors (GLiNER,
+  GLiNER2, GLiREL), entity and relation graphs, and a chunker that picks
+  chunk boundaries by an exact optimization.
 - `turbo-kserve`, a gRPC server that serves bundles over the KServe v2
   Open Inference Protocol and adds analysis, search, model catalog,
   vocabulary and health services, and can forward analyzed documents to
@@ -147,23 +147,21 @@ for callers in other languages ([analysis.md](docs/analysis.md)).
   table and key/value field extraction, and projection of structure
   across normalized views ([tables.md](docs/tables.md),
   [structure-projection.md](docs/structure-projection.md)).
-- **Segmentation.** OpenNLP sentence detection, newline and paragraph
-  detection, SaT neural sentence boundaries on the library's encoder
-  (`analysis/sat`), OpenNLP word tokenizers, UAX #29 word boundaries, a
-  MeCab style lattice tokenizer with prebuilt dictionaries, and Chinese
-  unigram segmentation ([segmentation.md](docs/segmentation.md)).
-- **Language.** OpenNLP language detection and per-span language and
-  script detection for mixed-language text
+- **Segmentation.** Rule-based and abbreviation-aware sentence detection,
+  newline and paragraph detection, SaT neural sentence boundaries on the
+  library's encoder (`analysis/sat`), whitespace and rule word
+  tokenizers, UAX #29 word boundaries, a MeCab style lattice tokenizer
+  with prebuilt dictionaries, and Chinese unigram segmentation
+  ([segmentation.md](docs/segmentation.md)).
+- **Language.** Trigram document language detection and per-span
+  language and script detection for mixed-language text
   ([langdetect.md](docs/langdetect.md)).
-- **Classic OpenNLP components.** Rust ports that read OpenNLP `.bin`
-  models and are checked against the JVM output: POS tagging,
-  lemmatization, phrase chunking, constituency and dependency parsing,
-  name finding (maxent, CRF, dictionary and pattern), document
-  categorization, coreference, stemmers (Porter, Snowball, light),
-  stopwords in 11 languages, Hunspell, Morfologik, WordNet, glossaries
-  and n-gram language models. See
-  [docs/beyond-opennlp/rust-crates.md](docs/beyond-opennlp/rust-crates.md)
-  for the full list.
+- **Syntax, morphology and lexical resources.** POS tagging,
+  lemmatization, dependency parsing, named-entity recognition (CRF,
+  dictionary, pattern and neural), document categorization, coreference,
+  stemmers (Porter, Snowball, light), stopwords in 11 languages,
+  Hunspell, Morfologik, WordNet and glossaries
+  ([analysis.md](docs/analysis.md)).
 - **Numbers, dates and entities.** A rule grammar for numbers, units,
   money, dates, times, durations and sets; money with ECB rates,
   quantities and temporal expressions; a gazetteer with Natural Earth
@@ -261,9 +259,8 @@ embeddings, precision tiers and analysis from a browser
 Bayes, liblinear and CRF models, and reproduce models from permissive
 data such as MASC and Universal Dependencies with accuracy gates.
 `turbo-bpe-trainer` trains byte-level BPE and other tokenizers
-([bpe-trainer.md](docs/bpe-trainer.md)). `turbo-goldens` produces golden
-files from OpenNLP on the JVM in a container, and `turbo-fuzz` runs
-differential fuzzing against it.
+([bpe-trainer.md](docs/bpe-trainer.md)). `turbo-fuzz` runs property and
+differential fuzzing across the analysis and numeric crates.
 
 `turbo-bench` (`bench/`) measures the library through its C API against
 pinned reference programs (Hugging Face TEI, TensorRT, OpenVINO,
@@ -342,13 +339,13 @@ release.md.
 | `analysis/core`, `analysis/layers` | the document model, views, alignments and shared layer types |
 | `analysis/unicode`, `analysis/encoding`, `analysis/zstd`, `analysis/normalize` | text input and normalization |
 | `analysis/structure`, `analysis/sentdetect`, `analysis/sat`, `analysis/tokenize`, `analysis/langdetect`, `analysis/langspan` | structure, segmentation and language |
-| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | OpenNLP ports |
+| `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | tagging, parsing, entity extraction, document categorization and coreference |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
 | `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
-| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo, the pins of tested models, and OpenNLP parity testing |
+| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo, the pins of tested models, golden fixtures and fuzzing |
 | `docs/` | documentation; `docs/setup/` has per-machine setup |
 
 Crates with a `-layers` or `-gen` suffix next to these hold layer types
@@ -362,8 +359,8 @@ them: no regex crate (pattern work goes through `turbo-matcher`), no
 external NLP dependencies, every Rust file under 500 lines, model
 settings in the bundle rather than in code, and no result called working
 until it has run on the real device. CI runs formatting, clippy, an
-aarch64 check, four test shards, fuzzing, feature builds, parity against
-OpenNLP on the JVM and against Model2Vec, and Windows lint and tests.
+aarch64 check, four test shards, fuzzing, feature builds, reference
+conformance checks, and Windows lint and tests.
 
 ## Documentation
 
@@ -375,7 +372,7 @@ OpenNLP on the JVM and against Model2Vec, and Windows lint and tests.
 | Setup | [setup/README.md](docs/setup/README.md), [setup/bundles.md](docs/setup/bundles.md), [setup/release-archive.md](docs/setup/release-archive.md) |
 | Analysis model and text | [analysis.md](docs/analysis.md), [normalizers.md](docs/normalizers.md), [normalization-xray.md](docs/normalization-xray.md), [text-quality.md](docs/text-quality.md), [whitespace.md](docs/whitespace.md), [codepoint-lowercase.md](docs/codepoint-lowercase.md) |
 | Structure and segmentation | [tables.md](docs/tables.md), [structure-projection.md](docs/structure-projection.md), [structure-conformance.md](docs/structure-conformance.md), [segmentation.md](docs/segmentation.md), [lattice-prebuilt.md](docs/lattice-prebuilt.md), [unigram-chinese.md](docs/unigram-chinese.md), [langdetect.md](docs/langdetect.md) |
-| OpenNLP ports | [beyond-opennlp/rust-crates.md](docs/beyond-opennlp/rust-crates.md), [beyond-opennlp/other-languages.md](docs/beyond-opennlp/other-languages.md), [liblinear.md](docs/liblinear.md), [crf-namefinder.md](docs/crf-namefinder.md), [dependency-parser.md](docs/dependency-parser.md), [doccat.md](docs/doccat.md), [sentiment.md](docs/sentiment.md), [coref.md](docs/coref.md) |
+| Syntax, entities and categorization | [liblinear.md](docs/liblinear.md), [crf-namefinder.md](docs/crf-namefinder.md), [dependency-parser.md](docs/dependency-parser.md), [feedforward-dependency-parser.md](docs/feedforward-dependency-parser.md), [doccat.md](docs/doccat.md), [sentiment.md](docs/sentiment.md), [coref.md](docs/coref.md) |
 | Numbers, dates and PII | [grammar.md](docs/grammar.md), [grammar-units.md](docs/grammar-units.md), [numbers.md](docs/numbers.md), [money.md](docs/money.md), [quantities.md](docs/quantities.md), [temporal.md](docs/temporal.md), [pii.md](docs/pii.md) |
 | Neural extraction and graphs | [neural-annotators.md](docs/neural-annotators.md), [namefind-dl.md](docs/namefind-dl.md), [gliner.md](docs/gliner.md), [schema-extract.md](docs/schema-extract.md), [gliner2-relations.md](docs/gliner2-relations.md), [glirel-relations.md](docs/glirel-relations.md), [relation.md](docs/relation.md), [events.md](docs/events.md), [modality.md](docs/modality.md), [entity-graph.md](docs/entity-graph.md), [entity-salience.md](docs/entity-salience.md), [discourse.md](docs/discourse.md) |
 | Classification and calibration | [dense-classifier.md](docs/dense-classifier.md), [model-routing.md](docs/model-routing.md), [calibration.md](docs/calibration.md) |

@@ -648,6 +648,9 @@ message ChunkAnnotation
   int64 cost = 6;
   uint32 model_tokens = 7;
   bool over_budget = 8;
+  optional uint32 page_start = 9;
+  optional uint32 page_end = 10;
+  repeated PageBoundingBoxProto page_boxes = 11;
 }
 
 message LevelAnnotation
@@ -949,6 +952,32 @@ message QuotationAnnotation
   optional uint32 speaker_chain = 5;
 }
 
+message PageBoundingBoxProto
+{
+  uint32 page = 1;
+  float x0 = 2;
+  float y0 = 3;
+  float x1 = 4;
+  float y1 = 5;
+}
+
+message LayoutBoxAnnotation
+{
+  uint32 page = 1;
+  float x0 = 2;
+  float y0 = 3;
+  float x1 = 4;
+  float y1 = 5;
+}
+
+message ChunkCitationAnnotation
+{
+  uint32 chunk_index = 1;
+  optional uint32 page_start = 2;
+  optional uint32 page_end = 3;
+  repeated PageBoundingBoxProto page_boxes = 4;
+}
+
 message TypedAnnotation
 {
   repeated SpanFragment spans = 1;
@@ -1042,5 +1071,7 @@ message TypedAnnotation
     QualityMetricsAnnotation span_quality = 92;
     EvidenceAnnotation evidence = 93;
     QuotationAnnotation quotation = 94;
+    LayoutBoxAnnotation layout_box = 95;
+    ChunkCitationAnnotation chunk_citation = 96;
   }
 }

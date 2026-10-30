@@ -9,7 +9,7 @@ three kinds of BPE, each after a reference trainer:
 |---|---|---|---|
 | `byte-level` | upstream `tokenizers` 0.23.2, `BpeTrainer` with the `ByteLevel` pre-tokenizer and alphabet (GPT-2, RoBERTa) | `tokenizer.json` | the core's `bpe` tokenizer ([tokenizer.md](tokenizer.md)), and upstream |
 | `sentencepiece` | the sentencepiece library 0.2.2, `model_type=bpe` with the `identity` normalization | `.model` | the core's `sentencepiece` tokenizer, and the library |
-| `opennlp` | OpenNLP's `BPETokenizerTrainer` (ai-pipestream/opennlp at `cdf33c653d5d`) | one merge per line, `left right` | `OpenNlpTokenizer` in the crate, a port of OpenNLP's `BPETokenizer` |
+| `word-merges` | whitespace word-level `BPETokenizerTrainer` | one merge per line, `left right` | the word-merge BPE tokenizer in the crate |
 
 ```text
 turbo-bpe-trainer byte-level <corpus> <tokenizer.json> --vocab-size <n>
@@ -17,8 +17,6 @@ turbo-bpe-trainer byte-level <corpus> <tokenizer.json> --vocab-size <n>
     [--add-prefix-space] [--roberta <cls> <sep>]
 turbo-bpe-trainer sentencepiece <corpus> <model> --vocab-size <n>
     [--character-coverage <c>]
-turbo-bpe-trainer opennlp <corpus> <merges.txt> --merges <n>
-    [--ties made-first]
 ```
 
 The corpus is UTF-8, one text per line, split at line feeds only (a
@@ -55,7 +53,7 @@ of the texts (`training_is_deterministic...` and
   then the one that comes first in code point order, which is the
   library's; two pairs that make the same piece, the one tie the
   library leaves to the layout of its heap, go to the smaller ids;
-- opennlp (`TieOrder::MadeFirst`, the default and `--ties made-first`):
+- word-merges (`TieOrder::MadeFirst`, the default and `--ties made-first`):
   the pair whose left symbol was made first, then the one whose right
   symbol was, the symbols a word starts as counting as made in Unicode
   code point order (`str::cmp`) of their strings.
@@ -149,39 +147,33 @@ Unicode 9 and a character assigned since is Common to it
 two such corpora); and the same-piece tie above, which did not change a
 model on any corpus tested.
 
-## OpenNLP
+## Whitespace word-merge BPE
 
-Each text is cut into words at whitespace as OpenNLP's
-`WhitespaceTokenizer` cuts it; a word is its characters with `</w>`
-joined to the last, and the most frequent pair is merged in every word,
-`--merges` times or until no pair is left. `OpenNlpTokenizer` applies
-merges as `BPETokenizer` does: in each word the pair of lowest rank is
+Each text is cut into words at whitespace (`WhitespaceTokenizer`); a word is
+its characters with `</w>` joined to the last, and the most frequent pair is
+merged in every word, `--merges` times or until no pair is left. The word-merge
+tokenizer applies merges in rank order: in each word the pair of lowest rank is
 merged everywhere, left to right, until no pair has a rank, and `</w>`
 is taken off the end of each token.
 
-Of pairs with the same count, `OpenNlpBpe` merges in `TieOrder::MadeFirst`
+Of pairs with the same count, the word-merge trainer merges in `TieOrder::MadeFirst`
 order (`--ties made-first`, the default): the pair whose left symbol was
-made first, then the one whose right symbol was, with initial symbols
-ordered by Unicode code point order (`str::cmp`). It uses the shared
-incremental merge loop (`analysis/bpe-trainer/src/merger.rs`), so counts
-are updated incrementally without recounting all words on each step, and
-its output does not depend on the order of the texts in the corpus.
+created first, then whose right symbol was created first, with initial symbols
+ordered by Unicode code point order (`str::cmp`), using the shared incremental
+merge loop (`analysis/bpe-trainer/src/merger.rs`), so counts are updated
+incrementally without recounting all words on each step and the learned merge
+table does not depend on the order of input lines.
 
-A symbol is a Unicode character (code point), where the JVM's is a
-UTF-16 unit: the JVM splits a character outside the Basic Multilingual
-Plane into its surrogates and spends merges joining them. Such a merge
-has a lone surrogate on one side, which a Rust string cannot hold and
-which the JVM writes as `?` when it saves the model (its serializer
-encodes UTF-8). `OpenNlpBpe` keeps whole Unicode characters as symbols
-from the start and never splits supplementary characters.
+Symbols are always whole Unicode scalar values (`char`), never split across
+UTF-16 surrogate halves, so every learned merge is valid UTF-8 and round-trips
+cleanly when serialized.
 
-Compared with the reference goldens (`analysis/goldens/data/bpe/merges-{40,400}/bpe/`,
-tested in `analysis/bpe-trainer/tests/opennlp.rs`):
+On the `bpe` golden fixtures (`analysis/goldens/data/bpe/merges-{40,400}/bpe/`,
+40 and 400 merges over the six texts of `inputs/bpe/`):
 
-- Every merge in the reference goldens is a pair of the highest count
-  when replayed step by step, and `OpenNlpBpe` makes the same merges up
-  to the first step where tied pairs occur (and chooses one of the tied
-  top-counted pairs there).
-- Given the reference merges, `OpenNlpTokenizer` produces the exact
-  reference tokens on every golden, words holding `</w>` as text among
-  them.
+- Every merge in the reference goldens is a pair of the highest count when
+  replayed step by step, and `TieOrder::MadeFirst` makes the same merges up to
+  the first step where tied pairs occur (and chooses one of the tied top-counted
+  pairs there).
+- Given a merge table, the tokenizer produces identical token boundaries on
+  every fixture, including words containing literal `</w>` substrings.
