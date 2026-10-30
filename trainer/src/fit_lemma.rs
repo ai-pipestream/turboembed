@@ -32,13 +32,15 @@ pub struct LemmaExample {
 
 /// The trees of the training pairs that come up at least `min_freq`
 /// times, as labels: most frequent first, then by label, at most the
-/// labels a head holds, none longer than a label may be. A pair whose
-/// tree the core would refuse on its own form (an empty lemma for a
-/// word) gives none.
+/// labels a head holds, none longer than a label may be. Each pair's
+/// tree is `EditTree::mine_cased`'s, so a capitalized form whose lemma is
+/// lowercase shares the lowercase form's tree under `(l ...)`. A pair
+/// whose tree the core would refuse on its own form (an empty lemma for
+/// a word) gives none.
 pub fn mine_trees<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>, min_freq: usize) -> Vec<String> {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for (form, lemma) in pairs {
-        let tree = EditTree::mine(form, lemma);
+        let tree = EditTree::mine_cased(form, lemma);
         if tree.apply(form).is_some() {
             *counts.entry(tree.label()).or_default() += 1;
         }
@@ -164,7 +166,7 @@ pub fn fit_lemmatizer_with(
             .forms
             .iter()
             .zip(&e.lemmas)
-            .map(|(f, l)| index.get(EditTree::mine(f, l).label().as_str()).copied())
+            .map(|(f, l)| index.get(EditTree::mine_cased(f, l).label().as_str()).copied())
             .collect();
         Prepared { e, gold }
     };
