@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use turbo_eval::model_gate::{LabelMapping, ModelGateRecord};
-use turbo_jvm::random::JavaRandom;
 use turbo_train::{Algorithm, Key, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::langdetect::{
@@ -15,6 +14,42 @@ use super::{
 use crate::error::{Error, Result};
 use crate::segmentation::TIMESTAMP_MS;
 use crate::tatoeba::{self, Export, Sentences};
+
+/// Shuffles `items` deterministically using a 48-bit linear congruential
+/// generator seeded with `seed`.
+pub fn shuffle_with_seed<T>(seed: i64, items: &mut [T]) {
+    const MULTIPLIER: u64 = 0x5_DEEC_E66D;
+    const ADDEND: u64 = 0xB;
+    const MASK: u64 = (1 << 48) - 1;
+
+    let mut state = (seed as u64 ^ MULTIPLIER) & MASK;
+    let mut next_bits = |bits: u32| -> i32 {
+        state = (state.wrapping_mul(MULTIPLIER).wrapping_add(ADDEND)) & MASK;
+        (state >> (48 - bits)) as i32
+    };
+    let mut next_bounded = |bound: i32| -> i32 {
+        let mut r = next_bits(31);
+        let m = bound - 1;
+        if bound & m == 0 {
+            ((bound as i64 * r as i64) >> 31) as i32
+        } else {
+            let mut u = r;
+            loop {
+                r = u % bound;
+                if u.wrapping_sub(r).wrapping_add(m) >= 0 {
+                    break r;
+                }
+                u = next_bits(31);
+            }
+        }
+    };
+
+    let size = i32::try_from(items.len()).expect("sentence count fits in i32");
+    for i in (2..=size).rev() {
+        let j = next_bounded(i);
+        items.swap((i - 1) as usize, j as usize);
+    }
+}
 
 impl LanguageRecipe {
     /// The training parameters: `MAXENT`, the recipe's iterations and
@@ -90,7 +125,7 @@ impl LanguageRecipe {
                 });
                 continue;
             }
-            JavaRandom::new(self.split.seed).shuffle(&mut usable);
+            shuffle_with_seed(self.split.seed, &mut usable);
             let held_out = self.split.held_out.min(usable.len());
             let training = self.split.max_training.min(usable.len() - held_out);
             let mut it = usable.into_iter();

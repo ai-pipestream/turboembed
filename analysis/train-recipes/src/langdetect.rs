@@ -29,6 +29,7 @@ pub use card::{
     ExportCard, LanguageCard, LanguageHeldOutCard, LanguageTrainingCard, SentencesFileCard, export_card, training_data,
     write_language_dir,
 };
+pub use plan::shuffle_with_seed;
 
 use crate::Reference;
 use crate::error::{Error, Result};
