@@ -9,7 +9,8 @@ mod fixture;
 
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Ix, IxRange, Key, Provenance, Span, Spans, Tag, ViewId};
-use turbo_analysis_layers::{Chunks, Cut, Entities, PosTags, Sentences, Tokens};
+use turbo_analysis_layers::{Chunks, Cut, Entities, LayoutBoxes, PosTags, Sentences, Tokens};
+use turbo_chunker::chunk_citations;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{
@@ -136,23 +137,36 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         },
         on_tok,
     );
+    let mut layout = LayoutBoxes::new(ViewId::SOURCE);
+    layout.push(cafe, 1, 10.0, 20.0, 80.0, 40.0);
+    layout.push(beijing, 2, 15.0, 30.0, 90.0, 50.0);
+    layout.push(price, 2, 15.0, 55.0, 100.0, 75.0);
+    add(&mut export_doc, layout.clone(), Provenance::by("test:layout"));
+
     let mut chunk_spans = Spans::<Chunks>::new(ViewId::SOURCE);
     chunk_spans.try_push_fragments(&[cafe]).unwrap();
     chunk_spans.try_push_fragments(&[beijing, price]).unwrap();
+    let chunks_layer = Chunks {
+        spans: chunk_spans,
+        level: vec![0, 0],
+        parent: vec![None, None],
+        sentences: vec![IxRange::new(0, 1), IxRange::new(0, 1)],
+        cut: vec![Cut::DocumentStart, Cut::Sentence],
+        cost: vec![0, 3],
+        model_tokens: vec![1, 2],
+        over_budget: vec![false, false],
+        prompt_overhead: 0,
+    };
+    let citations = chunk_citations(&chunks_layer, Some(&layout)).unwrap();
     add(
         &mut export_doc,
-        Chunks {
-            spans: chunk_spans,
-            level: vec![0, 0],
-            parent: vec![None, None],
-            sentences: vec![IxRange::new(0, 1), IxRange::new(0, 1)],
-            cut: vec![Cut::DocumentStart, Cut::Sentence],
-            cost: vec![0, 3],
-            model_tokens: vec![1, 2],
-            over_budget: vec![false, false],
-            prompt_overhead: 0,
-        },
+        chunks_layer,
         Provenance { reads: vec![Key::<Sentences>::DEFAULT.id()], ..Provenance::by("test:chunks") },
+    );
+    add(
+        &mut export_doc,
+        citations,
+        Provenance { on: vec![Key::<Chunks>::DEFAULT.id()], ..Provenance::by("test:citations") },
     );
     let graph_bytes = export(&export_doc, codecs()).unwrap().to_bytes().unwrap();
 
@@ -169,6 +183,15 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
     assert_eq!(inspected.raw_text, TEXT);
     assert!(inspected.layers.iter().any(|l| l.id == "opennlp:entities"));
     assert!(inspected.layers.iter().any(|l| l.id == "turbo:chunks"));
+    assert!(inspected.layers.iter().any(|l| l.id == "turbo:layout-boxes"));
+    assert!(inspected.layers.iter().any(|l| l.id == "turbo:chunk-citations"));
+    let chunk_layer = inspected.layers.iter().find(|l| l.id == "turbo:chunks").unwrap();
+    let Some(Value::Chunk(c1)) = &chunk_layer.annotations[1].value else {
+        panic!("expected Chunk value");
+    };
+    assert_eq!((c1.page_start, c1.page_end), (Some(2), Some(2)));
+    assert_eq!(c1.page_boxes.len(), 1);
+    assert_eq!((c1.page_boxes[0].page, c1.page_boxes[0].x0, c1.page_boxes[0].y1), (2, 15.0, 75.0));
 
     let echoed = client.round_trip_typed_document(inspected.clone()).await.unwrap().into_inner();
     assert_eq!(echoed, inspected);

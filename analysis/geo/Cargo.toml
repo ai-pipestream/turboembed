@@ -13,8 +13,6 @@ name = "turbo_geo"
 turbo-analysis = { path = "../core" }
 # Entities, Regions, Containment and RegionCode layers.
 turbo-analysis-layers = { path = "../layers" }
-# Double.parseDouble and String.compareTo.
-turbo-jvm = { path = "../jvm" }
 # The accent fold's stroke letters and fold scripts.
 turbo-normalize = { path = "../normalize" }
 # The match keys as one mapped automaton (`NameFinder`).

@@ -1,6 +1,6 @@
 //! Model-free script evidence and query lexical helpers.
 
-use turbo_analysis::{Annotator, Error, Refs, View};
+use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Language, LanguageSpans, Sentences, Tokens};
 use turbo_langspan::{NgramDetector, ScriptDetector};
 
@@ -31,6 +31,20 @@ impl Annotator for QuerySpanDetector {
     const ID: &'static str = ScriptDetector::ID;
     type Reads = (View, Option<Sentences>, Option<Tokens>);
     type Writes = (LanguageSpans, Language);
+
+    fn model(&self) -> Option<ModelRef> {
+        match self {
+            Self::Script(inner) => inner.model(),
+            Self::Ngram(inner) => inner.model(),
+        }
+    }
+
+    fn config_hash(&self) -> u64 {
+        match self {
+            Self::Script(inner) => inner.config_hash(),
+            Self::Ngram(inner) => inner.config_hash(),
+        }
+    }
 
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
         match self {

@@ -433,8 +433,15 @@ common. Its label is an S-expression: `(m P S X Y)` keeps all but the
 first `P` and last `S` characters (Unicode scalar values) and rewrites
 those by `X` and `Y` (`()` for none); `(s 'from' 'to')` substitutes, with
 `\'` and `\\` escaped inside quotes. `walked` to `walk` is
-`(m 0 2 () (s 'ed' ''))`. Only the canonical form of a label is
-accepted, so one tree has one label.
+`(m 0 2 () (s 'ed' ''))`. One node is ours: `(l T)` lowercases every
+character of the word by its simple Unicode 18 mapping (no special
+casing, no final sigma) and rewrites the result by `T`, which is not
+itself an `l`. The trainer mines it when it substitutes fewer characters
+than the plain tree, so `Dogs` to `dog` is `(l (m 0 1 () (s 's' '')))`,
+the tree of `dogs` to `dog`, and a capital at the start of a sentence
+does not give the table one tree per letter; `Paris` to `Paris` stays
+`(m 0 0 () ())`. Only the canonical form of a label is accepted, so one
+tree has one label.
 
 A `HEAD_SENTENCE_BOUNDARY` and a `HEAD_TOKEN_SPLIT` have a tagger's
 tensors and differ only in their labels and decode. A sentence boundary

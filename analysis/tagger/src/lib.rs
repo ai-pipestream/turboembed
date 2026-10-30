@@ -11,6 +11,7 @@
 
 pub mod annotate;
 pub mod coref;
+pub mod dictionaries;
 pub mod lemma;
 pub mod multi;
 pub mod parse;
@@ -28,6 +29,7 @@ use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tokens};
 
 pub use annotate::HeadRunner;
 pub use coref::CorefTagger;
+pub use dictionaries::{MorfologikLemmas, MorphyLemmas};
 pub use lemma::{LemmaDictionary, Lemmatizer};
 pub use multi::MultiTask;
 pub use parse::DependencyParser;

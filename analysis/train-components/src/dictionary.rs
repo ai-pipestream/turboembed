@@ -31,7 +31,6 @@ use turbo_maxent::{Dictionary, Entries};
 use turbo_unicode::java::lowercase_code_points;
 
 use crate::error::{Error, Result};
-use crate::java_hash::{hash_map_order, string_list_hash_code};
 
 /// A dictionary's entries with their casing and insertion order, and the
 /// lookup dictionary made from them.
@@ -168,12 +167,9 @@ impl AbbreviationDictionary {
         &self.lookup
     }
 
-    /// The entries in the order `Dictionary.iterator()` gives them: that
-    /// of the `HashSet<StringList>`, by `StringList.hashCode`.
+    /// The entries in deterministic first-seen insertion order.
     pub fn java_order(&self) -> Result<Vec<&[String]>> {
-        let hashes: Vec<i32> =
-            self.entries.iter().map(|e| string_list_hash_code(e.iter().map(String::as_str))).collect();
-        Ok(hash_map_order(&hashes)?.into_iter().map(|i| self.entries[i].as_slice()).collect())
+        Ok(self.entries.iter().map(Vec::as_slice).collect())
     }
 
     /// `Dictionary.serialize`: the bytes of the `abbreviations.dictionary`

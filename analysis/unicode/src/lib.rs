@@ -42,6 +42,7 @@
 //!   files store their feature strings in.
 
 pub mod casefold;
+pub mod casemap;
 pub mod category;
 pub mod chars;
 pub mod confusables;

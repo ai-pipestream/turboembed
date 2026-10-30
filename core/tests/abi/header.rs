@@ -275,6 +275,23 @@ fn struct_layouts_match_the_header() {
             ("turbo_buffer_desc", "ndim", offset_of!(turbo_buffer_desc, ndim)),
             ("turbo_buffer_desc", "shape", offset_of!(turbo_buffer_desc, shape)),
             ("turbo_buffer_desc", "bytes", offset_of!(turbo_buffer_desc, bytes)),
+            ("turbo_analyzer_desc", "language", offset_of!(turbo_analyzer_desc, language)),
+            ("turbo_analyzer_desc", "sent_model_path", offset_of!(turbo_analyzer_desc, sent_model_path)),
+            ("turbo_analyzer_desc", "tok_model_path", offset_of!(turbo_analyzer_desc, tok_model_path)),
+            ("turbo_analyzer_desc", "pos_model_path", offset_of!(turbo_analyzer_desc, pos_model_path)),
+            ("turbo_analyzer_desc", "lemma_model_path", offset_of!(turbo_analyzer_desc, lemma_model_path)),
+            ("turbo_analyzer_desc", "ner_model_path", offset_of!(turbo_analyzer_desc, ner_model_path)),
+            ("turbo_span", "layer_kind", offset_of!(turbo_span, layer_kind)),
+            ("turbo_span", "flags", offset_of!(turbo_span, flags)),
+            ("turbo_span", "item_index", offset_of!(turbo_span, item_index)),
+            ("turbo_span", "view_byte_start", offset_of!(turbo_span, view_byte_start)),
+            ("turbo_span", "source_byte_start", offset_of!(turbo_span, source_byte_start)),
+            ("turbo_span", "token_start", offset_of!(turbo_span, token_start)),
+            ("turbo_span", "layer_offset", offset_of!(turbo_span, layer_offset)),
+            ("turbo_span", "instance_offset", offset_of!(turbo_span, instance_offset)),
+            ("turbo_span", "label_offset", offset_of!(turbo_span, label_offset)),
+            ("turbo_span", "value_offset", offset_of!(turbo_span, value_offset)),
+            ("turbo_span", "prob", offset_of!(turbo_span, prob)),
         ],
     ]
     .concat();
@@ -302,6 +319,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_tuning", size_of::<turbo_backend_tuning>()),
         ("turbo_token_range", size_of::<turbo_token_range>()),
         ("turbo_backend_session_desc", size_of::<turbo_backend_session_desc>()),
+        ("turbo_analyzer_desc", size_of::<turbo_analyzer_desc>()),
+        ("turbo_span", size_of::<turbo_span>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",

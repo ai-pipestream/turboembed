@@ -12,7 +12,7 @@ deterministic triage signals, not calibrated probabilities or model accuracy.
 Words are input tokens containing a Unicode letter or decimal digit. Punctuation
 tokens remain in the information-density denominator. Alphabetic content tokens
 contain at least one letter and otherwise only letters or combining marks, and
-are absent from the existing OpenNLP English stopword list. Token spelling is
+are absent from the bundled English stopword list. Token spelling is
 lowercased using the shared Java simple-character mapping, without normalization
 or accent folding. Discontinuous token spellings concatenate their fragments.
 

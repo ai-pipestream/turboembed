@@ -20,12 +20,6 @@ pub enum Error {
     /// generators keeps one, so the pair is refused rather than looked up
     /// differently.
     CaseVariants { first: String, second: String },
-    /// A `java.util.HashMap` bucket that the JVM turns into a tree (nine
-    /// entries in a table of 64 or more) holds two entries with one hash
-    /// code, which the JVM orders by `System.identityHashCode`, differently
-    /// from run to run; the serialized dictionary's entry order would be a
-    /// guess, so it is refused.
-    TreeBucketTie,
     /// A dictionary token holds a character XML 1.0 cannot carry (a control
     /// character other than tab, line feed and carriage return, or U+FFFE
     /// or U+FFFF): the JDK's XML serializer throws `SAXException` and
@@ -74,6 +68,11 @@ pub enum Error {
     /// events (`PERCEPTRON_SEQUENCE`), which `NameFinderME.train` feeds
     /// with `NameSampleSequenceStream`; not ported.
     NameSequenceTraining(turbo_train::TrainerType),
+    /// `ChunkerME.train` given parameters that name no event trainer:
+    /// `IllegalArgumentException("Trainer type is not supported: " +
+    /// trainerType)`, the type `TrainerFactory.getTrainerType` gave, `null`
+    /// for an algorithm it cannot resolve.
+    UnsupportedTrainerType(Option<turbo_train::TrainerType>),
     /// A model file could not be read.
     Model(turbo_maxent::Error),
     /// A file could not be read.
@@ -95,9 +94,6 @@ impl fmt::Display for Error {
             Error::EmptyEntry => f.write_str("tokens must not be empty"),
             Error::CaseVariants { first, second } => {
                 write!(f, "a case-sensitive dictionary with {first:?} and {second:?}, which differ only in case")
-            }
-            Error::TreeBucketTie => {
-                f.write_str("a HashMap bucket that would be a tree holds two entries with one hash code")
             }
             Error::InvalidXmlCharacter(c) => {
                 write!(f, "An invalid XML character (Unicode: 0x{c:x}) was found in the node's character data content.")
@@ -121,6 +117,15 @@ impl fmt::Display for Error {
             Error::IncompatibleOutcomes => f.write_str(crate::namefind::INCOMPATIBLE_MESSAGE),
             Error::NameSequenceTraining(t) => {
                 write!(f, "training a name finder with a {} trainer is not ported", t.value())
+            }
+            Error::UnsupportedTrainerType(t) => {
+                let name = match t {
+                    Some(turbo_train::TrainerType::Event) => "EVENT_MODEL_TRAINER",
+                    Some(turbo_train::TrainerType::EventModelSequence) => "EVENT_MODEL_SEQUENCE_TRAINER",
+                    Some(turbo_train::TrainerType::Sequence) => "SEQUENCE_TRAINER",
+                    None => "null",
+                };
+                write!(f, "Trainer type is not supported: {name}")
             }
             Error::Model(e) => write!(f, "model file: {e}"),
             Error::Io { path, message } => write!(f, "{}: {message}", path.display()),

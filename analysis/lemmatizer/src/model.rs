@@ -41,6 +41,12 @@ impl LemmatizerModel {
         LemmatizerModel::open(ModelFile::read(path)?)
     }
 
+    /// Opens a trained `StatisticalLemmatizer` archive produced by `turbo-train-components`
+    /// (`TrainedLemmatizerModel::package`).
+    pub fn from_trained_archive(bytes: Vec<u8>) -> Result<LemmatizerModel, ModelError> {
+        LemmatizerModel::open(ModelFile::from_trained_archive(bytes)?)
+    }
+
     /// Reads the model from an opened model file. It checks what OpenNLP
     /// checks when it loads and runs a model, and what would fail later:
     /// the component is `StatisticalLemmatizer`, the factory is

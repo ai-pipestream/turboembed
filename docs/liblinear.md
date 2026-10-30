@@ -1,12 +1,11 @@
 # liblinear trainer
 
 This is documentation of the remaining classical training implementation,
-scheduled for removal in #1532. OpenNLP archive loading is disabled by #1511.
+scheduled for removal in #1532. Classical archive loading is disabled by #1511.
 
-`turbo_train::liblinear` (`analysis/train/src/liblinear/mod.rs`) is the
-liblinear trainer of the OpenNLP addons, `liblinear-addon` on their
-`main` branch (`LiblinearTrainer`, `LiblinearModel`,
-`LiblinearModelSerializer`), with the solvers it uses from liblinear-java
+`turbo_train::liblinear` (`analysis/train/src/liblinear/mod.rs`) implements the
+LIBLINEAR trainer (`LiblinearTrainer`, `LiblinearModel`,
+`LiblinearModelSerializer`), with the solvers from `liblinear-java`
 2.44 (`de.bwaldvogel:liblinear`, a Java port of LIBLINEAR's
 `linear.cpp`) ported into the crate. A model trained here has the JVM's
 header, outcome labels and predicate map, and weights and probabilities
@@ -20,7 +19,7 @@ reproduce.
 
 ## Use
 
-| Item | OpenNLP add-on |
+| Item | Behaviour |
 |---|---|
 | `liblinear::train_events(events, params)` | `new LiblinearTrainer(params)`, `init(params, ...)`, `train(events)`: the checksum, the indexer (sorting on, the default cutoff when none is given), then training |
 | `liblinear::train(index, params)` | `AbstractEventTrainer.train(DataIndexer)` with the add-on's `doTrain` |
@@ -136,6 +135,7 @@ All three pass the same tolerances. fdlibm is as fast as the platform's
 
 The JVM golden comparison test was removed under #1511. The previous solver
 counts and timing table above describe historical runs, not current acceptance
-coverage. OpenNLP archive readers are disabled; no JVM output or downloaded
-model is required to validate this change. Removal of the remaining classical
-training stack is tracked in #1532.
+coverage (`analysis/train/src/liblinear/tests.rs` exercises the unit tests).
+Classical archive readers are disabled; no JVM output or downloaded model is
+required to validate this change. Removal of the remaining classical training
+stack is tracked in #1532.

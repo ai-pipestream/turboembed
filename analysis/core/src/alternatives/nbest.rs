@@ -138,6 +138,30 @@ impl<L: Layer> Layer for NBest<L> {
         self.items
     }
 
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = crate::hash::Fnv1a::new();
+        h.u64(self.tagset.content_hash()).usize(self.items).usize(self.score.len());
+        for &s in &self.score {
+            h.f64(s);
+        }
+        h.usize(self.tags.len());
+        for &t in &self.tags {
+            h.u16(t.0);
+        }
+        match &self.prob {
+            None => {
+                h.u8(0);
+            }
+            Some(probs) => {
+                h.u8(1).usize(probs.len());
+                for &p in probs {
+                    h.f64(p);
+                }
+            }
+        }
+        Some(h.finish())
+    }
+
     fn check(&self) -> Result<(), String> {
         let k = self.score.len();
         let expected = k.checked_mul(self.items).ok_or_else(|| "candidates * items overflows usize".to_string())?;

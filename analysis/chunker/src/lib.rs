@@ -28,6 +28,7 @@ pub mod expand;
 mod gaps;
 mod hashes;
 pub mod late;
+pub mod layout;
 mod lexical;
 mod limits;
 pub mod multirep;
@@ -73,6 +74,10 @@ pub use entity::{
 pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
 pub use late::{LateChunkAnnotator, Pooling, WindowPolicy};
+pub use layout::{
+    ChunkCitation, ChunkCitationAnnotator, ChunkCitations, LAYOUT, LayoutBoundaries, LayoutCosts,
+    WeighLayoutBoundaries, chunk_citations, layout_boundaries, weigh_with_layout,
+};
 pub use lexical::{LEXICAL, LexicalBoundaries, LexicalForm};
 pub use multirep::{ChunkRepresentation, MultiRepChunkIndex, RepHit, RepresentationKind};
 pub use providers::{
@@ -291,6 +296,20 @@ impl Annotator for Chunker {
             |_| no_term,
             None,
         )?,))
+    }
+
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[
+            turbo_analysis::Key::<Sentences>::DEFAULT.id(),
+            turbo_analysis::Key::<Subwords>::DEFAULT.id(),
+            turbo_analysis::Key::<Boundaries>::DEFAULT.id(),
+        ];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Chunks>::DEFAULT.id()];
+        PRODUCES
     }
 
     fn config_hash(&self) -> u64 {

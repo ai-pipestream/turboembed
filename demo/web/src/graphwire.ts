@@ -193,17 +193,37 @@ function refs(c: Cursor, name: string): Part {
   });
 }
 
+function digest(c: Cursor, name: string): Part {
+  return option(c, name, "a digest", (c) => {
+    const b = c.take(32);
+    let s = "";
+    for (const x of b) s += x.toString(16).padStart(2, "0");
+    return { value: s };
+  });
+}
+
 function provenance(c: Cursor): Part {
   return part(c, "provenance", (c) => {
+    let hasDigests = false;
     const parts = [
       str(c, "annotator"),
       str(c, "version"),
       part(c, "config", (c) => ({ value: c.u64().toString(16).padStart(16, "0") })),
       option(c, "model", "a model", (c) => ({ parts: [str(c, "id"), str(c, "revision"), str(c, "sha256")] })),
-      option(c, "execution", "an execution", (c) => ({ parts: [str(c, "backend"), str(c, "device"), str(c, "precision")] })),
+      part(c, "execution", (c) => {
+        const raw = c.u8();
+        hasDigests = (raw & 0x80) !== 0;
+        const tag = raw & 0x7f;
+        if (tag === 0) return { value: "none" };
+        if (tag === 1) return { parts: [str(c, "backend"), str(c, "device"), str(c, "precision")] };
+        throw tagError(c, "an execution", raw);
+      }),
       refs(c, "reads"),
       refs(c, "on"),
     ];
+    if (hasDigests) {
+      parts.push(digest(c, "provenance digest"), digest(c, "input snapshot"));
+    }
     return { value: `${parts[0].value} ${parts[1].value}`, parts };
   });
 }

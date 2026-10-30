@@ -3,7 +3,7 @@
 `native_targets.rs` contains project-authored text and explicit boundaries,
 under the repository's Apache-2.0 licence. These targets were written as
 expected annotations, not generated from a model or copied from a corpus.
-No OpenNLP reader, Apache model, JVM process or download is needed.
+No .bin reader, Apache model, JVM process or download is needed.
 
 Each target lists the exact source substrings in order. The test derives
 byte spans and per-character Continue/End supervision from these annotations,

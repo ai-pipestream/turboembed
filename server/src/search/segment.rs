@@ -1,11 +1,45 @@
 //! Document graph chunk extraction and sentence-budget raw text segmentation
 //! for `TurboSearchService` (`#1221`).
 
-use turbo_analysis::{Document, Ix, Layer, Span};
-use turbo_analysis_layers::{Chunks, Level, Levels, Sentences, SparseTerms, Subwords, Vectors};
+use turbo_analysis::{Document, Ix, Layer, Span, ViewId};
+use turbo_analysis_layers::{
+    Chunks, LayoutBoxes, Level, Levels, PageBoundingBox, Sentences, SparseTerms, Subwords, Vectors,
+};
+use turbo_chunker::ChunkCitations;
 
 use crate::api::Result;
-use crate::proto::search::{ChunkInput, SparseEntryProto, TokenVectorInput};
+use crate::proto::search::{ChunkInput, PageBoundingBoxProto, SparseEntryProto, TokenVectorInput};
+
+fn to_proto_boxes(boxes: &[PageBoundingBox]) -> Vec<PageBoundingBoxProto> {
+    boxes.iter().map(|b| PageBoundingBoxProto { page: b.page, x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }).collect()
+}
+
+pub(crate) fn apply_layout_boxes_to_chunks(
+    doc: Option<&Document>,
+    chunk_view: ViewId,
+    layout: &LayoutBoxes,
+    chunks: &mut [ChunkInput],
+) {
+    for c in chunks {
+        if c.has_page_span || !c.page_boxes.is_empty() {
+            continue;
+        }
+        let span = Span::new(c.span_start, c.span_end);
+        let mapped = if chunk_view == layout.spans.view() {
+            Some(span)
+        } else {
+            doc.and_then(|d| d.map_span(chunk_view, layout.spans.view(), span).ok())
+        };
+        let Some(target_span) = mapped else { continue };
+        let union = layout.union_boxes_by_page(target_span);
+        if let (Some(first), Some(last)) = (union.first(), union.last()) {
+            c.page_start = first.page;
+            c.page_end = last.page;
+            c.has_page_span = true;
+            c.page_boxes = to_proto_boxes(&union);
+        }
+    }
+}
 
 pub(crate) fn extract_chunks_from_doc(doc: &Document, doc_id: &str, budget_tokens: u32) -> Result<Vec<ChunkInput>> {
     let text = doc.source();
@@ -45,7 +79,14 @@ pub(crate) fn extract_chunks_from_doc(doc: &Document, doc_id: &str, budget_token
                 sparse_terms: Vec::new(),
                 token_vectors: extract_token_vecs_in_span(subwords, subword_vecs, span),
                 attributes: Default::default(),
+                page_start: 0,
+                page_end: 0,
+                has_page_span: false,
+                page_boxes: Vec::new(),
             });
+        }
+        if let Some(layout) = doc.get::<LayoutBoxes>() {
+            apply_layout_boxes_to_chunks(Some(doc), levels.spans.view(), layout, &mut out);
         }
         return Ok(out);
     }
@@ -53,6 +94,7 @@ pub(crate) fn extract_chunks_from_doc(doc: &Document, doc_id: &str, budget_token
     if let Some(chunks) = doc.get::<Chunks>()
         && !chunks.is_empty()
     {
+        let citations = doc.get::<ChunkCitations>().filter(|c| c.len() == chunks.len());
         let mut out = Vec::with_capacity(chunks.len());
         for i in 0..chunks.len() {
             let ix = Ix::<Chunks>::new(i as u32);
@@ -61,6 +103,13 @@ pub(crate) fn extract_chunks_from_doc(doc: &Document, doc_id: &str, budget_token
                 dense_chunks.filter(|v| i < v.len() && !v.is_empty(ix)).map(|v| v.row(ix).to_vec()).unwrap_or_default();
             let sparse_terms =
                 sparse_chunks.filter(|s| i < s.len()).map(|s| extract_sparse_unit(s, i)).unwrap_or_default();
+            let (page_start, page_end, has_page_span, page_boxes) = match citations {
+                Some(cit) => match cit.page_span(ix) {
+                    Some((a, b)) => (a, b, true, to_proto_boxes(cit.page_boxes(ix))),
+                    None => (0, 0, false, Vec::new()),
+                },
+                None => (0, 0, false, Vec::new()),
+            };
             out.push(ChunkInput {
                 chunk_id: format!("{doc_id}#C{i}"),
                 level_kind: "chunk".to_owned(),
@@ -73,7 +122,16 @@ pub(crate) fn extract_chunks_from_doc(doc: &Document, doc_id: &str, budget_token
                 sparse_terms,
                 token_vectors: extract_token_vecs_in_span(subwords, subword_vecs, span),
                 attributes: Default::default(),
+                page_start,
+                page_end,
+                has_page_span,
+                page_boxes,
             });
+        }
+        if citations.is_none()
+            && let Some(layout) = doc.get::<LayoutBoxes>()
+        {
+            apply_layout_boxes_to_chunks(Some(doc), chunks.spans.view(), layout, &mut out);
         }
         return Ok(out);
     }
@@ -97,12 +155,23 @@ pub(crate) fn extract_chunks_from_doc(doc: &Document, doc_id: &str, budget_token
                 sparse_terms: Vec::new(),
                 token_vectors: extract_token_vecs_in_span(subwords, subword_vecs, span),
                 attributes: Default::default(),
+                page_start: 0,
+                page_end: 0,
+                has_page_span: false,
+                page_boxes: Vec::new(),
             });
+        }
+        if let Some(layout) = doc.get::<LayoutBoxes>() {
+            apply_layout_boxes_to_chunks(Some(doc), sents.spans.view(), layout, &mut out);
         }
         return Ok(out);
     }
 
-    Ok(segment_raw_text(text, doc_id, budget_tokens))
+    let mut out = segment_raw_text(text, doc_id, budget_tokens);
+    if let Some(layout) = doc.get::<LayoutBoxes>() {
+        apply_layout_boxes_to_chunks(Some(doc), ViewId::SOURCE, layout, &mut out);
+    }
+    Ok(out)
 }
 
 fn extract_sparse_unit(sparse: &SparseTerms<Chunks>, unit: usize) -> Vec<SparseEntryProto> {
@@ -162,6 +231,10 @@ pub fn segment_raw_text(text: &str, doc_id: &str, budget_tokens: u32) -> Vec<Chu
         sparse_terms: Vec::new(),
         token_vectors: Vec::new(),
         attributes: Default::default(),
+        page_start: 0,
+        page_end: 0,
+        has_page_span: false,
+        page_boxes: Vec::new(),
     };
     let budget = if budget_tokens == 0 { 64usize } else { budget_tokens as usize };
     let det = turbo_sentdetect::RuleSentenceDetector::new("en");

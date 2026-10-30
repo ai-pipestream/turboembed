@@ -10,7 +10,7 @@
 use std::time::{Duration, Instant};
 
 use tonic::Code;
-use tonic::transport::Channel;
+use tonic::transport::{Channel, Endpoint};
 use turbo_kserve::proto::training::model_file_chunk::Frame;
 use turbo_kserve::proto::training::turbo_catalog_service_client::TurboCatalogServiceClient;
 use turbo_kserve::proto::training::*;
@@ -20,9 +20,10 @@ type Client = TurboCatalogServiceClient<Channel>;
 
 async fn connect(addr: &str) -> Client {
     let deadline = Instant::now() + Duration::from_secs(120);
+    let endpoint = endpoint(addr);
     loop {
-        match TurboCatalogServiceClient::connect(format!("http://{addr}")).await {
-            Ok(c) => return c,
+        match endpoint.clone().connect().await {
+            Ok(c) => return Client::new(c),
             Err(e) if Instant::now() < deadline => {
                 eprintln!("waiting for {addr}: {e}");
                 tokio::time::sleep(Duration::from_secs(1)).await;
@@ -30,6 +31,93 @@ async fn connect(addr: &str) -> Client {
             Err(e) => panic!("{addr}: {e}"),
         }
     }
+}
+
+fn endpoint(addr: &str) -> Endpoint {
+    let Ok(dir) = std::env::var("TURBO_ZOO_SMOKE_TLS_DIR") else {
+        return Endpoint::from_shared(format!("http://{addr}")).unwrap();
+    };
+    #[cfg(feature = "tls")]
+    {
+        use tonic::transport::{Certificate, ClientTlsConfig, Identity};
+        let read = |file| std::fs::read(std::path::Path::new(&dir).join(file)).unwrap();
+        let tls = ClientTlsConfig::new()
+            .domain_name("zoo.test")
+            .ca_certificate(Certificate::from_pem(read("server-ca.pem")))
+            .identity(Identity::from_pem(read("client.pem"), read("client.key")));
+        Endpoint::from_shared(format!("https://{addr}")).unwrap().tls_config(tls).unwrap()
+    }
+    #[cfg(not(feature = "tls"))]
+    panic!("TLS smoke requires the tls feature: {dir}");
+}
+
+async fn reject_bad_clients(addr: &str) {
+    use turbo_kserve::probe::{ClientIdentity, Probe, ProbeTls};
+    let Ok(dir) = std::env::var("TURBO_ZOO_SMOKE_TLS_DIR") else { return };
+    let dir = std::path::Path::new(&dir);
+    for (name, identity, succeeds) in [
+        ("zoo.test", Some("client"), true),
+        ("zoo.test", None, false),
+        ("zoo.test", Some("rogue"), false),
+        ("wrong.test", Some("client"), false),
+    ] {
+        let probe = Probe {
+            addr: addr.parse().unwrap(),
+            service: String::new(),
+            timeout: Duration::from_secs(10),
+            tls: Some(ProbeTls {
+                ca: dir.join("server-ca.pem"),
+                server_name: Some(name.into()),
+                identity: identity.map(|name| ClientIdentity {
+                    cert: dir.join(format!("{name}.pem")),
+                    key: dir.join(format!("{name}.key")),
+                }),
+            }),
+        };
+        assert_eq!(turbo_kserve::probe::check(&probe).await.is_ok(), succeeds, "{name} {identity:?}");
+    }
+}
+
+fn check_page(index: &Index) {
+    use prost::Message;
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let Ok(page) = std::env::var("TURBO_ZOO_SMOKE_PAGE") else { return };
+    let token = std::env::var("TURBO_DEMO_TOKEN").unwrap();
+    // Token goes through stdin, not command-line arguments or a temporary file.
+    let mut curl = Command::new("curl")
+        .args([
+            "--disable",
+            "--noproxy",
+            "*",
+            "--silent",
+            "--show-error",
+            "--fail",
+            "--max-time",
+            "20",
+            "--config",
+            "-",
+            "--request",
+            "POST",
+            "--header",
+            "content-type: application/proto",
+            "--data-binary",
+            "",
+            &format!("{page}/turbo.training.v1.TurboCatalogService/ListModelCatalog"),
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    writeln!(curl.stdin.take().unwrap(), "header = \"authorization: Bearer {token}\"").unwrap();
+    let response = curl.wait_with_output().unwrap();
+    assert!(response.status.success(), "page catalog request failed");
+    let response = ListModelCatalogResponse::decode(response.stdout.as_slice()).unwrap();
+    let mut actual: Vec<_> = response.entries.into_iter().map(|e| e.id).collect();
+    let mut expected: Vec<_> = index.list().iter().map(|e| e.id.to_string()).collect();
+    actual.sort();
+    expected.sort();
+    assert_eq!(actual, expected, "binary protobuf traversed the demo's mTLS upstream");
 }
 
 async fn read(c: &mut Client, user: &str, id: &str, path: &str) -> Result<Vec<u8>, tonic::Status> {
@@ -56,6 +144,8 @@ async fn a_running_zoo_image_reads_accepted_models_through_its_store() {
         return;
     };
     let index = Index::parse(&std::fs::read(&index).unwrap()).unwrap();
+    check_page(&index);
+    reject_bad_clients(&addr).await;
     let mut c = connect(&addr).await;
     assert_eq!(installed(&mut c).await, Vec::<String>::new(), "the image holds no model");
     let user = "smoke";

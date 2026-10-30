@@ -187,6 +187,24 @@ fn zoo_mode_comes_from_its_flag_or_variable_needs_a_catalog_and_allows_no_model(
 }
 
 #[test]
+fn prefetch_is_permissive_from_its_flag_or_variable_and_needs_a_catalog() {
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    assert!(!args(base).unwrap().catalog_prefetch);
+    assert!(args(&format!("{base} --catalog-dir /z --catalog-prefetch permissive")).unwrap().catalog_prefetch);
+    assert_eq!(
+        args(&format!("{base} --catalog-dir /z --catalog-prefetch all")).unwrap_err(),
+        "--catalog-prefetch all: the one mode is permissive"
+    );
+    assert_eq!(
+        args(&format!("{base} --catalog-prefetch=permissive")).unwrap_err(),
+        "--catalog-prefetch needs --catalog-dir"
+    );
+    let env = |k: &str| (k == ENV_CATALOG_PREFETCH).then(|| "permissive".to_string());
+    let parsed = Args::parse_with(format!("{base} --catalog-dir /z").split_whitespace().map(String::from), env);
+    assert!(parsed.unwrap().catalog_prefetch);
+}
+
+#[test]
 fn refusals() {
     assert_eq!(names(&[]).unwrap_err(), "at least one --model is required");
     let zero_sessions = ModelConfig {

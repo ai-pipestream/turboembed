@@ -1,21 +1,14 @@
 # turbo-stopword
 
-OpenNLP 3.x's bundled stopword lists and the lookup of `opennlp.tools.stopword`,
-ported to Rust as a flag per token (`turbo:stopwords`) rather than a filter that
-removes tokens. The crate documentation (`src/lib.rs`) describes the lookup and
-where OpenNLP's behaviour is surprising; `data/README.md` says where each list
-comes from and under what license. The layer and the language enum are in
-`turbo-stopword-layers`, so a consumer of the flags does not depend on this
-crate.
+Multilingual stopword flagging (`StopwordList`, `StopwordLanguage`, `StopwordAnnotator`, `Stopwords`) with bundled stopword tables (`analysis/stopword/src/list.rs`) and allocation-free case-insensitive lookup across eleven languages.
 
-It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
-OpenNLP fork, run on JDK 21.
+## Features
 
-## Snapshots and property tests
+- **Bundled multilingual stopword tables (`StopwordList`, `StopwordLanguage`, `analysis/stopword/src/lib.rs`, `analysis/stopword/src/list.rs`, `analysis/stopword/data/`)**: Curated stopword sets for eleven languages compiled into sorted slices at build time.
+- **Allocation-free case-insensitive lookup (`StopwordList::contains`)**: Lowercases each token into a stack buffer and binary-searches the sorted stopword slice with no heap allocation and no hashing.
+- **Document pipeline integration (`StopwordAnnotator`, `Stopwords`, `analysis/stopword/src/annotate.rs`)**: Implements `Annotator` (`StopwordAnnotator`) reading `Tokens` (and optional `Language`) to write the `Stopwords` (`turbo:stopwords`) per-token flag layer on `Document` without removing tokens.
 
-`tests/lists.rs` pins each bundled list's size, digest and words against the
-files in `data/` (and the case-fold lookups documented in `src/lib.rs`).
-`tests/codes.rs` checks `StopwordLanguage::from_code`. `tests/properties.rs`
-checks flag alignment, `Stopwords::check`, and the documented surprises
-(`İT` is `it`, `ſo` is not `so`, decomposed accents differ, `DASS` is not
-`daß`).
+## Testing, Accuracy, and Speed
+
+- **Test suite**: Covered by `analysis/stopword/src/lib.rs`, `analysis/stopword/tests/lists.rs`, `analysis/stopword/tests/codes.rs`, `analysis/stopword/tests/properties.rs`, and `analysis/stopword/tests/pipeline.rs` verifying language coverage, case folding, and pipeline annotation.
+- **Accuracy and speed**: Stack-buffer lowercasing and binary search over sorted static slices per token.

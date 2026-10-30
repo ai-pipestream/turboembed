@@ -55,7 +55,13 @@ The exception permits this named local download after user acceptance;
 it grants no rights to training text and approves no other model.
 
 `turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
-inputs. `turbo-fetch.json` saves the notice and acceptance. API clients
+inputs. `turbo-fetch.json` saves the notice and acceptance. For a model
+whose licence itself needs acceptance, the tool also reads and writes the
+zoo's acceptance file (`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`):
+a licence that user accepted before, with the tool, `turbo-zoo accept` or
+the catalog service, needs no flag, and the flag records the acceptance
+there. A recipe notice is the project's own condition and has no single
+terms address, so it is never recorded and always needs the flag. API clients
 must set `accept_terms=true` only after an explicit user decision through
 configuration or a prompt. The manifest identifies the weight licence;
 the notice adds the project download restriction. The existing handling
@@ -101,13 +107,13 @@ data mixed into a local-only artifact keeps it refused.
 
 Data under CC BY-NC or CC BY-NC-SA, such as English GUM in Universal
 Dependencies (CC BY-NC-SA 4.0), is `CLASS_LOCAL_ONLY` as well. The rule
-is Kristian's, from 2026-10-14, and follows what OpenNLP does with data
-it cannot distribute. It is this project's policy, stricter than the
+is Kristian's, from 2026-10-14, for data the project cannot distribute.
+It is this project's policy, stricter than the
 licences, which allow sharing the data and adapted material for
 non-commercial purposes:
 
 - Our code reads such data when the user supplies the files. A format
-  reader needs no acceptance, as OpenNLP's need none.
+  reader needs no acceptance.
 - The zoo requests it only at addresses under its original source
   (`origin`, checked as for restricted data), after the user accepts the
   licence, under every policy.
@@ -170,30 +176,29 @@ is in that form and a test keeps it there.
   "zoo_version": 1,
   "artifacts": [
     {
-      "id": "turbo-en-civil-comments-minilm-l6-v2-head-1",
-      "kind": "KIND_HEAD",
-      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "id": "symspell-frequency-dictionary-en-82-765",
+      "kind": "KIND_LEXICON",
       "language": "en",
-      "format": "FORMAT_HEAD",
-      "version": "1",
-      "license": "Apache-2.0",
-      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
       "trained_on": [
         {
-          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
-          "license": "CC0-1.0",
-          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+          "name": "Google Books Ngram data",
+          "license": "CC-BY-3.0",
+          "license_terms": "https://storage.googleapis.com/books/ngrams/books/datasetsv2.html"
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "attribution": "SymSpell frequency lists by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE), compiled as the intersection of Google Books Ngram data (CC-BY-3.0, https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) with SCOWL (http://wordlist.aspell.net/).",
       "files": [
         {
-          "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
-          "size": 9371,
-          "sha256": "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba",
-          "sha512": "35ce10567ed7c8e79bc2fc7f495ee2e6fde9e26068ea4741632d3d26b0f794530b1775568f097dcf0eb82ae1deeddf5219a990c2b851c284ca96411f3bff4b2c"
+          "path": "frequency_dictionary_en_82_765.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell/frequency_dictionary_en_82_765.txt",
+          "size": 1332881,
+          "sha256": "c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b",
+          "sha512": "c89ad6785ba97e6179049e7033dc2b9c1f7d000982b24c12bfb66841c7b5344a96b7b2d6bbfa8c679bf081ffdb1da9a41fa50c2a9bf7d7aef6a02181d48c04e7"
         }
       ]
     }
@@ -206,9 +211,9 @@ is in that form and a test keeps it there.
 | `zoo_version` | uint32 | yes | 1. Anything else is rejected. |
 | `artifacts[].id` | string | yes | Unique. Lowercase ASCII letters, digits, `.`, `_`, `-`, starting with a letter or digit, at most 128 bytes. It names the artifact's cache directory. For a published file it is the file name without its extension. |
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
-| `.component` | enum | no | The component a model serves. `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_POS_GENERIC`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER` and `COMPONENT_PARSER` are OpenNLP's `ModelType` constants; `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA` and `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder) have no `ModelType`. A tokenizer fetched beside a model by id has none. |
+| `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
-| `.format` | enum | yes | `FORMAT_OPENNLP_MODEL` (an OpenNLP `.bin` archive), `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`). |
+| `.format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`), or a packaged `.bin` archive. |
 | `.version` | string | yes | The publisher's version. Not empty. |
 | `.license` | SPDX string | yes | The artifact's own licence. |
 | `.license_terms` | https URL | yes | Where the artifact's publisher states that licence. |
@@ -224,7 +229,7 @@ is in that form and a test keeps it there.
 | `.files[].url` | https URL | yes | Where it is fetched from. The address must serve the same bytes for as long as the entry exists: a release archive (`archive.apache.org/dist`, not the mirror network, which drops old releases), a repository path at a commit, or an asset of a release of this repository (the models the recipes train, `analysis/train-recipes`). A release asset can be deleted or replaced by the repository's maintainers, so the models releases are made once and their assets are never replaced; a replaced file fails the digests below. |
 | `.files[].size` | uint64 | yes | Bytes. |
 | `.files[].sha256` | 64 lowercase hex | yes | Checked as the bundle tool checks files. |
-| `.files[].sha512` | 128 lowercase hex | yes | Checked as OpenNLP's `DownloadUtil` checks files. |
+| `.files[].sha512` | 128 lowercase hex | yes | Checked against the published 512-bit digest. |
 | `.files[].download` | message | for a file served compressed | The file as the `url` serves it. `size`, `sha256` and `sha512` above stay the unpacked file's, which is what the cache holds. |
 | `.files[].download.compression` | `gzip` or `zstd` | yes | `gzip` is one RFC 1952 member, whose trailer CRC-32 and length must match; `zstd` is one or more RFC 8878 frames. |
 | `.files[].download.download_bytes` | uint64 | yes | The compressed bytes' size. |
@@ -445,30 +450,22 @@ server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, and the
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.
 
-## Reading the index from OpenNLP
+## Reading the index from external clients
 
-OpenNLP's `DownloadUtil` (3.x) finds models by scraping the HTML index
-of the Apache mirror for `.bin` links, maps each to a language by a
-substring of its name and to a `ModelType` by another, and checks a
-`.sha512` file fetched beside it. It knows nothing of licences: it
-fetches the UD models trained on non-commercial treebanks as readily as
-the others, and from the mirror network, which carries only current
-releases.
-
-The index is meant to replace that page for OpenNLP 3.1 too:
+The index is structured so external tools can query it without scraping HTML
+directories:
 
 - The JSON uses only objects, arrays, strings and non-negative
   integers: no floats, no booleans, no nulls, no maps keyed by data.
   Any JSON reader, or a small hand-written one, reads it.
-- `component` names `ModelType` constants with a `COMPONENT_` prefix,
-  and `language` is the code `DownloadUtil` keys its map by, so
-  `(language, component)` gives the same lookup `downloadModel(language,
-  modelType, type)` does. `Index::find` is that lookup here;
-  `Index::find_within` keeps the models of a class or less restrictive
-  ones, the least restrictive first.
-- `sha512` is the digest `DownloadUtil.verifyChecksum` compares, in the
-  form the published `.sha512` files hold, so OpenNLP checks a file
-  against the index without fetching a checksum file.
+- `component` names component constants with a `COMPONENT_` prefix,
+  and `language` is the ISO code the index keys its map by, so
+  `(language, component)` resolves the matching models directly. `Index::find`
+  is that lookup here; `Index::find_within` keeps the models of a class or less
+  restrictive ones, the least restrictive first.
+- `sha512` is the digest in the form the published `.sha512` files hold, so a
+  client checks a file against the index without fetching a separate checksum
+  file.
 - `class` is written out, so a reader that does not map licences itself
   can still refuse `CLASS_REFUSED`, keep `CLASS_LOCAL_ONLY` to the
   user's machine, and ask before the other non-permissive classes.
@@ -495,8 +492,8 @@ The index is meant to replace that page for OpenNLP 3.1 too:
   terms put a licence there, which decides what the user accepts and is
   told.
 - Both digests are required. SHA-256 is what the bundle tool and the
-  repository's model READMEs use; SHA-512 is what OpenNLP and the Apache
-  distribution publish.
+  repository's model READMEs use; SHA-512 is what upstream Apache
+  distributions publish.
 - The HTTP transport is a cargo feature (`http`, on by default). Without
   it the library still parses, checks licences and verifies files a
   caller's own transport fetched; `Offline` serves the cache alone.

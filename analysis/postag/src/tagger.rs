@@ -172,6 +172,17 @@ impl Annotator for PosTagger {
         Some(self.model.model_ref().clone())
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] =
+            &[turbo_analysis::Key::<View>::DEFAULT.id(), turbo_analysis::Key::<Tokens>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<PosTags>::DEFAULT.id()];
+        PRODUCES
+    }
+
     /// FNV-1a over the tag format asked for, the beam size and the context
     /// cache size, the three settings a `POSTaggerME` is built with.
     fn config_hash(&self) -> u64 {

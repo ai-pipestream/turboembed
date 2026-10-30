@@ -1,7 +1,7 @@
 # turbo-namefind-dl
 
-A transformer name finder on turboembed's encoder backends, as OpenNLP's
-`NameFinderDL` finds names with a token-classification model.
+A transformer name finder on turboembed's encoder backends, finding names with a
+token-classification model.
 
 ## Model
 

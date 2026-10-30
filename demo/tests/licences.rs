@@ -126,3 +126,64 @@ async fn a_message_that_is_not_protobuf_is_refused_before_the_server() {
     assert_eq!(status, 400, "{body}");
     assert!(body.contains("invalid_argument") && body.contains("past the end"), "{body}");
 }
+
+/// The tiny test bundle, copied under `dir` with its licence set to
+/// share-alike.
+fn share_alike_bundle(dir: &std::path::Path) -> std::path::PathBuf {
+    let to = dir.join("bundle-sa");
+    let mut stack = vec![(testdata("tiny-bert-bundle"), to.clone())];
+    while let Some((src, dst)) = stack.pop() {
+        fs::create_dir_all(&dst).unwrap();
+        for e in fs::read_dir(&src).unwrap() {
+            let e = e.unwrap();
+            if e.file_type().unwrap().is_dir() {
+                stack.push((e.path(), dst.join(e.file_name())));
+            } else {
+                fs::copy(e.path(), dst.join(e.file_name())).unwrap();
+            }
+        }
+    }
+    let m = to.join("manifest.json");
+    let text = fs::read_to_string(&m).unwrap().replace(r#""license": "Apache-2.0""#, r#""license": "CC-BY-SA-4.0""#);
+    fs::write(&m, text).unwrap();
+    to
+}
+
+/// LoadBundle names the demo's user too: a share-alike bundle loads once
+/// that user accepted its terms, and without --user only bundles under
+/// permissive terms load.
+#[tokio::test]
+async fn a_bundle_loads_for_the_demos_user() {
+    use turbo_kserve::proto::result::{LoadBundleRequest, LoadBundleResponse};
+    const LOAD: &str = "/turbo.result.v1.AnalysisService/LoadBundle";
+    let dir = scratch("licences-load");
+    let serve = Serve { admin: true, catalog: Some(catalog(&dir.join("home"))), ..Serve::default() };
+    let s = server(&["tiny-bert-bundle"], serve).await;
+    let sa = share_alike_bundle(&dir);
+    let load = |name: &str, bundle: &std::path::Path| LoadBundleRequest {
+        name: name.into(),
+        bundle: bundle.to_str().unwrap().into(),
+        sessions: 1,
+        device: cpu(),
+        user: "mallory".into(),
+        ..Default::default()
+    };
+    let allow = Allow::with(&[RECORD.to_string(), LOAD.to_string()]).unwrap();
+    let d =
+        demo_with(s.local_addr(), Options { allow: allow.clone(), user: Some("alice".into()), ..Options::default() })
+            .await;
+    let (r, body) = unary(&d, LOAD, &load("sa", &sa)).await;
+    let body = String::from_utf8_lossy(&body);
+    assert_eq!(r.status, 400, "alice has not accepted; mallory's name is not used: {body}");
+    assert!(body.contains("CC-BY-SA-4.0"), "{body}");
+    let _: RecordLicenceAcceptanceResponse = ok(&d, RECORD, &record("mallory")).await;
+    let _: LoadBundleResponse = ok(&d, LOAD, &load("sa", &sa)).await;
+
+    let anon = demo_with(s.local_addr(), Options { allow, ..Options::default() }).await;
+    let (r, body) = unary(&anon, LOAD, &load("sa-anon", &sa)).await;
+    let body = String::from_utf8_lossy(&body);
+    assert!(r.status == 400 && body.contains("12"), "no user, and the page's name is dropped: {body}");
+    let _: LoadBundleResponse = ok(&anon, LOAD, &load("free", &testdata("tiny-bert-bundle"))).await;
+    s.stop().await;
+    fs::remove_dir_all(dir).unwrap();
+}

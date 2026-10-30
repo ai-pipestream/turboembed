@@ -3,10 +3,13 @@
 use std::sync::{Arc, OnceLock};
 
 use crate::error::Error;
+use crate::hash::Fnv1a;
 use crate::layer::{Anchor, Layer};
 use crate::offsets::{CodePointSpan, OffsetTable, Utf16Span};
 use crate::span::Span;
 use crate::text::{Alignment, ViewId};
+
+use super::ViewTextDigest;
 
 /// A text view as a layer. The source text is the default `View`; a
 /// normalizer writes a named one ("nfkc", "dehyphenated"), and annotators
@@ -21,13 +24,27 @@ pub struct View {
     pub(crate) alignment: Alignment,
     /// UTF-16 and code point checkpoints, built on first use.
     pub(crate) offsets: OnceLock<OffsetTable>,
+    /// Memoized SHA-256 digest of `text`, built on first use.
+    pub(crate) text_digest: OnceLock<ViewTextDigest>,
 }
 
 impl View {
     /// A view made from `parent` (alignment from a `ViewBuilder`). Its id is
     /// given when the document takes it.
     pub fn derived(parent: &View, text: String, alignment: Alignment) -> View {
-        View { id: ViewId(u16::MAX), parent: Some(parent.id), text: text.into(), alignment, offsets: OnceLock::new() }
+        View {
+            id: ViewId(u16::MAX),
+            parent: Some(parent.id),
+            text: text.into(),
+            alignment,
+            offsets: OnceLock::new(),
+            text_digest: OnceLock::new(),
+        }
+    }
+
+    /// Returns the memoized SHA-256 identity of this view's UTF-8 text.
+    pub fn text_digest(&self) -> ViewTextDigest {
+        *self.text_digest.get_or_init(|| ViewTextDigest(turbo_sha256::sha256(self.text.as_bytes())))
     }
 
     pub fn id(&self) -> ViewId {
@@ -97,6 +114,25 @@ impl Layer for View {
 
     fn len(&self) -> usize {
         1
+    }
+
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = Fnv1a::new();
+        h.bytes(self.text_digest().as_bytes());
+        match self.parent {
+            None => {
+                h.u8(0);
+            }
+            Some(p) => {
+                h.u8(1).u16(p.0);
+            }
+        }
+        let edits = self.alignment.edits();
+        h.usize(edits.len());
+        for ed in edits {
+            h.u32(ed.parent.start).u32(ed.parent.end).u32(ed.child.start).u32(ed.child.end);
+        }
+        Some(h.finish())
     }
 
     fn check(&self) -> Result<(), String> {

@@ -10,7 +10,7 @@
 10	Springfield	Springfield	Springfield Township	40.0	-80.0	P	PPL	US						0		0	America/New_York	2026-01-01
 9	Springfield	Springfield		41.0	-81.0	P	PPL	US						0		0	America/New_York	2026-01-01
 90	Springfield	Springfield		41.5	-81.5	S	BLDG	US						0		0	America/New_York	2026-01-01
-2867714	München	Muenchen	Munich,Monaco di Baviera,Мюнхен,Minga	48.13743	11.57549d	P	PPLA	DE						1260391		0	Europe/Berlin	2026-01-01
+2867714	München	Muenchen	Munich,Monaco di Baviera,Мюнхен,Minga	48.13743	11.57549	P	PPLA	DE						1260391		0	Europe/Berlin	2026-01-01
 3117735	 Madrid　	 Madrid 	 Madrid , Madri ,マドリード,	40.4165	-3.70256	P	PPLC	ES						3255944		0	Europe/Madrid	2026-01-01
 2643743	London	London	Londres,Londra,Londýn,Лондон,伦敦,ロンドン,LON	51.50853	-0.12574	P	PPLC	GB						8961989		0	Europe/London	2026-01-01
 6058560	London	London		42.98339	-81.23304	P	PPL	CA						346765		0	America/Toronto	2026-01-01

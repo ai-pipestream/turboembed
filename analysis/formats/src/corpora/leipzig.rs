@@ -9,13 +9,58 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
-use turbo_jvm::random::JavaRandom;
 
 use super::DirectoryError;
 use super::error::CorpusError;
 use crate::error::FormatError;
 use crate::sample::LanguageSample;
-use crate::source::{Field, Lines};
+use crate::source::{Field, Lines, compare_utf16};
+
+const MULTIPLIER: u64 = 0x5_DEEC_E66D;
+const ADDEND: u64 = 0xB;
+const MASK: u64 = (1 << 48) - 1;
+
+struct JavaRandom {
+    seed: u64,
+}
+
+impl JavaRandom {
+    fn new(seed: i64) -> Self {
+        Self { seed: (seed as u64 ^ MULTIPLIER) & MASK }
+    }
+
+    #[inline]
+    fn next(&mut self, bits: u32) -> i32 {
+        self.seed = (self.seed.wrapping_mul(MULTIPLIER).wrapping_add(ADDEND)) & MASK;
+        (self.seed >> (48 - bits)) as i32
+    }
+
+    fn next_int_bounded(&mut self, bound: i32) -> i32 {
+        let mut r = self.next(31);
+        let m = bound - 1;
+        if bound & m == 0 {
+            r = ((bound as i64 * r as i64) >> 31) as i32;
+        } else {
+            let mut u = r;
+            loop {
+                r = u % bound;
+                if u.wrapping_sub(r).wrapping_add(m) >= 0 {
+                    break;
+                }
+                u = self.next(31);
+            }
+        }
+        r
+    }
+
+    fn shuffle<T>(&mut self, items: &mut [T]) {
+        let size = i32::try_from(items.len()).expect("a Java list holds at most i32::MAX items");
+        for i in (2..=size).rev() {
+            let j = self.next_int_bounded(i);
+            items.swap((i - 1) as usize, j as usize);
+        }
+    }
+}
 
 /// The seed of both of the factory's `java.util.Random`s.
 const SEED: i64 = 23;
@@ -123,7 +168,7 @@ impl LeipzigCorpus {
         for f in &files {
             assert!(has_language_code(&name(f)), "{} has no language code", f.display());
         }
-        files.sort_by(|a, b| turbo_jvm::chars::compare(&a.to_string_lossy(), &b.to_string_lossy()));
+        files.sort_by(|a, b| compare_utf16(&a.to_string_lossy(), &b.to_string_lossy()));
         LeipzigCorpus { files }
     }
 

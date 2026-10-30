@@ -1,5 +1,5 @@
-//! The user a catalog call is made for. Every catalog method that names a
-//! user carries it in one string field; the demo sets that field to the
+//! The user a catalog call or a bundle load is made for. Every method that
+//! names a user carries it in one string field; the demo sets that field to the
 //! identity it was started with (`--user`), or clears it when it has none,
 //! whatever the page sent. So a page can neither accept a licence for
 //! someone else nor read another user's acceptances. This is the one
@@ -9,7 +9,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 
 /// Each method that names a user, and the field number of that user.
-pub const USER_FIELDS: [(&str, u32); 8] = [
+pub const USER_FIELDS: [(&str, u32); 9] = [
     ("/turbo.training.v1.TurboCatalogService/ListModelCatalog", 1),
     ("/turbo.training.v1.TurboCatalogService/RecordLicenceAcceptance", 1),
     ("/turbo.training.v1.TurboCatalogService/InstallModel", 1),
@@ -18,7 +18,16 @@ pub const USER_FIELDS: [(&str, u32); 8] = [
     ("/turbo.training.v1.TurboCatalogService/ReadModelFile", 1),
     ("/turbo.training.v1.TurboCatalogService/RevokeLicenceAcceptance", 1),
     ("/turbo.training.v1.TurboCatalogService/ListLicenceAcceptances", 1),
+    ("/turbo.result.v1.AnalysisService/LoadBundle", 12),
 ];
+
+/// Whether a write to the method at `path` needs `--user`: every catalog
+/// write does. LoadBundle does not, because a bundle under permissive
+/// terms loads for no one; the server refuses one whose terms need an
+/// acceptance when the user field is empty.
+pub fn needs_user(path: &str) -> bool {
+    path.starts_with("/turbo.training.v1.TurboCatalogService/")
+}
 
 /// The user field of the method at `path`, if it names a user.
 pub fn field(path: &str) -> Option<u32> {

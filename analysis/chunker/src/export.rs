@@ -16,6 +16,7 @@ use crate::entity::ChunkEntities;
 use crate::clauses::{ClauseBreak, ClauseCuts, SentenceClauseCuts};
 use crate::coref::{AntecedentLink, ChunkAntecedents};
 use crate::hashes::{ChunkId, ContentHashes};
+use crate::layout::ChunkCitations;
 use crate::sentiment::ChunkFacets;
 use crate::terms::{IndexedTerms, TermStats, Vocabulary, WeightedTerms};
 
@@ -412,7 +413,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<ContentHashes<Chunks>>()
         .register::<ContentHashes<Levels>>()
         .register::<ClauseCuts>()
-        .register::<ChunkAntecedents>();
+        .register::<ChunkAntecedents>()
+        .register::<ChunkCitations>();
 }
 
 /// A registry holding this crate's codecs and nothing else.
