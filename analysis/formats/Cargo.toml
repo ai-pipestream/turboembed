@@ -18,8 +18,6 @@ turbo-stopword-layers = { path = "../stopword-layers" }
 # Unicode White_Space, which splits the lines of the whitespace
 # separated formats.
 turbo-unicode = { path = "../unicode" }
-# String.compareTo, which orders name types, and UTF-16 code units.
-turbo-jvm = { path = "../jvm" }
 # The detokenizer the conversion streams rebuild text with.
 turbo-tokenize = { path = "../tokenize" }
 # The SAX-style XML reader the MASC stand-off files are parsed with.

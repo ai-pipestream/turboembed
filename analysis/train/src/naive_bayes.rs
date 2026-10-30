@@ -20,8 +20,6 @@
 
 use std::collections::HashMap;
 
-use turbo_jvm::strict_math;
-
 use crate::error::{Error, ONE_OUTCOME, Result};
 use crate::event::{Event, EventChecksum};
 use crate::gis::TrainingReport;
@@ -110,7 +108,7 @@ impl NaiveBayesModel {
                 for (i, (&denominator, sum)) in self.outcome_totals.iter().zip(out.iter_mut()).enumerate() {
                     let numerator = active_params[i] * value;
                     let prob = (numerator + LIDSTONE_DELTA) / (denominator + LIDSTONE_DELTA * vocabulary);
-                    *sum += strict_math::log(prob);
+                    *sum += prob.ln();
                 }
             }
         }
@@ -119,7 +117,7 @@ impl NaiveBayesModel {
             total += outcome_total;
         }
         for (x, &numerator) in out.iter_mut().zip(&self.outcome_totals) {
-            *x += strict_math::log(numerator / total);
+            *x += (numerator / total).ln();
         }
         let mut highest_log_probability = f64::NEG_INFINITY;
         for &p in out.iter() {
@@ -129,7 +127,7 @@ impl NaiveBayesModel {
         }
         let mut sum = 0.0;
         for p in out.iter_mut() {
-            let temp_p = strict_math::exp(*p - highest_log_probability);
+            let temp_p = (*p - highest_log_probability).exp();
             if !temp_p.is_nan() {
                 sum += temp_p;
                 *p = temp_p;
