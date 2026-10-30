@@ -70,8 +70,8 @@ pub use wordnet::{
     ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
 };
 pub use words::{
-    MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
-    WordPosTags, Words,
+    MorphFeatures, MorphLemmas, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas,
+    WordOrTokenAnchor, WordPosTags, Words,
 };
 
 /// Strings by column: one buffer and an end offset per item, never a

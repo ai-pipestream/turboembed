@@ -2344,6 +2344,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-formats",
  "turbo-normalize",
  "turbo-structure",
 ]
