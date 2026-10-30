@@ -268,10 +268,10 @@ pub(crate) mod tests {
 
         let m = test_fixture_model();
         assert_eq!(m.language(), "en");
-        assert_eq!(m.opennlp_version(), "3.0.0-SNAPSHOT");
+        assert_eq!(m.opennlp_version(), "1");
         assert_eq!(m.beam_size(), 10);
         assert_eq!(m.model_ref().id, "opennlp:ChunkerME:en");
-        assert_eq!(m.model_ref().revision, "3.0.0-SNAPSHOT");
+        assert_eq!(m.model_ref().revision, "1");
         assert_eq!(m.tagset().name, "chunk");
         assert_eq!(m.tagset().len(), m.maxent().num_outcomes());
         for (i, outcome) in m.maxent().outcome_texts().unwrap().into_iter().enumerate() {

@@ -26,8 +26,10 @@
 use crate::gis::TrainingReport;
 use crate::params::save_convert;
 
-/// `Version.currentVersion()` of the OpenNLP this crate is a port of.
-pub const OPENNLP_VERSION: &str = "3.0.0-SNAPSHOT";
+/// Native archive format version recorded in `manifest.properties`.
+pub const TURBO_FORMAT_VERSION: &str = "1";
+/// Alias kept for `Stamp::at` callers in `turbo-train-components`.
+pub const OPENNLP_VERSION: &str = TURBO_FORMAT_VERSION;
 /// `BaseModel.MANIFEST_ENTRY`.
 pub const MANIFEST_ENTRY: &str = "manifest.properties";
 
@@ -118,7 +120,7 @@ impl Manifest {
         match key {
             "Component-Name" => self.component_name = value.to_owned(),
             "Language" => self.language = value.to_owned(),
-            "OpenNLP-Version" => self.version = value.to_owned(),
+            "Turbo-Format-Version" => self.version = value.to_owned(),
             "Timestamp" => self.timestamp = value.to_owned(),
             "Manifest-Version" => self.manifest_version = value.to_owned(),
             _ => match self.entries.iter_mut().find(|(k, _)| k == key) {
@@ -141,10 +143,9 @@ impl Manifest {
         match key {
             "Component-Name" => Some(&self.component_name),
             "Language" => Some(&self.language),
-            "OpenNLP-Version" => Some(&self.version),
+            "Turbo-Format-Version" => Some(&self.version),
             "Timestamp" => Some(&self.timestamp),
             "Manifest-Version" => Some(&self.manifest_version),
-            "Turbo-Format-Version" => Some("1"),
             _ => self.entries.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str()),
         }
     }
@@ -156,10 +157,9 @@ impl Manifest {
         let mut entries: Vec<(&str, &str)> = vec![
             ("Manifest-Version", &self.manifest_version),
             ("Language", &self.language),
-            ("OpenNLP-Version", &self.version),
+            ("Turbo-Format-Version", &self.version),
             ("Timestamp", &self.timestamp),
             ("Component-Name", &self.component_name),
-            ("Turbo-Format-Version", "1"),
         ];
         entries.extend(self.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())));
         entries.sort_by(|a, b| turbo_jvm::chars::compare(a.0, b.0));

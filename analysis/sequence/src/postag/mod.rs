@@ -207,7 +207,9 @@ impl PosContext {
     /// model's `ngram.dictionary` if it has one; otherwise the model's
     /// descriptor, or the default descriptor.
     pub fn for_model(model: &ModelFile, cache_size: usize, mode: PatternMode) -> Result<PosContext> {
-        if is_before_1_8(model.opennlp_version())? {
+        if let Some(version) = model.manifest().get("OpenNLP-Version")
+            && is_before_1_8(version)?
+        {
             let dictionary = model.dictionary(NGRAM_DICTIONARY_ENTRY_NAME)?.map(Arc::new);
             return Ok(PosContext::Default(DefaultPosContext::new(dictionary)));
         }
