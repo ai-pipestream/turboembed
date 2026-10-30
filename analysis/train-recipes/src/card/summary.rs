@@ -100,15 +100,16 @@ impl fmt::Display for Summary<'_> {
                 write!(
                     f,
                     "\n{id}: {} names in the {side} samples of {} documents, {} with a gap; {} overlapping and {} of \
-                     other types left out; {} outside every sentence region and {} in sentence regions the reader \
-                     drops, in no sample",
+                     other types left out; {} outside every sentence region, {} in sentence regions the reader drops, \
+                     and {} crossing sentences, in no complete sample",
                     n.names,
                     n.documents,
                     n.gapped,
                     n.overlapping,
                     n.other_types,
                     n.outside_sentences,
-                    n.in_dropped_sentences
+                    n.in_dropped_sentences,
+                    n.crossing_sentences
                 )?;
             }
         }

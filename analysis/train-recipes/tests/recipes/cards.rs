@@ -236,6 +236,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 other_types: 11622,
                 outside_sentences: 192,
                 in_dropped_sentences: 143,
+                crossing_sentences: 0,
             };
             *held_out = NamesCard {
                 documents: 39,
@@ -245,14 +246,15 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 other_types: 2157,
                 outside_sentences: 18,
                 in_dropped_sentences: 25,
+                crossing_sentences: 0,
             };
             let id = recipe.model_id();
             let names = format!(
                 "{id}: 2934 names in the training samples of 351 documents, 1 with a gap; 36 overlapping and 11622 of \
-                 other types left out; 192 outside every sentence region and 143 in sentence regions the reader \
-                 drops, in no sample\n{id}: 321 names in the held-out samples of 39 documents, 0 with a gap; 0 \
-                 overlapping and 2157 of other types left out; 18 outside every sentence region and 25 in sentence \
-                 regions the reader drops, in no sample"
+                 other types left out; 192 outside every sentence region, 143 in sentence regions the reader drops, \
+                 and 0 crossing sentences, in no complete sample\n{id}: 321 names in the held-out samples of 39 \
+                 documents, 0 with a gap; 0 overlapping and 2157 of other types left out; 18 outside every sentence \
+                 region, 25 in sentence regions the reader drops, and 0 crossing sentences, in no complete sample"
             );
             assert_eq!(counted.summary().to_string(), format!("{trained}\n{names}"));
         } else if let (Some(training), Some(held_out)) = (&mut counted.training.chunks, &mut counted.held_out.chunks) {

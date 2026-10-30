@@ -72,6 +72,7 @@ fn gapped_names_are_kept_and_overlaps_and_other_types_are_left_out_and_counted()
         other_types,
         outside_sentences: 0,
         in_dropped_sentences: 0,
+        crossing_sentences: 0,
     };
     assert_eq!(counts, card(6, 2, 6, 3));
 

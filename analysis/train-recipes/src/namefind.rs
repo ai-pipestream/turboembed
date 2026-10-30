@@ -32,14 +32,15 @@
 //! longer first) is kept and the other left out and counted
 //! ([`crate::card::NamesCard::overlapping`]), since a sample's names may
 //! not overlap. A sentence of no tokens is skipped: it gives no event,
-//! and as a held-out unit it would count nothing. An entity in no
-//! sentence of the reader's ([`MascDocument::unplaced_entities`]: outside
-//! every region of the sentence file, or in a region the reader drops) is
-//! in no sample, and counted
+//! and as a held-out unit it would count nothing. An entity with no
+//! complete sentence sample ([`MascDocument::unplaced_entities`]: outside
+//! every region of the sentence file, in a region the reader drops, or
+//! crossing kept sentences) is in no sample, and counted
 //! ([`crate::card::NamesCard::outside_sentences`],
-//! [`crate::card::NamesCard::in_dropped_sentences`]); its tokens are in no
-//! sample either, so it is not a name the training samples mark as
-//! other. A document's first sample clears the feature generators'
+//! [`crate::card::NamesCard::in_dropped_sentences`],
+//! [`crate::card::NamesCard::crossing_sentences`]); its tokens are in no
+//! complete sample either, so they are not names the training samples mark
+//! as other. A document's first sample clears the feature generators'
 //! adaptive data, as an empty line does in OpenNLP's name format and in
 //! what `TokenNameFinderTool` reads, so what the previous-map feature
 //! generator learns of a document's names reaches only that document's

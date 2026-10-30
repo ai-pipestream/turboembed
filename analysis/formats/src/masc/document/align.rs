@@ -44,10 +44,10 @@ impl MascDocument {
         Ok(())
     }
 
-    /// The entities of `ne` that are in no sentence, and why: whether a
-    /// token of one has a quark in a region of the sentence file, those
-    /// the reader keeps (the sentences) or those it dropped (`dropped`). A
-    /// region holds a quark it overlaps, as `combineAnnotations` gives it
+    /// The entities of `ne` that have no complete sentence sample, and why:
+    /// whether a token of one has a quark in a region of the sentence file,
+    /// those the reader keeps (the sentences) or those it dropped (`dropped`).
+    /// A region holds a quark it overlaps, as `combineAnnotations` gives it
     /// the quark.
     pub(super) fn unplaced(&self, ne: &NamedEntities, penn: &Penn, dropped: &[Region]) -> Vec<MascUnplacedEntity> {
         let placed: HashSet<i32> = self.sentences.iter().flat_map(|s| s.token_places.keys().copied()).collect();
@@ -67,11 +67,19 @@ impl MascDocument {
         };
         let mut out = Vec::new();
         for entity in &ne.entities {
-            if entity.tokens.iter().any(|t| placed.contains(t)) {
+            let placed_everywhere = !entity.tokens.is_empty() && entity.tokens.iter().all(|t| placed.contains(t));
+            if placed_everywhere
+                && self.sentences.iter().any(|s| entity.tokens.iter().all(|t| s.token_places.contains_key(t)))
+            {
                 continue;
             }
-            let cause =
-                if in_a_region(&entity.tokens) { Unplaced::DroppedSentence } else { Unplaced::OutsideSentences };
+            let cause = if placed_everywhere {
+                Unplaced::CrossesSentences
+            } else if in_a_region(&entity.tokens) {
+                Unplaced::DroppedSentence
+            } else {
+                Unplaced::OutsideSentences
+            };
             out.push(MascUnplacedEntity { kind: ne.types.get(&entity.id).cloned().flatten(), cause });
         }
         out
@@ -90,6 +98,9 @@ impl MascDocument {
             let mut names = Vec::new();
             for &e in &ne.order {
                 let entity = &ne.entities[e];
+                if entity.tokens.is_empty() || !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t)) {
+                    continue;
+                }
                 let kind = ne.types.get(&entity.id).cloned().flatten();
                 let mut start = count;
                 let mut end = 0;
@@ -117,6 +128,9 @@ impl MascDocument {
             sentence.names = names;
             let mut entities = Vec::new();
             for entity in &ne.entities {
+                if entity.tokens.is_empty() || !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t)) {
+                    continue;
+                }
                 let mut tokens: Vec<u32> =
                     entity.tokens.iter().filter_map(|t| sentence.token_places.get(t)).map(|&i| i as u32).collect();
                 tokens.sort_unstable();

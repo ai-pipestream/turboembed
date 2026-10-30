@@ -112,19 +112,20 @@
 //!   anything drops the last name too, so a sentence of two or more names
 //!   mostly kept one or none. The `masc` goldens' name layers are
 //!   corrected to match (analysis/goldens-tool/README.md).
-//! - Each sentence also keeps its named entities as the named entity file
-//!   gives them ([`MascSentence::entities`]): the tokens each links to and
-//!   the span from the first to one past the last, with no overlap
-//!   removed. OpenNLP computes no such thing; [`MascNameReader`] reads
+//! - Each sentence also keeps its complete named entities as the named
+//!   entity file gives them ([`MascSentence::entities`]): the tokens each
+//!   links to and the span from the first to one past the last, with no
+//!   overlap removed. An entity split across sentences is not clipped into
+//!   fragments. OpenNLP computes no such thing; [`MascNameReader`] reads
 //!   OpenNLP's names, and a trainer that wants the corpus's names builds
 //!   its samples from the entities.
-//! - Each document also keeps the entities of the file that are in no
-//!   sentence, with why ([`MascDocument::unplaced_entities`]): none of
-//!   their tokens is in a region of the sentence file (MASC marks no
-//!   sentence over most of a movie script's speaker labels), or
-//!   their tokens are in regions the reader drops as OpenNLP does (a
-//!   region that does not end before the next starts). Their tokens are
-//!   in no sentence either.
+//! - Each document also keeps the entities of the file that have no
+//!   complete sentence sample, with why
+//!   ([`MascDocument::unplaced_entities`]): none of their tokens is in a
+//!   region of the sentence file (MASC marks no sentence over most of a
+//!   movie script's speaker labels), their tokens are in regions the reader
+//!   drops as OpenNLP does (a region that does not end before the next
+//!   starts), or the entity crosses kept sentences.
 //! - The token reader can skip a sentence without a sample alone
 //!   ([`EmptySentence::Skipped`]) rather than end the corpus there; the
 //!   default is OpenNLP's.
