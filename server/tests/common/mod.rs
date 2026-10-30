@@ -117,7 +117,7 @@ pub async fn serve_no_admin() -> (Server, Analysis) {
 }
 
 pub fn model_ref() -> ModelRef {
-    ModelRef { id: "sentence-transformers/all-MiniLM-L6-v2".into(), revision: "1".into(), sha256: String::new() }
+    ModelRef { id: "turboembed/tiny-bert".into(), revision: "1".into(), sha256: String::new() }
 }
 
 /// The gRPC code and turbo-code of a refusal.
