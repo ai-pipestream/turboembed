@@ -253,7 +253,6 @@ impl Analyzer {
                     step_idx: usize,
                     misses: Vec<usize>,
                     sub_docs: Vec<Document>,
-                    taken: Vec<Vec<std::sync::Arc<crate::doc::Entry>>>,
                 }
                 // Partial-batch misses: coalesce each step's uncached documents into a contiguous batch.
                 let mut batches: Vec<StepMissBatch> = Vec::new();
@@ -263,12 +262,12 @@ impl Analyzer {
                     }
                     let backedges = &self.backedge_reads[step_idx];
                     let mut sub_docs: Vec<Document> = misses.iter().map(|&d_idx| docs[d_idx].clone()).collect();
-                    let taken: Vec<_> = if backedges.is_empty() {
-                        Vec::new()
-                    } else {
-                        sub_docs.iter_mut().map(|d| d.take_entries(backedges)).collect()
-                    };
-                    batches.push(StepMissBatch { step_idx, misses: misses.clone(), sub_docs, taken });
+                    if !backedges.is_empty() {
+                        for d in &mut sub_docs {
+                            let _ = d.take_entries(backedges);
+                        }
+                    }
+                    batches.push(StepMissBatch { step_idx, misses: misses.clone(), sub_docs });
                 }
 
                 let outputs: Vec<Box<dyn Any + Send>> = if batches.len() == 1 {
@@ -288,37 +287,32 @@ impl Analyzer {
                     })
                 };
 
-                for (mut b, out) in batches.into_iter().zip(outputs) {
+                // Store each step's outputs directly into the live `docs[d_idx]` in canonical
+                // stage step order so multiple steps in the same stage that add derived `View`s
+                // allocate distinct `ViewId`s on shared documents.
+                for (b, out) in batches.into_iter().zip(outputs) {
                     let writes = self.steps[b.step_idx].writes();
-                    let mut sub_status: Vec<Result<(), Error>> = (0..b.misses.len()).map(|_| Ok(())).collect();
-                    self.steps[b.step_idx].store(out, &mut b.sub_docs, &mut sub_status);
-                    for (sub_doc, entries) in b.sub_docs.iter_mut().zip(b.taken) {
+                    let backedges = &self.backedge_reads[b.step_idx];
+                    let mut sub_docs: Vec<Document> =
+                        b.misses.iter().map(|&d_idx| std::mem::replace(&mut docs[d_idx], Document::new(""))).collect();
+                    let taken: Vec<_> = if backedges.is_empty() {
+                        Vec::new()
+                    } else {
+                        sub_docs.iter_mut().map(|d| d.take_entries(backedges)).collect()
+                    };
+                    let mut sub_status: Vec<Result<(), Error>> =
+                        b.misses.iter().map(|&d_idx| doc_status[d_idx].clone()).collect();
+                    self.steps[b.step_idx].store(out, &mut sub_docs, &mut sub_status);
+                    for (sub_doc, entries) in sub_docs.iter_mut().zip(taken) {
                         sub_doc.restore_entries(entries);
                     }
-                    for (k_idx, d_idx) in b.misses.into_iter().enumerate() {
+                    for ((k_idx, d_idx), mut sub_doc) in b.misses.into_iter().enumerate().zip(sub_docs) {
                         for &w in &writes {
-                            if let Some(entry) = b.sub_docs[k_idx].entries.iter().find(|e| e.key == w).cloned() {
-                                docs[d_idx].remove(w);
-                                if let Some(v) =
-                                    entry.value.as_ref().and_then(|val| val.downcast_ref::<crate::doc::View>())
-                                {
-                                    let idx = v.id().0 as usize;
-                                    if idx < docs[d_idx].views.len() {
-                                        docs[d_idx].views[idx] = std::sync::Arc::new(v.clone());
-                                    } else if idx == docs[d_idx].views.len() {
-                                        docs[d_idx].views.push(std::sync::Arc::new(v.clone()));
-                                    }
-                                }
-                                docs[d_idx].entries.push(entry);
-                                docs[d_idx].mark_pipeline_stored(w);
-                            }
+                            sub_doc.mark_pipeline_stored(w);
                             recomputed_keys[d_idx].insert(w);
                         }
-                        if let Err(e) = sub_status[k_idx].clone()
-                            && doc_status[d_idx].is_ok()
-                        {
-                            doc_status[d_idx] = Err(e);
-                        }
+                        docs[d_idx] = sub_doc;
+                        doc_status[d_idx] = sub_status[k_idx].clone();
                     }
                 }
             }

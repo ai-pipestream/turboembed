@@ -37,6 +37,9 @@ pub(super) fn put_provenance(w: &mut Writer, p: &ProvenanceRecord) -> Result<(),
             w.str(&model.sha256)?;
         }
     }
+    // High bit (`0x80`) of the execution tag byte indicates that optional 32-byte
+    // `provenance_digest` and `input_snapshot` records follow `reads` and `on`.
+    // Payloads without snapshots write `0` or `1` identically to baseline v1.
     let has_snapshot = p.provenance_digest.is_some() || p.input_snapshot.is_some();
     let flag = if has_snapshot { 0x80u8 } else { 0u8 };
     match &p.execution {
