@@ -229,6 +229,7 @@ impl Server {
             state: state.clone(),
             admin: serve.admin,
             sink: sink.clone(),
+            catalog: serve.catalog.clone(),
         })
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);

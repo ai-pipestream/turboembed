@@ -90,3 +90,18 @@ pub fn backward<R: Real>(
     }
     dx
 }
+
+/// Adds `local`, one example's complete gradients (the adapter's
+/// included), into `grads`, or refuses and leaves `grads` as they were
+/// when a local gradient or a sum it would store is not finite.
+pub fn commit<R: Real>(grads: &mut [Vec<R>], local: &[Vec<R>], what: &str) -> turbo::status::Result<()> {
+    let finite = grads.iter().zip(local).all(|(g, l)| g.iter().zip(l).all(|(&a, &b)| (a + b).to_f64().is_finite()))
+        && local.iter().flatten().all(|v| v.to_f64().is_finite());
+    if !finite {
+        return Err(turbo::status::invalid(format!("trainer: a {what} gradient or its sum is not finite")));
+    }
+    for (g, l) in grads.iter_mut().zip(local) {
+        g.iter_mut().zip(l).for_each(|(a, &b)| *a += b);
+    }
+    Ok(())
+}

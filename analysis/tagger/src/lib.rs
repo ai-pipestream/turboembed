@@ -10,9 +10,11 @@
 //! head scores and decodes on the host, the same on every backend.
 
 pub mod annotate;
+pub mod dictionaries;
 pub mod lemma;
 pub mod multi;
 pub mod parse;
+pub mod segment;
 pub mod words;
 
 use std::path::Path;
@@ -25,9 +27,11 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tokens};
 
 pub use annotate::HeadRunner;
+pub use dictionaries::{MorfologikLemmas, MorphyLemmas};
 pub use lemma::{LemmaDictionary, Lemmatizer};
 pub use multi::MultiTask;
 pub use parse::DependencyParser;
+pub use segment::{SentenceTagger, SpanTagger};
 pub use words::WordEncoder;
 
 /// Writes the part-of-speech layer from a SCHEME_TAGS head.

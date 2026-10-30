@@ -390,39 +390,82 @@ beside these records. The timing is the whole command, model load
 included. A receipt is only comparable at like host load, which is
 why every run's load is in the file.
 
-One receipt so far: `throughput/gliner-wnut17.json`, the GLiNER
+The first receipt is `throughput/gliner-wnut17.json`, the GLiNER
 peer command above over the 1287 WNUT-17 sentences, 20 runs on
-2026-10-28 at commit `8dc59814ce5b`: min 54.21 s, mean 129.29 s,
-p50 99.60 s (12.92 sentences/s), p99 368.54 s, with the host's
-1-minute load between 21.5 and 67.5 on 32 cores while other lanes
-ran. Those numbers say more about that load than about GLiNER;
-they are the receipt form pinned down, not a speed claim, and an
-idle-host rerun should replace them before anyone compares
-systems by them. Only the final run's predictions survive (every
-run overwrote the same file) and they are byte-identical to the
-scored record's (SHA-256 `9638a97e...` above); this receipt shows
-nothing about the earlier runs' outputs, and no determinism claim
-rests on it. Receipts written with `--output` keep every run's
-output digest, which is what such a claim needs.
+2026-10-29 from a clean tree at commit `e8e445c52db1`: min
+34.41 s, mean 37.55 s, p50 37.16 s (34.63 sentences/s), p99 and
+max 47.23 s. The run began at host 1-minute load 2.28 on 32 cores;
+later per-run loads in the receipt rise to about 16 to 19 as the
+timed command itself saturates its CPU threads. All 20 runs wrote
+byte-identical predictions, SHA-256
+`9638a97e64eeeaba95d0d0287da7dc5c325296bbff4ce7efedc42d6bab2977a2`,
+the scored record's file. The mutable tag
+`turbo-peer-gliner:0.2.21-small-v2.1` named image
+`sha256:614fedccce1528a481546dece6378f6344f1a8619c38987732266470158fda09`
+for this run. This replaces the 2026-10-28 receipt taken while
+other lanes loaded the host; that historical file remains in git
+history with the provenance correction recorded in #1655.
 
-Provenance correction for that receipt (2026-10-29, codex review
-of #1655): its `commit` is the checkout's HEAD when it ran
-(`8dc59814ce5b6f97ea0582f44fee969bda7621f9`), but the harness and
-runner it timed were uncommitted working-tree files at that
-moment; they are not in that commit's tree. They were first
-committed minutes after the receipt finished, in `2bbbb4647` (the
-only commit touching them before this note), with SHA-256 digests:
-`analysis/eval/reference/throughput_receipt.py`
-`886eca997327e3aecaced7d4cd9c35618aa5cecac2ede93b6a7066923c3f886b`,
-`analysis/eval/reference/peers/gliner/Dockerfile`
-`6dc52303814a84a86c2d02602823ee47ff20c7c76fb1326e9c8f89de47c77ece`,
-`analysis/eval/reference/peers/gliner/ner_predict.py`
-`bd048354c6bbe5b892619d460ac4eead05c580cb9979eb7f42f174c22105d036`.
-The image the mutable tag `turbo-peer-gliner:0.2.21-small-v2.1`
-named is `sha256:614fedccce1528a481546dece6378f6344f1a8619c38987732266470158fda09`
-(full id; the record above first carried its short form). No later
-commit is substituted for the historical run; receipts now record
-the working-tree state so this cannot recur silently.
+Three spaCy receipts over the 2077 English EWT sentences followed
+from the same clean PR branch commit `2bd0bf648347`: `spacy-sm`
+min 3.50 s, mean 3.55 s, p50 3.55 s (585.20 sentences/s), p99 and
+max 3.60 s; `spacy-lg` min 4.07 s, mean 4.18 s, p50 4.16 s
+(499.65 sentences/s), p99 and max 4.41 s; and `spacy-trf` min
+14.62 s, mean 15.48 s, p50 15.31 s (135.66 sentences/s), p99 and
+max 16.20 s. Before each receipt, one run was scored and reproduced
+the committed record's sentence, UAS and LAS scores exactly; all
+20 timed runs then wrote one byte-identical prediction file per
+model. The mutable tags named image IDs
+`sha256:c2b1beb463f6e98b99124fcd734a946d03344bf32063357c716df7d92eca6470`
+(sm), `sha256:ac75f6a5866cad276de5aef167ccbe27cfb82d49a3f5a027e63090f94315ac7b`
+(lg), and
+`sha256:bd8fb6da4c3c2dc05f9477be3adc78be4ed5b332bb1552f45e0f2bcd2fe7a286`
+(trf).
+
+The Stanza English receipt (`throughput/stanza-en-ewt.json`, the
+same 2077 sentences, clean tree at `915af0568f25`) is min 50.27 s,
+mean 51.35 s, p50 51.33 s (40.46 sentences/s), p99 and max
+52.94 s, beginning at host load 1.31; the scored-once output
+reproduced the committed record's sentence, UAS and LAS scores
+exactly, and all 20 timed runs are byte-identical (SHA-256
+`ae0e58aa2c5045709bae07f100556286eaccf6570ebe28cb54c5314f0a801f90`).
+The mutable tag `turbo-peer-stanza:1.10.1-en` named image
+`sha256:e79ec7fc22750b287f7277980ae17797233e14b7e932572abeb39cd770675978`
+for this run. An earlier capture the same evening is not used: an
+external load spike to 39.9 crossed runs 10 to 12 of it.
+
+The Trankit English receipt (`throughput/trankit-en-ewt.json`,
+the same 2077 sentences, clean tree at `5d61b1f93d5f`, on
+2026-10-30) is min 128.53 s, mean 131.65 s, p50 131.39 s
+(15.81 sentences/s), p99 and max 134.66 s, beginning at host load
+2.06; later per-run loads sit at about 8 to 13 as Trankit's own
+CPU threads saturate, with no run's seconds leaving that band.
+One run was scored first and reproduced the committed record's
+headline scores exactly, and all 20 timed runs are byte-identical
+to the recorded predictions file (SHA-256
+`2c14aae8c6ae8d90a03996dcb3a48221916ccb0195c2be2dd8ff4891522314df`,
+the digest the Trankit section above records). The mutable tag
+`turbo-peer-trankit:1.1.2-en` named image
+`sha256:693b004911d6fb9bc1c70b4ed8f833e5b495bcc315e3f33cfde85ba9680cf540`
+for this run, the same image id as at record time.
+
+The wtpsplit receipt (`throughput/wtpsplit-en-ewt.json`, the
+same 2077 sentences as document text, clean tree at
+`ec8dbfca1293`, on 2026-10-30) is min 7.15 s, mean 7.53 s, p50
+7.46 s (278.48 sentences/s), p99 and max 8.14 s, beginning at
+host load 1.42; later per-run loads rise to about 11 under the
+timed command's own threads while its seconds stay in the same
+band. All 20 runs are byte-identical to the recorded predictions
+(SHA-256
+`1aa2702be1c99bcf1743337cfa5fc430ce4c173579f9265091e609a6e2c04841`,
+the digest the wtpsplit section above records). The mutable tag
+`turbo-peer-wtpsplit:2.2.2-sat-3l` named image
+`sha256:e9f66767399d34097ae89a0d6cb16af96dc799327f51fe4d1f045cc84cd14d32`
+for this run, the same image id as at record time. An earlier
+capture the same evening is not used: it began at host load
+13.74 under other lanes' CI and its seconds followed that load
+down from 10.15 s to 7.35 s.
+
 Receipts for the other analysis systems land as their booked runs
 complete; the records above still carry at most the single
 in-process timing their own sections state.

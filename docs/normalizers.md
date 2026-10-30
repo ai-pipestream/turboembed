@@ -77,6 +77,7 @@ time and look characters up only outside them.
 | `utf16` | `Utf16Cursor`, which steps over UTF-8 text one UTF-16 code unit at a time, and offset conversions between the two. |
 | `modified_utf8` | Java's modified UTF-8, the encoding of the strings in OpenNLP model files. |
 | `casefold` | Full and simple case folding and their Turkic variants (CaseFolding.txt). |
+| `casemap` | The simple lowercase and uppercase mappings (UnicodeData.txt), one character to one, with no special casing and no context; `lowercase` maps a text and `has_upper` says whether it would change. The edit trees of a lemmatizer head lowercase words through it. |
 | `normalize` | NFC, NFD, NFKC, NFKD, quick check, single-level decompositions, composition, and `for_each_run`, which reports the ranges a normalization form changes. |
 | `confusables` | UTS #39 prototypes and skeletons. |
 | `emoji` | `scan` (UTS #51 possible emoji), the RGI set, CLDR names, groups and subgroups, and flag region codes. |

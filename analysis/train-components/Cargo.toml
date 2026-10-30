@@ -37,6 +37,7 @@ turbo-jvm = { path = "../jvm" }
 # detector runs in.
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-depparse = { path = "../depparse" }
 
 [dev-dependencies]
 # `Sha256`, to pin the digest of a trained model.

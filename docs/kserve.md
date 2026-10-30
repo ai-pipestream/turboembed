@@ -126,6 +126,18 @@ mapping `SERVING` to the same state as `ServerReady` (or `ModelReady`
 when `service` names a served bundle) and `NOT_SERVING` before load and
 during drain.
 
+`turbo-kserve health` checks that service and exits zero only on
+`SERVING`. For TLS, pass `--tls-ca certs/server-ca.pem`; for mTLS, also
+pass `--tls-cert certs/client.pem --tls-key certs/client.key`. Use
+`--tls-name localhost` when the certificate name differs from the dialed
+IP address. The equivalent variables are `TURBO_KSERVE_HEALTH_TLS_CA`,
+`TURBO_KSERVE_HEALTH_TLS_CERT`, `TURBO_KSERVE_HEALTH_TLS_KEY` and
+`TURBO_KSERVE_HEALTH_TLS_NAME`; flags take precedence. The existing
+`--timeout-ms` includes the TLS handshake. The certificate chain and
+server name are always verified. Client credentials are separate from
+the server's listener certificate and key; they are not inferred from
+listener settings. The build must enable the server's `tls` feature.
+
 ## Metadata
 
 `ModelMetadataResponse`:

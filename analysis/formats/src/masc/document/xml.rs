@@ -2,15 +2,14 @@
 
 use std::collections::HashMap;
 
-use turbo_jvm::hash_map::put_order;
-use turbo_maxent::xml::{self, Attribute, Handler, Names};
+use crate::xml::{self, Attribute, Handler, Names};
 
 use super::super::error::{AnnotationFile, MascError};
-use super::super::java::{equals_ignore_case_ascii, parse_int, split_on_spaces, split_space};
+use super::super::text::{equals_ignore_case_ascii, parse_int, split_on_spaces, split_space};
 use super::{MascWarning, Quark};
 
-pub(in crate::masc) fn bad(offset: usize, message: &'static str) -> turbo_maxent::Error {
-    turbo_maxent::Error::Xml { offset, message }
+pub(in crate::masc) fn bad(offset: usize, message: &'static str) -> crate::xml::Error {
+    crate::xml::Error::Xml { offset, message }
 }
 
 pub(in crate::masc) fn attr<'x>(attributes: &'x [Attribute<'_>], name: &str) -> Option<&'x str> {
@@ -55,7 +54,7 @@ pub(in crate::masc) fn read_xml(
 struct Segments(Vec<Quark>);
 
 impl Handler for Segments {
-    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> turbo_maxent::Result<()> {
+    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         if !equals_ignore_case_ascii(name, "region") {
             return Ok(());
         }
@@ -74,7 +73,7 @@ impl Handler for Segments {
         Ok(())
     }
 
-    fn end_element(&mut self, _: &str, _: usize) -> turbo_maxent::Result<()> {
+    fn end_element(&mut self, _: &str, _: usize) -> crate::xml::Result<()> {
         Ok(())
     }
 
@@ -92,7 +91,7 @@ pub(super) fn parse_segments(bytes: &[u8]) -> Result<Vec<Quark>, MascError> {
 struct Sentences(Vec<(i32, i32)>);
 
 impl Handler for Sentences {
-    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> turbo_maxent::Result<()> {
+    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         if !equals_ignore_case_ascii(name, "region") {
             return Ok(());
         }
@@ -109,7 +108,7 @@ impl Handler for Sentences {
         Ok(())
     }
 
-    fn end_element(&mut self, _: &str, _: usize) -> turbo_maxent::Result<()> {
+    fn end_element(&mut self, _: &str, _: usize) -> crate::xml::Result<()> {
         Ok(())
     }
 
@@ -158,7 +157,7 @@ pub(super) struct Penn {
 }
 
 impl Handler for Penn {
-    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> turbo_maxent::Result<()> {
+    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         match name {
             "node" => {
                 let id = parse_id(attr(a, "xml:id"), "penn-n").ok_or(bad(at, "a node id is not penn-n and digits"))?;
@@ -202,7 +201,7 @@ impl Handler for Penn {
         Ok(())
     }
 
-    fn end_element(&mut self, name: &str, _: usize) -> turbo_maxent::Result<()> {
+    fn end_element(&mut self, name: &str, _: usize) -> crate::xml::Result<()> {
         if name == "a" {
             self.annotations.pop();
         }
@@ -240,7 +239,7 @@ pub(super) struct NamedEntities {
 }
 
 impl Handler for NamedEntities {
-    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> turbo_maxent::Result<()> {
+    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         match name {
             "a" => {
                 let id = parse_id(attr(a, "ref"), "ne-n").ok_or(bad(at, "an annotation ref is not ne-n and digits"))?;
@@ -279,7 +278,7 @@ impl Handler for NamedEntities {
         Ok(())
     }
 
-    fn end_element(&mut self, _: &str, _: usize) -> turbo_maxent::Result<()> {
+    fn end_element(&mut self, _: &str, _: usize) -> crate::xml::Result<()> {
         Ok(())
     }
 
@@ -289,7 +288,7 @@ impl Handler for NamedEntities {
 pub(super) fn parse_named_entities(bytes: &[u8]) -> Result<NamedEntities, MascError> {
     let mut h = NamedEntities::default();
     read_xml(bytes, AnnotationFile::NamedEntities, &mut h)?;
-    h.order = put_order(h.entities.iter().map(|e| e.id)).0;
+    h.order = (0..h.entities.len()).collect();
     Ok(h)
 }
 
@@ -305,7 +304,7 @@ pub(crate) struct HeaderFile {
 /// `f.id` (a later element with the same `f.id` replaces the `loc`), in the
 /// iteration order of its map, or `None` for a header without an
 /// `annotation` or `primaryData` element.
-pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, turbo_maxent::Error> {
+pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, crate::xml::Error> {
     #[derive(Default)]
     struct Header {
         files: Option<Vec<HeaderFile>>,
@@ -316,7 +315,7 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, turbo_
         equals_ignore_case_ascii(name, "annotation") || equals_ignore_case_ascii(name, "primaryData")
     }
     impl Handler for Header {
-        fn start_element(&mut self, name: &str, a: &[Attribute<'_>], _: usize) -> turbo_maxent::Result<()> {
+        fn start_element(&mut self, name: &str, a: &[Attribute<'_>], _: usize) -> crate::xml::Result<()> {
             if file_element(name) {
                 self.loc = attr(a, "loc").map(str::to_owned);
                 self.id = attr(a, "f.id").map(str::to_owned);
@@ -325,7 +324,7 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, turbo_
             Ok(())
         }
 
-        fn end_element(&mut self, name: &str, _: usize) -> turbo_maxent::Result<()> {
+        fn end_element(&mut self, name: &str, _: usize) -> crate::xml::Result<()> {
             if file_element(name) {
                 let files = self.files.get_or_insert_with(Vec::new);
                 match files.iter_mut().find(|f| f.id == self.id) {
@@ -343,7 +342,8 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, turbo_
     let mut h = Header::default();
     xml::parse_with(text, Names::Qualified, &mut h)?;
     Ok(h.files.map(|mut files| {
-        let (order, _) = put_order(files.iter().map(|f| f.id.as_deref()));
-        order.into_iter().map(|i| std::mem::take(&mut files[i])).collect()
+        files
+            .sort_by(|a, b| crate::source::compare_utf16(a.id.as_deref().unwrap_or(""), b.id.as_deref().unwrap_or("")));
+        files
     }))
 }

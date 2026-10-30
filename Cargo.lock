@@ -2090,6 +2090,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-sha256",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2250,7 +2252,6 @@ dependencies = [
  "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-goldens",
- "turbo-jvm",
  "turbo-matcher",
  "turbo-normalize",
  "turbo-numeric",
@@ -2797,6 +2798,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-morfologik",
+ "turbo-wordnet",
 ]
 
 [[package]]
@@ -2837,6 +2840,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-depparse",
  "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",

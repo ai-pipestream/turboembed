@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use turbo::bundle::sha256_hex;
-use turbo::head::{lemmatizer, parser, tagger};
+use turbo::head::{lemmatizer, parser, span, tagger};
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo_analysis::{Span, Spans, ViewId};
 use turbo_analysis_layers::Tokens;
@@ -89,6 +89,7 @@ pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
         let shapes = match spec.kind {
             HeadKind::BiaffineParser => parser::tensors(&spec, 32),
             HeadKind::EditTreeLemmatizer => lemmatizer::tensors(&spec, 32),
+            HeadKind::SpanClassifier => span::tensors(&spec, 32),
             _ => tagger::tensors(&spec, 32),
         };
         for (suffix, shape) in shapes {

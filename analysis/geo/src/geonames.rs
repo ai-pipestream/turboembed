@@ -4,15 +4,13 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use turbo_jvm::text::parse_double;
-
 use crate::entry::{FEATURE_CLASS_ADMIN, FEATURE_CLASS_CITY, FEATURE_CLASS_POI, GeoPoint};
 use crate::error::{ColumnCount, LoadError, NumberFormat, RowProblem, TableKind};
 use crate::gazetteer::indexed_gazetteer;
 use crate::index::{Alternates, GazetteerIndex};
 use crate::load::{RowParser, Scratch, TableFormat, load_bytes, load_path};
 use crate::store::Row;
-use crate::text::{parse_long, trim};
+use crate::text::{parse_decimal, parse_long, trim};
 
 /// A gazetteer over a caller supplied file in the
 /// GeoNames main table format (the `readme.txt` of the GeoNames dump):
@@ -77,10 +75,10 @@ fn feature_class(class: &str) -> &'static str {
     }
 }
 
-/// `Double.parseDouble` of a trimmed cell.
+/// The decimal number in a trimmed cell ([`parse_decimal`]).
 pub(crate) fn double(cell: &str) -> Result<f64, NumberFormat> {
     let cell = trim(cell);
-    parse_double(cell).map_err(|_| NumberFormat(cell.to_string()))
+    parse_decimal(cell).ok_or_else(|| NumberFormat(cell.to_string()))
 }
 
 /// `Long.parseLong` of a trimmed cell, 0 for an empty one.

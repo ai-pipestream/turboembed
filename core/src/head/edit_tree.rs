@@ -9,11 +9,18 @@
 //! before and after it rewrite by their own trees; with nothing in common
 //! the whole part is substituted. Lengths count Unicode scalar values.
 //!
+//! One node is ours: `(l T)` lowercases the word by the simple Unicode
+//! 18 mapping (`turbo_unicode::casemap`) and rewrites it by `T`, so a
+//! sentence-initial `Dogs` takes the tree of `dogs` instead of a tree of
+//! its own for every capital letter ([`EditTree::mine_cased`]).
+//!
 //! A tree is written as its label, an S-expression: `(m P S X Y)` keeps all
 //! but the first P and last S characters and rewrites those by X and Y
 //! (`()` for none); `(s 'from' 'to')` substitutes, with `\'` and `\\`
-//! escaping inside quotes. [`EditTree::label`] and [`EditTree::parse`] are
-//! inverses.
+//! escaping inside quotes; `(l T)` lowercases first. [`EditTree::label`]
+//! and [`EditTree::parse`] are inverses.
+
+use turbo_unicode::casemap;
 
 use crate::status::{Result, invalid};
 
@@ -24,6 +31,9 @@ pub enum EditTree {
     Match { prefix: u32, suffix: u32, before: Option<Box<EditTree>>, after: Option<Box<EditTree>> },
     /// Replace exactly `from` by `to`.
     Subst { from: String, to: String },
+    /// Lowercase every character by its simple mapping, then rewrite by
+    /// the tree, which is never itself a `Lower`.
+    Lower(Box<EditTree>),
 }
 
 /// The longest common substring of `a` and `b` as (a start, b start,
@@ -72,14 +82,46 @@ fn quote(s: &str, out: &mut String) {
 }
 
 impl EditTree {
-    /// The tree that rewrites `form` into `lemma`. Two empty strings give
-    /// the empty match, as spaCy has it.
+    /// The tree that rewrites `form` into `lemma`, as spaCy mines it. Two
+    /// empty strings give the empty match, as spaCy has it.
     pub fn mine(form: &str, lemma: &str) -> EditTree {
         if form.is_empty() && lemma.is_empty() {
             return EditTree::Match { prefix: 0, suffix: 0, before: None, after: None };
         }
         let (f, l): (Vec<char>, Vec<char>) = (form.chars().collect(), lemma.chars().collect());
         build(&f, &l)
+    }
+
+    /// The tree of `form` and `lemma` that rewrites the least: [`mine`]'s,
+    /// or, when the form has a capital, `(l T)` with `T` mined from the
+    /// lowercase form, whichever substitutes fewer characters (a tie to
+    /// the plain tree). `Dogs` to `dog` is `(l (m 0 1 () (s 's' '')))`,
+    /// the tree of `dogs` to `dog` under `l`, so the word takes one tree
+    /// wherever it stands in a sentence; `Paris` to `Paris` and `Berlins`
+    /// to `Berlin`, whose lemmas keep the capital, stay plain.
+    ///
+    /// [`mine`]: Self::mine
+    pub fn mine_cased(form: &str, lemma: &str) -> EditTree {
+        let plain = EditTree::mine(form, lemma);
+        if !casemap::has_upper(form) {
+            return plain;
+        }
+        let mut lowered = String::with_capacity(form.len());
+        casemap::lowercase(form, &mut lowered);
+        let lower = EditTree::Lower(Box::new(EditTree::mine(&lowered, lemma)));
+        if lower.substituted() < plain.substituted() { lower } else { plain }
+    }
+
+    /// The characters the tree substitutes outright: `from` and `to` of
+    /// every `s` node, in scalar values.
+    fn substituted(&self) -> usize {
+        match self {
+            EditTree::Subst { from, to } => from.chars().count() + to.chars().count(),
+            EditTree::Match { before, after, .. } => {
+                before.as_deref().map_or(0, Self::substituted) + after.as_deref().map_or(0, Self::substituted)
+            }
+            EditTree::Lower(t) => t.substituted(),
+        }
     }
 
     /// The lemma of `form` by this tree, or None when the tree does not
@@ -120,6 +162,10 @@ impl EditTree {
                     None => s == 0,
                 }
             }
+            EditTree::Lower(t) => {
+                let lowered: Vec<char> = part.iter().map(|&c| casemap::lower(c)).collect();
+                t.apply_to(&lowered, out)
+            }
         }
     }
 
@@ -150,6 +196,11 @@ impl EditTree {
                     Some(t) => t.write(out),
                     None => out.push_str("()"),
                 }
+                out.push(')');
+            }
+            EditTree::Lower(t) => {
+                out.push_str("(l ");
+                t.write(out);
                 out.push(')');
             }
         }
@@ -263,7 +314,18 @@ impl Parser<'_> {
                 self.eat(b')')?;
                 Ok(Some(EditTree::Match { prefix, suffix, before, after }))
             }
-            _ => Err(self.error("expected m, s or )")),
+            Some(b'l') => {
+                self.at += 1;
+                self.eat(b' ')?;
+                let inner = match self.tree()? {
+                    None => return Err(self.error("a tree under l, not ()")),
+                    Some(EditTree::Lower(_)) => return Err(self.error("l under l")),
+                    Some(t) => t,
+                };
+                self.eat(b')')?;
+                Ok(Some(EditTree::Lower(Box::new(inner))))
+            }
+            _ => Err(self.error("expected l, m, s or )")),
         }
     }
 }

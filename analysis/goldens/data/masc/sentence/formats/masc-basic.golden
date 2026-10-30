@@ -1,5 +1,5 @@
 golden 1
-generator	turbo-goldens-java	1
+generator	turbo-formats	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
@@ -20,23 +20,23 @@ layer	turbo:open-errors	document	0	class:str	message:str
 end	turbo:open-errors
 layer	turbo:sample-texts	document	6	text:str
 No tags here. None at all.
-\nRain fell on Lyon today. Then it's sunny again.
-\nShort one. And two.
+Rain fell on Lyon today. Then it's sunny again.
+Short one. And two.
 No tags here. None at all.
-\nRain fell on Lyon today. Then it's sunny again.
-\nShort one. And two.
+Rain fell on Lyon today. Then it's sunny again.
+Short one. And two.
 end	turbo:sample-texts
 layer	turbo:sample-spans	document	12	sample:u32	start:u32	end:u32
 0	0	13
 0	14	26
-1	1	25
-1	26	48
-2	1	11
-2	12	20
+1	0	24
+1	25	47
+2	0	10
+2	11	19
 3	0	13
 3	14	26
-4	1	25
-4	26	48
-5	1	11
-5	12	20
+4	0	24
+4	25	47
+5	0	10
+5	11	19
 end	turbo:sample-spans

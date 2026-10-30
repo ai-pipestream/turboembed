@@ -130,6 +130,7 @@
 //!   ([`langdetect::default_training_parameters`]).
 
 pub mod chunk;
+pub mod depparse;
 pub mod dictionary;
 pub mod doccat;
 pub mod error;
@@ -145,6 +146,7 @@ pub mod tagdict;
 pub mod tokenize;
 
 pub use chunk::{ChunkerEventStream, ChunkerFactory, TrainedChunkerModel, chunk_events, train_chunker_model};
+pub use depparse::train_feedforward_conllu;
 pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
 pub use doccat::{TrainedDoccatModel, train_doccat};
 pub use error::{Error, Result};

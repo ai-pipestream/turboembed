@@ -966,7 +966,7 @@
   ],
   "model": {
     "dim": 32,
-    "id": "sentence-transformers/all-MiniLM-L6-v2"
+    "id": "turboembed/tiny-bert"
   },
   "source_bytes": 536,
   "steps": [

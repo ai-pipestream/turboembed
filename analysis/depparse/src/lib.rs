@@ -1,6 +1,6 @@
-//! Typed dependency trees, CoNLL-U sample alignment, and UAS/LAS evaluation.
-//! Dependency parsing models and document annotation use the biaffine parser
-//! head on the shared encoder (`turbo-core` / `turbo-tagger`, #1514).
+//! Typed dependency trees, arc-standard linear and feedforward neural
+//! transition parsers, non-projective `SWAP` and pseudo-projective lifting,
+//! bidirectional offset-tracked document annotation, and UAS/LAS evaluation.
 //! Node indexes are zero-based; `None` is the artificial root's outgoing arc.
 //!
 //! Word and token graph indexes cannot be mixed:
@@ -12,17 +12,34 @@
 //!     graph.children(token).unwrap();
 //! }
 //! ```
+mod annotator;
+mod context;
+mod encoding;
 mod evaluation;
+pub use encoding::LabelEncoding;
 mod graph;
 mod held_out;
+mod model;
+mod projective;
 mod sample;
+mod swap;
+mod training;
+mod transition;
 
+pub use annotator::{DependencyAnnotator, DependencyBackend};
+pub use context::{DependencyContextGenerator, ParserInput};
 pub use evaluation::{AttachmentScores, DependencyCrossValidator, DependencyEvaluator, DependencyParser};
-pub use graph::{ArcDirection, DependencyArc, DependencyGraph, PathStep};
+pub use graph::{
+    ArcDirection, DependencyArc, DependencyGraph, PathStep, ResolvedDependencyArc, ResolvedDependencyNode,
+};
 pub use held_out::{EvaluationSubset, HeldOutEvaluation};
-pub use sample::DependencySample;
+pub use model::{DependencyModel, DependencyParserME};
+pub use sample::{DependencyEventStream, DependencySample};
+pub use swap::SwapOracle;
+pub use training::TrainingMode;
+pub use transition::{ArcStandardOracle, ArcStandardState, Position, Transition};
 
-/// A checked public boundary or invalid dependency graph.
+/// A checked public boundary, invalid model, or unavailable transition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Error(pub String);
 impl std::fmt::Display for Error {
@@ -35,3 +52,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub(crate) fn error(e: impl std::fmt::Display) -> Error {
     Error(e.to_string())
 }
+
+pub mod feedforward;
+pub use feedforward::{
+    Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel, FeedforwardDependencyParser,
+    FeedforwardDependencyTrainer, FeedforwardFeatureIds, FeedforwardSettings, NeuralWeights, Vocabulary,
+};

@@ -79,7 +79,10 @@
   upstream pipeline for that model, not of MiniLM; the bundle tool's
   tests use it to check sealing and verification.
 - `tiny-bert-bundle/`: the bundle `turbo-bundle` sealed and verified
-  from that model: its manifest, its tokenizer file, the weights
+  from that model. Its manifest names the generated fixture
+  `turboembed/tiny-bert`, whose source is this repository at
+  `af146a9213260f30554ba972a9c79d6053b84ad0`, not the published MiniLM
+  model. It carries the manifest, its tokenizer file, the weights
   `tiny_bert.py` wrote (`weights/model.safetensors`, 4049552 bytes,
   SHA-256 `c258bffc3c37afc5a8b12324c0d29b81d31738fbf72183ade9c52c0d68e06180`)
   and the reference file above. The core's tests check numerics against

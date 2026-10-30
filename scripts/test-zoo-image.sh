@@ -5,14 +5,19 @@
 # The zoo serves a small index whose own addresses answer nothing, and the
 # bucket is seeded with its files by SHA-256, so every byte a read returns
 # came through the store. Then server/tests/zoo_image_smoke.rs reads them
-# over gRPC, and the page is fetched once.
+# over gRPC, zoo-remote/tests/zoo_image.rs loads them with the library, and
+# the page is fetched once.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 image=${TURBO_ZOO_IMAGE:-turbo-zoo:ci}
 project="turbo-zoo-smoke-$$"
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/turbo-zoo-smoke.XXXXXXXX")
-compose() { docker compose -p "$project" -f docker-compose.zoo.yml -f "$scratch/smoke.yml" "$@"; }
+compose() {
+    local extra=()
+    if [[ -f "$scratch/mtls.yml" ]]; then extra=(-f "$scratch/mtls.yml"); fi
+    docker compose -p "$project" -f docker-compose.zoo.yml -f "$scratch/smoke.yml" "${extra[@]}" "$@"
+}
 tls=""
 cleanup() {
     if [[ -n "$tls" ]]; then docker rm -f "$tls" >/dev/null 2>&1 || true; fi
@@ -87,6 +92,10 @@ done
 
 TURBO_ZOO_SMOKE_ADDR="$grpc" TURBO_ZOO_SMOKE_INDEX="$scratch/zoo.json" \
     cargo test --locked -p turbo-kserve --test zoo_image_smoke -- --nocapture
+# The library itself reads from the zoo, as TURBO_ZOO_SOURCE names it, into
+# a local cache with its own licence check (zoo-remote/tests/zoo_image.rs).
+TURBO_ZOO_SOURCE="grpc://$grpc" TURBO_ZOO_SMOKE_INDEX="$scratch/zoo.json" \
+    cargo test --locked -p turbo-zoo-remote --test zoo_image -- --nocapture
 
 # The page is served, and its calls need the token.
 curl --noproxy '*' --silent --show-error --fail "$page/" | grep -q '<html'
@@ -100,6 +109,9 @@ fi
 curl --noproxy '*' --silent --show-error --fail --request POST --header 'content-type: application/proto' \
     --header "authorization: Bearer $TURBO_DEMO_TOKEN" --data-binary '' \
     "$page/turbo.training.v1.TurboCatalogService/ListLicenceAcceptances" | grep -aq zoo
+
+# Recreate the zoo with a fresh cache and mTLS, keeping the seeded RustFS store.
+source scripts/zoo-smoke-mtls.sh
 
 # The image alone with the page on HTTPS turns healthy: the health check
 # follows the page's scheme. The certificate is made for this run.

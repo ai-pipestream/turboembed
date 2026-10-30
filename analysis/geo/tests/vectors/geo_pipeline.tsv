@@ -1,11 +1,11 @@
 # reviewed native snapshot of geo pipeline behaviour	columns=scenario,geocoder,layer,records
 multi-country-ballot	prior	locations	0..4:fixture:fr-lyon:FR:522250:4046e1cac083126f:401357c1bda5119d:3feccccccccccccd;6..11:fixture:it-turin:IT:848748:404688ff97247454:401ebf62b6ae7d56:3feccccccccccccd;16..21:fixture:pt-porto:PT:231800:40449436113404ea:c0214219652bd3c3:3feccccccccccccd
-multi-country-ballot	prior	regions	AU:3fc5e8efdb195e8e:0.17117117117117114;CI:3fc5e8efdb195e8e:0.17117117117117114;DE:3fc5e8efdb195e8e:0.17117117117117114;FR:3fc4c1bacf914c1b:0.16216216216216214;IT:3fc4c1bacf914c1b:0.16216216216216214;PT:3fc4c1bacf914c1b:0.16216216216216214
+multi-country-ballot	prior	regions	AU:3fc5e8efdb195e8f:0.17117117117117117;CI:3fc5e8efdb195e8f:0.17117117117117117;DE:3fc5e8efdb195e8f:0.17117117117117117;FR:3fc4c1bacf914c1c:0.16216216216216217;IT:3fc4c1bacf914c1c:0.16216216216216217;PT:3fc4c1bacf914c1c:0.16216216216216217
 multi-country-ballot	prior	winners	0.0=AU;0.05=-;0.25=-;0.5=-
 multi-country-ballot	prior	containment	0..4:21|Auvergne-Rhone-Alpes|region>2|France|country;6..11:30|Piedmont|region>3|Italy|country;16..21:40|Porto District|region>4|Portugal|country
 multi-country-ballot	prior	money	116..120:500:AUD
 multi-country-ballot	spatial	locations	0..4:fixture:fr-lyon:FR:522250:4046e1cac083126f:401357c1bda5119d:3feccccccccccccd;6..11:fixture:it-turin:IT:848748:404688ff97247454:401ebf62b6ae7d56:3feccccccccccccd;16..21:fixture:pt-porto:PT:231800:40449436113404ea:c0214219652bd3c3:3feccccccccccccd
-multi-country-ballot	spatial	regions	AU:3fc5e8efdb195e8e:0.17117117117117114;CI:3fc5e8efdb195e8e:0.17117117117117114;DE:3fc5e8efdb195e8e:0.17117117117117114;FR:3fc4c1bacf914c1b:0.16216216216216214;IT:3fc4c1bacf914c1b:0.16216216216216214;PT:3fc4c1bacf914c1b:0.16216216216216214
+multi-country-ballot	spatial	regions	AU:3fc5e8efdb195e8f:0.17117117117117117;CI:3fc5e8efdb195e8f:0.17117117117117117;DE:3fc5e8efdb195e8f:0.17117117117117117;FR:3fc4c1bacf914c1c:0.16216216216216217;IT:3fc4c1bacf914c1c:0.16216216216216217;PT:3fc4c1bacf914c1c:0.16216216216216217
 multi-country-ballot	spatial	winners	0.0=AU;0.05=-;0.25=-;0.5=-
 multi-country-ballot	spatial	containment	0..4:21|Auvergne-Rhone-Alpes|region>2|France|country;6..11:30|Piedmont|region>3|Italy|country;16..21:40|Porto District|region>4|Portugal|country
 multi-country-ballot	spatial	money	116..120:500:AUD
