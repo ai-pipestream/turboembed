@@ -30,7 +30,7 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-analysis` | `analysis/core/` | `Document`, `View`, `ViewBuilder`, bidirectional UTF-8 `Alignment` tables, `Layer`, `Key`, `KeyId`, `Provenance`, `Annotator`, `Analyzer`, `Registry`, and binary `DocumentGraph` export/import |
 | `turbo-analysis-layers` | `analysis/layers/` | Shared columnar layers: `Structure`, `Sentences`, `Tokens`, `Words`, `Subwords`, `Boundaries`, `Chunks`, `PosTags`, `WordPosTags`, `MorphPosTags`, `Lemmas`, `WordLemmas`, `MorphFeatures`, `Stems`, `Terms`, `Entities`, `ChunkTags`, `PhraseChunks`, `Phrases`, `Dependencies`, `WordDependencies`, `Numbers`, `Money`, `Quantities`, `Temporals`, `DocumentDate`, `Regions`, `Containment`, `Times`, `Ordinals`, `Pii`, `Language`, `LanguageSpans`, `Categories`, `Calibrated`, `Opinions`, `Aspects`, `EmotionLayer`, `Incivility`, `Pragmatics`, `Modality`, `Edus`, `Discourse`, `ClaimLinks`, `Quotations`, `Events`, `DocumentEntities`, `EntitySalience`, `Tables`, `KeyValuePairs`, `ChunkTableHeaders`, `Abbreviations`, `Boilerplate`, `TextQuality`, `SpanQuality`, `WordNetSenses`, `LexicalExpansions`, `SparseTerms`, `Vectors<L>`, `VectorCodes<L>`, `TokenVectorWindows`, `Levels`, `Groups<L>`, `Edges<From, To>`, `Confidence<L>`, `Alternatives<L>`, `Utf16Spans<L>`, and `Matches` |
 | `turbo-chunker` | `analysis/chunker/` | Boundary-aware retrieval chunking (`Chunker`), hierarchical `Levels`, and per-chunk, per-section, and per-document term statistics and BM25 scoring ([chunker-text-signals.md](chunker-text-signals.md)) |
-| `turbo-group` | `analysis/group/` | MinHash/SimHash sketches, near-duplicate grouping, version links inside a document and across a batch, and structural boilerplate detection |
+| `turbo-group` | `analysis/group/` | MinHash/SimHash sketches of an item's words (`Sketcher<L>`) or of its delexicalized dependency treelets (`SyntaxSketcher<L, A>`), near-duplicate grouping, version links inside a document and across a batch, and structural boilerplate detection |
 | `turbo-vector-index` | `analysis/vector-index/` | Exact in-memory vector index over rows of one embedding space: top-$k$ by dot product or cosine, TurboQuant 2-to-4-bit quantized storage (feature `turboquant`), and MaxSim late interaction over token vectors ([turboquant.md](turboquant.md)) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Schwartz-Hearst abbreviation and acronym definition extraction (`turbo:abbreviations`), short-to-long-form edges, and Ab3P MED1250 evaluation |
@@ -249,6 +249,32 @@ Per item, `turbo-group`'s sketch layer holds:
 | `shape` | A 64-bit hash of the sequence with every number word replaced by one placeholder |
 | `simhash` | The 64-bit SimHash of the item's shingles, each occurrence counted |
 | `minhash` | 64 MinHash values of the item's set of shingles by one-permutation hashing with optimal densification |
+
+`SyntaxSketcher<L, A>` (`analysis/group/src/syntax.rs`) writes the same
+layer, by convention as the instance `syntax`, from the item's dependency
+treelets instead of its word n-grams, so clauses of one syntactic
+template sketch alike whatever names, amounts and dates they carry.
+`A` is `Tokens` or `Words`, as for the dependency parser. Every word is
+a node named by its kind alone: the words of an entity are one node
+named by the entity's kind (overlaps resolved longest first), a number
+is a number, a content word (verb, noun, proper noun, adjective) is its
+lemma and POS tag, and a function word is its POS tag. The shingles are
+the one-hop arcs (head, relation, dependent, direction), at depth 2 the
+two-hop chains, and the core-argument frame of every head with a core
+argument (`nsubj`, `obj`, `iobj`, `ccomp`, `xcomp`, `obl`); an arc that
+leaves the item keeps only the outside head's POS tag. Every hash is
+seeded with the POS, relation and entity tag sets, so sketches made
+under different schemas are in different hash namespaces and agree only
+by chance. An item with no treelet (one word, or no arc inside it) keeps
+its word count and has the empty MinHash signature (every lane
+`u32::MAX`, `hash::is_empty_signature`), which `NearDuplicates`,
+`cross_duplicates` and `hash::jaccard` treat as similar to nothing, an
+empty row of another item included; an index over the band keys must
+skip such rows the same way. `shingle` holds the treelet
+depth, `exact` hashes the lowercased forms with their tags, and `shape`
+the sequence of nodes. `NearDuplicates<L>` and `cross_duplicates` link
+the instance as they link word sketches, and the search engine indexes
+its band keys the same way (`analysis/group/tests/syntax.rs`).
 
 Multi-level retrieval (`analysis/eval/records/turbo-chunker-254-200-level-*`,
 `all-MiniLM-L6-v2`, `--max 254 --target 200`, plain structure) nDCG@10:
