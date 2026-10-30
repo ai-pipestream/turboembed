@@ -89,15 +89,16 @@ fn models_validate_vocabulary_transitions_dimensions_and_finite_parameters() {
 
 #[test]
 fn wire_decoders_reject_truncated_payloads_with_oversized_counts() {
-    let mut bad_lin = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\0"[..]);
+    let mut bad_lin = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\n"[..]);
     bad_lin.push(1); // EscapedV1
     bad_lin.extend_from_slice(&2u32.to_le_bytes());
     bad_lin.extend_from_slice(b"en");
     bad_lin.push(0); // Maxent
     bad_lin.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized n_outcomes
-    assert!(DependencyModel::from_bytes(&bad_lin).is_err());
+    let err = DependencyModel::from_bytes(&bad_lin).unwrap_err();
+    assert!(err.to_string().contains("outcome count"), "{err}");
 
-    let mut bad_preds = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\0"[..]);
+    let mut bad_preds = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\n"[..]);
     bad_preds.push(1);
     bad_preds.extend_from_slice(&2u32.to_le_bytes());
     bad_preds.extend_from_slice(b"en");
@@ -106,9 +107,10 @@ fn wire_decoders_reject_truncated_payloads_with_oversized_counts() {
     bad_preds.extend_from_slice(&5u32.to_le_bytes());
     bad_preds.extend_from_slice(b"SHIFT");
     bad_preds.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized n_preds
-    assert!(DependencyModel::from_bytes(&bad_preds).is_err());
+    let err = DependencyModel::from_bytes(&bad_preds).unwrap_err();
+    assert!(err.to_string().contains("predicate count"), "{err}");
 
-    let mut bad_pat = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\0"[..]);
+    let mut bad_pat = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\n"[..]);
     bad_pat.push(1);
     bad_pat.extend_from_slice(&2u32.to_le_bytes());
     bad_pat.extend_from_slice(b"en");
@@ -120,16 +122,18 @@ fn wire_decoders_reject_truncated_payloads_with_oversized_counts() {
     bad_pat.extend_from_slice(&2u32.to_le_bytes());
     bad_pat.extend_from_slice(b"p0");
     bad_pat.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized pat_len
-    assert!(DependencyModel::from_bytes(&bad_pat).is_err());
+    let err = DependencyModel::from_bytes(&bad_pat).unwrap_err();
+    assert!(err.to_string().contains("pattern length"), "{err}");
 
-    let mut bad_ff = Vec::from(&b"TURBO-DEPPARSE-FF-V1\0"[..]);
+    let mut bad_ff = Vec::from(&b"TURBO-DEPPARSE-FF-V1\n"[..]);
     bad_ff.extend_from_slice(&[0, 0, 1]); // layout, activation, label_encoding
     bad_ff.extend_from_slice(&4u32.to_le_bytes()); // default_beam_size
     bad_ff.extend_from_slice(&0u32.to_le_bytes()); // words
     bad_ff.extend_from_slice(&0u32.to_le_bytes()); // pos
     bad_ff.extend_from_slice(&0u32.to_le_bytes()); // labels
     bad_ff.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized n_transitions
-    assert!(FeedforwardDependencyModel::from_bytes(&bad_ff).is_err());
+    let err = FeedforwardDependencyModel::from_bytes(&bad_ff).unwrap_err();
+    assert!(err.to_string().contains("transition count"), "{err}");
 }
 
 #[test]

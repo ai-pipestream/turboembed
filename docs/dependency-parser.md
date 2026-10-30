@@ -2,8 +2,9 @@
 
 `turbo-depparse` implements OpenNLP 3.x arc-standard parsing, training,
 UAS/LAS evaluation and document annotation (inventory 68, 69, 72).
-Ten permissive UD 2.16 dependency parser models (five languages x MaxEnt and
-Feedforward) are listed in the built-in model zoo under release
+Eight permissive UD 2.16 dependency parser models (four languages x MaxEnt and
+Feedforward: Spanish and Catalan AnCora, Finnish FTB, and Italian MarkIT) are
+defined in `analysis/train-recipes/src/release.rs` under release
 `models-ud-depparse-2.16-1`.
 
 ## Graph and alignment
@@ -44,14 +45,14 @@ Conversion without alignment metadata fails.
 
 ## Model and pipeline
 
-The public transition/state/oracle/context APIs extract 38 ordered context
-features (37 configuration templates plus relative stack/buffer order).
+The public transition/state/oracle/context APIs extract 37 ordered context
+features, including relative stack/buffer order.
 Projective parsing uses 2n transitions (`SWAP` allows up to O(n²) steps).
 `DependencyModel::train` defaults to pseudo-projective lifting so non-projective
-trees are retained during training; `train_projective` skips non-projective
-samples and reports the skip count, and `train_swap` trains with the `SWAP`
-oracle. The greedy decoder picks the first highest-scoring legal outcome and
-rejects malformed inventories or non-finite scores.
+trees are retained during training; `train_projective` refuses non-projective
+samples with an error (`Error::NonProjectiveSample`), and `train_swap` trains
+with the `SWAP` oracle. The greedy decoder picks the first highest-scoring
+legal outcome and rejects malformed inventories or non-finite scores.
 
 `DependencyModel::from_bytes` and `DependencyModel::to_bytes` serialize the
 linear model in the deterministic native `TURBO-DEPPARSE-LIN-V1` binary wire
