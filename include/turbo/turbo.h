@@ -18,7 +18,8 @@
  *   - Strings are UTF-8 views (turbo_text), valid for the call. Bad UTF-8 is
  *     TURBO_E_INVALID_UTF8.
  *   - Every function returns a status code. Details go to the caller-owned
- *     turbo_error, which may be NULL. There is no global error state.
+ *     turbo_error, which may be NULL. There is no error state shared between
+ *     threads; turbo_last_error_message is a separate per-thread diagnostic.
  *   - Handles are opaque and reference counted. A child keeps its parent
  *     alive. Release functions accept NULL.
  *   - Runtime, context, model and tokenizer may be used from any thread.
@@ -87,9 +88,11 @@ typedef struct turbo_runtime   turbo_runtime;   /* the library, its devices */
 typedef struct turbo_context   turbo_context;   /* one device, its memory   */
 typedef struct turbo_buffer    turbo_buffer;    /* memory on host or device */
 typedef struct turbo_model     turbo_model;     /* a bundle loaded on a context */
-typedef struct turbo_session   turbo_session;   /* inputs, one run at a time */
-typedef struct turbo_result    turbo_result;    /* outputs of one run       */
-typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
+typedef struct turbo_session         turbo_session;         /* inputs, one run at a time */
+typedef struct turbo_result          turbo_result;          /* outputs of one run       */
+typedef struct turbo_tokenizer       turbo_tokenizer;       /* the bundle's tokenizer   */
+typedef struct turbo_analyzer        turbo_analyzer;        /* in-process text analysis */
+typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans and graph */
 
 /* ---- Status codes ------------------------------------------------------ */
 
@@ -317,6 +320,10 @@ const char *turbo_version(void);
  * "TURBO_E_CAPACITY" for 771, and "TURBO_E_UNKNOWN" for a code this file
  * does not define. The string is static. */
 const char *turbo_status_name(int32_t code);
+/* The message written by the most recent failing C ABI call on the calling
+ * thread, or "" when the most recent call on this thread succeeded. Valid
+ * until the next C ABI call on the same thread. */
+const char *turbo_last_error_message(void);
 
 int32_t turbo_runtime_device_count(turbo_runtime *rt, uint32_t *out, turbo_error *err);
 int32_t turbo_runtime_device_info(turbo_runtime *rt, uint32_t index, turbo_device_info *out, turbo_error *err);
@@ -775,6 +782,242 @@ int32_t turbo_result_read(turbo_result *r, void *dst, uint64_t capacity, uint64_
 int32_t turbo_result_buffer(turbo_result *r, turbo_buffer **out, turbo_error *err);
 
 void    turbo_result_release(turbo_result *r);
+
+/* ---- Analysis ---------------------------------------------------------- */
+
+#define TURBO_ANALYSIS_LAYER_SENTENCES 1
+#define TURBO_ANALYSIS_LAYER_TOKENS    2
+#define TURBO_ANALYSIS_LAYER_POS       3
+#define TURBO_ANALYSIS_LAYER_LEMMAS    4
+#define TURBO_ANALYSIS_LAYER_ENTITIES  5
+#define TURBO_ANALYSIS_LAYER_PII       6
+#define TURBO_ANALYSIS_LAYER_CHUNKS    7
+
+#define TURBO_SPAN_VIEW_RANGE   (1u << 0)
+#define TURBO_SPAN_SOURCE_RANGE (1u << 1)
+#define TURBO_SPAN_TOKEN_RANGE  (1u << 2)
+#define TURBO_SPAN_LABEL        (1u << 3)
+#define TURBO_SPAN_VALUE        (1u << 4)
+#define TURBO_SPAN_PROBABILITY  (1u << 5)
+
+#define TURBO_PII_CONFIDENCE_FORMAT   1
+#define TURBO_PII_CONFIDENCE_CHECKSUM 2
+#define TURBO_PII_CONFIDENCE_LABELLED 3
+
+/* Model selection for an in-process analysis pipeline. desc may be NULL for
+ * English with the rule sentence splitter and rule tokenizer only. An empty
+ * path never selects a dictionary, recognizer or fixture: POS, lemmatization
+ * and NER then fail with TURBO_E_UNSUPPORTED_TASK. The rule sentence and
+ * tokenizer paths report no probability. */
+typedef struct turbo_analyzer_desc {
+    uint32_t   struct_size;
+    uint32_t   flags;
+    turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
+    turbo_text sent_model_path;   /*2: optional OpenNLP sentence model .bin path */
+    turbo_text tok_model_path;    /*3: optional OpenNLP tokenizer model .bin path */
+    turbo_text pos_model_path;    /*4: optional OpenNLP POS model .bin path */
+    turbo_text lemma_model_path;  /*5: optional OpenNLP lemmatizer model/dict path */
+    turbo_text ner_model_path;    /*6: optional OpenNLP TokenNameFinder .bin path */
+} turbo_analyzer_desc;
+
+/* One typed row in an analysis result. The row identifies its layer kind,
+ * full layer id and instance (pool slices), item and fragment. Its view
+ * range is in view_id's coordinate space; its source range is the checked
+ * projection to the source view. Ranges carry UTF-8 byte, UTF-16 code-unit
+ * and Unicode scalar bounds. Fields are meaningful only under their
+ * TURBO_SPAN_* flag: token-only rows have no text range, absent numeric
+ * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
+ * Discontinuous items emit one row per fragment. classification is
+ * layer-specific (TURBO_PII_CONFIDENCE_* for PII, otherwise zero). */
+typedef struct turbo_span {
+    uint32_t layer_kind;
+    uint32_t flags;
+    uint32_t item_index;
+    uint32_t fragment_index;
+    uint32_t view_id;
+    uint32_t classification;
+    uint32_t view_byte_start;
+    uint32_t view_byte_end;
+    uint32_t view_utf16_start;
+    uint32_t view_utf16_end;
+    uint32_t view_codepoint_start;
+    uint32_t view_codepoint_end;
+    uint32_t source_byte_start;
+    uint32_t source_byte_end;
+    uint32_t source_utf16_start;
+    uint32_t source_utf16_end;
+    uint32_t source_codepoint_start;
+    uint32_t source_codepoint_end;
+    uint32_t token_start;
+    uint32_t token_end;
+    uint32_t layer_offset;
+    uint32_t layer_len;
+    uint32_t instance_offset;
+    uint32_t instance_len;
+    uint32_t label_offset;
+    uint32_t label_len;
+    uint32_t value_offset;
+    uint32_t value_len;
+    double   prob;
+} turbo_span;
+
+int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **out, turbo_error *err);
+turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *a);
+void    turbo_analyzer_release(turbo_analyzer *a);
+
+/* Detect sentence spans in UTF-8 text. Sentence text is read from the
+ * row's source range; no covered-text copy is put in the string pool. */
+int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text text,
+                                        turbo_analysis_result **out, turbo_error *err);
+
+/* Tokenize UTF-8 text. Token text is read from each row's source range;
+ * its token range is the one-token range at its item index. */
+int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
+                                turbo_analysis_result **out, turbo_error *err);
+
+/* Tag one independent, pre-tokenized sequence with the configured model.
+ * Rows are token-only: a label and probability are present only when the
+ * model finds a sequence. Without a POS model this is unsupported. */
+int32_t turbo_analyzer_pos_tag(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                               turbo_analysis_result **out, turbo_error *err);
+
+/* Lemmatize count (token, pos_tag) pairs with the configured dictionary or
+ * model. A dictionary miss has no label and no probability; it is never
+ * replaced by a lowercased form. Without a lemma path this is unsupported. */
+int32_t turbo_analyzer_lemmatize(turbo_analyzer *a, const turbo_text *tokens,
+                                 const turbo_text *tags, uint32_t count,
+                                 turbo_analysis_result **out, turbo_error *err);
+
+/* Find named entities over one independent pre-tokenized sequence with the
+ * configured TokenNameFinder model only. No dictionary, regex or other
+ * recognizer is merged in. Each call starts with fresh model context; no
+ * adaptive data is retained between calls. */
+int32_t turbo_analyzer_find_tokens(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                                   turbo_analysis_result **out, turbo_error *err);
+
+/* Find named entities directly in UTF-8 text with the configured model,
+ * after tokenizing it with this analyzer's selected tokenizer. */
+int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
+                                 turbo_analysis_result **out, turbo_error *err);
+
+/* Detect structured PII directly in UTF-8 text. This is a separate task
+ * from named-entity recognition; its rows carry the kind as label, the
+ * normalized value as value, and TURBO_PII_CONFIDENCE_* as classification. */
+int32_t turbo_analyzer_detect_pii(turbo_analyzer *a, turbo_text text,
+                                  turbo_analysis_result **out, turbo_error *err);
+
+/* Run the configured analysis layers over UTF-8 text, serialize the binary
+ * DocumentGraph ("TGRF" wire format) into the result's graph buffer, and
+ * expose every supported layer instance as typed rows. A layer whose model
+ * is not configured is absent, never replaced by a fallback layer. */
+int32_t turbo_analyzer_analyze_graph(turbo_analyzer *a, turbo_text text,
+                                     turbo_analysis_result **out, turbo_error *err);
+
+/* Validate a binary DocumentGraph ("TGRF") buffer using the source text
+ * stored in the graph itself, and decode every supported layer instance.
+ * View coordinates and their checked source projections are both reported. */
+int32_t turbo_analyzer_inspect_graph(turbo_analyzer *a,
+                                     const uint8_t *graph_bytes, uint64_t graph_len,
+                                     turbo_analysis_result **out, turbo_error *err);
+
+/* Borrow the result's span array (*spans may be NULL when *count is 0). */
+int32_t turbo_analysis_result_spans(const turbo_analysis_result *r,
+                                    const turbo_span **spans, uint32_t *count,
+                                    turbo_error *err);
+
+/* Borrow the result's contiguous UTF-8 string pool (*pool may be NULL when
+ * *bytes is 0). Layer, instance, label and value offset/length pairs slice
+ * this pool. */
+int32_t turbo_analysis_result_strings(const turbo_analysis_result *r,
+                                      const char **pool, uint64_t *bytes,
+                                      turbo_error *err);
+
+/* Borrow the result's serialized DocumentGraph ("TGRF") wire buffer (*data
+ * may be NULL when *bytes is 0). */
+int32_t turbo_analysis_result_graph(const turbo_analysis_result *r,
+                                    const uint8_t **data, uint64_t *bytes,
+                                    turbo_error *err);
+
+turbo_analysis_result *turbo_analysis_result_retain(turbo_analysis_result *r);
+void    turbo_analysis_result_release(turbo_analysis_result *r);
+
+/* Segment UTF-8 text into dynamic-programming retrieval chunks with target
+ * token size target_tokens and hard budget max_tokens. Each row has
+ * layer_kind = TURBO_ANALYSIS_LAYER_CHUNKS, classification = token count,
+ * and label = cut reason. */
+int32_t turbo_analyzer_chunk_text(turbo_analyzer *a, turbo_text text,
+                                  uint32_t target_tokens, uint32_t max_tokens,
+                                  turbo_analysis_result **out, turbo_error *err);
+
+/* ---- Apache Arrow C Data Interface ------------------------------------- */
+
+#ifndef ARROW_C_DATA_INTERFACE
+#define ARROW_C_DATA_INTERFACE
+
+#define ARROW_FLAG_DICTIONARY_ORDERED 1
+#define ARROW_FLAG_NULLABLE           2
+#define ARROW_FLAG_MAP_KEYS_SORTED    4
+
+struct ArrowSchema {
+    const char *format;
+    const char *name;
+    const char *metadata;
+    int64_t flags;
+    int64_t n_children;
+    struct ArrowSchema **children;
+    struct ArrowSchema *dictionary;
+    void (*release)(struct ArrowSchema *);
+    void *private_data;
+};
+
+struct ArrowArray {
+    int64_t length;
+    int64_t null_count;
+    int64_t offset;
+    int64_t n_buffers;
+    int64_t n_children;
+    const void **buffers;
+    struct ArrowArray **children;
+    struct ArrowArray *dictionary;
+    void (*release)(struct ArrowArray *);
+    void *private_data;
+};
+
+#endif /* ARROW_C_DATA_INTERFACE */
+
+#ifndef ARROW_C_STREAM_INTERFACE
+#define ARROW_C_STREAM_INTERFACE
+
+struct ArrowArrayStream {
+    int (*get_schema)(struct ArrowArrayStream *, struct ArrowSchema *out);
+    int (*get_next)(struct ArrowArrayStream *, struct ArrowArray *out);
+    const char *(*get_last_error)(struct ArrowArrayStream *);
+    void (*release)(struct ArrowArrayStream *);
+    void *private_data;
+};
+
+#endif /* ARROW_C_STREAM_INTERFACE */
+
+typedef struct ArrowSchema ArrowSchema;
+typedef struct ArrowArray ArrowArray;
+typedef struct ArrowArrayStream ArrowArrayStream;
+
+/* Export rows of r matching layer_kind (or all rows when layer_kind is 0) as
+ * an Apache Arrow struct RecordBatch (format "+s"). The caller owns
+ * out_schema and out_array and must invoke their release callbacks. */
+int32_t turbo_analysis_result_to_arrow(const turbo_analysis_result *r,
+                                       uint32_t layer_kind,
+                                       ArrowSchema *out_schema,
+                                       ArrowArray *out_array,
+                                       turbo_error *err);
+
+/* Export rows of r matching layer_kind (or all rows when layer_kind is 0) as
+ * a single-batch Apache Arrow C Stream. The caller owns out_stream and must
+ * invoke its release callback. */
+int32_t turbo_analysis_result_to_arrow_stream(const turbo_analysis_result *r,
+                                              uint32_t layer_kind,
+                                              ArrowArrayStream *out_stream,
+                                              turbo_error *err);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turboembed-native"
+version = "0.1.0"
+description = "In-process native Python bindings for TurboEmbed (libturbo) with zero-copy NumPy buffer protocol and Apache Arrow / Polars export."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.24"]
+arrow = ["pyarrow>=14.0", "polars>=0.20"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["turboembed_native*"]

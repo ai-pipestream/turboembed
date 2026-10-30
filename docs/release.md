@@ -29,6 +29,9 @@ each with its SHA-256:
 
 The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 `grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
+in-process Python bindings and `cp310-abi3` wheel builder over
+`include/turbo/turbo.h` with zero-copy NumPy buffer protocol and Apache Arrow
+PyCapsule export live in `clients/python-native/` (`turboembed-native`). The
 Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
 (`Cargo.lock`).
 

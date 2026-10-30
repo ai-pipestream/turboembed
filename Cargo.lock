@@ -1946,9 +1946,18 @@ dependencies = [
  "serde_path_to_error",
  "tokenizers",
  "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-geo",
  "turbo-goldens",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-pii",
  "turbo-pins",
+ "turbo-sentdetect",
+ "turbo-sequence",
  "turbo-sha256",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
