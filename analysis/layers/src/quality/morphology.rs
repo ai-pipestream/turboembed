@@ -230,7 +230,7 @@ pub(crate) fn deinflect_3sg_verb(lower: &str) -> String {
         }
     }
     if let Some(stem) = lower.strip_suffix("es").filter(|s| s.ends_with("us") || s.ends_with("as"))
-        && !needs_silent_e(stem)
+        && NON_SILENT_E_STEMS.iter().any(|group| group.contains(&stem))
     {
         return stem.to_owned();
     }
@@ -305,10 +305,10 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
             return Some(match_case(surface, &format!("{stem}ie")));
         }
         if let Some(stem) = lower.strip_suffix("ed").filter(|s| s.len() >= 2) {
-            return Some(match_case(surface, &restore_regular_verb_stem(stem)));
+            return restore_regular_verb_stem(stem).map(|base| match_case(surface, &base));
         }
         if let Some(stem) = lower.strip_suffix("ing").filter(|s| s.len() >= 2) {
-            return Some(match_case(surface, &restore_regular_verb_stem(stem)));
+            return restore_regular_verb_stem(stem).map(|base| match_case(surface, &base));
         }
         if pos_tag == "VBZ" || looks_3sg_verb(&lower) {
             let base = deinflect_3sg_verb(&lower);
@@ -320,23 +320,42 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
     None
 }
 
-fn restore_regular_verb_stem(stem: &str) -> String {
+fn restore_regular_verb_stem(stem: &str) -> Option<String> {
     if stem == "quizz" {
-        return "quiz".to_owned();
+        return Some("quiz".to_owned());
     }
     if stem.len() >= 3 && ["bb", "dd", "gg", "mm", "nn", "pp", "rr", "tt"].iter().any(|d| stem.ends_with(d)) {
-        return stem[..stem.len() - 1].to_owned();
+        return Some(stem[..stem.len() - 1].to_owned());
     }
-    if needs_silent_e(stem) {
-        return format!("{stem}e");
+    if NON_SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
+        return Some(stem.to_owned());
     }
-    stem.to_owned()
+    if SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) || has_unambiguous_silent_e_ending(stem) {
+        return Some(format!("{stem}e"));
+    }
+    let bytes = stem.as_bytes();
+    let n = bytes.len();
+    let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
+    let is_stem_vowel = |k: usize| is_vowel(bytes[k]) || (bytes[k] == b'y' && k > 0);
+    let vowel_groups = (0..n).filter(|&k| is_stem_vowel(k) && (k == 0 || !is_stem_vowel(k - 1))).count();
+    if vowel_groups == 1 {
+        let last = bytes[n - 1];
+        let prev = bytes[n - 2];
+        let is_vce_consonant =
+            matches!(last, b'b' | b'd' | b'f' | b'g' | b'k' | b'l' | b'm' | b'n' | b'p' | b'r' | b's' | b't' | b'z');
+        let qu_before_vowel = n >= 4 && bytes[n - 4] == b'q' && bytes[n - 3] == b'u';
+        if is_vce_consonant && is_vowel(prev) && (n == 2 || !is_vowel(bytes[n - 3]) || qu_before_vowel) {
+            return Some(format!("{stem}e"));
+        }
+        return Some(stem.to_owned());
+    }
+    None
 }
 
 const NON_SILENT_E_STEMS: &[&[&str]] = &[
     &["open", "iron", "edit", "exit", "omit", "emit", "echo", "arc", "sync", "zinc", "disc", "spec", "bus", "gas"],
-    &["yes", "plus", "bias", "unbias", "canvas", "atlas", "alias", "abandon", "button", "pardon", "poison", "reason"],
-    &["season", "summon", "question", "mention", "function", "position", "condition"],
+    &["yes", "plus", "bias", "unbias", "canvas", "atlas", "alias", "focus", "monitor", "honor", "abandon", "button"],
+    &["pardon", "poison", "reason", "season", "summon", "question", "mention", "function", "position", "condition"],
 ];
 
 const SILENT_E_STEMS: &[&[&str]] = &[
@@ -349,17 +368,15 @@ const SILENT_E_STEMS: &[&[&str]] = &[
     &["puls", "cleans", "invit", "ignit", "unit", "reunit", "excit", "recit", "incit", "complet", "compet", "delet"],
     &["deplet", "obsolet", "devot", "promot", "demot", "quot", "denot", "annot", "ignor", "explor", "restor"],
     &["underscor", "ador", "implor", "deplor", "abus", "accus", "amus", "confus", "diffus", "excus", "infus", "misus"],
-    &["perus", "refus", "reus", "suffus", "transfus", "disus", "overus"],
+    &["perus", "refus", "reus", "suffus", "transfus", "disus", "overus", "compar", "prepar", "declar", "welcom"],
+    &["refin", "defin", "combin", "requir", "acquir", "inquir"],
 ];
 
-fn needs_silent_e(stem: &str) -> bool {
+fn has_unambiguous_silent_e_ending(stem: &str) -> bool {
     let bytes = stem.as_bytes();
     let n = bytes.len();
-    if n < 2 || NON_SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
+    if n < 2 {
         return false;
-    }
-    if SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
-        return true;
     }
     let last = bytes[n - 1];
     let prev = bytes[n - 2];
@@ -376,17 +393,7 @@ fn needs_silent_e(stem: &str) -> bool {
         return true;
     }
     let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
-    if last == b'l' && !is_vowel(prev) && !matches!(prev, b'l' | b'r' | b'm' | b'n' | b'w' | b'y') {
-        return true;
-    }
-    if n > 4 && ["en", "er", "el", "al", "ol", "it", "et", "ot", "op", "or", "us"].iter().any(|suf| stem.ends_with(suf))
-    {
-        return false;
-    }
-    let is_vce_consonant =
-        matches!(last, b'b' | b'd' | b'f' | b'g' | b'k' | b'l' | b'm' | b'n' | b'p' | b'r' | b's' | b't' | b'z');
-    let qu_before_vowel = n >= 4 && bytes[n - 4] == b'q' && bytes[n - 3] == b'u';
-    is_vce_consonant && is_vowel(prev) && (n == 2 || !is_vowel(bytes[n - 3]) || qu_before_vowel)
+    last == b'l' && !is_vowel(prev) && !matches!(prev, b'l' | b'r' | b'm' | b'n' | b'w' | b'y')
 }
 
 pub(crate) fn irregular_verb_base(lower: &str) -> Option<&'static str> {

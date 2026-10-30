@@ -154,6 +154,28 @@ fn missing_infinitive_and_regular_verb_repairs() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+
+    for (form, lemma) in
+        [("beckoned", "beckon"), ("reckoned", "reckon"), ("blossomed", "blossom"), ("ransomed", "ransom")]
+    {
+        let text = format!("He can {form}.");
+        let tags_no_lemma = format!("He/PRP can/MD {form}/VBD ./.");
+        let d_no_lemma = GrammarChecker::new().check_document(&build_doc(&text, &tags_no_lemma)).unwrap();
+        let aux_diags: Vec<_> = d_no_lemma.iter().filter(|x| x.rule_id == "AUX-001").collect();
+        assert_eq!(aux_diags.len(), 1, "{text} without Lemmas should emit AUX-001: {d_no_lemma:?}");
+        assert!(
+            aux_diags[0].replacements.is_empty(),
+            "{text} without Lemmas must withhold ambiguous silent-e repair, got {:?}",
+            aux_diags[0].replacements
+        );
+        let tags_with_lemma = format!("He/PRP can/MD {form}/VBD/{lemma} ./.");
+        let d_with_lemma = GrammarChecker::new().check_document(&build_doc(&text, &tags_with_lemma)).unwrap();
+        assert!(
+            d_with_lemma.iter().any(|x| x.rule_id == "AUX-001" && x.replacements.iter().any(|r| r.as_ref() == lemma)),
+            "{text} with Lemmas should emit verified {lemma} replacement, got {:?}",
+            d_with_lemma.diagnostics
+        );
+    }
 }
 
 #[test]

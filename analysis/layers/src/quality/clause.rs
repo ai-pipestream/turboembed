@@ -324,16 +324,27 @@ pub(crate) fn check_auxiliaries(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
         {
             continue;
         }
+        let kind = if is_inf_to { "Infinitive marker" } else { "Auxiliary" };
         if let Some(base) = inflected_verb_to_base(v_surf, v_pos, cx.lemma_str(j))
             && !base.eq_ignore_ascii_case(v_surf)
         {
-            let kind = if is_inf_to { "Infinitive marker" } else { "Auxiliary" };
             out.push(GrammarDiagnostic::new(
                 cx.span(j),
                 "AUX-001",
                 GrammarCategory::AuxiliaryVerbForm,
                 format!("{kind} {:?} governs bare infinitive {:?}, found {:?}", cx.surface(i), base, v_surf),
                 [base],
+                0.95,
+            ));
+        } else if matches!(v_pos, "VBZ" | "VBD" | "VBN" | "VBG")
+            && (v_lower.ends_with("ed") || v_lower.ends_with("ing") || v_pos == "VBZ")
+        {
+            out.push(GrammarDiagnostic::new(
+                cx.span(j),
+                "AUX-001",
+                GrammarCategory::AuxiliaryVerbForm,
+                format!("{kind} {:?} requires a bare infinitive verb, found {:?}", cx.surface(i), v_surf),
+                Vec::<String>::new(),
                 0.95,
             ));
         }
