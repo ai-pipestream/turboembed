@@ -258,12 +258,7 @@ mod tests {
             model.eval(context, None, &mut probs_trained);
             let mut probs_read = [0.0; 2];
             read.eval(context, &mut probs_read);
-            for (pt, pr) in probs_trained.iter().zip(probs_read) {
-                assert!(
-                    (pt - pr).abs() < 1e-15,
-                    "trained vs serialized eval on {context:?}: {probs_trained:?} vs {probs_read:?}"
-                );
-            }
+            assert_eq!(probs_trained, probs_read);
 
             let best = best_outcome(&probs_read);
             assert_eq!(read.outcome_str(best), Some(expected_label));
