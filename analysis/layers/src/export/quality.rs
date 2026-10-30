@@ -1,10 +1,11 @@
-use super::*;
-use crate::quality::grammar::intern_rule_id;
-use crate::{
-    GrammarCategory, GrammarDiagnostic, GrammarDiagnostics, QualityFlags, QualityMetrics, SpanQuality, TextQuality,
-};
+use std::borrow::Cow;
 
-const MAX_DIAGNOSTIC_REPLACEMENTS: usize = 64;
+use super::*;
+use crate::quality::grammar::check_rule_id;
+use crate::{
+    GrammarCategory, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS, QualityFlags, QualityMetrics,
+    SpanQuality, TextQuality, builtin_rule_id,
+};
 
 fn put_metrics(w: &mut Writer, m: QualityMetrics) {
     for x in [
@@ -92,7 +93,7 @@ impl LayerCodec for GrammarDiagnostics {
         w.usize(self.diagnostics.len())?;
         for d in &self.diagnostics {
             d.check().map_err(malformed)?;
-            w.str(d.rule_id)?;
+            w.str(&d.rule_id)?;
             w.u8(d.category.as_u8());
             w.str(&d.message)?;
             w.usize(d.replacements.len())?;
@@ -110,13 +111,10 @@ impl LayerCodec for GrammarDiagnostics {
         let n = r.usize()?;
         want_len(n, spans.len(), "grammar diagnostics")?;
         let mut diagnostics = Vec::with_capacity(n);
-        for (ix, span) in spans.iter() {
-            if span.is_empty() || spans.is_discontinuous(ix) {
-                return Err(malformed("grammar diagnostic spans must be nonempty and continuous"));
-            }
+        for (_, span) in spans.iter() {
             let raw_rule = r.str()?;
-            let rule_id = intern_rule_id(raw_rule)
-                .ok_or_else(|| malformed("invalid or overflowed grammar diagnostic rule_id"))?;
+            check_rule_id(raw_rule).map_err(malformed)?;
+            let rule_id = builtin_rule_id(raw_rule).map_or_else(|| Cow::Owned(raw_rule.to_owned()), Cow::Borrowed);
             let category = GrammarCategory::from_byte(r.u8()?)
                 .ok_or_else(|| malformed("unknown grammar diagnostic category byte"))?;
             let message: Box<str> = r.str()?.into();

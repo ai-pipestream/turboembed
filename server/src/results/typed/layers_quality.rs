@@ -121,8 +121,8 @@ pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
                     probability: Some(f64::from(d.confidence)),
                     model_ref: mref.clone(),
                     value: Some(Value::GrammarDiagnostic(GrammarDiagnosticAnnotation {
-                        rule_id: d.rule_id.to_owned(),
-                        category: d.category.name().to_owned(),
+                        rule_id: d.rule_id.to_string(),
+                        category: Some(i32::from(d.category.as_u8())),
                         message: d.message.to_string(),
                         replacements: d.replacements.iter().map(ToString::to_string).collect(),
                         confidence: d.confidence,

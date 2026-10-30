@@ -14,14 +14,6 @@ use crate::phrases::phrases;
 
 /// Chunks the tagged tokens of each sentence with a maxent model: a chunk
 /// tag and its probability per token, and the phrases the tags make.
-///
-/// The search is `BeamSearch.bestSequence` over
-/// `DefaultChunkerContextGenerator` and `DefaultChunkerSequenceValidator`,
-/// as `ChunkerME.chunk(String[], String[])` runs it, so the tags are the
-/// JVM's and the probabilities (`probs()`) are bit for bit the JVM's
-/// doubles; the phrases are `ChunkSample.phrasesAsSpanList` over those
-/// tags, as `chunkAsSpans` returns them. A sentence is chunked on its
-/// own.
 #[derive(Clone, Debug)]
 pub struct PhraseChunker {
     model: Arc<ChunkerModel>,
@@ -45,14 +37,11 @@ impl PhraseChunker {
         Self::outcomes_with(&self.search(), words, &mut self.model.context(), &self.model.validator(), outcomes, probs)
     }
 
-    /// The search over the model, built once per call of `outcomes` and
-    /// once per document of `annotate`.
     fn search(&self) -> BeamSearch<'_> {
         BeamSearch::new(self.model.beam_size(), self.model.maxent())
             .expect("the outcomes were checked to be text when the model was opened")
     }
 
-    /// One sentence through `search`: what `outcomes` appends.
     fn outcomes_with<'m>(
         search: &BeamSearch<'m>,
         words: &[TokenTag<'_>],
@@ -92,11 +81,6 @@ impl Annotator for PhraseChunker {
     type Reads = (View, Tokens, PosTags);
     type Writes = (ChunkTags, PhraseChunks);
 
-    /// Chunks each sentence of the tokens (each run of tokens with the
-    /// same sentence, or all the tokens when they were not made per
-    /// sentence) with the tags' labels. The tokens must be spans of the
-    /// view read, and the tags one per token. A phrase's span runs from
-    /// the start of its first token to the end of its last.
     fn annotate(&self, (view, tokens, tags): Refs<'_, Self>) -> Result<(ChunkTags, PhraseChunks), Error> {
         if tokens.spans.view() != view.id() {
             return Err(Error::Annotator {
@@ -208,8 +192,6 @@ impl Annotator for PhraseChunker {
         Some(self.model.model_ref().clone())
     }
 
-    /// FNV-1a over the beam size, the one setting a `ChunkerME` is built
-    /// with.
     fn config_hash(&self) -> u64 {
         turbo_analysis::Fnv1a::new().u64(self.model.beam_size() as u64).finish()
     }
@@ -217,16 +199,13 @@ impl Annotator for PhraseChunker {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Status, ViewId};
     use turbo_analysis_layers::{Sentences, TagSet};
 
     use super::*;
 
     fn fixture() -> PhraseChunker {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin");
-        PhraseChunker::new(ChunkerModel::read(path).unwrap())
+        PhraseChunker::new(crate::model::tests::test_fixture_model())
     }
 
     fn tagged<'a>(words: &[(&'a str, &'a str)]) -> Vec<TokenTag<'a>> {
@@ -248,14 +227,12 @@ mod tests {
             [("The", "DT"), ("cat", "NN"), ("sat", "VBD"), ("on", "IN"), ("the", "DT"), ("mat", "NN"), (".", ".")];
         assert_eq!(labels(&c, &words), ["B-NP", "I-NP", "B-VP", "B-PP", "B-NP", "I-NP", "O"]);
         assert_eq!(labels(&c, &[]), Vec::<String>::new());
-        // The outcomes are the labels of the tags.
         let (mut outcomes, mut probs) = (Vec::new(), Vec::new());
         assert!(c.outcomes(&tagged(&words), &mut outcomes, &mut probs));
         assert_eq!(outcomes, ["B-NP", "I-NP", "B-VP", "B-PP", "B-NP", "I-NP", "O"]);
         assert_eq!(probs.len(), 7);
     }
 
-    /// Tokens over `text` at the given byte spans, each in sentence `s`.
     fn tokens(view: ViewId, spans: &[(u32, u32, u32)]) -> Tokens {
         let mut out = Spans::new(view);
         for &(a, b, _) in spans {
@@ -329,7 +306,6 @@ mod tests {
             shown[..4],
             [("The cat", "NP", (0, 2)), ("sat", "VP", (2, 3)), ("on", "PP", (3, 4)), ("the mat", "NP", (4, 6))]
         );
-        // The second sentence's phrases index its own tokens.
         assert!(shown[4..].iter().all(|&(_, _, (s, _))| s >= 7), "{shown:?}");
         let p = doc.provenance(key.id()).unwrap();
         assert_eq!(p.annotator, "turbo-phrase-chunker:maxent");
@@ -354,7 +330,6 @@ mod tests {
         c.chunk(&tagged(&[("The", "DT"), ("cat", "NN"), (".", ".")]), &mut want, &mut probs);
         assert_eq!(got.tags, want);
         assert_eq!(got.prob.as_deref().unwrap(), &probs[..]);
-        // Without a sentence column the six tokens are one sentence.
         let mut one = two;
         one.sentence = None;
         let (got, _) = c.annotate((view, &one, &tags)).unwrap();
@@ -392,7 +367,6 @@ mod tests {
         let view = doc.get::<View>().unwrap();
         let c = fixture();
 
-        // Sentence column shorter or longer than tokens.
         let mut short_sent = tokens(view.id(), &[(0, 3, 0), (7, 10, 0)]);
         short_sent.sentence = Some(vec![Ix::new(0)]);
         assert!(matches!(c.annotate((view, &short_sent, &penn(&["DT", "NN"]))), Err(Error::Annotator { .. })));
@@ -400,14 +374,12 @@ mod tests {
         long_sent.sentence = Some(vec![Ix::new(0), Ix::new(0)]);
         assert!(matches!(c.annotate((view, &long_sent, &penn(&["DT"]))), Err(Error::Annotator { .. })));
 
-        // Out-of-bounds POS tag index.
         let bad_tags = PosTags { tagset: TagSet::new("penn", &["DT"]), tags: vec![Tag(5)], prob: None };
         assert!(matches!(
             c.annotate((view, &tokens(view.id(), &[(0, 3, 0)]), &bad_tags)),
             Err(Error::Annotator { .. })
         ));
 
-        // Inverted, out-of-bounds, and mid-codepoint UTF-8 token spans.
         for (s, e) in [(5, 3), (0, 99), (4, 5)] {
             let mut spans = Spans::new(view.id());
             spans.push(Span { start: s, end: e });
@@ -415,7 +387,6 @@ mod tests {
             assert!(matches!(c.annotate((view, &bad_span, &penn(&["DT"]))), Err(Error::Annotator { .. })));
         }
 
-        // Out-of-order tokens within a sentence.
         let unsorted = tokens(view.id(), &[(7, 10, 0), (0, 3, 0)]);
         assert!(matches!(c.annotate((view, &unsorted, &penn(&["DT", "NN"]))), Err(Error::Annotator { .. })));
     }

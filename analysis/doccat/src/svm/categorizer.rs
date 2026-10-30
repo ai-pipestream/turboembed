@@ -13,7 +13,6 @@ use turbo_jvm::text::double_to_string;
 use super::error::ModelError;
 use super::model::SvmDoccatModel;
 use super::vector::{Scratch, vectorize};
-use crate::java::double_compare;
 
 /// `DocumentCategorizerSVM` over an [`SvmDoccatModel`].
 #[derive(Debug)]
@@ -98,12 +97,12 @@ impl SvmCategorizer {
         out
     }
 
-    /// The categories best first: by score as `Double.compare` orders,
+    /// The categories best first: by score in descending total order,
     /// ties in category order, so the first is `getBestCategory`'s.
     pub fn rank(&self, outcome: &[f64], order: &mut Vec<usize>) {
         order.clear();
         order.extend(0..outcome.len());
-        order.sort_by(|&a, &b| double_compare(outcome[b], outcome[a]));
+        order.sort_by(|&a, &b| outcome[b].total_cmp(&outcome[a]));
     }
 }
 

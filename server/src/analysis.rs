@@ -39,6 +39,9 @@ pub(crate) struct Analysis {
     pub(crate) admin: bool,
     /// Where completed stream documents are forwarded, when anywhere.
     pub(crate) sink: Option<Arc<crate::sink::SinkForwarder>>,
+    /// The model catalog, whose acceptance file LoadBundle checks a
+    /// bundle's licence against (catalog/gate.rs); none without one.
+    pub(crate) catalog: Option<crate::catalog::Catalog>,
 }
 
 fn plain(f: Failure) -> Status {
@@ -91,6 +94,13 @@ impl AnalysisService for Analysis {
         }
         let req = req.into_inner();
         let (name, config) = load_config(&req).map_err(plain)?;
+        if let Some(catalog) = self.catalog.clone() {
+            let (bundle, user) = (req.bundle.clone(), req.user.clone());
+            tokio::task::spawn_blocking(move || crate::catalog::check_load(&catalog, &bundle, &user, 12))
+                .await
+                .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the licence check failed: {e}"))))?
+                .map_err(plain)?;
+        }
         // The registration this request owns, by identity, through
         // loading, the answer, and rollback: a same-named replacement is
         // a different Arc and is never touched.
@@ -141,7 +151,13 @@ impl AnalysisService for Analysis {
     }
 
     async fn round_trip_chunk_levels(&self, req: Request<ChunkLevelsResult>) -> Reply<ChunkLevelsResult> {
-        round_trip::<_, ChunkLevels>(req)
+        let msg = req.into_inner();
+        let cl = ChunkLevels::from_msg(&msg).map_err(plain)?;
+        let out = match ChunkLevels::citations_from_msg(&msg).map_err(plain)? {
+            Some(c) => cl.to_msg_with_citations(&c),
+            None => cl.to_msg(),
+        };
+        Ok(Response::new(out))
     }
 
     async fn round_trip_document_graph(&self, req: Request<DocumentGraphRequest>) -> Reply<DocumentGraphResponse> {

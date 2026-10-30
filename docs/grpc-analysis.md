@@ -46,9 +46,9 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 
 | Profile | Version | Steps | Produced Layers | Required Bundles |
 |---|---|---|---|---|
-| `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `opennlp:sentences`, `opennlp:tokens`, `turbo:boundaries`, `opennlp:entities`, `opennlp:subwords`, `turbo:chunks`, `turbo:levels`, `opennlp:embeddings<turbo:chunks>` | `TASK_EMBED` |
+| `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `Sentences`, `Tokens`, `turbo:boundaries`, `Entities`, `Subwords`, `turbo:chunks`, `turbo:levels`, `Embeddings<turbo:chunks>` | `TASK_EMBED` |
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
-| `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `opennlp:sentences`, `opennlp:tokens` | *(none)* |
+| `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
 
 A profile's output set never changes within a version. When a profile or
 explicit step requires a bundle capability (`TASK_EMBED` or `embed.sparse`)
@@ -82,7 +82,7 @@ is converted and validated against `text`. An offset
 that is out of bounds, inverted, or inside a code point or a UTF-16
 surrogate pair refuses with `TURBO_E_INVALID_ARGUMENT`; nothing is
 snapped to a boundary. `ChunkLevelsResult` carries `turbo:chunks`,
-`turbo:levels`, and `opennlp:embeddings` over the chunks in one round
+`turbo:levels`, and `Embeddings` over the chunks in one round
 trip, fragments included. `RoundTripDocumentGraph` takes binary
 `DocumentGraph` bytes and answers with the same document imported and
 re-exported through a `OnceLock<Codecs>` registry
@@ -93,8 +93,8 @@ workspace `LayerCodec` registrations (`turbo-analysis-layers`,
 `turbo-gliner`, `turbo-glossary-layers`, `turbo-group`,
 `turbo-keywords`, `turbo-normalize-layers`, `turbo-relation`,
 `turbo-schema-extract`, `turbo-stopword-layers`, and
-`turbo-tokenize-layers`), listing every layer's standard id (`opennlp:*` or
-`turbo:*`), instance, provenance (annotator, version, model, config
+`turbo-tokenize-layers`), listing every layer's standard id,
+instance, provenance (annotator, version, model, config
 hash), item count, and status (`OK`, `SKIPPED`, or `FAILED` with its
 detail), and every view likewise. Layers whose codecs the server does
 not register are refused by name, never dropped.
@@ -187,6 +187,15 @@ and until then they refuse with `TURBO_E_UNSUPPORTED` (`UNIMPLEMENTED`).
 bundle's task via `turbo_runtime_select`, and any load or session creation
 failure returns its mapped gRPC status code with `turbo-code` and
 `turbo-field` trailing metadata (docs/kserve.md, Errors).
+On a server started with a catalog (docs/grpc-catalog.md), a bundle whose
+`model.license` is in a class that needs acceptance (docs/zoo.md, licence
+classes) loads only for a user who accepted it in the catalog's
+acceptance file: `user` (field 12) names that user, and a load without
+one, or for a user who has not accepted, refuses with
+`TURBO_E_INVALID_STATE` (`FAILED_PRECONDITION`) naming the terms to read.
+A `LicenseRef-RestrictedPublic` bundle names no host, so any of the user's
+acceptances under that licence counts. A permissive bundle, or one on a
+server without a catalog, needs no user.
 Even with the flag they take a plaintext, unauthenticated gRPC port into
 trust, the same trust every request already carries; put the port behind
 what a deployment uses for that (docs/grpc.md, Starting it).
@@ -283,25 +292,40 @@ first, or an unknown order value, refuses the same way.
 After the header the client sends `AnalyzeDocument` messages: a client
 correlation `id` (non-empty, carried back on the answer), the served
 model's `name`, the `text`, `AnalyzeOptions` (the fields of
-`turbo_embed_options`, each 0 for the model's default, plus
-`sparse_top_k`, `sparse_floor`, and `token_stride`), `output`
+`turbo_embed_options`, each 0 for the model's default, `quantization`
+and `int8_ranges` among them, plus `sparse_top_k`, `sparse_floor`, and
+`token_stride`), `output`
 (`ANALYZE_OUTPUT_VECTORS` by default, `ANALYZE_OUTPUT_SPARSE_TERMS` for
-learned sparse lexical expansion, or `ANALYZE_OUTPUT_TOKEN_VECTORS` for
-per-token contextual vectors and encoder window spans), and `offsets`
+learned sparse lexical expansion, `ANALYZE_OUTPUT_TOKEN_VECTORS` for
+per-token contextual vectors and encoder window spans, or
+`ANALYZE_OUTPUT_VECTOR_CODES` for the pooled vector's quantized codes), and `offsets`
 (`OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, or `OFFSET_MODE_CODE_POINT` for
 span offsets on `SparseTermsResult` and `TokenVectorsResult`). Every
 document answers exactly once as an `AnalyzeStreamResponse` tagged with
 its id:
 - `AnalyzeVectors`, whose `data` is byte for byte the row the
   single-document call's `raw_output_contents` carries for the same text
-  and options;
+  and options, and whose `quantization` says how: f32, int8 codes or
+  packed sign bits (docs/kserve.md, Output). `int8_ranges` is
+  `[2, width]` row-major, width the document's `output_dim` or the
+  model's `dim`; another length is the document's
+  `TURBO_E_INVALID_ARGUMENT` naming field 8, and documents batch together
+  only under the same table. A `quantization` other than 0 or
+  `TURBO_QUANTIZE_NONE` with a sparse-terms or token-vectors `output`
+  is `TURBO_E_UNSUPPORTED_OPTION` naming field 7, as is a codes output
+  whose `quantization` names f32;
 - `SparseTermsResult` (`ANALYZE_OUTPUT_SPARSE_TERMS`, issue #917),
   computed on the model's pooled sessions with its MLM head (`SPLADE`
   max-log pooling) and matching `SparseAnnotator`;
 - `TokenVectorsResult` (`ANALYZE_OUTPUT_TOKEN_VECTORS`, issue #917),
   computed on the model's pooled sessions (with optional linear
   `ProjectionHead` for `ColBERT` / late-interaction bundles) and matching
-  `VectorAnnotator` (`SubwordVectors` and `TokenVectorWindows`); or
+  `VectorAnnotator` (`SubwordVectors` and `TokenVectorWindows`);
+- `VectorCodesResult` (`ANALYZE_OUTPUT_VECTOR_CODES`, issue #1601), the
+  pooled vector's codes as their own outcome: the same bytes
+  `AnalyzeVectors` carries under `TURBO_QUANTIZE_INT8` (with the
+  document's `int8_ranges` table) or `TURBO_QUANTIZE_UBINARY`, so a
+  client asks for codes without asking for vectors; or
 - `AnalyzeFailure` with the turbo status code, field and refusal the
   single-document call would carry.
 A failed document never ends the stream; unknown model, unknown option

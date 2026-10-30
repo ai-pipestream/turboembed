@@ -1,23 +1,17 @@
 //! Syntactic and morphological grammar and agreement diagnostics (`turbo:grammar_diagnostics`)
 //! and the clean-room Apache-2.0 [`GrammarChecker`] annotator.
 
+use std::borrow::Cow;
 use std::fmt;
-use std::sync::{OnceLock, RwLock};
 
 use turbo_analysis::{
     Annotator, Bound, Document, Error, FilterableLayer, Fnv1a, Ix, Key, Layer, Overlap, Refs, Span, Spans, TextSpans,
     View, ViewId,
 };
 
-use crate::{Dependencies, Lemmas, PosTags, Sentences, Tokens};
+use crate::{Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens};
 
 use super::agreement::check_sentence_rules;
-
-static CUSTOM_RULE_IDS: OnceLock<RwLock<Vec<&'static str>>> = OnceLock::new();
-
-fn custom_rule_registry() -> &'static RwLock<Vec<&'static str>> {
-    CUSTOM_RULE_IDS.get_or_init(|| RwLock::new(Vec::new()))
-}
 
 /// Grammatical or morphological category of a [`GrammarDiagnostic`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -109,68 +103,30 @@ impl fmt::Display for GrammarCategory {
 /// Maximum byte length of a [`GrammarDiagnostic::rule_id`].
 pub const MAX_RULE_ID_BYTES: usize = 64;
 
-/// Maximum number of non-canonical custom rule IDs interned in the process registry.
-pub const MAX_CUSTOM_RULE_IDS: usize = 256;
+/// Maximum number of replacement candidates on a single [`GrammarDiagnostic`].
+pub const MAX_DIAGNOSTIC_REPLACEMENTS: usize = 1024;
 
 const BUILTIN_RULE_IDS: [&str; 7] = ["SVA-001", "DET-001", "ART-001", "AUX-001", "REP-001", "CASE-001", "PUNCT-001"];
 
-/// Resolves a built-in rule identifier to its static slice without locking.
+/// Resolves a built-in rule identifier to its static slice without allocation.
 pub fn builtin_rule_id(id: &str) -> Option<&'static str> {
     BUILTIN_RULE_IDS.into_iter().find(|&known| known == id)
 }
 
-/// Registers a static rule ID so binary import can resolve it.
-pub(crate) fn remember_rule_id(rule_id: &'static str) -> bool {
+/// Validates that `rule_id` is nonempty, trimmed, and within [`MAX_RULE_ID_BYTES`].
+pub(crate) fn check_rule_id(rule_id: &str) -> Result<(), String> {
     let trimmed = rule_id.trim();
     if trimmed.is_empty() || trimmed.len() != rule_id.len() || rule_id.len() > MAX_RULE_ID_BYTES {
-        return false;
+        return Err("grammar diagnostic rule_id must be nonempty, trimmed, and at most 64 bytes".into());
     }
-    if builtin_rule_id(rule_id).is_some()
-        || custom_rule_registry().read().expect("grammar rule registry lock").contains(&rule_id)
-    {
-        return true;
-    }
-    let mut reg = custom_rule_registry().write().expect("grammar rule registry lock");
-    if reg.contains(&rule_id) {
-        return true;
-    }
-    if reg.len() >= MAX_CUSTOM_RULE_IDS {
-        return false;
-    }
-    reg.push(rule_id);
-    true
-}
-
-/// Resolves or interns `rule_id` during binary `DocumentGraph` import.
-pub(crate) fn intern_rule_id(rule_id: &str) -> Option<&'static str> {
-    let trimmed = rule_id.trim();
-    if trimmed.is_empty() || trimmed.len() != rule_id.len() || rule_id.len() > MAX_RULE_ID_BYTES {
-        return None;
-    }
-    if let Some(known) = builtin_rule_id(rule_id) {
-        return Some(known);
-    }
-    if let Some(&existing) =
-        custom_rule_registry().read().expect("grammar rule registry lock").iter().find(|&&r| r == rule_id)
-    {
-        return Some(existing);
-    }
-    let mut reg = custom_rule_registry().write().expect("grammar rule registry lock");
-    if let Some(&existing) = reg.iter().find(|&&r| r == rule_id) {
-        return Some(existing);
-    }
-    (reg.len() < MAX_CUSTOM_RULE_IDS).then(|| {
-        let leaked: &'static str = Box::leak(rule_id.to_owned().into_boxed_str());
-        reg.push(leaked);
-        leaked
-    })
+    Ok(())
 }
 
 /// One syntactic or morphological grammar diagnostic over a text view.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GrammarDiagnostic {
     pub span: Span,
-    pub rule_id: &'static str,
+    pub rule_id: Cow<'static, str>,
     pub category: GrammarCategory,
     pub message: Box<str>,
     pub replacements: Box<[Box<str>]>,
@@ -181,13 +137,16 @@ impl GrammarDiagnostic {
     /// Creates a new [`GrammarDiagnostic`].
     pub fn new(
         span: Span,
-        rule_id: &'static str,
+        rule_id: impl Into<Cow<'static, str>>,
         category: GrammarCategory,
         message: impl Into<Box<str>>,
         replacements: impl IntoIterator<Item = impl Into<Box<str>>>,
         confidence: f32,
     ) -> Self {
-        let _ = remember_rule_id(rule_id);
+        let rule_id = match rule_id.into() {
+            Cow::Borrowed(s) => Cow::Borrowed(s),
+            Cow::Owned(s) => builtin_rule_id(&s).map_or(Cow::Owned(s), Cow::Borrowed),
+        };
         Self {
             span,
             rule_id,
@@ -200,14 +159,15 @@ impl GrammarDiagnostic {
 
     /// Validates field invariants on this diagnostic.
     pub fn check(&self) -> Result<(), String> {
-        if self.span.is_empty() {
-            return Err("grammar diagnostic span must be nonempty".into());
+        if self.span.start > self.span.end {
+            return Err("grammar diagnostic span ends before it starts".into());
         }
-        if !remember_rule_id(self.rule_id) {
-            return Err("grammar diagnostic rule_id must be nonempty, trimmed, and within registry bounds".into());
-        }
+        check_rule_id(&self.rule_id)?;
         if self.message.trim().is_empty() {
             return Err("grammar diagnostic message must be nonempty".into());
+        }
+        if self.replacements.len() > MAX_DIAGNOSTIC_REPLACEMENTS {
+            return Err("too many grammar diagnostic replacements".into());
         }
         if self.replacements.iter().any(|r| r.is_empty()) {
             return Err("grammar diagnostic replacements must be nonempty strings".into());
@@ -304,9 +264,6 @@ impl Layer for GrammarDiagnostics {
             return Err("grammar diagnostics must be in start order".into());
         }
         for (i, span) in self.spans.iter() {
-            if span.is_empty() || self.spans.is_discontinuous(i) {
-                return Err("grammar diagnostic spans must be nonempty and continuous".into());
-            }
             let d = &self.diagnostics[i.get()];
             if d.span != span {
                 return Err("grammar diagnostic span must match layer span column".into());
@@ -407,14 +364,30 @@ impl GrammarChecker {
         lemmas: Option<&Lemmas>,
         deps: Option<&Dependencies>,
     ) -> Result<GrammarDiagnostics, Error> {
+        self.check_view_with_morph(view, sentences, tokens, pos, lemmas, deps, None)
+    }
+
+    /// Runs the configured grammar rules over `view` with optional token [`MorphFeatures`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn check_view_with_morph(
+        &self,
+        view: &View,
+        sentences: &Sentences,
+        tokens: &Tokens,
+        pos: &PosTags,
+        lemmas: Option<&Lemmas>,
+        deps: Option<&Dependencies>,
+        morph: Option<&MorphFeatures<Tokens>>,
+    ) -> Result<GrammarDiagnostics, Error> {
         sentences.check_contiguous_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
-        tokens.check_contiguous_bounds_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
+        tokens.check_contiguous_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         if pos.len() != tokens.len() {
             return Err(Error::Annotator {
                 annotator: Self::ID,
                 detail: format!("pos tags length {} != tokens length {}", pos.len(), tokens.len()),
             });
         }
+        pos.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         if let Some(l) = lemmas
             && l.len() != tokens.len()
         {
@@ -432,8 +405,16 @@ impl GrammarChecker {
             }
             d.check_forest().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         }
+        if let Some(m) = morph
+            && m.len() != tokens.len()
+        {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("morph features length {} != tokens length {}", m.len(), tokens.len()),
+            });
+        }
 
-        let mut items = check_sentence_rules(self, view.text(), sentences, tokens, pos, lemmas, deps);
+        let mut items = check_sentence_rules(self, view.text(), sentences, tokens, pos, lemmas, deps, morph);
         items.sort_by(|a, b| {
             (a.span.start, a.span.end, a.category.as_u8()).cmp(&(b.span.start, b.span.end, b.category.as_u8()))
         });
@@ -447,7 +428,7 @@ impl GrammarChecker {
         Ok(out)
     }
 
-    /// Convenience helper that fetches default layer instances from `doc` and runs [`Self::check_view`].
+    /// Convenience helper that fetches default layer instances from `doc` and runs [`Self::check_view_with_morph`].
     pub fn check_document(&self, doc: &Document) -> Result<GrammarDiagnostics, Error> {
         let view = doc.require(&Key::<View>::DEFAULT)?;
         let sentences = doc.require(&Key::<Sentences>::DEFAULT)?;
@@ -455,18 +436,23 @@ impl GrammarChecker {
         let pos = doc.require(&Key::<PosTags>::DEFAULT)?;
         let lemmas = doc.get::<Lemmas>();
         let deps = doc.get::<Dependencies>();
-        self.check_view(view, sentences, tokens, pos, lemmas, deps)
+        let morph = doc.get::<MorphFeatures<Tokens>>();
+        self.check_view_with_morph(view, sentences, tokens, pos, lemmas, deps, morph)
     }
 }
 
 impl Annotator for GrammarChecker {
     const ID: &'static str = "turbo:grammar_checker";
     const VERSION: &'static str = "1";
-    type Reads = (View, Sentences, Tokens, PosTags, Option<Lemmas>, Option<Dependencies>);
+    type Reads =
+        (View, Sentences, Tokens, PosTags, Option<Lemmas>, Option<Dependencies>, Option<MorphFeatures<Tokens>>);
     type Writes = (GrammarDiagnostics,);
 
-    fn annotate(&self, (view, sentences, tokens, pos, lemmas, deps): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let out = self.check_view(view, sentences, tokens, pos, lemmas, deps)?;
+    fn annotate(
+        &self,
+        (view, sentences, tokens, pos, lemmas, deps, morph): Refs<'_, Self>,
+    ) -> Result<Self::Writes, Error> {
+        let out = self.check_view_with_morph(view, sentences, tokens, pos, lemmas, deps, morph)?;
         Ok((out,))
     }
 

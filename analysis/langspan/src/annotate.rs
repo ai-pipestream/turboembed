@@ -29,28 +29,17 @@ pub fn summary(detector: &SpanDetector, runs: &[Run]) -> Language {
             None => letters.push((outcome, u64::from(run.letters))),
         }
     }
-    // A stable sort keeps the text order among equal counts.
     letters.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
     let total: u64 = letters.iter().map(|(_, n)| n).sum();
     let mut code = Strs::default();
     let mut score = Vec::with_capacity(letters.len());
     for (outcome, n) in letters {
-        code.push(detector.detector().model().code(outcome as usize));
+        code.push(detector.model().language(outcome as usize));
         score.push(if total == 0 { 0.0 } else { n as f64 / total as f64 });
     }
     Language { code, score }
 }
 
-/// Reads a view, and its sentences and tokens when the document has them,
-/// and writes the language of each run (`turbo:language-spans`) and the
-/// document's languages derived from them (`opennlp:language`, each
-/// language with its share of the letters).
-///
-/// A text with no word the detector would read (empty, or only digits,
-/// URLs, emoji, punctuation) is declined with `Error::Skipped("no language
-/// evidence")`, as OpenNLP's detector is. A text whose words are all in
-/// scripts the model has no language for gets its spans, each `und`, and
-/// an empty `opennlp:language`.
 impl Annotator for SpanDetector {
     const ID: &'static str = "turbo-langspan:script-ngram";
     const VERSION: &'static str = "2";
@@ -82,7 +71,7 @@ impl Annotator for SpanDetector {
     }
 
     fn model(&self) -> Option<ModelRef> {
-        Some(self.detector().model().model_ref().clone())
+        Some(self.model().model_ref().clone())
     }
 
     fn config_hash(&self) -> u64 {
@@ -95,7 +84,7 @@ impl Annotator for SpanDetector {
             u64::from(s.clause_letters),
             s.rescore_margin.to_bits(),
             u64::from(s.shortlist),
-            self.detector().config_hash(),
+            self.model().config_hash(),
             self.candidates.config_hash(),
         ] {
             h.fold_u64(word);

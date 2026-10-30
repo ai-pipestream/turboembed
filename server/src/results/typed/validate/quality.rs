@@ -2,13 +2,12 @@
 
 use turbo_analysis::Layer;
 use turbo_analysis_layers::{
-    GrammarCategory, GrammarDiagnostics, QualityFlags, QualityMetrics, SpanQuality, TextQuality,
+    GrammarCategory, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS, MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics,
+    SpanQuality, TextQuality,
 };
 
 use super::*;
 use crate::proto::result::{GrammarDiagnosticAnnotation, QualityMetricsAnnotation};
-
-const MAX_RULE_ID_BYTES: usize = 64;
 
 pub(super) fn layer(layer: &TypedLayer) -> Result<(), Failure> {
     if layer.status != LayerWireStatus::Ok as i32 {
@@ -45,18 +44,24 @@ pub(super) fn grammar_diagnostic(
     ann: &TypedAnnotation,
     d: &GrammarDiagnosticAnnotation,
 ) -> Result<(), Failure> {
-    if ctx.lid != GrammarDiagnostics::ID || ann.spans.len() != 1 {
-        return Err(bad("grammar diagnostic payload needs turbo:grammar_diagnostics layer and one projected span"));
+    if ctx.lid != GrammarDiagnostics::ID || ann.spans.is_empty() {
+        return Err(bad("grammar diagnostic payload needs turbo:grammar_diagnostics layer and at least one span"));
     }
     let trimmed = d.rule_id.trim();
     if trimmed.is_empty() || trimmed.len() != d.rule_id.len() || d.rule_id.len() > MAX_RULE_ID_BYTES {
         return Err(bad("grammar diagnostic rule_id must be nonempty, trimmed, and at most 64 bytes"));
     }
-    if GrammarCategory::from_name(&d.category).is_none() {
+    let Some(cat_i32) = d.category else {
+        return Err(bad("grammar diagnostic category is required"));
+    };
+    if u8::try_from(cat_i32).ok().and_then(GrammarCategory::from_byte).is_none() {
         return Err(bad("grammar diagnostic category is unknown"));
     }
     if d.message.trim().is_empty() {
         return Err(bad("grammar diagnostic message must be nonempty"));
+    }
+    if d.replacements.len() > MAX_DIAGNOSTIC_REPLACEMENTS {
+        return Err(bad("too many grammar diagnostic replacements"));
     }
     if d.replacements.iter().any(|r| r.is_empty()) {
         return Err(bad("grammar diagnostic replacements must be nonempty strings"));

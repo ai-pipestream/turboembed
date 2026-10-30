@@ -15,10 +15,8 @@
 //!
 //! The three share one merge loop ([`merger`]), which keeps every pair's
 //! count as merges are made rather than counting again, and orders ties
-//! by a key each trainer gives, so the same corpus and settings always
-//! give the same model. OpenNLP's default tie order, the JVM's, instead
-//! counts every pair again before each merge as the JVM does
-//! ([`TieOrder`]).
+//! by a key each trainer gives ([`TieOrder`]), so the same corpus and
+//! settings always give the same model.
 
 pub mod byte_level;
 pub mod merger;

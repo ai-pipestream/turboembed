@@ -1,0 +1,4 @@
+arguana: 8674 documents, 19930 shared cuts, 0 documents differ (cpu/AMD Ryzen 9 9950X 16-Core Processor/model against levelzero/Intel(R) Arc(TM) Pro B70 Graphics/model)
+nfcorpus: 3633 documents, 10469 shared cuts, 0 documents differ (cpu/AMD Ryzen 9 9950X 16-Core Processor/model against levelzero/Intel(R) Arc(TM) Pro B70 Graphics/model)
+qasper: 416 documents, 13079 shared cuts, 0 documents differ (cpu/AMD Ryzen 9 9950X 16-Core Processor/model against levelzero/Intel(R) Arc(TM) Pro B70 Graphics/model)
+scifact: 5183 documents, 14326 shared cuts, 0 documents differ (cpu/AMD Ryzen 9 9950X 16-Core Processor/model against levelzero/Intel(R) Arc(TM) Pro B70 Graphics/model)

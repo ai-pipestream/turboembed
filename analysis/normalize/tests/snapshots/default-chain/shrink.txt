@@ -1,0 +1,19 @@
+===OUT===
+aaaaaa bbbb ccc dd e, heeeeello wooooorld, yesssss, nooooo! wow!!!!!! really????? stop...... !?!?!? ,,,,, ;;;; ----- ===== _____ aaaaaa zzzz 111111 a is not here; ha ha ha ha ha, hahahahahahaha.
+===EDITS===
+59	60	 
+60	61	w
+70	71	r
+82	83	s
+128	129	 
+129	130	a
+130	131	a
+131	132	a
+132	133	a
+133	134	a
+134	135	a
+136	137	z
+137	138	z
+138	139	z
+139	140	z
+194	195	

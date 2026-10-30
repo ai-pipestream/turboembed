@@ -72,7 +72,7 @@ fn documents(count: usize) -> (Vec<Document>, Vec<Tokens>, Vec<Vec<String>>) {
     }
     (docs, rows, words)
 }
-fn categories<C: CalibratableCategorizer>(make: impl Fn() -> C, count: usize) {
+fn categories<C: CalibratableCategorizer<Reads = (View, Tokens)>>(make: impl Fn() -> C, count: usize) {
     let raw = make();
     let c = make();
     let id = identity(&c, "size-fixture").unwrap();

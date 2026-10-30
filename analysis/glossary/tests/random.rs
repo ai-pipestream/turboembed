@@ -2,6 +2,7 @@
 //! give spans inside the file, and the character automaton finds exactly
 //! what a naive search over every term finds.
 
+use std::path::PathBuf;
 use turbo_analysis::Span;
 use turbo_glossary::{Case, DelimitedReader, EntryIx, FirstRecord, Glossary, GlossaryFile, TbxReader, TextMatcher};
 use turbo_unicode::java::to_lower_char;
@@ -82,7 +83,7 @@ fn check_spans(bytes: &[u8], f: &GlossaryFile) {
 
 #[test]
 fn readers_survive_mutated_inputs() {
-    let dir = turbo_goldens::data_dir().join("inputs").join("glossary");
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/inputs");
     let mut files: Vec<Vec<u8>> =
         std::fs::read_dir(&dir).unwrap().map(|e| std::fs::read(e.unwrap().path()).unwrap()).collect();
     files.sort();

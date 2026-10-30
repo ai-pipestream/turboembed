@@ -268,6 +268,14 @@ message LoadBundleRequest
   // Select a device with turbo_runtime_select for the bundle's task
   // instead of indexing `device` (must leave `device` at 0).
   bool select_device = 11;
+
+  // Who loads the bundle. On a server with a model catalog
+  // (--catalog-dir), a bundle whose manifest names a licence that needs
+  // acceptance (docs/zoo.md) loads only for a user who accepted it in the
+  // catalog's acceptance file; otherwise FAILED_PRECONDITION names the
+  // terms. Without a catalog there is no acceptance file and nothing is
+  // checked.
+  string user = 12;
 }
 
 message LoadBundleResponse
@@ -549,6 +557,11 @@ enum AnalyzeOutput
   // Per-token contextual vectors with encoder window spans
   // (TokenVectorsResult, #709 / #917).
   ANALYZE_OUTPUT_TOKEN_VECTORS = 2;
+
+  // The pooled vector's quantized codes (VectorCodesResult, #1492):
+  // int8 codes or packed sign bits, never f32. AnalyzeOptions.quantization
+  // must name TURBO_QUANTIZE_INT8 or TURBO_QUANTIZE_UBINARY.
+  ANALYZE_OUTPUT_VECTOR_CODES = 3;
 }
 
 // The embed options one document asks for: the fields of
@@ -587,6 +600,18 @@ message AnalyzeOptions
   // Sliding-window stride in subword pieces for
   // ANALYZE_OUTPUT_TOKEN_VECTORS; 0 uses half the window width.
   uint32 token_stride = 9;
+
+  // TURBO_QUANTIZE_*: 0 or TURBO_QUANTIZE_NONE is f32, TURBO_QUANTIZE_INT8
+  // and TURBO_QUANTIZE_UBINARY the codes turbo.h defines.
+  // ANALYZE_OUTPUT_VECTORS and ANALYZE_OUTPUT_VECTOR_CODES only; the codes
+  // output refuses 0.
+  uint32 quantization = 10;
+
+  // For TURBO_QUANTIZE_INT8 alone, and then required: [2, width] f32 in
+  // row-major order, each dimension's minimum, then each one's maximum,
+  // where width is output_dim or the model's dim. Documents batch together
+  // only with documents giving the same table.
+  repeated float int8_ranges = 11;
 }
 
 // One document to analyze: its client correlation id, the served model's
@@ -634,6 +659,9 @@ message AnalyzeStreamResponse
 
     // The document's per-token contextual vectors and windows (#917).
     TokenVectorsResult token_vectors = 5;
+
+    // The document's pooled vector as quantized codes (#1492).
+    VectorCodesResult vector_codes = 6;
   }
 }
 
@@ -651,9 +679,39 @@ message AnalyzeVectors
   // Values per row; over 0.
   uint32 dim = 3;
 
-  // dim x 4 little-endian f32, row-major: exactly the row the
-  // single-document call answers with.
+  // The row the single-document call answers with for the same text
+  // and options: dim x 4 little-endian f32, or as quantization says,
+  // dim int8 codes or (dim + 7) / 8 bytes of packed sign bits.
   bytes data = 4;
+
+  // TURBO_QUANTIZE_* of data: what the document asked for, 0 as given.
+  uint32 quantization = 5;
+}
+
+// The quantized codes of one document's pooled vector: the same row
+// AnalyzeVectors carries under the same quantization, as its own outcome
+// so a client asks for codes without asking for vectors. The codes are
+// the layout turbo.h defines for TURBO_QUANTIZE_INT8 (dim int8 codes under
+// AnalyzeOptions.int8_ranges) and TURBO_QUANTIZE_UBINARY ((dim + 7) / 8
+// bytes of packed sign bits).
+message VectorCodesResult
+{
+  // The served model's name.
+  string model = 1;
+
+  // The bundle's revision.
+  string version = 2;
+
+  // Values the codes code; over 0.
+  uint32 dim = 3;
+
+  // One row of codes: dim int8 codes or (dim + 7) / 8 bytes of packed
+  // sign bits, as quantization says.
+  bytes data = 4;
+
+  // TURBO_QUANTIZE_* of data: TURBO_QUANTIZE_INT8 or
+  // TURBO_QUANTIZE_UBINARY, what the document asked for.
+  uint32 quantization = 5;
 }
 
 // Why one document failed: the turbo status the refusal carries, as the
@@ -782,6 +840,17 @@ message ChunkLevelsResult
   uint32 dim = 21;
   bytes data = 22;
   repeated uint32 empty = 23;
+
+  // Optional per-chunk 2D page and bounding-box citations (#1466).
+  repeated uint32 chunk_page_start = 26;
+  repeated uint32 chunk_page_end = 27;
+  repeated bool chunk_has_page_span = 28;
+  repeated uint32 chunk_box_row = 29;
+  repeated uint32 chunk_box_page = 30;
+  repeated float chunk_box_x0 = 31;
+  repeated float chunk_box_y0 = 32;
+  repeated float chunk_box_x1 = 33;
+  repeated float chunk_box_y1 = 34;
 }
 
 // Request for AnalyzeDocumentProgressive (issue #1218).

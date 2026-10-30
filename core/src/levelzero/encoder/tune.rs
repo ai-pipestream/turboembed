@@ -219,6 +219,8 @@ pub(super) fn measure(s: &mut Session, order: [Linear; 2], budget_ms: u32) -> Re
         normalize: TURBO_NORMALIZE_NONE,
         output_dim: d.hidden,
         head: 0,
+        taps: 0,
+        reserved: 0,
     };
     let (tokens, longest, _) = unsafe { s.pack(&rows)? };
     s.has_types = false;

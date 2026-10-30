@@ -5,10 +5,10 @@ use turbo_formats::conllu::ConlluDependencySample;
 use turbo_formats::sample::dependency::{DependencySample as FormatSample, DependencyTree, Head};
 use turbo_formats::source::Field;
 use turbo_train::Event;
-use turbo_unicode::WhitespaceMode;
 
 /// Sentence data and its tree. Optional CoNLL-U metadata survives a graph/layer
 /// round trip through this carrier; a bare dependency layer has no text offsets.
+#[derive(Debug)]
 pub struct DependencySample<A: WordOrTokenAnchor = Tokens> {
     tokens: Vec<String>,
     tags: Vec<String>,
@@ -109,7 +109,7 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
                 )
             })
             .collect();
-        let tree = DependencyTree::new(heads, relations, WhitespaceMode::Unicode).map_err(error)?;
+        let tree = DependencyTree::new(heads, relations).map_err(error)?;
         out.sample =
             FormatSample::new(out.sample.tokens().to_vec(), out.sample.tags().to_vec(), tree, out.sample.source())
                 .map_err(error)?;

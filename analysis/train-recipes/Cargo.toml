@@ -19,13 +19,13 @@ turbo-formats = { path = "../formats" }
 # tagger, the lemmatizer and the chunker, with the parameters the
 # published UD models were trained with.
 turbo-train = { path = "../train" }
+turbo-trainer = { path = "../../trainer" }
 turbo-train-components = { path = "../train-components" }
 # Running a trained model and the reference model over held-out text.
 turbo-sentdetect = { path = "../sentdetect" }
 turbo-tokenize = { path = "../tokenize" }
 turbo-postag = { path = "../postag" }
 turbo-lemmatizer = { path = "../lemmatizer" }
-turbo-phrase-chunker = { path = "../phrase-chunker" }
 turbo-depparse = { path = "../depparse" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-unicode = { path = "../unicode" }
@@ -34,13 +34,17 @@ turbo-maxent = { path = "../maxent" }
 # and the reference one over held-out text.
 turbo-sequence = { path = "../sequence" }
 # Running the trained language detector and the reference over held-out
-# text, and java.util.Random for the language detector's split.
+# text.
 turbo-langdetect = { path = "../langdetect" }
-turbo-jvm = { path = "../jvm" }
 # The span type the samples and models share.
 turbo-analysis = { path = "../core" }
 # The gate and its record.
 turbo-eval = { path = "../eval" }
+# The core tokenizer and bundle types the static-embed trainer reads
+# and writes, and the bundle tool that seals its table.
+turbo = { path = "../../core" }
+turbo-bundle = { path = "../../bundle" }
+turbo-sha256 = { path = "../sha256" }
 # Licences, digests, the reference models' index entries and the trained
 # models' entries.
 turbo-zoo = { path = "../zoo" }

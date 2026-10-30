@@ -11,8 +11,6 @@ fn expanded_configuration_has_18_word_18_pos_and_12_label_slots() {
 }
 #[path = "feedforward/boundaries.rs"]
 mod boundaries;
-#[path = "feedforward/parity.rs"]
-mod parity;
 #[path = "feedforward/pipeline.rs"]
 mod pipeline;
 #[path = "feedforward/support.rs"]

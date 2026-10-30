@@ -35,6 +35,8 @@ pub struct Manifest {
     pub classifier: Option<Classifier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projection: Option<Projection>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heads: Vec<HeadSpec>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
@@ -58,7 +60,8 @@ pub struct Model {
 /// A model licence's class, as the zoo names it: what may be shipped,
 /// and what is fetched only after the user accepts the licence. A bundle
 /// is never made under a refused licence, so there is no refused class.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// The order is the zoo's, least to most restrictive (docs/zoo.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum LicenseClass {
     #[serde(rename = "CLASS_PERMISSIVE")]
     Permissive,
@@ -136,7 +139,10 @@ pub enum Normalize {
 
 mod architecture;
 mod artifact;
+mod heads;
+mod heads_kinds;
 mod helpers;
+pub use heads::*;
 mod provenance;
 mod qa;
 pub use qa::Qa;
@@ -145,6 +151,7 @@ mod validate;
 mod validate_architecture;
 mod validate_artifacts;
 mod validate_positions;
+mod validate_rotary;
 mod validate_tokenizer;
 pub use architecture::*;
 pub use artifact::*;

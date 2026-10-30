@@ -35,15 +35,15 @@ async fn stop_signal() -> &'static str {
     }
 }
 
-/// The catalog in `dir`, fetching over HTTPS.
+/// The catalog in `dir`, fetching over HTTPS, through `store` when given.
 #[cfg(feature = "catalog-http")]
-fn catalog(dir: &str, index: Option<&str>) -> Result<Catalog, String> {
-    Catalog::http(std::path::PathBuf::from(dir), index.map(std::path::Path::new))
+fn catalog(dir: &str, index: Option<&str>, store: Option<&str>) -> Result<Catalog, String> {
+    Catalog::http(std::path::PathBuf::from(dir), index.map(std::path::Path::new), store)
 }
 
 /// A server built without `catalog-http` has no way to fetch a model.
 #[cfg(not(feature = "catalog-http"))]
-fn catalog(_dir: &str, _index: Option<&str>) -> Result<Catalog, String> {
+fn catalog(_dir: &str, _index: Option<&str>, _store: Option<&str>) -> Result<Catalog, String> {
     Err("this turbo-kserve was built without the catalog-http feature, so it cannot fetch models".into())
 }
 
@@ -87,7 +87,7 @@ async fn main() -> ExitCode {
         }
     };
     let catalog = match &args.catalog_dir {
-        Some(dir) => match catalog(dir, args.catalog_index.as_deref()) {
+        Some(dir) => match catalog(dir, args.catalog_index.as_deref(), args.catalog_store.as_deref()) {
             Ok(c) => Some(c),
             Err(e) => {
                 eprintln!("turbo-kserve: catalog: {e}");
@@ -98,6 +98,8 @@ async fn main() -> ExitCode {
     };
     let serve = Serve {
         admin: args.admin,
+        zoo: args.zoo,
+        prefetch: args.catalog_prefetch,
         vocabulary: args.vocabulary_dir.map(PathBuf::from),
         catalog,
         training: args.training_dir.map(PathBuf::from),

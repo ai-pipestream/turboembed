@@ -411,6 +411,29 @@ render engine about half busy, and none other the compute engines. With
 the tiled attention a pass is 1.7 times as fast as with the general at 32
 x 128, and 1.8 times at 8 x 512.
 
+### ModernBERT and nomic-bert
+
+A `FAMILY_MODERNBERT` or `FAMILY_NOMIC_BERT` model (docs/bundle.md,
+#1461) runs in F32 at MODEL and EXACT; a session at FASTEST is refused
+(`TURBO_E_UNSUPPORTED_OPTION`, field 3), as for DeBERTa-v2, never run in
+F32 in its place. The CPU encoder (`core/src/cpu/encoder/rotary`) is the
+reference. Loading copies the core's cos/sin table to the device beside
+the weights; no projection is fused, as the bundle stores Q, K and V
+side by side already. The layer loop (`core/src/levelzero/encoder/rotary.rs`)
+runs the linear layers on `linear_sg` (`linear` where a width is not a
+multiple of 16), without biases, and these kernels of encoder.cl between
+them: `rotary_embed` (the word row, plus the type row for nomic-bert,
+LayerNormed with or without a bias), `rotary_rope` (Q and K turned in
+place, column c of a head with column c + head/2, by the token's column
+in its row), `rotary_attention` (the general kernel's shape; on a
+sliding-window layer query i reads only the keys within
+`attention_window / 2` of it, and a masked key is skipped, never weighed
+by zero), `rotary_gated` (GELU by erf or SiLU of the gate times up),
+`rotary_norm` (a LayerNorm into a second buffer, for ModernBERT's
+pre-norm layers) and `rotary_add` (the residual). The F16 path at
+FASTEST, and RoPE and the gated MLP fused into the products' epilogues
+as the CPU does them, are not done yet.
+
 ## The LSTM for the taggers
 
 `turbo::device::lstm::Lstm` on `Device::LevelZero(n)` is the batched

@@ -14,6 +14,9 @@ pub(super) struct Bufs {
     pub(super) ctx: *mut f32,
     pub(super) ffn: *mut f32,
     pub(super) scratch: *mut f32,
+    /// A pre-norm layer's normalized rows, [tokens, hidden]; null where
+    /// the family has none.
+    pub(super) xn: *mut f32,
 }
 
 /// One step of a run.
@@ -21,13 +24,27 @@ pub(super) enum Step<'a> {
     /// The embeddings of each token, LayerNorm'd, into x.
     Lookup,
     Linear(Gemm<'a>),
-    /// Attention within each row and head, from qv and kt into ctx.
-    Attention,
+    /// Attention within each row and head, from qv and kt into ctx, each
+    /// query to the keys within `window` of it (usize::MAX for all).
+    Attention {
+        window: usize,
+    },
     /// x = LayerNorm(x), with these weights and biases.
     Norm(&'a [f32], &'a [f32]),
-    /// Each written range's vector from x, `per_task` ranges a task,
-    /// into `out`, [ranges, output_dim] packed.
+    /// xn = LayerNorm(x), x kept: a pre-norm layer's input.
+    NormInto(&'a [f32], &'a [f32]),
+    /// A rotary family's embeddings into x: the word row plus, given a
+    /// token type table, the token's type row; LayerNorm'd with w and b.
+    Embed {
+        ty: Option<&'a [f32]>,
+        w: &'a [f32],
+        b: &'a [f32],
+    },
+    /// Each written range's vector from `src`, x or a tap's states in
+    /// xn, `per_task` ranges a task, into `out`, [ranges, output_dim]
+    /// packed.
     PoolRanges {
+        src: *const f32,
         out: *mut f32,
         per_task: usize,
     },
@@ -66,9 +83,11 @@ impl Job<'_> {
             match &self.step {
                 Step::Lookup => self.lookup(t),
                 Step::Linear(g) => g.task::<M>(t),
-                Step::Attention => self.attention::<M>(t, th),
+                Step::Attention { window } => self.attention::<M>(t, th, *window),
                 Step::Norm(w, b) => self.norm(t, w, b),
-                Step::PoolRanges { out, per_task } => self.pool_ranges(t, *out, *per_task),
+                Step::NormInto(w, b) => self.norm_into(t, w, b),
+                Step::Embed { ty, w, b } => self.embed(t, *ty, w, b),
+                Step::PoolRanges { src, out, per_task } => self.pool_ranges(t, *src, *out, *per_task),
             }
         }
     }
@@ -117,17 +136,47 @@ impl Job<'_> {
         }
     }
 
+    #[inline(always)]
+    unsafe fn norm_into(&self, t: usize, w: &[f32], b: &[f32]) {
+        let h = self.e.hidden;
+        for tok in self.chunk(t) {
+            // SAFETY: this chunk's token's rows; no task of the step
+            // writes x, and xn holds the packed tokens.
+            let dst = unsafe { std::slice::from_raw_parts_mut(self.bufs.xn.add(tok * h), h) };
+            dst.copy_from_slice(unsafe { self.x_row(tok) });
+            layer_norm(dst, w, b, self.e.eps);
+        }
+    }
+
+    #[inline(always)]
+    unsafe fn embed(&self, t: usize, ty: Option<&[f32]>, ln_w: &[f32], ln_b: &[f32]) {
+        let (e, h) = (self.e, self.e.hidden);
+        let word = e.tensor(WORD);
+        for tok in self.chunk(t) {
+            let at = e.at[tok] as usize;
+            // SAFETY: this chunk's token.
+            let dst = unsafe { self.x_row(tok) };
+            dst.copy_from_slice(&word[e.ids[at] as usize * h..][..h]);
+            if let Some(ty) = ty {
+                for (d, &v) in dst.iter_mut().zip(&ty[e.types[at] as usize * h..][..h]) {
+                    *d += v;
+                }
+            }
+            layer_norm(dst, ln_w, ln_b, e.eps);
+        }
+    }
+
     /// Task t: ranges t * per_task onward, up to per_task of them, each
     /// pooled whole, so a range's sum is one task's in column order.
     ///
     /// # Safety
     /// `out` holds a vector of output_dim values for every written range.
     #[inline(always)]
-    unsafe fn pool_ranges(&self, t: usize, out: *mut f32, per_task: usize) {
+    unsafe fn pool_ranges(&self, t: usize, src: *const f32, out: *mut f32, per_task: usize) {
         let e = self.e;
         let od = e.output_dim;
-        // SAFETY: no task of this step writes x.
-        let x = unsafe { std::slice::from_raw_parts(self.bufs.x, self.tokens * e.hidden) };
+        // SAFETY: src is x or xn, which no task of this step writes.
+        let x = unsafe { std::slice::from_raw_parts(src, self.tokens * e.hidden) };
         let first = t * per_task;
         for (i, range) in e.ranges.iter().enumerate().skip(first).take(per_task) {
             let (row, len) = (range.row as usize, e.rows[range.row as usize].1);
@@ -143,7 +192,7 @@ impl Job<'_> {
 
     /// Task t: head t % heads of a block of one row's queries.
     #[inline(always)]
-    unsafe fn attention<M: Micro>(&self, t: usize, th: usize) {
+    unsafe fn attention<M: Micro>(&self, t: usize, th: usize, window: usize) {
         let e = self.e;
         let (h, heads) = (e.hidden, e.heads);
         let d = h / heads;
@@ -165,6 +214,8 @@ impl Job<'_> {
             len,
             mask: &e.mask[r * e.seq..][..len],
             ahead: e.ahead,
+            window,
+            span: true,
             scale: 1.0 / (d as f32).sqrt(),
             fma: M::FMA,
             ctx: unsafe { self.bufs.ctx.add(start * h) },

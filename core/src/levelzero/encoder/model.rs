@@ -28,6 +28,9 @@ pub(crate) struct Model {
     pub(super) f16: Mutex<Option<Transposed>>,
     /// The same in F32, for the sessions that compute in F32.
     pub(super) f32t: Mutex<Option<Transposed>>,
+    /// A rotary model's cos/sin table on the device (rotary.rs); null for
+    /// any other family.
+    pub(super) rope: *mut c_void,
 }
 
 /// Each layer's linear weights transposed to [n_in, n_out] for the 2D
@@ -88,7 +91,9 @@ impl Model {
         } else {
             self.widen()?
         };
-        let fused = match self.fuse(&tensors) {
+        // A rotary model's projections are fused as stored (rotary.rs).
+        let fused = if super::rotary::is(self.desc.family) { Ok(std::ptr::null_mut()) } else { self.fuse(&tensors) };
+        let fused = match fused {
             Ok(p) => p,
             Err(e) => {
                 if !widened.is_null() {
@@ -99,8 +104,11 @@ impl Model {
         };
         let (h, layers) = (self.desc.hidden as u64, self.desc.layers as u64);
         let per_layer = 3 * h * h * 4 + 3 * h * 4;
-        let qkv: Vec<_> =
-            (0..layers).map(|l| (fused as u64 + l * per_layer, fused as u64 + l * per_layer + 3 * h * h * 4)).collect();
+        let qkv: Vec<_> = if fused.is_null() {
+            Vec::new()
+        } else {
+            (0..layers).map(|l| (fused as u64 + l * per_layer, fused as u64 + l * per_layer + 3 * h * h * 4)).collect()
+        };
         let (relative, relative_alloc) = if self.desc.family == TURBO_FAMILY_DEBERTA_V2 {
             match self.relative(&tensors, &qkv) {
                 Ok(r) => r,
@@ -326,7 +334,9 @@ impl Drop for Model {
             if !w.widened.is_null() {
                 c.free(w.widened, "the widened weights");
             }
-            c.free(w.fused, "the fused projections");
+            if !w.fused.is_null() {
+                c.free(w.fused, "the fused projections");
+            }
             if !w.relative_alloc.is_null() {
                 c.free(w.relative_alloc, "the relative projections");
             }
@@ -345,6 +355,9 @@ impl Drop for Model {
         if !self.stored.is_null() {
             c.free(self.stored, "the weights");
         }
+        if !self.rope.is_null() {
+            c.free(self.rope, "the rotary table");
+        }
     }
 }
 
@@ -357,12 +370,18 @@ pub(crate) unsafe extern "C" fn model_load(
     unsafe {
         guarded(err, || {
             let (c, d) = (&*(ctx as *const Context), &*desc);
+            let is_rotary = super::rotary::is(d.family);
             if d.family == TURBO_FAMILY_DEBERTA_V2 {
                 deberta::check_load(d)?;
+            } else if is_rotary {
+                super::rotary::check_load(d)?;
             } else if d.family != TURBO_FAMILY_BERT && d.family != TURBO_FAMILY_ROBERTA {
                 return Err(fail(
                     UNSUPPORTED,
-                    format!("family {}: the levelzero backend holds BERT and DeBERTa-v2 encoders", d.family),
+                    format!(
+                        "family {}: the levelzero backend holds BERT, DeBERTa-v2, ModernBERT and nomic-bert encoders",
+                        d.family
+                    ),
                 ));
             }
             if d.heads == 0 || d.hidden % d.heads != 0 {
@@ -370,7 +389,11 @@ pub(crate) unsafe extern "C" fn model_load(
             }
             // Each layer's tensors are read by index when a session is made:
             // the table holds the embeddings and every layer's, no fewer.
-            let expected = deberta::layer_base(d) as u64 + d.layers as u64 * TURBO_BERT_LAYER_TENSORS as u64;
+            let expected = if is_rotary {
+                super::rotary::tensor_count(d)
+            } else {
+                deberta::layer_base(d) as u64 + d.layers as u64 * TURBO_BERT_LAYER_TENSORS as u64
+            };
             if d.tensor_count as u64 != expected || d.tensors.is_null() {
                 return Err(fail(
                     INVALID_ARGUMENT,
@@ -401,6 +424,7 @@ pub(crate) unsafe extern "C" fn model_load(
                 f32: Mutex::new(None),
                 f16: Mutex::new(None),
                 f32t: Mutex::new(None),
+                rope: std::ptr::null_mut(),
             });
             {
                 // The weights go through staging the context allocated, not
@@ -414,6 +438,11 @@ pub(crate) unsafe extern "C" fn model_load(
                 let appended = (|| {
                     let mut s = stage.fill();
                     for (i, t) in tensors.iter().enumerate() {
+                        // An absent tensor (ModernBERT's layer 0 attention
+                        // norm) has no bytes and no data.
+                        if t.bytes == 0 {
+                            continue;
+                        }
                         let dst = (stored as *mut u8).add(m.offsets[i]);
                         let src = std::slice::from_raw_parts(t.data as *const u8, t.bytes as usize);
                         s.copy(c, &mut q, dst, src)?;
@@ -426,12 +455,21 @@ pub(crate) unsafe extern "C" fn model_load(
                 appended?;
                 synced?;
             }
+            let mut m = m;
+            if is_rotary {
+                m.rope = super::rotary::upload_table(c, d)?;
+            }
             c.say(
                 LOG_DEBUG,
                 &format!(
                     "levelzero device {}: a {} of {} layers, {total} bytes of {} weights",
                     c.ordinal,
-                    if d.family == TURBO_FAMILY_DEBERTA_V2 { "DeBERTa-v2" } else { "BERT" },
+                    match d.family {
+                        TURBO_FAMILY_DEBERTA_V2 => "DeBERTa-v2",
+                        crate::backend::TURBO_FAMILY_MODERNBERT => "ModernBERT",
+                        crate::backend::TURBO_FAMILY_NOMIC_BERT => "nomic-bert",
+                        _ => "BERT",
+                    },
                     d.layers,
                     dtype_name(d.dtype)
                 ),

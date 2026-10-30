@@ -284,16 +284,14 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
         if let Some(stem) = lower.strip_suffix("ied").filter(|s| !s.is_empty()) {
             return Some(match_case(surface, &format!("{stem}y")));
         }
+        if let Some(stem) = lower.strip_suffix("ying").filter(|s| !s.is_empty()) {
+            return Some(match_case(surface, &format!("{stem}ie")));
+        }
         if let Some(stem) = lower.strip_suffix("ed").filter(|s| s.len() >= 2) {
-            let base = if ["pp", "bb", "dd", "gg", "mm", "nn", "rr", "tt"].iter().any(|d| stem.ends_with(d)) {
-                &stem[..stem.len() - 1]
-            } else {
-                stem
-            };
-            return Some(match_case(surface, base));
+            return Some(match_case(surface, &restore_regular_verb_stem(stem)));
         }
         if let Some(stem) = lower.strip_suffix("ing").filter(|s| s.len() >= 2) {
-            return Some(match_case(surface, stem));
+            return Some(match_case(surface, &restore_regular_verb_stem(stem)));
         }
         if pos_tag == "VBZ" || looks_3sg_verb(&lower) {
             let base = deinflect_3sg_verb(&lower);
@@ -303,6 +301,80 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
         }
     }
     None
+}
+
+fn restore_regular_verb_stem(stem: &str) -> String {
+    if stem.len() >= 3 && ["bb", "dd", "gg", "mm", "nn", "pp", "rr", "tt", "zz"].iter().any(|d| stem.ends_with(d)) {
+        return stem[..stem.len() - 1].to_owned();
+    }
+    if needs_silent_e(stem) {
+        return format!("{stem}e");
+    }
+    stem.to_owned()
+}
+
+fn needs_silent_e(stem: &str) -> bool {
+    let bytes = stem.as_bytes();
+    let n = bytes.len();
+    if n < 2 {
+        return false;
+    }
+    if matches!(stem, "open" | "iron" | "edit" | "exit" | "omit" | "emit" | "echo") {
+        return false;
+    }
+    if matches!(
+        stem,
+        "creat"
+            | "pleas"
+            | "teas"
+            | "releas"
+            | "increas"
+            | "decreas"
+            | "ceas"
+            | "leav"
+            | "achiev"
+            | "believ"
+            | "receiv"
+            | "perceiv"
+            | "conceiv"
+            | "reliev"
+            | "retriev"
+    ) {
+        return true;
+    }
+    let last = bytes[n - 1];
+    let prev = bytes[n - 2];
+    if matches!(last, b'c' | b'v' | b'u')
+        || stem.ends_with("dg")
+        || stem.ends_with("rg")
+        || stem.ends_with("lg")
+        || (stem.ends_with("ng")
+            && n >= 3
+            && matches!(bytes[n - 3], b'a' | b'e' | b'i' | b'o')
+            && !matches!(stem, "hang" | "bang" | "clang" | "slang" | "twang" | "long" | "belong" | "prolong" | "wrong"))
+    {
+        return true;
+    }
+    let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
+    if last == b'l' && !is_vowel(prev) && prev != b'l' {
+        return true;
+    }
+    if n > 4
+        && (stem.ends_with("en")
+            || stem.ends_with("er")
+            || stem.ends_with("el")
+            || stem.ends_with("al")
+            || stem.ends_with("ol")
+            || stem.ends_with("it")
+            || stem.ends_with("et")
+            || stem.ends_with("ot")
+            || stem.ends_with("op"))
+    {
+        return false;
+    }
+    let is_vce_consonant =
+        matches!(last, b'b' | b'd' | b'f' | b'g' | b'k' | b'l' | b'm' | b'n' | b'p' | b'r' | b's' | b't' | b'z');
+    is_vce_consonant && is_vowel(prev) && (n == 2 || !is_vowel(bytes[n - 3]))
 }
 
 pub(crate) fn irregular_verb_base(lower: &str) -> Option<&'static str> {

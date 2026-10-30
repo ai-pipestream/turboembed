@@ -36,6 +36,8 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::DocumentEntity(entity) => shared::document_entity(ctx, i, entity)?,
         Value::EntitySalience(salience) => shared::salience(ctx, i, salience)?,
         Value::ChunkTableHeader(header) => shared::table_header(ctx, i, header)?,
+        Value::LayoutBox(lb) => shared::layout_box(ctx, i, lb)?,
+        Value::ChunkCitation(cc) => shared::chunk_citation(ctx, i, cc)?,
         Value::KeyValuePair(pair) => shared::key_value(ctx, i, pair)?,
         Value::Token(t) => {
             if let Some(sentence) = t.sentence_index {
@@ -214,6 +216,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
                 return Err(bad(format!("{lid}[{i}] chunk sentence_end exceeds its sentence target")));
             }
             check_parent("chunk", lid, i, ch.parent_index)?;
+            shared::citation_fields(ctx, i, ch.page_start, ch.page_end, &ch.page_boxes)?;
         }
         Value::LevelUnit(lv) => {
             check_parent("level", lid, i, lv.parent_index)?;

@@ -12,7 +12,7 @@ deterministic triage signals, not calibrated probabilities or model accuracy.
 Words are input tokens containing a Unicode letter or decimal digit. Punctuation
 tokens remain in the information-density denominator. Alphabetic content tokens
 contain at least one letter and otherwise only letters or combining marks, and
-are absent from the existing OpenNLP English stopword list. Token spelling is
+are absent from the bundled English stopword list. Token spelling is
 lowercased using the shared Java simple-character mapping, without normalization
 or accent folding. Discontinuous token spellings concatenate their fragments.
 
@@ -98,15 +98,16 @@ Changing this policy requires an annotator version bump.
 provide a clean-room Apache-2.0 syntactic and morphological agreement and grammar
 checker over pipeline layers:
 
-* **Reads**: `(View, Sentences, Tokens, PosTags, Option<Lemmas>, Option<Dependencies>)`.
+* **Reads**: `(View, Sentences, Tokens, PosTags, Option<Lemmas>, Option<Dependencies>, Option<MorphFeatures<Tokens>>)`.
 * **Writes**: `GrammarDiagnostics` (`turbo:grammar_diagnostics`), anchored on the active
   `View` with `Overlap::Any` so multiple independent rules can attach diagnostics to the
   same token or phrase span in deterministic start order.
 * **Cross-view projection**: `GrammarDiagnostics` implements `ProjectableLayer`, mapping
   every diagnostic span between `ViewId::SOURCE` and normalized or edited child views via
-  the `EditLog`.
+  the `EditLog` (preserving item alignment across deletions and discontinuous edits).
 * **Wire transport**: `GrammarDiagnostics` registers a binary `DocumentGraph` `LayerCodec`
-  and projects into `GrammarDiagnosticAnnotation` (`TypedAnnotation.value = grammar_diagnostic`)
+  and projects into `GrammarDiagnosticAnnotation` (`TypedAnnotation.value = grammar_diagnostic`,
+  with typed `GrammarDiagnosticAnnotation.Category` enum `0..=6`)
   on `InspectDocumentGraph` and `RoundTripTypedDocument` across byte, UTF-16 code-unit, and
   Unicode scalar offset modes.
 

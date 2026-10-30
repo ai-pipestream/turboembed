@@ -10,7 +10,7 @@ use turbo_langdetect::NO_EVIDENCE;
 /// The domain names the labelled population. The inference identity binds
 /// all settings and the kept-language inventory; layers are not read.
 pub fn calibration_identity(detector: &SpanDetector, domain: &str) -> Identity {
-    let model = detector.detector().model();
+    let model = detector.model();
     let reference = model.model_ref();
     Identity {
         model: reference.id.clone(),
@@ -88,7 +88,7 @@ impl Annotator for CalibratedSpanDetector {
         })
     }
     fn model(&self) -> Option<ModelRef> {
-        Some(self.detector.detector().model().model_ref().clone())
+        Some(self.detector.model().model_ref().clone())
     }
     fn config_hash(&self) -> u64 {
         turbo_analysis::Fnv1a::with_seed(self.profile.identity().inference_hash)

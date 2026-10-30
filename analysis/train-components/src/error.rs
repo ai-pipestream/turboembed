@@ -79,30 +79,16 @@ pub enum Error {
     /// trainerType)`, the type `TrainerFactory.getTrainerType` gave, `null`
     /// for an algorithm it cannot resolve.
     UnsupportedTrainerType(Option<turbo_train::TrainerType>),
-    /// The treebank or a published model could not be fetched or verified.
-    Zoo(turbo_zoo::ZooError),
-    /// A published model file could not be read.
+    /// A model file could not be read.
     Model(turbo_maxent::Error),
-    /// A published model's manifest lacks an entry the comparison needs.
-    MissingManifestEntry(&'static str),
     /// A file could not be read.
     Io { path: std::path::PathBuf, message: String },
-    /// A constituency parser model written here could not be read back,
-    /// or its parts do not fit its parser type.
-    ParserModel(turbo_parser::model::ParserModelError),
-    /// A parse sample a parser's event stream or `ParserEvaluator` fails
-    /// on where OpenNLP throws, as `Parse.pruneParse` throws on a node
-    /// whose only child has its type.
-    ParseSample(turbo_parser::ParseError),
-    /// The tree insertion event stream failed where OpenNLP throws or
-    /// exits.
-    TreeInsert(turbo_parser::treeinsert::TreeInsertError),
     /// A cross-validation fold's prediction the evaluator refuses where
     /// the JVM's evaluator throws.
     Evaluate(turbo_formats::evaluate::EvalError),
     /// A language detector model trained for a cross-validation fold
     /// could not be read back.
-    LanguageModel(turbo_langdetect::ModelError),
+    LanguageModel(crate::langdetect::ModelError),
 }
 
 impl fmt::Display for Error {
@@ -150,13 +136,8 @@ impl fmt::Display for Error {
                 };
                 write!(f, "Trainer type is not supported: {name}")
             }
-            Error::Zoo(e) => write!(f, "zoo: {e}"),
             Error::Model(e) => write!(f, "model file: {e}"),
-            Error::MissingManifestEntry(k) => write!(f, "the published manifest has no {k}"),
             Error::Io { path, message } => write!(f, "{}: {message}", path.display()),
-            Error::ParserModel(e) => write!(f, "{e}"),
-            Error::ParseSample(e) => write!(f, "parser sample: {e}"),
-            Error::TreeInsert(e) => write!(f, "parser training events: {e}"),
             Error::Evaluate(e) => write!(f, "evaluation: {e}"),
             Error::LanguageModel(e) => write!(f, "language detector model: {e}"),
         }
@@ -189,38 +170,14 @@ impl From<turbo_sequence::Error> for Error {
     }
 }
 
-impl From<turbo_zoo::ZooError> for Error {
-    fn from(e: turbo_zoo::ZooError) -> Error {
-        Error::Zoo(e)
-    }
-}
-
-impl From<turbo_parser::model::ParserModelError> for Error {
-    fn from(e: turbo_parser::model::ParserModelError) -> Error {
-        Error::ParserModel(e)
-    }
-}
-
-impl From<turbo_parser::ParseError> for Error {
-    fn from(e: turbo_parser::ParseError) -> Error {
-        Error::ParseSample(e)
-    }
-}
-
-impl From<turbo_parser::treeinsert::TreeInsertError> for Error {
-    fn from(e: turbo_parser::treeinsert::TreeInsertError) -> Error {
-        Error::TreeInsert(e)
-    }
-}
-
 impl From<turbo_formats::evaluate::EvalError> for Error {
     fn from(e: turbo_formats::evaluate::EvalError) -> Error {
         Error::Evaluate(e)
     }
 }
 
-impl From<turbo_langdetect::ModelError> for Error {
-    fn from(e: turbo_langdetect::ModelError) -> Error {
+impl From<crate::langdetect::ModelError> for Error {
+    fn from(e: crate::langdetect::ModelError) -> Error {
         Error::LanguageModel(e)
     }
 }

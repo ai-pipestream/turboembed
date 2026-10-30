@@ -1,7 +1,6 @@
 /// A model file the generator loads, where it is published and its
-/// SHA-512: the one published beside it, or for the OpenNLP 1.5 models,
-/// which are published with no hash, the hash of the download, whose
-/// SHA-256 matched the one the sequence crate's README lists.
+/// SHA-512: the one published beside it, or for a file published with no
+/// hash, the hash of the download.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Model {
     pub file: &'static str,
@@ -9,134 +8,16 @@ pub struct Model {
     pub sha512: &'static str,
 }
 
-/// The published models, in the order the generator loads them. The file
-/// names are the ones the generator's `Runs` class opens in the models
-/// directory.
-pub const MODELS: [Model; 13] = [
-    Model {
-        file: "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-        sha512: "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7\
-                 ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
-        sha512: "c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35\
-                 ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa",
-    },
-    Model {
-        file: "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
-        sha512: "0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903\
-                 d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8",
-    },
-    Model {
-        file: "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
-        sha512: "147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b98660\
-                 5e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0\
-                 d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf",
-    },
-    Model {
-        file: "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "ba5280ca74b190515f630ed2b2257a758e8baa876a8da3c02735f81a5543c37f\
-                 7bc57614fd1ecb2850b4a2df98b2d2e452718de43f676f9b63b064206f86c467",
-    },
-    Model {
-        file: "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e\
-                 56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277",
-    },
-    Model {
-        file: "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b95\
-                 9c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb",
-    },
-    Model {
-        file: "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
-        sha512: "fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315e\
-                 c9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
-        sha512: "9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf19\
-                 5eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b",
-    },
-    Model {
-        file: "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
-        sha512: "ee81553985908ac25c50fbd8f2ca4222cb42a18845f063c792a1b43639181b70\
-                 ce20d57b8736a1604367f5e8c59aef55f8463e04004840cbc88abb7123fd9e7f",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
-        sha512: "616c83327e1af12c8952f362fd99be6efcdc4e28526bee1debf27d3446110ded\
-                 9beef7e0e2acc9b3094039683c9b4b2b2b0ba32dbf194278d5017e2b21e66371",
-    },
-    Model {
-        file: "langdetect-183.bin",
-        url: "https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin",
-        sha512: "9dc847055e622d9de503a5bf444ccf1428c3578c9698a73b736d8f8e337db018\
-                 8ade90ac8cc9196d1d472f58589d578785085b554b1bde856afc5762e9396285",
-    },
-];
-
-/// The OpenNLP 1.5 English models the sequence crate's beam search, tag
-/// dictionary and tag format goldens run, which the generator also loads
-/// from the models directory. Their training corpora are LDC corpora or
-/// undocumented, so CI does not fetch them: `fetch-models` fetches them
-/// only when asked (`--local`), and `generate`, `verify` and `fuzz`
-/// always do, since the generator runs them.
-pub const LOCAL_MODELS: [Model; 5] = [
-    Model {
-        file: "en-pos-maxent.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin",
-        sha512: "7810d7e7c24ed1c6a202dad64ed021310ee62cf324ee866e2e63bf8054199716\
-                 2bb5fa2da91fdcfddda39ee275efcdbde738647274d586ba8896940a0467d6cc",
-    },
-    Model {
-        file: "en-pos-perceptron.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-perceptron.bin",
-        sha512: "01d296d8dc7fdc5e7e93ef8c415e9af752e04d7ce77008b5a864f14cd1a5e53b\
-                 2d22fc9b7cbd37ecaa814c6b7a83f2f22fdf531dac2a6784fae723d6ab173e03",
-    },
-    Model {
-        file: "en-chunker.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-chunker.bin",
-        sha512: "43e83ac9b1b9b0e52d7813e6f4ed2fb3b94dd4146d9b36028795c273ad6ef191\
-                 68f1ad5ced3ca11f1b91f81f6fa1324d2070c96342cf538eccadc957a0721730",
-    },
-    Model {
-        file: "en-ner-person.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-person.bin",
-        sha512: "c62b3460527f103ea1e9b8e0b794822ceb0536b03a843e0ca86f9ae559c1cca0\
-                 a4fa03e81ecfec468628be3ee09c17adef08cd460214bd10bb089326427eb04c",
-    },
-    Model {
-        file: "en-ner-location.bin",
-        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-location.bin",
-        sha512: "f75be6fb88a18ad3bb6f196a72931fa259091cf22e4c05230aace4aa990a6340\
-                 d83937c00431165704fe6762a030fe944bae157f4d4a914c4a01deefc52f61b3",
-    },
-];
+/// The published OpenNLP models the generator loaded: none. Published
+/// OpenNLP 2.5 UD and language-detector artifacts are not fetched, pinned
+/// or run (#1509, #1653); their goldens go with #1532 and #1644 to #1648.
+pub const MODELS: [Model; 0] = [];
 
 /// The upstream all-MiniLM-L6-v2 ONNX export, at the revision the sentence
 /// vector bundles are made from, which `fetch` turns into the mean-pooled
 /// copy the SentenceVectorsDL goldens run (`crate::pooled`). The generator
 /// never opens it. Hugging Face publishes its SHA-256 (6fd5d72f...); this
-/// is the SHA-512 of the same bytes. Fetched with [`LOCAL_MODELS`].
+/// is the SHA-512 of the same bytes. Fetched only when asked (`--local`).
 pub const POOLING_SOURCE: Model = Model {
     file: "all-minilm-l6-v2.onnx",
     url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/\

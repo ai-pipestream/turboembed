@@ -5,7 +5,8 @@
 //!
 //! TURBO_TEST_BUNDLE names the bundle directory, absolute or relative to
 //! the workspace root; without it, the small sealed bundle in
-//! testdata/tiny-bert-bundle. TURBO_TEST_DEVICE names the device, as a
+//! testdata/tiny-bert-bundle, and the sealed tiny ModernBERT and
+//! nomic-bert besides. TURBO_TEST_DEVICE names the device, as a
 //! runtime device index or a backend name (the first device that backend
 //! lists); without it, the CPU. TURBO_TEST_PRECISION names the session's
 //! precision, model, fastest or exact; without it, model. The checks of
@@ -33,7 +34,11 @@ use turbo::*;
 /// runs tests in the package directory), or None.
 fn named_bundle() -> Option<PathBuf> {
     let p = PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
-    Some(if p.is_absolute() { p } else { Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+    Some(turbo_pins::require(if p.is_absolute() {
+        p
+    } else {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p)
+    }))
 }
 
 fn bundle() -> PathBuf {
@@ -84,6 +89,27 @@ fn precision() -> u32 {
 #[test]
 fn every_reference_case_matches_upstream() {
     conformance::check(&bundle(), device, precision());
+}
+
+/// The sealed tiny ModernBERT and nomic-bert (#1461) on the device, when
+/// its backend runs those families; a backend that does not is held to
+/// refusing them by core/tests/rotary_load.rs.
+#[test]
+fn the_rotary_bundles_match_upstream() {
+    let backend = device_backend();
+    if turbo::model::runs_family(&backend, backend::TURBO_FAMILY_MODERNBERT).is_err() {
+        eprintln!("skipped: the {backend} backend runs no rotary family");
+        return;
+    }
+    // Level Zero runs the rotary families in F32 alone and refuses FASTEST
+    // (core/tests/levelzero_rotary.rs holds it to that).
+    if backend == "levelzero" && precision() == TURBO_PRECISION_FASTEST {
+        eprintln!("skipped: the levelzero backend refuses FASTEST on the rotary families");
+        return;
+    }
+    for name in ["tiny-modernbert-bundle", "tiny-nomic-bundle"] {
+        conformance::check(&testdata().join(name), device, precision());
+    }
 }
 
 /// The small bundle as a fixed-shape artifact of 32 tokens would have it:

@@ -1,30 +1,49 @@
-//! Times loading a dictionary and stemming the Snowball vocabulary sample
-//! of its language (the `stem` input set):
-//! `cargo run --release -p turbo-hunspell --example hunspell_bench [en_US|de_DE_frami|hu_HU]`.
-//! The dictionaries are where `turbo-goldens fetch-models` puts them.
+//! Times loading a dictionary and stemming the vocabulary sample of its
+//! language: `cargo run --release -p turbo-hunspell --example hunspell_bench
+//! [en_US|de_DE_frami|hu_HU]`. Dictionaries come from `fetch-models`
+//! (`TURBO_GOLDENS_MODELS` or `target/turbo-goldens/models`); samples are
+//! the crate-local files under `tests/inputs/`.
 
+use std::path::PathBuf;
 use std::time::Instant;
 
 use turbo_hunspell::{Dictionary, LoadMode, Stemmer};
 
+fn published_model(file: &str) -> Option<PathBuf> {
+    let candidates = [
+        std::env::var_os("TURBO_GOLDENS_MODELS").map(PathBuf::from),
+        std::env::var_os("CARGO_TARGET_DIR").map(|d| PathBuf::from(d).join("turbo-goldens/models")),
+        Some(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models")),
+    ];
+    for dir in candidates.into_iter().flatten() {
+        let path = dir.join(file);
+        if path.is_file() {
+            return Some(turbo_pins::require(path));
+        }
+    }
+    None
+}
+
 fn main() {
     let name = std::env::args().nth(1).unwrap_or_else(|| "en_US".into());
     let sample = match name.as_str() {
-        "en_US" => "english",
-        "de_DE_frami" => "german",
-        "hu_HU" => "hungarian",
+        "en_US" => "en_US",
+        "de_DE_frami" => "de_DE_frami",
+        "hu_HU" => "hu_HU",
         other => panic!("no sample for {other}"),
     };
-    let (Some(affix), Some(words)) = (
-        turbo_goldens::published_model(&format!("hunspell/{name}.aff")),
-        turbo_goldens::published_model(&format!("hunspell/{name}.dic")),
-    ) else {
+    let (Some(affix), Some(words)) =
+        (published_model(&format!("hunspell/{name}.aff")), published_model(&format!("hunspell/{name}.dic")))
+    else {
+        eprintln!("dictionaries for {name} not found; set TURBO_GOLDENS_MODELS or run fetch-models");
         return;
     };
     let t = Instant::now();
     let dictionary = Dictionary::open(&affix, &words, LoadMode::Strict).expect("the dictionary loads");
     let load = t.elapsed();
-    let text = std::fs::read_to_string(turbo_goldens::data_dir().join(format!("inputs/stem/{sample}.txt"))).unwrap();
+    let text =
+        std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("tests/inputs/{sample}.txt")))
+            .unwrap();
     let mut list: Vec<String> =
         text.lines().filter(|l| !l.is_empty() && !l.starts_with('#')).map(String::from).collect();
     // Capitalized and upper case forms take the case variant paths too.

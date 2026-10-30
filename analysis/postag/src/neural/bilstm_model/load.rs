@@ -1,8 +1,8 @@
-//! `ONLP-BLPT-1`..`5` binary reading and validation.
+//! Binary reading and validation for trained [`BilstmPosModel`] instances,
+//! with external legacy `load` / `load_from_path` disabled under `#1511`.
 
 use std::collections::HashSet;
-use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{Cursor, Read};
 use std::path::Path;
 
 use crate::neural::lstm::{LstmLayer, MAX_HIDDEN_SIZE};
@@ -82,7 +82,6 @@ fn read_bytes_vocabulary<R: Read>(
     Ok(entries)
 }
 
-/// The shared vocabulary contract in `validate`, reported as a wire-format error.
 fn format_error(detail: String) -> NeuralError {
     NeuralError::Format(format!("Invalid BiLSTM POS model: {detail}"))
 }
@@ -216,17 +215,29 @@ where
     I: IntoIterator<Item = (S, usize)>,
     S: AsRef<str>,
 {
-    entries.into_iter().map(|(k, v)| (encode_str_modified_utf8(k.as_ref()), v)).collect()
+    entries.into_iter().map(|(s, idx)| (encode_str_modified_utf8(s.as_ref()), idx)).collect()
 }
 
 /// Helper to build a character vocabulary entry from a single UTF-16 code unit.
 pub fn char_key_from_unit(unit: u16) -> Vec<u8> {
     encode_unit_modified_utf8(unit)
 }
+
 impl BilstmPosModel {
-    /// Reads and validates a `BilstmPosModel` from a stream in `ONLP-BLPT-1`..`5` format.
-    pub fn load<R: Read>(reader: R) -> Result<Self, NeuralError> {
-        let mut data = DataReader::new(reader);
+    /// Returns the retirement error without reading the supplied stream.
+    /// Use [`BilstmPosModel::from_trained_bytes`] to decode models serialized by [`BilstmPosModel::serialize`].
+    pub fn load<R: Read>(_reader: R) -> Result<Self, NeuralError> {
+        Err(NeuralError::Disabled)
+    }
+
+    /// Returns the retirement error without accessing the filesystem.
+    pub fn load_from_path(_path: impl AsRef<Path>) -> Result<Self, NeuralError> {
+        Err(NeuralError::Disabled)
+    }
+
+    /// Reads and validates a [`BilstmPosModel`] from bytes produced by [`BilstmPosModel::serialize`].
+    pub fn from_trained_bytes(bytes: &[u8]) -> Result<Self, NeuralError> {
+        let mut data = DataReader::new(Cursor::new(bytes));
         let magic = data.read_utf()?;
         let (stacked, crf, adapter) = match magic.as_str() {
             MAGIC_V1 => (false, false, false),
@@ -346,11 +357,5 @@ impl BilstmPosModel {
             adapter_weights,
             adapter_bias,
         )
-    }
-
-    /// Reads and validates a `BilstmPosModel` from a file path.
-    pub fn load_from_path(path: impl AsRef<Path>) -> Result<Self, NeuralError> {
-        let file = File::open(path)?;
-        Self::load(BufReader::new(file))
     }
 }

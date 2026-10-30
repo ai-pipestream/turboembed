@@ -152,7 +152,7 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
                 stream.events(&samples[i], &mut events)?;
             }
             let trained = train_name_model_from_events(&events, self.factory, &self.params, config, stamp)?;
-            let file = ModelFile::open(trained.package.to_bytes()).map_err(crate::Error::Model)?;
+            let file = ModelFile::from_trained_archive(trained.package.to_bytes()).map_err(crate::Error::Model)?;
             let maxent = file.maxent(MODEL_ENTRY).map_err(crate::Error::Model)?;
             let mut finder = NameFinder::new(&file, &maxent, PatternMode::Utf16Units)?;
             let mut evaluator = NameFinderEvaluator::default();
@@ -206,12 +206,11 @@ fn flatten(docs: &[Range<usize>], documents: &[usize]) -> Vec<usize> {
 mod tests {
     use super::*;
     use turbo_formats::native::NameReader;
-    use turbo_unicode::WhitespaceMode;
 
     #[test]
     fn documents_start_at_the_first_sample_and_at_each_clear() {
         let text = "<START:person> A <END> b .\nc d .\n\n<START:person> E <END> f .\n\ng .\nh .\n";
-        let samples: Vec<_> = NameReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+        let samples: Vec<_> = NameReader::new(text).unwrap().map(|s| s.unwrap()).collect();
         assert_eq!(documents(&samples), vec![0..2, 2..3, 3..5]);
         assert!(documents(&[]).is_empty());
     }

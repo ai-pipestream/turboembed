@@ -1,5 +1,5 @@
 //! Multi-label emotion annotator (`#855`, part of `#318`): the 28 GoEmotions
-//! labels of `turbo:emotion` ([`EmotionLayer`]) for each sentence or chunk.
+//! labels of `turbo:emotion` ([`crate::scorers::EmotionLayer`]) for each sentence or chunk.
 //!
 //! [`EmotionAnnotator`] (`turbo-doccat:emotion`) scores a unit in one of
 //! three stages ([`EmotionStage`]):
@@ -23,7 +23,9 @@
 use std::sync::Arc;
 
 use turbo_analysis::{IxRange, ModelRef};
-use turbo_analysis_layers::{EMOTION_DIMENSIONS, EmotionDimension, EmotionScores, Tokens};
+#[cfg(test)]
+use turbo_analysis_layers::Tokens;
+use turbo_analysis_layers::{EMOTION_DIMENSIONS, EmotionDimension, EmotionScores};
 
 mod annotate;
 mod head;
@@ -32,33 +34,15 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
+pub use crate::scorers::{EmotionEvidence, EmotionStage, EmotionUnit, EmotionVectorScorer};
 pub use head::{
-    EmotionFitOptions, EmotionHeadError, EmotionVectorHead, EmotionVectorScorer, EmotionZooError,
-    GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD,
+    EmotionFitOptions, EmotionHeadError, EmotionVectorHead, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD,
+    GOEMOTIONS_MINILM_HEAD,
 };
 pub use metrics::{EmotionMetrics, GoldEmotionUnit, evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds};
 
 /// The score at or above which a label is active (`0.5`).
 pub const DEFAULT_EMOTION_THRESHOLD: f64 = 0.5;
-
-/// Which signals [`EmotionAnnotator`] scores with.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-#[repr(u8)]
-pub enum EmotionStage {
-    #[default]
-    Lexicon = 0,
-    Learned = 1,
-    Hybrid = 2,
-}
-
-/// Which unit layer [`EmotionAnnotator`] scores.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-#[repr(u8)]
-pub enum EmotionUnit {
-    #[default]
-    Sentences = 0,
-    Chunks = 1,
-}
 
 /// See the module comment.
 #[derive(Clone)]
@@ -79,9 +63,6 @@ impl Default for EmotionAnnotator {
         Self::new()
     }
 }
-
-/// One `(label, token range)` evidence pair.
-pub type EmotionEvidence = (EmotionDimension, IxRange<Tokens>);
 
 impl EmotionAnnotator {
     /// The lexicon stage over sentences at the default threshold.
@@ -230,7 +211,7 @@ impl EmotionAnnotator {
             None => ModelRef {
                 id: format!("goemotions-seed:{stage}"),
                 revision: "1".into(),
-                sha256: turbo_maxent::sha256(&self.config().to_le_bytes()).to_hex(),
+                sha256: turbo_sha256::sha256(&self.config().to_le_bytes()).to_hex(),
             },
         }
     }

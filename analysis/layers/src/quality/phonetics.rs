@@ -106,15 +106,15 @@ fn explicit_initialism_vowel_onset(segment: &str) -> Option<bool> {
         | "ITU" | "OAuth" | "ODBC" | "OEM" | "OID" | "OIDC" | "OLAP" | "OLED" | "OLTP" | "ONNX" | "OOM" | "OOP"
         | "OPA" | "ORM" | "OS" | "OSI" | "OSPF" | "OSS" | "OTA" | "OTP" | "OWASP" => Some(true),
         // Consonant-sound initialisms and acronyms (`U*` -> `/ju:/`, plus `JWT`, `CPU`, `GPU`, `REST`, `TLS`, etc.).
-        "URL" | "URI" | "URN" | "UDP" | "UUID" | "USB" | "UTF" | "UI" | "UX" | "UAT" | "UDF" | "UEFI" | "UID"
-        | "UML" | "UN" | "UPC" | "UPS" | "US" | "USA" | "UTC" | "JWT" | "CPU" | "GPU" | "REST" | "TLS" | "TCP"
-        | "DNS" | "BGP" | "CDN" | "CLI" | "CRDT" | "CORS" | "CSRF" | "CSS" | "CSV" | "DAG" | "DB" | "DDL" | "DOM"
-        | "DRAM" | "DSL" | "DTO" | "GCN" | "GNN" | "GPT" | "gRPC" | "GRPC" | "GUI" | "GUID" | "JSON" | "JVM"
-        | "KMS" | "KV" | "LAN" | "LDAP" | "NAT" | "NAS" | "PCA" | "PCI" | "PDF" | "PII" | "PKI" | "PNG" | "POSIX"
-        | "PR" | "QA" | "QPS" | "QR" | "RAID" | "RAM" | "RBAC" | "RDBMS" | "ROM" | "SAN" | "SAS" | "SATA" | "SAML"
-        | "SCIM" | "SCP" | "SCSI" | "SIMD" | "SIM" | "SIP" | "SOC" | "SOHO" | "SOP" | "SPA" | "TAR" | "TLD"
-        | "TOML" | "TPM" | "TTL" | "TTY" | "VLAN" | "VM" | "VPC" | "VPN" | "WASM" | "WAF" | "WAN" | "WARC" | "YAML"
-        | "ZKP" => Some(false),
+        "URL" | "URLs" | "URI" | "URIs" | "URN" | "URNs" | "UDP" | "UUID" | "USB" | "UTF" | "UI" | "UX" | "UAT"
+        | "UDF" | "UEFI" | "UID" | "UML" | "UN" | "UPC" | "UPS" | "US" | "USA" | "UTC" | "JWT" | "CPU" | "GPU"
+        | "REST" | "TLS" | "TCP" | "DNS" | "BGP" | "CDN" | "CLI" | "CRDT" | "CORS" | "CSRF" | "CSS" | "CSV" | "DAG"
+        | "DB" | "DDL" | "DOM" | "DRAM" | "DSL" | "DTO" | "GCN" | "GNN" | "GPT" | "gRPC" | "GRPC" | "GUI" | "GUID"
+        | "JSON" | "JVM" | "KMS" | "KV" | "LAN" | "LDAP" | "NAT" | "NAS" | "PCA" | "PCI" | "PDF" | "PII" | "PKI"
+        | "PNG" | "POSIX" | "PR" | "QA" | "QPS" | "QR" | "RAID" | "RAM" | "RBAC" | "RDBMS" | "ROM" | "SAN" | "SAS"
+        | "SATA" | "SAML" | "SCIM" | "SCP" | "SCSI" | "SIMD" | "SIM" | "SIP" | "SOC" | "SOHO" | "SOP" | "SPA"
+        | "TAR" | "TLD" | "TOML" | "TPM" | "TTL" | "TTY" | "VLAN" | "VM" | "VPC" | "VPN" | "WASM" | "WAF" | "WAN"
+        | "WARC" | "YAML" | "ZKP" => Some(false),
         _ => None,
     }
 }
@@ -236,12 +236,6 @@ fn is_consonant_glide_vowel_stem(lower: &str) -> bool {
             | "university"
             | "universities"
             | "uranium"
-            | "uri"
-            | "uris"
-            | "url"
-            | "urls"
-            | "urn"
-            | "urns"
             | "usage"
             | "usages"
             | "use"

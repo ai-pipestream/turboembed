@@ -5,11 +5,13 @@ mod common;
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Key, Layer, Provenance, Span, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::{
-    GrammarCategory, GrammarDiagnostic, GrammarDiagnostics, QualityFlags, QualityMetrics, SpanQuality, TextQuality,
+    GrammarCategory, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS, QualityFlags, QualityMetrics,
+    SpanQuality, TextQuality,
 };
 use turbo_kserve::proto::result::{
     AnchorKind, DocumentGraphRequest, GrammarDiagnosticAnnotation, InspectDocumentGraphRequest, LayerWireStatus,
-    OffsetMode, QualityMetricsAnnotation, SpanFragment, TypedDocumentResult, typed_annotation::Value,
+    OffsetMode, QualityMetricsAnnotation, SpanFragment, TypedDocumentResult, grammar_diagnostic_annotation,
+    typed_annotation::Value,
 };
 use turbo_kserve::results::document::codecs;
 
@@ -394,7 +396,7 @@ async fn grammar_diagnostics_survive_views_offset_modes_and_refuse_malformed_pay
                 ann.value,
                 Some(Value::GrammarDiagnostic(GrammarDiagnosticAnnotation {
                     rule_id: "SVA-001".into(),
-                    category: "subject_verb_agreement".into(),
+                    category: Some(grammar_diagnostic_annotation::Category::SubjectVerbAgreement as i32),
                     message: "Subject disagrees with verb".into(),
                     replacements: vec!["is".into()],
                     confidence: 0.92,
@@ -409,9 +411,15 @@ async fn grammar_diagnostics_survive_views_offset_modes_and_refuse_malformed_pay
             };
             for bad_diag in [
                 GrammarDiagnosticAnnotation { rule_id: String::new(), ..base_diag.clone() },
-                GrammarDiagnosticAnnotation { category: "unknown_category".into(), ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { category: None, ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { category: Some(99), ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { category: Some(-1), ..base_diag.clone() },
                 GrammarDiagnosticAnnotation { message: "   ".into(), ..base_diag.clone() },
                 GrammarDiagnosticAnnotation { replacements: vec![String::new()], ..base_diag.clone() },
+                GrammarDiagnosticAnnotation {
+                    replacements: vec!["is".into(); MAX_DIAGNOSTIC_REPLACEMENTS + 1],
+                    ..base_diag.clone()
+                },
                 GrammarDiagnosticAnnotation { confidence: 1.5, ..base_diag.clone() },
                 GrammarDiagnosticAnnotation { confidence: f32::NAN, ..base_diag },
             ] {

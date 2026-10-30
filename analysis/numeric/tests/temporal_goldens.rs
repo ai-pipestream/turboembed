@@ -1,109 +1,144 @@
-//! Parity of temporal extraction and document date selection with OpenNLP
-//! 3.x on the JVM.
+//! Reviewed temporal snapshots and span/value invariants.
 //!
-//! For every text in `analysis/goldens/data/inputs/temporal/`,
-//! `temporal/<mode>/temporal/<id>.golden` holds the mentions OpenNLP's
-//! `TemporalAnnotator` found with `CursorTemporalExtractor` and the date
-//! `DocumentDateAnnotator` chose from them (see
-//! `analysis/goldens-tool/README.md`). In the `dateline` mode the reference
-//! date of the relative mentions is each text's first absolute day; in the
-//! `fixed` mode it is 2026-03-15. Each test runs `TemporalExtractor` and
-//! `DocumentDateSelector` in an analyzer over every text and compares the
-//! `turbo:temporal` and `turbo:document-date` layers with the golden row
-//! for row. No tolerance is applied.
+//! `tests/snapshots/temporal/<mode>/<id>.{temporal,document-date}.tsv`.
+//! Regenerate with `TURBO_BLESS=1 cargo test -p turbo-numeric --test temporal_goldens`.
+//! Fixed mode reference date: 2026-03-15.
+//!
+//! Snapshots freeze the default (non-OpenNLP-parity) configuration. Relative to
+//! the retired JVM/parity goldens that is a deliberate change: default mode
+//! keeps year-range edges such as July 0999 and July 3000 in
+//! `fixed/years-range`, and the 100-day relative expressions in
+//! `fixed/relative-count-digits`, which parity mode omitted. See
+//! `temporal_fixes.rs` for the targeted assertions.
 
 use std::path::PathBuf;
 
-use turbo_analysis::{Analyzer, Document};
-use turbo_goldens::{Golden, Tolerance, data_dir, matches_golden};
+use turbo_analysis::{Analyzer, Document, Layer};
+use turbo_goldens::data_dir;
 use turbo_numeric::{Date, DocumentDate, DocumentDateSelector, Origin, TemporalExtractor, Temporals};
 
-/// The reference date of the `fixed` goldens.
 const REFERENCE: &str = "2026-03-15";
 
-/// The ids of the texts in `inputs/temporal`, sorted.
-fn inputs() -> Vec<String> {
-    let mut ids: Vec<String> = std::fs::read_dir(data_dir().join("inputs/temporal"))
-        .expect("the temporal input set")
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
+fn input_ids() -> Vec<String> {
+    let mut ids: Vec<String> = std::fs::read_dir(data_dir().join("inputs").join("temporal"))
+        .expect("goldens/data/inputs/temporal")
         .map(|e| {
-            let name = e.expect("a directory entry").file_name().into_string().expect("a UTF-8 file name");
-            name.strip_suffix(".txt").expect("an input set holds only <id>.txt files").to_string()
+            let name = e.expect("entry").file_name().into_string().expect("utf-8");
+            name.strip_suffix(".txt").expect(".txt").to_string()
         })
         .collect();
     ids.sort();
     ids
 }
 
-fn golden(mode: &str, id: &str) -> Golden {
-    let path: PathBuf = data_dir().join("temporal").join(mode).join("temporal").join(format!("{id}.golden"));
-    Golden::read(path).unwrap_or_else(|e| panic!("{e}"))
+fn text_of(id: &str) -> String {
+    std::fs::read_to_string(data_dir().join("inputs").join("temporal").join(format!("{id}.txt"))).unwrap()
 }
 
-fn config<'g>(golden: &'g Golden, key: &str) -> &'g str {
-    let entry = golden.header.config.iter().find(|c| c.key == key);
-    &entry.unwrap_or_else(|| panic!("no {key} config record")).value
+fn snap_path(mode: &str, id: &str, suffix: &str) -> PathBuf {
+    root().join("snapshots/temporal").join(mode).join(format!("{id}.{suffix}.tsv"))
 }
 
-/// What one mode compared: mentions, relative mentions among them, and
-/// texts with a document date.
+fn render_temporals(t: &Temporals) -> String {
+    let mut out = String::new();
+    for (i, span) in t.spans.iter() {
+        let m = t.get(i);
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\n",
+            span.start,
+            span.end,
+            m.value,
+            m.value.granularity().name(),
+            m.origin.name(),
+        ));
+    }
+    out
+}
+
+fn render_document_date(d: &DocumentDate) -> String {
+    match (d.date, d.mention) {
+        (None, None) => String::new(),
+        (Some(date), None) => format!("{date}\n"),
+        (None, Some(ix)) => format!("\t{}\n", ix.get()),
+        (Some(date), Some(ix)) => format!("{}\t{}\n", date, ix.get()),
+    }
+}
+
+fn check_invariants(text: &str, t: &Temporals) {
+    t.check().unwrap_or_else(|e| panic!("Layer::check: {e}"));
+    let len = text.len() as u32;
+    let mut prev = 0u32;
+    for (_, span) in t.spans.iter() {
+        assert!(span.start <= span.end && span.end <= len);
+        assert!(span.start >= prev);
+        prev = span.end;
+    }
+}
+
 struct Compared {
     mentions: usize,
     relative: usize,
     dated: usize,
 }
 
-/// Runs `extractor` and the selector over every text, compares both layers
-/// with the goldens of `mode`, whose `config reference` must be
-/// `reference`, and returns what was compared.
-fn check(mode: &str, extractor: TemporalExtractor, reference: &str) -> Compared {
-    let ids = inputs();
-    assert!(!ids.is_empty(), "no inputs in the temporal set");
-    let analyzer = Analyzer::builder().add(extractor).add(DocumentDateSelector).build().expect("the analyzer");
+fn check(mode: &str, extractor: TemporalExtractor) -> Compared {
+    let bless = std::env::var_os("TURBO_BLESS").is_some();
+    let ids = input_ids();
+    assert!(!ids.is_empty());
+    let analyzer = Analyzer::builder().add(extractor).add(DocumentDateSelector).build().expect("analyzer");
     let mut compared = Compared { mentions: 0, relative: 0, dated: 0 };
-    let mut failures = Vec::new();
     for id in &ids {
-        let g = golden(mode, id);
-        assert_eq!(config(&g, "reference"), reference, "{id}: the golden was made with another reference");
-        let text = g.input_text(data_dir()).unwrap_or_else(|e| panic!("{e}"));
+        let text = text_of(id);
         let mut docs = vec![Document::new(text.as_str())];
         for result in analyzer.run(&mut docs) {
             result.unwrap_or_else(|e| panic!("{id}: {e}"));
         }
-        if let Some(t) = docs[0].get::<Temporals>() {
-            compared.mentions += t.spans.len();
-            compared.relative += t.origin.iter().filter(|&&o| o == Origin::Relative).count();
+        let empty_t = Temporals::new(turbo_analysis::ViewId::SOURCE);
+        let empty_d = DocumentDate::default();
+        let t = docs[0].get::<Temporals>().unwrap_or(&empty_t);
+        let d = docs[0].get::<DocumentDate>().unwrap_or(&empty_d);
+        compared.mentions += t.spans.len();
+        compared.relative += t.origin.iter().filter(|&&o| o == Origin::Relative).count();
+        compared.dated += usize::from(d.date.is_some());
+        check_invariants(&text, t);
+        d.check().unwrap_or_else(|e| panic!("document-date check: {e}"));
+        let t_body = render_temporals(t);
+        let d_body = render_document_date(d);
+        let t_path = snap_path(mode, id, "temporal");
+        let d_path = snap_path(mode, id, "document-date");
+        if bless {
+            std::fs::create_dir_all(t_path.parent().unwrap()).unwrap();
+            std::fs::write(&t_path, &t_body).unwrap();
+            std::fs::write(&d_path, &d_body).unwrap();
+            continue;
         }
-        compared.dated += docs[0].get::<DocumentDate>().map_or(0, |d| usize::from(d.date.is_some()));
-        if let Err(m) = matches_golden::<Temporals>(&docs[0], &g, Tolerance::exact()) {
-            failures.push(format!("{id}: {m}"));
-        }
-        if let Err(m) = matches_golden::<DocumentDate>(&docs[0], &g, Tolerance::exact()) {
-            failures.push(format!("{id}: {m}"));
-        }
+        let tw = std::fs::read_to_string(&t_path)
+            .unwrap_or_else(|e| panic!("missing {} (TURBO_BLESS=1): {e}", t_path.display()));
+        let dw = std::fs::read_to_string(&d_path)
+            .unwrap_or_else(|e| panic!("missing {} (TURBO_BLESS=1): {e}", d_path.display()));
+        assert_eq!(t_body, tw, "{mode}/{id} temporal");
+        assert_eq!(d_body, dw, "{mode}/{id} document-date");
     }
-    assert!(
-        failures.is_empty(),
-        "{} layers of {} texts differ from the JVM:\n{}",
-        failures.len(),
-        ids.len(),
-        failures.join("\n")
-    );
     compared
 }
 
 #[test]
-fn the_dateline_mode_matches_the_jvm() {
-    let c = check("dateline", TemporalExtractor::new().with_opennlp_parity(true), "dateline");
-    assert!(c.mentions > 75, "only {} mentions compared", c.mentions);
-    assert!(c.relative >= 5, "only {} relative mentions compared", c.relative);
-    assert!(c.dated > 25, "only {} document dates compared", c.dated);
+fn dateline_snapshots() {
+    let c = check("dateline", TemporalExtractor::new());
+    assert!(c.mentions > 75, "only {} mentions", c.mentions);
+    assert!(c.relative >= 5, "only {} relative", c.relative);
+    assert!(c.dated > 25, "only {} dated", c.dated);
 }
 
 #[test]
-fn the_fixed_mode_matches_the_jvm() {
-    let reference = Date::parse(REFERENCE).expect("the reference date");
-    let c = check("fixed", TemporalExtractor::with_reference(reference).with_opennlp_parity(true), REFERENCE);
-    assert!(c.mentions > 110, "only {} mentions compared", c.mentions);
-    assert!(c.relative > 40, "only {} relative mentions compared", c.relative);
-    assert!(c.dated > 25, "only {} document dates compared", c.dated);
+fn fixed_snapshots() {
+    let reference = Date::parse(REFERENCE).expect("reference");
+    let c = check("fixed", TemporalExtractor::with_reference(reference));
+    assert!(c.mentions > 110, "only {} mentions", c.mentions);
+    assert!(c.relative > 40, "only {} relative", c.relative);
+    assert!(c.dated > 25, "only {} dated", c.dated);
 }

@@ -1,0 +1,14 @@
+===OUT===
+"We're leaving," she said. 'It's late,' he answered.
+The sign read "Open 'till nine" and nothing more.
+
+===EDITS===
+0	3	"
+5	8	'
+19	22	"
+33	36	'
+38	41	'
+48	51	'
+79	82	"
+87	90	'
+99	102	"

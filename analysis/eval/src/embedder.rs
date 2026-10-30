@@ -430,7 +430,7 @@ mod tests {
         let mut e = tiny_bert();
         assert_eq!((e.dim(), e.max_tokens()), (32, 64));
         let id = e.identity().clone();
-        assert_eq!(id.bundle.model_id, "sentence-transformers/all-MiniLM-L6-v2");
+        assert_eq!(id.bundle.model_id, "turboembed/tiny-bert");
         assert_eq!(id.device.backend, "cpu");
         assert_eq!(id.device.kind, "DEVICE_CPU");
         assert_eq!(id.bundle.manifest_sha256.len(), 64);

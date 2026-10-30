@@ -25,6 +25,8 @@ pub fn embed_options() -> turbo_embed_options {
         normalize: 0,
         pooling: 0,
         output_dim: 0,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     }
 }
 
@@ -83,6 +85,25 @@ impl Session {
         let mut err = new_error();
         let o = opts.map_or(ptr::null(), |o| o as *const _);
         let rc = unsafe { turbo_embed_write_ranges(self.0, b, ranges.as_ptr(), ranges.len() as u32, o, &mut err) };
+        if rc != 0 {
+            return Err(failure(rc, &err));
+        }
+        Ok(())
+    }
+
+    /// `write_ranges`, each range pooled from each of the last `layers`
+    /// layers (turbo_embed_write_layer_ranges).
+    pub fn write_layer_ranges(
+        &self,
+        b: &turbo_token_batch,
+        ranges: &[turbo_token_range],
+        layers: u32,
+        opts: Option<&turbo_embed_options>,
+    ) -> Result<(), Failure> {
+        let mut err = new_error();
+        let o = opts.map_or(ptr::null(), |o| o as *const _);
+        let n = ranges.len() as u32;
+        let rc = unsafe { turbo_embed_write_layer_ranges(self.0, b, ranges.as_ptr(), n, layers, o, &mut err) };
         if rc != 0 {
             return Err(failure(rc, &err));
         }

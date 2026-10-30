@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use turbo_formats::evaluate::FMeasure;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Mention {
     pub start: u32,

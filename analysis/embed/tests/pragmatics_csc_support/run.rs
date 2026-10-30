@@ -24,11 +24,14 @@ struct Prepared {
 
 pub fn run() {
     let csv = PathBuf::from(std::env::var_os("TURBO_CSC_CSV").expect("TURBO_CSC_CSV names CSC data_full.csv"));
-    let bundle = PathBuf::from(std::env::var_os("TURBO_MINILM_BUNDLE").expect("TURBO_MINILM_BUNDLE names MiniLM"));
+    let bundle = turbo_pins::require(PathBuf::from(
+        std::env::var_os("TURBO_MINILM_BUNDLE").expect("TURBO_MINILM_BUNDLE names MiniLM"),
+    ));
     let release_dir = std::env::var_os("TURBO_PRAGMATICS_HEAD");
     let output_dir = std::env::var_os("TURBO_PRAGMATICS_OUT");
     assert!(release_dir.is_some() != output_dir.is_some(), "choose release verification OR explicit training output");
-    if release_dir.is_some() {
+    if let Some(dir) = &release_dir {
+        turbo_pins::require(Path::new(dir).join("pragmatics-1.thead"));
         release::validate_source(&csv).unwrap();
     }
     let responses = load(&csv);

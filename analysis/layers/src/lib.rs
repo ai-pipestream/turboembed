@@ -33,6 +33,7 @@ pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Eve
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use heatmap::{DocumentHeatmap, HeatmapLane, HeatmapLaneKind, HeatmapSegment};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
+pub use layout::{LayoutBox, LayoutBoxes, PageBoundingBox};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
 pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
@@ -41,9 +42,9 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quality::{
-    GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, QualityFlags, QualityMetrics,
-    QualityPredicate, SpanQuality, TextQuality, builtin_rule_id, lexical_quality_gate, lexical_quality_gate_on,
-    quality_gate, quality_gate_on,
+    GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
+    MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
+    lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on,
 };
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
@@ -66,6 +67,7 @@ pub use tables::{
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use vector_codes::{CodeKind, VectorCodes};
 pub use wordnet::{
     ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
 };
@@ -145,6 +147,7 @@ pub mod export;
 mod generic;
 mod heatmap;
 mod language_spans;
+mod layout;
 mod levels;
 mod matches;
 pub mod modality;
@@ -166,5 +169,6 @@ pub mod tables;
 mod temporal;
 mod times;
 pub mod unit;
+mod vector_codes;
 mod wordnet;
 mod words;

@@ -2,14 +2,12 @@
 //! Before_Dot and After_I contexts on the original text. Other mappings
 //! retain the shared JDK lowercase behavior, including final sigma.
 
-use super::{Lowercase, lowercase_at};
+use super::{Lowercase, SigmaCursor};
 use crate::normalize::canonical_combining_class;
 
-/// Mapping of the character at `at` for either `tr` or `az`.
-/// The empty string means deletion of U+0307 after capital I. A combining
-/// character of class 0 or 230 blocks the context; the target I/dot is
-/// tested before this barrier rule. Input must point to `c` in `text`.
-pub fn turkic_lowercase_at(text: &str, at: usize, c: char) -> Lowercase {
+/// Mapping of the character at `at` for either `tr` or `az`, using `sigma` to
+/// evaluate final sigma in linear time per word.
+pub fn turkic_lowercase_at_with(text: &str, at: usize, c: char, sigma: &mut SigmaCursor<'_>) -> Lowercase {
     assert!(text.get(at..).is_some_and(|s| s.starts_with(c)), "c is not at byte at");
     match c {
         '\u{130}' => Lowercase::Char('i'),
@@ -28,14 +26,23 @@ pub fn turkic_lowercase_at(text: &str, at: usize, c: char) -> Lowercase {
                 == Some('I');
             if after_i { Lowercase::Str("") } else { Lowercase::Char(c) }
         }
-        _ => lowercase_at(text, at, c),
+        _ => sigma.lowercase_at(at, c),
     }
+}
+
+/// Mapping of the character at `at` for either `tr` or `az`.
+/// The empty string means deletion of U+0307 after capital I. A combining
+/// character of class 0 or 230 blocks the context; the target I/dot is
+/// tested before this barrier rule. Input must point to `c` in `text`.
+pub fn turkic_lowercase_at(text: &str, at: usize, c: char) -> Lowercase {
+    turkic_lowercase_at_with(text, at, c, &mut SigmaCursor::new(text))
 }
 
 /// Appends Turkish/Azerbaijani lowercase to `out`.
 pub fn to_turkic_lowercase(text: &str, out: &mut String) {
+    let mut sigma = SigmaCursor::new(text);
     for (at, c) in text.char_indices() {
-        match turkic_lowercase_at(text, at, c) {
+        match turkic_lowercase_at_with(text, at, c, &mut sigma) {
             Lowercase::Char(c) => out.push(c),
             Lowercase::Str(s) => out.push_str(s),
         }

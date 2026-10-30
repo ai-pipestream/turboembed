@@ -1,4 +1,4 @@
-//! One MASC document: `MascDocument.parseDocument` and what it builds.
+//! One MASC document and its aligned annotations.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -7,8 +7,8 @@ use turbo_analysis::Span;
 
 use super::chunks::{MascChunk, MascChunkKind};
 use super::error::{AnnotationFile, MascError};
-use super::java::decode_utf8;
 use super::logical::MascLogical;
+use super::text::decode_utf8;
 
 mod align;
 #[cfg(test)]
@@ -66,9 +66,7 @@ pub struct MascToken {
     pub quarks: Vec<usize>,
 }
 
-/// A named entity of a sentence: tokens `start..end` of the sentence's
-/// Penn tokens, as OpenNLP computes them (see the module documentation),
-/// and the entity's label.
+/// A named entity span over a sentence's Penn tokens.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascName {
     pub start: u32,
@@ -76,15 +74,9 @@ pub struct MascName {
     pub kind: Option<String>,
 }
 
-/// A named entity of a sentence as the named entity file gives it, which
-/// OpenNLP does not compute: the sentence's Penn tokens the entity links
-/// to (places in the sentence's tokens, ascending, each once), the span
-/// from its first token to one past its last, and its label.
-///
-/// This is the reading a corpus user would expect where OpenNLP's names
-/// ([`MascSentence::names`]) lose tokens and whole names (see the module
-/// documentation). An entity that links to tokens of several sentences
-/// is an entity of each, with the tokens in that sentence.
+/// The complete original token membership of a named entity within one
+/// sentence. Token places are sorted and deduplicated; `start..end` covers
+/// the first through last token without dropping interior or trailing tokens.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascEntity {
     /// The first token.
@@ -105,8 +97,8 @@ impl MascEntity {
     }
 }
 
-/// Why an entity of the named entity file is in no sentence of its
-/// document ([`MascDocument::unplaced_entities`]).
+/// Why an entity of the named entity file has no complete sentence sample
+/// ([`MascDocument::unplaced_entities`]).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Unplaced {
     /// None of its tokens is in a region of the sentence file: MASC marks
@@ -119,11 +111,14 @@ pub enum Unplaced {
     /// `MascDocument` does. (A token of a kept region that the reader left
     /// out of its sentence would count here too; MASC 3.0.0 has none.)
     DroppedSentence,
+    /// Every token is in a kept sentence, but no one sentence contains the
+    /// whole entity. Its fragments are not complete gold entities.
+    CrossesSentences,
 }
 
-/// An entity of the named entity file that is in no sentence, so that
-/// neither OpenNLP's names nor [`MascSentence::entities`] hold it: its
-/// label and why. OpenNLP computes no such thing.
+/// An entity of the named entity file that has no complete sentence sample,
+/// so that neither OpenNLP's names nor [`MascSentence::entities`] hold it:
+/// its label and why. OpenNLP computes no such thing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascUnplacedEntity {
     pub kind: Option<String>,
@@ -180,14 +175,12 @@ impl MascSentence {
         self.tokens.as_deref()
     }
 
-    /// The named entities as OpenNLP computes them, which is what
-    /// [`MascNameReader`](super::MascNameReader) reads.
+    /// Nonoverlapping entity spans used by [`MascNameReader`](super::MascNameReader).
     pub fn names(&self) -> &[MascName] {
         &self.names
     }
 
-    /// The named entities as the named entity file gives them, in the
-    /// order of their first edge in the file; see [`MascEntity`].
+    /// Original entity token memberships in file order; see [`MascEntity`].
     pub fn entities(&self) -> &[MascEntity] {
         &self.entities
     }
@@ -207,7 +200,7 @@ impl MascSentence {
     }
 }
 
-/// Something OpenNLP logs as a warning and reads on.
+/// A nonfatal annotation inconsistency found while reading.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MascWarning {
     /// A quark is in more than one Penn token.
@@ -295,16 +288,13 @@ pub struct MascDocument {
 }
 
 impl MascDocument {
-    /// `MascDocument.parseDocument`: reads the text (UTF-8, each malformed
-    /// sequence replaced with U+FFFD where Java's decoder replaces it), the
-    /// quarks and the sentence regions, gives each sentence the quarks
-    /// that overlap it, then adds the Penn tokens and the named entities
-    /// when there are files for them. `path` is the document's header,
-    /// which only names it.
+    /// Reads UTF-8 text with Unicode replacement for malformed sequences,
+    /// segmentation quarks, sentence regions, Penn tokens and named entities.
+    /// `path` identifies the source header in diagnostics.
     ///
     /// # Errors
     ///
-    /// What `parseDocument` throws: see [`MascError`].
+    /// Returns a typed [`MascError`] for malformed or inconsistent input.
     pub fn parse(path: impl Into<PathBuf>, files: MascFiles<'_>) -> Result<MascDocument, MascError> {
         let text = decode_utf8(files.text);
         if u32::try_from(text.len()).is_err() {
@@ -338,7 +328,7 @@ impl MascDocument {
         if let Some(ne) = files.named_entities {
             let ne = parse_named_entities(ne)?;
             doc.warnings.extend(ne.warnings.iter().cloned());
-            doc.add_named_entities(&ne);
+            doc.add_named_entities_with(&ne);
             if let (true, Some(penn)) = (doc.has_named_entities, &penn) {
                 doc.unplaced = doc.unplaced(&ne, penn, &dropped);
             }
@@ -382,10 +372,10 @@ impl MascDocument {
         self.has_named_entities
     }
 
-    /// The entities of the named entity file that are in no sentence, in
-    /// the order of their first edge in the file, with why; empty for a
-    /// document without named entities. An entity is in a sentence when
-    /// one of its tokens is one of the sentence's tokens.
+    /// The entities of the named entity file that have no complete sentence
+    /// sample, in the order of their first edge in the file, with why; empty
+    /// for a document without named entities. An entity is complete in a
+    /// sentence when every one of its tokens is one of the sentence's tokens.
     pub fn unplaced_entities(&self) -> &[MascUnplacedEntity] {
         &self.unplaced
     }

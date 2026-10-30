@@ -3,17 +3,14 @@
 
 use turbo_analysis::{Ix, IxRange, Layer, Span};
 
-use crate::{Dependencies, Lemmas, PosTags, Sentences, Tokens};
+use crate::{Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens};
 
 use super::clause::{
-    check_articles, check_auxiliaries, check_case_government, check_punctuation, check_repetitions,
+    check_articles, check_auxiliaries, check_case_government, check_determiners, check_punctuation, check_repetitions,
     is_bare_infinitive_modal,
 };
 use super::grammar::{GrammarCategory, GrammarChecker, GrammarDiagnostic};
-use super::morphology::{
-    NounNumber, SubjectPersonNumber, check_and_repair_sva_verb, classify_noun_number, classify_subject_token,
-    match_case, pluralize_noun, singularize_noun,
-};
+use super::morphology::{SubjectPersonNumber, check_and_repair_sva_verb, classify_subject_token};
 
 const INTERVENING_ADVERBS: &[&str] = &[
     "not",
@@ -70,14 +67,7 @@ const PREPOSITIONS: &[&str] = &[
 const SUBORDINATING_CONJUNCTIONS: &[&str] =
     &["that", "if", "whether", "because", "although", "though", "while", "since", "unless", "whereas"];
 
-const PARTITIVE_DETERMINERS: &[&str] = &["the", "these", "those", "my", "our", "their", "his", "her", "its"];
-
-const ARTICLE_QUANTIFIER_NOUNS: &[&str] = &[
-    "few", "lot", "couple", "dozen", "hundred", "thousand", "million", "billion", "number", "pair", "variety", "group",
-    "set",
-];
-
-const SVA_AUX_VERBS: &[&str] = &[
+pub(crate) const SVA_AUX_VERBS: &[&str] = &[
     "is", "are", "am", "was", "were", "has", "have", "does", "do", "isn't", "aren't", "wasn't", "weren't", "hasn't",
     "haven't", "doesn't", "don't",
 ];
@@ -89,10 +79,39 @@ pub(crate) struct SentCtx<'a> {
     pub(crate) pos: &'a PosTags,
     pub(crate) lemmas: Option<&'a Lemmas>,
     pub(crate) deps: Option<&'a Dependencies>,
+    pub(crate) morph: Option<&'a MorphFeatures<Tokens>>,
+    pub(crate) dep_children: Vec<Vec<usize>>,
     pub(crate) range: IxRange<Tokens>,
 }
 
 impl<'a> SentCtx<'a> {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        checker: &'a GrammarChecker,
+        text: &'a str,
+        tokens: &'a Tokens,
+        pos: &'a PosTags,
+        lemmas: Option<&'a Lemmas>,
+        deps: Option<&'a Dependencies>,
+        morph: Option<&'a MorphFeatures<Tokens>>,
+        range: IxRange<Tokens>,
+    ) -> Self {
+        let start = range.start.get();
+        let end = range.end.get();
+        let mut dep_children = Vec::new();
+        if let Some(d) = deps {
+            dep_children.resize_with(end - start, Vec::new);
+            for t in start..end {
+                if let Some(h) = d.head[t].map(Ix::get)
+                    && (start..end).contains(&h)
+                {
+                    dep_children[h - start].push(t);
+                }
+            }
+        }
+        Self { checker, text, tokens, pos, lemmas, deps, morph, dep_children, range }
+    }
+
     pub(crate) fn span(&self, i: usize) -> Span {
         self.tokens.spans.get(Ix::new(i as u32))
     }
@@ -109,6 +128,10 @@ impl<'a> SentCtx<'a> {
         self.lemmas.map(|l| l.lemma.get(i))
     }
 
+    pub(crate) fn morph_str(&self, i: usize) -> Option<&'a str> {
+        self.morph.map(|m| m.feats.get(i))
+    }
+
     pub(crate) fn dep_head(&self, i: usize) -> Option<usize> {
         self.deps.and_then(|d| d.head[i].map(Ix::get))
     }
@@ -118,6 +141,7 @@ impl<'a> SentCtx<'a> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn check_sentence_rules(
     checker: &GrammarChecker,
     text: &str,
@@ -126,18 +150,20 @@ pub(crate) fn check_sentence_rules(
     pos: &PosTags,
     lemmas: Option<&Lemmas>,
     deps: Option<&Dependencies>,
+    morph: Option<&MorphFeatures<Tokens>>,
 ) -> Vec<GrammarDiagnostic> {
     let mut out = Vec::new();
     let sent_count = sentences.len();
     if sent_count == 0 && tokens.len() > 0 {
-        let cx = SentCtx { checker, text, tokens, pos, lemmas, deps, range: IxRange::new(0, tokens.len() as u32) };
+        let range = IxRange::new(0, tokens.len() as u32);
+        let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
         run_on_sentence(&cx, &mut out);
         return out;
     }
     for s_ix in 0..sent_count {
         let range = tokens.in_sentence(sentences, Ix::new(s_ix as u32));
         if !range.is_empty() {
-            let cx = SentCtx { checker, text, tokens, pos, lemmas, deps, range };
+            let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
             run_on_sentence(&cx, &mut out);
         }
     }
@@ -181,154 +207,16 @@ pub(crate) fn is_preposition(surface: &str, pos_tag: &str) -> bool {
     PREPOSITIONS.contains(&lower.as_str())
 }
 
-fn check_determiners(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
-    let start = cx.range.start.get();
-    let end = cx.range.end.get();
-
-    for i in start..end.saturating_sub(3) {
-        if cx.surface(i).eq_ignore_ascii_case("one")
-            && cx.surface(i + 1).eq_ignore_ascii_case("of")
-            && PARTITIVE_DETERMINERS.contains(&cx.surface(i + 2).to_ascii_lowercase().as_str())
-            && let Some((head_ix, NounNumber::Singular)) = find_np_head_noun(cx, i + 3, end)
-        {
-            let plural = pluralize_noun(cx.surface(head_ix));
-            out.push(GrammarDiagnostic::new(
-                cx.span(head_ix),
-                "DET-001",
-                GrammarCategory::DeterminerNounAgreement,
-                format!("Partitive \"one of {}\" requires plural noun {:?}", cx.surface(i + 2), plural),
-                [plural],
-                0.93,
-            ));
-        }
-    }
-
-    for i in start..end.saturating_sub(1) {
-        let det_surf = cx.surface(i);
-        let det_lower = det_surf.to_ascii_lowercase();
-        if !matches!(
-            det_lower.as_str(),
-            "this" | "that" | "these" | "those" | "many" | "several" | "both" | "fewer" | "much" | "less" | "a" | "an"
-        ) {
-            continue;
-        }
-        if det_lower == "that" && !matches!(cx.pos_str(i), "DT" | "DET") && is_preceded_by_verb_or_noun(cx, i) {
-            continue;
-        }
-        let next_lower = cx.surface(i + 1).to_ascii_lowercase();
-        if matches!(det_lower.as_str(), "a" | "an") && ARTICLE_QUANTIFIER_NOUNS.contains(&next_lower.as_str()) {
-            continue;
-        }
-        if matches!(det_lower.as_str(), "both" | "this" | "that" | "these" | "those")
-            && (next_lower == "of" || next_lower == "and" || SVA_AUX_VERBS.contains(&next_lower.as_str()))
-        {
-            continue;
-        }
-        if i >= start + 2
-            && cx.surface(i - 2).eq_ignore_ascii_case("one")
-            && cx.surface(i - 1).eq_ignore_ascii_case("of")
-        {
-            continue;
-        }
-        let Some((head_ix, number)) = find_np_head_noun(cx, i + 1, end) else {
-            continue;
-        };
-        let head_surf = cx.surface(head_ix);
-        let diag = match (det_lower.as_str(), number) {
-            ("this", NounNumber::Plural) => Some((
-                cx.span(i),
-                match_case(det_surf, "these"),
-                format!("Singular determiner {:?} disagrees with plural noun {:?}", det_surf, head_surf),
-            )),
-            ("that", NounNumber::Plural) => Some((
-                cx.span(i),
-                match_case(det_surf, "those"),
-                format!("Singular determiner {:?} disagrees with plural noun {:?}", det_surf, head_surf),
-            )),
-            ("these", NounNumber::Singular) => Some((
-                cx.span(i),
-                match_case(det_surf, "this"),
-                format!("Plural determiner {:?} disagrees with singular noun {:?}", det_surf, head_surf),
-            )),
-            ("those", NounNumber::Singular) => Some((
-                cx.span(i),
-                match_case(det_surf, "that"),
-                format!("Plural determiner {:?} disagrees with singular noun {:?}", det_surf, head_surf),
-            )),
-            ("many" | "several" | "both" | "fewer", NounNumber::Singular) => {
-                let rep = pluralize_noun(head_surf);
-                let msg = format!("Plural quantifier {:?} requires plural noun {:?}", det_surf, rep);
-                Some((cx.span(head_ix), rep, msg))
-            }
-            ("much", NounNumber::Plural) => Some((
-                cx.span(i),
-                match_case(det_surf, "many"),
-                format!("Mass quantifier {:?} disagrees with plural count noun {:?}", det_surf, head_surf),
-            )),
-            ("less", NounNumber::Plural) => {
-                let rep = match_case(det_surf, "fewer");
-                let msg = format!("Use {:?} with plural count noun {:?}", rep, head_surf);
-                Some((cx.span(i), rep, msg))
-            }
-            ("a" | "an", NounNumber::Plural) => {
-                let rep = singularize_noun(head_surf);
-                let msg = format!("Indefinite article {:?} requires singular noun {:?}", det_surf, rep);
-                Some((cx.span(head_ix), rep, msg))
-            }
-            _ => None,
-        };
-        if let Some((span, rep, msg)) = diag {
-            out.push(GrammarDiagnostic::new(
-                span,
-                "DET-001",
-                GrammarCategory::DeterminerNounAgreement,
-                msg,
-                [rep],
-                0.93,
-            ));
-        }
-    }
-}
-
-fn is_preceded_by_verb_or_noun(cx: &SentCtx<'_>, i: usize) -> bool {
-    i > cx.range.start.get()
-        && matches!(
-            cx.pos_str(i - 1),
-            "VB" | "VBD" | "VBG" | "VBN" | "VBP" | "VBZ" | "VERB" | "NN" | "NNS" | "NNP" | "NNPS" | "NOUN" | "PROPN"
-        )
-}
-
-fn find_np_head_noun(cx: &SentCtx<'_>, from: usize, end: usize) -> Option<(usize, NounNumber)> {
-    let mut last_noun = None;
-    let mut j = from;
-    while j < end && j <= from + 4 {
-        let p = cx.pos_str(j);
-        let lower = cx.surface(j).to_ascii_lowercase();
-        if matches!(p, "JJ" | "JJR" | "JJS" | "ADJ" | "RB" | "ADV" | "VBN" | "VBG") && last_noun.is_none() {
-            j += 1;
-            continue;
-        }
-        if let Some(num) = classify_noun_number(&lower, p)
-            && !matches!(p, "VBZ" | "VBP" | "VBD" | "MD" | "AUX")
-            && !SVA_AUX_VERBS.contains(&lower.as_str())
-        {
-            last_noun = Some((j, num));
-            j += 1;
-            continue;
-        }
-        break;
-    }
-    last_noun
-}
-
 fn check_sva(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
     let start = cx.range.start.get();
     let end = cx.range.end.get();
     for v in start..end {
         let v_surf = cx.surface(v);
         let v_pos = cx.pos_str(v);
-        if (!SVA_AUX_VERBS.contains(&v_surf.to_ascii_lowercase().as_str()) && !matches!(v_pos, "VBZ" | "VBP" | "VERB"))
+        let v_lower = v_surf.to_ascii_lowercase();
+        if (!SVA_AUX_VERBS.contains(&v_lower.as_str()) && !matches!(v_pos, "VBZ" | "VBP" | "VERB"))
             || is_governed_by_preceding_aux_or_to(cx, v)
+            || is_subjunctive_were(cx, v, &v_lower)
         {
             continue;
         }
@@ -351,6 +239,23 @@ fn check_sva(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
             ));
         }
     }
+}
+
+fn is_subjunctive_were(cx: &SentCtx<'_>, v: usize, v_lower: &str) -> bool {
+    if !matches!(v_lower, "were" | "weren't") {
+        return false;
+    }
+    if cx.morph_str(v).is_some_and(|m| m.contains("Mood=Sub")) {
+        return true;
+    }
+    let start = cx.range.start.get();
+    let window_start = v.saturating_sub(6).max(start);
+    (window_start..v).any(|i| {
+        matches!(
+            cx.surface(i).to_ascii_lowercase().as_str(),
+            "if" | "though" | "although" | "unless" | "whether" | "wish" | "wishes" | "wished" | "wishing" | "suppose"
+        )
+    })
 }
 
 fn is_governed_by_preceding_aux_or_to(cx: &SentCtx<'_>, v: usize) -> bool {
@@ -378,29 +283,37 @@ fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectP
             Some("cop" | "aux" | "aux:pass" | "auxpass") => cx.dep_head(v).unwrap_or(v),
             _ => v,
         };
-        if (start..end).any(|t| {
-            cx.dep_head(t) == Some(head_for_subj)
-                && (cx.dep_rel(t) == Some("expl") || cx.surface(t).eq_ignore_ascii_case("there"))
-        }) {
-            return None;
-        }
-        if let Some(subj) = (start..v).rev().find(|&t| {
-            cx.dep_head(t) == Some(head_for_subj) && matches!(cx.dep_rel(t), Some("nsubj" | "nsubj:pass" | "nsubjpass"))
-        }) {
-            let eff_subj = if is_relative_pronoun(cx.surface(subj), cx.pos_str(subj)) && subj > start {
-                find_antecedent_before(cx, subj).unwrap_or(subj)
-            } else {
-                subj
-            };
-            let has_conj = (eff_subj + 1..v).any(|t| {
-                (cx.dep_head(t) == Some(eff_subj) && matches!(cx.dep_rel(t), Some("conj" | "cc")))
-                    || (cx.surface(t).eq_ignore_ascii_case("and") && cx.dep_head(t) == Some(eff_subj))
-            });
-            if has_conj {
-                return Some((eff_subj, SubjectPersonNumber::SecondOrPlural));
+        if (start..end).contains(&head_for_subj) {
+            let children = &cx.dep_children[head_for_subj - start];
+            if children.iter().any(|&t| cx.dep_rel(t) == Some("expl") || cx.surface(t).eq_ignore_ascii_case("there")) {
+                return None;
             }
-            if let Some(spn) = classify_subject_token(cx.surface(eff_subj), cx.pos_str(eff_subj)) {
-                return Some((eff_subj, spn));
+            let subj_before = children
+                .iter()
+                .rev()
+                .copied()
+                .find(|&t| t < v && matches!(cx.dep_rel(t), Some("nsubj" | "nsubj:pass" | "nsubjpass")));
+            let subj_after = children
+                .iter()
+                .copied()
+                .find(|&t| t > v && matches!(cx.dep_rel(t), Some("nsubj" | "nsubj:pass" | "nsubjpass")));
+            if let Some(subj) = subj_before.or(subj_after) {
+                let eff_subj = if is_relative_pronoun(cx.surface(subj), cx.pos_str(subj)) && subj > start {
+                    find_antecedent_before(cx, subj).unwrap_or(subj)
+                } else {
+                    subj
+                };
+                if (start..end).contains(&eff_subj) {
+                    let has_conj = cx.dep_children[eff_subj - start].iter().any(|&t| {
+                        matches!(cx.dep_rel(t), Some("conj" | "cc")) || cx.surface(t).eq_ignore_ascii_case("and")
+                    });
+                    if has_conj {
+                        return Some((eff_subj, SubjectPersonNumber::SecondOrPlural));
+                    }
+                }
+                if let Some(spn) = classify_subject_token(cx.surface(eff_subj), cx.pos_str(eff_subj)) {
+                    return Some((eff_subj, spn));
+                }
             }
         }
     }
@@ -408,24 +321,32 @@ fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectP
     if v == start {
         return None;
     }
-    let clause_start =
-        (start..v).rev().find(|&i| matches!(cx.surface(i), ";" | ":" | "," | "(" | ")")).map_or(start, |i| i + 1);
-    if clause_start >= v || cx.surface(clause_start).eq_ignore_ascii_case("there") || cx.pos_str(clause_start) == "EX" {
+    let window_floor = v.saturating_sub(24).max(start);
+    let punct_start = (window_floor..v)
+        .rev()
+        .find(|&i| matches!(cx.surface(i), ";" | ":" | "," | "(" | ")"))
+        .map_or(window_floor, |i| i + 1);
+    if punct_start >= v {
         return None;
     }
 
     let mut back = v;
-    while back > clause_start && is_intervening_adverb(cx.surface(back - 1), cx.pos_str(back - 1)) {
+    while back > punct_start && is_intervening_adverb(cx.surface(back - 1), cx.pos_str(back - 1)) {
         back -= 1;
     }
-    if back > clause_start && is_relative_pronoun(cx.surface(back - 1), cx.pos_str(back - 1)) {
+    if back > punct_start && is_relative_marker(cx, back - 1) {
         let ant = find_antecedent_before(cx, back - 1)?;
         return Some((ant, classify_subject_token(cx.surface(ant), cx.pos_str(ant))?));
     }
 
-    let np_end = (clause_start + 1..v)
-        .find(|&i| is_relative_pronoun(cx.surface(i), cx.pos_str(i)) || is_preposition(cx.surface(i), cx.pos_str(i)))
-        .unwrap_or(v);
+    let (clause_start, rel_bound) = narrow_clause_bounds(cx, punct_start, v);
+    if clause_start >= v || cx.surface(clause_start).eq_ignore_ascii_case("there") || cx.pos_str(clause_start) == "EX" {
+        return None;
+    }
+
+    let np_end = (clause_start + 1..rel_bound)
+        .find(|&i| is_relative_marker(cx, i) || is_preposition(cx.surface(i), cx.pos_str(i)))
+        .unwrap_or(rel_bound);
 
     let mut heads = Vec::new();
     let mut saw_and = false;
@@ -444,8 +365,50 @@ fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectP
     Some((head_ix, classify_subject_token(cx.surface(head_ix), cx.pos_str(head_ix))?))
 }
 
+fn narrow_clause_bounds(cx: &SentCtx<'_>, punct_start: usize, v: usize) -> (usize, usize) {
+    if let Some(rel_ix) = (punct_start + 1..v).find(|&i| is_relative_marker(cx, i)) {
+        let rel_verbs: Vec<usize> = (rel_ix + 1..v).filter(|&i| is_clause_finite_verb(cx, i)).collect();
+        if rel_verbs.is_empty() {
+            return (rel_ix + 1, v);
+        }
+        let last_rv = *rel_verbs.last().unwrap();
+        let has_coord_after = (last_rv + 1..v)
+            .any(|k| matches!(cx.surface(k).to_ascii_lowercase().as_str(), "and" | "or" | "but" | "yet" | "so"));
+        if !has_coord_after {
+            return (punct_start, rel_ix);
+        }
+    }
+    if let Some(last_fv) = (punct_start..v).rev().find(|&i| is_clause_finite_verb(cx, i)) {
+        let after_conj = (last_fv + 1..v)
+            .find(|&k| {
+                let low = cx.surface(k).to_ascii_lowercase();
+                matches!(low.as_str(), "and" | "or" | "but" | "yet" | "so" | "nor")
+                    || SUBORDINATING_CONJUNCTIONS.contains(&low.as_str())
+            })
+            .map_or(last_fv + 1, |k| k + 1);
+        return (after_conj, v);
+    }
+    (punct_start, v)
+}
+
+fn is_clause_finite_verb(cx: &SentCtx<'_>, i: usize) -> bool {
+    let pos = cx.pos_str(i);
+    let low = cx.surface(i).to_ascii_lowercase();
+    matches!(pos, "VBD" | "VBP" | "VBZ" | "MD" | "VERB" | "AUX")
+        || SVA_AUX_VERBS.contains(&low.as_str())
+        || is_bare_infinitive_modal(&low)
+}
+
 fn find_antecedent_before(cx: &SentCtx<'_>, rel_ix: usize) -> Option<usize> {
-    (cx.range.start.get()..rel_ix).rev().find(|&i| classify_subject_token(cx.surface(i), cx.pos_str(i)).is_some())
+    let floor = rel_ix.saturating_sub(12).max(cx.range.start.get());
+    (floor..rel_ix).rev().find(|&i| classify_subject_token(cx.surface(i), cx.pos_str(i)).is_some())
+}
+
+fn is_relative_marker(cx: &SentCtx<'_>, i: usize) -> bool {
+    is_relative_pronoun(cx.surface(i), cx.pos_str(i))
+        || (cx.surface(i).eq_ignore_ascii_case("that")
+            && i > cx.range.start.get()
+            && matches!(cx.pos_str(i - 1), "NN" | "NNS" | "NNP" | "NNPS" | "NOUN" | "PROPN"))
 }
 
 fn is_relative_pronoun(surface: &str, pos_tag: &str) -> bool {

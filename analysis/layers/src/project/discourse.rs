@@ -195,7 +195,7 @@ impl ProjectableLayer for GrammarDiagnostics {
             .zip(&self.diagnostics)
             .map(|((_, span), d)| GrammarDiagnostic {
                 span,
-                rule_id: d.rule_id,
+                rule_id: d.rule_id.clone(),
                 category: d.category,
                 message: d.message.clone(),
                 replacements: d.replacements.clone(),

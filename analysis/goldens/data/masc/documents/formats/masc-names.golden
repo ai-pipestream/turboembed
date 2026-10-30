@@ -1,5 +1,5 @@
 golden 1
-generator	turbo-goldens-java	1
+generator	turbo-formats	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
@@ -58,13 +58,18 @@ layer	turbo:masc-tokens	document	36	sentence:u32	start:u32	end:u32	id:u32	pos:st
 5	6	7	3	X	d	0	3
 5	8	9	4	X	.	0	4
 end	turbo:masc-tokens
-layer	turbo:masc-names	document	6	sentence:u32	start:u32	end:u32	type:str	nulls:u32
+layer	turbo:masc-names	document	11	sentence:u32	start:u32	end:u32	type:str	nulls:u32
 0	0	2	person	0
-1	5	6		1
-2	0	0	thing	0
+0	3	5	person	0
+0	6	7	location	0
+0	8	10	date	0
+1	5	8	org	0
+1	8	9	person	0
+2	0	1	thing	0
 3	1	4	a	0
+3	4	5	e	0
+3	5	6	d	0
 5	1	4	b	0
-5	1	4	c	0
 end	turbo:masc-names
 layer	turbo:masc-stream	document	4	path:str
 names.hdr

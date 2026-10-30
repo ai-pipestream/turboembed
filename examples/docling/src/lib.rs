@@ -29,11 +29,14 @@ use turbo_analysis::{Analyzer, Bound, Document, Key, Provenance};
 use turbo_analysis_embed::{
     ChunkVectors, EncoderOptions, SentenceVectors, SubwordAnnotator, VectorAnnotator, VectorOptions,
 };
-use turbo_analysis_layers::Structure;
-use turbo_chunker::{Budget, Chunker, Costs, Drift, DriftBoundaries, STRUCTURE, StructureBoundaries, WeighBoundaries};
+use turbo_analysis_layers::{LayoutBoxes, Structure};
+use turbo_chunker::{
+    Budget, ChunkCitationAnnotator, Chunker, Costs, Drift, DriftBoundaries, LAYOUT, LayoutBoundaries, LayoutCosts,
+    STRUCTURE, StructureBoundaries, WeighBoundaries, WeighLayoutBoundaries,
+};
 use turbo_namefind::dictionary::DictionaryNameFinder;
 use turbo_normalize::{NormalizeStep, Whitespace};
-use turbo_structure::StructureProjector;
+use turbo_structure::{LayoutProjector, StructureProjector};
 
 /// The instance the imported docling structure is written to.
 pub const SOURCE: &str = "source";
@@ -46,6 +49,21 @@ pub const BUDGET: Budget = Budget { max: 48, target: 32, size_weight: 1, overhea
 /// The pipeline over the embedding bundle at `bundle`, finding the names
 /// in `places` as `location` entities.
 pub fn pipeline(bundle: &Path, places: &[&str]) -> Result<Analyzer, String> {
+    build_pipeline(bundle, places, None)
+}
+
+/// The pipeline over `bundle` with 2D [`LayoutCosts`] folded into the
+/// chunker's boundary weights alongside structural and semantic drift
+/// boundaries.
+pub fn pipeline_with_layout_costs(
+    bundle: &Path,
+    places: &[&str],
+    layout_costs: LayoutCosts,
+) -> Result<Analyzer, String> {
+    build_pipeline(bundle, places, Some(layout_costs))
+}
+
+fn build_pipeline(bundle: &Path, places: &[&str], layout_costs: Option<LayoutCosts>) -> Result<Analyzer, String> {
     let options = VectorOptions {
         encoder: EncoderOptions { max_seq: 64, ..EncoderOptions::default() },
         ..VectorOptions::default()
@@ -59,21 +77,34 @@ pub fn pipeline(bundle: &Path, places: &[&str]) -> Result<Analyzer, String> {
             spans.iter().map(|s| p[s.range()].to_owned()).collect()
         })
         .collect();
-    let dictionary = turbo_maxent::Dictionary::from_entries(false, entries.iter().map(Vec::as_slice));
+    let dictionary = turbo_namefind::Dictionary::from_entries(
+        false,
+        entries.into_iter().map(|tokens| ("location".to_owned(), tokens)),
+    );
     let drift = Drift { window: NonZeroU32::new(2).expect("not zero"), ..Drift::default() };
-    Analyzer::builder()
+    let mut builder = Analyzer::builder()
         .given(Key::<Structure>::named(SOURCE))
+        .given(Key::<LayoutBoxes>::named(SOURCE))
         .step(Bound::new(NormalizeStep::new(Whitespace::keep_paragraphs())).write(0, CLEAN))
         .step(Bound::new(StructureProjector).read(0, CLEAN).read(1, SOURCE))
+        .step(Bound::new(LayoutProjector).read(0, CLEAN).read(1, SOURCE))
         .step(Bound::new(turbo_sentdetect::RuleSentenceDetector::new("en")).read(0, CLEAN))
         .step(Bound::new(turbo_tokenize::SimpleTokenizer::default()).read(0, CLEAN))
         .step(Bound::new(SubwordAnnotator::open(bundle).map_err(|e| e.to_string())?).read(0, CLEAN))
-        .step(Bound::new(DictionaryNameFinder::new(dictionary, "location")).read(0, CLEAN))
+        .step(Bound::new(DictionaryNameFinder::new(dictionary).map_err(|e| e.to_string())?).read(0, CLEAN))
         .add(SentenceVectors(Arc::clone(&vectors)))
         .step(Bound::new(StructureBoundaries { costs: Costs::default() }).write(0, STRUCTURE))
-        .step(DriftBoundaries { drift }.bound())
-        .step(WeighBoundaries::default().bound())
+        .step(DriftBoundaries { drift }.bound());
+    if let Some(costs) = layout_costs {
+        builder = builder
+            .step(Bound::new(LayoutBoundaries { costs }).write(0, LAYOUT))
+            .step(WeighLayoutBoundaries::default().bound());
+    } else {
+        builder = builder.step(WeighBoundaries::default().bound());
+    }
+    builder
         .add(Chunker { budget: BUDGET })
+        .add(ChunkCitationAnnotator)
         .add(ChunkVectors(vectors))
         .build()
         .map_err(|e| e.to_string())
@@ -81,9 +112,10 @@ pub fn pipeline(bundle: &Path, places: &[&str]) -> Result<Analyzer, String> {
 
 /// Reads the docling JSON and runs `analyzer` over it.
 pub fn analyze(analyzer: &Analyzer, json: &str) -> Result<(docling::Docling, Document), String> {
-    let (d, structure) = docling::parse(json)?;
+    let (d, structure, layout) = docling::parse_with_layout(json)?;
     let mut doc = Document::new(d.text.as_str());
     doc.add(&Key::named(SOURCE), structure, Provenance::by("docling:import")).map_err(|e| e.to_string())?;
+    doc.add(&Key::named(SOURCE), layout, Provenance::by("docling:import")).map_err(|e| e.to_string())?;
     let mut docs = [doc];
     analyzer.run(&mut docs).remove(0).map_err(|e| e.to_string())?;
     let [doc] = docs;

@@ -2,7 +2,7 @@
 
 use turbo_zoo::{Format, Index, Kind, Licence, LicenceClass, Policy};
 
-use super::{CHECKPOINTS, LOCAL_CHECKPOINTS, SHARE_ALIKE_CHECKPOINTS};
+use super::{CHECKPOINTS, LOCAL_CHECKPOINTS, SHARE_ALIKE_CHECKPOINTS, UNRELEASED_DATA_CHECKPOINTS};
 
 #[test]
 fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
@@ -36,7 +36,7 @@ fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
 #[test]
 fn the_glirel_tokenizer_is_pinned_and_permissive() {
     let index = Index::builtin();
-    let a = index.get(CHECKPOINTS[1]).unwrap();
+    let a = index.get(CHECKPOINTS[0]).unwrap();
     assert_eq!(
         (a.kind, a.format, a.license, a.class),
         (Kind::Model, Format::Sentencepiece, Licence::Mit, LicenceClass::Permissive)
@@ -50,7 +50,7 @@ fn the_glirel_tokenizer_is_pinned_and_permissive() {
         assert_eq!(f.url.as_str(), url);
     }
     // The same SentencePiece model GLiNER2's checkpoint carries.
-    let gliner2 = index.get(CHECKPOINTS[0]).unwrap();
+    let gliner2 = index.get(UNRELEASED_DATA_CHECKPOINTS[0].0).unwrap();
     let spm =
         |a: &turbo_zoo::Artifact| a.files.iter().find(|f| f.path.as_str() == "spm.model").unwrap().sha256.to_string();
     assert_eq!(spm(a), spm(gliner2));
@@ -77,12 +77,18 @@ fn the_glirel_checkpoint_is_pinned_local_only_and_needs_its_licence() {
 }
 
 #[test]
-fn the_gliner2_checkpoint_is_pinned_and_permissive() {
+fn the_gliner2_checkpoint_is_pinned_local_only_and_needs_its_card_terms() {
     let index = Index::builtin();
-    let a = index.get(CHECKPOINTS[0]).unwrap();
+    let (id, terms) = UNRELEASED_DATA_CHECKPOINTS[0];
+    let a = index.get(id).unwrap();
     assert_eq!(
         (a.kind, a.format, a.license, a.class),
-        (Kind::Model, Format::Safetensors, Licence::Apache2, LicenceClass::Permissive)
+        (Kind::Model, Format::Safetensors, Licence::Apache2, LicenceClass::LocalOnly)
+    );
+    assert_eq!(a.origin.as_ref().map(|o| o.as_str()), Some("https://huggingface.co/fastino/gliner2-base-v1"));
+    assert_eq!(
+        a.licences_to_accept(Policy::default()),
+        [turbo_zoo::Requirement { licence: Licence::RestrictedPublic, text: terms.into() }]
     );
     let revision = "f9634218e53580c56edf0de97ca1a7d3f1c2354e";
     assert_eq!(a.version, revision);
@@ -98,7 +104,7 @@ fn the_gliner2_checkpoint_is_pinned_and_permissive() {
 }
 
 #[test]
-fn the_gliner_v2_1_checkpoints_and_tokenizers_are_pinned_and_permissive() {
+fn the_gliner_v2_1_checkpoints_are_local_only_and_their_tokenizers_permissive() {
     let index = Index::builtin();
     for (id, repo, rev, format, licence, lang, files) in [
         (
@@ -139,7 +145,11 @@ fn the_gliner_v2_1_checkpoints_and_tokenizers_are_pinned_and_permissive() {
         ),
     ] {
         let a = index.get(id).unwrap();
-        assert_eq!((a.kind, a.format, a.license, a.class), (Kind::Model, format, licence, LicenceClass::Permissive));
+        // The checkpoints carry The Pile's text through their training
+        // data (Kristian, 2026-10-28); the tokenizers are MIT alone.
+        let unreleased = UNRELEASED_DATA_CHECKPOINTS.iter().find(|(u, _)| *u == id);
+        let class = if unreleased.is_some() { LicenceClass::LocalOnly } else { LicenceClass::Permissive };
+        assert_eq!((a.kind, a.format, a.license, a.class), (Kind::Model, format, licence, class));
         assert_eq!(a.language.as_ref().map(|l| l.as_str()), Some(lang));
         assert_eq!(a.version, rev);
         let notice = a.attribution.as_deref().unwrap();
@@ -153,7 +163,19 @@ fn the_gliner_v2_1_checkpoints_and_tokenizers_are_pinned_and_permissive() {
         for f in &a.files {
             assert_eq!(f.url.as_str(), format!("https://huggingface.co/{repo}/resolve/{rev}/{}", f.path.as_str()));
         }
-        assert!(a.licences_to_accept(Policy::default()).is_empty());
+        match unreleased {
+            Some((_, terms)) => {
+                assert_eq!(
+                    a.origin.as_ref().map(|o| o.as_str()),
+                    Some(format!("https://huggingface.co/{repo}").as_str())
+                );
+                assert_eq!(
+                    a.licences_to_accept(Policy::default()),
+                    [turbo_zoo::Requirement { licence: Licence::RestrictedPublic, text: (*terms).into() }]
+                );
+            }
+            None => assert!(a.licences_to_accept(Policy::default()).is_empty()),
+        }
     }
 }
 
@@ -204,7 +226,7 @@ fn the_nli_checkpoint_is_pinned_and_share_alike() {
 /// SaT's sat-3l, trained on mC4 alone with limited lookahead (#887).
 #[test]
 fn sat_3l_is_pinned_permissive_and_attributed() {
-    let a = Index::builtin().get(CHECKPOINTS[6]).unwrap().clone();
+    let a = Index::builtin().get(CHECKPOINTS[3]).unwrap().clone();
     let k = (a.kind, a.format, a.license, a.class);
     assert_eq!(k, (Kind::Model, Format::Pytorch, Licence::Mit, LicenceClass::Permissive));
     let revision = "a3b7ba6b61881d619989757aea971cde7d3d6a98";

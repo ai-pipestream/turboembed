@@ -98,6 +98,7 @@ fn word_classes_match_the_jdk() {
 fn decisions(text: &str) -> String {
     let mut lower = String::new();
     java::to_lowercase(text, &mut lower);
+    assert_eq!(java::lowercase_cow(text).as_ref(), lower, "lowercase_cow disagrees with to_lowercase on {text:?}");
     text.chars()
         .zip(lower.chars())
         .filter(|(c, _)| *c == '\u{3A3}')

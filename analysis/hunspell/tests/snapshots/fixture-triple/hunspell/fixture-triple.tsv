@@ -1,0 +1,10 @@
+load_error	
+unsupported	0
+words	7
+schiffahrt	schiff	schifffahrt	pa:schiff st:schiff pa:fahrt
+schifffahrt	schifffahrt	schifffahrt	
+bettuch	bettuch	bettuch	
+betttuch	betttuch	betttuch	
+schiff	schiff	schiff	st:schiff
+fahrt	fahrt	fahrt	st:fahrt
+Schiffahrt	schiff	schifffahrt	pa:schiff st:schiff pa:fahrt
