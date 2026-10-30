@@ -12,7 +12,11 @@ cd "$(dirname "$0")/.."
 image=${TURBO_ZOO_IMAGE:-turbo-zoo:ci}
 project="turbo-zoo-smoke-$$"
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/turbo-zoo-smoke.XXXXXXXX")
-compose() { docker compose -p "$project" -f docker-compose.zoo.yml -f "$scratch/smoke.yml" "$@"; }
+compose() {
+    local extra=()
+    if [[ -f "$scratch/mtls.yml" ]]; then extra=(-f "$scratch/mtls.yml"); fi
+    docker compose -p "$project" -f docker-compose.zoo.yml -f "$scratch/smoke.yml" "${extra[@]}" "$@"
+}
 tls=""
 cleanup() {
     if [[ -n "$tls" ]]; then docker rm -f "$tls" >/dev/null 2>&1 || true; fi
@@ -100,6 +104,9 @@ fi
 curl --noproxy '*' --silent --show-error --fail --request POST --header 'content-type: application/proto' \
     --header "authorization: Bearer $TURBO_DEMO_TOKEN" --data-binary '' \
     "$page/turbo.training.v1.TurboCatalogService/ListLicenceAcceptances" | grep -aq zoo
+
+# Recreate the zoo with a fresh cache and mTLS, keeping the seeded RustFS store.
+source scripts/zoo-smoke-mtls.sh
 
 # The image alone with the page on HTTPS turns healthy: the health check
 # follows the page's scheme. The certificate is made for this run.

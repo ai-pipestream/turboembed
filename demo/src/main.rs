@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use turbo_kserve_demo::{Allow, Demo, Options, Tls, gate};
+use turbo_kserve_demo::{Allow, Demo, Options, Tls, UpstreamTls, gate};
 
 const USAGE: &str = "usage: turbo-kserve-demo [--listen ADDR:PORT] [--server http://HOST:PORT] [--allow METHOD]...
          [--token-file PATH] [--user NAME] [--cors-origin ORIGIN]... [--tls-cert PEM --tls-key PEM]
@@ -22,7 +22,11 @@ const USAGE: &str = "usage: turbo-kserve-demo [--listen ADDR:PORT] [--server htt
   --cors-origin  another origin whose pages may call, http(s)://HOST[:PORT]; repeat
                  for more (TURBO_DEMO_CORS_ORIGINS, comma-separated); none by default
   --tls-cert     serve HTTPS with this PEM certificate chain (TURBO_DEMO_TLS_CERT)
-  --tls-key      and this PEM private key (TURBO_DEMO_TLS_KEY); both or neither";
+  --tls-key      and this PEM private key (TURBO_DEMO_TLS_KEY); both or neither
+  --server-tls-ca    PEM CA for the https:// gRPC server (TURBO_DEMO_SERVER_TLS_CA)
+  --server-tls-cert  PEM client certificate (TURBO_DEMO_SERVER_TLS_CERT)
+  --server-tls-key   PEM client key (TURBO_DEMO_SERVER_TLS_KEY); both or neither
+  --server-tls-name  expected server certificate name (TURBO_DEMO_SERVER_TLS_NAME)";
 
 #[derive(Debug, PartialEq, Eq)]
 struct Args {
@@ -33,6 +37,7 @@ struct Args {
     user: Option<String>,
     origins: Vec<String>,
     tls: Option<Tls>,
+    upstream_tls: Option<UpstreamTls>,
 }
 
 fn add(list: &mut Vec<String>, v: &str) {
@@ -43,10 +48,15 @@ fn add(list: &mut Vec<String>, v: &str) {
 }
 
 fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
-    let env = |k: &str| std::env::var(k).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    parse_with(args, |k| std::env::var(k).ok())
+}
+
+fn parse_with(args: impl IntoIterator<Item = String>, lookup: impl Fn(&str) -> Option<String>) -> Result<Args, String> {
+    let env = |k: &str| lookup(k).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
     let (mut listen, mut server, mut allow) = (None, None, Vec::new());
     let (mut token_file, mut origins, mut cert, mut key) = (None, Vec::new(), None, None);
     let mut user = None;
+    let (mut server_ca, mut server_cert, mut server_key, mut server_name) = (None, None, None, None);
     let mut args = args.into_iter();
     while let Some(a) = args.next() {
         let (flag, inline) = match a.split_once('=') {
@@ -70,6 +80,10 @@ fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
             "--cors-origin" => add(&mut origins, &gate::origin(&value()?)?),
             "--tls-cert" => cert = Some(value()?),
             "--tls-key" => key = Some(value()?),
+            "--server-tls-ca" => server_ca = Some(value()?),
+            "--server-tls-cert" => server_cert = Some(value()?),
+            "--server-tls-key" => server_key = Some(value()?),
+            "--server-tls-name" => server_name = Some(value()?),
             "-h" | "--help" => {
                 if inline.is_some() {
                     return Err(format!("{flag} takes no value"));
@@ -105,7 +119,15 @@ fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
     if let Some(u) = &user {
         turbo_kserve_demo::user::check(u)?;
     }
-    Ok(Args { listen, server, allow, token_file, user, origins, tls })
+    // Preserve explicit empty TLS settings so validation refuses them.
+    let tls_env = |k: &str| lookup(k).map(|v| v.trim().to_string());
+    let upstream_tls = UpstreamTls::from_parts(
+        server_ca.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_CA")),
+        server_cert.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_CERT")),
+        server_key.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_KEY")),
+        server_name.or_else(|| tls_env("TURBO_DEMO_SERVER_TLS_NAME")),
+    )?;
+    Ok(Args { listen, server, allow, token_file, user, origins, tls, upstream_tls })
 }
 
 /// The token from its file, else from TURBO_DEMO_TOKEN.
@@ -144,7 +166,14 @@ async fn main() -> ExitCode {
     if token.is_some() && args.tls.is_none() && !args.listen.ip().is_loopback() {
         eprintln!("turbo-kserve-demo: the token crosses the network in the clear; use --tls-cert and --tls-key");
     }
-    let options = Options { allow, token, origins: args.origins, tls: args.tls, user: args.user };
+    let options = Options {
+        allow,
+        token,
+        origins: args.origins,
+        tls: args.tls,
+        user: args.user,
+        upstream_tls: args.upstream_tls,
+    };
     let demo = match Demo::start_with(args.listen, &args.server, options).await {
         Ok(d) => d,
         Err(e) => {
@@ -228,5 +257,46 @@ mod tests {
         assert_eq!(run(&["--user=Ålice"]).unwrap().user, Some("Ålice".into()));
         assert!(run(&["--user", "a\u{7}b"]).is_err());
         assert!(run(&["--user", ""]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod upstream_tests {
+    use super::*;
+    #[test]
+    fn blank_upstream_tls_environment_is_rejected_unless_overridden() {
+        for suffix in ["CA", "CERT", "KEY", "NAME"] {
+            let name = format!("TURBO_DEMO_SERVER_TLS_{suffix}");
+            for blank in ["", " ", "\t\n"] {
+                assert_eq!(
+                    parse_with([], |key| (key == name).then(|| blank.into())),
+                    Err("upstream TLS values must not be empty".into()),
+                    "{name}={blank:?}"
+                );
+            }
+        }
+        let parsed = parse_with(["--server-tls-ca=explicit.pem".into()], |key| {
+            (key == "TURBO_DEMO_SERVER_TLS_CA").then(|| " ".into())
+        })
+        .unwrap();
+        assert_eq!(parsed.upstream_tls.unwrap().ca, PathBuf::from("explicit.pem"));
+    }
+
+    #[test]
+    fn tls_flags_override_environment_without_changing_page_tls() {
+        let env = |k: &str| match k {
+            "TURBO_DEMO_SERVER_TLS_CA" => Some("env-ca".into()),
+            "TURBO_DEMO_SERVER_TLS_CERT" => Some("client.pem".into()),
+            "TURBO_DEMO_SERVER_TLS_KEY" => Some("client.key".into()),
+            "TURBO_DEMO_SERVER_TLS_NAME" => Some("localhost".into()),
+            _ => None,
+        };
+        let args = parse_with(["--server-tls-ca=flag-ca".into()], env).unwrap();
+        assert!(args.tls.is_none());
+        let tls = args.upstream_tls.unwrap();
+        assert_eq!(tls.ca, PathBuf::from("flag-ca"));
+        assert_eq!(tls.identity.unwrap().key, PathBuf::from("client.key"));
+        assert_eq!(tls.server_name.as_deref(), Some("localhost"));
+        assert!(parse_with(["--server-tls-cert=only-cert".into()], |_| None).is_err());
     }
 }
