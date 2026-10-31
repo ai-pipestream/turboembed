@@ -68,7 +68,7 @@ gRPC service) build against. Everything below is new.
   message, offsets in the request's unit, built into the same
   `turbo:structure` layer an `initial_graph` carries, so a Java or
   Python client seeds the chunker without a DocumentGraph writer; a
-  malformed block is refused naming it (#1774).
+  malformed block is refused naming it (#1777).
 
 ### Not in this release yet
 
