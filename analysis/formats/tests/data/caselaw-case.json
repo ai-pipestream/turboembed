@@ -1,0 +1,32 @@
+{
+  "id": 10769909,
+  "name_abbreviation": "Goeb v. Tharaldson",
+  "decision_date": "2000-08-17",
+  "attribution": "Caselaw data by President and Fellows of Harvard College, CC0 1.0",
+  "casebody": {
+    "judges": [],
+    "opinions": [
+      {
+        "text": "OPINION\nFrye v. United States, 293 F. 1013.\n",
+        "author": "Blatz"
+      },
+      {
+        "text": "Second  opinion 😀"
+      }
+    ]
+  },
+  "ignored": {
+    "nested": [true, false, null, 1.5e2]
+  }
+}
+{
+  "id": 2,
+  "name_abbreviation": "Second Case",
+  "casebody": {
+    "opinions": [
+      {
+        "text": "Another case."
+      }
+    ]
+  }
+}

@@ -179,8 +179,12 @@ fn tokens_over_emoji_and_supplementary_characters_hold_them_whole() {
 
 #[test]
 fn sentences_of_a_text_with_emoji_start_and_end_on_its_words() {
-    let sentences = texts("sentdetect", "en/emoji");
-    assert_eq!(sentences.first().map(String::as_str), Some("We won the match!"));
+    let text = input_text("en/emoji");
+    let detector = turbo_sentdetect::RuleSentenceDetector::new("en");
+    let mut spans = Vec::new();
+    detector.splitter.try_split(&text, &mut spans).unwrap();
+    let sentences: Vec<&str> = spans.iter().map(|span| &text[span.range()]).collect();
+    assert_eq!(sentences.first().copied(), Some("We won the match!"));
     assert!(sentences.iter().any(|s| s.ends_with("😀.")), "{sentences:?}");
 }
 

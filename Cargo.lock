@@ -1994,6 +1994,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-normalize",
  "turbo-pins",
+ "turbo-sentdetect",
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
@@ -2220,9 +2221,12 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-glossary",
  "turbo-goldens",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-stem",
+ "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",
@@ -2325,6 +2329,7 @@ dependencies = [
  "turbo-fuzz",
  "turbo-goldens",
  "turbo-pins",
+ "turbo-sentdetect",
 ]
 
 [[package]]
@@ -2357,13 +2362,6 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-pins",
  "turbo-stem-layers",
- "turbo-unicode",
-]
-
-[[package]]
-name = "turbo-jvm"
-version = "0.1.0"
-dependencies = [
  "turbo-unicode",
 ]
 

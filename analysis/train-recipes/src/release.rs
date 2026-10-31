@@ -263,6 +263,7 @@ pub fn references(release: &ModelsRelease) -> Result<Vec<(String, String)>> {
     let mut pairs: Vec<(String, String)> = Vec::new();
     for reference in release.recipe_references() {
         let url = match reference {
+            Reference::GoldSentences => continue,
             Reference::Zoo(id) => Index::builtin().get(id)?.files[0].url.as_str().to_owned(),
             Reference::Recorded(r) => r.url.to_owned(),
             // Not fetched or pinned (#1509): nothing to list.

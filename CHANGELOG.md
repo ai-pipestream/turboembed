@@ -50,9 +50,9 @@ gRPC service) build against. Everything below is new.
   over each block's band of keys, GeGLU and SwiGLU in one product, held to
   upstream on the sealed tiny bundles (#1544).
 - The Level Zero encoder for ModernBERT and nomic-bert, in F32 at MODEL
-  and EXACT (FASTEST refused): RoPE from the core's table, windowed
-  attention, GeGLU and SwiGLU, held to the CPU and to upstream's
-  reference vectors (#1461).
+  and EXACT and with F16 linear layers on the matrix engines at FASTEST:
+  RoPE from the core's table, windowed attention, GeGLU and SwiGLU, held
+  to the CPU and to upstream's reference vectors (#1461).
 - The CUDA encoder for ModernBERT and nomic-bert at MODEL (F32) and
   FASTEST (F16 on the tensor cores): RoPE and the gated MLP in the GEMMs'
   epilogues over pair-adjacent weights, sliding-window attention that

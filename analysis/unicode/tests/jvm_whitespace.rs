@@ -1,9 +1,9 @@
-//! Retains the exhaustive JDK 21 vectors formerly checked by turbo-jvm.
+//! Exhaustive JDK 21 `Character.isWhitespace` test vectors.
 use turbo_unicode::java;
 
 #[test]
 fn both_java_whitespace_entry_points_match_jdk_for_every_code_point() {
-    let expected: Vec<u32> = include_str!("../../jvm/tests/vectors/whitespace.tsv")
+    let expected: Vec<u32> = include_str!("vectors/whitespace.tsv")
         .lines()
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(|line| u32::from_str_radix(line.trim(), 16).unwrap())

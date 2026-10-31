@@ -1,8 +1,5 @@
-//! The English sentence detector and tokenizer trained on MASC. The
-//! sentence detector's gate reference is retired (#1509); the tokenizer
-//! has none since #1645 retired the OpenNLP UD tokenizer models, so
-//! its scores read the gold token spans alone and it has no
-//! reference gate.
+//! The English sentence detector and tokenizer trained on MASC, and their
+//! native sentence gold-label gate. Token recipes have no reference model.
 //!
 //! Each recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults and the released MASC parameters: GIS,
@@ -29,9 +26,9 @@
 //! outer token where it also gave no-split events); the port refuses it
 //! (`TokensOutOfOrder`), and the recipe skips it.
 //!
-//! Both models are scored on the same held-out samples with OpenNLP's
-//! evaluators (`SentenceDetectorEvaluator`, `TokenizerEvaluator`), one
-//! unit per sample, and gated by [`turbo_eval::model_gate`].
+//! Sentence evaluation uses [`crate::sentence_gold`] with native predicted
+//! spans and corpus labels. It requires no reference model file. Legacy
+//! model-byte gate calls are rejected for the sentence component.
 
 use std::sync::Arc;
 
@@ -67,29 +64,24 @@ pub const SENTENCES_PER_SAMPLE: usize = crate::ud::SENTENCES_PER_SAMPLE;
 /// recipe gives the same bytes on every run: 2026-10-14T00:00:00Z.
 pub const TIMESTAMP_MS: i64 = 1_791_936_000_000;
 
-/// One trained model and the reference model it is gated against, if any.
+/// One training recipe and its evaluation policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SegmentationRecipe {
     pub component: Component,
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
-    /// The reference model's id: an OpenNLP 2.5 model, which is not
-    /// fetched or pinned (#1509, [`crate::Reference::Retired`]).
-    /// `None` when the recipe has no reference model: the tokenizer's
-    /// was retired with the OpenNLP UD tokenizer models (#1645), so
-    /// its [`Recipe::reference`](crate::Recipe::reference) is
-    /// [`Error::NoReference`](crate::error::Error::NoReference).
-    pub reference_id: Option<&'static str>,
+    /// Native sentence gold labels, or no reference for token evaluation.
+    pub reference: Option<crate::Reference>,
 }
 
 pub const SENTENCE: SegmentationRecipe = SegmentationRecipe {
     component: Component::Sentence,
     model_id: "turbo-en-masc-3.0.0-sentence-1",
-    reference_id: Some("opennlp-en-ud-ewt-sentence-1.3-2.5.4"),
+    reference: Some(crate::Reference::GoldSentences),
 };
 
 pub const TOKENS: SegmentationRecipe =
-    SegmentationRecipe { component: Component::Tokens, model_id: "turbo-en-masc-3.0.0-tokens-1", reference_id: None };
+    SegmentationRecipe { component: Component::Tokens, model_id: "turbo-en-masc-3.0.0-tokens-1", reference: None };
 
 /// The recipes, sentence detector first.
 pub const RECIPES: [SegmentationRecipe; 2] = [SENTENCE, TOKENS];
@@ -378,7 +370,7 @@ impl SegmentationRecipe {
 
     /// Scores the trained model and the reference on the same held-out
     /// samples and runs the gate. `reference_id` names the reference in
-    /// the record ([`SegmentationRecipe::reference_id`] for the published
+    /// the record ([`SegmentationRecipe::reference`] for the published
     /// model), and `set_name` and `corpus_sha256` the held-out set.
     ///
     /// # Errors
@@ -393,6 +385,11 @@ impl SegmentationRecipe {
         set_name: &str,
         corpus_sha256: &str,
     ) -> Result<GateRun> {
+        if self.component == Component::Sentence {
+            return Err(Error::Model(
+                "sentence gates require native spans and gold labels; use sentence_gold::gate".into(),
+            ));
+        }
         let units = spans::pair(self.score(trained, held_out)?, self.score(reference, held_out)?);
         let set = HeldOutSet {
             name: set_name.to_owned(),
@@ -422,18 +419,12 @@ impl SegmentationRecipe {
     ///
     /// [`Error::ReferenceDigest`] for other bytes.
     pub fn check_reference(&self, bytes: &[u8]) -> Result<()> {
-        match self.reference_id {
-            Some(id) => crate::Reference::Retired(id).check(bytes),
-            None => Err(Error::NoReference { recipe: self.model_id }),
-        }
+        self.reference.ok_or(Error::NoReference { recipe: self.model_id })?.check(bytes)
     }
 
     /// The reference model's file name in the zoo's built-in index.
     pub fn reference_file(&self) -> Result<String> {
-        match self.reference_id {
-            Some(id) => crate::Reference::Retired(id).file(),
-            None => Err(Error::NoReference { recipe: self.model_id }),
-        }
+        self.reference.ok_or(Error::NoReference { recipe: self.model_id })?.file()
     }
 }
 

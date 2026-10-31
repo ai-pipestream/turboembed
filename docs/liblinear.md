@@ -71,8 +71,8 @@ name that is no `SolverType` is refused with the add-on's message.
   The writer here does the same; it matched the JVM on 199,972 random
   doubles, on every double whose bits are 1 to 300,000, on 100,000 more
   subnormals and on the powers of two and their neighbours.
-- The serialized predicate map in `HashMap<String, Integer>` iteration
-  order (`turbo_jvm::hash_map`).
+- The serialized predicate map in stored predicate vector order
+  (`format::serialize` writes `model.predicates` in slice order).
 
 ## Add-on quirks
 
@@ -103,33 +103,22 @@ the text model's records in `saveModel`'s order with single spaces, the
 weight count of each line, no bytes after the predicate map, no predicate
 twice, ids from zero, and only logistic regression models.
 
-## Math functions and tolerances
+## Math functions and historical tolerances
 
-liblinear-java calls `Math.exp` and `Math.log`. The port does not try
-to reproduce HotSpot's last bits: it uses fdlibm's logarithm
-(`turbo_jvm::strict_math::log`, the same result on every platform) and
-`f64::exp`. HotSpot's `Math.exp` is not correctly rounded and differs
-from `f64::exp` in the last bit on 472 of 199,972 arguments sampled; its
-`Math.log` differs from fdlibm's on some arguments too. A last bit
-difference can grow through the solver's iterations, so the weights are
-compared to a tolerance, and the best outcome must be the JVM's.
+liblinear-java calls `Math.exp` and `Math.log`. The active port uses
+`f64::ln` and `f64::exp`.
 
-The logarithm was chosen for speed. A correctly rounded logarithm
-(`turbo_jvm::math::log`) matched HotSpot's `Math.log` on every argument
-sampled and made a few more models byte-identical to the JVM's, but it
-costs about 0.8 microseconds a call, some 60 times fdlibm's, and the dual
-solver takes one at every step of its inner Newton method. On the goldens
-below, in a release build (training and checking all 285, the median of
-three runs):
+During the historical JVM parity comparison (retired under #1511 and #1531),
+HotSpot's `Math.exp` and `Math.log` were compared against fdlibm's
+logarithm, platform `f64::ln`, and a correctly rounded logarithm. On the
+historical goldens in a release build (training and checking all 285, the
+median of three runs):
 
-| Logarithm | Time | Text models identical (of 133) | Weights identical (of 112,188) |
+| Logarithm (historical) | Time | Text models identical (of 133) | Weights identical (of 112,188) |
 |---|---|---|---|
-| fdlibm (`strict_math::log`, used) | 0.30 s | 83 | 83,020 |
-| platform `f64::ln` (glibc) | 0.33 s | 124 | 95,752 |
-| correctly rounded (`math::log`) | 0.56 s | 128 | 95,788 |
-
-All three pass the same tolerances. fdlibm is as fast as the platform's
-`ln` and, unlike it, gives the same model on every platform.
+| fdlibm logarithm | 0.30 s | 83 | 83,020 |
+| platform `f64::ln` (glibc, active) | 0.33 s | 124 | 95,752 |
+| correctly rounded logarithm | 0.56 s | 128 | 95,788 |
 
 ## Historical comparison status
 

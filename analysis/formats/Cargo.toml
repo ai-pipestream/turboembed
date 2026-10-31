@@ -22,8 +22,12 @@ turbo-unicode = { path = "../unicode" }
 turbo-tokenize = { path = "../tokenize" }
 # The SAX-style XML reader the MASC stand-off files are parsed with.
 turbo-maxent = { path = "../maxent" }
+# Domain vocabulary stopwords and stems.
+turbo-stopword = { path = "../stopword" }
+turbo-stem = { path = "../stem" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
+turbo-glossary = { path = "../glossary" }
 turbo-normalize = { path = "../normalize" }
 turbo-structure = { path = "../structure" }

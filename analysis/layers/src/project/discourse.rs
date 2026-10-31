@@ -12,8 +12,8 @@ use super::verify::{
 };
 use crate::{
     Abbreviations, Aspects, ChunkTableContext, ChunkTableHeaders, Containment, Edus, EventArgument, Events,
-    KeyValuePair, KeyValuePairs, LanguageSpans, LexicalExpansions, Matches, Modality, ModalityTag, Opinions,
-    SpanQuality, Tables, TextQuality, TokenVectorWindows, WordNetSenses, Words,
+    GrammarDiagnostic, GrammarDiagnostics, KeyValuePair, KeyValuePairs, LanguageSpans, LexicalExpansions, Matches,
+    Modality, ModalityTag, Opinions, SpanQuality, Tables, TextQuality, TokenVectorWindows, WordNetSenses, Words,
 };
 
 impl ProjectableLayer for Matches {
@@ -182,6 +182,27 @@ impl ProjectableLayer for TextQuality {
 impl ProjectableLayer for SpanQuality {
     fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
         let out = SpanQuality { spans: doc.project_spans_monotonic(&self.spans, to)?, metrics: self.metrics.clone() };
+        check_invariants(&out)?;
+        Ok(out)
+    }
+}
+
+impl ProjectableLayer for GrammarDiagnostics {
+    fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
+        let spans = doc.project_spans_monotonic(&self.spans, to)?;
+        let diagnostics = spans
+            .iter()
+            .zip(&self.diagnostics)
+            .map(|((_, span), d)| GrammarDiagnostic {
+                span,
+                rule_id: d.rule_id.clone(),
+                category: d.category,
+                message: d.message.clone(),
+                replacements: d.replacements.clone(),
+                confidence: d.confidence,
+            })
+            .collect();
+        let out = GrammarDiagnostics { spans, diagnostics };
         check_invariants(&out)?;
         Ok(out)
     }

@@ -153,8 +153,8 @@ for callers in other languages ([analysis.md](docs/analysis.md)).
   tokenizers, UAX #29 word boundaries, a MeCab style lattice tokenizer
   with prebuilt dictionaries, and Chinese unigram segmentation
   ([segmentation.md](docs/segmentation.md)).
-- **Language.** Trigram document language detection and per-span
-  language and script detection for mixed-language text
+- **Language.** Native character n-gram language identification and
+  per-span language and script detection for mixed-language text
   ([langdetect.md](docs/langdetect.md)).
 - **Syntax, morphology and lexical resources.** POS tagging,
   lemmatization, dependency parsing, named-entity recognition (CRF,
@@ -345,7 +345,7 @@ release.md.
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
-| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo, the pins of tested models, golden fixtures and fuzzing |
+| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz` | the model zoo, the pins of tested models, golden fixtures and fuzzing |
 | `docs/` | documentation; `docs/setup/` has per-machine setup |
 
 Crates with a `-layers` or `-gen` suffix next to these hold layer types

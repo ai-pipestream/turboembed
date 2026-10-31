@@ -28,6 +28,7 @@
 //! buffer holds max(max_batch, max_ranges) vectors of hidden F32.
 
 use super::gpu::{Context, Kernel, Res};
+use crate::backend::turbo_backend_model;
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32, turbo_token_range};
 
 /// TURBO_BERT_* in turbo_backend.h: the embedding tensors, then each
@@ -272,6 +273,48 @@ impl Linear {
         match self {
             Linear::Own => "own",
             Linear::Onednn => "onednn",
+        }
+    }
+}
+
+/// Each layer's Q, K and V weight and bias in `fused`, the BERT layout of
+/// [3 * hidden, hidden] then [3 * hidden] a layer (model.rs fuse); empty
+/// when nothing is fused, and for a rotary model, whose fused buffer is
+/// a nomic-bert's feed-forward gate and up (rotary.rs fuse).
+fn qkv_spans(d: &turbo_backend_model, fused: u64) -> Vec<(u64, u64)> {
+    if fused == 0 || rotary::is(d.family) {
+        return Vec::new();
+    }
+    let (h, layers) = (d.hidden as u64, d.layers as u64);
+    let per_layer = 3 * h * h * 4 + 3 * h * 4;
+    (0..layers).map(|l| (fused + l * per_layer, fused + l * per_layer + 3 * h * h * 4)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::{TURBO_FAMILY_BERT, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT};
+
+    fn desc(family: u32) -> turbo_backend_model {
+        let mut d: turbo_backend_model = unsafe { std::mem::zeroed() };
+        (d.family, d.hidden, d.layers) = (family, 8, 3);
+        d
+    }
+
+    #[test]
+    fn a_bert_model_s_fused_projections_give_each_layer_s_qkv() {
+        let per_layer = 3 * 8 * 8 * 4 + 3 * 8 * 4;
+        let want: Vec<_> = (0..3).map(|l| (4096 + l * per_layer, 4096 + l * per_layer + 3 * 8 * 8 * 4)).collect();
+        assert_eq!(qkv_spans(&desc(TURBO_FAMILY_BERT), 4096), want);
+        assert!(qkv_spans(&desc(TURBO_FAMILY_BERT), 0).is_empty(), "nothing fused, no spans");
+    }
+
+    /// A rotary model's fused buffer (rotary.rs fuse) is a nomic-bert's
+    /// feed-forward gate and up, or nothing: never the BERT QKV layout.
+    #[test]
+    fn a_rotary_model_s_fused_buffer_gives_no_qkv() {
+        for family in [TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT] {
+            assert!(qkv_spans(&desc(family), 4096).is_empty(), "family {family}");
         }
     }
 }

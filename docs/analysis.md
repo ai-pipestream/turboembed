@@ -16,10 +16,19 @@ against spaCy, Stanza and other current stacks on held-out data, never
 against Java output. Two standing assumptions govern this direction
 (#1509): JVM goldens are no longer the test oracle (no new code may load
 a classical `.bin` model, reproduce Java platform behaviour or use JVM
-output as an oracle), and English syntax models trained on Universal
-Dependencies English EWT (CC BY-SA 4.0) ship in the accept-first
-download tier because every English UD treebank carries a ShareAlike or
-non-commercial licence.
+output as an oracle), and the #1733 audit of all 16 Universal
+Dependencies `UD_English-*` repositories ([licences.md](licences.md))
+confirms that no English UD treebank with included text carries a
+permissive (`CC BY` or `CC0`) licence (ten are `CC BY-SA 3.0`/`4.0`,
+five are `CC BY-NC-SA 3.0`/`4.0`, and `UD_English-GUMReddit` sets
+`Includes text: no` over unhydrated Reddit text). Consequently, the
+English dependency parser and learned lemmatizer are accept-first only
+(`UD_English-EWT`, #1728), default English phrase chunks come from the
+pattern chunker (`PatternChunker` in `analysis/phrase-chunker` over MASC
+Penn POS), and the OEWN dictionary lemmatizer (`DictionaryLemmatizer` in
+`analysis/lemmatizer` and `MorphyLemmatizer` in `analysis/wordnet`,
+backed by Open English WordNet under CC BY 4.0) is the default English
+lemma tier.
 The crates are Rust only; the gRPC server serves analysis documents and
 layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)).
 
@@ -54,8 +63,8 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-coref` | `analysis/coref/` | Deterministic rule sieve (`Sieve`) and neural mention-pair/ranking coreference resolution (`CorefAnnotator`, `CorefModel`, `QuotationAnnotator`) writing `Mentions`, `Groups<Mentions>`, `Edges<Mentions, Mentions>`, and `Speakers` ([coref.md](coref.md)) |
 | `turbo-doccat` | `analysis/doccat/` | Document and span categorization (`DocumentCategorizerME`, `SpanCategorizer`, `SvmCategorizer`, `DocumentCategorizerDL`, `DlSpanCategorizer`, `MultiLabelSpanCategorizer`, `ZeroShotCategorizer`, [doccat.md](doccat.md)), plus sentiment, emotion, incivility, and pragmatic analysis (`SentimentMe`, `SentenceSentiment`, `LexiconSentiment`, `VaderLexicon`, `PragmaticsAnnotator`, `PragmaticsVectorScorer`, `RuleAspectSentiment`, `AspectCategoryScorer`, `EmotionAnnotator`, `EmotionVectorScorer`, `IncivilityAnnotator`, `IncivilityVectorScorer`, [sentiment.md](sentiment.md)) |
 | `turbo-keywords` | `analysis/keywords/` | Unsupervised YAKE, TextRank, and RAKE keyword and keyphrase extraction writing `Keywords` (`turbo:keywords`, [keywords.md](keywords.md)) |
-| `turbo-langdetect` | `analysis/langdetect/` | Document-level character $n$-gram language detection (`LanguageDetector`, `LanguageModel`, `ProbingContext`, `ProbingConfig`) writing `Language` ([langdetect.md](langdetect.md)) |
-| `turbo-langspan` | `analysis/langspan/` | Model-free Unicode script segmentation (`ScriptDetector`) with exact source spans writing `LanguageSpans` (`turbo:language-spans`) and `Language` (`und`, confidence `0.0`, [langdetect.md](langdetect.md)) |
+| `turbo-langdetect` | `analysis/langdetect/` | Native hashed character $n$-gram language classifier with script priors (`NgramModel`), trained by `turbo_trainer::langid` ([langdetect.md](langdetect.md)) |
+| `turbo-langspan` | `analysis/langspan/` | Language and script spans writing `LanguageSpans` (`turbo:language-spans`) and `Language`: `NgramDetector` over a trained `NgramModel`, or model-free Unicode script segmentation (`ScriptDetector`, `und`, confidence `0.0`) with exact source spans ([langdetect.md](langdetect.md)) |
 | `turbo-geo` | `analysis/geo/` | Gazetteers (`BundledGazetteer`, `GeoNamesGazetteer`, `OvertureGazetteer`, `InMemoryGazetteer`, `UserGazetteer`, `OverlayGazetteer`), toponym matching (`NameFinder`, `NameAnnotator`), and geocoding and spatial disambiguation (`GeocodeAnnotator`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `GeoEntityLinker`, `HierarchyAnnotator`, `DocumentRegionAnnotator`) writing `Locations` (`turbo:locations`), `EntityLocationLinks`, `Containment` (`turbo:containment`), and `Regions` (`turbo:regions`) |
 | `turbo-wordnet` | `analysis/wordnet/` | WNDB (`WndbReader`) and WN-LMF WordNet lexicon reader, `MorphyLemmatizer`, synset sense disambiguation (`WordNetAnnotator`), and lexical expansion (`LexicalExpander`) writing `WordNetSenses` (`turbo:wordnet-senses`) and `LexicalExpansions` (`turbo:lexical-expansions`) |
 | `turbo-stem` | `analysis/stem/` | `PorterStemmer`, 21 `SnowballStemmer` languages, `LightStemmer`, and `StemAnnotator` / `TermAnnotator` writing `Stems` (`turbo:stems`) and `Terms` (`turbo:terms`) |
@@ -430,6 +439,15 @@ GutenQA (100 documents, 339,809 level units, 50 queries):
 | Contextual only | 0.6200 | 0.4374 | 339809 |
 | Cascade C=5 | 0.5800 | 0.4105 | 968 |
 | Cascade C=64 | 0.6000 | 0.4268 | 11651 |
+
+- `analysis/embed/tests/sentence_vectors_native.rs` runs the native rule
+  sentence detector, subword annotator and sentence-vector step on the
+  generated local tiny-BERT fixture. It checks exact source byte spans,
+  empty and whitespace inputs, Unicode and CRLF handling, all 32 vector
+  components against the crate-local native snapshot within 2e-6, and
+  unit norms. No downloaded model, retired sentence model, or JVM output
+  is used. This is an integration regression test, not a trained-model
+  accuracy or external-peer parity result.
 
 ## Content-addressed incremental DAG execution
 
