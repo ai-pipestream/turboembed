@@ -1,5 +1,5 @@
 //! `train-sentences` (#1725): multi-sentence document construction from
-//! CoNLL-U (`# newdoc`, `# newpar`, `SpaceAfter=No`, `SpacesAfter`,
+//! CoNLL-U (`# newdoc`, `# newpar`, required `# text`, `SpaceAfter=No`,
 //! multiword tokens, non-ASCII text), newline and rule-splitter
 //! baselines, exact sentence span scoring, and end-to-end training on
 //! the tiny BERT bundle with loading into `SentenceBoundary` and
@@ -48,7 +48,7 @@ fn fixture_treebank() -> String {
                 out += "# newpar id = p-2\n";
             }
             out += &format!(
-                "# sent_id = {doc}-{s}\n\
+                "# sent_id = {doc}-{s}\n# text = ¿Vamos al café.\n\
                  1\t¿\t¿\tPUNCT\t.\t_\t2\tpunct\t_\tSpaceAfter=No\n\
                  2\tVamos\tir\tVERB\tVBP\t_\t0\troot\t_\t_\n\
                  3-4\tal\t_\t_\t_\t_\t_\t_\t_\t_\n\
@@ -114,7 +114,7 @@ fn ud_without_newdoc_groups_by_sentences_per_document() {
     let mut text = String::new();
     for i in 0..25 {
         text += &format!(
-            "# sent_id = s-{i}\n1\tHello\thello\tINTJ\tUH\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t.\t_\t1\tpunct\t_\t_\n\n"
+            "# sent_id = s-{i}\n# text = Hello.\n1\tHello\thello\tINTJ\tUH\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t.\t_\t1\tpunct\t_\t_\n\n"
         );
     }
     write_treebank(&dir, &text);
@@ -125,7 +125,7 @@ fn ud_without_newdoc_groups_by_sentences_per_document() {
 }
 
 #[test]
-fn ud_preserves_authoritative_conllu_text_repeated_spaces_and_offsets_and_refuses_unalignable_text() {
+fn ud_preserves_authoritative_conllu_text_and_refuses_missing_or_unalignable_text() {
     let dir = scratch("ud-auth-text");
     let conllu_with_auth_text = "\
 # newdoc id = d1
@@ -154,25 +154,11 @@ fn ud_preserves_authoritative_conllu_text_repeated_spaces_and_offsets_and_refuse
         [Span::new(0, 5), Span::new(7, 12), Span::new(12, 13), Span::new(14, 18), Span::new(19, 22), Span::new(22, 23),]
     );
 
-    // Fallback when `# text = ...` is omitted uses `SpacesAfter=\s\s` in MISC.
-    let conllu_misc_fallback = "\
-# newdoc id = d1
-# sent_id = d1-s1
-1\tHello\thello\tINTJ\tUH\t_\t0\troot\t_\tSpacesAfter=\\s\\s
-2\tworld\tworld\tNOUN\tNN\t_\t1\tvocative\t_\tSpaceAfter=No
-3\t.\t.\tPUNCT\t.\t_\t1\tpunct\t_\t_
-
-# sent_id = d1-s2
-1\tNext\tnext\tADJ\tJJ\t_\t2\tamod\t_\t_
-2\tone\tone\tNOUN\tNN\t_\t0\troot\t_\tSpaceAfter=No
-3\t!\t!\tPUNCT\t.\t_\t2\tpunct\t_\t_
-
-";
-    write_treebank(&dir, conllu_misc_fallback);
-    let fallback = read("ud-en-ewt", &dir, true).unwrap();
-    assert_eq!(fallback.test[0].text, "Hello  world. Next one!");
-    assert_eq!(fallback.test[0].sentences, [Span::new(0, 13), Span::new(14, 23)]);
-    assert_eq!(fallback.test[0].word_spans, d.word_spans);
+    // A sentence without `# text` has no source for its offsets and is refused;
+    // MISC spacing is not used to rebuild it.
+    write_treebank(&dir, &conllu_with_auth_text.replace("# text = Next one!\n", ""));
+    let err = read("ud-en-ewt", &dir, true).unwrap_err();
+    assert!(err.to_string().contains("has no # text"), "{err:?}");
 
     // Unalignable token in `# text = ...` is explicitly refused.
     for (bad, msg) in [

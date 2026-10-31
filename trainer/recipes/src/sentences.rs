@@ -1,6 +1,6 @@
 //! Sentence boundary documents on MASC 3.0.0 and UD treebanks (#1725):
-//! multi-sentence documents with their original spacing (or CoNLL-U
-//! `SpacesAfter` / `SpaceAfter=No` joins), exact-offset sentence span
+//! multi-sentence documents with their original spacing (each CoNLL-U
+//! sentence's required `# text`), exact-offset sentence span
 //! scoring, and the newline and rule-based sentence splitter baselines.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -223,8 +223,13 @@ fn build_ud_sentence(name: &str, s: &turbo_formats::conllu::Sentence<'_>) -> Res
         return Ok(None);
     }
     let trailing_sep = misc_trailing_space(words.last().expect("non-empty").misc.as_str());
-    let (text, tokens) = if let Some(comment) = &s.text {
-        let raw = comment.as_str();
+    let sid = s.sentence_id.as_ref().map_or("<unnamed>", |f| f.as_str());
+    let raw = s
+        .text
+        .as_ref()
+        .ok_or_else(|| Error(format!("{name}:{}: sentence {sid:?} has no # text, the source of its offsets", s.line)))?
+        .as_str();
+    let (text, tokens) = {
         let (mut cursor, mut first_start) = (0usize, 0usize);
         let mut spans = Vec::with_capacity(words.len());
         for (idx, w) in words.iter().enumerate() {
@@ -233,7 +238,6 @@ fn build_ud_sentence(name: &str, s: &turbo_formats::conllu::Sentence<'_>) -> Res
             let ws_len: usize = raw[cursor..].chars().take_while(|c| c.is_whitespace()).map(char::len_utf8).sum();
             let tok_start = cursor + ws_len;
             if !raw[tok_start..].starts_with(form) {
-                let sid = s.sentence_id.as_ref().map_or("<unnamed>", |f| f.as_str());
                 return Err(Error(format!(
                     "{name}:{}: token {form:?} in sentence {sid:?} does not align with # text = {raw:?} at byte {tok_start}",
                     w.line
@@ -247,7 +251,6 @@ fn build_ud_sentence(name: &str, s: &turbo_formats::conllu::Sentence<'_>) -> Res
             cursor = tok_end;
         }
         if !raw[cursor..].chars().all(char::is_whitespace) {
-            let sid = s.sentence_id.as_ref().map_or("<unnamed>", |f| f.as_str());
             return Err(Error(format!(
                 "{name}:{}: trailing text {:?} in sentence {sid:?} after last token in # text = {raw:?}",
                 s.line,
@@ -263,21 +266,6 @@ fn build_ud_sentence(name: &str, s: &turbo_formats::conllu::Sentence<'_>) -> Res
                 (form, Span::new(start, end))
             })
             .collect();
-        (sent_text, tokens)
-    } else {
-        let mut sent_text = String::new();
-        let mut tokens = Vec::with_capacity(words.len());
-        for (idx, w) in words.iter().enumerate() {
-            let trimmed = w.form.as_str().trim();
-            let form = if trimmed.is_empty() { w.form.as_str() } else { trimmed };
-            let start = u32::try_from(sent_text.len()).map_err(|_| Error("UD sentence exceeds u32".into()))?;
-            sent_text.push_str(form);
-            let end = u32::try_from(sent_text.len()).map_err(|_| Error("UD sentence exceeds u32".into()))?;
-            tokens.push((form.to_owned(), Span::new(start, end)));
-            if idx + 1 < words.len() {
-                sent_text.push_str(&misc_trailing_space(w.misc.as_str()));
-            }
-        }
         (sent_text, tokens)
     };
     Ok(Some(UdSent { new_document: s.new_document, new_paragraph: s.new_paragraph, text, tokens, trailing_sep }))
