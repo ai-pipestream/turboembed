@@ -17,7 +17,9 @@
 //! starts.
 //!
 //! One sequence at a time, on one thread; attention recomputes its
-//! probabilities in backward rather than keeping them. No sum is split,
+//! probabilities in backward rather than keeping them, and dropout
+//! (`with_dropout`, applied by `forward_at`) draws its masks again from
+//! their keys. No sum is split,
 //! so a run gives the same bytes every time. Batches, threads and the
 //! training loop are in `tuned`; the later legs (CUDA, bf16) are held to
 //! this one.
@@ -28,6 +30,7 @@ use crate::real::Real;
 use crate::rng::Rng;
 
 pub mod attention;
+pub mod dropout;
 mod export;
 pub mod gated;
 mod layer;
@@ -40,6 +43,7 @@ pub mod pool;
 pub mod rope;
 pub mod tuned;
 
+pub use dropout::Dropout;
 pub use layer::Work as LayerWork;
 
 /// A tensor as a safetensors file holds it: name, shape and values.
@@ -136,6 +140,7 @@ pub struct Encoder<R: Real> {
     lora: Option<Lora>,
     /// The first layer with adapters.
     lora_from: usize,
+    dropout: Option<Dropout>,
     /// Whether the base weights take no gradient (with adapters).
     frozen: bool,
     table: rope::Table<R>,
@@ -147,6 +152,9 @@ pub struct Encoder<R: Real> {
 #[derive(Debug, Default)]
 pub struct Work<R> {
     ids: Vec<u32>,
+    /// The place of the last forward's example in its run, when it
+    /// trained with dropout.
+    at: Option<u64>,
     /// The word rows before the embedding norm, and after it.
     emb_in: Vec<R>,
     emb: norm::Cache,
@@ -184,7 +192,17 @@ impl<R: Real> Encoder<R> {
     pub fn assemble(geo: Geometry, vocab: usize, params: Vec<Vec<R>>) -> Result<Self> {
         geo.check()?;
         let table = rope::Table::new(geo.global_theta, geo.local_theta, geo.max_positions, geo.d())?;
-        let e = Encoder { geo, vocab, params, lora: None, lora_from: 0, frozen: false, table, empty: Vec::new() };
+        let e = Encoder {
+            geo,
+            vocab,
+            params,
+            lora: None,
+            lora_from: 0,
+            dropout: None,
+            frozen: false,
+            table,
+            empty: Vec::new(),
+        };
         let want = e.shapes();
         if e.params.len() != want.len() || e.params.iter().zip(&want).any(|(p, n)| p.len() != *n) {
             return Err(invalid("encoder: the weights do not fit the geometry"));
@@ -226,6 +244,30 @@ impl<R: Real> Encoder<R> {
         self.lora = Some(lora);
         self.frozen = true;
         Ok(self)
+    }
+
+    /// Drops as `d` says on a forward that gives its place in the run
+    /// ([`forward_at`](Self::forward_at)); [`forward`](Self::forward)
+    /// drops nothing, as inference does. Refuses a rate outside [0, 1).
+    pub fn with_dropout(mut self, d: Dropout) -> Result<Self> {
+        if !d.valid() {
+            return Err(invalid("encoder: a dropout rate lies in [0, 1)"));
+        }
+        self.dropout = Some(d);
+        Ok(self)
+    }
+
+    pub fn dropout(&self) -> Option<Dropout> {
+        self.dropout
+    }
+
+    /// The dropout rates and mask key of branch `branch` of layer `l`
+    /// (u32::MAX for the embedding) in the forward `w` holds, when it
+    /// trained with dropout.
+    pub(super) fn mask(&self, w_at: Option<u64>, l: u32, branch: u32) -> Option<(Dropout, u64)> {
+        let d = self.dropout?;
+        let at = w_at?;
+        Some((d, dropout::key(d.seed, at, l, branch)))
     }
 
     /// The adapters of layer `l`, when it has them.
@@ -341,9 +383,21 @@ impl<R: Real> Encoder<R> {
             .collect()
     }
 
-    /// The states [n, hidden] of `ids`, into `w.out`. Refuses an empty
-    /// sequence, one past the positions, and an id past the vocabulary.
+    /// The states [n, hidden] of `ids`, into `w.out`, with no dropout:
+    /// what inference computes. Refuses an empty sequence, one past the
+    /// positions, and an id past the vocabulary.
     pub fn forward(&self, ids: &[u32], w: &mut Work<R>) -> Result<()> {
+        self.run(ids, None, w)
+    }
+
+    /// As [`forward`](Self::forward), training: dropout, when the encoder
+    /// has it, drops under masks keyed by `at`, the example's place in
+    /// the run, so the same place gives the same masks on any thread.
+    pub fn forward_at(&self, ids: &[u32], at: u64, w: &mut Work<R>) -> Result<()> {
+        self.run(ids, Some(at), w)
+    }
+
+    fn run(&self, ids: &[u32], at: Option<u64>, w: &mut Work<R>) -> Result<()> {
         let h = self.geo.hidden;
         if ids.is_empty() || ids.len() > self.geo.max_positions {
             return Err(invalid(format!("encoder: {} tokens, of 1 to {}", ids.len(), self.geo.max_positions)));
@@ -354,17 +408,21 @@ impl<R: Real> Encoder<R> {
         let n = ids.len();
         w.ids.clear();
         w.ids.extend_from_slice(ids);
+        w.at = at;
         w.emb_in.clear();
         for &id in ids {
             w.emb_in.extend_from_slice(&self.params[WORD][id as usize * h..][..h]);
         }
         w.x0.resize(n * h, R::ZERO);
         norm::forward(&w.emb_in, &self.params[EMB_NORM], &self.empty, self.geo.eps, &mut w.x0, &mut w.emb);
+        if let Some((d, key)) = self.mask(at, u32::MAX, 0) {
+            dropout::forward(&mut w.x0, d.embedding, key);
+        }
         w.layers.resize_with(self.geo.layers, LayerWork::default);
         for l in 0..self.geo.layers {
             let (done, rest) = w.layers.split_at_mut(l);
             let x: &[R] = if l == 0 { &w.x0 } else { &done[l - 1].x_out };
-            self.layer_forward(l, x, &mut rest[0]);
+            self.layer_forward(l, at, x, &mut rest[0]);
         }
         let last: &[R] = w.layers.last().map_or(&w.x0, |l| &l.x_out);
         w.out.resize(n * h, R::ZERO);
@@ -389,10 +447,13 @@ impl<R: Real> Encoder<R> {
         let dw = (!self.frozen).then_some(FINAL_NORM);
         norm::backward(last, &self.params[FINAL_NORM], &w.fin, dout, &mut dx, dw.map(|s| &mut g[s][..]), None);
         for l in (0..self.geo.layers).rev() {
-            dx = self.layer_backward(l, &w.layers[l], &dx, g);
+            dx = self.layer_backward(l, w.at, &w.layers[l], &dx, g);
         }
         if self.frozen {
             return Ok(());
+        }
+        if let Some((d, key)) = self.mask(w.at, u32::MAX, 0) {
+            dropout::backward(&mut dx, d.embedding, key);
         }
         let mut demb = vec![R::ZERO; n * h];
         let (gw, gn) = g.split_at_mut(EMB_NORM);

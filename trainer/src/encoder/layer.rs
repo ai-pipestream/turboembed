@@ -2,11 +2,16 @@
 //! and backward: x += attn(attn_norm(x)), x += mlp(ffn_norm(x)), the
 //! attention norm absent in layer 0, Q and K rotated by the layer's base,
 //! the window on a local layer, and a gated MLP; each projection with
-//! its adapter on a layer that has them.
+//! its adapter on a layer that has them; in training, dropout on
+//! attention's output and on the MLP's activated hidden.
+
+use std::borrow::Cow;
 
 use crate::real::Real;
 
-use super::{ATTN_NORM, Encoder, FFN_IN, FFN_NORM, FFN_OUT, OUT, QKV, attention, gated, lora, matmul, norm, slot};
+use super::{
+    ATTN_NORM, Encoder, FFN_IN, FFN_NORM, FFN_OUT, OUT, QKV, attention, dropout, gated, lora, matmul, norm, slot,
+};
 
 /// The projections an adapter may sit on, in `lora_slot` order.
 pub(super) const PROJECTIONS: [usize; 4] = [QKV, OUT, FFN_IN, FFN_OUT];
@@ -77,8 +82,9 @@ impl<R: Real> Encoder<R> {
         &self.empty
     }
 
-    /// Layer `l` over x [n, hidden], into `w.x_out`.
-    pub(super) fn layer_forward(&self, l: usize, x: &[R], w: &mut Work<R>) {
+    /// Layer `l` over x [n, hidden], into `w.x_out`; `at` keys the
+    /// dropout masks of a training forward.
+    pub(super) fn layer_forward(&self, l: usize, at: Option<u64>, x: &[R], w: &mut Work<R>) {
         let (h, i) = (self.geo.hidden, self.geo.intermediate);
         let n = x.len() / h;
         let global = self.geo.global(l);
@@ -99,6 +105,9 @@ impl<R: Real> Encoder<R> {
         attention::forward(&w.qkv, h, self.geo.heads, self.window(l), &mut w.ctx, &mut w.attn);
         w.x_mid.resize(n * h, R::ZERO);
         self.project(l, OUT, &w.ctx, &mut w.x_mid, h1);
+        if let Some((d, key)) = self.mask(at, l as u32, 1) {
+            dropout::forward(&mut w.x_mid, d.attention, key);
+        }
         for (m, &x) in w.x_mid.iter_mut().zip(x) {
             *m += x;
         }
@@ -108,6 +117,9 @@ impl<R: Real> Encoder<R> {
         self.project(l, FFN_IN, &w.xn2, &mut w.pre, h2);
         w.act.resize(n * i, R::ZERO);
         gated::forward(&w.pre, i, &mut w.act);
+        if let Some((d, key)) = self.mask(at, l as u32, 2) {
+            dropout::forward(&mut w.act, d.mlp, key);
+        }
         w.x_out.resize(n * h, R::ZERO);
         self.project(l, FFN_OUT, &w.act, &mut w.x_out, h3);
         for (o, &m) in w.x_out.iter_mut().zip(&w.x_mid) {
@@ -116,12 +128,22 @@ impl<R: Real> Encoder<R> {
     }
 
     /// The gradient of layer `l`'s input from that of its output, with
-    /// the layer's weight gradients added to `g`.
-    pub(super) fn layer_backward(&self, l: usize, w: &Work<R>, dx_out: &[R], g: &mut [Vec<R>]) -> Vec<R> {
+    /// the layer's weight gradients added to `g`; `at` is the forward's.
+    pub(super) fn layer_backward(
+        &self,
+        l: usize,
+        at: Option<u64>,
+        w: &Work<R>,
+        dx_out: &[R],
+        g: &mut [Vec<R>],
+    ) -> Vec<R> {
         let (h, i) = (self.geo.hidden, self.geo.intermediate);
         let n = dx_out.len() / h;
         let mut dact = vec![R::ZERO; n * i];
         self.project_back(l, FFN_OUT, &w.act, &w.h[3], dx_out, g, &mut dact);
+        if let Some((d, key)) = self.mask(at, l as u32, 2) {
+            dropout::backward(&mut dact, d.mlp, key);
+        }
         let mut dpre = vec![R::ZERO; n * 2 * i];
         gated::backward(&w.pre, i, &dact, &mut dpre);
         let mut dxn2 = vec![R::ZERO; n * h];
@@ -138,7 +160,15 @@ impl<R: Real> Encoder<R> {
             None,
         );
         let mut dctx = vec![R::ZERO; n * h];
-        self.project_back(l, OUT, &w.ctx, &w.h[1], &dx_mid, g, &mut dctx);
+        let dproj: Cow<[R]> = match self.mask(at, l as u32, 1) {
+            Some((d, key)) => {
+                let mut dropped = dx_mid.clone();
+                dropout::backward(&mut dropped, d.attention, key);
+                Cow::Owned(dropped)
+            }
+            None => Cow::Borrowed(&dx_mid),
+        };
+        self.project_back(l, OUT, &w.ctx, &w.h[1], &dproj, g, &mut dctx);
         let mut dqkv = vec![R::ZERO; n * 3 * h];
         attention::backward(&w.qkv, h, self.geo.heads, self.window(l), &w.attn, &dctx, &mut dqkv);
         self.table.apply_grad(self.geo.global(l), &mut dqkv, 3 * h, 2 * h);

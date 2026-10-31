@@ -261,6 +261,13 @@ pub(crate) trait Model: Sized + Sync {
     fn decays(&self) -> Vec<bool>;
     /// The example's loss, its gradients added to `grads`, and its words.
     fn loss(&self, e: &Self::Example, grads: &mut [Vec<f32>], w: &mut Self::Work) -> Result<(f64, usize)>;
+    /// [`loss`](Self::loss) for the example drawn at `at` (its epoch and
+    /// index), which a model whose training forward draws random bits,
+    /// dropout, seeds from; the default draws none.
+    fn loss_at(&self, e: &Self::Example, at: u64, grads: &mut [Vec<f32>], w: &mut Self::Work) -> Result<(f64, usize)> {
+        let _ = at;
+        self.loss(e, grads, w)
+    }
     /// The dev score through the core's inference path; higher is better.
     fn score(&self, dev: &[Self::Example]) -> Result<f64>;
 }
@@ -381,7 +388,8 @@ pub(crate) fn train<M: Model>(
         rng.shuffle(&mut order);
         let (mut loss, mut words) = (0.0, 0usize);
         for (step, ids) in order.chunks(c.batch).enumerate() {
-            let examples: Vec<&M::Example> = ids.iter().map(|&i| &train[i]).collect();
+            let first = epoch as u64 * train.len() as u64;
+            let examples: Vec<(&M::Example, u64)> = ids.iter().map(|&i| (&train[i], first + i as u64)).collect();
             let (l, n) = batch.gradients(&model, &examples, &mut grads)?;
             loss += l;
             words += n;
@@ -443,7 +451,7 @@ pub(crate) fn train<M: Model>(
 pub fn batch_gradients(model: &Tagger<f32>, examples: &[Example], threads: usize) -> Result<(Vec<Vec<f32>>, f64)> {
     check_examples(examples, model.hidden(), model.spec().labels.len(), model.spec().hash_embed.is_some())?;
     let mut grads = model.zero_grads();
-    let refs: Vec<&Example> = examples.iter().collect();
+    let refs: Vec<(&Example, u64)> = examples.iter().zip(0..).collect();
     let (loss, _) = Batch::new(threads, 0).gradients(model, &refs, &mut grads)?;
     Ok((grads, loss))
 }

@@ -38,14 +38,14 @@ impl<M: Model> Batch<M> {
         self.threads
     }
 
-    /// The summed gradients of `examples` written to `grads` (shaped as
-    /// the model's weights), and their summed loss and words; the first
-    /// refused example's error, in example order, with the sum left
-    /// unfinished.
+    /// The summed gradients of `examples`, each with the `at` its loss
+    /// draws on, written to `grads` (shaped as the model's weights), and
+    /// their summed loss and words; the first refused example's error, in
+    /// example order, with the sum left unfinished.
     pub(crate) fn gradients(
         &mut self,
         model: &M,
-        examples: &[&M::Example],
+        examples: &[(&M::Example, u64)],
         grads: &mut [Vec<f32>],
     ) -> Result<(f64, usize)> {
         let lanes = if self.lanes == 0 { examples.len() } else { self.lanes }.max(1);
@@ -58,10 +58,10 @@ impl<M: Model> Batch<M> {
             let k = round.len();
             let slots = &mut self.slots[..k];
             let per = k.div_ceil(self.threads.min(k).max(1));
-            let run = |slots: &mut [Slot<M>], examples: &[&M::Example]| {
-                for (s, e) in slots.iter_mut().zip(examples) {
+            let run = |slots: &mut [Slot<M>], examples: &[(&M::Example, u64)]| {
+                for (s, (e, at)) in slots.iter_mut().zip(examples) {
                     s.grads.iter_mut().for_each(|g| g.fill(0.0));
-                    s.out = Some(model.loss(e, &mut s.grads, &mut s.work));
+                    s.out = Some(model.loss_at(e, *at, &mut s.grads, &mut s.work));
                 }
             };
             if per >= k {
