@@ -448,6 +448,29 @@ another way overrides it (#1613).
   and the signatures against the S3 documentation's GET and PUT Object
   examples.
 
+- `GoogleDrive` (the `http` feature) is a Google Drive folder, read
+  through the Drive API v3 over the same HTTPS stack (no SDK), shared
+  drives included. `GoogleDrive::new("gdrive://<folder-id>[/name/...]")`
+  names the folder by its Drive id (`root` is My Drive), and the names
+  after the id walk down from it. A file is looked for at
+  `blobs/sha256/<hex>`, the layout the other stores share, and when it
+  is not there at `<artifact-id>/<path>`, the zoo cache's own layout,
+  so a store or a cache copied to Drive serves as is. Each folder on the
+  way is found with one `files.list` query and remembered; the file is
+  the first of its name whose size is the index's (read page by page),
+  so a file of another size is never downloaded, and is read with one
+  `files.get?alt=media`, at most its size and one byte more. Sign-in comes from `GOOGLE_OAUTH_ACCESS_TOKEN`, sent as a bearer
+  token (one from `gcloud auth print-access-token`, or any OAuth flow
+  the caller runs), or else `GOOGLE_API_KEY`, enough for a folder
+  shared with anyone who has the link (sent as `X-Goog-Api-Key`); one
+  of them is required. Neither ever travels in a URL, and a redirect is
+  followed over HTTPS only and unsigned. `GoogleDrive::with` takes
+  another endpoint; a plain `http://` one sends the token in clear text
+  and is only for a stand-in on loopback in tests. It
+  reads and does not keep: a library puts its own `file://` store first
+  to keep what Drive serves. `analysis/zoo/tests/drive.rs` runs it
+  against an in-process stand-in that answers the Drive API calls.
+
 A zoo server keeps its files in such a store with
 `--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
 (docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
@@ -455,7 +478,8 @@ its first read, so a library pointed at it with `grpc(s)://` needs no
 separate install step. docs/zoo-container.md packs that server, the
 page and a RustFS store into one `docker compose`. `turbo-zoo-remote`
 (top-level `zoo-remote/`) adds the library's remote sources: a zoo
-server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, and the
+server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, a
+Google Drive folder over `gdrive://` (the `gdrive` feature), and the
 `TURBO_ZOO_SOURCE` list that names them.
 
 Whatever the source, the licence check runs first: no source is asked

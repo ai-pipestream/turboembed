@@ -59,6 +59,9 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
     let scheme = match corpus.record.task {
         Task::Tags => Scheme::Tags,
         Task::Bio => Scheme::Bio,
+        Task::Relations => {
+            return Err(Error(format!("{}: a relation corpus trains with train-relation", corpus.record.id)));
+        }
     };
     let spec = HeadSpec {
         name: name.into(),

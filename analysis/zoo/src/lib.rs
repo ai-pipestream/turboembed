@@ -38,7 +38,7 @@ pub use fetch::{
     Blobs, CacheStatus, Directory, Fetched, Keep, Offline, Sources, Transport, Zoo, most_bytes, unpack, verify,
 };
 #[cfg(feature = "http")]
-pub use fetch::{Http, Mirror, S3Bucket, sigv4};
+pub use fetch::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive, Http, Mirror, S3Bucket, sigv4};
 pub use home::Home;
 pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
 pub use licence::{

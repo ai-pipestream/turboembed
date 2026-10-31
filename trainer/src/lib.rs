@@ -48,7 +48,7 @@ pub use fit::{Config, Draw, EarlyStop, Example, Report, batch_gradients, fit, fi
 pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};
 pub use fit_open_span::{OpenSpanExample, fit_open_spans, fit_open_spans_with, open_span_f1};
 pub use fit_parse::{ParseExample, fit_parser, fit_parser_with};
-pub use fit_relation::{RelationExample, fit_relations};
+pub use fit_relation::{RelationExample, fit_relations, fit_relations_with};
 pub use fit_span::{SpanExample, fit_spans};
 pub use lemma::Lemmatizer;
 pub use open_span::OpenSpans;

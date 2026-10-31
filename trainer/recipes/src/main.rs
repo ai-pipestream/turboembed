@@ -23,6 +23,9 @@
 //!     [--arc N] [--rel N])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N])
+//! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
+//!     [--mlp N] [--type-dim N])
+//! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735)
 //! ```
 //!
 //! `cache` writes every split's word features at the encoder's last N
@@ -54,6 +57,7 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
 mod train_open_span;
+mod train_relation;
 mod train_split;
 mod train_ud;
 
@@ -79,6 +83,13 @@ fn run(argv: Vec<String>) -> Result<()> {
     let dir = PathBuf::from(a.required("--dir")?);
     let unrecorded = a.flag("--unrecorded-corpus");
     match command.as_str() {
+        "check" if corpus_id == turbo_trainer_recipes::redocred::ID => {
+            a.done()?;
+            let c = train_relation::read(&corpus_id, &dir, unrecorded)?;
+            println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
+            println!("labels: {}", c.labels().len());
+            Ok(())
+        }
         "check" => {
             a.done()?;
             let c = read_corpus(&corpus_id, &dir, unrecorded)?;
@@ -137,9 +148,10 @@ fn run(argv: Vec<String>) -> Result<()> {
             train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-open-span, assemble, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, assemble, cache, fit-cache, export or peer"
         ))),
     }
 }
