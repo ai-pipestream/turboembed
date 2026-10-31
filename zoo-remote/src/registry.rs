@@ -136,7 +136,8 @@ fn environment_only(holder: &Holder) -> Result<(), String> {
     }
 }
 
-/// `file:///dir`: the content-addressed store under `/dir`.
+/// `file:///dir`: the content-addressed store under `/dir`; on Windows a
+/// native absolute path (drive-qualified or UNC) after `file://` too.
 pub struct FileKind;
 
 impl Kind for FileKind {
@@ -147,7 +148,7 @@ impl Kind for FileKind {
     fn open(&self, holder: &Holder, _user: &UserId) -> Result<Opened, String> {
         environment_only(holder)?;
         let dir = holder.address.strip_prefix("file://").unwrap_or_default();
-        if !dir.starts_with('/') {
+        if !dir.starts_with('/') && !std::path::Path::new(dir).is_absolute() {
             return Err(format!("{}: a file:// source names an absolute directory", holder.address));
         }
         Ok(Opened::Store(Arc::new(Blobs::new(dir))))

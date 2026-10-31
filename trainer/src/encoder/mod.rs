@@ -17,10 +17,14 @@
 //! starts.
 //!
 //! One sequence at a time, on one thread; attention recomputes its
-//! probabilities in backward rather than keeping them. No sum is split,
+//! probabilities in backward rather than keeping them, and dropout
+//! (`with_dropout`, applied by `forward_at`) draws its masks again from
+//! their keys. No sum is split,
 //! so a run gives the same bytes every time. Batches, threads and the
 //! training loop are in `tuned`; the later legs (CUDA, bf16) are held to
 //! this one.
+
+use std::borrow::Cow;
 
 use turbo::status::{Result, invalid};
 
@@ -28,6 +32,9 @@ use crate::real::Real;
 use crate::rng::Rng;
 
 pub mod attention;
+#[cfg(any(feature = "cuda", feature = "cuda-shim"))]
+pub mod cuda;
+pub mod dropout;
 mod export;
 pub mod gated;
 mod layer;
@@ -36,11 +43,14 @@ pub mod lora;
 pub mod math;
 pub mod matmul;
 pub mod norm;
+mod pass;
 pub mod pool;
 pub mod rope;
 pub mod tuned;
 
+pub use dropout::Dropout;
 pub use layer::Work as LayerWork;
+pub use pass::Work;
 
 /// A tensor as a safetensors file holds it: name, shape and values.
 pub type Named = (String, Vec<u64>, Vec<f32>);
@@ -110,6 +120,19 @@ impl Lora {
     }
 }
 
+/// What a forward and backward compute in: the single, or bfloat16
+/// emulated on it. Under bfloat16 the weights are read rounded to it
+/// (a shadow the master weights refresh), every op's output and every
+/// activation's gradient is rounded to it, and the sums inside each op
+/// run in the single, as a bfloat16 kernel accumulates; the master
+/// weights, their gradients and the optimizer stay single.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Compute {
+    #[default]
+    F32,
+    Bf16,
+}
+
 pub(super) const WORD: usize = 0;
 pub(super) const EMB_NORM: usize = 1;
 pub(super) const FINAL_NORM: usize = 2;
@@ -133,28 +156,20 @@ pub struct Encoder<R: Real> {
     geo: Geometry,
     vocab: usize,
     params: Vec<Vec<R>>,
+    /// Each slot's length, kept while a slot is taken for a step.
+    lens: Vec<usize>,
+    compute: Compute,
+    /// The weights rounded to bfloat16, under that compute; else empty.
+    shadow: Vec<Vec<R>>,
     lora: Option<Lora>,
     /// The first layer with adapters.
     lora_from: usize,
+    dropout: Option<Dropout>,
     /// Whether the base weights take no gradient (with adapters).
     frozen: bool,
     table: rope::Table<R>,
     /// An empty bias, for the norms.
     empty: Vec<R>,
-}
-
-/// What a forward keeps for its backward.
-#[derive(Debug, Default)]
-pub struct Work<R> {
-    ids: Vec<u32>,
-    /// The word rows before the embedding norm, and after it.
-    emb_in: Vec<R>,
-    emb: norm::Cache,
-    x0: Vec<R>,
-    layers: Vec<LayerWork<R>>,
-    fin: norm::Cache,
-    /// The final states, [n, hidden].
-    pub out: Vec<R>,
 }
 
 impl<R: Real> Encoder<R> {
@@ -184,7 +199,20 @@ impl<R: Real> Encoder<R> {
     pub fn assemble(geo: Geometry, vocab: usize, params: Vec<Vec<R>>) -> Result<Self> {
         geo.check()?;
         let table = rope::Table::new(geo.global_theta, geo.local_theta, geo.max_positions, geo.d())?;
-        let e = Encoder { geo, vocab, params, lora: None, lora_from: 0, frozen: false, table, empty: Vec::new() };
+        let e = Encoder {
+            geo,
+            vocab,
+            lens: params.iter().map(Vec::len).collect(),
+            params,
+            compute: Compute::F32,
+            shadow: Vec::new(),
+            lora: None,
+            lora_from: 0,
+            dropout: None,
+            frozen: false,
+            table,
+            empty: Vec::new(),
+        };
         let want = e.shapes();
         if e.params.len() != want.len() || e.params.iter().zip(&want).any(|(p, n)| p.len() != *n) {
             return Err(invalid("encoder: the weights do not fit the geometry"));
@@ -220,12 +248,75 @@ impl<R: Real> Encoder<R> {
             for which in layer::PROJECTIONS {
                 let (inp, out) = self.widths(which);
                 let (a, b) = lora::init(inp, out, lora.rank, rng);
+                self.lens.extend([a.len(), b.len()]);
                 self.params.extend([a, b]);
             }
         }
         self.lora = Some(lora);
         self.frozen = true;
+        self.refresh();
         Ok(self)
+    }
+
+    /// Computes in bfloat16 emulated on the single (see [`Compute`]).
+    pub fn with_bf16(mut self) -> Self {
+        self.compute = Compute::Bf16;
+        self.refresh();
+        self
+    }
+
+    pub fn compute(&self) -> Compute {
+        self.compute
+    }
+
+    /// Rounds the shadow anew from the master weights.
+    fn refresh(&mut self) {
+        self.shadow.clear();
+        if self.compute == Compute::Bf16 {
+            self.shadow.extend(self.params.iter().map(|p| p.iter().map(|v| v.bf16()).collect()));
+        }
+    }
+
+    /// The weights a forward and backward read: the shadow under
+    /// bfloat16, the master weights else.
+    pub(super) fn weights(&self) -> &[Vec<R>] {
+        if self.shadow.is_empty() { &self.params } else { &self.shadow }
+    }
+
+    /// Rounds `x` to bfloat16 under that compute; nothing else.
+    pub(super) fn store(&self, x: &mut [R]) {
+        if self.compute == Compute::Bf16 {
+            x.iter_mut().for_each(|v| *v = v.bf16());
+        }
+    }
+
+    /// `x` as [`store`](Self::store) leaves it, borrowed when unchanged.
+    pub(super) fn stored<'a>(&self, x: &'a [R]) -> Cow<'a, [R]> {
+        if self.compute == Compute::Bf16 { Cow::Owned(x.iter().map(|v| v.bf16()).collect()) } else { Cow::Borrowed(x) }
+    }
+
+    /// Drops as `d` says on a forward that gives its place in the run
+    /// ([`forward_at`](Self::forward_at)); [`forward`](Self::forward)
+    /// drops nothing, as inference does. Refuses a rate outside [0, 1).
+    pub fn with_dropout(mut self, d: Dropout) -> Result<Self> {
+        if !d.valid() {
+            return Err(invalid("encoder: a dropout rate lies in [0, 1)"));
+        }
+        self.dropout = Some(d);
+        Ok(self)
+    }
+
+    pub fn dropout(&self) -> Option<Dropout> {
+        self.dropout
+    }
+
+    /// The dropout rates and mask key of branch `branch` of layer `l`
+    /// (u32::MAX for the embedding) in the forward `w` holds, when it
+    /// trained with dropout.
+    pub(super) fn mask(&self, w_at: Option<u64>, l: u32, branch: u32) -> Option<(Dropout, u64)> {
+        let d = self.dropout?;
+        let at = w_at?;
+        Some((d, dropout::key(d.seed, at, l, branch)))
     }
 
     /// The adapters of layer `l`, when it has them.
@@ -290,21 +381,37 @@ impl<R: Real> Encoder<R> {
         &self.params
     }
 
-    /// The weights, to step in place: what is written must stay finite,
-    /// as [`set_params`](Self::set_params) checks.
-    pub fn params_mut(&mut self) -> &mut [Vec<R>] {
-        &mut self.params
+    /// Takes slot `s`'s weights out to step them, leaving it empty until
+    /// [`put_slot`](Self::put_slot) returns them; no forward runs between.
+    pub fn take_slot(&mut self, s: usize) -> Vec<R> {
+        std::mem::take(&mut self.params[s])
+    }
+
+    /// Returns slot `s`'s weights, which must keep their length, and
+    /// refreshes its shadow; what is put must stay finite, as
+    /// [`set_params`](Self::set_params) checks.
+    pub fn put_slot(&mut self, s: usize, p: Vec<R>) -> Result<()> {
+        if s >= self.lens.len() || p.len() != self.lens[s] {
+            return Err(invalid("encoder: the weights do not match the slot's"));
+        }
+        if self.compute == Compute::Bf16 {
+            self.shadow[s].clear();
+            self.shadow[s].extend(p.iter().map(|v| v.bf16()));
+        }
+        self.params[s] = p;
+        Ok(())
     }
 
     /// Replaces the weights with `params`, shaped as [`params`](Self::params).
     pub fn set_params(&mut self, params: Vec<Vec<R>>) -> Result<()> {
-        if params.len() != self.params.len() || params.iter().zip(&self.params).any(|(a, b)| a.len() != b.len()) {
+        if params.len() != self.lens.len() || params.iter().zip(&self.lens).any(|(a, &n)| a.len() != n) {
             return Err(invalid("encoder: the weights do not match the encoder's"));
         }
         if params.iter().flatten().any(|v| !v.is_finite()) {
             return Err(invalid("encoder: a weight is not finite"));
         }
         self.params = params;
+        self.refresh();
         Ok(())
     }
 
@@ -339,69 +446,5 @@ impl<R: Real> Encoder<R> {
         (0..self.params.len())
             .map(|s| s == WORD || s >= base || (s >= BASE && !matches!((s - BASE) % PER_LAYER, ATTN_NORM | FFN_NORM)))
             .collect()
-    }
-
-    /// The states [n, hidden] of `ids`, into `w.out`. Refuses an empty
-    /// sequence, one past the positions, and an id past the vocabulary.
-    pub fn forward(&self, ids: &[u32], w: &mut Work<R>) -> Result<()> {
-        let h = self.geo.hidden;
-        if ids.is_empty() || ids.len() > self.geo.max_positions {
-            return Err(invalid(format!("encoder: {} tokens, of 1 to {}", ids.len(), self.geo.max_positions)));
-        }
-        if let Some(id) = ids.iter().find(|&&id| id as usize >= self.vocab) {
-            return Err(invalid(format!("encoder: token id {id} is past the {} words", self.vocab)));
-        }
-        let n = ids.len();
-        w.ids.clear();
-        w.ids.extend_from_slice(ids);
-        w.emb_in.clear();
-        for &id in ids {
-            w.emb_in.extend_from_slice(&self.params[WORD][id as usize * h..][..h]);
-        }
-        w.x0.resize(n * h, R::ZERO);
-        norm::forward(&w.emb_in, &self.params[EMB_NORM], &self.empty, self.geo.eps, &mut w.x0, &mut w.emb);
-        w.layers.resize_with(self.geo.layers, LayerWork::default);
-        for l in 0..self.geo.layers {
-            let (done, rest) = w.layers.split_at_mut(l);
-            let x: &[R] = if l == 0 { &w.x0 } else { &done[l - 1].x_out };
-            self.layer_forward(l, x, &mut rest[0]);
-        }
-        let last: &[R] = w.layers.last().map_or(&w.x0, |l| &l.x_out);
-        w.out.resize(n * h, R::ZERO);
-        norm::forward(last, &self.params[FINAL_NORM], &self.empty, self.geo.eps, &mut w.out, &mut w.fin);
-        Ok(())
-    }
-
-    /// Adds to `g` (shaped as [`grads`](Self::grads)) the gradients of
-    /// the weights from `dout`, the gradient of the states of the last
-    /// [`forward`](Self::forward) into `w`.
-    pub fn backward(&self, w: &Work<R>, dout: &[R], g: &mut [Vec<R>]) -> Result<()> {
-        let h = self.geo.hidden;
-        let n = w.ids.len();
-        if n == 0 || dout.len() != n * h {
-            return Err(invalid("encoder: the gradient is not shaped as the last forward's states"));
-        }
-        if !self.shaped(g) {
-            return Err(invalid("encoder: the gradients are not shaped as the weights"));
-        }
-        let last: &[R] = w.layers.last().map_or(&w.x0, |l| &l.x_out);
-        let mut dx = vec![R::ZERO; n * h];
-        let dw = (!self.frozen).then_some(FINAL_NORM);
-        norm::backward(last, &self.params[FINAL_NORM], &w.fin, dout, &mut dx, dw.map(|s| &mut g[s][..]), None);
-        for l in (0..self.geo.layers).rev() {
-            dx = self.layer_backward(l, &w.layers[l], &dx, g);
-        }
-        if self.frozen {
-            return Ok(());
-        }
-        let mut demb = vec![R::ZERO; n * h];
-        let (gw, gn) = g.split_at_mut(EMB_NORM);
-        norm::backward(&w.emb_in, &self.params[EMB_NORM], &w.emb, &dx, &mut demb, Some(&mut gn[0]), None);
-        for (t, &id) in w.ids.iter().enumerate() {
-            for (d, &v) in gw[WORD][id as usize * h..][..h].iter_mut().zip(&demb[t * h..][..h]) {
-                *d += v;
-            }
-        }
-        Ok(())
     }
 }

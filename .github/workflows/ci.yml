@@ -276,6 +276,11 @@ jobs:
         run: cargo test -p turbo-vector-index --features turboquant
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
+      # The encoder trainer's CUDA kernels as plain C++ on the host
+      # (trainer/cuda/shim.h), against the CPU encoder. A green step is
+      # not a device run: docs/cuda.md, "The trainer's kernels".
+      - name: test (trainer cuda-shim)
+        run: cargo test -p turbo-trainer --features cuda-shim --test encoder_cuda
       # The core's own tests build it with its `internals` feature, and
       # the core is a cdylib as well, so its rlib has no hash in its name:
       # one run building both the core's tests and the crates that use the

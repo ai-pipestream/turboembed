@@ -1811,6 +1811,18 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void rotary_attentio
     }
 }
 
+/* src narrowed to F16 into dst, n values, saturating at F16's largest
+ * finite value as cuda and metal do: a finite value past it (a gated
+ * middle product of 90000) becomes +/-65504, not infinity. The compares
+ * are false for NaN, so NaN stays NaN. */
+__kernel void rotary_narrow(__global const float *src, ulong n, __global half *dst) {
+    const float f16_max = 65504.0f;
+    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
+        const float v = src[i];
+        dst[i] = convert_half(v > f16_max ? f16_max : v < -f16_max ? -f16_max : v);
+    }
+}
+
 /* int8 and ubinary codes, bit for bit with core/src/quantize.rs. out is a
  * separate buffer so the write never races the read of x. */
 __kernel void quantize_int8(__global const float *x, __global const float *ranges, __global char *out, int rows,

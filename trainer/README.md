@@ -43,9 +43,15 @@ What is here:
   the thread count; a batch runs in rounds of `lanes` examples (0, the
   default, takes the whole batch), each round added to the sum in turn,
   so memory is bounded by the lanes and the weights do not depend on
-  them either (gradient accumulation); `verbose` logs each epoch's loss,
-  dev score, seconds and words a second. Two runs with one seed give
-  identical bytes.
+  them either (gradient accumulation); `loss_scale` turns on dynamic
+  loss scaling (`LossScale`: the loss gradient is scaled before backward
+  and the gradients unscaled before the step, a step whose gradients are
+  not finite is skipped and backs the scale off, a run of finite steps
+  grows it; `Report::skipped_steps` counts the skips), which a model
+  takes through `Model::loss_at` with the example's place in the run;
+  `verbose` logs each epoch's loss, dev score, seconds and words a
+  second. Two runs with one seed give identical bytes, and a scale that
+  stays a power of two gives the unscaled run's.
 
 - `encoder`: stage R2 (#1519), a ModernBERT encoder in training. Its
   ops, each forward and backward and generic over `Real`: LayerNorm with
@@ -66,16 +72,46 @@ What is here:
   head on the shared loop: the head's loss flows through the pooling
   into the encoder's trainable weights, dev is scored through the core's
   tagger over the encoder's states, and `fit_tuned` takes the same
-  `Config` as `fit`, threads and lanes included. One sequence a thread,
-  with no sum split: the reference the later legs (CUDA backward, bf16)
-  are held to.
+  `Config` as `fit`, threads and lanes included. `with_dropout` sets
+  ModernBERT's three dropout rates (after the embedding norm, on
+  attention's output, on the MLP's activated hidden) and a seed; a
+  training forward (`forward_at`, which the loop uses) drops under
+  masks keyed by the seed, the example's place in the run (its epoch and
+  index), the layer and the branch, so the same place gives the same
+  mask on any thread or lane and backward redraws it rather than keeping
+  it; `forward`, dev scoring and inference drop nothing. `with_bf16`
+  computes in bfloat16 emulated on the single (`Compute::Bf16`): the
+  weights are read from a shadow rounded to bfloat16 that the single
+  master weights refresh on every step, every op's output and every
+  activation's gradient is rounded to bfloat16 (`Real::bf16`, ties to
+  even, straight from the type's own bits), attention's probabilities
+  included, while the sums inside each op, the weight gradients and the
+  optimizer stay single; the states it gives sit within 2 percent of the
+  single's over two layers and the gradients within 0.2 percent in norm
+  on the tests' geometry, and the toy task is learnt under it with loss
+  scaling on. One sequence a thread, with no sum split: the reference
+  the device is held to. `cuda` (the `cuda` feature, nvcc; or
+  `cuda-shim`, the same kernels as plain C++ on the host, which CI
+  runs) is the encoder on a CUDA device: `CudaEncoder` takes an
+  `Encoder<f32>`, holds its weights (rounded under bfloat16), the
+  activations of one forward and the gradients on the device, runs the
+  ops of `trainer/cuda/train.cu` in the CPU encoder's order, draws
+  dropout's masks from the same keys, and sums the gradients on the
+  device over as many sequences as the caller runs; `grads` brings
+  them to the host at once. Each output element is owned by one
+  thread and summed in a fixed order, so a device gives the same bytes
+  every run; against the CPU the states and gradients sit within 1e-4
+  of their largest (1e-6 measured through the shim), bfloat16 within
+  3e-2. docs/cuda.md, "The trainer's kernels", says how it is built
+  and tested on a GPU.
 
 Corpora, scoring, receipts and the `turbo-train-head` command are in
 `trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle
-output; the edit-tree head (R1c); the rest of R2 (CUDA backward, bf16
-with f32 master weights and loss scaling, checkpointing of the other
-activations, dropout, full fine-tuning runs on a corpus and bundle
-output, #1519); distillation (R3, #1520).
+output; the edit-tree head (R1c); the rest of R2 (the device encoder
+under `Tuned` and the loop, with the step on the device; a tiled GEMM
+in place of the register-tiled one; checkpointing of the other
+activations; full fine-tuning runs on a corpus and bundle output,
+#1519); distillation (R3, #1520).
 
 ```text
 cargo test -p turbo-trainer

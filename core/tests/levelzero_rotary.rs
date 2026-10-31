@@ -1,8 +1,12 @@
 //! ModernBERT and nomic-bert (#1461) on Level Zero against the CPU backend
 //! on the same generated bundle (tests/common/rotary.rs): each value within
-//! 1e-4 of the CPU's at MODEL and EXACT, over rows that reach past
-//! ModernBERT's window, masked holes, left padding, every pooling and
-//! token ranges; FASTEST refused.
+//! 1e-4 of the CPU's at MODEL, EXACT and FASTEST, over rows that reach
+//! past ModernBERT's window, masked holes, left padding, every pooling and
+//! token ranges. The generated bundles' widths (8 and 12) are not
+//! multiples of the matrix engines' steps, so FASTEST computes them in
+//! F32; the F16 path at FASTEST is held to upstream by the conformance
+//! test on the real bundles, and here on the overflow bundles at widths
+//! 32 and 64, whose gated middle product passes F16's range.
 //!
 //! Built with the `levelzero` feature only. TURBO_TEST_DEVICE=levelzero
 //! runs the tests on the first levelzero device; without it they say they
@@ -18,6 +22,7 @@ mod rotary;
 
 use std::ptr;
 use std::sync::{Mutex, MutexGuard};
+use std::time::Instant;
 
 use common::*;
 use serde_json::json;
@@ -109,7 +114,7 @@ fn worst(a: &[Vec<f32>], b: &[Vec<f32>]) -> f32 {
 }
 
 /// `f`'s bundle on the device and on the CPU, every case within BOUND at
-/// MODEL and EXACT; a session at FASTEST refused on the device.
+/// MODEL, EXACT and FASTEST, each computing in F32 at these widths.
 fn matches_the_cpu(test: &str, mut f: Fixture) {
     let _t = turn();
     if !device(test) {
@@ -118,9 +123,7 @@ fn matches_the_cpu(test: &str, mut f: Fixture) {
     f.manifest["artifacts"][0]["backends"] = json!(["levelzero", "cpu"]);
     let (g, c) = (on_gpu(&f), f.load().unwrap());
     let seq = 64usize;
-    let e = Session::create(g.m, Some(&session_desc(8, seq as u32, TURBO_PRECISION_FASTEST))).err().unwrap();
-    assert!(e.is(turbo::status::UNSUPPORTED_OPTION, "the levelzero backend runs this encoder in F32 alone"), "{e:?}");
-    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
         let desc = session_desc(8, seq as u32, precision);
         let gs = Session::create(g.m, Some(&desc)).unwrap();
         assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32, "a rotary session computes in F32");
@@ -168,4 +171,105 @@ fn a_modernbert_matches_the_cpu() {
 #[test]
 fn a_nomic_bert_matches_the_cpu() {
     matches_the_cpu("a_nomic_bert_matches_the_cpu", rotary::nomic("lz-rotary-nomic"));
+}
+
+fn least_cosine(a: &[Vec<f32>], b: &[Vec<f32>]) -> f64 {
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| {
+            let dot: f64 = x.iter().zip(y).map(|(p, q)| *p as f64 * *q as f64).sum();
+            let n = |v: &[f32]| v.iter().map(|p| *p as f64 * *p as f64).sum::<f64>().sqrt();
+            dot / (n(x) * n(y))
+        })
+        .fold(1f64, f64::min)
+}
+
+/// The overflow fixtures (tests/common/rotary.rs), at widths 32 and 64
+/// that FASTEST runs in F16 on the matrix engines, whose layer 0 gated
+/// middle product passes F16's 65504 on every token while finite in F32:
+/// narrowed to F16 for the feed-forward output it saturates at 65504, as
+/// on cuda and metal, so every value is finite. The CPU computes the
+/// middle in F32 without saturating, so the rows are held to it by
+/// cosine: nomic-bert's post-norm LayerNorm takes the saturated sum back
+/// to the CPU's within 0.999, while ModernBERT's pre-norm residual carries
+/// 65504 in place of 90000 into the later layers, still at 0.75. Without
+/// the clamp every value was NaN.
+#[test]
+fn a_gated_middle_past_f16_s_range_stays_finite_at_fastest() {
+    let test = "a_gated_middle_past_f16_s_range_stays_finite_at_fastest";
+    let _t = turn();
+    if !device(test) {
+        return;
+    }
+    for (name, mut f, floor) in [
+        ("modernbert", rotary::overflow_modernbert("lz-rotary-overflow-mb"), 0.75),
+        ("nomic", rotary::overflow_nomic("lz-rotary-overflow-nb"), 0.999),
+    ] {
+        f.manifest["artifacts"][0]["backends"] = json!(["levelzero", "cpu"]);
+        let (g, c) = (on_gpu(&f), f.load().unwrap());
+        let desc = session_desc(4, 64, TURBO_PRECISION_FASTEST);
+        let gs = Session::create(g.m, Some(&desc)).unwrap();
+        assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F16, "{name}: FASTEST takes the F16 path");
+        let cs = Session::create(c.m, Some(&desc)).unwrap();
+        for lens in [&[9usize, 1, 32][..], &[32usize, 32][..], &[64usize, 33, 17][..]] {
+            let t = rows(lens, &[], &[]);
+            gs.write_tokens(&t.batch(), None).unwrap();
+            let got = gs.run().unwrap().rows();
+            let bad = got.iter().flatten().filter(|v| !v.is_finite()).count();
+            assert_eq!(bad, 0, "{name}: rows {lens:?}: {bad} values not finite");
+            cs.write_tokens(&t.batch(), None).unwrap();
+            let cos = least_cosine(&got, &cs.run().unwrap().rows());
+            println!("{test}: {name}: rows {lens:?}: least cosine to the CPU {cos}");
+            assert!(cos >= floor, "{name}: rows {lens:?}: least cosine to the CPU {cos}, under {floor}");
+        }
+    }
+}
+
+/// Milliseconds a pass on the bundle at TURBO_SPEED_BUNDLE (a real
+/// ModernBERT or nomic-bert), MODEL and FASTEST interleaved,
+/// TURBO_SPEED_RUNS runs a side (default 5) after one untimed, at batch 8
+/// of 128 tokens and of 512. A tree that refuses FASTEST times MODEL
+/// alone. Ignored, since it measures rather than checks.
+#[test]
+#[ignore]
+fn rotary_speed() {
+    let _t = turn();
+    if !device("rotary_speed") {
+        return;
+    }
+    let Some(dir) = std::env::var_os("TURBO_SPEED_BUNDLE") else {
+        println!("rotary_speed: skipped: TURBO_SPEED_BUNDLE is not set");
+        return;
+    };
+    let runs: usize = std::env::var("TURBO_SPEED_RUNS").ok().and_then(|r| r.parse().ok()).unwrap_or(5);
+    let dir = turbo_pins::require(dir);
+    let g = Loaded::load_on(&dir, |rt| first_of(rt, "levelzero").expect("a levelzero device")).unwrap();
+    for seq in [128usize, 512] {
+        let sides: Vec<_> = [("MODEL", TURBO_PRECISION_MODEL), ("FASTEST", TURBO_PRECISION_FASTEST)]
+            .into_iter()
+            .filter_map(|(name, p)| Some((name, Session::create(g.m, Some(&session_desc(8, seq as u32, p))).ok()?)))
+            .collect();
+        let t = rows(&[seq; 8], &[], &[]);
+        let mut times = vec![Vec::new(); sides.len()];
+        for run in 0..=runs {
+            for (i, (_, s)) in sides.iter().enumerate() {
+                let start = Instant::now();
+                s.write_tokens(&t.batch(), None).unwrap();
+                let _ = s.run().unwrap().rows();
+                if run > 0 {
+                    times[i].push(start.elapsed().as_secs_f64() * 1e3);
+                }
+            }
+        }
+        for ((name, s), mut ms) in sides.iter().zip(times) {
+            ms.sort_by(f64::total_cmp);
+            let dtype = s.info().compute_dtype;
+            println!(
+                "rotary_speed: {name} (dtype {dtype}) batch 8 seq {seq}: ms a pass min {:.2} median {:.2} max {:.2} over {runs}",
+                ms[0],
+                ms[ms.len() / 2],
+                ms[ms.len() - 1]
+            );
+        }
+    }
 }
