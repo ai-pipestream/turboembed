@@ -49,7 +49,8 @@ pub struct TemporalFilter {
     pub ambiguous: bool,
 }
 
-/// A monetary amount filter with exact decimal components and ISO 4217 currency.
+/// A monetary amount filter with exact decimal components, ISO 4217 currency,
+/// and optional rate denominator unit symbol.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoneyFilter {
     /// Formatted signed decimal string (for example `"1200000.0"` or `"0.50"`).
@@ -62,6 +63,40 @@ pub struct MoneyFilter {
     pub scale: i32,
     /// Three-letter ISO 4217 currency code.
     pub currency: Currency,
+    /// Optional rate denominator unit symbol (`Some("h")` for `$5 per hour`,
+    /// `Some("d")` for `$5 per day`, `None` for a plain amount `$5`).
+    pub per: Option<String>,
+}
+
+impl MoneyFilter {
+    /// Returns the rate denominator unit symbol (`"h"`, `"d"`, `"s"`), or `None` for a plain amount.
+    pub fn per_unit(&self) -> Option<&str> {
+        self.per.as_deref()
+    }
+
+    /// Returns `true` when this filter represents a currency rate (`per.is_some()`).
+    pub fn is_rate(&self) -> bool {
+        self.per.is_some()
+    }
+
+    /// Returns `true` when this filter's rate denominator matches `per` (`None` for plain amounts).
+    pub fn matches_per(&self, per: Option<&str>) -> bool {
+        self.per.as_deref() == per
+    }
+
+    /// Returns `true` when mention `ix` in `money` has the same currency, decimal value, and rate denominator.
+    pub fn matches_layer(
+        &self,
+        money: &turbo_analysis_layers::Money,
+        ix: turbo_analysis::Ix<turbo_analysis_layers::Money>,
+    ) -> bool {
+        let i = ix.get();
+        money.currency[i] == self.currency
+            && money.negative[i] == self.negative
+            && money.coefficient.get(i) == self.coefficient
+            && money.scale[i] == self.scale
+            && money.per(ix) == self.per.as_deref()
+    }
 }
 
 /// A measured quantity or percentage filter with exact decimal components and unit.
@@ -254,6 +289,15 @@ impl QueryAnalysis {
         })
     }
 
+    /// Iterates over [`MoneyFilter`]s whose rate denominator matches `per` (`None` for plain amounts,
+    /// `Some("h")` for hourly rates, `Some("d")` for daily rates).
+    pub fn money_filters_with_per<'a>(
+        &'a self,
+        per: Option<&'a str>,
+    ) -> impl Iterator<Item = (&'a QueryFilter, &'a MoneyFilter)> + 'a {
+        self.money_filters().filter(move |(_, m)| m.matches_per(per))
+    }
+
     /// Iterates over all [`QuantityFilter`]s with their source [`Span`] and [`FilterEvidence`].
     pub fn quantity_filters(&self) -> impl Iterator<Item = (&QueryFilter, &QuantityFilter)> {
         self.filters.iter().filter_map(|f| match &f.kind {
@@ -370,6 +414,10 @@ pub(crate) fn point_end_from_grain(start_seconds: i64, grain: TimeGrain) -> i64 
 }
 
 pub(crate) fn has_grammar_trigger(text: &str, tokens: &turbo_analysis_layers::Tokens) -> bool {
+    let has_digit = text.bytes().any(|b| b.is_ascii_digit());
+    if has_digit && text.as_bytes().windows(2).any(|w| w[0] == b'/' && w[1].is_ascii_alphabetic()) {
+        return true;
+    }
     let (starts, ends) = tokens.spans.columns();
     let mut article_hits = 0usize;
     let mut prev_rel = false;
@@ -402,7 +450,7 @@ pub(crate) fn has_grammar_trigger(text: &str, tokens: &turbo_analysis_layers::To
             }
         }
     }
-    article_hits >= 2
+    article_hits >= 2 || (article_hits >= 1 && has_digit)
 }
 
 pub(crate) use crate::QueryCursorNumericAnnotator;
