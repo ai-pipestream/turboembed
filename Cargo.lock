@@ -1996,6 +1996,7 @@ dependencies = [
  "turbo-pins",
  "turbo-sentdetect",
  "turbo-tokenize",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-zoo",
