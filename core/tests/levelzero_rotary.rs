@@ -20,7 +20,6 @@ mod common;
 #[path = "common/rotary.rs"]
 mod rotary;
 
-use std::path::Path;
 use std::ptr;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
@@ -238,12 +237,13 @@ fn rotary_speed() {
     if !device("rotary_speed") {
         return;
     }
-    let Ok(dir) = std::env::var("TURBO_SPEED_BUNDLE") else {
+    let Some(dir) = std::env::var_os("TURBO_SPEED_BUNDLE") else {
         println!("rotary_speed: skipped: TURBO_SPEED_BUNDLE is not set");
         return;
     };
     let runs: usize = std::env::var("TURBO_SPEED_RUNS").ok().and_then(|r| r.parse().ok()).unwrap_or(5);
-    let g = Loaded::load_on(Path::new(&dir), |rt| first_of(rt, "levelzero").expect("a levelzero device")).unwrap();
+    let dir = turbo_pins::require(dir);
+    let g = Loaded::load_on(&dir, |rt| first_of(rt, "levelzero").expect("a levelzero device")).unwrap();
     for seq in [128usize, 512] {
         let sides: Vec<_> = [("MODEL", TURBO_PRECISION_MODEL), ("FASTEST", TURBO_PRECISION_FASTEST)]
             .into_iter()
