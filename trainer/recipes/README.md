@@ -72,6 +72,8 @@ turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-sentences --corpus <masc-pos|ud-*> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    [as train]
 ```
 
 `cache` (#1616) reads every split once and writes each word's features
@@ -127,6 +129,17 @@ each token's commonest training label (`_` when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
+
+`train-sentences` trains the sentence boundary head (`sentences` on
+`turboembed:sentences`, #1725) on multi-sentence MASC (`masc-pos`) or
+UD documents (`ud-es-ancora`, `ud-ca-ancora`, `ud-fi-ftb`,
+`ud-it-markit`, `ud-en-ewt`, and the other pinned UD treebanks),
+keeping original MASC inter-sentence whitespace and UD `# newdoc` /
+`# newpar` / `SpacesAfter` / `SpaceAfter=No` joins intact. It scores
+the test split by exact sentence span precision, recall and F1, with
+paired bootstrap comparisons against both the newline baseline
+(`eval.baseline` and `eval.comparison`) and the rule/abbreviation
+sentencer in `analysis/sentdetect` (`eval.rules`).
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for

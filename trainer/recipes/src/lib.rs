@@ -30,6 +30,7 @@ pub mod peer;
 pub mod receipt;
 pub mod run;
 pub mod safetensors;
+pub mod sentences;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_heads;

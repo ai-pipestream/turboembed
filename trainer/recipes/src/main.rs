@@ -23,6 +23,7 @@
 //!     [--arc N] [--rel N])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N])
+//! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)
 //! ```
 //!
 //! `cache` writes every split's word features at the encoder's last N
@@ -53,6 +54,7 @@ use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
+mod train_sentences;
 mod train_split;
 mod train_ud;
 
@@ -115,6 +117,7 @@ fn run(argv: Vec<String>) -> Result<()> {
                     ),
                     comparison: None,
                     uas: None,
+                    rules: None,
                 },
                 timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
                 outputs: Vec::new(),
@@ -131,8 +134,9 @@ fn run(argv: Vec<String>) -> Result<()> {
             train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-sentences, cache, fit-cache, export or peer"
         ))),
     }
 }
@@ -279,6 +283,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         baseline: evaluate(task, test, &base, &seen, coarse(corpus_id)),
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
+        rules: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

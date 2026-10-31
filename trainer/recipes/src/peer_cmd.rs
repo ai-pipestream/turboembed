@@ -71,6 +71,7 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
             turbo_trainer::Config::default().seed,
         )),
         uas: None,
+        rules: None,
     };
     let receipt = Receipt {
         schema: SCHEMA.into(),

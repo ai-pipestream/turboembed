@@ -94,6 +94,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
         baseline: evaluate(Task::Tags, &test, &base, &seen, None),
         comparison: Some(bootstrap(Task::Tags, &test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
+        rules: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

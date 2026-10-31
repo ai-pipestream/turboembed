@@ -53,13 +53,13 @@ pub struct SpanScore {
 }
 
 impl SpanScore {
-    fn add(&mut self, gold: usize, found: usize, correct: usize) {
+    pub(crate) fn add(&mut self, gold: usize, found: usize, correct: usize) {
         self.gold += gold;
         self.found += found;
         self.correct += correct;
     }
 
-    fn finish(mut self) -> Self {
+    pub(crate) fn finish(mut self) -> Self {
         let r = |a: usize, b: usize| if b == 0 { 0.0 } else { a as f64 / b as f64 };
         self.precision = r(self.correct, self.found);
         self.recall = r(self.correct, self.gold);
