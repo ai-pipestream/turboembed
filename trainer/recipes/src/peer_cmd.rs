@@ -50,7 +50,16 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
     let (c, base) = match column {
         Column::Lemma => treebank(corpus_id, dir, unrecorded, UdHead::Lemma)?,
         Column::Deps => treebank(corpus_id, dir, unrecorded, UdHead::Deps)?,
-        _ => {
+        Column::Bio => {
+            let c = read_corpus(corpus_id, dir, unrecorded)?;
+            let base = baseline(&c.splits.train, &c.splits.test);
+            (c, base)
+        }
+        Column::Upos | Column::Xpos | Column::Feats => {
+            if TREEBANKS.iter().any(|b| b.id == corpus_id) {
+                let tag = format!("{column:?}").to_lowercase();
+                return Err(Error(format!("{corpus_id}: --column {tag} reads the tag corpus {corpus_id}-{tag}")));
+            }
             let c = read_corpus(corpus_id, dir, unrecorded)?;
             let base = baseline(&c.splits.train, &c.splits.test);
             (c, base)

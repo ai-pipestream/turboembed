@@ -270,5 +270,23 @@ fn lemma_and_deps_peers_score_against_the_treebank() {
     ]);
     assert!(!o.status.success(), "deps takes a treebank id, not a column corpus");
     assert!(!out.exists());
+    let o = run(&[
+        "peer",
+        "--corpus",
+        "ud-es-ancora",
+        "--dir",
+        d,
+        "--peer",
+        "toy",
+        "--predictions",
+        pred.to_str().unwrap(),
+        "--column",
+        "feats",
+        "--out",
+        out.to_str().unwrap(),
+        "--unrecorded-corpus",
+    ]);
+    assert!(String::from_utf8_lossy(&o.stderr).contains("reads the tag corpus ud-es-ancora-feats"));
+    assert!(!out.exists());
     fs::remove_dir_all(data).unwrap();
 }

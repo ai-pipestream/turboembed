@@ -139,7 +139,13 @@ receipts stand side by side. `upos`, `xpos` and `feats` read a tag
 corpus (`ud-es-ancora-feats`); `lemma` and `deps` read the treebank
 (`ud-es-ancora`), against the labels `train-lemma` and `train-parse`
 score, LAS with UAS beside it. A treebank id exports the same
-syntactic words as its tag corpora.
+syntactic words as its tag corpora. The LAS here is strict: a relation
+counts only with its subtype (`nsubj:pass`), as `train-parse` scores
+it, where CoNLL 2018 and published Stanza tables count the universal
+part alone. The words are syntactic words, multiword tokens already
+split, so a peer runs pretokenized with no multiword expansion (Stanza
+`tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
+its file for words other than the split's.
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for
