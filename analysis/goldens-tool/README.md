@@ -372,7 +372,7 @@ a directory with the same model run without them, and its options are
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has
-  the sentences, the tokens and `opennlp:pos` aligned to the tokens, with
+  the sentences, the tokens and `turbo:pos` aligned to the tokens, with
   `probs()` as the probability column. `+penn` asks the tagger for
   `POSTagFormat.PENN`; `+beam<n>` rebuilds the model through
   `POSModel(String, MaxentModel, int, Map, POSTaggerFactory)` with that
@@ -383,8 +383,8 @@ a directory with the same model run without them, and its options are
 - A `lemmatize` run cuts and tags the input with the sentence, tokenizer
   and part-of-speech models of its language (its second, third and fourth
   `model` records) and lemmatizes each sentence with `lemmatize`; its
-  golden has the sentences, tokens and tags, `opennlp:lemmas` and
-  `turbo:confidence<opennlp:lemmas>` from `probs()`, and its dumps are
+  golden has the sentences, tokens and tags, `turbo:lemmas` and
+  `turbo:confidence<turbo:lemmas>` from `probs()`, and its dumps are
   made like the tagger's (`RecordingLemmatizerFactory`). A
   `lemmatize-dictionary` run does the same with `DictionaryLemmatizer`
   over the fixture dictionary and the English pipeline, without a
@@ -403,7 +403,7 @@ directory's README says where each comes from.
 `testdata/all-minilm-l6-v2/tokenizer.json`, one piece per line, the line
 number being the id) with lower casing and accent stripping on and a
 limit of 100 code points per word: the BERT normalization and the greedy
-longest-match segmentation. The layer is `opennlp:subwords`, one row per
+longest-match segmentation. The layer is `turbo:subwords`, one row per
 piece with its UTF-8 byte span and its id. `encode` also returns `[CLS]`
 first and `[SEP]` last with empty spans at the ends of the text; the
 generator checks them and leaves them out, since they are not pieces of
@@ -426,8 +426,8 @@ characters and words at the 100 code point limit.
 
 `sentvectors/all-minilm-l6-v2-mean/en/<id>.golden` is what OpenNLP's
 `SentenceVectorsDL` gave each sentence of an `en` input. The sentences
-are the English sentence model's (`opennlp:sentences`), and each one's
-vector is `turbo:vector<opennlp:sentences>`: one string per sentence, the
+are the English sentence model's (`turbo:sentences`), and each one's
+vector is `turbo:vector<turbo:sentences>`: one string per sentence, the
 32-bit pattern of each float in hex, space separated. `SentenceVectorsDL`
 runs `all-minilm-l6-v2-mean.onnx` with the fixture vocabulary and lower
 casing, and returns the first row of the graph's first output. On the
@@ -444,9 +444,9 @@ sentence vector step with these.
 `opennlp.tools.tokenize.lattice.UnigramSegmenter` returned from
 `tokenizePos` for the input, with the frequency lexicon `<lexicon>.txt`
 of the fixtures (one word, its count and an optional tag per line, read
-as UTF-8). The layer is `opennlp:tokens`, one row per word with its UTF-8
+as UTF-8). The layer is `turbo:tokens`, one row per word with its UTF-8
 byte span; a word is always whole code points, so there is never a
-`turbo:utf16<opennlp:tokens>` layer, and the generator stops if one
+`turbo:utf16<turbo:tokens>` layer, and the generator stops if one
 would be needed. `StringUtil.isWhitespace` decides both where a lexicon
 line's word ends and where the text is split. The segmenter asks
 no model, so there are no dumps; its goldens are under their own
@@ -459,11 +459,11 @@ a model has a dump still holds.
 `opennlp.tools.tokenize.lattice.LatticeTokenizer` returned from `analyze`
 for the input, with the MeCab dictionary directory `<dictionary>` (a
 fixture directory, or a dictionary `fetch-models` unpacked). The layers
-are `opennlp:tokens`, one row per morpheme with its UTF-8 byte span, and
+are `turbo:tokens`, one row per morpheme with its UTF-8 byte span, and
 `turbo:morphemes`, aligned to it: `unknown` (1 for a morpheme that
 unknown word handling made) and `features`, the entry's feature columns
 joined with commas. A morpheme is always whole code points, so there is
-never a `turbo:utf16<opennlp:tokens>` layer, and the generator stops if
+never a `turbo:utf16<turbo:tokens>` layer, and the generator stops if
 one would be needed. Where `analyze` threw (a dictionary whose `unk.def`
 has no `DEFAULT` template), the golden has the error record and no
 layers.
@@ -959,7 +959,7 @@ vocabulary, inverse document frequencies, feature ranges, weighting,
 scaling, generators and categories (`SvmDoccatExport.java`).
 
 `svm-doccat/<run>/svm-doccat/<id>.golden` holds, for one document,
-`opennlp:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
+`turbo:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
 given) and, anchored on the document, `turbo:svm-vector` (the feature
 vector `categorize` hands LIBSVM), `turbo:svm-decisions` (the
 `svm_predict_values` decision value of each class pair, in LIBSVM's
@@ -992,7 +992,7 @@ without `Timestamp` and the zip entries of the serialized model
 (`turbo:manifest`, `turbo:package-entries`).
 
 `sentiment/<run>/sentiment/<id>.golden` holds, for one document,
-`opennlp:tokens` (the `WhitespaceTokenizer` tokens the detector is given)
+`turbo:tokens` (the `WhitespaceTokenizer` tokens the detector is given)
 and, anchored on the document, `turbo:sentiment-context` (the factory's
 context for those tokens, a feature per row) and `turbo:categories` (every
 outcome with its probability, best first), scored by the model read back
@@ -1035,7 +1035,7 @@ manifest without `Timestamp` and the zip entries of the serialized model
 (`turbo:manifest`, `turbo:package-entries`).
 
 `doccat/<run>/doccat/<id>.golden` holds, for one document,
-`opennlp:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
+`turbo:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
 given) and, anchored on the document, `turbo:doccat-features` (the
 context the model's generators give for those tokens, a feature per row)
 and `turbo:categories` (every category with its probability, best

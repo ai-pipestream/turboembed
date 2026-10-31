@@ -46,7 +46,7 @@ fn edges_from_entities_to_tokens_are_bounds_checked_on_both_ends() {
     let err = doc.add(&Key::DEFAULT, bad_from, Provenance::by("test:edges")).unwrap_err();
     assert_eq!(
         err.to_string(),
-        "turbo:edges<opennlp:entities, opennlp:tokens>: an index past the end of opennlp:entities, which has 2"
+        "turbo:edges<turbo:entities, turbo:tokens>: an index past the end of turbo:entities, which has 2"
     );
 
     // Target index 4 is past the 4 tokens (0..4).
@@ -54,7 +54,7 @@ fn edges_from_entities_to_tokens_are_bounds_checked_on_both_ends() {
     let err = doc.add(&Key::DEFAULT, bad_to, Provenance::by("test:edges")).unwrap_err();
     assert_eq!(
         err.to_string(),
-        "turbo:edges<opennlp:entities, opennlp:tokens>: an index past the end of opennlp:tokens, which has 4"
+        "turbo:edges<turbo:entities, turbo:tokens>: an index past the end of turbo:tokens, which has 4"
     );
 
     // Valid edges are accepted, sorted, and record both target layers in `made_on`.
@@ -96,7 +96,7 @@ fn edges_between_named_layer_instances_check_the_named_instances() {
     let rels = TagSet::new("rel", &["anchor"]);
     let anchor = rels.tag("anchor").unwrap();
 
-    // Source index 2 is out of bounds for `opennlp:entities@gold` (len 2).
+    // Source index 2 is out of bounds for `turbo:entities@gold` (len 2).
     // The step that made the edges read both named instances.
     let align_prov = || {
         let mut p = Provenance::by("test:align");
@@ -109,7 +109,7 @@ fn edges_between_named_layer_instances_check_the_named_instances() {
     let err = doc.add(&Key::named("align"), unread, Provenance::by("test:align")).unwrap_err();
     assert_eq!(
         err.to_string(),
-        "turbo:edges<opennlp:entities, opennlp:tokens>@align: an index into opennlp:entities@gold, which its step neither read nor wrote"
+        "turbo:edges<turbo:entities, turbo:tokens>@align: an index into turbo:entities@gold, which its step neither read nor wrote"
     );
     let mut half = Provenance::by("test:align");
     half.reads.push(GOLD_ENT.id());
@@ -117,22 +117,22 @@ fn edges_between_named_layer_instances_check_the_named_instances() {
     let err = doc.add(&Key::named("align"), unread, half).unwrap_err();
     assert_eq!(
         err.to_string(),
-        "turbo:edges<opennlp:entities, opennlp:tokens>@align: an index into opennlp:tokens@predicted, which its step neither read nor wrote"
+        "turbo:edges<turbo:entities, turbo:tokens>@align: an index into turbo:tokens@predicted, which its step neither read nor wrote"
     );
 
     let bad_source = Edges::between(GOLD_ENT, PRED_TOK, rels.clone(), [Edge::new(Ix::new(2), Ix::new(2), anchor, 1.0)]);
     let err = doc.add(&Key::named("align"), bad_source, align_prov()).unwrap_err();
     assert_eq!(
         err.to_string(),
-        "turbo:edges<opennlp:entities, opennlp:tokens>@align: an index past the end of opennlp:entities@gold, which has 2"
+        "turbo:edges<turbo:entities, turbo:tokens>@align: an index past the end of turbo:entities@gold, which has 2"
     );
 
-    // Target index 3 is out of bounds for `opennlp:tokens@predicted` (len 3).
+    // Target index 3 is out of bounds for `turbo:tokens@predicted` (len 3).
     let bad_target = Edges::between(GOLD_ENT, PRED_TOK, rels.clone(), [Edge::new(Ix::new(1), Ix::new(3), anchor, 1.0)]);
     let err = doc.add(&Key::named("align"), bad_target, align_prov()).unwrap_err();
     assert_eq!(
         err.to_string(),
-        "turbo:edges<opennlp:entities, opennlp:tokens>@align: an index past the end of opennlp:tokens@predicted, which has 3"
+        "turbo:edges<turbo:entities, turbo:tokens>@align: an index past the end of turbo:tokens@predicted, which has 3"
     );
 
     // Within both named instances (entity 1, token 2), though past the default instances (len 1).
@@ -302,7 +302,7 @@ fn groups_store_sorted_unique_members_and_check_bounds_and_invariants() {
     let err = doc.add(&key, groups.clone(), Provenance::by("test:coref")).unwrap_err();
     assert_eq!(
         err.to_string(),
-        "turbo:groups<opennlp:tokens>@coref: an index into opennlp:tokens@gold, which its step neither read nor wrote"
+        "turbo:groups<turbo:tokens>@coref: an index into turbo:tokens@gold, which its step neither read nor wrote"
     );
     let mut coref_prov = Provenance::by("test:coref");
     coref_prov.reads.push(GOLD_TOK.id());
@@ -313,12 +313,12 @@ fn groups_store_sorted_unique_members_and_check_bounds_and_invariants() {
     // member 4 of group 1 is past the 3 default tokens.
     let largest_inside = Groups::<Tokens>::new([vec![Ix::new(4)], vec![Ix::new(0)]]);
     let err = doc.add(&Key::DEFAULT, largest_inside, Provenance::by("test:coref")).unwrap_err();
-    assert_eq!(err.to_string(), "turbo:groups<opennlp:tokens>: an index past the end of opennlp:tokens, which has 3");
+    assert_eq!(err.to_string(), "turbo:groups<turbo:tokens>: an index past the end of turbo:tokens, which has 3");
 
     // Out-of-bounds member against default tokens (len 3).
     let out_of_bounds = Groups::<Tokens>::new([vec![Ix::new(0), Ix::new(3)]]);
     let err = doc.add(&Key::DEFAULT, out_of_bounds, Provenance::by("test:coref")).unwrap_err();
-    assert_eq!(err.to_string(), "turbo:groups<opennlp:tokens>: an index past the end of opennlp:tokens, which has 3");
+    assert_eq!(err.to_string(), "turbo:groups<turbo:tokens>: an index past the end of turbo:tokens, which has 3");
 
     // Invariant checks on manually constructed `Groups`.
     let bad_empty: Groups<Sentences> = Groups { of_key: Key::DEFAULT, members: vec![Ix::new(0)], end: Vec::new() };
@@ -340,7 +340,7 @@ fn groups_store_sorted_unique_members_and_check_bounds_and_invariants() {
     let mut doc = Document::new("a");
     doc.add(&Key::DEFAULT, Sentences { spans: Spans::new(ViewId::SOURCE) }, Provenance::by("s")).unwrap();
     let err = doc.add(&Key::DEFAULT, Groups::<Sentences>::new([Vec::new()]), Provenance::by("g")).unwrap_err();
-    assert_eq!(err.to_string(), "turbo:groups<opennlp:sentences>: group ends in order, every group with a member");
+    assert_eq!(err.to_string(), "turbo:groups<turbo:sentences>: group ends in order, every group with a member");
 
     let dup_member: Groups<Sentences> =
         Groups { of_key: Key::DEFAULT, members: vec![Ix::new(1), Ix::new(1)], end: vec![2] };
@@ -356,7 +356,7 @@ fn an_empty_edge_layer_still_needs_both_endpoint_layers() {
     // No rows, but the layer is about entities, and there are none here.
     let err =
         doc.add(&Key::DEFAULT, Edges::<Entities, Tokens>::new(rels.clone(), []), Provenance::by("e")).unwrap_err();
-    assert_eq!(err.to_string(), "the document has no opennlp:entities layer");
+    assert_eq!(err.to_string(), "the document has no turbo:entities layer");
 
     doc.add(&Key::DEFAULT, sample_entities(TagSet::new("ner", &["PER"]), &[]), Provenance::by("ner")).unwrap();
     doc.add(&Key::DEFAULT, Edges::<Entities, Tokens>::new(rels, []), Provenance::by("e")).unwrap();
@@ -374,13 +374,13 @@ fn an_empty_edge_layer_still_needs_both_endpoint_layers() {
 fn nested_generic_layers_have_distinct_names() {
     type EntityHeads = Edges<Entities, Tokens>;
     type TokenLinks = Edges<Tokens, Tokens>;
-    assert_eq!(EntityHeads::NAME.to_string(), "turbo:edges<opennlp:entities, opennlp:tokens>");
-    assert_eq!(Groups::<EntityHeads>::NAME.to_string(), "turbo:groups<turbo:edges<opennlp:entities, opennlp:tokens>>");
-    assert_eq!(Groups::<TokenLinks>::NAME.to_string(), "turbo:groups<turbo:edges<opennlp:tokens, opennlp:tokens>>");
+    assert_eq!(EntityHeads::NAME.to_string(), "turbo:edges<turbo:entities, turbo:tokens>");
+    assert_eq!(Groups::<EntityHeads>::NAME.to_string(), "turbo:groups<turbo:edges<turbo:entities, turbo:tokens>>");
+    assert_eq!(Groups::<TokenLinks>::NAME.to_string(), "turbo:groups<turbo:edges<turbo:tokens, turbo:tokens>>");
     assert_ne!(Groups::<EntityHeads>::NAME, Groups::<TokenLinks>::NAME);
     assert_eq!(
         Edges::<Groups<Tokens>, Tokens>::NAME.to_string(),
-        "turbo:edges<turbo:groups<opennlp:tokens>, opennlp:tokens>"
+        "turbo:edges<turbo:groups<turbo:tokens>, turbo:tokens>"
     );
 
     // Both live on one document: neither name is taken for the other's.
@@ -484,7 +484,7 @@ fn edges_written_in_a_pipeline_are_made_on_the_instances_their_step_read() {
     let e = reach(Bound::new(Reach)).run(&mut docs).remove(0).unwrap_err();
     assert_eq!(
         e.to_string(),
-        "turbo:edges<opennlp:tokens, opennlp:tokens> was made on opennlp:tokens@gold, not on the opennlp:tokens the step reads"
+        "turbo:edges<turbo:tokens, turbo:tokens> was made on turbo:tokens@gold, not on the turbo:tokens the step reads"
     );
 
     // A step that names an instance it did not read fails on the document.
@@ -493,7 +493,7 @@ fn edges_written_in_a_pipeline_are_made_on_the_instances_their_step_read() {
     let e = a.run(&mut docs).remove(0).unwrap_err();
     assert_eq!(
         e.to_string(),
-        "turbo:edges<opennlp:tokens, opennlp:tokens>: an index into opennlp:tokens@gold, which its step neither read nor wrote"
+        "turbo:edges<turbo:tokens, turbo:tokens>: an index into turbo:tokens@gold, which its step neither read nor wrote"
     );
     assert!(docs[0].get::<Edges<Tokens, Tokens>>().is_none());
 }

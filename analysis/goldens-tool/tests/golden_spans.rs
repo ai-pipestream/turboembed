@@ -197,7 +197,7 @@ fn tokens_that_cut_an_emoji_hold_it_whole_and_keep_their_utf16_spans() {
     let spans = read_spans(&path);
     let text = input_text(&spans.input);
     let (layer, tokens) = &spans.layers[0];
-    let utf16 = spans.utf16_of(layer).expect("a turbo:utf16<opennlp:tokens> layer");
+    let utf16 = spans.utf16_of(layer).expect("a turbo:utf16<turbo:tokens> layer");
     assert_eq!(utf16.len(), tokens.len());
     let units: Vec<u16> = text.encode_utf16().collect();
     let mut cut = 0;

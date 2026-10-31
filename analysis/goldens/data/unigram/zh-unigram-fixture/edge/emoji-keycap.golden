@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/emoji-keycap	42	30	579cb532486986a4ea86b75b4d584563581d9d0f39b0fa67b852ce5691b97d77
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	23	start:u32	end:u32
+layer	turbo:tokens	text	23	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -30,4 +30,4 @@ layer	opennlp:tokens	text	23	start:u32	end:u32
 38	39
 39	40
 40	41
-end	opennlp:tokens
+end	turbo:tokens

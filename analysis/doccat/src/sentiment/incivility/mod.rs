@@ -12,7 +12,7 @@
 //!
 //! [`IncivilityAnnotator`] (`ID = "turbo-doccat:incivility"`) combines:
 //! 1. **Lexicon and phrase matching (`IncivilityLexicon`)**: deterministic,
-//!    zero-regex token and multi-token phrase matching over `opennlp:tokens`
+//!    zero-regex token and multi-token phrase matching over `turbo:tokens`
 //!    that assigns per-label weights and records the exact [`IxRange<Tokens>`]
 //!    evidence span for every matched expression.
 //! 2. **Multi-label embedding head (`IncivilityVectorScorer`)**: scores

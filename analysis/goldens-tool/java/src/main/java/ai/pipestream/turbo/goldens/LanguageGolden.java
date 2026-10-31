@@ -13,7 +13,7 @@ import opennlp.tools.langdetect.LanguageDetectorModel;
 import opennlp.tools.langdetect.ProbingLanguageDetectionResult;
 
 /**
- * The language detector's golden: {@code opennlp:language} with one row per language
+ * The language detector's golden: {@code turbo:language} with one row per language
  * {@link LanguageDetectorME#predictLanguages(CharSequence)} or
  * {@link LanguageDetectorME#probingPredictLanguages(CharSequence, LanguageDetectorConfig)} returns,
  * in its order, best first, and for a probing run {@code turbo:probing-length} with the number of
@@ -162,7 +162,7 @@ final class LanguageGolden implements AnnotatorGolden {
       codes[i] = languages[i].getLang();
       confidences[i] = languages[i].getConfidence();
     }
-    return new Layer("opennlp:language", "document", new Column.Str("code", codes),
+    return new Layer("turbo:language", "document", new Column.Str("code", codes),
         new Column.F64("confidence", confidences));
   }
 }

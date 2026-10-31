@@ -1,11 +1,11 @@
-//! The coreference layers: [`Mentions`] (`opennlp:mentions`), the typed,
+//! The coreference layers: [`Mentions`] (`turbo:mentions`), the typed,
 //! columnar mention layer every chain and antecedent link indexes, and
-//! [`Speakers`] (`opennlp:speakers`), the optional speaker turns the
+//! [`Speakers`] (`turbo:speakers`), the optional speaker turns the
 //! speaker sieve reads.
 //!
-//! Chains are `Groups<Mentions>` (`turbo:groups<opennlp:mentions>`) and
+//! Chains are `Groups<Mentions>` (`turbo:groups<turbo:mentions>`) and
 //! resolved antecedent links are `Edges<Mentions, Mentions>`
-//! (`turbo:edges<opennlp:mentions, opennlp:mentions>`), both from
+//! (`turbo:edges<turbo:mentions, turbo:mentions>`), both from
 //! `turbo-analysis`; [`codec`] registers the wire codecs for all four.
 
 use std::sync::Arc;
@@ -18,7 +18,7 @@ pub mod codec;
 
 pub use agreement::{Agreement, Animacy, Gender, MentionKind, Number, Origin, Person};
 
-/// Coreference mentions (`opennlp:mentions`), one row per mention.
+/// Coreference mentions (`turbo:mentions`), one row per mention.
 ///
 /// A mention is a span of one text view, discontinuous when the corpus
 /// splits it (CorefUD's split and coordinated mentions), with its
@@ -111,7 +111,7 @@ impl Mentions {
 }
 
 impl Layer for Mentions {
-    const ID: &'static str = "opennlp:mentions";
+    const ID: &'static str = turbo_analysis::ids::MENTIONS;
     const OVERLAP: Overlap = Overlap::Any;
 
     fn len(&self) -> usize {
@@ -188,7 +188,7 @@ fn check_form(i: usize, origin: Origin, kind: MentionKind) -> Result<(), String>
     if fits { Ok(()) } else { Err(format!("mention {i} is a {} mention of kind {kind:?}", origin.as_str())) }
 }
 
-/// Speaker turns (`opennlp:speakers`, `CorefAnnotator.SPEAKERS`): each
+/// Speaker turns (`turbo:speakers`, `CorefAnnotator.SPEAKERS`): each
 /// span covers the text one speaker says, labelled with the speaker. The
 /// spans are in text order and do not overlap.
 #[derive(Debug)]
@@ -199,7 +199,7 @@ pub struct Speakers {
 }
 
 impl Layer for Speakers {
-    const ID: &'static str = "opennlp:speakers";
+    const ID: &'static str = turbo_analysis::ids::SPEAKERS;
 
     fn len(&self) -> usize {
         self.spans.len()

@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/long-word	301	301	16c71221108fb1f1660472af2242b80ca0565891ad284bc8d0f24df7e548fc9e
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	2	start:u32	end:u32
+layer	turbo:tokens	text	2	start:u32	end:u32
 0	300
 300	301
-end	opennlp:tokens
+end	turbo:tokens

@@ -9,7 +9,7 @@
 //!   [`PolarityAnnotator::bound`]) and implements [`CalibratableCategorizer`](crate::calibrated::CalibratableCategorizer).
 //! - [`SentencePolarityAnnotator`] (`turbo-doccat:sentence-polarity`) scores
 //!   sentence-level polarity into `turbo:opinions` and
-//!   `turbo:categories<opennlp:sentences>` (bound to [`SENTENCE_SENTIMENT`]
+//!   `turbo:categories<turbo:sentences>` (bound to [`SENTENCE_SENTIMENT`]
 //!   via [`SentencePolarityAnnotator::bound`]).
 
 use std::fmt;

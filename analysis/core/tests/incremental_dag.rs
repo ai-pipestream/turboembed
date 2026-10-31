@@ -308,7 +308,7 @@ fn requires_and_produces_declarations_and_validate_dag_detect_missing_and_cyclic
 
     let bad_builder = Analyzer::builder().add(pos);
     let err = bad_builder.validate_dag().unwrap_err();
-    assert!(matches!(err, Error::Pipeline(ref msg) if msg.contains("opennlp:tokens")), "unexpected error: {err:?}");
+    assert!(matches!(err, Error::Pipeline(ref msg) if msg.contains("turbo:tokens")), "unexpected error: {err:?}");
     let unvalidated = bad_builder.build_unvalidated();
     assert!(unvalidated.validate_dag().is_err());
     let mut doc = Document::new("Acme builds systems.");
@@ -327,7 +327,7 @@ fn requires_and_produces_declarations_and_validate_dag_detect_missing_and_cyclic
         }
     }
     let custom_err = Analyzer::builder().add(CustomReqStep).validate_dag().unwrap_err();
-    assert!(matches!(custom_err, Error::Pipeline(ref msg) if msg.contains("opennlp:tokens")));
+    assert!(matches!(custom_err, Error::Pipeline(ref msg) if msg.contains("turbo:tokens")));
 }
 
 #[test]

@@ -1555,7 +1555,7 @@ export const StreamLimitsSchema: GenMessage<StreamLimits> = /*@__PURE__*/
 
 /**
  * One layer instance of a document graph: its standard layer id
- * (opennlp:* or turbo:*), instance, status and provenance.
+ * (turbo:* or an add-on's own namespace), instance, status and provenance.
  *
  * @generated from message turbo.result.v1.LayerInfo
  */
@@ -1669,7 +1669,7 @@ export const DocumentGraphResponseSchema: GenMessage<DocumentGraphResponse> = /*
   messageDesc(file_turbo_analysis, 27);
 
 /**
- * turbo:chunks, turbo:levels and opennlp:embeddings (over the chunks)
+ * turbo:chunks, turbo:levels and turbo:embeddings (over the chunks)
  * in one message, over one view's text. Every span offset is counted
  * in `offsets`. Spans are fragment columns in item order: item i's
  * fragments are frag_at[i - 1]..frag_at[i] (0..frag_at[0] first), at
@@ -2168,7 +2168,7 @@ export type DocumentWindowRequest = Message<"turbo.result.v1.DocumentWindowReque
   page: number;
 
   /**
-   * Optional allow-list of layer ids (e.g. "opennlp:entities",
+   * Optional allow-list of layer ids (e.g. "turbo:entities",
    * "turbo:chunks"); empty includes all positional layers on the view.
    *
    * @generated from field: repeated string filter_layers = 6;

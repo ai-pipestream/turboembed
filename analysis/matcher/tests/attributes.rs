@@ -94,10 +94,7 @@ fn sentence_starts_numbers_and_spaces() {
     // Without the layers those flags read, the call says which is missing.
     let bare = Tokens { spans: tokens.spans.clone(), sentence: None };
     let input = Input::new(text, &bare).unwrap();
-    assert_eq!(
-        one("S", &[Tok::flag(Flag::SentStart, true)]).find(&input),
-        Err(MatchError::Missing("opennlp:sentences"))
-    );
+    assert_eq!(one("S", &[Tok::flag(Flag::SentStart, true)]).find(&input), Err(MatchError::Missing("turbo:sentences")));
     assert_eq!(one("N", &[Tok::flag(Flag::Number, true)]).find(&input), Err(MatchError::Missing("turbo:numbers")));
     assert_eq!(one("T", &[Tok::flag(Flag::Stop, true)]).find(&input), Err(MatchError::Missing("turbo:stopwords")));
 }
@@ -111,7 +108,7 @@ fn the_input_checks_what_it_is_given() {
     let input = Input::new(&doc.text, &doc.tokens).unwrap();
     assert_eq!(
         input.with_lemmas(&two).err(),
-        Some(MatchError::Misaligned { layer: "opennlp:lemmas", len: 2, tokens: 3 })
+        Some(MatchError::Misaligned { layer: "turbo:lemmas", len: 2, tokens: 3 })
     );
     assert_eq!(
         input.with_stopwords(&[true]).err(),
@@ -176,7 +173,7 @@ fn discontinuous_entities_skip_gap_tokens_and_ruler_checks_entity_view() {
     let child_tokens = Tokens { spans: child_tok_spans, sentence: None };
     assert_eq!(
         Input::new(clean.text(), &child_tokens).unwrap().with_entities(&entities).err(),
-        Some(MatchError::ViewMismatch { layer: "opennlp:entities", expected: clean.id(), actual: ViewId::SOURCE })
+        Some(MatchError::ViewMismatch { layer: "turbo:entities", expected: clean.id(), actual: ViewId::SOURCE })
     );
     let source_numbers = Numbers::new(ViewId::SOURCE);
     let child_input_with_source_numbers =
