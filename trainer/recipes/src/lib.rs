@@ -13,6 +13,7 @@
 //! | `ud_split` | A treebank as surface tokens, for the token split head, its labels and baseline |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
+//! | `ner_documents` | Strict span scores and paired bootstrap over whole documents |
 //! | `run` | Head spec, encoder features, prediction, outputs |
 //! | `receipt` | `receipt.json` |
 //! | `safetensors` | Writing the head's F32 tensors |
@@ -26,6 +27,7 @@ pub mod germeval;
 pub mod masc_ne;
 pub mod masc_pos;
 pub mod multiconer;
+pub mod ner_documents;
 pub mod ner_peer;
 pub mod peer;
 pub mod receipt;
