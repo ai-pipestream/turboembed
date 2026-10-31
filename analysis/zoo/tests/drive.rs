@@ -80,9 +80,9 @@ fn stand_in(tree: Vec<Entry>) -> (String, Seen) {
 }
 
 /// The status, any extra header lines, and the body for one request.
-/// A list with several matches is sent one file per page; a file whose
-/// id starts `moved-` is redirected to `/media/<the rest>`, which serves
-/// that file's bytes to anyone.
+/// A list is sent as an empty page, then one file per page; a file whose
+/// id starts `moved-` is redirected by a relative reference to
+/// `/media/<the rest>`, which serves that file's bytes to anyone.
 fn answer(tree: &[Entry], target: &str) -> (&'static str, String, Vec<u8>) {
     let ok = |body: Vec<u8>| ("200 OK", String::new(), body);
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
@@ -109,9 +109,11 @@ fn answer(tree: &[Entry], target: &str) -> (&'static str, String, Vec<u8>) {
                 None => format!(r#"{{"id": "{id}", "mimeType": "{FOLDER}"}}"#),
             })
             .collect();
+        // Page 0 is empty, as Drive may send one, and page n holds file n.
         let at: usize = param("pageToken").map_or(0, |t| t.parse().unwrap());
-        let next = if at + 1 < files.len() { format!(r#", "nextPageToken": "{}""#, at + 1) } else { String::new() };
-        let page = files.get(at).cloned().unwrap_or_default();
+        let more = at < files.len();
+        let next = if more { format!(r#", "nextPageToken": "{}""#, at + 1) } else { String::new() };
+        let page = at.checked_sub(1).and_then(|i| files.get(i)).cloned().unwrap_or_default();
         return ok(format!(r#"{{"files": [{page}]{next}}}"#).into_bytes());
     }
     let id = path.strip_prefix("/drive/v3/files/").unwrap_or_default();
@@ -119,7 +121,7 @@ fn answer(tree: &[Entry], target: &str) -> (&'static str, String, Vec<u8>) {
         return ("400 Bad Request", String::new(), b"alt".to_vec());
     }
     if let Some(to) = id.strip_prefix("moved-") {
-        return ("302 Found", format!("Location: /media/{to}\r\n"), Vec::new());
+        return ("302 Found", format!("Location: ../../../media/{to}\r\n"), Vec::new());
     }
     bytes_of(id).map_or(("404 Not Found", String::new(), Vec::new()), ok)
 }
@@ -184,13 +186,13 @@ fn a_file_is_read_from_the_blob_layout_with_the_bearer_token() {
     let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(got.unwrap(), TEXT);
     let seen = seen.lock().unwrap();
-    // blobs, sha256, the file, then its bytes.
-    assert_eq!(seen.len(), 4, "{seen:?}");
+    // Two pages each for blobs, sha256 and the file, then its bytes.
+    assert_eq!(seen.len(), 7, "{seen:?}");
     for (target, headers) in seen.iter() {
         assert!(headers.contains(&"authorization: bearer tok-1".to_string()), "{target}: {headers:?}");
         assert!(!target.contains("key="), "{target}");
     }
-    assert!(seen[3].0.starts_with("/drive/v3/files/fileid?alt=media"), "{}", seen[3].0);
+    assert!(seen[6].0.starts_with("/drive/v3/files/fileid?alt=media"), "{}", seen[6].0);
 }
 
 #[test]
@@ -201,8 +203,8 @@ fn folder_ids_are_remembered_between_files() {
     let a = index.get("hello").unwrap();
     assert_eq!(drive.get_file(a, &a.files[0]).unwrap(), TEXT);
     assert_eq!(drive.get_file(a, &a.files[0]).unwrap(), TEXT);
-    // The second read asks only for the file and its bytes.
-    assert_eq!(seen.lock().unwrap().len(), 6);
+    // The second read asks only for the file (two pages) and its bytes.
+    assert_eq!(seen.lock().unwrap().len(), 10);
 }
 
 #[test]
@@ -223,11 +225,12 @@ fn a_file_not_in_the_blob_layout_is_read_at_its_artifact_path_below_named_folder
     let a = index.get("hello").unwrap();
     assert_eq!(drive.get_file(a, &a.files[0]).unwrap(), TEXT);
     let seen = seen.lock().unwrap();
-    // The second page of same-named files holds the one of the right
-    // size; its bytes are behind a redirect, followed unsigned.
+    // The file of the right size comes after an empty page and a page
+    // holding one of another size; its bytes are behind a relative
+    // redirect, followed unsigned.
     let (last, signed) = seen.split_last().unwrap();
     assert_eq!(last.0, "/media/textid");
-    assert!(seen.iter().any(|(t, _)| t.contains("pageToken=1")), "{seen:?}");
+    assert!(seen.iter().any(|(t, _)| t.contains("pageToken=2")), "{seen:?}");
     assert!(!seen.iter().any(|(t, _)| t.contains("/drive/v3/files/other")), "{seen:?}");
     for (target, headers) in signed {
         assert!(!target.contains("key"), "{target}");

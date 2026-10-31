@@ -170,7 +170,7 @@ impl GoogleDrive {
         if resp.status().is_redirection() {
             let to = resp.headers().get("location").and_then(|v| v.to_str().ok());
             let to = to.ok_or_else(|| (false, format!("{}{path}: a redirect with no Location", self.base)))?;
-            let to = if to.starts_with('/') { format!("{}{to}", self.base) } else { to.to_owned() };
+            let to = resolve(&self.base, path, to);
             let follow = |e: ureq::Error| (false, format!("{}{path}: following its redirect: {e}", self.base));
             resp = self.plain.get(&to).call().map_err(follow)?;
         }
@@ -178,8 +178,9 @@ impl GoogleDrive {
     }
 
     /// The id of `parent`'s child called `name` that is (`folder`) or is
-    /// not a folder. With `size`, the first whose size it is, read page by
-    /// page, and `None` when none is; without, the first.
+    /// not a folder: with `size`, the first whose size it is, else the
+    /// first, read page by page (a page may come back short or empty with
+    /// a token for the next), and `None` when there is none.
     fn child(&self, parent: &str, name: &str, folder: bool, size: Option<u64>) -> Result<Option<String>, String> {
         let q = format!(
             "name = '{}' and '{parent}' in parents and trashed = false and mimeType {} '{FOLDER}'",
@@ -206,7 +207,7 @@ impl GoogleDrive {
                 None => {}
             }
             match list.next_page_token {
-                Some(t) if want.is_some() && !t.is_empty() => page = format!("&pageToken={}", encode(&t)),
+                Some(t) if !t.is_empty() => page = format!("&pageToken={}", encode(&t)),
                 _ => return Ok(None),
             }
         }
@@ -282,6 +283,50 @@ struct Listed {
     size: Option<String>,
 }
 
+/// The `Location` of a redirect from `path` on `base` (`scheme://host`),
+/// as an absolute URL (RFC 3986 section 5.2): an absolute address as it
+/// is, `//host/x` on the request's scheme, `/x` on its host, and any
+/// other reference beside the request's last path segment, with `.` and
+/// `..` segments removed. Whether the result may be fetched (HTTPS only
+/// for an HTTPS endpoint) is the unsigned agent's check.
+fn resolve(base: &str, path: &str, location: &str) -> String {
+    if location.contains("://") {
+        return location.to_owned();
+    }
+    let scheme = base.split_once("://").map_or("https", |(s, _)| s);
+    if location.starts_with("//") {
+        return format!("{scheme}:{location}");
+    }
+    let (reference, query) = match location.find(['?', '#']) {
+        Some(at) => location.split_at(at),
+        None => (location, ""),
+    };
+    let joined = if reference.starts_with('/') {
+        reference.to_owned()
+    } else if reference.is_empty() {
+        path.to_owned()
+    } else {
+        format!("{}/{reference}", path.rsplit_once('/').map_or("", |(dir, _)| dir))
+    };
+    let mut out: Vec<&str> = Vec::new();
+    let segments: Vec<&str> = joined.split('/').skip(1).collect();
+    for (i, seg) in segments.iter().enumerate() {
+        let last = i + 1 == segments.len();
+        match *seg {
+            "." if last => out.push(""),
+            "." => {}
+            ".." => {
+                out.pop();
+                if last {
+                    out.push("");
+                }
+            }
+            s => out.push(s),
+        }
+    }
+    format!("{base}/{}{query}", out.join("/"))
+}
+
 /// `gdrive://<id>[/name/...]` as the folder id and the names below it.
 fn parse(address: &str) -> Result<(String, Vec<String>), String> {
     let bad = |why: &str| format!("{address}: {why}");
@@ -331,7 +376,22 @@ pub(super) fn encode(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode, literal, parse};
+    use super::{encode, literal, parse, resolve};
+
+    #[test]
+    fn a_redirect_location_resolves_against_the_request() {
+        let r = |to: &str| resolve("https://api.example", "/drive/v3/files/abc", to);
+        assert_eq!(r("media"), "https://api.example/drive/v3/files/media");
+        assert_eq!(r("./media?x=1"), "https://api.example/drive/v3/files/media?x=1");
+        assert_eq!(r("../other/x"), "https://api.example/drive/v3/other/x");
+        assert_eq!(r("../../../../x"), "https://api.example/x");
+        assert_eq!(r(".."), "https://api.example/drive/v3/");
+        assert_eq!(r("/media/abc"), "https://api.example/media/abc");
+        assert_eq!(r("//cdn.example/b"), "https://cdn.example/b");
+        assert_eq!(r("https://cdn.example/b?t=1"), "https://cdn.example/b?t=1");
+        assert_eq!(r("?alt=media"), "https://api.example/drive/v3/files/abc?alt=media");
+        assert_eq!(resolve("http://127.0.0.1:9", "/a/b", "//h/c"), "http://h/c");
+    }
 
     #[test]
     fn an_address_is_a_folder_id_and_names_below_it() {
