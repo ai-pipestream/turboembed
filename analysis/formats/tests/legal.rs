@@ -1,5 +1,5 @@
 use turbo_analysis::Span;
-use turbo_formats::legal::{BouvierReader, CaselawReader, LegalError};
+use turbo_formats::legal::{BouvierReader, CaselawReader, LegalError, MAX_JSON_DEPTH};
 use turbo_formats::vocabulary::Vocabulary;
 use turbo_formats::{DocumentSample, Field};
 use turbo_glossary::{DelimitedReader, FirstRecord};
@@ -121,4 +121,27 @@ fn vocabulary_quotes_terms_for_the_glossary_reader() {
     let loaded = DelimitedReader::tsv(FirstRecord::Header).read(tsv.as_bytes()).unwrap();
     let (_, entry) = loaded.glossary.iter().next().unwrap();
     assert_eq!(entry.term, "quote\"term");
+}
+
+fn case_with_nested_arrays(depth: usize) -> String {
+    let prefix = "{\"name_abbreviation\":\"T\",\"casebody\":{\"opinions\":[]},\"ignored\":";
+    format!("{prefix}{}0{}}}", "[".repeat(depth), "]".repeat(depth))
+}
+
+#[test]
+fn caselaw_reads_nesting_right_at_the_depth_cap() {
+    // The case object itself is one level, so the arrays fill the rest of the cap.
+    let source = case_with_nested_arrays(MAX_JSON_DEPTH - 1);
+    let cases: Vec<_> = CaselawReader::new(&source).unwrap().map(Result::unwrap).collect();
+    assert_eq!(cases.len(), 1);
+    assert_eq!(cases[0].category.as_str(), "T");
+}
+
+#[test]
+fn caselaw_refuses_nesting_past_the_depth_cap_without_aborting() {
+    let source = case_with_nested_arrays(MAX_JSON_DEPTH);
+    let offset = source.find("[[").unwrap() + MAX_JSON_DEPTH - 1;
+    assert_eq!(CaselawReader::new(&source).unwrap_err(), LegalError::TooDeep { offset, limit: MAX_JSON_DEPTH });
+    let error = CaselawReader::new(&case_with_nested_arrays(100_000)).unwrap_err();
+    assert!(matches!(error, LegalError::TooDeep { limit: MAX_JSON_DEPTH, .. }));
 }

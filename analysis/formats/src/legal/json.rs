@@ -1,7 +1,7 @@
 use turbo_analysis::Span;
 
-use super::LegalError;
 use super::text::Decoded;
+use super::{LegalError, MAX_JSON_DEPTH};
 
 #[derive(Clone, Debug)]
 pub enum Json {
@@ -40,7 +40,7 @@ pub fn parse_many(source: &str) -> Result<Vec<Json>, LegalError> {
     if source.len() > u32::MAX as usize {
         return Err(LegalError::Json { offset: source.len(), expected: "a document within the offset range" });
     }
-    let mut parser = Parser { source, pos: 0 };
+    let mut parser = Parser { source, pos: 0, depth: 0 };
     let mut out = Vec::new();
     parser.ws();
     while parser.pos < source.len() {
@@ -53,6 +53,7 @@ pub fn parse_many(source: &str) -> Result<Vec<Json>, LegalError> {
 struct Parser<'a> {
     source: &'a str,
     pos: usize,
+    depth: usize,
 }
 
 impl Parser<'_> {
@@ -69,8 +70,8 @@ impl Parser<'_> {
     fn value(&mut self) -> Result<Json, LegalError> {
         self.ws();
         match self.source.as_bytes().get(self.pos) {
-            Some(b'{') => self.object(),
-            Some(b'[') => self.array(),
+            Some(b'{') => self.nested(Self::object),
+            Some(b'[') => self.nested(Self::array),
             Some(b'"') => self.string().map(Json::String),
             Some(b't') => {
                 self.literal("true")?;
@@ -87,6 +88,16 @@ impl Parser<'_> {
             Some(b'-' | b'0'..=b'9') => self.number(),
             _ => self.error("a JSON value"),
         }
+    }
+
+    fn nested(&mut self, parse: fn(&mut Self) -> Result<Json, LegalError>) -> Result<Json, LegalError> {
+        if self.depth == MAX_JSON_DEPTH {
+            return Err(LegalError::TooDeep { offset: self.pos, limit: MAX_JSON_DEPTH });
+        }
+        self.depth += 1;
+        let value = parse(self);
+        self.depth -= 1;
+        value
     }
 
     fn object(&mut self) -> Result<Json, LegalError> {
