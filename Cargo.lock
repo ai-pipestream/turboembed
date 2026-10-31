@@ -1994,6 +1994,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-normalize",
  "turbo-pins",
+ "turbo-sentdetect",
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
@@ -2325,6 +2326,7 @@ dependencies = [
  "turbo-fuzz",
  "turbo-goldens",
  "turbo-pins",
+ "turbo-sentdetect",
 ]
 
 [[package]]

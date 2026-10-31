@@ -431,6 +431,15 @@ GutenQA (100 documents, 339,809 level units, 50 queries):
 | Cascade C=5 | 0.5800 | 0.4105 | 968 |
 | Cascade C=64 | 0.6000 | 0.4268 | 11651 |
 
+- `analysis/embed/tests/sentence_vectors_native.rs` runs the native rule
+  sentence detector, subword annotator and sentence-vector step on the
+  generated local tiny-BERT fixture. It checks exact source byte spans,
+  empty and whitespace inputs, Unicode and CRLF handling, all 32 vector
+  components against the crate-local native snapshot within 2e-6, and
+  unit norms. No downloaded model, retired sentence model, or JVM output
+  is used. This is an integration regression test, not a trained-model
+  accuracy or external-peer parity result.
+
 ## Content-addressed incremental DAG execution
 
 `Analyzer` (`analysis/core/src/analyzer.rs`, `analysis/core/src/analyzer/incremental.rs`, `analysis/core/src/doc/digest.rs`) supports Bazel-like content-addressed incremental execution and provenance-skip caching across both in-memory `Document` instances and exported/imported `DocumentGraph` payloads:

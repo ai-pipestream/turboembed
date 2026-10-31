@@ -69,6 +69,7 @@ pub mod postag;
 mod reference;
 pub mod release;
 pub mod segmentation;
+pub mod sentence_gold;
 pub mod spans;
 pub mod static_embed;
 pub mod tatoeba;
@@ -222,7 +223,7 @@ impl Recipe {
     /// the tagger, the chunker and the name finders.
     pub fn reference(&self) -> Result<Reference> {
         let reference = match self {
-            Recipe::Segmentation(r) => r.reference_id.map(Reference::Retired),
+            Recipe::Segmentation(r) => r.reference,
             Recipe::Pos(r) => r.reference,
             Recipe::Name(r) => r.reference,
         };

@@ -205,34 +205,18 @@ const fn recipe(
 }
 
 use Component::{Lemmas, Pos, Sentence as Sentences, Tokens};
-use Reference::Retired;
 
 /// The recipes, by treebank, in the order the binary runs them.
 pub const UD_RECIPES: [UdRecipe; 16] = [
-    recipe(
-        "turbo-es-ud-ancora-2.16-sentence-1",
-        SPANISH_ANCORA,
-        Sentences,
-        Some(Retired("opennlp-es-ud-gsd-sentence-1.3-2.5.4")),
-    ),
+    recipe("turbo-es-ud-ancora-2.16-sentence-1", SPANISH_ANCORA, Sentences, Some(Reference::GoldSentences)),
     recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, None),
     recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, None),
     recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, None),
-    recipe(
-        "turbo-ca-ud-ancora-2.16-sentence-1",
-        CATALAN_ANCORA,
-        Sentences,
-        Some(Retired("opennlp-ca-ud-ancora-sentence-1.3-2.5.4")),
-    ),
+    recipe("turbo-ca-ud-ancora-2.16-sentence-1", CATALAN_ANCORA, Sentences, Some(Reference::GoldSentences)),
     recipe("turbo-ca-ud-ancora-2.16-tokens-1", CATALAN_ANCORA, Tokens, None),
     recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, None),
     recipe("turbo-ca-ud-ancora-2.16-lemmas-1", CATALAN_ANCORA, Lemmas, None),
-    recipe(
-        "turbo-pt-ud-porttinari-2.16-sentence-1",
-        PORTUGUESE_PORTTINARI,
-        Sentences,
-        Some(Retired("opennlp-pt-ud-gsd-sentence-1.3-2.5.4")),
-    ),
+    recipe("turbo-pt-ud-porttinari-2.16-sentence-1", PORTUGUESE_PORTTINARI, Sentences, Some(Reference::GoldSentences)),
     recipe("turbo-pt-ud-porttinari-2.16-tokens-1", PORTUGUESE_PORTTINARI, Tokens, None),
     recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, None),
     recipe("turbo-pt-ud-porttinari-2.16-lemmas-1", PORTUGUESE_PORTTINARI, Lemmas, None),
@@ -384,7 +368,7 @@ mod tests {
                 assert_eq!(r.tagger().unwrap().reference, None, "{}", r.model_id);
             }
             if r.component == Component::Tokens {
-                assert_eq!(r.segmentation().unwrap().reference_id, None, "{}", r.model_id);
+                assert_eq!(r.segmentation().unwrap().reference, None, "{}", r.model_id);
             }
         }
     }
