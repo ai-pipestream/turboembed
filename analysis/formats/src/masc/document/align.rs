@@ -29,7 +29,7 @@ impl MascDocument {
         let document_places = document_quark_places(&self.quarks);
         for si in 0..self.sentences.len() {
             let tokens = tokenize(
-                si,
+                Some(si),
                 &self.sentences[si],
                 &self.quarks,
                 &document_places,
@@ -41,6 +41,13 @@ impl MascDocument {
             sentence.token_places = tokens.iter().enumerate().map(|(i, t)| (t.id, i)).collect();
             sentence.tokens = Some(tokens);
         }
+        let end = i32::try_from(self.text_units()).map_err(|_| MascError::TooLong { len: self.text.len() })?;
+        let mut document = MascSentence::new(0, end, (0..self.quarks.len()).collect(), &self.quarks);
+        let tokens =
+            tokenize(None, &document, &self.quarks, &document_places, penn, &quark_tokens, &mut self.warnings)?;
+        document.token_places = tokens.iter().enumerate().map(|(i, t)| (t.id, i)).collect();
+        document.tokens = Some(tokens);
+        self.document_tokens = Some(document);
         self.has_penn_tags = true;
         Ok(())
     }
@@ -127,29 +134,36 @@ impl MascDocument {
                 names = kept;
             }
             sentence.names = names;
-            let mut entities = Vec::new();
-            let mut pieces = Vec::new();
-            for entity in &ne.entities {
-                let mut tokens: Vec<u32> =
-                    entity.tokens.iter().filter_map(|t| sentence.token_places.get(t)).map(|&i| i as u32).collect();
-                tokens.sort_unstable();
-                tokens.dedup();
-                let (Some(&first), Some(&last)) = (tokens.first(), tokens.last()) else {
-                    continue;
-                };
-                let kind = ne.types.get(&entity.id).cloned().flatten();
-                let continues = !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t));
-                let piece = MascEntity { start: first, end: last + 1, kind, tokens };
-                if !continues {
-                    entities.push(piece.clone());
-                }
-                pieces.push(MascEntityPiece { id: entity.id, continues, entity: piece });
-            }
-            sentence.entities = entities;
-            sentence.entity_pieces = pieces;
+            attach_entities(sentence, ne);
+        }
+        if let Some(document) = &mut self.document_tokens {
+            attach_entities(document, ne);
         }
         self.has_named_entities = true;
     }
+}
+
+fn attach_entities(sentence: &mut MascSentence, ne: &NamedEntities) {
+    let mut entities = Vec::new();
+    let mut pieces = Vec::new();
+    for entity in &ne.entities {
+        let mut tokens: Vec<u32> =
+            entity.tokens.iter().filter_map(|t| sentence.token_places.get(t)).map(|&i| i as u32).collect();
+        tokens.sort_unstable();
+        tokens.dedup();
+        let (Some(&first), Some(&last)) = (tokens.first(), tokens.last()) else {
+            continue;
+        };
+        let kind = ne.types.get(&entity.id).cloned().flatten();
+        let continues = !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t));
+        let piece = MascEntity { start: first, end: last + 1, kind, tokens };
+        if !continues {
+            entities.push(piece.clone());
+        }
+        pieces.push(MascEntityPiece { id: entity.id, continues, entity: piece });
+    }
+    sentence.entities = entities;
+    sentence.entity_pieces = pieces;
 }
 
 /// Removes the shorter of every overlapping pair, retaining every disjoint name.
@@ -186,7 +200,7 @@ pub(super) fn document_quark_places(quarks: &[Quark]) -> HashMap<i32, usize> {
 /// of the quark's token list; a token is taken once, and a token whose
 /// quarks span nothing is left out.
 fn tokenize(
-    si: usize,
+    si: Option<usize>,
     sentence: &MascSentence,
     quarks: &[Quark],
     document_places: &HashMap<i32, usize>,
@@ -206,7 +220,9 @@ fn tokenize(
             }
             let token = &penn.tokens[t];
             for &q in &token.quarks {
-                if !sentence.quark_places.contains_key(&q) {
+                if !sentence.quark_places.contains_key(&q)
+                    && let Some(si) = si
+                {
                     warnings.push(MascWarning::TokenCrossesSentence { sentence: si, token: token.id, quark: q });
                 }
             }
@@ -224,7 +240,7 @@ fn tokenize(
             };
             let start = quarks[first].start;
             let end = quarks[last].end;
-            if end - start > 0 {
+            if end > start || (end == start && si.is_none()) {
                 tokens.push(MascToken {
                     id: token.id,
                     start,

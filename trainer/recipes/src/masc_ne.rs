@@ -4,6 +4,9 @@
 
 use std::path::Path;
 
+mod document;
+pub use document::{UnsupportedAnnotation, document};
+
 use turbo_formats::masc::{MascCorpus, MascDocument, MascError};
 use turbo_train_recipes::masc::{self, RELEASE, Release, SPLIT};
 use turbo_train_recipes::native_ner;
@@ -25,12 +28,14 @@ pub const DEV_EVERY: usize = 10;
 pub enum ReadError {
     Annotation(MascError),
     Invalid(Error),
+    Unsupported(UnsupportedAnnotation),
 }
 impl std::fmt::Display for ReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Annotation(e) => e.fmt(f),
             Self::Invalid(e) => e.fmt(f),
+            Self::Unsupported(e) => e.fmt(f),
         }
     }
 }
@@ -39,6 +44,7 @@ impl std::error::Error for ReadError {
         match self {
             Self::Annotation(e) => Some(e),
             Self::Invalid(e) => Some(e),
+            Self::Unsupported(e) => Some(e),
         }
     }
 }
@@ -77,12 +83,45 @@ pub fn sentences(doc: &MascDocument) -> std::result::Result<Vec<Sentence>, ReadE
         .collect()
 }
 
-fn samples(corpus: &MascCorpus) -> Result<Vec<Sentence>> {
+/// A source document's membership and exact byte offsets in its original text.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentSamples {
+    pub path: String,
+    pub source_sha256: String,
+    pub first: usize,
+    pub end: usize,
+    pub token_spans: Vec<[u32; 2]>,
+}
+
+/// Training data plus exhaustive document groups for held-out resampling.
+pub struct Prepared {
+    pub corpus: Corpus,
+    pub train_documents: Vec<DocumentSamples>,
+    pub dev_documents: Vec<DocumentSamples>,
+    pub test_documents: Vec<DocumentSamples>,
+}
+
+fn samples(corpus: &MascCorpus, root: &Path) -> Result<(Vec<Sentence>, Vec<DocumentSamples>)> {
     let mut out = Vec::new();
+    let mut documents = Vec::new();
     for doc in corpus.documents() {
-        out.extend(sentences(doc)?);
+        if let Some(sample) = document(doc)? {
+            let first = out.len();
+            out.push(sample);
+            let path = doc.path().strip_prefix(root).map_err(|e| Error(e.to_string()))?;
+            let path = path.to_str().ok_or_else(|| Error("non-UTF-8 document path".into()))?.replace('\\', "/");
+            let tokens = doc.document_tokens().expect("document() checked Penn tokens");
+            documents.push(DocumentSamples {
+                path,
+                source_sha256: turbo::bundle::sha256_hex(doc.text().as_bytes()),
+                first,
+                end: out.len(),
+                token_spans: doc.token_spans(tokens)?.iter().map(|s| [s.start, s.end]).collect(),
+            });
+        }
     }
-    Ok(out)
+    Ok((out, documents))
 }
 
 /// Reads the extracted release at `dir` (the `MASC-3.0.0` directory).
@@ -94,6 +133,15 @@ fn samples(corpus: &MascCorpus) -> Result<Vec<Sentence>> {
 /// A directory that cannot be read, a document MASC's reader refuses, or
 /// a digest mismatch.
 pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
+    Ok(read_with_documents(dir, unrecorded)?.corpus)
+}
+
+/// Read the same pinned recipe while retaining source document groups.
+///
+/// # Errors
+///
+/// The same corpus and annotation refusals as [`read`].
+pub fn read_with_documents(dir: &Path, unrecorded: bool) -> Result<Prepared> {
     let digest = masc::corpus_digest(dir).map_err(|e| Error(format!("MASC: {e}")))?;
     let recorded = RELEASE.is(&digest);
     if !recorded && !unrecorded {
@@ -116,9 +164,9 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
     for (i, d) in split.train.into_documents().into_iter().enumerate() {
         if i % DEV_EVERY == DEV_EVERY - 1 { dev_docs.push(d) } else { train_docs.push(d) }
     }
-    let train = samples(&MascCorpus::from_documents(train_docs))?;
-    let dev = samples(&MascCorpus::from_documents(dev_docs))?;
-    let test = samples(&split.held_out)?;
+    let (train, train_documents) = samples(&MascCorpus::from_documents(train_docs), dir)?;
+    let (dev, dev_documents) = samples(&MascCorpus::from_documents(dev_docs), dir)?;
+    let (test, test_documents) = samples(&split.held_out, dir)?;
     if digest != masc::corpus_digest(dir).map_err(|e| Error(format!("MASC: {e}")))? {
         return Err(Error("MASC source files changed during preparation".into()).into());
     }
@@ -147,5 +195,10 @@ pub fn read(dir: &Path, unrecorded: bool) -> Result<Corpus> {
         skipped: 0,
         recipe_only: false,
     };
-    Ok(Corpus { record, splits: Splits { train, dev, test } })
+    Ok(Prepared {
+        corpus: Corpus { record, splits: Splits { train, dev, test } },
+        train_documents,
+        dev_documents,
+        test_documents,
+    })
 }

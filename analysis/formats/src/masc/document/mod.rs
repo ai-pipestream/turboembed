@@ -298,6 +298,8 @@ pub struct MascDocument {
     index: TextIndex,
     quarks: Vec<Quark>,
     pub(super) sentences: Vec<MascSentence>,
+    document_tokens: Option<MascSentence>,
+    entity_count: usize,
     pub(super) has_penn_tags: bool,
     has_named_entities: bool,
     pub(super) has_chunks: bool,
@@ -334,6 +336,8 @@ impl MascDocument {
             index,
             quarks,
             sentences,
+            document_tokens: None,
+            entity_count: 0,
             has_penn_tags: false,
             has_named_entities: false,
             has_chunks: false,
@@ -348,6 +352,7 @@ impl MascDocument {
         }
         if let Some(ne) = files.named_entities {
             let ne = parse_named_entities(ne)?;
+            doc.entity_count = ne.entities.len();
             doc.warnings.extend(ne.warnings.iter().cloned());
             doc.add_named_entities_with(&ne);
             if let (true, Some(penn)) = (doc.has_named_entities, &penn) {
@@ -381,6 +386,20 @@ impl MascDocument {
     /// regions OpenNLP drops.
     pub fn sentences(&self) -> &[MascSentence] {
         &self.sentences
+    }
+
+    /// Number of original NE memberships, including those unresolved to tokens.
+    pub fn entity_count(&self) -> usize {
+        self.entity_count
+    }
+
+    /// All original Penn tokens and entities in source order, independent of
+    /// sentence regions. Cross-sentence entities are whole here. The region is
+    /// the entire original text; no joined or normalized text is constructed.
+    /// Consumers must still reject incomplete, overlapping or discontinuous
+    /// annotations that their model cannot express.
+    pub fn document_tokens(&self) -> Option<&MascSentence> {
+        self.document_tokens.as_ref()
     }
 
     /// Whether the Penn tokens were added (`hasPennTags`).

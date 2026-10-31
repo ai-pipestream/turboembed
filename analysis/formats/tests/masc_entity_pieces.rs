@@ -70,3 +70,18 @@ fn a_whole_entity_keeps_identity_without_continuation() {
     assert_eq!(pieces[0].entity.tokens, [1, 2]);
     assert_eq!(pieces[0].entity, doc.sentences()[0].entities()[0]);
 }
+
+#[test]
+fn document_view_recovers_a_cut_entity_without_changing_source_or_sentences() {
+    let doc = document(true);
+    let all = doc.document_tokens().unwrap();
+    assert_eq!((all.start, all.end), (0, 21));
+    assert_eq!(all.entity_pieces().iter().map(|p| (p.id, p.continues)).collect::<Vec<_>>(), [(42, false), (43, false)]);
+    assert_eq!(all.entities()[0].tokens, [1, 2]);
+    let spans = doc.token_spans(all).unwrap();
+    assert_eq!(&doc.text()[spans[1].start as usize..spans[2].end as usize], "Ada Lovelace");
+    assert_eq!(spans[0].end, 4);
+    assert_eq!(doc.sentences().len(), 2);
+    assert!(doc.sentences()[0].entity_pieces()[0].continues);
+    assert!(doc.require_complete_entities().is_err());
+}

@@ -114,6 +114,96 @@ fn document_splits_schema_and_typed_refusal() {
     assert!(matches!(masc_ne::sentences(&doc), Err(ReadError::Annotation(MascError::CutEntity {
         path, entity: 7, start: 3, end: 6
     })) if path == header));
-    let error = masc_ne::read(&fixture.0, true).unwrap_err().to_string();
-    assert!(error.contains("doc00.hdr") && error.contains("ne-n7") && error.contains("3..6"));
+    let recovered = masc_ne::read_with_documents(&fixture.0, true).unwrap();
+    assert_eq!(recovered.corpus.splits.train[0].labels, corpus.splits.train[0].labels);
+    for (docs, samples) in [
+        (&recovered.train_documents, &recovered.corpus.splits.train),
+        (&recovered.dev_documents, &recovered.corpus.splits.dev),
+        (&recovered.test_documents, &recovered.corpus.splits.test),
+    ] {
+        assert_eq!(docs.len(), samples.len());
+        for (i, d) in docs.iter().enumerate() {
+            assert_eq!((d.first, d.end), (i, i + 1));
+            assert_eq!(d.token_spans[0], [0, 4]);
+            assert_eq!(d.source_sha256.len(), 64);
+            assert!(!std::path::Path::new(&d.path).is_absolute());
+        }
+    }
+    train_authored_documents(&fixture.0, &recovered.corpus);
+    fs::write(
+        fixture.0.join("doc00-s.xml"),
+        format!(r#"<graph><region anchors="16 {}"/></graph>"#, text.encode_utf16().count()),
+    )
+    .unwrap();
+    let outside = read_document(&header).unwrap();
+    assert!(!outside.unplaced_entities().is_empty());
+    assert_eq!(masc_ne::document(&outside).unwrap().unwrap().labels, corpus.splits.train[0].labels);
+    let ne_path = fixture.0.join("doc00-ne.xml");
+    let ne = fs::read_to_string(&ne_path).unwrap();
+    fs::write(
+        &ne_path,
+        ne.replace("</graph>", r#"<a ref="ne-n99" label="org"/><edge from="ne-n99" to="penn-n2"/></graph>"#),
+    )
+    .unwrap();
+    assert!(matches!(masc_ne::read(&fixture.0,true),Err(ReadError::Unsupported(e))
+        if e.entity == 99 && e.start == 7 && e.end == 15 && e.reason == "overlapping original annotations"));
+    fs::write(&ne_path, &ne).unwrap();
+    let seg_path = fixture.0.join("doc00-seg.xml");
+    let seg = fs::read_to_string(&seg_path).unwrap();
+    fs::write(&seg_path, seg.replace("anchors=\"7 15\"", "anchors=\"7 7\"")).unwrap();
+    let zero_doc = read_document(&header).unwrap();
+    assert_eq!(zero_doc.document_tokens().unwrap().tokens().unwrap().len(), 7);
+    assert!(matches!(masc_ne::document(&zero_doc), Err(ReadError::Unsupported(e))
+        if e.entity == 7 && e.start == 3 && e.end == 7 && e.reason == "entity references a zero-width source token"));
+    fs::write(&seg_path, seg).unwrap();
+    fs::write(&ne_path, ne.replace("from=\"ne-n7\" to=\"penn-n2\"", "from=\"ne-n7\" to=\"penn-n3\"")).unwrap();
+    let discontinuous = read_document(&header).unwrap();
+    assert!(matches!(masc_ne::document(&discontinuous), Err(ReadError::Unsupported(e))
+        if e.entity == 7 && e.reason == "discontinuous original annotation"));
+    fs::write(&ne_path, &ne).unwrap();
+    let header_text = fs::read_to_string(&header).unwrap();
+    fs::write(&header, header_text.replace(r#"<annotation f.id="f.ne" loc="doc00-ne.xml"/>"#, "")).unwrap();
+    let unannotated = masc_ne::read_with_documents(&fixture.0, true).unwrap();
+    assert!(!unannotated.train_documents.iter().any(|d| d.path == "doc00.hdr"));
+    assert_eq!(ids(&unannotated.corpus.splits.dev), dev);
+    assert_eq!(ids(&unannotated.corpus.splits.test), test);
+    fs::write(&header, header_text.replace(r#"<annotation f.id="f.penn" loc="doc00-penn.xml"/>"#, "")).unwrap();
+    let no_penn = read_document(&header).unwrap();
+    assert!(masc_ne::document(&no_penn).unwrap_err().to_string().contains("NE document has no Penn tokens"));
+}
+
+fn train_authored_documents(data: &Path, corpus: &turbo_trainer_recipes::corpus::Corpus) {
+    let out = data.with_extension("trained");
+    let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train", "--corpus", "masc-ne", "--dir"])
+        .arg(data)
+        .arg("--bundle")
+        .arg(bundle)
+        .arg("--out")
+        .arg(&out)
+        .args([
+            "--unrecorded-corpus",
+            "--crf",
+            "--threads",
+            "2",
+            "--epochs",
+            "2",
+            "--batch",
+            "2",
+            "--commit",
+            "fixture",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let receipt: turbo_trainer_recipes::receipt::Receipt =
+        serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert!(!receipt.corpus.recorded);
+    assert_eq!(receipt.config.as_ref().unwrap().dev_left_out, 0);
+    assert_eq!(receipt.timing_s.feature_words, (corpus.record.train.words + corpus.record.dev.words) as u64);
+    assert_eq!(receipt.head.as_ref().unwrap().labels.len(), 9);
+    assert!(receipt.eval.model.is_some());
+    assert!(fs::metadata(out.join("head.safetensors")).unwrap().len() > 0);
+    fs::remove_dir_all(out).unwrap();
 }
