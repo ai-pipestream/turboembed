@@ -5,7 +5,8 @@
 //! token ranges. The generated bundles' widths (8 and 12) are not
 //! multiples of the matrix engines' steps, so FASTEST computes them in
 //! F32; the F16 path at FASTEST is held to upstream by the conformance
-//! test on the real bundles.
+//! test on the real bundles, and here on the overflow bundles at widths
+//! 32 and 64, whose gated middle product passes F16's range.
 //!
 //! Built with the `levelzero` feature only. TURBO_TEST_DEVICE=levelzero
 //! runs the tests on the first levelzero device; without it they say they
@@ -169,4 +170,56 @@ fn a_modernbert_matches_the_cpu() {
 #[test]
 fn a_nomic_bert_matches_the_cpu() {
     matches_the_cpu("a_nomic_bert_matches_the_cpu", rotary::nomic("lz-rotary-nomic"));
+}
+
+fn least_cosine(a: &[Vec<f32>], b: &[Vec<f32>]) -> f64 {
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| {
+            let dot: f64 = x.iter().zip(y).map(|(p, q)| *p as f64 * *q as f64).sum();
+            let n = |v: &[f32]| v.iter().map(|p| *p as f64 * *p as f64).sum::<f64>().sqrt();
+            dot / (n(x) * n(y))
+        })
+        .fold(1f64, f64::min)
+}
+
+/// The overflow fixtures (tests/common/rotary.rs), at widths 32 and 64
+/// that FASTEST runs in F16 on the matrix engines, whose layer 0 gated
+/// middle product passes F16's 65504 on every token while finite in F32:
+/// narrowed to F16 for the feed-forward output it saturates at 65504, as
+/// on cuda and metal, so every value is finite. The CPU computes the
+/// middle in F32 without saturating, so the rows are held to it by
+/// cosine: nomic-bert's post-norm LayerNorm takes the saturated sum back
+/// to the CPU's within 0.999, while ModernBERT's pre-norm residual carries
+/// 65504 in place of 90000 into the later layers, still at 0.75. Without
+/// the clamp every value was NaN.
+#[test]
+fn a_gated_middle_past_f16_s_range_stays_finite_at_fastest() {
+    let test = "a_gated_middle_past_f16_s_range_stays_finite_at_fastest";
+    let _t = turn();
+    if !device(test) {
+        return;
+    }
+    for (name, mut f, floor) in [
+        ("modernbert", rotary::overflow_modernbert("lz-rotary-overflow-mb"), 0.75),
+        ("nomic", rotary::overflow_nomic("lz-rotary-overflow-nb"), 0.999),
+    ] {
+        f.manifest["artifacts"][0]["backends"] = json!(["levelzero", "cpu"]);
+        let (g, c) = (on_gpu(&f), f.load().unwrap());
+        let desc = session_desc(4, 64, TURBO_PRECISION_FASTEST);
+        let gs = Session::create(g.m, Some(&desc)).unwrap();
+        assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F16, "{name}: FASTEST takes the F16 path");
+        let cs = Session::create(c.m, Some(&desc)).unwrap();
+        for lens in [&[9usize, 1, 32][..], &[32usize, 32][..], &[64usize, 33, 17][..]] {
+            let t = rows(lens, &[], &[]);
+            gs.write_tokens(&t.batch(), None).unwrap();
+            let got = gs.run().unwrap().rows();
+            let bad = got.iter().flatten().filter(|v| !v.is_finite()).count();
+            assert_eq!(bad, 0, "{name}: rows {lens:?}: {bad} values not finite");
+            cs.write_tokens(&t.batch(), None).unwrap();
+            let cos = least_cosine(&got, &cs.run().unwrap().rows());
+            println!("{test}: {name}: rows {lens:?}: least cosine to the CPU {cos}");
+            assert!(cos >= floor, "{name}: rows {lens:?}: least cosine to the CPU {cos}, under {floor}");
+        }
+    }
 }
