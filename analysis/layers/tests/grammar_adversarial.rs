@@ -155,18 +155,99 @@ fn missing_infinitive_and_regular_verb_repairs() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 
-    for (form, lemma) in
-        [("beckoned", "beckon"), ("reckoned", "reckon"), ("blossomed", "blossom"), ("ransomed", "ransom")]
-    {
+    let broad_verb_specs = [
+        "accepted:accept achieved:achieve acquired:acquire acted:act added:add admired:admire admitted:admit adopted:adopt",
+        "advised:advise agreed:agree allowed:allow announced:announce annoyed:annoy answered:answer appeared:appear applied:apply",
+        "approved:approve argued:argue arranged:arrange arrived:arrive asked:ask assessed:assess assumed:assume attached:attach",
+        "attacked:attack attended:attend avoided:avoid baked:bake balanced:balance banned:ban banged:bang based:base",
+        "bathed:bathe battled:battle beckoned:beckon begged:beg behaved:behave belonged:belong blamed:blame blessed:bless",
+        "blocked:block blossomed:blossom boiled:boil borrowed:borrow bounced:bounce bowed:bow breathed:breathe brushed:brush",
+        "bubbled:bubble burned:burn buried:bury buzzed:buzz called:call camped:camp canceled:cancel cared:care",
+        "carried:carry carved:carve caused:cause ceased:cease challenged:challenge changed:change charged:charge chased:chase",
+        "chatted:chat checked:check cheered:cheer chewed:chew choked:choke chopped:chop claimed:claim clapped:clap",
+        "cleaned:clean cleansed:cleanse cleared:clear climbed:climb clipped:clip closed:close clothed:clothe coached:coach",
+        "collected:collect collapsed:collapse combined:combine compared:compare competed:compete completed:complete concluded:conclude confused:confuse",
+        "connected:connect considered:consider contained:contain continued:continue controlled:control convinced:convince cooked:cook copied:copy",
+        "counted:count covered:cover cracked:crack crashed:crash created:create crossed:cross crushed:crush cried:cry",
+        "cured:cure cursed:curse curved:curve cycled:cycle damaged:damage danced:dance dared:dare dated:date",
+        "decided:decide declared:declare declined:decline decreased:decrease defeated:defeat defended:defend defined:define delayed:delay",
+        "deleted:delete delivered:deliver demanded:demand described:describe deserved:deserve designed:design desired:desire destroyed:destroy",
+        "developed:develop devoted:devote died:die dined:dine discovered:discover discussed:discuss divided:divide dived:dive",
+        "dodged:dodge doubled:double doubted:doubt dragged:drag drained:drain dressed:dress dripped:drip dropped:drop",
+        "drowned:drown drummed:drum dried:dry dyed:dye earned:earn eased:ease echoed:echo edited:edit",
+        "employed:employ emptied:empty enabled:enable encouraged:encourage ended:end endorsed:endorse engaged:engage enhanced:enhance",
+        "enjoyed:enjoy ensured:ensure entered:enter escaped:escape examined:examine exchanged:exchange excited:excite excluded:exclude",
+        "excused:excuse existed:exist expanded:expand expected:expect explained:explain exploded:explode explored:explore exposed:expose",
+        "expressed:express extended:extend eyed:eye faced:face faded:fade failed:fail fancied:fancy fastened:fasten",
+        "feared:fear fetched:fetch filed:file filled:fill finished:finish fired:fire fitted:fit fixed:fix",
+        "flashed:flash floated:float flowed:flow focused:focus folded:fold followed:follow forced:force formed:form",
+        "framed:frame freed:free fried:fry funded:fund gained:gain gathered:gather gauged:gauge gazed:gaze",
+        "glowed:glow glued:glue grabbed:grab graded:grade granted:grant grasped:grasp greased:grease greeted:greet",
+        "grinned:grin gripped:grip guaranteed:guarantee guarded:guard guessed:guess guided:guide handled:handle hanged:hang",
+        "happened:happen harmed:harm hated:hate healed:heal heated:heat helped:help hired:hire hissed:hiss",
+        "honored:honor hoped:hope hosed:hose housed:house hugged:hug hummed:hum hunted:hunt hurried:hurry",
+        "identified:identify ignored:ignore imagined:imagine implied:imply imposed:impose improved:improve included:include increased:increase",
+        "informed:inform injured:injure inquired:inquire insisted:insist inspired:inspire installed:install intended:intend introduced:introduce",
+        "invented:invent invited:invite involved:involve ironed:iron issued:issue jammed:jam jogged:jog joined:join",
+        "joked:joke judged:judge juggled:juggle jumped:jump justified:justify kicked:kick killed:kill kissed:kiss",
+        "knitted:knit knocked:knock knotted:knot labeled:label lacked:lack landed:land lasted:last laughed:laugh",
+        "launched:launch layered:layer leased:lease licensed:license licked:lick lied:lie lifted:lift liked:like",
+        "limited:limit linked:link listed:list listened:listen lived:live loaded:load locked:lock lodged:lodge",
+        "logged:log longed:long looked:look loosed:loose lounged:lounge loved:love lowered:lower lunged:lunge",
+        "managed:manage mapped:map marched:march marked:mark married:marry matched:match measured:measure meddled:meddle",
+        "melted:melt mentioned:mention merged:merge missed:miss mixed:mix modified:modify monitored:monitor moved:move",
+        "multiplied:multiply named:name needed:need nodded:nod noted:note noticed:notice nursed:nurse obeyed:obey",
+        "observed:observe obtained:obtain occupied:occupy occurred:occur offered:offer omitted:omit opened:open opposed:oppose",
+        "ordered:order organized:organize owed:owe owned:own packed:pack padded:pad painted:paint parked:park",
+        "passed:pass pasted:paste patted:pat paused:pause peeled:peel perceived:perceive performed:perform permitted:permit",
+        "persuaded:persuade phoned:phone picked:pick placed:place planned:plan planted:plant played:play pleased:please",
+        "pledged:pledge plowed:plow plugged:plug plunged:plunge pointed:point poked:poke polished:polish popped:pop",
+        "posted:post poured:pour practiced:practice praised:praise prayed:pray preached:preach preferred:prefer prepared:prepare",
+        "presented:present preserved:preserve pressed:press prevented:prevent printed:print produced:produce promised:promise promoted:promote",
+        "proposed:propose protected:protect provided:provide pulled:pull pumped:pump punched:punch purchased:purchase purged:purge",
+        "pursued:pursue pushed:push qualified:qualify questioned:question quizzed:quiz quoted:quote raced:race rained:rain",
+        "raised:raise ranged:range ranked:rank ransomed:ransom rated:rate reached:reach realized:realize reasoned:reason",
+        "received:receive reckoned:reckon recognized:recognize recorded:record reduced:reduce referred:refer reflected:reflect refused:refuse",
+        "regretted:regret rejected:reject related:relate relaxed:relax released:release relieved:relieve relied:rely remained:remain",
+        "remembered:remember reminded:remind removed:remove repaired:repair repeated:repeat replaced:replace replied:reply reported:report",
+        "requested:request required:require rescued:rescue reserved:reserve resolved:resolve rested:rest restored:restore retained:retain",
+        "retired:retire retrieved:retrieve returned:return revealed:reveal reversed:reverse reviewed:review revised:revise rhymed:rhyme",
+        "rinsed:rinse risked:risk robbed:rob rocked:rock rolled:roll rotted:rot rubbed:rub ruined:ruin",
+        "ruled:rule rushed:rush sailed:sail satisfied:satisfy saved:save scared:scare scraped:scrape scratched:scratch",
+        "screamed:scream scrubbed:scrub sealed:seal searched:search seasoned:season secured:secure seemed:seem seized:seize",
+        "selected:select sensed:sense served:serve settled:settle shaded:shade shared:share shaved:shave shifted:shift",
+        "shocked:shock shopped:shop shouted:shout shoved:shove shredded:shred shrugged:shrug sighed:sigh signed:sign",
+        "sinned:sin sipped:sip skated:skate skied:ski skipped:skip slapped:slap slipped:slip slowed:slow",
+        "smashed:smash smelled:smell smiled:smile smoked:smoke smoothed:smooth sneezed:sneeze sniffed:sniff snored:snore",
+        "snowed:snow soaked:soak soothed:soothe sounded:sound spared:spare sparked:spark sparkled:sparkle spelled:spell",
+        "spilled:spill spoiled:spoil sponged:sponge spotted:spot sprayed:spray squeezed:squeeze stained:stain stamped:stamp",
+        "stared:stare started:start starved:starve stated:state stayed:stay steered:steer stepped:step stirred:stir",
+        "stitched:stitch stopped:stop stored:store strapped:strap stressed:stress stretched:stretch stripped:strip stroked:stroke",
+        "struggled:struggle studied:study stuffed:stuff stumbled:stumble subdued:subdue submitted:submit succeeded:succeed sucked:suck",
+        "suffered:suffer suggested:suggest suited:suit summoned:summon supplied:supply supported:support supposed:suppose surprised:surprise",
+        "surrounded:surround surveyed:survey survived:survive switched:switch tackled:tackle tagged:tag talked:talk tamed:tame",
+        "tapped:tap tasted:taste teased:tease tended:tend tensed:tense terrified:terrify tested:test thanked:thank",
+        "thawed:thaw ticked:tick tickled:tickle tied:tie timed:time tipped:tip tiptoed:tiptoe tired:tire",
+        "touched:touch toured:tour towed:tow traced:trace traded:trade trained:train transferred:transfer trapped:trap",
+        "traveled:travel treated:treat trembled:tremble tricked:trick tripped:trip trotted:trot troubled:trouble trusted:trust",
+        "tried:try tugged:tug turned:turn twisted:twist typed:type united:unite updated:update upgraded:upgrade",
+        "urged:urge used:use vanished:vanish varied:vary valued:value verified:verify viewed:view visited:visit",
+        "voiced:voice voted:vote waited:wait walked:walk wanted:want warmed:warm warned:warn washed:wash",
+        "wasted:waste watched:watch waved:wave weighed:weigh welcomed:welcome whined:whine whipped:whip wiped:wipe",
+        "wished:wish wobbled:wobble worked:work worried:worry wrapped:wrap wrecked:wreck wrestled:wrestle yawned:yawn",
+        "yelled:yell yielded:yield zipped:zip zoomed:zoom",
+    ];
+    for pair in broad_verb_specs.iter().flat_map(|line| line.split_whitespace()) {
+        let (form, lemma) = pair.split_once(':').unwrap();
         let text = format!("He can {form}.");
         let tags_no_lemma = format!("He/PRP can/MD {form}/VBD ./.");
         let d_no_lemma = GrammarChecker::new().check_document(&build_doc(&text, &tags_no_lemma)).unwrap();
         let aux_diags: Vec<_> = d_no_lemma.iter().filter(|x| x.rule_id == "AUX-001").collect();
         assert_eq!(aux_diags.len(), 1, "{text} without Lemmas should emit AUX-001: {d_no_lemma:?}");
+        let reps = &aux_diags[0].replacements;
         assert!(
-            aux_diags[0].replacements.is_empty(),
-            "{text} without Lemmas must withhold ambiguous silent-e repair, got {:?}",
-            aux_diags[0].replacements
+            reps.is_empty() || (reps.len() == 1 && reps[0].as_ref() == lemma),
+            "{text} without Lemmas emitted wrong repair {reps:?} (expected {lemma:?} or empty)"
         );
         let tags_with_lemma = format!("He/PRP can/MD {form}/VBD/{lemma} ./.");
         let d_with_lemma = GrammarChecker::new().check_document(&build_doc(&text, &tags_with_lemma)).unwrap();
@@ -175,6 +256,31 @@ fn missing_infinitive_and_regular_verb_repairs() {
             "{text} with Lemmas should emit verified {lemma} replacement, got {:?}",
             d_with_lemma.diagnostics
         );
+    }
+    for (form, lemma) in [
+        ("beckoned", "beckon"),
+        ("reckoned", "reckon"),
+        ("blossomed", "blossom"),
+        ("ransomed", "ransom"),
+        ("added", "add"),
+        ("tied", "tie"),
+        ("died", "die"),
+        ("lied", "lie"),
+        ("dyed", "dye"),
+        ("skied", "ski"),
+        ("freed", "free"),
+        ("owed", "owe"),
+        ("eyed", "eye"),
+        ("plunged", "plunge"),
+        ("lunged", "lunge"),
+        ("lounged", "lounge"),
+        ("breathed", "breathe"),
+        ("bathed", "bathe"),
+    ] {
+        let text = format!("He can {form}.");
+        let tags_no_lemma = format!("He/PRP can/MD {form}/VBD ./.");
+        let d_no_lemma = GrammarChecker::new().check_document(&build_doc(&text, &tags_no_lemma)).unwrap();
+        assert!(d_no_lemma.diagnostics[0].replacements.is_empty(), "{text} ({lemma}): {:?}", d_no_lemma.diagnostics);
     }
 }
 

@@ -24,52 +24,18 @@ const PLURAL_SUBJECT_PRONOUNS: &[&str] =
 const INVARIANT_NOUNS: &[&str] =
     &["series", "species", "means", "headquarters", "sheep", "deer", "fish", "aircraft", "spacecraft", "data", "media"];
 
-const IRREGULAR_PLURAL_MAP: &[(&str, &str)] = &[
-    ("alumnus", "alumni"),
-    ("analysis", "analyses"),
-    ("appendix", "appendices"),
-    ("axis", "axes"),
-    ("bacterium", "bacteria"),
-    ("basis", "bases"),
-    ("calf", "calves"),
-    ("child", "children"),
-    ("crisis", "crises"),
-    ("criterion", "criteria"),
-    ("curriculum", "curricula"),
-    ("datum", "data"),
-    ("diagnosis", "diagnoses"),
-    ("foot", "feet"),
-    ("fungus", "fungi"),
-    ("goose", "geese"),
-    ("half", "halves"),
-    ("hypothesis", "hypotheses"),
-    ("index", "indices"),
-    ("knife", "knives"),
-    ("leaf", "leaves"),
-    ("life", "lives"),
-    ("loaf", "loaves"),
-    ("man", "men"),
-    ("matrix", "matrices"),
-    ("medium", "media"),
-    ("mouse", "mice"),
-    ("nucleus", "nuclei"),
-    ("oasis", "oases"),
-    ("ox", "oxen"),
-    ("parenthesis", "parentheses"),
-    ("person", "people"),
-    ("phenomenon", "phenomena"),
-    ("self", "selves"),
-    ("shelf", "shelves"),
-    ("stimulus", "stimuli"),
-    ("syllabus", "syllabi"),
-    ("synthesis", "syntheses"),
-    ("thesis", "theses"),
-    ("thief", "thieves"),
-    ("tooth", "teeth"),
-    ("vertex", "vertices"),
-    ("wife", "wives"),
-    ("wolf", "wolves"),
-    ("woman", "women"),
+const IRREGULAR_PLURAL_MAP: &[&[(&str, &str)]] = &[
+    &[("alumnus", "alumni"), ("analysis", "analyses"), ("appendix", "appendices"), ("axis", "axes")],
+    &[("bacterium", "bacteria"), ("basis", "bases"), ("calf", "calves"), ("child", "children")],
+    &[("crisis", "crises"), ("criterion", "criteria"), ("curriculum", "curricula"), ("datum", "data")],
+    &[("diagnosis", "diagnoses"), ("foot", "feet"), ("fungus", "fungi"), ("goose", "geese")],
+    &[("half", "halves"), ("hypothesis", "hypotheses"), ("index", "indices"), ("knife", "knives")],
+    &[("leaf", "leaves"), ("life", "lives"), ("loaf", "loaves"), ("man", "men"), ("matrix", "matrices")],
+    &[("medium", "media"), ("mouse", "mice"), ("nucleus", "nuclei"), ("oasis", "oases"), ("ox", "oxen")],
+    &[("parenthesis", "parentheses"), ("person", "people"), ("phenomenon", "phenomena"), ("self", "selves")],
+    &[("shelf", "shelves"), ("stimulus", "stimuli"), ("syllabus", "syllabi"), ("synthesis", "syntheses")],
+    &[("thesis", "theses"), ("thief", "thieves"), ("tooth", "teeth"), ("vertex", "vertices")],
+    &[("wife", "wives"), ("wolf", "wolves"), ("woman", "women")],
 ];
 
 fn is_third_sing_pronoun(lower: &str) -> bool {
@@ -142,7 +108,7 @@ fn looks_plural_orthography(lower: &str) -> bool {
 }
 
 fn is_irregular_plural_noun(lower: &str) -> bool {
-    IRREGULAR_PLURAL_MAP.iter().any(|&(_, pl)| pl == lower)
+    IRREGULAR_PLURAL_MAP.iter().flat_map(|g| g.iter()).any(|&(_, pl)| pl == lower)
 }
 
 /// Checks if a finite verb disagrees with `target` and returns the corrected verb surface form.
@@ -273,6 +239,7 @@ pub(crate) fn pluralize_noun(surface: &str) -> String {
     }
     let plural = IRREGULAR_PLURAL_MAP
         .iter()
+        .flat_map(|g| g.iter())
         .find_map(|&(sg, pl)| (sg == lower).then(|| pl.to_owned()))
         .unwrap_or_else(|| inflect_3sg_verb(&lower));
     match_case(surface, &plural)
@@ -283,6 +250,7 @@ pub(crate) fn singularize_noun(surface: &str) -> String {
     let lower = surface.to_ascii_lowercase();
     let singular = IRREGULAR_PLURAL_MAP
         .iter()
+        .flat_map(|g| g.iter())
         .find_map(|&(sg, pl)| (pl == lower).then(|| sg.to_owned()))
         .unwrap_or_else(|| deinflect_3sg_verb(&lower));
     match_case(surface, &singular)
@@ -298,11 +266,13 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
         return Some(match_case(surface, base));
     }
     if matches!(pos_tag, "VBZ" | "VBD" | "VBN" | "VBG") {
-        if let Some(stem) = lower.strip_suffix("ied").filter(|s| !s.is_empty()) {
-            return Some(match_case(surface, &format!("{stem}y")));
+        if let Some(stem) = lower.strip_suffix("ied") {
+            let valid = count_vowel_groups(stem) >= 1
+                && !matches!(stem.as_bytes().last(), Some(b'a' | b'e' | b'i' | b'o' | b'u' | b'y'));
+            return valid.then(|| match_case(surface, &format!("{stem}y")));
         }
-        if let Some(stem) = lower.strip_suffix("ying").filter(|s| !s.is_empty()) {
-            return Some(match_case(surface, &format!("{stem}ie")));
+        if matches!(lower.as_str(), "dying" | "lying" | "tying") {
+            return Some(match_case(surface, &format!("{}ie", &lower[..lower.len() - 4])));
         }
         if let Some(stem) = lower.strip_suffix("ed").filter(|s| s.len() >= 2) {
             return restore_regular_verb_stem(stem).map(|base| match_case(surface, &base));
@@ -320,12 +290,18 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
     None
 }
 
+fn count_vowel_groups(stem: &str) -> usize {
+    let bytes = stem.as_bytes();
+    let n = bytes.len();
+    let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
+    let is_stem_vowel =
+        |k: usize| is_vowel(bytes[k]) || (bytes[k] == b'y' && k > 0 && (k + 1 == n || !is_vowel(bytes[k + 1])));
+    (0..n).filter(|&k| is_stem_vowel(k) && (k == 0 || !is_stem_vowel(k - 1))).count()
+}
+
 fn restore_regular_verb_stem(stem: &str) -> Option<String> {
     if stem == "quizz" {
         return Some("quiz".to_owned());
-    }
-    if stem.len() >= 3 && ["bb", "dd", "gg", "mm", "nn", "pp", "rr", "tt"].iter().any(|d| stem.ends_with(d)) {
-        return Some(stem[..stem.len() - 1].to_owned());
     }
     if NON_SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
         return Some(stem.to_owned());
@@ -333,18 +309,29 @@ fn restore_regular_verb_stem(stem: &str) -> Option<String> {
     if SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) || has_unambiguous_silent_e_ending(stem) {
         return Some(format!("{stem}e"));
     }
+    let vg = count_vowel_groups(stem);
+    if stem.len() >= 4 && ["bb", "gg", "mm", "nn", "pp", "rr", "tt"].iter().any(|d| stem.ends_with(d)) {
+        let keep = vg == 1 && !matches!(stem, "purr" | "whirr" | "butt" | "putt" | "mutt" | "watt" | "matt" | "shirr");
+        return keep.then(|| stem[..stem.len() - 1].to_owned());
+    }
     let bytes = stem.as_bytes();
     let n = bytes.len();
     let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
-    let is_stem_vowel = |k: usize| is_vowel(bytes[k]) || (bytes[k] == b'y' && k > 0);
-    let vowel_groups = (0..n).filter(|&k| is_stem_vowel(k) && (k == 0 || !is_stem_vowel(k - 1))).count();
-    if vowel_groups == 1 {
+    if n < 3 || ["dd", "ng", "th", "ast"].iter().any(|s| stem.ends_with(s)) || is_vowel(bytes[n - 1]) {
+        return None;
+    }
+    if bytes[n - 1] == b'y' {
+        return Some(stem.to_owned());
+    }
+    if vg == 1 {
         let last = bytes[n - 1];
         let prev = bytes[n - 2];
-        let is_vce_consonant =
-            matches!(last, b'b' | b'd' | b'f' | b'g' | b'k' | b'l' | b'm' | b'n' | b'p' | b'r' | b's' | b't' | b'z');
-        let qu_before_vowel = n >= 4 && bytes[n - 4] == b'q' && bytes[n - 3] == b'u';
-        if is_vce_consonant && is_vowel(prev) && (n == 2 || !is_vowel(bytes[n - 3]) || qu_before_vowel) {
+        if last == b's' && prev != b's' {
+            return Some(format!("{stem}e"));
+        }
+        let is_vce = matches!(last, b'b' | b'd' | b'f' | b'g' | b'k' | b'l' | b'm' | b'n' | b'p' | b'r' | b't' | b'z');
+        let gu_or_qu = n >= 4 && matches!(bytes[n - 4], b'q' | b'g') && bytes[n - 3] == b'u';
+        if is_vce && (is_vowel(prev) || prev == b'y') && (!is_vowel(bytes[n - 3]) || gu_or_qu) {
             return Some(format!("{stem}e"));
         }
         return Some(stem.to_owned());
@@ -375,20 +362,14 @@ const SILENT_E_STEMS: &[&[&str]] = &[
 fn has_unambiguous_silent_e_ending(stem: &str) -> bool {
     let bytes = stem.as_bytes();
     let n = bytes.len();
-    if n < 2 {
+    if n < 2 || count_vowel_groups(stem) == 0 {
         return false;
     }
     let last = bytes[n - 1];
     let prev = bytes[n - 2];
     if matches!(last, b'c' | b'v' | b'u')
         || (last == b'z' && prev != b'z' && !matches!(stem, "quiz" | "whiz" | "fez"))
-        || stem.ends_with("dg")
-        || stem.ends_with("rg")
-        || stem.ends_with("lg")
-        || (stem.ends_with("ng")
-            && n >= 3
-            && matches!(bytes[n - 3], b'a' | b'e' | b'i' | b'o')
-            && !matches!(stem, "hang" | "bang" | "clang" | "slang" | "twang" | "long" | "belong" | "prolong" | "wrong"))
+        || (last == b'g' && !matches!(prev, b'g' | b'n') && stem != "catalog")
     {
         return true;
     }
