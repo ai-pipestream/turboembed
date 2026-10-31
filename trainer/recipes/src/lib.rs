@@ -17,6 +17,8 @@
 //! | `receipt` | `receipt.json` |
 //! | `safetensors` | Writing the head's F32 tensors |
 
+pub mod assemble;
+pub mod assemble_zoo;
 pub mod cache;
 pub mod cli;
 pub mod corpus;

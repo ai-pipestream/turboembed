@@ -19,7 +19,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
-use turbo::head::{BiaffineParser, EditTreeLemmatizer, TokenTagger};
+use turbo::head::{BiaffineParser, EditTreeLemmatizer, TokenSplitter, TokenTagger};
 use turbo::manifest::{HeadKind, HeadSpec, LicenseClass, Scheme, WordPooling};
 use turbo::status::Error as CoreError;
 use turbo_analysis::annotate::Writes;
@@ -48,6 +48,10 @@ pub enum Head {
         lemmatizer: EditTreeLemmatizer,
         pos: Option<TokenTagger>,
     },
+    /// A multi-word token splitter (`HEAD_TOKEN_SPLIT`).
+    Splitter {
+        splitter: TokenSplitter,
+    },
 }
 
 impl Head {
@@ -56,6 +60,7 @@ impl Head {
             Head::Tagger { tagger, .. } => tagger.spec(),
             Head::Parser { parser, .. } => parser.spec(),
             Head::Lemma { lemmatizer, .. } => lemmatizer.spec(),
+            Head::Splitter { splitter } => splitter.spec(),
         }
     }
 
@@ -67,6 +72,7 @@ impl Head {
             Head::Lemma { lemmatizer, pos } => {
                 std::iter::once(lemmatizer.hidden()).chain(pos.as_ref().map(TokenTagger::hidden)).collect()
             }
+            Head::Splitter { splitter } => vec![splitter.hidden()],
         }
     }
 
@@ -107,7 +113,7 @@ pub trait HeadLayer: Layer {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String>;
 }
 
-fn wrong_head<T>() -> Result<T, String> {
+pub(crate) fn wrong_head<T>() -> Result<T, String> {
     Err("the head is of another kind than its layer".into())
 }
 

@@ -113,6 +113,38 @@ impl Transport for Blobs {
     }
 }
 
+/// A local directory transport that serves files from `<root>/<id>/<path>`
+/// (or `<root>/<path>` when `<root>` is the artifact directory itself),
+/// checking that every component is a plain file.
+#[derive(Debug, Clone)]
+pub struct Directory {
+    root: PathBuf,
+}
+
+impl Directory {
+    /// The directory under `root`; nothing is read until a file is requested.
+    pub fn new(root: impl Into<PathBuf>) -> Directory {
+        Directory { root: root.into() }
+    }
+
+    /// The root directory this transport reads from.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+}
+
+impl Transport for Directory {
+    fn get(&self, url: &Url, _size: u64) -> Result<Vec<u8>, String> {
+        Err(format!("{url}: a directory transport serves a file by its artifact path, not its URL"))
+    }
+
+    fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
+        let by_id = self.root.join(artifact.id.as_str()).join(file.path.as_str());
+        let p = if by_id.exists() { by_id } else { self.root.join(file.path.as_str()) };
+        read_plain(&p, file.size).map_err(|e| format!("{}: {e}", p.display()))
+    }
+}
+
 /// A store a [`Sources`] list fills as it reads ([`Sources::then_keep`]).
 pub trait Keep {
     /// Keeps `bytes` under their own SHA-256.
