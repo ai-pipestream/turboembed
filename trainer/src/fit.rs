@@ -344,8 +344,8 @@ pub(crate) fn train<M: Model>(
             if n == 0 {
                 continue;
             }
-            let inv = 1.0 / (n as f32 * scale);
-            grads.iter_mut().flatten().for_each(|g| *g *= inv);
+            let inv = 1.0 / n as f32;
+            grads.iter_mut().flatten().for_each(|g| *g = (*g / scale) * inv);
             if let Some(s) = scaler.as_mut()
                 && !s.update(grads.iter().flatten().all(|g| g.is_finite()))
             {
