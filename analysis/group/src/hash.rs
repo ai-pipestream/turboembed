@@ -278,9 +278,21 @@ impl SimHash {
     }
 }
 
+/// Whether a MinHash row is the signature of an empty shingle set: every
+/// lane `u32::MAX`, what [`minhash`] gives no shingles. An item with no
+/// words, or no treelets, has it; such a row is like no other, not like
+/// every other, so it is never banded or scored.
+pub fn is_empty_signature(row: &[u32]) -> bool {
+    row.iter().all(|&v| v == u32::MAX)
+}
+
 /// The estimated Jaccard similarity of two MinHash rows: the share of
-/// lanes that agree.
+/// lanes that agree. 0 when either row is the empty signature: an empty
+/// set is similar to nothing, another empty set included.
 pub fn jaccard(a: &[u32], b: &[u32]) -> f64 {
+    if is_empty_signature(a) || is_empty_signature(b) {
+        return 0.0;
+    }
     a.iter().zip(b).filter(|(x, y)| x == y).count() as f64 / a.len() as f64
 }
 

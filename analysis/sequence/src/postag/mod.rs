@@ -18,14 +18,13 @@ use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use turbo_jvm::chars::utf16_len;
 use turbo_maxent::{Dictionary, ModelFile};
 
 use crate::beam::ContextGenerator;
 use crate::error::{Error, Result};
 use crate::featuregen::{BoxedGenerator, descriptor};
 use crate::features::Features;
-use crate::java::parse_int;
+use crate::java::{parse_int, utf16_len};
 use crate::pattern::PatternMode;
 
 pub mod dictionary;

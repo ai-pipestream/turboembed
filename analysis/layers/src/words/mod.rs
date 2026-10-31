@@ -365,7 +365,7 @@ impl Layer for Words {
 }
 
 mod anchor;
-pub use anchor::{MorphPosTags, WordOrTokenAnchor};
+pub use anchor::{MorphLemmas, MorphPosTags, WordOrTokenAnchor};
 
 /// One part-of-speech tag per syntactic [`Words`] item
 /// (`opennlp:pos<turbo:words>`). Coexists with token-anchored [`crate::PosTags`]

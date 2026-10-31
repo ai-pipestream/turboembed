@@ -1,6 +1,6 @@
 //! Language detection with the trained n-gram model (#1525).
 
-use turbo_analysis::{Annotator, Error, Refs, Span, Tag, TagSet, View};
+use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Tag, TagSet, View};
 use turbo_analysis_layers::{Language, LanguageSpans, Sentences, Strs, Tokens};
 use turbo_langdetect::NgramModel;
 use turbo_unicode::{Script, category::general_category};
@@ -26,6 +26,14 @@ impl Annotator for NgramDetector {
     const ID: &'static str = "turbo-langspan:ngram";
     type Reads = (View, Option<Sentences>, Option<Tokens>);
     type Writes = (LanguageSpans, Language);
+
+    fn model(&self) -> Option<ModelRef> {
+        Some(self.model.model_ref().clone())
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.model.config_hash()
+    }
 
     fn annotate(&self, (view, sentences, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let invalid = |detail| Error::Annotator { annotator: Self::ID, detail };
@@ -93,5 +101,59 @@ impl Annotator for NgramDetector {
             language.score.push(score.into());
         }
         Ok((spans, language))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::{Analyzer, Document, StageCacheStatus};
+
+    fn sample_model(bias_en: f32, bias_es: f32, rev: &str) -> NgramModel {
+        NgramModel::new(
+            vec!["eng".into(), "spa".into()],
+            vec![0.0; 16],
+            vec![bias_en, bias_es],
+            (1, 3),
+            8,
+            ModelRef { id: "test-ngram".into(), revision: rev.into(), sha256: format!("sha-{rev}") },
+        )
+        .expect("valid test NgramModel")
+    }
+
+    #[test]
+    fn ngram_detector_invalidates_incremental_cache_on_model_or_weights_change() {
+        let model_en = sample_model(5.0, -5.0, "v1");
+        let model_es_weights = sample_model(-5.0, 5.0, "v1");
+        let model_es_rev = sample_model(-5.0, 5.0, "v2");
+
+        let det_en = NgramDetector::new(model_en);
+        let det_es_weights = NgramDetector::new(model_es_weights);
+        let det_es_rev = NgramDetector::new(model_es_rev);
+
+        assert_ne!(det_en.config_hash(), det_es_weights.config_hash());
+        assert_ne!(det_es_weights.model(), det_es_rev.model());
+
+        let p1 = Analyzer::builder().add(det_en).build().unwrap();
+        let p2 = Analyzer::builder().add(det_es_weights).build().unwrap();
+        let p3 = Analyzer::builder().add(det_es_rev).build().unwrap();
+
+        let mut doc = Document::new("Hello world");
+        let r1 = p1.analyze_incremental(&mut doc).unwrap();
+        assert_eq!(r1.stages[0].cache_status, StageCacheStatus::Executed);
+        assert_eq!(doc.get::<Language>().unwrap().code.get(0), "eng");
+
+        // Re-running with identical detector skips in O(1).
+        let r1_cached = p1.analyze_incremental(&mut doc).unwrap();
+        assert_eq!(r1_cached.stages[0].cache_status, StageCacheStatus::Skipped);
+
+        // Changing weights (same ModelRef, different config_hash) invalidates cache.
+        let r2 = p2.analyze_incremental(&mut doc).unwrap();
+        assert_eq!(r2.stages[0].cache_status, StageCacheStatus::Executed);
+        assert_eq!(doc.get::<Language>().unwrap().code.get(0), "spa");
+
+        // Changing ModelRef revision invalidates cache even with identical weights.
+        let r3 = p3.analyze_incremental(&mut doc).unwrap();
+        assert_eq!(r3.stages[0].cache_status, StageCacheStatus::Executed);
     }
 }

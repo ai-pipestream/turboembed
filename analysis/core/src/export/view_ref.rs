@@ -150,14 +150,27 @@ fn read_producer<'a>(r: &mut Reader<'a>) -> Result<(&'a str, &'a str, u64), Expo
         1 => skip_strs(r, 3)?,
         tag => return Err(malformed(format!("a model tag of {tag}"))),
     }
-    match r.u8()? {
+    let exec_tag = r.u8()?;
+    let has_snapshot = (exec_tag & 0x80) != 0;
+    match exec_tag & 0x7f {
         0 => {}
         1 => skip_strs(r, 3)?,
-        tag => return Err(malformed(format!("an execution tag of {tag}"))),
+        _ => return Err(malformed(format!("an execution tag of {exec_tag}"))),
     }
     for _ in 0..2 {
         for _ in 0..r.usize()? {
             skip_layer_ref(r)?;
+        }
+    }
+    if has_snapshot {
+        for what in ["a provenance digest", "an input snapshot"] {
+            match r.u8()? {
+                0 => {}
+                1 => {
+                    r.take(32)?;
+                }
+                tag => return Err(malformed(format!("{what} tag of {tag}"))),
+            }
         }
     }
     Ok((annotator, version, config))

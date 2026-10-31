@@ -150,4 +150,38 @@ impl SentenceModel {
     pub fn model_ref(&self) -> &ModelRef {
         &self.model_ref
     }
+
+    #[cfg(test)]
+    pub(crate) fn test_model() -> SentenceModel {
+        let mut raw = Vec::new();
+        let push_utf = |buf: &mut Vec<u8>, s: &str| {
+            buf.extend_from_slice(&(s.len() as u16).to_le_bytes());
+            buf.extend_from_slice(s.as_bytes());
+        };
+        push_utf(&mut raw, "TURBO-QN-1");
+        raw.extend_from_slice(&2i32.to_le_bytes());
+        push_utf(&mut raw, "s");
+        push_utf(&mut raw, "n");
+        raw.extend_from_slice(&1i32.to_le_bytes());
+        push_utf(&mut raw, "1 0");
+        raw.extend_from_slice(&1i32.to_le_bytes());
+        push_utf(&mut raw, "eos=.");
+        raw.extend_from_slice(&5.0f64.to_le_bytes());
+        let maxent = MaxentModel::from_trained_bytes(&raw).unwrap();
+        SentenceModel {
+            language: "en".into(),
+            use_token_end: true,
+            eos: EndOfSentence::default(),
+            maxent,
+            split: 0,
+            abbreviations: None,
+            index: None,
+            limits: Limits { feature: 16, abbreviation: 0 },
+            model_ref: ModelRef {
+                id: "opennlp:SentenceDetectorME:en".into(),
+                revision: "test".into(),
+                sha256: String::new(),
+            },
+        }
+    }
 }

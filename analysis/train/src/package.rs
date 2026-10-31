@@ -152,7 +152,7 @@ impl Manifest {
 
     /// The `manifest.properties` text: `Properties.store(out, "")` of the
     /// entries, which is `#`, then `#` and the date, then the entries
-    /// sorted by `String.compareTo` of their keys.
+    /// sorted by the code-point order of their keys.
     pub fn to_properties(&self) -> String {
         let mut entries: Vec<(&str, &str)> = vec![
             ("Manifest-Version", &self.manifest_version),
@@ -162,7 +162,7 @@ impl Manifest {
             ("Component-Name", &self.component_name),
         ];
         entries.extend(self.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())));
-        entries.sort_by(|a, b| turbo_jvm::chars::compare(a.0, b.0));
+        entries.sort_by(|a, b| a.0.cmp(b.0));
         let mut out = String::from("#\n#");
         out.push_str(&java_date_string_in(self.timestamp_ms, self.zone));
         out.push('\n');

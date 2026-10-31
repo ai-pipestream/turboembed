@@ -30,7 +30,7 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-analysis` | `analysis/core/` | `Document`, `View`, `ViewBuilder`, bidirectional UTF-8 `Alignment` tables, `Layer`, `Key`, `KeyId`, `Provenance`, `Annotator`, `Analyzer`, `Registry`, and binary `DocumentGraph` export/import |
 | `turbo-analysis-layers` | `analysis/layers/` | Shared columnar layers: `Structure`, `Sentences`, `Tokens`, `Words`, `Subwords`, `Boundaries`, `Chunks`, `PosTags`, `WordPosTags`, `MorphPosTags`, `Lemmas`, `WordLemmas`, `MorphFeatures`, `Stems`, `Terms`, `Entities`, `ChunkTags`, `PhraseChunks`, `Phrases`, `Dependencies`, `WordDependencies`, `Numbers`, `Money`, `Quantities`, `Temporals`, `DocumentDate`, `Regions`, `Containment`, `Times`, `Ordinals`, `Pii`, `Language`, `LanguageSpans`, `Categories`, `Calibrated`, `Opinions`, `Aspects`, `EmotionLayer`, `Incivility`, `Pragmatics`, `Modality`, `Edus`, `Discourse`, `ClaimLinks`, `Quotations`, `Events`, `DocumentEntities`, `EntitySalience`, `Tables`, `KeyValuePairs`, `ChunkTableHeaders`, `Abbreviations`, `Boilerplate`, `TextQuality`, `SpanQuality`, `WordNetSenses`, `LexicalExpansions`, `SparseTerms`, `Vectors<L>`, `VectorCodes<L>`, `TokenVectorWindows`, `Levels`, `Groups<L>`, `Edges<From, To>`, `Confidence<L>`, `Alternatives<L>`, `Utf16Spans<L>`, and `Matches` |
 | `turbo-chunker` | `analysis/chunker/` | Boundary-aware retrieval chunking (`Chunker`), hierarchical `Levels`, and per-chunk, per-section, and per-document term statistics and BM25 scoring ([chunker-text-signals.md](chunker-text-signals.md)) |
-| `turbo-group` | `analysis/group/` | MinHash/SimHash sketches, near-duplicate grouping, version links inside a document and across a batch, and structural boilerplate detection |
+| `turbo-group` | `analysis/group/` | MinHash/SimHash sketches of an item's words (`Sketcher<L>`) or of its delexicalized dependency treelets (`SyntaxSketcher<L, A>`), near-duplicate grouping, version links inside a document and across a batch, and structural boilerplate detection |
 | `turbo-vector-index` | `analysis/vector-index/` | Exact in-memory vector index over rows of one embedding space: top-$k$ by dot product or cosine, TurboQuant 2-to-4-bit quantized storage (feature `turboquant`), and MaxSim late interaction over token vectors ([turboquant.md](turboquant.md)) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Schwartz-Hearst abbreviation and acronym definition extraction (`turbo:abbreviations`), short-to-long-form edges, and Ab3P MED1250 evaluation |
@@ -142,10 +142,32 @@ for res in analyzer.run(&mut docs) {
 When `Analyzer::builder().build()` constructs a pipeline, it verifies that
 every required input key `(LayerName, instance_name)` is produced by an earlier
 step (or is the initial `ViewId::SOURCE`), rejecting missing dependencies with
-a typed error before any document is processed. Named layer and view instances
+a typed error before any document is processed. It also settles each step's
+effective `Locality` (see the incremental execution section), which
+`Analyzer::run_spliced` uses to reuse a step's outputs across an edit. Named layer and view instances
 (`Key::<Entities>::named("pii")`, `Key::<View>::named("normalized")`) allow
 multiple recognizers or views of the same Rust type to coexist in one
 `Document` without collision.
+
+### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)
+
+`Analyzer::analyze_incremental` and `Analyzer::run_incremental` execute a
+pipeline DAG incrementally using 256-bit SHA-256 digests (`turbo-sha256`):
+
+- **`ProvenanceDigest`**: chained 256-bit SHA-256 identity combining the step's
+  `Annotator::ID`, `VERSION`, `config_hash()`, `ModelRef`, memoized source and
+  read-view text digests (`ViewTextDigest`, `SourceBytesDigest`), and the
+  sorted `ProvenanceDigest` values of all upstream `reads`.
+- **`ContentDigest` and `InputSnapshotDigest`**: when a layer type opts into
+  `Layer::content_hash(&self) -> Option<u64>` (including `TagSet::content_hash()`
+  for tag-indexed layers and all payload columns), `Document::add` computes a
+  256-bit `ContentDigest` covering its spans, cross-layer index bounds, schema,
+  and payload hash, alongside an `InputSnapshotDigest` over its upstream inputs.
+- **Batch coalescing and wire persistence**: `Analyzer::run_incremental`
+  coalesces all uncached documents at each stage into a single batched
+  `Annotator::annotate_batch_placed` call, and `DocumentGraph` persists
+  `provenance_digest` and `input_snapshot` on `ProvenanceRecord` across binary
+  wire export and import.
 
 ## Binary wire export and import (`analysis/core/src/export/`)
 
@@ -229,6 +251,32 @@ Per item, `turbo-group`'s sketch layer holds:
 | `shape` | A 64-bit hash of the sequence with every number word replaced by one placeholder |
 | `simhash` | The 64-bit SimHash of the item's shingles, each occurrence counted |
 | `minhash` | 64 MinHash values of the item's set of shingles by one-permutation hashing with optimal densification |
+
+`SyntaxSketcher<L, A>` (`analysis/group/src/syntax.rs`) writes the same
+layer, by convention as the instance `syntax`, from the item's dependency
+treelets instead of its word n-grams, so clauses of one syntactic
+template sketch alike whatever names, amounts and dates they carry.
+`A` is `Tokens` or `Words`, as for the dependency parser. Every word is
+a node named by its kind alone: the words of an entity are one node
+named by the entity's kind (overlaps resolved longest first), a number
+is a number, a content word (verb, noun, proper noun, adjective) is its
+lemma and POS tag, and a function word is its POS tag. The shingles are
+the one-hop arcs (head, relation, dependent, direction), at depth 2 the
+two-hop chains, and the core-argument frame of every head with a core
+argument (`nsubj`, `obj`, `iobj`, `ccomp`, `xcomp`, `obl`); an arc that
+leaves the item keeps only the outside head's POS tag. Every hash is
+seeded with the POS, relation and entity tag sets, so sketches made
+under different schemas are in different hash namespaces and agree only
+by chance. An item with no treelet (one word, or no arc inside it) keeps
+its word count and has the empty MinHash signature (every lane
+`u32::MAX`, `hash::is_empty_signature`), which `NearDuplicates`,
+`cross_duplicates` and `hash::jaccard` treat as similar to nothing, an
+empty row of another item included; an index over the band keys must
+skip such rows the same way. `shingle` holds the treelet
+depth, `exact` hashes the lowercased forms with their tags, and `shape`
+the sequence of nodes. `NearDuplicates<L>` and `cross_duplicates` link
+the instance as they link word sketches, and the search engine indexes
+its band keys the same way (`analysis/group/tests/syntax.rs`).
 
 Multi-level retrieval (`analysis/eval/records/turbo-chunker-254-200-level-*`,
 `all-MiniLM-L6-v2`, `--max 254 --target 200`, plain structure) nDCG@10:
@@ -382,3 +430,24 @@ GutenQA (100 documents, 339,809 level units, 50 queries):
 | Contextual only | 0.6200 | 0.4374 | 339809 |
 | Cascade C=5 | 0.5800 | 0.4105 | 968 |
 | Cascade C=64 | 0.6000 | 0.4268 | 11651 |
+
+## Content-addressed incremental DAG execution
+
+`Analyzer` (`analysis/core/src/analyzer.rs`, `analysis/core/src/analyzer/incremental.rs`, `analysis/core/src/doc/digest.rs`) supports Bazel-like content-addressed incremental execution and provenance-skip caching across both in-memory `Document` instances and exported/imported `DocumentGraph` payloads:
+
+1. **Stage dependency declarations and DAG validation**:
+   - `Annotator::requires(&self) -> &[KeyId]` and `Annotator::produces(&self) -> &[KeyId]` declare each annotator's required upstream keys and produced output keys (`Key::id` is `const fn`).
+   - `Analyzer::validate_dag(&self)` (and `Builder::validate_dag(&self)`) verifies at build time that every layer name maps to one Rust type, no two stages produce the same `KeyId`, every required upstream key has a producer, every aligned output's anchor is valid, and no cycle exists.
+2. **Chained 256-bit SHA-256 provenance and content digests (`Document::provenance_digest`, `Document::content_digest`, `DocumentGraph::layer_provenance_digest`)**:
+   - Every layer added to `Document` computes a deterministic 256-bit SHA-256 (`[u8; 32]`) chained `ProvenanceDigest` over `(annotator_id, version, config_hash, model_ref, source_view_text_digest, sorted_view_read_digests, sorted_upstream_input_layer_digests)` alongside a deterministic structural 256-bit `ContentDigest` and `InputSnapshotDigest` (`upstream_content_hash`).
+   - Exporting a `Document` via `export(&doc, &codecs)` to binary `DocumentGraph` wire bytes (`to_bytes`) and importing it back (`DocumentGraph::from_bytes` + `import`) preserves identical chained provenance digests on every view and layer.
+3. **$O(1)$ incremental stage skipping and parallel branch execution (`Analyzer::analyze_incremental`)**:
+   - `Analyzer::analyze_incremental(&self, doc: &mut Document) -> Result<IncrementalReport, Error>` walks topological stage levels: if all `produces()` keys of a stage are present on `doc` with matching chained provenance digests and upstream content hashes, the stage is skipped in $O(1)$ (`StageCacheStatus::Skipped`).
+   - When an upstream stage's `config_hash`, `model`, or output changes, `analyze_incremental` invalidates and recomputes that stage and all transitive downstream dependents while leaving unaffected upstream stages and sibling branches untouched.
+   - Independent stages at the same topological level execute concurrently on `std::thread::scope` and merge into canonical stage order, producing byte-identical `DocumentGraph` wire payloads to `Analyzer::run_sequential`.
+   - `analysis/core/tests/incremental_dag.rs` verifies $O(1)$ skipping across `DocumentGraph` wire round-trips, selective downstream invalidation on mid-pipeline `config_hash` / `model` / content mutations, and bit-identical wire output between parallel and sequential DAG execution.
+4. **Locality and edit splicing (`Analyzer::run_spliced`, `analysis/core/src/analyzer/splice.rs`, `analysis/core/src/splice.rs`)**:
+   - `Annotator::locality(&self) -> Locality` declares what a step's outputs depend on: `Locality::Document` (the default) or `Locality::Partition(key)`, a promise that the output for each item of the partition layer (`Sentences`, `Structure`) is a pure function of the inputs inside that item. The tokenizers, `PosTagger`, `DictionaryLemmatizer`, `DependencyAnnotator` and `CrfNameAnnotator` declare `Partition(Sentences)`. The analyzer computes each step's effective locality at build time from the pipeline: `Partition(P)` only when every layer the step reads is the source text, `P` itself, or the output of another step whose effective locality is `Partition(P)`; a step that writes a view, reads a document-wide layer (`Chunker` reads the document-wide `Boundaries`, so it stays `Document` and runs whole), or reads another output of `P`'s producer, is `Document` whatever it declares. `Analyzer::localities` lists the declared and effective pair per step.
+   - `Analyzer::run_spliced(&self, base: &Document, new_text, alignment: &Alignment) -> Result<(Document, SpliceReport), Error>` runs the pipeline over an edited text. The alignment maps the base source text to the new text (edits made one after another compose with `Alignment::compose`) and is checked against both texts byte for byte (`Error::Source` on a mismatch). Document-wide steps run as in `run`. A partition-local step is spliced only when it is cacheable, every output it writes is complete on the base with a provenance that matches the step as it is now (annotator, version, configuration hash, model, inputs), every layer it reads other than the partition layer and the source text was itself spliced in this run, and the partition layer's producer on the base has the provenance the current pipeline gives it; otherwise it runs whole, and the steps that read its outputs run whole after it. A spliced step has its outputs copied from the base on every partition no edit touched (an insertion at an offset from a partition's start to its end touches it, and a touched partition dirties its neighbours) whose span maps to exactly one new partition and whose partition item, moved to the new text, has the new item's fingerprint (spans, nested items and payload, through `Layer::content_sha256`; a document-wide producer may change an untouched partition's payload because of an edit elsewhere, and such a partition is dirty), with spans moved by the partition's offset and indexes by the layers they point into, and computed again only on windows of the dirty partitions, each a document of the window's text seeded with the slices of the partition layer and of its producer's other outputs as computed on the new text, so a window never reads a base layer or re-runs the partition layer's producer. Every spliced layer goes through the checked `Document::add` with the step's provenance, so the result is what `run` makes on the new text, provenance digests included, and a following `analyze_incremental` skips every stage. The `SpliceReport` lists the windows per partition layer and, per step, whether it ran whole, was spliced, or had to run whole and why (a stale or absent base output, a step that is not cacheable, an input that was not spliced, no splicer for an output, an item or index that left its partition, a failed window).
+   - A layer is spliceable when it implements `Splice` (`empty_like`, `append` through a `SpliceCx` that maps spans and indexes) and returns `Splicer::<Self>::boxed()` from `Layer::splicer`; `Sentences`, `Structure`, `Tokens`, `PosTags`, `Lemmas`, `Dependencies` and `Entities` do. A step whose output has no splicer is re-run whole and the report says so.
+   - `analysis/core/tests/splice.rs` checks, through the `DocumentGraph` export, that the spliced document is identical to a from-scratch run for a replacement inside a sentence, an insertion at a sentence boundary, a deletion across one, a merge, a split, several edits at once and composed edits, that only the dirty windows ran, that a base made by another configuration of a step, or by a step that is not cacheable, is computed again (with an edit and with the unchanged text aligned to itself) along with everything that reads it, that a partition layer from another configuration of its producer is not trusted and a partition whose payload changed with an edit elsewhere is dirty (with a stable control), and that a declaration the pipeline cannot bear is downgraded at build time.

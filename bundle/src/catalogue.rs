@@ -44,6 +44,14 @@ pub const BY_PATH: &[(&str, &str)] = &[
         "opensearch-neural-sparse-encoding-v1.json",
         "trained on MS MARCO (non-commercial research terms); local-only in the zoo",
     ),
+    (
+        "modernbert-base.json",
+        "a rotary masked-LM encoder (#1461): a base for heads and a conformance target, not an embedding model",
+    ),
+    (
+        "nomic-embed-text-v1.5.json",
+        "fine-tuned on MS MARCO (non-commercial research terms) and Reddit pairs of unconfirmed terms; fetched after acceptance",
+    ),
     ("colbertv2.json", "trained on MS MARCO (non-commercial research terms); local-only in the zoo"),
     (
         "gliner-small-v2.1-encoder.json",

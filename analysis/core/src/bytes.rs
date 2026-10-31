@@ -23,8 +23,9 @@
 //! are the decoder's to vouch for.
 
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
+use crate::doc::SourceBytesDigest;
 use crate::span::Span;
 use crate::text::{Alignment, Edit};
 
@@ -63,6 +64,7 @@ impl std::error::Error for SourceError {}
 pub struct SourceBytes {
     bytes: Arc<[u8]>,
     alignment: Alignment,
+    digest: OnceLock<SourceBytesDigest>,
 }
 
 impl SourceBytes {
@@ -72,7 +74,12 @@ impl SourceBytes {
     /// both sides.
     pub fn new(bytes: Arc<[u8]>, text: &str, alignment: Alignment) -> Result<SourceBytes, SourceError> {
         Self::validate(&bytes, text, &alignment)?;
-        Ok(SourceBytes { bytes, alignment })
+        Ok(SourceBytes { bytes, alignment, digest: OnceLock::new() })
+    }
+
+    /// Returns the memoized SHA-256 digest of the raw source bytes.
+    pub fn digest(&self) -> SourceBytesDigest {
+        *self.digest.get_or_init(|| SourceBytesDigest(turbo_sha256::sha256(&self.bytes)))
     }
 
     /// The constructor's checks without copying or retaining the source.

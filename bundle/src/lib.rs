@@ -8,6 +8,7 @@
 //! and each `produced_by` from what actually ran, writes the manifest, and
 //! loads the result through the core. Nothing it writes is typed by hand.
 
+pub mod added_tokens;
 pub mod api;
 pub mod bpe_files;
 pub mod catalogue;
@@ -23,6 +24,7 @@ pub mod postag;
 pub mod qa;
 pub mod recipe;
 pub mod reference;
+pub mod rotary;
 pub mod seal;
 pub mod sparse;
 pub mod static_reference;

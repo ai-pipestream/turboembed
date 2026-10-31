@@ -9316,17 +9316,36 @@ function refs(c, name) {
     return { value: parts.map((p) => p.value).join(", ") || "none", parts };
   });
 }
+function digest(c, name) {
+  return option(c, name, "a digest", (c2) => {
+    const b = c2.take(32);
+    let s = "";
+    for (const x of b) s += x.toString(16).padStart(2, "0");
+    return { value: s };
+  });
+}
 function provenance(c) {
   return part(c, "provenance", (c2) => {
+    let hasDigests = false;
     const parts = [
       str(c2, "annotator"),
       str(c2, "version"),
       part(c2, "config", (c3) => ({ value: c3.u64().toString(16).padStart(16, "0") })),
       option(c2, "model", "a model", (c3) => ({ parts: [str(c3, "id"), str(c3, "revision"), str(c3, "sha256")] })),
-      option(c2, "execution", "an execution", (c3) => ({ parts: [str(c3, "backend"), str(c3, "device"), str(c3, "precision")] })),
+      part(c2, "execution", (c3) => {
+        const raw = c3.u8();
+        hasDigests = (raw & 128) !== 0;
+        const tag = raw & 127;
+        if (tag === 0) return { value: "none" };
+        if (tag === 1) return { parts: [str(c3, "backend"), str(c3, "device"), str(c3, "precision")] };
+        throw tagError(c3, "an execution", raw);
+      }),
       refs(c2, "reads"),
       refs(c2, "on")
     ];
+    if (hasDigests) {
+      parts.push(digest(c2, "provenance digest"), digest(c2, "input snapshot"));
+    }
     return { value: `${parts[0].value} ${parts[1].value}`, parts };
   });
 }

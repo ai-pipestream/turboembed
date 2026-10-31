@@ -1,19 +1,50 @@
-use super::{Word, WordPosTags, Words};
-use crate::{PosTags, Tokens};
-use turbo_analysis::{Ix, IxRange, Layer, LayerName, View};
+use super::{Word, WordLemmas, WordPosTags, Words};
+use crate::{Lemmas, PosTags, Tokens};
+use turbo_analysis::{Ix, IxRange, Layer, LayerName, Tag, TagSet, View};
 
 /// Typed POS access shared by token and word layers.
 pub trait MorphPosTags: Layer {
     fn label(&self, index: usize) -> Option<&str>;
+    /// The tag of item `index`, when it is inside the tag set.
+    fn tag(&self, index: usize) -> Option<Tag>;
+    /// The tag set the tags index.
+    fn tagset(&self) -> &TagSet;
 }
 impl MorphPosTags for PosTags {
     fn label(&self, index: usize) -> Option<&str> {
-        self.tags.get(index).filter(|t| (t.0 as usize) < self.tagset.len()).map(|&t| self.tagset.label(t))
+        self.tag(index).map(|t| self.tagset.label(t))
+    }
+    fn tag(&self, index: usize) -> Option<Tag> {
+        self.tags.get(index).copied().filter(|t| (t.0 as usize) < self.tagset.len())
+    }
+    fn tagset(&self) -> &TagSet {
+        &self.tagset
     }
 }
 impl MorphPosTags for WordPosTags {
     fn label(&self, index: usize) -> Option<&str> {
-        self.tags.get(index).filter(|t| (t.0 as usize) < self.tagset.len()).map(|&t| self.tagset.label(t))
+        self.tag(index).map(|t| self.tagset.label(t))
+    }
+    fn tag(&self, index: usize) -> Option<Tag> {
+        self.tags.get(index).copied().filter(|t| (t.0 as usize) < self.tagset.len())
+    }
+    fn tagset(&self) -> &TagSet {
+        &self.tagset
+    }
+}
+/// Typed lemma access shared by token and word layers.
+pub trait MorphLemmas: Layer {
+    /// The lemma of item `index`.
+    fn lemma(&self, index: usize) -> Option<&str>;
+}
+impl MorphLemmas for Lemmas {
+    fn lemma(&self, index: usize) -> Option<&str> {
+        (index < self.lemma.len()).then(|| self.lemma.get(index))
+    }
+}
+impl MorphLemmas for WordLemmas {
+    fn lemma(&self, index: usize) -> Option<&str> {
+        (index < self.lemma.len()).then(|| self.lemma.get(index))
     }
 }
 /// The two granularities of morphosyntactic layers. Their POS types differ at
@@ -23,6 +54,9 @@ impl MorphPosTags for WordPosTags {
 pub trait WordOrTokenAnchor: Layer {
     const TARGET_OF: Option<&'static LayerName>;
     type Pos: MorphPosTags;
+    /// The lemma layer aligned to this anchor (`Lemmas` for tokens,
+    /// `WordLemmas` for words).
+    type Lemmas: MorphLemmas;
     /// Resolves forms and their surface ranges, checking UTF-8 and alignment.
     fn resolved<'a>(&'a self, view: &'a View, tokens: &'a Tokens) -> Result<Vec<Word<'a>>, String>;
 }
@@ -48,6 +82,7 @@ fn check_tokens(view: &View, tokens: &Tokens) -> Result<(), String> {
 impl WordOrTokenAnchor for Tokens {
     const TARGET_OF: Option<&'static LayerName> = None;
     type Pos = PosTags;
+    type Lemmas = Lemmas;
     fn resolved<'a>(&'a self, view: &'a View, tokens: &'a Tokens) -> Result<Vec<Word<'a>>, String> {
         check_tokens(view, self)?;
         check_tokens(view, tokens)?;
@@ -69,6 +104,7 @@ impl WordOrTokenAnchor for Tokens {
 impl WordOrTokenAnchor for Words {
     const TARGET_OF: Option<&'static LayerName> = Some(Words::NAME);
     type Pos = WordPosTags;
+    type Lemmas = WordLemmas;
     fn resolved<'a>(&'a self, view: &'a View, tokens: &'a Tokens) -> Result<Vec<Word<'a>>, String> {
         check_tokens(view, tokens)?;
         if self.len() >= u32::MAX as usize {

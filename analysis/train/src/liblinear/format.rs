@@ -7,15 +7,13 @@
 
 use std::fmt::Write as _;
 
-use turbo_jvm::hash_map::{Utf16String, put_order};
-use turbo_jvm::text::{parse_double, parse_int};
-
 use super::SolverType;
 use super::error::ModelError;
 use super::linear::LinearModel;
 use super::model::LiblinearModel;
 use crate::error::{Error, Result};
 use crate::java_string::JavaString;
+use crate::text::{parse_double, parse_int};
 
 /// The most bytes `DataOutputStream.writeUTF` writes.
 const MAX_UTF_BYTES: usize = 65535;
@@ -33,12 +31,7 @@ pub fn write(model: &LiblinearModel) -> Result<Vec<u8>> {
         write_utf(&mut out, o, "outcome label")?;
     }
     write_int(&mut out, model.predicates.len());
-    let keys = model.predicates.iter().map(|(p, _)| Utf16String(p.utf16_units().collect()));
-    // String keys are ordered by compareTo in a tree bin, so the order is
-    // the JVM's whatever the hashes.
-    let (order, _) = put_order(keys);
-    for i in order {
-        let (p, id) = &model.predicates[i];
+    for (p, id) in &model.predicates {
         write_utf(&mut out, p, "predicate")?;
         out.extend_from_slice(&id.to_be_bytes());
     }

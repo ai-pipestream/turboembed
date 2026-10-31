@@ -158,6 +158,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<VectorCodes<Levels>>()
         .register::<Confidence<Tokens>>()
         .register::<Confidence<Sentences>>()
+        .register::<Confidence<Lemmas>>()
         .register::<Confidence<Entities>>()
         .register::<Utf16Spans<Tokens>>()
         .register::<Utf16Spans<Sentences>>()
