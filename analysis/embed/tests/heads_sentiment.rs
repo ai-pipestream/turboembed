@@ -177,8 +177,8 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     // `data` directory and TURBO_MODERNBERT_BUNDLE / TURBO_MINILM_BUNDLE name
     // the default-tier ModernBERT-base bundle and/or legacy all-MiniLM-L6-v2 bundle.
     let masc_root = std::env::var_os("TURBO_MASC_ROOT").map(PathBuf::from);
-    let minilm_path = std::env::var_os("TURBO_MINILM_BUNDLE").map(PathBuf::from);
-    let modernbert_path = std::env::var_os("TURBO_MODERNBERT_BUNDLE").map(PathBuf::from);
+    let minilm_path = std::env::var_os("TURBO_MINILM_BUNDLE").map(turbo_pins::require);
+    let modernbert_path = std::env::var_os("TURBO_MODERNBERT_BUNDLE").map(turbo_pins::require);
     if let Some(masc_root) = masc_root
         && masc_root.is_dir()
         && (minilm_path.is_some() || modernbert_path.is_some())
