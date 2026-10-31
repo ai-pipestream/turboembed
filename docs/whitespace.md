@@ -15,10 +15,9 @@ lead-byte shortcut is tested against every non-ASCII member of the shared
 list, so a future table addition cannot silently disappear.
 
 `turbo_unicode::java::is_whitespace(char)` delegates to
-`java::code_point::is_whitespace(u32)`. The unused duplicate
-`turbo_jvm::chars::is_java_whitespace` was removed. Both Unicode entry points
-are exhaustively checked against the original JDK 21 whitespace vectors;
-`turbo-jvm` remains dependency-free. Unicode whitespace includes U+0085 and
+`java::code_point::is_whitespace(u32)`. Both Unicode entry points
+are exhaustively checked against the original JDK 21 whitespace vectors.
+Unicode whitespace includes U+0085 and
 no-break spaces. Java whitespace excludes them but includes U+001C..U+001F.
 The Java definition is kept only for the readers that port a Java method
 which tests it; nothing chooses between the two.

@@ -1,6 +1,5 @@
 //! The seeded 48-bit linear congruential generator the significance
-//! tests have always drawn from, reproduced here so `turbo-eval` does
-//! not depend on `turbo-jvm` for three methods.
+//! tests have always drawn from.
 //!
 //! This is the `java.util.Random` algorithm (multiplier `0x5DEECE66D`,
 //! addend 11, 48-bit state) for the bounded-integer and boolean draws
