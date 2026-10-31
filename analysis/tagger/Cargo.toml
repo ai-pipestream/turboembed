@@ -12,6 +12,8 @@ name = "turbo_tagger"
 turbo = { path = "../../core" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+# The relation layer the relation classifier head writes (relation.rs).
+turbo-relation = { path = "../relation" }
 # The bundle encoder and its range write.
 turbo-analysis-embed = { path = "../embed" }
 # The lexicons that stand over the lemmatizer head (dictionaries.rs).

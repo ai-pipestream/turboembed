@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::helpers::{fits, positive, required};
-use super::{Format, LicenseClass, Manifest};
+use super::{Format, LicenseClass, Manifest, RelationShape};
 use crate::status::{Result, invalid};
 
 /// The most heads one bundle carries.
@@ -66,6 +66,10 @@ pub struct HeadSpec {
     /// absent for every other kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<SpanShape>,
+    /// The mention views and types a HEAD_RELATION_CLASSIFIER reads;
+    /// absent for every other kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation: Option<RelationShape>,
     /// The class of the strictest licence among the corpora the head was
     /// trained on (docs/zoo.md); the bundle's tier counts it
     /// ([`Manifest::license_tier`]).
@@ -111,6 +115,10 @@ pub enum HeadKind {
     /// names under SCHEME_TAGS.
     #[serde(rename = "HEAD_OPEN_SPAN")]
     OpenSpan,
+    /// The relations of every ordered pair of the entities given with a
+    /// sequence, from their pooled mentions and types (head/relation.rs).
+    #[serde(rename = "HEAD_RELATION_CLASSIFIER")]
+    RelationClassifier,
 }
 
 impl HeadKind {
@@ -234,6 +242,10 @@ pub enum Decode {
     /// the highest score; a span classifier's decode.
     #[serde(rename = "DECODE_SPANS_FLAT")]
     SpansFlat,
+    /// Every label of an ordered pair of entities that scores above
+    /// `none`, the pair's threshold; a relation classifier's decode.
+    #[serde(rename = "DECODE_RELATIONS")]
+    Relations,
 }
 
 /// A label read under a scheme: outside any span, or a part of a span of

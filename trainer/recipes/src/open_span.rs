@@ -68,6 +68,7 @@ pub fn spec(
         pos_input: None,
         hash_embed: None,
         span: Some(SpanShape { max_words, width_dim }),
+        relation: None,
         license_class: Some(record.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.open_ner".into(),

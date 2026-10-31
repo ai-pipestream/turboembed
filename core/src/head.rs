@@ -20,6 +20,7 @@ pub mod hash_embed;
 pub mod lemmatizer;
 pub mod open_span;
 pub mod parser;
+pub mod relation;
 pub mod span;
 pub mod split;
 pub mod tagger;
@@ -28,6 +29,7 @@ pub use boundary::SentenceBoundary;
 pub use lemmatizer::EditTreeLemmatizer;
 pub use open_span::OpenSpanMatcher;
 pub use parser::BiaffineParser;
+pub use relation::RelationClassifier;
 pub use span::SpanClassifier;
 pub use split::TokenSplitter;
 pub use tagger::TokenTagger;
@@ -43,6 +45,8 @@ mod lemmatizer_tests;
 mod open_span_tests;
 #[cfg(test)]
 mod parser_tests;
+#[cfg(test)]
+mod relation_tests;
 #[cfg(test)]
 mod span_tests;
 #[cfg(test)]

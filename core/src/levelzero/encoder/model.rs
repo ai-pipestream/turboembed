@@ -56,9 +56,12 @@ pub(super) struct Transposed {
 #[derive(Clone)]
 pub(super) struct Weights {
     pub(super) tensors: Vec<u64>,
+    /// Each layer's (weight, bias) in `fused`; empty for a rotary model.
     pub(super) qkv: Vec<(u64, u64)>,
     /// The widened copy; null for an F32 model.
     pub(super) widened: *mut c_void,
+    /// BERT's fused Q, K and V, or a nomic-bert's feed-forward gate and
+    /// up (rotary.rs); null for ModernBERT.
     pub(super) fused: *mut c_void,
     /// A DeBERTa-v2 model's relative rows through each layer's fused
     /// projection (deberta.rs), and their allocation; empty and null for
@@ -92,7 +95,8 @@ impl Model {
             self.widen()?
         };
         // A rotary model's projections are fused as stored (rotary.rs).
-        let fused = if super::rotary::is(self.desc.family) { Ok(std::ptr::null_mut()) } else { self.fuse(&tensors) };
+        let fused =
+            if super::rotary::is(self.desc.family) { super::rotary::fuse(self, &tensors) } else { self.fuse(&tensors) };
         let fused = match fused {
             Ok(p) => p,
             Err(e) => {
@@ -102,13 +106,7 @@ impl Model {
                 return Err(e);
             }
         };
-        let (h, layers) = (self.desc.hidden as u64, self.desc.layers as u64);
-        let per_layer = 3 * h * h * 4 + 3 * h * 4;
-        let qkv: Vec<_> = if fused.is_null() {
-            Vec::new()
-        } else {
-            (0..layers).map(|l| (fused as u64 + l * per_layer, fused as u64 + l * per_layer + 3 * h * h * 4)).collect()
-        };
+        let qkv = super::qkv_spans(&self.desc, fused as u64);
         let (relative, relative_alloc) = if self.desc.family == TURBO_FAMILY_DEBERTA_V2 {
             match self.relative(&tensors, &qkv) {
                 Ok(r) => r,
@@ -135,7 +133,7 @@ impl Model {
         let mut slot = self.f16.lock().unwrap_or_else(|p| p.into_inner());
         let t = self.transposed(w, &mut slot, "narrow_f16_transposed", 2, "the F16 weights")?;
         #[cfg(feature = "levelzero-onednn")]
-        if t.packed.is_empty() {
+        if t.packed.is_empty() && !super::rotary::is(self.desc.family) {
             return self.packed_for_onednn(t, &mut slot);
         }
         Ok(t)
@@ -207,14 +205,18 @@ impl Model {
         let base = deberta::layer_base(d);
         let t = |l: u32, r: u32| w.tensors[(base + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
         // Each layer's four weights: where they are in F32, and their
-        // outputs and inputs.
-        let mut parts = Vec::with_capacity(4 * d.layers as usize);
-        for l in 0..d.layers {
-            parts.push((w.qkv[l as usize].0, 3 * h, h));
-            parts.push((t(l, ATTN_OUT_WEIGHT), h, h));
-            parts.push((t(l, FFN_IN_WEIGHT), i, h));
-            parts.push((t(l, FFN_OUT_WEIGHT), h, i));
-        }
+        // outputs and inputs; a rotary model's are its own (rotary.rs).
+        let parts: Vec<_> = if super::rotary::is(d.family) {
+            super::rotary::parts(d, w)
+        } else {
+            (0..d.layers)
+                .flat_map(|l| {
+                    [(w.qkv[l as usize].0, 3 * h, h), (t(l, ATTN_OUT_WEIGHT), h, h)]
+                        .into_iter()
+                        .chain([(t(l, FFN_IN_WEIGHT), i, h), (t(l, FFN_OUT_WEIGHT), h, i)])
+                })
+                .collect()
+        };
         let mut at = Vec::with_capacity(parts.len());
         let mut total = 0usize;
         for &(_, n_out, n_in) in &parts {
@@ -464,12 +466,7 @@ pub(crate) unsafe extern "C" fn model_load(
                 &format!(
                     "levelzero device {}: a {} of {} layers, {total} bytes of {} weights",
                     c.ordinal,
-                    match d.family {
-                        TURBO_FAMILY_DEBERTA_V2 => "DeBERTa-v2",
-                        crate::backend::TURBO_FAMILY_MODERNBERT => "ModernBERT",
-                        crate::backend::TURBO_FAMILY_NOMIC_BERT => "nomic-bert",
-                        _ => "BERT",
-                    },
+                    super::rotary::family_name(d.family),
                     d.layers,
                     dtype_name(d.dtype)
                 ),
