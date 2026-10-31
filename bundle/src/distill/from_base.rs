@@ -104,6 +104,7 @@ pub fn recipe(base: &Path, o: &Options, work: &Path) -> Result<Recipe> {
     Ok(Recipe {
         manifest,
         notice: None,
+        notice_terms: None,
         upstream: Vec::new(),
         local,
         bpe_tokenizer: None,
