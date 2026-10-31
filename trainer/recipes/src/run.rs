@@ -72,6 +72,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         biaffine: None,
         pos_input: None,
         hash_embed: o.hash,
+        layer_mix: None,
         span: None,
         relation: None,
         license_class: Some(corpus.record.class()?),

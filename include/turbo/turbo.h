@@ -557,6 +557,13 @@ typedef struct turbo_embed_options {
                                write call only. NULL with INT8, a value that is not
                                finite, a minimum over its maximum, or ranges given with
                                another quantization is TURBO_E_INVALID_ARGUMENT */
+    /* A struct_size of 40 ends here; the fields below are then 0. */
+    uint32_t layers;        /* 9: on range writes (turbo_embed_write_ranges), 0 or 1 for
+                               the final layer alone, or K to pool each range from each of
+                               the encoder's last K layers in one pass ([K, count, dim],
+                               see turbo_embed_write_layer_ranges); refused above 1 on row
+                               writes */
+    uint32_t reserved;      /* must be 0 */
 } turbo_embed_options;
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
@@ -664,18 +671,19 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
                                  const turbo_embed_options *opts, turbo_error *err);
 
 /* turbo_embed_write_ranges, each range pooled from each of the encoder's
- * last `layers` layers in one pass: the run's rows are [layers, count,
+ * last `layers` layers in one pass (equivalent to turbo_embed_write_ranges
+ * with opts->layers = layers): the run's rows are [layers, count,
  * dim], block k from layer L - layers + k + 1 of the model's L, so the
  * last block is what turbo_embed_write_ranges writes, bit for bit. A
  * ModernBERT's final_norm is applied to every layer read, as to the
  * last, so each block is on the scale of the final states. layers of 1
  * is turbo_embed_write_ranges; 0 or over the model's layers is
  * TURBO_E_INVALID_ARGUMENT; above 1 on a backend or model that does not
- * read the earlier layers (the cpu backend's BERT, RoBERTa, ModernBERT
- * and nomic-bert encoders do), or on a model whose device applies a span
- * head, is TURBO_E_UNSUPPORTED_OPTION. count times layers over the
- * session's max_ranges is TURBO_E_CAPACITY. Everything else is as for
- * turbo_embed_write_ranges, each row cut and normalized as there. */
+ * read the earlier layers (the cpu backend's BERT, RoBERTa, ModernBERT,
+ * nomic-bert and DeBERTa-v2 encoders do), or on a model whose device
+ * applies a span head, is TURBO_E_UNSUPPORTED_OPTION. count times layers
+ * over the session's max_ranges is TURBO_E_CAPACITY. Everything else is as
+ * for turbo_embed_write_ranges, each row cut and normalized as there. */
 int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
                                        const turbo_token_range *ranges, uint32_t count,
                                        uint32_t layers, const turbo_embed_options *opts,
