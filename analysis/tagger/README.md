@@ -52,8 +52,9 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   entities another annotator wrote. An entity is a mention when its first
   and last tokens are in one sequence and, for a head with
   `relation.entity_labels`, its kind is one of them by name; each kept
-  pair covers both entities' spans, and its score is its label's
-  probability among the pair's scores.
+  pair covers both entities' spans. A pair may hold several relations,
+  each label that scores above `none`; each one's score is the logistic
+  of its margin over `none`.
 - `multi`: `MultiTask<W>` writes several of those layers from one
   encoder pass (#1517). `W` is a tuple of the layers to write, such as
   `(PosTags, Entities, Dependencies<Tokens>, Lemmas)`, each from the head

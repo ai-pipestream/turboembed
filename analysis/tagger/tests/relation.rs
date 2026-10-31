@@ -65,9 +65,10 @@ fn the_relation_tagger_writes_the_heads_relations_between_entities() {
     let f = features(&dir, &words);
     let ids: Vec<u32> = (0..words.len() as u32).collect();
     let mentions: Vec<Mention> =
-        FOUND[..4].iter().map(|&(a, b, k)| Mention { first: a, last: b - 1, entity: u32::from(k) }).collect();
+        (0..).zip(&FOUND[..4]).map(|(i, &(a, b, _))| Mention { first: a, last: b - 1, entity: i }).collect();
+    let types: Vec<u32> = FOUND[..4].iter().map(|f| u32::from(f.2)).collect();
     let (mut scores, mut kept, mut w) = (Vec::new(), Vec::new(), RelationWork::default());
-    tagger.head().scores(&f, &ids, &mentions, &mut scores, &mut w).unwrap();
+    tagger.head().scores(&f, &ids, &mentions, &types, &mut scores, &mut w).unwrap();
     tagger.head().decode(&scores, mentions.len(), &mut kept).unwrap();
     assert!(!kept.is_empty(), "the seeded head keeps some relation");
     let want: Vec<(usize, usize, u16)> =
@@ -79,7 +80,7 @@ fn the_relation_tagger_writes_the_heads_relations_between_entities() {
         let (a, b) = (ents.spans.get(layer.subject[i]), ents.spans.get(layer.object[i]));
         assert_eq!((s.start, s.end), (a.start.min(b.start), a.end.max(b.end)));
     }
-    assert!(layer.score.iter().all(|p| *p > 0.0 && *p <= 1.0));
+    assert!(layer.score.iter().all(|p| *p > 0.5 && *p <= 1.0), "a kept label beats none");
     assert_eq!(edges.len(), layer.len());
     let (again, _) = tagger.annotate((view, &toks, &ents, None, None)).unwrap();
     assert_eq!((again.subject, again.object, again.score), (layer.subject, layer.object, layer.score));
@@ -111,9 +112,9 @@ fn an_entity_across_two_sentences_is_no_mention() {
     let words: Vec<&str> = TEXT.split(' ').skip(6).collect();
     let f = features(&dir, &words);
     let ids: Vec<u32> = (0..words.len() as u32).collect();
-    let mentions = [Mention { first: 7, last: 8, entity: 0 }, Mention { first: 4, last: 4, entity: 0 }];
+    let mentions = [Mention { first: 7, last: 8, entity: 0 }, Mention { first: 4, last: 4, entity: 1 }];
     let (mut scores, mut kept, mut w) = (Vec::new(), Vec::new(), RelationWork::default());
-    tagger.head().scores(&f, &ids, &mentions, &mut scores, &mut w).unwrap();
+    tagger.head().scores(&f, &ids, &mentions, &[0, 0], &mut scores, &mut w).unwrap();
     tagger.head().decode(&scores, 2, &mut kept).unwrap();
     let entity = [3usize, 4];
     let want: Vec<(usize, usize)> = kept.iter().map(|r| (entity[r.head as usize], entity[r.tail as usize])).collect();

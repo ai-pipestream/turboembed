@@ -14,11 +14,13 @@ use crate::relation::{GoldRelation, Relations, Work};
 use crate::rng::Rng;
 
 /// One training sequence: per-word features [words, hidden], its
-/// mentions, and its gold relations between them, none labelled `none`.
+/// entities' mentions and types, and its gold relations between the
+/// entities, none labelled `none`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelationExample {
     pub features: Vec<f32>,
     pub mentions: Vec<Mention>,
+    pub types: Vec<u32>,
     pub relations: Vec<GoldRelation>,
 }
 
@@ -40,7 +42,7 @@ impl Counts {
 
 /// Each label's counts of `head` on `examples`, by label index (`none`'s
 /// all zero): a relation counts when its mentions, direction and label
-/// are a gold relation's.
+/// are a gold relation's (a pair may hold several).
 pub fn relation_counts(head: &RelationClassifier, examples: &[RelationExample]) -> Result<Vec<Counts>> {
     let hidden = head.hidden();
     let mut counts = vec![Counts::default(); head.labels().len()];
@@ -50,8 +52,8 @@ pub fn relation_counts(head: &RelationClassifier, examples: &[RelationExample]) 
             return Err(invalid(format!("trainer: example {i} is not rows of {hidden} features")));
         }
         let words: Vec<u32> = (0..(e.features.len() / hidden) as u32).collect();
-        head.scores(&e.features, &words, &e.mentions, &mut scores, &mut w)?;
-        head.decode(&scores, e.mentions.len(), &mut kept)?;
+        head.scores(&e.features, &words, &e.mentions, &e.types, &mut scores, &mut w)?;
+        head.decode(&scores, e.types.len(), &mut kept)?;
         for r in &kept {
             let c = &mut counts[r.label as usize];
             c.found += 1;
@@ -94,7 +96,7 @@ impl Model for Relations<f32> {
         Relations::decays(self)
     }
     fn loss(&self, e: &RelationExample, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
-        Relations::loss(self, &e.features, &e.mentions, &e.relations, grads, w)
+        Relations::loss(self, &e.features, &e.mentions, &e.types, &e.relations, grads, w)
     }
     fn score(&self, dev: &[RelationExample]) -> Result<f64> {
         relation_f1(&self.to_core()?, dev)
@@ -113,13 +115,13 @@ pub fn fit_relations(
     check_config(c, train_set.len())?;
     let mut rng = Rng::new(c.seed);
     let model = Relations::<f32>::new(spec, hidden, &mut rng)?;
-    // Each example's mentions and relations are checked by the loss
+    // Each example's entities and relations are checked by the loss
     // before any gradient moves; check dev's the same way now, so a bad
     // dev set fails first.
     let mut w = Work::default();
     let mut grads = model.zero_grads();
     for e in dev {
-        model.loss(&e.features, &e.mentions, &e.relations, &mut grads, &mut w)?;
+        model.loss(&e.features, &e.mentions, &e.types, &e.relations, &mut grads, &mut w)?;
     }
     train(model, &mut rng, train_set, dev, c, &mut |_, _, _| Ok(()))
 }

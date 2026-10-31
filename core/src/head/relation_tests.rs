@@ -1,5 +1,5 @@
-//! The relation classifier against a plain f64 reference of its mention
-//! views and biaffine, its decode, and its spec rules.
+//! The relation classifier against a plain f64 reference of its pooled
+//! entity views and biaffine, its threshold decode, and its spec rules.
 
 use super::boundary_tests::spec;
 use super::relation::{Mention, Relation, RelationClassifier, RelationWork, tensors};
@@ -45,7 +45,7 @@ fn mlp(w: &[f32], b: &[f32], x: &[f64]) -> Vec<f64> {
 }
 
 #[test]
-fn every_pair_s_scores_match_the_biaffine_over_mention_views() {
+fn every_pair_s_scores_match_the_biaffine_over_pooled_entity_views() {
     let hidden = 3;
     let s = rel_spec(&["PER", "ORG", "LOC"], 2);
     let mut rng = Rng(0x7e1a);
@@ -54,31 +54,44 @@ fn every_pair_s_scores_match_the_biaffine_over_mention_views() {
     // [CLS], four words of 1, 2, 1 and 1 rows, [SEP]; first pooling.
     let words = [NO_WORD, 0, 1, 1, 2, 3, NO_WORD];
     let states: Vec<f32> = (0..words.len() * hidden).map(|_| rng.next()).collect();
+    // Entity 0 has two mentions (words 0..=1 and word 3), entity 1 one
+    // (word 2) and entity 2 one (words 1..=3); their types are given apart.
     let mentions = [
         Mention { first: 0, last: 1, entity: 0 },
         Mention { first: 2, last: 2, entity: 1 },
-        Mention { first: 3, last: 3, entity: 2 },
+        Mention { first: 3, last: 3, entity: 0 },
+        Mention { first: 1, last: 3, entity: 2 },
     ];
+    let types = [0, 1, 2];
     let (mut scores, mut work) = (Vec::new(), RelationWork::default());
-    assert_eq!(h.scores(&states, &words, &mentions, &mut scores, &mut work).unwrap(), 4);
+    assert_eq!(h.scores(&states, &words, &mentions, &types, &mut scores, &mut work).unwrap(), 4);
     assert_eq!(scores.len(), 6 * 3);
     let get = |k: &str| &w.iter().find(|(n, _)| n == k).unwrap().1;
     let first_row = [1usize, 2, 4, 5];
     let word =
         |i: u32| -> Vec<f64> { (0..hidden).map(|k| states[first_row[i as usize] * hidden + k] as f64).collect() };
-    let view = |m: &Mention, name: &str| {
-        let mut x = word(m.first);
-        x.extend(word(m.last));
-        x.extend(get("relation.type")[m.entity as usize * 2..][..2].iter().map(|&v| v as f64));
+    let lse = |ws: &[u32]| -> Vec<f64> {
+        (0..hidden)
+            .map(|k| {
+                let m = ws.iter().map(|&i| word(i)[k]).fold(f64::NEG_INFINITY, f64::max);
+                m + ws.iter().map(|&i| (word(i)[k] - m).exp()).sum::<f64>().ln()
+            })
+            .collect()
+    };
+    let view = |e: usize, name: &str| {
+        let of: Vec<&Mention> = mentions.iter().filter(|m| m.entity as usize == e).collect();
+        let mut x = lse(&of.iter().map(|m| m.first).collect::<Vec<_>>());
+        x.extend(lse(&of.iter().map(|m| m.last).collect::<Vec<_>>()));
+        x.extend(get("relation.type")[types[e] as usize * 2..][..2].iter().map(|&v| v as f64));
         let mut v = mlp(get(&format!("{name}.weight")), get(&format!("{name}.bias")), &x);
         v.push(1.0);
         v
     };
     let wr = get("rel.weight");
     let mut row = 0;
-    for (a, ma) in mentions.iter().enumerate() {
-        for (b, mb) in mentions.iter().enumerate().filter(|(b, _)| *b != a) {
-            let (x, y) = (view(ma, "head"), view(mb, "tail"));
+    for a in 0..3 {
+        for b in (0..3).filter(|&b| b != a) {
+            let (x, y) = (view(a, "head"), view(b, "tail"));
             for l in 0..3 {
                 let e: f64 =
                     (0..4).map(|i| x[i] * (0..4).map(|j| wr[(l * 4 + i) * 4 + j] as f64 * y[j]).sum::<f64>()).sum();
@@ -91,23 +104,23 @@ fn every_pair_s_scores_match_the_biaffine_over_mention_views() {
 }
 
 #[test]
-fn decode_keeps_every_pair_not_none_with_its_margin() {
+fn decode_keeps_every_label_above_none_with_its_margin() {
     let s = rel_spec(&[], 0);
     let mut rng = Rng(3);
     let h = head(&s, 2, &weights(&s, 2, &mut rng));
-    // Three mentions, six pairs: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1).
+    // Three entities, six pairs: (0,1) (0,2) (1,0) (1,2) (2,0) (2,1).
     let scores = [
         1.0, 0.0, 0.0, // none
-        0.0, 2.0, 0.5, // works_for
-        0.0, 0.0, 0.0, // a tie keeps the lower index: none
+        0.0, 2.0, 0.5, // works_for and born_in
+        0.0, 0.0, 0.0, // a tie with none is no relation
         0.5, 0.0, 3.0, // born_in
-        2.0, 2.0, 1.0, // tie to none
+        2.0, 2.0, 1.0, // tie with none
         -1.0, 0.0, -1.0, // works_for
     ];
     let mut out = Vec::new();
     h.decode(&scores, 3, &mut out).unwrap();
     let r = |head, tail, label, margin| Relation { head, tail, label, margin };
-    assert_eq!(out, vec![r(0, 2, 1, 2.0), r(1, 2, 2, 2.5), r(2, 1, 1, 1.0)]);
+    assert_eq!(out, vec![r(0, 2, 1, 2.0), r(0, 2, 2, 0.5), r(1, 2, 2, 2.5), r(2, 1, 1, 1.0)]);
     assert!(h.decode(&scores[..15], 3, &mut out).is_err());
     let mut bad = scores;
     bad[4] = f32::NAN;
@@ -115,27 +128,32 @@ fn decode_keeps_every_pair_not_none_with_its_margin() {
 }
 
 #[test]
-fn fewer_than_two_mentions_make_no_pair_and_bad_mentions_are_refused() {
+fn fewer_than_two_entities_make_no_pair_and_bad_mentions_are_refused() {
     let s = rel_spec(&["PER"], 1);
     let mut rng = Rng(9);
     let h = head(&s, 2, &weights(&s, 2, &mut rng));
     let words = [0, 1, 2];
     let states: Vec<f32> = (0..6).map(|_| rng.next()).collect();
     let (mut out, mut w) = (vec![1.0], RelationWork::default());
-    assert_eq!(h.scores(&states, &words, &[Mention { first: 0, last: 2, entity: 0 }], &mut out, &mut w).unwrap(), 3);
+    let one = [Mention { first: 0, last: 2, entity: 0 }, Mention { first: 1, last: 1, entity: 0 }];
+    assert_eq!(h.scores(&states, &words, &one, &[0], &mut out, &mut w).unwrap(), 3);
     assert!(out.is_empty());
+    let ok = Mention { first: 0, last: 0, entity: 0 };
     for bad in [
-        Mention { first: 2, last: 1, entity: 0 },
-        Mention { first: 0, last: 3, entity: 0 },
-        Mention { first: 0, last: 0, entity: 1 },
+        Mention { first: 2, last: 1, entity: 1 },
+        Mention { first: 0, last: 3, entity: 1 },
+        Mention { first: 0, last: 0, entity: 2 },
     ] {
-        let ms = [Mention { first: 0, last: 0, entity: 0 }, bad];
-        assert!(h.scores(&states, &words, &ms, &mut out, &mut w).is_err(), "{bad:?}");
+        assert!(h.scores(&states, &words, &[ok, bad], &[0, 0], &mut out, &mut w).is_err(), "{bad:?}");
     }
+    // An entity of no mention, and a type the head lacks.
+    assert!(h.scores(&states, &words, &[ok], &[0, 0], &mut out, &mut w).is_err());
+    let two = [ok, Mention { first: 1, last: 1, entity: 1 }];
+    assert!(h.scores(&states, &words, &two, &[0, 1], &mut out, &mut w).is_err());
     let untyped = rel_spec(&[], 0);
     let h = head(&untyped, 2, &weights(&untyped, 2, &mut rng));
-    let ms = [Mention { first: 0, last: 0, entity: 0 }, Mention { first: 1, last: 1, entity: 1 }];
-    assert!(h.scores(&states, &words, &ms, &mut out, &mut w).is_err());
+    assert!(h.scores(&states, &words, &two, &[0, 1], &mut out, &mut w).is_err());
+    assert!(h.scores(&states, &words, &two, &[0, 0], &mut out, &mut w).is_ok());
 }
 
 #[test]

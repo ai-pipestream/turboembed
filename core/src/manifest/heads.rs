@@ -109,8 +109,8 @@ pub enum HeadKind {
     /// first and last word and its width (head/span.rs); `O` is no span.
     #[serde(rename = "HEAD_SPAN_CLASSIFIER")]
     SpanClassifier,
-    /// A relation or `none` for every ordered pair of the mentions given
-    /// with a sequence, from each mention's ends and type (head/relation.rs).
+    /// The relations of every ordered pair of the entities given with a
+    /// sequence, from their pooled mentions and types (head/relation.rs).
     #[serde(rename = "HEAD_RELATION_CLASSIFIER")]
     RelationClassifier,
 }
@@ -236,8 +236,8 @@ pub enum Decode {
     /// the highest score; a span classifier's decode.
     #[serde(rename = "DECODE_SPANS_FLAT")]
     SpansFlat,
-    /// Every ordered pair of mentions whose best label is not `none`; a
-    /// relation classifier's decode.
+    /// Every label of an ordered pair of entities that scores above
+    /// `none`, the pair's threshold; a relation classifier's decode.
     #[serde(rename = "DECODE_RELATIONS")]
     Relations,
 }

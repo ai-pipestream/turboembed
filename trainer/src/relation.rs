@@ -3,28 +3,27 @@
 //! gradients on one sequence of per-word encoder features and its
 //! mentions.
 //!
-//! Every ordered pair of distinct mentions is one softmax over the
-//! labels, its gold label the pair's own when it is a gold relation and
-//! `none` otherwise; the loss sums them all. The forward is the core's
-//! (`turbo::head::relation`): each mention's first and last word vectors
-//! and type embedding, joined, through the head and tail LeakyReLU(0.1)
-//! MLPs, then the biaffine with a bias on both sides.
+//! Every ordered pair of distinct entities adds its adaptive threshold
+//! loss, `none` the threshold, so a pair may hold several relations. The
+//! forward is the core's (`turbo::head::relation`): each entity's mentions
+//! pooled by logsumexp, its type embedding joined, through the head and
+//! tail LeakyReLU(0.1) MLPs, then the biaffine with a bias on both sides.
 
 use turbo::head::RelationClassifier;
 use turbo::head::parser::LEAKY_SLOPE;
-use turbo::head::relation::{Mention, tensors};
+use turbo::head::relation::{Mention, check, tensors};
 use turbo::manifest::{HeadKind, HeadSpec, NO_RELATION};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
 use crate::adapter::{self, Shape};
 use crate::linear;
-use crate::logspace::softmax;
+use crate::logspace::logsumexp;
 use crate::real::{Real, dot};
 use crate::rng::Rng;
 use crate::shapes::{checked_shapes, fits};
 
-/// A gold relation: mention `head` to mention `tail` of its sequence, and
+/// A gold relation: entity `head` to entity `tail` of its sequence, and
 /// its label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GoldRelation {
@@ -48,8 +47,10 @@ pub struct Relations<R> {
 #[derive(Debug, Default)]
 pub struct Work<R> {
     adapter: adapter::Work<R>,
-    /// [m, 2 * width + type_dim]: each mention's joined vector.
+    /// [e, 2 * width + type_dim]: each entity's joined vector.
     mentions: Vec<R>,
+    /// Each mention's softmax weights in its entity's pooling.
+    weights: Vec<R>,
     /// The head and tail views [m, mlp], after LeakyReLU.
     views: [Vec<R>; 2],
     /// W_l [tail_b; 1] for every tail b and label l, [m, labels, mlp + 1].
@@ -151,17 +152,23 @@ impl<R: Real> Relations<R> {
     }
 
     /// The loss of one sequence of features [n, hidden] with its mentions
-    /// against its gold relations, and its gradients added to `grads`
-    /// (shaped as `zero_grads` gives). Returns the loss and the number of
-    /// pairs it sums over. A mention the core would refuse, a gold
-    /// relation on a mention pair that is not one (out of range or a
-    /// mention on itself), labelled `none` or past the labels, or given
-    /// twice, and gradients of another shape, are refused; a refusal
-    /// leaves `grads` as they were.
+    /// and entity types (as `turbo::head::relation` takes them) against
+    /// its gold relations, and its gradients added to `grads` (shaped as
+    /// `zero_grads` gives). Returns the loss and the number of entity
+    /// pairs it sums over.
+    ///
+    /// Each pair's loss is the adaptive threshold loss with `none` as the
+    /// threshold (Zhou et al. 2021): each gold label against the others
+    /// and `none`, plus `none` against every label the pair does not hold.
+    /// Refused: what the core refuses of the mentions and types; a gold
+    /// relation on entities out of range or on itself, labelled `none` or
+    /// past the labels, or given twice; gradients of another shape. A
+    /// refusal leaves `grads` as they were.
     pub fn loss(
         &self,
         features: &[R],
         mentions: &[Mention],
+        types: &[u32],
         gold: &[GoldRelation],
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
@@ -173,24 +180,19 @@ impl<R: Real> Relations<R> {
             return Err(invalid(format!("trainer: features are not finite rows of {}", self.hidden)));
         }
         let n = features.len() / self.hidden;
-        let (mlp, types, dim) = self.widths();
+        let (mlp, kinds, dim) = self.widths();
         let labels = self.spec.labels.len();
-        for (i, x) in mentions.iter().enumerate() {
-            let typed = if types == 0 { x.entity == 0 } else { (x.entity as usize) < types };
-            if x.first > x.last || x.last as usize >= n || !typed {
-                return Err(invalid(format!("trainer: mention {i} {x:?} of a sequence of {n} words")));
-            }
-        }
-        let m = mentions.len();
-        let pairs = RelationClassifier::pair_count(m).ok_or_else(|| invalid(format!("trainer: {m} mentions")))?;
-        let mut target = vec![self.none; m * m];
+        check(mentions, types, kinds, n).map_err(|e| invalid(format!("trainer: {}", e.message)))?;
+        let m = types.len();
+        let pairs = RelationClassifier::pair_count(m).ok_or_else(|| invalid(format!("trainer: {m} entities")))?;
+        let none = self.none as usize;
+        let mut target = vec![false; m * m * labels];
         for g in gold {
-            let (a, b) = (g.head as usize, g.tail as usize);
-            let fits = a < m && b < m && a != b && (g.label as usize) < labels && g.label != self.none;
-            if !fits || target[a * m + b] != self.none {
-                return Err(invalid(format!("trainer: gold relation {g:?} of {m} mentions")));
+            let (a, b, l) = (g.head as usize, g.tail as usize, g.label as usize);
+            let fits = a < m && b < m && a != b && l < labels && l != none;
+            if !fits || std::mem::replace(&mut target[(a * m + b) * labels + l], true) {
+                return Err(invalid(format!("trainer: gold relation {g:?} of {m} entities")));
             }
-            target[a * m + b] = g.label;
         }
         if m < 2 {
             return Ok((0.0, 0));
@@ -200,14 +202,12 @@ impl<R: Real> Relations<R> {
         let v = adapter::output(features, &w.adapter);
         let (width, o) = (shape.width(), 6 * shape.layers);
         let ti = o;
-        let hw = o + usize::from(types > 0);
+        let hw = o + usize::from(kinds > 0);
         let (cols, k) = (2 * width + dim, mlp + 1);
-        w.mentions.clear();
-        for x in mentions {
-            w.mentions.extend_from_slice(&v[x.first as usize * width..][..width]);
-            w.mentions.extend_from_slice(&v[x.last as usize * width..][..width]);
-            if dim > 0 {
-                w.mentions.extend_from_slice(&self.params[ti][x.entity as usize * dim..][..dim]);
+        pool(v, width, mentions, m, cols, &mut w.mentions, &mut w.weights);
+        if dim > 0 {
+            for (row, &t) in w.mentions.chunks_exact_mut(cols).zip(types) {
+                row[2 * width..].copy_from_slice(&self.params[ti][t as usize * dim..][..dim]);
             }
         }
         let slope = R::from_f64(LEAKY_SLOPE as f64);
@@ -232,7 +232,7 @@ impl<R: Real> Relations<R> {
         let mut local = self.zero_grads();
         let mut dviews: [Vec<R>; 2] = [vec![R::ZERO; m * mlp], vec![R::ZERO; m * mlp]];
         let mut dproj = vec![R::ZERO; m * labels * k];
-        let (mut total, mut row) = (0f64, vec![0f64; labels]);
+        let (mut total, mut row, mut d) = (0f64, vec![0f64; labels], vec![0f64; labels]);
         for a in 0..m {
             let x = &w.views[0][a * mlp..][..mlp];
             for b in (0..m).filter(|&b| b != a) {
@@ -240,17 +240,14 @@ impl<R: Real> Relations<R> {
                 for (l, r) in row.iter_mut().enumerate() {
                     *r = (dot(x, &p[l * k..][..mlp]) + p[l * k + mlp]).to_f64();
                 }
-                let g = target[a * m + b] as usize;
-                let gold_score = row[g];
-                let (mx, ln_z) = softmax(&mut row);
-                total += ln_z - (gold_score - mx);
-                row[g] -= 1.0;
-                for (l, &d) in row.iter().enumerate() {
-                    let d = R::from_f64(d);
+                let held = &target[(a * m + b) * labels..][..labels];
+                total += threshold_loss(&row, held, none, &mut d);
+                for (l, &dl) in d.iter().enumerate().filter(|(_, dl)| **dl != 0.0) {
+                    let dl = R::from_f64(dl);
                     for i in 0..k {
-                        dproj[(b * labels + l) * k + i] += d * one(x, i);
+                        dproj[(b * labels + l) * k + i] += dl * one(x, i);
                         if i < mlp {
-                            dviews[0][a * mlp + i] += d * p[l * k + i];
+                            dviews[0][a * mlp + i] += dl * p[l * k + i];
                         }
                     }
                 }
@@ -262,30 +259,38 @@ impl<R: Real> Relations<R> {
         for b in 0..m {
             let y = &w.views[1][b * mlp..][..mlp];
             for r in 0..labels * k {
-                let d = dproj[b * labels * k + r];
+                let dr = dproj[b * labels * k + r];
                 for j in 0..k {
-                    local[hw + 4][r * k + j] += d * one(y, j);
+                    local[hw + 4][r * k + j] += dr * one(y, j);
                     if j < mlp {
-                        dviews[1][b * mlp + j] += d * wr[r * k + j];
+                        dviews[1][b * mlp + j] += dr * wr[r * k + j];
                     }
                 }
             }
         }
-        let mut dmentions = vec![R::ZERO; m * cols];
+        let mut dentities = vec![R::ZERO; m * cols];
         for (s, dview) in dviews.iter_mut().enumerate() {
             dview.iter_mut().zip(&w.views[s]).filter(|(_, v)| **v < R::ZERO).for_each(|(g, _)| *g *= slope);
             let (wi, bi) = (hw + 2 * s, hw + 2 * s + 1);
             let [dw, db] = local.get_disjoint_mut([wi, bi]).expect("distinct");
-            linear::backward(&self.params[wi], &w.mentions, dview, cols, mlp, dw, db, Some(&mut dmentions));
+            linear::backward(&self.params[wi], &w.mentions, dview, cols, mlp, dw, db, Some(&mut dentities));
         }
+        if dim > 0 {
+            for (de, &t) in dentities.chunks_exact(cols).zip(types) {
+                let row = &mut local[ti][t as usize * dim..][..dim];
+                row.iter_mut().zip(&de[2 * width..]).for_each(|(a, b)| *a += *b);
+            }
+        }
+        // Each mention's share of its entity's logsumexp is its softmax
+        // weight among the entity's mentions.
         let mut dv = vec![R::ZERO; n * width];
-        for (x, d) in mentions.iter().zip(dmentions.chunks_exact(cols)) {
-            let (f, l) = (x.first as usize * width, x.last as usize * width);
-            dv[f..f + width].iter_mut().zip(&d[..width]).for_each(|(a, b)| *a += *b);
-            dv[l..l + width].iter_mut().zip(&d[width..2 * width]).for_each(|(a, b)| *a += *b);
-            if dim > 0 {
-                let t = &mut local[ti][x.entity as usize * dim..][..dim];
-                t.iter_mut().zip(&d[2 * width..]).for_each(|(a, b)| *a += *b);
+        for (mi, x) in mentions.iter().enumerate() {
+            let de = &dentities[x.entity as usize * cols..][..2 * width];
+            for (side, word) in [x.first, x.last].into_iter().enumerate() {
+                let (wt, at) = (&w.weights[(mi * 2 + side) * width..][..width], word as usize * width);
+                for j in 0..width {
+                    dv[at + j] += de[side * width + j] * wt[j];
+                }
             }
         }
         // Checked once the adapter's share is in: its backward can
@@ -293,6 +298,81 @@ impl<R: Real> Relations<R> {
         adapter::backward(shape, &self.params, features, dv, &mut local, &w.adapter, false);
         adapter::commit(grads, &local, "relation")?;
         Ok((total, pairs))
+    }
+}
+
+/// The adaptive threshold loss of one pair's scores `row` with its gold
+/// labels `held` and threshold label `none`, and its gradient by score
+/// into `d`: each held label's cross-entropy among the held labels and
+/// `none`, then `none`'s among itself and every label not held.
+fn threshold_loss(row: &[f64], held: &[bool], none: usize, d: &mut [f64]) -> f64 {
+    d.fill(0.0);
+    let (mut total, positives) = (0f64, held.iter().filter(|&&h| h).count());
+    if positives > 0 {
+        let lse = logsumexp(row.iter().enumerate().filter(|&(l, _)| held[l] || l == none).map(|(_, &v)| v));
+        for (l, &v) in row.iter().enumerate().filter(|&(l, _)| held[l] || l == none) {
+            if held[l] {
+                total += lse - v;
+                d[l] -= 1.0;
+            }
+            d[l] += positives as f64 * (v - lse).exp();
+        }
+    }
+    let lse = logsumexp(row.iter().enumerate().filter(|&(l, _)| !held[l]).map(|(_, &v)| v));
+    total += lse - row[none];
+    for (l, &v) in row.iter().enumerate().filter(|&(l, _)| !held[l]) {
+        d[l] += (v - lse).exp() - if l == none { 1.0 } else { 0.0 };
+    }
+    total
+}
+
+/// The entities' joined vectors [e, cols] into `out` (the type part left
+/// zero) as the core pools them, and each mention's softmax weights
+/// among its entity's mentions, [mentions, 2, width], into `weights`.
+fn pool<R: Real>(
+    v: &[R],
+    width: usize,
+    mentions: &[Mention],
+    e: usize,
+    cols: usize,
+    out: &mut Vec<R>,
+    weights: &mut Vec<R>,
+) {
+    let mut max = vec![f64::NEG_INFINITY; e * 2 * width];
+    let value = |m: &Mention, side: usize, j: usize| v[[m.first, m.last][side] as usize * width + j].to_f64();
+    for m in mentions {
+        for side in 0..2 {
+            for j in 0..width {
+                let k = (m.entity as usize * 2 + side) * width + j;
+                max[k] = max[k].max(value(m, side, j));
+            }
+        }
+    }
+    let mut sum = vec![0f64; e * 2 * width];
+    for m in mentions {
+        for side in 0..2 {
+            for j in 0..width {
+                let k = (m.entity as usize * 2 + side) * width + j;
+                sum[k] += (value(m, side, j) - max[k]).exp();
+            }
+        }
+    }
+    out.clear();
+    out.resize(e * cols, R::ZERO);
+    for i in 0..e {
+        for j in 0..2 * width {
+            let k = i * 2 * width + j;
+            out[i * cols + j] = R::from_f64(max[k] + sum[k].ln());
+        }
+    }
+    weights.clear();
+    for m in mentions {
+        for side in 0..2 {
+            for j in 0..width {
+                let k = (m.entity as usize * 2 + side) * width + j;
+                weights.push(R::from_f64((value(m, side, j) - max[k]).exp() / sum[k]));
+            }
+        }
     }
 }
 

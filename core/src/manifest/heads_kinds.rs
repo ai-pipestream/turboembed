@@ -16,15 +16,15 @@ pub const NO_RELATION: &str = "none";
 /// The widest entity type embedding a relation classifier reads.
 pub const MAX_TYPE_DIM: u32 = 256;
 
-/// What a relation classifier reads of each mention: its first and last
-/// word vectors and, when `entity_labels` is not empty, a learned
-/// embedding `type_dim` wide of its entity type, through two one-layer
+/// What a relation classifier reads of each entity: its mentions' first
+/// and last word vectors, pooled, and, when `entity_labels` is not empty,
+/// a learned embedding `type_dim` wide of its type, through two one-layer
 /// MLPs `mlp` wide, its view as a relation's head and as its tail.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RelationShape {
     pub mlp: u32,
-    /// The entity types a mention carries, as the entity head that found
+    /// The entity types an entity carries, as the entity head that found
     /// it labels them; empty when the head reads no type.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_labels: Vec<String>,

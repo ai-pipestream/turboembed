@@ -14,8 +14,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use turbo::bundle::Bundle;
-use turbo::head::RelationClassifier;
 use turbo::head::relation::{Mention, RelationWork};
+use turbo::head::{RelationClassifier, sigmoid_f64};
 use turbo::manifest::{HeadKind, NO_RELATION};
 use turbo::status::Error as CoreError;
 use turbo_analysis::{
@@ -28,12 +28,13 @@ use turbo_relation::Relations;
 use crate::annotate::{HeadRunner, find_head};
 use crate::segment::Reader;
 
-/// A sequence's mentions, each with the index of the entity behind it.
-type Found = Vec<(u32, Mention)>;
+/// A sequence's entities: each one's row in the entity layer, its type
+/// and its words `first..=last` in the sequence.
+type Found = Vec<(u32, u32, u32, u32)>;
 
 /// Writes the relation layer and its edges from a relation classifier
-/// head; each relation's score is its label's softmax probability among
-/// its pair's scores.
+/// head; each relation's score is the logistic of its margin over `none`,
+/// the pair's threshold, so a pair holding two relations scores each.
 pub struct RelationTagger {
     head: RelationClassifier,
     kinds: Arc<TagSet>,
@@ -87,14 +88,14 @@ impl RelationTagger {
                 continue;
             }
             let (Some((s, a)), Some((t, b))) = (at[first], at[last - 1]) else { continue };
-            let entity = if types.is_empty() {
+            let kind = if types.is_empty() {
                 Some(0)
             } else {
                 let kind = entities.kinds.label(entities.kind[e]);
                 types.iter().position(|l| l == kind).map(|i| i as u32)
             };
-            if let (true, Some(entity)) = (s == t, entity) {
-                out[s].push((e as u32, Mention { first: a, last: b, entity }));
+            if let (true, Some(kind)) = (s == t, kind) {
+                out[s].push((e as u32, kind, a, b));
             }
         }
         out
@@ -133,21 +134,17 @@ impl RelationTagger {
             self.read.features(view, tokens, &seqs, subwords, self.head.spec())?
         };
         let (mut scores, mut kept, mut w) = (Vec::new(), Vec::new(), RelationWork::default());
-        let labels = self.head.labels().len();
         for ((seq, f), found) in seqs.iter().zip(&features).zip(&found) {
             let words: Vec<u32> = (0..seq.len() as u32).collect();
-            let mentions: Vec<Mention> = found.iter().map(|(_, m)| *m).collect();
+            // Each row of the entity layer is one entity of one mention.
+            let mentions: Vec<Mention> =
+                (0..).zip(found).map(|(i, &(_, _, first, last))| Mention { first, last, entity: i }).collect();
+            let types: Vec<u32> = found.iter().map(|f| f.1).collect();
             let m = mentions.len();
-            self.head.scores(f, &words, &mentions, &mut scores, &mut w).map_err(|e| e.to_string())?;
+            self.head.scores(f, &words, &mentions, &types, &mut scores, &mut w).map_err(|e| e.to_string())?;
             self.head.decode(&scores, m, &mut kept).map_err(|e| e.to_string())?;
             for r in &kept {
                 let (a, b) = (r.head as usize, r.tail as usize);
-                // The pair's row: every earlier head's m - 1 pairs, then
-                // this head's tails but itself.
-                let row = a * (m - 1) + if b < a { b } else { b - 1 };
-                let s = &scores[row * labels..][..labels];
-                let mx = s.iter().fold(f32::NEG_INFINITY, |x, &y| x.max(y)) as f64;
-                let z: f64 = s.iter().map(|&v| (v as f64 - mx).exp()).sum();
                 let kind = self.kind_of[r.label as usize].ok_or("a kept relation labelled none")?;
                 let (subject, object) = (Ix::new(found[a].0), Ix::new(found[b].0));
                 let (x, y) = (entities.spans.get(subject), entities.spans.get(object));
@@ -155,7 +152,8 @@ impl RelationTagger {
                 out.subject.push(subject);
                 out.object.push(object);
                 out.kind.push(Tag(kind));
-                out.score.push((s[r.label as usize] as f64 - mx).exp() / z);
+                // The label's odds against the pair's threshold, `none`.
+                out.score.push(sigmoid_f64(f64::from(r.margin)));
             }
         }
         out.check()?;

@@ -1,22 +1,26 @@
 //! A relation classifier head (`heads[]` of kind
-//! HEAD_RELATION_CLASSIFIER): a relation or `none` for every ordered pair
-//! of the mentions given with a sequence, found by an entity head (a
-//! token tagger or a span classifier) on the same encoder pass.
+//! HEAD_RELATION_CLASSIFIER): the relations of every ordered pair of the
+//! entities given with a sequence, each entity one or more mentions found
+//! by an entity head (a token tagger or a span classifier) on the same
+//! encoder pass.
 //!
-//! The steps, for one sequence of n words and its m mentions:
+//! The steps, for one sequence of n words and its e entities:
 //! 1. the word vectors, as the token tagger reads them (words.rs);
-//! 2. each mention as its first and last word vectors and, with
-//!    `relation.entity_labels`, its entity type's learned embedding
-//!    (`relation.type` [types, type_dim]), joined;
+//! 2. each entity as the logsumexp, value by value, of its mentions'
+//!    first word vectors, then of their last word vectors (one mention
+//!    gives its own two vectors), and with `relation.entity_labels` its
+//!    type's learned embedding (`relation.type` [types, type_dim]),
+//!    joined;
 //! 3. two one-layer MLPs with LeakyReLU(0.1), as the parser's: the
-//!    mention's view as a relation's head (`head.*`) and as its tail
+//!    entity's view as a relation's head (`head.*`) and as its tail
 //!    (`tail.*`), each `relation.mlp` wide;
 //! 4. scores s_l(a, b) = [head_a; 1]^T W_l [tail_b; 1], W [labels,
-//!    mlp + 1, mlp + 1], for every pair of mentions a != b, in order of
+//!    mlp + 1, mlp + 1], for every pair of entities a != b, in order of
 //!    a, then b.
 //!
-//! A pair whose best label (a tie to the lower index) is `none` is no
-//! relation; DECODE_RELATIONS keeps every other pair.
+//! `none` is each pair's threshold (an adaptive threshold, Zhou et al.
+//! 2021): DECODE_RELATIONS keeps every label of a pair that scores above
+//! it, so a pair holds no relation, one, or several.
 
 use crate::bundle::Bundle;
 use crate::manifest::{HeadKind, HeadSpec, NO_RELATION};
@@ -45,8 +49,8 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
     out
 }
 
-/// A mention of a sequence: words `first..=last` and its entity type, an
-/// index into `relation.entity_labels` (0 when the head reads no type).
+/// A mention of a sequence: words `first..=last` of entity `entity`, an
+/// index into the entities' types given beside the mentions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mention {
     pub first: u32,
@@ -54,8 +58,8 @@ pub struct Mention {
     pub entity: u32,
 }
 
-/// One kept relation: mention `head` to mention `tail` (indices into the
-/// mentions given), its label, and its label's score less `none`'s.
+/// One kept relation: entity `head` to entity `tail`, its label, and its
+/// label's score less `none`'s.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Relation {
     pub head: u32,
@@ -85,7 +89,7 @@ pub struct RelationClassifier {
 #[derive(Default)]
 pub struct RelationWork {
     words: words::Work,
-    mentions: Vec<f32>,
+    entities: Vec<f32>,
     heads: Vec<f32>,
     tails: Vec<f32>,
     projected: Vec<f32>,
@@ -146,7 +150,7 @@ impl RelationClassifier {
         &self.spec.labels
     }
 
-    /// The entity types a mention may carry, by index.
+    /// The entity types an entity may carry, by index.
     pub fn entity_labels(&self) -> &[String] {
         self.spec.relation.as_ref().map_or(&[], |r| &r.entity_labels)
     }
@@ -156,60 +160,55 @@ impl RelationClassifier {
         self.hidden
     }
 
-    /// The number of ordered pairs `m` mentions make, None past usize.
+    /// The number of ordered pairs `m` entities make, None past usize.
     pub fn pair_count(m: usize) -> Option<usize> {
         m.checked_mul(m.saturating_sub(1))
     }
 
-    /// The label scores [pairs, labels] of one sequence's `mentions` into
-    /// `out`, pairs in order of head mention then tail, from its subword
-    /// states and word map as a token tagger reads them. Returns the
-    /// number of words.
+    /// The label scores [pairs, labels] of one sequence's entities into
+    /// `out`, pairs in order of head entity then tail, from its subword
+    /// states and word map as a token tagger reads them, its `mentions`,
+    /// and each entity's type in `types` (an index into
+    /// `relation.entity_labels`, 0 when the head reads no type). Returns
+    /// the number of words.
     ///
-    /// Refused: a mention past the words, backwards, or of an entity type
-    /// the head lacks (with no types, any but 0), or more mentions than
-    /// the scores could hold (INVALID_ARGUMENT); what the word reader
-    /// refuses; a score not finite even when summed in f64.
+    /// Refused: a mention past the words, backwards, or of no entity; an
+    /// entity of no mention or of a type the head lacks; more entities
+    /// than the scores could hold (INVALID_ARGUMENT); what the word
+    /// reader refuses; a score not finite even when summed in f64.
     pub fn scores(
         &self,
         states: &[f32],
         words: &[u32],
         mentions: &[Mention],
+        types: &[u32],
         out: &mut Vec<f32>,
         w: &mut RelationWork,
     ) -> Result<usize> {
         out.clear();
         let labels = self.spec.labels.len();
-        let types = self.entity_labels().len();
-        let pairs = Self::pair_count(mentions.len()).and_then(|p| p.checked_mul(labels));
-        let pairs = pairs.ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("{} mentions", mentions.len())))?;
+        let e = types.len();
+        let pairs = Self::pair_count(e).and_then(|p| p.checked_mul(labels));
+        let pairs = pairs.ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("{e} entities")))?;
         let n = self.reader.read(states, words, None, &mut w.words)?;
-        for (i, m) in mentions.iter().enumerate() {
-            let typed = if types == 0 { m.entity == 0 } else { (m.entity as usize) < types };
-            if m.first > m.last || m.last as usize >= n || !typed {
-                return Err(Error::new(INVALID_ARGUMENT, format!("mention {i} {m:?} of a sequence of {n} words")));
-            }
-        }
-        let m = mentions.len();
-        if m < 2 {
+        check(mentions, types, self.entity_labels().len(), n)?;
+        if e < 2 {
             return Ok(n);
         }
         let (width, dim) = (self.reader.width(), self.type_dim);
         let cols = 2 * width + dim;
-        w.mentions.clear();
-        for x in mentions {
-            w.mentions.extend_from_slice(&w.words.pooled[x.first as usize * width..][..width]);
-            w.mentions.extend_from_slice(&w.words.pooled[x.last as usize * width..][..width]);
-            if dim > 0 {
-                w.mentions.extend_from_slice(&self.types[x.entity as usize * dim..][..dim]);
+        pool(&w.words.pooled, width, mentions, e, cols, &mut w.entities);
+        if dim > 0 {
+            for (row, &t) in w.entities.chunks_exact_mut(cols).zip(types) {
+                row[2 * width..].copy_from_slice(&self.types[t as usize * dim..][..dim]);
             }
         }
-        debug_assert_eq!(w.mentions.len(), m * cols);
+        let m = e;
         let mlp = self.head.out_dim;
         for (lin, dst) in [(&self.head, &mut w.heads), (&self.tail, &mut w.tails)] {
             dst.clear();
             dst.resize(m * mlp, 0.0);
-            lin.apply_rows(&w.mentions, m, dst);
+            lin.apply_rows(&w.entities, m, dst);
             leaky(dst);
         }
         // Every tail's [tail; 1] through all the labels' W_l in one packed
@@ -268,13 +267,13 @@ impl RelationClassifier {
         }
     }
 
-    /// The relations of `m` mentions kept from their `scores` [pairs,
-    /// labels]: every pair whose best label is not `none`, in order of
-    /// head mention then tail.
+    /// The relations of `m` entities kept from their `scores` [pairs,
+    /// labels]: every label of a pair that scores above `none`, in order
+    /// of head entity, tail entity, then label.
     pub fn decode(&self, scores: &[f32], m: usize, out: &mut Vec<Relation>) -> Result<()> {
         let labels = self.spec.labels.len();
         if m > u32::MAX as usize || Some(scores.len()) != Self::pair_count(m).and_then(|p| p.checked_mul(labels)) {
-            return Err(Error::new(INVALID_SHAPE, format!("{} relation scores for {m} mentions", scores.len())));
+            return Err(Error::new(INVALID_SHAPE, format!("{} relation scores for {m} entities", scores.len())));
         }
         if scores.iter().any(|v| !v.is_finite()) {
             return Err(Error::new(INVALID_ARGUMENT, "a relation score is not finite"));
@@ -284,16 +283,73 @@ impl RelationClassifier {
         for a in 0..m {
             for b in (0..m).filter(|&b| b != a) {
                 let Some(row) = rows.next() else { break };
-                let best = (0..labels).fold(0, |c, l| if row[l] > row[c] { l } else { c });
-                if best != self.none {
-                    let margin = row[best] - row[self.none];
+                let threshold = row[self.none];
+                for (l, &v) in row.iter().enumerate().filter(|&(l, &v)| l != self.none && v > threshold) {
+                    let margin = v - threshold;
                     if !margin.is_finite() {
                         return Err(Error::new(INVALID_ARGUMENT, "a relation margin is past f32"));
                     }
-                    out.push(Relation { head: a as u32, tail: b as u32, label: best as u32, margin });
+                    out.push(Relation { head: a as u32, tail: b as u32, label: l as u32, margin });
                 }
             }
         }
         Ok(())
+    }
+}
+
+/// Refuses mentions past `n` words, backwards or of no entity, and
+/// entities of no mention or of a type past `kinds` (with no kinds, any
+/// type but 0).
+pub fn check(mentions: &[Mention], types: &[u32], kinds: usize, n: usize) -> Result<()> {
+    let mut seen = vec![false; types.len()];
+    for (i, m) in mentions.iter().enumerate() {
+        if m.first > m.last || m.last as usize >= n || m.entity as usize >= types.len() {
+            return Err(Error::new(INVALID_ARGUMENT, format!("mention {i} {m:?} of {n} words")));
+        }
+        seen[m.entity as usize] = true;
+    }
+    for (i, &t) in types.iter().enumerate() {
+        let typed = if kinds == 0 { t == 0 } else { (t as usize) < kinds };
+        if !seen[i] || !typed {
+            return Err(Error::new(
+                INVALID_ARGUMENT,
+                format!("entity {i} of type {t} and no mention, or no such type"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Each of `e` entities' joined vector [e, cols] into `out`: the
+/// logsumexp, value by value, of its mentions' first word vectors, then
+/// of their last, from word vectors `v` `width` wide, summed in f64; the
+/// rest of each row (the type embedding's place) is zero.
+fn pool(v: &[f32], width: usize, mentions: &[Mention], e: usize, cols: usize, out: &mut Vec<f32>) {
+    out.clear();
+    out.resize(e * cols, 0.0);
+    let mut max = vec![f32::NEG_INFINITY; e * 2 * width];
+    for m in mentions {
+        let row = &mut max[m.entity as usize * 2 * width..][..2 * width];
+        for (side, word) in [m.first, m.last].into_iter().enumerate() {
+            let x = &v[word as usize * width..][..width];
+            row[side * width..][..width].iter_mut().zip(x).for_each(|(a, &b)| *a = a.max(b));
+        }
+    }
+    let mut sum = vec![0f64; e * 2 * width];
+    for m in mentions {
+        let at = m.entity as usize * 2 * width;
+        for (side, word) in [m.first, m.last].into_iter().enumerate() {
+            let x = &v[word as usize * width..][..width];
+            for (j, &xj) in x.iter().enumerate() {
+                let k = at + side * width + j;
+                sum[k] += (xj as f64 - max[k] as f64).exp();
+            }
+        }
+    }
+    for i in 0..e {
+        for j in 0..2 * width {
+            let k = i * 2 * width + j;
+            out[i * cols + j] = (max[k] as f64 + sum[k].ln()) as f32;
+        }
     }
 }
