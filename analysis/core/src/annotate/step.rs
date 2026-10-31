@@ -170,7 +170,8 @@ impl<A: Annotator> Step for Bound<A> {
     }
 
     fn expected_provenance(&self, doc: &Document) -> Provenance {
-        self.provenance(doc)
+        let (ids, reqs) = self.effective_reads();
+        self.provenance(doc, &ids, &reqs)
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
@@ -178,17 +179,19 @@ impl<A: Annotator> Step for Bound<A> {
         let mut inputs = Vec::new();
         let mut at = Vec::new();
         let (eff_reads, eff_reqs) = self.effective_reads();
+        let extra_reads = &eff_reads[A::Reads::N..];
+        let extra_reqs = &eff_reqs[A::Reads::N..];
         for (i, d) in docs.iter().enumerate() {
-            if let Some(why) = self.skipped_input(d) {
+            if let Some(why) = Self::skipped_input(d, &eff_reads, &eff_reqs) {
                 out[i] = Some(Err(Error::Skipped(why)));
                 continue;
             }
-            if let Some(e) = self.unaligned(d) {
+            if let Some(e) = Self::unaligned(d, &eff_reads) {
                 out[i] = Some(Err(e));
                 continue;
             }
             if let Some((missing_key, _)) =
-                eff_reads.iter().copied().zip(eff_reqs.iter().copied()).find(|&(k, req)| req && !d.present(k))
+                extra_reads.iter().copied().zip(extra_reqs.iter().copied()).find(|&(k, req)| req && !d.present(k))
             {
                 out[i] = Some(Err(Error::Missing(missing_key)));
                 continue;
@@ -209,10 +212,11 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
         let out = *out.downcast::<Vec<Option<Placed<A::Writes>>>>().expect("this step's own output");
+        let (eff_reads, eff_reqs) = self.effective_reads();
         let writes = self.effective_writes();
         for (i, r) in out.into_iter().enumerate() {
             let Some(r) = r else { continue };
-            let mut p = self.provenance(&docs[i]);
+            let mut p = self.provenance(&docs[i], &eff_reads, &eff_reqs);
             let failure = match r {
                 Ok((w, placed)) => {
                     if placed.is_some() {

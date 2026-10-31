@@ -106,20 +106,20 @@ fn attention_gradients_match_for_global_and_local_layers() {
         let r = random(&mut rng, n * hidden, 1.0);
         let mut loss = |qkv: &[f64]| {
             let (mut ctx, mut c) = (vec![0.0; n * hidden], attention::Cache::default());
-            attention::forward(qkv, hidden, heads, window, &mut ctx, &mut c);
+            attention::forward(qkv, hidden, heads, window, false, &mut ctx, &mut c);
             weighted(&ctx, &r)
         };
         let (mut ctx, mut c) = (vec![0.0; n * hidden], attention::Cache::default());
-        attention::forward(&qkv, hidden, heads, window, &mut ctx, &mut c);
+        attention::forward(&qkv, hidden, heads, window, false, &mut ctx, &mut c);
         let mut dqkv = vec![0.0; qkv.len()];
-        attention::backward(&qkv, hidden, heads, window, &c, &r, &mut dqkv);
+        attention::backward(&qkv, hidden, heads, window, false, &c, &r, &mut dqkv);
         check("qkv", &mut qkv, &dqkv, &mut loss);
         // On a local layer query 0 reads keys 0 and 1 alone: moving key
         // 2's values changes its context on the global layer only.
         let mut moved = qkv.clone();
         moved[2 * 3 * hidden + 2 * hidden] += 1.0;
         let mut ctx2 = vec![0.0; n * hidden];
-        attention::forward(&moved, hidden, heads, window, &mut ctx2, &mut c);
+        attention::forward(&moved, hidden, heads, window, false, &mut ctx2, &mut c);
         assert_eq!(ctx[..hidden] == ctx2[..hidden], window == 1, "window {window}");
     }
 }

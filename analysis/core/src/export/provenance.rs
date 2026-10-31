@@ -22,11 +22,11 @@ pub(super) fn provenance_record(p: &Provenance) -> ProvenanceRecord {
     }
 }
 
-pub(super) fn provenance_record_for_entry(entry: &Entry) -> ProvenanceRecord {
+pub(super) fn provenance_record_for_entry(doc: &Document, entry: &Entry) -> ProvenanceRecord {
     let mut rec = provenance_record(&entry.provenance);
     if entry.from_pipeline {
-        rec.provenance_digest = Some(entry.provenance_digest);
-        rec.input_snapshot = entry.upstream_content_hash;
+        rec.provenance_digest = doc.provenance_digest(entry.key);
+        rec.input_snapshot = doc.upstream_content_hash(entry.key);
     }
     rec
 }

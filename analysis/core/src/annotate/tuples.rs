@@ -2,12 +2,41 @@
 
 use std::any::TypeId;
 
-use crate::doc::Document;
+use crate::doc::{Document, View};
 use crate::error::Error;
 use crate::layer::{Anchor, Key, KeyId, Layer, Provenance};
 use crate::splice::LayerSplicer;
 
 use super::{Reads, Slot, Writes};
+
+impl<L: Layer> Slot for L {
+    type Ref<'d> = &'d L;
+    const REQUIRED: bool = true;
+    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
+    fn id(name: &'static str) -> KeyId {
+        Key::<L>::named(name).id()
+    }
+    fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<&'d L, Error> {
+        doc.require(&Key::<L>::named(name))
+    }
+}
+
+impl<L: Layer> Slot for Option<L> {
+    type Ref<'d> = Option<&'d L>;
+    const REQUIRED: bool = false;
+    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
+    fn id(name: &'static str) -> KeyId {
+        Key::<L>::named(name).id()
+    }
+    fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<Option<&'d L>, Error> {
+        Ok(doc.get_key(&Key::<L>::named(name)))
+    }
+}
+
+trait TupleMeta<const LEN: usize> {
+    const COMPACT: [KeyId; LEN];
+    const REQUIRED_COUNT: usize;
+}
 
 impl Reads for () {
     type Refs<'d> = ();
@@ -24,35 +53,33 @@ impl Reads for () {
 }
 
 macro_rules! tuples {
-    ($($L:ident $i:tt),+) => {
-        impl<$($L: Slot),+> Reads for ($($L,)+) {
-            type Refs<'d> = ($($L::Ref<'d>,)+);
-            const N: usize = [$($i),+].len();
-            const ALL_IDS: &'static [KeyId] = &[$(<$L as Slot>::DEFAULT_ID),+];
-            const REQUIRED_FLAGS: &'static [bool] = &[$($L::REQUIRED),+];
-            const DEFAULT_REQUIRED_IDS: &'static [KeyId] = {
-                let mut prefix = 0;
-                while prefix < Self::REQUIRED_FLAGS.len() && Self::REQUIRED_FLAGS[prefix] {
-                    prefix += 1;
-                }
-                let mut all_rest_false = true;
-                let mut idx = prefix;
-                while idx < Self::REQUIRED_FLAGS.len() {
-                    if Self::REQUIRED_FLAGS[idx] {
-                        all_rest_false = false;
+    ($len:literal : $($L:ident $i:tt),+) => {
+        impl<$($L: Slot),+> TupleMeta<$len> for ($($L,)+) {
+            const REQUIRED_COUNT: usize = 0 $(+ ($L::REQUIRED as usize))+;
+            const COMPACT: [KeyId; $len] = {
+                let all = [$(<$L as Slot>::DEFAULT_ID),+];
+                let flags = [$($L::REQUIRED),+];
+                let mut out = [Key::<View>::DEFAULT.id(); $len];
+                let mut w = 0;
+                let mut idx = 0;
+                while idx < $len {
+                    if flags[idx] {
+                        out[w] = all[idx];
+                        w += 1;
                     }
                     idx += 1;
                 }
-                if all_rest_false {
-                    Self::ALL_IDS.split_at(prefix).0
-                } else {
-                    let mut suffix_start = 0;
-                    while suffix_start < Self::REQUIRED_FLAGS.len() && !Self::REQUIRED_FLAGS[suffix_start] {
-                        suffix_start += 1;
-                    }
-                    Self::ALL_IDS.split_at(suffix_start).1
-                }
+                out
             };
+        }
+
+        impl<$($L: Slot),+> Reads for ($($L,)+) {
+            type Refs<'d> = ($($L::Ref<'d>,)+);
+            const N: usize = $len;
+            const ALL_IDS: &'static [KeyId] = &[$(<$L as Slot>::DEFAULT_ID),+];
+            const REQUIRED_FLAGS: &'static [bool] = &[$($L::REQUIRED),+];
+            const DEFAULT_REQUIRED_IDS: &'static [KeyId] =
+                <Self as TupleMeta<$len>>::COMPACT.split_at(<Self as TupleMeta<$len>>::REQUIRED_COUNT).0;
             fn ids(names: &[&'static str]) -> Vec<KeyId> {
                 vec![$($L::id(names[$i])),+]
             }
@@ -64,7 +91,7 @@ macro_rules! tuples {
             }
         }
         impl<$($L: Layer),+> Writes for ($($L,)+) {
-            const N: usize = [$($i),+].len();
+            const N: usize = $len;
             const DEFAULT_IDS: &'static [KeyId] = &[$(Key::<$L>::DEFAULT.id()),+];
             fn ids(names: &[&'static str]) -> Vec<KeyId> {
                 vec![$(Key::<$L>::named(names[$i]).id()),+]
@@ -100,15 +127,15 @@ pub(crate) fn made_on_own<L: Layer>(layer: &L, earlier: &[KeyId], p: &Provenance
     p
 }
 
-tuples!(A 0);
-tuples!(A 0, B 1);
-tuples!(A 0, B 1, C 2);
-tuples!(A 0, B 1, C 2, D 3);
-tuples!(A 0, B 1, C 2, D 3, E 4);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10);
-tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10, L 11);
+tuples!(1 : A 0);
+tuples!(2 : A 0, B 1);
+tuples!(3 : A 0, B 1, C 2);
+tuples!(4 : A 0, B 1, C 2, D 3);
+tuples!(5 : A 0, B 1, C 2, D 3, E 4);
+tuples!(6 : A 0, B 1, C 2, D 3, E 4, F 5);
+tuples!(7 : A 0, B 1, C 2, D 3, E 4, F 5, G 6);
+tuples!(8 : A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
+tuples!(9 : A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
+tuples!(10 : A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
+tuples!(11 : A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10);
+tuples!(12 : A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10, L 11);

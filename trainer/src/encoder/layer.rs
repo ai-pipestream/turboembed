@@ -10,7 +10,8 @@ use std::borrow::Cow;
 use crate::real::Real;
 
 use super::{
-    ATTN_NORM, Encoder, FFN_IN, FFN_NORM, FFN_OUT, OUT, QKV, attention, dropout, gated, lora, matmul, norm, slot,
+    ATTN_NORM, Compute, Encoder, FFN_IN, FFN_NORM, FFN_OUT, OUT, QKV, attention, dropout, gated, lora, matmul, norm,
+    slot,
 };
 
 /// The projections an adapter may sit on, in `lora_slot` order.
@@ -51,31 +52,42 @@ impl<R: Real> Encoder<R> {
         }
     }
 
-    /// y = x W^T (plus the adapter) for projection `which` of layer `l`.
+    /// y = x W^T (plus the adapter) for projection `which` of layer `l`;
+    /// under bfloat16, y and the adapter's low-rank product are rounded.
     fn project(&self, l: usize, which: usize, x: &[R], y: &mut [R], h: &mut Vec<R>) {
         let (inp, out) = self.widths(which);
-        matmul::forward(x, &self.params[slot(l, which)], inp, out, y);
+        let p = self.weights();
+        matmul::forward(x, &p[slot(l, which)], inp, out, y);
+        self.store(y);
         if let Some(a) = self.adapter(l) {
             let (sa, sb) = self.lora_slots(l, which);
-            lora::forward(x, &self.params[sa], &self.params[sb], inp, a.rank, a.scale(), y, h);
+            lora::forward(x, &p[sa], &p[sb], inp, a.rank, a.scale(), y, h);
+            self.store(y);
+            self.store(h);
         }
     }
 
     /// The gradients of `project` from dy: the weight's into `g` unless
-    /// the base is frozen, the adapter's into `g`, and the input's into dx.
+    /// the base is frozen, the adapter's into `g`, and the input's into
+    /// dx, which comes in zero and leaves rounded under bfloat16.
     #[allow(clippy::too_many_arguments)]
     fn project_back(&self, l: usize, which: usize, x: &[R], h: &[R], dy: &[R], g: &mut [Vec<R>], dx: &mut [R]) {
         let (inp, out) = self.widths(which);
-        let w = &self.params[slot(l, which)];
+        let p = self.weights();
         if !self.frozen {
             matmul::grad_w(x, dy, inp, out, &mut g[slot(l, which)]);
         }
-        matmul::grad_x(w, dy, inp, out, dx);
+        matmul::grad_x(&p[slot(l, which)], dy, inp, out, dx);
         if let Some(a) = self.adapter(l) {
             let (sa, sb) = self.lora_slots(l, which);
             let [da, db] = g.get_disjoint_mut([sa, sb]).expect("an adapter's two slots are distinct");
-            lora::backward(x, &self.params[sa], &self.params[sb], h, inp, a.rank, a.scale(), dy, da, db, Some(dx));
+            lora::backward(x, &p[sa], &p[sb], h, inp, a.rank, a.scale(), dy, da, db, Some(dx));
         }
+        self.store(dx);
+    }
+
+    fn rounds(&self) -> bool {
+        self.compute == Compute::Bf16
     }
 
     fn nothing(&self) -> &[R] {
@@ -95,36 +107,52 @@ impl<R: Real> Encoder<R> {
             x
         } else {
             w.xn1.resize(n * h, R::ZERO);
-            norm::forward(x, &self.params[slot(l, ATTN_NORM)], self.nothing(), self.geo.eps, &mut w.xn1, &mut w.n1);
+            norm::forward(x, &self.weights()[slot(l, ATTN_NORM)], self.nothing(), self.geo.eps, &mut w.xn1, &mut w.n1);
+            self.store(&mut w.xn1);
             &w.xn1
         };
         w.qkv.resize(n * 3 * h, R::ZERO);
         self.project(l, QKV, src, &mut w.qkv, h0);
         self.table.apply(global, &mut w.qkv, 3 * h, 2 * h);
+        self.store(&mut w.qkv);
         w.ctx.resize(n * h, R::ZERO);
-        attention::forward(&w.qkv, h, self.geo.heads, self.window(l), &mut w.ctx, &mut w.attn);
+        attention::forward(&w.qkv, h, self.geo.heads, self.window(l), self.rounds(), &mut w.ctx, &mut w.attn);
+        self.store(&mut w.ctx);
         w.x_mid.resize(n * h, R::ZERO);
         self.project(l, OUT, &w.ctx, &mut w.x_mid, h1);
         if let Some((d, key)) = self.mask(at, l as u32, 1) {
             dropout::forward(&mut w.x_mid, d.attention, key);
+            self.store(&mut w.x_mid);
         }
         for (m, &x) in w.x_mid.iter_mut().zip(x) {
             *m += x;
         }
+        self.store(&mut w.x_mid);
         w.xn2.resize(n * h, R::ZERO);
-        norm::forward(&w.x_mid, &self.params[slot(l, FFN_NORM)], self.nothing(), self.geo.eps, &mut w.xn2, &mut w.n2);
+        norm::forward(
+            &w.x_mid,
+            &self.weights()[slot(l, FFN_NORM)],
+            self.nothing(),
+            self.geo.eps,
+            &mut w.xn2,
+            &mut w.n2,
+        );
+        self.store(&mut w.xn2);
         w.pre.resize(n * 2 * i, R::ZERO);
         self.project(l, FFN_IN, &w.xn2, &mut w.pre, h2);
         w.act.resize(n * i, R::ZERO);
         gated::forward(&w.pre, i, &mut w.act);
+        self.store(&mut w.act);
         if let Some((d, key)) = self.mask(at, l as u32, 2) {
             dropout::forward(&mut w.act, d.mlp, key);
+            self.store(&mut w.act);
         }
         w.x_out.resize(n * h, R::ZERO);
         self.project(l, FFN_OUT, &w.act, &mut w.x_out, h3);
         for (o, &m) in w.x_out.iter_mut().zip(&w.x_mid) {
             *o += m;
         }
+        self.store(&mut w.x_out);
     }
 
     /// The gradient of layer `l`'s input from that of its output, with
@@ -143,35 +171,41 @@ impl<R: Real> Encoder<R> {
         self.project_back(l, FFN_OUT, &w.act, &w.h[3], dx_out, g, &mut dact);
         if let Some((d, key)) = self.mask(at, l as u32, 2) {
             dropout::backward(&mut dact, d.mlp, key);
+            self.store(&mut dact);
         }
         let mut dpre = vec![R::ZERO; n * 2 * i];
         gated::backward(&w.pre, i, &dact, &mut dpre);
+        self.store(&mut dpre);
         let mut dxn2 = vec![R::ZERO; n * h];
         self.project_back(l, FFN_IN, &w.xn2, &w.h[2], &dpre, g, &mut dxn2);
         let mut dx_mid = dx_out.to_vec();
         let norm_w = (!self.frozen).then_some(slot(l, FFN_NORM));
         norm::backward(
             &w.x_mid,
-            &self.params[slot(l, FFN_NORM)],
+            &self.weights()[slot(l, FFN_NORM)],
             &w.n2,
             &dxn2,
             &mut dx_mid,
             norm_w.map(|s| &mut g[s][..]),
             None,
         );
+        self.store(&mut dx_mid);
         let mut dctx = vec![R::ZERO; n * h];
         let dproj: Cow<[R]> = match self.mask(at, l as u32, 1) {
             Some((d, key)) => {
                 let mut dropped = dx_mid.clone();
                 dropout::backward(&mut dropped, d.attention, key);
+                self.store(&mut dropped);
                 Cow::Owned(dropped)
             }
             None => Cow::Borrowed(&dx_mid),
         };
         self.project_back(l, OUT, &w.ctx, &w.h[1], &dproj, g, &mut dctx);
         let mut dqkv = vec![R::ZERO; n * 3 * h];
-        attention::backward(&w.qkv, h, self.geo.heads, self.window(l), &w.attn, &dctx, &mut dqkv);
+        attention::backward(&w.qkv, h, self.geo.heads, self.window(l), self.rounds(), &w.attn, &dctx, &mut dqkv);
+        self.store(&mut dqkv);
         self.table.apply_grad(self.geo.global(l), &mut dqkv, 3 * h, 2 * h);
+        self.store(&mut dqkv);
         let mut dsrc = vec![R::ZERO; n * h];
         let src: &[R] = if l == 0 { &w.x_in } else { &w.xn1 };
         self.project_back(l, QKV, src, &w.h[0], &dqkv, g, &mut dsrc);
@@ -183,8 +217,9 @@ impl<R: Real> Encoder<R> {
         } else {
             let norm_w = (!self.frozen).then_some(slot(l, ATTN_NORM));
             let dw = norm_w.map(|s| &mut g[s][..]);
-            norm::backward(&w.x_in, &self.params[slot(l, ATTN_NORM)], &w.n1, &dsrc, &mut dx_in, dw, None);
+            norm::backward(&w.x_in, &self.weights()[slot(l, ATTN_NORM)], &w.n1, &dsrc, &mut dx_in, dw, None);
         }
+        self.store(&mut dx_in);
         dx_in
     }
 }
