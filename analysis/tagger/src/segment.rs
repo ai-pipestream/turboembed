@@ -157,7 +157,7 @@ pub(crate) fn sentence_ranges(
 }
 
 /// The sentence layer from the decoded word ranges of `seq`.
-pub(crate) fn sentence_layer(view: &View, tokens: &Tokens, seq: &[usize], ranges: &[Range<usize>]) -> Sentences {
+fn sentence_layer(view: &View, tokens: &Tokens, seq: &[usize], ranges: &[Range<usize>]) -> Sentences {
     let mut out = Sentences { spans: Spans::new(view.id()) };
     for r in ranges {
         let start = tokens.spans.get(Ix::new(seq[r.start] as u32)).start;

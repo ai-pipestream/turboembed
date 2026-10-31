@@ -65,12 +65,16 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   each from the head named for it or the one head that writes its layer;
   two outputs of one layer name their heads. Each window of words is read
   once, and every pooling the heads ask for is taken from that read, so
-  several heads cost one encoder pass and one host decode per head. When
-  `Sentences` is in `W` and no prior sentences are given, its
-  `HEAD_SENTENCE_BOUNDARY` head decodes sentence boundaries first from the
-  whole-view pass and cuts the other heads' sequences and features by
-  those decoded sentences. Each layer is written exactly as its
-  single-head annotator writes it (the lemmatizer without a dictionary).
+  several heads cost one encoder pass and one host decode per head.
+  Without a sentence head (or when prior sentences are given), each layer
+  is written from the same per-sentence features as its single-head
+  annotator (the lemmatizer without a dictionary), and `Sentences` echoes
+  the given sentence sequences on token bounds. When `Sentences` is in `W`
+  and no prior sentences are given, its `HEAD_SENTENCE_BOUNDARY` head
+  decodes sentence boundaries first from the whole-view pass and cuts the
+  other heads' sequences and features by those decoded sentences (so their
+  token states carry cross-sentence context from that single whole-view
+  pass rather than running a separate encoder pass per sentence).
   `license_tier` is the bundle's tier, the strictest class of the encoder
   (`model.license_class`) and every head's training corpora
   (`heads[].license_class`).
