@@ -80,6 +80,7 @@ pub fn spec(corpus: &CorpusRecord, o: &CorefOptions) -> Result<HeadSpec> {
         hash_embed: None,
         span: Some(o.span),
         coref: Some(o.coref),
+        relation: None,
         license_class: Some(corpus.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.coref".into(),
