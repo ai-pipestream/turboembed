@@ -4,6 +4,10 @@ Part of #1730. This is an executed Rust reader audit, not a training,
 accuracy, peer-performance or release receipt. No gold was projected,
 flattened or discarded to obtain these counts.
 
+Executed on 2026-10-31 with Rust 1.99.0. Audit source SHA-256:
+`e7d398be4f076362a3e78f71a033de41a7e40413abb8923afce711eb1506e40a`
+(`examples/masc_audit.rs`).
+
 ## Input and reproduction
 
 MASC 3.0.0 archive: 36,358,521 bytes, SHA-256
@@ -78,6 +82,10 @@ types on the same span. Removing the 42 duplicate pairs alone cannot resolve
 this: 95 same-type nested pairs and 26 different-type identical-span pairs
 remain across the two sides. No outermost-only, type-priority, deduplication
 or document-exclusion policy is authorized by this receipt.
+
+The actual `check` command now passes the former sentence-cut obstruction
+and refuses `HistoryJerusalem.hdr`, `ne-n203`, at UTF-16 `16065..16080`
+with `overlapping original annotations`.
 
 Full-gold CRF training and its gold/majority/spaCy/Stanza gate therefore
 remain blocked on an annotation/model-representation decision in #1730.

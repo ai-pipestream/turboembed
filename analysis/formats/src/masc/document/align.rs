@@ -195,10 +195,10 @@ pub(super) fn document_quark_places(quarks: &[Quark]) -> HashMap<i32, usize> {
     places
 }
 
-/// `MascSentence.tokenizePenn` for sentence `si`: the tokens of its
-/// quarks, in the order of the quarks and, for a quark in several tokens,
-/// of the quark's token list; a token is taken once, and a token whose
-/// quarks span nothing is left out.
+/// Tokens selected by the region's quarks, each original token once.
+/// A sentence index keeps the sentence reader's nonempty-token behavior.
+/// `None` selects the full document view, including zero-width source tokens
+/// so downstream consumers can diagnose them without losing membership.
 fn tokenize(
     si: Option<usize>,
     sentence: &MascSentence,

@@ -129,6 +129,24 @@ fn document_splits_schema_and_typed_refusal() {
             assert!(!std::path::Path::new(&d.path).is_absolute());
         }
     }
+    let gold = &recovered.corpus.splits.test;
+    let exact: Vec<_> = gold.iter().map(|s| s.labels.clone()).collect();
+    let outside: Vec<_> = gold.iter().map(|s| vec!["O".to_owned(); s.words.len()]).collect();
+    let groups: Vec<_> = recovered.test_documents.iter().map(|d| d.first..d.end).collect();
+    let types: Vec<_> = masc_ne::TYPES.iter().map(|s| (*s).to_owned()).collect();
+    let comparison = turbo_trainer_recipes::ner_documents::compare(turbo_trainer_recipes::ner_documents::Request {
+        gold,
+        candidate: &exact,
+        peer: &outside,
+        documents: &groups,
+        types: &types,
+        resamples: 100,
+        seed: 1,
+    })
+    .unwrap();
+    assert_eq!(comparison.statistical_unit, "document");
+    assert_eq!(comparison.candidate.all.f1, 1.0);
+    assert_eq!(comparison.peer.all.f1, 0.0);
     train_authored_documents(&fixture.0, &recovered.corpus);
     fs::write(
         fixture.0.join("doc00-s.xml"),
