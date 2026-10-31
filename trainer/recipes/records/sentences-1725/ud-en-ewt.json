@@ -1,0 +1,296 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train-sentences",
+    "--corpus",
+    "ud-en-ewt",
+    "--dir",
+    "ud-en-ewt",
+    "--bundle",
+    "modernbert-base",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--hash-embed",
+    "64",
+    "--bilstm",
+    "64x1",
+    "--patience",
+    "6",
+    "--tolerance",
+    "0.0005",
+    "--threads",
+    "16",
+    "--commit",
+    "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+    "--out",
+    "out-ud-en-ewt-bilstm"
+  ],
+  "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+  "host": "rtx-4080-machine",
+  "unix_time": 1793426699,
+  "corpus": {
+    "id": "ud-en-ewt-sentences",
+    "name": "Universal Dependencies English Web Treebank r2.18 (r2.18 b7711cce)",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.18/README.md",
+    "attribution": "Trained on the Universal Dependencies English Web Treebank (Silveira et al., 2014), annotations by The Board of Trustees of The Leland Stanford Junior University, published at https://github.com/UniversalDependencies/UD_English-EWT; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "en_ewt-ud-train.conllu",
+        "size": 15034493,
+        "sha256": "d68e06122a702464c613076523d56740f047e5bbe89dd90ec32737e04d952143"
+      },
+      {
+        "path": "en_ewt-ud-dev.conllu",
+        "size": 1898574,
+        "sha256": "39239e0a60db3ae68f4b7036189f11b6692741d10ff8240dd91f74f2760d90f8"
+      },
+      {
+        "path": "en_ewt-ud-test.conllu",
+        "size": 1900101,
+        "sha256": "fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a"
+      }
+    ],
+    "split": "official Universal Dependencies English Web Treebank r2.18 train, dev and test files",
+    "train": {
+      "sentences": 12544,
+      "words": 201963
+    },
+    "dev": {
+      "sentences": 2001,
+      "words": 24788
+    },
+    "test": {
+      "sentences": 2077,
+      "words": 24740
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "answerdotai/ModernBERT-base",
+    "revision": "1",
+    "manifest_sha256": "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8",
+    "hidden": 768,
+    "layers": 22,
+    "width": 8190,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "sentences",
+    "layer": "turboembed:sentences",
+    "kind": "HEAD_SENTENCE_BOUNDARY",
+    "labels": [
+      "inside",
+      "last"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 64,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.sentences"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 6,
+    "tolerance": 0.0005,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.18278083914586077,
+      0.05106875711431314,
+      0.03291129568870092,
+      0.021657084450275206,
+      0.014776893591535742,
+      0.00986518693585435,
+      0.006568395408030059,
+      0.004038874030430316,
+      0.002525718147760105,
+      0.0015822283776055946,
+      0.0009379912236752015,
+      0.0005788651433900059,
+      0.00039742851428194496,
+      0.00026668826713097257,
+      0.0002032662888161048,
+      0.00013616838706385226
+    ],
+    "dev": [
+      0.9678876875907697,
+      0.982007422946587,
+      0.983500080684202,
+      0.9832580280781023,
+      0.9839841858964015,
+      0.9847506858157172,
+      0.9843876069065677,
+      0.984992738421817,
+      0.9847910279167339,
+      0.9857188962401162,
+      0.9854768436340164,
+      0.9855575278360497,
+      0.9852347910279168,
+      0.9847103437147007,
+      0.9849120542197838,
+      0.9849523963208003
+    ],
+    "best_epoch": 9,
+    "epoch_seconds": [
+      6.822896974,
+      8.635150598,
+      8.68922518,
+      11.678396032,
+      13.690200976,
+      13.425959023,
+      13.911990024,
+      12.058107518,
+      8.637537144,
+      7.941114388,
+      12.019073158,
+      10.797202566,
+      9.242436434,
+      10.295917108,
+      7.914440166,
+      12.536891646
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "spans": {
+        "all": {
+          "gold": 2077,
+          "found": 1813,
+          "correct": 1494,
+          "precision": 0.8240485383342526,
+          "recall": 0.719306692344728,
+          "f1": 0.7681233933161954
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 2077,
+            "found": 1813,
+            "correct": 1494,
+            "precision": 0.8240485383342526,
+            "recall": 0.719306692344728,
+            "f1": 0.7681233933161954
+          }
+        }
+      }
+    },
+    "baseline": {
+      "spans": {
+        "all": {
+          "gold": 2077,
+          "found": 854,
+          "correct": 425,
+          "precision": 0.49765807962529274,
+          "recall": 0.20462205103514686,
+          "f1": 0.29000341180484474
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 2077,
+            "found": 854,
+            "correct": 425,
+            "precision": 0.49765807962529274,
+            "recall": 0.20462205103514686,
+            "f1": 0.29000341180484474
+          }
+        }
+      }
+    },
+    "comparison": {
+      "model": 0.7681233933161954,
+      "baseline": 0.29000341180484474,
+      "delta": 0.47811998151135066,
+      "low": 0.40417033726498935,
+      "high": 0.5490617400587114,
+      "resamples": 1000,
+      "seed": 1
+    },
+    "rules": {
+      "name": "sentdetect-rules-en",
+      "baseline": {
+        "spans": {
+          "all": {
+            "gold": 2077,
+            "found": 1380,
+            "correct": 1032,
+            "precision": 0.7478260869565218,
+            "recall": 0.496870486278286,
+            "f1": 0.5970494648539196
+          },
+          "per_type": {
+            "sentence": {
+              "gold": 2077,
+              "found": 1380,
+              "correct": 1032,
+              "precision": 0.7478260869565218,
+              "recall": 0.496870486278286,
+              "f1": 0.5970494648539196
+            }
+          }
+        }
+      },
+      "comparison": {
+        "model": 0.7681233933161954,
+        "baseline": 0.5970494648539196,
+        "delta": 0.17107392846227576,
+        "low": 0.14364867514213764,
+        "high": 0.203158747300216,
+        "resamples": 1000,
+        "seed": 1
+      }
+    }
+  },
+  "timing_s": {
+    "read": 0.353961968,
+    "features": 3.828918685,
+    "train": 168.528119087,
+    "eval": 0.878506721,
+    "feature_words": 226751
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 5048520,
+      "sha256": "d47df64d1b53dffd82217b9e85a8432bb3129872955e96975912689debc5084d"
+    },
+    {
+      "path": "head.json",
+      "size": 528,
+      "sha256": "188e5928f47e0b52819a31c707d9cd3d5d9815e1a1220ca668ff031e25e81aec"
+    }
+  ]
+}

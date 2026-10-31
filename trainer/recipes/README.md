@@ -82,6 +82,8 @@ turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <e
 turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
 turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
     --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
+turbo-train-head train-sentences --corpus <masc-pos|ud-*> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    [as train]
 ```
 
 `cache` (#1616) reads every split once and writes each word's features
@@ -138,6 +140,18 @@ whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
 
+<<<<<<< HEAD
+`train-sentences` trains the sentence boundary head (`sentences` on
+`turboembed:sentences`, #1725) on multi-sentence MASC (`masc-pos`) or
+UD documents (`ud-es-ancora`, `ud-ca-ancora`, `ud-fi-ftb`,
+`ud-it-markit`, `ud-en-ewt`, and the other pinned UD treebanks),
+keeping original MASC inter-sentence whitespace and UD `# newdoc` /
+`# newpar` / `SpacesAfter` / `SpaceAfter=No` joins intact. It scores
+the test split by exact sentence span precision, recall and F1, with
+paired bootstrap comparisons against both the newline baseline
+(`eval.baseline` and `eval.comparison`) and the rule/abbreviation
+sentencer in `analysis/sentdetect` (`eval.rules`).
+=======
 `export` writes a corpus's test words, and nothing else, as CoNLL-U
 for a peer system (spaCy, Stanza) to tag as given; `peer` reads the
 peer's CoNLL-U back and scores the column named exactly as the
@@ -153,6 +167,7 @@ part alone. The words are syntactic words, multiword tokens already
 split, so a peer runs pretokenized with no multiword expansion (Stanza
 `tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
 its file for words other than the split's.
+>>>>>>> origin/main
 
 `train-relation` trains the relation classifier head (`relation` on
 `turboembed:relations`, #1734) on `re-docred`: each document is one

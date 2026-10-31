@@ -1,0 +1,268 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train-sentences",
+    "--corpus",
+    "masc-pos",
+    "--dir",
+    "MASC-3.0.0",
+    "--bundle",
+    "modernbert-base",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--hash-embed",
+    "64",
+    "--bilstm",
+    "64x1",
+    "--patience",
+    "6",
+    "--tolerance",
+    "0.0005",
+    "--threads",
+    "16",
+    "--commit",
+    "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+    "--out",
+    "out-masc-pos-bilstm"
+  ],
+  "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+  "host": "rtx-4080-machine",
+  "unix_time": 1793426900,
+  "corpus": {
+    "id": "masc-sentences",
+    "name": "MASC 3.0.0",
+    "task": "tags",
+    "licence": "CC BY 3.0 US",
+    "spdx": "CC-BY-3.0-US",
+    "terms": "https://anc.org/data/masc/",
+    "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/).",
+    "recorded": true,
+    "corpus_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
+    "split": "test: documents at 9 modulo 10 with the Twitter genre left out (the recipes' split); dev: training-side documents at 9 modulo 10",
+    "train": {
+      "sentences": 21340,
+      "words": 372744
+    },
+    "dev": {
+      "sentences": 3618,
+      "words": 58893
+    },
+    "test": {
+      "sentences": 6384,
+      "words": 85292
+    },
+    "skipped": 1
+  },
+  "encoder": {
+    "model": "answerdotai/ModernBERT-base",
+    "revision": "1",
+    "manifest_sha256": "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8",
+    "hidden": 768,
+    "layers": 22,
+    "width": 8190,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "sentences",
+    "layer": "turboembed:sentences",
+    "kind": "HEAD_SENTENCE_BOUNDARY",
+    "labels": [
+      "inside",
+      "last"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 64,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_PERMISSIVE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.sentences"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 6,
+    "tolerance": 0.0005,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.15741281460284914,
+      0.050033423520676606,
+      0.03494291091413661,
+      0.024403681100558215,
+      0.018334655155640447,
+      0.018272255618612284,
+      0.013342563063602614,
+      0.010088582213487877,
+      0.008150035142697683,
+      0.007506595323329448,
+      0.0065659084305384665,
+      0.0051737380440846
+    ],
+    "dev": [
+      0.977077071977994,
+      0.9897950520435366,
+      0.9913402271916866,
+      0.9909327084712954,
+      0.9920703648990542,
+      0.9904402900174893,
+      0.9918666055388586,
+      0.9918326456454927,
+      0.9902365306572938,
+      0.9916288862852971,
+      0.9917986857521267,
+      0.991170427724857
+    ],
+    "best_epoch": 4,
+    "epoch_seconds": [
+      8.894481277,
+      9.221969872,
+      9.441533511,
+      9.314450604,
+      8.918197077,
+      8.452905531,
+      8.673756006,
+      8.582103374999999,
+      9.518214877,
+      9.546591791,
+      10.022177472,
+      9.871696849
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "spans": {
+        "all": {
+          "gold": 6384,
+          "found": 5259,
+          "correct": 4530,
+          "precision": 0.8613804905875642,
+          "recall": 0.7095864661654135,
+          "f1": 0.7781499613501675
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 6384,
+            "found": 5259,
+            "correct": 4530,
+            "precision": 0.8613804905875642,
+            "recall": 0.7095864661654135,
+            "f1": 0.7781499613501675
+          }
+        }
+      }
+    },
+    "baseline": {
+      "spans": {
+        "all": {
+          "gold": 6384,
+          "found": 5445,
+          "correct": 1513,
+          "precision": 0.2778696051423324,
+          "recall": 0.23699874686716793,
+          "f1": 0.255811987488376
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 6384,
+            "found": 5445,
+            "correct": 1513,
+            "precision": 0.2778696051423324,
+            "recall": 0.23699874686716793,
+            "f1": 0.255811987488376
+          }
+        }
+      }
+    },
+    "comparison": {
+      "model": 0.7781499613501675,
+      "baseline": 0.255811987488376,
+      "delta": 0.5223379738617915,
+      "low": 0.35222756027420693,
+      "high": 0.7319123810505341,
+      "resamples": 1000,
+      "seed": 1
+    },
+    "rules": {
+      "name": "sentdetect-rules-en",
+      "baseline": {
+        "spans": {
+          "all": {
+            "gold": 6384,
+            "found": 3764,
+            "correct": 3308,
+            "precision": 0.8788522848034006,
+            "recall": 0.518170426065163,
+            "f1": 0.6519511233740638
+          },
+          "per_type": {
+            "sentence": {
+              "gold": 6384,
+              "found": 3764,
+              "correct": 3308,
+              "precision": 0.8788522848034006,
+              "recall": 0.518170426065163,
+              "f1": 0.6519511233740638
+            }
+          }
+        }
+      },
+      "comparison": {
+        "model": 0.7781499613501675,
+        "baseline": 0.6519511233740638,
+        "delta": 0.12619883797610365,
+        "low": -0.028842522182348507,
+        "high": 0.2701304465550046,
+        "resamples": 1000,
+        "seed": 1
+      }
+    }
+  },
+  "timing_s": {
+    "read": 1.946192403,
+    "features": 8.951264495,
+    "train": 110.565151816,
+    "eval": 5.812430199,
+    "feature_words": 431637
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 5048520,
+      "sha256": "3e2e39f90e47ff613ea5804f96849675601e31eec90cab4f052d484fc297faf9"
+    },
+    {
+      "path": "head.json",
+      "size": 527,
+      "sha256": "de108accae09799b55343fa0b563ac86da34121131aec967b8cf40e9213ab141"
+    }
+  ]
+}
