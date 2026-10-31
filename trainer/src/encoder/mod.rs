@@ -32,6 +32,8 @@ use crate::real::Real;
 use crate::rng::Rng;
 
 pub mod attention;
+#[cfg(any(feature = "cuda", feature = "cuda-shim"))]
+pub mod cuda;
 pub mod dropout;
 mod export;
 pub mod gated;

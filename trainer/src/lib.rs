@@ -45,7 +45,7 @@ pub use encoder::tuned::{Tuned, TunedExample, fit_tuned, fit_tuned_with, tuned_g
 pub use fit::{Config, Draw, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
 pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};
 pub use fit_parse::{ParseExample, fit_parser, fit_parser_with};
-pub use fit_relation::{RelationExample, fit_relations};
+pub use fit_relation::{RelationExample, fit_relations, fit_relations_with};
 pub use fit_span::{SpanExample, fit_spans};
 pub use lemma::Lemmatizer;
 pub use parser::Parser;

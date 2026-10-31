@@ -905,6 +905,37 @@ and the conformance test fails when it lists none. The tests in
 `core/tests/cuda_devices.rs` that need no device (the table, the arch labels)
 run everywhere the feature builds.
 
+## The trainer's kernels
+
+The encoder trainer (`trainer/`, stage R2 of #1519) has CUDA kernels of
+its own in `trainer/cuda/train.cu`, with the C API in `train.h`: the
+forward and backward ops of the CPU encoder (`trainer/src/encoder`) one
+for one, launched by `trainer/src/encoder/cuda` in the CPU's order. They
+share nothing with the inference backend above but the toolkit:
+training keeps every activation for backward, accumulates gradients
+over sequences and needs transposed products, none of which the graph
+captured for inference does. `trainer/build.rs` builds them for the
+`cuda` feature as `core/build.rs` builds the backend (`TURBO_CUDA_ROOT`,
+`TURBO_CUDA_ARCH`, the static cudart), and for the `cuda-shim` feature
+as plain C++ on the host through `trainer/cuda/shim.h`, where a launch
+is loops over its threads: the kernels are written for that (no shared
+memory, barriers or atomics; each output owned by one thread, summed in
+a fixed order), so CI runs them against the CPU encoder on every
+change, and a device gives the same bytes every run.
+
+On a GPU machine:
+
+```
+export TURBO_TEST_REQUIRE_CUDA=1
+cargo test --release -p turbo-trainer --features cuda --test encoder_cuda -- --nocapture
+# The ModernBERT-base shape, one sequence of 128 tokens, timed against
+# the CPU on one thread:
+cargo test --release -p turbo-trainer --features cuda --test encoder_cuda -- --ignored --nocapture
+```
+
+The first leg's GEMM is register-tiled over global memory; a tiled one
+comes once the path is proven on the device.
+
 ## Recording a benchmark
 
 Embed stays EXPERIMENTAL here until a benchmark record backs the cell:
