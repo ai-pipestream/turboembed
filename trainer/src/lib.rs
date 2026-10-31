@@ -43,7 +43,7 @@ pub mod xent;
 
 pub use encoder::tuned::{Tuned, TunedExample, fit_tuned, fit_tuned_with, tuned_gradients};
 pub use fit::{Config, Draw, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
-pub use fit_coref::{CorefExample, fit_coref};
+pub use fit_coref::{CorefExample, fit_coref, fit_coref_with};
 pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};
 pub use fit_parse::{ParseExample, fit_parser, fit_parser_with};
 pub use fit_span::{SpanExample, fit_spans};

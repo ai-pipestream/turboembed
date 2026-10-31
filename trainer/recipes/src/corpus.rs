@@ -24,12 +24,14 @@ pub struct Splits {
     pub test: Vec<Sentence>,
 }
 
-/// How a corpus's labels read: one tag a word, or BIO entity spans.
+/// How a corpus's labels read: one tag a word, BIO entity spans, or
+/// document-level coreference clusters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Task {
     Tags,
     Bio,
+    Coref,
 }
 
 /// A file a corpus was read from.

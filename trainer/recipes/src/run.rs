@@ -57,7 +57,7 @@ impl Default for HeadOptions {
 pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
     let (name, layer) = crate::head(&corpus.record.id, corpus.record.task);
     let scheme = match corpus.record.task {
-        Task::Tags => Scheme::Tags,
+        Task::Tags | Task::Coref => Scheme::Tags,
         Task::Bio => Scheme::Bio,
     };
     let spec = HeadSpec {

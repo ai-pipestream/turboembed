@@ -10,7 +10,7 @@ use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
 use crate::coref::{Ranker, Work};
-use crate::fit::{Config, Model, Report, check_config, train};
+use crate::fit::{Config, Model, OnBest, Report, check_config, train};
 use crate::rng::Rng;
 
 /// One training document: per-word features [words, hidden], its
@@ -88,6 +88,19 @@ pub fn fit_coref(
     dev: &[CorefExample],
     c: &Config,
 ) -> Result<(Ranker<f32>, Report)> {
+    fit_coref_with(spec, hidden, train_set, dev, c, &mut |_, _, _| Ok(()))
+}
+
+/// Like [`fit_coref`], calling `on_best(ranker, epoch, dev_score)` each
+/// time the dev antecedent accuracy strictly beats the running best.
+pub fn fit_coref_with(
+    spec: &HeadSpec,
+    hidden: usize,
+    train_set: &[CorefExample],
+    dev: &[CorefExample],
+    c: &Config,
+    on_best: OnBest<'_, Ranker<f32>>,
+) -> Result<(Ranker<f32>, Report)> {
     check_config(c, train_set.len())?;
     let mut rng = Rng::new(c.seed);
     let model = Ranker::<f32>::new(spec, hidden, &mut rng)?;
@@ -97,5 +110,5 @@ pub fn fit_coref(
     for e in dev {
         model.loss(&e.features, &e.mentions, &e.chains, &mut grads, &mut w)?;
     }
-    train(model, &mut rng, train_set, dev, c, &mut |_, _, _| Ok(()))
+    train(model, &mut rng, train_set, dev, c, on_best)
 }
