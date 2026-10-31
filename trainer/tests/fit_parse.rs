@@ -24,6 +24,7 @@ fn spec(decode: Decode) -> HeadSpec {
         pos_input: None,
         hash_embed: None,
         span: None,
+        relation: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "deps".into(),

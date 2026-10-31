@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::helpers::{fits, positive, required};
-use super::{Format, LicenseClass, Manifest};
+use super::{Format, LicenseClass, Manifest, RelationShape};
 use crate::status::{Result, invalid};
 
 /// The most heads one bundle carries.
@@ -66,6 +66,10 @@ pub struct HeadSpec {
     /// kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<SpanShape>,
+    /// The mention views and types a HEAD_RELATION_CLASSIFIER reads;
+    /// absent for every other kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation: Option<RelationShape>,
     /// The class of the strictest licence among the corpora the head was
     /// trained on (docs/zoo.md); the bundle's tier counts it
     /// ([`Manifest::license_tier`]).
@@ -105,6 +109,10 @@ pub enum HeadKind {
     /// first and last word and its width (head/span.rs); `O` is no span.
     #[serde(rename = "HEAD_SPAN_CLASSIFIER")]
     SpanClassifier,
+    /// A relation or `none` for every ordered pair of the mentions given
+    /// with a sequence, from each mention's ends and type (head/relation.rs).
+    #[serde(rename = "HEAD_RELATION_CLASSIFIER")]
+    RelationClassifier,
 }
 
 impl HeadKind {
@@ -228,6 +236,10 @@ pub enum Decode {
     /// the highest score; a span classifier's decode.
     #[serde(rename = "DECODE_SPANS_FLAT")]
     SpansFlat,
+    /// Every ordered pair of mentions whose best label is not `none`; a
+    /// relation classifier's decode.
+    #[serde(rename = "DECODE_RELATIONS")]
+    Relations,
 }
 
 /// A label read under a scheme: outside any span, or a part of a span of
@@ -319,20 +331,7 @@ impl HeadSpec {
         if self.scheme != Scheme::Tags && !self.labels.iter().any(|l| l == "O") {
             return Err(invalid(format!("manifest.json: {}: {:?} needs the label \"O\"", at("labels"), self.scheme)));
         }
-        let fits_kind = match self.kind {
-            HeadKind::TokenTagger => matches!(self.decode, Decode::Argmax | Decode::Crf),
-            HeadKind::BiaffineParser => {
-                matches!(self.decode, Decode::Mst | Decode::Eisner) && self.scheme == Scheme::Tags
-            }
-            HeadKind::EditTreeLemmatizer => self.decode == Decode::EditTree && self.scheme == Scheme::Tags,
-            HeadKind::SentenceBoundary => {
-                matches!(self.decode, Decode::Argmax | Decode::Crf) && self.scheme == Scheme::Tags
-            }
-            HeadKind::TokenSplit => self.decode == Decode::EditTree && self.scheme == Scheme::Tags,
-            HeadKind::SpanClassifier => {
-                matches!(self.decode, Decode::SpansNested | Decode::SpansFlat) && self.scheme == Scheme::Tags
-            }
-        };
+        let fits_kind = self.decode_fits_kind();
         let parser = self.kind == HeadKind::BiaffineParser;
         let lemmatizer = self.kind == HeadKind::EditTreeLemmatizer;
         if !fits_kind || parser != self.biaffine.is_some() || (!lemmatizer && self.pos_input.is_some()) {
@@ -342,7 +341,7 @@ impl HeadSpec {
                  biaffine; a HEAD_EDIT_TREE_LEMMATIZER takes SCHEME_TAGS, DECODE_EDIT_TREE and an optional pos_input; \
                  a HEAD_SENTENCE_BOUNDARY takes SCHEME_TAGS and DECODE_ARGMAX or DECODE_CRF; a HEAD_TOKEN_SPLIT takes \
                  SCHEME_TAGS and DECODE_EDIT_TREE; a HEAD_SPAN_CLASSIFIER takes SCHEME_TAGS and DECODE_SPANS_NESTED or \
-                 DECODE_SPANS_FLAT",
+                 DECODE_SPANS_FLAT; a HEAD_RELATION_CLASSIFIER takes SCHEME_TAGS and DECODE_RELATIONS",
                 at("kind"),
                 self.kind,
                 self.scheme,
