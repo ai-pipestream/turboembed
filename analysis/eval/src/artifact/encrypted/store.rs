@@ -119,7 +119,6 @@ impl<S: EvaluationArtifactStore> EvaluationArtifactStore for EncryptedStore<S> {
                 context: self.context.clone(),
                 request,
                 key: key.clone(),
-                written: 0,
                 limit: self.max_ciphertext_bytes,
             }) as Box<dyn PendingArtifact>)
         })();
@@ -179,7 +178,6 @@ struct Pending {
     context: SecurityContext,
     request: Request,
     key: ArtifactKey,
-    written: u64,
     limit: u64,
 }
 
@@ -187,18 +185,13 @@ impl Write for Pending {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         // Header + terminal + bounded frame overhead. Reserve for all bytes,
         // before accepting any part of this call. Overflow permanently poisons.
-        let total = self.written.checked_add(bytes.len() as u64);
-        let fits = total
-            .and_then(|n| n.checked_add(n.div_ceil(65_536).checked_mul(21)?))
-            .and_then(|n| n.checked_add(93))
-            .is_some_and(|n| n <= self.limit);
+        let encoder = self.encoder.as_mut().ok_or_else(|| io::Error::other(Error::Poisoned))?;
+        let fits = encoder.projected_size(bytes.len()).is_some_and(|n| n <= self.limit);
         if !fits {
             self.encoder.take();
             return Err(io::Error::other(Error::InvalidArtifact));
         }
-        let n = self.encoder.as_mut().ok_or_else(|| io::Error::other(Error::Poisoned))?.write(bytes)?;
-        self.written += n as u64;
-        Ok(n)
+        self.encoder.as_mut().ok_or_else(|| io::Error::other(Error::Poisoned))?.write(bytes)
     }
     fn flush(&mut self) -> io::Result<()> {
         self.encoder.as_mut().ok_or_else(|| io::Error::other(Error::Poisoned))?.flush()

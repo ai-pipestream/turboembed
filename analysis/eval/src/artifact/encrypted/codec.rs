@@ -85,6 +85,12 @@ impl<W: Write> Encoder<W> {
         super::KeyId(self.header[8..24].try_into().expect("fixed key identifier"))
     }
 
+    pub(super) fn projected_size(&self, additional: usize) -> Option<u64> {
+        let frames = (self.buffer.len() as u64).checked_add(additional as u64)?.div_ceil(BLOCK as u64);
+        let overhead = self.index.checked_add(frames)?.checked_mul(21)?;
+        self.total.checked_add(additional as u64)?.checked_add(overhead)?.checked_add(93)
+    }
+
     pub(super) fn abort(self) -> W {
         self.output
     }
@@ -148,6 +154,7 @@ impl<W: Write> Write for Encoder<W> {
         if self.poisoned {
             return Err(io::Error::other(Error::Poisoned));
         }
+        self.drain().map_err(io::Error::other)?;
         // A transport failure permanently poisons publication.
         self.poisoned = true;
         self.output.flush().map_err(|_| io::Error::other(Error::Io))?;

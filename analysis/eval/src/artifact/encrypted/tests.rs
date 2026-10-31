@@ -185,3 +185,22 @@ fn bounded_filesystem_measurement() {
     std::fs::remove_file(path).unwrap();
     std::fs::remove_dir(root).unwrap();
 }
+
+#[test]
+fn partial_flushes_are_complete_and_flush_io_failure_poisons_publication() {
+    let mut writer = Encoder::new(Vec::new(), &Keys, Binding([3; 32])).unwrap();
+    for _ in 0..3 {
+        writer.write_all(b"abc").unwrap();
+        writer.flush().unwrap();
+        writer.flush().unwrap();
+    }
+    assert_eq!(writer.projected_size(0), Some(93 + 9 + 3 * 21));
+    let bytes = writer.finish().unwrap();
+    assert_eq!(bytes.len(), 93 + 9 + 3 * 21);
+    assert_eq!(decode(bytes, Binding([3; 32])).unwrap(), b"abcabcabc");
+    let mut broken = Encoder::new(FailsAfterHeader, &Keys, Binding([3; 32])).unwrap();
+    broken.write_all(b"a").unwrap();
+    assert!(broken.flush().is_err());
+    assert!(broken.write_all(b"b").is_err());
+    assert!(matches!(broken.finish(), Err(Error::Poisoned)));
+}

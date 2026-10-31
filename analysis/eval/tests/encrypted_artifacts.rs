@@ -260,3 +260,24 @@ fn live_staging_contains_only_ciphertext_and_errors_and_audit_exclude_text() {
     assert!(!format!("{:?}", fixture.policy.events.lock().unwrap()).contains("document source"));
     assert_eq!(fs::read_dir(fixture.root.join("objects")).unwrap().count(), 0);
 }
+
+#[test]
+fn flush_emits_partial_ciphertext_and_budget_counts_every_partial_frame() {
+    let fixture = Fixture::new();
+    let store = EncryptedStore::new(
+        TemporaryFileStore::new(fixture.root.join("objects")),
+        fixture.context(1),
+        fixture.root.join("scratch"),
+        116,
+    );
+    let mut writer = store.begin(&key(1)).unwrap();
+    writer.write_all(b"a").unwrap();
+    writer.flush().unwrap();
+    let stage = fs::read_dir(fixture.root.join("objects")).unwrap().next().unwrap().unwrap().path();
+    // Header plus kind/length plus one plaintext byte encrypted with its tag.
+    assert_eq!(fs::metadata(stage).unwrap().len(), 56 + 5 + 1 + 16);
+    // A second flushed frame needs another 21 bytes of overhead; it cannot fit.
+    assert!(writer.write_all(b"b").is_err());
+    assert!(writer.finalize().is_err());
+    assert_eq!(fs::read_dir(fixture.root.join("objects")).unwrap().count(), 0);
+}
