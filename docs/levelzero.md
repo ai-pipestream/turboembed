@@ -427,7 +427,9 @@ says which. The CPU encoder (`core/src/cpu/encoder/rotary`) is the
 reference. Loading copies the core's cos/sin table to the device beside
 the weights; the first session copies a nomic-bert's gate (fc12) and up
 (fc11) side by side into one feed-forward input, as ModernBERT's `Wi`
-already is. The layer loop (`core/src/levelzero/encoder/rotary.rs`) runs
+already is. That copy is kept beside the original tensors for the
+model's life, as BERT's fused Q, K and V are: 2 x intermediate x hidden
+F32 values a layer, about 226 MB for nomic-embed-text-v1.5. The layer loop (`core/src/levelzero/encoder/rotary.rs`) runs
 the linear layers without biases on `linear_sg` (`linear` where a width
 is not a multiple of 16) or, at FASTEST, `linear_dpas`, and these kernels
 of encoder.cl between them: `rotary_embed` (the word row, plus the type
@@ -441,6 +443,28 @@ by zero), `rotary_gated` (GELU by erf or SiLU of the gate times up),
 pre-norm layers), `rotary_add` (the residual) and `rotary_narrow`. RoPE
 and the gated MLP fused into the products' epilogues, as the CPU does
 them, are not done yet.
+
+On the B70 (2026-10-31, `rotary_speed` in core/tests/levelzero_rotary.rs,
+ignored by default: `TURBO_SPEED_BUNDLE` a real bundle, MODEL and FASTEST
+interleaved, `TURBO_SPEED_RUNS=7`, three rounds; milliseconds a pass, the
+best of 21 / the median of the three rounds' medians):
+
+| Bundle, batch x tokens | MODEL | FASTEST |
+| --- | ---: | ---: |
+| modernbert-base, 8 x 128 | 90.7 / 136.6 | 71.8 / 101.9 |
+| modernbert-base, 8 x 512 | 1115.5 / 1264.9 | 1004.3 / 1066.4 |
+| nomic-embed-text-v1.5, 8 x 128 | 78.5 / 129.8 | 28.3 / 69.1 |
+| nomic-embed-text-v1.5, 8 x 512 | 1275.5 / 1412.3 | 1042.9 / 1235.8 |
+
+The box was not quiet: CI jobs and a training run held the host's
+one-minute load average at 20 to 88, and other clients shared the
+device, so the medians spread widely and the best passes are the
+comparable figures. At 8 x 512 most of a pass is attention, which FASTEST
+leaves in F32. nomic-embed-text-v1.5 at MODEL, the one fused [2 *
+intermediate, hidden] feed-forward input against main's two [intermediate,
+hidden] products, six interleaved rounds of 10 a side: best 51.0 ms
+against 50.7 at 8 x 128, and 1137.5 against 1194.6 at 8 x 512 (medians
+117 to 153 and 1410 to 1597 on both).
 
 ## The LSTM for the taggers
 
