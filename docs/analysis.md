@@ -16,10 +16,19 @@ against spaCy, Stanza and other current stacks on held-out data, never
 against Java output. Two standing assumptions govern this direction
 (#1509): JVM goldens are no longer the test oracle (no new code may load
 a classical `.bin` model, reproduce Java platform behaviour or use JVM
-output as an oracle), and English syntax models trained on Universal
-Dependencies English EWT (CC BY-SA 4.0) ship in the accept-first
-download tier because every English UD treebank carries a ShareAlike or
-non-commercial licence.
+output as an oracle), and the #1733 audit of all 16 Universal
+Dependencies `UD_English-*` repositories ([licences.md](licences.md))
+confirms that no English UD treebank with included text carries a
+permissive (`CC BY` or `CC0`) licence (ten are `CC BY-SA 3.0`/`4.0`,
+five are `CC BY-NC-SA 3.0`/`4.0`, and `UD_English-GUMReddit` sets
+`Includes text: no` over unhydrated Reddit text). Consequently, the
+English dependency parser and learned lemmatizer are accept-first only
+(`UD_English-EWT`, #1728), default English phrase chunks come from the
+pattern chunker (`PatternChunker` in `analysis/phrase-chunker` over MASC
+Penn POS), and the OEWN dictionary lemmatizer (`DictionaryLemmatizer` in
+`analysis/lemmatizer` and `MorphyLemmatizer` in `analysis/wordnet`,
+backed by Open English WordNet under CC BY 4.0) is the default English
+lemma tier.
 The crates are Rust only; the gRPC server serves analysis documents and
 layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)).
 
