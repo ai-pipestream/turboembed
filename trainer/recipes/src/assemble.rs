@@ -1,13 +1,6 @@
 //! Assembling verified `turbo-trainer` receipt directories into a single-head
-//! or multi-task bundle (#1726).
-//!
-//! [`assemble_bundle`] checks every receipt before writing anything:
-//! schema, corpus record and licence class, encoder match against the target
-//! bundle, output file sizes and SHA-256 digests, `head.json` equality and
-//! `HeadSpec::validate`, and exact tensor names and shapes loaded through the
-//! core head constructors. It then merges the head tensors into the bundle's
-//! safetensors weights file, records [`HeadProvenance`] in `manifest.json`,
-//! and verifies the assembled bundle with [`Bundle::open`].
+//! or multi-task bundle (#1726), verifying receipts, checkpoint metadata,
+//! tensor names and shapes, and the assembled bundle via [`Bundle::open`].
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -16,8 +9,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::{
-    BiaffineParser, EditTreeLemmatizer, SentenceBoundary, SpanClassifier, TokenSplitter, TokenTagger, boundary,
-    lemmatizer, parser, span, split, tagger,
+    BiaffineParser, EditTreeLemmatizer, RelationClassifier, SentenceBoundary, SpanClassifier, TokenSplitter,
+    TokenTagger, boundary, lemmatizer, parser, relation, span, split, tagger,
 };
 use turbo::manifest::{Format, HeadKind, HeadProvenance, HeadSpec, LicenseClass, Manifest};
 use turbo::safetensors;
@@ -164,6 +157,7 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => boundary::tensors(spec, hidden),
         HeadKind::TokenSplit => split::tensors(spec, hidden),
         HeadKind::SpanClassifier => span::tensors(spec, hidden),
+        HeadKind::RelationClassifier => relation::tensors(spec, hidden),
     };
     if header.len() != expected.len() {
         return Err(format!("head.safetensors: {} tensors on disk, head expects {}", header.len(), expected.len()));
@@ -194,6 +188,7 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => SentenceBoundary::from_tensors(spec, hidden, &get).map(|b| b.hidden()),
         HeadKind::TokenSplit => TokenSplitter::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
         HeadKind::SpanClassifier => SpanClassifier::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
+        HeadKind::RelationClassifier => RelationClassifier::from_tensors(spec, hidden, &get).map(|r| r.hidden()),
     }
     .map_err(|e| format!("head.safetensors: {}", e.message))?;
     if checked != hidden {

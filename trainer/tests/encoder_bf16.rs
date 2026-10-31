@@ -27,6 +27,7 @@ fn spec() -> HeadSpec {
         hash_embed: None,
         license_class: None,
         span: None,
+        relation: None,
         artifact: "weights".into(),
         tensor_prefix: "pos".into(),
     }

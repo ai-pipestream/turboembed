@@ -353,16 +353,17 @@ so any number of heads fit one artifact.
 |---|---|
 | `name` | Unique in the bundle; lowercase ASCII letters, digits, `_` and `-`, at most 64 bytes. |
 | `layer` | The layer id the analysis annotator writes the output to: `turboembed:` and a lowercase name, such as `turboembed:pos`. |
-| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. `HEAD_SENTENCE_BOUNDARY`: whether each word ends its sentence. `HEAD_TOKEN_SPLIT`: the syntactic words of each token, as UD splits a multi-word token. `HEAD_SPAN_CLASSIFIER`: a label for every span of up to `span.max_words` words. |
+| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. `HEAD_SENTENCE_BOUNDARY`: whether each word ends its sentence. `HEAD_TOKEN_SPLIT`: the syntactic words of each token, as UD splits a multi-word token. `HEAD_SPAN_CLASSIFIER`: a label for every span of up to `span.max_words` words. `HEAD_RELATION_CLASSIFIER`: the relations, none, one or several, of every ordered pair of the entities given with a sequence. |
 | `labels` | The labels in output order: 1 to 4096, unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
-| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's: `DECODE_SPANS_NESTED` (every span whose best label is not `O`) or `DECODE_SPANS_FLAT` (those spans from the highest margin over `O` down, each kept unless it overlaps one kept, ties to the earlier span). |
+| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's: `DECODE_SPANS_NESTED` (every span whose best label is not `O`) or `DECODE_SPANS_FLAT` (those spans from the highest margin over `O` down, each kept unless it overlaps one kept, ties to the earlier span). A relation classifier's: `DECODE_RELATIONS` (every label of an ordered pair of entities that scores above `none`, the pair's threshold). |
 | `hash_embed` | Optional, for the kinds that score words as a tagger does (`HEAD_TOKEN_TAGGER`, `HEAD_SENTENCE_BOUNDARY`, `HEAD_TOKEN_SPLIT`): `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
 | `biaffine` | A parser's MLP widths, `arc` and `rel`, each 1 to 4096; required for `HEAD_BIAFFINE_PARSER`, refused for any other kind. A parser's `scheme` is `SCHEME_TAGS` and its labels are the dependency relations. |
 | `pos_input` | A lemmatizer's optional tag input: `head` names a `SCHEME_TAGS` token tagger head of the same bundle with `labels` labels, and the lemmatizer reads each word's decoded tag as a learned `dim`-wide embedding (1 to 1024) beside the word vector. Refused for any other kind. A lemmatizer's `scheme` is `SCHEME_TAGS` and its labels are edit trees, each written as `turbo::head::edit_tree::EditTree::label` writes it. |
 | `span` | A span classifier's spans: `max_words` (1 to 128), the longest span scored, and `width_dim` (1 to 256), the width of its learned span-width embedding; required for `HEAD_SPAN_CLASSIFIER`, refused for any other kind. Its `scheme` is `SCHEME_TAGS` and its labels include `O`, no span. |
+| `relation` | A relation classifier's mention views: `mlp` (1 to 4096), the width of each entity's head and tail views, and optionally `entity_labels` (1 to 4096 unique entity types, as the entity head that found the mentions labels them) with `type_dim` (1 to 256), the width of each type's learned embedding; `type_dim` is 0 or absent exactly when `entity_labels` is. Required for `HEAD_RELATION_CLASSIFIER`, refused for any other kind. Its `scheme` is `SCHEME_TAGS` and its labels include `none`, no relation. |
 | `license_class` | Optional: the class (as `model.license_class` names classes, docs/zoo.md) of the strictest licence among the corpora the head was trained on. The bundle's tier (`Manifest::license_tier`) is the strictest of `model.license_class` and every head's, so a permissive encoder with a head trained on CC BY-SA data is `CLASS_SHARE_ALIKE`. Refused when `model.license_class` is not recorded, since the tier would leave the encoder out. |
 | `artifact` | The name of the `FORMAT_SAFETENSORS` artifact holding the tensors, as `from` and `host_weights` name artifacts. |
 | `tensor_prefix` | Each tensor is named `<tensor_prefix>.<suffix>`. |
@@ -475,6 +476,33 @@ up to `M` (`SpanClassifier::span_count`). Each word's start and end parts of the
 are computed once and summed per span, so a span's score is the same
 sum the joined layer gives. A kept span carries its label and its
 margin, its label's score less `O`'s.
+
+The tensors of a `HEAD_RELATION_CLASSIFIER`, F32, with `D` =
+`relation.mlp`, `T` entity labels, `E` = `relation.type_dim`, `L`
+labels and `width` as above (the adapter's tensors come first):
+
+| Suffix | Shape | When |
+|---|---|---|
+| `relation.type` | `[T, E]` | with `entity_labels`; row `t` embeds entity type `t` |
+| `head.weight` | `[D, 2 * width + E]` | always: a mention's first word vector, its last, then its type embedding |
+| `head.bias` | `[D]` | always |
+| `tail.weight` | `[D, 2 * width + E]` | always |
+| `tail.bias` | `[D]` | always |
+| `rel.weight` | `[L, D + 1, D + 1]` | always |
+
+A sequence comes with its entities, each a type (0 when the head reads
+no type) and one or more mentions, words `first..=last`, as an entity
+head of the same bundle found them. An entity's vector is the
+logsumexp, value by value, of its mentions' first word vectors, then of
+their last word vectors (one mention gives its own two), then its type
+embedding. It goes through the head and tail MLPs with LeakyReLU(0.1),
+as the parser's do, and a pair of entities `a != b` scores
+`s_l(a, b) = [head_a; 1]^T W_l [tail_b; 1]`, pairs in order of `a`,
+then `b`: `e` entities make `e * (e - 1)` pairs
+(`RelationClassifier::pair_count`). `none` is each pair's threshold
+(the adaptive threshold of Zhou et al. 2021, the trainer's loss), so a
+pair holds every label that scores above it. A kept relation carries
+its two entities, its label and its margin over `none`.
 
 A manifest whose heads break any rule above is refused at open with
 `BUNDLE_INVALID`, the field named; a missing or misshapen tensor is
