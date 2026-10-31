@@ -6,6 +6,7 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | Corpus id | Data | Task | Pinned by | Splits |
 |---|---|---|---|---|
 | `masc-pos` | MASC 3.0.0, Penn tags (CC BY 3.0 US) | tags | corpus digest of the extracted release (`turbo_train_recipes::masc::RELEASE`) | test: the recipes' held-out documents (every tenth, Twitter genre left out), so numbers compare with the MASC tagger's gate; dev: every tenth training-side document |
+| `masc-ne` | MASC 3.0.0 named entities (CC BY 3.0 US) | BIO, person/location/organization/date | same recorded corpus digest as MASC POS | same held-out documents and Twitter exclusion; training-only dev; [recipe and refusals](masc-ne.md) |
 | `wnut17` | WNUT-17 (CC BY 4.0, default-tier training under #1524) | BIO, six types kept separate from MASC | size and SHA-256 of each file | publisher train/dev/test, canonical `emerging.test.annotated`; [recipe and limits](wnut17.md) |
 | `germeval2014-outer`, `germeval2014-inner` | GermEval 2014 corrected 2022-04-28 (CC BY 4.0) | separate outer and inner BIO heads, 12 types each | size and SHA-256 of each file | publisher train/dev/test; [recipe and limits](germeval.md) |
 | `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |

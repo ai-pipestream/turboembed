@@ -23,6 +23,7 @@ pub mod corpus;
 pub mod eval;
 pub mod fit_cache;
 pub mod germeval;
+pub mod masc_ne;
 pub mod masc_pos;
 pub mod multiconer;
 pub mod ner_peer;
@@ -55,7 +56,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The corpora the trainer reads, by id: MASC, MultiCoNER, and a tag
 /// corpus for each column of each UD treebank.
 pub fn corpora() -> Vec<String> {
-    let mut all = vec![masc_pos::ID.to_owned(), multiconer::ID.to_owned(), wnut17::ID.to_owned()];
+    let mut all =
+        vec![masc_ne::ID.to_owned(), masc_pos::ID.to_owned(), multiconer::ID.to_owned(), wnut17::ID.to_owned()];
     all.extend([germeval::OUTER.to_owned(), germeval::INNER.to_owned()]);
     all.extend(ud::corpus_ids());
     all
@@ -72,6 +74,7 @@ pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<
     }
     match id {
         masc_pos::ID => masc_pos::read(dir, unrecorded),
+        masc_ne::ID => masc_ne::read(dir, unrecorded).map_err(|e| Error(e.to_string())),
         wnut17::ID => wnut17::read(dir, unrecorded),
         multiconer::ID => multiconer::read(dir, unrecorded),
         _ => match ud::find(id) {
@@ -105,6 +108,7 @@ pub fn coarse(id: &str) -> Option<fn(&str) -> &str> {
 pub fn fixed_entity_types(id: &str) -> Option<&'static [&'static str]> {
     match id {
         wnut17::ID => Some(&wnut17::TYPES),
+        masc_ne::ID => Some(&masc_ne::TYPES),
         germeval::OUTER | germeval::INNER => Some(&germeval::TYPES),
         _ => None,
     }
