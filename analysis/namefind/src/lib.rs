@@ -27,6 +27,12 @@
 //!   scores through the typed entity schema of `turbo-sequence`.
 //! - [`calibrated`][]: [`CalibratedCrfNameAnnotator`](calibrated::CalibratedCrfNameAnnotator)
 //!   and its calibration identity, span marginals with an abstaining policy.
+//! - [`rules`]: deterministic projection of [`Temporals`](turbo_analysis_layers::Temporals),
+//!   [`Times`](turbo_analysis_layers::Times), [`Money`](turbo_analysis_layers::Money),
+//!   and percentage [`Quantities`](turbo_analysis_layers::Quantities) into
+//!   [`Entities`](turbo_analysis_layers::Entities) (`"date"`, `"time"`,
+//!   `"money"`, `"percent"`), preserving source provenance for
+//!   [`ConsensusEntityMerger`].
 //!
 //! # Regular expressions
 //!
@@ -86,6 +92,7 @@ pub mod error;
 pub mod merge;
 pub mod name;
 pub mod regex_finder;
+pub mod rules;
 
 pub use builtin::BuiltIn;
 pub use consensus::{Consensus, ConsensusEntityMerger, EntityMergePolicy, Vote, consensus};
@@ -94,4 +101,10 @@ pub use error::Error;
 pub use merge::{FilterEntities, MergeEntities, drop_overlapping, merge};
 pub use name::{Name, TokenNameFinder};
 pub use regex_finder::{Pattern, RegexNameFinder, Test, Tok, TokensPattern};
+pub use rules::{
+    DATE_ENTITY, DateTimeEntityKind, MONEY_ENTITY, PERCENT_ENTITY, RULE_ENTITY_KINDS, RuleEntitiesAnnotator,
+    RuleEntityProjector, RuleEntitySource, TIME_ENTITY, TimeEntityFilter, money_to_entities, quantities_to_entities,
+    rule_entities, rule_entities_in_text, span_token_range, temporals_to_entities, times_to_entities,
+    times_to_entities_in_text, times_to_entities_with,
+};
 pub use turbo_analysis::FilterRule;

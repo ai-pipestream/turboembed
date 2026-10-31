@@ -130,9 +130,42 @@ Boundary edge-case rules:
 - Scale words are lowercased code point by code point, so `mİllion`
   (with U+0130) reads as `million`.
 
+## Named entities (`percent`, `money`, `date`, `time`)
+
+Named entity types `date`, `time`, `money` and `percent` (`percentage` in
+legacy 7-type NER; `PERCENT` in OntoNotes) are grammar problems backed by the
+deterministic numeric, money and temporal extractors rather than statistical
+sequence NER models:
+
+- `quantities_to_entities` and `RuleEntityProjector::quantities` in
+  `turbo-namefind` (`analysis/namefind/src/rules/mod.rs`) project percentage
+  mentions (`quantities.is_percent(ix)`, where `unit == "%"`) from
+  `Quantities` (`turbo:quantities`, written by `QuantityExtractor` or
+  `GrammarAnnotator` with `GRAMMAR_PERCENTS`; see
+  [quantities.md](quantities.md) and [grammar.md](grammar.md)) into `Entities`
+  spans typed `"percent"`, aligned to `Tokens`. Non-percentage unit quantities
+  (`80 kg`, `2.5 km`) are left out.
+- `RuleEntityProjector::money`, `RuleEntityProjector::temporals` and
+  `RuleEntityProjector::times` project `Money` (`turbo:money`), `Temporals`
+  (`turbo:temporal`) and `Times` (`turbo:times`) into `"money"`, `"date"` and
+  `"time"` spans ([money.md](money.md), [temporal.md](temporal.md)), and
+  `RuleEntitiesAnnotator` (`turbo-namefind:rule-entities`) projects all
+  present rule layers into one `Entities` instance.
+- Each `RuleEntityProjector` preserves its upstream layer's provenance
+  (`annotator`, `version`, `config`, `model` and `execution`) while recording
+  both the source layer and `Tokens` in `reads`, so `ConsensusEntityMerger`
+  (`analysis/namefind/src/consensus.rs`) combines rule-backed entities with
+  learned NER heads and attributes winning rule spans to their original
+  deterministic producer in `Evidence<Entities>`.
+
 ## Testing
 
 `analysis/numeric/tests/scanner.rs` and `analysis/numeric/tests/extended_numbers.rs`
 test `NumberScanner` across `LatinUs` and `LatinEu` notations, Indian,
 thin-space, apostrophe, and Arabic-Indic groupings, scientific notation,
 and region-aware fallback, alongside the `num` snapshot suite in both notations.
+`analysis/namefind/tests/rule_entities.rs`,
+`analysis/namefind/tests/rule_entities_eval.rs` and
+`analysis/query/tests/rule_entities_gold.rs` test rule-to-`Entities`
+projection, provenance preservation, consensus merging with learned NER
+heads, and exact-span F1 against reviewed gold spans.
