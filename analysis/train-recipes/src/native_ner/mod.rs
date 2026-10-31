@@ -44,6 +44,7 @@ pub fn head() -> HeadSpec {
         pos_input: None,
         hash_embed: None,
         span: None,
+        relation: None,
         coref: None,
         license_class: Some(turbo::manifest::LicenseClass::Permissive),
         artifact: "weights-f32".into(),

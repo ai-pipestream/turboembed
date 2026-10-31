@@ -64,6 +64,7 @@ fn spec(adapter: Option<(u32, u32)>) -> HeadSpec {
         pos_input: None,
         hash_embed: Some(H),
         span: None,
+        relation: None,
         coref: None,
         license_class: None,
         artifact: "weights-f32".into(),

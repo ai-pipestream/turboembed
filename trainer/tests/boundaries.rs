@@ -25,6 +25,7 @@ fn spec(labels: &[&str], scheme: Scheme, decode: Decode) -> HeadSpec {
         tensor_prefix: "probe".into(),
         hash_embed: None,
         span: None,
+        relation: None,
         coref: None,
         license_class: None,
     }

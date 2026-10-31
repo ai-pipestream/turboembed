@@ -15,6 +15,7 @@ pub mod dictionaries;
 pub mod lemma;
 pub mod multi;
 pub mod parse;
+pub mod relation;
 pub mod segment;
 pub mod words;
 
@@ -33,6 +34,7 @@ pub use dictionaries::{MorfologikLemmas, MorphyLemmas};
 pub use lemma::{LemmaDictionary, Lemmatizer};
 pub use multi::MultiTask;
 pub use parse::DependencyParser;
+pub use relation::RelationTagger;
 pub use segment::{SentenceTagger, SpanTagger};
 pub use words::WordEncoder;
 

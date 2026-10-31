@@ -28,6 +28,7 @@ fn spec(pooling: WordPooling, hash: Option<HashEmbed>) -> HeadSpec {
         hash_embed: hash,
         license_class: None,
         span: None,
+        relation: None,
         coref: None,
         artifact: "weights".into(),
         tensor_prefix: "pos".into(),

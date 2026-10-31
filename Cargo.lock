@@ -2800,6 +2800,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-morfologik",
+ "turbo-relation",
  "turbo-wordnet",
 ]
 
