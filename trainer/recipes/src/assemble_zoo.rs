@@ -53,7 +53,11 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
     for rel in rel_paths {
         let disk_path = assembled.dir.join(&rel);
         let bytes = fs::read(&disk_path).map_err(|e| Error(format!("{}: {e}", disk_path.display())))?;
-        let url: Url = format!("{prefix}/{}/{rel}", id.as_str()).parse().map_err(Error)?;
+        let url: Url = if prefix.contains("/releases/download/") {
+            format!("{prefix}/{}-{}", id.as_str(), rel.replace('/', "-")).parse().map_err(Error)?
+        } else {
+            format!("{prefix}/{}/{rel}", id.as_str()).parse().map_err(Error)?
+        };
         files.push(File {
             path: rel.parse().map_err(Error)?,
             url,

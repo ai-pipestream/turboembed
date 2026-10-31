@@ -43,10 +43,14 @@ const CIVIL_COMMENTS_HEADS: [&str; 4] = [
 ];
 
 const ASPECT_SENTIMENT: &str = "turbo-en-masc-3.0.0-aspect-sentiment-1";
+const OPEN_SPAN_HEAD: &str = "turbo-en-wnut17-modernbert-base-l12-open-span-1";
 
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
-    id == ASPECT_SENTIMENT || GOEMOTIONS_HEADS.contains(&id) || CIVIL_COMMENTS_HEADS.contains(&id)
+    id == ASPECT_SENTIMENT
+        || id == OPEN_SPAN_HEAD
+        || GOEMOTIONS_HEADS.contains(&id)
+        || CIVIL_COMMENTS_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -120,7 +124,7 @@ const DATASETS: [&str; 12] = [
 #[test]
 fn the_builtin_catalogue_preserves_supported_artifacts() {
     let index = Index::builtin();
-    let mut expected = BTreeSet::from([ASPECT_SENTIMENT.to_owned()]);
+    let mut expected = BTreeSet::from([ASPECT_SENTIMENT.to_owned(), OPEN_SPAN_HEAD.to_owned()]);
     expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
     expected.extend(CIVIL_COMMENTS_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));

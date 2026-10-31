@@ -72,6 +72,9 @@ turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-open-span --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    [--cache <cache dir>] [--layer N] [--max-words N] [--width-dim N]
+    [--hold-out <type> ...] [training settings]
 turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
     [--zoo-id <id> [--component <COMPONENT_*>] [--language <lang>] [--version <ver>]
      [--license-terms <https://...>] [--url-prefix <https://...>] [--origin <https://...>]
@@ -143,6 +146,20 @@ each token's commonest training label (`_` when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
+
+`train-open-span` (#1735) trains the open-label span matching head
+(`open_ner` on `turboembed:entities`, `HEAD_OPEN_SPAN`) on any BIO
+corpus (`wnut17`, `germeval2014-outer`, `germeval2014-inner`,
+`multiconer2-en`) or UD treebank (`ud-<lang>-<bank>`, extracting
+contiguous `PROPN` runs as `"proper noun"` spans). Entity type names
+are encoded by the same frozen encoder (`turbo::head::open_span::label_words`
+and `pool_label_words`), centered against the empirical training word
+and label means (`center.weight`), and scored against candidate spans
+up to `--max-words` (8 by default). Passing `--hold-out <type>` drops
+that entity type from training and dev and evaluates test span F1 on
+all types, seen types, and held-out (zero-shot unseen) types alongside
+the majority baseline and the case-insensitive label-name dictionary
+matcher.
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for

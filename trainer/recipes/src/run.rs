@@ -145,7 +145,12 @@ pub fn predict(enc: &mut WordEncoder, tagger: &TokenTagger, sentences: &[Sentenc
 /// The head's tensors under their bundle names, with their shapes, as
 /// `crate::safetensors::write` takes them.
 pub fn named(spec: &HeadSpec, hidden: usize, values: Vec<(String, Vec<f32>)>) -> Vec<(String, Vec<u64>, Vec<f32>)> {
-    let shapes: BTreeMap<String, Vec<u64>> = tensors(spec, hidden).into_iter().collect();
+    let expected = match spec.kind {
+        HeadKind::OpenSpan => turbo::head::open_span::tensors(spec, hidden),
+        HeadKind::SpanClassifier => turbo::head::span::tensors(spec, hidden),
+        _ => tensors(spec, hidden),
+    };
+    let shapes: BTreeMap<String, Vec<u64>> = expected.into_iter().collect();
     values
         .into_iter()
         .map(|(suffix, v)| {

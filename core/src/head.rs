@@ -18,6 +18,7 @@ pub mod crf;
 pub mod edit_tree;
 pub mod hash_embed;
 pub mod lemmatizer;
+pub mod open_span;
 pub mod parser;
 pub mod span;
 pub mod split;
@@ -25,6 +26,7 @@ pub mod tagger;
 pub mod tree;
 pub use boundary::SentenceBoundary;
 pub use lemmatizer::EditTreeLemmatizer;
+pub use open_span::OpenSpanMatcher;
 pub use parser::BiaffineParser;
 pub use span::SpanClassifier;
 pub use split::TokenSplitter;
@@ -37,6 +39,8 @@ mod edit_tree_tests;
 mod hash_embed_tests;
 #[cfg(test)]
 mod lemmatizer_tests;
+#[cfg(test)]
+mod open_span_tests;
 #[cfg(test)]
 mod parser_tests;
 #[cfg(test)]

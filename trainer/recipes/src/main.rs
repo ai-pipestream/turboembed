@@ -53,6 +53,7 @@ use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
+mod train_open_span;
 mod train_split;
 mod train_ud;
 
@@ -134,8 +135,9 @@ fn run(argv: Vec<String>) -> Result<()> {
             train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, assemble, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-open-span, assemble, cache, fit-cache, export or peer"
         ))),
     }
 }

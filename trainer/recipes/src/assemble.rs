@@ -16,8 +16,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::{
-    BiaffineParser, EditTreeLemmatizer, SentenceBoundary, SpanClassifier, TokenSplitter, TokenTagger, boundary,
-    lemmatizer, parser, span, split, tagger,
+    BiaffineParser, EditTreeLemmatizer, OpenSpanMatcher, SentenceBoundary, SpanClassifier, TokenSplitter, TokenTagger,
+    boundary, lemmatizer, open_span, parser, span, split, tagger,
 };
 use turbo::manifest::{Format, HeadKind, HeadProvenance, HeadSpec, LicenseClass, Manifest};
 use turbo::safetensors;
@@ -155,6 +155,7 @@ fn verify_head_tensors(spec: &HeadSpec, hidden: usize, weights_bytes: &[u8]) -> 
         HeadKind::SentenceBoundary => boundary::tensors(spec, hidden),
         HeadKind::TokenSplit => split::tensors(spec, hidden),
         HeadKind::SpanClassifier => span::tensors(spec, hidden),
+        HeadKind::OpenSpan => open_span::tensors(spec, hidden),
     };
     if header.len() != expected.len() {
         return Err(format!("head.safetensors: {} tensors on disk, head expects {}", header.len(), expected.len()));
@@ -185,6 +186,7 @@ fn verify_head_tensors(spec: &HeadSpec, hidden: usize, weights_bytes: &[u8]) -> 
         HeadKind::SentenceBoundary => SentenceBoundary::from_tensors(spec, hidden, &get).map(|b| b.hidden()),
         HeadKind::TokenSplit => TokenSplitter::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
         HeadKind::SpanClassifier => SpanClassifier::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
+        HeadKind::OpenSpan => OpenSpanMatcher::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
     }
     .map_err(|e| format!("head.safetensors: {}", e.message))?;
     if checked != hidden {

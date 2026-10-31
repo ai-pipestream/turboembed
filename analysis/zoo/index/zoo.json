@@ -1366,6 +1366,55 @@
           "sha512": "62d38ca000d161ee8eb6bf06d7f307886a123207c3911ac95e9442c138bfa61146f8ad6b8944f013dff6fb256fff66b1d6ca66b3a7f87cfcc87b83e693dfac11"
         }
       ]
+    },
+    {
+      "id": "turbo-en-wnut17-modernbert-base-l12-open-span-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_ENTITY_EXTRACTOR",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "WNUT-17",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/leondz/emerging_entities_17/blob/e52a2d2a71ac1a051ca2d532eef28653c5c02603/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on WNUT 2017 Emerging and Rare Entity Recognition, Derczynski et al., CC BY 4.0. Corpus: https://github.com/leondz/emerging_entities_17 (open_ner): test span_f1 0.2642 (baseline 0.0594, wnut17)",
+      "files": [
+        {
+          "path": "manifest.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-manifest.json",
+          "size": 97235,
+          "sha256": "58e0883ec7007357520932a5cdf52c43314c2620bf0230909d7da20decb43039",
+          "sha512": "3b63fdcc09a2e3d85b537380cae8541bd41c2990c5451832930fdd9d4d5d81458dc5ae026c2ec2a3dc519de15f65db19f84b5e624211fa6e2d572f9f0dbe98c1"
+        },
+        {
+          "path": "reference/reference.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-reference-reference.safetensors",
+          "size": 430352,
+          "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
+          "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-tokenizer.json",
+          "size": 2132967,
+          "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
+          "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
+        },
+        {
+          "path": "weights/model.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-weights-model.safetensors",
+          "size": 599250608,
+          "sha256": "7bb4da57692d560c72d1c9cddf9851c8c4a2e4f112e30bc64eb34e9b815035e7",
+          "sha512": "5c1b6bd0e0d1e48acebfdaf39fc9b9849d0d39abd0cbad1f787af75f265b1e51455931f538abd7a108d284894b2bdb78fac723d70d22f9b481ef23136d1240f5"
+        }
+      ]
     }
   ]
 }

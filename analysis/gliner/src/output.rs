@@ -1,10 +1,13 @@
-use crate::{ExtractionSchema, Model};
+use crate::{ExtractionSchema, Model, OpenSpanModel};
+use std::path::Path;
 use std::sync::Arc;
 use turbo_analysis::{
-    Anchor, Annotator, Document, Error, Evidence, EvidenceStep, Fnv1a, IxRange, Key, Layer, ModelRef, Refs, Span,
-    Spans, Support, Tag, TagSet, View,
+    Anchor, Annotator, Document, Error, Evidence, EvidenceStep, Execution, Fnv1a, IxRange, Key, Layer, ModelRef, Refs,
+    Span, Spans, Support, Tag, TagSet, View,
 };
+use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
+use turbo_zoo::{Acceptances, UserId, Zoo};
 
 /// Checkpoint logits and decision threshold aligned to emitted entities.
 /// Evidence support points here so thresholds are not mistaken for calibrated scores.
@@ -30,8 +33,14 @@ impl Layer for Decisions {
         Ok(())
     }
 }
+
+enum Engine {
+    Deberta(Arc<Model>),
+    OpenSpan { model: Arc<OpenSpanModel>, label_states: Vec<f32> },
+}
+
 pub struct GlinerAnnotator {
-    model: Arc<Model>,
+    engine: Engine,
     schema: ExtractionSchema,
     kinds: Arc<TagSet>,
 }
@@ -39,8 +48,59 @@ impl GlinerAnnotator {
     pub fn new(model: Arc<Model>, schema: ExtractionSchema) -> Self {
         let labels: Vec<_> = schema.labels().iter().map(String::as_str).collect();
         let kinds = TagSet::new("turbo:gliner-types", &labels);
-        Self { model, schema, kinds }
+        Self { engine: Engine::Deberta(model), schema, kinds }
     }
+
+    /// Creates an annotator over a loaded [`OpenSpanModel`] (`HEAD_OPEN_SPAN`),
+    /// pre-encoding and normalizing the label embeddings in `schema`.
+    pub fn from_open_span(model: Arc<OpenSpanModel>, schema: ExtractionSchema) -> Result<Self, String> {
+        let label_states = model.embed_labels(schema.labels())?;
+        let labels: Vec<_> = schema.labels().iter().map(String::as_str).collect();
+        let kinds = TagSet::new("turbo:gliner-types", &labels);
+        Ok(Self { engine: Engine::OpenSpan { model, label_states }, schema, kinds })
+    }
+
+    /// Opens a `HEAD_OPEN_SPAN` bundle at `dir` and prepares an annotator for `schema`.
+    pub fn open_bundle(
+        dir: &Path,
+        name: Option<&str>,
+        options: &EncoderOptions,
+        schema: ExtractionSchema,
+    ) -> Result<Self, String> {
+        let model = Arc::new(OpenSpanModel::open(dir, name, options)?);
+        Self::from_open_span(model, schema)
+    }
+
+    /// Fetches a `HEAD_OPEN_SPAN` bundle `id` from `zoo` and prepares an annotator for `schema`.
+    pub fn from_zoo(
+        zoo: &Zoo<'_>,
+        id: &str,
+        name: Option<&str>,
+        options: &EncoderOptions,
+        schema: ExtractionSchema,
+        user: &UserId,
+        acceptances: &Acceptances,
+    ) -> Result<Self, String> {
+        let model = Arc::new(OpenSpanModel::from_zoo(zoo, id, name, options, user, acceptances)?);
+        Self::from_open_span(model, schema)
+    }
+
+    /// Finds the first redistributable `HEAD_OPEN_SPAN`
+    /// [`Component::EntityExtractor`](turbo_zoo::Component::EntityExtractor) for
+    /// `language` in `zoo`, fetches it, and prepares an annotator for `schema`.
+    pub fn from_zoo_language(
+        zoo: &Zoo<'_>,
+        language: &str,
+        name: Option<&str>,
+        options: &EncoderOptions,
+        schema: ExtractionSchema,
+        user: &UserId,
+        acceptances: &Acceptances,
+    ) -> Result<Self, String> {
+        let model = Arc::new(OpenSpanModel::from_zoo_language(zoo, language, name, options, user, acceptances)?);
+        Self::from_open_span(model, schema)
+    }
+
     /// Build evidence after this annotator's two outputs are added to a Document.
     /// Both default and named instances are supported. Thresholds live in the
     /// aligned Decisions layer and are linked by evidence support ranges.
@@ -84,17 +144,23 @@ impl Annotator for GlinerAnnotator {
     type Reads = (View, Tokens, Option<Sentences>);
     type Writes = (Entities, Decisions);
     fn model(&self) -> Option<ModelRef> {
-        Some(self.model.identity().clone())
+        match &self.engine {
+            Engine::Deberta(m) => Some(m.identity().clone()),
+            Engine::OpenSpan { model, .. } => Some(model.identity().clone()),
+        }
+    }
+    fn execution(&self) -> Option<Execution> {
+        match &self.engine {
+            Engine::Deberta(m) => m.execution().cloned(),
+            Engine::OpenSpan { model, .. } => Some(model.execution().clone()),
+        }
     }
     fn config_hash(&self) -> u64 {
-        let config = serde_json::to_vec(self.model.config()).expect("finite validated config");
-        config_hash(
-            &config,
-            self.schema.labels(),
-            self.schema.threshold(),
-            self.schema.mode() as u8,
-            self.model.identity(),
-        )
+        let (config, identity) = match &self.engine {
+            Engine::Deberta(m) => (serde_json::to_vec(m.config()).expect("finite validated config"), m.identity()),
+            Engine::OpenSpan { model, .. } => (model.config_bytes().to_vec(), model.identity()),
+        };
+        config_hash(&config, self.schema.labels(), self.schema.threshold(), self.schema.mode() as u8, identity)
     }
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
         self.annotate_with_work(input, &mut crate::heads::Work::default())
@@ -113,7 +179,15 @@ impl GlinerAnnotator {
         work: &mut crate::heads::Work,
     ) -> Result<(Entities, Decisions), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
-        let windows = crate::window::pack_windows(&self.model, &self.schema, view, tokens, sentences).map_err(fail)?;
+        let model = match &self.engine {
+            Engine::Deberta(m) => m,
+            Engine::OpenSpan { model, label_states } => {
+                return model
+                    .annotate_tokens(&self.schema, label_states, view, tokens, sentences, &self.kinds)
+                    .map_err(fail);
+            }
+        };
+        let windows = crate::window::pack_windows(model, &self.schema, view, tokens, sentences).map_err(fail)?;
         let (starts, ends) = tokens.spans.columns();
         let mut entities = Entities {
             spans: Spans::new(view.id()),
@@ -125,7 +199,7 @@ impl GlinerAnnotator {
         let mut decisions = Decisions { logits: Vec::new(), threshold: self.schema.threshold() };
         for window in windows {
             let candidates = crate::decode(
-                self.model.score_packed_with_work(&window.packed, &self.schema, work).map_err(fail)?,
+                model.score_packed_with_work(&window.packed, &self.schema, work).map_err(fail)?,
                 &self.schema,
             );
             for c in candidates {

@@ -11,10 +11,10 @@ turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 # The encoder through the backend table, on any device (src/device.rs).
 turbo-analysis-embed = { path = "../embed" }
+turbo-zoo = { path = "../zoo" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
 turbo-pins = { path = "../pins" }
 turbo-bundle = { path = "../../bundle" }
-turbo-zoo = { path = "../zoo" }

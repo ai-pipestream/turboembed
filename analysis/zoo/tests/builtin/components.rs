@@ -9,7 +9,10 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::ExtractiveQa), ["deepset-roberta-base-squad2"]);
     assert_eq!(ids("en", Component::SchemaExtractor), ["fastino-gliner2-base-v1"]);
     assert_eq!(ids("en", Component::RelationExtractor), ["jackboyla-glirel-large-v0"]);
-    assert_eq!(ids("en", Component::EntityExtractor), ["urchade-gliner-small-v2.1"]);
+    assert_eq!(
+        ids("en", Component::EntityExtractor),
+        ["turbo-en-wnut17-modernbert-base-l12-open-span-1", "urchade-gliner-small-v2.1"]
+    );
     assert_eq!(ids("mul", Component::EntityExtractor), ["urchade-gliner-multi-v2.1"]);
     assert_eq!(ids("en", Component::ZeroShotCategorizer), ["cross-encoder-nli-minilm2-l6-h768"]);
     assert_eq!(ids("en", Component::SparseEncoder), ["opensearch-neural-sparse-encoding-v1"]);
