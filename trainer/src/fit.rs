@@ -2,11 +2,7 @@
 //! gradients summed in a fixed order, AdamW, and early stopping on a dev
 //! split scored by the core's own inference path.
 
-use turbo::head::boundary::LAST;
-use turbo::head::crf::{WordSpan, spans};
-use turbo::head::tagger::{NO_WORD, Work as CoreWork};
-use turbo::head::{SentenceBoundary, TokenSplitter, TokenTagger};
-use turbo::manifest::{HeadKind, HeadSpec, Scheme};
+use turbo::manifest::{HeadKind, HeadSpec};
 use turbo::status::{Result, invalid};
 
 use std::time::Instant;
@@ -14,7 +10,10 @@ use std::time::Instant;
 use crate::adamw::{AdamW, Settings};
 use crate::batch::Batch;
 use crate::rng::Rng;
+use crate::scale::{LossScale, Scaler};
 use crate::tagger::{Tagger, Work};
+pub(crate) use crate::tally::Tally;
+pub use crate::tally::{score, score_boundary, score_split};
 
 /// One training sequence: per-word features [words, hidden], a gold
 /// label index per word, and each word's text, which a head with a
@@ -64,6 +63,12 @@ pub struct Config {
     /// either, and memory does not grow with the batch (gradient
     /// accumulation). 0 holds the whole batch.
     pub lanes: usize,
+    /// Dynamic loss scaling (see [`LossScale`]): the loss gradient is
+    /// scaled before backward and the gradients unscaled before the
+    /// step, a step whose gradients are not finite is skipped and backs
+    /// the scale off. None (the default) scales nothing, and a step with
+    /// a gradient that is not finite is refused.
+    pub loss_scale: Option<LossScale>,
     /// Logs each epoch's loss, dev score and time, and progress within
     /// it, to standard error.
     pub verbose: bool,
@@ -83,6 +88,7 @@ impl Default for Config {
             tolerance: 1e-3,
             threads: 0,
             lanes: 0,
+            loss_scale: None,
             verbose: false,
         }
     }
@@ -140,111 +146,23 @@ pub struct Report {
     /// Wall seconds each epoch took, its dev scoring included; the one
     /// field two runs of the same seed do not share.
     pub epoch_seconds: Vec<f64>,
+    /// Steps skipped under loss scaling because a gradient was not finite.
+    pub skipped_steps: usize,
 }
 
-/// Accuracy (SCHEME_TAGS) or exact span F1 (BIO, BILOU) of `tagger` on
-/// `examples`, decoded by the core exactly as at inference. Refuses an
-/// example without exactly one gold label in range per feature row.
-pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
-    let spec = tagger.spec();
-    let hidden = tagger.hidden();
-    check_examples(examples, hidden, spec.labels.len(), tagger.reads_forms())?;
-    let mut tally = Tally::new(spec);
-    let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
-    for e in examples {
-        let n = e.features.len() / hidden;
-        let words: Vec<u32> = (0..n as u32).collect();
-        debug_assert!(!words.contains(&NO_WORD));
-        tagger.scores_forms(&e.features, &words, e.forms().as_deref(), &mut scores, &mut work)?;
-        tagger.decode(&scores, n, &mut tags)?;
-        tally.add(&tags, &e.labels)?;
-    }
-    Ok(tally.score())
+/// What a training pass hands a model with an example: the example's
+/// place in the run (its epoch and index) and the loss scale.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Draw {
+    pub at: u64,
+    pub scale: f32,
 }
 
-/// The running dev score of a tagger head: right words of all under
-/// SCHEME_TAGS, found and gold spans and the right ones under BIO and
-/// BILOU.
-pub(crate) struct Tally<'a> {
-    spec: &'a HeadSpec,
-    right: usize,
-    total: usize,
-    found: usize,
-    gold: usize,
-}
-
-impl<'a> Tally<'a> {
-    pub(crate) fn new(spec: &'a HeadSpec) -> Tally<'a> {
-        Tally { spec, right: 0, total: 0, found: 0, gold: 0 }
+impl Draw {
+    /// At `at`, unscaled.
+    pub fn at(at: u64) -> Draw {
+        Draw { at, scale: 1.0 }
     }
-
-    /// One sentence's decoded `tags` against its `labels`.
-    pub(crate) fn add(&mut self, tags: &[u32], labels: &[u32]) -> Result<()> {
-        let spec = self.spec;
-        if spec.scheme == Scheme::Tags {
-            self.right += tags.iter().zip(labels).filter(|(a, b)| a == b).count();
-            self.total += labels.len();
-        } else {
-            let want: Vec<WordSpan> = spans(spec.scheme, &spec.labels, labels)?;
-            let got = spans(spec.scheme, &spec.labels, tags)?;
-            self.right += got.iter().filter(|s| want.contains(s)).count();
-            self.found += got.len();
-            self.gold += want.len();
-        }
-        Ok(())
-    }
-
-    /// Accuracy, or exact span F1; 1 when there is nothing to find and
-    /// nothing was found.
-    pub(crate) fn score(&self) -> f64 {
-        if self.spec.scheme == Scheme::Tags {
-            if self.total == 0 { 0.0 } else { self.right as f64 / self.total as f64 }
-        } else if self.found + self.gold == 0 {
-            1.0
-        } else {
-            2.0 * self.right as f64 / (self.found + self.gold) as f64
-        }
-    }
-}
-
-/// Accuracy of `head` on `examples`: whether each word ends a sentence as
-/// the core decodes it (the last word always does) against its gold label
-/// being `last`.
-pub fn score_boundary(head: &SentenceBoundary, examples: &[Example]) -> Result<f64> {
-    let hidden = head.hidden();
-    check_examples(examples, hidden, head.spec().labels.len(), head.reads_forms())?;
-    let (mut right, mut total) = (0usize, 0usize);
-    let (mut scores, mut ends, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
-    for e in examples {
-        let n = e.labels.len();
-        let words: Vec<u32> = (0..n as u32).collect();
-        head.scores(&e.features, &words, e.forms().as_deref(), &mut scores, &mut work)?;
-        head.decode(&scores, n, &mut ends)?;
-        right += ends.iter().zip(&e.labels).filter(|&(&end, &gold)| end == (gold == LAST)).count();
-        total += n;
-    }
-    Ok(if total == 0 { 0.0 } else { right as f64 / total as f64 })
-}
-
-/// Accuracy of `head` on `examples`: each token's label as the core
-/// decodes it, which skips a split that does not apply to the token's
-/// form. Refuses an example without a form per token.
-pub fn score_split(head: &TokenSplitter, examples: &[Example]) -> Result<f64> {
-    let hidden = head.hidden();
-    check_examples(examples, hidden, head.spec().labels.len(), true)?;
-    let (mut right, mut total) = (0usize, 0usize);
-    let (mut scores, mut labels, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
-    for e in examples {
-        let n = e.labels.len();
-        let words: Vec<u32> = (0..n as u32).collect();
-        let forms: Vec<&str> = e.forms.iter().map(String::as_str).collect();
-        let read = head.reads_forms().then_some(forms.as_slice());
-        head.scores(&e.features, &words, read, &mut scores, &mut work)?;
-        head.decode(&scores, &forms, &mut labels)?;
-        right += labels.iter().zip(&e.labels).filter(|(a, b)| a == b).count();
-        total += n;
-    }
-    Ok(if total == 0 { 0.0 } else { right as f64 / total as f64 })
 }
 
 /// What the training loop needs of a head in training.
@@ -261,12 +179,25 @@ pub(crate) trait Model: Sized + Sync {
     fn decays(&self) -> Vec<bool>;
     /// The example's loss, its gradients added to `grads`, and its words.
     fn loss(&self, e: &Self::Example, grads: &mut [Vec<f32>], w: &mut Self::Work) -> Result<(f64, usize)>;
-    /// [`loss`](Self::loss) for the example drawn at `at` (its epoch and
-    /// index), which a model whose training forward draws random bits,
-    /// dropout, seeds from; the default draws none.
-    fn loss_at(&self, e: &Self::Example, at: u64, grads: &mut [Vec<f32>], w: &mut Self::Work) -> Result<(f64, usize)> {
-        let _ = at;
-        self.loss(e, grads, w)
+    /// [`loss`](Self::loss) in a training pass: `draw.at` is the
+    /// example's place in the run, which a model whose forward draws
+    /// random bits, dropout, seeds from, and the gradients added are
+    /// `draw.scale` times the loss's (loss scaling, undone by the loop).
+    /// The default draws nothing and scales `grads` after the fact,
+    /// exact for a power of two; it takes `grads` holding this example
+    /// alone, as the loop hands it.
+    fn loss_at(
+        &self,
+        e: &Self::Example,
+        draw: Draw,
+        grads: &mut [Vec<f32>],
+        w: &mut Self::Work,
+    ) -> Result<(f64, usize)> {
+        let out = self.loss(e, grads, w)?;
+        if draw.scale != 1.0 {
+            grads.iter_mut().flatten().for_each(|g| *g *= draw.scale);
+        }
+        Ok(out)
     }
     /// The dev score through the core's inference path; higher is better.
     fn score(&self, dev: &[Self::Example]) -> Result<f64>;
@@ -318,6 +249,9 @@ pub(crate) fn settings(c: &Config, examples: usize) -> Settings {
 
 /// Refuses settings no run can use.
 pub(crate) fn check_config(c: &Config, examples: usize) -> Result<()> {
+    if let Some(s) = c.loss_scale {
+        s.check()?;
+    }
     if examples == 0
         || c.batch == 0
         || c.epochs == 0
@@ -335,7 +269,7 @@ pub(crate) fn check_config(c: &Config, examples: usize) -> Result<()> {
 /// Each example has `hidden` features per gold label, every label is
 /// one of `labels`, and, when the head reads them (`forms`), a form per
 /// label.
-fn check_examples(examples: &[Example], hidden: usize, labels: usize, forms: bool) -> Result<()> {
+pub(crate) fn check_examples(examples: &[Example], hidden: usize, labels: usize, forms: bool) -> Result<()> {
     for (i, e) in examples.iter().enumerate() {
         let rows = e.labels.len().checked_mul(hidden);
         if hidden == 0 || rows != Some(e.features.len()) || e.labels.iter().any(|&l| l as usize >= labels) {
@@ -378,8 +312,10 @@ pub(crate) fn train<M: Model>(
     let mut order: Vec<usize> = (0..train.len()).collect();
     let mut batch = Batch::new(c.threads, c.lanes);
     let mut grads = model.zero_grads();
-    let mut report = Report { train_loss: Vec::new(), dev: Vec::new(), best_epoch: 0, epoch_seconds: Vec::new() };
+    let mut report =
+        Report { train_loss: Vec::new(), dev: Vec::new(), best_epoch: 0, epoch_seconds: Vec::new(), skipped_steps: 0 };
     let mut best: Option<Vec<Vec<f32>>> = None;
+    let mut scaler = c.loss_scale.map(Scaler::new);
     let mut stop = EarlyStop::new(c);
     let steps = train.len().div_ceil(c.batch);
     let tick = steps.div_ceil(10).max(1);
@@ -389,7 +325,9 @@ pub(crate) fn train<M: Model>(
         let (mut loss, mut words) = (0.0, 0usize);
         for (step, ids) in order.chunks(c.batch).enumerate() {
             let first = epoch as u64 * train.len() as u64;
-            let examples: Vec<(&M::Example, u64)> = ids.iter().map(|&i| (&train[i], first + i as u64)).collect();
+            let scale = scaler.as_ref().map_or(1.0, Scaler::scale);
+            let examples: Vec<(&M::Example, Draw)> =
+                ids.iter().map(|&i| (&train[i], Draw { at: first + i as u64, scale })).collect();
             let (l, n) = batch.gradients(&model, &examples, &mut grads)?;
             loss += l;
             words += n;
@@ -406,8 +344,13 @@ pub(crate) fn train<M: Model>(
             if n == 0 {
                 continue;
             }
-            let scale = 1.0 / n as f32;
-            grads.iter_mut().flatten().for_each(|g| *g *= scale);
+            let inv = 1.0 / (n as f32 * scale);
+            grads.iter_mut().flatten().for_each(|g| *g *= inv);
+            if let Some(s) = scaler.as_mut()
+                && !s.update(grads.iter().flatten().all(|g| g.is_finite()))
+            {
+                continue;
+            }
             model.step(&mut opt, &mut grads, &decay)?;
         }
         let train_s = started.elapsed().as_secs_f64();
@@ -419,11 +362,16 @@ pub(crate) fn train<M: Model>(
         report.epoch_seconds.push(seconds);
         if c.verbose {
             eprintln!(
-                "epoch {}/{}: loss {mean:.5}, dev {s:.4}, {seconds:.1}s ({train_s:.1}s training, {:.0} words/s, {} threads)",
+                "epoch {}/{}: loss {mean:.5}, dev {s:.4}, {seconds:.1}s ({train_s:.1}s training, {:.0} words/s, {} threads{})",
                 epoch + 1,
                 c.epochs,
                 words as f64 / train_s.max(1e-9),
-                batch.threads()
+                batch.threads(),
+                scaler.as_ref().map_or(String::new(), |s| format!(
+                    ", loss scale {}, {} skipped",
+                    s.scale(),
+                    s.skipped()
+                ))
             );
         }
         let (better, done) = stop.update(epoch, s);
@@ -442,6 +390,7 @@ pub(crate) fn train<M: Model>(
     if let Some(params) = best {
         model.set_params(params)?;
     }
+    report.skipped_steps = scaler.as_ref().map_or(0, Scaler::skipped);
     Ok((model, report))
 }
 
@@ -451,7 +400,7 @@ pub(crate) fn train<M: Model>(
 pub fn batch_gradients(model: &Tagger<f32>, examples: &[Example], threads: usize) -> Result<(Vec<Vec<f32>>, f64)> {
     check_examples(examples, model.hidden(), model.spec().labels.len(), model.spec().hash_embed.is_some())?;
     let mut grads = model.zero_grads();
-    let refs: Vec<(&Example, u64)> = examples.iter().zip(0..).collect();
+    let refs: Vec<(&Example, Draw)> = examples.iter().zip((0..).map(Draw::at)).collect();
     let (loss, _) = Batch::new(threads, 0).gradients(model, &refs, &mut grads)?;
     Ok((grads, loss))
 }

@@ -40,6 +40,11 @@ let fetched = zoo.fetch("segment-any-text-sat-3l", &user, &acceptances)?;
   passes (HTTPS, for one). Leave it out to fetch nothing from those
   addresses.
 
+The `file://` suffix is a literal filesystem path, not percent-decoded.
+Native absolute Windows paths are supported too, such as `file://C:/zoo`
+or a UNC path after `file://`. Drive-relative paths such as `file://C:zoo`
+are refused. The store directory is chosen by the caller.
+
 The first source whose bytes verify is kept. No source is asked for an
 artifact whose terms the user has not accepted locally.
 
