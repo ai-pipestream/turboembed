@@ -8,28 +8,38 @@
 //! named for it or the one head of the bundle that writes its layer.
 //! The heads decode at once, one thread each, once the encoder is done.
 //!
-//! Each layer is written exactly as the single-head annotator writes it
+//! Without a sentence head (or when prior sentences are supplied), each
+//! layer is written as the single-head annotator writes it
 //! ([`crate::PosTagger`], [`crate::EntityTagger`],
 //! [`crate::DependencyParser`], [`crate::Lemmatizer`] without a
-//! dictionary), from the same features: one read and four reads of the
-//! same rows give the same states.
+//! dictionary, [`crate::WordTagger`]), from the same per-sentence
+//! features: one read and several reads of the same rows give the same
+//! states. When [`Sentences`] is among the outputs and no prior sentences
+//! are given, the encoder runs once over the whole view, its
+//! [`SentenceBoundary`] head decodes boundaries from that pass, and the
+//! other heads' sequences are sliced from those whole-view features (so
+//! their token states carry cross-sentence context rather than one
+//! separate encoder pass per sentence). When prior sentences are given,
+//! the encoder runs per sentence as usual and [`Sentences`] writes those
+//! given sentence sequences on token bounds.
 
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
-use turbo::head::{BiaffineParser, EditTreeLemmatizer, TokenTagger};
+use turbo::head::{BiaffineParser, EditTreeLemmatizer, SentenceBoundary, TokenSplitter, TokenTagger};
 use turbo::manifest::{HeadKind, HeadSpec, LicenseClass, Scheme, WordPooling};
 use turbo::status::Error as CoreError;
 use turbo_analysis::annotate::Writes;
-use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Layer, ModelRef, Refs, TagSet, View};
+use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Refs, Span, Spans, TagSet, View};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Sentences, Subwords, Tokens};
+use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Sentences, Subwords, Tokens, Words};
 
 use crate::annotate::{HeadRunner, decode_with, entity_layer, find_head, forms_of, model_ref, pos_layer, refuse};
 use crate::lemma::{lemma_layer, lemmas_with};
 use crate::parse::{dep_layer, parse_with};
+use crate::segment::{sentence_ranges, split_with, word_layer};
 use crate::words::WordEncoder;
 
 /// A loaded head and the label set its layer names.
@@ -48,6 +58,14 @@ pub enum Head {
         lemmatizer: EditTreeLemmatizer,
         pos: Option<TokenTagger>,
     },
+    /// A sentence boundary head.
+    Sentence {
+        boundary: SentenceBoundary,
+    },
+    /// A token split head writing syntactic words.
+    Split {
+        splitter: TokenSplitter,
+    },
 }
 
 impl Head {
@@ -56,6 +74,8 @@ impl Head {
             Head::Tagger { tagger, .. } => tagger.spec(),
             Head::Parser { parser, .. } => parser.spec(),
             Head::Lemma { lemmatizer, .. } => lemmatizer.spec(),
+            Head::Sentence { boundary } => boundary.spec(),
+            Head::Split { splitter } => splitter.spec(),
         }
     }
 
@@ -67,6 +87,8 @@ impl Head {
             Head::Lemma { lemmatizer, pos } => {
                 std::iter::once(lemmatizer.hidden()).chain(pos.as_ref().map(TokenTagger::hidden)).collect()
             }
+            Head::Sentence { boundary } => vec![boundary.hidden()],
+            Head::Split { splitter } => vec![splitter.hidden()],
         }
     }
 
@@ -188,6 +210,38 @@ impl HeadLayer for Lemmas {
     }
 }
 
+impl HeadLayer for Sentences {
+    const KIND: HeadKind = HeadKind::SentenceBoundary;
+    fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
+        let boundary = SentenceBoundary::load(bundle, &spec.name)?;
+        Ok(Head::Sentence { boundary })
+    }
+    fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
+        let Head::Sentence { .. } = head else { return wrong_head() };
+        let mut out = Sentences { spans: Spans::new(input.view.id()) };
+        for s in &input.seqs {
+            let start = input.tokens.spans.get(Ix::new(s[0] as u32)).start;
+            let end = input.tokens.spans.get(Ix::new(s[s.len() - 1] as u32)).end;
+            out.spans.push(Span::new(start, end));
+        }
+        Ok(out)
+    }
+}
+
+impl HeadLayer for Words {
+    const KIND: HeadKind = HeadKind::TokenSplit;
+    fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
+        let splitter = TokenSplitter::load(bundle, &spec.name)?;
+        Ok(Head::Split { splitter })
+    }
+    fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
+        let Head::Split { splitter } = head else { return wrong_head() };
+        let f = input.features(splitter.spec().word_pooling)?;
+        let split = split_with(splitter, f, &input.forms).map_err(|e| e.to_string())?;
+        word_layer(input.view, input.tokens, &input.seqs, split)
+    }
+}
+
 /// The layers a [`MultiTask`] writes: a tuple of [`HeadLayer`]s, one head
 /// each.
 pub trait Outputs: Writes + Sized {
@@ -304,11 +358,42 @@ impl<W: Outputs> MultiTask<W> {
         sentences: Option<&Sentences>,
         subwords: Option<&Subwords>,
     ) -> Result<W, String> {
-        let seqs = HeadRunner::sequences(view, tokens, sentences)?;
+        let boundary = (sentences.is_none() && tokens.sentence.is_none())
+            .then(|| {
+                self.heads.iter().find_map(|h| match h {
+                    Head::Sentence { boundary } => Some(boundary),
+                    _ => None,
+                })
+            })
+            .flatten();
+        let Some(boundary) = boundary else {
+            let seqs = HeadRunner::sequences(view, tokens, sentences)?;
+            let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
+            let features = words.token_features_pooled(view, tokens, &seqs, subwords, &self.poolings)?;
+            drop(words);
+            let forms = forms_of(view, tokens, &seqs);
+            let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features };
+            return W::write(&self.heads, &input);
+        };
+        let all = Tokens { spans: tokens.spans.clone(), sentence: None };
+        let whole_seqs = HeadRunner::sequences(view, &all, None)?;
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
-        let features = words.token_features_pooled(view, tokens, &seqs, subwords, &self.poolings)?;
+        let hidden = words.hidden();
+        let whole_features = words.token_features_pooled(view, &all, &whole_seqs, subwords, &self.poolings)?;
         drop(words);
-        let forms = forms_of(view, tokens, &seqs);
+        let whole_forms = forms_of(view, &all, &whole_seqs);
+        let p = self
+            .poolings
+            .iter()
+            .position(|&q| q == boundary.spec().word_pooling)
+            .ok_or("a pooling no head asked for")?;
+        let ranges = sentence_ranges(boundary, &whole_features[p], &whole_forms).map_err(|e| e.to_string())?;
+        let seqs = ranges.iter().map(|r| whole_seqs[0][r.clone()].to_vec()).collect();
+        let forms = ranges.iter().map(|r| whole_forms[0][r.clone()].to_vec()).collect();
+        let features = whole_features
+            .iter()
+            .map(|wf| ranges.iter().map(|r| wf[0][r.start * hidden..r.end * hidden].to_vec()).collect())
+            .collect();
         let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features };
         W::write(&self.heads, &input)
     }
