@@ -20,8 +20,10 @@ mod common;
 #[path = "common/rotary.rs"]
 mod rotary;
 
+use std::path::Path;
 use std::ptr;
 use std::sync::{Mutex, MutexGuard};
+use std::time::Instant;
 
 use common::*;
 use serde_json::json;
@@ -220,6 +222,54 @@ fn a_gated_middle_past_f16_s_range_stays_finite_at_fastest() {
             let cos = least_cosine(&got, &cs.run().unwrap().rows());
             println!("{test}: {name}: rows {lens:?}: least cosine to the CPU {cos}");
             assert!(cos >= floor, "{name}: rows {lens:?}: least cosine to the CPU {cos}, under {floor}");
+        }
+    }
+}
+
+/// Milliseconds a pass on the bundle at TURBO_SPEED_BUNDLE (a real
+/// ModernBERT or nomic-bert), MODEL and FASTEST interleaved,
+/// TURBO_SPEED_RUNS runs a side (default 5) after one untimed, at batch 8
+/// of 128 tokens and of 512. A tree that refuses FASTEST times MODEL
+/// alone. Ignored, since it measures rather than checks.
+#[test]
+#[ignore]
+fn rotary_speed() {
+    let _t = turn();
+    if !device("rotary_speed") {
+        return;
+    }
+    let Ok(dir) = std::env::var("TURBO_SPEED_BUNDLE") else {
+        println!("rotary_speed: skipped: TURBO_SPEED_BUNDLE is not set");
+        return;
+    };
+    let runs: usize = std::env::var("TURBO_SPEED_RUNS").ok().and_then(|r| r.parse().ok()).unwrap_or(5);
+    let g = Loaded::load_on(Path::new(&dir), |rt| first_of(rt, "levelzero").expect("a levelzero device")).unwrap();
+    for seq in [128usize, 512] {
+        let sides: Vec<_> = [("MODEL", TURBO_PRECISION_MODEL), ("FASTEST", TURBO_PRECISION_FASTEST)]
+            .into_iter()
+            .filter_map(|(name, p)| Some((name, Session::create(g.m, Some(&session_desc(8, seq as u32, p))).ok()?)))
+            .collect();
+        let t = rows(&[seq; 8], &[], &[]);
+        let mut times = vec![Vec::new(); sides.len()];
+        for run in 0..=runs {
+            for (i, (_, s)) in sides.iter().enumerate() {
+                let start = Instant::now();
+                s.write_tokens(&t.batch(), None).unwrap();
+                let _ = s.run().unwrap().rows();
+                if run > 0 {
+                    times[i].push(start.elapsed().as_secs_f64() * 1e3);
+                }
+            }
+        }
+        for ((name, s), mut ms) in sides.iter().zip(times) {
+            ms.sort_by(f64::total_cmp);
+            let dtype = s.info().compute_dtype;
+            println!(
+                "rotary_speed: {name} (dtype {dtype}) batch 8 seq {seq}: ms a pass min {:.2} median {:.2} max {:.2} over {runs}",
+                ms[0],
+                ms[ms.len() / 2],
+                ms[ms.len() - 1]
+            );
         }
     }
 }

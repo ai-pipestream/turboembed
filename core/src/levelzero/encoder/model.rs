@@ -56,9 +56,12 @@ pub(super) struct Transposed {
 #[derive(Clone)]
 pub(super) struct Weights {
     pub(super) tensors: Vec<u64>,
+    /// Each layer's (weight, bias) in `fused`; empty for a rotary model.
     pub(super) qkv: Vec<(u64, u64)>,
     /// The widened copy; null for an F32 model.
     pub(super) widened: *mut c_void,
+    /// BERT's fused Q, K and V, or a nomic-bert's feed-forward gate and
+    /// up (rotary.rs); null for ModernBERT.
     pub(super) fused: *mut c_void,
     /// A DeBERTa-v2 model's relative rows through each layer's fused
     /// projection (deberta.rs), and their allocation; empty and null for
@@ -103,13 +106,7 @@ impl Model {
                 return Err(e);
             }
         };
-        let (h, layers) = (self.desc.hidden as u64, self.desc.layers as u64);
-        let per_layer = 3 * h * h * 4 + 3 * h * 4;
-        let qkv: Vec<_> = if fused.is_null() {
-            Vec::new()
-        } else {
-            (0..layers).map(|l| (fused as u64 + l * per_layer, fused as u64 + l * per_layer + 3 * h * h * 4)).collect()
-        };
+        let qkv = super::qkv_spans(&self.desc, fused as u64);
         let (relative, relative_alloc) = if self.desc.family == TURBO_FAMILY_DEBERTA_V2 {
             match self.relative(&tensors, &qkv) {
                 Ok(r) => r,
