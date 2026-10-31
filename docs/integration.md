@@ -13,7 +13,7 @@ in CI on every change.
 |---|---|---|
 | What it is | gRPC: the Open Inference Protocol for vectors, `turbo.result.AnalysisService` for analysis | The analysis crates under `analysis/`, run by an `Analyzer` |
 | Language | Any with gRPC: clients are generated from `server/proto` | Rust (the C interface embeds; see docs/grpc.md for the server's view of it) |
-| Structure from a converter (docling) | Imported by the client into a seed graph, sent as `initial_graph` to `AnalyzeDocumentProgressive` | Imported as a `Structure` layer, as below |
+| Structure from a converter (docling) | Sent to `AnalyzeDocumentProgressive` as a `structure_seed` message (any language) or as an `initial_graph` seed graph (docs/grpc-analysis.md, Seeding structure from a parser) | Imported as a `Structure` layer, as below |
 | Offsets | `OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, `OFFSET_MODE_CODE_POINT` per request | Every view's `OffsetTable`: bytes, UTF-16 units, code points |
 | Runs on | The backends linked into the binary | The same |
 

@@ -6,6 +6,7 @@
 
 mod normalize;
 pub mod profiles;
+pub mod seed;
 mod steps;
 
 use std::collections::HashSet;
@@ -102,7 +103,7 @@ pub(crate) async fn start_progressive(state: &State, req: Request<AnalyzePipelin
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
 
-    let doc = build_initial_document(&req)?;
+    let doc = build_initial_document(&req, offsets)?;
     let analyzer = build_pipeline(state, &req, &doc)?;
 
     let cancel = Arc::clone(deadline.cancel_flag());
@@ -126,7 +127,23 @@ pub(crate) async fn start_progressive(state: &State, req: Request<AnalyzePipelin
     }))
 }
 
-fn build_initial_document(req: &AnalyzePipelineRequest) -> Result<Document, Status> {
+fn build_initial_document(req: &AnalyzePipelineRequest, offsets: OffsetMode) -> Result<Document, Status> {
+    if let Some(seed) = &req.structure_seed {
+        if !req.initial_graph.is_empty() || !req.source_bytes.is_empty() || !req.text.is_empty() {
+            return Err(plain(bad(
+                "structure_seed carries the text: leave text, source_bytes and initial_graph empty",
+            )));
+        }
+        if seed.text.len() as u64 > MAX_GRAPH_BYTES {
+            return Err(plain(Failure::new(
+                TURBO_E_CAPACITY,
+                0,
+                format!("structure_seed text length {} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})", seed.text.len()),
+            )));
+        }
+        return seed::seed_document(seed, offsets).map_err(plain);
+    }
+
     if !req.initial_graph.is_empty() {
         if req.initial_graph.len() as u64 > MAX_GRAPH_BYTES {
             return Err(plain(Failure::new(
