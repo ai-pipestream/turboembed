@@ -23,6 +23,8 @@
 //!     [--arc N] [--rel N])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N])
+//! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
+//!     [--mlp N] [--type-dim N])
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N])
 //! ```
@@ -56,6 +58,7 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
 mod train_coref;
+mod train_relation;
 mod train_split;
 mod train_ud;
 
@@ -78,6 +81,13 @@ fn run(argv: Vec<String>) -> Result<()> {
     let dir = PathBuf::from(a.required("--dir")?);
     let unrecorded = a.flag("--unrecorded-corpus");
     match command.as_str() {
+        "check" if corpus_id == turbo_trainer_recipes::redocred::ID => {
+            a.done()?;
+            let c = train_relation::read(&corpus_id, &dir, unrecorded)?;
+            println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
+            println!("labels: {}", c.labels().len());
+            Ok(())
+        }
         "check" => {
             a.done()?;
             let c = read_corpus(&corpus_id, &dir, unrecorded)?;
@@ -141,9 +151,10 @@ fn run(argv: Vec<String>) -> Result<()> {
             train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-coref, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-coref, cache, fit-cache, export or peer"
         ))),
     }
 }
