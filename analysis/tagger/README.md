@@ -47,6 +47,13 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   the entity layer, nested or flat as the head decodes, a sentence at a
   time; each span's score is its label's probability among the span's
   scores. Both put every span on token bounds.
+- `relation`: `RelationTagger` writes the relation layer and its
+  entity-to-entity edges from a `HEAD_RELATION_CLASSIFIER` head, over the
+  entities another annotator wrote. An entity is a mention when its first
+  and last tokens are in one sequence and, for a head with
+  `relation.entity_labels`, its kind is one of them by name; each kept
+  pair covers both entities' spans, and its score is its label's
+  probability among the pair's scores.
 - `multi`: `MultiTask<W>` writes several of those layers from one
   encoder pass (#1517). `W` is a tuple of the layers to write, such as
   `(PosTags, Entities, Dependencies<Tokens>, Lemmas)`, each from the head
