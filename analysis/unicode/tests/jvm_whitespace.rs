@@ -1,4 +1,4 @@
-//! Retains the exhaustive JDK 21 vectors formerly checked by turbo-jvm.
+//! Exhaustive JDK 21 `Character.isWhitespace` test vectors.
 use turbo_unicode::java;
 
 #[test]

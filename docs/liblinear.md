@@ -72,7 +72,7 @@ name that is no `SolverType` is refused with the add-on's message.
   doubles, on every double whose bits are 1 to 300,000, on 100,000 more
   subnormals and on the powers of two and their neighbours.
 - The serialized predicate map in `HashMap<String, Integer>` iteration
-  order (`turbo_jvm::hash_map`).
+  order.
 
 ## Add-on quirks
 
@@ -107,7 +107,7 @@ twice, ids from zero, and only logistic regression models.
 
 liblinear-java calls `Math.exp` and `Math.log`. The port does not try
 to reproduce HotSpot's last bits: it uses fdlibm's logarithm
-(`turbo_jvm::strict_math::log`, the same result on every platform) and
+(`strict_math::log`, the same result on every platform) and
 `f64::exp`. HotSpot's `Math.exp` is not correctly rounded and differs
 from `f64::exp` in the last bit on 472 of 199,972 arguments sampled; its
 `Math.log` differs from fdlibm's on some arguments too. A last bit
@@ -115,7 +115,7 @@ difference can grow through the solver's iterations, so the weights are
 compared to a tolerance, and the best outcome must be the JVM's.
 
 The logarithm was chosen for speed. A correctly rounded logarithm
-(`turbo_jvm::math::log`) matched HotSpot's `Math.log` on every argument
+(`math::log`) matched HotSpot's `Math.log` on every argument
 sampled and made a few more models byte-identical to the JVM's, but it
 costs about 0.8 microseconds a call, some 60 times fdlibm's, and the dual
 solver takes one at every step of its inner Newton method. On the goldens
