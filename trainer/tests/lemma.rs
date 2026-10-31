@@ -28,6 +28,7 @@ fn spec(labels: Vec<String>, adapter: Option<(u32, u32)>, tags: Option<u32>) -> 
         hash_embed: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "lemma".into(),

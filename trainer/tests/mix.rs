@@ -28,6 +28,7 @@ fn spec(scheme: Scheme, adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         license_class: None,
         span: None,
         relation: None,
+        coref: None,
         artifact: "weights".into(),
         tensor_prefix: "t".into(),
     }

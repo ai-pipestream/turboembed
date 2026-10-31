@@ -23,6 +23,7 @@ fn spec() -> HeadSpec {
         hash_embed: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "review".into(),
@@ -118,6 +119,8 @@ fn nonfinite_hash_tables_are_refused_at_load() {
         biaffine: None,
         hash_embed: Some(HashEmbed { dim: 1, rows: [1; 4] }),
         span: None,
+        relation: None,
+        coref: None,
         license_class: None,
         ..spec()
     };
