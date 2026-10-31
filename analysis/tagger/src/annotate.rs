@@ -79,6 +79,25 @@ pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
     ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() }
 }
 
+/// Opens `WordEncoder` configured for `taps` encoder layers.
+pub(crate) fn open_words(dir: &Path, o: &EncoderOptions, taps: usize) -> Result<WordEncoder, CoreError> {
+    let mut eo = o.clone();
+    if eo.layers <= 1 {
+        eo.layers = taps as u32;
+    } else if eo.layers as usize != taps {
+        return Err(refuse(format!("encoder options ask for {} layers, the head reads {taps}", eo.layers)));
+    }
+    WordEncoder::open(dir, &eo)
+}
+
+/// Keeps the last `want` taps of each sequence's `[have, words, hidden]` features.
+pub(crate) fn tail_taps(features: &[Vec<f32>], have: usize, want: usize) -> std::borrow::Cow<'_, [Vec<f32>]> {
+    if have == want {
+        return std::borrow::Cow::Borrowed(features);
+    }
+    std::borrow::Cow::Owned(features.iter().map(|f| f[f.len() - (f.len() / have) * want..].to_vec()).collect())
+}
+
 impl HeadRunner {
     /// The head of the bundle at `dir` named `name`, or, with no name, the
     /// one head that writes `layer`.
@@ -86,7 +105,7 @@ impl HeadRunner {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, layer, HeadKind::TokenTagger)?;
         let tagger = TokenTagger::load(&bundle, &spec.name)?;
-        let words = WordEncoder::open(dir, o)?;
+        let words = open_words(dir, o, tagger.taps())?;
         if words.hidden() != tagger.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",
@@ -239,10 +258,10 @@ pub(crate) fn decode_with(
 ) -> Result<Vec<Decoded>, CoreError> {
     let (mut scores, mut work) = (Vec::new(), Work::default());
     let labels = tagger.labels().len();
-    let hidden = tagger.hidden();
+    let stride = tagger.taps() * tagger.hidden();
     let mut out = Vec::with_capacity(features.len());
     for (f, forms) in features.iter().zip(forms) {
-        let n = f.len() / hidden;
+        let n = f.len() / stride;
         let words: Vec<u32> = (0..n as u32).collect();
         tagger.scores_forms(f, &words, Some(forms), &mut scores, &mut work)?;
         let mut tags = Vec::new();
