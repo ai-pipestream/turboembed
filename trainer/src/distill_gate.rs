@@ -61,23 +61,6 @@ pub fn make_distill_examples(
         .collect()
 }
 
-/// Truncates each word's feature row from `d_teacher` to `d_student` (`1..=d_teacher`).
-pub fn truncate_examples(examples: &[Example], d_teacher: usize, d_student: usize) -> Result<Vec<Example>> {
-    if d_student == 0 || d_student > d_teacher {
-        return Err(invalid(format!("distill: d_student {d_student} must be in 1..={d_teacher}")));
-    }
-    examples
-        .iter()
-        .map(|e| {
-            if !e.features.len().is_multiple_of(d_teacher) {
-                return Err(invalid("distill: example features are not a multiple of d_teacher"));
-            }
-            let features = e.features.chunks_exact(d_teacher).flat_map(|r| &r[..d_student]).copied().collect();
-            Ok(Example { features, labels: e.labels.clone(), forms: e.forms.clone() })
-        })
-        .collect()
-}
-
 /// Summary of a distillation run and its accuracy gate check.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DistillReport {
@@ -162,13 +145,19 @@ fn check_distill_examples(examples: &[DistillExample], hidden: usize, labels: us
     Ok(())
 }
 
+/// Scores a [`Tagger<f32>`] on `examples` using its runtime decoder (including
+/// Viterbi decoding when the head uses CRF transitions).
+pub fn score_tagger(tagger: &Tagger<f32>, examples: &[Example]) -> Result<f64> {
+    match tagger.spec().kind {
+        HeadKind::SentenceBoundary => score_boundary(&tagger.to_boundary()?, examples),
+        HeadKind::TokenSplit => score_split(&tagger.to_splitter()?, examples),
+        _ => score(&tagger.to_token_tagger()?, examples),
+    }
+}
+
 fn score_student(student: &Tagger<f32>, examples: &[DistillExample]) -> Result<f64> {
     let plain: Vec<Example> = examples.iter().map(DistillExample::to_example).collect();
-    match student.spec().kind {
-        HeadKind::SentenceBoundary => score_boundary(&student.to_boundary()?, &plain),
-        HeadKind::TokenSplit => score_split(&student.to_splitter()?, &plain),
-        _ => score(&student.to_token_tagger()?, &plain),
-    }
+    score_tagger(student, &plain)
 }
 
 fn score_teacher_logits(spec: &HeadSpec, examples: &[DistillExample]) -> Result<f64> {
@@ -300,7 +289,10 @@ pub fn distill_multi_head(
     tasks.iter().map(|t| distill_tagger(&t.spec, student_hidden, &t.train, &t.val, &t.test, options)).collect()
 }
 
-/// Measures teacher vs. student inference throughput over `iterations` passes.
+/// Measures head-level teacher vs. student inference throughput over `iterations`
+/// passes on pre-encoded [`Example`] feature sequences (after one untimed warmup pass).
+/// For full end-to-end encoder + head benchmarking on CPU/GPU bundles, see
+/// `turbo-trainer-recipes::distill::measure_end_to_end_throughput`.
 pub fn measure_throughput(
     teacher: &Tagger<f32>,
     teacher_examples: &[Example],
@@ -320,6 +312,11 @@ pub fn measure_throughput(
         let words_buf: Vec<Vec<u32>> =
             examples.iter().map(|e| (0..(e.features.len() / hidden) as u32).collect()).collect();
         let forms_buf: Vec<Option<Vec<&str>>> = examples.iter().map(Example::forms).collect();
+        for ((e, words), forms) in examples.iter().zip(&words_buf).zip(&forms_buf) {
+            core.scores_forms(&e.features, words, forms.as_deref(), &mut scores, &mut work)?;
+            core.decode(&scores, words.len(), &mut tags)?;
+            std::hint::black_box(&tags);
+        }
         let start = Instant::now();
         for _ in 0..passes {
             for ((e, words), forms) in examples.iter().zip(&words_buf).zip(&forms_buf) {

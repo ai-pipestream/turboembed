@@ -6,7 +6,7 @@ use turbo_trainer::rng::Rng;
 use turbo_trainer::{
     Config, DistillExample, DistillOptions, DistillTask, DistillWork, Example, StudentGate, Tagger, distill_loss,
     distill_multi_head, distill_tagger, feature_align_loss, fit, make_distill_examples, measure_throughput,
-    tagger_distill_loss, truncate_examples,
+    score_tagger, tagger_distill_loss,
 };
 
 const EPS: f64 = 1e-6;
@@ -183,43 +183,49 @@ fn invalid_options_and_inputs_return_typed_errors() {
     assert_eq!(dscores, vec![1.0; 6], "refused calls leave dscores untouched");
 }
 
-fn synthetic_split(seed: u64, count: usize, d_teacher: usize) -> Vec<Example> {
+fn synthetic_pair(seed: u64, count: usize, d_teacher: usize, d_student: usize) -> (Vec<Example>, Vec<Example>) {
     let mut rng = Rng::new(seed);
-    (0..count)
-        .map(|_| {
-            let len = 5;
-            let mut features = Vec::with_capacity(len * d_teacher);
-            let mut labels = Vec::with_capacity(len);
-            for _ in 0..len {
-                let c = rng.below(4);
-                labels.push(c as u32);
-                for j in 0..d_teacher {
-                    let signal = if j % 4 == c { 1.2 } else { 0.0 };
-                    features.push((signal + rng.uniform(0.25)) as f32);
-                }
+    let mut teacher_out = Vec::with_capacity(count);
+    let mut student_out = Vec::with_capacity(count);
+    for _ in 0..count {
+        let len = 5;
+        let mut t_features = Vec::with_capacity(len * d_teacher);
+        let mut s_features = Vec::with_capacity(len * d_student);
+        let mut labels = Vec::with_capacity(len);
+        for _ in 0..len {
+            let c = rng.below(4);
+            labels.push(c as u32);
+            for j in 0..d_teacher {
+                let signal = if j % 4 == c { 1.2 } else { 0.0 };
+                t_features.push((signal + rng.uniform(0.25)) as f32);
             }
-            Example { features, labels, forms: Vec::new() }
-        })
-        .collect()
+            for j in 0..d_student {
+                let signal = if j % 4 == c { 1.2 } else { 0.0 };
+                s_features.push((signal + rng.uniform(0.25)) as f32);
+            }
+        }
+        teacher_out.push(Example { features: t_features, labels: labels.clone(), forms: Vec::new() });
+        student_out.push(Example { features: s_features, labels, forms: Vec::new() });
+    }
+    (teacher_out, student_out)
 }
 
 #[test]
 fn soft_target_distillation_transfers_teacher_predictions_and_passes_gate() {
     let d_teacher = 12;
     let d_student = 4;
-    let teacher_spec = spec(&["A", "B", "C", "D"], Some((8, 1)), false);
+    let mut teacher_spec = spec(&["A", "B", "C", "D"], Some((8, 1)), false);
+    teacher_spec.decode = Decode::Crf;
     let student_spec = spec(&["A", "B", "C", "D"], None, false);
 
-    let t_train = synthetic_split(1, 120, d_teacher);
-    let t_val = synthetic_split(2, 40, d_teacher);
-    let t_test = synthetic_split(3, 40, d_teacher);
+    let (t_train, s_train) = synthetic_pair(1, 120, d_teacher, d_student);
+    let (t_val, s_val) = synthetic_pair(2, 40, d_teacher, d_student);
+    let (t_test, s_test) = synthetic_pair(3, 40, d_teacher, d_student);
 
     let cfg = Config { epochs: 20, batch: 16, lr: 1e-2, patience: 0, threads: 1, ..Config::default() };
     let (teacher, _) = fit(&teacher_spec, d_teacher, &t_train, &t_val, &cfg).unwrap();
-
-    let s_train = truncate_examples(&t_train, d_teacher, d_student).unwrap();
-    let s_val = truncate_examples(&t_val, d_teacher, d_student).unwrap();
-    let s_test = truncate_examples(&t_test, d_teacher, d_student).unwrap();
+    let teacher_viterbi_acc = score_tagger(&teacher, &t_test).unwrap();
+    assert!(teacher_viterbi_acc >= 0.95);
 
     let d_train = make_distill_examples(&teacher, &t_train, &s_train).unwrap();
     let d_val = make_distill_examples(&teacher, &t_val, &s_val).unwrap();
