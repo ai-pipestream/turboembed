@@ -20,6 +20,7 @@ pub mod hash_embed;
 pub mod lemmatizer;
 pub mod parser;
 pub mod relation;
+pub mod run;
 pub mod span;
 pub mod split;
 pub mod tagger;

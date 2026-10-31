@@ -9,18 +9,15 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * OpenNLP-style name finder backed only by a configured statistical model.
+ * OpenNLP-style name finder backed only by the entity head of a bundle.
  * PII is a separate {@link TurboAnalyzer#detectPii(String)} task and is never merged here.
- * There is deliberately no no-model constructor or recognizer fallback.
+ * There is deliberately no no-bundle constructor or recognizer fallback.
  */
 public final class TurboNameFinderME extends TurboAdapterSupport implements TokenNameFinder, AutoCloseable {
 
-    /** Creates a name finder using an OpenNLP {@code TokenNameFinderModel} {@code .bin} file. */
-    public TurboNameFinderME(Path modelPath) {
-        this(
-                TurboAnalyzer.create(new TurboAnalyzer.Config(
-                        "en", null, null, null, null, Objects.requireNonNull(modelPath, "modelPath"))),
-                true);
+    /** Creates a name finder over the entity head of the bundle directory at {@code bundlePath}. */
+    public TurboNameFinderME(Path bundlePath) {
+        this(TurboAnalyzer.create(TurboAnalyzer.Config.forBundle(bundlePath)), true);
     }
 
     /** Creates a name finder sharing an analyzer without owning its lifecycle. */

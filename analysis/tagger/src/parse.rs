@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
 use turbo::head::BiaffineParser;
-use turbo::head::parser::Work;
 use turbo::manifest::HeadKind;
 use turbo::status::Error as CoreError;
 use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Refs, TagSet, View};
@@ -18,13 +17,7 @@ use turbo_analysis_layers::{Dependencies, Sentences, Subwords, Tag, Tokens};
 use crate::annotate::{HeadRunner, find_head, model_ref, refuse};
 use crate::words::WordEncoder;
 
-/// One sentence parsed: each word's head (0 the root, else the word's
-/// position from 1) and relation label.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Parse {
-    pub heads: Vec<u32>,
-    pub relations: Vec<u32>,
-}
+pub use turbo::head::run::Parse;
 
 /// Writes the dependency layer from a biaffine parser head. A word under
 /// the root has no head; each sentence has one such word when the head
@@ -122,23 +115,7 @@ impl Annotator for DependencyParser {
     }
 }
 
-/// Each sequence parsed by `parser` from its word features.
-pub(crate) fn parse_with(parser: &BiaffineParser, features: &[Vec<f32>]) -> Result<Vec<Parse>, CoreError> {
-    let (mut arcs, mut scores, mut work) = (Vec::new(), Vec::new(), Work::default());
-    let hidden = parser.hidden();
-    let mut out = Vec::with_capacity(features.len());
-    for f in features {
-        let ids: Vec<u32> = (0..(f.len() / hidden) as u32).collect();
-        let n = parser.arcs(f, &ids, &mut arcs, &mut work)?;
-        let mut heads = Vec::new();
-        parser.decode(&arcs, n, &mut heads)?;
-        parser.relations(&heads, &mut scores, &work)?;
-        let mut relations = Vec::new();
-        parser.relation_labels(&scores, n, &mut relations)?;
-        out.push(Parse { heads, relations });
-    }
-    Ok(out)
-}
+pub(crate) use turbo::head::run::parse_sequences as parse_with;
 
 /// The dependency layer from each sequence's parse.
 pub(crate) fn dep_layer(

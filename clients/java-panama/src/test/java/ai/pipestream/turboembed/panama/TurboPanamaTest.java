@@ -7,7 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -34,13 +37,80 @@ final class TurboPanamaTest {
                 112L,
                 TurboLibrary.TURBO_SPAN_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("prob")));
 
-        Path missingModel = TestPaths.repoRoot().resolve("testdata/does-not-exist.bin");
+        Path missingBundle = TestPaths.repoRoot().resolve("testdata/does-not-exist");
         TurboException ex = assertThrows(
-                TurboException.class,
-                () -> TurboAnalyzer.create(new TurboAnalyzer.Config("en", missingModel, null, null, null, null)));
+                TurboException.class, () -> TurboAnalyzer.create(new TurboAnalyzer.Config("en", missingBundle)));
         assertEquals(TurboLibrary.TURBO_E_BUNDLE_NOT_FOUND, ex.code());
         assertEquals("TURBO_E_BUNDLE_NOT_FOUND", ex.statusName());
-        assertTrue(TurboLibrary.lastErrorMessage().contains("sent_model_path"));
+        assertEquals(7, ex.field(), "the field number of bundle_path");
+        assertTrue(TurboLibrary.lastErrorMessage().contains("bundle_path"));
+    }
+
+    @Test
+    void retiredModelPathFieldsAreRefusedAndTheEarlierDescriptorSizeStillCreates() {
+        assertEquals(120L, TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT.byteSize());
+        assertEquals(
+                (long) TurboLibrary.TURBO_ANALYZER_DESC_SIZE_V1,
+                TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("bundle_path")));
+        String[] retired = {"sent_model_path", "tok_model_path", "pos_model_path", "lemma_model_path", "ner_model_path"};
+        try (Arena arena = Arena.ofConfined()) {
+            for (int i = 0; i < retired.length; i++) {
+                MemorySegment desc = arena.allocate(TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT);
+                desc.set(ValueLayout.JAVA_INT, 0L, (int) TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT.byteSize());
+                long offset = TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT.byteOffset(
+                        MemoryLayout.PathElement.groupElement(retired[i]));
+                TurboLibrary.writeTextInPlace(arena, desc, offset, "model.bin");
+                MemorySegment err = TurboLibrary.allocateError(arena);
+                assertEquals(TurboLibrary.TURBO_E_INVALID_ARGUMENT, create(arena, desc, err), retired[i]);
+                assertEquals(i + 2, err.get(ValueLayout.JAVA_INT, 8L), "turbo_error.field names " + retired[i]);
+                String message = TurboLibrary.lastErrorMessage();
+                assertTrue(message.contains(retired[i]) && message.contains("retired"), message);
+            }
+
+            // A descriptor from before bundle_path is accepted and names no bundle.
+            MemorySegment desc = arena.allocate(TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT);
+            desc.set(ValueLayout.JAVA_INT, 0L, TurboLibrary.TURBO_ANALYZER_DESC_SIZE_V1);
+            TurboLibrary.writeTextInPlace(
+                    arena,
+                    desc,
+                    TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("bundle_path")),
+                    TestPaths.headsBundle().toString());
+            MemorySegment err = TurboLibrary.allocateError(arena);
+            assertEquals(TurboLibrary.TURBO_OK, create(arena, desc, err));
+            MemorySegment handle = created;
+            try {
+                MemorySegment outPtr = arena.allocate(ValueLayout.ADDRESS);
+                MemorySegment tokens = TurboLibrary.allocateTextArray(arena, new String[] {"The"});
+                int code = (int) TurboLibrary.TURBO_ANALYZER_POS_TAG.invokeExact(handle, tokens, 1, outPtr, err);
+                assertEquals(TurboLibrary.TURBO_E_UNSUPPORTED_TASK, code, "size 104 names no bundle");
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            } finally {
+                try {
+                    TurboLibrary.TURBO_ANALYZER_RELEASE.invokeExact(handle);
+                } catch (Throwable t) {
+                    throw new AssertionError(t);
+                }
+            }
+
+            // An unknown size is refused as such.
+            desc.set(ValueLayout.JAVA_INT, 0L, 112);
+            assertEquals(TurboLibrary.TURBO_E_INVALID_STRUCT_SIZE, create(arena, desc, err));
+        }
+    }
+
+    private MemorySegment created;
+
+    private int create(Arena arena, MemorySegment desc, MemorySegment err) {
+        MemorySegment outPtr = arena.allocate(ValueLayout.ADDRESS);
+        int code;
+        try {
+            code = (int) TurboLibrary.TURBO_ANALYZER_CREATE.invokeExact(desc, outPtr, err);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+        created = outPtr.get(ValueLayout.ADDRESS, 0L);
+        return code;
     }
 
     @Test

@@ -791,6 +791,7 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_ANALYSIS_LAYER_LEMMAS    4
 #define TURBO_ANALYSIS_LAYER_ENTITIES  5
 #define TURBO_ANALYSIS_LAYER_PII       6
+#define TURBO_ANALYSIS_LAYER_DEPENDENCIES 7
 
 #define TURBO_SPAN_VIEW_RANGE   (1u << 0)
 #define TURBO_SPAN_SOURCE_RANGE (1u << 1)
@@ -803,20 +804,31 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_CONFIDENCE_CHECKSUM 2
 #define TURBO_PII_CONFIDENCE_LABELLED 3
 
-/* Model selection for an in-process analysis pipeline. desc may be NULL for
- * English with the rule sentence splitter and rule tokenizer only. An empty
- * path never selects a dictionary, recognizer or fixture: POS, lemmatization
- * and NER then fail with TURBO_E_UNSUPPORTED_TASK. The rule sentence and
- * tokenizer paths report no probability. */
+/* Configuration of an in-process analysis pipeline. desc may be NULL for
+ * English with the rule sentence splitter and rule tokenizer only. The
+ * learned components come from a bundle (docs/bundle.md) named by
+ * bundle_path: its heads write the part-of-speech, lemma, dependency and
+ * entity layers, each from the one head of the bundle whose layer it is,
+ * in one encoder pass a sentence on the cpu backend. Without a bundle, or
+ * with a bundle lacking a layer's head, that layer's tasks fail with
+ * TURBO_E_UNSUPPORTED_TASK naming what is missing. The rule sentence and
+ * tokenizer paths report no probability.
+ *
+ * The five model path fields are retired: they keep their place so a
+ * program built against an earlier header still runs, and a non-empty
+ * value fails with TURBO_E_INVALID_ARGUMENT naming its field. Fields are
+ * numbered from 1 for turbo_error.field. */
 typedef struct turbo_analyzer_desc {
     uint32_t   struct_size;
     uint32_t   flags;
     turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
-    turbo_text sent_model_path;   /*2: optional native sentence model .bin path */
-    turbo_text tok_model_path;    /*3: optional OpenNLP tokenizer model .bin path */
-    turbo_text pos_model_path;    /*4: optional OpenNLP POS model .bin path */
-    turbo_text lemma_model_path;  /*5: optional OpenNLP lemmatizer model/dict path */
-    turbo_text ner_model_path;    /*6: optional OpenNLP TokenNameFinder .bin path */
+    turbo_text sent_model_path;   /*2: retired; must be empty */
+    turbo_text tok_model_path;    /*3: retired; must be empty */
+    turbo_text pos_model_path;    /*4: retired; must be empty */
+    turbo_text lemma_model_path;  /*5: retired; must be empty */
+    turbo_text ner_model_path;    /*6: retired; must be empty */
+    /* A struct_size of 104 ends here; no bundle is then named. */
+    turbo_text bundle_path;       /*7: a bundle directory; empty names no bundle */
 } turbo_analyzer_desc;
 
 /* One typed row in an analysis result. The row identifies its layer kind,
@@ -827,7 +839,9 @@ typedef struct turbo_analyzer_desc {
  * TURBO_SPAN_* flag: token-only rows have no text range, absent numeric
  * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
  * Discontinuous items emit one row per fragment. classification is
- * layer-specific (TURBO_PII_CONFIDENCE_* for PII, otherwise zero). */
+ * layer-specific: TURBO_PII_CONFIDENCE_* for PII; for a dependency row,
+ * whose label is the relation, the head token's index plus one, 0 under
+ * the root; otherwise zero. */
 typedef struct turbo_span {
     uint32_t layer_kind;
     uint32_t flags;

@@ -9,8 +9,8 @@ Panama Foreign Function and Memory API. It contains:
   source- or binary-compatible drop-in replacements for `opennlp.tools`.
 
 No accuracy or speed comparison with Apache OpenNLP is claimed by this
-binding. The checked-in model files used by tests are small fixtures for
-correctness and lifecycle coverage, not production accuracy benchmarks.
+binding. The tests run over the sealed small bundles in `testdata`, whose
+seeded heads cover correctness and lifecycle, not accuracy.
 
 ## Requirements
 
@@ -90,36 +90,43 @@ is read through `coveredSourceText` or `coveredViewText`; it is not copied
 into the label field.
 
 Token-only POS, lemma, and token-sequence NER rows have token ranges and no
-text ranges. PII rows carry their kind as the label, their normalized form
-as the value, and a `TurboPiiConfidence` evidence classification. PII
-classification is not represented as a probability.
+text ranges. Dependency rows are aligned to tokens: the relation is the
+label and the head token is read through `dependencyHead()`, which is
+empty for the root of a sentence. PII rows carry their kind as the label,
+their normalized form as the value, and a `TurboPiiConfidence` evidence
+classification. PII classification is not represented as a probability.
 
-## Models and explicit unknowns
+## Bundles and explicit unknowns
 
 The default analyzer contains the rule sentence splitter, rule tokenizer,
 and the separate PII task. It does not contain hidden POS, lemma, or NER
-fallbacks. Without the corresponding configured model path, those tasks
-throw `TurboException` with `TURBO_E_UNSUPPORTED_TASK`.
+fallbacks. The learned layers come from the heads of a bundle directory:
+its encoder runs once per sentence and every head reads that pass, so the
+part-of-speech, lemma, dependency and entity layers of `analyzeGraph` cost
+one encoder pass together. Without a bundle, or with a bundle that has no
+head for a layer, that layer's tasks throw `TurboException` with
+`TURBO_E_UNSUPPORTED_TASK` naming what is missing.
 
-Configure model files explicitly:
+Name the bundle explicitly:
 
 ```java
-TurboAnalyzer.Config config = new TurboAnalyzer.Config(
-        "en",
-        sentenceModel,
-        tokenizerModel,
-        posModel,
-        lemmaDictionaryOrModel,
-        nerModel);
+TurboAnalyzer.Config config = TurboAnalyzer.Config.forBundle(bundleDir);
+TurboAnalyzer.Config french = new TurboAnalyzer.Config("fr", bundleDir);
 ```
 
-NER uses only the configured statistical model and fresh context for each
+The five per-component model path fields of the native descriptor are
+retired. The binding never writes them; a program writing the raw layout
+gets `TURBO_E_INVALID_ARGUMENT` naming the field for a non-empty value.
+
+NER uses only the bundle's entity head and fresh context for each
 sequence. No dictionary, pattern, or PII recognizer output is merged into
 NER. `detectPii` remains a separate operation and layer.
 
-A lemma dictionary miss produces a row with no label. It is never replaced
-by a lowercased token. Rule sentence and token rows have no probability;
-the binding does not invent one.
+`lemmatize` takes the tags the bundle's lemmatizer head reads: they must
+be labels of that head's tag head, and a lemmatizer reading no tags
+ignores them. A row with no label is an explicit miss. It is never
+replaced by a lowercased token. Rule sentence and token rows have no
+probability; the binding does not invent one.
 
 ## Graphs
 
