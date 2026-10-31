@@ -149,6 +149,93 @@ rpcs from the same messages.
   they are checked for order and source only. `RoundTripRecords` answers
   with the message it was given.
 
+## Seeding structure from a parser
+
+A client that already has a document's headings, lists and tables
+(from docling, a Markdown or HTML parser, a PDF layout tool) sends them
+so the chunker cuts along them. `AnalyzePipelineRequest` takes them two
+ways, and both give the same document:
+
+- `initial_graph`: DocumentGraph bytes holding a `turbo:structure`
+  layer, which needs the Rust DocumentGraph writer.
+- `structure_seed`: a `StructureSeed` message, the text plus one
+  `StructureBlock` per block, which any language with protobuf builds.
+
+A block names its `kind` (`StructureBlockKind`), its `start` and `end`
+in the request's `offsets` unit (UTF-8 bytes, UTF-16 units as Java
+strings index, or code points as Python strings index), its `level`
+(a heading's or section's level, a list's, list item's or quote's
+nesting, 0 otherwise) and its `parent`, the index of the enclosing
+block, unset at the top. The server builds the default
+`turbo:structure` layer from the blocks, with provenance
+`turbo:structure-seed`, the layer an `initial_graph` written with that
+provenance holds; the steps then run as they do over that graph. The
+seed carries the text, so `text`, `source_bytes` and `initial_graph`
+stay empty beside it.
+
+Blocks are a tree in text order: each starts at or after the block
+before it, lies inside its parent, which comes before it, and starts
+after its previous sibling ends. A block with an unspecified or unknown
+kind, a level over 255, a span outside the text or inside a code point
+(or a UTF-16 surrogate pair), a parent at or after it, or a span that
+overlaps a sibling or leaves its parent refuses the call before it
+streams, `INVALID_ARGUMENT` with `TURBO_E_INVALID_ARGUMENT` and a
+message naming the block (`structure_seed block 3 overlaps the block
+before it`).
+
+For the text
+
+```
+# Café menu
+
+- crème brûlée
+- 😀 soup
+
+| a | b |
+| ü | é |
+```
+
+a heading, a list and a table, in UTF-16 units:
+
+| Block | kind | start | end | level | parent |
+|---|---|---|---|---|---|
+| 0 | `STRUCTURE_BLOCK_KIND_HEADING` | 0 | 11 | 1 | |
+| 1 | `STRUCTURE_BLOCK_KIND_LIST` | 13 | 37 | 1 | |
+| 2 | `STRUCTURE_BLOCK_KIND_LIST_ITEM` | 13 | 27 | 1 | 1 |
+| 3 | `STRUCTURE_BLOCK_KIND_LIST_ITEM` | 28 | 37 | 1 | 1 |
+| 4 | `STRUCTURE_BLOCK_KIND_TABLE` | 39 | 58 | 0 | |
+| 5 | `STRUCTURE_BLOCK_KIND_TABLE_ROW` | 39 | 48 | 0 | 4 |
+| 6 | `STRUCTURE_BLOCK_KIND_TABLE_CELL` | 41 | 42 | 0 | 5 |
+| 7 | `STRUCTURE_BLOCK_KIND_TABLE_ROW` | 49 | 58 | 0 | 4 |
+| 8 | `STRUCTURE_BLOCK_KIND_TABLE_CELL` | 51 | 52 | 0 | 7 |
+
+The emoji is two UTF-16 units, so item 3 ends at 37 in UTF-16 units, 36
+in code points and 43 in UTF-8 bytes. From Java:
+
+```java
+String text = "# Café menu\n\n- crème brûlée\n- 😀 soup\n\n| a | b |\n| ü | é |\n";
+int at = text.indexOf("# Café menu");
+StructureSeed seed = StructureSeed.newBuilder()
+        .setText(text)
+        .addBlocks(StructureBlock.newBuilder()
+                .setKind(StructureBlockKind.STRUCTURE_BLOCK_KIND_HEADING)
+                .setStart(at).setEnd(at + "# Café menu".length()).setLevel(1))
+        // ... the list, its items, the table, its rows and cells ...
+        .build();
+AnalyzePipelineRequest req = AnalyzePipelineRequest.newBuilder()
+        .setOffsets(OffsetMode.OFFSET_MODE_UTF16)
+        .setProfile("default-v1")
+        .setStructureSeed(seed)
+        .build();
+```
+
+`server/tests/progressive_seed.rs` holds the server to this: the seed
+above in each offset unit gives the same graph, byte for byte, as the
+same structure sent as `initial_graph`, and every refusal above names
+its block. The Java and Python stub clients (`clients/java`,
+`clients/python/smoke_test.py`) send a heading and a list as a seed
+against the release binary and check an overlapping block is refused.
+
 ## Capabilities
 
 `Capabilities` answers with what a client needs to refuse its own

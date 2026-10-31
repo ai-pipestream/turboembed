@@ -63,6 +63,12 @@ gRPC service) build against. Everything below is new.
   one): the F16 sums went over FASTEST's cosine bound at 8192 tokens.
   That attention is slower; sessions of 4096 or fewer keep the F16 sums
   (#1580).
+- `AnalyzePipelineRequest.structure_seed`: a document's text and its
+  headings, lists, tables and other blocks as a `StructureSeed` protobuf
+  message, offsets in the request's unit, built into the same
+  `turbo:structure` layer an `initial_graph` carries, so a Java or
+  Python client seeds the chunker without a DocumentGraph writer; a
+  malformed block is refused naming it (#1774).
 
 ### Not in this release yet
 
