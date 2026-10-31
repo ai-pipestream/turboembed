@@ -730,10 +730,16 @@
           "name": "sentence-transformers/all-MiniLM-L6-v2",
           "license": "Apache-2.0",
           "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations and sentence-transformers/all-MiniLM-L6-v2. MASC is by the American National Corpus project under CC BY 3.0 US. Held-out aspect F1 is 0.013491, so this head is not the default extractor. Configuration and evaluation are included in the zip.",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations and sentence-transformers/all-MiniLM-L6-v2 (local-only via MS MARCO in its training lineage, #1732). MASC is by the American National Corpus project under CC BY 3.0 US. Held-out aspect F1 is 0.013491, so this head is not the default extractor. Configuration and evaluation are included in the zip.",
+      "origin": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-924-1",
       "files": [
         {
           "path": "aspect-sentiment-1.zip",
@@ -741,6 +747,39 @@
           "size": 25106,
           "sha256": "109c0eea8f2f0d5aa979b9f819820504456d236b372222a9ad9e34362d241be3",
           "sha512": "0507c12e88de97842bf94de856f1faf391b4e78f5159938324c5e2bdde2e4c215ca8173c37a907b16a2e40c9980618174daef72e3522bca5a58d4fdeac9d55fc"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0 MPQA subjective polarity annotations",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        },
+        {
+          "name": "answerdotai/ModernBERT-base",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/answerdotai/ModernBERT-base/blob/8949b909ec900327062f0ebf497f51aef5e6f0c8/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained with turbo-trainer on 376 MASC 3.0.0 MPQA subjective polarity spans (American National Corpus project, CC BY 3.0 US, https://anc.org/data/masc/) over answerdotai/ModernBERT-base (Apache-2.0, https://huggingface.co/answerdotai/ModernBERT-base).",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1.tpvh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-masc-3.0.0-modernbert-base-polarity-head-1.tpvh",
+          "size": 9349,
+          "sha256": "5fb54814d92530072e90fa9d0e701792a4cbb7487353ae1a3ddb4cb60b196909",
+          "sha512": "b6b8a45249342ecfe14ab9bbc19444eb8d655a4c0b2f74911457bd0dc5d8d5c18629c7a45c63f7387c7a217ea443975ef64700c208c4f99eb90a06304d54973e"
         }
       ]
     },
@@ -1129,10 +1168,21 @@
           "name": "GoEmotions 7de3624754e2b0f2",
           "license": "CC-BY-4.0",
           "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), over sentence-transformers/all-MiniLM-L6-v2 (local-only via MS MARCO in its training lineage; replaced in the default tier by turbo-en-goemotions-modernbert-base-head-1, #1732).",
+      "origin": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1",
       "files": [
         {
           "path": "turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
@@ -1157,10 +1207,21 @@
           "name": "GoEmotions 7de3624754e2b0f2",
           "license": "CC-BY-4.0",
           "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        },
+        {
+          "name": "BAAI/bge-small-en-v1.5",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/BAAI/bge-small-en-v1.5"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), over BAAI/bge-small-en-v1.5 (local-only via MS MARCO in the BGE fine-tuning lineage; replaced in the default tier by turbo-en-goemotions-modernbert-base-head-1, #1732).",
+      "origin": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1",
       "files": [
         {
           "path": "turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
@@ -1168,6 +1229,39 @@
           "size": 43235,
           "sha256": "f82b1beb02642576d12e8932b6f3cf0b8487d3f150c0066b576c50011665123a",
           "sha512": "de5260320ecf59e5c017b33be26cab002e020599de7e09ef8832e8b4a8d82d9316e373636a57b4ec23ed2af2a780b4a5436ebb036fd186c3ab37f4b6e413218b"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-modernbert-base-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        },
+        {
+          "name": "answerdotai/ModernBERT-base",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/answerdotai/ModernBERT-base/blob/8949b909ec900327062f0ebf497f51aef5e6f0c8/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained with turbo-trainer on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), over answerdotai/ModernBERT-base (Apache-2.0, https://huggingface.co/answerdotai/ModernBERT-base).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-modernbert-base-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-goemotions-modernbert-base-head-1.tevh",
+          "size": 86248,
+          "sha256": "e5e54e034221c36b5f89715e09c7c5ef08488ecac71151f2b43acdc4b3913919",
+          "sha512": "a0a01ae683e15305f6409d35da6828274a020de6b3ac14f39f424496a7ba15fe9029222e7c818443cf289ae6b1b377f6419cc716876aaed24c30e00927c58509"
         }
       ]
     },
@@ -1269,10 +1363,21 @@
           "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
           "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f, over sentence-transformers/all-MiniLM-L6-v2 (local-only via MS MARCO in its training lineage; replaced in the default tier by turbo-en-civil-comments-modernbert-base-head-1, #1732). Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "origin": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1",
       "files": [
         {
           "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
@@ -1297,10 +1402,21 @@
           "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
           "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f, over sentence-transformers/all-MiniLM-L6-v2 (local-only via MS MARCO in its training lineage; replaced in the default tier by turbo-en-civil-comments-modernbert-base-context-head-1, #1732). Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "origin": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1",
       "files": [
         {
           "path": "turbo-en-civil-comments-minilm-l6-v2-context-head-1.tivh",
@@ -1325,10 +1441,21 @@
           "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
           "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        },
+        {
+          "name": "BAAI/bge-small-en-v1.5",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/BAAI/bge-small-en-v1.5"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f, over BAAI/bge-small-en-v1.5 (local-only via MS MARCO in the BGE fine-tuning lineage; replaced in the default tier by turbo-en-civil-comments-modernbert-base-head-1, #1732). Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "origin": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1",
       "files": [
         {
           "path": "turbo-en-civil-comments-bge-small-en-v1.5-head-1.tivh",
@@ -1353,10 +1480,21 @@
           "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
           "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        },
+        {
+          "name": "BAAI/bge-small-en-v1.5",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/BAAI/bge-small-en-v1.5"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f, over BAAI/bge-small-en-v1.5 (local-only via MS MARCO in the BGE fine-tuning lineage; replaced in the default tier by turbo-en-civil-comments-modernbert-base-context-head-1, #1732). Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "origin": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1",
       "files": [
         {
           "path": "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1.tivh",
@@ -1364,6 +1502,72 @@
           "size": 18571,
           "sha256": "dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7",
           "sha512": "62d38ca000d161ee8eb6bf06d7f307886a123207c3911ac95e9442c138bfa61146f8ad6b8944f013dff6fb256fff66b1d6ca66b3a7f87cfcc87b83e693dfac11"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-modernbert-base-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        },
+        {
+          "name": "answerdotai/ModernBERT-base",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/answerdotai/ModernBERT-base/blob/8949b909ec900327062f0ebf497f51aef5e6f0c8/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained with turbo-trainer on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f, over answerdotai/ModernBERT-base (Apache-2.0, https://huggingface.co/answerdotai/ModernBERT-base). Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-modernbert-base-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-civil-comments-modernbert-base-head-1.tivh",
+          "size": 18576,
+          "sha256": "dff23f93bc24e36e48f0da8cb3cca7201cb3a34f7124492bb02137cf963a9260",
+          "sha512": "abf51abcaba007a0ba1987c7b67f8a49d682ded16dd01567a61043a799d1f52627d0df9e834190f90cec0b184d81a7e5eacdc7305e12bcfdc382c3b69e7534d7"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-modernbert-base-context-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        },
+        {
+          "name": "answerdotai/ModernBERT-base",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/answerdotai/ModernBERT-base/blob/8949b909ec900327062f0ebf497f51aef5e6f0c8/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained with turbo-trainer on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f, over answerdotai/ModernBERT-base (Apache-2.0, https://huggingface.co/answerdotai/ModernBERT-base). Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-modernbert-base-context-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-civil-comments-modernbert-base-context-head-1.tivh",
+          "size": 37008,
+          "sha256": "465cb98642303556687fd397ea508cf92b9f001c33701bc842b0ba33f45a3330",
+          "sha512": "dbdf7386ee668f8ac35fb92fb7f6c46d18ec4af1d4d286f26f894716339343fe70cc5dee307c9a04e5f025e2009c2d12b2696bd1f912de3618fe75a6efb7f238"
         }
       ]
     },

@@ -168,11 +168,15 @@ fn zoo_loader_resolves_bound_head_bytes_and_rejects_non_head_artifacts() {
         EmotionVectorHead::from_zoo(&builtin, "goemotions", &user, || Ok(Acceptances::default())),
         Err(EmotionZooError::NotAHead { .. })
     ));
+    let modern_entry = builtin_index.get(GOEMOTIONS_MODERNBERT_HEAD).unwrap();
+    assert_eq!(modern_entry.kind, turbo_zoo::Kind::Head);
+    assert_eq!(modern_entry.format, turbo_zoo::Format::Head);
+    assert_eq!(modern_entry.class, turbo_zoo::LicenceClass::Permissive);
     for id in [GOEMOTIONS_MINILM_HEAD, GOEMOTIONS_BGE_SMALL_HEAD] {
         let entry = builtin_index.get(id).unwrap();
         assert_eq!(entry.kind, turbo_zoo::Kind::Head);
         assert_eq!(entry.format, turbo_zoo::Format::Head);
-        assert_eq!(entry.class, turbo_zoo::LicenceClass::Permissive);
+        assert_eq!(entry.class, turbo_zoo::LicenceClass::LocalOnly);
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
