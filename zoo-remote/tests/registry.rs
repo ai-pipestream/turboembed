@@ -137,3 +137,36 @@ fn a_sign_in_a_kind_does_not_take_is_refused() {
     let opened = registry.sources(named.list(&alice()), &alice(), None::<Offline>).unwrap();
     assert!(opened.is_empty());
 }
+
+#[test]
+fn a_file_kind_accepts_a_native_absolute_directory() {
+    let directory = std::env::temp_dir();
+    assert!(directory.is_absolute());
+    let address = format!("file://{}", directory.display());
+    let registry = Registry::builtin();
+    let holder = Holder::new("local", &address, SignIn::Environment).unwrap();
+    assert!(matches!(registry.open(&holder, &alice()).unwrap(), Opened::Store(_)));
+    assert_eq!(registry.spec(&address, &alice(), Offline).unwrap().len(), 1);
+    let e = registry
+        .open(&Holder::new("rel", "file://relative/zoo", SignIn::Environment).unwrap(), &alice())
+        .err()
+        .unwrap();
+    assert!(e.contains("absolute directory"), "{e}");
+}
+
+#[cfg(windows)]
+#[test]
+fn a_file_kind_checks_windows_directory_prefixes() {
+    let registry = Registry::builtin();
+    for directory in [r"C:\zoo", "C:/zoo", r"\\storage.example\models\zoo"] {
+        let address = format!("file://{directory}");
+        let holder = Holder::new("win", &address, SignIn::Environment).unwrap();
+        assert!(matches!(registry.open(&holder, &alice()).unwrap(), Opened::Store(_)), "{address}");
+        assert_eq!(registry.spec(&address, &alice(), Offline).unwrap().len(), 1, "{address}");
+    }
+    for directory in [r"C:zoo", r"\zoo", r"relative\zoo"] {
+        let address = format!("file://{directory}");
+        let e = registry.open(&Holder::new("rel", &address, SignIn::Environment).unwrap(), &alice()).err().unwrap();
+        assert!(e.contains("absolute directory"), "{address}: {e}");
+    }
+}
