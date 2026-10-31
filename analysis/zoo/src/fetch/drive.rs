@@ -17,6 +17,9 @@ pub const DRIVE_ENDPOINT: &str = "https://www.googleapis.com";
 
 const FOLDER: &str = "application/vnd.google-apps.folder";
 
+/// The most `files.list` pages read for one name.
+const PAGES: usize = 20;
+
 /// How a request to Drive is signed in.
 #[derive(Clone)]
 pub enum DriveAuth {
@@ -42,15 +45,18 @@ impl std::fmt::Debug for DriveAuth {
 /// reached from it through the names after it. Shared drives are
 /// included. Each file is found with one `files.list` query per folder
 /// on the way (folder ids are remembered once found) and read with one
-/// `files.get?alt=media`. A redirect is followed over HTTPS only and
-/// never carries the token.
+/// `files.get?alt=media`. The token or key travels in a header, never
+/// in a URL. A redirect is followed over HTTPS only and carries neither.
 pub struct GoogleDrive {
     address: String,
     root: String,
     under: Vec<String>,
     base: String,
     auth: DriveAuth,
-    agent: ureq::Agent,
+    /// Sends the signed request and follows no redirect.
+    signed: ureq::Agent,
+    /// Follows a redirect, unsigned.
+    plain: ureq::Agent,
     /// Folder ids found so far, by their path below the store root.
     folders: Mutex<HashMap<Vec<String>, String>>,
 }
@@ -76,8 +82,10 @@ impl GoogleDrive {
         GoogleDrive::with(address, None, auth)
     }
 
-    /// The folder at `endpoint` (`http://host:port` or `https://host`), or
-    /// at [`DRIVE_ENDPOINT`] when none is given.
+    /// The folder at `endpoint`, or at [`DRIVE_ENDPOINT`] when none is
+    /// given. An `https://host` endpoint is HTTPS only, redirects
+    /// included. An `http://host:port` endpoint sends the token or key in
+    /// clear text, so it is only for a stand-in on loopback in tests.
     pub fn with(address: &str, endpoint: Option<&str>, auth: DriveAuth) -> Result<GoogleDrive, String> {
         let (root, under) = parse(address)?;
         let base = endpoint.unwrap_or(DRIVE_ENDPOINT).trim_end_matches('/');
@@ -91,20 +99,23 @@ impl GoogleDrive {
         if secret.is_empty() || !secret.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(format!("{address}: the token or key is empty or holds spaces or control characters"));
         }
-        let agent = ureq::Agent::config_builder()
-            .https_only(base.starts_with("https://"))
-            .max_redirects(10)
-            .redirect_auth_headers(ureq::config::RedirectAuthHeaders::Never)
-            .accept_encoding("identity")
-            .build()
-            .into();
+        let agent = |redirects| {
+            ureq::Agent::config_builder()
+                .https_only(base.starts_with("https://"))
+                .max_redirects(redirects)
+                .redirect_auth_headers(ureq::config::RedirectAuthHeaders::Never)
+                .accept_encoding("identity")
+                .build()
+                .into()
+        };
         Ok(GoogleDrive {
             address: address.to_owned(),
             root,
             under,
             base: base.to_owned(),
             auth,
-            agent,
+            signed: agent(0),
+            plain: agent(10),
             folders: Mutex::new(HashMap::new()),
         })
     }
@@ -113,45 +124,61 @@ impl GoogleDrive {
         &self.address
     }
 
-    /// One GET of `path?query` on the API, signed; at most `limit` bytes
-    /// of the body. Errors name the path, never the key.
+    /// One GET of `path?query` on the API, signed with a header; at most
+    /// `limit` bytes of the body. A redirect is followed unsigned, so the
+    /// token or key never leaves the API's own host. Errors name the path.
     fn call(&self, path: &str, query: &str, limit: u64) -> Result<Vec<u8>, String> {
-        let mut url = format!("{}{path}?{query}&supportsAllDrives=true", self.base);
-        let mut req = match &self.auth {
-            DriveAuth::Token(t) => self.agent.get(&url).header("Authorization", format!("Bearer {t}")),
-            DriveAuth::ApiKey(k) => {
-                url.push_str("&key=");
-                url.push_str(&encode(k));
-                self.agent.get(&url)
-            }
+        let url = format!("{}{path}?{query}&supportsAllDrives=true", self.base);
+        let req = match &self.auth {
+            DriveAuth::Token(t) => self.signed.get(&url).header("Authorization", format!("Bearer {t}")),
+            DriveAuth::ApiKey(k) => self.signed.get(&url).header("X-Goog-Api-Key", k.as_str()),
         };
-        req = req.header("Accept", "*/*");
         let fail = |e: ureq::Error| format!("{}{path}: {e}", self.base);
         let mut resp = req.call().map_err(fail)?;
+        if resp.status().is_redirection() {
+            let to = resp.headers().get("location").and_then(|v| v.to_str().ok());
+            let to = to.ok_or_else(|| format!("{}{path}: a redirect with no Location", self.base))?;
+            let to = if to.starts_with('/') { format!("{}{to}", self.base) } else { to.to_owned() };
+            let follow = |e: ureq::Error| format!("{}{path}: following its redirect: {e}", self.base);
+            resp = self.plain.get(&to).call().map_err(follow)?;
+        }
         resp.body_mut().with_config().limit(limit).read_to_vec().map_err(fail)
     }
 
     /// The id of `parent`'s child called `name` that is (`folder`) or is
-    /// not a folder; with several, the first whose size is `size`, if
-    /// given, else the first.
+    /// not a folder. With `size`, the first whose size it is, read page by
+    /// page, and `None` when none is; without, the first.
     fn child(&self, parent: &str, name: &str, folder: bool, size: Option<u64>) -> Result<Option<String>, String> {
         let q = format!(
             "name = '{}' and '{parent}' in parents and trashed = false and mimeType {} '{FOLDER}'",
             literal(name),
             if folder { "=" } else { "!=" },
         );
-        let query =
-            format!("q={}&fields={}&pageSize=100&includeItemsFromAllDrives=true", encode(&q), encode("files(id,size)"));
-        let body = self.call("/drive/v3/files", &query, 1 << 20)?;
-        let list: List =
-            serde_json::from_slice(&body).map_err(|e| format!("{}: a files.list reply: {e}", self.address))?;
+        let fields = encode("nextPageToken,files(id,size)");
         let want = size.map(|s| s.to_string());
-        let pick = list.files.iter().find(|f| want.is_some() && f.size == want).or(list.files.first());
-        match pick {
-            Some(f) if valid_id(&f.id) => Ok(Some(f.id.clone())),
-            Some(f) => Err(format!("{}: Drive answered the file id {:?}", self.address, f.id)),
-            None => Ok(None),
+        let mut page = String::new();
+        // Far more same-named entries than one folder holds in practice;
+        // the bound keeps a server that always sends a token from looping.
+        for _ in 0..PAGES {
+            let query = format!("q={}&fields={fields}&pageSize=1000&includeItemsFromAllDrives=true{page}", encode(&q));
+            let body = self.call("/drive/v3/files", &query, 1 << 20)?;
+            let list: List =
+                serde_json::from_slice(&body).map_err(|e| format!("{}: a files.list reply: {e}", self.address))?;
+            let pick = match &want {
+                Some(_) => list.files.iter().find(|f| f.size == want),
+                None => list.files.first(),
+            };
+            match pick {
+                Some(f) if valid_id(&f.id) => return Ok(Some(f.id.clone())),
+                Some(f) => return Err(format!("{}: Drive answered the file id {:?}", self.address, f.id)),
+                None => {}
+            }
+            match list.next_page_token {
+                Some(t) if want.is_some() && !t.is_empty() => page = format!("&pageToken={}", encode(&t)),
+                _ => return Ok(None),
+            }
         }
+        Err(format!("{}: more than {PAGES} pages of files named {name}", self.address))
     }
 
     /// The id of the folder at `path` below the store root, if there is one.
@@ -207,9 +234,12 @@ impl Transport for GoogleDrive {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct List {
     #[serde(default)]
     files: Vec<Listed>,
+    #[serde(default)]
+    next_page_token: Option<String>,
 }
 
 #[derive(Deserialize)]
