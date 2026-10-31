@@ -64,6 +64,20 @@ gRPC service) build against. Everything below is new.
   That attention is slower; sessions of 4096 or fewer keep the F16 sums
   (#1580).
 
+### Changed
+
+- The in-process analyzer (`turbo_analyzer_desc`) loads a bundle:
+  `bundle_path` names a bundle whose heads write the part-of-speech,
+  lemma, dependency and entity layers from one encoder pass a sentence,
+  as the Rust annotators write them. The five model path fields are
+  retired: they keep their offsets, a `struct_size` of 104 stays accepted
+  and names no bundle, and a non-empty value fails with
+  `TURBO_E_INVALID_ARGUMENT` naming its field. Dependency rows are the
+  new `TURBO_ANALYSIS_LAYER_DEPENDENCIES` layer kind: the relation as the
+  label, the head token plus one as the classification, zero for a root.
+  The Java Panama binding's `TurboAnalyzer.Config` takes the bundle path
+  in place of the model paths (#1779).
+
 ### Not in this release yet
 
 Open in the Integration v0 milestone, and listed here as each lands:

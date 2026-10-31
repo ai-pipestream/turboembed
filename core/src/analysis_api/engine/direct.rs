@@ -1,4 +1,5 @@
-//! Direct sentence and token results over the source view.
+//! Direct sentence and token results over the source view. The rule
+//! splitter and tokenizer report no probability.
 
 use turbo_analysis::{Layer, OffsetTable, Span};
 use turbo_analysis_layers::{Sentences, Tokens};
@@ -16,13 +17,13 @@ impl AnalyzerEngine {
         text: &str,
         layer_kind: u32,
         layer: &str,
-        spans: Vec<(Span, Option<f64>)>,
+        spans: Vec<Span>,
         with_token_range: bool,
     ) -> Result<AnalysisResultInner> {
         let offsets = OffsetTable::build(text);
         let mut builder = SpanPoolBuilder::with_capacity(spans.len(), layer.len());
         let layer_ref: LayerRef = builder.layer_ref(layer_kind, layer, "", SOURCE_VIEW)?;
-        for (idx, (span, prob)) in spans.into_iter().enumerate() {
+        for (idx, span) in spans.into_iter().enumerate() {
             let item = index_u32(idx, "analysis item count")?;
             let coords: CoordRange = coordinate_range(text, &offsets, (span.start, span.end))?;
             builder.push(
@@ -32,7 +33,6 @@ impl AnalyzerEngine {
                     view: Some(coords),
                     source: Some(coords),
                     tokens: with_token_range.then_some((item, item + 1)),
-                    prob,
                     ..SpanDraft::default()
                 },
             )?;

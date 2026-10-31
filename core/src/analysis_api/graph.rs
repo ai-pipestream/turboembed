@@ -7,13 +7,15 @@
 use std::any::TypeId;
 
 use turbo_analysis::{Document, Ix, Key, KeyId, Layer, Span, Spans, ViewId};
-use turbo_analysis_layers::{Confidence, Entities, Lemmas, Pii, PiiConfidence, PosTags, Sentences, Tokens};
+use turbo_analysis_layers::{
+    Confidence, Dependencies, Entities, Lemmas, Pii, PiiConfidence, PosTags, Sentences, Tokens,
+};
 
 use super::{
-    AnalysisResultInner, CoordRange, LayerRef, PoolRef, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES,
-    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_ANALYSIS_LAYER_SENTENCES,
-    TURBO_ANALYSIS_LAYER_TOKENS, TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT,
-    TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
+    AnalysisResultInner, CoordRange, LayerRef, PoolRef, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_DEPENDENCIES,
+    TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS,
+    TURBO_ANALYSIS_LAYER_SENTENCES, TURBO_ANALYSIS_LAYER_TOKENS, TURBO_PII_CONFIDENCE_CHECKSUM,
+    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, Result};
 
@@ -228,6 +230,48 @@ fn extract_lemmas(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Docu
     Ok(())
 }
 
+/// A dependency row per token: its relation as the label and, as the
+/// classification, its head token's index plus one, 0 under the root.
+fn extract_dependencies(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
+    let Some(layer) = get_by_id::<Dependencies<Tokens>>(doc, id) else { return Ok(()) };
+    let Some(anchor) = anchor_tokens(doc, id) else {
+        return Err(invalid(format!("aligned layer {id} has no token anchor")));
+    };
+    if layer.head.len() != anchor.spans.len() || layer.relation.len() != anchor.spans.len() {
+        return Err(invalid(format!(
+            "dependency layer {id} has {} heads for {} anchor tokens",
+            layer.head.len(),
+            anchor.spans.len()
+        )));
+    }
+    let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_DEPENDENCIES, id, anchor.spans.view())?;
+    for item in 0..layer.head.len() {
+        let item_u32 = index_u32(item, "graph dependency count")?;
+        let label = builder.string_ref(layer.relations.label(layer.relation[item]))?;
+        let classification = match layer.head[item] {
+            Some(head) => index_u32(head.get(), "graph dependency head")?
+                .checked_add(1)
+                .ok_or_else(|| Error::new(CAPACITY, "graph dependency head exceeds u32"))?,
+            None => 0,
+        };
+        push_fragments(
+            builder,
+            mapper,
+            layer_ref,
+            &anchor.spans,
+            item,
+            ItemFields {
+                tokens: Some((item_u32, item_u32 + 1)),
+                label: Some(label),
+                value: None,
+                classification,
+                prob: None,
+            },
+        )?;
+    }
+    Ok(())
+}
+
 fn extract_entities(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<Entities>(doc, id) else { return Ok(()) };
     if layer.tokens.len() != layer.spans.len() || layer.kind.len() != layer.spans.len() {
@@ -301,6 +345,8 @@ pub(crate) fn extract_graph(doc: &Document, graph: Vec<u8>) -> Result<AnalysisRe
             extract_pos(&mut builder, &mapper, doc, id)?;
         } else if id.ty == TypeId::of::<Lemmas>() {
             extract_lemmas(&mut builder, &mapper, doc, id)?;
+        } else if id.ty == TypeId::of::<Dependencies<Tokens>>() {
+            extract_dependencies(&mut builder, &mapper, doc, id)?;
         } else if id.ty == TypeId::of::<Entities>() {
             extract_entities(&mut builder, &mapper, doc, id)?;
         } else if id.ty == TypeId::of::<Pii>() {

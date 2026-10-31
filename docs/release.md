@@ -329,6 +329,14 @@ an existing value or call means. A program must treat a status code it
 does not know as a failure (`turbo_status_name` names it
 `TURBO_E_UNKNOWN`) and must not assume a list of devices or backends.
 
+A field that stops meaning anything is retired, not removed: it keeps
+its name, type and offset, the header marks it retired, and a non-empty
+or non-zero value fails with `TURBO_E_INVALID_ARGUMENT` naming the field
+in `turbo_error.field`. A program that left the field empty runs as
+before. The model path fields of `turbo_analyzer_desc` are retired this
+way: learned components load from its `bundle_path`, and the struct's
+earlier `struct_size` (104) stays accepted and names no bundle.
+
 ### The gRPC services and the server's configuration
 
 The packages are the vendored Open Inference Protocol (`inference`) and

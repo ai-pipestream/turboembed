@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-/** Locates repository fixtures without embedding a workstation-specific path in tests. */
+/** Locates the repository's testdata bundles without embedding a workstation-specific path in tests. */
 public final class TestPaths {
     private TestPaths() {}
 
@@ -42,25 +42,27 @@ public final class TestPaths {
         throw new AssertionError("could not locate repository root from candidates: " + candidates);
     }
 
-    public static Path fixture(String fileName) {
-        Path path = repoRoot().resolve("clients/java-panama/src/test/resources/fixtures").resolve(fileName);
-        if (!Files.isRegularFile(path)) {
-            throw new AssertionError("missing test fixture: " + path);
-        }
-        return path;
+    /** The sealed small BERT bundle in testdata with no heads. */
+    public static Path tinyBertBundle() {
+        return testdata("tiny-bert-bundle");
     }
 
-    public static Path tinyBertBundle() {
-        Path path = repoRoot().resolve("testdata/tiny-bert-bundle");
+    /** The sealed small BERT bundle in testdata with seeded part-of-speech, entity, dependency and lemma heads. */
+    public static Path headsBundle() {
+        return testdata("tiny-bert-heads-bundle");
+    }
+
+    private static Path testdata(String name) {
+        Path path = repoRoot().resolve("testdata").resolve(name);
         if (!Files.isDirectory(path)) {
-            throw new AssertionError("missing tiny BERT bundle: " + path);
+            throw new AssertionError("missing testdata bundle: " + path);
         }
         return path;
     }
 
     private static boolean looksLikeRepoRoot(Path dir) {
-        return Files.isDirectory(dir.resolve("clients/java-panama/src/test/resources/fixtures"))
-                && Files.isDirectory(dir.resolve("testdata/tiny-bert-bundle"))
+        return Files.isDirectory(dir.resolve("testdata/tiny-bert-bundle"))
+                && Files.isDirectory(dir.resolve("testdata/tiny-bert-heads-bundle"))
                 && Files.isRegularFile(dir.resolve("clients/java-panama/pom.xml"));
     }
 }
