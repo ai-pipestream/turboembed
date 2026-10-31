@@ -27,5 +27,4 @@ header, kept as OpenNLP ships it, names its origin.
 | `pt.txt` | Portuguese | Snowball, `algorithms/portuguese/stop.txt`, BSD license | As for Danish | 203 |
 | `ru.txt` | Russian | Snowball, `algorithms/russian/stop.txt`, BSD license | As for Danish | 159 |
 
-The word counts are the distinct words OpenNLP loads (`StopwordFilter.stopwords()`),
-which the `lists` golden (`analysis/goldens/data/stopword/lists`) records.
+The word counts are the distinct non-empty non-comment words loaded from each file.

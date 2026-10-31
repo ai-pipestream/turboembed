@@ -12,8 +12,10 @@ use std::sync::Arc;
 
 use turbo_analysis::*;
 use turbo_analysis_embed::*;
-use turbo_analysis_layers::{Sentences, Vectors};
-use turbo_doccat::sentiment::LexiconSentiment;
+use turbo_analysis_layers::{Polarity, Sentences, Vectors};
+use turbo_doccat::sentiment::{
+    LexiconSentiment, PolarityAnnotator, PolarityExample, PolarityFitConfig, PolarityVectorHead,
+};
 
 use heads_support::*;
 
@@ -102,21 +104,42 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
         ClassifierHead::fit_single_label(vec_ann.model().clone(), dim, Arc::clone(&tags), &train_vecs, 1e-4, 250, 1.5)
             .unwrap();
 
+    let polarity_train: Vec<PolarityExample> = train_vecs
+        .iter()
+        .map(|(v, t)| {
+            let pol = if *t == Tag(0) { Polarity::Positive } else { Polarity::Negative };
+            PolarityExample::new(v.clone(), pol)
+        })
+        .collect();
+    let polarity_head = Arc::new(
+        PolarityVectorHead::fit(
+            &polarity_train,
+            &PolarityFitConfig { epochs: 40, batch_size: 4, learning_rate: 0.08, ..Default::default() },
+            Some(vec_ann.model().clone()),
+        )
+        .unwrap(),
+    );
+
     let lexicon = LexiconSentiment::new();
     let mut probs = [0.0f64; 2];
 
     let mut lex_correct = 0usize;
     let mut cent_correct = 0usize;
     let mut lin_correct = 0usize;
+    let mut pol_correct = 0usize;
 
     for (i, &(text, want)) in eval_data.iter().enumerate() {
         let want_tag = Tag(want as u16);
+        let want_pol = if want == 0 { Polarity::Positive } else { Polarity::Negative };
         let (v, _) = &eval_vecs[i];
         if centroids.score_single_label(v, &mut probs).unwrap().0 == want_tag {
             cent_correct += 1;
         }
         if linear_head.score(v, &mut probs).unwrap().0 == want_tag {
             lin_correct += 1;
+        }
+        if polarity_head.predict(v).unwrap().0 == want_pol {
+            pol_correct += 1;
         }
         let vscore = lexicon.score_text(text);
         let lex_tag = if vscore.compound >= 0.0 { Tag(0) } else { Tag(1) };
@@ -126,7 +149,7 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     }
 
     println!(
-        "Self-contained eval ({} sentences): Lexicon={}/{}, Centroids={}/{}, LinearHead={}/{}",
+        "Self-contained eval ({} sentences): Lexicon={}/{}, Centroids={}/{}, LinearHead={}/{}, PolarityVectorHead={}/{}",
         eval_data.len(),
         lex_correct,
         eval_data.len(),
@@ -134,9 +157,21 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
         eval_data.len(),
         lin_correct,
         eval_data.len(),
+        pol_correct,
+        eval_data.len(),
     );
     assert!(cent_correct >= 10, "centroids accuracy {cent_correct}/{}", eval_data.len());
     assert!(lin_correct >= 10, "linear head accuracy {lin_correct}/{}", eval_data.len());
+    assert!(pol_correct >= 10, "polarity vector head accuracy {pol_correct}/{}", eval_data.len());
+
+    // ClassifierHead also implements PolarityVectorScorer for PolarityAnnotator.
+    let cls_polarity_ann = PolarityAnnotator::from_head(Arc::new(linear_head.clone()));
+    let sample_doc = Document::new(eval_data[0].0);
+    let sample_vecs = Vectors::<Sentences>::new(dim, eval_vecs[0].0.clone(), vec![], vec_ann.model().clone());
+    let (cls_cats,) = cls_polarity_ann
+        .annotate((sample_doc.get::<View>().unwrap(), None, None, None, None, Some(&sample_vecs)))
+        .unwrap();
+    assert_eq!(cls_cats.best_category(0), "positive");
 
     // Optional MASC 3.0.0 MPQA corpus evaluation: TURBO_MASC_ROOT is the corpus'
     // `data` directory and TURBO_MINILM_BUNDLE an all-MiniLM-L6-v2 bundle.

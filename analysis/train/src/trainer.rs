@@ -155,20 +155,20 @@ mod tests {
         let mut config = TrainingConfiguration::default();
         let (gis, _) = train_events(&events(), &p, &mut config).unwrap();
         assert_eq!(gis.algorithm(), Algorithm::Maxent);
-        assert_eq!(&gis.write().unwrap()[..5], b"\0\x03GIS");
+        assert_eq!(&gis.write().unwrap()[..13], b"\x0b\0TURBO-GIS-1");
         p.put(Key::ALGORITHM, Algorithm::MaxentQn.name());
         let (qn, _) = train_events(&events(), &p, &mut config).unwrap();
         assert_eq!(qn.algorithm(), Algorithm::MaxentQn);
-        assert_eq!(&qn.write().unwrap()[..4], b"\0\x02QN");
+        assert_eq!(&qn.write().unwrap()[..12], b"\x0a\0TURBO-QN-1");
         assert_eq!(qn.as_writable().num_predicates(), 4);
         p.put(Key::ALGORITHM, Algorithm::Perceptron.name());
         let (perceptron, _) = train_events(&events(), &p, &mut config).unwrap();
         assert_eq!(perceptron.algorithm(), Algorithm::Perceptron);
-        assert_eq!(&perceptron.write().unwrap()[..12], b"\0\x0aPerceptron");
+        assert_eq!(&perceptron.write().unwrap()[..20], b"\x12\0TURBO-PERCEPTRON-1");
         p.put(Key::ALGORITHM, Algorithm::NaiveBayes.name());
         let (nb, _) = train_events(&events(), &p, &mut config).unwrap();
         assert_eq!(nb.algorithm(), Algorithm::NaiveBayes);
-        assert_eq!(&nb.write().unwrap()[..12], b"\0\x0aNaiveBayes");
+        assert_eq!(&nb.write().unwrap()[..21], b"\x13\0TURBO-NAIVE-BAYES-1");
         assert_eq!(nb.as_writable().num_predicates(), 4);
         p.put(Key::ALGORITHM, Algorithm::PerceptronSequence.name());
         assert_eq!(

@@ -17,7 +17,7 @@ use turbo_geo::NameAnnotator;
 use turbo_structure::StructureProjector;
 use turbo_tokenize::uax29::UntypedWordTokenizer;
 
-fn check_required_inputs(doc: &Document, keys: &[KeyId]) -> Option<String> {
+pub(super) fn check_required_inputs(doc: &Document, keys: &[KeyId]) -> Option<String> {
     keys.iter().find_map(|&k| match doc.status(k) {
         Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
         Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
@@ -25,7 +25,7 @@ fn check_required_inputs(doc: &Document, keys: &[KeyId]) -> Option<String> {
     })
 }
 
-fn store_single<L: ProjectableLayer, A: Annotator>(
+pub(super) fn store_single<L: ProjectableLayer, A: Annotator>(
     out: Box<dyn Any + Send>,
     write_key: Key<L>,
     annotator: &A,

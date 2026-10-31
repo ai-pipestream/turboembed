@@ -18,9 +18,11 @@
 //!     [--min-tree-freq N])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
-//!     --out <dir> [--column xpos|upos] [--map FROM=TO,...] [--commit <sha>]
+//!     --out <dir> [--column xpos|upos|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--arc N] [--rel N])
+//! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
+//!     [--min-tree-freq N])
 //! ```
 //!
 //! `cache` writes every split's word features at the encoder's last N
@@ -51,6 +53,7 @@ use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
+mod train_split;
 mod train_ud;
 
 const RESAMPLES: usize = 1000;
@@ -127,8 +130,9 @@ fn run(argv: Vec<String>) -> Result<()> {
             let head = if command == "train-lemma" { UdHead::Lemma } else { UdHead::Deps };
             train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
         }
+        "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, cache, fit-cache, export or peer"
         ))),
     }
 }

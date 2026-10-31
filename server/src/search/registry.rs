@@ -18,8 +18,8 @@ use crate::api::{
 };
 use crate::proto::search::{
     ChunkInput, CollectionEvent, CollectionInfo, DistanceMetric, IndexSpec, IndexSummary, ModelIdentity,
-    NormalizationMode, SearchProviderDescriptor, SpaceSpec, SparseEntryProto, TermFrequencyEntry, TokenVectorInput,
-    VectorStorageKind, VocabularyDriftReport,
+    NormalizationMode, PageBoundingBoxProto, SearchProviderDescriptor, SpaceSpec, SparseEntryProto, TermFrequencyEntry,
+    TokenVectorInput, VectorStorageKind, VocabularyDriftReport,
 };
 use crate::state::{Loaded, State};
 
@@ -44,6 +44,8 @@ pub struct StoredChunk {
     pub sparse_terms: Vec<SparseEntryProto>,
     pub token_vectors: Vec<TokenVectorInput>,
     pub attributes: BTreeMap<String, String>,
+    pub page_span: Option<(u32, u32)>,
+    pub page_boxes: Vec<PageBoundingBoxProto>,
 }
 
 #[derive(Clone, Debug)]

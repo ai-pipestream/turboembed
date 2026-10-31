@@ -31,17 +31,18 @@ turbo-doccat = { path = "../doccat", features = ["classical"] }
 turbo-maxent = { path = "../maxent" }
 # UTF-16 cursors and Java's case mapping.
 turbo-unicode = { path = "../unicode" }
-# UTF-16 lengths and `String.compareTo`.
-turbo-jvm = { path = "../jvm" }
 # `Span`, which the tests build samples with; the analyzer the sentiment
 # detector runs in.
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-depparse = { path = "../depparse" }
 
 [dev-dependencies]
 # `Sha256`, to pin the digest of a trained model.
 turbo-zoo = { path = "../zoo" }
 turbo-namefind = { path = "../namefind" }
+turbo-postag = { path = "../postag" }
+turbo-phrase-chunker = { path = "../phrase-chunker" }
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }

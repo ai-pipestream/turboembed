@@ -31,7 +31,6 @@
 //!    `minConsecImprovements + 1` predictions the top language code is
 //!    unchanged and its confidence is non-decreasing (`!(lastConf > conf)`).
 
-use turbo_jvm::hash_map::{HashMapOrder, Insert, spread};
 use turbo_unicode::modified_utf8::push_modified_utf8;
 
 use super::context::{ContextGenerator, Gram, OPENNLP_MAX, OPENNLP_MIN, grow, home_slot};
@@ -87,10 +86,8 @@ impl Default for ProbingConfig {
 /// `LanguageDetectorME.probingPredictLanguages`.
 ///
 /// Each [`add_chunk`](Self::add_chunk) call normalizes and extracts the
-/// distinct n-grams of that chunk alone (in the first `HashMap`'s iteration
-/// order, as `DefaultLanguageDetectorContextGenerator.getContext` returns
-/// them), inserts any n-gram not yet seen into the cumulative table, and
-/// updates the cumulative `HashMap` bucket order (`ngramCounts`).
+/// distinct n-grams of that chunk alone in deterministic first-seen order
+/// and appends any n-gram not yet seen into the cumulative table.
 #[derive(Debug)]
 pub struct ProbingContext {
     chunk: ContextGenerator,
@@ -100,18 +97,9 @@ pub struct ProbingContext {
     grams: Vec<Gram>,
     /// Open-addressing set over `grams`: 1-based index into `grams`, or 0.
     slots: Vec<u32>,
-    /// `HashMap.hash` of each gram in `grams`.
-    spread: Vec<u32>,
-    /// Iteration order of the cumulative `ngramCounts` `HashMap`.
-    order: Vec<u32>,
     /// Each gram's Java modified UTF-8 bytes, by gram index, and where it ends.
     bytes: Vec<u8>,
     ends: Vec<u32>,
-    /// Whether every chunk's first `HashMap` order was JVM-exact.
-    chunks_exact: bool,
-    /// Whether the cumulative `ngramCounts` `HashMap` order is JVM-exact.
-    cumulative_exact: bool,
-    order_scratch: HashMapOrder,
 }
 
 impl Default for ProbingContext {
@@ -133,13 +121,8 @@ impl ProbingContext {
             units: Vec::new(),
             grams: Vec::new(),
             slots: Vec::new(),
-            spread: Vec::new(),
-            order: Vec::new(),
             bytes: Vec::new(),
             ends: Vec::new(),
-            chunks_exact: true,
-            cumulative_exact: true,
-            order_scratch: HashMapOrder::default(),
         }
     }
 
@@ -150,55 +133,43 @@ impl ProbingContext {
         self.grams.clear();
         self.slots.clear();
         self.slots.resize(64, 0);
-        self.spread.clear();
-        self.order.clear();
         self.bytes.clear();
         self.ends.clear();
-        self.chunks_exact = true;
-        self.cumulative_exact = true;
     }
 
     /// Runs `mContextGenerator.getContext` on `chunk` and merges its n-grams
-    /// into the cumulative `ngramCounts` map as `LanguageDetectorME.updateCounts`
-    /// does.
+    /// into the cumulative n-gram table in deterministic first-seen order.
     pub fn add_chunk(&mut self, chunk: &str) {
         if self.slots.is_empty() {
             self.slots.resize(64, 0);
         }
         self.chunk.generate_chunk(chunk);
-        self.chunks_exact &= self.chunk.training_exact_order();
-        let prev_len = self.grams.len();
         for (gram, hash) in self.chunk.counted_grams() {
             if self.grams.len() * 2 >= self.slots.len() {
                 grow(&mut self.slots, &self.grams);
             }
             if insert_owned(&mut self.slots, &mut self.grams, &mut self.units, gram, hash) {
-                self.spread.push(spread(hash));
                 for &unit in gram {
                     push_modified_utf8(&mut self.bytes, u32::from(unit));
                 }
                 self.ends.push(self.bytes.len() as u32);
             }
         }
-        if self.grams.len() != prev_len {
-            self.order_scratch.reset();
-            self.cumulative_exact = self.order_scratch.order(&self.spread, Insert::Put, &mut self.order);
-        }
     }
 
     /// The number of distinct n-grams accumulated so far.
     pub fn len(&self) -> usize {
-        self.order.len()
+        self.grams.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.order.is_empty()
+        self.grams.is_empty()
     }
 
-    /// The cumulative n-grams as Java modified UTF-8, in the iteration order
-    /// of the JVM's `ngramCounts` `HashMap`.
+    /// The cumulative n-grams as Java modified UTF-8, in deterministic
+    /// first-seen order across chunks.
     pub fn features(&self) -> impl ExactSizeIterator<Item = &[u8]> + Clone + '_ {
-        self.order.iter().map(move |&g| self.gram_bytes(g))
+        (0..self.grams.len() as u32).map(move |g| self.gram_bytes(g))
     }
 
     fn gram_bytes(&self, g: u32) -> &[u8] {
@@ -207,10 +178,10 @@ impl ProbingContext {
         &self.bytes[start..self.ends[g] as usize]
     }
 
-    /// Whether [`features`](Self::features) is guaranteed to be in the exact
-    /// JVM order across all chunks added since [`reset`](Self::reset).
+    /// Whether [`features`](Self::features) is in deterministic order across
+    /// all chunks added since [`reset`](Self::reset).
     pub fn exact_order(&self) -> bool {
-        self.chunks_exact && self.cumulative_exact
+        true
     }
 
     /// Releases oversized buffers when any retention threshold is exceeded.

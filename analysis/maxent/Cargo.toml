@@ -12,8 +12,6 @@ name = "turbo_maxent"
 # Java's per code point lower case mapping, for case-insensitive
 # dictionaries, and modified UTF-8 encoding of Java strings.
 turbo-unicode = { path = "../unicode" }
-# StrictMath.exp and StrictMath.log, which OpenNLP's models evaluate with.
-turbo-jvm = { path = "../jvm" }
 # The shared FIPS 180-4 implementation used for model identity.
 turbo-sha256 = { path = "../sha256" }
 

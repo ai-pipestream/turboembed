@@ -4,14 +4,10 @@
 //! `multiclass_probability` and `predict_one_class_probability`.
 //!
 //! Every sum is taken in LIBSVM's order with the same operations, and the
-//! sigmoid kernel calls `turbo_jvm::strict_math::tanh`, so the linear,
-//! polynomial and sigmoid kernels give the JVM's decision values bit for
-//! bit. The RBF kernel and the probability sigmoid call `exp`, which the
-//! JVM computes with its own intrinsic; Rust's may differ from it in the
-//! last place (docs/doccat.md, "Tolerances").
+//! sigmoid kernel calls `f64::tanh`, while the RBF kernel and the
+//! probability sigmoid call `f64::exp`.
 
 use super::model::{Kernel, LibsvmModel, SvmType};
-use crate::java;
 
 /// The lowest pairwise probability, and one minus it the highest.
 const MIN_PROB: f64 = 1e-7;
@@ -115,7 +111,7 @@ fn k_function(kernel: Kernel, xi: &[i32], xv: &[f64], yi: &[i32], yv: &[f64]) ->
             }
             (-gamma * sum).exp()
         }
-        Kernel::Sigmoid { gamma, coef0 } => turbo_jvm::strict_math::tanh(gamma * dot(xi, xv, yi, yv) + coef0),
+        Kernel::Sigmoid { gamma, coef0 } => (gamma * dot(xi, xv, yi, yv) + coef0).tanh(),
     }
 }
 
@@ -264,7 +260,7 @@ impl LibsvmModel {
             for i in 0..k {
                 for j in i + 1..k {
                     let p = sigmoid_predict(s.dec_values[pair], sigmoid.a[pair], sigmoid.b[pair]);
-                    let p = java::min(java::max(p, MIN_PROB), 1.0 - MIN_PROB);
+                    let p = if p.is_nan() { p } else { p.clamp(MIN_PROB, 1.0 - MIN_PROB) };
                     s.pairwise[i * k + j] = p;
                     s.pairwise[j * k + i] = 1.0 - p;
                     pair += 1;

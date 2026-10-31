@@ -11,7 +11,12 @@ name = "turbo_phrase_chunker"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
-# The shared Java tag-pattern matcher for regex-style tag conditions.
-turbo-jvm = { path = "../jvm" }
+# The model archive and the classifier.
+turbo-maxent = { path = "../maxent" }
+# The beam search, the chunker's context generator and sequence validator.
+turbo-sequence = { path = "../sequence" }
 # Shared Unicode case folding for case-insensitive word literals.
 turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-train = { path = "../train" }

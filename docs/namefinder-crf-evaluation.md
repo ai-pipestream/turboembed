@@ -3,7 +3,7 @@
 The full-corpus run for #923 rejects publication of all 4 CRF models.
 The CRF's micro F1 is 44.66 across person, location, organization and date,
 compared with 51.71 for maxent trained on the same MASC split. The run's
-comparisons with OpenNLP 1.5 models are removed (#1509). On the 3 types supported by namefind-dl,
+comparisons with published 1.5 models are removed (#1509). On the 3 types supported by namefind-dl,
 the scores are 44.24, 53.96 and 80.12 respectively. No model or zoo entry
 is published by this change.
 
@@ -22,7 +22,7 @@ Training is BIO, feature cutoff 2, L2 1.0 and 100 optimizer iterations.
 Model ZIP timestamps are fixed at zero. The matched maxent baseline uses
 GIS, cutoff 0, 300 iterations and 1 thread on the same training documents.
 Each type has its own model and gold annotation set. Both inference paths
-use the existing OpenNLP feature generators. CRF previous-label features
+use the existing token feature generators. CRF previous-label features
 receive constant `other` history and adaptive state resets each sentence;
 maxent preserves its normal document-adaptive behavior. This evaluates
 the current shipped recipes, not a controlled comparison of optimizers
@@ -103,6 +103,6 @@ records because the accuracy gates fail. This is a measured rejection,
 not a training crash or a unit-test failure.
 
 The `crf_namefind` and `crf_compare_dl` examples that produced these
-records are gone, and the run's OpenNLP 1.5 reference inputs are not
+records are gone, and the run's published 1.5 reference inputs are not
 kept (#1509). The committed receipt contains aggregate evidence and
 corpus-relative document identifiers only.

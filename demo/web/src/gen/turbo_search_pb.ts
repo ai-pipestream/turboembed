@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file turbo_search.proto.
  */
 export const file_turbo_search: GenFile = /*@__PURE__*/
-  fileDesc("ChJ0dXJib19zZWFyY2gucHJvdG8SD3R1cmJvLnNlYXJjaC52MSI9Cg1Nb2RlbElkZW50aXR5EgoKAmlkGAEgASgJEhAKCHJldmlzaW9uGAIgASgJEg4KBnNoYTI1NhgDIAEoCSKCAQoJU3BhY2VTcGVjEi0KBW1vZGVsGAEgASgLMh4udHVyYm8uc2VhcmNoLnYxLk1vZGVsSWRlbnRpdHkSCwoDZGltGAIgASgNEjkKDW5vcm1hbGl6YXRpb24YAyABKA4yIi50dXJiby5zZWFyY2gudjEuTm9ybWFsaXphdGlvbk1vZGUiqQIKCUluZGV4U3BlYxISCgppbmRleF9uYW1lGAEgASgJEikKBXNwYWNlGAIgASgLMhoudHVyYm8uc2VhcmNoLnYxLlNwYWNlU3BlYxIvCgZtZXRyaWMYAyABKA4yHy50dXJiby5zZWFyY2gudjEuRGlzdGFuY2VNZXRyaWMSMwoHc3RvcmFnZRgEIAEoDjIiLnR1cmJvLnNlYXJjaC52MS5WZWN0b3JTdG9yYWdlS2luZBISCgpxdWFudF9iaXRzGAUgASgNEhcKD3F1YW50X2NhbGlicmF0ZRgGIAEoCBIXCg9jb2xsZWN0aW9uX25hbWUYByABKAkSFAoMZW1iZWRfYnVuZGxlGAggASgJEhsKE2NodW5rX2J1ZGdldF90b2tlbnMYCSABKA0i7wIKDEluZGV4U3VtbWFyeRISCgppbmRleF9uYW1lGAEgASgJEikKBXNwYWNlGAIgASgLMhoudHVyYm8uc2VhcmNoLnYxLlNwYWNlU3BlYxIvCgZtZXRyaWMYAyABKA4yHy50dXJiby5zZWFyY2gudjEuRGlzdGFuY2VNZXRyaWMSMwoHc3RvcmFnZRgEIAEoDjIiLnR1cmJvLnNlYXJjaC52MS5WZWN0b3JTdG9yYWdlS2luZBISCgpxdWFudF9iaXRzGAUgASgNEg4KBnNlYWxlZBgGIAEoCBIWCg5kb2N1bWVudF9jb3VudBgHIAEoDRITCgtjaHVua19jb3VudBgIIAEoDRIXCg9kZW5zZV9yb3dfY291bnQYCSABKA0SGAoQc3BhcnNlX3Jvd19jb3VudBgKIAEoDRIdChV0b2tlbl9jYW5kaWRhdGVfY291bnQYCyABKA0SFwoPY29sbGVjdGlvbl9uYW1lGAwgASgJIkkKGFNlYXJjaFByb3ZpZGVyRGVzY3JpcHRvchIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJIhwKGkxpc3RTZWFyY2hQcm92aWRlcnNSZXF1ZXN0IlsKG0xpc3RTZWFyY2hQcm92aWRlcnNSZXNwb25zZRI8Cglwcm92aWRlcnMYASADKAsyKS50dXJiby5zZWFyY2gudjEuU2VhcmNoUHJvdmlkZXJEZXNjcmlwdG9yIhQKEkxpc3RJbmRleGVzUmVxdWVzdCJFChNMaXN0SW5kZXhlc1Jlc3BvbnNlEi4KB2luZGV4ZXMYASADKAsyHS50dXJiby5zZWFyY2gudjEuSW5kZXhTdW1tYXJ5IlYKEkNyZWF0ZUluZGV4UmVxdWVzdBIoCgRzcGVjGAEgASgLMhoudHVyYm8uc2VhcmNoLnYxLkluZGV4U3BlYxIWCg5sb2FkX2Zyb21fcGF0aBgCIAEoCSJFChNDcmVhdGVJbmRleFJlc3BvbnNlEi4KB3N1bW1hcnkYASABKAsyHS50dXJiby5zZWFyY2gudjEuSW5kZXhTdW1tYXJ5IigKEkRlbGV0ZUluZGV4UmVxdWVzdBISCgppbmRleF9uYW1lGAEgASgJIhUKE0RlbGV0ZUluZGV4UmVzcG9uc2UifgoQU3BhcnNlRW50cnlQcm90bxIPCgd0ZXJtX2lkGAEgASgNEhEKCXRlcm1fdGV4dBgCIAEoCRIOCgZ3ZWlnaHQYAyABKAISEgoKc3Bhbl9zdGFydBgEIAEoDRIQCghzcGFuX2VuZBgFIAEoDRIQCghoYXNfc3BhbhgGIAEoCCJaChBUb2tlblZlY3RvcklucHV0Eg4KBnZhbHVlcxgBIAMoAhISCgpzcGFuX3N0YXJ0GAIgASgNEhAKCHNwYW5fZW5kGAMgASgNEhAKCGhhc19zcGFuGAQgASgIIpMDCgpDaHVua0lucHV0EhAKCGNodW5rX2lkGAEgASgJEhIKCmxldmVsX2tpbmQYAiABKAkSEgoKc3Bhbl9zdGFydBgDIAEoDRIQCghzcGFuX2VuZBgEIAEoDRIUCgxwYXJlbnRfc3RhcnQYBSABKA0SEgoKcGFyZW50X2VuZBgGIAEoDRISCgpoYXNfcGFyZW50GAcgASgIEhQKDGRlbnNlX3ZlY3RvchgIIAMoAhI3CgxzcGFyc2VfdGVybXMYCSADKAsyIS50dXJiby5zZWFyY2gudjEuU3BhcnNlRW50cnlQcm90bxI4Cg10b2tlbl92ZWN0b3JzGAogAygLMiEudHVyYm8uc2VhcmNoLnYxLlRva2VuVmVjdG9ySW5wdXQSPwoKYXR0cmlidXRlcxgLIAMoCzIrLnR1cmJvLnNlYXJjaC52MS5DaHVua0lucHV0LkF0dHJpYnV0ZXNFbnRyeRoxCg9BdHRyaWJ1dGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKCAgoUSW5kZXhEb2N1bWVudFJlcXVlc3QSEgoKaW5kZXhfbmFtZRgBIAEoCRIOCgZkb2NfaWQYAiABKAkSDAoEdGV4dBgDIAEoCRINCgVncmFwaBgEIAEoDBIrCgZjaHVua3MYBSADKAsyGy50dXJiby5zZWFyY2gudjEuQ2h1bmtJbnB1dBJJCgphdHRyaWJ1dGVzGAYgAygLMjUudHVyYm8uc2VhcmNoLnYxLkluZGV4RG9jdW1lbnRSZXF1ZXN0LkF0dHJpYnV0ZXNFbnRyeRoxCg9BdHRyaWJ1dGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASKWAQoWSW5kZXhEb2N1bWVudHNSZXNwb25zZRISCgppbmRleF9uYW1lGAEgASgJEhkKEWluZGV4ZWRfZG9jdW1lbnRzGAIgASgNEhYKDmluZGV4ZWRfY2h1bmtzGAMgASgNEjUKBWRyaWZ0GAQgASgLMiYudHVyYm8uc2VhcmNoLnYxLlZvY2FidWxhcnlEcmlmdFJlcG9ydCJ6Cg5TZW1hbnRpY0NsYXVzZRIUCgxxdWVyeV92ZWN0b3IYASADKAISLwoLcXVlcnlfc3BhY2UYAiABKAsyGi50dXJiby5zZWFyY2gudjEuU3BhY2VTcGVjEhIKCnF1ZXJ5X3RleHQYAyABKAkSDQoFdG9wX2sYBCABKA0iWAoKVGVybUNsYXVzZRINCgV0ZXJtcxgBIAMoCRIsCgRtb2RlGAIgASgOMh4udHVyYm8uc2VhcmNoLnYxLlRlcm1NYXRjaE1vZGUSDQoFdG9wX2sYAyABKA0iOgoMUGhyYXNlQ2xhdXNlEg0KBXRlcm1zGAEgAygJEgwKBHNsb3AYAiABKA0SDQoFdG9wX2sYAyABKA0iVQoMU3BhcnNlQ2xhdXNlEjYKC3F1ZXJ5X3Rlcm1zGAEgAygLMiEudHVyYm8uc2VhcmNoLnYxLlNwYXJzZUVudHJ5UHJvdG8SDQoFdG9wX2sYAiABKA0idAoVTGF0ZUludGVyYWN0aW9uQ2xhdXNlEhsKE3F1ZXJ5X3Rva2VuX3ZlY3RvcnMYASADKAISLwoLcXVlcnlfc3BhY2UYAiABKAsyGi50dXJiby5zZWFyY2gudjEuU3BhY2VTcGVjEg0KBXRvcF9rGAMgASgNIr8BCgxGaWx0ZXJDbGF1c2USDgoGZG9jX2lkGAEgASgJEhIKCmxldmVsX2tpbmQYAiABKAkSQQoKYXR0cmlidXRlcxgDIAMoCzItLnR1cmJvLnNlYXJjaC52MS5GaWx0ZXJDbGF1c2UuQXR0cmlidXRlc0VudHJ5EhUKDWNvbnRhaW5zX3RleHQYBCABKAkaMQoPQXR0cmlidXRlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRwoLQm9vc3RDbGF1c2USKQoFY2hpbGQYASABKAsyGi50dXJiby5zZWFyY2gudjEuUXVlcnlOb2RlEg0KBWJvb3N0GAIgASgCIqUBCgpKb2luQ2xhdXNlEikKAm9wGAEgASgOMh0udHVyYm8uc2VhcmNoLnYxLkpvaW5PcGVyYXRvchIvCgZmdXNpb24YAiABKA4yHy50dXJiby5zZWFyY2gudjEuRnVzaW9uU3RyYXRlZ3kSLAoIY2hpbGRyZW4YAyADKAsyGi50dXJiby5zZWFyY2gudjEuUXVlcnlOb2RlEg0KBXJyZl9rGAQgASgCIqoDCglRdWVyeU5vZGUSMwoIc2VtYW50aWMYASABKAsyHy50dXJiby5zZWFyY2gudjEuU2VtYW50aWNDbGF1c2VIABIrCgR0ZXJtGAIgASgLMhsudHVyYm8uc2VhcmNoLnYxLlRlcm1DbGF1c2VIABIvCgZwaHJhc2UYAyABKAsyHS50dXJiby5zZWFyY2gudjEuUGhyYXNlQ2xhdXNlSAASLwoGc3BhcnNlGAQgASgLMh0udHVyYm8uc2VhcmNoLnYxLlNwYXJzZUNsYXVzZUgAEkIKEGxhdGVfaW50ZXJhY3Rpb24YBSABKAsyJi50dXJiby5zZWFyY2gudjEuTGF0ZUludGVyYWN0aW9uQ2xhdXNlSAASLwoGZmlsdGVyGAYgASgLMh0udHVyYm8uc2VhcmNoLnYxLkZpbHRlckNsYXVzZUgAEi0KBWJvb3N0GAcgASgLMhwudHVyYm8uc2VhcmNoLnYxLkJvb3N0Q2xhdXNlSAASKwoEam9pbhgIIAEoCzIbLnR1cmJvLnNlYXJjaC52MS5Kb2luQ2xhdXNlSABCCAoGY2xhdXNlIkEKE1BhcmVudEV4cGFuc2lvblNwZWMSDwoHZW5hYmxlZBgBIAEoCBIZChFtYXhfcGFyZW50X3Rva2VucxgCIAEoDSKWAgoNU2VhcmNoUmVxdWVzdBISCgppbmRleF9uYW1lGAEgASgJEhUKDW5hdHVyYWxfcXVlcnkYAiABKAkSLQoJcXVlcnlfYXN0GAMgASgLMhoudHVyYm8uc2VhcmNoLnYxLlF1ZXJ5Tm9kZRIUCgxxdWVyeV92ZWN0b3IYBCADKAISLwoLcXVlcnlfc3BhY2UYBSABKAsyGi50dXJiby5zZWFyY2gudjEuU3BhY2VTcGVjEg0KBXRvcF9rGAYgASgNEj4KEHBhcmVudF9leHBhbnNpb24YByABKAsyJC50dXJiby5zZWFyY2gudjEuUGFyZW50RXhwYW5zaW9uU3BlYxIVCg1yZXJhbmtfYnVuZGxlGAggASgJIicKCVNwYW5Qcm90bxINCgVzdGFydBgBIAEoDRILCgNlbmQYAiABKA0iZQoLTWF0Y2hlZFNwYW4SDgoGc291cmNlGAEgASgJEg0KBWxhYmVsGAIgASgJEigKBHNwYW4YAyABKAsyGi50dXJiby5zZWFyY2gudjEuU3BhblByb3RvEg0KBXNjb3JlGAQgASgCIsgBChBDaHVua0F0dHJpYnV0aW9uEjMKDW1hdGNoZWRfc3BhbnMYASADKAsyHC50dXJiby5zZWFyY2gudjEuTWF0Y2hlZFNwYW4SSgoNc2lnbmFsX3Njb3JlcxgCIAMoCzIzLnR1cmJvLnNlYXJjaC52MS5DaHVua0F0dHJpYnV0aW9uLlNpZ25hbFNjb3Jlc0VudHJ5GjMKEVNpZ25hbFNjb3Jlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoAjoCOAEikwMKCVNlYXJjaEhpdBIQCghjaHVua19pZBgBIAEoCRIOCgZkb2NfaWQYAiABKAkSEgoKbGV2ZWxfa2luZBgDIAEoCRINCgVzY29yZRgEIAEoAhIuCgpjaHVua19zcGFuGAUgASgLMhoudHVyYm8uc2VhcmNoLnYxLlNwYW5Qcm90bxIvCgtwYXJlbnRfc3BhbhgGIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5TcGFuUHJvdG8SEgoKaGFzX3BhcmVudBgHIAEoCBIMCgR0ZXh0GAggASgJEhMKC3BhcmVudF90ZXh0GAkgASgJEjYKC2F0dHJpYnV0aW9uGAogASgLMiEudHVyYm8uc2VhcmNoLnYxLkNodW5rQXR0cmlidXRpb24SPgoKYXR0cmlidXRlcxgLIAMoCzIqLnR1cmJvLnNlYXJjaC52MS5TZWFyY2hIaXQuQXR0cmlidXRlc0VudHJ5GjEKD0F0dHJpYnV0ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIlgKC0hlYXRTZWdtZW50EigKBHNwYW4YASABKAsyGi50dXJiby5zZWFyY2gudjEuU3BhblByb3RvEg0KBXNjb3JlGAIgASgCEhAKCGNodW5rX2lkGAMgASgJImEKDERvY3VtZW50SGVhdBIOCgZkb2NfaWQYASABKAkSEQoJbWF4X3Njb3JlGAIgASgCEi4KCHNlZ21lbnRzGAMgAygLMhwudHVyYm8uc2VhcmNoLnYxLkhlYXRTZWdtZW50Il8KFEV4dHJhY3RlZEZpbHRlclByb3RvEgwKBGtpbmQYASABKAkSDwoHc3VtbWFyeRgCIAEoCRIoCgRzcGFuGAMgASgLMhoudHVyYm8uc2VhcmNoLnYxLlNwYW5Qcm90byLoAQoOU2VhcmNoUmVzcG9uc2USFgoOcmVzb2x2ZWRfaW5kZXgYASABKAkSKAoEaGl0cxgCIAMoCzIaLnR1cmJvLnNlYXJjaC52MS5TZWFyY2hIaXQSNAoNZG9jdW1lbnRfaGVhdBgDIAMoCzIdLnR1cmJvLnNlYXJjaC52MS5Eb2N1bWVudEhlYXQSHAoUYW5hbHl6ZWRfcXVlcnlfdGVybXMYBCADKAkSQAoRZXh0cmFjdGVkX2ZpbHRlcnMYBSADKAsyJS50dXJiby5zZWFyY2gudjEuRXh0cmFjdGVkRmlsdGVyUHJvdG8iNwoTUGVyc2lzdEluZGV4UmVxdWVzdBISCgppbmRleF9uYW1lGAEgASgJEgwKBHBhdGgYAiABKAkiQQoUUGVyc2lzdEluZGV4UmVzcG9uc2USEgoKaW5kZXhfbmFtZRgBIAEoCRIVCg1ieXRlc193cml0dGVuGAIgASgEIiYKEFNlYWxJbmRleFJlcXVlc3QSEgoKaW5kZXhfbmFtZRgBIAEoCSJDChFTZWFsSW5kZXhSZXNwb25zZRIuCgdzdW1tYXJ5GAEgASgLMh0udHVyYm8uc2VhcmNoLnYxLkluZGV4U3VtbWFyeSJrCg5SZWluZGV4UmVxdWVzdBIUCgxzb3VyY2VfaW5kZXgYASABKAkSLwoLdGFyZ2V0X3NwZWMYAiABKAsyGi50dXJiby5zZWFyY2gudjEuSW5kZXhTcGVjEhIKCnN3YXBfYWxpYXMYAyABKAkiWAoPUmVpbmRleFJlc3BvbnNlEi4KB3N1bW1hcnkYASABKAsyHS50dXJiby5zZWFyY2gudjEuSW5kZXhTdW1tYXJ5EhUKDXN3YXBwZWRfYWxpYXMYAiABKAkiNAoPU2V0QWxpYXNSZXF1ZXN0Eg0KBWFsaWFzGAEgASgJEhIKCmluZGV4X25hbWUYAiABKAkiEgoQU2V0QWxpYXNSZXNwb25zZSIjChJEZWxldGVBbGlhc1JlcXVlc3QSDQoFYWxpYXMYASABKAkiFQoTRGVsZXRlQWxpYXNSZXNwb25zZSIvCgpBbGlhc0VudHJ5Eg0KBWFsaWFzGAEgASgJEhIKCmluZGV4X25hbWUYAiABKAkiFAoSTGlzdEFsaWFzZXNSZXF1ZXN0IkMKE0xpc3RBbGlhc2VzUmVzcG9uc2USLAoHYWxpYXNlcxgBIAMoCzIbLnR1cmJvLnNlYXJjaC52MS5BbGlhc0VudHJ5Ij4KElRlcm1GcmVxdWVuY3lFbnRyeRIMCgR0ZXJtGAEgASgJEhoKEmRvY3VtZW50X2ZyZXF1ZW5jeRgCIAEoBCJkChRTZXRDb2xsZWN0aW9uUmVxdWVzdBIXCg9jb2xsZWN0aW9uX25hbWUYASABKAkSFgoOYmFzZWxpbmVfdGVybXMYAiADKAkSGwoTb292X2FsZXJ0X3RocmVzaG9sZBgDIAEoASJMChVTZXRDb2xsZWN0aW9uUmVzcG9uc2USMwoKY29sbGVjdGlvbhgBIAEoCzIfLnR1cmJvLnNlYXJjaC52MS5Db2xsZWN0aW9uSW5mbyIvChRHZXRDb2xsZWN0aW9uUmVxdWVzdBIXCg9jb2xsZWN0aW9uX25hbWUYASABKAkiTAoVR2V0Q29sbGVjdGlvblJlc3BvbnNlEjMKCmNvbGxlY3Rpb24YASABKAsyHy50dXJiby5zZWFyY2gudjEuQ29sbGVjdGlvbkluZm8iGAoWTGlzdENvbGxlY3Rpb25zUmVxdWVzdCJPChdMaXN0Q29sbGVjdGlvbnNSZXNwb25zZRI0Cgtjb2xsZWN0aW9ucxgBIAMoCzIfLnR1cmJvLnNlYXJjaC52MS5Db2xsZWN0aW9uSW5mbyIyChdEZWxldGVDb2xsZWN0aW9uUmVxdWVzdBIXCg9jb2xsZWN0aW9uX25hbWUYASABKAkiGgoYRGVsZXRlQ29sbGVjdGlvblJlc3BvbnNlIsEBCg5Db2xsZWN0aW9uSW5mbxIXCg9jb2xsZWN0aW9uX25hbWUYASABKAkSEwoLdG90YWxfdW5pdHMYAiABKAQSEwoLbWVhbl9sZW5ndGgYAyABKAESFwoPdm9jYWJ1bGFyeV9zaXplGAQgASgEEhsKE29vdl9hbGVydF90aHJlc2hvbGQYBSABKAESNgoJdG9wX3Rlcm1zGAYgAygLMiMudHVyYm8uc2VhcmNoLnYxLlRlcm1GcmVxdWVuY3lFbnRyeSLAAQoVVm9jYWJ1bGFyeURyaWZ0UmVwb3J0EhcKD2NvbGxlY3Rpb25fbmFtZRgBIAEoCRIbChN2b2NhYnVsYXJ5X2NvdmVyYWdlGAIgASgBEhEKCW9vdl9yYXRpbxgDIAEoARIRCgluZXdfdGVybXMYBCADKAkSNgoJdG9wX3Rlcm1zGAUgAygLMiMudHVyYm8uc2VhcmNoLnYxLlRlcm1GcmVxdWVuY3lFbnRyeRITCgt0b3RhbF91bml0cxgGIAEoBCJIChZXYXRjaENvbGxlY3Rpb25SZXF1ZXN0EhcKD2NvbGxlY3Rpb25fbmFtZRgBIAEoCRIVCg1taW5fb292X3JhdGlvGAIgASgBIngKD0NvbGxlY3Rpb25FdmVudBIXCg9jb2xsZWN0aW9uX25hbWUYASABKAkSFAoMc291cmNlX2luZGV4GAIgASgJEjYKBnJlcG9ydBgDIAEoCzImLnR1cmJvLnNlYXJjaC52MS5Wb2NhYnVsYXJ5RHJpZnRSZXBvcnQqWgoRVmVjdG9yU3RvcmFnZUtpbmQSIAocVkVDVE9SX1NUT1JBR0VfS0lORF9GTEFUX0YzMhAAEiMKH1ZFQ1RPUl9TVE9SQUdFX0tJTkRfVFVSQk9fUVVBTlQQASpFCg5EaXN0YW5jZU1ldHJpYxIaChZESVNUQU5DRV9NRVRSSUNfQ09TSU5FEAASFwoTRElTVEFOQ0VfTUVUUklDX0RPVBABKk0KEU5vcm1hbGl6YXRpb25Nb2RlEhsKF05PUk1BTElaQVRJT05fTU9ERV9OT05FEAASGwoXTk9STUFMSVpBVElPTl9NT0RFX1VOSVQQASpBCg1UZXJtTWF0Y2hNb2RlEhcKE1RFUk1fTUFUQ0hfTU9ERV9BTlkQABIXChNURVJNX01BVENIX01PREVfQUxMEAEqOwoMSm9pbk9wZXJhdG9yEhQKEEpPSU5fT1BFUkFUT1JfT1IQABIVChFKT0lOX09QRVJBVE9SX0FORBABKlAKDkZ1c2lvblN0cmF0ZWd5EhkKFUZVU0lPTl9TVFJBVEVHWV9TQ09SRRAAEiMKH0ZVU0lPTl9TVFJBVEVHWV9SRUNJUFJPQ0FMX1JBTksQATLYDAoSVHVyYm9TZWFyY2hTZXJ2aWNlEnIKE0xpc3RTZWFyY2hQcm92aWRlcnMSKy50dXJiby5zZWFyY2gudjEuTGlzdFNlYXJjaFByb3ZpZGVyc1JlcXVlc3QaLC50dXJiby5zZWFyY2gudjEuTGlzdFNlYXJjaFByb3ZpZGVyc1Jlc3BvbnNlIgASWgoLTGlzdEluZGV4ZXMSIy50dXJiby5zZWFyY2gudjEuTGlzdEluZGV4ZXNSZXF1ZXN0GiQudHVyYm8uc2VhcmNoLnYxLkxpc3RJbmRleGVzUmVzcG9uc2UiABJaCgtDcmVhdGVJbmRleBIjLnR1cmJvLnNlYXJjaC52MS5DcmVhdGVJbmRleFJlcXVlc3QaJC50dXJiby5zZWFyY2gudjEuQ3JlYXRlSW5kZXhSZXNwb25zZSIAEloKC0RlbGV0ZUluZGV4EiMudHVyYm8uc2VhcmNoLnYxLkRlbGV0ZUluZGV4UmVxdWVzdBokLnR1cmJvLnNlYXJjaC52MS5EZWxldGVJbmRleFJlc3BvbnNlIgASZAoOSW5kZXhEb2N1bWVudHMSJS50dXJiby5zZWFyY2gudjEuSW5kZXhEb2N1bWVudFJlcXVlc3QaJy50dXJiby5zZWFyY2gudjEuSW5kZXhEb2N1bWVudHNSZXNwb25zZSIAKAESSwoGU2VhcmNoEh4udHVyYm8uc2VhcmNoLnYxLlNlYXJjaFJlcXVlc3QaHy50dXJiby5zZWFyY2gudjEuU2VhcmNoUmVzcG9uc2UiABJdCgxQZXJzaXN0SW5kZXgSJC50dXJiby5zZWFyY2gudjEuUGVyc2lzdEluZGV4UmVxdWVzdBolLnR1cmJvLnNlYXJjaC52MS5QZXJzaXN0SW5kZXhSZXNwb25zZSIAElQKCVNlYWxJbmRleBIhLnR1cmJvLnNlYXJjaC52MS5TZWFsSW5kZXhSZXF1ZXN0GiIudHVyYm8uc2VhcmNoLnYxLlNlYWxJbmRleFJlc3BvbnNlIgASTgoHUmVpbmRleBIfLnR1cmJvLnNlYXJjaC52MS5SZWluZGV4UmVxdWVzdBogLnR1cmJvLnNlYXJjaC52MS5SZWluZGV4UmVzcG9uc2UiABJRCghTZXRBbGlhcxIgLnR1cmJvLnNlYXJjaC52MS5TZXRBbGlhc1JlcXVlc3QaIS50dXJiby5zZWFyY2gudjEuU2V0QWxpYXNSZXNwb25zZSIAEloKC0RlbGV0ZUFsaWFzEiMudHVyYm8uc2VhcmNoLnYxLkRlbGV0ZUFsaWFzUmVxdWVzdBokLnR1cmJvLnNlYXJjaC52MS5EZWxldGVBbGlhc1Jlc3BvbnNlIgASWgoLTGlzdEFsaWFzZXMSIy50dXJiby5zZWFyY2gudjEuTGlzdEFsaWFzZXNSZXF1ZXN0GiQudHVyYm8uc2VhcmNoLnYxLkxpc3RBbGlhc2VzUmVzcG9uc2UiABJgCg1TZXRDb2xsZWN0aW9uEiUudHVyYm8uc2VhcmNoLnYxLlNldENvbGxlY3Rpb25SZXF1ZXN0GiYudHVyYm8uc2VhcmNoLnYxLlNldENvbGxlY3Rpb25SZXNwb25zZSIAEmAKDUdldENvbGxlY3Rpb24SJS50dXJiby5zZWFyY2gudjEuR2V0Q29sbGVjdGlvblJlcXVlc3QaJi50dXJiby5zZWFyY2gudjEuR2V0Q29sbGVjdGlvblJlc3BvbnNlIgASZgoPTGlzdENvbGxlY3Rpb25zEicudHVyYm8uc2VhcmNoLnYxLkxpc3RDb2xsZWN0aW9uc1JlcXVlc3QaKC50dXJiby5zZWFyY2gudjEuTGlzdENvbGxlY3Rpb25zUmVzcG9uc2UiABJpChBEZWxldGVDb2xsZWN0aW9uEigudHVyYm8uc2VhcmNoLnYxLkRlbGV0ZUNvbGxlY3Rpb25SZXF1ZXN0GikudHVyYm8uc2VhcmNoLnYxLkRlbGV0ZUNvbGxlY3Rpb25SZXNwb25zZSIAEmAKD1dhdGNoQ29sbGVjdGlvbhInLnR1cmJvLnNlYXJjaC52MS5XYXRjaENvbGxlY3Rpb25SZXF1ZXN0GiAudHVyYm8uc2VhcmNoLnYxLkNvbGxlY3Rpb25FdmVudCIAMAFiBnByb3RvMw");
+  fileDesc("ChJ0dXJib19zZWFyY2gucHJvdG8SD3R1cmJvLnNlYXJjaC52MSI9Cg1Nb2RlbElkZW50aXR5EgoKAmlkGAEgASgJEhAKCHJldmlzaW9uGAIgASgJEg4KBnNoYTI1NhgDIAEoCSKCAQoJU3BhY2VTcGVjEi0KBW1vZGVsGAEgASgLMh4udHVyYm8uc2VhcmNoLnYxLk1vZGVsSWRlbnRpdHkSCwoDZGltGAIgASgNEjkKDW5vcm1hbGl6YXRpb24YAyABKA4yIi50dXJiby5zZWFyY2gudjEuTm9ybWFsaXphdGlvbk1vZGUiqQIKCUluZGV4U3BlYxISCgppbmRleF9uYW1lGAEgASgJEikKBXNwYWNlGAIgASgLMhoudHVyYm8uc2VhcmNoLnYxLlNwYWNlU3BlYxIvCgZtZXRyaWMYAyABKA4yHy50dXJiby5zZWFyY2gudjEuRGlzdGFuY2VNZXRyaWMSMwoHc3RvcmFnZRgEIAEoDjIiLnR1cmJvLnNlYXJjaC52MS5WZWN0b3JTdG9yYWdlS2luZBISCgpxdWFudF9iaXRzGAUgASgNEhcKD3F1YW50X2NhbGlicmF0ZRgGIAEoCBIXCg9jb2xsZWN0aW9uX25hbWUYByABKAkSFAoMZW1iZWRfYnVuZGxlGAggASgJEhsKE2NodW5rX2J1ZGdldF90b2tlbnMYCSABKA0i7wIKDEluZGV4U3VtbWFyeRISCgppbmRleF9uYW1lGAEgASgJEikKBXNwYWNlGAIgASgLMhoudHVyYm8uc2VhcmNoLnYxLlNwYWNlU3BlYxIvCgZtZXRyaWMYAyABKA4yHy50dXJiby5zZWFyY2gudjEuRGlzdGFuY2VNZXRyaWMSMwoHc3RvcmFnZRgEIAEoDjIiLnR1cmJvLnNlYXJjaC52MS5WZWN0b3JTdG9yYWdlS2luZBISCgpxdWFudF9iaXRzGAUgASgNEg4KBnNlYWxlZBgGIAEoCBIWCg5kb2N1bWVudF9jb3VudBgHIAEoDRITCgtjaHVua19jb3VudBgIIAEoDRIXCg9kZW5zZV9yb3dfY291bnQYCSABKA0SGAoQc3BhcnNlX3Jvd19jb3VudBgKIAEoDRIdChV0b2tlbl9jYW5kaWRhdGVfY291bnQYCyABKA0SFwoPY29sbGVjdGlvbl9uYW1lGAwgASgJIkkKGFNlYXJjaFByb3ZpZGVyRGVzY3JpcHRvchIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJIhwKGkxpc3RTZWFyY2hQcm92aWRlcnNSZXF1ZXN0IlsKG0xpc3RTZWFyY2hQcm92aWRlcnNSZXNwb25zZRI8Cglwcm92aWRlcnMYASADKAsyKS50dXJiby5zZWFyY2gudjEuU2VhcmNoUHJvdmlkZXJEZXNjcmlwdG9yIhQKEkxpc3RJbmRleGVzUmVxdWVzdCJFChNMaXN0SW5kZXhlc1Jlc3BvbnNlEi4KB2luZGV4ZXMYASADKAsyHS50dXJiby5zZWFyY2gudjEuSW5kZXhTdW1tYXJ5IlYKEkNyZWF0ZUluZGV4UmVxdWVzdBIoCgRzcGVjGAEgASgLMhoudHVyYm8uc2VhcmNoLnYxLkluZGV4U3BlYxIWCg5sb2FkX2Zyb21fcGF0aBgCIAEoCSJFChNDcmVhdGVJbmRleFJlc3BvbnNlEi4KB3N1bW1hcnkYASABKAsyHS50dXJiby5zZWFyY2gudjEuSW5kZXhTdW1tYXJ5IigKEkRlbGV0ZUluZGV4UmVxdWVzdBISCgppbmRleF9uYW1lGAEgASgJIhUKE0RlbGV0ZUluZGV4UmVzcG9uc2UifgoQU3BhcnNlRW50cnlQcm90bxIPCgd0ZXJtX2lkGAEgASgNEhEKCXRlcm1fdGV4dBgCIAEoCRIOCgZ3ZWlnaHQYAyABKAISEgoKc3Bhbl9zdGFydBgEIAEoDRIQCghzcGFuX2VuZBgFIAEoDRIQCghoYXNfc3BhbhgGIAEoCCJaChBUb2tlblZlY3RvcklucHV0Eg4KBnZhbHVlcxgBIAMoAhISCgpzcGFuX3N0YXJ0GAIgASgNEhAKCHNwYW5fZW5kGAMgASgNEhAKCGhhc19zcGFuGAQgASgIIlQKFFBhZ2VCb3VuZGluZ0JveFByb3RvEgwKBHBhZ2UYASABKA0SCgoCeDAYAiABKAISCgoCeTAYAyABKAISCgoCeDEYBCABKAISCgoCeTEYBSABKAIieAoOTGF5b3V0Qm94SW5wdXQSKAoEc3BhbhgBIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5TcGFuUHJvdG8SDAoEcGFnZRgCIAEoDRIKCgJ4MBgDIAEoAhIKCgJ5MBgEIAEoAhIKCgJ4MRgFIAEoAhIKCgJ5MRgGIAEoAiKLBAoKQ2h1bmtJbnB1dBIQCghjaHVua19pZBgBIAEoCRISCgpsZXZlbF9raW5kGAIgASgJEhIKCnNwYW5fc3RhcnQYAyABKA0SEAoIc3Bhbl9lbmQYBCABKA0SFAoMcGFyZW50X3N0YXJ0GAUgASgNEhIKCnBhcmVudF9lbmQYBiABKA0SEgoKaGFzX3BhcmVudBgHIAEoCBIUCgxkZW5zZV92ZWN0b3IYCCADKAISNwoMc3BhcnNlX3Rlcm1zGAkgAygLMiEudHVyYm8uc2VhcmNoLnYxLlNwYXJzZUVudHJ5UHJvdG8SOAoNdG9rZW5fdmVjdG9ycxgKIAMoCzIhLnR1cmJvLnNlYXJjaC52MS5Ub2tlblZlY3RvcklucHV0Ej8KCmF0dHJpYnV0ZXMYCyADKAsyKy50dXJiby5zZWFyY2gudjEuQ2h1bmtJbnB1dC5BdHRyaWJ1dGVzRW50cnkSEgoKcGFnZV9zdGFydBgMIAEoDRIQCghwYWdlX2VuZBgNIAEoDRIVCg1oYXNfcGFnZV9zcGFuGA4gASgIEjkKCnBhZ2VfYm94ZXMYDyADKAsyJS50dXJiby5zZWFyY2gudjEuUGFnZUJvdW5kaW5nQm94UHJvdG8aMQoPQXR0cmlidXRlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiuQIKFEluZGV4RG9jdW1lbnRSZXF1ZXN0EhIKCmluZGV4X25hbWUYASABKAkSDgoGZG9jX2lkGAIgASgJEgwKBHRleHQYAyABKAkSDQoFZ3JhcGgYBCABKAwSKwoGY2h1bmtzGAUgAygLMhsudHVyYm8uc2VhcmNoLnYxLkNodW5rSW5wdXQSSQoKYXR0cmlidXRlcxgGIAMoCzI1LnR1cmJvLnNlYXJjaC52MS5JbmRleERvY3VtZW50UmVxdWVzdC5BdHRyaWJ1dGVzRW50cnkSNQoMbGF5b3V0X2JveGVzGAcgAygLMh8udHVyYm8uc2VhcmNoLnYxLkxheW91dEJveElucHV0GjEKD0F0dHJpYnV0ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIpYBChZJbmRleERvY3VtZW50c1Jlc3BvbnNlEhIKCmluZGV4X25hbWUYASABKAkSGQoRaW5kZXhlZF9kb2N1bWVudHMYAiABKA0SFgoOaW5kZXhlZF9jaHVua3MYAyABKA0SNQoFZHJpZnQYBCABKAsyJi50dXJiby5zZWFyY2gudjEuVm9jYWJ1bGFyeURyaWZ0UmVwb3J0InoKDlNlbWFudGljQ2xhdXNlEhQKDHF1ZXJ5X3ZlY3RvchgBIAMoAhIvCgtxdWVyeV9zcGFjZRgCIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5TcGFjZVNwZWMSEgoKcXVlcnlfdGV4dBgDIAEoCRINCgV0b3BfaxgEIAEoDSJYCgpUZXJtQ2xhdXNlEg0KBXRlcm1zGAEgAygJEiwKBG1vZGUYAiABKA4yHi50dXJiby5zZWFyY2gudjEuVGVybU1hdGNoTW9kZRINCgV0b3BfaxgDIAEoDSI6CgxQaHJhc2VDbGF1c2USDQoFdGVybXMYASADKAkSDAoEc2xvcBgCIAEoDRINCgV0b3BfaxgDIAEoDSJVCgxTcGFyc2VDbGF1c2USNgoLcXVlcnlfdGVybXMYASADKAsyIS50dXJiby5zZWFyY2gudjEuU3BhcnNlRW50cnlQcm90bxINCgV0b3BfaxgCIAEoDSJ0ChVMYXRlSW50ZXJhY3Rpb25DbGF1c2USGwoTcXVlcnlfdG9rZW5fdmVjdG9ycxgBIAMoAhIvCgtxdWVyeV9zcGFjZRgCIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5TcGFjZVNwZWMSDQoFdG9wX2sYAyABKA0ivwEKDEZpbHRlckNsYXVzZRIOCgZkb2NfaWQYASABKAkSEgoKbGV2ZWxfa2luZBgCIAEoCRJBCgphdHRyaWJ1dGVzGAMgAygLMi0udHVyYm8uc2VhcmNoLnYxLkZpbHRlckNsYXVzZS5BdHRyaWJ1dGVzRW50cnkSFQoNY29udGFpbnNfdGV4dBgEIAEoCRoxCg9BdHRyaWJ1dGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJHCgtCb29zdENsYXVzZRIpCgVjaGlsZBgBIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5RdWVyeU5vZGUSDQoFYm9vc3QYAiABKAIipQEKCkpvaW5DbGF1c2USKQoCb3AYASABKA4yHS50dXJiby5zZWFyY2gudjEuSm9pbk9wZXJhdG9yEi8KBmZ1c2lvbhgCIAEoDjIfLnR1cmJvLnNlYXJjaC52MS5GdXNpb25TdHJhdGVneRIsCghjaGlsZHJlbhgDIAMoCzIaLnR1cmJvLnNlYXJjaC52MS5RdWVyeU5vZGUSDQoFcnJmX2sYBCABKAIiqgMKCVF1ZXJ5Tm9kZRIzCghzZW1hbnRpYxgBIAEoCzIfLnR1cmJvLnNlYXJjaC52MS5TZW1hbnRpY0NsYXVzZUgAEisKBHRlcm0YAiABKAsyGy50dXJiby5zZWFyY2gudjEuVGVybUNsYXVzZUgAEi8KBnBocmFzZRgDIAEoCzIdLnR1cmJvLnNlYXJjaC52MS5QaHJhc2VDbGF1c2VIABIvCgZzcGFyc2UYBCABKAsyHS50dXJiby5zZWFyY2gudjEuU3BhcnNlQ2xhdXNlSAASQgoQbGF0ZV9pbnRlcmFjdGlvbhgFIAEoCzImLnR1cmJvLnNlYXJjaC52MS5MYXRlSW50ZXJhY3Rpb25DbGF1c2VIABIvCgZmaWx0ZXIYBiABKAsyHS50dXJiby5zZWFyY2gudjEuRmlsdGVyQ2xhdXNlSAASLQoFYm9vc3QYByABKAsyHC50dXJiby5zZWFyY2gudjEuQm9vc3RDbGF1c2VIABIrCgRqb2luGAggASgLMhsudHVyYm8uc2VhcmNoLnYxLkpvaW5DbGF1c2VIAEIICgZjbGF1c2UiQQoTUGFyZW50RXhwYW5zaW9uU3BlYxIPCgdlbmFibGVkGAEgASgIEhkKEW1heF9wYXJlbnRfdG9rZW5zGAIgASgNIpYCCg1TZWFyY2hSZXF1ZXN0EhIKCmluZGV4X25hbWUYASABKAkSFQoNbmF0dXJhbF9xdWVyeRgCIAEoCRItCglxdWVyeV9hc3QYAyABKAsyGi50dXJiby5zZWFyY2gudjEuUXVlcnlOb2RlEhQKDHF1ZXJ5X3ZlY3RvchgEIAMoAhIvCgtxdWVyeV9zcGFjZRgFIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5TcGFjZVNwZWMSDQoFdG9wX2sYBiABKA0SPgoQcGFyZW50X2V4cGFuc2lvbhgHIAEoCzIkLnR1cmJvLnNlYXJjaC52MS5QYXJlbnRFeHBhbnNpb25TcGVjEhUKDXJlcmFua19idW5kbGUYCCABKAkiJwoJU3BhblByb3RvEg0KBXN0YXJ0GAEgASgNEgsKA2VuZBgCIAEoDSJlCgtNYXRjaGVkU3BhbhIOCgZzb3VyY2UYASABKAkSDQoFbGFiZWwYAiABKAkSKAoEc3BhbhgDIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5TcGFuUHJvdG8SDQoFc2NvcmUYBCABKAIiyAEKEENodW5rQXR0cmlidXRpb24SMwoNbWF0Y2hlZF9zcGFucxgBIAMoCzIcLnR1cmJvLnNlYXJjaC52MS5NYXRjaGVkU3BhbhJKCg1zaWduYWxfc2NvcmVzGAIgAygLMjMudHVyYm8uc2VhcmNoLnYxLkNodW5rQXR0cmlidXRpb24uU2lnbmFsU2NvcmVzRW50cnkaMwoRU2lnbmFsU2NvcmVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgCOgI4ASKLBAoJU2VhcmNoSGl0EhAKCGNodW5rX2lkGAEgASgJEg4KBmRvY19pZBgCIAEoCRISCgpsZXZlbF9raW5kGAMgASgJEg0KBXNjb3JlGAQgASgCEi4KCmNodW5rX3NwYW4YBSABKAsyGi50dXJiby5zZWFyY2gudjEuU3BhblByb3RvEi8KC3BhcmVudF9zcGFuGAYgASgLMhoudHVyYm8uc2VhcmNoLnYxLlNwYW5Qcm90bxISCgpoYXNfcGFyZW50GAcgASgIEgwKBHRleHQYCCABKAkSEwoLcGFyZW50X3RleHQYCSABKAkSNgoLYXR0cmlidXRpb24YCiABKAsyIS50dXJiby5zZWFyY2gudjEuQ2h1bmtBdHRyaWJ1dGlvbhI+CgphdHRyaWJ1dGVzGAsgAygLMioudHVyYm8uc2VhcmNoLnYxLlNlYXJjaEhpdC5BdHRyaWJ1dGVzRW50cnkSEgoKcGFnZV9zdGFydBgMIAEoDRIQCghwYWdlX2VuZBgNIAEoDRIVCg1oYXNfcGFnZV9zcGFuGA4gASgIEjkKCnBhZ2VfYm94ZXMYDyADKAsyJS50dXJiby5zZWFyY2gudjEuUGFnZUJvdW5kaW5nQm94UHJvdG8aMQoPQXR0cmlidXRlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiWAoLSGVhdFNlZ21lbnQSKAoEc3BhbhgBIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5TcGFuUHJvdG8SDQoFc2NvcmUYAiABKAISEAoIY2h1bmtfaWQYAyABKAkiYQoMRG9jdW1lbnRIZWF0Eg4KBmRvY19pZBgBIAEoCRIRCgltYXhfc2NvcmUYAiABKAISLgoIc2VnbWVudHMYAyADKAsyHC50dXJiby5zZWFyY2gudjEuSGVhdFNlZ21lbnQiXwoURXh0cmFjdGVkRmlsdGVyUHJvdG8SDAoEa2luZBgBIAEoCRIPCgdzdW1tYXJ5GAIgASgJEigKBHNwYW4YAyABKAsyGi50dXJiby5zZWFyY2gudjEuU3BhblByb3RvIugBCg5TZWFyY2hSZXNwb25zZRIWCg5yZXNvbHZlZF9pbmRleBgBIAEoCRIoCgRoaXRzGAIgAygLMhoudHVyYm8uc2VhcmNoLnYxLlNlYXJjaEhpdBI0Cg1kb2N1bWVudF9oZWF0GAMgAygLMh0udHVyYm8uc2VhcmNoLnYxLkRvY3VtZW50SGVhdBIcChRhbmFseXplZF9xdWVyeV90ZXJtcxgEIAMoCRJAChFleHRyYWN0ZWRfZmlsdGVycxgFIAMoCzIlLnR1cmJvLnNlYXJjaC52MS5FeHRyYWN0ZWRGaWx0ZXJQcm90byI3ChNQZXJzaXN0SW5kZXhSZXF1ZXN0EhIKCmluZGV4X25hbWUYASABKAkSDAoEcGF0aBgCIAEoCSJBChRQZXJzaXN0SW5kZXhSZXNwb25zZRISCgppbmRleF9uYW1lGAEgASgJEhUKDWJ5dGVzX3dyaXR0ZW4YAiABKAQiJgoQU2VhbEluZGV4UmVxdWVzdBISCgppbmRleF9uYW1lGAEgASgJIkMKEVNlYWxJbmRleFJlc3BvbnNlEi4KB3N1bW1hcnkYASABKAsyHS50dXJiby5zZWFyY2gudjEuSW5kZXhTdW1tYXJ5ImsKDlJlaW5kZXhSZXF1ZXN0EhQKDHNvdXJjZV9pbmRleBgBIAEoCRIvCgt0YXJnZXRfc3BlYxgCIAEoCzIaLnR1cmJvLnNlYXJjaC52MS5JbmRleFNwZWMSEgoKc3dhcF9hbGlhcxgDIAEoCSJYCg9SZWluZGV4UmVzcG9uc2USLgoHc3VtbWFyeRgBIAEoCzIdLnR1cmJvLnNlYXJjaC52MS5JbmRleFN1bW1hcnkSFQoNc3dhcHBlZF9hbGlhcxgCIAEoCSI0Cg9TZXRBbGlhc1JlcXVlc3QSDQoFYWxpYXMYASABKAkSEgoKaW5kZXhfbmFtZRgCIAEoCSISChBTZXRBbGlhc1Jlc3BvbnNlIiMKEkRlbGV0ZUFsaWFzUmVxdWVzdBINCgVhbGlhcxgBIAEoCSIVChNEZWxldGVBbGlhc1Jlc3BvbnNlIi8KCkFsaWFzRW50cnkSDQoFYWxpYXMYASABKAkSEgoKaW5kZXhfbmFtZRgCIAEoCSIUChJMaXN0QWxpYXNlc1JlcXVlc3QiQwoTTGlzdEFsaWFzZXNSZXNwb25zZRIsCgdhbGlhc2VzGAEgAygLMhsudHVyYm8uc2VhcmNoLnYxLkFsaWFzRW50cnkiPgoSVGVybUZyZXF1ZW5jeUVudHJ5EgwKBHRlcm0YASABKAkSGgoSZG9jdW1lbnRfZnJlcXVlbmN5GAIgASgEImQKFFNldENvbGxlY3Rpb25SZXF1ZXN0EhcKD2NvbGxlY3Rpb25fbmFtZRgBIAEoCRIWCg5iYXNlbGluZV90ZXJtcxgCIAMoCRIbChNvb3ZfYWxlcnRfdGhyZXNob2xkGAMgASgBIkwKFVNldENvbGxlY3Rpb25SZXNwb25zZRIzCgpjb2xsZWN0aW9uGAEgASgLMh8udHVyYm8uc2VhcmNoLnYxLkNvbGxlY3Rpb25JbmZvIi8KFEdldENvbGxlY3Rpb25SZXF1ZXN0EhcKD2NvbGxlY3Rpb25fbmFtZRgBIAEoCSJMChVHZXRDb2xsZWN0aW9uUmVzcG9uc2USMwoKY29sbGVjdGlvbhgBIAEoCzIfLnR1cmJvLnNlYXJjaC52MS5Db2xsZWN0aW9uSW5mbyIYChZMaXN0Q29sbGVjdGlvbnNSZXF1ZXN0Ik8KF0xpc3RDb2xsZWN0aW9uc1Jlc3BvbnNlEjQKC2NvbGxlY3Rpb25zGAEgAygLMh8udHVyYm8uc2VhcmNoLnYxLkNvbGxlY3Rpb25JbmZvIjIKF0RlbGV0ZUNvbGxlY3Rpb25SZXF1ZXN0EhcKD2NvbGxlY3Rpb25fbmFtZRgBIAEoCSIaChhEZWxldGVDb2xsZWN0aW9uUmVzcG9uc2UiwQEKDkNvbGxlY3Rpb25JbmZvEhcKD2NvbGxlY3Rpb25fbmFtZRgBIAEoCRITCgt0b3RhbF91bml0cxgCIAEoBBITCgttZWFuX2xlbmd0aBgDIAEoARIXCg92b2NhYnVsYXJ5X3NpemUYBCABKAQSGwoTb292X2FsZXJ0X3RocmVzaG9sZBgFIAEoARI2Cgl0b3BfdGVybXMYBiADKAsyIy50dXJiby5zZWFyY2gudjEuVGVybUZyZXF1ZW5jeUVudHJ5IsABChVWb2NhYnVsYXJ5RHJpZnRSZXBvcnQSFwoPY29sbGVjdGlvbl9uYW1lGAEgASgJEhsKE3ZvY2FidWxhcnlfY292ZXJhZ2UYAiABKAESEQoJb292X3JhdGlvGAMgASgBEhEKCW5ld190ZXJtcxgEIAMoCRI2Cgl0b3BfdGVybXMYBSADKAsyIy50dXJiby5zZWFyY2gudjEuVGVybUZyZXF1ZW5jeUVudHJ5EhMKC3RvdGFsX3VuaXRzGAYgASgEIkgKFldhdGNoQ29sbGVjdGlvblJlcXVlc3QSFwoPY29sbGVjdGlvbl9uYW1lGAEgASgJEhUKDW1pbl9vb3ZfcmF0aW8YAiABKAEieAoPQ29sbGVjdGlvbkV2ZW50EhcKD2NvbGxlY3Rpb25fbmFtZRgBIAEoCRIUCgxzb3VyY2VfaW5kZXgYAiABKAkSNgoGcmVwb3J0GAMgASgLMiYudHVyYm8uc2VhcmNoLnYxLlZvY2FidWxhcnlEcmlmdFJlcG9ydCpaChFWZWN0b3JTdG9yYWdlS2luZBIgChxWRUNUT1JfU1RPUkFHRV9LSU5EX0ZMQVRfRjMyEAASIwofVkVDVE9SX1NUT1JBR0VfS0lORF9UVVJCT19RVUFOVBABKkUKDkRpc3RhbmNlTWV0cmljEhoKFkRJU1RBTkNFX01FVFJJQ19DT1NJTkUQABIXChNESVNUQU5DRV9NRVRSSUNfRE9UEAEqTQoRTm9ybWFsaXphdGlvbk1vZGUSGwoXTk9STUFMSVpBVElPTl9NT0RFX05PTkUQABIbChdOT1JNQUxJWkFUSU9OX01PREVfVU5JVBABKkEKDVRlcm1NYXRjaE1vZGUSFwoTVEVSTV9NQVRDSF9NT0RFX0FOWRAAEhcKE1RFUk1fTUFUQ0hfTU9ERV9BTEwQASo7CgxKb2luT3BlcmF0b3ISFAoQSk9JTl9PUEVSQVRPUl9PUhAAEhUKEUpPSU5fT1BFUkFUT1JfQU5EEAEqUAoORnVzaW9uU3RyYXRlZ3kSGQoVRlVTSU9OX1NUUkFURUdZX1NDT1JFEAASIwofRlVTSU9OX1NUUkFURUdZX1JFQ0lQUk9DQUxfUkFOSxABMtgMChJUdXJib1NlYXJjaFNlcnZpY2UScgoTTGlzdFNlYXJjaFByb3ZpZGVycxIrLnR1cmJvLnNlYXJjaC52MS5MaXN0U2VhcmNoUHJvdmlkZXJzUmVxdWVzdBosLnR1cmJvLnNlYXJjaC52MS5MaXN0U2VhcmNoUHJvdmlkZXJzUmVzcG9uc2UiABJaCgtMaXN0SW5kZXhlcxIjLnR1cmJvLnNlYXJjaC52MS5MaXN0SW5kZXhlc1JlcXVlc3QaJC50dXJiby5zZWFyY2gudjEuTGlzdEluZGV4ZXNSZXNwb25zZSIAEloKC0NyZWF0ZUluZGV4EiMudHVyYm8uc2VhcmNoLnYxLkNyZWF0ZUluZGV4UmVxdWVzdBokLnR1cmJvLnNlYXJjaC52MS5DcmVhdGVJbmRleFJlc3BvbnNlIgASWgoLRGVsZXRlSW5kZXgSIy50dXJiby5zZWFyY2gudjEuRGVsZXRlSW5kZXhSZXF1ZXN0GiQudHVyYm8uc2VhcmNoLnYxLkRlbGV0ZUluZGV4UmVzcG9uc2UiABJkCg5JbmRleERvY3VtZW50cxIlLnR1cmJvLnNlYXJjaC52MS5JbmRleERvY3VtZW50UmVxdWVzdBonLnR1cmJvLnNlYXJjaC52MS5JbmRleERvY3VtZW50c1Jlc3BvbnNlIgAoARJLCgZTZWFyY2gSHi50dXJiby5zZWFyY2gudjEuU2VhcmNoUmVxdWVzdBofLnR1cmJvLnNlYXJjaC52MS5TZWFyY2hSZXNwb25zZSIAEl0KDFBlcnNpc3RJbmRleBIkLnR1cmJvLnNlYXJjaC52MS5QZXJzaXN0SW5kZXhSZXF1ZXN0GiUudHVyYm8uc2VhcmNoLnYxLlBlcnNpc3RJbmRleFJlc3BvbnNlIgASVAoJU2VhbEluZGV4EiEudHVyYm8uc2VhcmNoLnYxLlNlYWxJbmRleFJlcXVlc3QaIi50dXJiby5zZWFyY2gudjEuU2VhbEluZGV4UmVzcG9uc2UiABJOCgdSZWluZGV4Eh8udHVyYm8uc2VhcmNoLnYxLlJlaW5kZXhSZXF1ZXN0GiAudHVyYm8uc2VhcmNoLnYxLlJlaW5kZXhSZXNwb25zZSIAElEKCFNldEFsaWFzEiAudHVyYm8uc2VhcmNoLnYxLlNldEFsaWFzUmVxdWVzdBohLnR1cmJvLnNlYXJjaC52MS5TZXRBbGlhc1Jlc3BvbnNlIgASWgoLRGVsZXRlQWxpYXMSIy50dXJiby5zZWFyY2gudjEuRGVsZXRlQWxpYXNSZXF1ZXN0GiQudHVyYm8uc2VhcmNoLnYxLkRlbGV0ZUFsaWFzUmVzcG9uc2UiABJaCgtMaXN0QWxpYXNlcxIjLnR1cmJvLnNlYXJjaC52MS5MaXN0QWxpYXNlc1JlcXVlc3QaJC50dXJiby5zZWFyY2gudjEuTGlzdEFsaWFzZXNSZXNwb25zZSIAEmAKDVNldENvbGxlY3Rpb24SJS50dXJiby5zZWFyY2gudjEuU2V0Q29sbGVjdGlvblJlcXVlc3QaJi50dXJiby5zZWFyY2gudjEuU2V0Q29sbGVjdGlvblJlc3BvbnNlIgASYAoNR2V0Q29sbGVjdGlvbhIlLnR1cmJvLnNlYXJjaC52MS5HZXRDb2xsZWN0aW9uUmVxdWVzdBomLnR1cmJvLnNlYXJjaC52MS5HZXRDb2xsZWN0aW9uUmVzcG9uc2UiABJmCg9MaXN0Q29sbGVjdGlvbnMSJy50dXJiby5zZWFyY2gudjEuTGlzdENvbGxlY3Rpb25zUmVxdWVzdBooLnR1cmJvLnNlYXJjaC52MS5MaXN0Q29sbGVjdGlvbnNSZXNwb25zZSIAEmkKEERlbGV0ZUNvbGxlY3Rpb24SKC50dXJiby5zZWFyY2gudjEuRGVsZXRlQ29sbGVjdGlvblJlcXVlc3QaKS50dXJiby5zZWFyY2gudjEuRGVsZXRlQ29sbGVjdGlvblJlc3BvbnNlIgASYAoPV2F0Y2hDb2xsZWN0aW9uEicudHVyYm8uc2VhcmNoLnYxLldhdGNoQ29sbGVjdGlvblJlcXVlc3QaIC50dXJiby5zZWFyY2gudjEuQ29sbGVjdGlvbkV2ZW50IgAwAWIGcHJvdG8z");
 
 /**
  * @generated from message turbo.search.v1.ModelIdentity
@@ -441,6 +441,85 @@ export const TokenVectorInputSchema: GenMessage<TokenVectorInput> = /*@__PURE__*
   messageDesc(file_turbo_search, 14);
 
 /**
+ * @generated from message turbo.search.v1.PageBoundingBoxProto
+ */
+export type PageBoundingBoxProto = Message<"turbo.search.v1.PageBoundingBoxProto"> & {
+  /**
+   * @generated from field: uint32 page = 1;
+   */
+  page: number;
+
+  /**
+   * @generated from field: float x0 = 2;
+   */
+  x0: number;
+
+  /**
+   * @generated from field: float y0 = 3;
+   */
+  y0: number;
+
+  /**
+   * @generated from field: float x1 = 4;
+   */
+  x1: number;
+
+  /**
+   * @generated from field: float y1 = 5;
+   */
+  y1: number;
+};
+
+/**
+ * Describes the message turbo.search.v1.PageBoundingBoxProto.
+ * Use `create(PageBoundingBoxProtoSchema)` to create a new message.
+ */
+export const PageBoundingBoxProtoSchema: GenMessage<PageBoundingBoxProto> = /*@__PURE__*/
+  messageDesc(file_turbo_search, 15);
+
+/**
+ * @generated from message turbo.search.v1.LayoutBoxInput
+ */
+export type LayoutBoxInput = Message<"turbo.search.v1.LayoutBoxInput"> & {
+  /**
+   * @generated from field: turbo.search.v1.SpanProto span = 1;
+   */
+  span?: SpanProto | undefined;
+
+  /**
+   * @generated from field: uint32 page = 2;
+   */
+  page: number;
+
+  /**
+   * @generated from field: float x0 = 3;
+   */
+  x0: number;
+
+  /**
+   * @generated from field: float y0 = 4;
+   */
+  y0: number;
+
+  /**
+   * @generated from field: float x1 = 5;
+   */
+  x1: number;
+
+  /**
+   * @generated from field: float y1 = 6;
+   */
+  y1: number;
+};
+
+/**
+ * Describes the message turbo.search.v1.LayoutBoxInput.
+ * Use `create(LayoutBoxInputSchema)` to create a new message.
+ */
+export const LayoutBoxInputSchema: GenMessage<LayoutBoxInput> = /*@__PURE__*/
+  messageDesc(file_turbo_search, 16);
+
+/**
  * @generated from message turbo.search.v1.ChunkInput
  */
 export type ChunkInput = Message<"turbo.search.v1.ChunkInput"> & {
@@ -498,6 +577,26 @@ export type ChunkInput = Message<"turbo.search.v1.ChunkInput"> & {
    * @generated from field: map<string, string> attributes = 11;
    */
   attributes: { [key: string]: string };
+
+  /**
+   * @generated from field: uint32 page_start = 12;
+   */
+  pageStart: number;
+
+  /**
+   * @generated from field: uint32 page_end = 13;
+   */
+  pageEnd: number;
+
+  /**
+   * @generated from field: bool has_page_span = 14;
+   */
+  hasPageSpan: boolean;
+
+  /**
+   * @generated from field: repeated turbo.search.v1.PageBoundingBoxProto page_boxes = 15;
+   */
+  pageBoxes: PageBoundingBoxProto[];
 };
 
 /**
@@ -505,7 +604,7 @@ export type ChunkInput = Message<"turbo.search.v1.ChunkInput"> & {
  * Use `create(ChunkInputSchema)` to create a new message.
  */
 export const ChunkInputSchema: GenMessage<ChunkInput> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 15);
+  messageDesc(file_turbo_search, 17);
 
 /**
  * @generated from message turbo.search.v1.IndexDocumentRequest
@@ -550,6 +649,13 @@ export type IndexDocumentRequest = Message<"turbo.search.v1.IndexDocumentRequest
    * @generated from field: map<string, string> attributes = 6;
    */
   attributes: { [key: string]: string };
+
+  /**
+   * Optional 2D layout boxes on the source text for chunk layout citations (#1466).
+   *
+   * @generated from field: repeated turbo.search.v1.LayoutBoxInput layout_boxes = 7;
+   */
+  layoutBoxes: LayoutBoxInput[];
 };
 
 /**
@@ -557,7 +663,7 @@ export type IndexDocumentRequest = Message<"turbo.search.v1.IndexDocumentRequest
  * Use `create(IndexDocumentRequestSchema)` to create a new message.
  */
 export const IndexDocumentRequestSchema: GenMessage<IndexDocumentRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 16);
+  messageDesc(file_turbo_search, 18);
 
 /**
  * @generated from message turbo.search.v1.IndexDocumentsResponse
@@ -589,7 +695,7 @@ export type IndexDocumentsResponse = Message<"turbo.search.v1.IndexDocumentsResp
  * Use `create(IndexDocumentsResponseSchema)` to create a new message.
  */
 export const IndexDocumentsResponseSchema: GenMessage<IndexDocumentsResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 17);
+  messageDesc(file_turbo_search, 19);
 
 /**
  * @generated from message turbo.search.v1.SemanticClause
@@ -627,7 +733,7 @@ export type SemanticClause = Message<"turbo.search.v1.SemanticClause"> & {
  * Use `create(SemanticClauseSchema)` to create a new message.
  */
 export const SemanticClauseSchema: GenMessage<SemanticClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 18);
+  messageDesc(file_turbo_search, 20);
 
 /**
  * @generated from message turbo.search.v1.TermClause
@@ -654,7 +760,7 @@ export type TermClause = Message<"turbo.search.v1.TermClause"> & {
  * Use `create(TermClauseSchema)` to create a new message.
  */
 export const TermClauseSchema: GenMessage<TermClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 19);
+  messageDesc(file_turbo_search, 21);
 
 /**
  * @generated from message turbo.search.v1.PhraseClause
@@ -681,7 +787,7 @@ export type PhraseClause = Message<"turbo.search.v1.PhraseClause"> & {
  * Use `create(PhraseClauseSchema)` to create a new message.
  */
 export const PhraseClauseSchema: GenMessage<PhraseClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 20);
+  messageDesc(file_turbo_search, 22);
 
 /**
  * @generated from message turbo.search.v1.SparseClause
@@ -703,7 +809,7 @@ export type SparseClause = Message<"turbo.search.v1.SparseClause"> & {
  * Use `create(SparseClauseSchema)` to create a new message.
  */
 export const SparseClauseSchema: GenMessage<SparseClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 21);
+  messageDesc(file_turbo_search, 23);
 
 /**
  * @generated from message turbo.search.v1.LateInteractionClause
@@ -732,7 +838,7 @@ export type LateInteractionClause = Message<"turbo.search.v1.LateInteractionClau
  * Use `create(LateInteractionClauseSchema)` to create a new message.
  */
 export const LateInteractionClauseSchema: GenMessage<LateInteractionClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 22);
+  messageDesc(file_turbo_search, 24);
 
 /**
  * @generated from message turbo.search.v1.FilterClause
@@ -772,7 +878,7 @@ export type FilterClause = Message<"turbo.search.v1.FilterClause"> & {
  * Use `create(FilterClauseSchema)` to create a new message.
  */
 export const FilterClauseSchema: GenMessage<FilterClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 23);
+  messageDesc(file_turbo_search, 25);
 
 /**
  * @generated from message turbo.search.v1.BoostClause
@@ -794,7 +900,7 @@ export type BoostClause = Message<"turbo.search.v1.BoostClause"> & {
  * Use `create(BoostClauseSchema)` to create a new message.
  */
 export const BoostClauseSchema: GenMessage<BoostClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 24);
+  messageDesc(file_turbo_search, 26);
 
 /**
  * @generated from message turbo.search.v1.JoinClause
@@ -828,7 +934,7 @@ export type JoinClause = Message<"turbo.search.v1.JoinClause"> & {
  * Use `create(JoinClauseSchema)` to create a new message.
  */
 export const JoinClauseSchema: GenMessage<JoinClause> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 25);
+  messageDesc(file_turbo_search, 27);
 
 /**
  * @generated from message turbo.search.v1.QueryNode
@@ -893,7 +999,7 @@ export type QueryNode = Message<"turbo.search.v1.QueryNode"> & {
  * Use `create(QueryNodeSchema)` to create a new message.
  */
 export const QueryNodeSchema: GenMessage<QueryNode> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 26);
+  messageDesc(file_turbo_search, 28);
 
 /**
  * @generated from message turbo.search.v1.ParentExpansionSpec
@@ -915,7 +1021,7 @@ export type ParentExpansionSpec = Message<"turbo.search.v1.ParentExpansionSpec">
  * Use `create(ParentExpansionSpecSchema)` to create a new message.
  */
 export const ParentExpansionSpecSchema: GenMessage<ParentExpansionSpec> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 27);
+  messageDesc(file_turbo_search, 29);
 
 /**
  * @generated from message turbo.search.v1.SearchRequest
@@ -978,7 +1084,7 @@ export type SearchRequest = Message<"turbo.search.v1.SearchRequest"> & {
  * Use `create(SearchRequestSchema)` to create a new message.
  */
 export const SearchRequestSchema: GenMessage<SearchRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 28);
+  messageDesc(file_turbo_search, 30);
 
 /**
  * @generated from message turbo.search.v1.SpanProto
@@ -1000,7 +1106,7 @@ export type SpanProto = Message<"turbo.search.v1.SpanProto"> & {
  * Use `create(SpanProtoSchema)` to create a new message.
  */
 export const SpanProtoSchema: GenMessage<SpanProto> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 29);
+  messageDesc(file_turbo_search, 31);
 
 /**
  * @generated from message turbo.search.v1.MatchedSpan
@@ -1034,7 +1140,7 @@ export type MatchedSpan = Message<"turbo.search.v1.MatchedSpan"> & {
  * Use `create(MatchedSpanSchema)` to create a new message.
  */
 export const MatchedSpanSchema: GenMessage<MatchedSpan> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 30);
+  messageDesc(file_turbo_search, 32);
 
 /**
  * @generated from message turbo.search.v1.ChunkAttribution
@@ -1056,7 +1162,7 @@ export type ChunkAttribution = Message<"turbo.search.v1.ChunkAttribution"> & {
  * Use `create(ChunkAttributionSchema)` to create a new message.
  */
 export const ChunkAttributionSchema: GenMessage<ChunkAttribution> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 31);
+  messageDesc(file_turbo_search, 33);
 
 /**
  * @generated from message turbo.search.v1.SearchHit
@@ -1116,6 +1222,26 @@ export type SearchHit = Message<"turbo.search.v1.SearchHit"> & {
    * @generated from field: map<string, string> attributes = 11;
    */
   attributes: { [key: string]: string };
+
+  /**
+   * @generated from field: uint32 page_start = 12;
+   */
+  pageStart: number;
+
+  /**
+   * @generated from field: uint32 page_end = 13;
+   */
+  pageEnd: number;
+
+  /**
+   * @generated from field: bool has_page_span = 14;
+   */
+  hasPageSpan: boolean;
+
+  /**
+   * @generated from field: repeated turbo.search.v1.PageBoundingBoxProto page_boxes = 15;
+   */
+  pageBoxes: PageBoundingBoxProto[];
 };
 
 /**
@@ -1123,7 +1249,7 @@ export type SearchHit = Message<"turbo.search.v1.SearchHit"> & {
  * Use `create(SearchHitSchema)` to create a new message.
  */
 export const SearchHitSchema: GenMessage<SearchHit> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 32);
+  messageDesc(file_turbo_search, 34);
 
 /**
  * @generated from message turbo.search.v1.HeatSegment
@@ -1150,7 +1276,7 @@ export type HeatSegment = Message<"turbo.search.v1.HeatSegment"> & {
  * Use `create(HeatSegmentSchema)` to create a new message.
  */
 export const HeatSegmentSchema: GenMessage<HeatSegment> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 33);
+  messageDesc(file_turbo_search, 35);
 
 /**
  * @generated from message turbo.search.v1.DocumentHeat
@@ -1177,7 +1303,7 @@ export type DocumentHeat = Message<"turbo.search.v1.DocumentHeat"> & {
  * Use `create(DocumentHeatSchema)` to create a new message.
  */
 export const DocumentHeatSchema: GenMessage<DocumentHeat> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 34);
+  messageDesc(file_turbo_search, 36);
 
 /**
  * @generated from message turbo.search.v1.ExtractedFilterProto
@@ -1204,7 +1330,7 @@ export type ExtractedFilterProto = Message<"turbo.search.v1.ExtractedFilterProto
  * Use `create(ExtractedFilterProtoSchema)` to create a new message.
  */
 export const ExtractedFilterProtoSchema: GenMessage<ExtractedFilterProto> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 35);
+  messageDesc(file_turbo_search, 37);
 
 /**
  * @generated from message turbo.search.v1.SearchResponse
@@ -1241,7 +1367,7 @@ export type SearchResponse = Message<"turbo.search.v1.SearchResponse"> & {
  * Use `create(SearchResponseSchema)` to create a new message.
  */
 export const SearchResponseSchema: GenMessage<SearchResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 36);
+  messageDesc(file_turbo_search, 38);
 
 /**
  * @generated from message turbo.search.v1.PersistIndexRequest
@@ -1263,7 +1389,7 @@ export type PersistIndexRequest = Message<"turbo.search.v1.PersistIndexRequest">
  * Use `create(PersistIndexRequestSchema)` to create a new message.
  */
 export const PersistIndexRequestSchema: GenMessage<PersistIndexRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 37);
+  messageDesc(file_turbo_search, 39);
 
 /**
  * @generated from message turbo.search.v1.PersistIndexResponse
@@ -1285,7 +1411,7 @@ export type PersistIndexResponse = Message<"turbo.search.v1.PersistIndexResponse
  * Use `create(PersistIndexResponseSchema)` to create a new message.
  */
 export const PersistIndexResponseSchema: GenMessage<PersistIndexResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 38);
+  messageDesc(file_turbo_search, 40);
 
 /**
  * @generated from message turbo.search.v1.SealIndexRequest
@@ -1302,7 +1428,7 @@ export type SealIndexRequest = Message<"turbo.search.v1.SealIndexRequest"> & {
  * Use `create(SealIndexRequestSchema)` to create a new message.
  */
 export const SealIndexRequestSchema: GenMessage<SealIndexRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 39);
+  messageDesc(file_turbo_search, 41);
 
 /**
  * @generated from message turbo.search.v1.SealIndexResponse
@@ -1319,7 +1445,7 @@ export type SealIndexResponse = Message<"turbo.search.v1.SealIndexResponse"> & {
  * Use `create(SealIndexResponseSchema)` to create a new message.
  */
 export const SealIndexResponseSchema: GenMessage<SealIndexResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 40);
+  messageDesc(file_turbo_search, 42);
 
 /**
  * @generated from message turbo.search.v1.ReindexRequest
@@ -1348,7 +1474,7 @@ export type ReindexRequest = Message<"turbo.search.v1.ReindexRequest"> & {
  * Use `create(ReindexRequestSchema)` to create a new message.
  */
 export const ReindexRequestSchema: GenMessage<ReindexRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 41);
+  messageDesc(file_turbo_search, 43);
 
 /**
  * @generated from message turbo.search.v1.ReindexResponse
@@ -1370,7 +1496,7 @@ export type ReindexResponse = Message<"turbo.search.v1.ReindexResponse"> & {
  * Use `create(ReindexResponseSchema)` to create a new message.
  */
 export const ReindexResponseSchema: GenMessage<ReindexResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 42);
+  messageDesc(file_turbo_search, 44);
 
 /**
  * @generated from message turbo.search.v1.SetAliasRequest
@@ -1392,7 +1518,7 @@ export type SetAliasRequest = Message<"turbo.search.v1.SetAliasRequest"> & {
  * Use `create(SetAliasRequestSchema)` to create a new message.
  */
 export const SetAliasRequestSchema: GenMessage<SetAliasRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 43);
+  messageDesc(file_turbo_search, 45);
 
 /**
  * @generated from message turbo.search.v1.SetAliasResponse
@@ -1405,7 +1531,7 @@ export type SetAliasResponse = Message<"turbo.search.v1.SetAliasResponse"> & {
  * Use `create(SetAliasResponseSchema)` to create a new message.
  */
 export const SetAliasResponseSchema: GenMessage<SetAliasResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 44);
+  messageDesc(file_turbo_search, 46);
 
 /**
  * @generated from message turbo.search.v1.DeleteAliasRequest
@@ -1422,7 +1548,7 @@ export type DeleteAliasRequest = Message<"turbo.search.v1.DeleteAliasRequest"> &
  * Use `create(DeleteAliasRequestSchema)` to create a new message.
  */
 export const DeleteAliasRequestSchema: GenMessage<DeleteAliasRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 45);
+  messageDesc(file_turbo_search, 47);
 
 /**
  * @generated from message turbo.search.v1.DeleteAliasResponse
@@ -1435,7 +1561,7 @@ export type DeleteAliasResponse = Message<"turbo.search.v1.DeleteAliasResponse">
  * Use `create(DeleteAliasResponseSchema)` to create a new message.
  */
 export const DeleteAliasResponseSchema: GenMessage<DeleteAliasResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 46);
+  messageDesc(file_turbo_search, 48);
 
 /**
  * @generated from message turbo.search.v1.AliasEntry
@@ -1457,7 +1583,7 @@ export type AliasEntry = Message<"turbo.search.v1.AliasEntry"> & {
  * Use `create(AliasEntrySchema)` to create a new message.
  */
 export const AliasEntrySchema: GenMessage<AliasEntry> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 47);
+  messageDesc(file_turbo_search, 49);
 
 /**
  * @generated from message turbo.search.v1.ListAliasesRequest
@@ -1470,7 +1596,7 @@ export type ListAliasesRequest = Message<"turbo.search.v1.ListAliasesRequest"> &
  * Use `create(ListAliasesRequestSchema)` to create a new message.
  */
 export const ListAliasesRequestSchema: GenMessage<ListAliasesRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 48);
+  messageDesc(file_turbo_search, 50);
 
 /**
  * @generated from message turbo.search.v1.ListAliasesResponse
@@ -1487,7 +1613,7 @@ export type ListAliasesResponse = Message<"turbo.search.v1.ListAliasesResponse">
  * Use `create(ListAliasesResponseSchema)` to create a new message.
  */
 export const ListAliasesResponseSchema: GenMessage<ListAliasesResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 49);
+  messageDesc(file_turbo_search, 51);
 
 /**
  * @generated from message turbo.search.v1.TermFrequencyEntry
@@ -1509,7 +1635,7 @@ export type TermFrequencyEntry = Message<"turbo.search.v1.TermFrequencyEntry"> &
  * Use `create(TermFrequencyEntrySchema)` to create a new message.
  */
 export const TermFrequencyEntrySchema: GenMessage<TermFrequencyEntry> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 50);
+  messageDesc(file_turbo_search, 52);
 
 /**
  * @generated from message turbo.search.v1.SetCollectionRequest
@@ -1538,7 +1664,7 @@ export type SetCollectionRequest = Message<"turbo.search.v1.SetCollectionRequest
  * Use `create(SetCollectionRequestSchema)` to create a new message.
  */
 export const SetCollectionRequestSchema: GenMessage<SetCollectionRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 51);
+  messageDesc(file_turbo_search, 53);
 
 /**
  * @generated from message turbo.search.v1.SetCollectionResponse
@@ -1555,7 +1681,7 @@ export type SetCollectionResponse = Message<"turbo.search.v1.SetCollectionRespon
  * Use `create(SetCollectionResponseSchema)` to create a new message.
  */
 export const SetCollectionResponseSchema: GenMessage<SetCollectionResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 52);
+  messageDesc(file_turbo_search, 54);
 
 /**
  * @generated from message turbo.search.v1.GetCollectionRequest
@@ -1572,7 +1698,7 @@ export type GetCollectionRequest = Message<"turbo.search.v1.GetCollectionRequest
  * Use `create(GetCollectionRequestSchema)` to create a new message.
  */
 export const GetCollectionRequestSchema: GenMessage<GetCollectionRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 53);
+  messageDesc(file_turbo_search, 55);
 
 /**
  * @generated from message turbo.search.v1.GetCollectionResponse
@@ -1589,7 +1715,7 @@ export type GetCollectionResponse = Message<"turbo.search.v1.GetCollectionRespon
  * Use `create(GetCollectionResponseSchema)` to create a new message.
  */
 export const GetCollectionResponseSchema: GenMessage<GetCollectionResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 54);
+  messageDesc(file_turbo_search, 56);
 
 /**
  * @generated from message turbo.search.v1.ListCollectionsRequest
@@ -1602,7 +1728,7 @@ export type ListCollectionsRequest = Message<"turbo.search.v1.ListCollectionsReq
  * Use `create(ListCollectionsRequestSchema)` to create a new message.
  */
 export const ListCollectionsRequestSchema: GenMessage<ListCollectionsRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 55);
+  messageDesc(file_turbo_search, 57);
 
 /**
  * @generated from message turbo.search.v1.ListCollectionsResponse
@@ -1619,7 +1745,7 @@ export type ListCollectionsResponse = Message<"turbo.search.v1.ListCollectionsRe
  * Use `create(ListCollectionsResponseSchema)` to create a new message.
  */
 export const ListCollectionsResponseSchema: GenMessage<ListCollectionsResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 56);
+  messageDesc(file_turbo_search, 58);
 
 /**
  * @generated from message turbo.search.v1.DeleteCollectionRequest
@@ -1636,7 +1762,7 @@ export type DeleteCollectionRequest = Message<"turbo.search.v1.DeleteCollectionR
  * Use `create(DeleteCollectionRequestSchema)` to create a new message.
  */
 export const DeleteCollectionRequestSchema: GenMessage<DeleteCollectionRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 57);
+  messageDesc(file_turbo_search, 59);
 
 /**
  * @generated from message turbo.search.v1.DeleteCollectionResponse
@@ -1649,7 +1775,7 @@ export type DeleteCollectionResponse = Message<"turbo.search.v1.DeleteCollection
  * Use `create(DeleteCollectionResponseSchema)` to create a new message.
  */
 export const DeleteCollectionResponseSchema: GenMessage<DeleteCollectionResponse> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 58);
+  messageDesc(file_turbo_search, 60);
 
 /**
  * @generated from message turbo.search.v1.CollectionInfo
@@ -1691,7 +1817,7 @@ export type CollectionInfo = Message<"turbo.search.v1.CollectionInfo"> & {
  * Use `create(CollectionInfoSchema)` to create a new message.
  */
 export const CollectionInfoSchema: GenMessage<CollectionInfo> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 59);
+  messageDesc(file_turbo_search, 61);
 
 /**
  * @generated from message turbo.search.v1.VocabularyDriftReport
@@ -1733,7 +1859,7 @@ export type VocabularyDriftReport = Message<"turbo.search.v1.VocabularyDriftRepo
  * Use `create(VocabularyDriftReportSchema)` to create a new message.
  */
 export const VocabularyDriftReportSchema: GenMessage<VocabularyDriftReport> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 60);
+  messageDesc(file_turbo_search, 62);
 
 /**
  * @generated from message turbo.search.v1.WatchCollectionRequest
@@ -1757,7 +1883,7 @@ export type WatchCollectionRequest = Message<"turbo.search.v1.WatchCollectionReq
  * Use `create(WatchCollectionRequestSchema)` to create a new message.
  */
 export const WatchCollectionRequestSchema: GenMessage<WatchCollectionRequest> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 61);
+  messageDesc(file_turbo_search, 63);
 
 /**
  * @generated from message turbo.search.v1.CollectionEvent
@@ -1784,7 +1910,7 @@ export type CollectionEvent = Message<"turbo.search.v1.CollectionEvent"> & {
  * Use `create(CollectionEventSchema)` to create a new message.
  */
 export const CollectionEventSchema: GenMessage<CollectionEvent> = /*@__PURE__*/
-  messageDesc(file_turbo_search, 62);
+  messageDesc(file_turbo_search, 64);
 
 /**
  * @generated from enum turbo.search.v1.VectorStorageKind

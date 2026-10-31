@@ -25,21 +25,14 @@ fn strs(items: &[&str]) -> Vec<Vec<u8>> {
 }
 
 #[test]
-fn n_grams_come_in_the_jvm_hash_map_order() {
-    // CharBuffer hashes (each unit from the last, 31 * h + unit, from 1):
-    // a 128, b 129, ab 4096, ba 4066, aba 126143, bab 127074. With the
-    // high half folded in, the buckets of a 16 bucket table are 0, 1, 0,
-    // 2, 14 and 3, so the order is a, ab, b, ba, bab, aba.
+fn n_grams_come_in_first_seen_order() {
+    // Distinct n-grams of lengths 1..=3 in (length, text-offset) order:
+    // length 1: "a", "b"; length 2: "ab", "ba"; length 3: "aba", "bab".
     let mut g = ContextGenerator::default();
-    assert_eq!(grams(&mut g, "abab"), strs(&["a", "ab", "b", "ba", "bab", "aba"]));
+    assert_eq!(grams(&mut g, "abab"), strs(&["a", "b", "ab", "ba", "aba", "bab"]));
     assert!(g.exact_order());
     assert_eq!(g.len(), 6);
-    // `getContext` lists the first map, which was put in the order the
-    // n-grams were first seen (a, b, ab, ba, aba, bab); its iteration order
-    // is by bucket, the same as the second map's. A map's buckets keep the
-    // order their keys were put in, and a resize keeps it too, so the two
-    // orders differ only where a bucket became a tree.
-    assert_eq!(training(&g), strs(&["a", "ab", "b", "ba", "bab", "aba"]));
+    assert_eq!(training(&g), strs(&["a", "b", "ab", "ba", "aba", "bab"]));
     assert!(g.training_exact_order());
 }
 
@@ -181,7 +174,7 @@ fn a_generator_is_reused_without_leftovers() {
     let mut g = ContextGenerator::default();
     let long = "the quick brown fox jumps over the lazy dog ".repeat(50);
     grams(&mut g, &long);
-    assert_eq!(grams(&mut g, "abab"), strs(&["a", "ab", "b", "ba", "bab", "aba"]));
+    assert_eq!(grams(&mut g, "abab"), strs(&["a", "b", "ab", "ba", "aba", "bab"]));
     g.generate("");
     assert!(g.is_empty());
     assert_eq!(g.features().count(), 0);
@@ -202,27 +195,18 @@ fn a_large_text_keeps_every_distinct_n_gram() {
 }
 
 #[test]
-fn a_bucket_that_java_turns_into_a_tree_comes_in_the_jvms_order() {
-    // These eleven characters all have a CharBuffer hash (31 plus the code
-    // unit) that is a multiple of 64, so as unigrams they share one bucket
-    // of a table of 64. The ninth and tenth grow the table from 16 to 64;
-    // the eleventh makes the JVM turn the bucket into a red-black tree,
-    // which iterates its root first. Their hashes differ, so the order is
-    // the JVM's.
+fn colliding_unigrams_stay_in_first_seen_order() {
     let text = "!a\u{A1}\u{E1}\u{121}\u{161}\u{1A1}\u{1E1}\u{221}\u{261}\u{2A1}";
     for c in text.chars() {
         assert!((31 + u32::from(c)).is_multiple_of(64), "{c:?}");
     }
     let mut unigrams = ContextGenerator::new(1, 1);
-    // The order JDK 21 gives for the two maps of `getContext` and
-    // `predict`.
-    let jvm =
-        ["\u{E1}", "!", "a", "\u{A1}", "\u{121}", "\u{161}", "\u{1A1}", "\u{1E1}", "\u{221}", "\u{261}", "\u{2A1}"];
-    assert_eq!(grams(&mut unigrams, text), strs(&jvm));
+    let expected =
+        ["!", "a", "\u{A1}", "\u{E1}", "\u{121}", "\u{161}", "\u{1A1}", "\u{1E1}", "\u{221}", "\u{261}", "\u{2A1}"];
+    assert_eq!(grams(&mut unigrams, text), strs(&expected));
     assert!(unigrams.exact_order());
-    assert_eq!(training(&unigrams), strs(&jvm));
+    assert_eq!(training(&unigrams), strs(&expected));
     assert!(unigrams.training_exact_order());
-    // Ten of them stay a list, in put order.
     let shorter: String = text.chars().take(10).collect();
     assert_eq!(
         grams(&mut unigrams, &shorter),
@@ -236,29 +220,20 @@ fn a_bucket_that_java_turns_into_a_tree_comes_in_the_jvms_order() {
 }
 
 #[test]
-fn a_tree_bucket_can_give_training_and_prediction_different_orders() {
-    // Thirteen unigrams whose hashes (31 plus the code unit) are multiples
-    // of 64, so they share one bucket, which becomes a tree. The first map
-    // (`getContext`'s, which training reads) is filled in the text's order
-    // and the second (`predict`'s counts) in the first map's, so the two
-    // trees differ and so do the orders. Both orders are JDK 21's.
+fn training_and_prediction_orders_agree_for_colliding_unigrams() {
     let text = "\u{A1}\u{221}\u{1A1}\u{321}!\u{4A1}\u{261}\u{661}\u{521}\u{E1}\u{2E1}\u{1E1}\u{5A1}";
     for c in text.chars() {
         assert!((31 + u32::from(c)).is_multiple_of(64), "{c:?}");
     }
     let mut g = ContextGenerator::new(1, 1);
     let predict = grams(&mut g, text);
-    let get_context = [
-        "\u{261}", "\u{1A1}", "\u{A1}", "\u{221}", "\u{1E1}", "\u{321}", "!", "\u{4A1}", "\u{661}", "\u{5A1}",
-        "\u{521}", "\u{E1}", "\u{2E1}",
+    let expected = [
+        "\u{A1}", "\u{221}", "\u{1A1}", "\u{321}", "!", "\u{4A1}", "\u{261}", "\u{661}", "\u{521}", "\u{E1}",
+        "\u{2E1}", "\u{1E1}", "\u{5A1}",
     ];
-    assert_eq!(training(&g), strs(&get_context));
+    assert_eq!(training(&g), strs(&expected));
     assert!(g.training_exact_order());
-    let jvm_predict = [
-        "\u{221}", "\u{261}", "\u{2E1}", "\u{1A1}", "\u{A1}", "\u{E1}", "\u{1E1}", "\u{321}", "!", "\u{4A1}",
-        "\u{661}", "\u{5A1}", "\u{521}",
-    ];
-    assert_eq!(predict, strs(&jvm_predict));
+    assert_eq!(predict, strs(&expected));
     assert!(g.exact_order());
 }
 

@@ -59,6 +59,38 @@ impl Scratch {
     pub fn new() -> Scratch {
         Scratch::default()
     }
+
+    fn release_large(&mut self) {
+        release(&mut self.enders);
+        self.features.release_large(RETAINED);
+        release(&mut self.probs);
+        self.lookup.release_large(RETAINED);
+        release(&mut self.window);
+        release(&mut self.starts);
+        release(&mut self.start_probs);
+    }
+
+    #[cfg(test)]
+    fn largest_capacity(&self) -> usize {
+        [
+            self.enders.capacity(),
+            self.features.largest_capacity(),
+            self.probs.capacity(),
+            self.lookup.largest_capacity(),
+            self.window.capacity(),
+            self.starts.capacity(),
+            self.start_probs.capacity(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0)
+    }
+}
+
+fn release<T>(v: &mut Vec<T>) {
+    if v.capacity() > RETAINED {
+        *v = Vec::new();
+    }
 }
 
 /// Splits a view into sentences with a maxent model, writing `Sentences`
@@ -122,7 +154,7 @@ impl SentenceDetector {
     ///
     /// When `text` is longer than `u32::MAX` bytes.
     pub fn detect(&self, text: &str, out: &mut Vec<(Span, f64)>) {
-        self.detect_with(text, &mut Scratch::new(), out);
+        with_scratch(|scratch| self.detect_with(text, scratch, out));
     }
 
     /// [`detect`](Self::detect) with buffers kept by the caller.
@@ -260,10 +292,35 @@ impl SentenceDetector {
     }
 }
 
+/// The most elements a per-thread buffer keeps between calls. A detection
+/// that grows one past this hands it back to the allocator afterwards, so
+/// a thread that once handled a very large document does not hold that
+/// document's peak memory for the rest of its life.
+pub(crate) const RETAINED: usize = 1 << 16;
+
 thread_local! {
     /// The buffers of the annotator, one set per thread, so that a
     /// pipeline running many documents allocates only while they grow.
     static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch::new());
+}
+
+/// Runs `f` with this thread's buffers, or with fresh ones when they are
+/// already in use further up the stack, then releases any buffer that grew
+/// past [`RETAINED`].
+pub(crate) fn with_scratch<R>(f: impl FnOnce(&mut Scratch) -> R) -> R {
+    SCRATCH.with(|cell| match cell.try_borrow_mut() {
+        Ok(mut scratch) => {
+            let r = f(&mut scratch);
+            scratch.release_large();
+            r
+        }
+        Err(_) => f(&mut Scratch::new()),
+    })
+}
+
+#[cfg(test)]
+fn retained_capacity() -> usize {
+    SCRATCH.with_borrow(|s| s.largest_capacity())
 }
 
 impl Annotator for SentenceDetector {
@@ -275,7 +332,7 @@ impl Annotator for SentenceDetector {
         let text = view.text();
         check_len(Self::ID, text)?;
         let mut found = Vec::new();
-        SCRATCH.with_borrow_mut(|scratch| self.detect_with(text, scratch, &mut found));
+        with_scratch(|scratch| self.detect_with(text, scratch, &mut found));
         let mut spans = Spans::with_capacity(view.id(), found.len());
         let confidence = found.iter().map(|&(s, p)| {
             spans.push(s);
@@ -289,11 +346,64 @@ impl Annotator for SentenceDetector {
         Some(self.model.model_ref().clone())
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<View>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[
+            turbo_analysis::Key::<Sentences>::DEFAULT.id(),
+            turbo_analysis::Key::<Confidence<Sentences>>::DEFAULT.id(),
+        ];
+        PRODUCES
+    }
+
     /// The whitespace definition, and the abbreviation inventory when
     /// there is one; in JVM parity mode the hash is what it was before
     /// inventories.
     fn config_hash(&self) -> u64 {
         let h = WHITESPACE_HASH;
         if self.inventory.is_unset() { h } else { fold_hash(h, self.inventory.config_hash()) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::Document;
+
+    #[test]
+    fn a_large_document_does_not_pin_its_buffers_to_the_thread() {
+        let text = "One sentence here. ".repeat(70_000);
+        let detector = SentenceDetector::new(SentenceModel::test_model()).with_jvm_parity();
+        let (got, kept) = std::thread::scope(|s| {
+            s.spawn(|| {
+                let doc = Document::new(text.as_str());
+                let view = doc.get::<View>().unwrap();
+                let (sentences, _) = detector.annotate((view,)).unwrap();
+                (sentences.spans.len(), retained_capacity())
+            })
+            .join()
+            .unwrap()
+        });
+        assert_eq!(got, 70_000);
+        assert!(kept <= RETAINED, "the thread kept a buffer of {kept} elements");
+    }
+
+    #[test]
+    fn a_detection_nested_in_another_uses_its_own_buffers() {
+        let detector = SentenceDetector::new(SentenceModel::test_model()).with_jvm_parity();
+        let (mut outer, mut inner) = (Vec::new(), Vec::new());
+        with_scratch(|scratch| {
+            detector.detect("Inner one. Inner two.", &mut inner);
+            let doc = Document::new("Annotated one. Annotated two.");
+            let view = doc.get::<View>().unwrap();
+            let (sentences, _) = detector.annotate((view,)).unwrap();
+            assert_eq!(sentences.spans.len(), 2);
+            detector.detect_with("Outer one. Outer two.", scratch, &mut outer);
+        });
+        assert_eq!(inner.iter().map(|&(s, _)| s).collect::<Vec<_>>(), [Span::new(0, 10), Span::new(11, 21)]);
+        assert_eq!(outer.iter().map(|&(s, _)| s).collect::<Vec<_>>(), [Span::new(0, 10), Span::new(11, 21)]);
     }
 }

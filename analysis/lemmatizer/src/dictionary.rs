@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
-use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tokens};
+use turbo_analysis::{Annotator, Error, Key, Locality, ModelRef, Refs, View};
+use turbo_analysis_layers::{Lemmas, PosTags, Sentences, Strs, Tokens};
 use turbo_maxent::sha256;
 use turbo_unicode::java::lowercase_cow;
 
@@ -148,6 +148,24 @@ impl Annotator for DictionaryLemmatizer {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.model_ref.clone())
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
+    }
+
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[
+            turbo_analysis::Key::<View>::DEFAULT.id(),
+            turbo_analysis::Key::<Tokens>::DEFAULT.id(),
+            turbo_analysis::Key::<PosTags>::DEFAULT.id(),
+        ];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Lemmas>::DEFAULT.id()];
+        PRODUCES
     }
 }
 

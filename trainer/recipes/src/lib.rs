@@ -10,6 +10,7 @@
 //! | `multiconer` | MultiCoNER v2 English, pinned file by file, and its coarse groups |
 //! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
 //! | `ud_heads` | Lemma and dependency heads on a treebank, their examples and baselines |
+//! | `ud_split` | A treebank as surface tokens, for the token split head, its labels and baseline |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
 //! | `run` | Head spec, encoder features, prediction, outputs |
@@ -21,8 +22,10 @@ pub mod cli;
 pub mod corpus;
 pub mod eval;
 pub mod fit_cache;
+pub mod germeval;
 pub mod masc_pos;
 pub mod multiconer;
+pub mod ner_peer;
 pub mod peer;
 pub mod receipt;
 pub mod run;
@@ -30,6 +33,8 @@ pub mod safetensors;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_heads;
+pub mod ud_split;
+pub mod wnut17;
 
 /// An error, as the message the command prints.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,7 +53,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The corpora the trainer reads, by id: MASC, MultiCoNER, and a tag
 /// corpus for each column of each UD treebank.
 pub fn corpora() -> Vec<String> {
-    let mut all = vec![masc_pos::ID.to_owned(), multiconer::ID.to_owned()];
+    let mut all = vec![masc_pos::ID.to_owned(), multiconer::ID.to_owned(), wnut17::ID.to_owned()];
+    all.extend([germeval::OUTER.to_owned(), germeval::INNER.to_owned()]);
     all.extend(ud::corpus_ids());
     all
 }
@@ -59,8 +65,12 @@ pub fn corpora() -> Vec<String> {
 ///
 /// An unknown id, or what the corpus's reader refuses.
 pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<corpus::Corpus> {
+    if let Some(level) = germeval::Level::from_id(id) {
+        return germeval::read(level, dir, unrecorded);
+    }
     match id {
         masc_pos::ID => masc_pos::read(dir, unrecorded),
+        wnut17::ID => wnut17::read(dir, unrecorded),
         multiconer::ID => multiconer::read(dir, unrecorded),
         _ => match ud::find(id) {
             Some((bank, column)) => ud::read(&bank, column, dir, unrecorded),
@@ -71,6 +81,11 @@ pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<
 
 /// The name and layer of the head a corpus trains.
 pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
+    match id {
+        germeval::OUTER => return ("ner_outer", "turboembed:entities"),
+        germeval::INNER => return ("ner_inner", "turboembed:entities"),
+        _ => (),
+    }
     match (ud::find(id), task) {
         (Some((_, column)), _) => column.head(),
         (None, corpus::Task::Tags) => ("pos", "turboembed:pos"),
@@ -81,4 +96,14 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
 /// The coarse groups of a corpus's types, where it has them.
 pub fn coarse(id: &str) -> Option<fn(&str) -> &str> {
     (id == multiconer::ID).then_some(multiconer::coarse as fn(&str) -> &str)
+}
+
+/// The publisher-declared types of fixed-schema NER recipes, independent
+/// of which labels happen to occur in an individual training split.
+pub fn fixed_entity_types(id: &str) -> Option<&'static [&'static str]> {
+    match id {
+        wnut17::ID => Some(&wnut17::TYPES),
+        germeval::OUTER | germeval::INNER => Some(&germeval::TYPES),
+        _ => None,
+    }
 }

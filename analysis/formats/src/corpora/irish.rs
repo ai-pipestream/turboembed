@@ -8,10 +8,9 @@
 //! token slot.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 
 use turbo_analysis::Span;
-use turbo_jvm::chars::utf16_len;
-use turbo_jvm::hash_map::JavaHashMap;
 
 use super::dom::{self, Element, Node};
 use super::error::CorpusError;
@@ -19,7 +18,7 @@ use super::nkjp::shift;
 use crate::error::FormatError;
 use crate::masc::java::{equals_ignore_case_ascii, parse_int};
 use crate::sample::{SentenceSample, TokenSample};
-use crate::source::{check_len, utf16_cut};
+use crate::source::{check_len, utf16_cut, utf16_len};
 
 /// The lemmas of a token slot, with the token's text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -173,7 +172,7 @@ fn first_child_text(node: &Node) -> Result<String, FormatError> {
 fn sentence(e: &Element, span: Span) -> Result<IrishSentence, FormatError> {
     let source_name = attribute(e, "source")?.to_owned();
     let mut translation = String::new();
-    let mut tokens_by_slot: JavaHashMap<i32, String> = JavaHashMap::new();
+    let mut tokens_by_slot: BTreeMap<i32, String> = BTreeMap::new();
     let mut flex_by_slot: std::collections::HashMap<i32, Vec<String>> = std::collections::HashMap::new();
     // token spans in UTF-16 code units, as Java counts them
     let mut units: Vec<(usize, usize)> = Vec::new();
@@ -203,7 +202,7 @@ fn sentence(e: &Element, span: Span) -> Result<IrishSentence, FormatError> {
                             let slot = slot(t)?;
                             flexes = flexes.max(slot);
                             original.push_str(&token);
-                            tokens_by_slot.put(slot, token);
+                            tokens_by_slot.insert(slot, token);
                             last += len;
                         }
                         // a processing instruction named token has no child

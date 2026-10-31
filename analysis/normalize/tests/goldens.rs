@@ -305,7 +305,7 @@ fn every_normalizer_has_a_snapshot_for_every_input() {
 }
 
 /// Every divergence names a `###` section of `docs/normalizers.md` that
-/// records a "Differences from OpenNLP" paragraph.
+/// records a "Behavior notes:" paragraph.
 #[test]
 fn every_divergence_names_a_documented_difference() {
     let doc = std::fs::read_to_string(root().join("../../../docs/normalizers.md")).expect("docs/normalizers.md");
@@ -334,7 +334,7 @@ fn every_divergence_names_a_documented_difference() {
         let at = doc.find(&marker).unwrap_or_else(|| panic!("{}: no heading {heading:?}", d.input));
         let body = &doc[at + marker.len()..];
         let body = &body[..body.find("\n#").unwrap_or(body.len())];
-        assert!(body.contains("Differences from OpenNLP"), "{}: {heading:?} records no difference", d.input);
+        assert!(body.contains("Behavior notes:"), "{}: {heading:?} records no behavior notes", d.input);
         named += 1;
     }
     assert!(named >= 20, "{named} divergences");

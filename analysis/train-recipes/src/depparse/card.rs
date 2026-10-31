@@ -8,6 +8,7 @@ use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, Tra
 
 use super::{
     DepparseKind, DepparseOutcome, DepparseRecipe, MAXENT_CUTOFF, MAXENT_ITERATIONS, MAXENT_THREADS, TrainedDepparse,
+    feedforward_settings,
 };
 use crate::card::{
     GateCard, MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION, ModelFileCard, publishable_class, read_card, write_dir,
@@ -58,19 +59,22 @@ impl DepparseParametersCard {
                 cutoff: MAXENT_CUTOFF,
                 threads: MAXENT_THREADS,
             },
-            DepparseKind::Feedforward => DepparseParametersCard::Feedforward {
-                embedding_size: 16,
-                hidden_size: 64,
-                epochs: 5,
-                batch_size: 512,
-                learning_rate: 0.02,
-                l2: 1e-8,
-                dropout: 0.5,
-                word_cutoff: 5,
-                seed: 17,
-                layout: "ChenManning18".to_owned(),
-                activation: "cube".to_owned(),
-            },
+            DepparseKind::Feedforward => {
+                let s = feedforward_settings(5);
+                DepparseParametersCard::Feedforward {
+                    embedding_size: s.embedding_size,
+                    hidden_size: s.hidden_size,
+                    epochs: s.epochs,
+                    batch_size: s.batch_size,
+                    learning_rate: s.learning_rate,
+                    l2: s.l2,
+                    dropout: s.dropout,
+                    word_cutoff: s.word_cutoff,
+                    seed: s.seed,
+                    layout: "ChenManning18".to_owned(),
+                    activation: "cube".to_owned(),
+                }
+            }
         }
     }
 }

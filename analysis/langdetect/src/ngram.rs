@@ -68,6 +68,21 @@ impl NgramModel {
         self.languages.iter().map(String::as_str)
     }
 
+    /// Number of supported language outcomes.
+    pub fn num_languages(&self) -> usize {
+        self.languages.len()
+    }
+
+    /// Language code at `index`.
+    pub fn language(&self, index: usize) -> &str {
+        &self.languages[index]
+    }
+
+    /// Deterministic FNV-1a configuration hash of the serialized model.
+    pub fn config_hash(&self) -> u64 {
+        turbo_analysis::Fnv1a::new().bytes(&self.to_bytes()).finish()
+    }
+
     /// What layers record as their model.
     pub fn model_ref(&self) -> &ModelRef {
         &self.model_ref

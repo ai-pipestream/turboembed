@@ -11,8 +11,8 @@
 //!   into n-grams and compute Maximum Likelihood, Laplace-smoothed,
 //!   prior-smoothed, linearly interpolated, and missing-mass probabilities.
 //! - [`LanguageModel`] and [`NGramLanguageModel`] score token sequences and
-//!   predict next tokens using Stupid Backoff (`0.4` backoff weight) with
-//!   `StrictMath.log` and `StrictMath.exp` from [`turbo_jvm::strict_math`].
+//!   predict next tokens using Stupid Backoff (`0.4` backoff weight) in log
+//!   space (`f64::ln` and `f64::exp`).
 
 pub mod char_model;
 pub mod error;

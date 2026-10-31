@@ -33,6 +33,7 @@ pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Eve
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use heatmap::{DocumentHeatmap, HeatmapLane, HeatmapLaneKind, HeatmapSegment};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
+pub use layout::{LayoutBox, LayoutBoxes, PageBoundingBox};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
 pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
@@ -69,8 +70,8 @@ pub use wordnet::{
     ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
 };
 pub use words::{
-    MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
-    WordPosTags, Words,
+    MorphFeatures, MorphLemmas, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas,
+    WordOrTokenAnchor, WordPosTags, Words,
 };
 
 /// Strings by column: one buffer and an end offset per item, never a
@@ -102,6 +103,15 @@ impl Strs {
 
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         (0..self.len()).map(|i| self.get(i))
+    }
+
+    pub fn content_hash(&self) -> u64 {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.usize(self.end.len());
+        for s in self.iter() {
+            h.str(s);
+        }
+        h.finish()
     }
 }
 
@@ -144,12 +154,14 @@ pub mod export;
 mod generic;
 mod heatmap;
 mod language_spans;
+mod layout;
 mod levels;
 mod matches;
 pub mod modality;
 mod money;
 mod numbers;
 mod ordinals;
+mod payload_hash;
 mod pii;
 mod predicate;
 mod project;
@@ -160,6 +172,7 @@ pub mod rhetoric;
 mod segmentation;
 mod sentiment;
 mod sparse;
+mod splice;
 mod syntax;
 pub mod tables;
 mod temporal;

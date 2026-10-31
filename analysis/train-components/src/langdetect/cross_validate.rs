@@ -116,7 +116,7 @@ impl<'f> LanguageDetectorCrossValidator<'f> {
         for fold in CrossValidation::new(samples.len(), folds) {
             let (events, inexact_events) = language_events(fold.training.iter().map(|&i| &samples[i]), self.factory);
             let trained = train_language_model_from_events(&events, self.factory, &self.params, config, stamp)?;
-            let file = ModelFile::open(trained.package.to_bytes()).map_err(Error::Model)?;
+            let file = ModelFile::from_trained_archive(trained.package.to_bytes()).map_err(Error::Model)?;
             let detector = LanguageDetector::new(LanguageModel::open(file)?);
             let mut scratch = Scratch::new();
             let mut evaluator = LanguageDetectorEvaluator::default();
