@@ -34,7 +34,8 @@ fn a_golden_with_legacy_ids_reads_as_the_current_one() {
     let current = zurich();
     let legacy = with_legacy_ids(&current);
     assert_ne!(legacy, current, "the fixture should name shared layers");
-    assert!(legacy.contains("<opennlp:sentences>"), "nested ids are rewritten too");
+    let sentences = legacy_ids().find(|(_, new)| *new == turbo_analysis::ids::SENTENCES).unwrap().0;
+    assert!(legacy.contains(&format!("<{sentences}>")), "nested ids are rewritten too");
     let (a, b) = (Golden::parse(&current).unwrap(), Golden::parse(&legacy).unwrap());
     assert_eq!(a, b);
     // Written back, it carries the current ids.
