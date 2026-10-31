@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/emoji-flags	50	32	b322415aacd6335bcb52b5f337296ec760bd4f0369a6af7b30317f0340b8a015
 annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
-layer	opennlp:tokens	text	8	start:u32	end:u32
+layer	turbo:tokens	text	8	start:u32	end:u32
 0	5
 6	14
 14	22
@@ -14,8 +14,8 @@ layer	opennlp:tokens	text	8	start:u32	end:u32
 35	43
 43	44
 45	49
-end	opennlp:tokens
-layer	turbo:word-types	aligned:opennlp:tokens	8	kind:str
+end	turbo:tokens
+layer	turbo:word-types	aligned:turbo:tokens	8	kind:str
 ALPHANUMERIC
 EMOJI
 EMOJI

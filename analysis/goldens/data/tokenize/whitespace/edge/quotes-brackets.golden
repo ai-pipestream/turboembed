@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
-layer	opennlp:tokens	text	20	start:u32	end:u32
+layer	turbo:tokens	text	20	start:u32	end:u32
 0	2
 3	8
 9	16
@@ -26,4 +26,4 @@ layer	opennlp:tokens	text	20	start:u32	end:u32
 109	117
 118	124
 125	138
-end	opennlp:tokens
+end	turbo:tokens

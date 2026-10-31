@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
 annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
-layer	opennlp:tokens	text	20	start:u32	end:u32
+layer	turbo:tokens	text	20	start:u32	end:u32
 0	2
 3	7
 10	14
@@ -26,8 +26,8 @@ layer	opennlp:tokens	text	20	start:u32	end:u32
 111	117
 119	124
 126	134
-end	opennlp:tokens
-layer	turbo:word-types	aligned:opennlp:tokens	20	kind:str
+end	turbo:tokens
+layer	turbo:word-types	aligned:turbo:tokens	20	kind:str
 ALPHANUMERIC
 ALPHANUMERIC
 ALPHANUMERIC

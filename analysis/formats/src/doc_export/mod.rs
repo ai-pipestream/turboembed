@@ -122,7 +122,7 @@ pub enum FormatExportError {
     DuplicateFormatId(String),
     /// Requested `format_id` is not registered in the [`FormatterRegistry`].
     UnknownFormatId(String),
-    /// A required layer (such as `opennlp:tokens`) is missing from the [`Document`].
+    /// A required layer (such as `turbo:tokens`) is missing from the [`Document`].
     MissingLayer(&'static str),
     /// Underlying format conversion error.
     Format(FormatError),

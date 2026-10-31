@@ -6,8 +6,8 @@ unicode	15.0
 input	surrogate/fr-comma-emoji-dollar	6	4	3e8ac095e4265bc9fd3967757b0189e2205f714218a1748741c051a0a4d75a9f
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	3	start:u32	end:u32
+layer	turbo:tokens	text	3	start:u32	end:u32
 0	1
 1	5
 5	6
-end	opennlp:tokens
+end	turbo:tokens

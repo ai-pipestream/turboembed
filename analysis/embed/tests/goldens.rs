@@ -63,7 +63,7 @@ impl Case {
 
     /// The golden's pieces: id and byte span.
     fn jvm(&self) -> Vec<(u32, [u32; 2])> {
-        let l = self.golden.layer("opennlp:subwords").expect("a subwords layer");
+        let l = self.golden.layer("turbo:subwords").expect("a subwords layer");
         let (start, end, id) = (l.u32s("start").unwrap(), l.u32s("end").unwrap(), l.u32s("id").unwrap());
         (0..l.len()).map(|i| (id[i], [start[i], end[i]])).collect()
     }

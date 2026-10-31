@@ -56,7 +56,7 @@ fn write_spans(w: &mut Writer, spans: &[Span]) {
 fn body(instance: &str, ranges: &[(u32, u32)], entries: &[(&str, &str)], entry: &[u32]) -> Vec<u8> {
     let mut w = Writer::new();
     write_spans(&mut w, &[Span::new(0, 1)]);
-    w.str("opennlp:tokens").unwrap();
+    w.str("turbo:tokens").unwrap();
     w.str(instance).unwrap();
     w.usize(ranges.len()).unwrap();
     for &(a, b) in ranges {
@@ -91,7 +91,7 @@ fn body_with_spans(
             w.span(*s);
         }
     }
-    w.str("opennlp:tokens").unwrap();
+    w.str("turbo:tokens").unwrap();
     w.str(instance).unwrap();
     w.usize(ranges.len()).unwrap();
     for &(a, b) in ranges {

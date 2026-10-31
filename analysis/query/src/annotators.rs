@@ -25,7 +25,7 @@ use crate::lang_model::{
 pub use crate::lang_model::{QuerySpanDetector, default_span_detector};
 
 /// Scans 1-to-4 token phrases against a [`Gazetteer`] and emits candidate
-/// `"location"` entities in `opennlp:entities` for [`turbo_geo::GeocodeAnnotator`].
+/// `"location"` entities in `turbo:entities` for [`turbo_geo::GeocodeAnnotator`].
 pub struct GazetteerCandidateAnnotator<G> {
     gazetteer: Arc<G>,
     kinds: Arc<TagSet>,
@@ -43,7 +43,7 @@ impl<G: Gazetteer> GazetteerCandidateAnnotator<G> {
             .finish();
         Self {
             gazetteer,
-            kinds: TagSet::new("opennlp:entities", &[DEFAULT_LOCATION_TYPE]),
+            kinds: TagSet::new("turbo:entities", &[DEFAULT_LOCATION_TYPE]),
             min_lowercase_population,
             config_hash: h,
         }

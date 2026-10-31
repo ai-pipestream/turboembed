@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	54	start:u32	end:u32
+layer	turbo:tokens	text	54	start:u32	end:u32
 0	4
 4	5
 5	10
@@ -61,4 +61,4 @@ layer	opennlp:tokens	text	54	start:u32	end:u32
 160	166
 166	167
 167	168
-end	opennlp:tokens
+end	turbo:tokens

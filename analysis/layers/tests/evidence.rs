@@ -62,7 +62,7 @@ fn entity_support_names_the_tokens_the_entity_was_made_on() {
     doc.add(&Key::DEFAULT, entity(0.5), provenance::<Tokens>(None)).unwrap();
     let doc = run(doc, Key::<Entities>::DEFAULT);
     let ev = doc.get::<Evidence<Entities>>().unwrap();
-    assert_eq!((ev.layers[0].layer.as_str(), ev.layers[0].instance.as_str()), ("opennlp:tokens", "new"));
+    assert_eq!((ev.layers[0].layer.as_str(), ev.layers[0].instance.as_str()), ("turbo:tokens", "new"));
     assert_eq!(ev.spans_of(0), [Span::new(4, 7)]);
     assert_eq!(ev.verify(&doc), Ok(()));
 }

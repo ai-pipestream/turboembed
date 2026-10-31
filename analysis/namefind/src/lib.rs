@@ -3,10 +3,10 @@
 //! merge of several finders' names, and CRF annotators decoding
 //! caller-provided numerical scores with explicit provenance.
 //!
-//! Each finder reads a text view and its `opennlp:tokens` and writes
-//! `opennlp:entities`: token ranges, UTF-8 byte spans of the view, entity
+//! Each finder reads a text view and its `turbo:tokens` and writes
+//! `turbo:entities`: token ranges, UTF-8 byte spans of the view, entity
 //! types and scores. [`MergeEntities`] reads several named instances of
-//! `opennlp:entities` and writes one without overlaps. On the token level
+//! `turbo:entities` and writes one without overlaps. On the token level
 //! the finders are [`TokenNameFinder`]s, which take a sentence's tokens as
 //! strings.
 //!
