@@ -104,7 +104,6 @@ pub use regex_finder::{Pattern, RegexNameFinder, Test, Tok, TokensPattern};
 pub use rules::{
     DATE_ENTITY, DateTimeEntityKind, MONEY_ENTITY, PERCENT_ENTITY, RULE_ENTITY_KINDS, RuleEntitiesAnnotator,
     RuleEntityProjector, RuleEntitySource, TIME_ENTITY, TimeEntityFilter, money_to_entities, quantities_to_entities,
-    rule_entities, rule_entities_in_text, span_token_range, temporals_to_entities, times_to_entities,
-    times_to_entities_in_text, times_to_entities_with,
+    rule_entities, span_token_range, temporals_to_entities, times_to_entities, times_to_entities_with,
 };
 pub use turbo_analysis::FilterRule;

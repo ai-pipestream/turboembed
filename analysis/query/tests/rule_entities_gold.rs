@@ -53,43 +53,55 @@ struct GoldDoc {
 
 const GOLD_CORPUS: &[GoldDoc] = &[
     GoldDoc {
-        text: "On 2026-07-14 at 9:30am, Acme Corp closed a $1.2M round, up 15% from Q3 2025.",
+        text: "On 2026-07-14, the board met at 9:30am and adjourned at 4:15pm after Acme Corp closed a $1.2M round and a $350K bridge, up 15% from Q3 2025.",
         expected: &[
             ("2026-07-14", DATE_ENTITY),
             ("9:30am", TIME_ENTITY),
+            ("4:15pm", TIME_ENTITY),
             ("$1.2M", MONEY_ENTITY),
+            ("$350K", MONEY_ENTITY),
             ("15%", PERCENT_ENTITY),
             ("Q3 2025", DATE_ENTITY),
         ],
     },
     GoldDoc {
-        text: "Report dated July 4, 2026: Yesterday at 14:45 the fund paid EUR 250 and £75.50 after a 4.5 percent fee.",
+        text: "Report dated July 4, 2026: Yesterday the desk opened at 14:45 and settled at 16:00, paying EUR 250 and £75.50 after a 4.5 percent fee and a 2% rebate.",
         expected: &[
             ("July 4, 2026", DATE_ENTITY),
             ("Yesterday", DATE_ENTITY),
             ("14:45", TIME_ENTITY),
+            ("16:00", TIME_ENTITY),
             ("EUR 250", MONEY_ENTITY),
             ("£75.50", MONEY_ENTITY),
             ("4.5 percent", PERCENT_ENTITY),
+            ("2%", PERCENT_ENTITY),
         ],
     },
     GoldDoc {
-        text: "Between 14th March 2026 and July 2026, shipments of 80 kg over 2.5 km for 3 hours cost $4,500 at 8% interest.",
+        text: "Between 14th March 2026 and July 2026, shipments of 80 kg over 2.5 km for 3 hours departed at 8:00am and cost $4,500 plus $120 in duties at 8% interest and 1.25% insurance before 2026-09-30.",
         expected: &[
             ("14th March 2026", DATE_ENTITY),
             ("July 2026", DATE_ENTITY),
+            ("8:00am", TIME_ENTITY),
             ("$4,500", MONEY_ENTITY),
+            ("$120", MONEY_ENTITY),
             ("8%", PERCENT_ENTITY),
+            ("1.25%", PERCENT_ENTITY),
+            ("2026-09-30", DATE_ENTITY),
         ],
     },
     GoldDoc {
-        text: "Filing 2026-11-02: Next month the rate drops by 0.75% while the $99.95 rebate expires at 5pm.",
+        text: "Filing 2026-11-02: Next month and in Q1 2027 the rate drops by 0.75% while the $99.95 rebate and $25 credit expire at 5pm before the December 15, 2026 deadline and the January 2027 review.",
         expected: &[
             ("2026-11-02", DATE_ENTITY),
             ("Next month", DATE_ENTITY),
+            ("Q1 2027", DATE_ENTITY),
             ("0.75%", PERCENT_ENTITY),
             ("$99.95", MONEY_ENTITY),
+            ("$25", MONEY_ENTITY),
             ("5pm", TIME_ENTITY),
+            ("December 15, 2026", DATE_ENTITY),
+            ("January 2027", DATE_ENTITY),
         ],
     },
 ];
@@ -167,15 +179,16 @@ fn live_rule_pipeline_meets_exact_span_gold_baseline_for_all_four_types() {
 
     for (k_idx, kind) in RULE_ENTITY_KINDS.into_iter().enumerate() {
         let m = by_kind[k_idx];
-        assert!(m.tp >= 3, "expected at least 3 gold mentions for {kind}, got {}", m.tp);
+        assert!(m.tp >= 6, "expected at least 6 gold mentions for {kind}, got {}", m.tp);
         assert_eq!((m.precision(), m.recall(), m.f1()), (1.0, 1.0, 1.0), "baseline regression on {kind}");
     }
-    assert_eq!((micro.tp, micro.fp, micro.fn_count, micro.f1()), (20, 0, 0, 1.0));
+    assert_eq!((by_kind[0].tp, by_kind[1].tp, by_kind[2].tp, by_kind[3].tp), (12, 6, 8, 6));
+    assert_eq!((micro.tp, micro.fp, micro.fn_count, micro.f1()), (32, 0, 0, 1.0));
 }
 
 #[test]
 fn grammar_numbers_and_combined_rule_annotator_preserve_provenance() {
-    let text = "The contract paid twenty-five dollars and 12.5 percent on 2026-07-14 at 3:30pm.";
+    let text = "The contract paid twenty-five dollars and 12.5 percent on 2026-07-14 when bidding closed at 3:30pm.";
     let analyzer = Analyzer::builder()
         .add(SimpleTokenizer::default())
         .add(TemporalExtractor::new())
@@ -196,8 +209,8 @@ fn grammar_numbers_and_combined_rule_annotator_preserve_provenance() {
         ))
         .step(
             Bound::new(RuleEntitiesAnnotator::with_time_filter(TimeEntityFilter::ClockTimesOnly))
-                .read(4, GRAMMAR_MONEY.name)
-                .read(5, GRAMMAR_PERCENTS.name)
+                .read(3, GRAMMAR_MONEY.name)
+                .read(4, GRAMMAR_PERCENTS.name)
                 .write(0, "combined"),
         )
         .build()

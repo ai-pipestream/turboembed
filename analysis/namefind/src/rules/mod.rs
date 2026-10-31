@@ -211,30 +211,6 @@ pub fn times_to_entities(times: &Times, tokens: &Tokens) -> Result<Entities, Str
 /// Projects [`Times`] (`turbo:times`) mentions into [`Entities`]
 /// (`opennlp:entities`) selected by `filter`, aligned to `tokens`.
 pub fn times_to_entities_with(times: &Times, tokens: &Tokens, filter: TimeEntityFilter) -> Result<Entities, String> {
-    times_to_entities_inner(None, times, tokens, filter)
-}
-
-/// Projects [`Times`] (`turbo:times`) mentions into [`Entities`]
-/// (`opennlp:entities`) using `text` to split composite `<date> at <time>`
-/// [`TimeKind::DateTime`] and [`TimeKind::DateTimeRange`] mentions into
-/// separate `"date"` and `"time"` spans when `filter` is
-/// [`TimeEntityFilter::DatesAndTimes`], [`TimeEntityFilter::TimesOnly`],
-/// [`TimeEntityFilter::ClockTimesOnly`], or [`TimeEntityFilter::DatesOnly`].
-pub fn times_to_entities_in_text(
-    text: &str,
-    times: &Times,
-    tokens: &Tokens,
-    filter: TimeEntityFilter,
-) -> Result<Entities, String> {
-    times_to_entities_inner(Some(text), times, tokens, filter)
-}
-
-fn times_to_entities_inner(
-    text: Option<&str>,
-    times: &Times,
-    tokens: &Tokens,
-    filter: TimeEntityFilter,
-) -> Result<Entities, String> {
     if times.spans.view() != tokens.spans.view() {
         return Err("times and tokens are in different views".into());
     }
@@ -242,27 +218,6 @@ fn times_to_entities_inner(
     let mut out = empty_entities(tokens, times.len(), Arc::clone(&kinds));
     for (ix, span) in times.spans.iter() {
         let kind = times.kind[ix.get()];
-        if matches!(kind, TimeKind::DateTime | TimeKind::DateTimeRange)
-            && !matches!(filter, TimeEntityFilter::DatesAndTimesWith(_))
-            && let Some(t) = text
-            && let Some((date_span, time_span)) = split_datetime_at(t, span)
-        {
-            if matches!(filter, TimeEntityFilter::DatesAndTimes | TimeEntityFilter::DatesOnly)
-                && let Some(range) = span_token_range(tokens, date_span)
-            {
-                let tag = kinds.tag(DATE_ENTITY).expect("date in filter tag_set");
-                push_entity(&mut out, date_span, range, tag);
-            }
-            if matches!(
-                filter,
-                TimeEntityFilter::DatesAndTimes | TimeEntityFilter::TimesOnly | TimeEntityFilter::ClockTimesOnly
-            ) && let Some(range) = span_token_range(tokens, time_span)
-            {
-                let tag = kinds.tag(TIME_ENTITY).expect("time in filter tag_set");
-                push_entity(&mut out, time_span, range, tag);
-            }
-            continue;
-        }
         if let Some(label) = filter.entity_kind(kind)
             && let Some(range) = span_token_range(tokens, span)
         {
@@ -271,28 +226,6 @@ fn times_to_entities_inner(
         }
     }
     Ok(out)
-}
-
-fn split_datetime_at(text: &str, span: Span) -> Option<(Span, Span)> {
-    let slice = text.get(span.start as usize..span.end as usize)?;
-    let bytes = slice.as_bytes();
-    if bytes.len() < 6 {
-        return None;
-    }
-    for i in 1..bytes.len().saturating_sub(4) {
-        if bytes[i] == b' '
-            && bytes[i + 1].eq_ignore_ascii_case(&b'a')
-            && bytes[i + 2].eq_ignore_ascii_case(&b't')
-            && bytes[i + 3] == b' '
-        {
-            let date_span = Span::new(span.start, span.start + i as u32);
-            let time_span = Span::new(span.start + (i + 4) as u32, span.end);
-            if !date_span.is_empty() && !time_span.is_empty() {
-                return Some((date_span, time_span));
-            }
-        }
-    }
-    None
 }
 
 /// Projects [`Money`] (`turbo:money`) mentions into [`Entities`]
@@ -348,32 +281,6 @@ pub fn rule_entities(
     quantities: Option<&Quantities>,
     time_filter: TimeEntityFilter,
 ) -> Result<Entities, String> {
-    rule_entities_inner(None, tokens, temporals, times, money, quantities, time_filter)
-}
-
-/// Like [`rule_entities`], using `text` to split `<date> at <time>` mentions
-/// in [`Times`] into separate `"date"` and `"time"` spans.
-pub fn rule_entities_in_text(
-    text: &str,
-    tokens: &Tokens,
-    temporals: Option<&Temporals>,
-    times: Option<&Times>,
-    money: Option<&Money>,
-    quantities: Option<&Quantities>,
-    time_filter: TimeEntityFilter,
-) -> Result<Entities, String> {
-    rule_entities_inner(Some(text), tokens, temporals, times, money, quantities, time_filter)
-}
-
-fn rule_entities_inner(
-    text: Option<&str>,
-    tokens: &Tokens,
-    temporals: Option<&Temporals>,
-    times: Option<&Times>,
-    money: Option<&Money>,
-    quantities: Option<&Quantities>,
-    time_filter: TimeEntityFilter,
-) -> Result<Entities, String> {
     let view = tokens.spans.view();
     let kinds = TagSet::new(NER_TAGSET, &RULE_ENTITY_KINDS);
     let mut kept: Vec<(u8, Span, IxRange<Tokens>, Tag)> = Vec::new();
@@ -417,7 +324,7 @@ fn rule_entities_inner(
         }
     }
     if let Some(t) = times {
-        let projected = times_to_entities_inner(text, t, tokens, time_filter)?;
+        let projected = times_to_entities_with(t, tokens, time_filter)?;
         for (ix, span) in projected.spans.iter() {
             let i = ix.get();
             let range = projected.tokens[i];

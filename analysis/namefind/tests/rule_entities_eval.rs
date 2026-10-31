@@ -1,7 +1,6 @@
 //! Project-authored gold evaluation for deterministic `date`, `time`, `money`,
-//! and `percent` entities, MASC held-out `date` consensus with the `#1730`
-//! MASC `date` head, and OntoNotes peer comparison (`DATE`, `TIME`, `MONEY`,
-//! `PERCENT` from spaCy `en_core_web_trf` and Stanza OntoNotes NER).
+//! and `percent` entities and `PriorityFallback` consensus merging with a
+//! simulated learned `date` head.
 
 use turbo_analysis::{
     Analyzer, Document, Evidence, Ix, IxRange, Key, Layer, ModelRef, Provenance, Span, Spans, Tag, TagSet, ViewId,
@@ -285,13 +284,15 @@ fn gold_evaluation_baseline_for_date_time_money_and_percent() {
 }
 
 #[test]
-fn masc_held_out_date_consensus_and_ontonotes_peer_comparison() {
-    // Held-out MASC-style multi-sentence passage with 5 gold `date` spans:
+fn consensus_policy_unit_test_with_simulated_learned_date_head() {
+    // Multi-sentence passage with 5 gold `date` spans used to unit-test
+    // `EntityMergePolicy::PriorityFallback` between deterministic `Temporals`
+    // and a simulated learned `date` head:
     // 1. "2026-03-15" (ISO dateline, tokens 1..2)
-    // 2. "March 18, 2026" (written date, tokens 7..11)
-    // 3. "yesterday" (relative to dateline 2026-03-15, tokens 15..16)
-    // 4. "Q4 2025" (quarter, tokens 21..23)
-    // 5. "Labor Day" (named holiday date in MASC, tokens 27..29)
+    // 2. "March 18, 2026" (written date, tokens 6..10)
+    // 3. "yesterday" (relative to dateline 2026-03-15, tokens 13..14)
+    // 4. "Q4 2025" (quarter, tokens 16..18)
+    // 5. "Labor Day" (named holiday date not covered by `TemporalExtractor`, tokens 22..24)
     let text = "Dateline 2026-03-15: Officials announced on March 18, 2026 that talks \
                 began yesterday after the Q4 2025 audit and continue through Labor Day.";
     let toks = tokenize_exact(
@@ -357,7 +358,7 @@ fn masc_held_out_date_consensus_and_ontonotes_peer_comparison() {
         origin: Origin::Absolute,
     });
 
-    // 2. Learned MASC `date` head (#1730):
+    // 2. Simulated learned `date` head:
     //    - Predicts partial span "March 18" (44..52, tokens 6..8) instead of
     //      "March 18, 2026" (boundary truncation error common in BIO heads)
     //    - Finds "yesterday" (76..85, tokens 13..14)
@@ -375,20 +376,6 @@ fn masc_held_out_date_consensus_and_ontonotes_peer_comparison() {
         kinds: masc_kinds,
         score: vec![0.84, 0.91, 0.89],
     };
-
-    // 3. Peer comparison fixtures (spaCy `en_core_web_trf` and Stanza OntoNotes
-    //    `DATE` predictions on the same sentence):
-    //    - spaCy `en_core_web_trf` finds all 5 dates (F1 = 1.00)
-    //    - Stanza OntoNotes finds 4 of 5 (includes "the Q4 2025" with determiner,
-    //      giving 4 TP, 1 FP, 1 FN -> F1 = 0.80)
-    let spacy_pred: Vec<GoldSpan> = gold_dates.clone();
-    let stanza_pred: Vec<GoldSpan> = vec![
-        (9, 19, 1, 2, DATE_ENTITY),
-        (44, 58, 6, 10, DATE_ENTITY),
-        (76, 85, 13, 14, DATE_ENTITY),
-        (92, 103, 15, 18, DATE_ENTITY), // "the Q4 2025"
-        (131, 140, 22, 24, DATE_ENTITY),
-    ];
 
     let mut doc = Document::new(text);
     doc.add(&Key::DEFAULT, toks, Provenance::by("turbo-tokenize:simple")).unwrap();
@@ -427,33 +414,29 @@ fn masc_held_out_date_consensus_and_ontonotes_peer_comparison() {
     let rule_metrics = score_spans(&gold_dates, &rule_only, Some(DATE_ENTITY));
     let masc_metrics = score_spans(&gold_dates, &masc_only, Some(DATE_ENTITY));
     let consensus_metrics = score_spans(&gold_dates, &merged, Some(DATE_ENTITY));
-    let spacy_metrics = score_spans(&gold_dates, &spacy_pred, Some(DATE_ENTITY));
-    let stanza_metrics = score_spans(&gold_dates, &stanza_pred, Some(DATE_ENTITY));
 
     // TemporalExtractor rule alone: 4 TP, 0 FP, 1 FN (P = 1.00, R = 0.80, F1 = 0.888...).
     assert_eq!((rule_metrics.tp, rule_metrics.fp, rule_metrics.fn_count), (4, 0, 1));
     assert!((rule_metrics.f1() - 8.0 / 9.0).abs() < 1e-12);
 
-    // MASC head alone: 2 TP ("yesterday", "Labor Day"), 1 FP ("March 18"), 3 FN.
+    // Simulated learned head alone: 2 TP ("yesterday", "Labor Day"), 1 FP ("March 18"), 3 FN.
     assert_eq!((masc_metrics.tp, masc_metrics.fp, masc_metrics.fn_count), (2, 1, 3));
 
-    // Consensus (rule priority + MASC fallback): fixes "March 18" -> "March 18, 2026"
-    // via rule priority and retains "Labor Day" from MASC fallback: 5 TP, 0 FP, 0 FN (F1 = 1.00).
+    // Consensus (rule priority + learned fallback): fixes "March 18" -> "March 18, 2026"
+    // via rule priority and retains "Labor Day" from fallback: 5 TP, 0 FP, 0 FN (F1 = 1.00).
     assert_eq!((consensus_metrics.tp, consensus_metrics.fp, consensus_metrics.fn_count), (5, 0, 0));
     assert_eq!(consensus_metrics.f1(), 1.0);
     assert!(consensus_metrics.f1() >= rule_metrics.f1());
     assert!(consensus_metrics.f1() > masc_metrics.f1());
-    assert_eq!(spacy_metrics.f1(), 1.0);
-    assert!((stanza_metrics.f1() - 0.80).abs() < 1e-12);
 
     let ev = doc.get::<Evidence<Entities>>().unwrap();
     ev.verify(&doc).unwrap();
     assert_eq!(ev.records(), 5);
-    // "March 18, 2026" has 2 votes (rule + MASC partial overlap) and carries MASC raw score 0.84.
+    // "March 18, 2026" has 2 votes (rule + partial overlap) and carries model raw score 0.84.
     assert_eq!(ev.producer_of(1).annotator, "turbo-numeric:temporal");
     assert_eq!(ev.support_of(1).len(), 2);
     assert_eq!(ev.raw_of(1), Some(0.84));
-    // "Labor Day" comes from the MASC head with raw score 0.89.
+    // "Labor Day" comes from the fallback head with raw score 0.89.
     assert_eq!(ev.producer_of(4).annotator, "turbo-tagger:masc-ne");
     assert_eq!(ev.raw_of(4), Some(0.89));
 }

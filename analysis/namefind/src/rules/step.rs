@@ -4,12 +4,12 @@
 use std::any::Any;
 
 use turbo_analysis::annotate::{AnchorUse, Annotator, Refs, Step};
-use turbo_analysis::{Document, Error, Fnv1a, Key, KeyId, Provenance, Status, View, ViewId};
+use turbo_analysis::{Document, Error, Fnv1a, Key, KeyId, Provenance, Status};
 use turbo_analysis_layers::{Entities, Money, Quantities, Temporals, Times, Tokens};
 
 use super::{
-    TimeEntityFilter, money_to_entities, quantities_to_entities, rule_entities_in_text, temporals_to_entities,
-    times_to_entities_in_text, times_to_entities_with,
+    TimeEntityFilter, money_to_entities, quantities_to_entities, rule_entities, temporals_to_entities,
+    times_to_entities_with,
 };
 
 const TEMPORAL_STEP_ID: &str = "turbo-namefind:temporal-entities";
@@ -136,14 +136,7 @@ impl RuleEntityProjector {
         let tokens = doc.require(&self.tokens)?;
         let projected = match &self.source {
             RuleEntitySource::Temporals(k) => temporals_to_entities(doc.require(k)?, tokens),
-            RuleEntitySource::Times(k, filter) => {
-                let times = doc.require(k)?;
-                if tokens.spans.view() == ViewId::SOURCE {
-                    times_to_entities_in_text(doc.source(), times, tokens, *filter)
-                } else {
-                    times_to_entities_with(times, tokens, *filter)
-                }
-            }
+            RuleEntitySource::Times(k, filter) => times_to_entities_with(doc.require(k)?, tokens, *filter),
             RuleEntitySource::Money(k) => money_to_entities(doc.require(k)?, tokens),
             RuleEntitySource::Quantities(k) => quantities_to_entities(doc.require(k)?, tokens),
         };
@@ -286,7 +279,7 @@ impl RuleEntitiesAnnotator {
 
 impl Annotator for RuleEntitiesAnnotator {
     const ID: &'static str = "turbo-namefind:rule-entities";
-    type Reads = (View, Tokens, Option<Temporals>, Option<Times>, Option<Money>, Option<Quantities>);
+    type Reads = (Tokens, Option<Temporals>, Option<Times>, Option<Money>, Option<Quantities>);
     type Writes = (Entities,);
 
     fn config_hash(&self) -> u64 {
@@ -295,13 +288,9 @@ impl Annotator for RuleEntitiesAnnotator {
         h.finish()
     }
 
-    fn annotate(
-        &self,
-        (view, tokens, temporals, times, money, quantities): Refs<'_, Self>,
-    ) -> Result<(Entities,), Error> {
-        let entities =
-            rule_entities_in_text(view.text(), tokens, temporals, times, money, quantities, self.time_filter)
-                .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
+    fn annotate(&self, (tokens, temporals, times, money, quantities): Refs<'_, Self>) -> Result<(Entities,), Error> {
+        let entities = rule_entities(tokens, temporals, times, money, quantities, self.time_filter)
+            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((entities,))
     }
 }
