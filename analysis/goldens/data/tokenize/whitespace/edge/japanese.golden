@@ -5,6 +5,6 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/japanese	109	37	5ff7aca5a1372196b3373c1d868979d96627cdbc50cf30fbb78d4255f8e52a6a
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
-layer	opennlp:tokens	text	1	start:u32	end:u32
+layer	turbo:tokens	text	1	start:u32	end:u32
 0	108
-end	opennlp:tokens
+end	turbo:tokens

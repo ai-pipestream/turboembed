@@ -7,7 +7,7 @@ input	detokenizer/en-url-hash	43	43	f9b5c47e05e0bf11b49d1bb9fb91a2df50454dd033b8
 model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	11	start:u32	end:u32
+layer	turbo:tokens	text	11	start:u32	end:u32
 0	5
 6	13
 14	18
@@ -19,8 +19,8 @@ layer	opennlp:tokens	text	11	start:u32	end:u32
 35	36
 37	40
 41	42
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	11	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	11	operation:str
 NO_OPERATION
 NO_OPERATION
 MERGE_TO_LEFT

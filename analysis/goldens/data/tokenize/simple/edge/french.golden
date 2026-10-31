@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
-layer	opennlp:tokens	text	54	start:u32	end:u32
+layer	turbo:tokens	text	54	start:u32	end:u32
 0	2
 2	3
 3	6
@@ -60,4 +60,4 @@ layer	opennlp:tokens	text	54	start:u32	end:u32
 148	154
 155	162
 162	163
-end	opennlp:tokens
+end	turbo:tokens

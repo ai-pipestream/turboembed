@@ -10,7 +10,7 @@ use turbo_analysis_layers::{Entities, Tokens};
 use super::{NameFinder, NameMatch, NameScratch};
 use crate::geocode::DEFAULT_LOCATION_TYPE;
 
-/// Writes `opennlp:entities` of type `location` for the gazetteer names a
+/// Writes `turbo:entities` of type `location` for the gazetteer names a
 /// [`NameFinder`] finds in a view, without overlaps (leftmost, then the
 /// longest), so [`GeocodeAnnotator`](crate::GeocodeAnnotator) and
 /// [`GeoEntityLinker`](crate::GeoEntityLinker) can resolve mentions no

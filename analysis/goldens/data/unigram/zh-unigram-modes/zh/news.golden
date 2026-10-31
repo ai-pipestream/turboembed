@@ -6,7 +6,7 @@ unicode	15.0
 input	zh/news	394	132	113658bd8868a05595c3b9ad793eb8d33c601a6ce47f799482d5ce382069db5d
 model	zh-unigram-modes.txt	d07069e2b828406873f37f056ca71e2175d8ecbd922d2a34c356f6695c0975e03830b7fa8000ba8476312514dca8992b24d848a82abd3c4ce677b0fdf1fe6f9a
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	131	start:u32	end:u32
+layer	turbo:tokens	text	131	start:u32	end:u32
 0	3
 3	6
 6	9
@@ -138,4 +138,4 @@ layer	opennlp:tokens	text	131	start:u32	end:u32
 384	387
 387	390
 390	393
-end	opennlp:tokens
+end	turbo:tokens

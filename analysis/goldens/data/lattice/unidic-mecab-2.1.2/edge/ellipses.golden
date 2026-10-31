@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	39	start:u32	end:u32
+layer	turbo:tokens	text	39	start:u32	end:u32
 0	4
 4	5
 5	6
@@ -46,8 +46,8 @@ layer	opennlp:tokens	text	39	start:u32	end:u32
 63	64
 64	65
 65	66
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	39	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	39	unknown:u32	features:str
 1	名詞,普通名詞,一般,*,*,*
 0	補助記号,句点,*,*,*,*,,．,.,,.,,記号,*,*,*,*
 0	補助記号,句点,*,*,*,*,,．,.,,.,,記号,*,*,*,*

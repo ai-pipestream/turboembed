@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/thai	117	41	c4dc880f98c87743656fa5c51e8e0cd42432ddf69ecef26e2cef994df33e8366
 annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
-layer	opennlp:tokens	text	25	start:u32	end:u32
+layer	turbo:tokens	text	25	start:u32	end:u32
 0	3
 3	9
 9	12
@@ -31,8 +31,8 @@ layer	opennlp:tokens	text	25	start:u32	end:u32
 98	107
 107	113
 113	116
-end	opennlp:tokens
-layer	turbo:word-types	aligned:opennlp:tokens	25	kind:str
+end	turbo:tokens
+layer	turbo:word-types	aligned:turbo:tokens	25	kind:str
 SOUTHEAST_ASIAN
 SOUTHEAST_ASIAN
 SOUTHEAST_ASIAN

@@ -761,7 +761,7 @@ message StreamLimits
 }
 
 // One layer instance of a document graph: its standard layer id
-// (opennlp:* or turbo:*), instance, status and provenance.
+// (turbo:* or an add-on's own namespace), instance, status and provenance.
 message LayerInfo
 {
   string layer = 1;
@@ -792,7 +792,7 @@ message DocumentGraphResponse
   string source_text = 4;
 }
 
-// turbo:chunks, turbo:levels and opennlp:embeddings (over the chunks)
+// turbo:chunks, turbo:levels and turbo:embeddings (over the chunks)
 // in one message, over one view's text. Every span offset is counted
 // in `offsets`. Spans are fragment columns in item order: item i's
 // fragments are frag_at[i - 1]..frag_at[i] (0..frag_at[0] first), at
@@ -956,7 +956,7 @@ message DocumentWindowRequest
   // Zero-based page index into the view.
   uint32 page = 5;
 
-  // Optional allow-list of layer ids (e.g. "opennlp:entities",
+  // Optional allow-list of layer ids (e.g. "turbo:entities",
   // "turbo:chunks"); empty includes all positional layers on the view.
   repeated string filter_layers = 6;
 

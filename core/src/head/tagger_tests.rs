@@ -292,7 +292,7 @@ fn a_head_no_bundle_could_carry_is_not_built() {
     no_o.name = "no-o".into();
     bad.push(no_o);
     let mut layer = spec(TAGS, Scheme::Tags, WordPooling::First, None, Decode::Argmax);
-    layer.layer = "opennlp:pos".into();
+    layer.layer = "turbo:pos".into();
     bad.push(layer);
     let mut adapter = spec(TAGS, Scheme::Tags, WordPooling::First, Some((2, 9)), Decode::Argmax);
     adapter.name = "deep".into();

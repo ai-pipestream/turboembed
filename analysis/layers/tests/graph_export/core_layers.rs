@@ -128,7 +128,7 @@ fn corrupted_payloads_are_refused() {
     w.usize(2).unwrap();
     w.u16(1);
     w.u16(1);
-    splice(&mut graph, "opennlp:dependencies", w.finish(), 2);
+    splice(&mut graph, "turbo:dependencies", w.finish(), 2);
     match import(&graph, &codecs()) {
         Err(ExportError::Malformed(detail)) => assert!(detail.contains("cycle"), "{detail}"),
         Ok(_) => panic!("a dependency cycle imported"),
@@ -144,7 +144,7 @@ fn corrupted_payloads_are_refused() {
         w.u16(9);
     }
     w.u8(0);
-    splice(&mut graph, "opennlp:pos", w.finish(), 6);
+    splice(&mut graph, "turbo:pos", w.finish(), 6);
     assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::Malformed(_))));
 
     // A terms column shorter than the surface column.

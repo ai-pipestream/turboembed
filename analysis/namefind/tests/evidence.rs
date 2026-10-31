@@ -83,7 +83,7 @@ fn each_entity_has_one_record_mapped_to_the_source() {
         let t = entities.tokens[i];
         assert_eq!((s.start, s.end), (t.start.get() as u32, t.end.get() as u32));
     }
-    assert_eq!(ev.layers[0].layer, "opennlp:tokens");
+    assert_eq!(ev.layers[0].layer, "turbo:tokens");
     assert_eq!(ev.verify(&doc), Ok(()));
 }
 

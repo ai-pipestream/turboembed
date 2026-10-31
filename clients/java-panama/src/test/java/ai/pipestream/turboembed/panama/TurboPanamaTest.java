@@ -55,7 +55,7 @@ final class TurboPanamaTest {
             assertEquals(2, sentences.spanCount());
             for (TurboSpanView sentence : sentences.spans(TurboLayerKind.SENTENCES)) {
                 assertEquals(TurboLayerKind.SENTENCES, sentence.layerKind());
-                assertEquals("opennlp:sentences", sentence.layer());
+                assertEquals("turbo:sentences", sentence.layer());
                 assertEquals("", sentence.instance());
                 assertTrue(sentence.label().isEmpty(), "covered sentence text must not masquerade as a label");
                 assertTrue(sentence.value().isEmpty());
