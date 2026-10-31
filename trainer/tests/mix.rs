@@ -27,6 +27,7 @@ fn spec(scheme: Scheme, adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         hash_embed: hash.then_some(HashEmbed { dim: 2, rows: [5, 3, 4, 3] }),
         license_class: None,
         span: None,
+        relation: None,
         artifact: "weights".into(),
         tensor_prefix: "t".into(),
     }
