@@ -1,11 +1,18 @@
-head e0b8835e3d16ec67d25d8be154982877271c172a
-start 2026-10-28T09:40:08Z load 51.81 52.93 48.14
+head 6f010ec8df2600c6ceee4c034019afbca0675e5b
+start 2026-10-31T04:33:19Z load 8.50 17.98 16.64
 command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 cargo test --release -p turbo --features levelzero --test levelzero_rotary -- --nocapture --test-threads 1
    Compiling turbo v0.1.0 (<repo>/core)
-    Finished `release` profile [optimized] target(s) in 4.73s
-     Running tests/levelzero_rotary.rs (target/release/deps/levelzero_rotary-00bd9d680159b649)
+    Finished `release` profile [optimized] target(s) in 8.78s
+     Running tests/levelzero_rotary.rs (target/release/deps/levelzero_rotary-6723368edefd4163)
 
-running 2 tests
+running 3 tests
+test a_gated_middle_past_f16_s_range_stays_finite_at_fastest ... a_gated_middle_past_f16_s_range_stays_finite_at_fastest: modernbert: rows [9, 1, 32]: least cosine to the CPU 0.8202208930698455
+a_gated_middle_past_f16_s_range_stays_finite_at_fastest: modernbert: rows [32, 32]: least cosine to the CPU 0.8363853974498605
+a_gated_middle_past_f16_s_range_stays_finite_at_fastest: modernbert: rows [64, 33, 17]: least cosine to the CPU 0.7893094285081341
+a_gated_middle_past_f16_s_range_stays_finite_at_fastest: nomic: rows [9, 1, 32]: least cosine to the CPU 0.9999971832568247
+a_gated_middle_past_f16_s_range_stays_finite_at_fastest: nomic: rows [32, 32]: least cosine to the CPU 0.9999974001451222
+a_gated_middle_past_f16_s_range_stays_finite_at_fastest: nomic: rows [64, 33, 17]: least cosine to the CPU 0.9999958712800376
+ok
 test a_modernbert_matches_the_cpu ... a_modernbert_matches_the_cpu: precision 0: mixed lengths, padded, mean and L2: largest difference 4.4703484e-7
 a_modernbert_matches_the_cpu: precision 0: left padding and masked holes, mean: largest difference 1.3709068e-6
 a_modernbert_matches_the_cpu: precision 0: left padding and masked holes, CLS: largest difference 1.8924475e-6
@@ -51,6 +58,7 @@ a_nomic_bert_matches_the_cpu: precision 1: the last token: largest difference 5.
 a_nomic_bert_matches_the_cpu: precision 1: token ranges: largest difference 8.940697e-8
 ok
 
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
 
-exit 0 end 2026-10-28T09:40:13Z load 53.27 53.21 48.26
+
+exit 0 end 2026-10-31T04:33:28Z load 8.54 17.68 16.56

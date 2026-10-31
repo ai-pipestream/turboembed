@@ -418,7 +418,10 @@ A `FAMILY_MODERNBERT` or `FAMILY_NOMIC_BERT` model (docs/bundle.md,
 intermediate widths are multiples of 32, its linear layers run on the
 matrix engines (the `linear_dpas` kernels) from activations narrowed to
 F16 and the layers' weights transposed to F16 once for the model, with
-F32 sums and F32 everywhere between them; with other widths FASTEST
+F32 sums and F32 everywhere between them. The narrowing saturates at
+F16's largest finite value, as cuda and metal do: an activation past
+65504 (a gated middle product of 90000) becomes +/-65504, not infinity,
+and NaN stays NaN. With other widths FASTEST
 computes in F32, as the BERT path does, and the session's compute dtype
 says which. The CPU encoder (`core/src/cpu/encoder/rotary`) is the
 reference. Loading copies the core's cos/sin table to the device beside
