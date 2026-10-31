@@ -4,6 +4,7 @@
 use std::fmt;
 use std::io::{self, Read, Write};
 
+pub mod encrypted;
 mod temporary;
 pub use temporary::TemporaryFileStore;
 
@@ -41,6 +42,7 @@ impl fmt::Display for ArtifactKey {
 #[derive(Debug)]
 pub enum StorageError {
     InvalidKey,
+    Security(encrypted::Error),
     NotFound(ArtifactKey),
     AlreadyExists(ArtifactKey),
     Io { operation: &'static str, source: io::Error },
@@ -50,6 +52,7 @@ pub enum StorageError {
 impl fmt::Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Security(error) => error.fmt(f),
             Self::InvalidKey => {
                 f.write_str("artifact key needs 1..=128 ASCII letters, digits, '-', '_' or interior '.'")
             }
