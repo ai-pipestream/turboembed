@@ -28,6 +28,7 @@ fn spec(adapter: u32, types: &[&str], type_dim: u32) -> HeadSpec {
         pos_input: None,
         hash_embed: None,
         span: None,
+        coref: None,
         relation: Some(RelationShape {
             mlp: 5,
             entity_labels: types.iter().map(|t| t.to_string()).collect(),

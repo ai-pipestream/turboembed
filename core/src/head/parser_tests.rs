@@ -37,6 +37,7 @@ fn spec(decode: Decode) -> HeadSpec {
         hash_embed: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.deps".into(),

@@ -25,6 +25,7 @@ fn spec(decode: Decode, adapter: u32) -> HeadSpec {
         hash_embed: None,
         span: Some(SpanShape { max_words: 3, width_dim: 2 }),
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "mentions".into(),

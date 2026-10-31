@@ -29,6 +29,7 @@ fn spec(adapter: Option<(u32, u32)>, decode: Decode, hash: HashEmbed) -> HeadSpe
         hash_embed: Some(hash),
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "t".into(),
