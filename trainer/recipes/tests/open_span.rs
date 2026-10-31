@@ -101,6 +101,13 @@ fn open_span_hold_out_round_trip_and_bundle_assembly() {
     let scores =
         eval::evaluate(corpus.record.task, &corpus.splits.test, &predicted, &eval::Seen::of(&train_filtered), None);
     assert_eq!(first.eval.model.as_ref().unwrap(), &scores);
+    assert!(first.eval.dictionary.is_some());
+    let os = first.eval.open_span.as_ref().unwrap();
+    assert_eq!(os.seen_types, seen_types);
+    assert_eq!(os.held_out_types, ["location"]);
+    assert!(os.held_out_model.is_some());
+    assert!(os.held_out_baseline.is_some());
+    assert!(os.held_out_dictionary.is_some());
 
     // Assemble the trained open_ner head into a bundle and verify it opens cleanly.
     let assembled_dir = dir.join("assembled");
@@ -128,4 +135,26 @@ fn dictionary_baseline_matches_multi_word_and_hyphenated_labels() {
     let labels = vec!["person".to_owned(), "creative-work".to_owned(), "location".to_owned()];
     let pred = dictionary_baseline(&sents, &labels);
     assert_eq!(pred[0], sents[0].labels);
+}
+
+#[test]
+fn committed_open_span_receipts_preserve_dictionary_and_holdout_evidence_and_name_no_machine() {
+    let records = Path::new(env!("CARGO_MANIFEST_DIR")).join("records/open-span-1735");
+    for (file, held_out) in [("wnut17.json", &[][..]), ("wnut17-holdout-location.json", &["location"][..])] {
+        let p = records.join(file);
+        let raw = fs::read_to_string(&p).unwrap();
+        assert!(!raw.contains("/work/"), "{file} contains host path");
+        let r: Receipt = serde_json::from_str(&raw).unwrap();
+        assert_eq!(r.host, "unknown");
+        assert!(r.eval.model.as_ref().unwrap().score() > r.eval.baseline.score());
+        assert!(r.eval.model.as_ref().unwrap().score() > r.eval.dictionary.as_ref().unwrap().score());
+        let os = r.eval.open_span.as_ref().unwrap();
+        assert_eq!(os.held_out_types, held_out);
+        if !held_out.is_empty() {
+            let hm = os.held_out_model.as_ref().unwrap().score();
+            let hb = os.held_out_baseline.as_ref().unwrap().score();
+            let hd = os.held_out_dictionary.as_ref().unwrap().score();
+            assert!(hm > hb && hm > hd, "zero-shot held-out {hm} must beat majority {hb} and dictionary {hd}");
+        }
+    }
 }

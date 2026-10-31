@@ -31,6 +31,8 @@ pub struct ZooEntryOptions {
 /// every head in `assembled.runs`, and `class` is computed by
 /// [`Artifact::computed_class`].
 pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Result<Artifact> {
+    turbo::bundle::Bundle::open(&assembled.dir)
+        .map_err(|e| Error(format!("{}: {}", assembled.dir.display(), e.message)))?;
     let id: ArtifactId = opts.id.parse().map_err(Error)?;
     let language: Option<Language> = match &opts.language {
         Some(l) => Some(l.parse().map_err(Error)?),
@@ -43,7 +45,18 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
         .parse()
         .map_err(|e| Error(format!("model.license {:?}: {e}", assembled.manifest.model.license)))?;
     let license_terms: Url = opts.license_terms.parse().map_err(Error)?;
-    let prefix = opts.url_prefix.trim_end_matches('/');
+    if let Some(expected_terms) = license.legal_url()
+        && license_terms.as_str() != expected_terms
+    {
+        return Err(Error(format!(
+            "license_terms {} does not match model.license {} ({expected_terms})",
+            license_terms, license
+        )));
+    }
+    let prefix = opts.url_prefix.trim().trim_end_matches('/');
+    if prefix.is_empty() || prefix.contains("://example.") || prefix.contains(".example.") {
+        return Err(Error(format!("url_prefix {:?} must be a non-placeholder download URL prefix", opts.url_prefix)));
+    }
 
     let mut rel_paths = vec!["manifest.json".to_owned()];
     for f in &assembled.manifest.files {
@@ -53,11 +66,7 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
     for rel in rel_paths {
         let disk_path = assembled.dir.join(&rel);
         let bytes = fs::read(&disk_path).map_err(|e| Error(format!("{}: {e}", disk_path.display())))?;
-        let url: Url = if prefix.contains("/releases/download/") {
-            format!("{prefix}/{}-{}", id.as_str(), rel.replace('/', "-")).parse().map_err(Error)?
-        } else {
-            format!("{prefix}/{}/{rel}", id.as_str()).parse().map_err(Error)?
-        };
+        let url: Url = format!("{prefix}/{}/{rel}", id.as_str()).parse().map_err(Error)?;
         files.push(File {
             path: rel.parse().map_err(Error)?,
             url,

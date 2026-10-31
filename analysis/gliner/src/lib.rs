@@ -162,11 +162,15 @@ impl Model {
         }
     }
 }
-/// Stable score-priority decoding. Nested mode allows containment but rejects
+/// Stable logit-priority decoding. Nested mode allows containment but rejects
 /// crossing intervals and multiple labels on exactly the same interval.
 pub fn decode(mut candidates: Vec<Candidate>, schema: &ExtractionSchema) -> Vec<Candidate> {
-    candidates.retain(|c| c.score.is_finite() && c.score > schema.threshold());
-    candidates.sort_by(|a, b| b.score.total_cmp(&a.score));
+    candidates.retain(|c| {
+        c.logit.is_finite()
+            && c.score.is_finite()
+            && (c.score > schema.threshold() || (schema.threshold() == 0.5 && c.logit > 0.0 && c.score >= 0.5))
+    });
+    candidates.sort_by(|a, b| b.logit.total_cmp(&a.logit).then_with(|| b.score.total_cmp(&a.score)));
     let mut out: Vec<Candidate> = Vec::new();
     for c in candidates {
         if out.iter().any(|b| {
@@ -178,7 +182,7 @@ pub fn decode(mut candidates: Vec<Candidate>, schema: &ExtractionSchema) -> Vec<
         }
         out.push(c);
     }
-    out.sort_by_key(|c| c.start);
+    out.sort_by_key(|c| (c.start, c.end));
     out
 }
 

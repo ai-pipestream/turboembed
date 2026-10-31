@@ -65,23 +65,32 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         0 => &corpus.splits.train[..],
         n => &corpus.splits.train[..n.min(corpus.splits.train.len())],
     };
-    let (train_wf, dev_wf, test_wf) = if let Some(ref cdir) = cache_dir {
+    let (train_wf, dev_wf, test_wf, encoder) = if let Some(ref cdir) = cache_dir {
         let p = cdir.join("cache.json");
         let text = std::fs::read(&p).map_err(|e| Error(format!("{}: {e}", p.display())))?;
         let cache: CacheRecord = serde_json::from_slice(&text).map_err(|e| Error(format!("{}: {e}", p.display())))?;
-        if cache.corpus != corpus.record || cache.encoder != encoder || cache.pooling != pooling {
+        if cache.corpus != corpus.record
+            || cache.encoder.model != encoder.model
+            || cache.encoder.revision != encoder.revision
+            || cache.encoder.manifest_sha256 != encoder.manifest_sha256
+            || cache.encoder.hidden != encoder.hidden
+            || cache.encoder.layers != encoder.layers
+            || cache.encoder.width != encoder.width
+            || cache.pooling != pooling
+        {
             return Err(Error(format!("{}: cache does not match corpus, encoder or pooling", cdir.display())));
         }
         let layer = *cache.layers.last().ok_or_else(|| Error(format!("{}: cache has no layers", cdir.display())))?;
         let full_train = read_layer(cdir, &cache, "train", layer, &corpus.splits.train)?;
         let dev = read_layer(cdir, &cache, "dev", layer, &corpus.splits.dev)?;
         let test = read_layer(cdir, &cache, "test", layer, &corpus.splits.test)?;
-        (full_train.into_iter().take(train_slice.len()).collect(), dev, test)
+        (full_train.into_iter().take(train_slice.len()).collect(), dev, test, cache.encoder)
     } else {
         (
             encode_sentences(&mut enc, train_slice, pooling)?,
             encode_sentences(&mut enc, &corpus.splits.dev, pooling)?,
             encode_sentences(&mut enc, &corpus.splits.test, pooling)?,
+            encoder,
         )
     };
     let seen_lf = embed_label_names(&mut enc, &seen_types, pooling)?;
@@ -140,14 +149,13 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         base_metrics.score(),
         dict_metrics.score(),
     );
-    if !hold_out.is_empty() {
-        let test_seen = filter_sentences(test, &seen_types);
-        let pred_seen = predict_from_features(&matcher, &test_seen, &test_wf, &seen_lf, &seen_types)?;
-        let dict_seen = dictionary_baseline(&test_seen, &seen_types);
-        let seen_m = evaluate(Task::Bio, &test_seen, &pred_seen, &seen, None);
-        let seen_b = evaluate(Task::Bio, &test_seen, &base, &seen, None);
-        let seen_d = evaluate(Task::Bio, &test_seen, &dict_seen, &seen, None);
-
+    let test_seen = filter_sentences(test, &seen_types);
+    let pred_seen = predict_from_features(&matcher, &test_seen, &test_wf, &seen_lf, &seen_types)?;
+    let dict_seen = dictionary_baseline(&test_seen, &seen_types);
+    let seen_m = evaluate(Task::Bio, &test_seen, &pred_seen, &seen, None);
+    let seen_b = evaluate(Task::Bio, &test_seen, &base, &seen, None);
+    let seen_d = evaluate(Task::Bio, &test_seen, &dict_seen, &seen, None);
+    let (held_out_model, held_out_baseline, held_out_dictionary) = if !hold_out.is_empty() {
         let held_lf = embed_label_names(&mut enc, &hold_out, pooling)?;
         let test_held = filter_sentences(test, &hold_out);
         let pred_held = predict_from_features(&matcher, &test_held, &test_wf, &held_lf, &hold_out)?;
@@ -178,11 +186,25 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             held_b.score(),
             held_d.score(),
         );
-    }
+        (Some(held_m), Some(held_b), Some(held_d))
+    } else {
+        (None, None, None)
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(model_metrics),
         baseline: base_metrics,
+        dictionary: Some(dict_metrics),
+        open_span: Some(OpenSpanEvalRecord {
+            seen_types,
+            held_out_types: hold_out,
+            seen_model: seen_m,
+            seen_baseline: seen_b,
+            seen_dictionary: seen_d,
+            held_out_model,
+            held_out_baseline,
+            held_out_dictionary,
+        }),
         comparison: Some(bootstrap(Task::Bio, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
     };

@@ -13,7 +13,7 @@ use turbo::manifest::HeadSpec;
 use turbo_analysis::{Analyzer, Annotator, Bound, Document, Ix, Key, Layer, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
-use turbo_gliner::{Decisions, Decode, ExtractionSchema, GlinerAnnotator, OpenSpanModel};
+use turbo_gliner::{Candidate, Decisions, Decode, ExtractionSchema, GlinerAnnotator, OpenSpanModel, decode};
 
 const TEXT: &str = "Ann met Bob in Paris . The dog slept .";
 
@@ -34,6 +34,10 @@ fn values(seed: u64, n: usize, scale: f32) -> Vec<f32> {
 }
 
 fn open_span_bundle(name: &str) -> PathBuf {
+    open_span_bundle_with_bias(name, [0.5, 1.0, 1.0])
+}
+
+fn open_span_bundle_with_bias(name: &str, bias: [f32; 3]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("turbo-gliner-open-span-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
@@ -63,7 +67,7 @@ fn open_span_bundle(name: &str) -> PathBuf {
     for (seed, (suffix, shape)) in (1u64..).zip(tensors(&spec, 32)) {
         let count = shape.iter().product::<u64>() as usize;
         let start = data.len();
-        let vals = if suffix == "out.bias" { vec![0.5f32, 1.0, 1.0] } else { values(seed, count, 0.8) };
+        let vals = if suffix == "out.bias" { bias.to_vec() } else { values(seed, count, 0.8) };
         data.extend(vals.iter().flat_map(|v| v.to_le_bytes()));
         let key = format!("{}.{suffix}", spec.tensor_prefix);
         header.insert(key, json!({"dtype": "F32", "shape": shape, "data_offsets": [start, data.len()]}));
@@ -139,8 +143,18 @@ fn open_span_bundle_annotates_zero_shot_labels_and_builds_evidence() {
 
     // Core matcher decode at threshold 0.0 agrees with Flat decode at 0.5.
     let label_states = model.embed_labels(schema.labels()).unwrap();
-    let (mut work, mut sw) = (Work::default(), OpenSpanWork::default());
-    let _ = (&mut work, &mut sw, &label_states);
+    let word_feats = model.encode_words(&first_words).unwrap();
+    let word_map: Vec<u32> = (0..first_words.len() as u32).collect();
+    let (mut raw_scores, mut core_spans, mut work, mut sw) =
+        (Vec::new(), Vec::new(), Work::default(), OpenSpanWork::default());
+    model.head().scores(&word_feats, &word_map, None, &label_states, &mut raw_scores, &mut work, &mut sw).unwrap();
+    model.head().decode(&raw_scores, first_words.len(), schema.labels().len(), &mut core_spans).unwrap();
+    let core_triples: Vec<(usize, usize, u16)> =
+        core_spans.iter().map(|s| (s.first as usize, s.last as usize + 1, s.label as u16)).collect();
+    assert_eq!(want, core_triples);
+    for (cand, core_sp) in direct.iter().zip(&core_spans) {
+        assert_eq!(cand.logit.to_bits(), core_sp.margin.to_bits());
+    }
 
     doc.add(&Key::<Sentences>::DEFAULT, sents, Provenance::by("fixture:sentences")).unwrap();
     doc.add(&Key::<Tokens>::DEFAULT, toks, Provenance::by("fixture:tokens")).unwrap();
@@ -232,4 +246,65 @@ fn open_span_loads_from_zoo_by_id_and_language_and_builtin_index_pins_permissive
     let by_lang =
         GlinerAnnotator::from_zoo_language(&zoo, "en", None, &EncoderOptions::default(), schema, &user, &acc).unwrap();
     assert_eq!(by_id.config_hash(), by_lang.config_hash());
+}
+
+#[test]
+fn open_span_ranks_by_raw_logit_and_agrees_with_core_under_saturated_scores_and_competing_spans() {
+    let dir = open_span_bundle_with_bias("saturated", [100.0, 1.0, 1.0]);
+    let opts = EncoderOptions::default();
+    let schema = ExtractionSchema::new(vec!["person".into(), "location".into()], 0.5, Decode::Flat).unwrap();
+    let model = OpenSpanModel::open(&dir, None, &opts).unwrap();
+    let annotator = GlinerAnnotator::open_bundle(&dir, None, &opts, schema.clone()).unwrap();
+
+    let first_words = ["Ann", "met", "Bob", "in", "Paris", "."];
+    let direct = model.predict(&first_words, &schema).unwrap();
+    assert!(!direct.is_empty());
+    assert!(direct.iter().all(|c| c.score == 1.0 && c.logit > 80.0));
+
+    let label_states = model.embed_labels(schema.labels()).unwrap();
+    let word_feats = model.encode_words(&first_words).unwrap();
+    let word_map: Vec<u32> = (0..first_words.len() as u32).collect();
+    let (mut raw_scores, mut core_spans, mut work, mut sw) =
+        (Vec::new(), Vec::new(), Work::default(), OpenSpanWork::default());
+    model.head().scores(&word_feats, &word_map, None, &label_states, &mut raw_scores, &mut work, &mut sw).unwrap();
+    model.head().decode(&raw_scores, first_words.len(), schema.labels().len(), &mut core_spans).unwrap();
+    let got_triples: Vec<(usize, usize, u32)> = direct.iter().map(|c| (c.start, c.end, c.label as u32)).collect();
+    let core_triples: Vec<(usize, usize, u32)> =
+        core_spans.iter().map(|s| (s.first as usize, s.last as usize + 1, s.label)).collect();
+    assert_eq!(got_triples, core_triples);
+    for (c, s) in direct.iter().zip(&core_spans) {
+        assert_eq!(c.logit.to_bits(), s.margin.to_bits());
+    }
+
+    let doc = Document::new(TEXT);
+    let (toks, sents) = tokens_and_sentences(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let (entities, decisions) = annotator.annotate((view, &toks, Some(&sents))).unwrap();
+    let first_annot: Vec<(usize, usize, u32)> = entities
+        .tokens
+        .iter()
+        .zip(&entities.kind)
+        .filter(|(r, _)| r.end.get() <= first_words.len())
+        .map(|(r, k)| (r.start.get(), r.end.get(), k.0 as u32))
+        .collect();
+    assert_eq!(first_annot, core_triples);
+    assert_eq!(decisions.logits[0].to_bits(), core_spans[0].margin.to_bits());
+
+    let same_span = vec![
+        Candidate { start: 0, end: 1, label: 0, logit: 20.0, score: turbo::head::sigmoid(20.0) },
+        Candidate { start: 0, end: 1, label: 1, logit: 21.0, score: turbo::head::sigmoid(21.0) },
+    ];
+    assert_eq!(same_span[0].score, 1.0);
+    assert_eq!(same_span[1].score, 1.0);
+    let kept_same = decode(same_span, &schema);
+    assert_eq!(kept_same.len(), 1);
+    assert_eq!((kept_same[0].start, kept_same[0].end, kept_same[0].label), (0, 1, 1));
+
+    let overlapping = vec![
+        Candidate { start: 0, end: 2, label: 0, logit: 20.0, score: turbo::head::sigmoid(20.0) },
+        Candidate { start: 1, end: 3, label: 1, logit: 21.0, score: turbo::head::sigmoid(21.0) },
+    ];
+    let kept_overlap = decode(overlapping, &schema);
+    assert_eq!(kept_overlap.len(), 1);
+    assert_eq!((kept_overlap[0].start, kept_overlap[0].end, kept_overlap[0].label), (1, 3, 1));
 }

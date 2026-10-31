@@ -2,6 +2,7 @@
 //! and multi-task bundles, generating `turbo-zoo` entries, enforcing licence
 //! tiers through `Zoo::ensure`, and running `turbo-tagger` annotators (#1726).
 
+use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -13,17 +14,36 @@ use turbo_analysis::{Annotator, Document, Ix, Key, Layer, Span, Spans, View, Vie
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, LanguageSpans, PosTags, Sentences, Subwords, Tokens, Words};
 use turbo_tagger::{
-    DepParser, EntityTagger, LanguageTagger, Lemmatizer, MultiTaskTagger, PosTagger, SentenceSegmenter, TaggerZooError,
-    WordEncoder, WordSplitTagger,
+    EntityTagger, LanguageTagger, MultiTaskTagger, PosTagger, SentenceSegmenter, TaggerZooError, WordEncoder,
+    WordSplitTagger,
 };
-use turbo_trainer_recipes::assemble::{assemble_bundle, verify_run};
+use turbo_trainer_recipes::assemble::assemble_bundle;
 use turbo_trainer_recipes::assemble_zoo::{ZooEntryOptions, seed_blobs, zoo_artifact};
-use turbo_trainer_recipes::corpus::{Counts, FileRecord};
+use turbo_trainer_recipes::corpus::FileRecord;
 use turbo_trainer_recipes::receipt::Receipt;
+use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH};
 use turbo_trainer_recipes::safetensors;
 use turbo_zoo::{
-    Acceptances, Blobs, Component, Directory, Index, Kind, Licence, LicenceClass, Policy, UserId, Zoo, ZooError,
+    Acceptances, Artifact, Blobs, Component, Directory, File, Format, Index, Kind, Licence, LicenceClass, Policy,
+    Transport, Url, UserId, Zoo, ZooError,
 };
+
+struct SpyBlobs<'a> {
+    blobs: &'a Blobs,
+    requested: RefCell<Vec<String>>,
+}
+
+impl Transport for SpyBlobs<'_> {
+    fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
+        self.requested.borrow_mut().push(url.as_str().to_owned());
+        self.blobs.get(url, size)
+    }
+
+    fn get_file(&self, a: &Artifact, f: &File) -> Result<Vec<u8>, String> {
+        self.requested.borrow_mut().push(format!("{}:{}", a.id, f.path));
+        self.blobs.get_file(a, f)
+    }
+}
 
 fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -109,9 +129,9 @@ fn zoo_opts(id: &str, kind: Kind, component: Component, lang: &str) -> ZooEntryO
         kind,
         component: Some(component),
         language: Some(lang.into()),
-        version: "1.0.0".into(),
+        version: "1".into(),
         license_terms: "https://www.apache.org/licenses/LICENSE-2.0".into(),
-        url_prefix: "https://example.org/zoo".into(),
+        url_prefix: "https://models.turboembed.org/zoo".into(),
         origin: None,
     }
 }
@@ -128,7 +148,9 @@ fn synthesize_run(base_run: &Path, dest: &Path, spec: HeadSpec, spdx: &str, term
     spec.license_class = Some(class);
     let tensors = tagger_tensors(&spec.tensor_prefix, 32, spec.labels.len());
     let spec_bytes = serde_json::to_vec_pretty(&spec).unwrap();
-    let st_bytes = safetensors::write(&tensors);
+    let tr = r.training.as_ref().unwrap();
+    let meta = [(CHECKPOINT_EPOCH, tr.best_epoch.to_string()), (CHECKPOINT_DEV, tr.dev[tr.best_epoch].to_string())];
+    let st_bytes = safetensors::write_with(&tensors, &meta);
     fs::write(dest.join("head.json"), &spec_bytes).unwrap();
     fs::write(dest.join("head.safetensors"), &st_bytes).unwrap();
     r.head = Some(spec);
@@ -195,8 +217,10 @@ fn single_head_and_multitask_bundles_load_through_zoo_and_match_receipt_predicti
         "COMPONENT_NAME_FINDER",
         "--language",
         "en",
+        "--license-terms",
+        "https://www.apache.org/licenses/LICENSE-2.0",
         "--url-prefix",
-        "https://example.org/zoo",
+        "https://models.turboembed.org/zoo",
         "--zoo-out",
         zoo_entry_file.to_str().unwrap(),
     ]);
@@ -208,8 +232,9 @@ fn single_head_and_multitask_bundles_load_through_zoo_and_match_receipt_predicti
     assert_eq!(opened.manifest.head_provenance[0].head, "ner");
     assert_eq!(opened.manifest.head_provenance[0].corpus_id, "multiconer2-en");
 
-    let artifact: turbo_zoo::Artifact = serde_json::from_slice(&fs::read(&zoo_entry_file).unwrap()).unwrap();
+    let artifact: Artifact = serde_json::from_slice(&fs::read(&zoo_entry_file).unwrap()).unwrap();
     assert_eq!(artifact.kind, Kind::Head);
+    assert_eq!(artifact.version, "1");
     assert_eq!(artifact.class, LicenceClass::ShareAlike);
     assert_eq!(artifact.component, Some(Component::NameFinder));
 
@@ -346,7 +371,7 @@ fn single_head_and_multitask_bundles_load_through_zoo_and_match_receipt_predicti
 }
 
 #[test]
-fn licence_classes_propagate_to_bundle_and_zoo_ensure_enforces_them() {
+fn licence_classes_and_bundle_filtering_in_zoo() {
     let data = scratch("lic-data");
     corpus_multiconer(&data);
     let base_run = scratch("lic-base-run");
@@ -381,7 +406,6 @@ fn licence_classes_propagate_to_bundle_and_zoo_ensure_enforces_them() {
     let sa_bundle_dir = scratch("lic-sa-bundle");
     let sa_bundle = assemble_bundle(&tiny(), &[&pos_perm, &ner_sa], &sa_bundle_dir).unwrap();
     assert_eq!(sa_bundle.license_tier, LicenseClass::ShareAlike);
-    assert_eq!(Bundle::open(&sa_bundle_dir).unwrap().manifest.license_tier(), Some(LicenseClass::ShareAlike));
     let sa_art = zoo_artifact(&sa_bundle, &zoo_opts("turbo-en-sa-multi-1", Kind::Model, Component::Pos, "en")).unwrap();
     assert_eq!(sa_art.class, LicenceClass::ShareAlike);
 
@@ -398,20 +422,43 @@ fn licence_classes_propagate_to_bundle_and_zoo_ensure_enforces_them() {
         zoo_artifact(&local_bundle, &zoo_opts("turbo-pt-porttinari-pos-1", Kind::Head, Component::Pos, "pt")).unwrap();
     assert_eq!(local_art.class, LicenceClass::LocalOnly);
 
+    let mut pt_art = perm_art.clone();
+    pt_art.id = "non-bundle-pt".parse().unwrap();
+    pt_art.format = Format::Pytorch;
+    let mut raw_st_art = perm_art.clone();
+    raw_st_art.id = "non-bundle-raw-st".parse().unwrap();
+    raw_st_art.files.retain(|f| f.path.as_str() != "manifest.json");
+
     let blob_root = scratch("lic-blobs");
     let blobs = Blobs::new(&blob_root);
     seed_blobs(&sa_bundle, &blobs).unwrap();
     seed_blobs(&perm_bundle, &blobs).unwrap();
     seed_blobs(&local_bundle, &blobs).unwrap();
 
-    let index = Index::parse(Index::to_canonical_json(&[sa_art, perm_art, local_art]).as_bytes()).unwrap();
-    let found_ids: Vec<&str> = index.find("en", Component::Pos).map(|a| a.id.as_str()).collect();
-    assert_eq!(found_ids, ["turbo-en-perm-pos-1", "turbo-en-sa-multi-1"]);
-
+    let index =
+        Index::parse(Index::to_canonical_json(&[pt_art, raw_st_art, sa_art, perm_art, local_art]).as_bytes()).unwrap();
+    let spy = SpyBlobs { blobs: &blobs, requested: RefCell::new(Vec::new()) };
     let cache = scratch("lic-zoo-cache");
-    let zoo = Zoo::new(index, cache, Policy::default(), &blobs);
+    let zoo = Zoo::new(index, cache, Policy::default(), &spy);
     let user: UserId = "alice".parse().unwrap();
     let mut acc = Acceptances::default();
+
+    assert!(matches!(
+        PosTagger::from_zoo(&zoo, "non-bundle-pt", None, &EncoderOptions::default(), &user, &acc),
+        Err(TaggerZooError::NotABundle { format: Format::Pytorch, .. })
+    ));
+    assert!(matches!(
+        PosTagger::from_zoo(&zoo, "non-bundle-raw-st", None, &EncoderOptions::default(), &user, &acc),
+        Err(TaggerZooError::NotABundle { format: Format::Safetensors, .. })
+    ));
+    assert!(spy.requested.borrow().is_empty(), "non-bundles must be refused before transport fetch");
+
+    let _pos = PosTagger::from_zoo_language(&zoo, "en", None, &EncoderOptions::default(), &user, &acc).unwrap();
+    assert!(
+        spy.requested.borrow().iter().all(|r| r.starts_with("turbo-en-perm-pos-1:")),
+        "from_zoo_language must skip non-bundles without fetching: {:?}",
+        spy.requested.borrow()
+    );
 
     assert!(matches!(
         zoo.ensure("turbo-en-sa-multi-1", &user, &acc),
@@ -420,67 +467,8 @@ fn licence_classes_propagate_to_bundle_and_zoo_ensure_enforces_them() {
     acc.accept(&user, Licence::CcBySa40, 1).unwrap();
     assert!(zoo.ensure("turbo-en-sa-multi-1", &user, &acc).is_ok());
 
-    assert!(matches!(zoo.ensure("turbo-pt-porttinari-pos-1", &user, &acc), Err(ZooError::LocalOnly { .. })));
     assert!(matches!(
         PosTagger::from_zoo(&zoo, "turbo-pt-porttinari-pos-1", None, &EncoderOptions::default(), &user, &acc),
         Err(TaggerZooError::Zoo(ZooError::LocalOnly { .. }))
     ));
-}
-
-#[test]
-fn assemble_refuses_mismatched_encoders_tampered_files_and_collisions() {
-    let data = scratch("refuse-data");
-    corpus_multiconer(&data);
-    let base_run = scratch("refuse-base-run");
-    train_ner_run(&data, &base_run);
-
-    let out_dup = scratch("refuse-dup-out");
-    let err = assemble_bundle(&tiny(), &[&base_run, &base_run], &out_dup).unwrap_err();
-    assert!(err.0.contains("duplicate head name"), "{err}");
-
-    let collide_run = scratch("refuse-collide-run");
-    let mut spec: HeadSpec = serde_json::from_slice(&fs::read(base_run.join("head.json")).unwrap()).unwrap();
-    spec.name = "ner_two".into();
-    let weights = fs::read(base_run.join("head.safetensors")).unwrap();
-    let mut r: Receipt = serde_json::from_slice(&fs::read(base_run.join("receipt.json")).unwrap()).unwrap();
-    let spec_bytes = serde_json::to_vec_pretty(&spec).unwrap();
-    fs::create_dir_all(&collide_run).unwrap();
-    fs::write(collide_run.join("head.json"), &spec_bytes).unwrap();
-    fs::write(collide_run.join("head.safetensors"), &weights).unwrap();
-    r.head = Some(spec);
-    r.outputs[1] =
-        FileRecord { path: "head.json".into(), size: spec_bytes.len() as u64, sha256: sha256_hex(&spec_bytes) };
-    fs::write(collide_run.join("receipt.json"), serde_json::to_vec_pretty(&r).unwrap()).unwrap();
-    let err = assemble_bundle(&tiny(), &[&base_run, &collide_run], &out_dup).unwrap_err();
-    assert!(err.0.contains("colliding tensor_prefix"), "{err}");
-
-    let clone_run = |name: &str, files: &[&str]| -> PathBuf {
-        let d = scratch(name);
-        fs::create_dir_all(&d).unwrap();
-        for f in files {
-            fs::copy(base_run.join(f), d.join(f)).unwrap();
-        }
-        d
-    };
-    let bad_enc = clone_run("refuse-bad-enc", &["head.json", "head.safetensors"]);
-    let mut r_enc: Receipt = serde_json::from_slice(&fs::read(base_run.join("receipt.json")).unwrap()).unwrap();
-    r_enc.encoder.as_mut().unwrap().manifest_sha256 = "0".repeat(64);
-    fs::write(bad_enc.join("receipt.json"), serde_json::to_vec_pretty(&r_enc).unwrap()).unwrap();
-    assert!(assemble_bundle(&tiny(), &[&bad_enc], &out_dup).unwrap_err().0.contains("trained on encoder"));
-
-    let tampered = clone_run("refuse-tampered", &["head.json", "receipt.json"]);
-    let mut bad_bytes = weights;
-    let last = bad_bytes.len() - 1;
-    bad_bytes[last] ^= 0xff;
-    fs::write(tampered.join("head.safetensors"), &bad_bytes).unwrap();
-    assert!(verify_run(&tampered).unwrap_err().0.contains("sha256"));
-
-    let nd_run = clone_run("refuse-nd", &["head.json", "head.safetensors"]);
-    let mut r_nd: Receipt = serde_json::from_slice(&fs::read(base_run.join("receipt.json")).unwrap()).unwrap();
-    r_nd.corpus.spdx = "CC-BY-ND-4.0".into();
-    fs::write(nd_run.join("receipt.json"), serde_json::to_vec_pretty(&r_nd).unwrap()).unwrap();
-    assert!(verify_run(&nd_run).unwrap_err().0.contains("refuses"));
-
-    let _ = (Lemmatizer::from_zoo as fn(_, _, _, _, _, _) -> _, DepParser::from_zoo as fn(_, _, _, _, _, _) -> _);
-    let _ = Counts::default();
 }

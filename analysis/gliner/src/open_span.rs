@@ -219,11 +219,14 @@ impl OpenSpanModel {
         user: &UserId,
         acceptances: &Acceptances,
     ) -> Result<Self, String> {
-        let fetched = zoo.ensure(id, user, acceptances).map_err(|e| e.to_string())?;
-        let a = fetched.artifact;
-        if a.format != Format::Safetensors || !matches!(a.kind, Kind::Model | Kind::Head) {
-            return Err(format!("{id} is {} {}, not a FORMAT_SAFETENSORS model or head", a.kind, a.format));
+        let a = zoo.index().get(id).map_err(|e| e.to_string())?;
+        if !is_bundle_artifact(a) {
+            return Err(format!(
+                "{id} is {} {}, not a FORMAT_SAFETENSORS model or head bundle with manifest.json",
+                a.kind, a.format
+            ));
         }
+        let fetched = zoo.ensure(id, user, acceptances).map_err(|e| e.to_string())?;
         Self::open(&fetched.dir, name, options)
     }
 
@@ -240,7 +243,7 @@ impl OpenSpanModel {
         let a = zoo
             .index()
             .find(language, turbo_zoo::Component::EntityExtractor)
-            .find(|a| a.format == Format::Safetensors && matches!(a.kind, Kind::Model | Kind::Head))
+            .find(|a| is_bundle_artifact(a))
             .ok_or_else(|| format!("no redistributable open-span entity extractor in zoo for language {language:?}"))?;
         Self::from_zoo(zoo, a.id.as_str(), name, options, user, acceptances)
     }
@@ -259,6 +262,13 @@ impl OpenSpanModel {
 
     pub(crate) fn config_bytes(&self) -> &[u8] {
         &self.config_bytes
+    }
+
+    /// Encodes `words` into `[words.len() * hidden]` pooled word features.
+    pub fn encode_words(&self, words: &[&str]) -> Result<Vec<f32>, String> {
+        let pooling = self.head.spec().word_pooling;
+        let mut runner = self.runner.lock().unwrap_or_else(PoisonError::into_inner);
+        runner.word_features(words, pooling)
     }
 
     /// Encodes and L2-normalizes each label name in `labels` into `[labels.len(), hidden]`.
@@ -287,11 +297,7 @@ impl OpenSpanModel {
         if words.is_empty() {
             return Ok(Vec::new());
         }
-        let pooling = self.head.spec().word_pooling;
-        let features = {
-            let mut runner = self.runner.lock().unwrap_or_else(PoisonError::into_inner);
-            runner.word_features(words, pooling)?
-        };
+        let features = self.encode_words(words)?;
         let n = words.len();
         let word_map: Vec<u32> = (0..n as u32).collect();
         let forms = self.head.reads_forms().then_some(words);
@@ -365,6 +371,12 @@ impl OpenSpanModel {
         }
         Ok((entities, decisions))
     }
+}
+
+fn is_bundle_artifact(a: &turbo_zoo::Artifact) -> bool {
+    a.format == Format::Safetensors
+        && matches!(a.kind, Kind::Model | Kind::Head)
+        && a.files.iter().any(|f| f.path.as_str() == "manifest.json")
 }
 
 fn find_open_span_head<'a>(bundle: &'a Bundle, name: Option<&str>) -> Result<&'a HeadSpec, String> {
