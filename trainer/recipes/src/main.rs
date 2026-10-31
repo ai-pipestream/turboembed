@@ -124,6 +124,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "distill-head" => turbo_trainer_recipes::distill::command(&argv, &corpus_id, &dir, unrecorded, a),
         "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
         "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
         "train-lemma" | "train-parse" => {

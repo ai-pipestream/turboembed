@@ -1,0 +1,300 @@
+//! `turbo-train-head distill-head` (#1520): distils a teacher head into a
+//! smaller or lower-width student head using temperature-scaled KL + hard
+//! cross-entropy, verifies the student accuracy margin gate and throughput
+//! comparison, and writes `head.safetensors`, `head.json`, and `receipt.json`.
+
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
+use turbo::head::tagger::tensors;
+use turbo::manifest::HeadSpec;
+use turbo::safetensors::{Dtype, File};
+use turbo_analysis_embed::EncoderOptions;
+use turbo_tagger::WordEncoder;
+use turbo_trainer::{
+    DistillOptions, Example, StudentGate, Tagger, ThroughputComparison, distill_tagger, fit, make_distill_examples,
+    measure_throughput, truncate_examples,
+};
+
+use crate::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
+use crate::corpus::{CorpusRecord, FileRecord};
+use crate::receipt::{host, unix_time};
+use crate::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, examples, named, replace, spec, write};
+use crate::{Error, Result, read_corpus, safetensors};
+
+pub const SCHEMA: &str = "turboembed.distill-head.v1";
+
+/// Throughput receipt block comparing teacher and student inference.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ThroughputRecord {
+    pub tokens: usize,
+    pub sentences: usize,
+    pub teacher_seconds: f64,
+    pub student_seconds: f64,
+    pub teacher_tokens_per_sec: f64,
+    pub student_tokens_per_sec: f64,
+    pub teacher_sentences_per_sec: f64,
+    pub student_sentences_per_sec: f64,
+    pub speedup_ratio: f64,
+}
+
+impl From<ThroughputComparison> for ThroughputRecord {
+    fn from(t: ThroughputComparison) -> Self {
+        Self {
+            tokens: t.tokens,
+            sentences: t.sentences,
+            teacher_seconds: t.teacher_seconds,
+            student_seconds: t.student_seconds,
+            teacher_tokens_per_sec: t.teacher_tokens_per_sec,
+            student_tokens_per_sec: t.student_tokens_per_sec,
+            teacher_sentences_per_sec: t.teacher_sentences_per_sec,
+            student_sentences_per_sec: t.student_sentences_per_sec,
+            speedup_ratio: t.speedup_ratio,
+        }
+    }
+}
+
+/// Deterministic distillation receipt written to `receipt.json`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DistillReceipt {
+    pub schema: String,
+    pub command: Vec<String>,
+    pub commit: String,
+    pub host: String,
+    pub unix_time: u64,
+    pub corpus: CorpusRecord,
+    pub teacher_head: HeadSpec,
+    pub student_head: HeadSpec,
+    pub teacher_hidden: usize,
+    pub student_hidden: usize,
+    pub teacher_sha256: String,
+    pub student_sha256: String,
+    pub temperature: f32,
+    pub alpha: f32,
+    pub seed: u64,
+    pub epochs: u32,
+    pub batch_size: usize,
+    pub lr: f64,
+    pub weight_decay: f64,
+    pub epochs_run: u32,
+    pub best_epoch: usize,
+    pub final_loss: f64,
+    pub train_loss: Vec<f64>,
+    pub val_scores: Vec<f64>,
+    pub teacher_val_accuracy: f64,
+    pub student_val_accuracy: f64,
+    pub teacher_test_accuracy: f64,
+    pub student_test_accuracy: f64,
+    pub accuracy_drop: f64,
+    pub max_accuracy_drop: f64,
+    pub within_margin: bool,
+    pub throughput: ThroughputRecord,
+    pub outputs: Vec<FileRecord>,
+}
+
+/// Loads a trained [`Tagger<f32>`] and its `head.safetensors` SHA-256 digest
+/// from `dir` (`head.json` + `head.safetensors`).
+pub fn load_head(dir: &Path, hidden: usize) -> Result<(HeadSpec, Tagger<f32>, String)> {
+    let spec_path = dir.join("head.json");
+    let spec_bytes = std::fs::read(&spec_path).map_err(|e| Error(format!("{}: {e}", spec_path.display())))?;
+    let head_spec: HeadSpec =
+        serde_json::from_slice(&spec_bytes).map_err(|e| Error(format!("{}: {e}", spec_path.display())))?;
+    let st_path = dir.join("head.safetensors");
+    let st_bytes = std::fs::read(&st_path).map_err(|e| Error(format!("{}: {e}", st_path.display())))?;
+    let sha256 = turbo::bundle::sha256_hex(&st_bytes);
+    let file = File::parse("head.safetensors", &st_bytes).map_err(|e| Error(e.message))?;
+    let wanted = tensors(&head_spec, hidden);
+    let mut params = Vec::with_capacity(wanted.len());
+    for (suffix, shape) in &wanted {
+        let key = format!("{}.{suffix}", head_spec.tensor_prefix);
+        let t = file.get(&key, Dtype::F32, shape.len()).map_err(|e| Error(e.message))?;
+        if t.shape != *shape {
+            return Err(Error(format!("{key}: shape {:?} does not match expected {shape:?}", t.shape)));
+        }
+        params.push(t.f32s());
+    }
+    let tagger = Tagger::<f32>::with_params(&head_spec, hidden, params).map_err(|e| Error(e.message))?;
+    Ok((head_spec, tagger, sha256))
+}
+
+/// Runs teacher-to-student distillation on prepared splits, checks the student
+/// gate, and writes `head.safetensors`, `head.json`, and `receipt.json` to `out_dir`.
+#[allow(clippy::too_many_arguments)]
+pub fn distill_head_splits(
+    teacher: &Tagger<f32>,
+    teacher_sha256: String,
+    student_spec: &HeadSpec,
+    student_hidden: usize,
+    teacher_splits: (&[Example], &[Example], &[Example]),
+    student_splits: (&[Example], &[Example], &[Example]),
+    options: &DistillOptions,
+    min_speedup_ratio: f64,
+    allow_gate_failure: bool,
+    out_dir: &Path,
+    command: Vec<String>,
+    commit: String,
+    corpus: CorpusRecord,
+) -> Result<(Tagger<f32>, DistillReceipt)> {
+    let (t_train, t_val, t_test) = teacher_splits;
+    let (s_train, s_val, s_test) = student_splits;
+    let d_train = make_distill_examples(teacher, t_train, s_train).map_err(|e| Error(e.message))?;
+    let d_val = make_distill_examples(teacher, t_val, s_val).map_err(|e| Error(e.message))?;
+    let d_test = make_distill_examples(teacher, t_test, s_test).map_err(|e| Error(e.message))?;
+
+    let (student, report) = distill_tagger(student_spec, student_hidden, &d_train, &d_val, &d_test, options)
+        .map_err(|e| Error(e.message))?;
+    let throughput = measure_throughput(teacher, t_test, &student, s_test, 3).map_err(|e| Error(e.message))?;
+    let gate = StudentGate::evaluate(&report, throughput, options.max_accuracy_drop, min_speedup_ratio);
+    if !allow_gate_failure {
+        gate.verify().map_err(|e| Error(e.message))?;
+    }
+
+    let best = report.best_epoch;
+    let best_val = report.val_scores.get(best).copied().unwrap_or(report.student_val_accuracy);
+    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, best_val.to_string())];
+    let weights = safetensors::write_with(&named(student_spec, student_hidden, student.tensors()), &at);
+    let spec_json = serde_json::to_vec_pretty(student_spec).expect("a head spec serializes");
+    let st_rec = replace(out_dir, "head.safetensors", &weights)?;
+    let student_sha256 = st_rec.sha256.clone();
+    let json_rec = replace(out_dir, "head.json", &spec_json)?;
+    let outputs = vec![st_rec, json_rec];
+
+    let receipt = DistillReceipt {
+        schema: SCHEMA.into(),
+        command,
+        commit,
+        host: host(),
+        unix_time: unix_time(),
+        corpus,
+        teacher_head: teacher.spec().clone(),
+        student_head: student_spec.clone(),
+        teacher_hidden: teacher.hidden(),
+        student_hidden,
+        teacher_sha256,
+        student_sha256,
+        temperature: options.temperature,
+        alpha: options.alpha,
+        seed: options.seed,
+        epochs: options.epochs,
+        batch_size: options.batch_size,
+        lr: options.lr,
+        weight_decay: options.weight_decay,
+        epochs_run: report.epochs_run,
+        best_epoch: report.best_epoch,
+        final_loss: report.final_loss,
+        train_loss: report.train_loss,
+        val_scores: report.val_scores,
+        teacher_val_accuracy: report.teacher_val_accuracy,
+        student_val_accuracy: report.student_val_accuracy,
+        teacher_test_accuracy: report.teacher_test_accuracy,
+        student_test_accuracy: report.student_test_accuracy,
+        accuracy_drop: report.accuracy_drop,
+        max_accuracy_drop: options.max_accuracy_drop,
+        within_margin: report.within_margin,
+        throughput: ThroughputRecord::from(throughput),
+        outputs,
+    };
+    let text = serde_json::to_string_pretty(&receipt).expect("the receipt serializes");
+    write(out_dir, "receipt.json", text.as_bytes())?;
+    Ok((student, receipt))
+}
+
+/// CLI entry point for `turbo-train-head distill-head`.
+pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let bundle = PathBuf::from(a.required("--bundle")?);
+    let teacher_dir = a.value("--teacher")?.map(PathBuf::from);
+    let mut out = OutDir::claim(&a.required("--out")?)?;
+    let (device, precision, pooling) = encoder_args(&mut a)?;
+    let student_hidden_arg: Option<usize> =
+        a.value("--student-hidden")?.map(|v| v.parse()).transpose().map_err(|_| Error("--student-hidden N".into()))?;
+    let defaults = DistillOptions::default();
+    let temperature: f32 = a.parsed("--temperature", defaults.temperature)?;
+    let alpha: f32 = a.parsed("--alpha", defaults.alpha)?;
+    let max_accuracy_drop: f64 = a.parsed("--max-accuracy-drop", defaults.max_accuracy_drop)?;
+    let min_speedup: f64 = a.parsed("--min-speedup", 0.0)?;
+    let allow_gate_failure = a.flag("--allow-gate-failure");
+    let HeadArgs { crf, bilstm, hash, config: c } = head_args(&mut a)?;
+    let max_train: usize = a.parsed("--max-train", 0)?;
+    let commit = commit(a.value("--commit")?);
+    a.done()?;
+
+    let options = DistillOptions {
+        epochs: c.epochs,
+        batch_size: c.batch,
+        lr: c.lr,
+        weight_decay: c.weight_decay,
+        clip: c.clip,
+        warmup: c.warmup,
+        seed: c.seed,
+        temperature,
+        alpha,
+        max_accuracy_drop,
+    };
+    options.validate().map_err(|e| Error(e.message))?;
+
+    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
+    let student_spec = spec(&corpus, &HeadOptions { pooling, crf: false, bilstm, hash })?;
+    let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
+        .map_err(|e| Error(e.message))?;
+    let teacher_hidden = enc.hidden();
+    let student_hidden = student_hidden_arg.unwrap_or(teacher_hidden);
+    if student_hidden == 0 || student_hidden > teacher_hidden {
+        return Err(Error(format!("--student-hidden {student_hidden} must be in 1..={teacher_hidden}")));
+    }
+
+    let train_set = match max_train {
+        0 => &corpus.splits.train[..],
+        n => &corpus.splits.train[..n.min(corpus.splits.train.len())],
+    };
+    let (t_train, _) = examples(&mut enc, train_set, &student_spec.labels, pooling)?;
+    let (t_dev, _) = examples(&mut enc, &corpus.splits.dev, &student_spec.labels, pooling)?;
+    let (t_test, _) = examples(&mut enc, &corpus.splits.test, &student_spec.labels, pooling)?;
+
+    let (teacher, teacher_sha256) = match teacher_dir {
+        Some(ref td) => {
+            let (_, tagger, sha) = load_head(td, teacher_hidden)?;
+            (tagger, sha)
+        }
+        None => {
+            let teacher_spec = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
+            let (tagger, _) = fit(&teacher_spec, teacher_hidden, &t_train, &t_dev, &c).map_err(|e| Error(e.message))?;
+            let bytes = safetensors::write(&named(&teacher_spec, teacher_hidden, tagger.tensors()));
+            let sha = turbo::bundle::sha256_hex(&bytes);
+            (tagger, sha)
+        }
+    };
+
+    let s_train = truncate_examples(&t_train, teacher_hidden, student_hidden).map_err(|e| Error(e.message))?;
+    let s_dev = truncate_examples(&t_dev, teacher_hidden, student_hidden).map_err(|e| Error(e.message))?;
+    let s_test = truncate_examples(&t_test, teacher_hidden, student_hidden).map_err(|e| Error(e.message))?;
+
+    let (_, receipt) = distill_head_splits(
+        &teacher,
+        teacher_sha256,
+        &student_spec,
+        student_hidden,
+        (&t_train, &t_dev, &t_test),
+        (&s_train, &s_dev, &s_test),
+        &options,
+        min_speedup,
+        allow_gate_failure,
+        &out.path,
+        argv.to_vec(),
+        commit,
+        corpus.record,
+    )?;
+    out.keep = true;
+    println!(
+        "{}: teacher {:.4} -> student {:.4} (drop {:.4}, max {:.4}, speedup {:.2}x); {}",
+        receipt.corpus.id,
+        receipt.teacher_test_accuracy,
+        receipt.student_test_accuracy,
+        receipt.accuracy_drop,
+        receipt.max_accuracy_drop,
+        receipt.throughput.speedup_ratio,
+        out.path.join("receipt.json").display()
+    );
+    Ok(())
+}
