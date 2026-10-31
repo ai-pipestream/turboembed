@@ -5,7 +5,7 @@ use std::path::Path;
 
 use turbo_analysis::ModelRef;
 use turbo_langdetect::NgramModel;
-use turbo_train_recipes::flores::{FLORES_PLUS_REVISION, correct, read_gold};
+use turbo_train_recipes::flores::{FLORES_PLUS_REVISION, correct, per_language, read_gold};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
@@ -23,6 +23,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let started = std::time::Instant::now();
     let correct = correct(&model, &examples);
     let elapsed_seconds = started.elapsed().as_secs_f64();
+    let scores = per_language(&model, &examples);
+    let supported: Vec<_> = scores.values().filter(|s| s.supported).collect();
+    let supported_texts: usize = supported.iter().map(|s| s.texts).sum();
+    let supported_correct: usize = supported.iter().map(|s| s.correct).sum();
+    let languages: serde_json::Map<_, _> = scores
+        .iter()
+        .map(|(code, s)| {
+            let row = serde_json::json!({ "texts": s.texts, "correct": s.correct, "supported": s.supported });
+            (code.clone(), row)
+        })
+        .collect();
     let receipt = serde_json::json!({
         "dataset": "FLORES+",
         "revision_claim": FLORES_PLUS_REVISION,
@@ -31,6 +42,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         "texts": examples.len(),
         "correct": correct,
         "accuracy": correct as f64 / examples.len() as f64,
+        "supported_texts": supported_texts,
+        "supported_correct": supported_correct,
+        "supported_accuracy": supported_correct as f64 / supported_texts.max(1) as f64,
+        "languages": languages,
         "elapsed_seconds": elapsed_seconds,
         "texts_per_second": examples.len() as f64 / elapsed_seconds.max(f64::EPSILON),
     });
