@@ -20,7 +20,6 @@ pub(super) struct Layer {
     xn2: Buf,
     pre: Buf,
     act: Buf,
-    x_out: Buf,
     /// Each adapter's low-rank product, in `PROJECTIONS` order.
     h: [Buf; 4],
     n1: (Buf, Buf),
@@ -44,6 +43,9 @@ pub(super) struct Bufs {
     out: Buf,
     emb: (Buf, Buf),
     fin: (Buf, Buf),
+    /// Each layer's output [n, hidden], kept across the forward pass.
+    x_out: Vec<Buf>,
+    /// One per layer, or one shared workspace when checkpointed.
     layers: Vec<Layer>,
     /// The probabilities and the score gradients, [heads, n, n].
     p: Buf,
@@ -70,15 +72,24 @@ pub struct Timing {
 }
 
 impl Workspace {
+    pub(super) fn buffered_layers(&self) -> usize {
+        self.bufs.as_ref().map_or(0, |b| b.layers.len())
+    }
+
     /// Room for `n` tokens, kept when there is.
-    pub(super) fn ensure(&mut self, geo: &Geometry, lora: Option<Lora>, n: usize) -> Result<()> {
+    pub(super) fn ensure(&mut self, geo: &Geometry, lora: Option<Lora>, checkpoint: bool, n: usize) -> Result<()> {
         if n <= self.cap && self.bufs.is_some() {
             return Ok(());
         }
         let (h, i, rank) = (geo.hidden, geo.intermediate, lora.map_or(0, |l| l.rank));
         let stats = || Ok::<_, turbo::status::Error>((Buf::doubles(n)?, Buf::doubles(n)?));
-        let mut layers = Vec::with_capacity(geo.layers);
+        let mut x_out = Vec::with_capacity(geo.layers);
         for _ in 0..geo.layers {
+            x_out.push(Buf::floats(n * h)?);
+        }
+        let count = if checkpoint { 1 } else { geo.layers }.max(1);
+        let mut layers = Vec::with_capacity(count);
+        for _ in 0..count {
             layers.push(Layer {
                 xn1: Buf::floats(n * h)?,
                 qkv: Buf::floats(n * 3 * h)?,
@@ -87,7 +98,6 @@ impl Workspace {
                 xn2: Buf::floats(n * h)?,
                 pre: Buf::floats(n * 2 * i)?,
                 act: Buf::floats(n * i)?,
-                x_out: Buf::floats(n * h)?,
                 h: [Buf::floats(n * rank)?, Buf::floats(n * rank)?, Buf::floats(n * rank)?, Buf::floats(n * rank)?],
                 n1: stats()?,
                 n2: stats()?,
@@ -100,6 +110,7 @@ impl Workspace {
             out: Buf::floats(n * h)?,
             emb: stats()?,
             fin: stats()?,
+            x_out,
             layers,
             p: Buf::floats(geo.heads * n * n)?,
             ds: Buf::floats(geo.heads * n * n)?,
@@ -136,7 +147,7 @@ impl CudaEncoder {
         self.check_ids(ids)?;
         let n = ids.len();
         let h = self.geo.hidden;
-        self.work.ensure(&self.geo, self.lora, n)?;
+        self.work.ensure(&self.geo, self.lora, self.checkpoint, n)?;
         self.work.n = n;
         self.work.at = at;
         let started = Instant::now();
@@ -150,10 +161,11 @@ impl CudaEncoder {
             self.drop(&w.x0, n * h, self.dropout.map_or(0.0, |d| d.embedding), key)?;
         }
         for l in 0..self.geo.layers {
-            let x = if l == 0 { &w.x0 } else { &w.layers[l - 1].x_out };
-            self.layer_forward(l, x, &w.layers[l], w)?;
+            let x = if l == 0 { &w.x0 } else { &w.x_out[l - 1] };
+            let lw = &w.layers[if self.checkpoint { 0 } else { l }];
+            self.layer_forward(l, x, lw, &w.x_out[l], w)?;
         }
-        let last = w.layers.last().map_or(&w.x0, |l| &l.x_out);
+        let last = w.x_out.last().unwrap_or(&w.x0);
         self.layernorm(last, FINAL_NORM, n, &w.out, &w.fin)?;
         self.sync()?;
         out.resize(n * h, 0.0);
@@ -172,12 +184,22 @@ impl CudaEncoder {
         let w = self.work.bufs.as_ref().expect("a forward ran");
         w.dy.upload(dout)?;
         self.store(&w.dy, n * h)?;
-        let last = w.layers.last().map_or(&w.x0, |l| &l.x_out);
+        let last = w.x_out.last().unwrap_or(&w.x0);
         w.dx[0].zero(n * h)?;
         self.layernorm_back(last, FINAL_NORM, n, &w.dy, &w.fin, &w.dx[0])?;
         let mut cur = 0;
-        for l in (0..self.geo.layers).rev() {
-            cur = self.layer_backward(l, cur, w)?;
+        let stop = if self.frozen { self.lora_from } else { 0 };
+        for l in (stop..self.geo.layers).rev() {
+            let x_in = if l == 0 { &w.x0 } else { &w.x_out[l - 1] };
+            let lw = if self.checkpoint {
+                if l + 1 < self.geo.layers {
+                    self.layer_forward(l, x_in, &w.layers[0], &w.x_out[l], w)?;
+                }
+                &w.layers[0]
+            } else {
+                &w.layers[l]
+            };
+            cur = self.layer_backward(l, cur, x_in, lw, w)?;
         }
         if !self.frozen {
             if let Some(key) = self.mask(u32::MAX, 0) {
@@ -318,7 +340,7 @@ impl CudaEncoder {
         unsafe { (self.table.f32().add(base), self.table.f32().add(base + half)) }
     }
 
-    fn layer_forward(&self, l: usize, x: &Buf, lw: &Layer, w: &Bufs) -> Result<()> {
+    fn layer_forward(&self, l: usize, x: &Buf, lw: &Layer, x_out: &Buf, w: &Bufs) -> Result<()> {
         let (n, h, i) = (self.work.n, self.geo.hidden, self.geo.intermediate);
         let (nn, hh, heads) = (n as i32, h as i32, self.geo.heads as i32);
         let round = (self.compute == Compute::Bf16) as i32;
@@ -350,18 +372,17 @@ impl CudaEncoder {
         if let Some(key) = self.mask(l as u32, 2) {
             self.drop(&lw.act, n * i, self.dropout.map_or(0.0, |d| d.mlp), key)?;
         }
-        self.project(l, FFN_OUT, n, &lw.act, &lw.x_out, &lw.h[3])?;
-        check(unsafe { ffi::tt_axpy(lw.x_out.f32(), lw.x_mid.f32(), n * h, 1.0) })?;
-        self.store(&lw.x_out, n * h)
+        self.project(l, FFN_OUT, n, &lw.act, x_out, &lw.h[3])?;
+        check(unsafe { ffi::tt_axpy(x_out.f32(), lw.x_mid.f32(), n * h, 1.0) })?;
+        self.store(x_out, n * h)
     }
 
     /// The gradient of layer `l`'s input from that of its output in
     /// `w.dx[cur]`, into the other buffer, whose index it returns.
-    fn layer_backward(&self, l: usize, cur: usize, w: &Bufs) -> Result<usize> {
+    fn layer_backward(&self, l: usize, cur: usize, x_in: &Buf, lw: &Layer, w: &Bufs) -> Result<usize> {
         let (n, h, i) = (self.work.n, self.geo.hidden, self.geo.intermediate);
         let (nn, hh, heads) = (n as i32, h as i32, self.geo.heads as i32);
         let round = (self.compute == Compute::Bf16) as i32;
-        let lw = &w.layers[l];
         let dx_out = &w.dx[cur];
         let dx_mid = &w.dx[1 - cur];
         w.dact.zero(n * i)?;
@@ -398,7 +419,6 @@ impl CudaEncoder {
         check(unsafe { ffi::tt_rope(dqkv, nn, 3 * hh, 2 * hh, self.pairs as i32, cs, sn, 1) })?;
         self.store(&w.dqkv, n * 3 * h)?;
         w.dsrc.zero(n * h)?;
-        let x_in = if l == 0 { &w.x0 } else { &w.layers[l - 1].x_out };
         let src = if l == 0 { x_in } else { &lw.xn1 };
         self.project_back(l, QKV, n, src, &lw.h[0], &w.dqkv, &w.dsrc, &w.dh)?;
         if l == 0 {
