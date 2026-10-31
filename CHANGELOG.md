@@ -19,6 +19,14 @@ gRPC service) build against. Everything below is new.
 
 ### Added
 
+- `AnalyzeDocumentProgressive` runs a bundle's learned heads as steps
+  (`turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`,
+  `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`,
+  `turbo-tagger:relations`, and `turbo-tagger:heads` for every one the
+  bundle provides), the word-level ones from one encoder pass; the
+  `annotate-v1` profile runs the part-of-speech, entity, dependency and
+  lemma heads, and `BundleCapabilities.head_steps` lists each loaded
+  bundle's head steps (docs/grpc-analysis.md). (#1775)
 - The C interface, `include/turbo/turbo.h` and `turbo_backend.h`: the
   text embedding, reranking and extractive QA tasks; runtimes, devices and their capability cells; sessions at the
   `MODEL`, `FASTEST` and `EXACT` precision tiers; device selection from

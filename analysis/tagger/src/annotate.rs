@@ -49,7 +49,7 @@ pub(crate) fn refuse(m: String) -> CoreError {
 
 /// The head of `bundle` named `name`, or, with no name, the one head that
 /// writes `layer`; refused unless it is of `kind`.
-pub(crate) fn find_head<'a>(
+pub fn find_head<'a>(
     bundle: &'a Bundle,
     name: Option<&str>,
     layer: &str,
