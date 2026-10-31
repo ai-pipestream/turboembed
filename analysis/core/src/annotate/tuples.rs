@@ -5,6 +5,7 @@ use std::any::TypeId;
 use crate::doc::Document;
 use crate::error::Error;
 use crate::layer::{Anchor, Key, KeyId, Layer, Provenance};
+use crate::splice::LayerSplicer;
 
 use super::{Reads, Slot, Writes};
 
@@ -71,6 +72,9 @@ macro_rules! tuples {
             fn anchors() -> Vec<Anchor> {
                 vec![$($L::anchor()),+]
             }
+            fn splicers() -> Vec<Option<Box<dyn LayerSplicer>>> {
+                vec![$($L::splicer()),+]
+            }
             fn store(self, doc: &mut Document, names: &[&'static str], p: &Provenance) -> Result<(), Error> {
                 let ids = <Self as Writes>::ids(names);
                 $({
@@ -86,7 +90,7 @@ macro_rules! tuples {
 /// The provenance of one output: its step's, with `on` listing the outputs
 /// the step wrote before it (`earlier`) that this one is aligned to or
 /// indexes, so the document checks it against those instances.
-fn made_on_own<L: Layer>(layer: &L, earlier: &[KeyId], p: &Provenance) -> Provenance {
+pub(crate) fn made_on_own<L: Layer>(layer: &L, earlier: &[KeyId], p: &Provenance) -> Provenance {
     let mut types: Vec<TypeId> = layer.indexes().into_iter().map(|(k, _)| k.ty).collect();
     if let Anchor::Aligned { ty, .. } = L::anchor() {
         types.push(ty);

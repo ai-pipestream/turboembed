@@ -21,12 +21,12 @@ pub fn stage(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
     stage_named(recipe, upstream, bundle, None)
 }
 
-/// As `stage`, copying a local file only when `keep` names its bundle
-/// path. `None` copies every local file.
+/// As `stage`, copying a local file only when `keep` names its bundle path; `None` copies every local file.
 fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BTreeSet<String>>) -> Result<()> {
     check_classifier_config(recipe, upstream, keep.is_none())?;
     crate::lookahead::check(recipe, upstream)?;
     crate::deberta::check_profile(recipe, upstream)?;
+    crate::rotary::check_profile(recipe, upstream)?;
     for u in &recipe.upstream {
         if let Some(to) = &u.to {
             if keep.is_some_and(|k| !k.contains(to)) {
@@ -385,6 +385,7 @@ pub fn seal_manifest(m: Value, bundle: &Path) -> Result<()> {
 /// computes with the bundle's tokenizer, loaded through this manifest.
 pub fn write_manifest(m: &Value, bundle: &Path, unwritten: Option<&str>) -> Result<()> {
     let mut m = m.clone();
+    crate::added_tokens::fill(&mut m, bundle)?;
     m["model"]["license_class"] = serde_json::to_value(crate::licence::manifest_class(&m)?).unwrap();
     let mut files = Vec::new();
     for p in named_paths(&m)? {
@@ -396,8 +397,7 @@ pub fn write_manifest(m: &Value, bundle: &Path, unwritten: Option<&str>) -> Resu
         files.push(json!({ "path": p, "size": bytes.len(), "sha256": sha256_hex(&bytes) }));
     }
     m["files"] = Value::Array(files);
-    // Through the core's own parser, so the tool writes only what the
-    // loader accepts, in the one canonical form.
+    // Through the core's own parser: the tool writes only what the loader accepts, in its canonical form.
     let parsed = Manifest::parse(&serde_json::to_vec(&m).unwrap()).map_err(|e| e.message)?;
     let mut bytes = serde_json::to_vec_pretty(&parsed).unwrap();
     bytes.push(b'\n');

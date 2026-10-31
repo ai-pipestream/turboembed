@@ -18,6 +18,9 @@ impl Layer for PosTags {
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
     }
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn len(&self) -> usize {
         self.tags.len()
     }
@@ -44,6 +47,9 @@ impl Layer for Lemmas {
     const ID: &'static str = "opennlp:lemmas";
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
+    }
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
     }
     fn len(&self) -> usize {
         self.lemma.len()
@@ -180,6 +186,9 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     fn anchor() -> Anchor {
         Anchor::aligned::<A>()
     }
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn len(&self) -> usize {
         self.head.len()
     }
@@ -277,6 +286,9 @@ impl Layer for Entities {
     const ID: &'static str = "opennlp:entities";
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Entities);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
     }

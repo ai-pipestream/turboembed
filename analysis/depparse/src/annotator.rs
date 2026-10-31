@@ -1,6 +1,6 @@
 use crate::{DependencyGraph, DependencyParserME, FeedforwardDependencyParser};
 use std::marker::PhantomData;
-use turbo_analysis::{Annotator, Error, Ix, Layer, ModelRef, Refs, View};
+use turbo_analysis::{Annotator, Error, Ix, Key, Layer, Locality, ModelRef, Refs, View};
 use turbo_analysis_layers::{Dependencies, MorphPosTags, Sentences, Tokens, WordOrTokenAnchor};
 
 /// Parses each sentence independently, converting local heads to document
@@ -104,6 +104,10 @@ impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
     }
     fn model(&self) -> Option<ModelRef> {
         Some(self.parser.identity())
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
 }
 

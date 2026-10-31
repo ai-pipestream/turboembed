@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::span::{Overlap, TextSpans};
+use crate::splice::LayerSplicer;
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
 /// relations, edge kinds), interned: a layer stores a u16 per item,
@@ -151,6 +152,14 @@ pub trait Layer: Any + Send + Sync + Sized {
     /// payload fingerprint, so downstream steps reading `Self` never skip on
     /// structural-only equality.
     fn content_hash(&self) -> Option<u64> {
+        None
+    }
+
+    /// How [`Analyzer::run_spliced`](crate::Analyzer::run_spliced) carries
+    /// the layer's items across an edit: `Some(Splicer::<Self>::boxed())`
+    /// for a layer that implements [`Splice`](crate::splice::Splice). With
+    /// `None` (the default) a step writing the layer is re-run whole.
+    fn splicer() -> Option<Box<dyn LayerSplicer>> {
         None
     }
 
