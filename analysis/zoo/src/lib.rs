@@ -34,7 +34,9 @@ pub mod transfer;
 pub use accept::{Acceptance, Acceptances, Shown, UserId};
 pub use digest::{Sha256, Sha512};
 pub use error::{Check, ZooError};
-pub use fetch::{Blobs, CacheStatus, Fetched, Keep, Offline, Sources, Transport, Zoo, most_bytes, unpack, verify};
+pub use fetch::{
+    Blobs, CacheStatus, Directory, Fetched, Keep, Offline, Sources, Transport, Zoo, most_bytes, unpack, verify,
+};
 #[cfg(feature = "http")]
 pub use fetch::{Http, Mirror, S3Bucket, sigv4};
 pub use home::Home;

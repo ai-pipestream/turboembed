@@ -99,6 +99,14 @@ impl Metrics {
             Metrics::Spans { all, .. } => all.f1,
         }
     }
+
+    /// The name of the headline metric (`accuracy` or `span_f1`).
+    pub fn metric_name(&self) -> &'static str {
+        match self {
+            Metrics::Tags { .. } => "accuracy",
+            Metrics::Spans { .. } => "span_f1",
+        }
+    }
 }
 
 /// What training saw: its words and its labels.
