@@ -9,7 +9,7 @@ use turbo::manifest::HeadSpec;
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
-use crate::fit::{Config, Model, Report, check_config, train};
+use crate::fit::{Config, Model, OnBest, Report, check_config, train};
 use crate::relation::{GoldRelation, Relations, Work};
 use crate::rng::Rng;
 
@@ -112,6 +112,19 @@ pub fn fit_relations(
     dev: &[RelationExample],
     c: &Config,
 ) -> Result<(Relations<f32>, Report)> {
+    fit_relations_with(spec, hidden, train_set, dev, c, &mut |_, _, _| Ok(()))
+}
+
+/// [`fit_relations`], calling `on_best` with the model, its epoch and dev
+/// score each time the best improves (a checkpoint to publish).
+pub fn fit_relations_with(
+    spec: &HeadSpec,
+    hidden: usize,
+    train_set: &[RelationExample],
+    dev: &[RelationExample],
+    c: &Config,
+    on_best: OnBest<'_, Relations<f32>>,
+) -> Result<(Relations<f32>, Report)> {
     check_config(c, train_set.len())?;
     let mut rng = Rng::new(c.seed);
     let model = Relations::<f32>::new(spec, hidden, &mut rng)?;
@@ -123,5 +136,5 @@ pub fn fit_relations(
     for e in dev {
         model.loss(&e.features, &e.mentions, &e.types, &e.relations, &mut grads, &mut w)?;
     }
-    train(model, &mut rng, train_set, dev, c, &mut |_, _, _| Ok(()))
+    train(model, &mut rng, train_set, dev, c, on_best)
 }
