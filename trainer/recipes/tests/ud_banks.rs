@@ -85,3 +85,18 @@ fn every_share_alike_treebank_is_in_the_table_and_kazakh_is_not() {
     let ga = TREEBANKS.iter().find(|b| b.id == "ud-ga-idt").unwrap();
     assert_eq!((ga.licence, ga.spdx), ("CC BY-SA 3.0", "CC-BY-SA-3.0"));
 }
+
+#[test]
+fn every_treebank_pinned_in_a_banks_module_is_in_the_table() {
+    for src in [
+        include_str!("../src/ud_banks.rs"),
+        include_str!("../src/ud_banks_sa.rs"),
+        include_str!("../src/ud_banks_sa2.rs"),
+    ] {
+        let ids: Vec<&str> = src.lines().filter_map(|l| l.trim().strip_prefix("id: \"")?.strip_suffix("\",")).collect();
+        assert_eq!(ids.len(), src.matches("pub const ").count(), "a const without an id line");
+        for id in ids {
+            assert!(TREEBANKS.iter().any(|b| b.id == id), "{id} is pinned but not in TREEBANKS");
+        }
+    }
+}
