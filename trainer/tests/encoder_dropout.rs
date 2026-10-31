@@ -268,3 +268,19 @@ fn fine_tuning_with_dropout_learns_the_toy_task_and_scores_without_it() {
     assert_eq!(a.params(), b.params());
     assert_eq!((ra.train_loss, ra.dev), (rb.train_loss, rb.dev));
 }
+
+/// A place 2^23 apart on the layer below once gave the same stream,
+/// when the fields were XORed before one mix.
+#[test]
+fn no_place_aliases_a_layer_or_a_branch() {
+    assert_ne!(dropout::key(7, 0, 1, 1), dropout::key(7, 1 << 23, 0, 1));
+    assert_ne!(dropout::key(7, 0, 0, 1), dropout::key(7, 1 << 39, 0, 0));
+    let mut seen = std::collections::HashSet::new();
+    for at in 0..64u64 {
+        for layer in [0u32, 1, 2, 3, u32::MAX] {
+            for branch in 0..3u32 {
+                assert!(seen.insert(dropout::key(3, at, layer, branch)), "{at} {layer} {branch}");
+            }
+        }
+    }
+}
