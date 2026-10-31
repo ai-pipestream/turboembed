@@ -159,3 +159,5 @@ Not yet here: bundle output (a sealed bundle carrying the head),
 a core head that reads a mix of layers (only if the mix wins, #1616),
 full NER training and peer records (WNUT-17, GermEval and MASC), and a lemmatizer that reads the
 tagger's UPOS (`pos_input`).
+
+Native NER bundle prediction and paired peer comparison: [ner-release.md](ner-release.md).
