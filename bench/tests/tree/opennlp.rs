@@ -8,6 +8,14 @@ use std::path::Path;
 /// are not permitted so newly added files under `docs/receipts/` or
 /// `docs/beyond-opennlp/` are still checked.
 pub const ALLOWLIST: &[(&str, &str)] = &[
+    (
+        "docs/receipts/long-document-1486/chunk-gate.txt",
+        "Existing native semantic baseline identifier in frozen #1486 gate output",
+    ),
+    (
+        "docs/receipts/long-document-1486/paired.json",
+        "Existing native semantic baseline identifier in frozen #1486 paired scores",
+    ),
     ("docs/licences.md", "Upstream Apache-2.0 and corpus licence attributions"),
     ("docs/reference-inventory.md", "Pinned reference inventory table"),
     ("docs/analysis-features.md", "Feature checklist mapping table (#1536)"),
