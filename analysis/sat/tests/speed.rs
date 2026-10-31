@@ -24,10 +24,10 @@ use turbo_sat::{SatAnnotator, SatOptions};
 mod common;
 
 fn bundle() -> PathBuf {
-    match std::env::var_os("TURBO_SAT_BUNDLE") {
+    turbo_pins::require(match std::env::var_os("TURBO_SAT_BUNDLE") {
         Some(p) => PathBuf::from(p),
         None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-sat-bundle"),
-    }
+    })
 }
 
 /// One pass over the documents: the seconds it took and the sentences found.

@@ -352,6 +352,21 @@ impl Engine {
                             };
                             ok_response(row.id, vectors)
                         }
+                        RowPayload::Codes(data) => {
+                            let codes = crate::proto::result::VectorCodesResult {
+                                model: model.clone(),
+                                version: version.clone(),
+                                dim,
+                                data,
+                                quantization,
+                            };
+                            AnalyzeStreamResponse {
+                                id: row.id,
+                                outcome: Some(crate::proto::result::analyze_stream_response::Outcome::VectorCodes(
+                                    codes,
+                                )),
+                            }
+                        }
                         RowPayload::Outcome(outcome) => AnalyzeStreamResponse { id: row.id, outcome: Some(*outcome) },
                     };
                     let pending = Pending { response, room: Some(row.room), window: Some(row.window) };

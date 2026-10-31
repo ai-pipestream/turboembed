@@ -4,10 +4,22 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "Document categorization ported from OpenNLP 3.x onto the analysis API"
+description = "Document categorization, sentiment, emotion, incivility, aspect, and pragmatics annotators"
 
 [lib]
 name = "turbo_doccat"
+
+[features]
+default = []
+classical = ["dep:turbo-maxent"]
+
+[[example]]
+name = "calibration_deployment"
+required-features = ["classical"]
+
+[[example]]
+name = "calibration_timing"
+required-features = ["classical"]
 
 [dependencies]
 turbo-calibration = { path = "../calibration" }
@@ -15,24 +27,14 @@ turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-formats = { path = "../formats" }
 turbo = { path = "../../core" }
-# Java's Double.toString, parseDouble and parseInt, Math.log, and StrictMath.tanh.
-turbo-jvm = { path = "../jvm" }
-# MaxEnt evaluation and SHA-256 of the model files, for the layers' model
-# reference; the sentiment model file and its maxent classifier.
-turbo-maxent = { path = "../maxent" }
-# OpenNLP's emoji annotation features, for EmojiFeatureGenerator and the
-# emoji sentiment context, plus the Emoji layer for LexiconSentiment.
+turbo-maxent = { path = "../maxent", optional = true }
 turbo-normalize = { path = "../normalize" }
 turbo-normalize-layers = { path = "../normalize-layers" }
-# StringPattern, for BagOfWordsFeatureGenerator's all-letter tokens.
 turbo-sequence = { path = "../sequence" }
-# Training events and the data indexer. Training and packaging a model
-# file is in turbo-train-components, which depends on this crate.
+turbo-sha256 = { path = "../sha256" }
 turbo-train = { path = "../train" }
-# Unicode punctuation and case folding, for the emotion lexicon's lookups.
+turbo-trainer = { path = "../../trainer" }
 turbo-unicode = { path = "../unicode" }
-# Classifier heads by zoo id (#926, #888), without the HTTP transport: the
-# caller hands the zoo its own.
 turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]

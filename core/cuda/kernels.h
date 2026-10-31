@@ -182,6 +182,9 @@ struct GemmChoice {
     bool tf32 = false;
 };
 
+/* A gated MLP's activation (Shape::gated): none for a dense MLP. */
+enum GatedKind : int { GATED_NONE = 0, GATED_GELU = 1, GATED_SILU = 2 };
+
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {
     int batch_cap = 0, seq_cap = 0; /* max_batch, max_seq */
@@ -245,6 +248,11 @@ struct Shape {
      * the kernel, the earlier bits, for measuring against it. Only with
      * the LayerNorm kernel of its own, and not for a GEMM cuBLAS runs. */
     bool product16 = false;
+    /* The rotary families (rotary.h): the QKV GEMM rotates (EPI_QKV_ROPE),
+     * and the first feed-forward GEMM is a gated MLP's, 2 x inter wide,
+     * of this GatedKind. */
+    bool rope = false;
+    int gated = GATED_NONE;
 };
 
 /* Whether a GEMM of the shape runs on the tensor cores. */
@@ -394,8 +402,25 @@ enum Epilogue : int {
     EPI_ADD_LN = 3,
     EPI_GELU_ERF = 4,
     EPI_BIAS = 5,
-    EPI_GELU_TANH = 6
+    EPI_GELU_TANH = 6,
+    /* The rotary families (rotary.h): EPI_QKV with each pair-adjacent Q
+     * and K pair rotated by its token's position before the store. */
+    EPI_QKV_ROPE = 7,
+    /* A gated MLP's first product, 2 x intermediate wide with gate column
+     * j and up column j side by side (2j, 2j + 1): column j of out,
+     * [tokens, n / 2], is act(gate + bias) * (up + bias). GELU by erff;
+     * at an F16 output GELU's tanh form on the hardware tanh (gelu_tanh);
+     * SiLU, x / (1 + e^-x), expf at F32 and __expf at F16. */
+    EPI_GATED_ERF = 8,
+    EPI_GATED_TANH = 9,
+    EPI_GATED_SILU = 10
 };
+
+/* Whether an epilogue is the rotary families' own. */
+inline constexpr bool rotary_epilogue(int e) {
+    return e == EPI_QKV_ROPE || e == EPI_GATED_ERF || e == EPI_GATED_TANH || e == EPI_GATED_SILU;
+}
+
 
 /* FASTEST's GELU at an F16 output (Shape::gelu). */
 enum GeluKind : int { GELU_TANH = 0, GELU_ERF = 1, GELU_POLY = 2 };
@@ -416,6 +441,20 @@ inline Epilogue gemm_epilogue(Gemm g, bool fused_ln, int gelu, bool product16) {
     if (g == GEMM_FFN1) return gelu == GELU_ERF ? EPI_GELU_ERF : gelu == GELU_POLY ? EPI_GELU : EPI_GELU_TANH;
     return fused_ln ? EPI_ADD_LN : product16 ? EPI_BIAS : EPI_PLAIN;
 }
+
+/* gemm_epilogue for a session's shape: the rotary families' QKV
+ * rotates, and a gated MLP's first product takes its gated epilogue (the
+ * tanh form of GELU at an F16 output where the session's GELU is it, else
+ * erff); its second writes the F32 product, whatever product16 says, as
+ * its inputs reach F16's limit at the middle product's clamp (#1632). */
+inline Epilogue layer_epilogue(Gemm g, bool fused_ln, const Shape &s) {
+    if (g == GEMM_QKV && s.rope) return EPI_QKV_ROPE;
+    if (g == GEMM_FFN1 && s.gated == GATED_SILU) return EPI_GATED_SILU;
+    if (g == GEMM_FFN1 && s.gated == GATED_GELU) return s.half && s.gelu == GELU_TANH ? EPI_GATED_TANH : EPI_GATED_ERF;
+    if (g == GEMM_FFN2 && s.gated != GATED_NONE) return EPI_PLAIN;
+    return gemm_epilogue(g, fused_ln, s.gelu, s.product16);
+}
+
 
 struct GemmArgs {
     const void *a, *w;
@@ -443,6 +482,12 @@ struct GemmArgs {
     float eps;
     uint16_t *x16;
     int *rows_done;
+    /* EPI_QKV_ROPE only: the layer's cos and sin, [positions][rope_pairs]
+     * each, on the device; and the packing's token rows and row starts,
+     * from which a token's position is t - row_start[tok_row[t]]. */
+    const float *rope_cos, *rope_sin;
+    int rope_pairs;
+    const int32_t *tok_row, *row_start;
 };
 
 /* A GEMM's launch and the workspace floats it needs; and the shared
@@ -486,6 +531,11 @@ struct AttnArgs {
     Packing p;
     int heads, head_dim, hidden, tcap, chunk, queries;
     float scale;
+    /* A sliding-window layer's keys each side of a query: query i reads
+     * keys j with |i - j| <= window, positions in its row; -1 for every
+     * key of the row. Chunks of keys outside every query's band are not
+     * read. */
+    int window = -1;
 };
 
 cudaError_t attention(cudaStream_t s, const AttnArgs &a, const Shape &shape, const Plan &plan);
@@ -502,6 +552,14 @@ cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst
 
 /* Whether this build carries code the current device runs: cudaSuccess,
  * or the error that says why not. */
+
+/* int8 and ubinary codes of [rows, dim] F32 vectors, matching
+ * core/src/quantize.rs bit for bit. ranges is [2, dim] (mins then maxes)
+ * for int8; out holds rows * dim int8 bytes or rows * ceil(dim/8) ubinary
+ * bytes. */
+cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out);
+cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out);
+
 cudaError_t kernels_run_here();
 
 } // namespace turbo_cuda

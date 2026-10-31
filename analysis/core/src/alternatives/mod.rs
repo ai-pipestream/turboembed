@@ -345,6 +345,10 @@ impl<L: Layer> Layer for Alternatives<L> {
         Some(self.spans.text_spans())
     }
 
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
+
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.position.len() != n || self.position_length.len() != n || self.mode.len() != n {

@@ -17,6 +17,16 @@ serde_path_to_error = "0.1"
 turbo-unicode = { path = "../analysis/unicode" }
 # In-house FIPS 180-4 SHA-256 for bundle and package integrity.
 turbo-sha256 = { path = "../analysis/sha256" }
+# In-process text analysis, OpenNLP adapters, and DocumentGraph wire export.
+turbo-analysis = { path = "../analysis/core" }
+turbo-analysis-layers = { path = "../analysis/layers" }
+turbo-sentdetect = { path = "../analysis/sentdetect" }
+turbo-tokenize = { path = "../analysis/tokenize" }
+turbo-lemmatizer = { path = "../analysis/lemmatizer" }
+turbo-pii = { path = "../analysis/pii" }
+turbo-geo = { path = "../analysis/geo" }
+turbo-sequence = { path = "../analysis/sequence" }
+turbo-maxent = { path = "../analysis/maxent" }
 # Opens the Level Zero loader at run time, so a machine without it lists
 # no Intel GPU (levelzero) or NPU (npu) instead of failing to load
 # libturbo.
@@ -40,6 +50,8 @@ libloading = "0.9"
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 # In-house incremental SHA-256 and SHA-512 for SentencePiece fixtures.
 turbo-goldens = { path = "../analysis/goldens" }
+# The pin every bundle a test is given must have (analysis/pins).
+turbo-pins = { path = "../analysis/pins" }
 # The tests read where a model's weights are through `internals`.
 turbo = { path = ".", features = ["internals"] }
 

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use turbo_analysis::ModelRef;
 use turbo_analysis_layers::WordOrTokenAnchor;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FeedforwardDependencyParser {
     model: Arc<FeedforwardDependencyModel>,
     beam_size: usize,
@@ -71,7 +71,7 @@ impl FeedforwardDependencyParser {
                     }
                 }
             }
-            // Stable order preserves the Java beam/outcome tie break.
+            // Stable order preserves deterministic beam/outcome tie break.
             candidates.sort_by(|a, b| b.0.total_cmp(&a.0));
             candidates.truncate(self.beam_size);
             if candidates.is_empty() {

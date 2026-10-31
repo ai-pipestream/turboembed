@@ -1,6 +1,6 @@
 use crate::{DependencyGraph, DependencyParserME, FeedforwardDependencyParser};
 use std::marker::PhantomData;
-use turbo_analysis::{Annotator, Error, Ix, Layer, ModelRef, Refs, View};
+use turbo_analysis::{Annotator, Error, Ix, Key, Layer, Locality, ModelRef, Refs, View};
 use turbo_analysis_layers::{Dependencies, MorphPosTags, Sentences, Tokens, WordOrTokenAnchor};
 
 /// Parses each sentence independently, converting local heads to document
@@ -93,11 +93,21 @@ impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
         layer.check_forest().map_err(fail)?;
         Ok((layer,))
     }
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        <Self::Reads as turbo_analysis::annotate::Reads>::DEFAULT_REQUIRED_IDS
+    }
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        <Self::Writes as turbo_analysis::annotate::Writes>::DEFAULT_IDS
+    }
     fn config_hash(&self) -> u64 {
         self.parser.config_hash()
     }
     fn model(&self) -> Option<ModelRef> {
         Some(self.parser.identity())
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
 }
 
@@ -125,7 +135,7 @@ impl DependencyBackend {
     }
     fn identity(&self) -> ModelRef {
         match self {
-            Self::Linear(p) => p.model.identity.clone(),
+            Self::Linear(p) => p.model().identity(),
             Self::Feedforward(p) => p.identity(),
         }
     }

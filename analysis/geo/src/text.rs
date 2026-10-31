@@ -1,8 +1,9 @@
 //! The Java string handling the table loaders depend on: line splitting as
 //! `BufferedReader.readLine` does it, Unicode `White_Space` trimming and
 //! blank tests (`StringUtil.trimUnicodeWhitespace`, `isUnicodeBlank`),
-//! `String.split` with a single separator that keeps empty fields, and
-//! `Long.parseLong`.
+//! `String.split` with a single separator that keeps empty fields,
+//! `Long.parseLong`, and the decimal numbers of the coordinate and metric
+//! columns.
 
 use turbo_unicode::java::digit;
 
@@ -77,6 +78,48 @@ pub(crate) fn parse_long(s: &str) -> Result<i64, NotALong> {
     if negative { Ok(value) } else { value.checked_neg().ok_or(NotALong) }
 }
 
+/// A decimal number as the tables write one: an optional `+` or `-`, ASCII
+/// digits with at most one `.` and at least one digit, and an optional
+/// exponent (`e` or `E`, an optional sign, one or more digits). Nothing is
+/// trimmed, and `NaN`, `Infinity`, hexadecimal literals and type suffixes
+/// are refused. The value is the correctly rounded `f64`; a magnitude past
+/// its range reads as an infinity, which the caller refuses with its own
+/// error.
+pub(crate) fn parse_decimal(s: &str) -> Option<f64> {
+    let bytes = s.as_bytes();
+    let mut i = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
+    let mut digits = 0;
+    let mut point = false;
+    while let Some(&b) = bytes.get(i) {
+        match b {
+            b'0'..=b'9' => digits += 1,
+            b'.' if !point => point = true,
+            _ => break,
+        }
+        i += 1;
+    }
+    if digits == 0 {
+        return None;
+    }
+    if let Some(b'e' | b'E') = bytes.get(i) {
+        i += 1;
+        if let Some(b'+' | b'-') = bytes.get(i) {
+            i += 1;
+        }
+        let start = i;
+        while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+            i += 1;
+        }
+        if i == start {
+            return None;
+        }
+    }
+    if i != bytes.len() {
+        return None;
+    }
+    s.parse().ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,5 +163,24 @@ mod tests {
         assert_eq!(parse_long(""), Err(NotALong));
         // MATHEMATICAL BOLD DIGIT ONE is outside the BMP.
         assert_eq!(parse_long("\u{1D7CF}"), Err(NotALong));
+    }
+
+    #[test]
+    fn decimals_take_digits_a_point_and_an_exponent_only() {
+        assert_eq!(parse_decimal("48.8566"), Some(48.8566));
+        assert_eq!(parse_decimal("-90"), Some(-90.0));
+        assert_eq!(parse_decimal("+1.5e3"), Some(1500.0));
+        assert_eq!(parse_decimal("1."), Some(1.0));
+        assert_eq!(parse_decimal(".5"), Some(0.5));
+        assert_eq!(parse_decimal("2E-2"), Some(0.02));
+        assert_eq!(parse_decimal("-0"), Some(-0.0));
+        assert_eq!(parse_decimal("1e400"), Some(f64::INFINITY));
+        assert_eq!(parse_decimal(""), None);
+        assert_eq!(parse_decimal(" 1"), None);
+        assert_eq!(parse_decimal("1 "), None);
+        let refused = "+ - . 1.2.3 1e 1e+ 1d 1f 0x1p3 NaN Infinity inf -infinity nan 1_000 \u{0661} \u{FF11} e5";
+        for text in refused.split(' ') {
+            assert_eq!(parse_decimal(text), None, "{text:?}");
+        }
     }
 }

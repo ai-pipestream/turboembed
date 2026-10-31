@@ -290,7 +290,6 @@ const RUNTIME_MAGIC: u64 = 0x7475_7262_6f72_7431; // "turbort1"
 const TOKENIZER_MAGIC: u64 = 0x7475_7262_6f74_6b31; // "turbotk1"
 const CONTEXT_MAGIC: u64 = 0x7475_7262_6f63_7431; // "turboct1"
 const BUFFER_MAGIC: u64 = 0x7475_7262_6f62_6631; // "turbobf1"
-const MODEL_MAGIC: u64 = 0x7475_7262_6f6d_6431; // "turbomd1"
 
 struct Runtime {
     log: turbo_log_fn,
@@ -409,55 +408,6 @@ unsafe fn tokenizer<'a>(t: *mut turbo_tokenizer) -> Result<&'a turbo_tokenizer> 
     }
 }
 
-// ---- Model -----------------------------------------------------------------------
-
-/// A bundle loaded on a context's device. It holds its context, so the
-/// backend's model is released before the backend's context.
-struct Model {
-    context: Arc<Context>,
-    raw: *mut c_void,
-    release: unsafe extern "C" fn(*mut c_void),
-    /// The core's one verified host copy of the weights, and of a compiled
-    /// artifact's bytes. A backend with its own memory copied them there at
-    /// load; the CPU backend reads them here, in place, so they live exactly
-    /// as long as the backend's model.
-    weights: model::Weights,
-    /// The bundle's tokenizer, checked against its reference at load, for
-    /// turbo_embed_write_text.
-    tokenizer: Tokenizer,
-    info: turbo_model_info,
-    /// The widths embed.output_dims allows besides dim.
-    output_dims: Vec<u32>,
-    rerank_head: Option<head::Head>,
-    /// An extractive QA model's span head, on a backend that applies it
-    /// as it pools ranges; it holds the tensors model_load was handed.
-    span_head: Option<head::Head>,
-}
-
-// As for Context: the backend's model may be used from any thread.
-unsafe impl Send for Model {}
-unsafe impl Sync for Model {}
-
-impl Drop for Model {
-    fn drop(&mut self) {
-        // The weights and the context are dropped after this, with the
-        // struct's fields.
-        unsafe { (self.release)(self.raw) };
-    }
-}
-
-pub struct turbo_model {
-    magic: u64,
-    inner: Arc<Model>,
-}
-
-unsafe fn model_handle<'a>(m: *mut turbo_model) -> Result<&'a turbo_model> {
-    match unsafe { m.as_ref() } {
-        Some(r) if r.magic == MODEL_MAGIC => Ok(r),
-        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_model")),
-    }
-}
-
 mod runtime;
 use runtime::*;
 
@@ -475,3 +425,6 @@ pub use model_api::*;
 
 mod tokenizer_api;
 pub use tokenizer_api::*;
+
+mod analysis_api;
+pub use analysis_api::*;

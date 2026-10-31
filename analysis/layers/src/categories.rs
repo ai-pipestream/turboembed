@@ -383,6 +383,27 @@ impl<L: CategoryScope> Layer for Categories<L> {
         self.category.len()
     }
 
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(self.categories.content_hash()).usize(self.category.len());
+        for &c in &self.category {
+            h.u16(c.0);
+        }
+        h.usize(self.selected.len());
+        for &s in &self.selected {
+            h.u16(s.0);
+        }
+        h.usize(self.selected_end.len());
+        for &e in &self.selected_end {
+            h.u32(e);
+        }
+        h.usize(self.scores.len());
+        for &sc in &self.scores {
+            h.f64(sc);
+        }
+        Some(h.finish())
+    }
+
     fn check(&self) -> Result<(), String> {
         let n = self.category.len();
         let k = self.categories.len();

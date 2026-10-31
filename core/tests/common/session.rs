@@ -91,6 +91,25 @@ impl Session {
         Ok(())
     }
 
+    /// `write_ranges`, each range pooled from each of the last `layers`
+    /// layers (turbo_embed_write_layer_ranges).
+    pub fn write_layer_ranges(
+        &self,
+        b: &turbo_token_batch,
+        ranges: &[turbo_token_range],
+        layers: u32,
+        opts: Option<&turbo_embed_options>,
+    ) -> Result<(), Failure> {
+        let mut err = new_error();
+        let o = opts.map_or(ptr::null(), |o| o as *const _);
+        let n = ranges.len() as u32;
+        let rc = unsafe { turbo_embed_write_layer_ranges(self.0, b, ranges.as_ptr(), n, layers, o, &mut err) };
+        if rc != 0 {
+            return Err(failure(rc, &err));
+        }
+        Ok(())
+    }
+
     pub fn run(&self) -> Result<Outcome, Failure> {
         let mut r = ptr::null_mut();
         let mut err = new_error();

@@ -178,7 +178,7 @@ mod tests {
             sha256: m["sha256"].as_str().unwrap().into(),
         };
         load(Path::new(&dir), &model).unwrap();
-        let mut bytes = std::fs::read(Path::new(&dir).join("pragmatics-1.thead")).unwrap();
+        let mut bytes = std::fs::read(turbo_pins::require(Path::new(&dir).join("pragmatics-1.thead"))).unwrap();
         bytes[0] ^= 1;
         assert!(validate_head(&bytes, &model).is_err());
     }

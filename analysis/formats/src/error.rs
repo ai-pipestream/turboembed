@@ -121,10 +121,17 @@ pub enum FormatError {
     /// A CoNLL-2003 line without the number of fields its language has
     /// (four in English, five in German). `text` is the line.
     Conll03Fields { line: u32, text: String },
+    /// A MultiCoNER v2 row without exactly one ` _ _ ` separator, a
+    /// nonempty token and a nonempty tag with no whitespace.
+    MulticonerFields { line: u32, text: String },
     /// A name tag that is not `O` and does not start with `B-` or `I-`,
     /// in CoNLL-2002, CoNLL-2003, BioNLP 2004 and Evalita (GermEval reads
     /// such a tag as `O`).
     InvalidNameTag { line: u32, tag: String },
+    /// An `I-` tag with no preceding `B-` tag in the same sentence.
+    UnexpectedNameContinuation { line: u32, tag: String },
+    /// An `I-` tag whose type differs from its entity's `B-` tag.
+    NameTypeMismatch { line: u32, expected: String, found: String },
     /// A name tag whose type the stream has no name for, found when its
     /// name ends: `kind` is the tag after its prefix. CoNLL knows `PER`,
     /// `ORG`, `LOC` and `MISC`, Evalita `PER`, `ORG`, `LOC` and `GPE`,
@@ -169,7 +176,11 @@ impl FormatError {
             Conll02Fields { .. } | Conll03Fields { .. } | InvalidNameTag { .. } | DocstartNotFollowedByEmpty { .. } => {
                 Some("java.io.IOException")
             }
-            UnknownNameType { .. } | ConllXColumns { .. } => Some("opennlp.tools.util.InvalidFormatException"),
+            MulticonerFields { .. }
+            | UnexpectedNameContinuation { .. }
+            | NameTypeMismatch { .. }
+            | UnknownNameType { .. }
+            | ConllXColumns { .. } => Some("opennlp.tools.util.InvalidFormatException"),
             DocstartAtEnd { .. } => Some("java.lang.NullPointerException"),
             SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,
         }
@@ -272,7 +283,12 @@ impl fmt::Display for FormatError {
                 write!(f, "Expected three fields per line in training data, got {count} for line '{text}'!")
             }
             Conll03Fields { text, .. } => write!(f, "Incorrect number of fields per line for language: '{text}'!"),
+            MulticonerFields { text, .. } => write!(f, "Expected token and tag separated by ' _ _ ': '{text}'"),
             InvalidNameTag { tag, .. } => write!(f, "Invalid tag: {tag}"),
+            UnexpectedNameContinuation { tag, .. } => write!(f, "Unexpected name continuation: {tag}"),
+            NameTypeMismatch { expected, found, .. } => {
+                write!(f, "Name type mismatch: expected {expected}, found {found}")
+            }
             UnknownNameType { kind, .. } => write!(f, "Unknown type: {kind}"),
             DocstartNotFollowedByEmpty { text, .. } => write!(f, "Empty line after -DOCSTART- not empty: '{text}'!"),
             DocstartAtEnd { .. } => {

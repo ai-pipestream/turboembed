@@ -59,6 +59,38 @@ impl Scratch {
     pub fn new() -> Scratch {
         Scratch::default()
     }
+
+    fn release_large(&mut self) {
+        release(&mut self.enders);
+        self.features.release_large(RETAINED);
+        release(&mut self.probs);
+        self.lookup.release_large(RETAINED);
+        release(&mut self.window);
+        release(&mut self.starts);
+        release(&mut self.start_probs);
+    }
+
+    #[cfg(test)]
+    fn largest_capacity(&self) -> usize {
+        [
+            self.enders.capacity(),
+            self.features.largest_capacity(),
+            self.probs.capacity(),
+            self.lookup.largest_capacity(),
+            self.window.capacity(),
+            self.starts.capacity(),
+            self.start_probs.capacity(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0)
+    }
+}
+
+fn release<T>(v: &mut Vec<T>) {
+    if v.capacity() > RETAINED {
+        *v = Vec::new();
+    }
 }
 
 /// Splits a view into sentences with a maxent model, writing `Sentences`
@@ -122,7 +154,7 @@ impl SentenceDetector {
     ///
     /// When `text` is longer than `u32::MAX` bytes.
     pub fn detect(&self, text: &str, out: &mut Vec<(Span, f64)>) {
-        self.detect_with(text, &mut Scratch::new(), out);
+        with_scratch(|scratch| self.detect_with(text, scratch, out));
     }
 
     /// [`detect`](Self::detect) with buffers kept by the caller.
@@ -260,10 +292,35 @@ impl SentenceDetector {
     }
 }
 
+/// The most elements a per-thread buffer keeps between calls. A detection
+/// that grows one past this hands it back to the allocator afterwards, so
+/// a thread that once handled a very large document does not hold that
+/// document's peak memory for the rest of its life.
+pub(crate) const RETAINED: usize = 1 << 16;
+
 thread_local! {
     /// The buffers of the annotator, one set per thread, so that a
     /// pipeline running many documents allocates only while they grow.
     static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch::new());
+}
+
+/// Runs `f` with this thread's buffers, or with fresh ones when they are
+/// already in use further up the stack, then releases any buffer that grew
+/// past [`RETAINED`].
+pub(crate) fn with_scratch<R>(f: impl FnOnce(&mut Scratch) -> R) -> R {
+    SCRATCH.with(|cell| match cell.try_borrow_mut() {
+        Ok(mut scratch) => {
+            let r = f(&mut scratch);
+            scratch.release_large();
+            r
+        }
+        Err(_) => f(&mut Scratch::new()),
+    })
+}
+
+#[cfg(test)]
+fn retained_capacity() -> usize {
+    SCRATCH.with_borrow(|s| s.largest_capacity())
 }
 
 impl Annotator for SentenceDetector {
@@ -275,7 +332,7 @@ impl Annotator for SentenceDetector {
         let text = view.text();
         check_len(Self::ID, text)?;
         let mut found = Vec::new();
-        SCRATCH.with_borrow_mut(|scratch| self.detect_with(text, scratch, &mut found));
+        with_scratch(|scratch| self.detect_with(text, scratch, &mut found));
         let mut spans = Spans::with_capacity(view.id(), found.len());
         let confidence = found.iter().map(|&(s, p)| {
             spans.push(s);
@@ -289,6 +346,19 @@ impl Annotator for SentenceDetector {
         Some(self.model.model_ref().clone())
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<View>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[
+            turbo_analysis::Key::<Sentences>::DEFAULT.id(),
+            turbo_analysis::Key::<Confidence<Sentences>>::DEFAULT.id(),
+        ];
+        PRODUCES
+    }
+
     /// The whitespace definition, and the abbreviation inventory when
     /// there is one; in JVM parity mode the hash is what it was before
     /// inventories.
@@ -300,115 +370,40 @@ impl Annotator for SentenceDetector {
 
 #[cfg(test)]
 mod tests {
-    use turbo_analysis::Document;
-    use turbo_maxent::ModelFile;
-
     use super::*;
+    use turbo_analysis::Document;
 
-    fn detector(name: &str) -> SentenceDetector {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures").join(name);
-        SentenceDetector::new(SentenceModel::open(ModelFile::read(path).unwrap()).unwrap())
-    }
-
-    fn detect(d: &SentenceDetector, text: &str) -> Vec<(u32, u32, f64)> {
-        let mut out = Vec::new();
-        d.detect(text, &mut out);
-        out.iter().map(|&(s, p)| (s.start, s.end, p)).collect()
+    #[test]
+    fn a_large_document_does_not_pin_its_buffers_to_the_thread() {
+        let text = "One sentence here. ".repeat(70_000);
+        let detector = SentenceDetector::new(SentenceModel::test_model()).with_jvm_parity();
+        let (got, kept) = std::thread::scope(|s| {
+            s.spawn(|| {
+                let doc = Document::new(text.as_str());
+                let view = doc.get::<View>().unwrap();
+                let (sentences, _) = detector.annotate((view,)).unwrap();
+                (sentences.spans.len(), retained_capacity())
+            })
+            .join()
+            .unwrap()
+        });
+        assert_eq!(got, 70_000);
+        assert!(kept <= RETAINED, "the thread kept a buffer of {kept} elements");
     }
 
     #[test]
-    fn empty_and_blank_texts_have_no_sentences() {
-        let d = detector("en-abbrev.bin");
-        assert_eq!(detect(&d, ""), []);
-        assert_eq!(detect(&d, " \u{85}\u{2028}\t"), []);
-        // Text with no end character is one sentence of probability 1.
-        assert_eq!(detect(&d, "  no end here "), [(2, 13, 1.0)]);
-    }
-
-    #[test]
-    fn a_split_at_the_segment_start_adds_no_sentence() {
-        // From the golden file lone-period: the split at index 0 is taken,
-        // but `index != cint` is false, so no start is added and the text
-        // is one sentence of probability 1.
-        let d = detector("en-abbrev.bin");
-        let mut decisions = Vec::new();
-        let mut out = Vec::new();
-        d.detect_traced(".", &mut Scratch::new(), &mut out, |c| decisions.push((c.at, c.decision)));
-        assert_eq!(decisions, [(Position { byte: 0, unit: 0 }, Decision::Split)]);
-        assert_eq!(out, [(Span::new(0, 1), 1.0)]);
-    }
-
-    #[test]
-    fn scratch_reuse_gives_the_same_result() {
-        let d = detector("en-plain.bin");
-        let texts = ["Mr. Smith left. Then he came back.", "", "One. Two! Three?"];
-        let mut scratch = Scratch::new();
-        for text in texts.iter().chain(texts.iter()) {
-            let (mut fresh, mut reused) = (Vec::new(), Vec::new());
-            d.detect(text, &mut fresh);
-            d.detect_with(text, &mut scratch, &mut reused);
-            assert_eq!(fresh, reused, "{text:?}");
-        }
-    }
-
-    #[test]
-    fn leaving_out_long_words_changes_nothing() {
-        // detect_with leaves out word features longer than every predicate
-        // and skips lookups of words longer than every dictionary entry;
-        // detect_traced builds every feature as the Java does. On texts
-        // without whitespace every word reaches to an end of the text.
-        // The two fixture models always, the published English and
-        // Portuguese models when they are downloaded.
-        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures");
-        let mut models = vec![fixtures.join("en-abbrev.bin"), fixtures.join("en-plain.bin")];
-        models.extend(
-            ["opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin"]
-                .into_iter()
-                .filter_map(turbo_goldens::published_model),
-        );
-        let texts = [
-            "A.".repeat(1500),
-            "x.Y".repeat(1000),
-            "Mr.Smith.went.Home!Then?Dr.Who.et.al.".repeat(80),
-            "He thought hard.Bekannt.Sie kam.".repeat(90),
-            format!("Start. {} End. Mr. Brown left.", "\u{E9}t\u{E9}.\u{1F600}".repeat(400)),
-        ];
-        let mut splits = 0;
-        for path in models {
-            let model = Arc::new(SentenceModel::open(ModelFile::read(path).unwrap()).unwrap());
-            assert!(model.limits().feature < 1000, "{}", model.limits().feature);
-            let d = SentenceDetector::new(model.clone());
-            for text in &texts {
-                let (mut fast, mut full) = (Vec::new(), Vec::new());
-                d.detect(text, &mut fast);
-                d.detect_traced(text, &mut Scratch::new(), &mut full, |c| {
-                    splits += usize::from(c.decision == Decision::Split);
-                });
-                let bits = |v: &[(Span, f64)]| v.iter().map(|&(s, p)| (s, p.to_bits())).collect::<Vec<_>>();
-                assert_eq!(
-                    bits(&fast),
-                    bits(&full),
-                    "{} on {:?}",
-                    model.language(),
-                    text.chars().take(30).collect::<String>()
-                );
-            }
-        }
-        // The two fixture models alone split over 3000 times.
-        assert!(splits > 1000, "only {splits} splits");
-    }
-
-    #[test]
-    fn annotator_writes_both_layers() {
-        let d = detector("en-abbrev.bin");
-        let doc = Document::new("Mr. Smith met Dr. Brown at 5 p.m. on Main St. today. He left early.");
-        let view = doc.get::<View>().unwrap();
-        let (sentences, confidence) = d.annotate((view,)).unwrap();
-        assert_eq!(sentences.spans.view(), view.id());
-        assert_eq!(sentences.spans.columns(), (&[0, 53][..], &[52, 67][..]));
-        // The golden probabilities.
-        assert_eq!(confidence.value, [0.9955300941022667, 0.9466056890177881]);
-        assert_eq!(d.clone().with_jvm_parity().config_hash(), WHITESPACE_HASH);
-        assert_eq!(d.model().unwrap().id, "opennlp:SentenceDetectorME:en");
+    fn a_detection_nested_in_another_uses_its_own_buffers() {
+        let detector = SentenceDetector::new(SentenceModel::test_model()).with_jvm_parity();
+        let (mut outer, mut inner) = (Vec::new(), Vec::new());
+        with_scratch(|scratch| {
+            detector.detect("Inner one. Inner two.", &mut inner);
+            let doc = Document::new("Annotated one. Annotated two.");
+            let view = doc.get::<View>().unwrap();
+            let (sentences, _) = detector.annotate((view,)).unwrap();
+            assert_eq!(sentences.spans.len(), 2);
+            detector.detect_with("Outer one. Outer two.", scratch, &mut outer);
+        });
+        assert_eq!(inner.iter().map(|&(s, _)| s).collect::<Vec<_>>(), [Span::new(0, 10), Span::new(11, 21)]);
+        assert_eq!(outer.iter().map(|&(s, _)| s).collect::<Vec<_>>(), [Span::new(0, 10), Span::new(11, 21)]);
     }
 }

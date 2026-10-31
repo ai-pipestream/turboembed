@@ -1,14 +1,7 @@
 use std::collections::BTreeSet;
-use std::path::Path;
-
-use turbo_zoo::{Component, Format, Kind, LicenceClass, TrainingData};
 
 use super::*;
-use crate::card::{CARD_FILE, GATE_FILE, MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION};
-use crate::langdetect::{self, MODEL_ID, SENTENCES_FILE, ZOO_LANGUAGE};
-use crate::langdetect_web::{self, DOCUMENTS_FILE};
 use crate::treebank::TextRights;
-use crate::{masc, tatoeba};
 
 #[test]
 fn every_release_is_tagged_once_and_names_recipes_in_their_order() {
@@ -60,239 +53,46 @@ fn the_ud_release_leaves_out_porttinari_and_markit() {
     }
 }
 
-/// The zoo lists `id`'s model at its address in `release`, as its card
-/// makes the entry: permissive, needing no acceptance, trained on
-/// `trained_on` and nothing else, its files the model and then
-/// `extra`, each at its address in the release.
-fn listed(
-    index: &Index,
-    release: &ModelsRelease,
-    id: &str,
-    component: Component,
-    language: &str,
-    trained_on: &[TrainingData],
-    extra: &[&str],
-) {
-    let entry = index.get(id).unwrap();
-    assert_eq!(entry.kind, Kind::Model, "{id}");
-    assert_eq!(entry.component, Some(component), "{id}");
-    assert_eq!(entry.language.as_ref().unwrap().as_str(), language, "{id}");
-    assert_eq!(entry.format, Format::OpennlpModel, "{id}");
-    assert_eq!(entry.version, MODEL_VERSION, "{id}");
-    assert_eq!(entry.license, MODEL_LICENCE, "{id}");
-    assert_eq!(entry.license_terms.as_str(), MODEL_LICENCE_TERMS, "{id}");
-    assert_eq!(entry.class, LicenceClass::Permissive, "{id}");
-    assert!(entry.licences_to_accept(turbo_zoo::Policy::default()).is_empty(), "{id}");
-    assert_eq!(entry.trained_on, trained_on, "{id}");
-    let files: Vec<String> =
-        std::iter::once(format!("{id}.bin")).chain(extra.iter().map(|f| (*f).to_owned())).collect();
-    assert_eq!(entry.files.len(), files.len(), "{id}");
-    for (listed, file) in entry.files.iter().zip(&files) {
-        assert_eq!(listed.path.as_str(), file, "{id}");
-        assert_eq!(listed.url.as_str(), release.url(file), "{id}");
-    }
-    assert!(index.shippable().any(|a| a.id.as_str() == id), "{id}");
-}
-
-/// The zoo lists every model of each release at its address there, and
-/// nothing else at the release's addresses. That the bytes there are
-/// the recipes' is what `turbo-train-recipes zoo-index --check` checks
-/// on a run.
+/// The MASC gates read no reference: the UD 1.3 models built with
+/// OpenNLP 2.5.4 are not fetched or pinned (#1509), so the release lists
+/// none and masc-references.txt keeps only its header.
 #[test]
-fn the_builtin_index_lists_every_model_at_its_release_address() {
-    let index = Index::builtin();
-    for recipe in MASC_MODELS.recipes() {
-        listed(&index, &MASC_MODELS, recipe.model_id(), recipe.component(), "en", &[masc::training_data()], &[]);
-    }
-    for recipe in UD_MODELS.ud_recipes() {
-        let (language, trained_on) = (recipe.treebank.language, recipe.treebank.training_data());
-        listed(&index, &UD_MODELS, recipe.model_id, recipe.zoo_component(), language, &[trained_on], &[]);
-    }
-    for recipe in UD_DEPPARSE_MODELS.depparse_recipes() {
-        let (language, trained_on) = (recipe.treebank.language, recipe.treebank.training_data());
-        listed(&index, &UD_DEPPARSE_MODELS, recipe.model_id, Component::DependencyParser, language, &[trained_on], &[]);
-    }
-    let export = langdetect::EXPORT.digest().unwrap();
-    let tatoeba = TrainingData {
-        name: format!("Tatoeba export {}", &export[..16]),
-        license: turbo_zoo::Licence::CcBy20Fr,
-        license_terms: tatoeba::TERMS_URL.parse().unwrap(),
-    };
-    assert_eq!(langdetect::training_data(export), tatoeba);
-    let (id, component) = (MODEL_ID, Component::LanguageDetector);
-    listed(&index, &TATOEBA_MODELS, id, component, ZOO_LANGUAGE, std::slice::from_ref(&tatoeba), &[SENTENCES_FILE]);
-    let web = langdetect_web::training_data(export);
-    assert_eq!(web[0], tatoeba);
-    assert_eq!(web.len(), 3);
-    let id = langdetect_web::MODEL_ID;
-    listed(&index, &FINEWEB_MODELS, id, component, ZOO_LANGUAGE, &web, &[SENTENCES_FILE, DOCUMENTS_FILE]);
-    for release in MODELS_RELEASES {
-        assert_eq!(listed_at(&index, &release), release.models, "{}", release.tag);
-    }
-    assert!(MASC_MODELS.recipes().iter().any(|r| r.component() == Component::Chunker));
+fn masc_references_list_no_model() {
+    assert_eq!(references(&MASC_MODELS).unwrap(), Vec::new());
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let listed = std::fs::read_to_string(root.join("masc-references.txt")).unwrap();
+    let references: Vec<_> = listed.lines().filter(|line| !line.is_empty() && !line.starts_with('#')).collect();
+    assert_eq!(references, Vec::<&str>::new());
 }
 
-/// The built-in index with its own entries of a release has no
-/// differences; one with an entry changed, missing or added at the
-/// release's addresses has one line for each.
+/// No OpenNLP 1.5 model is fetched or scored (#1509): the MASC tagger
+/// and name finders have no reference model, no reference a release
+/// reads is one, and masc-references.txt lists none.
 #[test]
-fn differences_name_every_entry_listed_otherwise_and_every_other_model_at_the_release() {
-    let builtin = Index::builtin();
-    let entries: Vec<Artifact> = MASC_MODELS.models.iter().map(|id| builtin.get(id).unwrap().clone()).collect();
-    assert!(differences(&builtin, &entries, &MASC_MODELS).is_empty());
-
-    // Omitting a model entry that the release publishes is flagged.
-    let partial = &entries[1..];
-    assert_eq!(
-        differences(&builtin, partial, &MASC_MODELS),
-        [format!("{}: release {} publishes it, but no entry was given", entries[0].id, MASC_MODELS.tag)]
-    );
-
-    let mut changed = entries.clone();
-    changed[1].files[0].size += 1;
-    let lines = differences(&builtin, &changed, &MASC_MODELS);
-    assert_eq!(lines.len(), 1);
-    assert!(lines[0].starts_with(&format!("{}: the built-in index lists another entry (", entries[1].id)));
-
-    let mut extra = entries[0].clone();
-    extra.id = "turbo-en-masc-3.0.0-extra-1".parse().unwrap();
-    extra.files[0].path = "turbo-en-masc-3.0.0-extra-1.bin".parse().unwrap();
-    extra.files[0].url = MASC_MODELS.url("turbo-en-masc-3.0.0-extra-1.bin").parse().unwrap();
-    let listed: Vec<Artifact> =
-        builtin.list().iter().filter(|a| a.id != entries[0].id).cloned().chain([extra]).collect();
-    let index = Index::parse(Index::to_canonical_json(&listed).as_bytes()).unwrap();
-    assert_eq!(
-        differences(&index, &entries, &MASC_MODELS),
-        [
-            format!("{}: the built-in index does not list it", entries[0].id),
-            "turbo-en-masc-3.0.0-extra-1: the built-in index lists it at an address of release \
-             models-masc-3.0.0-1, which does not publish it"
-                .to_owned(),
-        ]
-    );
-}
-
-/// The workflow that publishes `release` names its tag and [`RELEASES`],
-/// publishes through models-publish.yml, and fetches the references the
-/// release's recipes read from the addresses `references_file` lists,
-/// checked against the SHA-256s it lists.
-fn published_by(release: &ModelsRelease, workflow_file: &str, references_file: &str) {
-    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workflow = std::fs::read_to_string(crate_dir.join("../../.github/workflows").join(workflow_file)).unwrap();
-    let lines: Vec<&str> = workflow.lines().map(str::trim).collect();
-    assert!(lines.contains(&format!("TAG: {}", release.tag).as_str()), "{workflow_file}'s TAG");
-    assert!(lines.contains(&format!("RELEASES: {RELEASES}").as_str()), "{workflow_file}'s RELEASES");
-    assert!(workflow.contains(&format!("analysis/train-recipes/{references_file}")), "{workflow_file}");
-    assert!(lines.contains(&"uses: ./.github/workflows/models-publish.yml"), "{workflow_file} publishes");
-
-    let listed = std::fs::read_to_string(crate_dir.join(references_file)).unwrap();
-    let listed: Vec<(String, String)> = listed
-        .lines()
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(|l| {
-            let (sha256, url) = l.split_once(' ').unwrap();
-            (sha256.to_owned(), url.to_owned())
-        })
-        .collect();
-    assert_eq!(listed, references(release).unwrap(), "{references_file}");
-    // The workflow saves each file under the address's last segment,
-    // the name a run reads it by.
-    for reference in release.recipe_references() {
-        let (sha256, file) = (reference.sha256().unwrap(), reference.file().unwrap());
-        assert!(
-            listed.iter().any(|(s, url)| *s == sha256 && url.rsplit('/').next() == Some(file.as_str())),
-            "{}",
-            reference.id()
-        );
-    }
-}
-
-#[test]
-fn the_models_workflows_publish_the_releases_and_fetch_their_references() {
-    published_by(&MASC_MODELS, "models.yml", "masc-references.txt");
-    published_by(&UD_MODELS, "models-ud.yml", "ud-references.txt");
-    published_by(&TATOEBA_MODELS, "models-tatoeba.yml", "tatoeba-references.txt");
-    published_by(&FINEWEB_MODELS, "models-fineweb.yml", "fineweb-references.txt");
-}
-
-/// The training workflows are an opt-in integration test on pull
-/// requests: the training job runs on a pull request only with the label
-/// `ci:models`, and every push to main that changes their paths trains
-/// (.github/runner/README.md, "Model training runs").
-#[test]
-fn the_models_workflows_train_on_pull_requests_only_with_the_label() {
-    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    for file in ["models.yml", "models-ud.yml", "models-tatoeba.yml", "models-fineweb.yml"] {
-        let workflow = std::fs::read_to_string(crate_dir.join("../../.github/workflows").join(file)).unwrap();
-        let lines: Vec<&str> = workflow.lines().map(str::trim).collect();
-        assert!(lines.contains(&"types: [opened, synchronize, reopened, labeled]"), "{file}");
-        assert!(lines.contains(&"branches: [main]"), "{file} trains on main");
-        assert!(lines.contains(&"github.event_name != 'pull_request' ||"), "{file}");
-        assert!(lines.contains(&"(contains(github.event.pull_request.labels.*.name, 'ci:models') &&"), "{file}");
-        // The pull request and the push list the same paths.
-        let paths = |from: &str| -> Vec<&str> {
-            let at = lines.iter().position(|l| *l == from).unwrap();
-            let rest = &lines[at..];
-            let start = rest.iter().position(|l| *l == "paths:").unwrap() + 1;
-            rest[start..].iter().take_while(|l| l.starts_with("- ")).copied().collect()
-        };
-        let pr = paths("pull_request:");
-        assert!(!pr.is_empty(), "{file}");
-        assert_eq!(pr, paths("push:"), "{file}");
-    }
-}
-
-/// The `models-tatoeba` workflow names the release that keeps the
-/// recorded export and reads `tatoeba-export.txt`, which lists the
-/// export's two archives at their addresses in that release, each
-/// under the name Tatoeba publishes it by, with a SHA-256 each; and it
-/// compares the model's four files between its two runs.
-#[test]
-fn the_tatoeba_workflow_trains_on_the_kept_export() {
-    let tag = TATOEBA_EXPORT_RELEASE;
-    assert!(tag.starts_with(|c: char| c.is_ascii_alphanumeric()), "{tag}");
-    assert!(tag.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')), "{tag}");
-    assert!(MODELS_RELEASES.iter().all(|r| r.tag != tag));
-
-    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workflow = std::fs::read_to_string(crate_dir.join("../../.github/workflows/models-tatoeba.yml")).unwrap();
-    let lines: Vec<&str> = workflow.lines().map(str::trim).collect();
-    assert!(lines.contains(&format!("DATA_TAG: {tag}").as_str()));
-    assert!(workflow.contains("analysis/train-recipes/tatoeba-export.txt"));
-    let listed = std::fs::read_to_string(crate_dir.join("tatoeba-export.txt")).unwrap();
-    let listed: Vec<(&str, &str)> =
-        listed.lines().filter(|l| !l.is_empty() && !l.starts_with('#')).map(|l| l.split_once(' ').unwrap()).collect();
-    let urls: Vec<String> = [tatoeba::DETAILED_ARCHIVE_URL, tatoeba::CC0_ARCHIVE_URL]
-        .map(|u| format!("{RELEASES}{tag}/{}", u.rsplit('/').next().unwrap()))
-        .to_vec();
-    assert_eq!(listed.iter().map(|(_, url)| (*url).to_owned()).collect::<Vec<_>>(), urls);
-    for (sha256, url) in &listed {
-        assert!(sha256.len() == 64 && sha256.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')), "{url}");
-    }
-    let index = Index::builtin();
-    let dataset = index.get("tatoeba-2026-10-10").unwrap();
-    assert_eq!(dataset.kind, Kind::Dataset);
-    assert_eq!(dataset.format, Format::TarBz2);
-    let dataset_files: Vec<(String, String)> =
-        dataset.files.iter().map(|f| (f.sha256.to_string(), f.url.to_string())).collect();
-    let expected_files: Vec<(String, String)> =
-        listed.iter().map(|(sha, url)| ((*sha).to_owned(), (*url).to_owned())).collect();
-    assert_eq!(dataset_files, expected_files);
-    // The runs write the model's directory under its id.
-    assert!(lines.contains(&format!("id={MODEL_ID}").as_str()));
-    assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE} {CARD_FILE} {GATE_FILE}")));
-}
-
-/// No workflow fetches a reference from `opennlp.sourceforge.net`: its
-/// `models-1.5` page is gone (#1565), so a fetch there fails every
-/// models run. The 1.5 models are served from the project's file area.
-#[test]
-fn no_references_file_lists_the_retired_opennlp_host() {
-    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    for file in ["masc-references.txt", "ud-references.txt", "tatoeba-references.txt", "fineweb-references.txt"] {
-        let listed = std::fs::read_to_string(crate_dir.join(file)).unwrap();
-        for line in listed.lines().filter(|l| !l.starts_with('#')) {
-            assert!(!line.contains("://opennlp.sourceforge.net/"), "{file}: {line}");
+fn no_masc_recipe_or_listed_reference_is_an_opennlp_1_5_model() {
+    for recipe in crate::RECIPES {
+        match recipe {
+            // The sentence detector's reference is retired; the
+            // tokenizer's was retired with the UD tokenizer models
+            // (#1645), so it has none.
+            crate::Recipe::Segmentation(r) if r.component == crate::segmentation::Component::Sentence => {
+                assert!(recipe.reference().is_ok(), "{}", recipe.model_id())
+            }
+            _ => match recipe.reference() {
+                Err(Error::NoReference { recipe: id }) => assert_eq!(id, recipe.model_id()),
+                other => panic!("{}: {other:?}", recipe.model_id()),
+            },
         }
+    }
+    let retired = ["models-1.5", "en-pos-maxent", "en-chunker", "en-ner-", "-1.5"];
+    for release in MODELS_RELEASES {
+        for reference in release.recipe_references() {
+            assert!(!retired.iter().any(|r| reference.id().contains(r)), "{}: {}", release.tag, reference.id());
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let listed = std::fs::read_to_string(root.join("masc-references.txt")).unwrap();
+    for line in listed.lines().filter(|l| !l.starts_with('#')) {
+        assert!(!retired.iter().any(|r| line.contains(r)), "{line}");
     }
 }

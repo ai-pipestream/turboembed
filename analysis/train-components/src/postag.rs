@@ -301,7 +301,7 @@ mod tests {
         );
         let report = TrainingReport { event_hash: Some(1), trainer_type: turbo_train::TrainerType::Event };
         let package = package_pos_model(&f, &report, vec![1], 3, Stamp::at(0)).unwrap();
-        assert_eq!(package.entry_names(), ["tags.tagdict", "manifest.properties", "generator.featuregen", "pos.model"]);
+        assert_eq!(package.entry_names(), ["manifest.properties", "tags.tagdict", "pos.model", "generator.featuregen"]);
         assert_eq!(package.manifest().get("BeamSize"), Some("3"));
         // Trained on tags that do not include DT, the dictionary is refused.
         let s = samples("a_X b_Y\n");

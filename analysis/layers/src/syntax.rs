@@ -18,8 +18,14 @@ impl Layer for PosTags {
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
     }
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn len(&self) -> usize {
         self.tags.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
@@ -42,8 +48,14 @@ impl Layer for Lemmas {
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
     }
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn len(&self) -> usize {
         self.lemma.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.lemma.content_hash())
     }
 }
 
@@ -61,6 +73,9 @@ impl Layer for Stems {
     }
     fn len(&self) -> usize {
         self.stem.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.stem.content_hash())
     }
 }
 
@@ -111,6 +126,9 @@ impl Layer for Terms {
     }
     fn len(&self) -> usize {
         self.surface.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.surface.len();
@@ -168,8 +186,14 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     fn anchor() -> Anchor {
         Anchor::aligned::<A>()
     }
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn len(&self) -> usize {
         self.head.len()
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.head.len();
@@ -262,8 +286,14 @@ impl Layer for Entities {
     const ID: &'static str = "opennlp:entities";
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Entities);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
@@ -301,6 +331,9 @@ impl Layer for ChunkTags {
     fn len(&self) -> usize {
         self.tags.len()
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
             return Err(format!("a tag outside {}", self.tagset.name));
@@ -331,6 +364,9 @@ impl Layer for PhraseChunks {
     positional!(PhraseChunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
@@ -384,6 +420,9 @@ impl Layer for Phrases {
     positional!(Phrases);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();

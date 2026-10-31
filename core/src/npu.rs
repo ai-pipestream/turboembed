@@ -69,6 +69,7 @@ pub static BACKEND: turbo_backend = turbo_backend {
     embed_write_ranges: Some(graph::embed_write_ranges),
     token_head: 0,
     reserved3: 0,
+    buffer_quantize: None,
 };
 
 /// The backend's table, for the tests.

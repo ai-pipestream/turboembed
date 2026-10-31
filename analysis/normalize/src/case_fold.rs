@@ -126,15 +126,15 @@ impl CaseFold {
 
     /// Writes the mapping of the non-ASCII character `c` at byte `at` of
     /// `text` through `out` when it differs from `c`.
-    fn fold_char(&self, text: &str, at: usize, c: char, out: &mut ViewBuilder<'_>) {
+    fn fold_char(&self, text: &str, at: usize, c: char, sigma: &mut java::SigmaCursor<'_>, out: &mut ViewBuilder<'_>) {
         let end = at + c.len_utf8();
         let mut buf = [0u8; 4];
         let with: &str = match self.mode {
             CaseFoldMode::Lowercase | CaseFoldMode::TurkishLowercase | CaseFoldMode::AzerbaijaniLowercase => {
                 match if self.locale_lowercase() {
-                    java::locale::turkic_lowercase_at(text, at, c)
+                    java::locale::turkic_lowercase_at_with(text, at, c, sigma)
                 } else {
-                    java::lowercase_at(text, at, c)
+                    sigma.lowercase_at(at, c)
                 } {
                     Lowercase::Char(lower) if lower == c => return,
                     Lowercase::Char(lower) => lower.encode_utf8(&mut buf),
@@ -168,11 +168,12 @@ impl Normalizer for CaseFold {
 
     fn normalize(&self, text: &str, out: &mut ViewBuilder<'_>) {
         let bytes = text.as_bytes();
+        let mut sigma = java::SigmaCursor::new(text);
         let mut i = skip_unchanged_ascii(bytes, 0);
         while i < bytes.len() {
             let b = bytes[i];
             if b == b'I' && self.locale_lowercase() {
-                self.fold_char(text, i, 'I', out);
+                self.fold_char(text, i, 'I', &mut sigma, out);
                 i += 1;
             } else if b.is_ascii_uppercase() {
                 out.keep(i);
@@ -182,7 +183,7 @@ impl Normalizer for CaseFold {
                 i += 1;
             } else {
                 let c = decode_at(text, i);
-                self.fold_char(text, i, c, out);
+                self.fold_char(text, i, c, &mut sigma, out);
                 i += c.len_utf8();
             }
             i = skip_unchanged_ascii(bytes, i);

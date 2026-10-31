@@ -66,9 +66,9 @@
     "vocab_size": 30522,
     "max_length": 32,
     "distilled_from": {
-      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "model_id": "turboembed/tiny-bert",
       "revision": "1",
-      "manifest_sha256": "273ee3dfe946989a27a68e37d58e1dd7bc537c06b404075279f02a1b640b91f7"
+      "manifest_sha256": "35f69b13899b0fa0b7ccb88876f56db625197332695f7ea8117143fe08f5c741"
     },
     "quality": {
       "texts": "quality/texts.jsonl",
@@ -97,7 +97,7 @@
         "tool_version": "0.1.0 (libturbo 0.1.0 cpu)",
         "container": "host",
         "args": [
-          "base=sentence-transformers/all-MiniLM-L6-v2@273ee3dfe946989a27a68e37d58e1dd7bc537c06b404075279f02a1b640b91f7",
+          "base=turboembed/tiny-bert@35f69b13899b0fa0b7ccb88876f56db625197332695f7ea8117143fe08f5c741",
           "rows=[CLS] <entry> [SEP]",
           "pooling=mean",
           "skip=\\[unused\\d+\\]",

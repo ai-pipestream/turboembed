@@ -15,7 +15,10 @@ fn an_unspecified_listen_address_is_checked_on_loopback() {
 #[test]
 fn the_address_comes_from_the_flag_else_the_listen_variable() {
     let p = parse(&[], Some("0.0.0.0:8081")).unwrap();
-    assert_eq!(p, Probe { addr: "127.0.0.1:8081".parse().unwrap(), service: String::new(), timeout: DEFAULT_TIMEOUT });
+    assert_eq!(
+        p,
+        Probe { addr: "127.0.0.1:8081".parse().unwrap(), service: String::new(), timeout: DEFAULT_TIMEOUT, tls: None }
+    );
     let p = parse(&["--addr", "127.0.0.2:7", "--service=bge", "--timeout-ms", "250"], Some("0.0.0.0:8081")).unwrap();
     assert_eq!(p.addr, "127.0.0.2:7".parse().unwrap());
     assert_eq!(p.service, "bge");
@@ -41,6 +44,6 @@ async fn nothing_listening_is_an_error_not_a_hang() {
     // Windows retries a refused loopback connect for about two seconds
     // before it fails, so a two second timeout raced the refusal. The
     // refusal still comes long before this one; only a hang reaches it.
-    let p = Probe { addr, service: String::new(), timeout: Duration::from_secs(30) };
+    let p = Probe { addr, service: String::new(), timeout: Duration::from_secs(30), tls: None };
     assert!(check(&p).await.unwrap_err().starts_with(&format!("connect {addr}")));
 }

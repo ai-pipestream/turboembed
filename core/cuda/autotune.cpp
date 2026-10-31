@@ -31,9 +31,29 @@ constexpr const char *POOL_NAME[] = {"groups", "columns"};
 
 bool mma_of(const Shape &base, const GemmChoice &g) { return base.tensor_cores && (base.half || g.tf32); }
 
+/* The tile of the same schedule with F32 sums in place of F16 ones; any
+ * other tile as it is. */
+Tile f32_sums_of(Tile t) {
+    switch (t) {
+    case TILE_DEFAULT:
+    case TILE_CT_K: return TILE_CT;
+    case TILE_EIGHT_WARPS_F16_ACCUMULATE: return TILE_EIGHT_WARPS;
+    case TILE_SWIZZLED_8W_F16_ACCUMULATE:
+    case TILE_F16_WHOLE_K:
+    case TILE_F16_WHOLE_K_3:
+    case TILE_F16_WHOLE_K_256:
+    case TILE_F16_WHOLE_K_ROWS: return TILE_SWIZZLED_8W;
+    default: return t;
+    }
+}
+
 /* The tile a GEMM of the kernel family runs, by the name it would take. */
 Tile canonical_tile(Gemm which, const Shape &base, bool mma, Tile t) {
     const bool narrow = which == GEMM_OUT || which == GEMM_FFN2;
+    // A gated MLP's second GEMM sums in F32 at FASTEST (#1632): its inputs
+    // reach F16's 65504 (the middle product's clamp) and F16 sums of them
+    // overflow to infinity.
+    if (mma && base.half && which == GEMM_FFN2 && base.gated != GATED_NONE) t = f32_sums_of(t);
     if (!mma) {
         // The FMA kernel: F32 operands, or F16 without the tensor cores.
         switch (t) {

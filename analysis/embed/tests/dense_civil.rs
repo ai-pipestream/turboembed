@@ -127,7 +127,8 @@ fn civil_comments_multilabel_sigmoid_thresholds_when_configured() {
         Ok(b) => Device::Backend(b.into()),
     };
 
-    let bundle_path = Path::new(&bundle_dir);
+    let bundle_path = turbo_pins::require(&bundle_dir);
+    let bundle_path = bundle_path.as_path();
     let bundle = Bundle::open(bundle_path).unwrap();
     let tokenizer = Tokenizer::load(&bundle).unwrap();
     let m = &bundle.manifest.model;

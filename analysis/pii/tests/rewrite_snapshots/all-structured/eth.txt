@@ -1,0 +1,16 @@
+MASKED	Ethereum ******************************************, ****************************************** and ******************************************.
+
+MASK_ALL	Ethereum ##########################################, ########################################## and ##########################################.
+
+REWRITE	pseudonymize	OK	Ethereum ETH-ADDRESS-1, ETH-ADDRESS-1 and ETH-ADDRESS-1.
+
+LABEL	pseudonymize	9	51	9	22	ETH-ADDRESS-1
+LABEL	pseudonymize	53	95	24	37	ETH-ADDRESS-1
+LABEL	pseudonymize	100	142	42	55	ETH-ADDRESS-1
+REWRITE	hmac	OK	Ethereum ETH-ADDRESS-afd5b2fc4bbc1c40, ETH-ADDRESS-afd5b2fc4bbc1c40 and ETH-ADDRESS-afd5b2fc4bbc1c40.
+
+LABEL	hmac	9	51	9	37	ETH-ADDRESS-afd5b2fc4bbc1c40
+LABEL	hmac	53	95	39	67	ETH-ADDRESS-afd5b2fc4bbc1c40
+LABEL	hmac	100	142	72	100	ETH-ADDRESS-afd5b2fc4bbc1c40
+AUDIT	eth-address	3	1	ETH-ADDRESS-afd5b2fc4bbc1c40
+AUDIT_REPORT	eth-address: 3 mentions, 1 distinct [ETH-ADDRESS-afd5b2fc4bbc1c40]

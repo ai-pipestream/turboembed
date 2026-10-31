@@ -94,6 +94,7 @@
       ],
       "backends": [
         "cpu",
+        "cuda",
         "levelzero",
         "metal"
       ],

@@ -18,8 +18,6 @@ path = "src/main.rs"
 turbo = { path = "../../core" }
 # OpenNLP's WhitespaceTokenizer, which cuts an OpenNLP corpus into words.
 turbo-tokenize = { path = "../tokenize" }
-# Java's string order, which orders an OpenNLP model's first symbols.
-turbo-jvm = { path = "../jvm" }
 # Unicode scripts, which a SentencePiece piece may not mix.
 turbo-unicode = { path = "../unicode" }
 

@@ -25,9 +25,9 @@ starts at events.
 | `context` | `BasicContextGenerator` |
 | `crc32c` | `java.util.zip.CRC32C` |
 
-Numbers are formatted and parsed as Java does (`turbo_jvm::text`),
-predicate labels sort by `String.compareTo`, `float` stays `f32`, and
-parameters keep Java's case-insensitive keys and typed values.
+Numbers are formatted and parsed with [`crate::text`],
+predicate labels sort deterministically, `float` stays `f32`, and
+parameters keep case-insensitive keys and typed values.
 
 ## Predicates and outcomes are Java strings
 
@@ -74,7 +74,7 @@ that run's checksum.
 checksum, index, train; `gis::train` takes an index; `gis::train_model`
 also takes an observer called with the parameters after every iteration.
 The trainer keeps Java's arithmetic: `float` counts and correction
-constant, `StrictMath.log` and `exp`, the uniform prior, one event at a
+constant, `f64::ln` and `f64::exp`, the uniform prior, one event at a
 time in the JVM's order, and with `Threads` above one the JVM's chunking of
 the events and order of merging the chunks' sums. `writer::write_gis`
 produces the `.model` bytes, `package::ModelPackage` the `.bin` around
@@ -121,7 +121,7 @@ JVM's `ModelEvaluator` computes. The port keeps the L-BFGS two loop
 recursion with its `NumOfUpdates` corrections, the backtracking line search
 and the constrained one of `L1Cost`, the L2 penalty of `L2Cost`, the four
 stop tests (`QnStop`), the rescaling by `sqrt(1 + L2Cost)` when both costs
-are on, `StrictMath` in the log sum of exponentials, and with `Threads`
+are on, `f64::exp` and `f64::ln` in the log sum of exponentials, and with `Threads`
 above one the JVM's chunks of events and their order of summation.
 `writer::write_qn` produces the `.model` bytes (`QNModelWriter.persist`:
 the type `QN`, then what a GIS model has without its correction fields).
@@ -175,7 +175,7 @@ unless the configuration has one. The sequence trainer takes a
 `PerceptronModel` keeps a parameter for every predicate and outcome;
 `PerceptronModel::eval` is `PerceptronModel.eval` with its normalization
 (sums divided by the largest absolute sum, then exponentiated with
-`StrictMath.exp` and normalized). `writer::write_perceptron` produces the
+`f64::exp` and normalized). `writer::write_perceptron` produces the
 `.model` bytes (`PerceptronModelWriter.persist`: the type `Perceptron`,
 then the body of a QN model without the zero parameters and without the
 predicates that have none left).
@@ -208,14 +208,13 @@ the spans and probabilities the JVM recorded with it.
 
 ## liblinear trainer
 
-`liblinear::train_events` is the liblinear add-on of the OpenNLP addons:
-`new LiblinearTrainer(params)`, `init` and `train`, with the logistic
-regression solvers of liblinear-java ported in the module, the model's
-`eval`, and its serialized form (`liblinear::format`). Only the solvers
-whose models the add-on can score are ported. `docs/liblinear.md` lists
-the add-on's quirks, the tolerances and the measured agreement with the
-JVM; `tests/liblinear_goldens.rs` compares with the `train-liblinear`
-goldens.
+The native liblinear solvers, direct scoring, checked construction and text
+serialization remain pending the training-stack migration in #1532. The OpenNLP
+binary-envelope reader (`liblinear::format::read`) returns `ModelError::Disabled`
+before decoding. This closes an independent loading path outside `ModelFile`.
+Tests cover native learned cues, probability arithmetic, text round trips,
+malformed text and refusal of the retired envelope. They do not load an Apache
+model or use JVM output as expected results.
 
 ## OpenNLP behaviour worth knowing
 
@@ -352,7 +351,7 @@ goldens.
   `(predicate, outcome)`. `NaiveBayesModel` computes empirical outcome priors
   and evaluates contexts with Lidstone smoothing (`delta = 0.05`, and
   `delta` times the number of predicates in the denominator) using
-  `LogProbabilities` (`StrictMath.log` and `StrictMath.exp`).
+  `LogProbabilities` (`f64::ln` and `f64::exp`).
 
 The abbreviation dictionary entry of a sentence or tokenizer model
 (`abbreviations.dictionary`, `DictionarySerializer`) is written by

@@ -1,0 +1,16 @@
+MASKED	NHS *** *** **** recorded; ********** and ***-***-**** too.
+
+MASK_ALL	NHS ############ recorded; ########## and ############ too.
+
+REWRITE	pseudonymize	OK	NHS UK-NHS-1 recorded; UK-NHS-1 and UK-NHS-1 too.
+
+LABEL	pseudonymize	4	16	4	12	UK-NHS-1
+LABEL	pseudonymize	27	37	23	31	UK-NHS-1
+LABEL	pseudonymize	42	54	36	44	UK-NHS-1
+REWRITE	hmac	OK	NHS UK-NHS-8ab298778f89ab6b recorded; UK-NHS-8ab298778f89ab6b and UK-NHS-8ab298778f89ab6b too.
+
+LABEL	hmac	4	16	4	27	UK-NHS-8ab298778f89ab6b
+LABEL	hmac	27	37	38	61	UK-NHS-8ab298778f89ab6b
+LABEL	hmac	42	54	66	89	UK-NHS-8ab298778f89ab6b
+AUDIT	uk-nhs	3	1	UK-NHS-8ab298778f89ab6b
+AUDIT_REPORT	uk-nhs: 3 mentions, 1 distinct [UK-NHS-8ab298778f89ab6b]

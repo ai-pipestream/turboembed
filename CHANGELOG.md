@@ -53,6 +53,16 @@ gRPC service) build against. Everything below is new.
   and EXACT and with F16 linear layers on the matrix engines at FASTEST:
   RoPE from the core's table, windowed attention, GeGLU and SwiGLU, held
   to the CPU and to upstream's reference vectors (#1461).
+- The CUDA encoder for ModernBERT and nomic-bert at MODEL (F32) and
+  FASTEST (F16 on the tensor cores): RoPE and the gated MLP in the GEMMs'
+  epilogues over pair-adjacent weights, sliding-window attention that
+  reads only each block's band of keys, held to the CPU (#1580).
+- On cuda, a FASTEST session whose max_seq is over 4096 takes the
+  tensor cores' attention with F32 sums of the scores and the output,
+  whatever the model's family (BERT and XLM-R too, bge-m3 at 8192 for
+  one): the F16 sums went over FASTEST's cosine bound at 8192 tokens.
+  That attention is slower; sessions of 4096 or fewer keep the F16 sums
+  (#1580).
 
 ### Not in this release yet
 

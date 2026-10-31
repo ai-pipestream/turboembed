@@ -1,0 +1,35 @@
+MASKED	Customer record
+email: customer.one@example.com
+phone: +44 20 7946 0000
+card: ****-****-****-1111
+iban: **** **** **** **** **54 32
+ip: 203.0.113.9
+
+MASK_ALL	Customer record
+email: customer.one@example.com
+phone: +44 20 7946 0000
+card: ###################
+iban: ###########################
+ip: 203.0.113.9
+
+REWRITE	pseudonymize	OK	Customer record
+email: customer.one@example.com
+phone: +44 20 7946 0000
+card: CARD-1
+iban: IBAN-1
+ip: 203.0.113.9
+
+LABEL	pseudonymize	78	97	78	84	CARD-1
+LABEL	pseudonymize	104	131	91	97	IBAN-1
+REWRITE	hmac	OK	Customer record
+email: customer.one@example.com
+phone: +44 20 7946 0000
+card: CARD-f04eb250c58c67b2
+iban: IBAN-dabbf6affb27d778
+ip: 203.0.113.9
+
+LABEL	hmac	78	97	78	99	CARD-f04eb250c58c67b2
+LABEL	hmac	104	131	106	127	IBAN-dabbf6affb27d778
+AUDIT	card	1	1	CARD-f04eb250c58c67b2
+AUDIT	iban	1	1	IBAN-dabbf6affb27d778
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]\niban: 1 mentions, 1 distinct [IBAN-dabbf6affb27d778]

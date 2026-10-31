@@ -8,6 +8,7 @@
 //! the Basic Multilingual Plane and none of them is a surrogate.
 
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::fmt;
 
 use turbo_analysis::Span;
@@ -243,6 +244,31 @@ pub(crate) fn split_fields<'a>(field: Piece<'a>, separator: char) -> Vec<Piece<'
         out.pop();
     }
     out
+}
+
+/// Java `String.compareTo`: lexicographic order by UTF-16 code unit.
+pub(crate) fn compare_utf16(a: &str, b: &str) -> Ordering {
+    let mut a = a.encode_utf16();
+    let mut b = b.encode_utf16();
+    loop {
+        match (a.next(), b.next()) {
+            (Some(x), Some(y)) => {
+                let order = x.cmp(&y);
+                if order != Ordering::Equal {
+                    return order;
+                }
+            }
+            (Some(_), None) => return Ordering::Greater,
+            (None, Some(_)) => return Ordering::Less,
+            (None, None) => return Ordering::Equal,
+        }
+    }
+}
+
+/// The length of `text` in UTF-16 code units (`String.length()`).
+#[inline]
+pub(crate) fn utf16_len(text: &str) -> usize {
+    text.chars().map(char::len_utf16).sum()
 }
 
 /// The byte offset in `text` after its first `units` UTF-16 code units,

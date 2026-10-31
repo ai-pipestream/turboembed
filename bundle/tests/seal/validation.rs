@@ -208,6 +208,7 @@ fn the_container_gets_the_cases_with_their_prefixes() {
     assert_eq!(cases.len(), r.manifest["reference"]["cases"].as_array().unwrap().len());
     assert_eq!(cases[5], json!({ "text": "how do I reset a password", "prefix": "query: " }));
     assert_eq!(cases[6]["prefix"], "", "the recipe has no document prefix");
+    assert_eq!(c["layers"], r.manifest["architecture"]["layers"], "the container runs the layers the bundle runs");
     fs::remove_dir_all(d).unwrap();
 }
 
@@ -317,4 +318,29 @@ fn the_calibration_pin_is_the_committed_lf_bytes() {
         crlf.push(*b);
     }
     assert_eq!(turbo::bundle::sha256_hex(&crlf), "9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940");
+}
+
+#[test]
+fn the_tiny_bert_bundle_names_its_generated_identity() {
+    let bundle = turbo::bundle::Bundle::open(&root().join("testdata/tiny-bert-bundle")).unwrap();
+    assert_eq!(bundle.manifest.model.id, "turboembed/tiny-bert");
+    assert_eq!(bundle.manifest.model.revision, "1");
+    assert_eq!(bundle.manifest.model.source.repository, "https://github.com/ai-pipestream/turboembed");
+    assert_eq!(bundle.manifest.model.source.commit, "af146a9213260f30554ba972a9c79d6053b84ad0");
+}
+
+/// The static fixture's provenance names the renamed teacher at the
+/// teacher manifest's current digest, exactly as a fresh distillation
+/// writes it: distill.rs fills `distilled_from` and the `base=` arg from
+/// the base bundle's manifest (bundle/src/distill.rs).
+#[test]
+fn the_static_bundle_names_its_distilled_from_teacher() {
+    let teacher = turbo::bundle::Bundle::open(&root().join("testdata/tiny-bert-bundle")).unwrap();
+    let bundle = turbo::bundle::Bundle::open(&root().join("testdata/tiny-static-bundle")).unwrap();
+    let from = bundle.manifest.static_embedding.as_ref().unwrap().distilled_from.as_ref().unwrap();
+    assert_eq!(from.model_id, teacher.manifest.model.id);
+    assert_eq!(from.revision, teacher.manifest.model.revision);
+    assert_eq!(from.manifest_sha256, teacher.manifest_sha256);
+    let args = &bundle.manifest.artifacts[0].produced_by.as_ref().unwrap().args;
+    assert_eq!(args[0], format!("base={}@{}", teacher.manifest.model.id, teacher.manifest_sha256));
 }

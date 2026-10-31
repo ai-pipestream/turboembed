@@ -8,7 +8,7 @@
 //! when set, the directory for the JSON record. Without the bundle
 //! variable the receipt says so and passes.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use turbo_analysis_embed::{Device, Precision};
 use turbo_chunker::terms::Bm25;
@@ -93,12 +93,14 @@ fn heldout_hybrid_receipt() {
     };
     let cache = PathBuf::from(std::env::var("TURBO_EVAL_CACHE").expect("TURBO_EVAL_CACHE"));
     let analysis = Analysis { sentences: Sentencer::rules("en"), structure: Some(Syntax::Plain) };
-    let mut embedder = TurboEmbedder::open(Path::new(&bundle), Device::Cpu, Precision::Model).expect("dense bundle");
+    let mut embedder =
+        TurboEmbedder::open(&turbo_pins::require(&bundle), Device::Cpu, Precision::Model).expect("dense bundle");
     let chunker = TurboChunker {
         budget: Budget { max: 254, target: 200, size_weight: 1000, overhead: embedder.overhead(Role::Document) },
         costs: Costs::default(),
         signals: Signals::Structure,
         cohesion: None,
+        clauses: false,
     };
     let weights: Vec<f64> = (0..=10).map(|i| f64::from(i) / 10.0).collect();
     let model = embedder.identity().model_ref();

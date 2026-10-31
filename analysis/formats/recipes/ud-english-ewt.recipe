@@ -1,0 +1,14 @@
+# UD English EWT r2.16: the training file at the UniversalDependencies
+# release tag, downloaded and hashed on 2026-10-28 (14,203,025 bytes).
+# LICENSE.txt at the tag is the CC BY-SA 4.0 licence text, read on
+# 2026-10-28 (SHA-256
+# b3d1b0f4c6ae151f7eb78738f46ebd5ee140f8a7f76501ba26af123140d35ae7).
+# Share-alike: fetched only after the user accepts the licence.
+name: ud-english-ewt
+tier: accept-first
+url: https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/r2.16/en_ewt-ud-train.conllu
+sha256: 3fb78e2b55482c8ee00caa653af436c88c9e5bc9a73ce26e4ae3ddc79d2b7e7b
+license-url: https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/r2.16/LICENSE.txt
+license: CC BY-SA 4.0
+note: docs/licences.md records the CC BY-SA 4.0 grant from the r2.16 README, checked 2026-10-14; the LICENSE.txt read here states the same, so the licence claim is read-verified at the pinned tag.
+note: The README's licence section names the annotations and database rights as CC BY-SA 4.0, copyright 2013-2021 the Board of Trustees of the Leland Stanford Junior University, and says the underlying texts come from the LDC English Web Treebank sources: some public domain, portions copyright Google, Yahoo and the University of Pennsylvania, whose terms travel with those parts.

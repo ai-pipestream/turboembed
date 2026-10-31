@@ -8,10 +8,11 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 use turbo_analysis::{Ix, Key, Layer};
-use turbo_analysis_layers::{Block, Chunks, Structure};
-use turbo_example_docling::docling::parse;
+use turbo_analysis_layers::{Block, Chunks, LayoutBoxes, PageBoundingBox, Structure};
+use turbo_chunker::LayoutCosts;
+use turbo_example_docling::docling::{parse, parse_with_layout};
 use turbo_example_docling::report::close;
-use turbo_example_docling::{CLEAN, analyze, pipeline, report};
+use turbo_example_docling::{CLEAN, analyze, pipeline, pipeline_with_layout_costs, report};
 
 const PLACES: [&str; 3] = ["Zürich", "Lyon", "Oslo"];
 
@@ -79,6 +80,13 @@ fn docling_to_vectors_end_to_end() {
     let chunks = doc.get::<Chunks>().unwrap();
     assert!(chunks.len() > 1);
     assert!(chunks.model_tokens.iter().zip(&chunks.over_budget).all(|(&n, &over)| over || n <= 48));
+    let layout = doc.get::<LayoutBoxes>().unwrap();
+    assert_eq!(layout.spans.view(), clean.id());
+    let citations = report::chunk_citations(&doc).unwrap();
+    assert_eq!(citations.len(), chunks.len());
+    assert_eq!(citations.first().unwrap().page_span, Some((1, 2)));
+    assert!(citations.iter().any(|c| c.page_span == Some((1, 1))));
+    assert_eq!(citations.last().unwrap().page_span, Some((2, 2)));
 
     let got = report::report(&d, &doc).unwrap();
     let path = here().join("data/report.expected.json");
@@ -88,5 +96,51 @@ fn docling_to_vectors_end_to_end() {
     let want: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     if let Err(e) = close("report", &got, &want) {
         panic!("{e}\nrerun with BLESS=1 to accept, then review the diff of data/report.expected.json");
+    }
+}
+
+#[test]
+fn docling_prov_bounding_boxes_survive_normalization_and_chunking() {
+    let mut raw: Value = serde_json::from_str(&input()).unwrap();
+    for (idx, item) in raw["texts"].as_array_mut().unwrap().iter_mut().enumerate() {
+        if let Some(prov) = item.get_mut("prov").and_then(Value::as_array_mut)
+            && let Some(first) = prov.first_mut()
+        {
+            let y0 = (idx as f64) * 30.0 + 10.0;
+            first["bbox"] = serde_json::json!({
+                "l": 72.0,
+                "t": y0,
+                "r": 540.0,
+                "b": y0 + 20.0,
+                "coord_origin": "TOPLEFT"
+            });
+        }
+    }
+    let json = raw.to_string();
+    let (d, _, source_layout) = parse_with_layout(&json).unwrap();
+    source_layout.check().unwrap();
+    assert_eq!(source_layout.len(), d.items.len());
+    assert_eq!(d.items[0].page, Some(1));
+    assert_eq!(d.items[0].bbox, Some(PageBoundingBox::new(1, 72.0, 40.0, 540.0, 60.0)));
+
+    let analyzer = pipeline_with_layout_costs(&bundle(), &PLACES, LayoutCosts::default()).unwrap();
+    let (_, doc) = analyze(&analyzer, &json).unwrap();
+    let clean = doc.get_key(&Key::<turbo_analysis::View>::named(CLEAN)).unwrap();
+    let clean_layout = doc.get::<LayoutBoxes>().unwrap();
+    assert_eq!(clean_layout.spans.view(), clean.id());
+    clean_layout.check().unwrap();
+
+    let chunks = doc.get::<Chunks>().unwrap();
+    let citations = report::chunk_citations(&doc).unwrap();
+    assert_eq!(citations.len(), chunks.len());
+    for (ix, citation) in citations.iter().enumerate() {
+        let span = chunks.spans.get(Ix::new(ix as u32));
+        assert_eq!(citation.page_span, clean_layout.page_span(span));
+        assert_eq!(citation.pages, clean_layout.union_boxes_by_page(span));
+        assert!(!citation.pages.is_empty());
+        for pb in &citation.pages {
+            assert_eq!((pb.x0, pb.x1), (72.0, 540.0));
+            assert!(pb.y1 > pb.y0);
+        }
     }
 }

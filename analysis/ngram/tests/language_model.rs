@@ -108,8 +108,8 @@ fn language_model_from_sentences_corpus() {
     let p1 = model
         .calculate_probability(&["keeper", "of", "the", "station", "checks", "the", "zeppelin", "quartz", "vortex"]);
     // Every trigram here is in the corpus. The exact product of the trigram
-    // ratios is 1/280; summing logs and exponentiating with StrictMath lands
-    // four ulps below the nearest double to 1/280 (0x3F6D_41D4_1D41_D41D).
+    // ratios is 1/280; summing logs and exponentiating lands four ulps below
+    // the nearest double to 1/280 (0x3F6D_41D4_1D41_D41D).
     let p2 = model.calculate_probability(&[
         "keeper",
         "of",

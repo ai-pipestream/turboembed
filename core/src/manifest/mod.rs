@@ -60,7 +60,8 @@ pub struct Model {
 /// A model licence's class, as the zoo names it: what may be shipped,
 /// and what is fetched only after the user accepts the licence. A bundle
 /// is never made under a refused licence, so there is no refused class.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// The order is the zoo's, least to most restrictive (docs/zoo.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum LicenseClass {
     #[serde(rename = "CLASS_PERMISSIVE")]
     Permissive,
@@ -139,6 +140,7 @@ pub enum Normalize {
 mod architecture;
 mod artifact;
 mod heads;
+mod heads_kinds;
 mod helpers;
 pub use heads::*;
 mod provenance;

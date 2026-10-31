@@ -12,7 +12,9 @@ tools) is described in the [README](../README.md).
 The C API (`include/turbo/turbo.h`) has three tasks:
 
 - `TURBO_TASK_EMBED`: text or token ids in, one pooled vector per row out,
-  or one vector per token range (`turbo_embed_write_ranges`, late pooling).
+  or one vector per token range (`turbo_embed_write_ranges`, late pooling),
+  or per range and per each of the last layers
+  (`turbo_embed_write_layer_ranges`, for heads that read earlier layers).
 - `TURBO_TASK_RERANK`: query and passage pairs in, one relevance logit per
   pair out (`turbo_rerank_write_pairs`, [reranking.md](reranking.md)).
 - `TURBO_TASK_EXTRACTIVE_QA`: question and context windows in, start and
@@ -164,10 +166,13 @@ sentence-transformers' `quantize_embeddings` makes
   `cast_to_b1x8_gt` packs the same bits). faiss' `fvecs2bitvecs` packs
   `x >= 0` from the low bit up: its codes and these differ, so do not
   mix them in one index.
-- The core quantizes on the host, after the backend's run, so the codes
-  are the same on every backend for the same f32 vectors. A device's
-  vectors come back as F32 first (counted in `d2h_bytes`); the saving on
-  a device today is in what is stored and sent, not in the bus.
+- When the backend offers `buffer_quantize` (CUDA, Level Zero, Metal), the
+  codes are made on the device and only those bytes cross the bus (counted
+  in `d2h_bytes`). The run's `device_allocs` include the temporary codes
+  buffer (and the int8 ranges' buffer), and on CUDA and Level Zero its
+  `h2d_bytes` include the int8 ranges sent to the device; otherwise the core copies the vectors back as F32 first
+  and quantizes on the host. Either path yields the same codes for the
+  same f32 vectors (`core/src/quantize.rs`).
 
 ```mermaid
 sequenceDiagram

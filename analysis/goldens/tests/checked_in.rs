@@ -42,8 +42,10 @@ fn every_segmentation_golden_reads_and_writes_back_its_bytes() {
             n += 1;
         }
     }
-    // 643 tokenize, 243 sentdetect, 19 detokenize and 132 unigram goldens.
-    assert_eq!(n, 1037);
+    // 208 tokenize, 243 sentdetect, 19 detokenize and 132 unigram goldens.
+    // The published OpenNLP UD tokenizer runs' 435 goldens left with
+    // those models (#1645).
+    assert_eq!(n, 602);
 }
 
 #[test]
@@ -51,7 +53,7 @@ fn every_dump_reads_and_has_its_goldens_header() {
     let shapes = segmentation_shapes();
     let mut dumps = 0;
     let mut points = 0;
-    for annotator in ["tokenize", "sentdetect", "langdetect"] {
+    for annotator in ["tokenize", "sentdetect"] {
         for path in annotator_files(annotator, "dump") {
             let d = Dump::read(&path).unwrap_or_else(|e| panic!("{e}"));
             let g = Golden::read_with(path.with_extension("golden"), &shapes).unwrap_or_else(|e| panic!("{e}"));
@@ -68,11 +70,9 @@ fn every_dump_reads_and_has_its_goldens_header() {
             points += d.points.len();
         }
     }
-    // 473 tokenize, 209 sentdetect and 140 langdetect dumps (22 each of
-    // langdetect-183 and the Rust fixture, and 24 each of their four
-    // probing runs).
-    assert_eq!(dumps, 822);
-    assert_eq!(points, 24967, "every point of every dump");
+    // 38 tokenize and 209 sentdetect dumps.
+    assert_eq!(dumps, 247);
+    assert_eq!(points, 2865, "every point of every dump");
 }
 
 #[test]

@@ -76,7 +76,7 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                     if top == ROOT { (0.0, 0) } else { (nodes[top as usize].score, nodes[top as usize].len) };
                 let mut extend = |p: usize, nodes: &mut Vec<Node>, next: &mut Vec<u32>| {
                     if validator.valid_sequence(i, sequence, prior, outcomes[p]) {
-                        let score = top_score + strict_math::log(probs[p]);
+                        let score = top_score + probs[p].ln();
                         if score > min_score {
                             let id = u32::try_from(nodes.len()).expect("fewer than 2^32 nodes");
                             nodes.push(Node {

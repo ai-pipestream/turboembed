@@ -29,6 +29,11 @@ each with its SHA-256:
 
 The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 `grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
+in-process Java 22+ Panama Foreign Function and Memory (FFM) bindings over
+`include/turbo/turbo.h` and its analysis adapters live in
+`clients/java-panama/pom.xml` (`ai.pipestream:turboembed-panama:<version>`,
+requiring Java 22 or newer with `--enable-native-access=ALL-UNNAMED` and the
+platform's `libturbo` shared library from the binary archive). The
 Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
 (`Cargo.lock`).
 

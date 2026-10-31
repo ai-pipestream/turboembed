@@ -211,7 +211,7 @@ fn discarded_corrections_alias_as_the_jvm_arrays_do() {
 #[test]
 fn log_sum_of_exps_skips_negative_infinity_and_argmax_takes_the_first() {
     assert_eq!(log_sum_of_exps(&[f64::NEG_INFINITY, 0.0]), 0.0);
-    assert_eq!(log_sum_of_exps(&[1.0, 1.0]), 1.0 + strict_math::log(2.0));
+    assert_eq!(log_sum_of_exps(&[1.0, 1.0]), 1.0 + 2.0f64.ln());
     assert_eq!(argmax(&[1.0, 3.0, 3.0]), 1);
     assert!(max_one(f64::NAN).is_nan());
     assert_eq!(max_one(0.5), 1.0);

@@ -222,6 +222,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend", "embed_write_ranges", offset_of!(turbo_backend, embed_write_ranges)),
         ("turbo_backend", "token_head", offset_of!(turbo_backend, token_head)),
         ("turbo_backend", "reserved3", offset_of!(turbo_backend, reserved3)),
+        ("turbo_backend", "buffer_quantize", offset_of!(turbo_backend, buffer_quantize)),
         ("turbo_backend_session_desc", "task", offset_of!(turbo_backend_session_desc, task)),
         ("turbo_backend_session_desc", "max_batch", offset_of!(turbo_backend_session_desc, max_batch)),
         ("turbo_backend_session_desc", "max_seq", offset_of!(turbo_backend_session_desc, max_seq)),
@@ -274,6 +275,23 @@ fn struct_layouts_match_the_header() {
             ("turbo_buffer_desc", "ndim", offset_of!(turbo_buffer_desc, ndim)),
             ("turbo_buffer_desc", "shape", offset_of!(turbo_buffer_desc, shape)),
             ("turbo_buffer_desc", "bytes", offset_of!(turbo_buffer_desc, bytes)),
+            ("turbo_analyzer_desc", "language", offset_of!(turbo_analyzer_desc, language)),
+            ("turbo_analyzer_desc", "sent_model_path", offset_of!(turbo_analyzer_desc, sent_model_path)),
+            ("turbo_analyzer_desc", "tok_model_path", offset_of!(turbo_analyzer_desc, tok_model_path)),
+            ("turbo_analyzer_desc", "pos_model_path", offset_of!(turbo_analyzer_desc, pos_model_path)),
+            ("turbo_analyzer_desc", "lemma_model_path", offset_of!(turbo_analyzer_desc, lemma_model_path)),
+            ("turbo_analyzer_desc", "ner_model_path", offset_of!(turbo_analyzer_desc, ner_model_path)),
+            ("turbo_span", "layer_kind", offset_of!(turbo_span, layer_kind)),
+            ("turbo_span", "flags", offset_of!(turbo_span, flags)),
+            ("turbo_span", "item_index", offset_of!(turbo_span, item_index)),
+            ("turbo_span", "view_byte_start", offset_of!(turbo_span, view_byte_start)),
+            ("turbo_span", "source_byte_start", offset_of!(turbo_span, source_byte_start)),
+            ("turbo_span", "token_start", offset_of!(turbo_span, token_start)),
+            ("turbo_span", "layer_offset", offset_of!(turbo_span, layer_offset)),
+            ("turbo_span", "instance_offset", offset_of!(turbo_span, instance_offset)),
+            ("turbo_span", "label_offset", offset_of!(turbo_span, label_offset)),
+            ("turbo_span", "value_offset", offset_of!(turbo_span, value_offset)),
+            ("turbo_span", "prob", offset_of!(turbo_span, prob)),
         ],
     ]
     .concat();
@@ -301,6 +319,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_tuning", size_of::<turbo_backend_tuning>()),
         ("turbo_token_range", size_of::<turbo_token_range>()),
         ("turbo_backend_session_desc", size_of::<turbo_backend_session_desc>()),
+        ("turbo_analyzer_desc", size_of::<turbo_analyzer_desc>()),
+        ("turbo_span", size_of::<turbo_span>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
@@ -377,7 +397,8 @@ fn the_late_pooling_layout_is_the_one_proposed() {
 fn the_token_head_layout_is_the_one_proposed() {
     use turbo::backend::{turbo_backend, turbo_backend_embed_rows, turbo_backend_model};
     assert_eq!(offset_of!(turbo_backend, reserved3), 188);
-    assert_eq!(size_of::<turbo_backend>(), 192);
+    assert_eq!(offset_of!(turbo_backend, buffer_quantize), 192);
+    assert_eq!(size_of::<turbo_backend>(), 200);
     assert_eq!(offset_of!(turbo_backend_model, head), 120);
     assert_eq!(offset_of!(turbo_backend_model, head_out), 128);
     // DeBERTa-v2's relative geometry was appended after lookahead.
@@ -392,5 +413,8 @@ fn the_token_head_layout_is_the_one_proposed() {
     assert_eq!(offset_of!(turbo_backend_model, global_every), 252);
     assert_eq!(size_of::<turbo_backend_model>(), 256);
     assert_eq!(offset_of!(turbo_backend_embed_rows, head), 52);
-    assert_eq!(size_of::<turbo_backend_embed_rows>(), 56);
+    // taps was appended after head (#1616), with a reserved field so the
+    // struct has no padding.
+    assert_eq!(offset_of!(turbo_backend_embed_rows, taps), 56);
+    assert_eq!(size_of::<turbo_backend_embed_rows>(), 64);
 }
