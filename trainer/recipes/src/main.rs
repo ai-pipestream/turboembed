@@ -146,20 +146,29 @@ fn assemble_cmd(mut a: Args) -> Result<()> {
     if runs.is_empty() {
         return Err(Error("--run is required at least once".into()));
     }
-    let mut out = OutDir::claim(&a.required("--out")?)?;
+    let out_arg = a.required("--out")?;
     let zoo_id = a.value("--zoo-id")?;
     let component = match a.value("--component")? {
         Some(c) => Some(c.parse().map_err(Error)?),
         None => None,
     };
     let language = a.value("--language")?;
-    let version = a.value("--version")?.unwrap_or_else(|| "1.0.0".into());
-    let license_terms =
-        a.value("--license-terms")?.unwrap_or_else(|| "https://www.apache.org/licenses/LICENSE-2.0".into());
-    let url_prefix = a.value("--url-prefix")?.unwrap_or_else(|| "https://example.org/zoo".into());
+    let version = a.value("--version")?.unwrap_or_else(|| "1".into());
+    let license_terms = a.value("--license-terms")?;
+    let url_prefix = a.value("--url-prefix")?;
     let origin = a.value("--origin")?;
     let zoo_out = a.value("--zoo-out")?.map(PathBuf::from);
     a.done()?;
+    let zoo_req = match zoo_id {
+        Some(id) => {
+            let terms =
+                license_terms.ok_or_else(|| Error("--license-terms is required when --zoo-id is given".into()))?;
+            let prefix = url_prefix.ok_or_else(|| Error("--url-prefix is required when --zoo-id is given".into()))?;
+            Some((id, terms, prefix))
+        }
+        None => None,
+    };
+    let mut out = OutDir::claim(&out_arg)?;
 
     let run_refs: Vec<&Path> = runs.iter().map(PathBuf::as_path).collect();
     let assembled = turbo_trainer_recipes::assemble::assemble_bundle(&bundle, &run_refs, &out.path)?;
@@ -171,7 +180,7 @@ fn assemble_cmd(mut a: Args) -> Result<()> {
         assembled.license_tier,
         assembled.manifest_sha256
     );
-    if let Some(id) = zoo_id {
+    if let Some((id, license_terms, url_prefix)) = zoo_req {
         let kind = if assembled.runs.len() == 1 { turbo_zoo::Kind::Head } else { turbo_zoo::Kind::Model };
         let entry = turbo_trainer_recipes::assemble_zoo::zoo_artifact(
             &assembled,
