@@ -11,11 +11,13 @@
 //!   prefix, on AWS or an S3-compatible store such as RustFS, holding
 //!   files in the same `blobs/sha256/<hex>` layout, read with one
 //!   SigV4-signed GET each.
+//! - [`GoogleDrive`] (the `gdrive` feature, turbo-zoo's own): a Google
+//!   Drive folder in the same layout, read through the Drive API v3.
 //! - [`sources`]: `file:///dir` (a content-addressed store),
 //!   `grpc://host:port` and `grpcs://host:port` (a zoo server),
-//!   `s3://bucket/prefix` and `origin` (the index's own addresses), tried
-//!   in the order given. The first `file://` store also keeps what the
-//!   sources after it serve.
+//!   `s3://bucket/prefix`, `gdrive://<folder-id>` and `origin` (the
+//!   index's own addresses), tried in the order given. The first
+//!   `file://` store also keeps what the sources after it serve.
 //!
 //! The licence check stays the local zoo's: no source is asked for an
 //! artifact whose terms the user has not accepted, and a zoo server makes
@@ -26,6 +28,8 @@ mod spec;
 
 pub use server::ZooServer;
 pub use spec::{ENV_SOURCE, sources};
+#[cfg(feature = "gdrive")]
+pub use turbo_zoo::{DriveAuth, GoogleDrive};
 #[cfg(feature = "s3")]
 pub use turbo_zoo::{S3Bucket, sigv4};
 
