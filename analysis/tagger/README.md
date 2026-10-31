@@ -43,10 +43,14 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   `HEAD_SENTENCE_BOUNDARY` head, reading the view's tokens as one
   sequence of words (in windows past a row) and ending a sentence after
   each word the core's `SentenceBoundary` marks, the last word always.
+  `WordTagger` writes the syntactic words layer (`Words`) from a
+  `HEAD_TOKEN_SPLIT` head, keeping a token 1-to-1 on `_`, recording byte
+  subspans when the split words tile the surface token, and recording
+  explicit forms on fusional contractions.
   `SpanTagger` writes typed spans from a `HEAD_SPAN_CLASSIFIER` head into
   the entity layer, nested or flat as the head decodes, a sentence at a
   time; each span's score is its label's probability among the span's
-  scores. Both put every span on token bounds.
+  scores. Both sentence and span taggers put every span on token bounds.
 - `relation`: `RelationTagger` writes the relation layer and its
   entity-to-entity edges from a `HEAD_RELATION_CLASSIFIER` head, over the
   entities another annotator wrote. An entity is a mention when its first
@@ -57,15 +61,19 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   of its margin over `none`.
 - `multi`: `MultiTask<W>` writes several of those layers from one
   encoder pass (#1517). `W` is a tuple of the layers to write, such as
-  `(PosTags, Entities, Dependencies<Tokens>, Lemmas)`, each from the head
-  named for it or the one head that writes its layer; two outputs of one
-  layer name their heads. Each window of words is read once, and every
-  pooling the heads ask for is taken from that read, so five heads cost
-  one encoder pass and five host decodes. Each layer is written exactly
-  as its single-head annotator writes it (the lemmatizer without a
-  dictionary). `license_tier` is the bundle's tier, the strictest class
-  of the encoder (`model.license_class`) and every head's training
-  corpora (`heads[].license_class`).
+  `(Sentences, Words, PosTags, Entities, Dependencies<Tokens>, Lemmas)`,
+  each from the head named for it or the one head that writes its layer;
+  two outputs of one layer name their heads. Each window of words is read
+  once, and every pooling the heads ask for is taken from that read, so
+  several heads cost one encoder pass and one host decode per head. When
+  `Sentences` is in `W` and no prior sentences are given, its
+  `HEAD_SENTENCE_BOUNDARY` head decodes sentence boundaries first from the
+  whole-view pass and cuts the other heads' sequences and features by
+  those decoded sentences. Each layer is written exactly as its
+  single-head annotator writes it (the lemmatizer without a dictionary).
+  `license_tier` is the bundle's tier, the strictest class of the encoder
+  (`model.license_class`) and every head's training corpora
+  (`heads[].license_class`).
 - `examples/multitask_cost.rs`: the cost of one pass with five heads
   against one head, on any bundle with an encoder (the heads are seeded
   and added to a copy), in the receipt form.

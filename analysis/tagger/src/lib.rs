@@ -33,7 +33,7 @@ pub use lemma::{LemmaDictionary, Lemmatizer};
 pub use multi::MultiTask;
 pub use parse::DependencyParser;
 pub use relation::RelationTagger;
-pub use segment::{SentenceTagger, SpanTagger};
+pub use segment::{SentenceTagger, SpanTagger, WordTagger};
 pub use words::WordEncoder;
 
 /// Writes the part-of-speech layer from a SCHEME_TAGS head.
