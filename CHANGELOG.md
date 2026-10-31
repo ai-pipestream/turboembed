@@ -78,7 +78,7 @@ gRPC service) build against. Everything below is new.
   or a progressive step name written with one reads as the new id. The
   document categorizer and dependency parser steps are
   `turbo-doccat:maxent`, `turbo-doccat:maxent-spans`, `turbo-doccat:dl`,
-  `turbo-doccat:dl-spans` and `turbo-depparse:parser` (#PRNUM).
+  `turbo-doccat:dl-spans` and `turbo-depparse:parser` (#1780).
 
 ### Not in this release yet
 
