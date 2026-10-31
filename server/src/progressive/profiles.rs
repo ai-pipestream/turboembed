@@ -110,12 +110,12 @@ pub const ANNOTATE_V1: AnalysisProfile = AnalysisProfile {
     ],
     layers: &[
         "turbo:structure",
-        "opennlp:sentences",
-        "opennlp:tokens",
-        "opennlp:pos",
-        "opennlp:entities",
-        "opennlp:dependencies",
-        "opennlp:lemmas",
+        "turbo:sentences",
+        "turbo:tokens",
+        "turbo:pos",
+        "turbo:entities",
+        "turbo:dependencies",
+        "turbo:lemmas",
     ],
     required_bundles: &["TASK_EMBED", "head.pos", "head.entities", "head.dependencies", "head.lemmas"],
 };
