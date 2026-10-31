@@ -34,6 +34,11 @@ all receipts of `turbo-train-head` at commit `f59cb5ba`:
   (`--bilstm 64x1`) with 64-dim hashed word identity (`--hash-embed 64`) and
   first-piece pooling (`--pooling first`) lets the boundary classifier see the
   following token's shape and capitalization across unpunctuated boundaries.
+- Remaining comparisons under #1725 (still incomplete): these six receipts
+  record the `train-sentences` head, the newline baseline, and the
+  `turbo-sentdetect` `RuleSplitter` baseline. Comparison rows against
+  `turbo-sat` (SaT) and external `spaCy` / `Stanza` sentence segmenters on the
+  same document reconstructions remain open under #1725.
 
 ## Reproduce
 

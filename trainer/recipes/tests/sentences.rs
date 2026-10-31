@@ -124,6 +124,78 @@ fn ud_without_newdoc_groups_by_sentences_per_document() {
     fs::remove_dir_all(dir).unwrap();
 }
 
+#[test]
+fn ud_preserves_authoritative_conllu_text_repeated_spaces_and_offsets_and_refuses_unalignable_text() {
+    let dir = scratch("ud-auth-text");
+    let conllu_with_auth_text = "\
+# newdoc id = d1
+# sent_id = d1-s1
+# text = Hello  world.
+1\tHello\thello\tINTJ\tUH\t_\t0\troot\t_\t_
+2\tworld\tworld\tNOUN\tNN\t_\t1\tvocative\t_\tSpaceAfter=No
+3\t.\t.\tPUNCT\t.\t_\t1\tpunct\t_\t_
+
+# sent_id = d1-s2
+# text = Next one!
+1\tNext\tnext\tADJ\tJJ\t_\t2\tamod\t_\t_
+2\tone\tone\tNOUN\tNN\t_\t0\troot\t_\tSpaceAfter=No
+3\t!\t!\tPUNCT\t.\t_\t2\tpunct\t_\t_
+
+";
+    write_treebank(&dir, conllu_with_auth_text);
+    let corpus = read("ud-en-ewt", &dir, true).unwrap();
+    let d = &corpus.test[0];
+    assert_eq!(d.text, "Hello  world. Next one!");
+    assert_eq!(d.sentences, [Span::new(0, 13), Span::new(14, 23)]);
+    assert_eq!(&d.text[d.sentences[0].range()], "Hello  world.");
+    assert_eq!(&d.text[d.sentences[1].range()], "Next one!");
+    assert_eq!(
+        d.word_spans,
+        [Span::new(0, 5), Span::new(7, 12), Span::new(12, 13), Span::new(14, 18), Span::new(19, 22), Span::new(22, 23),]
+    );
+
+    // Fallback when `# text = ...` is omitted uses `SpacesAfter=\s\s` in MISC.
+    let conllu_misc_fallback = "\
+# newdoc id = d1
+# sent_id = d1-s1
+1\tHello\thello\tINTJ\tUH\t_\t0\troot\t_\tSpacesAfter=\\s\\s
+2\tworld\tworld\tNOUN\tNN\t_\t1\tvocative\t_\tSpaceAfter=No
+3\t.\t.\tPUNCT\t.\t_\t1\tpunct\t_\t_
+
+# sent_id = d1-s2
+1\tNext\tnext\tADJ\tJJ\t_\t2\tamod\t_\t_
+2\tone\tone\tNOUN\tNN\t_\t0\troot\t_\tSpaceAfter=No
+3\t!\t!\tPUNCT\t.\t_\t2\tpunct\t_\t_
+
+";
+    write_treebank(&dir, conllu_misc_fallback);
+    let fallback = read("ud-en-ewt", &dir, true).unwrap();
+    assert_eq!(fallback.test[0].text, "Hello  world. Next one!");
+    assert_eq!(fallback.test[0].sentences, [Span::new(0, 13), Span::new(14, 23)]);
+    assert_eq!(fallback.test[0].word_spans, d.word_spans);
+
+    // Unalignable token in `# text = ...` is explicitly refused.
+    for (bad, msg) in [
+        (
+            "# sent_id = bad-tok\n# text = Hello there.\n1\tHello\t_\tINTJ\t_\t_\t0\troot\t_\t_\n2\tworld\t_\tNOUN\t_\t_\t1\tvocative\t_\tSpaceAfter=No\n3\t.\t_\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n",
+            "does not align with # text",
+        ),
+        (
+            "# sent_id = bad-gap\n# text = Hello - world.\n1\tHello\t_\tINTJ\t_\t_\t0\troot\t_\t_\n2\tworld\t_\tNOUN\t_\t_\t1\tvocative\t_\tSpaceAfter=No\n3\t.\t_\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n",
+            "does not align with # text",
+        ),
+        (
+            "# sent_id = bad-tail\n# text = Hello world. Extra\n1\tHello\t_\tINTJ\t_\t_\t0\troot\t_\t_\n2\tworld\t_\tNOUN\t_\t_\t1\tvocative\t_\tSpaceAfter=No\n3\t.\t_\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n",
+            "trailing text",
+        ),
+    ] {
+        write_treebank(&dir, bad);
+        let err = read("ud-en-ewt", &dir, true).unwrap_err();
+        assert!(err.to_string().contains(msg), "expected {msg:?} in {err:?}");
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
 /// The tensors of a safetensors file, by name.
 fn read_safetensors(bytes: &[u8]) -> Vec<(String, Vec<u64>, Vec<f32>)> {
     let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;

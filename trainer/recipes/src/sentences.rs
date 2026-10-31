@@ -212,7 +212,75 @@ fn masc_document(doc: MascDocument, skipped: &mut usize) -> Result<Option<Docume
 struct UdSent {
     new_document: bool,
     new_paragraph: bool,
-    tokens: Vec<(String, String)>,
+    text: String,
+    tokens: Vec<(String, Span)>,
+    trailing_sep: String,
+}
+
+fn build_ud_sentence(name: &str, s: &turbo_formats::conllu::Sentence<'_>) -> Result<Option<UdSent>> {
+    let words: Vec<_> = s.word_lines.iter().filter(|w| !w.id.as_str().contains('.')).collect();
+    if words.is_empty() {
+        return Ok(None);
+    }
+    let trailing_sep = misc_trailing_space(words.last().expect("non-empty").misc.as_str());
+    let (text, tokens) = if let Some(comment) = &s.text {
+        let raw = comment.as_str();
+        let (mut cursor, mut first_start) = (0usize, 0usize);
+        let mut spans = Vec::with_capacity(words.len());
+        for (idx, w) in words.iter().enumerate() {
+            let trimmed = w.form.as_str().trim();
+            let form = if trimmed.is_empty() { w.form.as_str() } else { trimmed };
+            let ws_len: usize = raw[cursor..].chars().take_while(|c| c.is_whitespace()).map(char::len_utf8).sum();
+            let tok_start = cursor + ws_len;
+            if !raw[tok_start..].starts_with(form) {
+                let sid = s.sentence_id.as_ref().map_or("<unnamed>", |f| f.as_str());
+                return Err(Error(format!(
+                    "{name}:{}: token {form:?} in sentence {sid:?} does not align with # text = {raw:?} at byte {tok_start}",
+                    w.line
+                )));
+            }
+            let tok_end = tok_start + form.len();
+            if idx == 0 {
+                first_start = tok_start;
+            }
+            spans.push((form.to_owned(), tok_start, tok_end));
+            cursor = tok_end;
+        }
+        if !raw[cursor..].chars().all(char::is_whitespace) {
+            let sid = s.sentence_id.as_ref().map_or("<unnamed>", |f| f.as_str());
+            return Err(Error(format!(
+                "{name}:{}: trailing text {:?} in sentence {sid:?} after last token in # text = {raw:?}",
+                s.line,
+                &raw[cursor..]
+            )));
+        }
+        let sent_text = raw[first_start..cursor].to_owned();
+        let tokens = spans
+            .into_iter()
+            .map(|(form, a, b)| {
+                let start = u32::try_from(a - first_start).expect("sentence fits in u32");
+                let end = u32::try_from(b - first_start).expect("sentence fits in u32");
+                (form, Span::new(start, end))
+            })
+            .collect();
+        (sent_text, tokens)
+    } else {
+        let mut sent_text = String::new();
+        let mut tokens = Vec::with_capacity(words.len());
+        for (idx, w) in words.iter().enumerate() {
+            let trimmed = w.form.as_str().trim();
+            let form = if trimmed.is_empty() { w.form.as_str() } else { trimmed };
+            let start = u32::try_from(sent_text.len()).map_err(|_| Error("UD sentence exceeds u32".into()))?;
+            sent_text.push_str(form);
+            let end = u32::try_from(sent_text.len()).map_err(|_| Error("UD sentence exceeds u32".into()))?;
+            tokens.push((form.to_owned(), Span::new(start, end)));
+            if idx + 1 < words.len() {
+                sent_text.push_str(&misc_trailing_space(w.misc.as_str()));
+            }
+        }
+        (sent_text, tokens)
+    };
+    Ok(Some(UdSent { new_document: s.new_document, new_paragraph: s.new_paragraph, text, tokens, trailing_sep }))
 }
 
 fn parse_ud_sentences(name: &str, bytes: &[u8]) -> Result<(Vec<UdSent>, usize)> {
@@ -222,21 +290,10 @@ fn parse_ud_sentences(name: &str, bytes: &[u8]) -> Result<(Vec<UdSent>, usize)> 
     let mut skipped = 0;
     for s in reader {
         let s = s.map_err(|e| Error(format!("{name}: {e}")))?;
-        let tokens: Vec<(String, String)> = s
-            .word_lines
-            .iter()
-            .filter(|w| !w.id.as_str().contains('.'))
-            .map(|w| {
-                let form = w.form.as_str().trim();
-                let form = if form.is_empty() { w.form.as_str() } else { form };
-                (form.to_owned(), w.misc.as_str().to_owned())
-            })
-            .collect();
-        if tokens.is_empty() {
-            skipped += 1;
-            continue;
+        match build_ud_sentence(name, &s)? {
+            Some(sent) => out.push(sent),
+            None => skipped += 1,
         }
-        out.push(UdSent { new_document: s.new_document, new_paragraph: s.new_paragraph, tokens });
     }
     Ok((out, skipped))
 }
@@ -269,27 +326,23 @@ fn ud_documents(sents: &[UdSent]) -> Result<Vec<Document>> {
         let mut sentence_words = Vec::new();
         for (s_idx, s) in group.iter().enumerate() {
             if s_idx > 0 {
-                let last_misc = &group[s_idx - 1].tokens.last().expect("non-empty sentence").1;
-                let sep = misc_trailing_space(last_misc);
+                let sep = &group[s_idx - 1].trailing_sep;
                 if sep == " " && s.new_paragraph {
                     text.push('\n');
                 } else {
-                    text.push_str(&sep);
+                    text.push_str(sep);
                 }
             }
+            let sent_start = u32::try_from(text.len()).map_err(|_| Error("UD document exceeds u32".into()))?;
+            text.push_str(&s.text);
+            let sent_end = u32::try_from(text.len()).map_err(|_| Error("UD document exceeds u32".into()))?;
             let first_w = words.len();
-            for (t_idx, (form, misc)) in s.tokens.iter().enumerate() {
-                let start = u32::try_from(text.len()).map_err(|_| Error("UD document exceeds u32".into()))?;
-                text.push_str(form);
-                let end = u32::try_from(text.len()).map_err(|_| Error("UD document exceeds u32".into()))?;
+            for (form, rel_span) in &s.tokens {
                 words.push(form.clone());
-                word_spans.push(Span::new(start, end));
-                if t_idx + 1 < s.tokens.len() {
-                    text.push_str(&misc_trailing_space(misc));
-                }
+                word_spans.push(Span::new(sent_start + rel_span.start, sent_start + rel_span.end));
             }
             let last_w = words.len();
-            sentences.push(Span::new(word_spans[first_w].start, word_spans[last_w - 1].end));
+            sentences.push(Span::new(sent_start, sent_end));
             sentence_words.push(first_w..last_w);
         }
         docs.push(Document { text, words, word_spans, sentences, sentence_words });
