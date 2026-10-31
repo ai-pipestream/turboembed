@@ -55,6 +55,8 @@ comparison; memory is not constant and decoded graphs can exceed wire size.
 Graphs retain source text and non-vector document layers. Mode 0600 and an
 unkeyed digest do not make that content encrypted or anonymous. An opt-in
 library adapter now provides [encrypted artifacts](encrypted-artifacts.md)
-with explicit key and policy contracts, as part of #1490. Existing CLI exports
+with explicit key and policy contracts for #1490. `Writer::create_at` and
+`Dump::read_at` let a caller export and compare cuts under opaque keys while
+validating the expected set; the protected application metadata owns that mapping. Existing CLI exports
 still use plaintext storage; production key services and remote policy remain
 outstanding. No hardware speed, model quality or cross-backend parity claim follows from codec tests.

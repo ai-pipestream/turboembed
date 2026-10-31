@@ -4,7 +4,7 @@
 `EvaluationArtifactStore` with client-side AES-256-GCM encryption. The explicit
 `SecurityContext` supplies an authenticated principal, encoding identifier,
 key provider, authorization policy, retention policy and audit sink. This is
-an opt-in library adapter, part of #1490. Existing CLI cut exports still use
+an opt-in library adapter implementing the security contracts of #1490. Existing CLI cut exports still use
 `TemporaryFileStore` directly and remain plaintext. No key service, login
 flow or production remote provider is introduced here.
 
@@ -13,6 +13,14 @@ the existing evaluation-artifact operations: begin, publish, open, list and
 delete. It does not implement cache replacement, document append, format
 conversion, database operations or a provider registry. The application picks
 the byte encoding; its opaque `EncodingId` participates in authentication.
+
+The cut codec's `Writer::create_at(store, key, header)` and
+`Dump::read_at(store, key, expected_set)` accept explicit opaque identities.
+They preserve expected-set validation without exposing that set in the provider
+name. The keyed reader redacts document identifiers from decoding failures;
+the keyed writer redacts document-encoding failures. Use `compare_dumps` after
+reading two explicitly addressed artifacts. The original `create_in`,
+`read_from` and CLI directory comparison retain their naming contracts.
 
 ## Identity and policy
 
@@ -97,13 +105,15 @@ at-rest threat model.
 The explicit `encrypted_rustfs` integration test uses a real, pre-existing
 RustFS service and a fresh isolated bucket. Its test-only provider streams
 ciphertext staging through the repository's existing zoo SigV4 signer and
-ureq transport. It sends conditional PUT with `If-None-Match: *`, refuses
-redirects, and streams GET. It is not a production provider: listing is
-unsupported, ambiguous network outcomes need reconciliation, and it is not
-wired into the zoo holder registry. No provider authentication implementation
+ureq transport. The probe refuses plaintext HTTP outside a literal loopback
+address and refuses credential-bearing endpoint URLs. It sends conditional PUT
+with `If-None-Match: *`, refuses redirects, and streams GET. It is not a
+production provider: listing returns a typed unsupported-operation error,
+ambiguous network outcomes need reconciliation, and it is not wired into the
+zoo holder registry. No provider authentication implementation
 is duplicated and no zoo source code is changed.
 
-The observed test transport was local HTTP. This is not TLS, certificate or
+The observed test transport was explicitly selected loopback HTTP. This is not TLS, certificate or
 remote-network proof. Production transport must enforce authenticated TLS;
 client-side encryption does not hide object names, counts, grouping, sizes,
 access patterns, key IDs or request metadata. Wrong-credential refusal proves
@@ -127,6 +137,8 @@ Run the focused tests with Rust 1.99:
 ```sh
 cargo +1.99 test --locked -p turbo-eval --lib artifact::encrypted
 cargo +1.99 test --locked -p turbo-eval --test encrypted_artifacts --test artifact_storage
+cargo +1.99 test --locked -p turbo-eval --test encrypted_recovery --test encrypted_cuts
+cargo +1.99 test --locked -p turbo-eval --test cuts_adversarial
 ```
 
 The ignored RustFS test requires explicit `ARTIFACT_TEST_ENDPOINT`,
@@ -151,8 +163,36 @@ ARTIFACT_MEASURE_MIB=128 cargo +1.99 test --locked -p turbo-eval \
 For peak RSS, invoke the compiled test executable under the platform's process
 measurement tool so compilation memory is excluded. The reader performs one
 provider pass that writes and authenticates a ciphertext snapshot, followed by
-one snapshot read/decryption pass. Snapshot disk usage scales with artifact
+one snapshot read/decryption pass. Each decryption pass copies a bounded frame
+into the sink or consumer buffer. Snapshot disk usage scales with artifact
 size; plaintext working buffers do not. Provider buffers and application
 consumption are separate: reading the result into a growing vector is not a
 bounded-memory consumer. Measurements and their limits are recorded with the
 pull request, not claimed from the ignored test alone.
+
+## Acceptance evidence and operating limits
+
+The issue defines application security contracts and requires real storage
+proof. It does not require deploying a key service, changing the default CLI,
+or adding a production S3 registry adapter. Those are integration choices;
+the contracts never supply permissive fallback implementations.
+
+| Requirement | Evidence |
+| --- | --- |
+| Maintained encryption and typed keys | `ring` AEAD/HKDF; rotation, wrong/missing/revoked-key tests |
+| Real local and selected remote storage | Actual filesystem tests and explicitly executed existing RustFS service test |
+| Ordering, completeness and metadata | Exhaustive small-artifact tamper/truncation tests; real RustFS reorder, duplication, omission, key-ID mutation and scope substitution |
+| Authorization, isolation, audit | Fail-closed policy/audit checks; scoped listing/deletion; opaque audit outcomes and sanitized errors |
+| Publication concurrency | Real filesystem race and two independent staging roots racing conditional PUT at RustFS; exactly one winner |
+| Abort and crash recovery | Aborted remote objects remain 404; a child process exits without destructors, leaving only unlisted ciphertext; a new writer succeeds and owned recovery preserves its publication |
+| Retention and deletion | Real local/remote hold refusal and release; remote DELETE confirmed by GET 404; documented backup/version limits |
+| No plaintext storage or diagnostics | Scans of live staging, completed ciphertext and snapshots; keyed cut exports hide source text, set names and document IDs; typed/redacted error and audit tests |
+| Bounded memory and copying | Explicit 4/128/240 MiB adapter measurements, each byte checked; one input-to-frame copy, ciphertext-only snapshot and two read passes |
+| Transport | Real signed loopback HTTP, invalid credentials 403, redirect refusal in the transport and parser tests rejecting remote cleartext/credential URLs; no live TLS claim |
+
+The subprocess recovery test removes only the exact stage whose owning child
+has exited. It is not a general crash scavenger and does not infer ownership
+from filename age. Likewise, retention and audit tests exercise the contracts
+with real storage, not a deployed compliance system. The documented process,
+key-service, inventory, TLS, IAM and backup assumptions remain operational
+boundaries and must not be described as verified deployment guarantees.

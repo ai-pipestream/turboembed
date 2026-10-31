@@ -7,10 +7,10 @@ use remote::Remote;
 use std::{
     fs,
     io::{Read, Write},
-    sync::atomic::Ordering,
+    sync::{Arc, Barrier, atomic::Ordering},
 };
 use turbo_eval::artifact::encrypted::EncryptedStore;
-use turbo_eval::artifact::{ArtifactKey, EvaluationArtifactStore, StorageError};
+use turbo_eval::artifact::{ArtifactKey, EvaluationArtifactStore, StorageError, StorageOperation};
 
 #[test]
 #[ignore = "requires an explicitly selected existing RustFS service and isolated test bucket"]
@@ -29,11 +29,12 @@ fn real_rustfs_ciphertext_policy_and_failure_paths() {
             }
         }
     }
-    let _cleanup = Cleanup(provider.clone(), (1..=5).map(|id| physical(1, id)).collect());
+    let _cleanup = Cleanup(provider.clone(), (1..=5).map(|id| physical(1, id)).chain([physical(2, 1)]).collect());
     let store =
         EncryptedStore::new(provider.clone(), fixture.context(1), fixture.root.join("scratch"), 16 * 1024 * 1024);
     let other =
         EncryptedStore::new(provider.clone(), fixture.context(2), fixture.root.join("scratch"), 16 * 1024 * 1024);
+    assert!(matches!(store.list(), Err(StorageError::Unsupported(StorageOperation::List))));
     let text = b"private artifact content ".repeat(40_000);
     let mut writer = store.begin(&key(1)).unwrap();
     writer.write_all(&text).unwrap();
@@ -60,8 +61,40 @@ fn real_rustfs_ciphertext_policy_and_failure_paths() {
     assert!(store.open(&key(1)).is_err());
     fixture.keys.revoked.store(false, Ordering::SeqCst);
     fixture.policy.held.store(false, Ordering::SeqCst);
+    let barrier = Arc::new(Barrier::new(2));
+    let racers: Vec<_> = (0..2)
+        .map(|n| {
+            let context = fixture.context(1);
+            let root = fixture.root.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                // Independent local staging makes the conditional PUT, not a local
+                // name collision, choose the winner at the real remote service.
+                let remote = Remote::configured(root.join(format!("racer-{n}")));
+                let store = EncryptedStore::new(remote, context, root.join("scratch"), 10000);
+                let mut writer = store.begin(&key(3)).unwrap();
+                writer.write_all(&[n; 100]).unwrap();
+                barrier.wait();
+                match writer.finalize() {
+                    Ok(_) => true,
+                    Err(StorageError::AlreadyExists(_)) => false,
+                    Err(_) => panic!("unexpected remote publication error"),
+                }
+            })
+        })
+        .collect();
+    assert_eq!(racers.into_iter().filter_map(|h| h.join().unwrap().then_some(())).count(), 1);
+    let mut winner = Vec::new();
+    store.open(&key(3)).unwrap().read_to_end(&mut winner).unwrap();
+    assert!(winner == vec![0; 100] || winner == vec![1; 100]);
     let mutation = fixture.root.join("mutation");
-    for variant in 0..3 {
+    fs::write(&mutation, &ciphertext).unwrap();
+    assert_eq!(provider.put_file(&physical(2, 1), &mut fs::File::open(&mutation).unwrap(), false).unwrap(), 200);
+    assert!(other.open(&key(1)).is_err());
+    // Deleting the other scope's object cannot delete the original scope.
+    other.delete(&key(1)).unwrap();
+    assert_eq!(provider.get_status(&physical(1, 1), false), 200);
+    for variant in 0..7 {
         let mut changed = ciphertext.clone();
         match variant {
             0 => {
@@ -70,7 +103,24 @@ fn real_rustfs_ciphertext_policy_and_failure_paths() {
             1 => {
                 changed.pop();
             }
-            _ => changed.truncate(56),
+            2 => changed.truncate(56),
+            3 => {
+                // Exchange the first two full frames.
+                let second = 56 + 65536 + 21;
+                let third = second + 65536 + 21;
+                changed[56..third].rotate_left(second - 56);
+            }
+            4 => {
+                // Duplicate a frame without changing its authenticated index.
+                let frame = changed[56..56 + 65536 + 21].to_vec();
+                changed.splice(56..56, frame);
+            }
+            5 => {
+                changed.drain(56..56 + 65536 + 21);
+            }
+            _ => {
+                changed[8] ^= 127;
+            } // Unknown key identifier fails closed.
         }
         fs::write(&mutation, changed).unwrap();
         assert_eq!(provider.put_file(&physical(1, 1), &mut fs::File::open(&mutation).unwrap(), false).unwrap(), 200);

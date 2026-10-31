@@ -94,6 +94,7 @@ fn result<T>(context: &SecurityContext, request: &Request, value: Result<T, Stor
 // Never propagate a provider's error message, URL, path or credential material.
 fn sanitize(error: StorageError, key: Option<&ArtifactKey>) -> StorageError {
     match (error, key) {
+        (StorageError::Unsupported(operation), _) => StorageError::Unsupported(operation),
         (StorageError::AlreadyExists(_), Some(k)) => StorageError::AlreadyExists(k.clone()),
         (StorageError::NotFound(_), Some(k)) => StorageError::NotFound(k.clone()),
         (StorageError::Published { .. }, Some(k)) => {

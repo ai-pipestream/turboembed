@@ -7,7 +7,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use turbo_eval::artifact::{
-    ArtifactKey, EvaluationArtifactStore, PendingArtifact, Publication, StorageError, TemporaryFileStore,
+    ArtifactKey, EvaluationArtifactStore, PendingArtifact, Publication, StorageError, StorageOperation,
+    TemporaryFileStore,
 };
 use turbo_zoo::fetch::sigv4::{Credentials, EMPTY_SHA256, amz_date, sign};
 
@@ -27,12 +28,7 @@ fn failed() -> StorageError {
 impl Remote {
     pub fn configured(stage: PathBuf) -> Self {
         let endpoint = std::env::var("ARTIFACT_TEST_ENDPOINT").expect("set test endpoint");
-        let host = endpoint
-            .strip_prefix("http://")
-            .or_else(|| endpoint.strip_prefix("https://"))
-            .expect("HTTP endpoint")
-            .to_owned();
-        assert!(!host.contains('/'));
+        let host = endpoint_host(&endpoint).expect("TLS endpoint or explicit loopback HTTP test endpoint");
         let bucket = std::env::var("ARTIFACT_TEST_BUCKET").expect("set isolated test bucket");
         assert!(bucket.starts_with("artifact-security-test-"));
         let creds = Credentials {
@@ -121,7 +117,7 @@ impl EvaluationArtifactStore for Remote {
     }
     fn list(&self) -> Result<Vec<ArtifactKey>, StorageError> {
         // This probe deliberately does not invent a production listing parser.
-        Err(failed())
+        Err(StorageError::Unsupported(StorageOperation::List))
     }
     fn delete(&self, key: &ArtifactKey) -> Result<(), StorageError> {
         self.erase(key)
@@ -165,4 +161,34 @@ impl Drop for Pending {
             let _ = fs::remove_file(self.remote.stage.join(self.key.as_str()));
         }
     }
+}
+
+/// Transport policy for this explicit service probe: remote plaintext HTTP is
+/// forbidden. TLS still needs separate live certificate evidence; this parser
+/// does not claim to provide it.
+fn endpoint_host(endpoint: &str) -> Option<String> {
+    let uri: ureq::http::Uri = endpoint.parse().ok()?;
+    let host = uri.host()?;
+    let scheme = uri.scheme_str()?;
+    if scheme != "https" && !(scheme == "http" && matches!(host, "127.0.0.1" | "[::1]")) {
+        return None;
+    }
+    if uri.path() != "/" || uri.query().is_some() {
+        return None;
+    }
+    let authority = uri.authority()?.as_str();
+    if authority.contains('@') {
+        return None;
+    }
+    Some(authority.to_owned())
+}
+
+#[test]
+fn probe_transport_refuses_cleartext_remote_and_credential_urls() {
+    assert!(endpoint_host("http://127.0.0.1:9000").is_some());
+    assert!(endpoint_host("https://storage.example").is_some());
+    assert!(endpoint_host("http://storage.example").is_none());
+    assert!(endpoint_host("https://user:password@storage.example").is_none());
+    assert!(endpoint_host("https://storage.example/path").is_none());
+    assert!(endpoint_host("https://storage.example?secret=value").is_none());
 }
