@@ -15,12 +15,13 @@
 //! dictionary, [`crate::WordTagger`]), from the same per-sentence
 //! features: one read and several reads of the same rows give the same
 //! states. When [`Sentences`] is among the outputs and no prior sentences
-//! are given, the encoder runs once over the whole view, its
-//! [`SentenceBoundary`] head decodes boundaries from that pass, and the
-//! other heads' sequences are sliced from those whole-view features (so
-//! their token states carry cross-sentence context rather than one
-//! separate encoder pass per sentence). When prior sentences are given,
-//! the encoder runs per sentence as usual and [`Sentences`] writes those
+//! are given, the encoder runs once over the whole view, each
+//! [`Sentences`] output decodes its own [`SentenceBoundary`] head from
+//! that pass, and the other heads' sequences are sliced from those
+//! whole-view features by the first [`SentenceBoundary`] head (so their
+//! token states carry cross-sentence context rather than one separate
+//! encoder pass per sentence). When prior sentences are given, the
+//! encoder runs per sentence as usual and [`Sentences`] writes those
 //! given sentence sequences on token bounds.
 
 use std::marker::PhantomData;
@@ -102,6 +103,15 @@ impl Head {
     }
 }
 
+/// Whole-view sequences, forms, and pooled features when no prior
+/// sentences were supplied and [`MultiTask`] decodes sentence boundaries
+/// from a single whole-view encoder pass.
+struct Whole<'a> {
+    seqs: Vec<Vec<usize>>,
+    forms: Vec<Vec<&'a str>>,
+    features: Vec<Vec<Vec<f32>>>,
+}
+
 /// One document's words as every head reads them: the sequences of
 /// token indices, their text, and the features of each pooling read.
 pub struct Input<'a> {
@@ -111,6 +121,7 @@ pub struct Input<'a> {
     pub forms: Vec<Vec<&'a str>>,
     poolings: Vec<WordPooling>,
     features: Vec<Vec<Vec<f32>>>,
+    whole: Option<Whole<'a>>,
 }
 
 impl Input<'_> {
@@ -217,8 +228,23 @@ impl HeadLayer for Sentences {
         Ok(Head::Sentence { boundary })
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
-        let Head::Sentence { .. } = head else { return wrong_head() };
+        let Head::Sentence { boundary } = head else { return wrong_head() };
         let mut out = Sentences { spans: Spans::new(input.view.id()) };
+        if let Some(whole) = &input.whole {
+            let p = input
+                .poolings
+                .iter()
+                .position(|&q| q == boundary.spec().word_pooling)
+                .ok_or("a pooling no head asked for")?;
+            let ranges = sentence_ranges(boundary, &whole.features[p], &whole.forms).map_err(|e| e.to_string())?;
+            for r in ranges {
+                let s = &whole.seqs[0][r];
+                let start = input.tokens.spans.get(Ix::new(s[0] as u32)).start;
+                let end = input.tokens.spans.get(Ix::new(s[s.len() - 1] as u32)).end;
+                out.spans.push(Span::new(start, end));
+            }
+            return Ok(out);
+        }
         for s in &input.seqs {
             let start = input.tokens.spans.get(Ix::new(s[0] as u32)).start;
             let end = input.tokens.spans.get(Ix::new(s[s.len() - 1] as u32)).end;
@@ -372,7 +398,7 @@ impl<W: Outputs> MultiTask<W> {
             let features = words.token_features_pooled(view, tokens, &seqs, subwords, &self.poolings)?;
             drop(words);
             let forms = forms_of(view, tokens, &seqs);
-            let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features };
+            let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features, whole: None };
             return W::write(&self.heads, &input);
         };
         let all = Tokens { spans: tokens.spans.clone(), sentence: None };
@@ -394,7 +420,8 @@ impl<W: Outputs> MultiTask<W> {
             .iter()
             .map(|wf| ranges.iter().map(|r| wf[0][r.start * hidden..r.end * hidden].to_vec()).collect())
             .collect();
-        let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features };
+        let whole = Some(Whole { seqs: whole_seqs, forms: whole_forms, features: whole_features });
+        let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features, whole };
         W::write(&self.heads, &input)
     }
 }

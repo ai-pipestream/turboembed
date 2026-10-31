@@ -263,3 +263,35 @@ fn sentence_and_word_split_heads_run_in_the_one_pass() {
             && el.lemma.is_empty()
     );
 }
+
+#[test]
+fn two_named_sentence_heads_keep_their_own_predictions() {
+    let head = |name: &str| {
+        json!({
+            "name": name,
+            "layer": "turboembed:sentences",
+            "kind": "HEAD_SENTENCE_BOUNDARY",
+            "labels": ["inside", "last"],
+            "scheme": "SCHEME_TAGS",
+            "word_pooling": "WORD_POOLING_FIRST",
+            "decode": "DECODE_ARGMAX",
+            "artifact": "weights-f32",
+            "tensor_prefix": format!("heads.{name}")
+        })
+    };
+    let dir = bundle("two-sentence-heads", |m| {
+        m["heads"] = json!([head("first"), head("second")]);
+    });
+    let o = EncoderOptions::default();
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let sent_spans = |s: &Sentences| s.spans.iter().map(|(_, sp)| (sp.start, sp.end)).collect::<Vec<_>>();
+    let (first,) = SentenceTagger::open(&dir, Some("first"), &o).unwrap().annotate((view, &toks, None)).unwrap();
+    let (second,) = SentenceTagger::open(&dir, Some("second"), &o).unwrap().annotate((view, &toks, None)).unwrap();
+    assert_ne!(sent_spans(&first), sent_spans(&second));
+    let multi = MultiTask::<(Sentences, Sentences)>::open(&dir, &[Some("first"), Some("second")], &o).unwrap();
+    let (a, b) = multi.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!(sent_spans(&a), sent_spans(&first));
+    assert_eq!(sent_spans(&b), sent_spans(&second));
+}
