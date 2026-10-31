@@ -38,6 +38,8 @@ pub enum ZooError {
     Index(String),
     /// The acceptance file is malformed or inconsistent.
     Acceptances(String),
+    /// The holders file is malformed, or a holder is not one it takes.
+    Holders(String),
     /// No artifact of the index has this id.
     NotFound(String),
     /// The artifact is under terms the zoo refuses: it is not listed and
@@ -59,6 +61,7 @@ impl fmt::Display for ZooError {
         match self {
             ZooError::Index(m) => write!(f, "zoo index: {m}"),
             ZooError::Acceptances(m) => write!(f, "acceptance file: {m}"),
+            ZooError::Holders(m) => write!(f, "holders: {m}"),
             ZooError::NotFound(id) => write!(f, "{id}: the zoo has no artifact with this id"),
             ZooError::Refused { id, licences } => {
                 write!(f, "{id}: refused, the zoo does not list or fetch artifacts under ")?;
