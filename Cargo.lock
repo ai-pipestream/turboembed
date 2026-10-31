@@ -2425,6 +2425,7 @@ dependencies = [
  "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-structure",
+ "turbo-tagger",
  "turbo-tokenize",
  "turbo-tokenize-layers",
  "turbo-vector-index",
