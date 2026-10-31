@@ -1,5 +1,7 @@
 //! `TURBO_ZOO_SOURCE`: the places a model loads from, in the order tried.
 
+use std::path::Path;
+
 use turbo_zoo::{Blobs, Sources, UserId};
 
 use crate::server::ZooServer;
@@ -13,6 +15,8 @@ pub const ENV_SOURCE: &str = "TURBO_ZOO_SOURCE";
 /// - `file:///dir`: the content-addressed store under `/dir`. The first
 ///   one named also keeps every file a later source serves, once it
 ///   verifies, so the next read finds it there;
+///   the suffix is a literal filesystem path, also accepting native
+///   absolute paths on Windows (drive-qualified or UNC);
 /// - `grpc://host:port`, `grpcs://host:port`: a zoo server, read as `user`;
 /// - `s3://bucket/prefix`: an S3 bucket in the same layout, configured
 ///   from the `AWS_*` environment ([`crate::S3Bucket::new`]); a build
@@ -34,7 +38,7 @@ where
             return Err(format!("{ENV_SOURCE}={spec}: an empty entry"));
         }
         out = if let Some(dir) = item.strip_prefix("file://") {
-            if !dir.starts_with('/') {
+            if !dir.starts_with('/') && !Path::new(dir).is_absolute() {
                 return Err(format!("{item}: a file:// source names an absolute directory"));
             }
             if kept {

@@ -27,6 +27,7 @@ fn spec(labels: Vec<String>, adapter: Option<(u32, u32)>, tags: Option<u32>) -> 
         pos_input: tags.map(|labels| PosInput { head: "pos".into(), labels, dim: 3 }),
         hash_embed: None,
         span: None,
+        relation: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "lemma".into(),

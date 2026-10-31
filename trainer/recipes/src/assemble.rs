@@ -1,13 +1,6 @@
 //! Assembling verified `turbo-trainer` receipt directories into a single-head
-//! or multi-task bundle (#1726).
-//!
-//! [`assemble_bundle`] checks every receipt before writing anything:
-//! schema, corpus record and licence class, encoder match against the target
-//! bundle, output file sizes and SHA-256 digests, `head.json` equality and
-//! `HeadSpec::validate`, and exact tensor names and shapes loaded through the
-//! core head constructors. It then merges the head tensors into the bundle's
-//! safetensors weights file, records [`HeadProvenance`] in `manifest.json`,
-//! and verifies the assembled bundle with [`Bundle::open`].
+//! or multi-task bundle (#1726), verifying receipts, checkpoint metadata,
+//! tensor names and shapes, and the assembled bundle via [`Bundle::open`].
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -16,14 +9,15 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::{
-    BiaffineParser, EditTreeLemmatizer, SentenceBoundary, SpanClassifier, TokenSplitter, TokenTagger, boundary,
-    lemmatizer, parser, span, split, tagger,
+    BiaffineParser, EditTreeLemmatizer, RelationClassifier, SentenceBoundary, SpanClassifier, TokenSplitter,
+    TokenTagger, boundary, lemmatizer, parser, relation, span, split, tagger,
 };
 use turbo::manifest::{Format, HeadKind, HeadProvenance, HeadSpec, LicenseClass, Manifest};
 use turbo::safetensors;
 
 use crate::corpus::CorpusRecord;
 use crate::receipt::{Receipt, SCHEMA};
+use crate::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH};
 use crate::{Error, Result};
 
 /// A verified training run ready to be merged into an encoder bundle.
@@ -94,7 +88,8 @@ pub fn verify_run(run_dir: &Path) -> Result<VerifiedRun> {
         return Err(at("head.json does not match receipt.head".into()));
     }
     let weights_bytes = verify_output(run_dir, &receipt, "head.safetensors")?;
-    verify_head_tensors(&spec, enc.hidden, &weights_bytes).map_err(at)?;
+    verify_head_tensors(&spec, enc.hidden, training.best_epoch, training.dev[training.best_epoch], &weights_bytes)
+        .map_err(at)?;
 
     Ok(VerifiedRun { dir: run_dir.to_path_buf(), receipt, spec, license_class, weights_bytes })
 }
@@ -139,9 +134,16 @@ fn verify_output(run_dir: &Path, receipt: &Receipt, name: &str) -> Result<Vec<u8
     Ok(bytes)
 }
 
-fn verify_head_tensors(spec: &HeadSpec, hidden: usize, weights_bytes: &[u8]) -> std::result::Result<(), String> {
+fn verify_head_tensors(
+    spec: &HeadSpec,
+    hidden: usize,
+    best_epoch: usize,
+    best_dev: f64,
+    weights_bytes: &[u8],
+) -> std::result::Result<(), String> {
     let _ = safetensors::File::parse("head.safetensors", weights_bytes).map_err(|e| e.message)?;
-    let header = parse_safetensors_header(weights_bytes)?;
+    let (meta, header) = parse_safetensors_header(weights_bytes)?;
+    verify_checkpoint_metadata(&meta, best_epoch, best_dev)?;
     let n_hdr = u64::from_le_bytes(weights_bytes[..8].try_into().unwrap()) as usize;
     let data = &weights_bytes[8 + n_hdr..];
     let prefix = format!("{}.", spec.tensor_prefix);
@@ -155,6 +157,7 @@ fn verify_head_tensors(spec: &HeadSpec, hidden: usize, weights_bytes: &[u8]) -> 
         HeadKind::SentenceBoundary => boundary::tensors(spec, hidden),
         HeadKind::TokenSplit => split::tensors(spec, hidden),
         HeadKind::SpanClassifier => span::tensors(spec, hidden),
+        HeadKind::RelationClassifier => relation::tensors(spec, hidden),
     };
     if header.len() != expected.len() {
         return Err(format!("head.safetensors: {} tensors on disk, head expects {}", header.len(), expected.len()));
@@ -185,6 +188,7 @@ fn verify_head_tensors(spec: &HeadSpec, hidden: usize, weights_bytes: &[u8]) -> 
         HeadKind::SentenceBoundary => SentenceBoundary::from_tensors(spec, hidden, &get).map(|b| b.hidden()),
         HeadKind::TokenSplit => TokenSplitter::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
         HeadKind::SpanClassifier => SpanClassifier::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
+        HeadKind::RelationClassifier => RelationClassifier::from_tensors(spec, hidden, &get).map(|r| r.hidden()),
     }
     .map_err(|e| format!("head.safetensors: {}", e.message))?;
     if checked != hidden {
@@ -202,6 +206,15 @@ fn verify_head_tensors(spec: &HeadSpec, hidden: usize, weights_bytes: &[u8]) -> 
 pub fn assemble_bundle(encoder_bundle: &Path, run_dirs: &[&Path], out_dir: &Path) -> Result<AssembledBundle> {
     if run_dirs.is_empty() {
         return Err(Error("assemble: at least one run directory is required".into()));
+    }
+    let enc_canon =
+        fs::canonicalize(encoder_bundle).map_err(|e| Error(format!("{}: {e}", encoder_bundle.display())))?;
+    if out_dir == encoder_bundle || fs::canonicalize(out_dir).is_ok_and(|out_canon| out_canon == enc_canon) {
+        return Err(Error(format!(
+            "assemble: out_dir {} must not equal encoder_bundle {}",
+            out_dir.display(),
+            encoder_bundle.display()
+        )));
     }
     let enc_bundle =
         Bundle::open(encoder_bundle).map_err(|e| Error(format!("{}: {}", encoder_bundle.display(), e.message)))?;
@@ -377,27 +390,64 @@ struct RawEntry {
     data_offsets: [usize; 2],
 }
 
-fn parse_safetensors_header(bytes: &[u8]) -> std::result::Result<BTreeMap<String, RawEntry>, String> {
+fn verify_checkpoint_metadata(
+    meta: &BTreeMap<String, String>,
+    best_epoch: usize,
+    best_dev: f64,
+) -> std::result::Result<(), String> {
+    let epoch_str = meta
+        .get(CHECKPOINT_EPOCH)
+        .ok_or_else(|| format!("head.safetensors: missing __metadata__.{CHECKPOINT_EPOCH}"))?;
+    let epoch: usize = epoch_str
+        .parse()
+        .map_err(|e| format!("head.safetensors: invalid __metadata__.{CHECKPOINT_EPOCH} {epoch_str:?}: {e}"))?;
+    if epoch != best_epoch {
+        return Err(format!(
+            "head.safetensors: __metadata__.{CHECKPOINT_EPOCH} is {epoch}, receipt.training.best_epoch is {best_epoch}"
+        ));
+    }
+    let dev_str =
+        meta.get(CHECKPOINT_DEV).ok_or_else(|| format!("head.safetensors: missing __metadata__.{CHECKPOINT_DEV}"))?;
+    let dev: f64 = dev_str
+        .parse()
+        .map_err(|e| format!("head.safetensors: invalid __metadata__.{CHECKPOINT_DEV} {dev_str:?}: {e}"))?;
+    if !dev.is_finite() || (dev - best_dev).abs() > 1e-12 {
+        return Err(format!(
+            "head.safetensors: __metadata__.{CHECKPOINT_DEV} is {dev}, receipt.training.dev[{best_epoch}] is {best_dev}"
+        ));
+    }
+    Ok(())
+}
+
+type SafetensorsHeader = (BTreeMap<String, String>, BTreeMap<String, RawEntry>);
+
+fn parse_safetensors_header(bytes: &[u8]) -> std::result::Result<SafetensorsHeader, String> {
     if bytes.len() < 8 {
         return Err("safetensors file shorter than 8 bytes".into());
     }
     let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
     let end = 8usize.checked_add(n).filter(|&e| e <= bytes.len()).ok_or("bad safetensors header length")?;
     let raw: BTreeMap<String, serde_json::Value> = serde_json::from_slice(&bytes[8..end]).map_err(|e| e.to_string())?;
+    let mut meta = BTreeMap::new();
     let mut out = BTreeMap::new();
     for (k, v) in raw {
         if k == "__metadata__" {
+            meta = serde_json::from_value(v).map_err(|e| format!("__metadata__: {e}"))?;
             continue;
         }
         let entry: RawEntry = serde_json::from_value(v).map_err(|e| format!("{k}: {e}"))?;
         out.insert(k, entry);
     }
-    Ok(out)
+    Ok((meta, out))
 }
 
+/// Appends every verified head's tensors onto `base`'s safetensors table.
+/// Any `__metadata__` map on `base` or the head checkpoints is omitted in the
+/// merged file; per-head checkpoint and corpus provenance live in
+/// `manifest.json` (`head_provenance`).
 fn merge_safetensors(base: &[u8], runs: &[VerifiedRun]) -> Result<Vec<u8>> {
     let base_n = u64::from_le_bytes(base[..8].try_into().unwrap()) as usize;
-    let base_header = parse_safetensors_header(base).map_err(Error)?;
+    let (_, base_header) = parse_safetensors_header(base).map_err(Error)?;
     let mut data = base[8 + base_n..].to_vec();
     let mut entries: Vec<(String, String, Vec<usize>, [usize; 2])> =
         base_header.into_iter().map(|(k, e)| (k, e.dtype, e.shape, e.data_offsets)).collect();
@@ -405,7 +455,7 @@ fn merge_safetensors(base: &[u8], runs: &[VerifiedRun]) -> Result<Vec<u8>> {
     for run in runs {
         let n = u64::from_le_bytes(run.weights_bytes[..8].try_into().unwrap()) as usize;
         let run_data = &run.weights_bytes[8 + n..];
-        let run_header = parse_safetensors_header(&run.weights_bytes).map_err(Error)?;
+        let (_, run_header) = parse_safetensors_header(&run.weights_bytes).map_err(Error)?;
         for (k, e) in run_header {
             if entries.iter().any(|(existing, ..)| existing == &k) {
                 return Err(Error(format!("safetensors collision on tensor {k:?}")));

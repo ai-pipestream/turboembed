@@ -25,7 +25,7 @@ pub struct View {
     /// UTF-16 and code point checkpoints, built on first use.
     pub(crate) offsets: OnceLock<OffsetTable>,
     /// Memoized SHA-256 digest of `text`, built on first use.
-    pub(crate) text_digest: OnceLock<ViewTextDigest>,
+    pub(crate) text_digest: OnceLock<Box<ViewTextDigest>>,
 }
 
 impl View {
@@ -44,7 +44,7 @@ impl View {
 
     /// Returns the memoized SHA-256 identity of this view's UTF-8 text.
     pub fn text_digest(&self) -> ViewTextDigest {
-        *self.text_digest.get_or_init(|| ViewTextDigest(turbo_sha256::sha256(self.text.as_bytes())))
+        **self.text_digest.get_or_init(|| Box::new(ViewTextDigest(turbo_sha256::sha256(self.text.as_bytes()))))
     }
 
     pub fn id(&self) -> ViewId {

@@ -40,7 +40,7 @@ impl fmt::Display for TaggerZooError {
                 write!(f, "no artifact in the zoo serves {component} for language {language:?}")
             }
             TaggerZooError::NotABundle { id, kind, format } => {
-                write!(f, "{id} is {kind} {format}, not a FORMAT_SAFETENSORS model or head")
+                write!(f, "{id} is {kind} {format}, not a FORMAT_SAFETENSORS model or head bundle with manifest.json")
             }
             TaggerZooError::Bundle(e) => write!(f, "{e}"),
         }
@@ -61,6 +61,12 @@ impl From<CoreError> for TaggerZooError {
     }
 }
 
+fn is_bundle_artifact(a: &turbo_zoo::Artifact) -> bool {
+    a.format == Format::Safetensors
+        && matches!(a.kind, Kind::Model | Kind::Head)
+        && a.files.iter().any(|f| f.path.as_str() == "manifest.json")
+}
+
 /// Ensures the bundle artifact `id` is verified in `zoo`'s cache and returns
 /// its local bundle directory.
 pub fn ensure_bundle(
@@ -69,17 +75,17 @@ pub fn ensure_bundle(
     user: &UserId,
     acceptances: &Acceptances,
 ) -> Result<PathBuf, TaggerZooError> {
-    let fetched = zoo.ensure(id, user, acceptances)?;
-    let a = fetched.artifact;
-    if a.format != Format::Safetensors || !matches!(a.kind, Kind::Model | Kind::Head) {
+    let a = zoo.index().get(id)?;
+    if !is_bundle_artifact(a) {
         return Err(TaggerZooError::NotABundle { id: id.to_owned(), kind: a.kind, format: a.format });
     }
+    let fetched = zoo.ensure(id, user, acceptances)?;
     Ok(fetched.dir)
 }
 
-/// Finds the first artifact for `(language, component)` in `zoo` (preferring
-/// `CLASS_PERMISSIVE` entries first via [`turbo_zoo::Index::find`]) and
-/// ensures its bundle directory is on disk.
+/// Finds the first bundle artifact for `(language, component)` in `zoo`
+/// (preferring `CLASS_PERMISSIVE` entries first via [`turbo_zoo::Index::find`])
+/// and ensures its bundle directory is on disk.
 pub fn ensure_component(
     zoo: &Zoo<'_>,
     language: &str,
@@ -90,7 +96,7 @@ pub fn ensure_component(
     let a = zoo
         .index()
         .find(language, component)
-        .next()
+        .find(|a| is_bundle_artifact(a))
         .ok_or_else(|| TaggerZooError::NoComponent { language: language.to_owned(), component })?;
     let id = a.id.as_str().to_owned();
     ensure_bundle(zoo, &id, user, acceptances)
