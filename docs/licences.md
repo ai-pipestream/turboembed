@@ -111,7 +111,7 @@ models. Dataset download helpers remain subject to the same licence policy.
 | `turbo-fi-ud-ftb-2.16-pos-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
 | `turbo-fi-ud-ftb-2.16-lemmas-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
 | `turbo-mul-tatoeba-langdetect-1` | the CC BY 2.0 FR sentences of [Tatoeba](https://tatoeba.org)'s export of 2026-10-10, in the 71 languages with at least 1,500 of them after the licence check and de-duplication | CC BY 2.0 FR | permissive | as Tatoeba's row under Datasets |
-| `turbo-mul-tatoeba-fineweb-langdetect-1` | the same Tatoeba sentences, and windows of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) and [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) documents at the revisions `fineweb-files.txt` records, in 100 languages | CC BY 2.0 FR; ODC-By 1.0 | permissive | as Tatoeba's, FineWeb-2's and FineWeb's rows under Datasets |
+| `turbo-mul-tatoeba-fineweb-langdetect-1` | the same Tatoeba sentences, and windows of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) and [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) documents at the revisions `fineweb-files.txt` records, in 107 languages | CC BY 2.0 FR; ODC-By 1.0 | permissive | as Tatoeba's, FineWeb-2's and FineWeb's rows under Datasets |
 
 ## OpenNLP models (refused)
 
