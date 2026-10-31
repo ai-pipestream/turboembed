@@ -164,10 +164,16 @@ fn tiny() -> PathBuf {
 }
 
 fn train(data: &Path, out: &Path, extra: &[&str]) -> std::process::Output {
+    let mut args = vec!["--epochs", "30", "--lr", "0.01"];
+    args.extend(extra);
+    run(data, out, &args)
+}
+
+fn run(data: &Path, out: &Path, extra: &[&str]) -> std::process::Output {
     let (data, out, bundle) = (data.to_str().unwrap(), out.to_str().unwrap(), tiny());
     let mut args = vec!["train-relation", "--corpus", "re-docred", "--dir", data, "--bundle"];
     args.extend([bundle.to_str().unwrap(), "--out", out, "--unrecorded-corpus", "--commit", "test"]);
-    args.extend(["--mlp", "16", "--type-dim", "4", "--epochs", "30", "--batch", "4", "--lr", "0.01"]);
+    args.extend(["--mlp", "16", "--type-dim", "4", "--batch", "4"]);
     args.extend(extra);
     Command::new(env!("CARGO_BIN_EXE_turbo-train-head")).args(&args).output().unwrap()
 }
@@ -207,7 +213,15 @@ fn a_relation_run_writes_a_head_the_core_reads_and_a_receipt() {
     assert_eq!(fs::read(out.join("head.safetensors")).unwrap(), fs::read(again.join("head.safetensors")).unwrap());
     let refused = train(&data, &scratch("train-crf"), &["--crf"]);
     assert!(String::from_utf8_lossy(&refused.stderr).contains("neither --crf"));
-    for d in [data, out, again] {
+
+    // Without --lr, a relation head trains at its own default, which the
+    // receipt records.
+    assert_eq!(r.config.as_ref().unwrap().lr, 0.01);
+    let plain = scratch("train-plain");
+    assert!(run(&data, &plain, &["--epochs", "1"]).status.success());
+    let p: Receipt = serde_json::from_slice(&fs::read(plain.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(p.config.unwrap().lr, 3e-4);
+    for d in [data, out, again, plain] {
         let _ = fs::remove_dir_all(d);
     }
 }

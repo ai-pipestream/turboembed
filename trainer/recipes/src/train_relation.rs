@@ -19,6 +19,12 @@ use turbo_trainer_recipes::{Error, Result, safetensors};
 
 use super::{Args, Opts, RESAMPLES, encoder_record, finish, options, saved_any};
 
+/// The learning rate a relation head trains at unless `--lr` says
+/// otherwise: on Re-DocRED over a frozen ModernBERT-base, the trainer's
+/// default (2e-3) has the loss climb again from the second epoch, and
+/// 3e-4 falls steadily to a dev micro F1 of 0.446 at epoch 7.
+pub(super) const LR: f64 = 3e-4;
+
 /// Reads the relation corpus `id` from `dir`.
 pub(super) fn read(id: &str, dir: &Path, unrecorded: bool) -> Result<RelationCorpus> {
     match id {
@@ -29,6 +35,9 @@ pub(super) fn read(id: &str, dir: &Path, unrecorded: bool) -> Result<RelationCor
 
 pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
     let d = RelationOptions::default();
+    if !a.rest.iter().any(|x| x == "--lr") {
+        a.rest.extend(["--lr".to_owned(), LR.to_string()]);
+    }
     let mlp = a.parsed("--mlp", d.mlp)?;
     let type_dim = a.parsed("--type-dim", d.type_dim)?;
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =

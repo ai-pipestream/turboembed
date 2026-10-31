@@ -160,7 +160,9 @@ sequence, its entities typed by their first mention, each entity's
 mentions pooled before the pair is scored, and every label above
 `none`, the pair's own threshold, kept, so a pair holds several. Its
 labels are `none` and the property ids training gives; `--mlp` and
-`--type-dim` set the projection and entity type widths. It writes the
+`--type-dim` set the projection and entity type widths, and `--lr`
+defaults to 3e-4, below the other heads' 2e-3, at which this head's
+loss climbs again after its second epoch. It writes the
 same three files and scores exact (head, tail, label) triples on the
 test split, micro and per label, against the majority baseline, which
 labels every pair `none` and so finds nothing, with a paired bootstrap
