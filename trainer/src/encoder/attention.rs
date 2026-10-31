@@ -30,7 +30,8 @@ fn cols(part: usize, hidden: usize, h: usize, d: usize) -> std::ops::Range<usize
 }
 
 /// Query `i`'s probabilities over `span` into `row` (zero elsewhere),
-/// from q and the keys in `kc` of each qkv row.
+/// from q and the keys in `kc` of each qkv row; `round` rounds them to
+/// bfloat16, as a bfloat16 kernel hands them to the value product.
 #[allow(clippy::too_many_arguments)]
 fn probabilities<R: Real>(
     qkv: &[R],
@@ -39,6 +40,7 @@ fn probabilities<R: Real>(
     kc: std::ops::Range<usize>,
     span: std::ops::Range<usize>,
     scale: R,
+    round: bool,
     row: &mut [R],
 ) {
     row.fill(R::ZERO);
@@ -57,12 +59,22 @@ fn probabilities<R: Real>(
     }
     let inv = R::ONE / sum;
     for j in span {
-        row[j] *= inv;
+        row[j] = if round { (row[j] * inv).bf16() } else { row[j] * inv };
     }
 }
 
-/// ctx [n, hidden] from qkv [n, 3 hidden].
-pub fn forward<R: Real>(qkv: &[R], hidden: usize, heads: usize, window: usize, ctx: &mut [R], c: &mut Cache<R>) {
+/// ctx [n, hidden] from qkv [n, 3 hidden]; `round` rounds the
+/// probabilities to bfloat16 before they weight the values.
+#[allow(clippy::too_many_arguments)]
+pub fn forward<R: Real>(
+    qkv: &[R],
+    hidden: usize,
+    heads: usize,
+    window: usize,
+    round: bool,
+    ctx: &mut [R],
+    c: &mut Cache<R>,
+) {
     let (n, d) = (qkv.len() / (3 * hidden), hidden / heads);
     let scale = R::from_f64(1.0 / (d as f64).sqrt());
     c.n = n;
@@ -73,7 +85,7 @@ pub fn forward<R: Real>(qkv: &[R], hidden: usize, heads: usize, window: usize, c
         for i in 0..n {
             let q = &qkv[i * 3 * hidden..][qc.clone()];
             let span = keys(i, n, window);
-            probabilities(qkv, hidden, q, kc.clone(), span.clone(), scale, &mut c.row);
+            probabilities(qkv, hidden, q, kc.clone(), span.clone(), scale, round, &mut c.row);
             let out = &mut ctx[i * hidden..][h * d..(h + 1) * d];
             for j in span {
                 let p = c.row[j];
@@ -85,12 +97,15 @@ pub fn forward<R: Real>(qkv: &[R], hidden: usize, heads: usize, window: usize, c
     }
 }
 
-/// dqkv [n, 3 hidden] += the gradients of `forward` from dctx [n, hidden].
+/// dqkv [n, 3 hidden] += the gradients of `forward` from dctx [n, hidden],
+/// `round` as forward's.
+#[allow(clippy::too_many_arguments)]
 pub fn backward<R: Real>(
     qkv: &[R],
     hidden: usize,
     heads: usize,
     window: usize,
+    round: bool,
     c: &Cache<R>,
     dctx: &[R],
     dqkv: &mut [R],
@@ -105,7 +120,7 @@ pub fn backward<R: Real>(
             let q = &qkv[i * 3 * hidden..][qc.clone()];
             let dout = &dctx[i * hidden..][h * d..(h + 1) * d];
             let span = keys(i, n, window);
-            probabilities(qkv, hidden, q, kc.clone(), span.clone(), scale, &mut row);
+            probabilities(qkv, hidden, q, kc.clone(), span.clone(), scale, round, &mut row);
             // dp_j = dctx_i . v_j, and dv_j += p_ij dctx_i.
             let mut s = R::ZERO;
             for j in span.clone() {
