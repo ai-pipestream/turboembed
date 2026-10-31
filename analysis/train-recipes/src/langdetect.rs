@@ -72,7 +72,7 @@ macro_rules! pairs {
 
 /// Every Tatoeba language whose sentences the recipe reads, in Tatoeba
 /// code order, with its ISO 639-3 gold aliases.
-pub const LANGUAGES: [LanguagePair; 100] = pairs![
+pub const LANGUAGES: [LanguagePair; 107] = pairs![
     "afr" => ["afr"], "ara" => ["ara"], "ast" => ["ast"], "aze" => ["aze"], "bak" => ["bak"],
     "bel" => ["bel"], "ben" => ["ben"], "bos" => ["bos"], "bre" => ["bre"], "bul" => ["bul"],
     "cat" => ["cat"], "ceb" => ["ceb"], "ces" => ["ces"], "che" => ["che"], "cmn" => ["cmn"],
@@ -83,16 +83,18 @@ pub const LANGUAGES: [LanguagePair; 100] = pairs![
     "hye" => ["hye"], "ind" => ["ind"], "isl" => ["isl"], "ita" => ["ita"], "jav" => ["jav"],
     "jpn" => ["jpn"], "kan" => ["kan"], "kat" => ["kat"], "kaz" => ["kaz"], "kir" => ["kir"],
     "kor" => ["kor"], "lat" => ["lat"], "lim" => ["lim"], "lit" => ["lit"], "ltz" => ["ltz"],
-    "lvs" => ["lvs", "lav"], "mal" => ["mal"], "mar" => ["mar"], "min" => ["min"], "mkd" => ["mkd"],
-    "mlg" => ["plt"], "mlt" => ["mlt"], "mon" => ["mon"], "mri" => ["mri"], "nan" => ["nan"],
-    "nds" => ["nds"], "nld" => ["nld"], "nno" => ["nno"], "nob" => ["nob"], "npi" => ["nep"],
-    "oci" => ["oci"], "pan" => ["pan"], "pes" => ["pes", "fas"], "pnb" => ["pnb"], "pol" => ["pol"],
-    "por" => ["por"], "pus" => ["pus"], "ron" => ["ron"], "rus" => ["rus"], "san" => ["san"],
-    "sin" => ["sin"], "slk" => ["slk"], "slv" => ["slv"], "som" => ["som"], "spa" => ["spa"],
-    "sqi" => ["sqi"], "srp" => ["srp"], "sun" => ["sun"], "swe" => ["swe"], "swh" => ["swa"],
-    "tam" => ["tam"], "tat" => ["tat"], "tel" => ["tel"], "tgk" => ["tgk"], "tgl" => ["tgl"],
-    "tha" => ["tha"], "tur" => ["tur"], "ukr" => ["ukr"], "urd" => ["urd"], "uzb" => ["uzb"],
-    "vie" => ["vie"], "vol" => ["vol"], "war" => ["war"], "zsm" => ["msa"], "zul" => ["zul"],
+    "lug" => ["lug"], "lvs" => ["lvs", "lav"], "mal" => ["mal"], "mar" => ["mar"], "min" => ["min"],
+    "mkd" => ["mkd"], "mlg" => ["plt"], "mlt" => ["mlt"], "mon" => ["mon"], "mri" => ["mri"],
+    "nan" => ["nan"], "nds" => ["nds"], "nld" => ["nld"], "nno" => ["nno"], "nob" => ["nob"],
+    "npi" => ["nep"], "oci" => ["oci"], "pan" => ["pan"], "pes" => ["pes", "fas"], "pnb" => ["pnb"],
+    "pol" => ["pol"], "por" => ["por"], "pus" => ["pus"], "ron" => ["ron"], "rus" => ["rus"],
+    "san" => ["san"], "sin" => ["sin"], "slk" => ["slk"], "slv" => ["slv"], "sna" => ["sna"],
+    "som" => ["som"], "sot" => ["sot"], "spa" => ["spa"], "sqi" => ["sqi"], "srp" => ["srp"],
+    "sun" => ["sun"], "swe" => ["swe"], "swh" => ["swa"], "tam" => ["tam"], "tat" => ["tat"],
+    "tel" => ["tel"], "tgk" => ["tgk"], "tgl" => ["tgl"], "tha" => ["tha"], "tsn" => ["tsn"],
+    "tso" => ["tso"], "tur" => ["tur"], "ukr" => ["ukr"], "urd" => ["urd"], "uzb" => ["uzb"],
+    "vie" => ["vie"], "vol" => ["vol"], "war" => ["war"], "xho" => ["xho"], "yor" => ["yor"],
+    "zsm" => ["msa"], "zul" => ["zul"],
 ];
 
 /// How each language's sentences are split: see the module comment.
@@ -114,7 +116,7 @@ pub struct Split {
 /// The recipe's split: 500 held-out sentences per language, enough for the
 /// gate's interval over about 50,000 units to be narrow beside its
 /// half-point margin; at most 5,000 training sentences per language,
-/// which keeps the events of 100 languages within a few gigabytes; and
+/// which keeps the events of 107 languages within a few gigabytes; and
 /// at least 1,000 to train on.
 pub const SPLIT: Split = Split { seed: 429, held_out: 500, max_training: 5_000, min_sentences: 1_500 };
 
