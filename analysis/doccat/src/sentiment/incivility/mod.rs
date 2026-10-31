@@ -103,7 +103,8 @@ pub use spans::{
 use tables::*;
 pub use zoo::{
     CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD, CIVIL_COMMENTS_BGE_SMALL_HEAD, CIVIL_COMMENTS_MINILM_CONTEXT_HEAD,
-    CIVIL_COMMENTS_MINILM_HEAD, IncivilityZooError,
+    CIVIL_COMMENTS_MINILM_HEAD, CIVIL_COMMENTS_MODERNBERT_CONTEXT_HEAD, CIVIL_COMMENTS_MODERNBERT_HEAD,
+    IncivilityZooError,
 };
 
 /// Multi-label incivility and toxicity annotator (`turbo-doccat:incivility`).
