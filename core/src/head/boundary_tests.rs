@@ -20,6 +20,7 @@ pub(super) fn spec(kind: HeadKind, labels: &[&str], decode: Decode) -> HeadSpec 
         pos_input: None,
         hash_embed: None,
         span: None,
+        relation: None,
         coref: None,
         license_class: None,
         artifact: "weights-f32".into(),

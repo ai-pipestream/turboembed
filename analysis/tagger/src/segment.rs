@@ -28,15 +28,15 @@ use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, refuse};
 use crate::words::WordEncoder;
 
 /// The encoder a segmenting head reads, and what its annotator names.
-struct Reader {
+pub(crate) struct Reader {
     words: Mutex<WordEncoder>,
-    model: ModelRef,
-    execution: Execution,
+    pub(crate) model: ModelRef,
+    pub(crate) execution: Execution,
     width: usize,
 }
 
 impl Reader {
-    fn open(dir: &Path, bundle: &Bundle, hidden: usize, o: &EncoderOptions) -> Result<Reader, CoreError> {
+    pub(crate) fn open(dir: &Path, bundle: &Bundle, hidden: usize, o: &EncoderOptions) -> Result<Reader, CoreError> {
         let words = WordEncoder::open(dir, o)?;
         if words.hidden() != hidden {
             return Err(refuse(format!("the head reads {hidden} values a word, the encoder gives {}", words.hidden())));
@@ -49,7 +49,7 @@ impl Reader {
         })
     }
 
-    fn features(
+    pub(crate) fn features(
         &self,
         view: &View,
         tokens: &Tokens,
@@ -61,7 +61,7 @@ impl Reader {
         words.token_features(view, tokens, seqs, subwords, spec.word_pooling)
     }
 
-    fn config(&self, spec: &HeadSpec) -> u64 {
+    pub(crate) fn config(&self, spec: &HeadSpec) -> u64 {
         Fnv1a::new().str(&spec.name).u64(self.width as u64).finish()
     }
 }

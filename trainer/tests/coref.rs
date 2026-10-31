@@ -25,6 +25,7 @@ fn spec(adapter: u32, antecedents: u32) -> HeadSpec {
         pos_input: None,
         hash_embed: None,
         span: Some(SpanShape { max_words: 2, width_dim: 2 }),
+        relation: None,
         coref: Some(CorefShape { dim: 4, antecedents }),
         license_class: None,
         artifact: "weights".into(),

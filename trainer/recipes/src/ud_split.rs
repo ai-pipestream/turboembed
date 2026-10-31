@@ -273,6 +273,7 @@ pub fn spec(
         pos_input: None,
         hash_embed: None,
         span: None,
+        relation: None,
         coref: None,
         license_class: Some(corpus.class()?),
         artifact: "weights-f32".into(),
