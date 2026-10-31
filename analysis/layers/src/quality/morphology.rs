@@ -183,20 +183,37 @@ pub(crate) fn deinflect_3sg_verb(lower: &str) -> String {
         "goes" => return "go".into(),
         "quizzes" => return "quiz".into(),
         "is" | "are" | "am" => return "be".into(),
+        "dies" | "ties" | "lies" | "unties" | "belies" | "vies" => {
+            return format!("{}ie", &lower[..lower.len() - 3]);
+        }
         _ => {}
     }
     if let Some(stem) = lower.strip_suffix("ies").filter(|s| !s.is_empty()) {
         return format!("{stem}y");
     }
     if !matches!(lower, "caches" | "aches" | "niches" | "avalanches") {
-        for es_ending in ["shes", "ches", "sses", "xes", "zzes", "oes"] {
+        for es_ending in ["shes", "ches", "sses", "xes", "zzes"] {
             if lower.ends_with(es_ending) {
                 return lower[..lower.len() - 2].to_owned();
             }
         }
     }
-    if let Some(stem) = lower.strip_suffix("es").filter(|s| s.ends_with("us") || s.ends_with("as"))
-        && NON_SILENT_E_STEMS.iter().any(|group| group.contains(&stem))
+    if matches!(
+        lower,
+        "echoes"
+            | "vetoes"
+            | "torpedoes"
+            | "embargoes"
+            | "heroes"
+            | "potatoes"
+            | "tomatoes"
+            | "volcanoes"
+            | "mosquitoes"
+    ) {
+        return lower[..lower.len() - 2].to_owned();
+    }
+    if let Some(stem) = lower.strip_suffix("es").filter(|s| s.ends_with('s'))
+        && VERIFIED_BARE_STEMS.iter().any(|group| group.contains(&stem))
     {
         return stem.to_owned();
     }
@@ -267,8 +284,8 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
     }
     if matches!(pos_tag, "VBZ" | "VBD" | "VBN" | "VBG") {
         if let Some(stem) = lower.strip_suffix("ied") {
-            let valid = count_vowel_groups(stem) >= 1
-                && !matches!(stem.as_bytes().last(), Some(b'a' | b'e' | b'i' | b'o' | b'u' | b'y'));
+            let valid = (stem.len() >= 4 && stem.ends_with("if"))
+                || VERIFIED_IED_Y_STEMS.iter().any(|group| group.contains(&stem));
             return valid.then(|| match_case(surface, &format!("{stem}y")));
         }
         if matches!(lower.as_str(), "dying" | "lying" | "tying") {
@@ -282,7 +299,7 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
         }
         if pos_tag == "VBZ" || looks_3sg_verb(&lower) {
             let base = deinflect_3sg_verb(&lower);
-            if base != lower {
+            if base != lower && is_verified_verb_base(&base) {
                 return Some(match_case(surface, &base));
             }
         }
@@ -290,92 +307,85 @@ pub(crate) fn inflected_verb_to_base(surface: &str, pos_tag: &str, lemma: Option
     None
 }
 
-fn count_vowel_groups(stem: &str) -> usize {
-    let bytes = stem.as_bytes();
-    let n = bytes.len();
-    let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
-    let is_stem_vowel =
-        |k: usize| is_vowel(bytes[k]) || (bytes[k] == b'y' && k > 0 && (k + 1 == n || !is_vowel(bytes[k + 1])));
-    (0..n).filter(|&k| is_stem_vowel(k) && (k == 0 || !is_stem_vowel(k - 1))).count()
-}
-
 fn restore_regular_verb_stem(stem: &str) -> Option<String> {
-    if stem == "quizz" {
-        return Some("quiz".to_owned());
-    }
-    if NON_SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
+    if VERIFIED_BARE_STEMS.iter().any(|group| group.contains(&stem)) {
         return Some(stem.to_owned());
     }
-    if SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) || has_unambiguous_silent_e_ending(stem) {
+    if VERIFIED_SILENT_E_STEMS.iter().any(|group| group.contains(&stem)) {
         return Some(format!("{stem}e"));
-    }
-    let vg = count_vowel_groups(stem);
-    if stem.len() >= 4 && ["bb", "gg", "mm", "nn", "pp", "rr", "tt"].iter().any(|d| stem.ends_with(d)) {
-        let keep = vg == 1 && !matches!(stem, "purr" | "whirr" | "butt" | "putt" | "mutt" | "watt" | "matt" | "shirr");
-        return keep.then(|| stem[..stem.len() - 1].to_owned());
-    }
-    let bytes = stem.as_bytes();
-    let n = bytes.len();
-    let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
-    if n < 3 || ["dd", "ng", "th", "ast"].iter().any(|s| stem.ends_with(s)) || is_vowel(bytes[n - 1]) {
-        return None;
-    }
-    if bytes[n - 1] == b'y' {
-        return Some(stem.to_owned());
-    }
-    if vg == 1 {
-        let last = bytes[n - 1];
-        let prev = bytes[n - 2];
-        if last == b's' && prev != b's' {
-            return Some(format!("{stem}e"));
-        }
-        let is_vce = matches!(last, b'b' | b'd' | b'f' | b'g' | b'k' | b'l' | b'm' | b'n' | b'p' | b'r' | b't' | b'z');
-        let gu_or_qu = n >= 4 && matches!(bytes[n - 4], b'q' | b'g') && bytes[n - 3] == b'u';
-        if is_vce && (is_vowel(prev) || prev == b'y') && (!is_vowel(bytes[n - 3]) || gu_or_qu) {
-            return Some(format!("{stem}e"));
-        }
-        return Some(stem.to_owned());
     }
     None
 }
 
-const NON_SILENT_E_STEMS: &[&[&str]] = &[
-    &["open", "iron", "edit", "exit", "omit", "emit", "echo", "arc", "sync", "zinc", "disc", "spec", "bus", "gas"],
-    &["yes", "plus", "bias", "unbias", "canvas", "atlas", "alias", "focus", "monitor", "honor", "abandon", "button"],
-    &["pardon", "poison", "reason", "season", "summon", "question", "mention", "function", "position", "condition"],
-];
-
-const SILENT_E_STEMS: &[&[&str]] = &[
-    &["creat", "pleas", "displeas", "appeas", "teas", "releas", "increas", "decreas", "ceas", "deceas", "leas", "eas"],
-    &["diseas", "greas", "creas", "purchas", "paraphras", "prais", "apprais", "rais", "cruis", "bruis", "guis"],
-    &["disguis", "nois", "pois", "choos", "loos", "hous", "arous", "espous", "paus", "caus", "leav", "achiev"],
-    &["believ", "receiv", "perceiv", "conceiv", "reliev", "retriev", "pars", "laps", "collaps", "elaps", "relaps"],
-    &["eclips", "glimps", "rins", "sens", "licens", "condens", "dispens", "compens", "tens", "intens", "revers"],
-    &["convers", "travers", "immers", "dispers", "curs", "nurs", "purs", "reimburs", "endors", "impuls", "repuls"],
-    &["puls", "cleans", "invit", "ignit", "unit", "reunit", "excit", "recit", "incit", "complet", "compet", "delet"],
-    &["deplet", "obsolet", "devot", "promot", "demot", "quot", "denot", "annot", "ignor", "explor", "restor"],
-    &["underscor", "ador", "implor", "deplor", "abus", "accus", "amus", "confus", "diffus", "excus", "infus", "misus"],
-    &["perus", "refus", "reus", "suffus", "transfus", "disus", "overus", "compar", "prepar", "declar", "welcom"],
-    &["refin", "defin", "combin", "requir", "acquir", "inquir"],
-];
-
-fn has_unambiguous_silent_e_ending(stem: &str) -> bool {
-    let bytes = stem.as_bytes();
-    let n = bytes.len();
-    if n < 2 || count_vowel_groups(stem) == 0 {
-        return false;
-    }
-    let last = bytes[n - 1];
-    let prev = bytes[n - 2];
-    if matches!(last, b'c' | b'v' | b'u')
-        || (last == b'z' && prev != b'z' && !matches!(stem, "quiz" | "whiz" | "fez"))
-        || (last == b'g' && !matches!(prev, b'g' | b'n') && stem != "catalog")
-    {
-        return true;
-    }
-    let is_vowel = |b: u8| matches!(b, b'a' | b'e' | b'i' | b'o' | b'u');
-    last == b'l' && !is_vowel(prev) && !matches!(prev, b'l' | b'r' | b'm' | b'n' | b'w' | b'y')
+fn is_verified_verb_base(base: &str) -> bool {
+    VERIFIED_BARE_STEMS.iter().any(|group| group.contains(&base))
+        || base.strip_suffix('e').is_some_and(|stem| VERIFIED_SILENT_E_STEMS.iter().any(|group| group.contains(&stem)))
+        || base.strip_suffix('y').is_some_and(|stem| {
+            (stem.len() >= 4 && stem.ends_with("if")) || VERIFIED_IED_Y_STEMS.iter().any(|group| group.contains(&stem))
+        })
 }
+
+const VERIFIED_IED_Y_STEMS: &[&[&str]] = &[
+    &["appl", "bur", "carr", "compl", "cop", "cr", "den", "dr", "empt", "env", "fanc", "fr", "hurr", "impl"],
+    &["marr", "multipl", "occup", "pit", "pl", "pr", "quer", "rall", "rel", "remed", "repl", "sp", "stud"],
+    &["suppl", "tall", "tr", "var", "worr"],
+];
+
+const VERIFIED_BARE_STEMS: &[&[&str]] = &[
+    &["abandon", "accept", "act", "allow", "annoy", "answer", "appear", "arc", "ask", "assess", "attach", "attack"],
+    &["attend", "atlas", "alias", "avoid", "bang", "belong", "bias", "bless", "block", "boil", "borrow", "bow"],
+    &["brush", "burn", "bus", "butt", "button", "buzz", "call", "camp", "cancel", "canvas", "check", "cheer", "chew"],
+    &["claim", "clean", "clear", "climb", "coach", "collect", "condition", "confirm", "connect", "consider", "contain"],
+    &["cook", "count", "cover", "crack", "crash", "cross", "crush", "delay", "deliver", "demand", "design", "destroy"],
+    &["develop", "disc", "discover", "discuss", "doubt", "drain", "dress", "drown", "earn", "ebb", "echo", "edit"],
+    &["egg", "emit", "employ", "end", "enjoy", "enter", "err", "exist", "exit", "expand", "expect", "explain"],
+    &["express", "extend", "fail", "fall", "fasten", "fear", "fetch", "fill", "finish", "fix", "fizz", "flash"],
+    &["float", "flow", "focus", "fold", "follow", "form", "function", "fund", "fuzz", "gain", "gas", "gather"],
+    &["glow", "grant", "grasp", "greet", "guard", "guess", "hang", "happen", "harm", "heal", "heat", "help", "hiss"],
+    &["honor", "hunt", "inform", "insist", "install", "intend", "invent", "iron", "jazz", "join", "jump", "kick"],
+    &["kill", "kiss", "knock", "label", "lack", "land", "last", "laugh", "launch", "learn", "lens", "lick", "lift"],
+    &["limit", "link", "list", "listen", "load", "lock", "long", "look", "lower", "march", "mark", "match", "melt"],
+    &["mention", "miss", "mix", "monitor", "need", "obey", "obtain", "offer", "omit", "open", "order", "own", "pack"],
+    &["paint", "pardon", "park", "pass", "peel", "perform", "pick", "plant", "play", "plow", "plus", "point"],
+    &["poison", "polish", "position", "post", "pour", "pray", "preach", "present", "press", "prevent", "print", "pull"],
+    &["pump", "punch", "purr", "push", "putt", "question", "rain", "rank", "reach", "reason", "reflect", "relax"],
+    &["remain", "remember", "remind", "repair", "repeat", "report", "request", "rest", "return", "reveal", "review"],
+    &["risk", "rock", "roll", "ruin", "rush", "sail", "scratch", "scream", "seal", "search", "season", "seem"],
+    &["select", "shift", "shock", "shout", "sigh", "sign", "slow", "smash", "smell", "sniff", "snow", "soak", "sound"],
+    &["spark", "spec", "spell", "spill", "spoil", "spray", "stain", "stamp", "start", "stay", "steer", "stitch"],
+    &["stress", "stretch", "stuff", "succeed", "suck", "suffer", "suggest", "suit", "summon", "support", "surround"],
+    &["survey", "switch", "sync", "talk", "tend", "test", "thank", "thaw", "tick", "touch", "tour", "tow", "train"],
+    &["travel", "treat", "trick", "trust", "turn", "twist", "unbias", "visit", "wait", "walk", "want", "warm", "warn"],
+    &["wash", "watch", "weigh", "wish", "work", "wreck", "yawn", "yell", "yes", "yield", "zinc", "zoom"],
+];
+
+const VERIFIED_SILENT_E_STEMS: &[&[&str]] = &[
+    &["abus", "accus", "ach", "achiev", "acquir", "admir", "ador", "advis", "agre", "amus", "annot", "announc"],
+    &["appeas", "apprais", "approv", "argu", "arous", "arrang", "arriv", "assum", "avalanch", "bak", "balanc", "bas"],
+    &["battl", "behav", "believ", "blam", "bounc", "bruis", "bubbl", "cach", "car", "carv", "caus", "ceas", "challeng"],
+    &["chang", "charg", "chas", "chok", "choos", "cleans", "clos", "collaps", "combin", "compar", "compens", "compet"],
+    &["complet", "conceiv", "conclud", "condens", "confus", "continu", "convers", "convinc", "cre", "creas", "creat"],
+    &["cruis", "cur", "curs", "curv", "cycl", "damag", "danc", "dar", "dat", "deceas", "decid", "declar", "declin"],
+    &["decreas", "defin", "delet", "deplet", "deplor", "describ", "deserv", "desir", "devot", "diffus", "din"],
+    &["disguis", "dispers", "displeas", "dispens", "disus", "div", "divid", "dodg", "doubl", "eas", "eclips", "elaps"],
+    &["enabl", "encourag", "endors", "engag", "enhanc", "ensur", "escap", "espous", "examin", "exchang", "excit"],
+    &["exclud", "excus", "explod", "explor", "expos", "fac", "fad", "fil", "fir", "forc", "fram", "gaug", "gaz"],
+    &["glimps", "glu", "grad", "greas", "guarante", "guid", "guis", "handl", "hat", "hir", "hop", "hos", "hous"],
+    &["ignor", "imagin", "immers", "implor", "impos", "improv", "impuls", "incit", "includ", "increas", "infus"],
+    &["injur", "inquir", "inspir", "intens", "introduc", "invit", "involv", "issu", "jok", "judg", "juggl", "lac"],
+    &["laps", "leas", "leav", "licens", "lik", "liv", "lodg", "loos", "lov", "manag", "measur", "meddl", "merg"],
+    &["misus", "mov", "nam", "nich", "nois", "not", "notic", "nurs", "oblig", "observ", "obsolet", "oppos", "organiz"],
+    &["overus", "paraphras", "pars", "paus", "perceiv", "persuad", "perus", "phon", "plac", "pleas", "pledg", "pois"],
+    &["pok", "practic", "prais", "prepar", "preserv", "produc", "promis", "promot", "propos", "provid", "puls"],
+    &["purchas", "purg", "purs", "pursu", "quot", "rac", "rais", "rang", "rat", "realiz", "receiv", "recit"],
+    &["recogniz", "reduc", "refin", "refus", "reimburs", "relaps", "relat", "releas", "reliev", "remov", "replac"],
+    &["repuls", "requir", "rescu", "reserv", "resolv", "restor", "retir", "retriev", "reunit", "reus", "revers"],
+    &["revis", "rhym", "rins", "rul", "sav", "scar", "scrap", "secur", "seiz", "sens", "serv", "settl", "shad"],
+    &["shar", "shav", "smil", "smok", "sneez", "snor", "spar", "sparkl", "spong", "squeez", "star", "starv", "stat"],
+    &["stor", "strok", "struggl", "stumbl", "subdu", "suffus", "suppos", "surpris", "surviv", "tackl", "tam", "teas"],
+    &["tens", "tickl", "tim", "tir", "trac", "trad", "transfus", "travers", "trembl", "troubl", "typ", "underscor"],
+    &["unit", "updat", "upgrad", "urg", "us", "valu", "voic", "vot", "wav", "welcom", "whin", "wip", "wobbl", "wrestl"],
+];
 
 pub(crate) fn irregular_verb_base(lower: &str) -> Option<&'static str> {
     Some(match lower {

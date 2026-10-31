@@ -142,6 +142,9 @@ fn missing_infinitive_and_regular_verb_repairs() {
         ("He can refined it.", "He/PRP can/MD refined/VBD it/PRP ./.", "AUX-001", "refine"),
         ("He can required it.", "He/PRP can/MD required/VBD it/PRP ./.", "AUX-001", "require"),
         ("He can buzzed.", "He/PRP can/MD buzzed/VBD ./.", "AUX-001", "buzz"),
+        ("He can egged.", "He/PRP can/MD egged/VBD ./.", "AUX-001", "egg"),
+        ("He can ebbed.", "He/PRP can/MD ebbed/VBD ./.", "AUX-001", "ebb"),
+        ("He can erred.", "He/PRP can/MD erred/VBD ./.", "AUX-001", "err"),
         ("She took many photo.", "She/PRP took/VBD many/JJ photo/NN ./.", "DET-001", "photos"),
         ("Many datum exist.", "Many/JJ datum/NN exist/VBP ./.", "DET-001", "data"),
         ("Either Alice or Bob are ready.", "Either/CC Alice/NNP or/CC Bob/NNP are/VBP ready/JJ ./.", "SVA-001", "is"),
@@ -235,7 +238,9 @@ fn missing_infinitive_and_regular_verb_repairs() {
         "voiced:voice voted:vote waited:wait walked:walk wanted:want warmed:warm warned:warn washed:wash",
         "wasted:waste watched:watch waved:wave weighed:weigh welcomed:welcome whined:whine whipped:whip wiped:wipe",
         "wished:wish wobbled:wobble worked:work worried:worry wrapped:wrap wrecked:wreck wrestled:wrestle yawned:yawn",
-        "yelled:yell yielded:yield zipped:zip zoomed:zoom",
+        "yelled:yell yielded:yield zipped:zip zoomed:zoom egged:egg ebbed:ebb erred:err taxied:taxi trekked:trek",
+        "revved:rev gassed:gas bussed:bus gelled:gel palled:pal upped:up waltzed:waltz menued:menu dialoged:dialog",
+        "centred:centre sortied:sortie stymied:stymie untied:untie",
     ];
     for pair in broad_verb_specs.iter().flat_map(|line| line.split_whitespace()) {
         let (form, lemma) = pair.split_once(':').unwrap();
@@ -257,26 +262,14 @@ fn missing_infinitive_and_regular_verb_repairs() {
             d_with_lemma.diagnostics
         );
     }
-    for (form, lemma) in [
-        ("beckoned", "beckon"),
-        ("reckoned", "reckon"),
-        ("blossomed", "blossom"),
-        ("ransomed", "ransom"),
-        ("added", "add"),
-        ("tied", "tie"),
-        ("died", "die"),
-        ("lied", "lie"),
-        ("dyed", "dye"),
-        ("skied", "ski"),
-        ("freed", "free"),
-        ("owed", "owe"),
-        ("eyed", "eye"),
-        ("plunged", "plunge"),
-        ("lunged", "lunge"),
-        ("lounged", "lounge"),
-        ("breathed", "breathe"),
-        ("bathed", "bathe"),
-    ] {
+    let abstain_specs = [
+        "beckoned:beckon reckoned:reckon blossomed:blossom ransomed:ransom added:add tied:tie died:die lied:lie",
+        "dyed:dye skied:ski taxied:taxi sortied:sortie stymied:stymie untied:untie freed:free owed:owe eyed:eye",
+        "plunged:plunge lunged:lunge lounged:lounge breathed:breathe bathed:bathe trekked:trek revved:rev",
+        "gassed:gas bussed:bus gelled:gel palled:pal upped:up waltzed:waltz menued:menu dialoged:dialog centred:centre",
+    ];
+    for pair in abstain_specs.iter().flat_map(|line| line.split_whitespace()) {
+        let (form, lemma) = pair.split_once(':').unwrap();
         let text = format!("He can {form}.");
         let tags_no_lemma = format!("He/PRP can/MD {form}/VBD ./.");
         let d_no_lemma = GrammarChecker::new().check_document(&build_doc(&text, &tags_no_lemma)).unwrap();
