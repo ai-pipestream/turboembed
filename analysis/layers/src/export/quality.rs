@@ -1,5 +1,11 @@
+use std::borrow::Cow;
+
 use super::*;
-use crate::{QualityFlags, QualityMetrics, SpanQuality, TextQuality};
+use crate::quality::grammar::check_rule_id;
+use crate::{
+    GrammarCategory, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS, QualityFlags, QualityMetrics,
+    SpanQuality, TextQuality, builtin_rule_id,
+};
 
 fn put_metrics(w: &mut Writer, m: QualityMetrics) {
     for x in [
@@ -77,5 +83,64 @@ impl LayerCodec for SpanQuality {
         }
         done(&r, "span quality")?;
         Ok(Self { spans, metrics })
+    }
+}
+
+impl LayerCodec for GrammarDiagnostics {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        w.usize(self.diagnostics.len())?;
+        for d in &self.diagnostics {
+            d.check().map_err(malformed)?;
+            w.str(&d.rule_id)?;
+            w.u8(d.category.as_u8());
+            w.str(&d.message)?;
+            w.usize(d.replacements.len())?;
+            for rep in &d.replacements {
+                w.str(rep)?;
+            }
+            w.u32(d.confidence.to_bits());
+        }
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let n = r.usize()?;
+        want_len(n, spans.len(), "grammar diagnostics")?;
+        let mut diagnostics = Vec::with_capacity(n);
+        for (_, span) in spans.iter() {
+            let raw_rule = r.str()?;
+            check_rule_id(raw_rule).map_err(malformed)?;
+            let rule_id = builtin_rule_id(raw_rule).map_or_else(|| Cow::Owned(raw_rule.to_owned()), Cow::Borrowed);
+            let category = GrammarCategory::from_byte(r.u8()?)
+                .ok_or_else(|| malformed("unknown grammar diagnostic category byte"))?;
+            let message: Box<str> = r.str()?.into();
+            let rep_count = r.usize()?;
+            if rep_count > MAX_DIAGNOSTIC_REPLACEMENTS {
+                return Err(malformed("too many grammar diagnostic replacements"));
+            }
+            let mut replacements = Vec::with_capacity(rep_count);
+            for _ in 0..rep_count {
+                replacements.push(Box::<str>::from(r.str()?));
+            }
+            let confidence = f32::from_bits(r.u32()?);
+            let diag = GrammarDiagnostic {
+                span,
+                rule_id,
+                category,
+                message,
+                replacements: replacements.into_boxed_slice(),
+                confidence,
+            };
+            diag.check().map_err(malformed)?;
+            diagnostics.push(diag);
+        }
+        done(&r, "grammar diagnostics")?;
+        let layer = Self { spans, diagnostics };
+        layer.check().map_err(malformed)?;
+        Ok(layer)
     }
 }

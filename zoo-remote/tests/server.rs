@@ -234,6 +234,28 @@ async fn a_source_list_falls_through_to_the_next_source() {
 }
 
 #[test]
+fn a_source_list_accepts_a_native_absolute_directory() {
+    let directory = std::env::temp_dir();
+    assert!(directory.is_absolute());
+    let spec = format!("file://{}", directory.display());
+    assert_eq!(sources(&spec, &alice(), Offline).unwrap().len(), 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn a_source_list_checks_windows_directory_prefixes() {
+    for directory in [r"C:\zoo", "C:/zoo", r"\\storage.example\models\zoo"] {
+        let spec = format!("file://{directory}");
+        assert_eq!(sources(&spec, &alice(), Offline).unwrap().len(), 1, "{spec}");
+    }
+    for directory in [r"C:zoo", r"\zoo", r"relative\zoo"] {
+        let spec = format!("file://{directory}");
+        let error = sources(&spec, &alice(), Offline).err().expect("relative directory accepted");
+        assert!(error.contains("absolute directory"), "{spec}: {error}");
+    }
+}
+
+#[test]
 fn a_source_list_names_only_what_it_can_read() {
     let ok = sources("file:///zoo, grpc://zoo.example:8081, origin", &alice(), Offline).unwrap();
     assert_eq!(ok.len(), 3);

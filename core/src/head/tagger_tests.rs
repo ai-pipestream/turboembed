@@ -44,6 +44,7 @@ fn spec(
         pos_input: None,
         hash_embed: None,
         span: None,
+        relation: None,
         license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.t".into(),

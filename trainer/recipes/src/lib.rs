@@ -33,6 +33,8 @@ pub mod safetensors;
 pub mod sentences;
 pub mod ud;
 pub mod ud_banks;
+pub mod ud_banks_sa;
+pub mod ud_banks_sa2;
 pub mod ud_heads;
 pub mod ud_split;
 pub mod wnut17;

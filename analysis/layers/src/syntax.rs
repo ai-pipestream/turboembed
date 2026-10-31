@@ -177,6 +177,9 @@ impl<A: WordOrTokenAnchor> std::fmt::Debug for Dependencies<A> {
     }
 }
 
+/// Dependencies anchored on [`Tokens`] (`opennlp:dependencies`).
+pub type DependencyGraph = Dependencies<Tokens>;
+
 /// Dependencies anchored on syntactic [`Words`] (`opennlp:dependencies<turbo:words>`).
 pub type WordDependencies = Dependencies<Words>;
 

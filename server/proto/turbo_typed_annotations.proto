@@ -907,6 +907,26 @@ message QualityMetricsAnnotation
   uint32 flags = 12;
 }
 
+// One syntactic or morphological grammar diagnostic in turbo:grammar_diagnostics.
+message GrammarDiagnosticAnnotation
+{
+  enum Category
+  {
+    SUBJECT_VERB_AGREEMENT = 0;
+    DETERMINER_NOUN_AGREEMENT = 1;
+    ARTICLE_PHONETICS = 2;
+    AUXILIARY_VERB_FORM = 3;
+    REPEATED_TOKEN = 4;
+    CASE_GOVERNMENT = 5;
+    CLAUSE_PUNCTUATION = 6;
+  }
+  string rule_id = 1;
+  optional Category category = 2;
+  string message = 3;
+  repeated string replacements = 4;
+  float confidence = 5;
+}
+
 // Exact layer instance and item range supporting an evidence record.
 message EvidenceSupport
 {
@@ -1073,5 +1093,6 @@ message TypedAnnotation
     QuotationAnnotation quotation = 94;
     LayoutBoxAnnotation layout_box = 95;
     ChunkCitationAnnotation chunk_citation = 96;
+    GrammarDiagnosticAnnotation grammar_diagnostic = 97;
   }
 }
