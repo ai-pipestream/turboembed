@@ -270,9 +270,9 @@ impl CudaEncoder {
             let (sa, sb) = self.lora_slots(l, which);
             let s = (a.alpha / a.rank as f64) as f32;
             self.gemm(x.f32(), self.weights[sa].f32(), hb.f32(), n, a.rank, inp, (false, true), (1.0, 0.0))?;
+            self.store(hb, n * a.rank)?;
             self.gemm(hb.f32(), self.weights[sb].f32(), y.f32(), n, out, a.rank, (false, true), (s, 1.0))?;
             self.store(y, n * out)?;
-            self.store(hb, n * a.rank)?;
         }
         Ok(())
     }
