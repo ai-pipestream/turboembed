@@ -26,6 +26,8 @@ pub enum Column {
     /// Column 5, the language-specific tag (spaCy `tag_`, Penn for
     /// English).
     Xpos,
+    /// Two tab-separated fields: original token and BIO entity label.
+    Bio,
 }
 
 impl std::str::FromStr for Column {
@@ -34,7 +36,8 @@ impl std::str::FromStr for Column {
         match s {
             "upos" => Ok(Column::Upos),
             "xpos" => Ok(Column::Xpos),
-            _ => Err(Error(format!("column {s:?}: upos or xpos"))),
+            "bio" => Ok(Column::Bio),
+            _ => Err(Error(format!("column {s:?}: upos, xpos or bio"))),
         }
     }
 }
@@ -112,6 +115,9 @@ pub fn conllu(sentences: &[Sentence]) -> String {
 /// Text that is not UTF-8 or that the CoNLL-U reader refuses, or
 /// sentences or words other than `gold`'s, naming the first that differs.
 pub fn read(file: &str, bytes: &[u8], column: Column, gold: &[Sentence]) -> Result<Vec<Vec<String>>> {
+    if column == Column::Bio {
+        return crate::ner_peer::read(file, bytes, gold);
+    }
     let text = std::str::from_utf8(bytes).map_err(|e| Error(format!("{file}: not UTF-8: {e}")))?;
     let mut out = Vec::with_capacity(gold.len());
     for (n, sentence) in ConlluWordReader::new(text).map_err(|e| Error(format!("{file}: {e}")))?.enumerate() {
@@ -130,6 +136,7 @@ pub fn read(file: &str, bytes: &[u8], column: Column, gold: &[Sentence]) -> Resu
                 .map(|w| match column {
                     Column::Upos => w.upos.text.to_string(),
                     Column::Xpos => w.xpos.text.to_string(),
+                    Column::Bio => unreachable!("BIO is handled before CoNLL-U parsing"),
                 })
                 .collect(),
         );

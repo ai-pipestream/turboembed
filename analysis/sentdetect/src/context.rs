@@ -45,6 +45,21 @@ pub struct Lookup {
     lower: String,
 }
 
+impl Lookup {
+    pub(crate) fn release_large(&mut self, max: usize) {
+        for s in [&mut self.probe, &mut self.lower] {
+            if s.capacity() > max {
+                *s = String::new();
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn largest_capacity(&self) -> usize {
+        self.probe.capacity().max(self.lower.capacity())
+    }
+}
+
 /// The context generator for one model.
 #[derive(Copy, Clone, Debug)]
 pub struct SdContext<'m> {

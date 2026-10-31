@@ -102,7 +102,9 @@ fn overlap(a: &Entry, b: &Entry) -> bool {
 /// one text) is the same text, not a duplicate, and is dropped from the
 /// class. The first copy of each class links to every later one as
 /// `Exact`, score 1. The first copies are then banded on their MinHash
-/// rows: any two that share a band and do not overlap are compared, and
+/// rows, except a row that is the empty signature (no shingles: no words,
+/// or no treelets), which is never a candidate and never scores: any two
+/// that share a band and do not overlap are compared, and
 /// linked from the earlier to the later as `NearDuplicate` or
 /// `VersionEdit` with their estimated Jaccard similarity as the score.
 /// A group is a set of at least two items joined by exact and near
@@ -137,6 +139,9 @@ pub(crate) fn link(entries: &[Entry], t: &Thresholds) -> (Vec<Link>, Vec<Vec<usi
     // Candidate pairs among the first copies: those sharing a band.
     let mut keyed: Vec<(u64, u32)> = Vec::with_capacity(firsts.len() * BANDS);
     for (k, &i) in firsts.iter().enumerate() {
+        if hash::is_empty_signature(entries[i].row) {
+            continue;
+        }
         for b in 0..BANDS {
             keyed.push((hash::band(entries[i].row, b), k as u32));
         }

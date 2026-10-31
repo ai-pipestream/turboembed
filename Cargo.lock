@@ -1946,9 +1946,18 @@ dependencies = [
  "serde_path_to_error",
  "tokenizers",
  "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-geo",
  "turbo-goldens",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-pii",
  "turbo-pins",
+ "turbo-sentdetect",
+ "turbo-sequence",
  "turbo-sha256",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
@@ -1967,6 +1976,7 @@ name = "turbo-analysis"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis-layers",
+ "turbo-sha256",
 ]
 
 [[package]]
@@ -2336,6 +2346,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-formats",
  "turbo-normalize",
  "turbo-structure",
 ]
@@ -2858,6 +2869,7 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-depparse",
@@ -2871,6 +2883,7 @@ dependencies = [
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-sha256",
+ "turbo-tagger",
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",
