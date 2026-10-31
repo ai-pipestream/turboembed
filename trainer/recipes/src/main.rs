@@ -124,6 +124,8 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "predict-ner" => turbo_trainer_recipes::ner_cmd::predict(&corpus_id, &dir, unrecorded, a),
+        "compare-ner" => turbo_trainer_recipes::ner_cmd::compare(&corpus_id, &dir, unrecorded, a),
         "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
         "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
         "train-lemma" | "train-parse" => {
@@ -132,7 +134,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, cache, fit-cache, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
