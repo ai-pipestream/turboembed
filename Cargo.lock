@@ -2801,7 +2801,9 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-morfologik",
  "turbo-relation",
+ "turbo-unicode",
  "turbo-wordnet",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2903,7 +2905,9 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo",
+ "turbo-analysis",
  "turbo-analysis-embed",
+ "turbo-analysis-layers",
  "turbo-formats",
  "turbo-tagger",
  "turbo-train-recipes",

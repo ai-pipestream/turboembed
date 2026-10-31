@@ -19,6 +19,8 @@ turbo-analysis-embed = { path = "../embed" }
 # The lexicons that stand over the lemmatizer head (dictionaries.rs).
 turbo-morfologik = { path = "../morfologik" }
 turbo-wordnet = { path = "../wordnet" }
+turbo-unicode = { path = "../unicode" }
+turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
 serde_json = "1"
