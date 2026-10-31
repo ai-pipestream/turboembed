@@ -11,6 +11,8 @@
 //! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
 //! | `ud_heads` | Lemma and dependency heads on a treebank, their examples and baselines |
 //! | `ud_split` | A treebank as surface tokens, for the token split head, its labels and baseline |
+//! | `redocred` | Re-DocRED documents, their entities and relations, pinned file by file |
+//! | `redocred_eval` | The relation head's spec, examples and test scoring on Re-DocRED |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
 //! | `run` | Head spec, encoder features, prediction, outputs |
@@ -28,6 +30,8 @@ pub mod multiconer;
 pub mod ner_peer;
 pub mod peer;
 pub mod receipt;
+pub mod redocred;
+pub mod redocred_eval;
 pub mod run;
 pub mod safetensors;
 pub mod sentences;
@@ -93,6 +97,7 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
         (Some((_, column)), _) => column.head(),
         (None, corpus::Task::Tags) => ("pos", "turboembed:pos"),
         (None, corpus::Task::Bio) => ("ner", "turboembed:entities"),
+        (None, corpus::Task::Relations) => (redocred::HEAD, redocred::LAYER),
     }
 }
 

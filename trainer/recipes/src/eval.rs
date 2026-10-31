@@ -89,6 +89,9 @@ pub enum Metrics {
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         coarse: BTreeMap<String, SpanScore>,
     },
+    /// Relations between entities: exact (head, tail, label) triples,
+    /// micro over every label but `none`, and per label.
+    Relations { all: SpanScore, per_type: BTreeMap<String, SpanScore> },
 }
 
 impl Metrics {
@@ -96,7 +99,7 @@ impl Metrics {
     pub fn score(&self) -> f64 {
         match self {
             Metrics::Tags { accuracy, .. } => *accuracy,
-            Metrics::Spans { all, .. } => all.f1,
+            Metrics::Spans { all, .. } | Metrics::Relations { all, .. } => all.f1,
         }
     }
 }
@@ -125,7 +128,7 @@ fn tallies(task: Task, gold: &[Sentence], predicted: &[Vec<String>]) -> Vec<[usi
         .zip(predicted)
         .map(|(g, p)| match task {
             Task::Tags => [g.labels.iter().zip(p).filter(|(a, b)| a == b).count(), g.labels.len(), 0],
-            Task::Bio => {
+            Task::Bio | Task::Relations => {
                 let (want, got) = (spans(&g.labels), spans(p));
                 [got.iter().filter(|s| want.contains(s)).count(), got.len(), want.len()]
             }
@@ -142,7 +145,7 @@ fn headline(task: Task, t: &[[usize; 3]], pick: impl Fn(usize) -> usize) -> f64 
     let r = |a: usize, b: usize| if b == 0 { 0.0 } else { a as f64 / b as f64 };
     match task {
         Task::Tags => r(sum[0], sum[1]),
-        Task::Bio => r(2 * sum[0], sum[1] + sum[2]),
+        Task::Bio | Task::Relations => r(2 * sum[0], sum[1] + sum[2]),
     }
 }
 
@@ -181,7 +184,7 @@ pub fn evaluate(
             let accuracy = if words == 0 { 0.0 } else { correct as f64 / words as f64 };
             Metrics::Tags { words, correct, accuracy, unseen_words: uw, unseen_correct: uc, unseen_labels: ul }
         }
-        Task::Bio => {
+        Task::Bio | Task::Relations => {
             let (mut all, mut per_type, mut groups) =
                 (SpanScore::default(), BTreeMap::<String, SpanScore>::new(), BTreeMap::<String, SpanScore>::new());
             for (g, p) in gold.iter().zip(predicted) {
