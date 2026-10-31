@@ -72,6 +72,9 @@ turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
+turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
+    --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
 ```
 
 `cache` (#1616) reads every split once and writes each word's features
@@ -127,6 +130,16 @@ each token's commonest training label (`_` when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
+
+`export` writes a corpus's test words, and nothing else, as CoNLL-U
+for a peer system (spaCy, Stanza) to tag as given; `peer` reads the
+peer's CoNLL-U back and scores the column named exactly as the
+matching head is scored, with the same baseline and bootstrap, so the
+receipts stand side by side. `upos`, `xpos` and `feats` read a tag
+corpus (`ud-es-ancora-feats`); `lemma` and `deps` read the treebank
+(`ud-es-ancora`), against the labels `train-lemma` and `train-parse`
+score, LAS with UAS beside it. A treebank id exports the same
+syntactic words as its tag corpora.
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for
