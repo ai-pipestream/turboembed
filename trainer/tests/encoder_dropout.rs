@@ -9,7 +9,7 @@ use turbo::manifest::{Decode, HeadKind, HeadSpec, Scheme, WordPooling};
 use turbo_trainer::encoder::tuned::Work as TunedWork;
 use turbo_trainer::encoder::{Dropout, Encoder, Geometry, Work, dropout};
 use turbo_trainer::rng::Rng;
-use turbo_trainer::{Config, Tuned, TunedExample, fit_tuned, tuned_gradients};
+use turbo_trainer::{Config, Draw, Tuned, TunedExample, fit_tuned, tuned_gradients};
 
 const EPS: f64 = 1e-6;
 
@@ -175,7 +175,7 @@ fn gradients_match_finite_differences_under_the_masks() {
     let t = Tuned::new(e, &spec(), &mut rng).unwrap();
     let ex = example();
     let mut g = t.zero_grads();
-    t.loss_at(&ex, at, &mut g, &mut TunedWork::default()).unwrap();
+    t.loss_at(&ex, Draw::at(at), &mut g, &mut TunedWork::default()).unwrap();
     let mut params = t.params();
     for s in 0..params.len() {
         let mut p = std::mem::take(&mut params[s]);
@@ -185,14 +185,14 @@ fn gradients_match_finite_differences_under_the_masks() {
             let mut all = params.clone();
             all[s] = p.to_vec();
             m.set_params(all).unwrap();
-            m.loss_at(&ex, at, &mut m.zero_grads(), &mut TunedWork::default()).unwrap()
+            m.loss_at(&ex, Draw::at(at), &mut m.zero_grads(), &mut TunedWork::default()).unwrap()
         });
         params[s] = p;
     }
     let mut plain = t.zero_grads();
     let undropped = t.loss(&ex, &mut plain, &mut TunedWork::default()).unwrap();
     let mut again = t.zero_grads();
-    let dropped = t.loss_at(&ex, at, &mut again, &mut TunedWork::default()).unwrap();
+    let dropped = t.loss_at(&ex, Draw::at(at), &mut again, &mut TunedWork::default()).unwrap();
     assert_ne!(undropped, dropped, "the loss drops with the masks");
     assert_eq!(plain.iter().map(Vec::len).collect::<Vec<_>>(), again.iter().map(Vec::len).collect::<Vec<_>>());
 }
@@ -246,7 +246,7 @@ fn the_bytes_do_not_depend_on_threads_or_lanes_under_dropout() {
     // the masks of the first epoch, sums to the same loss.
     let mut w = TunedWork::default();
     let mut one = t.zero_grads();
-    let loss: f64 = data.iter().zip(0..).map(|(e, at)| t.loss_at(e, at, &mut one, &mut w).unwrap()).sum();
+    let loss: f64 = data.iter().zip(0..).map(|(e, at)| t.loss_at(e, Draw::at(at), &mut one, &mut w).unwrap()).sum();
     assert!((loss - want_loss).abs() <= 1e-9 * want_loss.abs());
 }
 
@@ -267,4 +267,20 @@ fn fine_tuning_with_dropout_learns_the_toy_task_and_scores_without_it() {
     let (b, rb) = fit_tuned(e, &spec(), &train, &dev, &Config { threads: 3, lanes: 3, ..again }).unwrap();
     assert_eq!(a.params(), b.params());
     assert_eq!((ra.train_loss, ra.dev), (rb.train_loss, rb.dev));
+}
+
+/// A place 2^23 apart on the layer below once gave the same stream,
+/// when the fields were XORed before one mix.
+#[test]
+fn no_place_aliases_a_layer_or_a_branch() {
+    assert_ne!(dropout::key(7, 0, 1, 1), dropout::key(7, 1 << 23, 0, 1));
+    assert_ne!(dropout::key(7, 0, 0, 1), dropout::key(7, 1 << 39, 0, 0));
+    let mut seen = std::collections::HashSet::new();
+    for at in 0..64u64 {
+        for layer in [0u32, 1, 2, 3, u32::MAX] {
+            for branch in 0..3u32 {
+                assert!(seen.insert(dropout::key(3, at, layer, branch)), "{at} {layer} {branch}");
+            }
+        }
+    }
 }

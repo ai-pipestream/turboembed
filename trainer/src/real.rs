@@ -31,6 +31,10 @@ pub trait Real:
     fn tanh(self) -> Self;
     fn sqrt(self) -> Self;
     fn is_finite(self) -> bool;
+    /// The nearest bfloat16 (8 significand bits, f32's exponent), ties to
+    /// even, straight from this type's bits so no rounding comes between;
+    /// NaN and the infinities stay.
+    fn bf16(self) -> Self;
 
     /// The logistic sigmoid, stable at both tails.
     fn sigmoid(self) -> Self {
@@ -44,7 +48,7 @@ pub trait Real:
 }
 
 macro_rules! real {
-    ($t:ty) => {
+    ($t:ty, $bf16:expr) => {
         impl Real for $t {
             const ZERO: Self = 0.0;
             const ONE: Self = 1.0;
@@ -69,12 +73,45 @@ macro_rules! real {
             fn is_finite(self) -> bool {
                 <$t>::is_finite(self)
             }
+            fn bf16(self) -> Self {
+                $bf16(self)
+            }
         }
     };
 }
 
-real!(f32);
-real!(f64);
+/// `v` rounded to bfloat16 by dropping the low 16 bits of its single,
+/// ties to even.
+fn bf16_of_f32(v: f32) -> f32 {
+    let bits = v.to_bits();
+    if v.is_nan() {
+        return v;
+    }
+    let lsb = (bits >> 16) & 1;
+    f32::from_bits(bits.wrapping_add(0x7FFF + lsb) & 0xFFFF_0000)
+}
+
+/// `v` rounded to bfloat16 straight from its double: the low 45 bits
+/// of the significand drop, ties to even, so a value a single would have
+/// rounded first comes out as bfloat16's nearest; a double past the
+/// range of a single becomes the infinity, as the single would.
+fn bf16_of_f64(v: f64) -> f64 {
+    if v.is_nan() || v == 0.0 {
+        return v;
+    }
+    if v.abs() < f32::MIN_POSITIVE as f64 {
+        // bfloat16's subnormals sit on the grid of 2^-133.
+        return (v * 2f64.powi(133)).round_ties_even() * 2f64.powi(-133);
+    }
+    let bits = v.to_bits();
+    let lsb = (bits >> 45) & 1;
+    let rounded = f64::from_bits(bits.wrapping_add((1 << 44) - 1 + lsb) & !((1 << 45) - 1));
+    // The grid point past the largest bfloat16 is 2^128, past the single.
+    if rounded.abs() > f32::MAX as f64 { v.signum() * f64::INFINITY } else { rounded }
+}
+
+real!(f32, bf16_of_f32);
+real!(f64, bf16_of_f64);
 
 /// The dot product of `a` and `b` over their common length, in eight
 /// running sums combined at the end, which the compiler keeps in vector
