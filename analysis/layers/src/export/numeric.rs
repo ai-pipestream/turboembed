@@ -96,6 +96,7 @@ impl LayerCodec for Money {
         for c in &self.currency {
             w.str(c.as_str())?;
         }
+        put_strs(&mut w, &self.per)?;
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
@@ -110,13 +111,15 @@ impl LayerCodec for Money {
             currency
                 .push(Currency::parse(&code).ok_or_else(|| malformed(format!("an invalid currency code {code:?}")))?);
         }
+        let per = get_strs(&mut r)?;
         let n = spans.len();
         want_len(negative.len(), n, "negatives")?;
         want_len(coefficient.len(), n, "coefficients")?;
         want_len(scale.len(), n, "scales")?;
         want_len(currency.len(), n, "currencies")?;
+        want_len(per.len(), n, "rate units")?;
         done(&r, "money")?;
-        Ok(Money { spans, negative, coefficient, scale, currency })
+        Ok(Money { spans, negative, coefficient, scale, currency, per })
     }
 }
 
