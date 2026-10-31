@@ -74,6 +74,14 @@ The Spanish and Portuguese models are trained on GSD, not on the CC BY
 AnCora and Porttinari treebanks, so they are share-alike; only Catalan
 uses AnCora.
 
+Our replacements are share-alike heads trained by `turbo-train-head` on
+the same r2.16 treebanks (pinned in `trainer/recipes/src/ud_banks*.rs`),
+offered for download once a user accepts the treebank's licence, never
+in a default bundle. Kazakh KTB is the exception: its r2.16 release has
+31 training sentences and no dev split, too small to train a head on,
+so Kazakh keeps the no-model tier (rule sentences, UAX#29 tokens, SaT)
+and has no UPOS, feature or lemma model.
+
 Current acceptance tests do not download or read these models. The old model
 fetch steps and archive comparisons were removed under #1511. Retained licence
 and hash records are historical provenance, not a fetch or runtime contract.
