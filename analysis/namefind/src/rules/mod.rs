@@ -1,5 +1,5 @@
 //! Deterministic projection of structured numeric, money, and temporal layers
-//! into [`Entities`] (`opennlp:entities`).
+//! into [`Entities`] (`turbo:entities`).
 //!
 //! Named entity types `"date"`, `"time"`, `"money"`, and `"percent"` are
 //! grammar problems backed by the deterministic extractors in `turbo-numeric`
@@ -20,7 +20,7 @@
 //!
 //! Each projected [`Entities`] span preserves the source mention's exact byte
 //! [`Span`], aligns its [`IxRange<Tokens>`] to the overlapping tokens of
-//! [`Tokens`] (`opennlp:tokens`) via binary search, and carries score `0.0`
+//! [`Tokens`] (`turbo:tokens`) via binary search, and carries score `0.0`
 //! (as dictionary and pattern finders do when no statistical model ran).
 //!
 //! [`RuleEntityProjector`] runs as a pipeline [`Step`](turbo_analysis::annotate::Step)
@@ -88,7 +88,7 @@ impl DateTimeEntityKind {
 }
 
 /// Selects which [`TimeKind`] variants from [`Times`] (`turbo:times`) are
-/// projected into [`Entities`] (`opennlp:entities`).
+/// projected into [`Entities`] (`turbo:entities`).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TimeEntityFilter {
     /// Project [`TimeKind::Date`] and [`TimeKind::DateRange`] to `"date"`,
@@ -186,7 +186,7 @@ pub fn span_token_range(tokens: &Tokens, span: Span) -> Option<IxRange<Tokens>> 
 }
 
 /// Projects [`Temporals`] (`turbo:temporal`) mentions into [`Entities`]
-/// (`opennlp:entities`) typed [`DATE_ENTITY`] (`"date"`), aligned to `tokens`.
+/// (`turbo:entities`) typed [`DATE_ENTITY`] (`"date"`), aligned to `tokens`.
 pub fn temporals_to_entities(temporals: &Temporals, tokens: &Tokens) -> Result<Entities, String> {
     if temporals.spans.view() != tokens.spans.view() {
         return Err("temporals and tokens are in different views".into());
@@ -202,14 +202,14 @@ pub fn temporals_to_entities(temporals: &Temporals, tokens: &Tokens) -> Result<E
 }
 
 /// Projects [`Times`] (`turbo:times`) mentions into [`Entities`]
-/// (`opennlp:entities`) using [`TimeEntityFilter::DatesAndTimes`], aligned to
+/// (`turbo:entities`) using [`TimeEntityFilter::DatesAndTimes`], aligned to
 /// `tokens`.
 pub fn times_to_entities(times: &Times, tokens: &Tokens) -> Result<Entities, String> {
     times_to_entities_with(times, tokens, TimeEntityFilter::DatesAndTimes)
 }
 
 /// Projects [`Times`] (`turbo:times`) mentions into [`Entities`]
-/// (`opennlp:entities`) selected by `filter`, aligned to `tokens`.
+/// (`turbo:entities`) selected by `filter`, aligned to `tokens`.
 pub fn times_to_entities_with(times: &Times, tokens: &Tokens, filter: TimeEntityFilter) -> Result<Entities, String> {
     if times.spans.view() != tokens.spans.view() {
         return Err("times and tokens are in different views".into());
@@ -229,7 +229,7 @@ pub fn times_to_entities_with(times: &Times, tokens: &Tokens, filter: TimeEntity
 }
 
 /// Projects [`Money`] (`turbo:money`) mentions into [`Entities`]
-/// (`opennlp:entities`) typed [`MONEY_ENTITY`] (`"money"`), aligned to `tokens`.
+/// (`turbo:entities`) typed [`MONEY_ENTITY`] (`"money"`), aligned to `tokens`.
 pub fn money_to_entities(money: &Money, tokens: &Tokens) -> Result<Entities, String> {
     if money.spans.view() != tokens.spans.view() {
         return Err("money and tokens are in different views".into());
@@ -245,7 +245,7 @@ pub fn money_to_entities(money: &Money, tokens: &Tokens) -> Result<Entities, Str
 }
 
 /// Projects percentage mentions from [`Quantities`] (`turbo:quantities`, where
-/// [`Quantities::is_percent`] holds) into [`Entities`] (`opennlp:entities`)
+/// [`Quantities::is_percent`] holds) into [`Entities`] (`turbo:entities`)
 /// typed [`PERCENT_ENTITY`] (`"percent"`), aligned to `tokens`.
 ///
 /// Non-percentage unit quantities (such as `"80 kg"` or `"2.5 km"`) are left out.

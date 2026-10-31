@@ -80,7 +80,7 @@ impl RuleEntitySource {
 }
 
 /// Projects a single deterministic rule layer ([`Temporals`], [`Times`],
-/// [`Money`], or [`Quantities`]) into an [`Entities`] (`opennlp:entities`)
+/// [`Money`], or [`Quantities`]) into an [`Entities`] (`turbo:entities`)
 /// layer aligned to [`Tokens`], preserving the source layer's provenance.
 ///
 /// Because the stored [`Provenance`] retains the upstream rule layer's
@@ -253,7 +253,7 @@ impl Step for RuleEntityProjector {
 
 /// Combined [`Annotator`] that projects any present [`Temporals`], [`Times`],
 /// [`Money`], and [`Quantities`] layers on a [`Document`] into a single
-/// [`Entities`] (`opennlp:entities`) layer over `"date"`, `"time"`, `"money"`,
+/// [`Entities`] (`turbo:entities`) layer over `"date"`, `"time"`, `"money"`,
 /// and `"percent"`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct RuleEntitiesAnnotator {
