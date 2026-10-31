@@ -19,7 +19,7 @@ use crate::layer::{Anchor, Key, KeyId, Layer, Provenance, as_any_mut};
 use crate::text::{Alignment, ViewId};
 
 use digest::{EntryDigests, compute_layer_content_digest};
-use view::check_view_alignment;
+pub(crate) use view::check_view_alignment;
 
 static SOURCE_PROVENANCE: LazyLock<Arc<Provenance>> = LazyLock::new(|| Arc::new(Provenance::by("turbo:source")));
 
@@ -146,6 +146,16 @@ impl Document {
             .map(|e| e.len)
     }
 
+    /// A present layer's value with its type erased, for the splicers.
+    pub(crate) fn erased(&self, key: KeyId) -> Option<&(dyn Any + Send + Sync)> {
+        self.entries.iter().find(|e| e.key == key).and_then(|e| e.value.as_deref())
+    }
+
+    /// How many items a layer here has, 0 when it is absent.
+    pub(crate) fn layer_len(&self, key: KeyId) -> usize {
+        self.entries.iter().find(|e| e.key == key).map_or(0, |e| e.len)
+    }
+
     /// What became of a layer: None when it was never written.
     pub fn status(&self, key: KeyId) -> Option<&Status> {
         self.entries.iter().find(|e| e.key == key).map(|e| &e.status)
@@ -257,7 +267,8 @@ impl Document {
         let mut updated = (*self.entries[pos].provenance).clone();
         f(&mut updated);
         let provenance_digest = self.compute_provenance_digest(&updated);
-        let upstream_content_hash = self.compute_upstream_content_hash(&updated.reads);
+        let upstream_content_hash =
+            if key == Key::<View>::DEFAULT.id() { None } else { self.compute_upstream_content_hash(&updated.reads) };
         let content = self.entries[pos].content_digest();
         let e = Arc::make_mut(&mut self.entries[pos]);
         e.provenance = Arc::new(updated);

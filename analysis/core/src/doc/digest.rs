@@ -251,10 +251,13 @@ impl Document {
 
     fn entry_upstream_content_hash_at(&self, idx: usize) -> Option<InputSnapshotDigest> {
         let entry = &self.entries[idx];
-        *entry
-            .digests()
-            .upstream
-            .get_or_init(|| self.compute_upstream_content_hash_in(&entry.provenance.reads, &self.entries[..idx]))
+        *entry.digests().upstream.get_or_init(|| {
+            if entry.key == Key::<View>::DEFAULT.id() {
+                None
+            } else {
+                self.compute_upstream_content_hash_in(&entry.provenance.reads, &self.entries[..idx])
+            }
+        })
     }
 
     /// Computes the deterministic 256-bit SHA-256 chained provenance digest for `provenance`

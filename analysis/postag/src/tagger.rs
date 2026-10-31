@@ -3,8 +3,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
-use turbo_analysis_layers::{PosTags, Tag, Tokens};
+use turbo_analysis::{Annotator, Error, Key, Locality, ModelRef, Refs, View};
+use turbo_analysis_layers::{PosTags, Sentences, Tag, Tokens};
 use turbo_sequence::BeamSearch;
 use turbo_sequence::postag::PosContext;
 
@@ -196,5 +196,9 @@ impl Annotator for PosTagger {
             .u64(self.model.beam_size() as u64)
             .u64(self.model.context_cache_size() as u64)
             .finish()
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
 }

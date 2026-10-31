@@ -17,10 +17,10 @@ pub(super) fn export(corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args)
     let out = PathBuf::from(a.required("--out")?);
     a.done()?;
     let c = read_corpus(corpus_id, dir, unrecorded)?;
-    if c.record.task != Task::Tags {
-        return Err(Error(format!("{corpus_id}: export takes a tag corpus")));
-    }
-    let text = conllu(&c.splits.test);
+    let text = match c.record.task {
+        Task::Tags => conllu(&c.splits.test),
+        Task::Bio => turbo_trainer_recipes::ner_peer::export(&c.splits.test)?,
+    };
     std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -41,8 +41,8 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
     a.done()?;
     let t = Instant::now();
     let c = read_corpus(corpus_id, dir, unrecorded)?;
-    if c.record.task != Task::Tags {
-        return Err(Error(format!("{corpus_id}: a peer is scored on a tag corpus")));
+    if (c.record.task == Task::Bio) != (column == Column::Bio) {
+        return Err(Error(format!("{corpus_id}: BIO corpora require --column bio; tag corpora require upos or xpos")));
     }
     let parent = pred.parent().unwrap_or(Path::new("."));
     let file =
@@ -53,14 +53,17 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
     let test = &c.splits.test;
     let mut predicted = read(file, &bytes, column, test)?;
     apply(&map, &mut predicted);
+    if c.record.task == Task::Bio {
+        turbo_trainer_recipes::ner_peer::validate(corpus_id, &predicted)?;
+    }
     let base = baseline(&c.splits.train, test);
     let seen = Seen::of(&c.splits.train);
     let eval = EvalRecord {
         split: "test".into(),
-        model: Some(evaluate(Task::Tags, test, &predicted, &seen, None)),
-        baseline: evaluate(Task::Tags, test, &base, &seen, None),
+        model: Some(evaluate(c.record.task, test, &predicted, &seen, turbo_trainer_recipes::coarse(corpus_id))),
+        baseline: evaluate(c.record.task, test, &base, &seen, turbo_trainer_recipes::coarse(corpus_id)),
         comparison: Some(bootstrap(
-            Task::Tags,
+            c.record.task,
             test,
             &predicted,
             &base,

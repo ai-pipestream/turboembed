@@ -8,7 +8,7 @@
 //! character. Java tests UTF-16 code units, but no whitespace character is outside the BMP and a surrogate half is
 //! never whitespace, so testing whole characters gives the same tokens.
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View};
+use turbo_analysis::{Annotator, Error, Key, Locality, Refs, Span, View};
 use turbo_analysis_layers::{Sentences, Tokens};
 use turbo_unicode::whitespace;
 
@@ -135,6 +135,10 @@ impl Annotator for WhitespaceTokenizer {
 
     fn config_hash(&self) -> u64 {
         self.options.config_hash()
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
 }
 

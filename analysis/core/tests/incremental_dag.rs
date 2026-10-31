@@ -338,6 +338,7 @@ fn exported_and_imported_document_graph_skips_all_stages_in_o1() {
     assert_eq!(analyzer.plan().len(), 4);
 
     let mut doc = Document::new("Acme Corp builds fast parsers. NASA launches rockets.");
+    assert_eq!(doc.upstream_content_hash(Key::<View>::DEFAULT.id()), None);
     let first_report = analyzer.analyze_incremental(&mut doc).unwrap();
     assert_eq!((first_report.stages_run, first_report.stages_skipped), (7, 0));
     assert_eq!(counters.snapshot(), [1, 1, 1, 1, 1, 1, 1]);
