@@ -1,0 +1,62 @@
+[
+  {
+    "set": "contract-nli",
+    "arm": "fixed",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "cuad",
+    "arm": "fixed",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "qasper",
+    "arm": "fixed",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "contract-nli",
+    "arm": "semantic",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "cuad",
+    "arm": "semantic",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "qasper",
+    "arm": "semantic",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "contract-nli",
+    "arm": "v1",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "cuad",
+    "arm": "v1",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "qasper",
+    "arm": "v1",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "contract-nli",
+    "arm": "windows",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "cuad",
+    "arm": "windows",
+    "metrics_exactly_equal": true
+  },
+  {
+    "set": "qasper",
+    "arm": "windows",
+    "metrics_exactly_equal": true
+  }
+]

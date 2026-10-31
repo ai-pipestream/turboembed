@@ -72,6 +72,22 @@ gRPC service) build against. Everything below is new.
   That attention is slower; sessions of 4096 or fewer keep the F16 sums
   (#1580).
 
+### Breaking
+
+- The shared analysis layers' ids moved from the `opennlp:` namespace
+  to `turbo:`: `turbo:sentences`, `turbo:tokens`, `turbo:subwords`,
+  `turbo:entities`, `turbo:pos`, `turbo:lemmas`, `turbo:language`,
+  `turbo:embeddings`, `turbo:dependencies`, `turbo:chunk-tags`,
+  `turbo:phrases`, `turbo:mentions`, `turbo:speakers` and
+  `turbo:relations`; phrase chunks are `turbo:phrase-chunks`, apart
+  from the retrieval chunks' `turbo:chunks`. `TypedLayer.id`,
+  `LayerInfo`, DocumentGraph bytes and C ABI layer names carry the new
+  ids. Readers still accept the old ids: a DocumentGraph, a golden file
+  or a progressive step name written with one reads as the new id. The
+  document categorizer and dependency parser steps are
+  `turbo-doccat:maxent`, `turbo-doccat:maxent-spans`, `turbo-doccat:dl`,
+  `turbo-doccat:dl-spans` and `turbo-depparse:parser` (#1780).
+
 ### Not in this release yet
 
 Open in the Integration v0 milestone, and listed here as each lands:

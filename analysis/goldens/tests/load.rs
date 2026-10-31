@@ -125,14 +125,14 @@ fn every_loaded_layer_matches_its_golden() {
         keys,
         [
             "turbo:view",
-            "opennlp:sentences@golden",
-            "turbo:confidence<opennlp:sentences>@golden",
-            "opennlp:tokens@golden",
-            "turbo:confidence<opennlp:tokens>@golden",
-            "opennlp:pos@golden",
-            "opennlp:lemmas@golden",
-            "opennlp:entities@golden",
-            "opennlp:language@golden"
+            "turbo:sentences@golden",
+            "turbo:confidence<turbo:sentences>@golden",
+            "turbo:tokens@golden",
+            "turbo:confidence<turbo:tokens>@golden",
+            "turbo:pos@golden",
+            "turbo:lemmas@golden",
+            "turbo:entities@golden",
+            "turbo:language@golden"
         ]
     );
     let language = doc.get_key(&golden_key::<Language>()).unwrap();
@@ -212,7 +212,7 @@ fn an_aligned_layer_without_its_anchor_is_refused() {
     );
     assert_eq!(
         e.to_string(),
-        "opennlp:pos@golden: the document has no opennlp:tokens@golden layer to load it onto; load that first"
+        "turbo:pos@golden: the document has no turbo:tokens@golden layer to load it onto; load that first"
     );
     assert!(!doc.has(golden_key::<PosTags>().id()));
 
@@ -224,7 +224,7 @@ fn an_aligned_layer_without_its_anchor_is_refused() {
     // A golden built in code without the tokens block: the first layer
     // aligned to them is refused.
     let mut no_tokens = g.clone();
-    no_tokens.layers.retain(|l| l.id != "opennlp:tokens");
+    no_tokens.layers.retain(|l| l.id != "turbo:tokens");
     let e = load_document(&no_tokens, &text(&g)).err().unwrap();
     assert_eq!(
         e,
@@ -257,7 +257,7 @@ fn bad_blocks_are_refused_before_loading() {
 
     // An entity whose token range runs past the tokens.
     let mut bad = g.clone();
-    let entities = bad.layers.iter_mut().find(|l| l.id == "opennlp:entities").unwrap();
+    let entities = bad.layers.iter_mut().find(|l| l.id == "turbo:entities").unwrap();
     entities.columns[3].data = ColumnData::U32(vec![2, 10]);
     let e = load_document(&bad, &source).err().unwrap();
     assert_eq!(e, LoadError::TokenRange { layer: golden_key::<Entities>().id(), row: 1, start: 4, end: 10, tokens: 9 });
@@ -265,20 +265,20 @@ fn bad_blocks_are_refused_before_loading() {
 
     // A block whose columns are not its type's.
     let mut bad = g.clone();
-    bad.layers.iter_mut().find(|l| l.id == "opennlp:lemmas").unwrap().columns[0].name = "form".into();
+    bad.layers.iter_mut().find(|l| l.id == "turbo:lemmas").unwrap().columns[0].name = "form".into();
     let e = load_document(&bad, &source).err().unwrap();
     assert!(matches!(&e, LoadError::Shape(Mismatch::Columns { .. })), "{e:?}");
-    assert!(e.to_string().contains("opennlp:lemmas@golden: the golden layer has the columns [form:str]"), "{e}");
+    assert!(e.to_string().contains("turbo:lemmas@golden: the golden layer has the columns [form:str]"), "{e}");
 
     // A block no layer type loads.
     let mut bad = g.clone();
-    bad.layers.iter_mut().find(|l| l.id == "opennlp:lemmas").unwrap().id = "opennlp:dependencies".into();
+    bad.layers.iter_mut().find(|l| l.id == "turbo:lemmas").unwrap().id = "turbo:dependencies".into();
     let e = load_document(&bad, &source).err().unwrap();
-    assert_eq!(e, LoadError::NoLoader { layer: "opennlp:dependencies".into() });
+    assert_eq!(e, LoadError::NoLoader { layer: "turbo:dependencies".into() });
 
     // A language block with no row.
     let mut bad = g.clone();
-    let lang = bad.layers.iter_mut().find(|l| l.id == "opennlp:language").unwrap();
+    let lang = bad.layers.iter_mut().find(|l| l.id == "turbo:language").unwrap();
     for c in &mut lang.columns {
         c.data = ColumnData::empty(c.data.ty());
     }
@@ -287,14 +287,13 @@ fn bad_blocks_are_refused_before_loading() {
 
     // A span past the text is the document's to refuse.
     let mut bad = g.clone();
-    bad.layers.iter_mut().find(|l| l.id == "opennlp:sentences").unwrap().columns[1].data =
-        ColumnData::U32(vec![26, 38]);
+    bad.layers.iter_mut().find(|l| l.id == "turbo:sentences").unwrap().columns[1].data = ColumnData::U32(vec![26, 38]);
     let e = load_document(&bad, &source).err().unwrap();
     assert!(matches!(e, LoadError::Document(Error::Bounds { .. })), "{e:?}");
 
     // A golden without the block asked for.
     let mut no_lemmas = g.clone();
-    no_lemmas.layers.retain(|l| l.id != "opennlp:lemmas");
+    no_lemmas.layers.retain(|l| l.id != "turbo:lemmas");
     let mut doc = load_document(&no_lemmas, &source).unwrap();
     let e = load_layer(&mut doc, &no_lemmas, &Key::<Lemmas>::named("again")).unwrap_err();
     assert!(matches!(e, LoadError::MissingGolden { .. }), "{e:?}");
@@ -336,16 +335,16 @@ fn a_token_outside_the_sentences_is_refused() {
     // token "Zürich" (bytes 18..25), which then straddles two sentences.
     let g = golden();
     let mut bad = g.clone();
-    let sentences = bad.layers.iter_mut().find(|l| l.id == "opennlp:sentences").unwrap();
+    let sentences = bad.layers.iter_mut().find(|l| l.id == "turbo:sentences").unwrap();
     sentences.columns[0].data = ColumnData::U32(vec![0, 22]);
     sentences.columns[1].data = ColumnData::U32(vec![22, 37]);
     let e = load_document(&bad, &text(&g)).err().unwrap();
     assert_eq!(e, LoadError::OutsideSentences { layer: golden_key::<Tokens>().id(), token: 4, start: 18, end: 25 });
-    assert!(e.to_string().starts_with("opennlp:tokens@golden token 4: bytes 18..25 are not inside a sentence"), "{e}");
+    assert!(e.to_string().starts_with("turbo:tokens@golden token 4: bytes 18..25 are not inside a sentence"), "{e}");
 
     // A token after the last sentence.
     let mut bad = g.clone();
-    let sentences = bad.layers.iter_mut().find(|l| l.id == "opennlp:sentences").unwrap();
+    let sentences = bad.layers.iter_mut().find(|l| l.id == "turbo:sentences").unwrap();
     sentences.columns[0].data = ColumnData::U32(vec![0, 27]);
     sentences.columns[1].data = ColumnData::U32(vec![26, 36]);
     let e = load_document(&bad, &text(&g)).err().unwrap();

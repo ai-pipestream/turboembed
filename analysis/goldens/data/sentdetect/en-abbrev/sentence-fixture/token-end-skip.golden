@@ -6,11 +6,11 @@ unicode	15.0
 input	sentence-fixture/token-end-skip	33	33	ab1449f73600e4a652b99221a8be6d89f11a3a74c71dbdbe31849ae6796c0a9c
 model	en-abbrev.bin	759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd
 annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
-layer	opennlp:sentences	text	2	start:u32	end:u32
+layer	turbo:sentences	text	2	start:u32	end:u32
 0	24
 25	33
-end	opennlp:sentences
-layer	turbo:confidence<opennlp:sentences>	aligned:opennlp:sentences	2	value:f64
+end	turbo:sentences
+layer	turbo:confidence<turbo:sentences>	aligned:turbo:sentences	2	value:f64
 3fed428415327ef3 0.9143696226128369
 3fe28966e45e865f 0.5792726955734898
-end	turbo:confidence<opennlp:sentences>
+end	turbo:confidence<turbo:sentences>

@@ -9,9 +9,9 @@
 //!    softmax + `AverageClassificationScoringStrategy`) on the small BERT
 //!    bundle.
 //! 2. Multi-chunk sliding-window categorization (`whitespace_chunks` and
-//!    `opennlp:subwords` windowing).
-//! 3. Pipeline `Annotator` integration reading `opennlp:subwords`,
-//!    `turbo:chunks`, `turbo:structure`, and `opennlp:sentences` and writing
+//!    `turbo:subwords` windowing).
+//! 3. Pipeline `Annotator` integration reading `turbo:subwords`,
+//!    `turbo:chunks`, `turbo:structure`, and `turbo:sentences` and writing
 //!    `turbo:categories` and `turbo:categories<L>`.
 
 use std::fs;

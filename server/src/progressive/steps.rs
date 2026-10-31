@@ -106,7 +106,6 @@ pub(super) fn step_needs_embed(name: &str) -> bool {
         || matches!(
             name,
             "turbo:subwords"
-                | "opennlp:subwords"
                 | "subwords"
                 | "turbo:sentence-vectors"
                 | "sentence_vectors"
@@ -323,6 +322,10 @@ pub(crate) fn compile_analyzer_with_state(
     profile_name: &str,
     required_bundles: &[&str],
 ) -> Result<Analyzer, Failure> {
+    // A step named by a legacy layer id runs as the step its current id names.
+    let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
+    let step_names: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    let step_names = step_names.as_slice();
     let mut embed_cx = resolve_embed_context(state, model_name, profile_name, required_bundles, step_names)?;
     let step_names = &heads::expand(step_names, embed_cx.as_ref())?[..];
     let head_group = heads::group(embed_cx.as_ref(), step_names)?;
@@ -399,7 +402,7 @@ pub(crate) fn compile_analyzer_with_state(
                     target_name: dst_name,
                 })
             }
-            "turbo-sentdetect:rules" | "turbo:sentences" | "opennlp:sentences" => {
+            "turbo-sentdetect:rules" | "turbo:sentences" => {
                 let ann = RuleSentenceDetector::new("eng");
                 if let Some(nv) = active_norm_view {
                     builder.step(NormalizedSourceStep { annotator: ann, norm_view: nv, _marker: PhantomData })
@@ -407,7 +410,7 @@ pub(crate) fn compile_analyzer_with_state(
                     builder.add(ann)
                 }
             }
-            "turbo-tokenize:uax29-untyped" | "turbo:tokens" | "opennlp:tokens" => {
+            "turbo-tokenize:uax29-untyped" | "turbo:tokens" => {
                 let ann = UntypedWordTokenizer::default();
                 if let Some(nv) = active_norm_view {
                     builder.step(NormalizedTokensStep { annotator: ann, norm_view: nv })
@@ -415,7 +418,7 @@ pub(crate) fn compile_analyzer_with_state(
                     builder.add(ann)
                 }
             }
-            "turbo-geo:names" | "turbo:entities" | "opennlp:entities" => {
+            "turbo-geo:names" | "turbo:entities" => {
                 let ann = NameAnnotator::new(bundled_name_finder());
                 if let Some(nv) = active_norm_view {
                     builder.step(NormalizedNameStep { annotator: ann, norm_view: nv })
@@ -423,7 +426,7 @@ pub(crate) fn compile_analyzer_with_state(
                     builder.add(ann)
                 }
             }
-            "turbo:subwords" | "opennlp:subwords" | "subwords" => {
+            "turbo:subwords" | "subwords" => {
                 let cx = embed_cx.as_ref().expect("embed context resolved");
                 let ann = cx.subword_annotator()?;
                 if let Some(nv) = active_norm_view {

@@ -1,6 +1,6 @@
 //! Per-chunk entity headers (`turbo:chunk-entities`): the entities each
 //! chunk mentions, then the ones in scope from earlier in its section,
-//! as entity keys and the `opennlp:entities` index naming each, never as
+//! as entity keys and the `turbo:entities` index naming each, never as
 //! copied strings. [`ChunkEntities::header`] projects a chunk's entries
 //! onto the text when an embedder wants them as a prefix. With
 //! `DocumentEntities` and `EntitySalience` present, [`SalienceHeaders`]

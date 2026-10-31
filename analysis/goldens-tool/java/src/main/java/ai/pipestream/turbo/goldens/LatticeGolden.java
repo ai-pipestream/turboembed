@@ -34,10 +34,10 @@ import opennlp.tools.util.Span;
  * generator checks decodes to exactly the same text, file by file. The Rust port reads UTF-8 only
  * and is compared on the copy.</p>
  *
- * <p>The layers are {@code opennlp:tokens}, one row per morpheme, and {@code turbo:morphemes},
+ * <p>The layers are {@code turbo:tokens}, one row per morpheme, and {@code turbo:morphemes},
  * aligned to it: {@code unknown} (1 for a morpheme unknown word handling made) and {@code
  * features}, the entry's feature columns joined with commas. A morpheme is always whole code
- * points, so there is never a {@code turbo:utf16<opennlp:tokens>} layer, and the generator stops
+ * points, so there is never a {@code turbo:utf16<turbo:tokens>} layer, and the generator stops
  * if one would be needed.</p>
  */
 final class LatticeGolden implements AnnotatorGolden {
@@ -173,11 +173,11 @@ final class LatticeGolden implements AnnotatorGolden {
       unknown[i] = m.unknown() ? 1 : 0;
       features[i] = String.join(",", m.features());
     }
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:tokens", input.offsets(), spans));
     if (layers.size() != 1) {
       throw new IllegalStateException("input " + input.inputId() + ": a morpheme cuts a character");
     }
-    layers.add(new Layer("turbo:morphemes", "aligned:opennlp:tokens", new Column.U32("unknown", unknown),
+    layers.add(new Layer("turbo:morphemes", "aligned:turbo:tokens", new Column.U32("unknown", unknown),
         new Column.Str("features", features)));
     return layers;
   }

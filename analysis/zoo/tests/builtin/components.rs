@@ -21,12 +21,16 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(
         ids("en", Component::DocumentCategorizer),
         [
+            "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1",
             "turbo-en-goemotions-minilm-l6-v2-head-1",
             "turbo-en-goemotions-bge-small-en-v1.5-head-1",
+            "turbo-en-goemotions-modernbert-base-head-1",
             "turbo-en-civil-comments-minilm-l6-v2-head-1",
             "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
             "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
             "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+            "turbo-en-civil-comments-modernbert-base-head-1",
+            "turbo-en-civil-comments-modernbert-base-context-head-1",
         ]
     );
     // The tokenizers are fetched by id beside their models: no component,
@@ -58,11 +62,20 @@ fn every_listed_model_names_a_component_except_the_tokenizers() {
 #[test]
 fn the_retrieval_encoders_and_the_aspect_heads_keep_their_classes() {
     let index = Index::builtin();
-    // MS MARCO keeps both retrieval encoders local-only; the aspect heads are ours.
+    // MS MARCO keeps both retrieval encoders and the legacy MiniLM aspect head local-only.
     assert!(index.find_within("en", Component::SparseEncoder, LicenceClass::Permissive).is_empty());
     assert!(index.find_within("en", Component::LateInteractionEncoder, LicenceClass::Permissive).is_empty());
-    let aspect = index.find_within("en", Component::AspectSentiment, LicenceClass::Permissive);
-    assert_eq!(aspect.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), ["turbo-en-masc-3.0.0-aspect-sentiment-1"]);
+    assert!(index.find_within("en", Component::AspectSentiment, LicenceClass::Permissive).is_empty());
+    let doccat = index.find_within("en", Component::DocumentCategorizer, LicenceClass::Permissive);
+    assert_eq!(
+        doccat.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
+        [
+            "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1",
+            "turbo-en-goemotions-modernbert-base-head-1",
+            "turbo-en-civil-comments-modernbert-base-head-1",
+            "turbo-en-civil-comments-modernbert-base-context-head-1",
+        ]
+    );
 }
 
 #[test]

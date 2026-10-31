@@ -6,9 +6,9 @@ unicode	15.0
 input	surrogate/fr-comma-emoji-dollar	6	4	3e8ac095e4265bc9fd3967757b0189e2205f714218a1748741c051a0a4d75a9f
 model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	1	start:u32	end:u32
+layer	turbo:tokens	text	1	start:u32	end:u32
 0	6
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	1	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	1	unknown:u32	features:str
 1	記号,一般,*,*
 end	turbo:morphemes

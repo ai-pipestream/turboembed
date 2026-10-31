@@ -1,0 +1,6 @@
+{
+  "set": "gutenqa",
+  "arm": "v1",
+  "reason": "Resource-only restart of entire matrix with a fixed eight-thread CPU configuration. All completed two-thread records are retained for exact score comparison. No dataset, model, chunker, retrieval or gate parameter changed.",
+  "signal": "SIGTERM"
+}

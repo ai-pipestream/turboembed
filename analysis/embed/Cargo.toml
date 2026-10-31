@@ -22,6 +22,7 @@ turbo-vector-index = { path = "../vector-index" }
 turbo-doccat = { path = "../doccat" }
 # Coreference contextual TokenVectors trait (#960).
 turbo-coref = { path = "../coref" }
+turbo-trainer = { path = "../../trainer" }
 
 [dev-dependencies]
 turbo-pins = { path = "../pins" }

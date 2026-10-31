@@ -34,7 +34,7 @@ fn a_span_shifted_by_one_byte() {
     assert!(matches!(m, Mismatch::Item { index: 1, what: "span", .. }), "{m:?}");
     has(
         &shown,
-        &["opennlp:tokens item 1: the span differs", "rust:   bytes 4..10 \"Smith \"", "golden: bytes 4..9 \"Smith\""],
+        &["turbo:tokens item 1: the span differs", "rust:   bytes 4..10 \"Smith \"", "golden: bytes 4..9 \"Smith\""],
     );
 }
 
@@ -48,7 +48,7 @@ fn a_changed_tag() {
     has(
         &shown,
         &[
-            "opennlp:pos item 2: the tag differs",
+            "turbo:pos item 2: the tag differs",
             "rust:   bytes 10..14 \"went\", tag \"NOUN\", prob 3fef95810624dd2f (0.987)",
             "golden: bytes 10..14 \"went\", tag \"VERB\", prob 3fef95810624dd2f (0.987)",
         ],
@@ -74,7 +74,7 @@ fn a_value_just_outside_the_tolerance() {
     has(
         &shown,
         &[
-            "turbo:confidence<opennlp:tokens> item 3: the value differs",
+            "turbo:confidence<turbo:tokens> item 3: the value differs",
             "tolerance 1e-9",
             &format!("rust:   bytes 15..17 \"to\", value {rust_bits} ({:?})", p.token_conf[3]),
             "golden: bytes 15..17 \"to\", value 3fef5c28f5c28f5c (0.98)",
@@ -94,10 +94,7 @@ fn a_missing_last_row() {
     p.sentence_conf.pop();
     let (m, shown) = mismatch::<Sentences>(&p, Tolerance::exact());
     assert!(matches!(m, Mismatch::Count { rust: 1, golden: 2, .. }), "{m:?}");
-    has(
-        &shown,
-        &["opennlp:sentences: 1 items in Rust, 2 in the golden", "golden item 1", "bytes 27..37 \"It rained!\""],
-    );
+    has(&shown, &["turbo:sentences: 1 items in Rust, 2 in the golden", "golden item 1", "bytes 27..37 \"It rained!\""]);
     let (m, shown) = mismatch::<Confidence<Sentences>>(&p, Tolerance::exact());
     assert!(matches!(m, Mismatch::Count { rust: 1, golden: 2, .. }), "{m:?}");
     has(&shown, &["golden item 1", "bytes 27..37 \"It rained!\", value 3fee666666666666 (0.95)"]);
@@ -106,14 +103,14 @@ fn a_missing_last_row() {
 #[test]
 fn a_golden_layer_with_the_wrong_columns() {
     let mut g = golden();
-    let conf = g.layers.iter_mut().find(|l| l.id == "turbo:confidence<opennlp:tokens>").unwrap();
+    let conf = g.layers.iter_mut().find(|l| l.id == "turbo:confidence<turbo:tokens>").unwrap();
     conf.columns[0].name = "prob".into();
     let m = matches_golden::<Confidence<Tokens>>(&Parts::matching().doc(), &g, Tolerance::exact()).unwrap_err();
     assert!(matches!(m, Mismatch::Columns { .. }), "{m:?}");
-    has(&m.to_string(), &["turbo:confidence<opennlp:tokens>", "the columns [prob:f64], expected [value:f64]"]);
+    has(&m.to_string(), &["turbo:confidence<turbo:tokens>", "the columns [prob:f64], expected [value:f64]"]);
 
     let mut g = golden();
-    let pos = g.layers.iter_mut().find(|l| l.id == "opennlp:pos").unwrap();
+    let pos = g.layers.iter_mut().find(|l| l.id == "turbo:pos").unwrap();
     pos.columns[1].data = ColumnData::U32(vec![0; 9]);
     let m = matches_golden::<PosTags>(&Parts::matching().doc(), &g, Tolerance::exact()).unwrap_err();
     has(&m.to_string(), &["the columns [tag:str, prob:u32], expected [tag:str, prob:f64]"]);
@@ -128,7 +125,7 @@ fn a_language_code_difference() {
     has(
         &shown,
         &[
-            "opennlp:language item 0: the code differs",
+            "turbo:language item 0: the code differs",
             "rust:   code \"deu\", confidence 3fedccac6fbfc4c9",
             "golden: code \"eng\", confidence 3fedccac6fbfc4c9",
         ],
@@ -145,8 +142,8 @@ fn tags_without_probabilities_do_not_pass() {
     let mut p = Parts::matching();
     p.prob = None;
     let (m, shown) = mismatch::<PosTags>(&p, Tolerance::exact());
-    assert_eq!(m, Mismatch::NoValues { layer: "opennlp:pos".into(), column: "prob" });
-    has(&shown, &["opennlp:pos: the Rust layer has no probabilities", "prob column"]);
+    assert_eq!(m, Mismatch::NoValues { layer: "turbo:pos".into(), column: "prob" });
+    has(&shown, &["turbo:pos: the Rust layer has no probabilities", "prob column"]);
 }
 
 #[test]
@@ -189,16 +186,16 @@ fn a_missing_or_skipped_layer_is_reported() {
     let g = golden();
     let mut doc = Document::new(TEXT);
     let m = matches_golden::<Tokens>(&doc, &g, Tolerance::exact()).unwrap_err();
-    assert_eq!(m.to_string(), "opennlp:tokens: the document has no such layer");
+    assert_eq!(m.to_string(), "turbo:tokens: the document has no such layer");
     doc.skip(Key::<Tokens>::DEFAULT.id(), "no model".into(), Provenance::by("test")).unwrap();
     let m = matches_golden::<Tokens>(&doc, &g, Tolerance::exact()).unwrap_err();
-    assert_eq!(m.to_string(), "opennlp:tokens: the document's layer is skipped: no model");
+    assert_eq!(m.to_string(), "turbo:tokens: the document's layer is skipped: no model");
 }
 
 #[test]
 fn a_golden_without_the_layer_lists_what_it_has() {
     let mut g = golden();
-    g.layers.retain(|l| l.id != "opennlp:lemmas");
+    g.layers.retain(|l| l.id != "turbo:lemmas");
     let m = matches_golden::<Lemmas>(&Parts::matching().doc(), &g, Tolerance::exact()).unwrap_err();
     assert!(matches!(&m, Mismatch::MissingGolden { available, .. } if available.len() == 7), "{m:?}");
 }
@@ -239,7 +236,7 @@ fn a_named_instance_on_a_derived_view() {
     assert!(matches!(m, Mismatch::Item { index: 4, what: "span", .. }), "{m:?}");
     has(
         &m.to_string(),
-        &["opennlp:tokens@gold item 4", "rust:   bytes 18..24 \"Züric\"", "golden: bytes 18..25 \"Zürich\""],
+        &["turbo:tokens@gold item 4", "rust:   bytes 18..24 \"Züric\"", "golden: bytes 18..25 \"Zürich\""],
     );
 }
 
