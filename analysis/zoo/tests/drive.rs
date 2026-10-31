@@ -69,8 +69,9 @@ fn stand_in(tree: Vec<Entry>) -> (String, Seen) {
                 headers.push(h.trim_end().to_ascii_lowercase());
             }
             log.lock().unwrap().push((target.clone(), headers));
-            let (status, body) = answer(&tree, &target);
-            let head = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+            let (status, extra, body) = answer(&tree, &target);
+            let head =
+                format!("HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n", body.len());
             conn.write_all(head.as_bytes()).unwrap();
             conn.write_all(&body).unwrap();
         }
@@ -78,13 +79,22 @@ fn stand_in(tree: Vec<Entry>) -> (String, Seen) {
     (endpoint, seen)
 }
 
-fn answer(tree: &[Entry], target: &str) -> (&'static str, Vec<u8>) {
+/// The status, any extra header lines, and the body for one request.
+/// A list with several matches is sent one file per page; a file whose
+/// id starts `moved-` is redirected to `/media/<the rest>`, which serves
+/// that file's bytes to anyone.
+fn answer(tree: &[Entry], target: &str) -> (&'static str, String, Vec<u8>) {
+    let ok = |body: Vec<u8>| ("200 OK", String::new(), body);
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    let bytes_of = |id: &str| tree.iter().find(|(i, ..)| *i == id).and_then(|(.., b)| b.clone());
+    if let Some(id) = path.strip_prefix("/media/") {
+        return bytes_of(id).map_or(("404 Not Found", String::new(), Vec::new()), ok);
+    }
     let params: Vec<(&str, String)> =
         query.split('&').filter_map(|kv| kv.split_once('=')).map(|(k, v)| (k, decode(v))).collect();
     let param = |k: &str| params.iter().find(|(n, _)| *n == k).map(|(_, v)| v.clone());
     if param("supportsAllDrives").as_deref() != Some("true") {
-        return ("400 Bad Request", b"supportsAllDrives".to_vec());
+        return ("400 Bad Request", String::new(), b"supportsAllDrives".to_vec());
     }
     if path == "/drive/v3/files" {
         let q = param("q").unwrap_or_default();
@@ -99,13 +109,19 @@ fn answer(tree: &[Entry], target: &str) -> (&'static str, Vec<u8>) {
                 None => format!(r#"{{"id": "{id}", "mimeType": "{FOLDER}"}}"#),
             })
             .collect();
-        return ("200 OK", format!(r#"{{"files": [{}]}}"#, files.join(", ")).into_bytes());
+        let at: usize = param("pageToken").map_or(0, |t| t.parse().unwrap());
+        let next = if at + 1 < files.len() { format!(r#", "nextPageToken": "{}""#, at + 1) } else { String::new() };
+        let page = files.get(at).cloned().unwrap_or_default();
+        return ok(format!(r#"{{"files": [{page}]{next}}}"#).into_bytes());
     }
     let id = path.strip_prefix("/drive/v3/files/").unwrap_or_default();
-    match tree.iter().find(|(i, ..)| *i == id) {
-        Some((_, _, _, Some(bytes))) if param("alt").as_deref() == Some("media") => ("200 OK", bytes.clone()),
-        _ => ("404 Not Found", Vec::new()),
+    if param("alt").as_deref() != Some("media") {
+        return ("400 Bad Request", String::new(), b"alt".to_vec());
     }
+    if let Some(to) = id.strip_prefix("moved-") {
+        return ("302 Found", format!("Location: /media/{to}\r\n"), Vec::new());
+    }
+    bytes_of(id).map_or(("404 Not Found", String::new(), Vec::new()), ok)
 }
 
 /// The query string literal at the start of `s`, unescaped, and what
@@ -197,7 +213,8 @@ fn a_file_not_in_the_blob_layout_is_read_at_its_artifact_path_below_named_folder
         ("hello", "models", "hello".into(), None),
         ("lists", "hello", "lists".into(), None),
         ("other", "lists", "hello.txt".into(), Some(b"other bytes, same name\n".to_vec())),
-        ("textid", "lists", "hello.txt".into(), Some(TEXT.to_vec())),
+        ("moved-textid", "lists", "hello.txt".into(), Some(TEXT.to_vec())),
+        ("textid", "elsewhere", "hello.txt".into(), Some(TEXT.to_vec())),
     ];
     let (endpoint, seen) = stand_in(tree);
     let address = "gdrive://root/it's data/models";
@@ -205,17 +222,31 @@ fn a_file_not_in_the_blob_layout_is_read_at_its_artifact_path_below_named_folder
     let index = index();
     let a = index.get("hello").unwrap();
     assert_eq!(drive.get_file(a, &a.files[0]).unwrap(), TEXT);
-    for (target, headers) in seen.lock().unwrap().iter() {
-        assert!(target.ends_with("&key=key%2F1"), "{target}");
+    let seen = seen.lock().unwrap();
+    // The second page of same-named files holds the one of the right
+    // size; its bytes are behind a redirect, followed unsigned.
+    let (last, signed) = seen.split_last().unwrap();
+    assert_eq!(last.0, "/media/textid");
+    assert!(seen.iter().any(|(t, _)| t.contains("pageToken=1")), "{seen:?}");
+    assert!(!seen.iter().any(|(t, _)| t.contains("/drive/v3/files/other")), "{seen:?}");
+    for (target, headers) in signed {
+        assert!(!target.contains("key"), "{target}");
+        assert!(headers.contains(&"x-goog-api-key: key/1".to_string()), "{headers:?}");
         assert!(!headers.iter().any(|h| h.starts_with("authorization")), "{headers:?}");
     }
+    assert!(!last.1.iter().any(|h| h.starts_with("x-goog-api-key") || h.starts_with("authorization")), "{last:?}");
 }
 
 #[test]
 fn what_the_folder_lacks_or_serves_wrong_falls_through_to_the_next_source() {
     let store = cache("store");
     Blobs::new(&store).put(TEXT).unwrap();
-    let cases = [(vec![], "gdrive://top: no blobs/sha256/"), (blob_tree(b"hello hello hellO\n"), "SHA-256 is")];
+    // A file of another size is not downloaded at all.
+    let cases = [
+        (vec![], "gdrive://top: no blobs/sha256/"),
+        (blob_tree(b"short\n"), "gdrive://top: no blobs/sha256/"),
+        (blob_tree(b"hello hello hellO\n"), "SHA-256 is"),
+    ];
     for (tree, why) in cases {
         let (endpoint, _) = stand_in(tree);
         let drive = || GoogleDrive::with("gdrive://top", Some(&endpoint), DriveAuth::Token("t".into())).unwrap();

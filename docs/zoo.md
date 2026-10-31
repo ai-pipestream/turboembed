@@ -446,12 +446,16 @@ another way overrides it (#1613).
   is not there at `<artifact-id>/<path>`, the zoo cache's own layout,
   so a store or a cache copied to Drive serves as is. Each folder on the
   way is found with one `files.list` query and remembered; the file is
-  read with one `files.get?alt=media`, at most its size and one byte
-  more. Sign-in comes from `GOOGLE_OAUTH_ACCESS_TOKEN`, sent as a bearer
+  the first of its name whose size is the index's (read page by page),
+  so a file of another size is never downloaded, and is read with one
+  `files.get?alt=media`, at most its size and one byte more. Sign-in comes from `GOOGLE_OAUTH_ACCESS_TOKEN`, sent as a bearer
   token (one from `gcloud auth print-access-token`, or any OAuth flow
   the caller runs), or else `GOOGLE_API_KEY`, enough for a folder
-  shared with anyone who has the link; one of them is required.
-  Redirects are followed over HTTPS only and never carry the token. It
+  shared with anyone who has the link (sent as `X-Goog-Api-Key`); one
+  of them is required. Neither ever travels in a URL, and a redirect is
+  followed over HTTPS only and unsigned. `GoogleDrive::with` takes
+  another endpoint; a plain `http://` one sends the token in clear text
+  and is only for a stand-in on loopback in tests. It
   reads and does not keep: a library puts its own `file://` store first
   to keep what Drive serves. `analysis/zoo/tests/drive.rs` runs it
   against an in-process stand-in that answers the Drive API calls.
