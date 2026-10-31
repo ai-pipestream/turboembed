@@ -80,10 +80,29 @@ turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-open-span --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    [--cache <cache dir>] [--layer N] [--max-words N] [--width-dim N]
+    [--hold-out <type> ...] [training settings]
+turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
+    [--zoo-id <id> [--component <COMPONENT_*>] [--language <lang>] [--version <ver>]
+     [--license-terms <https://...>] [--url-prefix <https://...>] [--origin <https://...>]
+     [--zoo-out <entry.json>]]
 turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
 turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
     --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
 ```
+
+`assemble` (#1726) verifies one or more training run directories against
+an encoder bundle (checking `receipt.json` schema, encoder model,
+revision, manifest digest and hidden width, corpus record and licence
+class, output file sizes and SHA-256 digests, `head.json` equality, and
+exact F32 tensor names and shapes loaded through the core head
+constructors), merges the head tensors into `weights/model.safetensors`,
+writes `heads[]` and `head_provenance[]` into `manifest.json`, verifies
+the assembled bundle with `Bundle::open`, and optionally writes a
+validated `turbo-zoo` artifact entry (`Kind::Head` for one head or
+`Kind::Model` for a multi-task bundle) whose `class` is computed from the
+encoder and every head's `CorpusRecord`.
 
 `cache` (#1616) reads every split once and writes each word's features
 at the encoder's last N layers, so heads on any one layer, or on a
@@ -138,6 +157,20 @@ each token's commonest training label (`_` when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
+
+`train-open-span` (#1735) trains the open-label span matching head
+(`open_ner` on `turboembed:entities`, `HEAD_OPEN_SPAN`) on any BIO
+corpus (`wnut17`, `germeval2014-outer`, `germeval2014-inner`,
+`multiconer2-en`) or UD treebank (`ud-<lang>-<bank>`, extracting
+contiguous `PROPN` runs as `"proper noun"` spans). Entity type names
+are encoded by the same frozen encoder (`turbo::head::open_span::label_words`
+and `pool_label_words`), centered against the empirical training word
+and label means (`center.weight`), and scored against candidate spans
+up to `--max-words` (8 by default). Passing `--hold-out <type>` drops
+that entity type from training and dev and evaluates test span F1 on
+all types, seen types, and held-out (zero-shot unseen) types alongside
+the majority baseline and the case-insensitive label-name dictionary
+matcher.
 
 `export` writes a corpus's test words, and nothing else, as CoNLL-U
 for a peer system (spaCy, Stanza) to tag as given; `peer` reads the
@@ -200,7 +233,6 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
     cargo test --release -p turbo-trainer-recipes
 ```
 
-Not yet here: bundle output (a sealed bundle carrying the head),
-a core head that reads a mix of layers (only if the mix wins, #1616),
-full NER training and peer records (WNUT-17, GermEval and MASC), and a lemmatizer that reads the
-tagger's UPOS (`pos_input`).
+Not yet here: a core head that reads a mix of layers (only if the mix
+wins, #1616), full NER training and peer records (WNUT-17, GermEval and
+MASC), and a lemmatizer that reads the tagger's UPOS (`pos_input`).

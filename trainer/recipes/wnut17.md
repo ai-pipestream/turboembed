@@ -74,3 +74,39 @@ isolation; they do not establish corpus accuracy. MASC's cross-sentence
 entity identity correction, missing type coverage, full German training, actual
 spaCy/Stanza comparisons, model packaging and release remain in #1524.
 No default model or claim that #1524 is complete is added by this recipe.
+
+## Open-label span typing (`HEAD_OPEN_SPAN`, #1735)
+
+`train-open-span --corpus wnut17` trains a zero-shot / open-label span
+matcher (`open_ner` on `turboembed:entities`, `HEAD_OPEN_SPAN`,
+`DECODE_SPANS_FLAT`, `max_words = 8`, `width_dim = 64`,
+`CLASS_PERMISSIVE`) on the same pinned WNUT-17 files, encoding the six
+type names (`person`, `location`, `group`, `creative-work`,
+`corporation`, `product`) with the shared frozen encoder:
+
+```sh
+turbo-train-head train-open-span --corpus wnut17 --dir corpora/wnut17 \
+  --bundle bundles/modernbert-base-l12 --device cuda \
+  --epochs 15 --patience 5 --batch 32 --lr 0.003 --threads 8 \
+  --out runs/wnut17-open-span --commit COMMIT
+
+turbo-train-head train-open-span --corpus wnut17 --dir corpora/wnut17 \
+  --bundle bundles/modernbert-base-l12 --device cuda \
+  --hold-out location --epochs 15 --patience 5 --batch 32 --lr 0.003 --threads 8 \
+  --out runs/wnut17-open-span-holdout --commit COMMIT
+```
+
+Recorded results on `answerdotai/ModernBERT-base` (`layers = 12`,
+`hidden = 768`, manifest SHA-256
+`3c520dec8d833a3594b15567d1de0c8c039a571c728fbf2a6247d4fa885a64b4`),
+packaged as `turbo-en-wnut17-modernbert-base-l12-open-span-1`
+(`CLASS_PERMISSIVE`, `COMPONENT_ENTITY_EXTRACTOR`):
+
+| Run | Split / Subset | Model Span F1 | Majority Baseline F1 | Dictionary Matcher F1 | Paired Bootstrap Delta (95% CI) |
+|---|---|---:|---:|---:|---:|
+| All 6 types | dev (1,009 sents) | 0.3023 | - | - | - |
+| All 6 types | test all 6 types (1,079 gold spans) | 0.2642 (P 0.3956, R 0.1983) | 0.0594 | 0.0000 | +0.2048 ([+0.1730, +0.2361]) |
+| `--hold-out location` (trained on 5 types) | dev seen 5 types | 0.3212 | - | - | - |
+| `--hold-out location` (trained on 5 types) | test all 6 types (1,079 gold spans) | 0.2513 | 0.0575 | 0.0000 | +0.1938 ([+0.1645, +0.2248]) |
+| `--hold-out location` (trained on 5 types) | test seen 5 types (929 gold spans) | 0.2729 | 0.0653 | 0.0000 | - |
+| `--hold-out location` (trained on 5 types) | test unseen `location` (150 gold spans) | 0.0343 | 0.0000 | 0.0000 | - |

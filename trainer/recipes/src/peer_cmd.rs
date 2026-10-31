@@ -88,6 +88,8 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
         split: "test".into(),
         model: Some(evaluate(c.record.task, test, &predicted, &seen, turbo_trainer_recipes::coarse(corpus_id))),
         baseline: evaluate(c.record.task, test, &base, &seen, turbo_trainer_recipes::coarse(corpus_id)),
+        dictionary: None,
+        open_span: None,
         comparison: Some(bootstrap(
             c.record.task,
             test,

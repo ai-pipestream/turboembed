@@ -195,10 +195,20 @@ impl WordReader {
     }
 
     fn pool(&self, states: &[f32], words: &[u32], n: usize, w: &mut Work) {
+        self.pool_into(states, words, n, &mut w.pooled, &mut w.count);
+    }
+
+    pub(crate) fn pool_into(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        n: usize,
+        pooled: &mut Vec<f32>,
+        count: &mut Vec<u32>,
+    ) {
         let h = self.hidden;
-        w.pooled.clear();
-        w.pooled.resize(n * h, 0.0);
-        let count = &mut w.count;
+        pooled.clear();
+        pooled.resize(n * h, 0.0);
         count.clear();
         count.resize(n, 0);
         for (r, &word) in words.iter().enumerate() {
@@ -206,7 +216,7 @@ impl WordReader {
                 continue;
             }
             let i = word as usize;
-            let (row, dst) = (&states[r * h..][..h], &mut w.pooled[i * h..][..h]);
+            let (row, dst) = (&states[r * h..][..h], &mut pooled[i * h..][..h]);
             match self.pooling {
                 WordPooling::First if count[i] == 0 => dst.copy_from_slice(row),
                 WordPooling::First => {}
@@ -215,9 +225,9 @@ impl WordReader {
             count[i] += 1;
         }
         if self.pooling == WordPooling::Mean {
-            for (i, &c) in w.count.iter().enumerate() {
+            for (i, &c) in count.iter().enumerate() {
                 let inv = 1.0 / c as f32;
-                w.pooled[i * h..][..h].iter_mut().for_each(|v| *v *= inv);
+                pooled[i * h..][..h].iter_mut().for_each(|v| *v *= inv);
             }
         }
     }
