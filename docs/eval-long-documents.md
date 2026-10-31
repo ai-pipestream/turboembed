@@ -57,7 +57,8 @@ spans. This is corpus-wide evidence search, not the original contract-scoped
 NLI classification task. No 2091-query independence claim is made. Both
 readers preserve contract IDs, exact source text and code-point-to-byte span
 conversion. Invalid offsets, missing hypotheses and inconsistent labels fail.
-These adaptations can have much lower recall@10 because one template judges
+The Price Restrictions template has no positive CUAD test judgement, so 40
+of the 41 templates are scored. These adaptations can have much lower recall@10 because one template judges
 many contracts. They are not numerically comparable to published extraction
 or NLI accuracy.
 
@@ -95,5 +96,113 @@ query-weighted mean. Contracts resample their unique templates. All use
 10000 paired draws, seed 154 and 95% percentile intervals. These intervals
 are conditional on the fixed corpus; they do not estimate uncertainty over
 new documents or establish template independence beyond the source grouping.
-Both raw and grouped verdicts must be shown, including failures. No held-out
-retrieval measurements have yet been recorded for these new adapters.
+Both raw and grouped verdicts are retained, including failures. The results
+below apply this protocol without changing its datasets or thresholds.
+
+
+## Frozen results
+
+**FAIL: two of four evidence sets pass; all four document-ranking floors pass.**
+The ordinary query bootstrap and the properly grouped report agree on that
+verdict. ContractNLI fails contained evidence; CUAD fails both evidence
+intervals. Qasper and GutenQA pass. Lower split rates alone do not pass the
+gate. No dataset or configuration was replaced after observing these results.
+
+All sixteen final records were measured at source
+`cee65da41953c054a1d142a1da63afe9daeb0c07`, with the pinned manifest above,
+CPU, model precision and eight CPU threads. The final records are under
+`analysis/eval/records/long-document-1486/cpu8/`; arm directories `v1`,
+`windows`, `fixed` and `semantic` use the frozen configurations above.
+Machine identity and resolved parameters are in each record. Build metadata,
+binary hashes, source identities, resource accounting and all paired query
+deltas are under `docs/receipts/long-document-1486/`.
+
+The following are differences in percentage points, with **grouped** 95%
+intervals. The floor compares nDCG@10 with the best baseline for that set.
+
+| Set | Recall@10 vs windows | Contained@10 vs windows | Split share v1 / windows | Floor vs best baseline | Evidence / floor |
+|---|---|---|---|---|---|
+| ContractNLI | +1.88 (+0.17..+4.15) | +0.56 (-1.13..+2.82) | 5.32% / 7.15% | -1.85 (-4.94..+0.89), fixed | FAIL / pass |
+| CUAD | -0.47 (-2.73..+1.70) | +0.53 (-1.71..+2.73) | 4.28% / 4.69% | -1.04 (-3.89..+1.65), fixed | FAIL / pass |
+| Qasper | +5.68 (+4.41..+7.02) | +13.78 (+11.97..+15.61) | 7.7% / 51.0% | -1.31 (-2.72..+0.12), semantic | pass / pass |
+| GutenQA | +10.80 (+8.42..+13.26) | +12.05 (+9.54..+14.54) | 5.82% / 8.97% | +0.01 (-0.47..+0.47), fixed | pass / pass |
+
+The raw `chunk-gate` output and its exit status 1 are retained in
+`docs/receipts/long-document-1486/chunk-gate.txt`; the grouped intervals and
+every candidate/reference score, signed delta and oracle gain are in
+`docs/receipts/long-document-1486/paired.json`. The smaller short-document
+shares are 1.63% for ContractNLI, 1.96% for CUAD and zero for the other sets,
+so all four are eligible for the evidence gate.
+
+### Document-ranking diagnostic, kept separate
+
+Every preselected set has a per-query oracle uplift above the old +2-point
+bar against sentence windows. That establishes reachability in principle,
+not an achieved candidate gain or a selection rule applied after scoring.
+The old document-ranking gate fails against each of the three baselines;
+its raw outputs are retained as the three `gate-*.txt` receipts.
+
+| Set | Scored queries with different nDCG@10 | Oracle uplift vs windows | Actual v1 uplift vs windows |
+|---|---:|---:|---:|
+| ContractNLI | 8 / 17 | +3.3782 | +1.5992 |
+| CUAD | 29 / 40 | +3.9777 | +0.5304 |
+| Qasper | 359 / 1451 | +3.1750 | -0.9263 |
+| GutenQA | 402 / 3000 | +3.7357 | +1.7139 |
+
+### Coverage and exclusions
+
+`docs/receipts/long-document-1486/coverage.json` was computed through the
+frozen library's pinned readers; its small audit consumer is included as
+`docs/receipts/long-document-1486/coverage.rs`. The document and evidence
+query denominators were independently checked against all sixteen records.
+There are **zero absent-document judgements on every set**.
+
+| Set | Loaded queries | Scored document / evidence queries | Document / evidence groups | Placed span judgements | Unplaced judgements | Queries without placed evidence |
+|---|---:|---:|---:|---:|---:|---:|
+| Qasper | 1451 | 1451 / 1310 | 416 / 408 papers | 3395 | 21 | 141 |
+| GutenQA | 3000 | 3000 / 2888 | 100 / 100 books | 2888 | 112 | 112 |
+| CUAD | 41 | 40 / 40 | 40 / 40 templates | 2643 | 0 | 1 |
+| ContractNLI | 17 | 17 / 17 | 17 / 17 hypotheses | 2404 | 0 | 0 |
+
+Only CUAD excludes a query from document scoring: Price Restrictions has no
+positive test judgement. Qasper's existing reader also excludes 459 raw
+`FLOAT SELECTED` evidence occurrences, representing 322 distinct
+query/evidence-string pairs, and zero empty evidence strings. These filter
+counts are separate from the 21 unplaced judgements and from query counts;
+they must not be added together as if they counted the same unit. Qasper's
+141 evidence-unscored questions include questions with no usable placed
+evidence; their document judgements remain scored. All omissions apply
+identically to every arm. The contract readers placed every annotated span.
+
+### Structural and resource receipts
+
+The current, clause-enabled screen is distinct from the historical screen:
+
+| Set | Current v1 / windows chunks | Different document cuts | Documents with at most two chunks, v1 / windows |
+|---|---:|---:|---:|
+| Qasper | 10761 / 15405 | 416 / 416 | 0 / 0 |
+| GutenQA | 71645 / 89505 | 100 / 100 | 0 / 0 |
+| CUAD | 5181 / 5635 | 101 / 102 | 4 / 2 |
+| ContractNLI | 1424 / 1282 | 122 / 123 | 2 / 3 |
+
+The full current screen is in `docs/receipts/long-document-1486/current-screen.jsonl`.
+A replay of the recovered private executable reproduced every historical
+cut total and token percentile, and recovered its omitted short-document
+counts (the same 0/0, 0/0, 4/2 and 2/3). That replay is labeled by executable
+and source-file hashes, not claimed as a newly source-verified build. Its
+legacy CUAD `queries=4182` counts repeated annotation pairs, not independent
+queries. Neither structural screen is a retrieval result.
+
+Twelve completed two-thread CPU probe records are retained separately in
+`analysis/eval/records/long-document-1486/cpu2-probe/`. Every full metric,
+including every per-query value, matches its eight-thread repeat exactly.
+The initial two-thread GutenQA v1 attempt was terminated with status 143
+before writing a record so the entire matrix could restart with a fixed
+thread configuration. Its cancellation reason and resource receipt remain;
+it is not a failed quality score or a passing run. All sixteen final runs
+completed with exit status zero. The quality gate nevertheless exits 1.
+
+Resource measurements were collected on a shared host and are not isolated
+throughput comparisons. The completed runs, interruption and legacy replay
+are accounted for in the receipts. `docs/receipts/long-document-1486/SHA256SUMS`
+hashes all published records and receipts using repository-relative paths.

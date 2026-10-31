@@ -473,3 +473,10 @@ GutenQA (100 documents, 339,809 level units, 50 queries):
 The four-set long-document follow-up (#1486), its pinned contract adapters,
 recovered structural screen and grouped uncertainty protocol are documented
 in [eval-long-documents.md](eval-long-documents.md).
+
+The frozen four-set result is **FAIL**: Qasper and GutenQA pass the evidence
+gate; CUAD and ContractNLI do not. All four nDCG@10 floors pass under both
+raw and correctly grouped uncertainty. See the full result, query coverage,
+per-query oracle diagnostics and retained failures in
+[eval-long-documents.md](eval-long-documents.md). The old +2 document-ranking
+diagnostic remains separate; its three baseline comparisons all fail.
