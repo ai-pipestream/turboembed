@@ -66,16 +66,23 @@ What is here:
   head on the shared loop: the head's loss flows through the pooling
   into the encoder's trainable weights, dev is scored through the core's
   tagger over the encoder's states, and `fit_tuned` takes the same
-  `Config` as `fit`, threads and lanes included. One sequence a thread,
-  with no sum split: the reference the later legs (CUDA backward, bf16)
-  are held to.
+  `Config` as `fit`, threads and lanes included. `with_dropout` sets
+  ModernBERT's three dropout rates (after the embedding norm, on
+  attention's output, on the MLP's activated hidden) and a seed; a
+  training forward (`forward_at`, which the loop uses) drops under
+  masks keyed by the seed, the example's place in the run (its epoch and
+  index), the layer and the branch, so the same place gives the same
+  mask on any thread or lane and backward redraws it rather than keeping
+  it; `forward`, dev scoring and inference drop nothing. One sequence a
+  thread, with no sum split: the reference the later legs (CUDA
+  backward, bf16) are held to.
 
 Corpora, scoring, receipts and the `turbo-train-head` command are in
 `trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle
 output; the edit-tree head (R1c); the rest of R2 (CUDA backward, bf16
 with f32 master weights and loss scaling, checkpointing of the other
-activations, dropout, full fine-tuning runs on a corpus and bundle
-output, #1519); distillation (R3, #1520).
+activations, full fine-tuning runs on a corpus and bundle output,
+#1519); distillation (R3, #1520).
 
 ```text
 cargo test -p turbo-trainer

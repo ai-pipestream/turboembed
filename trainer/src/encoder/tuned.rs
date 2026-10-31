@@ -142,7 +142,8 @@ impl<R: Real> Tuned<R> {
 
     /// Zero gradients shaped as [`params`](Self::params).
     pub fn zero_grads(&self) -> Vec<Vec<R>> {
-        self.params().into_iter().map(|p| vec![R::ZERO; p.len()]).collect()
+        let e = self.slots.iter().map(|&s| self.encoder.params()[s].len());
+        e.chain(self.head.params().iter().map(Vec::len)).map(|n| vec![R::ZERO; n]).collect()
     }
 
     /// Which weights take weight decay.
@@ -191,8 +192,19 @@ impl<R: Real> Tuned<R> {
     }
 
     /// The loss of `e`, summed over its words, with its gradients added
-    /// to `grads` (shaped as [`zero_grads`](Self::zero_grads)).
+    /// to `grads` (shaped as [`zero_grads`](Self::zero_grads)); the
+    /// encoder runs without dropout.
     pub fn loss(&self, e: &TunedExample, grads: &mut [Vec<R>], w: &mut Work<R>) -> Result<f64> {
+        self.loss_drawn(e, None, grads, w)
+    }
+
+    /// [`loss`](Self::loss) with the encoder's dropout masks drawn for
+    /// the example at `at` (see [`Encoder::forward_at`]).
+    pub fn loss_at(&self, e: &TunedExample, at: u64, grads: &mut [Vec<R>], w: &mut Work<R>) -> Result<f64> {
+        self.loss_drawn(e, Some(at), grads, w)
+    }
+
+    fn loss_drawn(&self, e: &TunedExample, at: Option<u64>, grads: &mut [Vec<R>], w: &mut Work<R>) -> Result<f64> {
         let k = self.slots.len();
         let shaped = grads.len() == k + self.head.params().len()
             && grads.iter().zip(&self.slots).all(|(g, &s)| g.len() == self.encoder.params()[s].len());
@@ -200,7 +212,10 @@ impl<R: Real> Tuned<R> {
             return Err(invalid("trainer: the gradients do not match the encoder and its head"));
         }
         self.check(e)?;
-        self.encoder.forward(&e.ids, &mut w.encoder)?;
+        match at {
+            Some(at) => self.encoder.forward_at(&e.ids, at, &mut w.encoder)?,
+            None => self.encoder.forward(&e.ids, &mut w.encoder)?,
+        }
         let (h, pooling) = (self.encoder.geometry().hidden, self.head.spec().word_pooling);
         pool::forward(&w.encoder.out, &e.words, h, pooling, &mut w.features, &mut w.count)?;
         let forms = e.forms();
@@ -263,6 +278,9 @@ impl Model for Tuned<f32> {
     fn loss(&self, e: &TunedExample, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
         Ok((Tuned::loss(self, e, grads, w)?, e.labels.len()))
     }
+    fn loss_at(&self, e: &TunedExample, at: u64, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
+        Ok((Tuned::loss_at(self, e, at, grads, w)?, e.labels.len()))
+    }
     fn score(&self, dev: &[TunedExample]) -> Result<f64> {
         Tuned::score(self, dev)
     }
@@ -270,8 +288,8 @@ impl Model for Tuned<f32> {
 
 /// The summed gradients and loss of `examples` under `model`, computed
 /// as a training step computes them over `threads` threads (0: every
-/// core) in rounds of `lanes` (0: all at once); the bytes depend on
-/// neither.
+/// core) in rounds of `lanes` (0: all at once), the dropout masks drawn
+/// for the first epoch; the bytes depend on neither.
 pub fn tuned_gradients(
     model: &Tuned<f32>,
     examples: &[TunedExample],
@@ -279,7 +297,7 @@ pub fn tuned_gradients(
     lanes: usize,
 ) -> Result<(Vec<Vec<f32>>, f64)> {
     let mut grads = model.zero_grads();
-    let refs: Vec<&TunedExample> = examples.iter().collect();
+    let refs: Vec<(&TunedExample, u64)> = examples.iter().zip(0..).collect();
     let (loss, _) = crate::batch::Batch::new(threads, lanes).gradients(model, &refs, &mut grads)?;
     Ok((grads, loss))
 }
