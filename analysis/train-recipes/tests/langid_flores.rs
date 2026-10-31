@@ -28,6 +28,11 @@ fn flores_command_loads_a_model_and_scores_every_row() {
     assert_eq!(receipt["texts"], 2);
     assert_eq!(receipt["correct"], 1);
     assert_eq!(receipt["accuracy"], 0.5);
+    assert_eq!(receipt["supported_texts"], 1);
+    assert_eq!(receipt["supported_correct"], 1);
+    assert_eq!(receipt["supported_accuracy"], 1.0);
+    assert_eq!(receipt["languages"]["deu"], serde_json::json!({ "texts": 1, "correct": 0, "supported": false }));
+    assert_eq!(receipt["languages"]["eng"], serde_json::json!({ "texts": 1, "correct": 1, "supported": true }));
     assert_eq!(receipt["revision_claim"], turbo_train_recipes::flores::FLORES_PLUS_REVISION);
     assert!(receipt["elapsed_seconds"].as_f64().unwrap() >= 0.0);
     assert!(receipt["texts_per_second"].as_f64().unwrap() > 0.0);
