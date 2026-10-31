@@ -10,7 +10,7 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | `germeval2014-outer`, `germeval2014-inner` | GermEval 2014 corrected 2022-04-28 (CC BY 4.0) | separate outer and inner BIO heads, 12 types each | size and SHA-256 of each file | publisher train/dev/test; [recipe and limits](germeval.md) |
 | `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
 | `ud-en-ewt-upos`, `ud-en-ewt-xpos`, `ud-en-ewt-feats` | UD English EWT r2.18 (commit `b7711cce`), one corpus a column, read as syntactic words (CC BY-SA 4.0: share-alike, as MultiCoNER) | tags, heads `upos` on `turboembed:pos`, `xpos`, `feats` | size and SHA-256 of each file (`ud::EN_EWT`) | the release's own train, dev and test; the test file is the one the spaCy, Stanza and Trankit peer records score |
-| `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the last five CC BY-SA 4.0, share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
+| `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd`, and in `ud_banks_sa` and `ud_banks_sa2` `af-afribooms`, `hy-bsut`, `hr-set`, `da-ddt`, `ka-glc`, `is-icepahc`, `id-gsd`, `ga-idt`, `ko-kaist`, `lv-lvtb`, `no-bokmaal`, `fa-perdt`, `ro-rrt`, `sr-set`, `sk-snk`, `sl-ssj`, `sv-talbanken`, `tr-boun` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the rest CC BY-SA 4.0 (Irish IDT CC BY-SA 3.0), share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
 
 A directory that is not the recorded release is refused unless the run
 passes `--unrecorded-corpus`, and its receipt then says
@@ -26,7 +26,13 @@ done
 The r2.16 treebanks the same way, each from its repository at `r2.16`
 (`UD_Spanish-AnCora`, `UD_Catalan-AnCora`, `UD_Finnish-FTB`,
 `UD_Italian-MarkIT`, `UD_Portuguese-Porttinari`, `UD_German-GSD`,
-`UD_French-GSD`, `UD_Dutch-Alpino`, `UD_Russian-GSD`, `UD_Portuguese-GSD`),
+`UD_French-GSD`, `UD_Dutch-Alpino`, `UD_Russian-GSD`, `UD_Portuguese-GSD`,
+`UD_Afrikaans-AfriBooms`, `UD_Armenian-BSUT`, `UD_Croatian-SET`,
+`UD_Danish-DDT`, `UD_Georgian-GLC`, `UD_Icelandic-IcePaHC`,
+`UD_Indonesian-GSD`, `UD_Irish-IDT`, `UD_Korean-Kaist`, `UD_Latvian-LVTB`,
+`UD_Norwegian-Bokmaal`, `UD_Persian-PerDT`, `UD_Romanian-RRT`,
+`UD_Serbian-SET`, `UD_Slovak-SNK`, `UD_Slovenian-SSJ`,
+`UD_Swedish-Talbanken`, `UD_Turkish-BOUN`),
 the `<code>_<bank>-ud-{train,dev,test}.conllu` files the repository holds:
 
 ```text
