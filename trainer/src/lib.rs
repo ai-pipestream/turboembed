@@ -18,6 +18,7 @@ pub mod adamw;
 pub mod adapter;
 mod batch;
 pub mod crf;
+pub mod distill;
 pub mod encoder;
 pub mod fit;
 pub mod fit_lemma;
@@ -41,6 +42,11 @@ pub mod tagger;
 pub mod tally;
 pub mod xent;
 
+pub use distill::{
+    DistillExample, DistillOptions, DistillReport, DistillScratch, DistillTask, DistillWork, StudentGate,
+    ThroughputComparison, distill_loss, distill_loss_with, distill_multi_head, distill_tagger, feature_align_loss,
+    make_distill_examples, measure_throughput, score_tagger, tagger_distill_loss,
+};
 pub use encoder::tuned::{Tuned, TunedExample, fit_tuned, fit_tuned_with, tuned_gradients};
 pub use fit::{Config, Draw, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
 pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};

@@ -25,6 +25,9 @@
 //!     [--min-tree-freq N])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
+//! turbo-train-head distill-head --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
+//!     [--student-bundle <student bundle>] [--teacher <teacher dir>] [--temperature T] [--alpha A]
+//!     [--max-accuracy-drop X] [--min-speedup X] [--allow-gate-failure] [head and training settings]
 //! ```
 //!
 //! `cache` writes every split's word features at the encoder's last N
@@ -134,6 +137,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "distill-head" => turbo_trainer_recipes::distill::command(&argv, &corpus_id, &dir, unrecorded, a),
         "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
         "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
         "train-lemma" | "train-parse" => {
@@ -143,7 +147,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, distill-head, cache, fit-cache, export or peer"
         ))),
     }
 }

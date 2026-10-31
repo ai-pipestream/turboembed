@@ -22,6 +22,7 @@
 pub mod cache;
 pub mod cli;
 pub mod corpus;
+pub mod distill;
 pub mod eval;
 pub mod fit_cache;
 pub mod germeval;
