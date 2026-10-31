@@ -174,119 +174,114 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     assert_eq!(cls_cats.best_category(0), "positive");
 
     // Optional MASC 3.0.0 MPQA corpus evaluation: TURBO_MASC_ROOT is the corpus'
-    // `data` directory and TURBO_MINILM_BUNDLE an all-MiniLM-L6-v2 bundle.
+    // `data` directory and TURBO_MODERNBERT_BUNDLE / TURBO_MINILM_BUNDLE name
+    // the default-tier ModernBERT-base bundle and/or legacy all-MiniLM-L6-v2 bundle.
     let masc_root = std::env::var_os("TURBO_MASC_ROOT").map(PathBuf::from);
     let minilm_path = std::env::var_os("TURBO_MINILM_BUNDLE").map(PathBuf::from);
-    if let (Some(masc_root), Some(minilm_path)) = (masc_root, minilm_path)
+    let modernbert_path = std::env::var_os("TURBO_MODERNBERT_BUNDLE").map(PathBuf::from);
+    if let Some(masc_root) = masc_root
         && masc_root.is_dir()
+        && (minilm_path.is_some() || modernbert_path.is_some())
     {
-        let minilm_path = turbo_pins::require(&minilm_path);
         let samples = load_masc_mpqa_samples(&masc_root);
         assert!(samples.len() >= 200, "expected >= 200 MASC MPQA samples, got {}", samples.len());
         let split = (samples.len() * 4) / 5;
         let (m_train, m_test) = samples.split_at(split);
-
         let use_cuda = std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1");
-        let o = VectorOptions {
-            encoder: EncoderOptions {
-                device: if use_cuda { Device::Backend("cuda".into()) } else { Device::Cpu },
-                max_seq: 64,
-                ..EncoderOptions::default()
-            },
-            ..VectorOptions::default()
-        };
-        // The bundle and device were asked for by name, so a bundle that does
-        // not open, or a CUDA device that is not there, fails the test rather
-        // than quietly scoring the tiny fixture under the MiniLM name.
-        let m_vec_ann = Arc::new(
-            VectorAnnotator::open(&minilm_path, &o)
-                .unwrap_or_else(|e| panic!("TURBO_MINILM_BUNDLE={}: {e}", minilm_path.display())),
-        );
-        let eval_bundle_path = minilm_path.clone();
-        let m_dim = m_vec_ann.dim();
-        let m_sub = SubwordAnnotator::open(&eval_bundle_path).unwrap();
-        let m_pipe = Analyzer::builder()
-            .given(Key::<Sentences>::DEFAULT)
-            .add(m_sub)
-            .add(SentenceVectors(Arc::clone(&m_vec_ann)))
-            .build()
-            .unwrap();
-        let embed_masc = |slice: &[(String, usize)]| -> Vec<(Vec<f32>, Tag)> {
-            let mut docs: Vec<Document> =
-                slice.iter().map(|(t, _)| make_doc_with_sentences(t, &[(0, t.len() as u32)])).collect();
-            for r in m_pipe.run(&mut docs) {
-                r.unwrap();
-            }
-            docs.iter()
-                .zip(slice)
-                .map(|(d, (_, l))| {
-                    let v = d.get::<Vectors<Sentences>>().unwrap().row(Ix::new(0)).to_vec();
-                    (v, Tag(*l as u16))
-                })
-                .collect()
-        };
 
-        let m_train_vecs = embed_masc(m_train);
-        let m_test_vecs = embed_masc(m_test);
+        let lex_preds: Vec<Polarity> = m_test
+            .iter()
+            .map(
+                |(text, _)| {
+                    if lexicon.score_text(text).compound >= 0.0 { Polarity::Positive } else { Polarity::Negative }
+                },
+            )
+            .collect();
+        let m_lex_ok = m_test
+            .iter()
+            .zip(&lex_preds)
+            .filter(|&((_, want), &pred)| (if *want == 0 { Polarity::Positive } else { Polarity::Negative }) == pred)
+            .count();
 
-        let m_pos: Vec<&[f32]> = m_train_vecs.iter().filter(|(_, t)| *t == Tag(0)).map(|(v, _)| v.as_slice()).collect();
-        let m_neg: Vec<&[f32]> = m_train_vecs.iter().filter(|(_, t)| *t == Tag(1)).map(|(v, _)| v.as_slice()).collect();
+        let minilm_eval = minilm_path.as_deref().map(|p| {
+            let ev = masc_polarity::eval_encoder_on_masc(p, use_cuda, m_train, m_test, &lexicon);
+            let count_ok = |preds: &[Polarity]| {
+                m_test
+                    .iter()
+                    .zip(preds)
+                    .filter(|&((_, w), &pr)| (if *w == 0 { Polarity::Positive } else { Polarity::Negative }) == pr)
+                    .count()
+            };
+            let n = m_test.len();
+            println!(
+                "MASC 3.0.0 MPQA polarity spans on {} (dim={}, train={}, test={}): Lexicon={}/{} ({:.1}%), Centroids={}/{} ({:.1}%), LinearHead={}/{} ({:.1}%), PolarityVectorHead={}/{} ({:.1}%), Hybrid={}/{} ({:.1}%)",
+                ev.model.id,
+                ev.dim,
+                m_train.len(),
+                n,
+                m_lex_ok,
+                n,
+                100.0 * m_lex_ok as f64 / n as f64,
+                count_ok(&ev.centroids_preds),
+                n,
+                100.0 * count_ok(&ev.centroids_preds) as f64 / n as f64,
+                count_ok(&ev.linear_preds),
+                n,
+                100.0 * count_ok(&ev.linear_preds) as f64 / n as f64,
+                count_ok(&ev.polarity_preds),
+                n,
+                100.0 * count_ok(&ev.polarity_preds) as f64 / n as f64,
+                count_ok(&ev.hybrid_preds),
+                n,
+                100.0 * count_ok(&ev.hybrid_preds) as f64 / n as f64,
+            );
+            ev
+        });
 
-        let m_centroids = LabelCentroids::from_vector_examples(
-            m_vec_ann.model().clone(),
-            m_dim,
-            "sentiment",
-            &[("positive", &m_pos[..]), ("negative", &m_neg[..])],
-            CentroidNorm::L2,
-            0.1,
-        )
-        .unwrap();
-        let m_linear = ClassifierHead::fit_single_label(
-            m_vec_ann.model().clone(),
-            m_dim,
-            Arc::clone(&tags),
-            &m_train_vecs,
-            1e-4,
-            300,
-            1.5,
-        )
-        .unwrap();
-
-        let mut m_lex_ok = 0usize;
-        let mut m_cent_ok = 0usize;
-        let mut m_lin_ok = 0usize;
-        for (i, (text, want)) in m_test.iter().enumerate() {
-            let want_tag = Tag(*want as u16);
-            let (v, _) = &m_test_vecs[i];
-            if m_centroids.score_single_label(v, &mut probs).unwrap().0 == want_tag {
-                m_cent_ok += 1;
-            }
-            if m_linear.score(v, &mut probs).unwrap().0 == want_tag {
-                m_lin_ok += 1;
-            }
-            let vscore = lexicon.score_text(text);
-            let lex_tag = if vscore.compound >= 0.0 { Tag(0) } else { Tag(1) };
-            if lex_tag == want_tag {
-                m_lex_ok += 1;
-            }
+        if let Some(mod_path) = modernbert_path.as_deref() {
+            let mod_ev = masc_polarity::eval_encoder_on_masc(mod_path, use_cuda, m_train, m_test, &lexicon);
+            let count_ok = |preds: &[Polarity]| {
+                m_test
+                    .iter()
+                    .zip(preds)
+                    .filter(|&((_, w), &pr)| (if *w == 0 { Polarity::Positive } else { Polarity::Negative }) == pr)
+                    .count()
+            };
+            let n = m_test.len();
+            println!(
+                "MASC 3.0.0 MPQA polarity spans on {} (dim={}, train={}, test={}): Lexicon={}/{} ({:.1}%), Centroids={}/{} ({:.1}%), LinearHead={}/{} ({:.1}%), PolarityVectorHead={}/{} ({:.1}%), Hybrid={}/{} ({:.1}%)",
+                mod_ev.model.id,
+                mod_ev.dim,
+                m_train.len(),
+                n,
+                m_lex_ok,
+                n,
+                100.0 * m_lex_ok as f64 / n as f64,
+                count_ok(&mod_ev.centroids_preds),
+                n,
+                100.0 * count_ok(&mod_ev.centroids_preds) as f64 / n as f64,
+                count_ok(&mod_ev.linear_preds),
+                n,
+                100.0 * count_ok(&mod_ev.linear_preds) as f64 / n as f64,
+                count_ok(&mod_ev.polarity_preds),
+                n,
+                100.0 * count_ok(&mod_ev.polarity_preds) as f64 / n as f64,
+                count_ok(&mod_ev.hybrid_preds),
+                n,
+                100.0 * count_ok(&mod_ev.hybrid_preds) as f64 / n as f64,
+            );
+            let head_out = std::env::var_os("TURBO_POLARITY_HEAD_OUT").map(PathBuf::from);
+            let receipt_out = std::env::var_os("TURBO_POLARITY_RECEIPT_OUT").map(PathBuf::from);
+            masc_polarity::write_modernbert_polarity_receipt(
+                m_train,
+                m_test,
+                &lex_preds,
+                &mod_ev,
+                minilm_eval.as_ref(),
+                head_out.as_deref(),
+                receipt_out.as_deref(),
+            );
         }
-        let n = m_test.len();
-        println!(
-            "MASC 3.0.0 MPQA polarity spans on {} (dim={}, train={}, test={}): Lexicon={}/{} ({:.1}%), Centroids={}/{} ({:.1}%), LinearHead={}/{} ({:.1}%)",
-            m_vec_ann.model().id,
-            m_dim,
-            m_train.len(),
-            n,
-            m_lex_ok,
-            n,
-            100.0 * m_lex_ok as f64 / n as f64,
-            m_cent_ok,
-            n,
-            100.0 * m_cent_ok as f64 / n as f64,
-            m_lin_ok,
-            n,
-            100.0 * m_lin_ok as f64 / n as f64,
-        );
     }
 }
 

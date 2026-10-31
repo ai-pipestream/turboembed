@@ -24,6 +24,12 @@ pub const CIVIL_COMMENTS_BGE_SMALL_HEAD: &str = "turbo-en-civil-comments-bge-sma
 /// Civil Comments 6-label incivility head with parent-comment context matrix trained over `BAAI/bge-small-en-v1.5` (384-dim).
 pub const CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD: &str = "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1";
 
+/// Civil Comments 6-label incivility head trained over `answerdotai/ModernBERT-base` (768-dim).
+pub const CIVIL_COMMENTS_MODERNBERT_HEAD: &str = "turbo-en-civil-comments-modernbert-base-head-1";
+
+/// Civil Comments 6-label incivility head with parent-comment context matrix trained over `answerdotai/ModernBERT-base` (768-dim).
+pub const CIVIL_COMMENTS_MODERNBERT_CONTEXT_HEAD: &str = "turbo-en-civil-comments-modernbert-base-context-head-1";
+
 /// Why an incivility head could not be fetched or loaded from the zoo.
 #[derive(Debug)]
 pub enum IncivilityZooError {
