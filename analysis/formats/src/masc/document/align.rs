@@ -5,7 +5,8 @@ use std::collections::{HashMap, HashSet};
 use super::super::error::MascError;
 use super::xml::{NamedEntities, Penn, Region};
 use super::{
-    MascDocument, MascEntity, MascName, MascSentence, MascToken, MascUnplacedEntity, MascWarning, Quark, Unplaced,
+    MascDocument, MascEntity, MascEntityPiece, MascName, MascSentence, MascToken, MascUnplacedEntity, MascWarning,
+    Quark, Unplaced,
 };
 
 impl MascDocument {
@@ -127,10 +128,8 @@ impl MascDocument {
             }
             sentence.names = names;
             let mut entities = Vec::new();
+            let mut pieces = Vec::new();
             for entity in &ne.entities {
-                if entity.tokens.is_empty() || !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t)) {
-                    continue;
-                }
                 let mut tokens: Vec<u32> =
                     entity.tokens.iter().filter_map(|t| sentence.token_places.get(t)).map(|&i| i as u32).collect();
                 tokens.sort_unstable();
@@ -139,9 +138,15 @@ impl MascDocument {
                     continue;
                 };
                 let kind = ne.types.get(&entity.id).cloned().flatten();
-                entities.push(MascEntity { start: first, end: last + 1, kind, tokens });
+                let continues = !entity.tokens.iter().all(|t| sentence.token_places.contains_key(t));
+                let piece = MascEntity { start: first, end: last + 1, kind, tokens };
+                if !continues {
+                    entities.push(piece.clone());
+                }
+                pieces.push(MascEntityPiece { id: entity.id, continues, entity: piece });
             }
             sentence.entities = entities;
+            sentence.entity_pieces = pieces;
         }
         self.has_named_entities = true;
     }
