@@ -79,10 +79,10 @@ fn check_token_range(tlen: TargetLen, what: &str, lid: &str, i: usize, s: u32, e
     // A projection always carries the tokens layer its token ranges index;
     // without it nothing bounds the range, so refuse rather than skip.
     let Some(lim) = tlen.get(lid)? else {
-        return Err(bad(format!("{lid}[{i}] {what} has a token range but no opennlp:tokens layer to bound it")));
+        return Err(bad(format!("{lid}[{i}] {what} has a token range but no turbo:tokens layer to bound it")));
     };
     if (e as usize) > lim {
-        return Err(bad(format!("{lid}[{i}] {what} token_end {e} exceeds opennlp:tokens length")));
+        return Err(bad(format!("{lid}[{i}] {what} token_end {e} exceeds turbo:tokens length")));
     }
     Ok(())
 }
@@ -306,16 +306,16 @@ fn validate_layer(
         .zip(&target_bounds)
         .map(|(b, &n)| ((b.layer.as_str(), b.instance.as_str()), n))
         .collect();
-    let token_len = match TargetLen::of(&target_lengths, "opennlp:tokens") {
+    let token_len = match TargetLen::of(&target_lengths, "turbo:tokens") {
         TargetLen::One(None) => TargetLen::One(
             layer_lengths
-                .get(&("opennlp:tokens", layer.instance.as_str()))
-                .or_else(|| layer_lengths.get(&("opennlp:tokens", "")))
+                .get(&("turbo:tokens", layer.instance.as_str()))
+                .or_else(|| layer_lengths.get(&("turbo:tokens", "")))
                 .copied(),
         ),
         bound => bound,
     };
-    let entity_len = TargetLen::of(&target_lengths, "opennlp:entities");
+    let entity_len = TargetLen::of(&target_lengths, "turbo:entities");
 
     let ctx = LayerCtx {
         text: &msg.raw_text,

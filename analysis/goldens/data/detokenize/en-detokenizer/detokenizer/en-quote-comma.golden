@@ -7,7 +7,7 @@ input	detokenizer/en-quote-comma	30	30	e0c9d738269c4b8794ae1a0ac99a935b913e49998
 model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	10	start:u32	end:u32
+layer	turbo:tokens	text	10	start:u32	end:u32
 0	2
 3	7
 8	9
@@ -18,8 +18,8 @@ layer	opennlp:tokens	text	10	start:u32	end:u32
 21	25
 26	27
 28	29
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	10	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	10	operation:str
 NO_OPERATION
 NO_OPERATION
 MERGE_TO_LEFT

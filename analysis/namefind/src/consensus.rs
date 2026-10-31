@@ -1,7 +1,7 @@
 //! Consensus over several recognizers' entities: the dictionary, regex,
 //! MaxEnt, CRF, neural and gazetteer finders run side by side, each into
-//! its own named instance of `opennlp:entities`, and
-//! [`ConsensusEntityMerger`] writes one `opennlp:entities` from them with
+//! its own named instance of `turbo:entities`, and
+//! [`ConsensusEntityMerger`] writes one `turbo:entities` from them with
 //! an `Evidence<Entities>` record per entity that names every
 //! recognizer that voted for it.
 //!

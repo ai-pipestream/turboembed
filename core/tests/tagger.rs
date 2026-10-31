@@ -187,7 +187,7 @@ fn manifest_refuses_ill_formed_heads() {
     );
     refused("artifact", |m| h(m)["artifact"] = json!("weights-f16"), BUNDLE_INVALID, "no artifact \"weights-f16\"");
     refused("artifact-index", |m| h(m)["artifact"] = json!(0), BUNDLE_INVALID, "artifact");
-    refused("layer-namespace", |m| h(m)["layer"] = json!("opennlp:pos"), BUNDLE_INVALID, "turboembed:");
+    refused("layer-namespace", |m| h(m)["layer"] = json!("turbo:pos"), BUNDLE_INVALID, "turboembed:");
     refused("layer-name", |m| h(m)["layer"] = json!("turboembed:"), BUNDLE_INVALID, "turboembed:");
     refused("layer-case", |m| h(m)["layer"] = json!("turboembed:POS"), BUNDLE_INVALID, "turboembed:");
     refused("layers", |m| h(m)["adapter"]["bilstm"]["layers"] = json!(4), BUNDLE_INVALID, "at most");

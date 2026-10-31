@@ -39,7 +39,7 @@ impl<L: Layer> Vectors<L> {
 }
 
 impl<L: Layer> Layer for Vectors<L> {
-    const ID: &'static str = "opennlp:embeddings";
+    const ID: &'static str = turbo_analysis::ids::EMBEDDINGS;
     const OF: Option<&'static LayerName> = Some(L::NAME);
     fn anchor() -> Anchor {
         Anchor::aligned::<L>()
@@ -235,7 +235,7 @@ impl Language {
 }
 
 impl Layer for Language {
-    const ID: &'static str = "opennlp:language";
+    const ID: &'static str = turbo_analysis::ids::LANGUAGE;
     const SCHEMA: u16 = 2;
     fn anchor() -> Anchor {
         Anchor::Document

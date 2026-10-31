@@ -1,0 +1,298 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-31T12:05:30Z",
+  "provenance": {
+    "commit": "cee65da41953c054a1d142a1da63afe9daeb0c07",
+    "pushed_to": [
+      "origin/codex/astra-1486-long-document-gates"
+    ],
+    "machine": {
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+      "os": "linux"
+    },
+    "device": {
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
+    },
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+      "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+      "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    }
+  },
+  "set": {
+    "name": "contract-nli",
+    "sha256": "4709f5fc3ec80601d0656c009e15eb72ffd06e145cb5cd6576e50a936c41a7cd"
+  },
+  "pipeline": {
+    "analyzer": [
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
+      "turbo:structure plain",
+      "opennlp:subwords"
+    ],
+    "chunker": {
+      "name": "fixed-tokens",
+      "config": [
+        {
+          "name": "tokens",
+          "value": "200"
+        },
+        {
+          "name": "overlap",
+          "value": "0"
+        }
+      ]
+    },
+    "retrieval": {
+      "name": "hybrid",
+      "config": [
+        {
+          "name": "fusion",
+          "value": "weighted"
+        },
+        {
+          "name": "bm25_weight",
+          "value": "0.35"
+        },
+        {
+          "name": "k1",
+          "value": "1.2"
+        },
+        {
+          "name": "b",
+          "value": "0.75"
+        },
+        {
+          "name": "terms",
+          "value": "folded"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "queries": 17,
+    "ndcg_at_10": 0.8766005693292422,
+    "recall": {
+      "at_1": 0.015630457873082478,
+      "at_5": 0.08459697250182485,
+      "at_10": 0.1515581378470457,
+      "at_100": 0.9212687912837837
+    },
+    "span": {
+      "queries": 17,
+      "mean": {
+        "at_1": {
+          "precision": 0.2679938160804624,
+          "recall": 0.015044969976031889,
+          "contained": 0.01122655191406345
+        },
+        "at_5": {
+          "precision": 0.2965993403923422,
+          "recall": 0.06406406983982556,
+          "contained": 0.05522805267077929
+        },
+        "at_10": {
+          "precision": 0.27649637344980116,
+          "recall": 0.1076928874891867,
+          "contained": 0.09899063895750938
+        },
+        "at_100": {
+          "precision": 0.11685674944178434,
+          "recall": 0.3877434898225719,
+          "contained": 0.3286136178435733
+        }
+      },
+      "integrity": {
+        "split": 0.21547420965058237,
+        "short_documents": 0.016260162601626018
+      },
+      "per_query": [
+        {
+          "query": "nda-1",
+          "recall": 0.06070325492991209,
+          "contained": 0.09302325581395349
+        },
+        {
+          "query": "nda-10",
+          "recall": 0.09041457823367137,
+          "contained": 0.15789473684210525
+        },
+        {
+          "query": "nda-11",
+          "recall": 0.45759493670886076,
+          "contained": 0.4
+        },
+        {
+          "query": "nda-12",
+          "recall": 0.12211944820987163,
+          "contained": 0.07909604519774012
+        },
+        {
+          "query": "nda-13",
+          "recall": 0.07413129582291637,
+          "contained": 0.048458149779735685
+        },
+        {
+          "query": "nda-15",
+          "recall": 0.10094053881715288,
+          "contained": 0.05714285714285714
+        },
+        {
+          "query": "nda-16",
+          "recall": 0.09027459954233409,
+          "contained": 0.06153846153846154
+        },
+        {
+          "query": "nda-17",
+          "recall": 0.0259103157603814,
+          "contained": 0.02666666666666667
+        },
+        {
+          "query": "nda-18",
+          "recall": 0.06297079983072365,
+          "contained": 0.08235294117647059
+        },
+        {
+          "query": "nda-19",
+          "recall": 0.10388215951414287,
+          "contained": 0.10666666666666667
+        },
+        {
+          "query": "nda-2",
+          "recall": 0.06375199180514454,
+          "contained": 0.0514018691588785
+        },
+        {
+          "query": "nda-20",
+          "recall": 0.15855214359887257,
+          "contained": 0.14634146341463414
+        },
+        {
+          "query": "nda-3",
+          "recall": 0.10100184011449602,
+          "contained": 0.06451612903225806
+        },
+        {
+          "query": "nda-4",
+          "recall": 0.0628399548815641,
+          "contained": 0.059907834101382486
+        },
+        {
+          "query": "nda-5",
+          "recall": 0.05209856485242351,
+          "contained": 0.035
+        },
+        {
+          "query": "nda-7",
+          "recall": 0.09640375823463768,
+          "contained": 0.055299539170506916
+        },
+        {
+          "query": "nda-8",
+          "recall": 0.10718890645906824,
+          "contained": 0.15753424657534246
+        }
+      ]
+    },
+    "per_query": [
+      {
+        "query": "nda-1",
+        "ndcg_at_10": 0.8643145546088337
+      },
+      {
+        "query": "nda-10",
+        "ndcg_at_10": 0.9266360779006401
+      },
+      {
+        "query": "nda-11",
+        "ndcg_at_10": 0.8701249883466593
+      },
+      {
+        "query": "nda-12",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-13",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-15",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-16",
+        "ndcg_at_10": 0.43780685607566444
+      },
+      {
+        "query": "nda-17",
+        "ndcg_at_10": 0.6870165078530993
+      },
+      {
+        "query": "nda-18",
+        "ndcg_at_10": 0.2532954041105318
+      },
+      {
+        "query": "nda-19",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-2",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-20",
+        "ndcg_at_10": 0.9266360779006401
+      },
+      {
+        "query": "nda-3",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-4",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-5",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-7",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-8",
+        "ndcg_at_10": 0.9363792118010483
+      }
+    ]
+  },
+  "cost": {
+    "wall": {
+      "analysis_ms": 34.589203,
+      "chunking_ms": 0.216851,
+      "embedding_ms": 5824.864406,
+      "retrieval_ms": 62.356167
+    },
+    "tokens_embedded": 285742,
+    "chunks": 1476,
+    "chunk_bytes": {
+      "min": 2,
+      "p50": 1025,
+      "p90": 1116,
+      "max": 1260
+    },
+    "chunk_tokens": {
+      "min": 4,
+      "p50": 202,
+      "p90": 202,
+      "max": 203
+    }
+  }
+}

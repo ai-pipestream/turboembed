@@ -1,0 +1,16 @@
+{"dataset": "contract-nli", "arm": "v1", "exit_code": 0, "elapsed_seconds": 5.885108232498169, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "contract-nli", "arm": "windows", "exit_code": 0, "elapsed_seconds": 4.955312013626099, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "contract-nli", "arm": "fixed", "exit_code": 0, "elapsed_seconds": 6.426779747009277, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "contract-nli", "arm": "semantic", "exit_code": 0, "elapsed_seconds": 13.54383897781372, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "cuad", "arm": "v1", "exit_code": 0, "elapsed_seconds": 23.9371018409729, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "cuad", "arm": "windows", "exit_code": 0, "elapsed_seconds": 20.814974069595337, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "cuad", "arm": "fixed", "exit_code": 0, "elapsed_seconds": 22.0569007396698, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "cuad", "arm": "semantic", "exit_code": 0, "elapsed_seconds": 37.94196915626526, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "qasper", "arm": "v1", "exit_code": 0, "elapsed_seconds": 40.97700047492981, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "qasper", "arm": "windows", "exit_code": 0, "elapsed_seconds": 42.65910601615906, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "qasper", "arm": "fixed", "exit_code": 0, "elapsed_seconds": 55.463433265686035, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "qasper", "arm": "semantic", "exit_code": 0, "elapsed_seconds": 198.8164188861847, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "gutenqa", "arm": "v1", "exit_code": 0, "elapsed_seconds": 617.8623247146606, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "gutenqa", "arm": "windows", "exit_code": 0, "elapsed_seconds": 488.20868468284607, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "gutenqa", "arm": "fixed", "exit_code": 0, "elapsed_seconds": 830.2879354953766, "timeout_seconds": 3600, "cpu_threads": 8}
+{"dataset": "gutenqa", "arm": "semantic", "exit_code": 0, "elapsed_seconds": 1020.8280010223389, "timeout_seconds": 3600, "cpu_threads": 8}

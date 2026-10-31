@@ -14,8 +14,8 @@ import opennlp.tools.util.Span;
 
 /**
  * OpenNLP's {@link SentenceVectorsDL} on each sentence the English sentence model finds: the
- * sentences as {@code opennlp:sentences}, then each one's vector as {@code
- * turbo:vector<opennlp:sentences>}, the 32-bit pattern of every float in hex, space separated.
+ * sentences as {@code turbo:sentences}, then each one's vector as {@code
+ * turbo:vector<turbo:sentences>}, the 32-bit pattern of every float in hex, space separated.
  *
  * <p>The ONNX model is a mean-pooled copy of the upstream all-MiniLM-L6-v2 export (made by
  * {@code container/mean_pool_onnx.py}): {@link SentenceVectorsDL#embed(CharSequence)} returns the
@@ -108,8 +108,8 @@ final class SentenceVectorsGolden implements AnnotatorGolden {
       }
       hex[i] = b.toString();
     }
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:sentences", input.offsets(), spans));
-    layers.add(new Layer("turbo:vector<opennlp:sentences>", "aligned:opennlp:sentences", new Column.Str("f32", hex)));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:sentences", input.offsets(), spans));
+    layers.add(new Layer("turbo:vector<turbo:sentences>", "aligned:turbo:sentences", new Column.Str("f32", hex)));
     return layers;
   }
 }
