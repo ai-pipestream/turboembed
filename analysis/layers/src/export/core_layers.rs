@@ -74,7 +74,7 @@ impl LayerCodec for Tokens {
                     let index = r.u32()?;
                     if remap.get(old).copied().flatten().is_some() {
                         let new = cx.remapped(&target, index)?.ok_or_else(|| ExportError::InvalidLayer {
-                            layer: "opennlp:tokens".to_string(),
+                            layer: "turbo:tokens".to_string(),
                             detail: "a token in the slice names a sentence outside it".to_string(),
                         })?;
                         kept.push(new);

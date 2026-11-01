@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/english-abbreviations	100	100	a1ae6c3cea011ea2aa2fa0957c75784f28e53270a0ed62574eb35e06b08fb03b
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	53	start:u32	end:u32
+layer	turbo:tokens	text	53	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -60,8 +60,8 @@ layer	opennlp:tokens	text	53	start:u32	end:u32
 91	92
 93	98
 98	99
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	53	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	53	unknown:u32	features:str
 0	記号,文字,*,*,*,*,エム,Ｍ,M,エム,M,エム,記号,*,*,*,*
 0	記号,文字,*,*,*,*,アール,Ｒ,r,アール,r,アール,記号,*,*,*,*
 0	補助記号,句点,*,*,*,*,,．,.,,.,,記号,*,*,*,*

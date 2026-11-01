@@ -95,7 +95,7 @@ impl Run for NewlineSentences {
 /// between the halves of a pair has no byte offset, and the golden tests
 /// have no such golden, so it is skipped and counted.
 fn compare_sentences(doc: &Document, golden: &Golden, confidence: bool) -> Outcome {
-    if has_cut(golden, "opennlp:sentences") {
+    if has_cut(golden, "turbo:sentences") {
         return Outcome::Skipped("a JVM sentence starts or ends inside a surrogate pair".into());
     }
     let spans = outcome(matches_golden::<Sentences>(doc, golden, Tolerance::exact()));

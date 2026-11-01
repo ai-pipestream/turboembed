@@ -5,6 +5,6 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/emoji-zwj	61	39	cd1ccf3a0d51f34eaf3c645ac6ee1921a3aa17f6264b9803534a6da35a9e4e45
 annotator	opennlp.tools.sentdetect.NewlineSentenceDetector	sentPosDetect
-layer	opennlp:sentences	text	1	start:u32	end:u32
+layer	turbo:sentences	text	1	start:u32	end:u32
 0	60
-end	opennlp:sentences
+end	turbo:sentences

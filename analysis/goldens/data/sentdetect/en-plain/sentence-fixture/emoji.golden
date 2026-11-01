@@ -6,13 +6,13 @@ unicode	15.0
 input	sentence-fixture/emoji	48	42	4a468aa2fa70159a2b5058e98f496083eae0590fbebed2bfec6666b90d3bae00
 model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
 annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
-layer	opennlp:sentences	text	3	start:u32	end:u32
+layer	turbo:sentences	text	3	start:u32	end:u32
 0	26
 27	34
 35	48
-end	opennlp:sentences
-layer	turbo:confidence<opennlp:sentences>	aligned:opennlp:sentences	3	value:f64
+end	turbo:sentences
+layer	turbo:confidence<turbo:sentences>	aligned:turbo:sentences	3	value:f64
 3fefbd681fc99483 0.9918709393356412
 3fe91da3a428b069 0.7848680692891438
 3ff0000000000000 1.0
-end	turbo:confidence<opennlp:sentences>
+end	turbo:confidence<turbo:sentences>

@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	10	start:u32	end:u32
+layer	turbo:tokens	text	10	start:u32	end:u32
 0	10
 11	26
 27	33
@@ -17,4 +17,4 @@ layer	opennlp:tokens	text	10	start:u32	end:u32
 64	70
 71	81
 81	82
-end	opennlp:tokens
+end	turbo:tokens

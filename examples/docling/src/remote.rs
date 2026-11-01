@@ -23,7 +23,7 @@ use crate::report::VECTOR_HEAD;
 use crate::server::Remote;
 
 /// The layer the server's place names are in.
-pub const ENTITIES: &str = "opennlp:entities";
+pub const ENTITIES: &str = "turbo:entities";
 
 /// `s` quoted, with backslashes, quotes and line breaks escaped.
 pub fn quote(s: &str) -> String {

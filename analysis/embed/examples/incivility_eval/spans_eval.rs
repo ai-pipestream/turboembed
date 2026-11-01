@@ -1,5 +1,5 @@
 //! Loading `ipavlopoulos/toxic_spans` (`beaf170`) and projecting character
-//! (Unicode codepoint) spans through [`View`] and `opennlp:tokens` (`#890`).
+//! (Unicode codepoint) spans through [`View`] and `turbo:tokens` (`#890`).
 
 use std::collections::HashMap;
 use std::fs;

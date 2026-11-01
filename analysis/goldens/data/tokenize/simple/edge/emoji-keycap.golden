@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/emoji-keycap	42	30	579cb532486986a4ea86b75b4d584563581d9d0f39b0fa67b852ce5691b97d77
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
-layer	opennlp:tokens	text	13	start:u32	end:u32
+layer	turbo:tokens	text	13	start:u32	end:u32
 0	5
 6	7
 7	10
@@ -19,4 +19,4 @@ layer	opennlp:tokens	text	13	start:u32	end:u32
 31	34
 34	37
 38	41
-end	opennlp:tokens
+end	turbo:tokens

@@ -1,5 +1,6 @@
 //! Named, versioned analysis profiles (`default-v1`, `retrieval-v1`,
-//! `minimal-v1`, issue `#1302`) for `AnalyzeDocumentProgressive` (`#1218`).
+//! `minimal-v1`, issue `#1302`; `annotate-v1`, `#1775`) for
+//! `AnalyzeDocumentProgressive` (`#1218`).
 //!
 //! Every profile defines its immutable step list, the exact set of standard
 //! layer IDs it produces, and the bundle capabilities it requires. A profile's
@@ -40,14 +41,14 @@ pub const DEFAULT_V1: AnalysisProfile = AnalysisProfile {
     ],
     layers: &[
         "turbo:structure",
-        "opennlp:sentences",
-        "opennlp:tokens",
+        "turbo:sentences",
+        "turbo:tokens",
         "turbo:boundaries",
-        "opennlp:entities",
-        "opennlp:subwords",
+        "turbo:entities",
+        "turbo:subwords",
         "turbo:chunks",
         "turbo:levels",
-        "opennlp:embeddings<turbo:chunks>",
+        "turbo:embeddings<turbo:chunks>",
     ],
     required_bundles: &["TASK_EMBED"],
 };
@@ -70,15 +71,15 @@ pub const RETRIEVAL_V1: AnalysisProfile = AnalysisProfile {
     ],
     layers: &[
         "turbo:structure",
-        "opennlp:sentences",
-        "opennlp:tokens",
+        "turbo:sentences",
+        "turbo:tokens",
         "turbo:boundaries",
-        "opennlp:entities",
-        "opennlp:subwords",
+        "turbo:entities",
+        "turbo:subwords",
         "turbo:chunks",
         "turbo:sparse-terms<turbo:view>",
         "turbo:levels",
-        "opennlp:embeddings<turbo:chunks>",
+        "turbo:embeddings<turbo:chunks>",
     ],
     required_bundles: &["TASK_EMBED", "embed.sparse"],
 };
@@ -88,12 +89,39 @@ pub const MINIMAL_V1: AnalysisProfile = AnalysisProfile {
     name: "minimal-v1",
     version: "1",
     steps: &["turbo-structure:blocks", "turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"],
-    layers: &["turbo:structure", "opennlp:sentences", "opennlp:tokens"],
+    layers: &["turbo:structure", "turbo:sentences", "turbo:tokens"],
     required_bundles: &[],
 };
 
+/// `annotate-v1`: structure, sentences and tokens, then the bundle's
+/// part-of-speech, entity, dependency and lemma heads from one encoder
+/// pass (`steps/heads.rs`). The bundle must carry all four heads.
+pub const ANNOTATE_V1: AnalysisProfile = AnalysisProfile {
+    name: "annotate-v1",
+    version: "1",
+    steps: &[
+        "turbo-structure:blocks",
+        "turbo-sentdetect:rules",
+        "turbo-tokenize:uax29-untyped",
+        "turbo-tagger:pos",
+        "turbo-tagger:entities",
+        "turbo-tagger:dependencies",
+        "turbo-tagger:lemmas",
+    ],
+    layers: &[
+        "turbo:structure",
+        "turbo:sentences",
+        "turbo:tokens",
+        "turbo:pos",
+        "turbo:entities",
+        "turbo:dependencies",
+        "turbo:lemmas",
+    ],
+    required_bundles: &["TASK_EMBED", "head.pos", "head.entities", "head.dependencies", "head.lemmas"],
+};
+
 /// All versioned profiles served by `AnalysisService`.
-pub const PROFILES: &[AnalysisProfile] = &[DEFAULT_V1, RETRIEVAL_V1, MINIMAL_V1];
+pub const PROFILES: &[AnalysisProfile] = &[DEFAULT_V1, RETRIEVAL_V1, MINIMAL_V1, ANNOTATE_V1];
 
 /// Looks up a named, versioned profile by its canonical identifier.
 pub fn find_profile(name: &str) -> Option<&'static AnalysisProfile> {
