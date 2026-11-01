@@ -11,7 +11,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * The learned layers over the heads of a bundle: the sealed small BERT in testdata with its four
+ * The learned layers over the heads of a bundle: the sealed small BERT in testdata with its five
  * seeded heads. Its output is deterministic, so the expected labels are the heads' real output
  * on this text, not linguistically right ones; the binding must not correct them.
  */
@@ -25,9 +25,32 @@ final class TurboBundleHeadsTest {
     private static final List<String> POS = List.of(
             "PUNCT", "DET", "ADJ", "DET", "ADJ", "ADJ", "PUNCT", "PUNCT", "VERB", "PUNCT", "PUNCT", "PUNCT", "DET",
             "ADJ", "PUNCT", "PUNCT");
+    private static final Set<String> FEATS =
+            Set.of("_", "Number=Sing", "Number=Plur", "Tense=Past|VerbForm=Fin");
     private static final List<String> LEMMAS = List.of(
             "Ann", "meet", "Bob", "in", "Pari", ",", "and", "the", "quiet", "old", "dog", "slept", "by", "the", "river",
             ".");
+
+    @Test
+    void morphologyRowsComeFromTheMorphologyHead() {
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create(TurboAnalyzer.Config.forBundle(TestPaths.headsBundle()));
+                TurboAnalysisResult result = analyzer.morphology(TOKENS)) {
+            List<TurboSpanView> rows = result.spans(TurboLayerKind.MORPHOLOGY);
+            assertEquals(TOKENS.length, rows.size());
+            for (int i = 0; i < rows.size(); i++) {
+                TurboSpanView row = rows.get(i);
+                assertEquals(TurboLayerKind.MORPHOLOGY, row.layerKind());
+                assertTrue(row.viewRange().isEmpty(), "pre-tokenized morphology rows have no text view range");
+                assertTrue(row.sourceRange().isEmpty(), "pre-tokenized morphology rows have no source range");
+                assertEquals(new TurboSpanData.TokenRange(i, i + 1L), row.tokenRange().orElseThrow());
+                assertTrue(FEATS.contains(row.label().orElseThrow()), row.label().orElseThrow());
+                assertTrue(row.probability().isEmpty(), "morphology rows carry no probability");
+            }
+            assertEquals(
+                    rows.stream().map(row -> row.label().orElseThrow()).toList(),
+                    analyzer.morphologyCopied(TOKENS).stream().map(row -> row.label().orElseThrow()).toList());
+        }
+    }
 
     @Test
     void posRowsComeFromThePartOfSpeechHeadWithProbabilities() {
@@ -97,19 +120,28 @@ final class TurboBundleHeadsTest {
 
             List<TurboSpanView> tokens = graph.spans(TurboLayerKind.TOKENS);
             List<TurboSpanView> pos = graph.spans(TurboLayerKind.POS);
+            List<TurboSpanView> morph = graph.spans(TurboLayerKind.MORPHOLOGY);
             List<TurboSpanView> lemmas = graph.spans(TurboLayerKind.LEMMAS);
             List<TurboSpanView> deps = graph.spans(TurboLayerKind.DEPENDENCIES);
             assertEquals(22, tokens.size());
             assertEquals(tokens.size(), pos.size());
+            assertEquals(tokens.size(), morph.size());
             assertEquals(tokens.size(), lemmas.size());
             assertEquals(tokens.size(), deps.size());
             // The first sentence's rows are those of the pre-tokenized tasks.
             assertEquals(POS, pos.subList(0, TOKENS.length).stream().map(row -> row.label().orElseThrow()).toList());
+            assertEquals(
+                    analyzer.morphologyCopied(TOKENS).stream().map(row -> row.label().orElseThrow()).toList(),
+                    morph.subList(0, TOKENS.length).stream().map(row -> row.label().orElseThrow()).toList());
             assertEquals(LEMMAS, lemmas.subList(0, TOKENS.length).stream().map(row -> row.label().orElseThrow()).toList());
             for (int i = 0; i < tokens.size(); i++) {
                 assertEquals(tokens.get(i).sourceRange(), pos.get(i).sourceRange());
+                assertEquals(tokens.get(i).sourceRange(), morph.get(i).sourceRange());
                 assertEquals(tokens.get(i).sourceRange(), lemmas.get(i).sourceRange());
                 assertEquals(tokens.get(i).sourceRange(), deps.get(i).sourceRange());
+                assertEquals(new TurboSpanData.TokenRange(i, i + 1L), morph.get(i).tokenRange().orElseThrow());
+                assertTrue(FEATS.contains(morph.get(i).label().orElseThrow()));
+                assertTrue(morph.get(i).probability().isEmpty());
                 assertEquals(new TurboSpanData.TokenRange(i, i + 1L), deps.get(i).tokenRange().orElseThrow());
             }
 
@@ -156,9 +188,13 @@ final class TurboBundleHeadsTest {
             TurboException pos = assertThrows(TurboException.class, () -> analyzer.posTag(new String[] {"The"}));
             assertEquals(TurboLibrary.TURBO_E_UNSUPPORTED_TASK, pos.code());
             assertTrue(pos.getMessage().contains("no head writing pos"), pos.getMessage());
+            TurboException morph = assertThrows(TurboException.class, () -> analyzer.morphology(new String[] {"The"}));
+            assertEquals(TurboLibrary.TURBO_E_UNSUPPORTED_TASK, morph.code());
+            assertTrue(morph.getMessage().contains("no head writing morphology"), morph.getMessage());
             try (TurboAnalysisResult graph = analyzer.analyzeGraph("The river.")) {
                 assertFalse(graph.spans(TurboLayerKind.TOKENS).isEmpty());
                 assertTrue(graph.spans(TurboLayerKind.POS).isEmpty());
+                assertTrue(graph.spans(TurboLayerKind.MORPHOLOGY).isEmpty());
                 assertTrue(graph.spans(TurboLayerKind.DEPENDENCIES).isEmpty());
             }
         }

@@ -171,6 +171,10 @@ final class TurboPanamaTest {
                     TurboException.class, () -> analyzer.posTag(new String[] {"The", "rivers", "went"}));
             assertUnsupported(pos);
 
+            TurboException morph = assertThrows(
+                    TurboException.class, () -> analyzer.morphology(new String[] {"The", "rivers", "went"}));
+            assertUnsupported(morph);
+
             TurboException lemma = assertThrows(
                     TurboException.class,
                     () -> analyzer.lemmatize(new String[] {"went"}, new String[] {"VERB"}));
@@ -194,12 +198,14 @@ final class TurboPanamaTest {
             try (TurboAnalysisResult sentences = analyzer.detectSentences("");
                     TurboAnalysisResult tokens = analyzer.tokenize("");
                     TurboAnalysisResult pos = analyzer.posTag(new String[0]);
+                    TurboAnalysisResult morph = analyzer.morphology(new String[0]);
                     TurboAnalysisResult lemmas = analyzer.lemmatize(new String[0], new String[0]);
                     TurboAnalysisResult entities = analyzer.findTokens(new String[0]);
                     TurboAnalysisResult pii = analyzer.detectPii("")) {
                 assertEquals(0, sentences.spanCount());
                 assertEquals(0, tokens.spanCount());
                 assertEquals(0, pos.spanCount());
+                assertEquals(0, morph.spanCount());
                 assertEquals(0, lemmas.spanCount());
                 assertEquals(0, entities.spanCount());
                 assertEquals(0, pii.spanCount());
@@ -207,6 +213,7 @@ final class TurboPanamaTest {
 
             assertThrows(NullPointerException.class, () -> analyzer.detectSentences(null));
             assertThrows(NullPointerException.class, () -> analyzer.posTag(new String[] {"ok", null}));
+            assertThrows(NullPointerException.class, () -> analyzer.morphology(new String[] {"ok", null}));
             assertThrows(
                     IllegalArgumentException.class,
                     () -> analyzer.lemmatize(new String[] {"went"}, new String[] {"VERB", "NOUN"}));

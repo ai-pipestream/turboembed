@@ -89,23 +89,24 @@ scalar bounds. They are never interchanged. Covered sentence and token text
 is read through `coveredSourceText` or `coveredViewText`; it is not copied
 into the label field.
 
-Token-only POS, lemma, and token-sequence NER rows have token ranges and no
-text ranges. Dependency rows are aligned to tokens: the relation is the
-label and the head token is read through `dependencyHead()`, which is
-empty for the root of a sentence. PII rows carry their kind as the label,
-their normalized form as the value, and a `TurboPiiConfidence` evidence
-classification. PII classification is not represented as a probability.
+Token-only POS, lemma, morphology, and token-sequence NER rows have token
+ranges and no text ranges. Dependency rows are aligned to tokens: the
+relation is the label and the head token is read through `dependencyHead()`,
+which is empty for the root of a sentence. PII rows carry their kind as the
+label, their normalized form as the value, and a `TurboPiiConfidence`
+evidence classification. PII classification is not represented as a
+probability.
 
 ## Bundles and explicit unknowns
 
 The default analyzer contains the rule sentence splitter, rule tokenizer,
-and the separate PII task. It does not contain hidden POS, lemma, or NER
-fallbacks. The learned layers come from the heads of a bundle directory:
-its encoder runs once per sentence and every head reads that pass, so the
-part-of-speech, lemma, dependency and entity layers of `analyzeGraph` cost
-one encoder pass together. Without a bundle, or with a bundle that has no
-head for a layer, that layer's tasks throw `TurboException` with
-`TURBO_E_UNSUPPORTED_TASK` naming what is missing.
+and the separate PII task. It does not contain hidden POS, lemma,
+morphology, or NER fallbacks. The learned layers come from the heads of a
+bundle directory: its encoder runs once per sentence and every head reads
+that pass, so the part-of-speech, lemma, morphology, dependency and entity
+layers of `analyzeGraph` cost one encoder pass together. Without a bundle,
+or with a bundle that has no head for a layer, that layer's tasks throw
+`TurboException` with `TURBO_E_UNSUPPORTED_TASK` naming what is missing.
 
 Name the bundle explicitly:
 

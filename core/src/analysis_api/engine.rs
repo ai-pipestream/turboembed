@@ -9,7 +9,9 @@ use turbo_analysis::{
     Tag, TagSet, ViewId, export, import,
 };
 use turbo_analysis_layers::export::register_codecs;
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens};
+use turbo_analysis_layers::{
+    Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens,
+};
 use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::RuleSplitter;
 use turbo_tokenize::{TokenizerOptions, simple_spans};
@@ -18,8 +20,8 @@ use super::graph::extract_graph;
 use super::heads::{BundleHeads, Want, unsupported};
 use super::{
     AnalysisResultInner, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
-    TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT,
-    TURBO_PII_CONFIDENCE_LABELLED, coordinate_range, turbo_analyzer_desc,
+    TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM,
+    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range, turbo_analyzer_desc,
 };
 use crate::ffi::text;
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
@@ -169,6 +171,30 @@ impl AnalyzerEngine {
                 tokens: Some((item, item + 1)),
                 label: Some(label),
                 prob: Some(prob),
+                ..SpanDraft::default()
+            };
+            builder.push(layer, draft)?;
+        }
+        Ok(builder.finish(Vec::new()))
+    }
+
+    pub fn morphology(&self, tokens: &[&str]) -> Result<AnalysisResultInner> {
+        if tokens.is_empty() {
+            return Ok(Self::empty());
+        }
+        let heads = self.heads("morphology", "morphology")?;
+        let tagset = heads.morph_tagset()?;
+        let written = heads.run(&[tokens.to_vec()], &Want { morphology: true, ..Want::default() })?;
+        let decoded = written.morphology.expect("asked for").remove(0);
+        let mut builder = SpanPoolBuilder::with_capacity(tokens.len(), tokens.len() * 8);
+        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_MORPHOLOGY, MorphFeatures::<Tokens>::ID, "", SOURCE_VIEW)?;
+        for (idx, &tag) in decoded.tags.iter().enumerate() {
+            let item = index_u32(idx, "morphology token count")?;
+            let label = builder.string_ref(tagset.label(Tag(tag as u16)))?;
+            let draft = SpanDraft {
+                item_index: item,
+                tokens: Some((item, item + 1)),
+                label: Some(label),
                 ..SpanDraft::default()
             };
             builder.push(layer, draft)?;
@@ -345,6 +371,25 @@ impl AnalyzerEngine {
             let layer = PosTags { tagset, tags, prob: Some(prob) };
             doc.add(&Key::<PosTags>::DEFAULT, layer, Self::head_provenance(heads, "turbo-tagger-pos"))
                 .map_err(added)?;
+        }
+        if let Some(decoded) = written.morphology {
+            let tagset: Arc<TagSet> = heads.morph_tagset()?.clone();
+            let mut of: Vec<&str> = vec![""; n];
+            for (s, d) in seqs.iter().zip(&decoded) {
+                for (k, &i) in s.iter().enumerate() {
+                    of[i] = tagset.label(Tag(d.tags[k] as u16));
+                }
+            }
+            let mut feats = Strs::default();
+            for f in of {
+                feats.push(f);
+            }
+            doc.add(
+                &Key::<MorphFeatures<Tokens>>::DEFAULT,
+                MorphFeatures::new(feats),
+                Self::head_provenance(heads, "turbo-tagger-morphology"),
+            )
+            .map_err(added)?;
         }
         if let Some(lemmas) = written.lemmas {
             let mut of: Vec<&str> = vec![""; n];

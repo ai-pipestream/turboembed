@@ -165,6 +165,27 @@ pub unsafe extern "C" fn turbo_analyzer_pos_tag(
 /// # Safety
 /// Pointers are NULL or valid for the call, as `turbo.h` says.
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_analyzer_morphology(
+    a: *mut turbo_analyzer,
+    tokens: *const turbo_text,
+    count: u32,
+    out: *mut *mut turbo_analysis_result,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let out = result_out(out)?;
+            let a = analyzer_handle(a)?;
+            let toks = text_slice(tokens, count, "tokens")?;
+            *out = box_result(a.inner.morphology(&toks)?);
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as `turbo.h` says.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn turbo_analyzer_lemmatize(
     a: *mut turbo_analyzer,
     tokens: *const turbo_text,
