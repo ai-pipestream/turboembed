@@ -226,6 +226,20 @@ where
 {
     let (t_train, t_val, t_test) = teacher_splits;
     let (s_train, s_val, s_test) = student_splits;
+    if teacher.spec().kind != student_spec.kind
+        || teacher.spec().scheme != student_spec.scheme
+        || teacher.spec().labels != student_spec.labels
+    {
+        return Err(Error(format!(
+            "distill: teacher head ({:?}, {:?}, {:?}) does not match student head ({:?}, {:?}, {:?})",
+            teacher.spec().kind,
+            teacher.spec().scheme,
+            teacher.spec().labels,
+            student_spec.kind,
+            student_spec.scheme,
+            student_spec.labels,
+        )));
+    }
     let d_train = make_distill_examples(teacher, t_train, s_train).map_err(|e| Error(e.message))?;
     let d_val = make_distill_examples(teacher, t_val, s_val).map_err(|e| Error(e.message))?;
     let d_test = make_distill_examples(teacher, t_test, s_test).map_err(|e| Error(e.message))?;
@@ -337,21 +351,39 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         0 => &corpus.splits.train[..],
         n => &corpus.splits.train[..n.min(corpus.splits.train.len())],
     };
-    let (t_train, _) = examples(&mut teacher_enc, train_set, &student_spec.labels, pooling)?;
-    let (t_dev, _) = examples(&mut teacher_enc, &corpus.splits.dev, &student_spec.labels, pooling)?;
-    let (t_test, _) = examples(&mut teacher_enc, &corpus.splits.test, &student_spec.labels, pooling)?;
-
-    let (teacher, teacher_sha256) = match teacher_dir {
+    let (teacher, teacher_sha256, t_train, t_dev, t_test) = match teacher_dir {
         Some(ref td) => {
-            let (_, tagger, sha) = load_head(td, teacher_hidden)?;
-            (tagger, sha)
+            let (t_spec, tagger, sha) = load_head(td, teacher_hidden)?;
+            if t_spec.kind != student_spec.kind
+                || t_spec.scheme != student_spec.scheme
+                || t_spec.labels != student_spec.labels
+            {
+                return Err(Error(format!(
+                    "{}: teacher head ({:?}, {:?}, {:?}) does not match student ({:?}, {:?}, {:?})",
+                    td.display(),
+                    t_spec.kind,
+                    t_spec.scheme,
+                    t_spec.labels,
+                    student_spec.kind,
+                    student_spec.scheme,
+                    student_spec.labels,
+                )));
+            }
+            let t_pool = t_spec.word_pooling;
+            let (tr, _) = examples(&mut teacher_enc, train_set, &student_spec.labels, t_pool)?;
+            let (dv, _) = examples(&mut teacher_enc, &corpus.splits.dev, &student_spec.labels, t_pool)?;
+            let (te, _) = examples(&mut teacher_enc, &corpus.splits.test, &student_spec.labels, t_pool)?;
+            (tagger, sha, tr, dv, te)
         }
         None => {
             let teacher_spec = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
-            let (tagger, _) = fit(&teacher_spec, teacher_hidden, &t_train, &t_dev, &c).map_err(|e| Error(e.message))?;
+            let (tr, _) = examples(&mut teacher_enc, train_set, &student_spec.labels, pooling)?;
+            let (dv, _) = examples(&mut teacher_enc, &corpus.splits.dev, &student_spec.labels, pooling)?;
+            let (te, _) = examples(&mut teacher_enc, &corpus.splits.test, &student_spec.labels, pooling)?;
+            let (tagger, _) = fit(&teacher_spec, teacher_hidden, &tr, &dv, &c).map_err(|e| Error(e.message))?;
             let bytes = safetensors::write(&named(&teacher_spec, teacher_hidden, tagger.tensors()));
             let sha = turbo::bundle::sha256_hex(&bytes);
-            (tagger, sha)
+            (tagger, sha, tr, dv, te)
         }
     };
 
@@ -364,6 +396,11 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         let (s_tr, _) = examples(s_enc, train_set, &student_spec.labels, pooling)?;
         let (s_dv, _) = examples(s_enc, &corpus.splits.dev, &student_spec.labels, pooling)?;
         let (s_te, _) = examples(s_enc, &corpus.splits.test, &student_spec.labels, pooling)?;
+        Some((s_tr, s_dv, s_te))
+    } else if teacher.spec().word_pooling != pooling {
+        let (s_tr, _) = examples(&mut teacher_enc, train_set, &student_spec.labels, pooling)?;
+        let (s_dv, _) = examples(&mut teacher_enc, &corpus.splits.dev, &student_spec.labels, pooling)?;
+        let (s_te, _) = examples(&mut teacher_enc, &corpus.splits.test, &student_spec.labels, pooling)?;
         Some((s_tr, s_dv, s_te))
     } else {
         None

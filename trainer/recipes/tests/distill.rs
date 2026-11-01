@@ -192,7 +192,96 @@ fn distill_head_writes_verified_student_bundle_and_deterministic_outputs() {
     assert_eq!(res_temp.status.code(), Some(2));
     assert!(!bad_temp.exists());
 
-    for p in [data, teacher_out, student_out, student_again] {
+    // 5. Mean-pooled teacher distilled into a first-pooled student uses teacher's pooling for teacher features.
+    let mean_teacher = scratch("mean-teacher");
+    let first_student = scratch("first-student");
+    let mt_res = run(&[
+        "train",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        d,
+        "--bundle",
+        b,
+        "--out",
+        mean_teacher.to_str().unwrap(),
+        "--unrecorded-corpus",
+        "--pooling",
+        "mean",
+        "--epochs",
+        "10",
+        "--batch",
+        "8",
+        "--lr",
+        "0.05",
+        "--commit",
+        "test-sha",
+    ]);
+    assert!(mt_res.status.success(), "{}", String::from_utf8_lossy(&mt_res.stderr));
+    let fs_res = run(&[
+        "distill-head",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        d,
+        "--bundle",
+        b,
+        "--teacher",
+        mean_teacher.to_str().unwrap(),
+        "--out",
+        first_student.to_str().unwrap(),
+        "--unrecorded-corpus",
+        "--pooling",
+        "first",
+        "--max-accuracy-drop",
+        "0.5",
+        "--epochs",
+        "10",
+        "--batch",
+        "8",
+        "--lr",
+        "0.05",
+        "--commit",
+        "test-sha",
+    ]);
+    assert!(fs_res.status.success(), "{}", String::from_utf8_lossy(&fs_res.stderr));
+    let fs_rec: DistillReceipt =
+        serde_json::from_slice(&fs::read(first_student.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(fs_rec.teacher_head.word_pooling, turbo::manifest::WordPooling::Mean);
+    assert_eq!(fs_rec.student_head.word_pooling, turbo::manifest::WordPooling::First);
+
+    // 6. Teacher with incompatible labels is refused.
+    let bad_teacher = scratch("bad-teacher");
+    fs::create_dir_all(&bad_teacher).unwrap();
+    fs::copy(mean_teacher.join("head.safetensors"), bad_teacher.join("head.safetensors")).unwrap();
+    let mut bad_spec: turbo::manifest::HeadSpec =
+        serde_json::from_slice(&fs::read(mean_teacher.join("head.json")).unwrap()).unwrap();
+    bad_spec.labels[1] = "B-WrongType".into();
+    fs::write(bad_teacher.join("head.json"), serde_json::to_vec_pretty(&bad_spec).unwrap()).unwrap();
+    let bad_student = scratch("bad-student");
+    let bad_res = run(&[
+        "distill-head",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        d,
+        "--bundle",
+        b,
+        "--teacher",
+        bad_teacher.to_str().unwrap(),
+        "--out",
+        bad_student.to_str().unwrap(),
+        "--unrecorded-corpus",
+        "--epochs",
+        "2",
+        "--commit",
+        "test-sha",
+    ]);
+    assert_eq!(bad_res.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&bad_res.stderr).contains("does not match student"));
+    assert!(!bad_student.exists());
+
+    for p in [data, teacher_out, student_out, student_again, mean_teacher, first_student, bad_teacher] {
         fs::remove_dir_all(p).unwrap();
     }
 }

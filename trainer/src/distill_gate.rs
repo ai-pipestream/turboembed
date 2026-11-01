@@ -1,11 +1,14 @@
 //! Student distillation training loop, multi-head runner, throughput benchmark,
 //! and accuracy-margin gate (#1520).
 
+use std::collections::BTreeMap;
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
+use turbo::head::boundary::LAST;
 use turbo::head::crf::argmax;
 use turbo::head::tagger::Work as CoreWork;
-use turbo::manifest::{HeadKind, HeadSpec};
+use turbo::manifest::{Decode, HeadKind, HeadSpec};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::{AdamW, Settings};
@@ -33,6 +36,52 @@ impl DistillExample {
     }
 }
 
+fn scores_key(scores: &[f32], forms: &[String]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for &s in scores {
+        for b in s.to_bits().to_le_bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    for f in forms {
+        for &b in f.as_bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    h
+}
+
+fn decoded_cache() -> &'static Mutex<BTreeMap<u64, Vec<u32>>> {
+    static CACHE: OnceLock<Mutex<BTreeMap<u64, Vec<u32>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(BTreeMap::new()))
+}
+
+fn decode_teacher_example(teacher: &Tagger<f32>, scores: &[f32], n: usize, forms: &[String]) -> Result<Vec<u32>> {
+    match teacher.spec().kind {
+        HeadKind::SentenceBoundary => {
+            let b = teacher.to_boundary()?;
+            let mut ends = Vec::new();
+            b.decode(scores, n, &mut ends)?;
+            Ok(ends.into_iter().map(u32::from).collect())
+        }
+        HeadKind::TokenSplit => {
+            let s = teacher.to_splitter()?;
+            let form_refs: Vec<&str> = forms.iter().map(String::as_str).collect();
+            let mut tags = Vec::new();
+            s.decode(scores, &form_refs, &mut tags)?;
+            Ok(tags)
+        }
+        _ => {
+            let t = teacher.to_token_tagger()?;
+            let mut tags = Vec::new();
+            t.decode(scores, n, &mut tags)?;
+            Ok(tags)
+        }
+    }
+}
+
 /// Builds [`DistillExample`] sequences by running `teacher` over `teacher_examples`.
 pub fn make_distill_examples(
     teacher: &Tagger<f32>,
@@ -51,9 +100,14 @@ pub fn make_distill_examples(
                 return Err(invalid("distill: teacher and student examples must share gold labels and forms"));
             }
             teacher.forward_forms(&te.features, te.forms().as_deref(), &mut work)?;
+            let teacher_scores = work.scores().to_vec();
+            let decoded = decode_teacher_example(teacher, &teacher_scores, se.labels.len(), &se.forms)?;
+            if let Ok(mut guard) = decoded_cache().lock() {
+                guard.insert(scores_key(&teacher_scores, &se.forms), decoded);
+            }
             Ok(DistillExample {
                 features: se.features.clone(),
-                teacher_scores: work.scores().to_vec(),
+                teacher_scores,
                 labels: se.labels.clone(),
                 forms: se.forms.clone(),
             })
@@ -161,9 +215,34 @@ fn score_student(student: &Tagger<f32>, examples: &[DistillExample]) -> Result<f
 }
 
 fn score_teacher_logits(spec: &HeadSpec, examples: &[DistillExample]) -> Result<f64> {
-    let (labels, mut tally, mut tags) = (spec.labels.len(), Tally::new(spec), Vec::new());
+    let labels = spec.labels.len();
+    if spec.kind == HeadKind::SentenceBoundary {
+        let (mut right, mut total, mut tags) = (0usize, 0usize, Vec::new());
+        for e in examples {
+            let n = e.labels.len();
+            let cached =
+                decoded_cache().lock().ok().and_then(|g| g.get(&scores_key(&e.teacher_scores, &e.forms)).cloned());
+            if let Some(dec) = cached {
+                tags = dec;
+            } else {
+                argmax(&e.teacher_scores, n, labels, &mut tags)?;
+                if let Some(last) = tags.last_mut() {
+                    *last = LAST;
+                }
+            }
+            right += tags.iter().zip(&e.labels).filter(|&(&pred, &gold)| (pred == LAST) == (gold == LAST)).count();
+            total += n;
+        }
+        return Ok(if total == 0 { 0.0 } else { right as f64 / total as f64 });
+    }
+    let (mut tally, mut tags) = (Tally::new(spec), Vec::new());
     for e in examples {
-        argmax(&e.teacher_scores, e.labels.len(), labels, &mut tags)?;
+        let cached = decoded_cache().lock().ok().and_then(|g| g.get(&scores_key(&e.teacher_scores, &e.forms)).cloned());
+        if let Some(dec) = cached {
+            tags = dec;
+        } else {
+            argmax(&e.teacher_scores, e.labels.len(), labels, &mut tags)?;
+        }
         tally.add(&tags, &e.labels)?;
     }
     Ok(tally.score())
@@ -179,6 +258,9 @@ pub fn distill_tagger(
     options: &DistillOptions,
 ) -> Result<(Tagger<f32>, DistillReport)> {
     options.validate()?;
+    if spec.decode == Decode::Crf {
+        return Err(invalid("distill: student head must not use Decode::Crf (only emission logits are distilled)"));
+    }
     if train.is_empty() {
         return Err(invalid("distill: training set must not be empty"));
     }

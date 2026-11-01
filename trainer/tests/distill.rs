@@ -253,9 +253,15 @@ fn soft_target_distillation_transfers_teacher_predictions_and_passes_gate() {
         ..DistillOptions::default()
     };
     let (student, report) = distill_tagger(&student_spec, d_student, &corrupted_train, &d_val, &d_test, &opts).unwrap();
+    assert_eq!(report.teacher_test_accuracy, teacher_viterbi_acc);
     assert!(report.teacher_test_accuracy >= 0.95, "{report:?}");
     assert!(report.student_test_accuracy >= 0.95, "{report:?}");
     assert!(report.within_margin, "{report:?}");
+
+    // Student with Decode::Crf is refused until CRF parameters are distilled.
+    let mut crf_student = student_spec.clone();
+    crf_student.decode = Decode::Crf;
+    assert!(distill_tagger(&crf_student, d_student, &corrupted_train, &d_val, &d_test, &opts).is_err());
 
     let throughput = measure_throughput(&teacher, &t_test, &student, &s_test, 5).unwrap();
     assert!(throughput.student_tokens_per_sec > 0.0 && throughput.teacher_tokens_per_sec > 0.0);
