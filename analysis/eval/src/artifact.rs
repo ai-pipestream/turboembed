@@ -4,6 +4,7 @@
 use std::fmt;
 use std::io::{self, Read, Write};
 
+pub mod encrypted;
 mod temporary;
 pub use temporary::TemporaryFileStore;
 
@@ -36,11 +37,22 @@ impl fmt::Display for ArtifactKey {
     }
 }
 
+/// Provider operations that may be explicitly unsupported.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StorageOperation {
+    Begin,
+    Open,
+    List,
+    Delete,
+}
+
 /// Typed failures at the storage boundary. `Published` explicitly means
 /// the key became visible, but a subsequent durability operation failed.
 #[derive(Debug)]
 pub enum StorageError {
     InvalidKey,
+    Unsupported(StorageOperation),
+    Security(encrypted::Error),
     NotFound(ArtifactKey),
     AlreadyExists(ArtifactKey),
     Io { operation: &'static str, source: io::Error },
@@ -50,6 +62,8 @@ pub enum StorageError {
 impl fmt::Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unsupported(operation) => write!(f, "artifact operation {operation:?} unsupported"),
+            Self::Security(error) => error.fmt(f),
             Self::InvalidKey => {
                 f.write_str("artifact key needs 1..=128 ASCII letters, digits, '-', '_' or interior '.'")
             }

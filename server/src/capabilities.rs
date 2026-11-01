@@ -79,6 +79,7 @@ pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<Bu
         // No task the server loads reads an extraction schema yet; a
         // schema-extraction bundle fills this with `records::schema_limits`.
         schema: None,
+        head_steps: loaded.head_steps.clone(),
     })
 }
 

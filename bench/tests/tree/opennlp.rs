@@ -8,6 +8,14 @@ use std::path::Path;
 /// are not permitted so newly added files under `docs/receipts/` or
 /// `docs/beyond-opennlp/` are still checked.
 pub const ALLOWLIST: &[(&str, &str)] = &[
+    (
+        "docs/receipts/long-document-1486/chunk-gate.txt",
+        "Existing native semantic baseline identifier in frozen #1486 gate output",
+    ),
+    (
+        "docs/receipts/long-document-1486/paired.json",
+        "Existing native semantic baseline identifier in frozen #1486 paired scores",
+    ),
     ("docs/licences.md", "Upstream Apache-2.0 and corpus licence attributions"),
     ("docs/reference-inventory.md", "Pinned reference inventory table"),
     ("docs/analysis-features.md", "Feature checklist mapping table (#1536)"),
@@ -116,10 +124,9 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ("trainer/recipes/records/masc-pos-1649/README.md", "Committed MASC Penn POS training record README (#1649)"),
 ];
 
-/// Wire protocol and layer identifiers in source code that currently carry an
-/// `opennlp` prefix and may be cited in backticks in contract documentation.
-const WIRE_IDENTIFIERS: &[&str] =
-    &["`opennlp:sentences`", "`opennlp:tokens`", "`opennlp:subwords`", "`opennlp-dictionary-xml`"];
+/// Wire format identifiers in source code that carry an `opennlp` prefix and
+/// may be cited in backticks in contract documentation.
+const WIRE_IDENTIFIERS: &[&str] = &["`opennlp-dictionary-xml`"];
 
 fn is_allowlisted(rel: &str) -> bool {
     ALLOWLIST.iter().any(|&(entry, _)| rel == entry)
@@ -200,7 +207,7 @@ fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
     std::fs::create_dir_all(dir.join("analysis/sample")).unwrap();
     std::fs::write(dir.join("README.md"), "# Workspace\nClean root README.\n").unwrap();
     std::fs::write(dir.join("docs/licences.md"), "Apache OpenNLP attribution is allowlisted.\n").unwrap();
-    std::fs::write(dir.join("docs/guide.md"), "Wire contract layer `opennlp:tokens` is permitted.\n").unwrap();
+    std::fs::write(dir.join("docs/guide.md"), "Wire contract format `opennlp-dictionary-xml` is permitted.\n").unwrap();
     std::fs::write(dir.join("docs/current-api.txt"), "Unlisted OpenNLP compatibility claim in a text file.\n").unwrap();
     std::fs::write(dir.join("docs/receipts/new-api.md"), "Unlisted OpenNLP compatibility claim.\n").unwrap();
     std::fs::write(

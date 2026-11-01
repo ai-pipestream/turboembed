@@ -4,7 +4,7 @@
 //!   documents indexed with [`QueryAnalysisProfile::document_analyzer`] (or
 //!   [`QueryAnalysisProfile::document_terms`]),
 //! - per-span [`LanguageEvidence`] and [`LanguageSpanEvidence`] (`turbo:language-spans`
-//!   and `opennlp:language`) for single-language and mixed-language queries,
+//!   and `turbo:language`) for single-language and mixed-language queries,
 //! - structured [`QueryFilter`]s ([`TemporalFilter`], [`MoneyFilter`], [`QuantityFilter`],
 //!   [`PlaceFilter`], [`GlossaryFilter`], [`EntityFilter`]), each tied to an
 //!   exact UTF-8 source byte [`turbo_analysis::Span`] and [`FilterEvidence`]

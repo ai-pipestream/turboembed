@@ -6,9 +6,11 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | Corpus id | Data | Task | Pinned by | Splits |
 |---|---|---|---|---|
 | `masc-pos` | MASC 3.0.0, Penn tags (CC BY 3.0 US) | tags | corpus digest of the extracted release (`turbo_train_recipes::masc::RELEASE`) | test: the recipes' held-out documents (every tenth, Twitter genre left out), so numbers compare with the MASC tagger's gate; dev: every tenth training-side document |
+| `masc-ne` | MASC 3.0.0 named entities (CC BY 3.0 US) | BIO, person/location/organization/date | same recorded corpus digest as MASC POS | same held-out documents and Twitter exclusion; training-only dev; [recipe and refusals](masc-ne.md) |
 | `wnut17` | WNUT-17 (CC BY 4.0, default-tier training under #1524) | BIO, six types kept separate from MASC | size and SHA-256 of each file | publisher train/dev/test, canonical `emerging.test.annotated`; [recipe and limits](wnut17.md) |
 | `germeval2014-outer`, `germeval2014-inner` | GermEval 2014 corrected 2022-04-28 (CC BY 4.0) | separate outer and inner BIO heads, 12 types each | size and SHA-256 of each file | publisher train/dev/test; [recipe and limits](germeval.md) |
 | `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
+| `re-docred` | Re-DocRED at commit `ccfb54f5` (CC BY-SA 4.0, share-alike, as MultiCoNER: Wikipedia documents, MIT annotations; docs/licences.md) | relations between a document's entities, `relation` on `turboembed:relations` | size and SHA-256 of each file and the repository's `LICENSE` | the release's own train, dev and test; counts are of documents |
 | `ud-en-ewt-upos`, `ud-en-ewt-xpos`, `ud-en-ewt-feats` | UD English EWT r2.18 (commit `b7711cce`), one corpus a column, read as syntactic words (CC BY-SA 4.0: share-alike, as MultiCoNER) | tags, heads `upos` on `turboembed:pos`, `xpos`, `feats` | size and SHA-256 of each file (`ud::EN_EWT`) | the release's own train, dev and test; the test file is the one the spaCy, Stanza and Trankit peer records score |
 | `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd`, and in `ud_banks_sa` and `ud_banks_sa2` `af-afribooms`, `hy-bsut`, `hr-set`, `da-ddt`, `ka-glc`, `is-icepahc`, `id-gsd`, `ga-idt`, `ko-kaist`, `lv-lvtb`, `no-bokmaal`, `fa-perdt`, `ro-rrt`, `sr-set`, `sk-snk`, `sl-ssj`, `sv-talbanken`, `tr-boun` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the rest CC BY-SA 4.0 (Irish IDT CC BY-SA 3.0), share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
 
@@ -152,6 +154,24 @@ part alone. The words are syntactic words, multiword tokens already
 split, so a peer runs pretokenized with no multiword expansion (Stanza
 `tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
 its file for words other than the split's.
+
+`train-relation` trains the relation classifier head (`relation` on
+`turboembed:relations`, #1734) on `re-docred`: each document is one
+sequence, its entities typed by their first mention, each entity's
+mentions pooled before the pair is scored, and every label above
+`none`, the pair's own threshold, kept, so a pair holds several. Its
+labels are `none` and the property ids training gives; `--mlp` and
+`--type-dim` set the projection and entity type widths, and `--lr`
+defaults to 3e-4, below the other heads' 2e-3, at which this head's
+loss climbs again after its second epoch. It writes the
+same three files and scores exact (head, tail, label) triples on the
+test split, micro and per label, against the majority baseline, which
+labels every pair `none` and so finds nothing, with a paired bootstrap
+over documents:
+
+```text
+turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --bundle <encoder bundle> --out <new dir>
+```
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for

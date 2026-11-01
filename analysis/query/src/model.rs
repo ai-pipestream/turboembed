@@ -16,7 +16,7 @@ use turbo_unicode::Script;
 pub struct FilterEvidence {
     /// Standard layer identifier (such as `"turbo:temporal"`, `"turbo:times"`,
     /// `"turbo:money"`, `"turbo:quantities"`, `"turbo:locations"`,
-    /// `"turbo:glossary-terms"`, `"opennlp:entities"`, `"turbo:language-spans"`).
+    /// `"turbo:glossary-terms"`, `"turbo:entities"`, `"turbo:language-spans"`).
     pub layer_id: &'static str,
     /// Optional layer instance name when produced by a named layer binding
     /// (for example `Some("grammar")` or `Some("es")`).
@@ -187,7 +187,7 @@ pub struct QueryFilter {
 /// One analyzed query token and its normalized/stemmed/indexed representations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueryTerm {
-    /// Zero-based token position in `opennlp:tokens`.
+    /// Zero-based token position in `turbo:tokens`.
     pub token_index: usize,
     /// UTF-8 byte span in the source query.
     pub span: Span,
@@ -226,7 +226,7 @@ pub struct LanguageSpanEvidence {
 /// Document-level and span-level language detection evidence for the query.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LanguageEvidence {
-    /// Best overall ISO 639-3 language code from `opennlp:language`.
+    /// Best overall ISO 639-3 language code from `turbo:language`.
     pub best_code: String,
     /// Letter-share score of `best_code` in `[0.0, 1.0]`.
     pub best_score: f64,
@@ -234,7 +234,7 @@ pub struct LanguageEvidence {
     pub rankings: Vec<(String, f64)>,
     /// Contiguous per-span language runs from `turbo:language-spans`.
     pub spans: Vec<LanguageSpanEvidence>,
-    /// Layer and annotator provenance for `opennlp:language`.
+    /// Layer and annotator provenance for `turbo:language`.
     pub evidence: FilterEvidence,
 }
 
@@ -245,7 +245,7 @@ pub struct QueryAnalysis {
     pub query: String,
     /// Detected language summary and per-clause/per-script language spans.
     pub language: Option<LanguageEvidence>,
-    /// Per-token linguistic and lexical analysis aligned to `opennlp:tokens`.
+    /// Per-token linguistic and lexical analysis aligned to `turbo:tokens`.
     pub terms: Vec<QueryTerm>,
     /// Indexed lexical terms in token order, identical to the document profile's
     /// indexed terms for the same text.

@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/apostrophes	117	111	6b69b6f64d24416906fcab108088306ae2ac284629d75125905f2f4cb02bb05d
 model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	48	start:u32	end:u32
+layer	turbo:tokens	text	48	start:u32	end:u32
 0	3
 3	4
 4	5
@@ -55,8 +55,8 @@ layer	opennlp:tokens	text	48	start:u32	end:u32
 110	113
 113	115
 115	116
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	48	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	48	unknown:u32	features:str
 1	名詞,固有名詞,*,*
 1	記号,一般,*,*
 1	名詞,固有名詞,*,*

@@ -25,7 +25,9 @@ use turbo::status::Error as CoreError;
 use turbo_analysis::annotate::Writes;
 use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Layer, ModelRef, Refs, TagSet, View};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Sentences, Subwords, Tokens};
+use turbo_analysis_layers::{
+    Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Sentences, Strs, Subwords, Tokens,
+};
 
 use crate::annotate::{HeadRunner, decode_with, entity_layer, find_head, forms_of, model_ref, pos_layer, refuse};
 use crate::lemma::{lemma_layer, lemmas_with};
@@ -60,7 +62,7 @@ impl Head {
     }
 
     /// The values a word each head reads, its own and its tagger's.
-    fn hidden(&self) -> Vec<usize> {
+    pub fn hidden(&self) -> Vec<usize> {
         match self {
             Head::Tagger { tagger, .. } => vec![tagger.hidden()],
             Head::Parser { parser, .. } => vec![parser.hidden()],
@@ -71,7 +73,7 @@ impl Head {
     }
 
     /// The poolings the head reads, its tagger's included.
-    fn poolings(&self) -> Vec<WordPooling> {
+    pub fn poolings(&self) -> Vec<WordPooling> {
         let own = self.spec().word_pooling;
         match self {
             Head::Lemma { pos: Some(t), .. } => vec![own, t.spec().word_pooling],
@@ -88,10 +90,25 @@ pub struct Input<'a> {
     pub seqs: Vec<Vec<usize>>,
     pub forms: Vec<Vec<&'a str>>,
     poolings: Vec<WordPooling>,
-    features: Vec<Vec<Vec<f32>>>,
+    /// `features[p]` is `poolings[p]`'s, a sequence's words' features
+    /// each; shared, so several heads read one read's states.
+    features: Arc<Vec<Vec<Vec<f32>>>>,
 }
 
-impl Input<'_> {
+impl<'a> Input<'a> {
+    /// The words of `seqs` over `tokens`, `features[p]` their features
+    /// under `poolings[p]` (`WordEncoder::token_features_pooled`).
+    pub fn new(
+        view: &'a View,
+        tokens: &'a Tokens,
+        seqs: Vec<Vec<usize>>,
+        poolings: Vec<WordPooling>,
+        features: Arc<Vec<Vec<Vec<f32>>>>,
+    ) -> Input<'a> {
+        let forms = forms_of(view, tokens, &seqs);
+        Input { view, tokens, seqs, forms, poolings, features }
+    }
+
     /// Each sequence's features under `pooling`.
     pub fn features(&self, pooling: WordPooling) -> Result<&[Vec<f32>], String> {
         let p = self.poolings.iter().position(|&q| q == pooling).ok_or("a pooling no head asked for")?;
@@ -147,6 +164,31 @@ impl HeadLayer for Entities {
         let f = input.features(tagger.spec().word_pooling)?;
         let decoded = decode_with(tagger, f, &input.forms).map_err(|e| e.to_string())?;
         entity_layer(tagger, input.view, input.tokens, &input.seqs, &decoded, set)
+    }
+}
+
+/// The morphological features layer from a SCHEME_TAGS head whose labels
+/// are feature strings (`Gender=Masc|Number=Sing`, `_`).
+impl HeadLayer for MorphFeatures<Tokens> {
+    const KIND: HeadKind = HeadKind::TokenTagger;
+    fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
+        if spec.scheme != Scheme::Tags {
+            return Err(refuse(format!("head {:?}: a morphology head reads SCHEME_TAGS labels", spec.name)));
+        }
+        let tagger = TokenTagger::load(bundle, &spec.name)?;
+        let labels: Vec<&str> = spec.labels.iter().map(String::as_str).collect();
+        Ok(Head::Tagger { set: TagSet::new(&spec.name, &labels), tagger })
+    }
+    fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
+        let Head::Tagger { tagger, set } = head else { return wrong_head() };
+        let f = input.features(tagger.spec().word_pooling)?;
+        let decoded = decode_with(tagger, f, &input.forms).map_err(|e| e.to_string())?;
+        let tags = pos_layer(input.tokens, &input.seqs, &decoded, set)?;
+        let mut feats = Strs::default();
+        for &t in &tags.tags {
+            feats.push(set.label(t));
+        }
+        Ok(MorphFeatures::new(feats))
     }
 }
 
@@ -308,8 +350,7 @@ impl<W: Outputs> MultiTask<W> {
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
         let features = words.token_features_pooled(view, tokens, &seqs, subwords, &self.poolings)?;
         drop(words);
-        let forms = forms_of(view, tokens, &seqs);
-        let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features };
+        let input = Input::new(view, tokens, seqs, self.poolings.clone(), Arc::new(features));
         W::write(&self.heads, &input)
     }
 }

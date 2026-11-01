@@ -71,8 +71,8 @@ pub struct Item {
 }
 
 impl Mismatch {
-    /// The layer, as the document names it (`opennlp:tokens`, or
-    /// `opennlp:tokens@gold` for a named instance).
+    /// The layer, as the document names it (`turbo:tokens`, or
+    /// `turbo:tokens@gold` for a named instance).
     pub fn layer(&self) -> &str {
         use Mismatch::*;
         match self {

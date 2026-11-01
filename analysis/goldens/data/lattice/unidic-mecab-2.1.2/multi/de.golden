@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/de	239	234	252f7ce6614012d5d03442f3c99fdb40587bd9431e2a636fb006478ccd4c7dde
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	69	start:u32	end:u32
+layer	turbo:tokens	text	69	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -76,8 +76,8 @@ layer	opennlp:tokens	text	69	start:u32	end:u32
 235	236
 236	237
 237	238
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	69	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	69	unknown:u32	features:str
 0	記号,文字,*,*,*,*,ディー,Ｄ,D,ディー,D,ディー,記号,*,*,*,*
 0	記号,文字,*,*,*,*,イー,Ｅ,e,イー,e,イー,記号,*,*,*,*
 0	記号,文字,*,*,*,*,アール,Ｒ,r,アール,r,アール,記号,*,*,*,*

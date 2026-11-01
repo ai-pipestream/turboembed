@@ -167,6 +167,9 @@ pub struct Encoder<R: Real> {
     dropout: Option<Dropout>,
     /// Whether the base weights take no gradient (with adapters).
     frozen: bool,
+    /// Whether a forward keeps only each layer's output state and one
+    /// layer's inner workspace, recomputing earlier layers in backward.
+    checkpoint: bool,
     table: rope::Table<R>,
     /// An empty bias, for the norms.
     empty: Vec<R>,
@@ -210,6 +213,7 @@ impl<R: Real> Encoder<R> {
             lora_from: 0,
             dropout: None,
             frozen: false,
+            checkpoint: false,
             table,
             empty: Vec::new(),
         };
@@ -267,6 +271,18 @@ impl<R: Real> Encoder<R> {
 
     pub fn compute(&self) -> Compute {
         self.compute
+    }
+
+    /// Keeps only each layer's output state and one layer's inner
+    /// workspace across a forward, recomputing each earlier layer's
+    /// inner activations in backward.
+    pub fn with_checkpointing(mut self) -> Self {
+        self.checkpoint = true;
+        self
+    }
+
+    pub fn is_checkpointed(&self) -> bool {
+        self.checkpoint
     }
 
     /// Rounds the shadow anew from the master weights.

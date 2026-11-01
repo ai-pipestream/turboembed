@@ -6,7 +6,7 @@ unicode	15.0
 input	zh/supplementary	123	49	b60b4d4fd78a1f917d6e640df576eee5c01be3729cd14621ea970a27ea336e64
 model	zh-unigram-modes.txt	d07069e2b828406873f37f056ca71e2175d8ecbd922d2a34c356f6695c0975e03830b7fa8000ba8476312514dca8992b24d848a82abd3c4ce677b0fdf1fe6f9a
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	37	start:u32	end:u32
+layer	turbo:tokens	text	37	start:u32	end:u32
 0	4
 4	7
 7	10
@@ -44,4 +44,4 @@ layer	opennlp:tokens	text	37	start:u32	end:u32
 110	114
 114	118
 118	122
-end	opennlp:tokens
+end	turbo:tokens

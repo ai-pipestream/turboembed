@@ -1,0 +1,12 @@
+{"dataset": "contract-nli", "arm": "windows", "exit_code": 0, "elapsed_seconds": 16.724294900894165, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "contract-nli", "arm": "fixed", "exit_code": 0, "elapsed_seconds": 18.2566659450531, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "contract-nli", "arm": "semantic", "exit_code": 0, "elapsed_seconds": 31.23391628265381, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "cuad", "arm": "v1", "exit_code": 0, "elapsed_seconds": 64.23267579078674, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "cuad", "arm": "windows", "exit_code": 0, "elapsed_seconds": 52.89860224723816, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "cuad", "arm": "fixed", "exit_code": 0, "elapsed_seconds": 57.53373408317566, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "cuad", "arm": "semantic", "exit_code": 0, "elapsed_seconds": 103.54491353034973, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "qasper", "arm": "v1", "exit_code": 0, "elapsed_seconds": 135.65065050125122, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "qasper", "arm": "windows", "exit_code": 0, "elapsed_seconds": 134.96912813186646, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "qasper", "arm": "fixed", "exit_code": 0, "elapsed_seconds": 133.74361729621887, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "qasper", "arm": "semantic", "exit_code": 0, "elapsed_seconds": 260.04368352890015, "timeout_seconds": 3600, "cpu_threads": 2}
+{"dataset": "gutenqa", "arm": "v1", "exit_code": 143, "elapsed_seconds": 76.16006875038147, "timeout_seconds": 3600, "cpu_threads": 2}

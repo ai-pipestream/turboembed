@@ -18,8 +18,8 @@ import opennlp.tools.util.Span;
  * so its lines are not kept apart. The first layer is {@code turbo:bpe-merges}, anchored on the
  * document: one row per merge in the order learned, with the left and right symbols as
  * {@code str} columns. A symbol is UTF-16 units and can be one half of a surrogate pair, which the
- * writer escapes as {@code \}{@code uXXXX}. Then {@code opennlp:tokens} from
- * {@code tokenizePos}, and {@code turbo:utf16<opennlp:tokens>} when a token cuts a character
+ * writer escapes as {@code \}{@code uXXXX}. Then {@code turbo:tokens} from
+ * {@code tokenizePos}, and {@code turbo:utf16<turbo:tokens>} when a token cuts a character
  * ({@link SpanLayers}).</p>
  *
  * <p>The directory is {@code merges-<numMerges>}; {@code numMerges} and {@code languageCode} are
@@ -89,7 +89,7 @@ final class BpeGolden implements AnnotatorGolden {
     List<Layer> layers = new ArrayList<>();
     layers.add(new Layer("turbo:bpe-merges", "document", new Column.Str("left", left),
         new Column.Str("right", right)));
-    layers.addAll(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
+    layers.addAll(SpanLayers.of("turbo:tokens", input.offsets(), spans));
     return layers;
   }
 }
