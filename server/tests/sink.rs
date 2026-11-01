@@ -332,3 +332,27 @@ async fn a_refused_start_leaves_no_drain_calling_the_sink() {
     tokio::time::sleep(Duration::from_millis(1500)).await;
     assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 0, "a drain outlived the refused start");
 }
+
+/// A sink that pauses on each item still receives everything close waits
+/// for: close must drain the queue within its deadline, not drop what was
+/// already offered.
+#[tokio::test]
+async fn close_drains_what_a_slow_sink_has_not_taken_yet() {
+    let got: Got = Arc::default();
+    let keep = got.clone();
+    let receiver = SinkReceiver::new(move |item| {
+        std::thread::sleep(Duration::from_millis(80));
+        keep.lock().unwrap().push(item);
+    });
+    let serve = Serve { sink_receiver: Some(receiver), ..Serve::default() };
+    let sink = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
+    let s = teeing(format!("http://{}", sink.local_addr()), 16).await;
+    analyze(&s, "slow", 4).await;
+    // Close at once: some items are still in the queue or in the slow
+    // sink callback. Ten seconds is enough for four 80ms pauses.
+    let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+    assert_eq!((stats.offered, stats.forwarded, stats.dropped, stats.abandoned), (4, 4, 0, 0), "{stats:?}");
+    assert_eq!(got.lock().unwrap().len(), 4);
+    s.stop().await;
+    sink.stop().await;
+}
