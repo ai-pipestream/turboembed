@@ -37,3 +37,49 @@ on EWT test, AnCora test and held-out MASC, plus matching spaCy and Stanza peer
 records, remain outstanding. The native sentence head must be added when
 available. Do not close #1644 based on these unit tests or the tiny encoder
 snapshot alone.
+
+## Offline rule evaluation command
+
+`turbo-sentence-eval` runs the native rules against local gold labels. It never
+fetches a corpus, loads a model, trains a head, or launches another runtime.
+Obtain any required corpus licence acceptance separately before supplying data.
+For a local CoNLL-U test file, use:
+
+```sh
+cargo run --release --locked -p turbo-train-recipes --bin turbo-sentence-eval -- \
+  ud test.conllu EXPECTED_SHA256 en 'UD-EWT-r2.18/test'
+```
+
+Replace `EXPECTED_SHA256` with the independently verified file digest and name
+the actual release/test split. The command hashes the bytes it reads and refuses
+a mismatch before parsing. It requires a supported lowercase language tag and
+nonblank `# text` on every sentence; it never scores the general reader's
+missing-text placeholder. It uses the existing CoNLL-U sentence reader's groups
+of ten sentences and source coordinates, including its final partial group.
+This is an evaluation grouping protocol, not original document reconstruction.
+
+For the recorded MASC 3.0.0 directory:
+
+```sh
+cargo run --release --locked -p turbo-train-recipes --bin turbo-sentence-eval -- \
+  masc MASC-3.0.0
+```
+
+MASC requires the existing pinned corpus digest with no unrecorded override. It
+uses the existing held-out split (every tenth document), Twitter exclusion and
+sentence reader. Unreadable/skipped documents fail rather than moving the split.
+
+Stdout is the existing model-gate record: counts, hashes, candidate identity,
+paired bootstrap and decision, with no corpus text or local input paths. The
+candidate includes rule version, language, configuration hash and group size;
+its SHA-256 is the running executable's digest, identifying the actual compiled
+code and tables. The corpus digest and sample digest identify the input and
+exact scored labels. No scratch output files are created. Capture stdout only
+where your application's storage policy allows aggregate evaluation records.
+
+Exit status 0 means the unchanged rule-versus-newline gate passed, 2 means it
+failed (the record is still emitted), and 1 means invalid input or an execution
+error (no partial record). The existing minimum of 30 sample groups applies.
+The bundled CLI tests are project-authored fixtures, not real-corpus accuracy
+evidence. SaT, our trained head and spaCy/Stanza peer records remain separate
+outstanding work; this command alone does not complete #1644.
