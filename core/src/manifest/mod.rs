@@ -37,6 +37,8 @@ pub struct Manifest {
     pub projection: Option<Projection>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heads: Vec<HeadSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub head_provenance: Vec<HeadProvenance>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,

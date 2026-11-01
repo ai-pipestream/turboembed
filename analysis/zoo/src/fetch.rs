@@ -32,7 +32,7 @@ pub use drive::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive};
 pub use oauth::{DRIVE_READONLY, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleOAuth, Grant, Pkce, Renewing};
 #[cfg(feature = "http")]
 pub use s3::S3Bucket;
-pub use sources::{Blobs, Keep, Sources};
+pub use sources::{Blobs, Directory, Keep, Sources};
 pub use status::CacheStatus;
 #[cfg(feature = "http")]
 pub use transport::Http;
@@ -107,6 +107,29 @@ impl<'t> Zoo<'t> {
             return Err(ZooError::NotAccepted { id: a.id.clone(), class: a.class, user: user.to_string(), missing });
         }
         Ok(a)
+    }
+
+    /// Ensures the redistributable artifact `id`'s files are on disk and
+    /// verified: enforces `Acceptances` for `CLASS_LGPL`,
+    /// `CLASS_SHARE_ALIKE` and `CLASS_GPL`, and refuses `CLASS_LOCAL_ONLY`
+    /// with [`ZooError::LocalOnly`] before touching the transport.
+    pub fn ensure(&self, id: &str, user: &UserId, acceptances: &Acceptances) -> Result<Fetched<'_>, ZooError> {
+        self.ensure_with(id, user, || Ok(acceptances.clone()))
+    }
+
+    /// [`Zoo::ensure`], reading the acceptances through `load` only when
+    /// the artifact needs some ([`Zoo::permit_with`]).
+    pub fn ensure_with(
+        &self,
+        id: &str,
+        user: &UserId,
+        load: impl FnOnce() -> Result<Acceptances, ZooError>,
+    ) -> Result<Fetched<'_>, ZooError> {
+        let a = self.index.get(id)?;
+        if !a.class.may_redistribute() {
+            return Err(ZooError::LocalOnly { id: a.id.clone() });
+        }
+        self.fetch_with(id, user, load)
     }
 
     /// The artifact `id`'s files on disk, after [`Zoo::permit`]. A file in

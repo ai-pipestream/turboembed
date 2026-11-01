@@ -163,7 +163,7 @@ impl<'a> Input<'a> {
         Ok(&self.features[pooling_of(&self.poolings, pooling)?])
     }
 
-    fn tapped(&self, pooling: WordPooling, taps: usize) -> Result<std::borrow::Cow<'_, [Vec<f32>]>, String> {
+    pub(crate) fn tapped(&self, pooling: WordPooling, taps: usize) -> Result<std::borrow::Cow<'_, [Vec<f32>]>, String> {
         Ok(tail_taps(self.features(pooling)?, self.taps, taps))
     }
 }
@@ -175,7 +175,7 @@ pub trait HeadLayer: Layer {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String>;
 }
 
-fn wrong_head<T>() -> Result<T, String> {
+pub(crate) fn wrong_head<T>() -> Result<T, String> {
     Err("the head is of another kind than its layer".into())
 }
 

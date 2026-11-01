@@ -2806,7 +2806,9 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-morfologik",
  "turbo-relation",
+ "turbo-unicode",
  "turbo-wordnet",
+ "turbo-zoo",
 ]
 
 [[package]]
