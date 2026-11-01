@@ -93,7 +93,7 @@ impl LatticeTokenizer {
 
     fn model_ref(&self) -> ModelRef {
         ModelRef {
-            id: format!("opennlp:{DICTIONARY_NAME}"),
+            id: format!("turbo:{DICTIONARY_NAME}"),
             revision: String::new(),
             sha256: self.dictionary.sha256().to_hex(),
         }
@@ -117,7 +117,7 @@ impl Annotator for LatticeTokenizer {
         Ok((tokens, self.pos_tags(tags)))
     }
 
-    /// The dictionary: `opennlp:MecabDictionary` as the id, no revision (a
+    /// The dictionary: `turbo:MecabDictionary` as the id, no revision (a
     /// dictionary directory carries none), and the SHA-256 of the manifest
     /// of its files ([`MecabDictionary::sha256`]).
     fn model(&self) -> Option<ModelRef> {

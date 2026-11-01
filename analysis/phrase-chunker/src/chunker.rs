@@ -310,7 +310,7 @@ mod tests {
         let p = doc.provenance(key.id()).unwrap();
         assert_eq!(p.annotator, "turbo-phrase-chunker:maxent");
         assert_eq!(p.config, config);
-        assert_eq!(p.model.as_ref().unwrap().id, "opennlp:ChunkerME:en");
+        assert_eq!(p.model.as_ref().unwrap().id, "turbo:ChunkerME:en");
         assert_eq!(p.reads, [Key::<View>::DEFAULT.id(), Key::<Tokens>::DEFAULT.id(), Key::<PosTags>::DEFAULT.id()]);
         let p = doc.provenance(Key::<PhraseChunks>::DEFAULT.id()).unwrap();
         assert_eq!(p.annotator, "turbo-phrase-chunker:maxent");
