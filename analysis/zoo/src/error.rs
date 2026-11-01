@@ -45,6 +45,10 @@ pub enum ZooError {
     /// The artifact is under terms the zoo refuses: it is not listed and
     /// never fetched.
     Refused { id: ArtifactId, licences: Vec<Licence> },
+    /// The artifact is `CLASS_LOCAL_ONLY` (trained on recipe-only or
+    /// non-redistributable data) and cannot be fetched as a redistributable
+    /// model or head from a remote zoo source.
+    LocalOnly { id: ArtifactId },
     /// The artifact's class needs the user's acceptance of these licences,
     /// and the user has not accepted them.
     NotAccepted { id: ArtifactId, class: LicenceClass, user: String, missing: Vec<Requirement> },
@@ -63,6 +67,9 @@ impl fmt::Display for ZooError {
             ZooError::Acceptances(m) => write!(f, "acceptance file: {m}"),
             ZooError::Holders(m) => write!(f, "holders: {m}"),
             ZooError::NotFound(id) => write!(f, "{id}: the zoo has no artifact with this id"),
+            ZooError::LocalOnly { id } => {
+                write!(f, "{id}: CLASS_LOCAL_ONLY cannot be fetched from a remote zoo source")
+            }
             ZooError::Refused { id, licences } => {
                 write!(f, "{id}: refused, the zoo does not list or fetch artifacts under ")?;
                 for (i, l) in licences.iter().enumerate() {

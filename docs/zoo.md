@@ -351,6 +351,17 @@ For `fetch(id, user)`:
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.
 
+`Zoo::ensure` (and `Zoo::ensure_with`) wraps `Zoo::fetch_with` for
+redistributable models and heads (#1726): it enforces `Acceptances` for
+`CLASS_LGPL`, `CLASS_SHARE_ALIKE`, and `CLASS_GPL` and refuses
+`CLASS_LOCAL_ONLY` with `ZooError::LocalOnly` before touching the
+transport. `Index::find(language, component)` orders matching entries
+from least to most restrictive licence class (`CLASS_PERMISSIVE` first,
+in index order within a class) so callers default to a permissive model
+or head when several serve the same language and component. Beside
+`Blobs` and `Http`, `Directory` serves verified bundle files from a
+local directory root (`<root>/<id>/<path>` or `<root>/<path>`).
+
 ## Self-hosted mirrors
 
 An artifact file's `url` is any `https://` address that serves the

@@ -122,6 +122,15 @@ impl Metrics {
             Metrics::Coref { conll_f1, .. } => *conll_f1,
         }
     }
+
+    /// The name of the headline metric (`accuracy`, `span_f1`, or `conll_f1`).
+    pub fn metric_name(&self) -> &'static str {
+        match self {
+            Metrics::Tags { .. } => "accuracy",
+            Metrics::Spans { .. } | Metrics::Relations { .. } => "span_f1",
+            Metrics::Coref { .. } => "conll_f1",
+        }
+    }
 }
 
 /// What training saw: its words and its labels.

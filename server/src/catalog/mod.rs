@@ -192,7 +192,8 @@ pub(crate) fn zoo_status(e: ZooError) -> Status {
         | ZooError::Acceptances(_)
         | ZooError::Holders(_)
         | ZooError::Refused { .. }
-        | ZooError::NotAccepted { .. } => TURBO_E_INVALID_STATE,
+        | ZooError::NotAccepted { .. }
+        | ZooError::LocalOnly { .. } => TURBO_E_INVALID_STATE,
         ZooError::Transport { .. } | ZooError::Io { .. } => TURBO_E_RUNTIME,
     };
     plain(Failure::new(code, 0, e.to_string()))
