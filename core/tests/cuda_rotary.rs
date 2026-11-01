@@ -204,13 +204,16 @@ fn model_kernels() -> Vec<Knob> {
 
 /// The knobs a FASTEST session is held at: the eight-warp tiles, 64 x 64,
 /// F16 accumulators, a swizzled tile (which the rotary epilogues run on
-/// the eight-warp kernel), and the tensor cores' attentions.
+/// the eight-warp kernel), whole-k F16 accumulators, GELU by erff, and the
+/// tensor cores' attentions.
 fn fastest_kernels() -> Vec<Knob> {
     vec![
         ("default", Box::new(|_| {})),
         ("tile 64x64", Box::new(|on| turbo::cuda::use_tile(on.then_some(Tile::T64x64)))),
         ("F16 accumulators", Box::new(|on| turbo::cuda::use_tile(on.then_some(Tile::EightWarpsF16Accumulate)))),
         ("swizzled tile", Box::new(|on| turbo::cuda::use_tile(on.then_some(Tile::Swizzled)))),
+        ("whole-k F16 accumulators", Box::new(|on| turbo::cuda::use_tile(on.then_some(Tile::F16WholeK3)))),
+        ("GELU erf", Box::new(|on| turbo::cuda::use_gelu(on.then_some(turbo::cuda::Gelu::Erf)))),
         ("attention of 64 queries", Box::new(|on| turbo::cuda::use_wide_attention(on.then_some(false)))),
         ("exact attention", Box::new(|on| turbo::cuda::use_exact_attention(on.then_some(true)))),
         ("acc32 attention", Box::new(|on| turbo::cuda::use_acc32_attention(on.then_some(true)))),
@@ -447,11 +450,13 @@ fn the_tiny_bundles_at_fastest_hold_on_every_kernel() {
     }
 }
 
-/// #1617's overflow fixtures, whose layer 0 gated MLP middle product
-/// passes F16's 65504 on every token, at FASTEST on each kernel of
-/// fastest_kernels and over rows short, full and ragged: the F16 middle
-/// product saturates, so every output is finite (#1632). Without the
-/// clamp every value was infinite or NaN.
+/// The overflow fixtures (tests/common/rotary.rs), whose layer 0 gated MLP
+/// middle product passes F16's 65504 on every token while every weight stays
+/// in [-30, 30], at FASTEST on each kernel of fastest_kernels and over rows
+/// short, full and ragged: the F16 middle product saturates at 65504 and the
+/// second feed-forward GEMM sums in F32, so every output is finite and stays
+/// near the CPU's by cosine (#1602, #1632). Without the guard every value was
+/// infinite or NaN.
 #[test]
 fn a_gated_middle_past_f16_s_range_stays_finite_at_fastest() {
     let test = "a_gated_middle_past_f16_s_range_stays_finite_at_fastest";
@@ -459,14 +464,17 @@ fn a_gated_middle_past_f16_s_range_stays_finite_at_fastest() {
     if !device(test) {
         return;
     }
-    for (name, f, types) in [
-        ("modernbert", rotary::overflow_modernbert("cu-rotary-overflow-mb"), false),
-        ("nomic", rotary::overflow_nomic("cu-rotary-overflow-nb"), true),
+    for (name, f, types, floor) in [
+        ("modernbert", rotary::overflow_modernbert("cu-rotary-overflow-mb"), false, 0.75),
+        ("nomic", rotary::overflow_nomic("cu-rotary-overflow-nb"), true, 0.999),
     ] {
         f.write();
-        let g = on_gpu(&f.dir);
+        let (g, c) = (on_gpu(&f.dir), Loaded::load(&f.dir).unwrap());
+        let cs = Session::create(c.m, Some(&session_desc(4, 64, TURBO_PRECISION_FASTEST))).unwrap();
         for lens in [&[9usize, 1, 32][..], &[32usize, 32][..], &[64usize, 33, 17][..]] {
             let t = rows(lens, &[], &[], types);
+            cs.write_tokens(&t.batch(), None).unwrap();
+            let want = cs.run().unwrap().rows();
             for (what, set) in fastest_kernels() {
                 let gs = session_with(g.m, 4, 64, TURBO_PRECISION_FASTEST, set);
                 assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F16, "{name}: {what}");
@@ -474,8 +482,10 @@ fn a_gated_middle_past_f16_s_range_stays_finite_at_fastest() {
                 let got = gs.run().unwrap().rows();
                 let bad = got.iter().flatten().filter(|v| !v.is_finite()).count();
                 assert_eq!(bad, 0, "{name}: {what}: rows {lens:?}: {bad} values not finite");
+                let cos = least_cosine(&got, &want);
+                assert!(cos >= floor, "{name}: {what}: rows {lens:?}: least cosine to the CPU {cos}, under {floor}");
             }
         }
-        println!("{test}: {name}: finite on every kernel and row shape");
+        println!("{test}: {name}: finite and near the CPU on every kernel and row shape");
     }
 }
