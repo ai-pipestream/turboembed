@@ -92,6 +92,9 @@ no way to stop a load part way.
 | `--sink-endpoint URI` | Forward every document an `AnalyzeStream` completes to the `TurboSinkService` at this address, such as `http://sink:8081` (docs/grpc-sink.md). | No forwarding. |
 | `--sink-queue-items N` | The most documents waiting for the sink; one more is dropped and counted. Needs `--sink-endpoint`. | 1024. |
 | `--sink-queue-bytes N` | The most encoded bytes waiting for the sink. Needs `--sink-endpoint`. | 64 MiB. |
+| `--sink-documents` | Also forward the complete graph of every `AnalyzeDocumentProgressive` call that ends with one (docs/grpc-sink.md). Needs `--sink-endpoint`. | Off. |
+| `--sink-typed-offsets utf8\|utf16\|code-point` | Add the typed document projection, as `InspectDocumentGraph` answers it in these offsets, to every forwarded item carrying a graph. Needs `--sink-endpoint`. | No projection. |
+| `--sink-typed-view N` | The view the typed projection is in, 0 to 65535. Needs `--sink-typed-offsets`. | 0, the source view. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
 
@@ -163,6 +166,9 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_SINK_ENDPOINT` | `--sink-endpoint` |
 | `TURBO_KSERVE_SINK_QUEUE_ITEMS` | `--sink-queue-items` |
 | `TURBO_KSERVE_SINK_QUEUE_BYTES` | `--sink-queue-bytes` |
+| `TURBO_KSERVE_SINK_DOCUMENTS` | `--sink-documents` (`1`, `true`, `yes`, `0`, `false`, `no`) |
+| `TURBO_KSERVE_SINK_TYPED_OFFSETS` | `--sink-typed-offsets` |
+| `TURBO_KSERVE_SINK_TYPED_VIEW` | `--sink-typed-view` |
 | `TURBO_KSERVE_CATALOG_DIR` | `--catalog-dir` |
 | `TURBO_KSERVE_CATALOG_INDEX` | `--catalog-index` |
 | `TURBO_KSERVE_CATALOG_STORE` | `--catalog-store` |

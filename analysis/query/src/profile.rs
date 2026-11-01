@@ -223,7 +223,7 @@ impl QueryProfileBuilder {
             qb = qb.add(GlossaryAnnotator::new(glossary, GlossaryMatcher::Text(text_matcher)));
         }
 
-        // Optional dictionary and regex entity finders on named `opennlp:entities` instances.
+        // Optional dictionary and regex entity finders on named `turbo:entities` instances.
         if let Some(dict_finder) = self.dictionary_finder.take() {
             qb = qb.step(Bound::new(dict_finder).write(0, DICT_ENTITIES));
         }

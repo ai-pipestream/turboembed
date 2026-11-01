@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/spanish	140	122	f9fd56df613aecfdec7800f95eccc7f457cbd15ee602da070166ddeeed8c181d
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	98	start:u32	end:u32
+layer	turbo:tokens	text	98	start:u32	end:u32
 0	1
 1	2
 3	4
@@ -105,4 +105,4 @@ layer	opennlp:tokens	text	98	start:u32	end:u32
 135	137
 137	138
 138	139
-end	opennlp:tokens
+end	turbo:tokens

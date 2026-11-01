@@ -6,7 +6,7 @@ unicode	15.0
 input	zh/mixed-latin	278	144	697112920ecf0c5edf295b39b9ac2f507eda7c923e7bf8226b5b336e95c508b4
 model	zh-unigram-modes.txt	d07069e2b828406873f37f056ca71e2175d8ecbd922d2a34c356f6695c0975e03830b7fa8000ba8476312514dca8992b24d848a82abd3c4ce677b0fdf1fe6f9a
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	139	start:u32	end:u32
+layer	turbo:tokens	text	139	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -146,4 +146,4 @@ layer	opennlp:tokens	text	139	start:u32	end:u32
 268	271
 271	274
 274	277
-end	opennlp:tokens
+end	turbo:tokens

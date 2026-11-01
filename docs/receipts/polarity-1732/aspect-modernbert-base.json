@@ -1,0 +1,89 @@
+{
+  "corpus": {
+    "documents_test": 15,
+    "documents_total": 71,
+    "documents_train": 56,
+    "license": "CC-BY-3.0-US",
+    "name": "MASC 3.0.0 MPQA aspect-opinion spans",
+    "population_sha256": "52aff02c72db10be2c4b6fd4e03b725b738c44c5c2740f85be20fa184edf0558",
+    "test_aspects": 127,
+    "train_aspects": 972
+  },
+  "default_selection": {
+    "default_extractor": "RuleAspectSentiment",
+    "reason": "Held-out exact aspect-span F1 remains near zero on 56 MASC training documents; RuleAspectSentiment stays the default extractor and no CLASS_PERMISSIVE aspect head is published in zoo.json."
+  },
+  "encoder": {
+    "dim": 768,
+    "id": "answerdotai/ModernBERT-base",
+    "manifest_sha256": "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8",
+    "revision": "1"
+  },
+  "held_out": {
+    "learned_modernbert_base": {
+      "aspect_f1": 0.0,
+      "aspect_fn": 125,
+      "aspect_fp": 20,
+      "aspect_tp": 0,
+      "polarity_accuracy": 0.0,
+      "polarity_correct": 0,
+      "polarity_total": 0
+    },
+    "legacy_minilm_l6_v2_reference": {
+      "aspect_f1": 0.013491,
+      "aspect_fn": 121,
+      "aspect_fp": 464,
+      "aspect_tp": 4,
+      "held_out_aspects": 127,
+      "held_out_documents": 15,
+      "note": "Polarity accuracy covers only four exact aspect matches. The head is experimental and is not recommended as the default extractor.",
+      "polarity_accuracy": 1.0,
+      "polarity_correct": 4,
+      "polarity_total": 4
+    },
+    "majority_baseline_no_aspects": {
+      "aspect_f1": 0.0,
+      "aspect_fn": 125,
+      "aspect_fp": 0,
+      "aspect_tp": 0
+    },
+    "rule_aspect_sentiment": {
+      "aspect_f1": 0.0,
+      "aspect_fn": 125,
+      "aspect_fp": 41,
+      "aspect_tp": 0,
+      "polarity_accuracy": 0.0,
+      "polarity_correct": 0,
+      "polarity_total": 0
+    }
+  },
+  "paired_bootstrap": {
+    "learned_modernbert_vs_majority": {
+      "aspect_f1": {
+        "baseline": 0.0,
+        "candidate": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "diff": 0.0,
+        "p_value_one_sided": 1.0
+      },
+      "resamples": 10000
+    },
+    "learned_modernbert_vs_rule": {
+      "aspect_f1": {
+        "baseline": 0.0,
+        "candidate": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "diff": 0.0,
+        "p_value_one_sided": 1.0
+      },
+      "resamples": 10000
+    }
+  },
+  "trainer": "turbo-trainer (ClassifierHead::fit_single_label via linear::forward, linear::backward, xent::loss)"
+}

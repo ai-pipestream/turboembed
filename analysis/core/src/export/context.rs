@@ -63,9 +63,11 @@ impl SliceCx {
     /// dangling reference; an index past its items is refused the
     /// same way.
     pub fn remapped(&self, layer: &LayerRef, ix: u32) -> Result<Option<u32>, ExportError> {
+        let current =
+            LayerRef { layer: canonical_layer_name(&layer.layer).into_owned(), instance: layer.instance.clone() };
         let remap = self
             .remaps
-            .get(layer)
+            .get(&current)
             .ok_or_else(|| ExportError::DanglingReference { layer: self.layer.clone(), reference: layer.clone() })?;
         remap.get(ix as usize).copied().ok_or_else(|| ExportError::DanglingEndpoint {
             layer: self.layer.clone(),
@@ -143,7 +145,7 @@ impl ImportCx {
     /// How many items a restored layer instance holds.
     pub fn layer_len(&self, layer: &LayerRef) -> Result<usize, ExportError> {
         self.lens
-            .get(&(layer.layer.clone(), layer.instance.clone()))
+            .get(&(canonical_layer_name(&layer.layer).into_owned(), layer.instance.clone()))
             .copied()
             .ok_or_else(|| ExportError::DanglingReference { layer: self.layer.clone(), reference: layer.clone() })
     }
@@ -154,6 +156,7 @@ impl ImportCx {
     /// default instance. This is the resolution `Document::add`
     /// applies, mirrored so a payload can be held to it.
     pub fn resolved_instance(&self, layer: &str) -> &str {
+        let layer = canonical_layer_name(layer);
         self.made_on.iter().find(|r| r.layer == layer).map(|r| r.instance.as_str()).unwrap_or("")
     }
 
@@ -166,7 +169,7 @@ impl ImportCx {
     /// would otherwise be bounds-checked against one instance and
     /// silently attached to another.
     pub fn expect_target<Target: Layer>(&self, named: &LayerRef) -> Result<(), ExportError> {
-        if named.layer != Target::NAME.to_string() {
+        if canonical_layer_name(&named.layer) != Target::NAME.to_string() {
             return Err(ExportError::InvalidLayer {
                 layer: self.layer.clone(),
                 detail: format!("an index column into {}, not {}", named.layer, Target::NAME),

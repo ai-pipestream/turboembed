@@ -6,13 +6,13 @@ unicode	15.0
 input	sentence-fixture/crlf	25	25	ef0f4ce89fecc7bc80d4153caba7a724164a1031372c95a2bc235fcf2b72d546
 model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
 annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
-layer	opennlp:sentences	text	3	start:u32	end:u32
+layer	turbo:sentences	text	3	start:u32	end:u32
 0	10
 11	17
 19	24
-end	opennlp:sentences
-layer	turbo:confidence<opennlp:sentences>	aligned:opennlp:sentences	3	value:f64
+end	turbo:sentences
+layer	turbo:confidence<turbo:sentences>	aligned:turbo:sentences	3	value:f64
 3fe1915da6d28b76 0.5489948518992225
 3feaacc86a617cba 0.8335916593313393
 3fe6711d5a4bd89a 0.7013079417800043
-end	turbo:confidence<opennlp:sentences>
+end	turbo:confidence<turbo:sentences>

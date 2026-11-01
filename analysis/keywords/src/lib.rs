@@ -7,12 +7,12 @@
 //!   one item per occurrence span, carrying the normalized phrase, a
 //!   salience in `[0, 1]` (higher is more salient), the algorithm's tag
 //!   and the term count.
-//! - [`YakeExtractor`] / [`YakeAnnotator`] read `opennlp:sentences`,
-//!   `opennlp:tokens` and `turbo:terms`; the stopword filter is
+//! - [`YakeExtractor`] / [`YakeAnnotator`] read `turbo:sentences`,
+//!   `turbo:tokens` and `turbo:terms`; the stopword filter is
 //!   configuration ([`Stopwords`]), one of OpenNLP's bundled lists or
 //!   the caller's own words, never a layer.
 //! - [`TextRankExtractor`] / [`TextRankAnnotator`] also read
-//!   `opennlp:pos` and keep only the content tags `NOUN`, `PROPN` and
+//!   `turbo:pos` and keep only the content tags `NOUN`, `PROPN` and
 //!   `ADJ`.
 //!
 //! Both annotators write the same layer type, so a pipeline running both

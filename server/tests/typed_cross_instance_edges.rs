@@ -11,9 +11,9 @@ use turbo_analysis_layers::{Entities, Tokens};
 use turbo_kserve::proto::result::{InspectDocumentGraphRequest, OffsetMode, typed_annotation::Value};
 use turbo_kserve::results::document::codecs;
 
-const EDGES: &str = "turbo:edges<opennlp:entities, opennlp:entities>";
+const EDGES: &str = "turbo:edges<turbo:entities, turbo:entities>";
 
-/// The rich fixture plus a two-row `opennlp:entities@gold` and one edge
+/// The rich fixture plus a two-row `turbo:entities@gold` and one edge
 /// from the default entities to `to`.
 fn graph(to: Key<Entities>) -> Vec<u8> {
     let mut doc = fixture::build_rich_document();
@@ -59,9 +59,9 @@ async fn cross_instance_entity_edges_round_trip_and_stay_bounded() {
             let bounds: Vec<(&str, &str)> =
                 out.layers[edges].indexes_layer.iter().map(|b| (b.layer.as_str(), b.instance.as_str())).collect();
             let want: &[(&str, &str)] = if cross {
-                &[("opennlp:entities", ""), ("opennlp:entities", "gold")]
+                &[("turbo:entities", ""), ("turbo:entities", "gold")]
             } else {
-                &[("opennlp:entities", ""), ("opennlp:entities", "")]
+                &[("turbo:entities", ""), ("turbo:entities", "")]
             };
             assert_eq!(bounds, want, "cross={cross} {mode:?}");
             let echoed = client.round_trip_typed_document(out.clone()).await;

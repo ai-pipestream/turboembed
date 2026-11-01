@@ -1,6 +1,6 @@
 //! Consensus over three recognizers' entities, run as a pipeline step:
 //! a dictionary (no model) and two statistical finders, each in its own
-//! instance of `opennlp:entities`.
+//! instance of `turbo:entities`.
 
 use std::num::NonZeroU32;
 

@@ -77,7 +77,7 @@ fn anchored_layer_name(k: AnchoredLayerKind) -> &'static str {
         AnchoredLayerKind::Temporals => "turbo:temporal",
         AnchoredLayerKind::Money => "turbo:money",
         AnchoredLayerKind::Quantities => "turbo:quantities",
-        AnchoredLayerKind::Names => "opennlp:entities",
+        AnchoredLayerKind::Names => "turbo:entities",
     }
 }
 
