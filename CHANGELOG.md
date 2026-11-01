@@ -19,7 +19,7 @@ gRPC service) build against. Everything below is new.
 
 ### Added
 
-- `DocumentSinkItem.typed` (field 6) carries the item's graph as
+- `DocumentSinkItem.typed` (field 9) carries the item's graph as
   `InspectDocumentGraph` projects it: `--sink-typed-offsets` and
   `--sink-typed-view` (`TURBO_KSERVE_SINK_TYPED_OFFSETS`,
   `TURBO_KSERVE_SINK_TYPED_VIEW`, `SinkConfig::typed`) choose the offset

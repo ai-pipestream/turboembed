@@ -17,7 +17,7 @@ An item carries a document graph (binary `DocumentGraph` bytes, as
 `RoundTripDocumentGraph` takes them, with its layers and views listed),
 an `AnalyzeStream` answer, or both. Its `sequence` is the sender's, and
 strictly increases within a stream. An item carrying a graph can also
-carry `typed` (field 6), the graph's `TypedDocumentResult` exactly as
+carry `typed` (field 9), the graph's `TypedDocumentResult` exactly as
 `InspectDocumentGraph` answers it for the item's `doc_id` and the view
 and offset mode the sender is configured with, so a sink in any language
 reads the annotations without decoding the graph or calling back. Field 7
