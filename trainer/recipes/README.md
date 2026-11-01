@@ -141,7 +141,6 @@ whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
 
-<<<<<<< HEAD
 `train-sentences` trains the sentence boundary head (`sentences` on
 `turboembed:sentences`, #1725) on multi-sentence MASC (`masc-pos`) or
 UD documents (`ud-es-ancora`, `ud-ca-ancora`, `ud-fi-ftb`,
@@ -152,7 +151,7 @@ the test split by exact sentence span precision, recall and F1, with
 paired bootstrap comparisons against both the newline baseline
 (`eval.baseline` and `eval.comparison`) and the rule/abbreviation
 sentencer in `analysis/sentdetect` (`eval.rules`).
-=======
+
 `export` writes a corpus's test words, and nothing else, as CoNLL-U
 for a peer system (spaCy, Stanza) to tag as given; `peer` reads the
 peer's CoNLL-U back and scores the column named exactly as the
@@ -168,7 +167,6 @@ part alone. The words are syntactic words, multiword tokens already
 split, so a peer runs pretokenized with no multiword expansion (Stanza
 `tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
 its file for words other than the split's.
->>>>>>> origin/main
 
 `train-relation` trains the relation classifier head (`relation` on
 `turboembed:relations`, #1734) on `re-docred`: each document is one
