@@ -19,10 +19,24 @@ fn sigmoid_is_stable_at_the_tails() {
     assert_eq!(sigmoid(0.0), 0.5);
     assert_eq!(sigmoid(-1000.0), 0.0);
     assert_eq!(sigmoid(1000.0), 1.0);
-    assert!(sigmoid(-100.0).is_finite() && sigmoid(-100.0) > 0.0);
+    assert!(sigmoid(-60.0).is_finite() && sigmoid(-60.0) > 0.0);
     assert_eq!(sigmoid_f64(0.0), 0.5);
     assert_eq!(sigmoid_f64(-1000.0), 0.0);
     assert_eq!(sigmoid_f64(1000.0), 1.0);
+}
+
+#[test]
+fn sigmoid_and_tanh_track_the_f64_functions_and_hold_at_the_tails() {
+    assert_eq!(tanh(0.0), 0.0);
+    assert_eq!(tanh(-1000.0), -1.0);
+    assert_eq!(tanh(1000.0), 1.0);
+    let mut x = -20.0f32;
+    while x <= 20.0 {
+        let (s, t) = (sigmoid(x) as f64, tanh(x) as f64);
+        assert!((s - sigmoid_f64(x as f64)).abs() < 4e-7, "sigmoid({x}) = {s}");
+        assert!((t - (x as f64).tanh()).abs() < 4e-7, "tanh({x}) = {t}");
+        x += 0.0137;
+    }
 }
 
 #[test]

@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use crate::cpu::{Matrix, Mode};
+use crate::head::tanh;
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
 /// A host-side linear layer `y = x * W^T + b`, with `weight` stored row-major
@@ -204,7 +205,7 @@ impl Linear {
     pub fn apply_tanh(&self, x: &[f32], out: &mut [f32]) {
         self.apply(x, out);
         for v in out.iter_mut() {
-            *v = v.tanh();
+            *v = tanh(*v);
         }
     }
 }
