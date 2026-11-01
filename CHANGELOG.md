@@ -83,7 +83,7 @@ for the release after it goes above it.
   gains `turboembed-v<version>-android.tar.gz`, `libturbo.so` for the
   `arm64-v8a` and `x86_64` ABIs at API level 26, and both bindings run the
   conformance suite in `clients/java-conformance` over the sealed
-  `testdata` bundles (#1800).
+  `testdata` bundles (#1801).
 
 ### Changed
 
