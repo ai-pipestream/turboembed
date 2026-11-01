@@ -339,7 +339,7 @@ impl TermAnalyzer {
     /// without allocating a [`Term`] or its [`OnceLock`] layer table.
     ///
     /// When `skip_lemma` is `true` (because the document already supplies an
-    /// `opennlp:lemmas` layer), [`Dimension::Lemma`] is not evaluated.
+    /// `turbo:lemmas` layer), [`Dimension::Lemma`] is not evaluated.
     pub(crate) fn analyze_for_annotator(
         &self,
         token: &str,

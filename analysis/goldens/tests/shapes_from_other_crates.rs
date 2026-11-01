@@ -49,7 +49,7 @@ impl GoldenCompare for WordTypes {
         let golden = Items {
             len: golden.len(),
             spans: None,
-            context: cx.golden_spans("opennlp:tokens"),
+            context: cx.golden_spans("turbo:tokens"),
             tokens: None,
             units: None,
             labels: Some(Labels::Strs(golden.strs("kind").expect("a str column the shape checked"))),
@@ -88,7 +88,7 @@ fn doc(kinds: &[&str]) -> Document {
 fn the_shape_comes_from_the_type() {
     let s = shape_of::<WordTypes>();
     assert_eq!(s.id, "turbo:word-types");
-    assert_eq!(s.anchor, GoldenAnchor::Aligned("opennlp:tokens".into()));
+    assert_eq!(s.anchor, GoldenAnchor::Aligned("turbo:tokens".into()));
     assert_eq!(s.columns, [ColumnSpec::new("kind", ColumnType::Str)]);
 }
 
@@ -100,7 +100,7 @@ fn read_with_takes_a_layer_the_default_set_does_not_know() {
 
     let g = Golden::read_with(fixture(), &shapes()).unwrap();
     let w = g.layer("turbo:word-types").unwrap();
-    assert_eq!(w.anchor, GoldenAnchor::Aligned("opennlp:tokens".into()));
+    assert_eq!(w.anchor, GoldenAnchor::Aligned("turbo:tokens".into()));
     assert_eq!(w.strs("kind").unwrap().iter().collect::<Vec<_>>(), KINDS);
 
     // The other forms take the same set, and write back byte for byte.

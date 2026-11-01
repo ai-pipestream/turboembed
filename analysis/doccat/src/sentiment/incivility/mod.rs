@@ -12,7 +12,7 @@
 //!
 //! [`IncivilityAnnotator`] (`ID = "turbo-doccat:incivility"`) combines:
 //! 1. **Lexicon and phrase matching (`IncivilityLexicon`)**: deterministic,
-//!    zero-regex token and multi-token phrase matching over `opennlp:tokens`
+//!    zero-regex token and multi-token phrase matching over `turbo:tokens`
 //!    that assigns per-label weights and records the exact [`IxRange<Tokens>`]
 //!    evidence span for every matched expression.
 //! 2. **Multi-label embedding head (`IncivilityVectorScorer`)**: scores
@@ -103,7 +103,8 @@ pub use spans::{
 use tables::*;
 pub use zoo::{
     CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD, CIVIL_COMMENTS_BGE_SMALL_HEAD, CIVIL_COMMENTS_MINILM_CONTEXT_HEAD,
-    CIVIL_COMMENTS_MINILM_HEAD, IncivilityZooError,
+    CIVIL_COMMENTS_MINILM_HEAD, CIVIL_COMMENTS_MODERNBERT_CONTEXT_HEAD, CIVIL_COMMENTS_MODERNBERT_HEAD,
+    IncivilityZooError,
 };
 
 /// Multi-label incivility and toxicity annotator (`turbo-doccat:incivility`).

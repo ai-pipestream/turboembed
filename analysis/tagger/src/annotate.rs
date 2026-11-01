@@ -49,7 +49,7 @@ pub(crate) fn refuse(m: String) -> CoreError {
 
 /// The head of `bundle` named `name`, or, with no name, the one head that
 /// writes `layer`; refused unless it is of `kind`.
-pub(crate) fn find_head<'a>(
+pub fn find_head<'a>(
     bundle: &'a Bundle,
     name: Option<&str>,
     layer: &str,
@@ -80,7 +80,7 @@ pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
 }
 
 /// Opens `WordEncoder` configured for `taps` encoder layers.
-pub(crate) fn open_words(dir: &Path, o: &EncoderOptions, taps: usize) -> Result<WordEncoder, CoreError> {
+pub fn open_words(dir: &Path, o: &EncoderOptions, taps: usize) -> Result<WordEncoder, CoreError> {
     let mut eo = o.clone();
     if eo.layers <= 1 {
         eo.layers = taps as u32;

@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	20	start:u32	end:u32
+layer	turbo:tokens	text	20	start:u32	end:u32
 0	4
 4	7
 8	12
@@ -27,4 +27,4 @@ layer	opennlp:tokens	text	20	start:u32	end:u32
 56	62
 63	66
 66	67
-end	opennlp:tokens
+end	turbo:tokens

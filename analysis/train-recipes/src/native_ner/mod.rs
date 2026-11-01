@@ -4,14 +4,8 @@
 //! absent from a dataset's annotation scheme is not a verified negative.
 //! Production bundle output and real-data accuracy gates remain separate.
 //!
-//! # Production block
-//!
-//! The MASC reader currently fragments cross-sentence entities without
-//! retaining identity or a fragmentation marker. Sentence-local checks
-//! cannot detect this loss. Do not run production MASC training through
-//! this module until the formats correction requested on #1509 is merged
-//! and a regression verifies refusal or explicit handling of fragments.
-//! Only nonfragmented, project-authored correctness fixtures have been run.
+//! Cross-sentence pieces retain identity in the reader and are refused before
+//! training. Production training and held-out peer receipts remain outstanding.
 
 mod data;
 mod fit;

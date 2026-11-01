@@ -8,9 +8,11 @@ use turbo::head::tagger::NO_WORD;
 use turbo::manifest::{Decode, HeadKind, HeadSpec, Scheme, WordPooling};
 use turbo_trainer::adamw::{AdamW, Settings};
 use turbo_trainer::encoder::tuned::Work as TunedWork;
-use turbo_trainer::encoder::{Compute, Encoder, Geometry, Lora, Work};
+use turbo_trainer::encoder::{Compute, Encoder, Geometry, Lora, Work, lora};
 use turbo_trainer::rng::Rng;
-use turbo_trainer::{Config, Draw, LossScale, Real, Scaler, Tuned, TunedExample, fit_tuned, tuned_gradients};
+use turbo_trainer::{
+    Config, Draw, Example, LossScale, Real, Scaler, Tuned, TunedExample, fit, fit_tuned, tuned_gradients,
+};
 
 fn spec() -> HeadSpec {
     HeadSpec {
@@ -203,6 +205,91 @@ fn the_shadow_follows_the_master_weights() {
 }
 
 #[test]
+fn bf16_lora_rounds_its_intermediate_and_trains_nonzero_adapters() {
+    // At the tie 1 + 1/256, x A^T rounds to 1 before multiplying B = 1.5,
+    // so the six outputs are 1.5 rather than the unrounded product's 1.5078125.
+    let (x, a, b) = ([1.0f32, 1.0], [1.0f32, 1.0 / 256.0], [1.5f32; 6]);
+    let (mut y_round, mut h_round) = (vec![0.0f32; 6], Vec::new());
+    lora::forward(&x, &a, &b, 2, 1, 1.0, true, &mut y_round, &mut h_round);
+    assert_eq!(h_round, vec![1.0]);
+    assert_eq!(y_round, vec![1.5; 6]);
+    let (mut y_plain, mut h_plain) = (vec![0.0f32; 6], Vec::new());
+    lora::forward(&x, &a, &b, 2, 1, 1.0, false, &mut y_plain, &mut h_plain);
+    assert_eq!(h_plain, vec![1.0 + 1.0 / 256.0]);
+    assert_eq!(y_plain.iter().map(|v| v.bf16()).collect::<Vec<_>>(), vec![1.5078125; 6]);
+
+    // Through the encoder's bf16 LoRA path with nonzero A and B:
+    // x0 = [1, 1] enters layer 0's QKV adapter with A = [1, 1/256] and B = 1.5;
+    // because h rounds to [1] before B^T, its states and dB match A = [1, 0].
+    let geo1 = Geometry { layers: 1, hidden: 2, heads: 1, intermediate: 2, eps: 1e-12, ..geometry(2, 2) };
+    let build = |a_row: [f32; 2]| {
+        let mut e = Encoder::<f32>::random(geo1, 2, &mut Rng::new(1))
+            .unwrap()
+            .with_lora(Lora { rank: 1, alpha: 1.0 }, &mut Rng::new(2))
+            .unwrap()
+            .with_bf16();
+        let mut p = e.params().to_vec();
+        p.iter_mut().for_each(|s| s.fill(0.0));
+        p[0] = vec![1.0, -1.0, 1.0, -1.0];
+        p[1] = vec![1.0, -1.0];
+        p[2] = vec![1.0, 1.0];
+        p[3 + 2] = vec![1.0, 0.0, 0.0, 1.0];
+        let base = 3 + 6;
+        p[base] = a_row.to_vec();
+        p[base + 1] = vec![1.5; 6];
+        e.set_params(p).unwrap();
+        e
+    };
+    let (tie, exact) = (build([1.0, 1.0 / 256.0]), build([1.0, 0.0]));
+    let (mut wt, mut we) = (Work::default(), Work::default());
+    tie.forward(&[0], &mut wt).unwrap();
+    exact.forward(&[0], &mut we).unwrap();
+    assert_eq!(wt.out, we.out);
+    let (mut gt, mut ge) = (tie.grads(), exact.grads());
+    tie.backward(&wt, &[1.0, -0.5], &mut gt).unwrap();
+    exact.backward(&we, &[1.0, -0.5], &mut ge).unwrap();
+    assert_eq!(gt[3 + 6 + 1], ge[3 + 6 + 1], "dB uses the same rounded h");
+
+    // Nonzero trained adapters across two layers: bf16 states and adapter
+    // gradients (both A and B) track the single's.
+    let mut rng = Rng::new(51);
+    let mut e = Encoder::<f32>::random(geometry(16, 24), 64, &mut rng)
+        .unwrap()
+        .with_lora(Lora { rank: 2, alpha: 4.0 }, &mut rng)
+        .unwrap();
+    let mut params = e.params().to_vec();
+    for (s, t) in e.trainable().into_iter().enumerate() {
+        if t {
+            params[s] = (0..params[s].len()).map(|_| rng.uniform(0.5) as f32).collect();
+        }
+    }
+    e.set_params(params).unwrap();
+    let half_e = e.clone().with_bf16();
+    let ids = [3u32, 7, 1, 7, 9, 40, 2];
+    let (mut wa, mut wb) = (Work::default(), Work::default());
+    e.forward(&ids, &mut wa).unwrap();
+    half_e.forward(&ids, &mut wb).unwrap();
+    assert!(all_bf16(&wb.out));
+    let err = relative(&wb.out, &wa.out);
+    assert!(err > 0.0 && err < 0.02, "{err}");
+    let t = Tuned::new(e, &spec(), &mut rng).unwrap();
+    let (_, head) = t.clone().into_parts();
+    let half = Tuned::assemble(half_e, head).unwrap();
+    let ex = example();
+    let (mut ga, mut gb) = (t.zero_grads(), half.zero_grads());
+    let la = t.loss(&ex, &mut ga, &mut TunedWork::default()).unwrap();
+    let lb = half.loss(&ex, &mut gb, &mut TunedWork::default()).unwrap();
+    assert!((la - lb).abs() < 0.02 * la.abs(), "{lb} against {la}");
+    for (s, (a, b)) in ga.iter().zip(&gb).enumerate() {
+        let dot: f64 = a.iter().zip(b).map(|(x, y)| (*x as f64) * (*y as f64)).sum();
+        let na: f64 = a.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+        let nb: f64 = b.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+        assert!(dot / (na * nb) > 0.999, "adapter slot {s}");
+        assert!((nb / na - 1.0).abs() < 0.03, "adapter slot {s}: {nb} vs {na}");
+    }
+}
+
+#[test]
 fn loss_scaling_by_a_power_of_two_is_exact() {
     let mut rng = Rng::new(53);
     let e = Encoder::<f32>::random(geometry(16, 24), 64, &mut rng).unwrap();
@@ -242,6 +329,20 @@ fn loss_scaling_by_a_power_of_two_is_exact() {
         assert_eq!(ra.train_loss, rb.train_loss);
         assert_eq!(rb.skipped_steps, 0);
     }
+    // Even when n * scale would overflow f32 (4 * 2^127 = inf) while the
+    // scaled gradients themselves stay finite, unscaling preserves the
+    // exact update instead of zeroing it out.
+    let mut two = spec();
+    two.labels = ["A", "B"].map(String::from).to_vec();
+    let four = [Example { features: vec![0.0; 16], labels: vec![0, 0, 0, 1], forms: Vec::new() }];
+    let c = Config { epochs: 1, batch: 4, lr: 0.1, weight_decay: 0.0, warmup: 0.0, ..Config::default() };
+    let (plain, rp) = fit(&two, 4, &four, &four, &c).unwrap();
+    let high = LossScale { initial: 2.0f32.powi(127), growth: 2.0, backoff: 0.5, interval: 10 };
+    let (scaled, rs) = fit(&two, 4, &four, &four, &Config { loss_scale: Some(high), ..c }).unwrap();
+    assert_eq!(rs.skipped_steps, 0);
+    assert_eq!(rp.skipped_steps, 0);
+    assert_eq!(scaled.params(), plain.params());
+    assert_eq!(scaled.params()[1], vec![0.099999994, -0.099999994]);
 }
 
 #[test]
@@ -263,8 +364,18 @@ fn the_scaler_backs_off_on_overflow_and_grows_after_good_steps() {
     let mut top = Scaler::new(LossScale { initial: f32::MAX, growth: 2.0, backoff: 0.5, interval: 1 });
     assert!(top.update(true));
     assert_eq!(top.scale(), f32::MAX, "a scale never grows past the single");
+    let floor = LossScale { initial: f32::MIN_POSITIVE, growth: 2.0, backoff: 0.5, interval: 1 };
+    assert!(floor.check().is_ok());
+    let mut bot = Scaler::new(floor);
+    for _ in 0..8 {
+        assert!(!bot.update(false));
+        assert_eq!(bot.scale(), f32::MIN_POSITIVE, "a scale never backs off below MIN_POSITIVE");
+    }
+    assert!(bot.update(true));
+    assert_eq!(bot.scale(), 2.0 * f32::MIN_POSITIVE, "recovers from the floor");
     for bad in [
         LossScale { initial: 0.0, ..LossScale::default() },
+        LossScale { initial: f32::from_bits(1), ..LossScale::default() },
         LossScale { initial: f32::INFINITY, ..LossScale::default() },
         LossScale { growth: 0.5, ..LossScale::default() },
         LossScale { backoff: 1.0, ..LossScale::default() },

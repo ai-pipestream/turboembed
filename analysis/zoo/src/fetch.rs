@@ -15,6 +15,8 @@ use crate::index::{Artifact, File, Index};
 use crate::licence::Policy;
 
 #[cfg(feature = "http")]
+mod drive;
+#[cfg(feature = "http")]
 mod s3;
 #[cfg(feature = "http")]
 pub mod sigv4;
@@ -22,6 +24,8 @@ mod sources;
 mod status;
 mod transport;
 
+#[cfg(feature = "http")]
+pub use drive::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive};
 #[cfg(feature = "http")]
 pub use s3::S3Bucket;
 pub use sources::{Blobs, Keep, Sources};

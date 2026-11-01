@@ -8,8 +8,8 @@
 //!   Organization)", with byte offsets of both forms.
 //! - [`detect`] runs it over a view's sentences and finds the mentions.
 //! - [`AbbreviationAnnotator`] is the step: it reads a text view, its
-//!   `opennlp:sentences` and, when the document has them, its
-//!   `opennlp:tokens`, and writes `turbo:abbreviations`
+//!   `turbo:sentences` and, when the document has them, its
+//!   `turbo:tokens`, and writes `turbo:abbreviations`
 //!   ([`Abbreviations`]) and the links between its items,
 //!   `turbo:edges<turbo:abbreviations, turbo:abbreviations>`.
 //! - [`gold`] reads Ab3P's labelled MED1250 set and scores pairs against

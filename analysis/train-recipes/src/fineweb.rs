@@ -189,7 +189,7 @@ macro_rules! web {
 /// configuration: Persian is `fas`, Tagalog `fil`. Where FineWeb-2 also
 /// has a romanized configuration of a language (`hin_Latn` and the like),
 /// it is left out: Tatoeba writes those languages in their own scripts.
-pub const WEB_LANGUAGES: [WebLanguage; 100] = web![
+pub const WEB_LANGUAGES: [WebLanguage; 107] = web![
     "afr" => ["afr_Latn"], "ara" => ["arb_Arab"], "ast" => ["ast_Latn"], "aze" => ["azj_Latn"],
     "bak" => ["bak_Cyrl"], "bel" => ["bel_Cyrl"], "ben" => ["ben_Beng"], "bos" => ["bos_Latn"],
     "bre" => ["bre_Latn"], "bul" => ["bul_Cyrl"], "cat" => ["cat_Latn"], "ceb" => ["ceb_Latn"],
@@ -202,19 +202,21 @@ pub const WEB_LANGUAGES: [WebLanguage; 100] = web![
     "ind" => ["ind_Latn"], "isl" => ["isl_Latn"], "ita" => ["ita_Latn"], "jav" => ["jav_Latn"],
     "jpn" => ["jpn_Jpan"], "kan" => ["kan_Knda"], "kat" => ["kat_Geor"], "kaz" => ["kaz_Cyrl"],
     "kir" => ["kir_Cyrl"], "kor" => ["kor_Hang"], "lat" => ["lat_Latn"], "lim" => ["lim_Latn"],
-    "lit" => ["lit_Latn"], "ltz" => ["ltz_Latn"], "lvs" => ["lvs_Latn"], "mal" => ["mal_Mlym"],
-    "mar" => ["mar_Deva"], "min" => ["min_Latn"], "mkd" => ["mkd_Cyrl"], "mlg" => ["plt_Latn"],
-    "mlt" => ["mlt_Latn"], "mon" => ["khk_Cyrl"], "mri" => ["mri_Latn"], "nan" => ["nan_Latn"],
-    "nds" => ["nds_Latn"], "nld" => ["nld_Latn"], "nno" => ["nno_Latn"], "nob" => ["nob_Latn"],
-    "npi" => ["npi_Deva"], "oci" => ["oci_Latn"], "pan" => ["pan_Guru"], "pes" => ["fas_Arab"],
-    "pnb" => ["pnb_Arab"], "pol" => ["pol_Latn"], "por" => ["por_Latn"], "pus" => ["pbt_Arab"],
-    "ron" => ["ron_Latn"], "rus" => ["rus_Cyrl"], "san" => ["san_Deva"], "sin" => ["sin_Sinh"],
-    "slk" => ["slk_Latn"], "slv" => ["slv_Latn"], "som" => ["som_Latn"], "spa" => ["spa_Latn"],
-    "sqi" => ["als_Latn"], "srp" => ["srp_Cyrl", "srp_Latn"], "sun" => ["sun_Latn"],
-    "swe" => ["swe_Latn"], "swh" => ["swh_Latn"], "tam" => ["tam_Taml"], "tat" => ["tat_Cyrl"],
-    "tel" => ["tel_Telu"], "tgk" => ["tgk_Cyrl"], "tgl" => ["fil_Latn"], "tha" => ["tha_Thai"],
-    "tur" => ["tur_Latn"], "ukr" => ["ukr_Cyrl"], "urd" => ["urd_Arab"], "uzb" => ["uzn_Latn", "uzn_Cyrl"],
-    "vie" => ["vie_Latn"], "vol" => ["vol_Latn"], "war" => ["war_Latn"], "zsm" => ["zsm_Latn"],
+    "lit" => ["lit_Latn"], "ltz" => ["ltz_Latn"], "lug" => ["lug_Latn"], "lvs" => ["lvs_Latn"],
+    "mal" => ["mal_Mlym"], "mar" => ["mar_Deva"], "min" => ["min_Latn"], "mkd" => ["mkd_Cyrl"],
+    "mlg" => ["plt_Latn"], "mlt" => ["mlt_Latn"], "mon" => ["khk_Cyrl"], "mri" => ["mri_Latn"],
+    "nan" => ["nan_Latn"], "nds" => ["nds_Latn"], "nld" => ["nld_Latn"], "nno" => ["nno_Latn"],
+    "nob" => ["nob_Latn"], "npi" => ["npi_Deva"], "oci" => ["oci_Latn"], "pan" => ["pan_Guru"],
+    "pes" => ["fas_Arab"], "pnb" => ["pnb_Arab"], "pol" => ["pol_Latn"], "por" => ["por_Latn"],
+    "pus" => ["pbt_Arab"], "ron" => ["ron_Latn"], "rus" => ["rus_Cyrl"], "san" => ["san_Deva"],
+    "sin" => ["sin_Sinh"], "slk" => ["slk_Latn"], "slv" => ["slv_Latn"], "sna" => ["sna_Latn"],
+    "som" => ["som_Latn"], "sot" => ["sot_Latn"], "spa" => ["spa_Latn"], "sqi" => ["als_Latn"],
+    "srp" => ["srp_Cyrl", "srp_Latn"], "sun" => ["sun_Latn"], "swe" => ["swe_Latn"],
+    "swh" => ["swh_Latn"], "tam" => ["tam_Taml"], "tat" => ["tat_Cyrl"], "tel" => ["tel_Telu"],
+    "tgk" => ["tgk_Cyrl"], "tgl" => ["fil_Latn"], "tha" => ["tha_Thai"], "tsn" => ["tsn_Latn"],
+    "tso" => ["tso_Latn"], "tur" => ["tur_Latn"], "ukr" => ["ukr_Cyrl"], "urd" => ["urd_Arab"],
+    "uzb" => ["uzn_Latn", "uzn_Cyrl"], "vie" => ["vie_Latn"], "vol" => ["vol_Latn"],
+    "war" => ["war_Latn"], "xho" => ["xho_Latn"], "yor" => ["yor_Latn"], "zsm" => ["zsm_Latn"],
     "zul" => ["zul_Latn"],
 ];
 

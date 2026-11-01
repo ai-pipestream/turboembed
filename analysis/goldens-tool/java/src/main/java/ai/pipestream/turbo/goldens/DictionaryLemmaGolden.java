@@ -9,7 +9,7 @@ import opennlp.tools.lemmatizer.DictionaryLemmatizer;
 
 /**
  * The dictionary lemmatizer's golden: the sentences, tokens and part-of-speech tags of the
- * English models ({@link PosGolden}'s layers), then {@code opennlp:lemmas} aligned to the tokens,
+ * English models ({@link PosGolden}'s layers), then {@code turbo:lemmas} aligned to the tokens,
  * the lemma {@link DictionaryLemmatizer#lemmatize(String[], String[])} gave each token ({@code O}
  * where the dictionary has none). A lookup asks no model, so this annotator has its own
  * directory, {@code lemmatize-dictionary}, and no dumps. The model records name the dictionary

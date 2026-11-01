@@ -170,7 +170,7 @@ fn a_title_prefix_is_embedded_and_spans_stay_in_the_text() {
     let o = pipeline(windows(), Titles::Ignore).evaluate(&set(Some("cat"))).unwrap();
     assert_eq!(ranked(&o.run, "q1")[2].0, "d3");
     let p = pipeline(windows(), Titles::Prefix).description();
-    assert_eq!(p.analyzer, ["opennlp:sentences newline", "opennlp:subwords", "title prefixed to each chunk"]);
+    assert_eq!(p.analyzer, ["turbo:sentences newline", "turbo:subwords", "title prefixed to each chunk"]);
     assert_eq!(p.chunker.name, "sentence-windows");
 }
 

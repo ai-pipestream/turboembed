@@ -19,6 +19,14 @@ gRPC service) build against. Everything below is new.
 
 ### Added
 
+- `AnalyzeDocumentProgressive` runs a bundle's learned heads as steps
+  (`turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`,
+  `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`,
+  `turbo-tagger:relations`, and `turbo-tagger:heads` for every one the
+  bundle provides), the word-level ones from one encoder pass; the
+  `annotate-v1` profile runs the part-of-speech, entity, dependency and
+  lemma heads, and `BundleCapabilities.head_steps` lists each loaded
+  bundle's head steps (docs/grpc-analysis.md). (#1775)
 - The C interface, `include/turbo/turbo.h` and `turbo_backend.h`: the
   text embedding, reranking and extractive QA tasks; runtimes, devices and their capability cells; sessions at the
   `MODEL`, `FASTEST` and `EXACT` precision tiers; device selection from
@@ -63,6 +71,22 @@ gRPC service) build against. Everything below is new.
   one): the F16 sums went over FASTEST's cosine bound at 8192 tokens.
   That attention is slower; sessions of 4096 or fewer keep the F16 sums
   (#1580).
+
+### Breaking
+
+- The shared analysis layers' ids moved from the `opennlp:` namespace
+  to `turbo:`: `turbo:sentences`, `turbo:tokens`, `turbo:subwords`,
+  `turbo:entities`, `turbo:pos`, `turbo:lemmas`, `turbo:language`,
+  `turbo:embeddings`, `turbo:dependencies`, `turbo:chunk-tags`,
+  `turbo:phrases`, `turbo:mentions`, `turbo:speakers` and
+  `turbo:relations`; phrase chunks are `turbo:phrase-chunks`, apart
+  from the retrieval chunks' `turbo:chunks`. `TypedLayer.id`,
+  `LayerInfo`, DocumentGraph bytes and C ABI layer names carry the new
+  ids. Readers still accept the old ids: a DocumentGraph, a golden file
+  or a progressive step name written with one reads as the new id. The
+  document categorizer and dependency parser steps are
+  `turbo-doccat:maxent`, `turbo-doccat:maxent-spans`, `turbo-doccat:dl`,
+  `turbo-doccat:dl-spans` and `turbo-depparse:parser` (#1780).
 
 ### Not in this release yet
 

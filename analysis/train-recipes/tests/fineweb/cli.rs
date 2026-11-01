@@ -6,7 +6,7 @@ fn the_binary_says_what_to_fetch_and_needs_its_inputs() {
     let paths = Command::new(exe).args(["fineweb-ranges", "--paths"]).output().unwrap();
     assert!(paths.status.success(), "{paths:?}");
     let text = String::from_utf8(paths.stdout).unwrap();
-    assert_eq!(text.lines().count(), 204);
+    assert_eq!(text.lines().count(), 218);
     let first =
         format!("{}\t{}\tdata/afr_Latn/train/000_00000.parquet", fineweb::FINEWEB_2.repo, fineweb::FINEWEB_2.revision);
     assert_eq!(text.lines().next(), Some(first.as_str()));
