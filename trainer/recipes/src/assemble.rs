@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::{
-    BiaffineParser, EditTreeLemmatizer, RelationClassifier, SentenceBoundary, SpanClassifier, TokenSplitter,
-    TokenTagger, boundary, lemmatizer, parser, relation, span, split, tagger,
+    BiaffineParser, CorefRanker, EditTreeLemmatizer, RelationClassifier, SentenceBoundary, SpanClassifier,
+    TokenSplitter, TokenTagger, boundary, coref, lemmatizer, parser, relation, span, split, tagger,
 };
 use turbo::manifest::{Format, HeadKind, HeadProvenance, HeadSpec, LicenseClass, Manifest};
 use turbo::safetensors;
@@ -159,6 +159,7 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => boundary::tensors(spec, hidden),
         HeadKind::TokenSplit => split::tensors(spec, hidden),
         HeadKind::SpanClassifier => span::tensors(spec, hidden),
+        HeadKind::CorefRanker => coref::tensors(spec, hidden),
         HeadKind::RelationClassifier => relation::tensors(spec, hidden),
     };
     if header.len() != expected.len() {
@@ -190,6 +191,7 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => SentenceBoundary::from_tensors(spec, hidden, &get).map(|b| b.hidden()),
         HeadKind::TokenSplit => TokenSplitter::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
         HeadKind::SpanClassifier => SpanClassifier::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
+        HeadKind::CorefRanker => CorefRanker::from_tensors(spec, hidden, &get).map(|c| c.hidden()),
         HeadKind::RelationClassifier => RelationClassifier::from_tensors(spec, hidden, &get).map(|r| r.hidden()),
     }
     .map_err(|e| format!("head.safetensors: {}", e.message))?;

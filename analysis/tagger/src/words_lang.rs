@@ -164,21 +164,6 @@ impl Annotator for WordSplitter {
     }
 }
 
-impl HeadLayer for Words {
-    const KIND: HeadKind = HeadKind::TokenSplit;
-    fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
-        let splitter = TokenSplitter::load(bundle, &spec.name)?;
-        Ok(Head::Splitter { splitter })
-    }
-    fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
-        let Head::Splitter { splitter } = head else { return wrong_head() };
-        let taps = splitter.spec().layer_mix.map_or(1, |m| m.layers as usize);
-        let f = input.tapped(splitter.spec().word_pooling, taps)?;
-        let split = split_with(splitter, &f, &input.forms).map_err(|e| e.to_string())?;
-        words_layer(input.view, input.tokens, &input.seqs, split)
-    }
-}
-
 /// Writes the [`LanguageSpans`] layer (`turbo:language-spans`) from a
 /// `HEAD_TOKEN_TAGGER` head (#1726).
 pub struct LanguageTagger {

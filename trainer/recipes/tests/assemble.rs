@@ -122,6 +122,7 @@ fn make_spec(name: &str, layer: &str, kind: HeadKind, scheme: Scheme, decode: De
         layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),
