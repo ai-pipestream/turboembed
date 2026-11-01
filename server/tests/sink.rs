@@ -47,8 +47,13 @@ async fn sink_server() -> (Server, Got) {
 #[tokio::test]
 async fn completed_stream_documents_reach_the_sink_in_order() {
     let (sink, got) = sink_server().await;
-    let config =
-        SinkConfig { endpoint: format!("http://{}", sink.local_addr()), max_queue_items: 16, max_queue_bytes: 1 << 20 };
+    let config = SinkConfig {
+        endpoint: format!("http://{}", sink.local_addr()),
+        max_queue_items: 16,
+        max_queue_bytes: 1 << 20,
+        documents: false,
+        typed: None,
+    };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
     s.load().await.unwrap();
@@ -137,7 +142,7 @@ async fn a_server_without_a_receiver_does_not_serve_the_sink() {
 
 /// A server teeing to `endpoint`, its model loaded.
 async fn teeing(endpoint: String, max_queue_items: usize) -> Server {
-    let config = SinkConfig { endpoint, max_queue_items, max_queue_bytes: 64 << 20 };
+    let config = SinkConfig { endpoint, max_queue_items, max_queue_bytes: 64 << 20, documents: false, typed: None };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
     s.load().await.unwrap();
@@ -313,7 +318,13 @@ async fn a_refused_start_leaves_no_drain_calling_the_sink() {
     // A file where the vocabulary store wants a directory refuses the start.
     let file = std::env::temp_dir().join(format!("turbo-sink-refused-{}", std::process::id()));
     std::fs::write(&file, b"not a directory").unwrap();
-    let config = SinkConfig { endpoint: format!("http://{addr}"), max_queue_items: 4, max_queue_bytes: 1 << 20 };
+    let config = SinkConfig {
+        endpoint: format!("http://{addr}"),
+        max_queue_items: 4,
+        max_queue_bytes: 1 << 20,
+        documents: false,
+        typed: None,
+    };
     let serve = Serve { sink: Some(config), vocabulary: Some(file.clone()), ..Serve::default() };
     let refused = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await;
     std::fs::remove_file(&file).unwrap();

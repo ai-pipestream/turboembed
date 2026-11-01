@@ -8,6 +8,7 @@
 //! queue itself, as it sends it, so what waits is the queue's and counted
 //! there, and the sequence follows the order the items are sent in.
 
+mod document;
 mod receiver;
 
 use std::pin::Pin;
@@ -22,8 +23,11 @@ use tokio::task::JoinHandle;
 use tokio_stream::Stream;
 use tonic::transport::Endpoint;
 
+pub use document::SinkTyped;
+pub(crate) use document::no_sink;
 pub use receiver::{MAX_SUMMARY_ERRORS, SinkReceiver};
 
+use crate::api::Failure;
 use crate::proto::result::AnalyzeStreamResponse;
 use crate::proto::result::analyze_stream_response::Outcome;
 use crate::proto::sink::turbo_sink_service_client::TurboSinkServiceClient;
@@ -44,6 +48,12 @@ pub struct SinkConfig {
     pub endpoint: String,
     pub max_queue_items: usize,
     pub max_queue_bytes: u64,
+    /// Whether every AnalyzeDocumentProgressive call that ends with its
+    /// complete graph forwards that graph too.
+    pub documents: bool,
+    /// The typed projection every item carrying a graph also carries;
+    /// `None` sends none, and items are as they were without it.
+    pub typed: Option<SinkTyped>,
 }
 
 /// What the forwarder did so far.
@@ -56,6 +66,10 @@ pub struct SinkStats {
     pub forwarded: u64,
     /// Refused by a full queue.
     pub dropped: u64,
+    /// Document graphs refused before the queue: a graph that does not
+    /// import, or one without the typed projection's view. The latest
+    /// reason is `last_error`.
+    pub refused: u64,
     /// Left in the queue when close stopped a drain at its deadline.
     pub abandoned: u64,
     /// Items in the queue now, and their encoded bytes.
@@ -74,6 +88,7 @@ struct Counters {
     offered: AtomicU64,
     forwarded: AtomicU64,
     dropped: AtomicU64,
+    refused: AtomicU64,
     abandoned: AtomicU64,
     queued: AtomicU64,
     queued_bytes: AtomicU64,
@@ -89,6 +104,8 @@ pub(crate) struct SinkForwarder {
     tx: Mutex<Option<mpsc::Sender<Queued>>>,
     rx: Arc<Mutex<mpsc::Receiver<Queued>>>,
     max_bytes: u64,
+    documents: bool,
+    typed: Option<SinkTyped>,
     counters: Arc<Counters>,
     task: Mutex<Option<JoinHandle<()>>>,
 }
@@ -102,6 +119,9 @@ impl SinkForwarder {
         if config.max_queue_items == 0 || config.max_queue_bytes == 0 {
             return Err("the sink queue's item and byte bounds must be over 0".into());
         }
+        if let Some(t) = &config.typed {
+            t.check()?;
+        }
         let (tx, rx) = mpsc::channel(config.max_queue_items);
         let rx = Arc::new(Mutex::new(rx));
         let counters = Arc::new(Counters::default());
@@ -110,6 +130,8 @@ impl SinkForwarder {
             tx: Mutex::new(Some(tx)),
             rx,
             max_bytes: config.max_queue_bytes,
+            documents: config.documents,
+            typed: config.typed,
             counters,
             task: Mutex::new(Some(task)),
         }))
@@ -121,16 +143,39 @@ impl SinkForwarder {
         if matches!(answer.outcome, None | Some(Outcome::Failure(_))) {
             return;
         }
+        let item = DocumentSinkItem { doc_id: answer.id.clone(), analyzed: Some(answer.clone()), ..Default::default() };
+        self.enqueue(item);
+    }
+
+    /// Offers one document graph without waiting, with the typed
+    /// projection when configured. A graph that does not import, or a
+    /// projection the graph cannot give, is refused and not offered.
+    /// Answers whether the queue took it. Imports the graph: call it off
+    /// the async runtime.
+    pub(crate) fn offer_graph(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, Failure> {
+        match document::graph_item(doc_id, graph, self.typed) {
+            Ok(item) => Ok(self.enqueue(item)),
+            Err(f) => {
+                let c = &self.counters;
+                c.refused.fetch_add(1, Ordering::Relaxed);
+                c.last.lock().unwrap_or_else(|p| p.into_inner()).0 = Some(format!("document {doc_id}: {}", f.message));
+                Err(f)
+            }
+        }
+    }
+
+    /// Whether AnalyzeDocumentProgressive graphs are forwarded.
+    pub(crate) fn documents(&self) -> bool {
+        self.documents
+    }
+
+    /// Queues `item`, or drops and counts it when the queue is full.
+    fn enqueue(&self, mut item: DocumentSinkItem) -> bool {
         let c = &self.counters;
         c.offered.fetch_add(1, Ordering::Relaxed);
         // The sequence is set as the item is sent; measured at its widest
         // here, so the queue's byte count is never under what it sends.
-        let item = DocumentSinkItem {
-            sequence: u64::MAX,
-            doc_id: answer.id.clone(),
-            analyzed: Some(answer.clone()),
-            ..Default::default()
-        };
+        item.sequence = u64::MAX;
         let bytes = item.encoded_len() as u64;
         let fits = reserve(&c.queued_bytes, bytes, self.max_bytes);
         let sent = fits
@@ -148,6 +193,7 @@ impl SinkForwarder {
             }
             c.dropped.fetch_add(1, Ordering::Relaxed);
         }
+        sent
     }
 
     pub(crate) fn stats(&self) -> SinkStats {
@@ -157,6 +203,7 @@ impl SinkForwarder {
             offered: c.offered.load(Ordering::Relaxed),
             forwarded: c.forwarded.load(Ordering::Relaxed),
             dropped: c.dropped.load(Ordering::Relaxed),
+            refused: c.refused.load(Ordering::Relaxed),
             abandoned: c.abandoned.load(Ordering::Relaxed),
             queued: c.queued.load(Ordering::Relaxed),
             queued_bytes: c.queued_bytes.load(Ordering::Relaxed),
@@ -284,6 +331,8 @@ mod tests {
             endpoint: "http://127.0.0.1:1".into(),
             max_queue_items: items,
             max_queue_bytes: bytes,
+            documents: false,
+            typed: None,
         };
         let f = SinkForwarder::start(&config(2, 1 << 20)).unwrap();
         for i in 0..5 {
@@ -299,5 +348,7 @@ mod tests {
         assert_eq!((s.offered, s.dropped, s.queued, s.queued_bytes), (1, 1, 0, 0), "{s:?}");
         assert!(SinkForwarder::start(&config(0, 8)).is_err());
         assert!(SinkForwarder::start(&SinkConfig { endpoint: "not a uri".into(), ..config(1, 1) }).is_err());
+        let typed = SinkTyped { view: 1 << 16, offsets: crate::proto::result::OffsetMode::Utf8 };
+        assert!(SinkForwarder::start(&SinkConfig { typed: Some(typed), ..config(1, 1) }).is_err());
     }
 }
