@@ -121,6 +121,7 @@ fn make_spec(name: &str, layer: &str, kind: HeadKind, scheme: Scheme, decode: De
         hash_embed: None,
         layer_mix: None,
         span: None,
+        coref: None,
         relation: None,
         license_class: None,
         artifact: "weights-f32".into(),

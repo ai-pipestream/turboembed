@@ -31,6 +31,7 @@ fn spec(pos: Option<PosInput>) -> HeadSpec {
         layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.lemma".into(),

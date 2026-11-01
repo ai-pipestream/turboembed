@@ -120,6 +120,7 @@ pub fn spec(
         hash_embed: None,
         layer_mix: None,
         span: Some(SpanShape { max_words, width_dim }),
+        coref: None,
         relation: None,
         license_class: Some(record.class()?),
         artifact: "weights-f32".into(),

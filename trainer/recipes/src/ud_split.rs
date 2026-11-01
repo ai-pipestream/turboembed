@@ -275,6 +275,7 @@ pub fn spec(
         layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: Some(corpus.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.words".into(),

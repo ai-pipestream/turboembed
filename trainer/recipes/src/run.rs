@@ -57,7 +57,7 @@ impl Default for HeadOptions {
 pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
     let (name, layer) = crate::head(&corpus.record.id, corpus.record.task);
     let scheme = match corpus.record.task {
-        Task::Tags => Scheme::Tags,
+        Task::Tags | Task::Coref => Scheme::Tags,
         Task::Bio => Scheme::Bio,
         Task::Relations => {
             return Err(Error(format!("{}: a relation corpus trains with train-relation", corpus.record.id)));
@@ -78,6 +78,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: Some(corpus.record.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),

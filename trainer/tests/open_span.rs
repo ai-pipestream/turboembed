@@ -28,6 +28,7 @@ fn spec(decode: Decode, adapter: u32) -> HeadSpec {
         hash_embed: None,
         layer_mix: None,
         span: Some(SpanShape { max_words: 3, width_dim: 3 }),
+        coref: None,
         relation: None,
         license_class: None,
         artifact: "weights".into(),
