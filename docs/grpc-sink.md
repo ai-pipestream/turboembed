@@ -20,8 +20,11 @@ strictly increases within a stream. An item carrying a graph can also
 carry `typed` (field 9), the graph's `TypedDocumentResult` exactly as
 `InspectDocumentGraph` answers it for the item's `doc_id` and the view
 and offset mode the sender is configured with, so a sink in any language
-reads the annotations without decoding the graph or calling back. Field 7
-is reserved for the document's analysis time.
+reads the annotations without decoding the graph or calling back. Fields
+6 and 7 are both reserved: 6 was set aside for the typed projection
+before the projection existed, and a reserved number is never reused, so
+the projection is field 9; 7 is reserved for the document's analysis
+time.
 
 ## Forwarding
 

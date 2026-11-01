@@ -3,11 +3,15 @@
 //! configured for it, the typed projection InspectDocumentGraph answers for
 //! that graph (`DocumentSinkItem.typed`).
 
-use crate::api::{Failure, TURBO_E_INVALID_STATE};
-use crate::proto::result::{DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, TypedDocumentResult};
+use turbo_analysis::{Document, ViewId};
+
+use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
+use crate::proto::result::{
+    DocumentGraphRequest, DocumentGraphResponse, InspectDocumentGraphRequest, OffsetMode, TypedDocumentResult,
+};
 use crate::proto::sink::DocumentSinkItem;
 use crate::results::document::round_trip_document;
-use crate::results::typed::{inspect_document_graph, round_trip_typed_document};
+use crate::results::typed::{document_to_typed, inspect_document_graph, round_trip_typed_document};
 
 /// The typed projection a forwarder adds to every item carrying a graph:
 /// `view` and `offsets` mean what they mean on InspectDocumentGraphRequest.
@@ -49,6 +53,35 @@ pub(crate) fn graph_item(doc_id: &str, graph: Vec<u8>, typed: Option<SinkTyped>)
         graph,
         layers: listed.layers,
         views: listed.views,
+        typed,
+        analyzed: None,
+    })
+}
+
+/// The item for a graph this server exported from `doc`: `exported` is
+/// that export, so its bytes, layers and views are carried as they are,
+/// and the typed projection, when asked for, is built from `doc` itself.
+pub(crate) fn exported_item(
+    doc_id: &str,
+    exported: DocumentGraphResponse,
+    doc: &Document,
+    typed: Option<SinkTyped>,
+) -> Result<DocumentSinkItem, Failure> {
+    let typed = match typed {
+        Some(t) => {
+            let view = u16::try_from(t.view)
+                .map_err(|_| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("view {} exceeds u16::MAX", t.view)))?;
+            let offsets = crate::offsets::OffsetMode::from_proto(t.offsets as i32)?;
+            Some(document_to_typed(doc_id, doc, ViewId(view), offsets)?)
+        }
+        None => None,
+    };
+    Ok(DocumentSinkItem {
+        sequence: 0,
+        doc_id: doc_id.to_owned(),
+        graph: exported.graph.to_vec(),
+        layers: exported.layers,
+        views: exported.views,
         typed,
         analyzed: None,
     })

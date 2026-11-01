@@ -22,14 +22,15 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_stream::Stream;
 use tonic::transport::Endpoint;
+use turbo_analysis::Document;
 
 pub use document::SinkTyped;
 pub(crate) use document::no_sink;
 pub use receiver::{MAX_SUMMARY_ERRORS, SinkReceiver};
 
 use crate::api::Failure;
-use crate::proto::result::AnalyzeStreamResponse;
 use crate::proto::result::analyze_stream_response::Outcome;
+use crate::proto::result::{AnalyzeStreamResponse, DocumentGraphResponse};
 use crate::proto::sink::turbo_sink_service_client::TurboSinkServiceClient;
 use crate::proto::sink::{DocumentSinkItem, DocumentSinkSummary};
 
@@ -153,7 +154,24 @@ impl SinkForwarder {
     /// Answers whether the queue took it. Imports the graph: call it off
     /// the async runtime.
     pub(crate) fn offer_graph(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, Failure> {
-        match document::graph_item(doc_id, graph, self.typed) {
+        self.offer_item(doc_id, document::graph_item(doc_id, graph, self.typed))
+    }
+
+    /// Offers the graph this server exported from `doc` as `exported`,
+    /// as `offer_graph` does, without importing it again. Builds the typed
+    /// projection when configured: call it off the async runtime.
+    pub(crate) fn offer_exported(
+        &self,
+        doc_id: &str,
+        exported: DocumentGraphResponse,
+        doc: &Document,
+    ) -> Result<bool, Failure> {
+        self.offer_item(doc_id, document::exported_item(doc_id, exported, doc, self.typed))
+    }
+
+    /// Queues `item`, or counts the refusal that built it.
+    fn offer_item(&self, doc_id: &str, item: Result<DocumentSinkItem, Failure>) -> Result<bool, Failure> {
+        match item {
             Ok(item) => Ok(self.enqueue(item)),
             Err(f) => {
                 let c = &self.counters;
