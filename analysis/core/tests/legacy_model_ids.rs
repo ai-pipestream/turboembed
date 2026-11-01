@@ -49,7 +49,9 @@ fn no_committed_source_writes_a_legacy_model_id() {
 
 #[test]
 fn the_guard_sees_an_id_with_and_without_a_language_part() {
-    assert!(holds("id: opennlp:SentenceDetectorME:en", "opennlp:SentenceDetectorME"));
-    assert!(holds("\"opennlp:MecabDictionary\"", "opennlp:MecabDictionary"));
-    assert!(!holds("opennlp:MecabDictionaryReader", "opennlp:MecabDictionary"));
+    let (old, _) = legacy_model_ids().next().unwrap();
+    assert!(holds(&format!("id: {old}:en"), &old));
+    assert!(holds(&format!("\"{old}\""), &old));
+    assert!(!holds(&format!("{old}Reader"), &old));
+    assert!(!holds(&format!("{old}-extra"), &old));
 }
