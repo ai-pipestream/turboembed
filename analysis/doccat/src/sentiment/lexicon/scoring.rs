@@ -37,7 +37,7 @@ impl LexiconSentiment {
     /// producing both the [`VaderScore`] and the exact [`Opinion`] evidence
     /// spans (`IxRange<Tokens>`).
     ///
-    /// When `deps` (`opennlp:dependencies`) is supplied and `self.negation_mode`
+    /// When `deps` (`turbo:dependencies`) is supplied and `self.negation_mode`
     /// is [`NegationMode::Auto`] or [`NegationMode::Dependency`], negation scope
     /// is read from dependency relations within the sentence rather than the
     /// fixed 3-token window.

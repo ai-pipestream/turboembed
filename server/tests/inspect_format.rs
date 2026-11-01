@@ -312,16 +312,16 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
         assert!(!resp.segments.is_empty());
         let contact_seg = resp.segments.iter().find(|s| s.text == "contact").expect("elementary segment for 'contact'");
         assert!(
-            !contact_seg.annotations.iter().any(|a| a.layer == "opennlp:entities" && a.label == "MISC"),
+            !contact_seg.annotations.iter().any(|a| a.layer == "turbo:entities" && a.label == "MISC"),
             "discontinuous entity gap must not carry the MISC entity annotation"
         );
         let paris_seg = resp.segments.iter().find(|s| s.text == "Paris").expect("elementary segment for 'Paris'");
-        assert!(paris_seg.annotations.iter().any(|a| a.layer == "opennlp:entities" && a.label == "LOC"));
-        assert!(paris_seg.annotations.iter().any(|a| a.layer == "opennlp:entities" && a.label == "MISC"));
+        assert!(paris_seg.annotations.iter().any(|a| a.layer == "turbo:entities" && a.label == "LOC"));
+        assert!(paris_seg.annotations.iter().any(|a| a.layer == "turbo:entities" && a.label == "MISC"));
 
         // Verify document chips and heatmap lanes.
         assert!(resp.document_chips.iter().any(|c| c.layer == "turbo:categories" && c.label == "positive"));
-        assert!(resp.document_chips.iter().any(|c| c.layer == "opennlp:language" && c.label == "eng"));
+        assert!(resp.document_chips.iter().any(|c| c.layer == "turbo:language" && c.label == "eng"));
         assert!(resp.heatmap_lanes.iter().any(|l| l.id == "tokens"));
         assert!(resp.heatmap_lanes.iter().any(|l| l.id == "entities"));
         assert!(resp.heatmap_lanes.iter().any(|l| l.id == "pii"));

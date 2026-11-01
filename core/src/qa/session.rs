@@ -229,6 +229,8 @@ pub unsafe fn run_window_batch(
         output_dim: 0,
         quantization: 0,
         int8_ranges: std::ptr::null(),
+        layers: 0,
+        reserved: 0,
     };
     let mut e = error();
     let mut result = Owned(ptr::null_mut());

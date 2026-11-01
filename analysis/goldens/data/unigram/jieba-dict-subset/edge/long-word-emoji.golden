@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
 model	jieba-dict-subset.txt	365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	295	start:u32	end:u32
+layer	turbo:tokens	text	295	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -302,4 +302,4 @@ layer	opennlp:tokens	text	295	start:u32	end:u32
 295	296
 296	297
 297	298
-end	opennlp:tokens
+end	turbo:tokens

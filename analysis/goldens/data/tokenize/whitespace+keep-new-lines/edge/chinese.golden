@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	2	start:u32	end:u32
+layer	turbo:tokens	text	2	start:u32	end:u32
 0	69
 69	70
-end	opennlp:tokens
+end	turbo:tokens

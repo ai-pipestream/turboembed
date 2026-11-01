@@ -146,6 +146,7 @@ pub fn spec(head: UdHead, labels: Vec<String>, corpus: &CorpusRecord, o: &UdOpti
         biaffine,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         license_class: Some(corpus.class()?),
         span: None,
         relation: None,

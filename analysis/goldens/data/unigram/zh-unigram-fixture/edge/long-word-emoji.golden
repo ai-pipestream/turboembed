@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	295	start:u32	end:u32
+layer	turbo:tokens	text	295	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -302,4 +302,4 @@ layer	opennlp:tokens	text	295	start:u32	end:u32
 295	296
 296	297
 297	298
-end	opennlp:tokens
+end	turbo:tokens

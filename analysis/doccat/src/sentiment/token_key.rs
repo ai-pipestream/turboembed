@@ -16,7 +16,7 @@ enum Trim {
 }
 
 fn trimmable(c: char, keep_hyphen: bool, trim: Trim) -> bool {
-    if c == '\'' || (keep_hyphen && c == '-') {
+    if keep_hyphen && c == '-' {
         return false;
     }
     match trim {
@@ -26,10 +26,11 @@ fn trimmable(c: char, keep_hyphen: bool, trim: Trim) -> bool {
 }
 
 /// A token's lookup form: typographic apostrophes (U+2019, U+02BC)
-/// read as `'`, Unicode punctuation trimmed from both ends but
-/// for the apostrophe, and the rest case-folded; the token as it
-/// is when that leaves nothing (an emoji). Already-clean ASCII
-/// lowercase tokens are returned borrowed, with no allocation.
+/// read as `'` inside a word, Unicode punctuation (including edge single
+/// quotes and apostrophes) trimmed from both ends, and the rest
+/// case-folded; the token as it is when that leaves nothing (an emoji).
+/// Already-clean ASCII lowercase tokens are returned borrowed, with no
+/// allocation.
 pub(crate) fn token_key_cow(token: &str, keep_hyphen: bool) -> Cow<'_, str> {
     key_with(token, keep_hyphen, Trim::Punctuation)
 }
@@ -93,6 +94,13 @@ mod tests {
     fn curly_apostrophes_and_unicode_punctuation_normalize() {
         assert_eq!(token_key("don\u{2019}t"), "don't");
         assert_eq!(token_key("don\u{02BC}t"), "don't");
+        assert_eq!(token_key("n't"), "n't");
+        assert_eq!(token_key("n\u{02BC}t"), "n't");
+        assert_eq!(token_key("'happy'"), "happy");
+        assert_eq!(token_key("\u{2018}happy\u{2019}"), "happy");
+        assert_eq!(token_key("happy\u{2019}"), "happy");
+        assert_eq!(token_key("'don't'"), "don't");
+        assert_eq!(token_key("\u{2018}don\u{2019}t\u{2019}"), "don't");
         assert_eq!(token_key("\u{201C}great\u{201D}"), "great");
         assert_eq!(token_key("GREAT!"), "great");
         assert_eq!(token_key("\u{1F600}"), "\u{1F600}");

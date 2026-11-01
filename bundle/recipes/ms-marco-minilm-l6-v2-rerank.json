@@ -165,6 +165,7 @@
     }
   },
   "notice": "This model was fine-tuned on MS MARCO, whose terms allow non-commercial use only; check them before using the model commercially.",
+  "notice_terms": "https://microsoft.github.io/msmarco/",
   "upstream": [
     {
       "path": "config.json",

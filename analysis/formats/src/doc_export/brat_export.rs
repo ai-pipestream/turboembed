@@ -159,7 +159,7 @@ pub fn parse_brat_with_offsets(
     ann_bytes: &[u8],
     offsets: ExportOffsetMode,
 ) -> Result<(BratDocument, Entities), FormatExportError> {
-    let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("opennlp:tokens"))?;
+    let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("turbo:tokens"))?;
     if tokens.spans.view() != ViewId::SOURCE {
         return Err(FormatExportError::InvalidData(format!(
             "tokens must be anchored on ViewId::SOURCE (got view {})",

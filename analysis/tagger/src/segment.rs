@@ -24,7 +24,7 @@ use turbo_analysis::{
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Subwords, Tag, Tokens};
 
-use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, open_words, refuse};
 use crate::words::WordEncoder;
 
 /// The encoder a segmenting head reads, and what its annotator names.
@@ -36,8 +36,14 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(crate) fn open(dir: &Path, bundle: &Bundle, hidden: usize, o: &EncoderOptions) -> Result<Reader, CoreError> {
-        let words = WordEncoder::open(dir, o)?;
+    pub(crate) fn open(
+        dir: &Path,
+        bundle: &Bundle,
+        spec: &HeadSpec,
+        hidden: usize,
+        o: &EncoderOptions,
+    ) -> Result<Reader, CoreError> {
+        let words = open_words(dir, o, spec.layer_mix.map_or(1, |m| m.layers as usize))?;
         if words.hidden() != hidden {
             return Err(refuse(format!("the head reads {hidden} values a word, the encoder gives {}", words.hidden())));
         }
@@ -79,7 +85,7 @@ impl SentenceTagger {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Sentences::ID, HeadKind::SentenceBoundary)?;
         let head = SentenceBoundary::load(&bundle, &spec.name)?;
-        let read = Reader::open(dir, &bundle, head.hidden(), o)?;
+        let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
         Ok(SentenceTagger { head, read })
     }
 
@@ -154,7 +160,7 @@ impl SpanTagger {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Entities::ID, HeadKind::SpanClassifier)?;
         let head = SpanClassifier::load(&bundle, &spec.name)?;
-        let read = Reader::open(dir, &bundle, head.hidden(), o)?;
+        let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
         let mut kind_of = Vec::new();
         let mut types: Vec<&str> = Vec::new();
         for l in head.labels() {

@@ -1,0 +1,549 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-31T12:05:50Z",
+  "provenance": {
+    "commit": "cee65da41953c054a1d142a1da63afe9daeb0c07",
+    "pushed_to": [
+      "origin/codex/astra-1486-long-document-gates"
+    ],
+    "machine": {
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+      "os": "linux"
+    },
+    "device": {
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
+    },
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+      "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+      "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    }
+  },
+  "set": {
+    "name": "cuad",
+    "sha256": "834c186d02553f989434c69d2bbebae6f7db79f20adb5211a5b31a379aadcf33"
+  },
+  "pipeline": {
+    "analyzer": [
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
+      "turbo:structure plain",
+      "opennlp:subwords"
+    ],
+    "chunker": {
+      "name": "turbo-chunker",
+      "config": [
+        {
+          "name": "max",
+          "value": "254"
+        },
+        {
+          "name": "target",
+          "value": "200"
+        },
+        {
+          "name": "size_weight",
+          "value": "1000"
+        },
+        {
+          "name": "overhead",
+          "value": "2"
+        },
+        {
+          "name": "cost.section",
+          "value": "0"
+        },
+        {
+          "name": "cost.heading",
+          "value": "100"
+        },
+        {
+          "name": "cost.paragraph",
+          "value": "400"
+        },
+        {
+          "name": "cost.item",
+          "value": "600"
+        },
+        {
+          "name": "cost.sentence",
+          "value": "1000"
+        },
+        {
+          "name": "cost.after_heading",
+          "value": "4000"
+        },
+        {
+          "name": "signals",
+          "value": "structure"
+        },
+        {
+          "name": "clauses",
+          "value": "over-budget sentences split at clause punctuation, then token windows"
+        },
+        {
+          "name": "cohesion.weight",
+          "value": "none"
+        }
+      ]
+    },
+    "retrieval": {
+      "name": "hybrid",
+      "config": [
+        {
+          "name": "fusion",
+          "value": "weighted"
+        },
+        {
+          "name": "bm25_weight",
+          "value": "0.35"
+        },
+        {
+          "name": "k1",
+          "value": "1.2"
+        },
+        {
+          "name": "b",
+          "value": "0.75"
+        },
+        {
+          "name": "terms",
+          "value": "folded"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "queries": 40,
+    "ndcg_at_10": 0.6857467414526252,
+    "recall": {
+      "at_1": 0.060608568698192554,
+      "at_5": 0.18615227855920036,
+      "at_10": 0.2956775502080725,
+      "at_100": 0.9987507906388362
+    },
+    "span": {
+      "queries": 40,
+      "mean": {
+        "at_1": {
+          "precision": 0.2461320220699533,
+          "recall": 0.021065102472247448,
+          "contained": 0.024589086478656437
+        },
+        "at_5": {
+          "precision": 0.21227784936665356,
+          "recall": 0.09689499894333914,
+          "contained": 0.08185129343022954
+        },
+        "at_10": {
+          "precision": 0.18633193980298607,
+          "recall": 0.15262167498486007,
+          "contained": 0.1263682232176842
+        },
+        "at_100": {
+          "precision": 0.0653279420353197,
+          "recall": 0.426948176325605,
+          "contained": 0.3876207477256305
+        }
+      },
+      "integrity": {
+        "split": 0.04275444570563754,
+        "short_documents": 0.0392156862745098
+      },
+      "per_query": [
+        {
+          "query": "Affiliate License-Licensee",
+          "recall": 0.045516255805644876,
+          "contained": 0.07407407407407407
+        },
+        {
+          "query": "Affiliate License-Licensor",
+          "recall": 0.05704672325456909,
+          "contained": 0.05
+        },
+        {
+          "query": "Agreement Date",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Anti-Assignment",
+          "recall": 0.13330429100413854,
+          "contained": 0.0948905109489051
+        },
+        {
+          "query": "Audit Rights",
+          "recall": 0.11464258841234011,
+          "contained": 0.11428571428571428
+        },
+        {
+          "query": "Cap On Liability",
+          "recall": 0.1321199704600138,
+          "contained": 0.11864406779661017
+        },
+        {
+          "query": "Change Of Control",
+          "recall": 0.07037309168095354,
+          "contained": 0.03225806451612903
+        },
+        {
+          "query": "Competitive Restriction Exception",
+          "recall": 0.06451306413301662,
+          "contained": 0.037037037037037035
+        },
+        {
+          "query": "Covenant Not To Sue",
+          "recall": 0.012625046808965923,
+          "contained": 0.045454545454545456
+        },
+        {
+          "query": "Document Name",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Effective Date",
+          "recall": 0.14764309764309763,
+          "contained": 0.07142857142857142
+        },
+        {
+          "query": "Exclusivity",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Expiration Date",
+          "recall": 0.0661808367071525,
+          "contained": 0.0963855421686747
+        },
+        {
+          "query": "Governing Law",
+          "recall": 0.0755567199371234,
+          "contained": 0.044444444444444446
+        },
+        {
+          "query": "Insurance",
+          "recall": 0.11836912362159024,
+          "contained": 0.10256410256410256
+        },
+        {
+          "query": "Ip Ownership Assignment",
+          "recall": 0.08381431252434404,
+          "contained": 0.06557377049180328
+        },
+        {
+          "query": "Irrevocable Or Perpetual License",
+          "recall": 0.4667868951006913,
+          "contained": 0.21739130434782608
+        },
+        {
+          "query": "Joint Ip Ownership",
+          "recall": 0.5005293245818336,
+          "contained": 0.2857142857142857
+        },
+        {
+          "query": "License Grant",
+          "recall": 0.025044722719141325,
+          "contained": 0.02962962962962963
+        },
+        {
+          "query": "Liquidated Damages",
+          "recall": 0.3180825382227842,
+          "contained": 0.30434782608695654
+        },
+        {
+          "query": "Minimum Commitment",
+          "recall": 0.0567035623890295,
+          "contained": 0.06818181818181818
+        },
+        {
+          "query": "Most Favored Nation",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "No-Solicit Of Customers",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "No-Solicit Of Employees",
+          "recall": 0.2247603266658776,
+          "contained": 0.2222222222222222
+        },
+        {
+          "query": "Non-Compete",
+          "recall": 0.12550390785684903,
+          "contained": 0.11864406779661017
+        },
+        {
+          "query": "Non-Disparagement",
+          "recall": 0.20902520023442078,
+          "contained": 0.0
+        },
+        {
+          "query": "Non-Transferable License",
+          "recall": 0.12563469191711266,
+          "contained": 0.16279069767441862
+        },
+        {
+          "query": "Notice Period To Terminate Renewal",
+          "recall": 0.19616685456595265,
+          "contained": 0.2222222222222222
+        },
+        {
+          "query": "Parties",
+          "recall": 0.005683044385296022,
+          "contained": 0.003683241252302026
+        },
+        {
+          "query": "Post-Termination Services",
+          "recall": 0.028512369578056303,
+          "contained": 0.036585365853658534
+        },
+        {
+          "query": "Renewal Term",
+          "recall": 0.40021846903621544,
+          "contained": 0.25806451612903225
+        },
+        {
+          "query": "Revenue/Profit Sharing",
+          "recall": 0.045530030445613066,
+          "contained": 0.06896551724137931
+        },
+        {
+          "query": "Rofr/Rofo/Rofn",
+          "recall": 0.140223503452203,
+          "contained": 0.1323529411764706
+        },
+        {
+          "query": "Source Code Escrow",
+          "recall": 0.8189300411522634,
+          "contained": 0.6
+        },
+        {
+          "query": "Termination For Convenience",
+          "recall": 0.0892837188512683,
+          "contained": 0.0975609756097561
+        },
+        {
+          "query": "Third Party Beneficiary",
+          "recall": 0.31646825396825395,
+          "contained": 0.36363636363636365
+        },
+        {
+          "query": "Uncapped Liability",
+          "recall": 0.5551923560472718,
+          "contained": 0.4375
+        },
+        {
+          "query": "Unlimited/All-You-Can-Eat-License",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Volume Restriction",
+          "recall": 0.04157794463745377,
+          "contained": 0.05714285714285714
+        },
+        {
+          "query": "Warranty Duration",
+          "recall": 0.29330412159386554,
+          "contained": 0.42105263157894735
+        }
+      ]
+    },
+    "per_query": [
+      {
+        "query": "Affiliate License-Licensee",
+        "ndcg_at_10": 0.3596910069063418
+      },
+      {
+        "query": "Affiliate License-Licensor",
+        "ndcg_at_10": 0.43830722522726884
+      },
+      {
+        "query": "Agreement Date",
+        "ndcg_at_10": 0.914856882358379
+      },
+      {
+        "query": "Anti-Assignment",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Audit Rights",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Cap On Liability",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Change Of Control",
+        "ndcg_at_10": 0.835780413693672
+      },
+      {
+        "query": "Competitive Restriction Exception",
+        "ndcg_at_10": 0.6530488081313035
+      },
+      {
+        "query": "Covenant Not To Sue",
+        "ndcg_at_10": 0.5653701424067237
+      },
+      {
+        "query": "Document Name",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Effective Date",
+        "ndcg_at_10": 0.6378891765242928
+      },
+      {
+        "query": "Exclusivity",
+        "ndcg_at_10": 0.06943122193677727
+      },
+      {
+        "query": "Expiration Date",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Governing Law",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Insurance",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Ip Ownership Assignment",
+        "ndcg_at_10": 0.7241528458281337
+      },
+      {
+        "query": "Irrevocable Or Perpetual License",
+        "ndcg_at_10": 0.8701249883466593
+      },
+      {
+        "query": "Joint Ip Ownership",
+        "ndcg_at_10": 0.5546406709327603
+      },
+      {
+        "query": "License Grant",
+        "ndcg_at_10": 0.9052116356304493
+      },
+      {
+        "query": "Liquidated Damages",
+        "ndcg_at_10": 0.727329844310522
+      },
+      {
+        "query": "Minimum Commitment",
+        "ndcg_at_10": 0.933745776545611
+      },
+      {
+        "query": "Most Favored Nation",
+        "ndcg_at_10": 0.15642624200758548
+      },
+      {
+        "query": "No-Solicit Of Customers",
+        "ndcg_at_10": 0.0979129253499678
+      },
+      {
+        "query": "No-Solicit Of Employees",
+        "ndcg_at_10": 0.494639655562801
+      },
+      {
+        "query": "Non-Compete",
+        "ndcg_at_10": 0.6851198693323691
+      },
+      {
+        "query": "Non-Disparagement",
+        "ndcg_at_10": 0.11838279295536291
+      },
+      {
+        "query": "Non-Transferable License",
+        "ndcg_at_10": 0.9305687780632227
+      },
+      {
+        "query": "Notice Period To Terminate Renewal",
+        "ndcg_at_10": 0.47479014188018454
+      },
+      {
+        "query": "Parties",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Post-Termination Services",
+        "ndcg_at_10": 0.84860265890399
+      },
+      {
+        "query": "Renewal Term",
+        "ndcg_at_10": 0.8553475075669357
+      },
+      {
+        "query": "Revenue/Profit Sharing",
+        "ndcg_at_10": 0.7564477297898766
+      },
+      {
+        "query": "Rofr/Rofo/Rofn",
+        "ndcg_at_10": 0.727329844310522
+      },
+      {
+        "query": "Source Code Escrow",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Termination For Convenience",
+        "ndcg_at_10": 0.7116179486056782
+      },
+      {
+        "query": "Third Party Beneficiary",
+        "ndcg_at_10": 0.6753197893820488
+      },
+      {
+        "query": "Uncapped Liability",
+        "ndcg_at_10": 0.7564477297898766
+      },
+      {
+        "query": "Unlimited/All-You-Can-Eat-License",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "Volume Restriction",
+        "ndcg_at_10": 0.3187939258847263
+      },
+      {
+        "query": "Warranty Duration",
+        "ndcg_at_10": 0.6325414799409712
+      }
+    ]
+  },
+  "cost": {
+    "wall": {
+      "analysis_ms": 166.757676,
+      "chunking_ms": 135.343826,
+      "embedding_ms": 22699.18912,
+      "retrieval_ms": 279.691915
+    },
+    "tokens_embedded": 993877,
+    "chunks": 5181,
+    "chunk_bytes": {
+      "min": 1,
+      "p50": 977,
+      "p90": 1209,
+      "max": 1758
+    },
+    "chunk_tokens": {
+      "min": 3,
+      "p50": 204,
+      "p90": 241,
+      "max": 254
+    }
+  }
+}

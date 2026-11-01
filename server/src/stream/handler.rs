@@ -127,6 +127,8 @@ pub(crate) fn options(o: Option<&AnalyzeOptions>) -> Result<turbo::turbo_embed_o
         output_dim: o.output_dim,
         quantization: pick("quantization", o.quantization, names::QUANTIZE)?,
         int8_ranges: std::ptr::null(),
+        layers: 0,
+        reserved: 0,
     })
 }
 

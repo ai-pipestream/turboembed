@@ -26,6 +26,7 @@ fn spec() -> HeadSpec {
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         license_class: None,
         span: None,
         relation: None,

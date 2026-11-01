@@ -239,7 +239,7 @@ impl DocumentGraph {
         }
         let mut layers = Vec::new();
         for _ in 0..r.usize()? {
-            let layer = r.string()?;
+            let layer = canonical_owned(r.string()?);
             let instance = r.string()?;
             let schema = r.u16()?;
             let len = r.u32()?;

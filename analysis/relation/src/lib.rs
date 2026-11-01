@@ -1,7 +1,7 @@
 //! Dependency-path relation extraction: declarative
 //! [`RelationPattern`] rules matched against the shortest
 //! dependency path between entity head words, writing typed
-//! relation mentions (`opennlp:relations`) and the same triples
+//! relation mentions (`turbo:relations`) and the same triples
 //! as entity-to-entity edges.
 //!
 //! A pattern is a path like `<nsubj >obj` (up steps from the

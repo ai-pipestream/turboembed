@@ -118,7 +118,9 @@
 //!   overlap removed. An entity split across sentences is not clipped into
 //!   fragments. OpenNLP computes no such thing; [`MascNameReader`] reads
 //!   OpenNLP's names, and a trainer that wants the corpus's names builds
-//!   its samples from the entities.
+//!   its samples from the entities. [`MascSentence::entity_pieces`] also keeps
+//!   incomplete pieces with the original entity ID and a `continues` marker
+//!   on every incomplete piece. Their offsets remain those of the source tokens.
 //! - Each document also keeps the entities of the file that have no
 //!   complete sentence sample, with why
 //!   ([`MascDocument::unplaced_entities`]): none of their tokens is in a
@@ -153,8 +155,8 @@ pub use corpus::{
     ChunkFiles, MascCorpus, SkippedDocument, read_document, read_document_with, read_document_with_logical,
 };
 pub use document::{
-    MascDocument, MascEntity, MascFiles, MascName, MascSentence, MascToken, MascUnplacedEntity, MascWarning, Quark,
-    Unplaced,
+    MascDocument, MascEntity, MascEntityPiece, MascFiles, MascName, MascSentence, MascToken, MascUnplacedEntity,
+    MascWarning, Quark, Unplaced,
 };
 pub use error::{AnnotationFile, MascError, MascStream};
 pub use logical::MascLogical;
