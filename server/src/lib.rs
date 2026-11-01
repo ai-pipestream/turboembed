@@ -349,6 +349,23 @@ impl Server {
         self.sink.as_ref().map(|s| s.stats())
     }
 
+    /// Forwards one document graph to the sink without waiting for it, as
+    /// an item carrying the graph re-exported, its layers and views, and
+    /// the typed projection when `SinkConfig::typed` asks for one. Answers
+    /// whether the queue took it; a full queue drops and counts it. A graph
+    /// that does not import, or a projection it cannot give (a view it
+    /// does not have), is refused and not offered, as is a graph for a
+    /// server without a sink.
+    pub async fn forward_document(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, api::Failure> {
+        let sink = self.sink.clone().ok_or_else(sink::no_sink)?;
+        let doc_id = doc_id.to_owned();
+        // Importing the graph walks the whole document; keep the async
+        // runtime free of it.
+        tokio::task::spawn_blocking(move || sink.offer_graph(&doc_id, graph))
+            .await
+            .map_err(|e| api::Failure::new(api::TURBO_E_INTERNAL, 0, format!("the sink forwarding task failed: {e}")))?
+    }
+
     /// Stops forwarding to the sink: no answer is offered after this, and
     /// what the queue holds is sent, waiting up to `within` for it and the
     /// sink's summary. Answers with the forwarder's final counts.

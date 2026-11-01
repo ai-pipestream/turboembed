@@ -19,6 +19,12 @@ gRPC service) build against. Everything below is new.
 
 ### Added
 
+- `DocumentSinkItem.typed` (field 6) carries the item's graph as
+  `InspectDocumentGraph` projects it: `SinkConfig::typed` chooses the view
+  and offset mode, and without it items are unchanged.
+  `Server::forward_document` forwards a document graph to the sink, and
+  the sink refuses a projection `RoundTripTypedDocument` refuses
+  (docs/grpc-sink.md). (#1787)
 - `AnalyzeDocumentProgressive` runs a bundle's learned heads as steps
   (`turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`,
   `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`,

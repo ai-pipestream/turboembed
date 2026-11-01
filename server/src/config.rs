@@ -270,6 +270,7 @@ fn sink(
         endpoint,
         max_queue_items: count("--sink-queue-items", items, crate::sink::DEFAULT_SINK_QUEUE_ITEMS as u64)? as usize,
         max_queue_bytes: count("--sink-queue-bytes", bytes, crate::sink::DEFAULT_SINK_QUEUE_BYTES)?,
+        typed: None,
     }))
 }
 

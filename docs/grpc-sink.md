@@ -16,8 +16,12 @@ rejected.
 An item carries a document graph (binary `DocumentGraph` bytes, as
 `RoundTripDocumentGraph` takes them, with its layers and views listed),
 an `AnalyzeStream` answer, or both. Its `sequence` is the sender's, and
-strictly increases within a stream. Fields 6 and 7 are reserved for the
-typed document projection (#1219) and the document's analysis time.
+strictly increases within a stream. An item carrying a graph can also
+carry `typed` (field 6), the graph's `TypedDocumentResult` exactly as
+`InspectDocumentGraph` answers it for the item's `doc_id` and the view
+and offset mode the sender is configured with, so a sink in any language
+reads the annotations without decoding the graph or calling back. Field 7
+is reserved for the document's analysis time.
 
 ## Forwarding
 
@@ -47,6 +51,27 @@ holds to be sent and the sink's summary to arrive, then stops the drain
 and counts what the queue still holds as abandoned, so a sink that is down is not retried after the server stops; `Server::close_sink`
 does that on its own and answers with the final counts.
 
+## Forwarding document graphs
+
+A program embedding the server forwards a document graph with
+`Server::forward_document(doc_id, graph)`. The graph is imported and
+re-exported, and the item carries the re-exported bytes with their
+layers and views listed, as `RoundTripDocumentGraph` answers them. It goes
+through the same queue, counts and numbering as an `AnalyzeStream` answer,
+and the call answers whether the queue took it. A graph that does not
+import, or a server without a sink, is refused and nothing is offered.
+
+`SinkConfig::typed` asks for the typed projection on these items:
+`Some(SinkTyped { view, offsets })`, where `view` (`u32`) and `offsets`
+(`OffsetMode`) mean what they mean on `InspectDocumentGraphRequest`. The
+projection is built from the item's own graph bytes by the projection
+`InspectDocumentGraph` uses, so it equals what that call answers for the
+same graph and options. A view over `u16::MAX` refuses the start; a view
+a document does not have refuses that document, and nothing is offered.
+With `typed: None`, the default, items carry no projection and are what
+they were before it existed. Items carrying an `AnalyzeStream` answer
+never carry one: they have no graph.
+
 ## Serving the sink
 
 `Serve { sink_receiver: Some(SinkReceiver::new(on_item)), .. }` serves
@@ -57,7 +82,10 @@ rejected when:
 - its sequence is not over the last accepted item's in the stream;
 - it carries neither a graph nor an answer;
 - its graph is over `max_graph_bytes` (64 MiB), or does not decode and
-  import with the server's codec registry.
+  import with the server's codec registry;
+- it carries a typed projection without a graph, or one that
+  `RoundTripTypedDocument` refuses (span bounds, UTF-16 surrogate halves,
+  unknown offset modes, model references, index bounds).
 
 The summary lists the first 100 reasons, each naming the item's
 sequence. A server started without a receiver answers `StreamDocuments`

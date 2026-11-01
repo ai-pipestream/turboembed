@@ -31,9 +31,14 @@ message DocumentSinkItem {
   repeated turbo.result.v1.LayerInfo layers = 4;
   repeated turbo.result.v1.ViewInfo views = 5;
 
-  // Reserved for the typed document projection (#1219) and the document's
-  // analysis time.
-  reserved 6, 7;
+  // The typed document projection of `graph`, as InspectDocumentGraph
+  // answers for it in the view and offset mode the sender was configured
+  // with; unset unless the sender asks for it, and only on an item that
+  // carries a graph. The sink checks it as RoundTripTypedDocument does.
+  turbo.result.v1.TypedDocumentResult typed = 6;
+
+  // Reserved for the document's analysis time.
+  reserved 7;
 
   // The AnalyzeStream answer, when the item is one.
   turbo.result.v1.AnalyzeStreamResponse analyzed = 8;
