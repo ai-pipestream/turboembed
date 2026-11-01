@@ -1748,6 +1748,55 @@
           "sha512": "5c1b6bd0e0d1e48acebfdaf39fc9b9849d0d39abd0cbad1f787af75f265b1e51455931f538abd7a108d284894b2bdb78fac723d70d22f9b481ef23136d1240f5"
         }
       ]
+    },
+    {
+      "id": "turbo-en-litbank-modernbert-base-coref-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_COREFERENCE_RESOLVER",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
+      "trained_on": [
+        {
+          "name": "LitBank",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on LitBank (Bamman, Popat and Shen, NAACL 2019; Bamman, Lewke and Mansoor, LREC 2020), published at https://github.com/dbamman/litbank under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/) over public-domain texts from Project Gutenberg. (coref): test conll_f1 0.7094 (baseline 0.3009, litbank)",
+      "files": [
+        {
+          "path": "manifest.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-manifest.json",
+          "size": 97342,
+          "sha256": "1dd27b20ef858d4492fb6f1fb73833893efb236fd30d49036c885d3138a51301",
+          "sha512": "d3be51cd1a7bceb9ed072c94d58ed52bbd2a0480f09c810d8b9aeaf4ec5b5f03b0d2fe7da8fe23e52639a3d61b60de34199cdf477384c8db9fde3cb5ed76fa68"
+        },
+        {
+          "path": "reference/reference.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-reference-reference.safetensors",
+          "size": 430352,
+          "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
+          "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-tokenizer.json",
+          "size": 2132967,
+          "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
+          "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
+        },
+        {
+          "path": "weights/model.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-weights-model.safetensors",
+          "size": 599500288,
+          "sha256": "ed7edc19a86c26e778505337e3a6549729b4321ad097a6632168007a7f26325f",
+          "sha512": "28104b80224d1b2e10fc7edb9c4d315b510f9c8db0ff32c316a62c4643960523b2dbf4c26cd41f860d0659c3b70aa4018d9bd6830150c37cff32def05759c977"
+        }
+      ]
     }
   ]
 }

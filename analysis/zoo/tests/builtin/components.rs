@@ -22,6 +22,7 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
         ["baai-bge-small-en-v1.5", "baai-bge-base-en-v1.5", "baai-bge-large-en-v1.5"]
     );
     assert_eq!(ids("en", Component::AspectSentiment), ["turbo-en-masc-3.0.0-aspect-sentiment-1"]);
+    assert_eq!(ids("en", Component::CoreferenceResolver), ["turbo-en-litbank-modernbert-base-coref-1"]);
     for language in ["es", "ca", "fi", "it"] {
         assert!(ids(language, Component::DependencyParser).is_empty());
     }
@@ -74,6 +75,15 @@ fn the_retrieval_encoders_and_the_aspect_heads_keep_their_classes() {
     assert!(index.find_within("en", Component::SparseEncoder, LicenceClass::Permissive).is_empty());
     assert!(index.find_within("en", Component::LateInteractionEncoder, LicenceClass::Permissive).is_empty());
     assert!(index.find_within("en", Component::AspectSentiment, LicenceClass::Permissive).is_empty());
+    // LitBank is CC BY 4.0 over public-domain text, so the coreference head ships in the default tier.
+    assert_eq!(
+        index
+            .find_within("en", Component::CoreferenceResolver, LicenceClass::Permissive)
+            .iter()
+            .map(|a| a.id.as_str())
+            .collect::<Vec<_>>(),
+        ["turbo-en-litbank-modernbert-base-coref-1"]
+    );
     let doccat = index.find_within("en", Component::DocumentCategorizer, LicenceClass::Permissive);
     assert_eq!(
         doccat.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
