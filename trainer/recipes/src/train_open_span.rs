@@ -15,11 +15,11 @@ use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::eval::{Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::open_span::{
     self, DEFAULT_MAX_WORDS, DEFAULT_WIDTH_DIM, dictionary_baseline, embed_label_names, encode_sentences, entity_types,
-    examples_from_features, filter_sentences, predict_from_features,
+    examples_from_features, filter_sentences, predict_from_features, read_open_span_corpus,
 };
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, named, replace};
-use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
+use turbo_trainer_recipes::{Error, Result, coarse, safetensors};
 
 use super::{Args, Opts, RESAMPLES, baseline, encoder_record, finish, options, saved_any};
 
@@ -29,15 +29,20 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let nested = a.flag("--nested");
     let hold_out_arg = a.value("--hold-out")?;
     let cache_dir = a.value("--cache")?.map(PathBuf::from);
+    let layer_arg: Option<u32> =
+        a.value("--layer")?.map(|v| v.parse()).transpose().map_err(|_| Error("--layer N".into()))?;
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
         options(&mut a)?;
     a.done()?;
     if crf || hash.is_some() {
         return Err(Error("open-span heads take neither --crf nor --hash-embed".into()));
     }
+    if layer_arg.is_some() && cache_dir.is_none() {
+        return Err(Error("--layer requires --cache".into()));
+    }
 
     let t = Instant::now();
-    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
+    let corpus = read_open_span_corpus(corpus_id, dir, unrecorded)?;
     let read = t.elapsed().as_secs_f64();
     let all_types = entity_types(&corpus)?;
     let hold_out: Vec<String> = match hold_out_arg {
@@ -69,7 +74,11 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         let p = cdir.join("cache.json");
         let text = std::fs::read(&p).map_err(|e| Error(format!("{}: {e}", p.display())))?;
         let cache: CacheRecord = serde_json::from_slice(&text).map_err(|e| Error(format!("{}: {e}", p.display())))?;
-        if cache.corpus != corpus.record
+        let corpus_ok = cache.corpus == corpus.record
+            || (cache.corpus.files == corpus.record.files
+                && cache.corpus.recorded == corpus.record.recorded
+                && cache.corpus.id == format!("{}-upos", corpus.record.id));
+        if !corpus_ok
             || cache.encoder.model != encoder.model
             || cache.encoder.revision != encoder.revision
             || cache.encoder.manifest_sha256 != encoder.manifest_sha256
@@ -80,7 +89,11 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         {
             return Err(Error(format!("{}: cache does not match corpus, encoder or pooling", cdir.display())));
         }
-        let layer = *cache.layers.last().ok_or_else(|| Error(format!("{}: cache has no layers", cdir.display())))?;
+        let layer = match layer_arg {
+            Some(l) if cache.layers.contains(&l) => l,
+            Some(l) => return Err(Error(format!("{}: no layer {l}; it holds {:?}", cdir.display(), cache.layers))),
+            None => *cache.layers.last().ok_or_else(|| Error(format!("{}: cache has no layers", cdir.display())))?,
+        };
         let full_train = read_layer(cdir, &cache, "train", layer, &corpus.splits.train)?;
         let dev = read_layer(cdir, &cache, "dev", layer, &corpus.splits.dev)?;
         let test = read_layer(cdir, &cache, "test", layer, &corpus.splits.test)?;

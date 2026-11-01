@@ -109,9 +109,13 @@ fn open_span_hold_out_round_trip_and_bundle_assembly() {
     assert!(os.held_out_baseline.is_some());
     assert!(os.held_out_dictionary.is_some());
 
-    // Assemble the trained open_ner head into a bundle and verify it opens cleanly.
+    // Assemble refuses an unrecorded corpus run until recorded is true.
     let assembled_dir = dir.join("assembled");
     fs::create_dir(&assembled_dir).unwrap();
+    assert!(assemble_bundle(&bundle, &[&a], &assembled_dir).unwrap_err().0.contains("corpus.recorded is false"));
+    let mut rec_ok = first.clone();
+    rec_ok.corpus.recorded = true;
+    fs::write(a.join("receipt.json"), serde_json::to_vec_pretty(&rec_ok).unwrap()).unwrap();
     let assembled = assemble_bundle(&bundle, &[&a], &assembled_dir).unwrap();
     assert_eq!(assembled.license_tier, LicenseClass::Permissive);
     assert!(assembled.manifest.heads.iter().any(|h| h.name == "open_ner" && h.kind == HeadKind::OpenSpan));
@@ -157,4 +161,104 @@ fn committed_open_span_receipts_preserve_dictionary_and_holdout_evidence_and_nam
             assert!(hm > hb && hm > hd, "zero-shot held-out {hm} must beat majority {hb} and dictionary {hd}");
         }
     }
+}
+
+#[test]
+fn open_span_trains_on_ud_treebank_propn_runs_and_selects_requested_cache_layer() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("open-span-ud-cache-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let ud_data = dir.join("ud");
+    fs::create_dir(&ud_data).unwrap();
+    let conllu = concat!(
+        "# text = Ann Lee met Bob in Paris\n",
+        "1\tAnn\tAnn\tPROPN\tNNP\t_\t3\tnsubj\t_\t_\n",
+        "2\tLee\tLee\tPROPN\tNNP\t_\t1\tflat\t_\t_\n",
+        "3\tmet\tmeet\tVERB\tVBD\t_\t0\troot\t_\t_\n",
+        "4\tBob\tBob\tPROPN\tNNP\t_\t3\tobj\t_\t_\n",
+        "5\tin\tin\tADP\tIN\t_\t6\tcase\t_\t_\n",
+        "6\tParis\tParis\tPROPN\tNNP\t_\t3\tobl\t_\t_\n\n",
+    );
+    for f in ["en_ewt-ud-train.conllu", "en_ewt-ud-dev.conllu", "en_ewt-ud-test.conllu"] {
+        fs::write(ud_data.join(f), conllu).unwrap();
+    }
+    let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+    let ud_out = dir.join("ud-out");
+    let res = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "ud-en-ewt", "--dir"])
+        .arg(&ud_data)
+        .arg("--bundle")
+        .arg(&bundle)
+        .arg("--out")
+        .arg(&ud_out)
+        .args([
+            "--unrecorded-corpus",
+            "--max-words",
+            "4",
+            "--width-dim",
+            "16",
+            "--epochs",
+            "2",
+            "--batch",
+            "2",
+            "--commit",
+            "ud-test",
+        ])
+        .output()
+        .unwrap();
+    assert!(res.status.success(), "{}", String::from_utf8_lossy(&res.stderr));
+    let ud_receipt: Receipt = serde_json::from_slice(&fs::read(ud_out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(ud_receipt.corpus.id, "ud-en-ewt");
+    assert_eq!(ud_receipt.head.as_ref().unwrap().labels, ["proper noun"]);
+    assert_eq!(ud_receipt.eval.open_span.as_ref().unwrap().seen_types, ["proper noun"]);
+
+    // Multi-layer cache with --layer selection.
+    let cache_dir = dir.join("cache");
+    let cache_res = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["cache", "--corpus", "ud-en-ewt-upos", "--dir"])
+        .arg(&ud_data)
+        .arg("--bundle")
+        .arg(&bundle)
+        .arg("--out")
+        .arg(&cache_dir)
+        .args(["--unrecorded-corpus", "--layers", "2", "--commit", "cache-test"])
+        .output()
+        .unwrap();
+    assert!(cache_res.status.success(), "{}", String::from_utf8_lossy(&cache_res.stderr));
+
+    for layer in ["1", "2"] {
+        let out_l = dir.join(format!("layer-{layer}"));
+        let r = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+            .args(["train-open-span", "--corpus", "ud-en-ewt", "--dir"])
+            .arg(&ud_data)
+            .arg("--bundle")
+            .arg(&bundle)
+            .arg("--cache")
+            .arg(&cache_dir)
+            .args(["--layer", layer, "--out"])
+            .arg(&out_l)
+            .args(["--unrecorded-corpus", "--max-words", "4", "--width-dim", "16", "--epochs", "2", "--commit", "l"])
+            .output()
+            .unwrap();
+        assert!(r.status.success(), "layer {layer}: {}", String::from_utf8_lossy(&r.stderr));
+    }
+
+    // Requesting a layer not in the cache fails cleanly.
+    let bad_l = dir.join("layer-99");
+    let r_bad = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "ud-en-ewt", "--dir"])
+        .arg(&ud_data)
+        .arg("--bundle")
+        .arg(&bundle)
+        .arg("--cache")
+        .arg(&cache_dir)
+        .args(["--layer", "99", "--out"])
+        .arg(&bad_l)
+        .args(["--unrecorded-corpus", "--epochs", "1", "--commit", "l"])
+        .output()
+        .unwrap();
+    assert!(!r_bad.status.success());
+    assert!(String::from_utf8_lossy(&r_bad.stderr).contains("no layer 99"));
+
+    fs::remove_dir_all(dir).unwrap();
 }

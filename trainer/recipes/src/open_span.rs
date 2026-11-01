@@ -24,18 +24,69 @@ use crate::{Error, Result, fixed_entity_types};
 pub const DEFAULT_MAX_WORDS: u32 = 8;
 /// Default span projection width for `HEAD_OPEN_SPAN`.
 pub const DEFAULT_WIDTH_DIM: u32 = 64;
+/// Entity type extracted from contiguous `PROPN` runs in a UD treebank.
+pub const UD_PROPN_TYPE: &str = "proper noun";
+
+/// Converts a sequence of UD `UPOS` tags into BIO labels over contiguous
+/// `PROPN` runs (`"B-proper noun"`, `"I-proper noun"`, `"O"`).
+pub fn propn_to_bio(upos: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(upos.len());
+    let mut in_propn = false;
+    for tag in upos {
+        if tag == "PROPN" {
+            out.push(if in_propn { format!("I-{UD_PROPN_TYPE}") } else { format!("B-{UD_PROPN_TYPE}") });
+            in_propn = true;
+        } else {
+            out.push("O".to_owned());
+            in_propn = false;
+        }
+    }
+    out
+}
+
+/// Reads a BIO NER corpus or a UD treebank (`ud-<lang>-<bank>` or
+/// `ud-<lang>-<bank>-upos`, converting contiguous `PROPN` runs into
+/// `"proper noun"` BIO spans) for `train-open-span`.
+pub fn read_open_span_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<Corpus> {
+    if let Some(bank) = crate::ud::TREEBANKS.iter().find(|b| b.id == id) {
+        let mut c = crate::ud::read(bank, crate::ud::Column::Upos, dir, unrecorded)?;
+        for s in c.splits.train.iter_mut().chain(&mut c.splits.dev).chain(&mut c.splits.test) {
+            s.labels = propn_to_bio(&s.labels);
+        }
+        c.record.id = bank.id.into();
+        c.record.name = format!("{}, PROPN spans", bank.name);
+        c.record.task = Task::Bio;
+        return Ok(c);
+    }
+    let mut c = crate::read_corpus(id, dir, unrecorded)?;
+    if c.record.task == Task::Tags && c.record.id.starts_with("ud-") {
+        for s in c.splits.train.iter_mut().chain(&mut c.splits.dev).chain(&mut c.splits.test) {
+            s.labels = propn_to_bio(&s.labels);
+        }
+        c.record.task = Task::Bio;
+    }
+    Ok(c)
+}
+
+fn sentence_spans(s: &Sentence) -> Vec<(usize, usize, String)> {
+    if s.labels.iter().all(|l| l == "O" || l.starts_with("B-") || l.starts_with("I-")) {
+        eval::spans(&s.labels)
+    } else {
+        eval::spans(&propn_to_bio(&s.labels))
+    }
+}
 
 /// Collects all entity type names from `corpus` in deterministic order.
 pub fn entity_types(corpus: &Corpus) -> Result<Vec<String>> {
-    if corpus.record.task != Task::Bio {
-        return Err(Error(format!("corpus {:?} is {:?}, expected BIO", corpus.record.id, corpus.record.task)));
+    if corpus.record.task != Task::Bio && !(corpus.record.task == Task::Tags && corpus.record.id.starts_with("ud-")) {
+        return Err(Error(format!("corpus {:?} is {:?}, expected BIO or UD", corpus.record.id, corpus.record.task)));
     }
     if let Some(fixed) = fixed_entity_types(&corpus.record.id) {
         return Ok(fixed.iter().map(|s| (*s).to_owned()).collect());
     }
     let mut set = BTreeSet::new();
     for s in corpus.splits.train.iter().chain(&corpus.splits.dev).chain(&corpus.splits.test) {
-        for (_, _, kind) in eval::spans(&s.labels) {
+        for (_, _, kind) in sentence_spans(s) {
             set.insert(kind);
         }
     }
@@ -154,7 +205,7 @@ pub fn examples_from_features(
     let mut skipped = 0usize;
 
     for (s, wf) in sentences.iter().zip(word_feats) {
-        let sp = eval::spans(&s.labels);
+        let sp = sentence_spans(s);
         let has_held_out = train_seed.is_some() && sp.iter().any(|(_, _, k)| hold_out.iter().any(|h| h == k));
         if has_held_out {
             skipped += 1;
@@ -318,7 +369,7 @@ pub fn filter_sentences(sentences: &[Sentence], keep: &[String]) -> Vec<Sentence
         .iter()
         .map(|s| {
             let mut labels = vec!["O".to_owned(); s.words.len()];
-            for (start, end, kind) in eval::spans(&s.labels) {
+            for (start, end, kind) in sentence_spans(s) {
                 if keep.iter().any(|k| k == &kind) {
                     labels[start] = format!("B-{kind}");
                     for l in &mut labels[start + 1..end] {

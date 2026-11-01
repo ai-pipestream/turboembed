@@ -91,9 +91,15 @@ fn assemble_refuses_mismatched_encoders_checkpoint_metadata_tampered_files_and_c
     let data = scratch("refuse-data");
     corpus_multiconer(&data);
     let base_run = scratch("refuse-base-run");
-    train_ner_run(&data, &base_run);
+    let mut base_receipt = train_ner_run(&data, &base_run);
+    assert!(!base_receipt.corpus.recorded);
 
     let out_dup = scratch("refuse-dup-out");
+    assert!(verify_run(&base_run).unwrap_err().0.contains("corpus.recorded is false"));
+    assert!(assemble_bundle(&tiny(), &[&base_run], &out_dup).unwrap_err().0.contains("corpus.recorded is false"));
+    base_receipt.corpus.recorded = true;
+    fs::write(base_run.join("receipt.json"), serde_json::to_vec_pretty(&base_receipt).unwrap()).unwrap();
+
     assert!(assemble_bundle(&tiny(), &[&base_run], &tiny()).unwrap_err().0.contains("must not equal encoder_bundle"));
     assert!(assemble_bundle(&tiny(), &[&base_run, &base_run], &out_dup).unwrap_err().0.contains("duplicate head name"));
 
