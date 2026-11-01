@@ -101,10 +101,17 @@ const EVAL_SETS: [&str; 1] = ["symspell-noisy-query-en-1000"];
 /// fetched only after the user accepts that licence.
 const SHARE_ALIKE_EVAL_SETS: [&str; 1] = ["codespell-dictionary-en"];
 
-/// The retrieval checkpoints the SPLATE study lists (#913): permissive
-/// model licences over MS MARCO, so local-only through their training
-/// data and fetched only after accepting MS MARCO's terms.
-const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1", "colbert-ir-colbertv2.0"];
+/// The retrieval checkpoints the SPLATE study lists (#913) and the BGE
+/// v1.5 dense encoders (#1068): permissive model licences over MS MARCO,
+/// so local-only through their training data and fetched only after
+/// accepting MS MARCO's terms.
+pub(crate) const RETRIEVAL_CHECKPOINTS: [&str; 5] = [
+    "opensearch-neural-sparse-encoding-v1",
+    "colbert-ir-colbertv2.0",
+    "baai-bge-small-en-v1.5",
+    "baai-bge-base-en-v1.5",
+    "baai-bge-large-en-v1.5",
+];
 
 /// The permissive training and evaluation datasets in the built-in index (#945, #890, #925):
 /// CSC, MASC, the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,

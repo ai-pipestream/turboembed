@@ -1,8 +1,10 @@
 //! The neural annotator checkpoints in the built-in index.
 
-use turbo_zoo::{Format, Index, Kind, Licence, LicenceClass, Policy};
+use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy};
 
-use super::{CHECKPOINTS, LOCAL_CHECKPOINTS, SHARE_ALIKE_CHECKPOINTS, UNRELEASED_DATA_CHECKPOINTS};
+use super::{
+    CHECKPOINTS, LOCAL_CHECKPOINTS, RETRIEVAL_CHECKPOINTS, SHARE_ALIKE_CHECKPOINTS, UNRELEASED_DATA_CHECKPOINTS,
+};
 
 #[test]
 fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
@@ -237,5 +239,45 @@ fn sat_3l_is_pinned_permissive_and_attributed() {
     for f in &a.files {
         let url = format!("https://huggingface.co/segment-any-text/sat-3l/resolve/{revision}/{}", f.path.as_str());
         assert_eq!(f.url.as_str(), url);
+    }
+}
+
+#[test]
+fn the_bge_dense_encoders_are_pinned_local_only_and_fetched_from_their_publisher() {
+    let index = Index::builtin();
+    for (id, repo, revision) in [
+        ("baai-bge-small-en-v1.5", "BAAI/bge-small-en-v1.5", "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"),
+        ("baai-bge-base-en-v1.5", "BAAI/bge-base-en-v1.5", "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a"),
+        ("baai-bge-large-en-v1.5", "BAAI/bge-large-en-v1.5", "d4aa6901d3a41ba39fb536a557fa166f842b0e09"),
+    ] {
+        assert!(RETRIEVAL_CHECKPOINTS.contains(&id));
+        let a = index.get(id).unwrap();
+        assert_eq!(
+            (a.kind, a.format, a.license, a.class, a.component),
+            (Kind::Model, Format::Safetensors, Licence::Mit, LicenceClass::LocalOnly, Some(Component::DenseEncoder)),
+            "{id}"
+        );
+        assert_eq!(a.language.as_ref().map(|l| l.as_str()), Some("en"), "{id}");
+        assert_eq!(a.version, revision, "{id}");
+        let origin = format!("https://huggingface.co/{repo}");
+        assert_eq!(a.origin.as_ref().map(|o| o.as_str()), Some(origin.as_str()), "{id}");
+        let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths, ["model.safetensors", "config.json", "tokenizer.json"], "{id}");
+        for f in &a.files {
+            assert_eq!(f.url.as_str(), format!("{origin}/resolve/{revision}/{}", f.path.as_str()), "{id}");
+        }
+        // The same bert-base-uncased tokenizer the sparse encoder carries.
+        let tokenizer = |a: &turbo_zoo::Artifact| {
+            a.files.iter().find(|f| f.path.as_str() == "tokenizer.json").unwrap().sha256.to_string()
+        };
+        assert_eq!(tokenizer(a), tokenizer(index.get(RETRIEVAL_CHECKPOINTS[0]).unwrap()), "{id}");
+        assert_eq!(
+            a.licences_to_accept(Policy::default()),
+            [turbo_zoo::Requirement {
+                licence: Licence::RestrictedPublic,
+                text: "https://microsoft.github.io/msmarco/".into()
+            }],
+            "{id}"
+        );
     }
 }

@@ -17,6 +17,10 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::ZeroShotCategorizer), ["cross-encoder-nli-minilm2-l6-h768"]);
     assert_eq!(ids("en", Component::SparseEncoder), ["opensearch-neural-sparse-encoding-v1"]);
     assert_eq!(ids("en", Component::LateInteractionEncoder), ["colbert-ir-colbertv2.0"]);
+    assert_eq!(
+        ids("en", Component::DenseEncoder),
+        ["baai-bge-small-en-v1.5", "baai-bge-base-en-v1.5", "baai-bge-large-en-v1.5"]
+    );
     assert_eq!(ids("en", Component::AspectSentiment), ["turbo-en-masc-3.0.0-aspect-sentiment-1"]);
     for language in ["es", "ca", "fi", "it"] {
         assert!(ids(language, Component::DependencyParser).is_empty());
@@ -65,7 +69,8 @@ fn every_listed_model_names_a_component_except_the_tokenizers() {
 #[test]
 fn the_retrieval_encoders_and_the_aspect_heads_keep_their_classes() {
     let index = Index::builtin();
-    // MS MARCO keeps both retrieval encoders and the legacy MiniLM aspect head local-only.
+    // MS MARCO keeps the retrieval encoders, dense ones included, and the legacy MiniLM aspect head local-only.
+    assert!(index.find_within("en", Component::DenseEncoder, LicenceClass::Permissive).is_empty());
     assert!(index.find_within("en", Component::SparseEncoder, LicenceClass::Permissive).is_empty());
     assert!(index.find_within("en", Component::LateInteractionEncoder, LicenceClass::Permissive).is_empty());
     assert!(index.find_within("en", Component::AspectSentiment, LicenceClass::Permissive).is_empty());
@@ -86,5 +91,7 @@ fn the_component_constants_round_trip() {
     for c in Component::ALL {
         assert_eq!(c.name().parse::<Component>(), Ok(*c));
     }
+    // The dense encoders are COMPONENT_DENSE_ENCODER, beside the sparse and late-interaction ones.
     assert!("COMPONENT_EMBEDDER".parse::<Component>().is_err());
+    assert_eq!("COMPONENT_DENSE_ENCODER".parse::<Component>(), Ok(Component::DenseEncoder));
 }
