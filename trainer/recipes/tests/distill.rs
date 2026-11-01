@@ -285,3 +285,53 @@ fn distill_head_writes_verified_student_bundle_and_deterministic_outputs() {
         fs::remove_dir_all(p).unwrap();
     }
 }
+
+#[test]
+fn invalid_speed_threshold_is_refused_even_with_gate_override() {
+    let data = scratch("invalid-speed-data");
+    fs::create_dir_all(&data).unwrap();
+    for file in ["wnut17train.conll", "emerging.dev.conll", "emerging.test.annotated"] {
+        fs::write(data.join(file), "Ann\tB-person\nworks\tO\n.\tO\n\n").unwrap();
+    }
+    let bundle = tiny();
+    for (i, speed) in ["NaN", "inf", "-inf", "-1"].into_iter().enumerate() {
+        for allow in [false, true] {
+            let out = scratch(&format!("invalid-speed-{i}-{allow}"));
+            let mut args = vec![
+                "distill-head",
+                "--corpus",
+                "wnut17",
+                "--dir",
+                data.to_str().unwrap(),
+                "--bundle",
+                bundle.to_str().unwrap(),
+                "--out",
+                out.to_str().unwrap(),
+                "--unrecorded-corpus",
+                "--epochs",
+                "1",
+                "--batch",
+                "1",
+                "--threads",
+                "1",
+                "--min-speedup",
+                speed,
+                "--max-accuracy-drop",
+                "1",
+            ];
+            if allow {
+                args.push("--allow-gate-failure");
+            }
+            let r = run(&args);
+            assert_eq!(
+                r.status.code(),
+                Some(2),
+                "speed {speed}, override {allow}: {}",
+                String::from_utf8_lossy(&r.stderr)
+            );
+            assert!(String::from_utf8_lossy(&r.stderr).contains("--min-speedup"));
+            assert!(!out.exists());
+        }
+    }
+    fs::remove_dir_all(data).unwrap();
+}

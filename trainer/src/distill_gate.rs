@@ -138,7 +138,7 @@ pub struct StudentGate {
 impl StudentGate {
     pub fn evaluate(r: &DistillReport, throughput: ThroughputComparison, max_drop: f64, min_speedup: f64) -> Self {
         let within_margin = r.accuracy_drop <= max_drop;
-        Self {
+        let mut gate = Self {
             max_accuracy_drop: max_drop,
             min_speedup_ratio: min_speedup,
             teacher_accuracy: r.teacher_test_accuracy,
@@ -146,12 +146,51 @@ impl StudentGate {
             accuracy_drop: r.accuracy_drop,
             within_margin,
             throughput,
-            passed: within_margin && throughput.speedup_ratio >= min_speedup,
+            passed: false,
+        };
+        gate.passed = gate.verify().is_ok();
+        gate
+    }
+
+    /// Refuses undefined thresholds, accuracies and throughput measurements.
+    /// This validation also applies when a caller allows a measured gate failure.
+    pub fn validate(&self) -> Result<()> {
+        let t = &self.throughput;
+        let positive = [
+            t.teacher_seconds,
+            t.student_seconds,
+            t.teacher_tokens_per_sec,
+            t.student_tokens_per_sec,
+            t.teacher_sentences_per_sec,
+            t.student_sentences_per_sec,
+            t.speedup_ratio,
+        ];
+        if !self.max_accuracy_drop.is_finite()
+            || self.max_accuracy_drop < 0.0
+            || !self.min_speedup_ratio.is_finite()
+            || self.min_speedup_ratio < 0.0
+            || !self.teacher_accuracy.is_finite()
+            || !(0.0..=1.0).contains(&self.teacher_accuracy)
+            || !self.student_accuracy.is_finite()
+            || !(0.0..=1.0).contains(&self.student_accuracy)
+            || !self.accuracy_drop.is_finite()
+            || t.tokens == 0
+            || t.sentences == 0
+            || positive.iter().any(|v| !v.is_finite() || *v <= 0.0)
+        {
+            return Err(invalid(
+                "distill gate requires finite nonnegative thresholds, finite accuracies and positive throughput measurements",
+            ));
         }
+        Ok(())
     }
 
     pub fn verify(&self) -> Result<()> {
-        if !self.within_margin || self.throughput.speedup_ratio < self.min_speedup_ratio {
+        self.validate()?;
+        if !self.within_margin
+            || self.accuracy_drop > self.max_accuracy_drop
+            || self.throughput.speedup_ratio < self.min_speedup_ratio
+        {
             return Err(invalid(format!(
                 "distill gate failed: accuracy drop {:.4} (max {:.4}), speedup {:.3}x (min {:.3}x)",
                 self.accuracy_drop, self.max_accuracy_drop, self.throughput.speedup_ratio, self.min_speedup_ratio

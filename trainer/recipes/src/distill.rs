@@ -201,6 +201,13 @@ pub fn measure_end_to_end_throughput(
     })
 }
 
+fn validate_min_speedup(value: f64) -> Result<()> {
+    if !value.is_finite() || value < 0.0 {
+        return Err(Error("--min-speedup must be finite and nonnegative".into()));
+    }
+    Ok(())
+}
+
 /// Runs teacher-to-student distillation on prepared splits, checks the student
 /// gate, and writes `head.safetensors`, `head.json`, and `receipt.json` to `out_dir`.
 #[allow(clippy::too_many_arguments)]
@@ -223,6 +230,7 @@ pub fn distill_head_splits<F>(
 where
     F: FnOnce(&Tagger<f32>) -> Result<(ThroughputComparison, String, String)>,
 {
+    validate_min_speedup(min_speedup_ratio)?;
     let (t_train, t_val, t_test) = teacher_splits;
     let (s_train, s_val, s_test) = student_splits;
     if teacher.spec().kind != student_spec.kind
@@ -248,6 +256,7 @@ where
 
     let (throughput, device, backend) = bench(&student)?;
     let gate = StudentGate::evaluate(&report, throughput, options.max_accuracy_drop, min_speedup_ratio);
+    gate.validate().map_err(|e| Error(e.message))?;
     if !allow_gate_failure {
         gate.verify().map_err(|e| Error(e.message))?;
     }
@@ -314,6 +323,7 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
     let alpha: f32 = a.parsed("--alpha", defaults.alpha)?;
     let max_accuracy_drop: f64 = a.parsed("--max-accuracy-drop", defaults.max_accuracy_drop)?;
     let min_speedup: f64 = a.parsed("--min-speedup", 0.0)?;
+    validate_min_speedup(min_speedup)?;
     let allow_gate_failure = a.flag("--allow-gate-failure");
     let HeadArgs { crf, bilstm, hash, config: c } = head_args(&mut a)?;
     let max_train: usize = a.parsed("--max-train", 0)?;
