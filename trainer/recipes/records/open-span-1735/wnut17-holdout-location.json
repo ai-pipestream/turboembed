@@ -1,0 +1,616 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    ".turbo-train-head",
+    "train-open-span",
+    "--corpus",
+    "wnut17",
+    "--dir",
+    "data/wnut17",
+    "--bundle",
+    "bundles/modernbert-base-l12",
+    "--cache",
+    "cache/wnut17-l12",
+    "--hold-out",
+    "location",
+    "--epochs",
+    "15",
+    "--patience",
+    "5",
+    "--batch",
+    "32",
+    "--lr",
+    "0.003",
+    "--threads",
+    "8",
+    "--out",
+    "runs/wnut17-open-span-holdout-location"
+  ],
+  "commit": "63fd0bfdbdc7f11a967217e7a2e5a4a0260ef56a",
+  "host": "unknown",
+  "unix_time": 1793447949,
+  "corpus": {
+    "id": "wnut17",
+    "name": "WNUT-17",
+    "task": "bio",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/leondz/emerging_entities_17/blob/e52a2d2a71ac1a051ca2d532eef28653c5c02603/README.md",
+    "attribution": "Trained on WNUT 2017 Emerging and Rare Entity Recognition, Derczynski et al., CC BY 4.0. Corpus: https://github.com/leondz/emerging_entities_17",
+    "recorded": true,
+    "files": [
+      {
+        "path": "wnut17train.conll",
+        "size": 493781,
+        "sha256": "731820e13f71af324c6b55a1575ec2ce59fbaa2a0806f8f0400b98d56cd6a7a5"
+      },
+      {
+        "path": "emerging.dev.conll",
+        "size": 114749,
+        "sha256": "e053b752b8155113ca66e7db08af5f2f5f43ab993694e4774f1ec5bad42312d8"
+      },
+      {
+        "path": "emerging.test.annotated",
+        "size": 192425,
+        "sha256": "2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0"
+      }
+    ],
+    "split": "publisher train/dev/test files at e52a2d2a71ac1a051ca2d532eef28653c5c02603; no repartitioning",
+    "train": {
+      "sentences": 3394,
+      "words": 62730
+    },
+    "dev": {
+      "sentences": 1009,
+      "words": 15733
+    },
+    "test": {
+      "sentences": 1287,
+      "words": 23394
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "answerdotai/ModernBERT-base",
+    "revision": "1",
+    "manifest_sha256": "3c520dec8d833a3594b15567d1de0c8c039a571c728fbf2a6247d4fa885a64b4",
+    "hidden": 768,
+    "layers": 12,
+    "width": 8190,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "open_ner",
+    "layer": "turboembed:entities",
+    "kind": "HEAD_OPEN_SPAN",
+    "labels": [
+      "person",
+      "group",
+      "creative-work",
+      "corporation",
+      "product"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "decode": "DECODE_SPANS_FLAT",
+    "span": {
+      "max_words": 8,
+      "width_dim": 64
+    },
+    "license_class": "CLASS_PERMISSIVE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.open_ner"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 15,
+    "batch": 32,
+    "lr": 0.003,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 5,
+    "tolerance": 0.001,
+    "threads": 8,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.4942815592076728,
+      0.04570797085312824,
+      0.035852994181218616,
+      0.027379794577281118,
+      0.021232288418846924,
+      0.016096798178646145,
+      0.011907606407461873,
+      0.008715579717575557,
+      0.006678955985065244,
+      0.005463208806656321
+    ],
+    "dev": [
+      0.24821973550356052,
+      0.2445759368836292,
+      0.2846648301193756,
+      0.23299161230195714,
+      0.31297709923664124,
+      0.21371326803205698,
+      0.17547357926221335,
+      0.27440633245382584,
+      0.22676579925650558,
+      0.24706943192064923
+    ],
+    "best_epoch": 4,
+    "epoch_seconds": [
+      22.170222058,
+      24.66832497,
+      21.577944784,
+      20.361688026,
+      22.373101391,
+      24.754152913,
+      22.666847724,
+      27.275880747,
+      27.46987563,
+      25.633025884
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "spans": {
+        "all": {
+          "gold": 1079,
+          "found": 782,
+          "correct": 242,
+          "precision": 0.309462915601023,
+          "recall": 0.2242817423540315,
+          "f1": 0.2600752283718431
+        },
+        "per_type": {
+          "corporation": {
+            "gold": 66,
+            "found": 17,
+            "correct": 2,
+            "precision": 0.11764705882352941,
+            "recall": 0.030303030303030304,
+            "f1": 0.04819277108433735
+          },
+          "creative-work": {
+            "gold": 142,
+            "found": 13,
+            "correct": 3,
+            "precision": 0.23076923076923078,
+            "recall": 0.02112676056338028,
+            "f1": 0.03870967741935484
+          },
+          "group": {
+            "gold": 165,
+            "found": 257,
+            "correct": 26,
+            "precision": 0.10116731517509728,
+            "recall": 0.15757575757575756,
+            "f1": 0.12322274881516587
+          },
+          "location": {
+            "gold": 150,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "person": {
+            "gold": 429,
+            "found": 485,
+            "correct": 211,
+            "precision": 0.4350515463917526,
+            "recall": 0.49184149184149184,
+            "f1": 0.4617067833698031
+          },
+          "product": {
+            "gold": 127,
+            "found": 10,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        }
+      }
+    },
+    "baseline": {
+      "spans": {
+        "all": {
+          "gold": 1079,
+          "found": 174,
+          "correct": 36,
+          "precision": 0.20689655172413793,
+          "recall": 0.033364226135310475,
+          "f1": 0.05746209098164405
+        },
+        "per_type": {
+          "corporation": {
+            "gold": 66,
+            "found": 19,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "creative-work": {
+            "gold": 142,
+            "found": 18,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "group": {
+            "gold": 165,
+            "found": 19,
+            "correct": 1,
+            "precision": 0.05263157894736842,
+            "recall": 0.006060606060606061,
+            "f1": 0.010869565217391304
+          },
+          "location": {
+            "gold": 150,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "person": {
+            "gold": 429,
+            "found": 86,
+            "correct": 33,
+            "precision": 0.38372093023255816,
+            "recall": 0.07692307692307693,
+            "f1": 0.12815533980582525
+          },
+          "product": {
+            "gold": 127,
+            "found": 32,
+            "correct": 2,
+            "precision": 0.0625,
+            "recall": 0.015748031496062992,
+            "f1": 0.025157232704402517
+          }
+        }
+      }
+    },
+    "dictionary": {
+      "spans": {
+        "all": {
+          "gold": 1079,
+          "found": 8,
+          "correct": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "per_type": {
+          "corporation": {
+            "gold": 66,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "creative-work": {
+            "gold": 142,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "group": {
+            "gold": 165,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "location": {
+            "gold": 150,
+            "found": 2,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "person": {
+            "gold": 429,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "product": {
+            "gold": 127,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        }
+      }
+    },
+    "open_span": {
+      "seen_types": [
+        "person",
+        "group",
+        "creative-work",
+        "corporation",
+        "product"
+      ],
+      "held_out_types": [
+        "location"
+      ],
+      "seen_model": {
+        "spans": {
+          "all": {
+            "gold": 929,
+            "found": 782,
+            "correct": 242,
+            "precision": 0.309462915601023,
+            "recall": 0.2604951560818084,
+            "f1": 0.28287551139684397
+          },
+          "per_type": {
+            "corporation": {
+              "gold": 66,
+              "found": 17,
+              "correct": 2,
+              "precision": 0.11764705882352941,
+              "recall": 0.030303030303030304,
+              "f1": 0.04819277108433735
+            },
+            "creative-work": {
+              "gold": 142,
+              "found": 13,
+              "correct": 3,
+              "precision": 0.23076923076923078,
+              "recall": 0.02112676056338028,
+              "f1": 0.03870967741935484
+            },
+            "group": {
+              "gold": 165,
+              "found": 257,
+              "correct": 26,
+              "precision": 0.10116731517509728,
+              "recall": 0.15757575757575756,
+              "f1": 0.12322274881516587
+            },
+            "person": {
+              "gold": 429,
+              "found": 485,
+              "correct": 211,
+              "precision": 0.4350515463917526,
+              "recall": 0.49184149184149184,
+              "f1": 0.4617067833698031
+            },
+            "product": {
+              "gold": 127,
+              "found": 10,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        }
+      },
+      "seen_baseline": {
+        "spans": {
+          "all": {
+            "gold": 929,
+            "found": 174,
+            "correct": 36,
+            "precision": 0.20689655172413793,
+            "recall": 0.038751345532831,
+            "f1": 0.06527651858567543
+          },
+          "per_type": {
+            "corporation": {
+              "gold": 66,
+              "found": 19,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "creative-work": {
+              "gold": 142,
+              "found": 18,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "group": {
+              "gold": 165,
+              "found": 19,
+              "correct": 1,
+              "precision": 0.05263157894736842,
+              "recall": 0.006060606060606061,
+              "f1": 0.010869565217391304
+            },
+            "person": {
+              "gold": 429,
+              "found": 86,
+              "correct": 33,
+              "precision": 0.38372093023255816,
+              "recall": 0.07692307692307693,
+              "f1": 0.12815533980582525
+            },
+            "product": {
+              "gold": 127,
+              "found": 32,
+              "correct": 2,
+              "precision": 0.0625,
+              "recall": 0.015748031496062992,
+              "f1": 0.025157232704402517
+            }
+          }
+        }
+      },
+      "seen_dictionary": {
+        "spans": {
+          "all": {
+            "gold": 929,
+            "found": 6,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "per_type": {
+            "corporation": {
+              "gold": 66,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "creative-work": {
+              "gold": 142,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "group": {
+              "gold": 165,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "person": {
+              "gold": 429,
+              "found": 4,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "product": {
+              "gold": 127,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        }
+      },
+      "held_out_model": {
+        "spans": {
+          "all": {
+            "gold": 150,
+            "found": 24,
+            "correct": 4,
+            "precision": 0.16666666666666666,
+            "recall": 0.02666666666666667,
+            "f1": 0.04597701149425287
+          },
+          "per_type": {
+            "location": {
+              "gold": 150,
+              "found": 24,
+              "correct": 4,
+              "precision": 0.16666666666666666,
+              "recall": 0.02666666666666667,
+              "f1": 0.04597701149425287
+            }
+          }
+        }
+      },
+      "held_out_baseline": {
+        "spans": {
+          "all": {
+            "gold": 150,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "per_type": {
+            "location": {
+              "gold": 150,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        }
+      },
+      "held_out_dictionary": {
+        "spans": {
+          "all": {
+            "gold": 150,
+            "found": 2,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "per_type": {
+            "location": {
+              "gold": 150,
+              "found": 2,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        }
+      }
+    },
+    "comparison": {
+      "model": 0.2600752283718431,
+      "baseline": 0.05746209098164405,
+      "delta": 0.20261313739019904,
+      "low": 0.1707136366813448,
+      "high": 0.2329129000014123,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.031228993,
+    "features": 1.252781275,
+    "train": 251.113656406,
+    "eval": 0.376585349,
+    "feature_words": 78463
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 615620,
+      "sha256": "7c77de065cf637e9742bd63b3513d4fd80a63e22223b0178b2d1ae2705adc193"
+    },
+    {
+      "path": "head.json",
+      "size": 448,
+      "sha256": "270b892372b0e9ccc2031076ac29d90e3569186a61120a5ffd469f169e3c110b"
+    }
+  ]
+}

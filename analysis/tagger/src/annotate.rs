@@ -3,14 +3,13 @@
 //! spans a BIO or BILOU head marks. Each token is a word; the words are
 //! read a sentence at a time (`Tokens.sentence`, else the sentence layer,
 //! else the whole view) through [`WordEncoder`], then scored and decoded
-//! by the core's `TokenTagger` on the host.
+//! by the core's `TokenTagger` on the host (`turbo::head::run`).
 
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
 use turbo::head::TokenTagger;
-use turbo::head::tagger::Work;
 use turbo::manifest::{HeadKind, HeadSpec, Scheme};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
 use turbo_analysis::{Execution, Ix, IxRange, Layer as _, ModelRef, Span, Spans, TagSet, View};
@@ -28,20 +27,7 @@ pub struct HeadRunner {
     width: usize,
 }
 
-/// What a sequence decoded to: each word's label and the softmax
-/// probability of that label among the word's own scores.
-pub struct Decoded {
-    pub tags: Vec<u32>,
-    pub prob: Vec<f64>,
-}
-
-/// Whether a head's layer id names the layer `id`. A head's id is always
-/// `turboembed:<name>`; until the analysis layer ids move to that
-/// namespace too (#1534), the names after the namespaces are compared.
-pub fn same_layer(head: &str, id: &str) -> bool {
-    let name = |s: &str| s.rsplit_once(':').map_or(s, |(_, n)| n).to_owned();
-    name(head) == name(id)
-}
+pub use turbo::head::run::{Decoded, same_layer};
 
 pub(crate) fn refuse(m: String) -> CoreError {
     CoreError::new(INVALID_ARGUMENT, m)
@@ -90,13 +76,7 @@ pub fn open_words(dir: &Path, o: &EncoderOptions, taps: usize) -> Result<WordEnc
     WordEncoder::open(dir, &eo)
 }
 
-/// Keeps the last `want` taps of each sequence's `[have, words, hidden]` features.
-pub(crate) fn tail_taps(features: &[Vec<f32>], have: usize, want: usize) -> std::borrow::Cow<'_, [Vec<f32>]> {
-    if have == want {
-        return std::borrow::Cow::Borrowed(features);
-    }
-    std::borrow::Cow::Owned(features.iter().map(|f| f[f.len() - (f.len() / have) * want..].to_vec()).collect())
-}
+pub(crate) use turbo::head::run::tail_taps;
 
 impl HeadRunner {
     /// The head of the bundle at `dir` named `name`, or, with no name, the
@@ -249,37 +229,7 @@ impl HeadRunner {
     }
 }
 
-/// Each sequence decoded by `tagger` from its word features and its
-/// words' text, which a head with a `hash_embed` reads.
-pub(crate) fn decode_with(
-    tagger: &TokenTagger,
-    features: &[Vec<f32>],
-    forms: &[Vec<&str>],
-) -> Result<Vec<Decoded>, CoreError> {
-    let (mut scores, mut work) = (Vec::new(), Work::default());
-    let labels = tagger.labels().len();
-    let stride = tagger.taps() * tagger.hidden();
-    let mut out = Vec::with_capacity(features.len());
-    for (f, forms) in features.iter().zip(forms) {
-        let n = f.len() / stride;
-        let words: Vec<u32> = (0..n as u32).collect();
-        tagger.scores_forms(f, &words, Some(forms), &mut scores, &mut work)?;
-        let mut tags = Vec::new();
-        tagger.decode(&scores, n, &mut tags)?;
-        let prob = tags
-            .iter()
-            .enumerate()
-            .map(|(w, &t)| {
-                let row = &scores[w * labels..][..labels];
-                let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64;
-                let z: f64 = row.iter().map(|&v| (v as f64 - m).exp()).sum();
-                (row[t as usize] as f64 - m).exp() / z
-            })
-            .collect();
-        out.push(Decoded { tags, prob });
-    }
-    Ok(out)
-}
+pub(crate) use turbo::head::run::decode_tagger as decode_with;
 
 /// The part-of-speech layer from each sequence's decoded tags.
 pub(crate) fn pos_layer(

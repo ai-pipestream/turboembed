@@ -29,10 +29,10 @@ each with its SHA-256:
 
 The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 `grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
-in-process Java 22+ Panama Foreign Function and Memory (FFM) bindings over
+in-process Java 25+ Panama Foreign Function and Memory (FFM) bindings over
 `include/turbo/turbo.h` and its analysis adapters live in
 `clients/java-panama/pom.xml` (`ai.pipestream:turboembed-panama:<version>`,
-requiring Java 22 or newer with `--enable-native-access=ALL-UNNAMED` and the
+requiring Java 25 or newer with `--enable-native-access=ALL-UNNAMED` and the
 platform's `libturbo` shared library from the binary archive). The
 Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
 (`Cargo.lock`).
@@ -334,6 +334,14 @@ signature; reusing a task, status or enumeration number; changing what
 an existing value or call means. A program must treat a status code it
 does not know as a failure (`turbo_status_name` names it
 `TURBO_E_UNKNOWN`) and must not assume a list of devices or backends.
+
+A field that stops meaning anything is retired, not removed: it keeps
+its name, type and offset, the header marks it retired, and a non-empty
+or non-zero value fails with `TURBO_E_INVALID_ARGUMENT` naming the field
+in `turbo_error.field`. A program that left the field empty runs as
+before. The model path fields of `turbo_analyzer_desc` are retired this
+way: learned components load from its `bundle_path`, and the struct's
+earlier `struct_size` (104) stays accepted and names no bundle.
 
 ### The gRPC services and the server's configuration
 

@@ -97,6 +97,8 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         split: "test".into(),
         model: Some(evaluate_coref(&splits.test, &predicted)?),
         baseline: evaluate_coref(&splits.test, &base)?,
+        dictionary: None,
+        open_span: None,
         comparison: Some(bootstrap_coref(&splits.test, &predicted, &base, RESAMPLES, c.seed)?),
         uas: None,
         rules: None,

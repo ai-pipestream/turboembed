@@ -98,6 +98,8 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         split: "test".into(),
         model: Some(evaluate(test, &predicted)),
         baseline: evaluate(test, &base),
+        dictionary: None,
+        open_span: None,
         comparison: Some(bootstrap(test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,

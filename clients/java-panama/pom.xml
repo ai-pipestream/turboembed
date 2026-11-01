@@ -9,7 +9,7 @@
   <version>0.1.0</version>
   <packaging>jar</packaging>
   <name>turboembed-panama</name>
-  <description>In-process Java 22+ Panama Foreign Function and Memory (FFM) binding over libturbo C ABI with OpenNLP-style adapters.</description>
+  <description>In-process Java 25+ Panama Foreign Function and Memory (FFM) binding over libturbo C ABI with OpenNLP-style adapters.</description>
 
   <licenses>
     <license>
@@ -22,7 +22,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
-    <maven.compiler.release>22</maven.compiler.release>
+    <maven.compiler.release>25</maven.compiler.release>
     <junit.version>5.11.4</junit.version>
     <license.source.dir>${project.basedir}/../..</license.source.dir>
   </properties>
@@ -59,7 +59,7 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
-          <release>22</release>
+          <release>25</release>
           <compilerArgs>
             <arg>-Xlint:all,-restricted</arg>
             <arg>-Werror</arg>

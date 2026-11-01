@@ -1,6 +1,4 @@
-//! Assembling verified `turbo-trainer` receipt directories into a single-head
-//! or multi-task bundle (#1726), verifying receipts, checkpoint metadata,
-//! tensor names and shapes, and the assembled bundle via [`Bundle::open`].
+//! Assembling verified `turbo-trainer` receipt directories into a single-head or multi-task bundle (#1726).
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -9,8 +7,9 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::{
-    BiaffineParser, CorefRanker, EditTreeLemmatizer, RelationClassifier, SentenceBoundary, SpanClassifier,
-    TokenSplitter, TokenTagger, boundary, coref, lemmatizer, parser, relation, span, split, tagger,
+    BiaffineParser, CorefRanker, EditTreeLemmatizer, OpenSpanMatcher, RelationClassifier, SentenceBoundary,
+    SpanClassifier, TokenSplitter, TokenTagger, boundary, coref, lemmatizer, open_span, parser, relation, span, split,
+    tagger,
 };
 use turbo::manifest::{Format, HeadKind, HeadProvenance, HeadSpec, LicenseClass, Manifest};
 use turbo::safetensors;
@@ -159,6 +158,7 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => boundary::tensors(spec, hidden),
         HeadKind::TokenSplit => split::tensors(spec, hidden),
         HeadKind::SpanClassifier => span::tensors(spec, hidden),
+        HeadKind::OpenSpan => open_span::tensors(spec, hidden),
         HeadKind::CorefRanker => coref::tensors(spec, hidden),
         HeadKind::RelationClassifier => relation::tensors(spec, hidden),
     };
@@ -191,6 +191,7 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => SentenceBoundary::from_tensors(spec, hidden, &get).map(|b| b.hidden()),
         HeadKind::TokenSplit => TokenSplitter::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
         HeadKind::SpanClassifier => SpanClassifier::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
+        HeadKind::OpenSpan => OpenSpanMatcher::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
         HeadKind::CorefRanker => CorefRanker::from_tensors(spec, hidden, &get).map(|c| c.hidden()),
         HeadKind::RelationClassifier => RelationClassifier::from_tensors(spec, hidden, &get).map(|r| r.hidden()),
     }

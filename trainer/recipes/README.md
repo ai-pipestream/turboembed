@@ -81,17 +81,20 @@ turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-open-span --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    [--cache <cache dir>] [--layer N] [--max-words N] [--width-dim N]
+    [--hold-out <type> ...] [training settings]
 turbo-train-head train-coref --corpus litbank --dir <litbank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N]
+turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
+    [--zoo-id <id> [--component <COMPONENT_*>] [--language <lang>] [--version <ver>]
+     [--license-terms <https://...>] [--url-prefix <https://...>] [--origin <https://...>]
+     [--zoo-out <entry.json>]]
 turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
 turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
     --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
 turbo-train-head train-sentences --corpus <masc-pos|ud-*> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
     [as train]
-turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
-    [--zoo-id <id> --license-terms <https://...> --url-prefix <https://...>
-     [--component <COMPONENT_*>] [--language <lang>] [--version <ver>] [--origin <https://...>]
-     [--zoo-out <entry.json>]]
 ```
 
 `assemble` (#1726) verifies one or more training run directories against
@@ -176,6 +179,20 @@ the test split by exact sentence span precision, recall and F1, with
 paired bootstrap comparisons against both the newline baseline
 (`eval.baseline` and `eval.comparison`) and the rule/abbreviation
 sentencer in `analysis/sentdetect` (`eval.rules`).
+
+`train-open-span` (#1735) trains the open-label span matching head
+(`open_ner` on `turboembed:entities`, `HEAD_OPEN_SPAN`) on any BIO
+corpus (`wnut17`, `germeval2014-outer`, `germeval2014-inner`,
+`multiconer2-en`) or UD treebank (`ud-<lang>-<bank>`, extracting
+contiguous `PROPN` runs as `"proper noun"` spans). Entity type names
+are encoded by the same frozen encoder (`turbo::head::open_span::label_words`
+and `pool_label_words`), centered against the empirical training word
+and label means (`center.weight`), and scored against candidate spans
+up to `--max-words` (8 by default). Passing `--hold-out <type>` drops
+that entity type from training and dev and evaluates test span F1 on
+all types, seen types, and held-out (zero-shot unseen) types alongside
+the majority baseline and the case-insensitive label-name dictionary
+matcher.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,

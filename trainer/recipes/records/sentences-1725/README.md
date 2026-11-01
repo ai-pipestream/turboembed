@@ -34,6 +34,13 @@ all receipts of `turbo-train-head` at commit `f59cb5ba`:
   (`--bilstm 64x1`) with 64-dim hashed word identity (`--hash-embed 64`) and
   first-piece pooling (`--pooling first`) lets the boundary classifier see the
   following token's shape and capitalization across unpunctuated boundaries.
+- Historical provenance note on `ud-en-ewt.json`: `ud-en-ewt.json` is the
+  historical receipt recorded at commit `3e1f1f366d5c2ec63af235e7fe8ef1e2363b4a05`
+  (with embedded run `--commit f59cb5ba49be9963503caaa54bd3fa7f31bbdc46`),
+  prior to the authoritative `# text` reconstruction fix in `ud.rs` (where test
+  document 52's no-break space had been rebuilt from `FORM`/`MISC` as an ASCII
+  space). It is preserved as historical run provenance rather than a post-fix
+  re-run.
 - Remaining comparisons under #1725 (still incomplete): these six receipts
   record the `train-sentences` head, the newline baseline, and the
   `turbo-sentdetect` `RuleSplitter` baseline. Comparison rows against

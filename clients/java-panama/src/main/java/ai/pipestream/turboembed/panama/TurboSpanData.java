@@ -3,6 +3,7 @@ package ai.pipestream.turboembed.panama;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalLong;
 
 /**
  * A fully copied, immutable analysis span.
@@ -60,6 +61,24 @@ public record TurboSpanData(
         return layerKind == TurboLayerKind.PII
                 ? Optional.of(TurboPiiConfidence.fromNative(classification))
                 : Optional.empty();
+    }
+
+    /**
+     * Returns the head token index of a dependency row.
+     *
+     * @return the head token index, or empty for the root of its sentence and for another layer
+     *     kind; the relation is the row's label
+     */
+    public OptionalLong dependencyHead() {
+        return dependencyHead(layerKind, classification);
+    }
+
+    /** A dependency row's classification is its head token index plus one; zero is the root. */
+    static OptionalLong dependencyHead(TurboLayerKind kind, long classification) {
+        if (kind != TurboLayerKind.DEPENDENCIES || classification == 0L) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(classification - 1L);
     }
 
     /**

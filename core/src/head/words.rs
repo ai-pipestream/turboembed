@@ -248,6 +248,30 @@ impl WordReader {
             pool_tap(self.pooling, h, states, words, n, &mut w.pooled, &mut w.count);
         }
     }
+
+    pub(crate) fn pool_into(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        n: usize,
+        pooled: &mut Vec<f32>,
+        count: &mut Vec<u32>,
+    ) {
+        let h = self.hidden;
+        if let Some(scales) = &self.mix {
+            let rows = words.len();
+            pooled.clear();
+            pooled.resize(n * h, 0.0);
+            let block = rows * h;
+            let mut tap = Vec::with_capacity(n * h);
+            for (t, &scale) in scales.iter().enumerate() {
+                pool_tap(self.pooling, h, &states[t * block..(t + 1) * block], words, n, &mut tap, count);
+                pooled.iter_mut().zip(&tap).for_each(|(dst, &v)| *dst += scale * v);
+            }
+        } else {
+            pool_tap(self.pooling, h, states, words, n, pooled, count);
+        }
+    }
 }
 
 fn pool_tap(

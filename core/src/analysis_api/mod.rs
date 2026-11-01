@@ -12,7 +12,7 @@ use crate::turbo_text;
 mod engine;
 mod ffi;
 mod graph;
-mod models;
+mod heads;
 
 pub use engine::*;
 pub use ffi::*;
@@ -26,6 +26,7 @@ pub const TURBO_ANALYSIS_LAYER_POS: u32 = 3;
 pub const TURBO_ANALYSIS_LAYER_LEMMAS: u32 = 4;
 pub const TURBO_ANALYSIS_LAYER_ENTITIES: u32 = 5;
 pub const TURBO_ANALYSIS_LAYER_PII: u32 = 6;
+pub const TURBO_ANALYSIS_LAYER_DEPENDENCIES: u32 = 7;
 
 pub const TURBO_SPAN_VIEW_RANGE: u32 = 1 << 0;
 pub const TURBO_SPAN_SOURCE_RANGE: u32 = 1 << 1;
@@ -44,7 +45,10 @@ pub const TURBO_PII_CONFIDENCE_FORMAT: u32 = 1;
 pub const TURBO_PII_CONFIDENCE_CHECKSUM: u32 = 2;
 pub const TURBO_PII_CONFIDENCE_LABELLED: u32 = 3;
 
-/// C ABI configuration descriptor for `turbo_analyzer_create`.
+/// C ABI configuration descriptor for `turbo_analyzer_create`. The five
+/// model path fields are retired: they keep their place so a program
+/// built against an earlier header still runs, and a non-empty value is
+/// refused. Learned components come from the bundle at `bundle_path`.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct turbo_analyzer_desc {
@@ -56,7 +60,12 @@ pub struct turbo_analyzer_desc {
     pub pos_model_path: turbo_text,
     pub lemma_model_path: turbo_text,
     pub ner_model_path: turbo_text,
+    pub bundle_path: turbo_text,
 }
+
+/// The size of turbo_analyzer_desc before bundle_path was appended, which
+/// turbo_analyzer_create still accepts.
+pub const TURBO_ANALYZER_DESC_SIZE_V1: usize = std::mem::offset_of!(turbo_analyzer_desc, bundle_path);
 
 /// Typed C ABI span row.
 ///
@@ -221,7 +230,7 @@ impl SpanPoolBuilder {
     }
 
     pub(crate) fn layer_ref(&mut self, kind: u32, layer: &str, instance: &str, view_id: u32) -> Result<LayerRef> {
-        if !(TURBO_ANALYSIS_LAYER_SENTENCES..=TURBO_ANALYSIS_LAYER_PII).contains(&kind) {
+        if !(TURBO_ANALYSIS_LAYER_SENTENCES..=TURBO_ANALYSIS_LAYER_DEPENDENCIES).contains(&kind) {
             return Err(Error::new(CAPACITY, format!("unknown analysis layer kind {kind}")));
         }
         Ok(LayerRef { kind, view_id, layer: self.intern(layer)?, instance: self.intern(instance)? })
