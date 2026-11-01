@@ -2107,32 +2107,32 @@ function boot(boot2) {
   const reg = createFileRegistry(root, () => void 0);
   return reg.getFile(root.name);
 }
-function bootFileDescriptorProto(init13) {
+function bootFileDescriptorProto(init14) {
   const proto = /* @__PURE__ */ Object.create({
     syntax: "",
     edition: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init13), { messageType: init13.messageType.map(bootDescriptorProto), enumType: init13.enumType.map(bootEnumDescriptorProto) }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init14), { messageType: init14.messageType.map(bootDescriptorProto), enumType: init14.enumType.map(bootEnumDescriptorProto) }));
 }
-function bootDescriptorProto(init13) {
+function bootDescriptorProto(init14) {
   var _a, _b, _c, _d, _e, _f, _g, _h;
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.DescriptorProto",
-    name: init13.name,
-    field: (_b = (_a = init13.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
+    name: init14.name,
+    field: (_b = (_a = init14.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
     extension: [],
-    nestedType: (_d = (_c = init13.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
-    enumType: (_f = (_e = init13.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
-    extensionRange: (_h = (_g = init13.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
+    nestedType: (_d = (_c = init14.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
+    enumType: (_f = (_e = init14.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
+    extensionRange: (_h = (_g = init14.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
     oneofDecl: [],
     reservedRange: [],
     reservedName: []
   });
 }
-function bootFieldDescriptorProto(init13) {
+function bootFieldDescriptorProto(init14) {
   const proto = /* @__PURE__ */ Object.create({
     label: 1,
     typeName: "",
@@ -2142,9 +2142,9 @@ function bootFieldDescriptorProto(init13) {
     jsonName: "",
     proto3Optional: false
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init13), { options: init13.options ? bootFieldOptions(init13.options) : void 0 }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init14), { options: init14.options ? bootFieldOptions(init14.options) : void 0 }));
 }
-function bootFieldOptions(init13) {
+function bootFieldOptions(init14) {
   var _a, _b, _c;
   const proto = /* @__PURE__ */ Object.create({
     ctype: 0,
@@ -2157,18 +2157,18 @@ function bootFieldOptions(init13) {
     debugRedact: false,
     retention: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init13), { targets: (_a = init13.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init13.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init14), { targets: (_a = init14.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init14.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
 }
-function bootEnumDescriptorProto(init13) {
+function bootEnumDescriptorProto(init14) {
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.EnumDescriptorProto",
-    name: init13.name,
+    name: init14.name,
     reservedName: [],
     reservedRange: [],
-    value: init13.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
+    value: init14.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
   });
 }
 
@@ -2411,11 +2411,11 @@ function isWrapperTypeName(name) {
 var EDITION_PROTO32 = 999;
 var EDITION_PROTO22 = 998;
 var IMPLICIT3 = 2;
-function create(schema, init13) {
-  if (isMessage(init13, schema)) {
-    return init13;
+function create(schema, init14) {
+  if (isMessage(init14, schema)) {
+    return init14;
   }
-  return compiledCreate(schema)(init13);
+  return compiledCreate(schema)(init14);
 }
 var compiledCreates = /* @__PURE__ */ new WeakMap();
 function compiledCreate(desc) {
@@ -2433,7 +2433,7 @@ var INIT_ONEOF = 3;
 function compileCreate(desc) {
   const typeName = desc.typeName;
   const { properties, prototype } = compileInitMessage(desc);
-  return (init13) => {
+  return (init14) => {
     let message;
     if (prototype !== void 0) {
       message = Object.create(prototype);
@@ -2444,7 +2444,7 @@ function compileCreate(desc) {
     for (let i = 0; i < properties.length; i++) {
       const property = properties[i];
       const name = property.name;
-      const initValue = init13 === null || init13 === void 0 ? void 0 : init13[name];
+      const initValue = init14 === null || init14 === void 0 ? void 0 : init14[name];
       switch (property.kind) {
         case INIT_SINGULAR:
           if (initValue != null) {
@@ -6923,7 +6923,7 @@ var DistanceMetric = /* @__PURE__ */ ((DistanceMetric2) => {
 var TurboSearchService = /* @__PURE__ */ serviceDesc(file_turbo_search, 0);
 
 // demo/web/src/gen/turbo_training_pb.ts
-var file_turbo_training = /* @__PURE__ */ fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwieAoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCRITCgthcnRpZmFjdF9pZBgEIAEoCRITCgt0ZXh0X3NoYTI1NhgFIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiTgoeUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMAoHcmV2b2tlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIUCgx3YXNfYWNjZXB0ZWQYAyABKAgiggEKEUxpY2VuY2VBY2NlcHRhbmNlEi4KBXRlcm1zGAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhMKC2FjY2VwdGVkX2F0GAIgASgEEhMKC2FydGlmYWN0X2lkGAMgASgJEhMKC3RleHRfc2hhMjU2GAQgASgJIi0KHUxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0EgwKBHVzZXIYASABKAkidQoeTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEgwKBHVzZXIYASABKAkSNgoIYWNjZXB0ZWQYAiADKAsyJC50dXJiby50cmFpbmluZy52MS5MaWNlbmNlQWNjZXB0YW5jZRINCgVhZG1pbhgDIAEoCCI4ChNJbnN0YWxsTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkihgEKD0luc3RhbGxQcm9ncmVzcxIuCgVzdGFnZRgBIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxTdGFnZRISCgpmaWxlX2luZGV4GAIgASgNEhIKCmZpbGVfY291bnQYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVieXRlcxgFIAEoBCKOAQoSSW5zdGFsbE1vZGVsVXBkYXRlEjYKCHByb2dyZXNzGAEgASgLMiIudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFByb2dyZXNzSAASNgoJaW5zdGFsbGVkGAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWxIAEIICgZ1cGRhdGUiOQoURGVzY3JpYmVNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSJHChVEZXNjcmliZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkiSAoTUmVzb2x2ZU1vZGVsUmVxdWVzdBIOCgZzaGEyNTYYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEdXNlchgDIAEoCSJUChRSZXNvbHZlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeRIMCgRwYXRoGAIgASgJIlcKFFJlYWRNb2RlbEZpbGVSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZzaGEyNTYYBCABKAkiWQoOTW9kZWxGaWxlQ2h1bmsSLgoEZmlsZRgBIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlSAASDgoEZGF0YRgCIAEoDEgAQgcKBWZyYW1lIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCqiAQoMSW5zdGFsbFN0YWdlEh0KGUlOU1RBTExfU1RBR0VfVU5TUEVDSUZJRUQQABIaChZJTlNUQUxMX1NUQUdFX0FETUlUVEVEEAESHQoZSU5TVEFMTF9TVEFHRV9ET1dOTE9BRElORxACEhwKGElOU1RBTExfU1RBR0VfRE9XTkxPQURFRBADEhoKFklOU1RBTExfU1RBR0VfVkVSSUZJRUQQBCpXCgtTdGF0aWNEdHlwZRIcChhTVEFUSUNfRFRZUEVfVU5TUEVDSUZJRUQQABIUChBTVEFUSUNfRFRZUEVfRjMyEAESFAoQU1RBVElDX0RUWVBFX0YxNhACKtcBCgpUcmFpblN0YWdlEhsKF1RSQUlOX1NUQUdFX1VOU1BFQ0lGSUVEEAASGAoUVFJBSU5fU1RBR0VfQURNSVRURUQQARIUChBUUkFJTl9TVEFHRV9LRVBUEAISGQoVVFJBSU5fU1RBR0VfRU1CRURESU5HEAMSFwoTVFJBSU5fU1RBR0VfUkVEVUNFRBAEEhgKFFRSQUlOX1NUQUdFX01FQVNVUkVEEAUSFgoSVFJBSU5fU1RBR0VfU0VBTEVEEAYSFgoSVFJBSU5fU1RBR0VfTE9BREVEEAcygggKE1R1cmJvQ2F0YWxvZ1NlcnZpY2USawoQTGlzdE1vZGVsQ2F0YWxvZxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsQ2F0YWxvZ1Jlc3BvbnNlEnQKE0xpc3RJbnN0YWxsZWRNb2RlbHMSLS50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdBouLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RJbnN0YWxsZWRNb2RlbHNSZXNwb25zZRKAAQoXUmVjb3JkTGljZW5jZUFjY2VwdGFuY2USMS50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QaMi50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEl8KDEluc3RhbGxNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxNb2RlbFJlcXVlc3QaJS50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxVcGRhdGUwARJiCg1EZXNjcmliZU1vZGVsEicudHVyYm8udHJhaW5pbmcudjEuRGVzY3JpYmVNb2RlbFJlcXVlc3QaKC50dXJiby50cmFpbmluZy52MS5EZXNjcmliZU1vZGVsUmVzcG9uc2USXwoMUmVzb2x2ZU1vZGVsEiYudHVyYm8udHJhaW5pbmcudjEuUmVzb2x2ZU1vZGVsUmVxdWVzdBonLnR1cmJvLnRyYWluaW5nLnYxLlJlc29sdmVNb2RlbFJlc3BvbnNlEl0KDVJlYWRNb2RlbEZpbGUSJy50dXJiby50cmFpbmluZy52MS5SZWFkTW9kZWxGaWxlUmVxdWVzdBohLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsRmlsZUNodW5rMAESgAEKF1Jldm9rZUxpY2VuY2VBY2NlcHRhbmNlEjEudHVyYm8udHJhaW5pbmcudjEuUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0GjIudHVyYm8udHJhaW5pbmcudjEuUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXNwb25zZRJ9ChZMaXN0TGljZW5jZUFjY2VwdGFuY2VzEjAudHVyYm8udHJhaW5pbmcudjEuTGlzdExpY2VuY2VBY2NlcHRhbmNlc1JlcXVlc3QaMS50dXJiby50cmFpbmluZy52MS5MaXN0TGljZW5jZUFjY2VwdGFuY2VzUmVzcG9uc2UywQMKFFR1cmJvVHJhaW5pbmdTZXJ2aWNlEl8KDExpc3RUZWFjaGVycxImLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1JlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXNwb25zZRJrChBUcmFpblN0YXRpY01vZGVsEioudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QaKS50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsVXBkYXRlMAESawoQTGlzdFN0YXRpY01vZGVscxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1Jlc3BvbnNlEm4KEURlbGV0ZVN0YXRpY01vZGVsEisudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZWIGcHJvdG8z");
+var file_turbo_training = /* @__PURE__ */ fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiXgoLTW9kZWxTb3VyY2USDAoEbmFtZRgBIAEoCRIPCgdhZGRyZXNzGAIgASgJEjAKB3NpZ25faW4YAyABKA4yHy50dXJiby50cmFpbmluZy52MS5Tb3VyY2VTaWduSW4iJwoXTGlzdE1vZGVsU291cmNlc1JlcXVlc3QSDAoEdXNlchgBIAEoCSJ/ChhMaXN0TW9kZWxTb3VyY2VzUmVzcG9uc2USDAoEdXNlchgBIAEoCRIvCgdzb3VyY2VzGAIgAygLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2USDQoFYWRtaW4YAyABKAgSFQoNZHJpdmVfc2lnbl9pbhgEIAEoCCJaChpSZWdpc3Rlck1vZGVsU291cmNlUmVxdWVzdBIMCgR1c2VyGAEgASgJEgwKBG5hbWUYAiABKAkSDwoHYWRkcmVzcxgDIAEoCRIPCgdhcGlfa2V5GAQgASgJIlsKG1JlZ2lzdGVyTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEi4KBnNvdXJjZRgCIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsU291cmNlIjYKGFJlbW92ZU1vZGVsU291cmNlUmVxdWVzdBIMCgR1c2VyGAEgASgJEgwKBG5hbWUYAiABKAkiQQoZUmVtb3ZlTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEhYKDndhc19yZWdpc3RlcmVkGAIgASgIIkYKF1N0YXJ0RHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdhZGRyZXNzGAMgASgJIlQKGFN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRIVCg1hdXRob3JpemVfdXJsGAEgASgJEg0KBXN0YXRlGAIgASgJEhIKCmV4cGlyZXNfaW4YAyABKA0iRQoYRmluaXNoRHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDQoFc3RhdGUYAiABKAkSDAoEY29kZRgDIAEoCSJZChlGaW5pc2hEcml2ZVNpZ25JblJlc3BvbnNlEgwKBHVzZXIYASABKAkSLgoGc291cmNlGAIgASgLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2UiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwieAoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCRITCgthcnRpZmFjdF9pZBgEIAEoCRITCgt0ZXh0X3NoYTI1NhgFIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiTgoeUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMAoHcmV2b2tlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIUCgx3YXNfYWNjZXB0ZWQYAyABKAgiggEKEUxpY2VuY2VBY2NlcHRhbmNlEi4KBXRlcm1zGAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhMKC2FjY2VwdGVkX2F0GAIgASgEEhMKC2FydGlmYWN0X2lkGAMgASgJEhMKC3RleHRfc2hhMjU2GAQgASgJIi0KHUxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0EgwKBHVzZXIYASABKAkidQoeTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEgwKBHVzZXIYASABKAkSNgoIYWNjZXB0ZWQYAiADKAsyJC50dXJiby50cmFpbmluZy52MS5MaWNlbmNlQWNjZXB0YW5jZRINCgVhZG1pbhgDIAEoCCI4ChNJbnN0YWxsTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkihgEKD0luc3RhbGxQcm9ncmVzcxIuCgVzdGFnZRgBIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxTdGFnZRISCgpmaWxlX2luZGV4GAIgASgNEhIKCmZpbGVfY291bnQYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVieXRlcxgFIAEoBCKOAQoSSW5zdGFsbE1vZGVsVXBkYXRlEjYKCHByb2dyZXNzGAEgASgLMiIudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFByb2dyZXNzSAASNgoJaW5zdGFsbGVkGAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWxIAEIICgZ1cGRhdGUiOQoURGVzY3JpYmVNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSJHChVEZXNjcmliZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkiSAoTUmVzb2x2ZU1vZGVsUmVxdWVzdBIOCgZzaGEyNTYYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEdXNlchgDIAEoCSJUChRSZXNvbHZlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeRIMCgRwYXRoGAIgASgJIlcKFFJlYWRNb2RlbEZpbGVSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZzaGEyNTYYBCABKAkiWQoOTW9kZWxGaWxlQ2h1bmsSLgoEZmlsZRgBIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlSAASDgoEZGF0YRgCIAEoDEgAQgcKBWZyYW1lIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCqFAQoMU291cmNlU2lnbkluEh4KGlNPVVJDRV9TSUdOX0lOX1VOU1BFQ0lGSUVEEAASHgoaU09VUkNFX1NJR05fSU5fRU5WSVJPTk1FTlQQARIZChVTT1VSQ0VfU0lHTl9JTl9HT09HTEUQAhIaChZTT1VSQ0VfU0lHTl9JTl9BUElfS0VZEAMqogEKDEluc3RhbGxTdGFnZRIdChlJTlNUQUxMX1NUQUdFX1VOU1BFQ0lGSUVEEAASGgoWSU5TVEFMTF9TVEFHRV9BRE1JVFRFRBABEh0KGUlOU1RBTExfU1RBR0VfRE9XTkxPQURJTkcQAhIcChhJTlNUQUxMX1NUQUdFX0RPV05MT0FERUQQAxIaChZJTlNUQUxMX1NUQUdFX1ZFUklGSUVEEAQqVwoLU3RhdGljRHR5cGUSHAoYU1RBVElDX0RUWVBFX1VOU1BFQ0lGSUVEEAASFAoQU1RBVElDX0RUWVBFX0YzMhABEhQKEFNUQVRJQ19EVFlQRV9GMTYQAirXAQoKVHJhaW5TdGFnZRIbChdUUkFJTl9TVEFHRV9VTlNQRUNJRklFRBAAEhgKFFRSQUlOX1NUQUdFX0FETUlUVEVEEAESFAoQVFJBSU5fU1RBR0VfS0VQVBACEhkKFVRSQUlOX1NUQUdFX0VNQkVERElORxADEhcKE1RSQUlOX1NUQUdFX1JFRFVDRUQQBBIYChRUUkFJTl9TVEFHRV9NRUFTVVJFRBAFEhYKElRSQUlOX1NUQUdFX1NFQUxFRBAGEhYKElRSQUlOX1NUQUdFX0xPQURFRBAHMrIMChNUdXJib0NhdGFsb2dTZXJ2aWNlEmsKEExpc3RNb2RlbENhdGFsb2cSKi50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxDYXRhbG9nUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXNwb25zZRJ0ChNMaXN0SW5zdGFsbGVkTW9kZWxzEi0udHVyYm8udHJhaW5pbmcudjEuTGlzdEluc3RhbGxlZE1vZGVsc1JlcXVlc3QaLi50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USgAEKF1JlY29yZExpY2VuY2VBY2NlcHRhbmNlEjEudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0GjIudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXNwb25zZRJfCgxJbnN0YWxsTW9kZWwSJi50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxSZXF1ZXN0GiUudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbE1vZGVsVXBkYXRlMAESYgoNRGVzY3JpYmVNb2RlbBInLnR1cmJvLnRyYWluaW5nLnYxLkRlc2NyaWJlTW9kZWxSZXF1ZXN0GigudHVyYm8udHJhaW5pbmcudjEuRGVzY3JpYmVNb2RlbFJlc3BvbnNlEl8KDFJlc29sdmVNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLlJlc29sdmVNb2RlbFJlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5SZXNvbHZlTW9kZWxSZXNwb25zZRJdCg1SZWFkTW9kZWxGaWxlEicudHVyYm8udHJhaW5pbmcudjEuUmVhZE1vZGVsRmlsZVJlcXVlc3QaIS50dXJiby50cmFpbmluZy52MS5Nb2RlbEZpbGVDaHVuazABEoABChdSZXZva2VMaWNlbmNlQWNjZXB0YW5jZRIxLnR1cmJvLnRyYWluaW5nLnYxLlJldm9rZUxpY2VuY2VBY2NlcHRhbmNlUmVxdWVzdBoyLnR1cmJvLnRyYWluaW5nLnYxLlJldm9rZUxpY2VuY2VBY2NlcHRhbmNlUmVzcG9uc2USfQoWTGlzdExpY2VuY2VBY2NlcHRhbmNlcxIwLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0GjEudHVyYm8udHJhaW5pbmcudjEuTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEmsKEExpc3RNb2RlbFNvdXJjZXMSKi50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxTb3VyY2VzUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbFNvdXJjZXNSZXNwb25zZRJ0ChNSZWdpc3Rlck1vZGVsU291cmNlEi0udHVyYm8udHJhaW5pbmcudjEuUmVnaXN0ZXJNb2RlbFNvdXJjZVJlcXVlc3QaLi50dXJiby50cmFpbmluZy52MS5SZWdpc3Rlck1vZGVsU291cmNlUmVzcG9uc2USbgoRUmVtb3ZlTW9kZWxTb3VyY2USKy50dXJiby50cmFpbmluZy52MS5SZW1vdmVNb2RlbFNvdXJjZVJlcXVlc3QaLC50dXJiby50cmFpbmluZy52MS5SZW1vdmVNb2RlbFNvdXJjZVJlc3BvbnNlEmsKEFN0YXJ0RHJpdmVTaWduSW4SKi50dXJiby50cmFpbmluZy52MS5TdGFydERyaXZlU2lnbkluUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLlN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRJuChFGaW5pc2hEcml2ZVNpZ25JbhIrLnR1cmJvLnRyYWluaW5nLnYxLkZpbmlzaERyaXZlU2lnbkluUmVxdWVzdBosLnR1cmJvLnRyYWluaW5nLnYxLkZpbmlzaERyaXZlU2lnbkluUmVzcG9uc2UywQMKFFR1cmJvVHJhaW5pbmdTZXJ2aWNlEl8KDExpc3RUZWFjaGVycxImLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1JlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXNwb25zZRJrChBUcmFpblN0YXRpY01vZGVsEioudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QaKS50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsVXBkYXRlMAESawoQTGlzdFN0YXRpY01vZGVscxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1Jlc3BvbnNlEm4KEURlbGV0ZVN0YXRpY01vZGVsEisudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZWIGcHJvdG8z");
 var InstallStage = /* @__PURE__ */ ((InstallStage2) => {
   InstallStage2[InstallStage2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
   InstallStage2[InstallStage2["ADMITTED"] = 1] = "ADMITTED";
@@ -7063,7 +7063,7 @@ async function run() {
   stop();
   const ac = new AbortController();
   running = ac;
-  const note4 = $("analyze-note");
+  const note5 = $("analyze-note");
   const steps = $("analyze-steps");
   const layersBox = $("analyze-layers");
   steps.replaceChildren();
@@ -7076,7 +7076,7 @@ async function run() {
   let source = "";
   const layers = /* @__PURE__ */ new Map();
   const t0 = performance.now();
-  say(note4, "Analyzing\u2026", "busy");
+  say(note5, "Analyzing\u2026", "busy");
   try {
     const req = {
       docId: "page",
@@ -7117,10 +7117,10 @@ async function run() {
         steps.append(el("li", { class: "muted", text: `complete at ${ms} ms, ${graph.length} graph bytes` }));
       }
     }
-    say(note4, "");
+    say(note5, "");
     if (graph) setDoc({ graph, views, source });
   } catch (e) {
-    say(note4, describe(e), "error");
+    say(note5, describe(e), "error");
   } finally {
     if (running === ac) running = null;
   }
@@ -8134,27 +8134,132 @@ async function download2(e, f, status3, signal) {
   status3.textContent = `${e.id}/${f.path}: ${size(f.size)}, SHA-256 checked, saved.`;
 }
 
-// demo/web/src/tabs/models.ts
-var installing = null;
-var saving = null;
-var trainingRun = null;
-var note2 = () => $("models-note");
-function bar(done, total) {
-  const p = el("progress", { max: String(Math.max(1, total)) });
-  p.value = Math.min(done, Math.max(1, total));
-  return p;
+// demo/web/src/sourcetext.ts
+function signInText(s) {
+  if (s === 2 /* GOOGLE */) return "Google sign-in";
+  if (s === 3 /* API_KEY */) return "API key";
+  if (s === 1 /* ENVIRONMENT */) return "the server's own";
+  return "";
 }
-async function act(change) {
+function readOnly(r) {
+  if (!r.user) return "read-only: the demo was started without --user";
+  if (!r.admin) return "read-only: the server was started without --admin or --zoo";
+  return "";
+}
+function redirected(search2) {
+  const q = new URLSearchParams(search2);
+  const state = q.get("state") ?? "";
+  if (!state) return null;
+  return { code: q.get("code") ?? "", state, error: q.get("error") ?? "" };
+}
+
+// demo/web/src/tabs/sources.ts
+var note2 = () => $("sources-note");
+function sourcesTable(r, changed) {
+  const why = readOnly(r);
+  if (!r.user) return el("p", { class: "muted", text: why });
+  if (!r.sources.length) return el("p", { class: "muted", text: `${r.user} has no sources: installs read the catalog's own.` });
+  return table(
+    ["name", "address", "signs in with", ""],
+    r.sources.map((s) => {
+      let control = "";
+      if (!why) {
+        const b = el("button", { type: "button", text: "Remove" });
+        b.addEventListener("click", () => void act(async () => {
+          const gone = await catalog.removeModelSource({ name: s.name });
+          return gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`;
+        }, changed));
+        control = b;
+      }
+      return [s.name, el("code", { text: s.address }), signInText(s.signIn), control];
+    })
+  );
+}
+async function act(change, after2) {
   try {
+    say(note2(), "working", "busy");
     const done = await change();
-    await loadCatalog();
+    await after2();
     say(note2(), done);
   } catch (e) {
     say(note2(), describe(e), "error");
   }
 }
+async function load() {
+  try {
+    const r = await catalog.listModelSources({});
+    $("sources-list").replaceChildren(sourcesTable(r, load));
+    const why = readOnly(r);
+    $("sources-form").hidden = why !== "";
+    $("sources-drive").hidden = why !== "" || !r.driveSignIn;
+    if (why) say(note2(), why);
+  } catch (e) {
+    say(note2(), describe(e), "error");
+  }
+}
+function add(ev) {
+  ev.preventDefault();
+  const name = input("sources-name").value.trim();
+  const address2 = input("sources-address").value.trim();
+  const apiKey = input("sources-key").value.trim();
+  void act(async () => {
+    const r = await catalog.registerModelSource({ name, address: address2, apiKey });
+    input("sources-key").value = "";
+    return `Registered ${r.source?.name ?? name}.`;
+  }, load);
+}
+function connect() {
+  const name = input("sources-drive-name").value.trim() || "Google Drive";
+  const folder = input("sources-drive-folder").value.trim() || "root";
+  const address2 = folder.startsWith("gdrive://") ? folder : `gdrive://${folder}`;
+  void act(async () => {
+    const r = await catalog.startDriveSignIn({ name, address: address2 });
+    location.assign(r.authorizeUrl);
+    return "Opening Google sign-in.";
+  }, async () => void 0);
+}
+async function finish(back) {
+  history.replaceState(null, "", `${location.pathname}#models`);
+  if (back.error) {
+    say(note2(), `Google sign-in was not completed: ${back.error}`, "error");
+    return;
+  }
+  await act(async () => {
+    const r = await catalog.finishDriveSignIn({ state: back.state, code: back.code });
+    return `Signed in: ${r.source?.name ?? "the Drive"} is registered.`;
+  }, load);
+}
+function init6() {
+  $("sources-form").addEventListener("submit", add);
+  $("sources-connect").addEventListener("click", connect);
+  $("sources-refresh").addEventListener("click", () => void load());
+  const back = redirected(location.search);
+  if (back) void finish(back);
+  else void load();
+  return back !== null;
+}
+
+// demo/web/src/tabs/models.ts
+var installing = null;
+var saving = null;
+var trainingRun = null;
+var note3 = () => $("models-note");
+function bar(done, total) {
+  const p = el("progress", { max: String(Math.max(1, total)) });
+  p.value = Math.min(done, Math.max(1, total));
+  return p;
+}
+async function act2(change) {
+  try {
+    const done = await change();
+    await loadCatalog();
+    say(note3(), done);
+  } catch (e) {
+    say(note3(), describe(e), "error");
+  }
+}
 function entryRow(e, w) {
-  const terms = e.missingTerms.map((t) => termsBlock(e, t, w, (t2) => act(() => accept(e, t2))));
+  const terms = e.missingTerms.map((t) => termsBlock(e, t, w, (t2) => act2(() => accept(e, t2))));
   let install = "";
   if (w.canChange) {
     const b = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
@@ -8195,7 +8300,7 @@ async function saveFile(e, f) {
 }
 async function loadCatalog() {
   const box5 = $("models-catalog");
-  say(note2(), "Reading the catalog\u2026", "busy");
+  say(note3(), "Reading the catalog\u2026", "busy");
   try {
     const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
     const w = who(acc);
@@ -8204,13 +8309,13 @@ async function loadCatalog() {
       el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
       table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map((e) => entryRow(e, w))),
       el("h3", { text: "Accepted terms" }),
-      acceptedTable(acc, w, (t) => act(() => revoke(t))),
+      acceptedTable(acc, w, (t) => act2(() => revoke(t))),
       el("h3", { text: "Installed" }),
       table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]))
     );
-    say(note2(), "");
+    say(note3(), "");
   } catch (e) {
-    say(note2(), describe(e), "error");
+    say(note3(), describe(e), "error");
   }
 }
 async function installModel(e) {
@@ -8347,12 +8452,13 @@ function stop3() {
   saving = null;
   stopTraining();
 }
-function init6() {
+function init7() {
   $("models-catalog-load").addEventListener("click", () => void loadCatalog());
   $("train-form").addEventListener("submit", train);
   $("train-stop").addEventListener("click", stopTraining);
   $("train-refresh").addEventListener("click", () => void loadTraining());
   void loadTraining();
+  init6();
 }
 
 // demo/web/src/tabs/projection.ts
@@ -8517,7 +8623,7 @@ async function render4() {
     box3().replaceChildren(el("p", { class: "error", text: describe(e) }));
   }
 }
-function init7() {
+function init8() {
   const again = lazy($("analyze-projection"), () => void render4());
   onDoc(() => again());
   $("projection-run").addEventListener("click", () => void render4());
@@ -8666,11 +8772,11 @@ function deleteButton2(name) {
 }
 async function createIndex(ev) {
   ev.preventDefault();
-  const note4 = $("search-create-note");
+  const note5 = $("search-create-note");
   const name = input("search-create-name").value.trim();
   const bundle = caps?.bundles.find((b) => b.name === select2("search-create-bundle").value);
   if (!name || !bundle?.model) {
-    say(note4, "Name the index and pick an embedding bundle.", "error");
+    say(note5, "Name the index and pick an embedding bundle.", "error");
     return;
   }
   try {
@@ -8685,15 +8791,15 @@ async function createIndex(ev) {
         chunkBudgetTokens: 0
       }
     });
-    say(note4, `Created ${name}.`);
+    say(note5, `Created ${name}.`);
     await list3();
     select2("search-index").value = name;
   } catch (e) {
-    say(note4, describe(e), "error");
+    say(note5, describe(e), "error");
   }
 }
 async function addDocuments() {
-  const note4 = $("search-add-note");
+  const note5 = $("search-add-note");
   const index = select2("search-index").value;
   const typed = document.getElementById("search-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
   const files = [...input("search-files").files ?? []];
@@ -8702,7 +8808,7 @@ async function addDocuments() {
     ...files.map((f) => ({ id: f.name, text: f }))
   ];
   if (!index || !docs.length) {
-    say(note4, !index ? "Create or pick an index first." : "Type paragraphs (a blank line between) or pick files.", "error");
+    say(note5, !index ? "Create or pick an index first." : "Type paragraphs (a blank line between) or pick files.", "error");
     return;
   }
   indexing?.abort();
@@ -8710,12 +8816,12 @@ async function addDocuments() {
   indexing = ac;
   try {
     const body2 = indexBody(index, docs);
-    say(note4, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
+    say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
     const r = await put(TurboSearchService.method.indexDocuments, body2, ac.signal);
-    say(note4, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
+    say(note5, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
     await list3();
   } catch (e) {
-    say(note4, describe(e), "error");
+    say(note5, describe(e), "error");
   } finally {
     if (indexing === ac) indexing = null;
   }
@@ -8781,7 +8887,7 @@ function stop4() {
   indexing?.abort();
   indexing = null;
 }
-function init8() {
+function init9() {
   $("search-create").addEventListener("submit", createIndex);
   $("search-add").addEventListener("click", addDocuments);
   $("search-form").addEventListener("submit", runSearch);
@@ -8883,14 +8989,14 @@ async function answer(model, question, context) {
   );
 }
 async function run3() {
-  const note4 = $("sem-note");
+  const note5 = $("sem-note");
   const query = input("sem-query").value.trim();
   const passages = $("sem-passages").value.split("\n").map((t) => t.trim()).filter((t) => t.length);
   const [e, rr, qa] = [select3("sem-embed").value, select3("sem-rerank").value, select3("sem-qa").value];
   for (const id of ["sem-sim", "sem-rerank-out", "sem-qa-out"]) $(id).replaceChildren();
-  if (!query || !passages.length) return say(note4, "Enter a query and at least one passage.", "error");
-  if (!e && !rr && !qa) return say(note4, "Pick at least one model.", "error");
-  say(note4, "Running\u2026", "busy");
+  if (!query || !passages.length) return say(note5, "Enter a query and at least one passage.", "error");
+  if (!e && !rr && !qa) return say(note5, "Pick at least one model.", "error");
+  say(note5, "Running\u2026", "busy");
   const jobs = [
     [e, "sem-sim", () => embed(e, query, passages)],
     [rr, "sem-rerank-out", () => rerank(rr, query, passages)],
@@ -8899,9 +9005,9 @@ async function run3() {
   await Promise.all(
     jobs.filter(([m]) => m).map(([, box5, job]) => job().catch((err) => $(box5).replaceChildren(el("p", { class: "error", text: describe(err) }))))
   );
-  say(note4, "");
+  say(note5, "");
 }
-function init9() {
+function init10() {
   $("sem-run").addEventListener("click", () => void run3());
   onCapabilities((c) => {
     caps2 = c;
@@ -8954,13 +9060,13 @@ function renderCapabilities(c) {
 function unloadButton(name) {
   const b = el("button", { type: "button", text: "Unload" });
   b.addEventListener("click", async () => {
-    const note4 = $("server-load-note");
+    const note5 = $("server-load-note");
     try {
       await analysis.unloadBundle({ name });
-      say(note4, `Unloaded ${name}.`);
+      say(note5, `Unloaded ${name}.`);
       await reload();
     } catch (e) {
-      say(note4, describe(e), "error");
+      say(note5, describe(e), "error");
     }
   });
   return b;
@@ -8972,10 +9078,10 @@ async function reload() {
     $("server-caps").replaceChildren(el("p", { class: "error", text: describe(e) }));
   }
 }
-async function load(ev) {
+async function load2(ev) {
   ev.preventDefault();
-  const note4 = $("server-load-note");
-  say(note4, "Loading\u2026", "busy");
+  const note5 = $("server-load-note");
+  say(note5, "Loading\u2026", "busy");
   try {
     const r = await analysis.loadBundle({
       name: input("server-load-name").value.trim(),
@@ -8983,13 +9089,13 @@ async function load(ev) {
       sessions: Math.max(1, parseInt(input("server-load-sessions").value, 10) || 1),
       selectDevice: input("server-load-select").checked
     });
-    say(note4, `Loaded ${r.capabilities?.name ?? ""} (${r.capabilities?.task ?? ""}).`);
+    say(note5, `Loaded ${r.capabilities?.name ?? ""} (${r.capabilities?.task ?? ""}).`);
     await reload();
   } catch (e) {
-    say(note4, describe(e), "error");
+    say(note5, describe(e), "error");
   }
 }
-function init10() {
+function init11() {
   const t = input("token");
   t.value = token();
   t.addEventListener("change", () => {
@@ -8997,7 +9103,7 @@ function init10() {
     void status();
     void reload();
   });
-  $("server-load").addEventListener("submit", load);
+  $("server-load").addEventListener("submit", load2);
   void status();
   void reload();
 }
@@ -9058,16 +9164,16 @@ async function list4() {
 }
 async function importDictionary(ev) {
   ev.preventDefault();
-  const note4 = $("vocab-note");
+  const note5 = $("vocab-note");
   const file = input("vocab-file").files?.[0];
   if (!file) {
-    say(note4, "Pick a dictionary file.", "error");
+    say(note5, "Pick a dictionary file.", "error");
     return;
   }
   const ac = start();
   try {
-    const sha = await sha256Blob(file, (done) => say(note4, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-    say(note4, `Uploading ${size(file.size)}\u2026`, "busy");
+    const sha = await sha256Blob(file, (done) => say(note5, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
+    say(note5, `Uploading ${size(file.size)}\u2026`, "busy");
     const d = await put(
       TurboVocabularyService.method.importDictionary,
       importBody(
@@ -9083,19 +9189,19 @@ async function importDictionary(ev) {
       ),
       ac.signal
     );
-    say(note4, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
+    say(note5, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
     await list4();
   } catch (e) {
-    say(note4, describe(e), "error");
+    say(note5, describe(e), "error");
   }
 }
 async function learn(ev) {
   ev.preventDefault();
-  const note4 = $("vocab-note");
+  const note5 = $("vocab-note");
   const typed = document.getElementById("vocab-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
   const docs = [...typed, ...[...input("vocab-learn-files").files ?? []]];
   if (!docs.length) {
-    say(note4, "Type documents (a blank line between) or pick files.", "error");
+    say(note5, "Type documents (a blank line between) or pick files.", "error");
     return;
   }
   const ac = start();
@@ -9113,16 +9219,16 @@ async function learn(ev) {
       },
       docs
     );
-    say(note4, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
+    say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
     const v = await put(TurboVocabularyService.method.learnVocabulary, body2, ac.signal);
-    say(note4, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
+    say(note5, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
     await list4();
   } catch (e) {
-    say(note4, describe(e), "error");
+    say(note5, describe(e), "error");
   }
 }
 async function fetchArtifact(id) {
-  const note4 = $("vocab-note");
+  const note5 = $("vocab-note");
   const ac = start();
   const parts = [];
   let name = id;
@@ -9135,16 +9241,16 @@ async function fetchArtifact(id) {
       else if (f.case === "data") {
         parts.push(f.value);
         got += f.value.length;
-        say(note4, `Downloading ${name}: ${size(got)}\u2026`, "busy");
+        say(note5, `Downloading ${name}: ${size(got)}\u2026`, "busy");
       }
     }
     download(name, parts, "application/octet-stream");
-    say(note4, `Downloaded ${name}, ${size(got)}.`);
+    say(note5, `Downloaded ${name}, ${size(got)}.`);
   } catch (e) {
-    say(note4, describe(e), "error");
+    say(note5, describe(e), "error");
   }
 }
-function init11() {
+function init12() {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
   $("vocab-refresh").addEventListener("click", list4);
@@ -9437,7 +9543,7 @@ function hex(bytes2, p, n = 32) {
 
 // demo/web/src/tabs/wire.ts
 var box4 = () => $("wire-out");
-var note3 = () => $("wire-note");
+var note4 = () => $("wire-note");
 function bar2(p, total) {
   const pct = total ? 100 * p.len / total : 0;
   return el("span", { class: "share", title: `${pct.toFixed(1)}%` }, el("span", { style: `width: ${pct.toFixed(2)}%` }));
@@ -9472,13 +9578,13 @@ function render5() {
 }
 async function roundTrip() {
   const d = doc();
-  if (!d) return say(note3(), "Analyze a document or open a graph file.", "error");
+  if (!d) return say(note4(), "Analyze a document or open a graph file.", "error");
   try {
     const r = await analysis.roundTripDocumentGraph({ graph: d.graph });
     const same = r.graph.length === d.graph.length && r.graph.every((b, i) => b === d.graph[i]);
-    say(note3(), `The server re-exported ${size(r.graph.length)}, ${r.layers.length} layers and ${r.views.length} views: ${same ? "byte for byte the same" : "different bytes"}.`, same ? "" : "error");
+    say(note4(), `The server re-exported ${size(r.graph.length)}, ${r.layers.length} layers and ${r.views.length} views: ${same ? "byte for byte the same" : "different bytes"}.`, same ? "" : "error");
   } catch (e) {
-    say(note3(), describe(e), "error");
+    say(note4(), describe(e), "error");
   }
 }
 async function open() {
@@ -9488,12 +9594,12 @@ async function open() {
     const graph = new Uint8Array(await f.arrayBuffer());
     const r = await analysis.roundTripDocumentGraph({ graph });
     setDoc({ graph, views: r.views, source: r.sourceText });
-    say(note3(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
+    say(note4(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
   } catch (e) {
-    say(note3(), describe(e), "error");
+    say(note4(), describe(e), "error");
   }
 }
-function init12() {
+function init13() {
   const again = lazy($("analyze-wire"), render5);
   onDoc(() => again());
   $("wire-roundtrip").addEventListener("click", () => void roundTrip());
@@ -9519,18 +9625,18 @@ function show2(name) {
 }
 function start2() {
   for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => show2(b.dataset.tab ?? "embed"));
-  init10();
+  init11();
   init5();
-  init9();
+  init10();
   init();
   init3();
   init4();
-  init7();
-  init12();
   init8();
+  init13();
+  init9();
   init2();
-  init11();
-  init6();
+  init12();
+  init7();
   const want = location.hash.slice(1);
   show2(document.getElementById(`tab-${want}`) ? want : "embed");
 }
