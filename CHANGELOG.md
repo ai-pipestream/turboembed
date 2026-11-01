@@ -20,7 +20,7 @@ for the release after it goes above it.
   (`TurboLayerKind.MORPHOLOGY`) from the same encoder pass as the other
   word-level heads, one row per token with the feature string as the
   label, and `turbo_analyzer_morphology` (`TurboAnalyzer.morphology`,
-  `TurboAnalyzer.morphologyCopied`) tags pre-tokenized tokens (#1808).
+  `TurboAnalyzer.morphologyCopied`) tags pre-tokenized tokens (#1812).
 - `DocumentSinkItem.typed` (field 9) carries the item's graph as
   `InspectDocumentGraph` projects it: `--sink-typed-offsets` and
   `--sink-typed-view` (`TURBO_KSERVE_SINK_TYPED_OFFSETS`,
