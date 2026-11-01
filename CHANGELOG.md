@@ -76,7 +76,9 @@ gRPC service) build against. Everything below is new.
   new `TURBO_ANALYSIS_LAYER_DEPENDENCIES` layer kind: the relation as the
   label, the head token plus one as the classification, zero for a root.
   The Java Panama binding's `TurboAnalyzer.Config` takes the bundle path
-  in place of the model paths (#1779).
+  in place of the model paths, and the binding now requires Java 25 or
+  newer, the current long-term release with the final Foreign Function
+  and Memory API (#1779).
 
 ### Not in this release yet
 

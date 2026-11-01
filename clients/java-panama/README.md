@@ -1,6 +1,6 @@
 # Java Panama binding
 
-This module binds the `libturbo` C ABI from Java 22 or newer through the
+This module binds the `libturbo` C ABI from Java 25 or newer through the
 Panama Foreign Function and Memory API. It contains:
 
 - `ai.pipestream.turboembed.panama`: the typed primary API.
@@ -14,7 +14,7 @@ seeded heads cover correctness and lifecycle, not accuracy.
 
 ## Requirements
 
-Build the native library first, then run Maven with a Java 22+ JDK:
+Build the native library first, then run Maven with a Java 25 or newer JDK:
 
 ```sh
 cargo build -p turbo --locked
