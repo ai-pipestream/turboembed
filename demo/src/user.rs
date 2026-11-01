@@ -9,7 +9,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 
 /// Each method that names a user, and the field number of that user.
-pub const USER_FIELDS: [(&str, u32); 9] = [
+pub const USER_FIELDS: [(&str, u32); 14] = [
     ("/turbo.training.v1.TurboCatalogService/ListModelCatalog", 1),
     ("/turbo.training.v1.TurboCatalogService/RecordLicenceAcceptance", 1),
     ("/turbo.training.v1.TurboCatalogService/InstallModel", 1),
@@ -18,6 +18,11 @@ pub const USER_FIELDS: [(&str, u32); 9] = [
     ("/turbo.training.v1.TurboCatalogService/ReadModelFile", 1),
     ("/turbo.training.v1.TurboCatalogService/RevokeLicenceAcceptance", 1),
     ("/turbo.training.v1.TurboCatalogService/ListLicenceAcceptances", 1),
+    ("/turbo.training.v1.TurboCatalogService/ListModelSources", 1),
+    ("/turbo.training.v1.TurboCatalogService/RegisterModelSource", 1),
+    ("/turbo.training.v1.TurboCatalogService/RemoveModelSource", 1),
+    ("/turbo.training.v1.TurboCatalogService/StartDriveSignIn", 1),
+    ("/turbo.training.v1.TurboCatalogService/FinishDriveSignIn", 1),
     ("/turbo.result.v1.AnalysisService/LoadBundle", 12),
 ];
 
