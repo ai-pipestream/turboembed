@@ -1,0 +1,10 @@
+== all-minilm-l6-v2-document 2026-11-01T16:28:53Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 3.42 5.34 5.20
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --out <records>/all-minilm-l6-v2-document --chunker document
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/all-minilm-l6-v2-document/scifact.json
+<records>/all-minilm-l6-v2-document/nfcorpus.json
+<records>/all-minilm-l6-v2-document/arguana.json
+<records>/all-minilm-l6-v2-document/qasper.json
+wall 42.49 s maxrss 539996 KB
+exit 0 load 17.51 8.70 6.33

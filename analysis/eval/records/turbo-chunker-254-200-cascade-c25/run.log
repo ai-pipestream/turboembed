@@ -1,0 +1,13 @@
+== turbo-chunker-254-200-cascade-c25 2026-11-01T19:10:15Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 42.45 50.90 54.51
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper,conteb-squad,gutenqa --cache <cache> --device cpu --out <records>/turbo-chunker-254-200-cascade-c25 --chunker turbo-chunker --max 254 --target 200 --retrieval cascade --static-bundle <bundles>/potion-base-8M --candidates 25
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+set gutenqa: 112 judgements could not be placed in their document and are left out
+<records>/turbo-chunker-254-200-cascade-c25/scifact.json
+<records>/turbo-chunker-254-200-cascade-c25/nfcorpus.json
+<records>/turbo-chunker-254-200-cascade-c25/arguana.json
+<records>/turbo-chunker-254-200-cascade-c25/qasper.json
+<records>/turbo-chunker-254-200-cascade-c25/conteb-squad.json
+<records>/turbo-chunker-254-200-cascade-c25/gutenqa.json
+wall 504.76 s maxrss 1205652 KB
+exit 0 load 60.42 58.46 56.65

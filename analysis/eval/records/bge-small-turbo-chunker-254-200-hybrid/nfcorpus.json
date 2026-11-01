@@ -1,29 +1,32 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-25T03:35:40Z",
+  "recorded_at": "2026-11-01T17:29:17Z",
   "provenance": {
-    "commit": "1d7d2cbff4a60e82c5b16ab5b947b6dbf5f7288f",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/claude/956-bge-query-instruction"
+      "origin/claude/project-thread-2zw2ao",
+      "origin/claude/project-thread-3kv94e",
+      "origin/claude/project-thread-on98lt",
+      "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
+      "arch": "x86_64",
       "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 130171314176
     },
     "bundle": {
       "model_id": "BAAI/bge-small-en-v1.5",
       "revision": "1",
-      "manifest_sha256": "352402c205716d9ea3325b4e4df5e5e5ca34ada21c643be5719885572030605b",
+      "manifest_sha256": "cb28c3c7cd30bfafe809994c0c9ea0df921f75b2bc9c5856275854b14bcfcbaa",
       "artifact_sha256": "3c9f31665447c8911517620762200d2245a2518d6e7208acc78cd9db317e21ad",
       "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
     }
@@ -34,9 +37,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -119,12 +122,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.34899753338994827,
+    "ndcg_at_10": 0.34854611082217424,
     "recall": {
-      "at_1": 0.06391756114020228,
-      "at_5": 0.1389914971674502,
-      "at_10": 0.1750605447330981,
-      "at_100": 0.31889379458172207
+      "at_1": 0.06377013374819283,
+      "at_5": 0.13840178759941246,
+      "at_10": 0.17512405358753513,
+      "at_100": 0.32004559881900346
     },
     "span": null,
     "per_query": [
@@ -166,7 +169,7 @@
       },
       {
         "query": "PLAIN-1109",
-        "ndcg_at_10": 0.6371523797895856
+        "ndcg_at_10": 0.7007731679885374
       },
       {
         "query": "PLAIN-1119",
@@ -254,7 +257,7 @@
       },
       {
         "query": "PLAIN-1320",
-        "ndcg_at_10": 0.198881557747969
+        "ndcg_at_10": 0.1919598743897292
       },
       {
         "query": "PLAIN-133",
@@ -310,7 +313,7 @@
       },
       {
         "query": "PLAIN-1453",
-        "ndcg_at_10": 0.5645441593704201
+        "ndcg_at_10": 0.5579780239523999
       },
       {
         "query": "PLAIN-1463",
@@ -566,7 +569,7 @@
       },
       {
         "query": "PLAIN-207",
-        "ndcg_at_10": 0.46664232174566633
+        "ndcg_at_10": 0.46270962158308354
       },
       {
         "query": "PLAIN-2071",
@@ -630,7 +633,7 @@
       },
       {
         "query": "PLAIN-2220",
-        "ndcg_at_10": 0.31339406588598046
+        "ndcg_at_10": 0.3091941646995599
       },
       {
         "query": "PLAIN-2230",
@@ -682,7 +685,7 @@
       },
       {
         "query": "PLAIN-2332",
-        "ndcg_at_10": 0.3557772116892465
+        "ndcg_at_10": 0.4193979998881982
       },
       {
         "query": "PLAIN-2343",
@@ -742,7 +745,7 @@
       },
       {
         "query": "PLAIN-2480",
-        "ndcg_at_10": 0.40332267592816523
+        "ndcg_at_10": 0.3884410037077163
       },
       {
         "query": "PLAIN-2490",
@@ -766,7 +769,7 @@
       },
       {
         "query": "PLAIN-2540",
-        "ndcg_at_10": 0.5058531901885349
+        "ndcg_at_10": 0.40705738908597955
       },
       {
         "query": "PLAIN-2550",
@@ -1030,7 +1033,7 @@
       },
       {
         "query": "PLAIN-3181",
-        "ndcg_at_10": 0.29025978496956456
+        "ndcg_at_10": 0.28762634971412726
       },
       {
         "query": "PLAIN-3191",
@@ -1078,7 +1081,7 @@
       },
       {
         "query": "PLAIN-3292",
-        "ndcg_at_10": 0.6428635453647562
+        "ndcg_at_10": 0.5145339018196746
       },
       {
         "query": "PLAIN-33",
@@ -1098,7 +1101,7 @@
       },
       {
         "query": "PLAIN-3322",
-        "ndcg_at_10": 0.2934556883974402
+        "ndcg_at_10": 0.28952298823485745
       },
       {
         "query": "PLAIN-3332",
@@ -1150,7 +1153,7 @@
       },
       {
         "query": "PLAIN-3442",
-        "ndcg_at_10": 0.04068375609634695
+        "ndcg_at_10": 0.042367766003497065
       },
       {
         "query": "PLAIN-3452",
@@ -1194,7 +1197,7 @@
       },
       {
         "query": "PLAIN-44",
-        "ndcg_at_10": 0.21776379575647373
+        "ndcg_at_10": 0.2253664379960525
       },
       {
         "query": "PLAIN-441",
@@ -1402,7 +1405,7 @@
       },
       {
         "query": "PLAIN-956",
-        "ndcg_at_10": 0.4412851793128928
+        "ndcg_at_10": 0.42914113378860647
       },
       {
         "query": "PLAIN-966",
@@ -1424,24 +1427,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 104.24418200000001,
-      "chunking_ms": 32.506651,
-      "embedding_ms": 2706.583189,
-      "retrieval_ms": 294.15619599999997
+      "analysis_ms": 138.94493899999998,
+      "chunking_ms": 35.06939,
+      "embedding_ms": 29306.422824999998,
+      "retrieval_ms": 284.65152
     },
-    "tokens_embedded": 1233173,
-    "chunks": 6819,
+    "tokens_embedded": 1233187,
+    "chunks": 6826,
     "chunk_bytes": {
       "min": 90,
       "p50": 792,
-      "p90": 1030,
+      "p90": 1029,
       "max": 1510
     },
     "chunk_tokens": {
       "min": 19,
       "p50": 180,
-      "p90": 229,
-      "max": 358
+      "p90": 230,
+      "max": 435
     }
   }
 }

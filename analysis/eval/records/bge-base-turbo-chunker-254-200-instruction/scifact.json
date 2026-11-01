@@ -1,29 +1,39 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-25T03:35:58Z",
+  "recorded_at": "2026-11-01T20:04:54Z",
   "provenance": {
-    "commit": "1d7d2cbff4a60e82c5b16ab5b947b6dbf5f7288f",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/claude/956-bge-query-instruction"
+      "origin/argon/1520-distil-student",
+      "origin/argon/1725-train-sentences",
+      "origin/argon/1726-zoo-trainer-bundles",
+      "origin/argon/1735-open-span-ner",
+      "origin/claude/project-thread-2zw2ao",
+      "origin/claude/project-thread-dzouxq",
+      "origin/claude/project-thread-mt8eco",
+      "origin/claude/project-thread-zmecno",
+      "origin/gh-readonly-queue/main/pr-1748-55db1b3c19419f5f5a6faade640a30533b5bcf07",
+      "origin/gh-readonly-queue/main/pr-1777-e9f91d1be2ea82f5469eda77b5e7a887a55793ac",
+      "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
+      "arch": "x86_64",
       "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 130171314176
     },
     "bundle": {
       "model_id": "BAAI/bge-base-en-v1.5",
       "revision": "1",
-      "manifest_sha256": "fd11eab406647ca0c909e1618b8a24c9866310c1493e8020e7ce23e659f0546b",
+      "manifest_sha256": "8685892d070d4a9c2fa842da5d28fc416e811c33da6254d431b94b93e06c5a16",
       "artifact_sha256": "c7c1988aae201f80cf91a5dbbd5866409503b89dcaba877ca6dba7dd0a5167d7",
       "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
     }
@@ -34,9 +44,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -1307,24 +1317,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 154.52048,
-      "chunking_ms": 44.149617,
-      "embedding_ms": 11784.421014,
-      "retrieval_ms": 32.356928
+      "analysis_ms": 298.96618800000005,
+      "chunking_ms": 66.049278,
+      "embedding_ms": 159218.15243699998,
+      "retrieval_ms": 84.592243
     },
-    "tokens_embedded": 1653154,
-    "chunks": 9126,
+    "tokens_embedded": 1653170,
+    "chunks": 9134,
     "chunk_bytes": {
       "min": 93,
-      "p50": 782,
+      "p50": 781,
       "p90": 1047,
-      "max": 1462
+      "max": 1584
     },
     "chunk_tokens": {
       "min": 27,
       "p50": 179,
       "p90": 231,
-      "max": 330
+      "max": 356
     }
   }
 }

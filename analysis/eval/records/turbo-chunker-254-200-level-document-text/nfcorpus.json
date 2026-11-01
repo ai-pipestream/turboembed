@@ -1,24 +1,24 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-22T12:57:37Z",
+  "recorded_at": "2026-11-01T18:05:05Z",
   "provenance": {
-    "commit": "b240811fb43233979a1f283e170bf862dba79594",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/fable/171-level-records"
+      "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -102,9 +102,9 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.30970702301254377,
+    "ndcg_at_10": 0.30944957402292383,
     "recall": {
-      "at_1": 0.04033452388947167,
+      "at_1": 0.04018709649746223,
       "at_5": 0.11178414415685275,
       "at_10": 0.15308646451372876,
       "at_100": 0.30782338834367606
@@ -729,7 +729,7 @@
       },
       {
         "query": "PLAIN-2490",
-        "ndcg_at_10": 0.17558217246012234
+        "ndcg_at_10": 0.1736554712373934
       },
       {
         "query": "PLAIN-2500",
@@ -1257,7 +1257,7 @@
       },
       {
         "query": "PLAIN-634",
-        "ndcg_at_10": 0.22009176629808017
+        "ndcg_at_10": 0.13886244387355454
       },
       {
         "query": "PLAIN-645",
@@ -1407,10 +1407,10 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 96.351579,
-      "chunking_ms": 40.495703,
-      "embedding_ms": 1024.835502,
-      "retrieval_ms": 11.659628999999999
+      "analysis_ms": 216.158801,
+      "chunking_ms": 63.638923,
+      "embedding_ms": 13407.230045,
+      "retrieval_ms": 23.694711
     },
     "tokens_embedded": 867817,
     "chunks": 3633,
