@@ -81,6 +81,7 @@ pub fn spec(corpus: &CorpusRecord, o: &CorefOptions) -> Result<HeadSpec> {
         span: Some(o.span),
         coref: Some(o.coref),
         relation: None,
+        layer_mix: None,
         license_class: Some(corpus.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.coref".into(),

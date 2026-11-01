@@ -27,6 +27,7 @@ fn spec(adapter: Option<(u32, u32)>, decode: Decode, hash: HashEmbed) -> HeadSpe
         biaffine: None,
         pos_input: None,
         hash_embed: Some(hash),
+        layer_mix: None,
         span: None,
         relation: None,
         coref: None,

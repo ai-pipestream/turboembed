@@ -129,6 +129,60 @@ fn the_sink_comes_from_its_flags_or_their_variables() {
     assert!(args(&format!("{base} --sink-queue-items 8")).is_err(), "bounds need an endpoint");
     assert!(args(&format!("{base} --sink-endpoint http://a:1 --sink-queue-bytes 0")).is_err());
     assert!(args(&format!("{base} --sink-endpoint http://a:1 --sink-endpoint http://b:1")).is_err());
+    assert!(!s.documents && s.typed.is_none(), "nothing new without the flags");
+}
+
+#[test]
+fn the_sink_documents_and_typed_projection_come_from_their_flags_or_variables() {
+    use crate::proto::result::OffsetMode;
+    use crate::sink::SinkTyped;
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1 --sink-endpoint http://s:1";
+    let sink = |s: &str| args(&format!("{base} {s}")).map(|a| a.sink.unwrap());
+    let s = sink("--sink-documents --sink-typed-offsets utf16").unwrap();
+    assert!(s.documents);
+    assert_eq!(s.typed, Some(SinkTyped { view: 0, offsets: OffsetMode::Utf16 }));
+    let s = sink("--sink-typed-offsets=code-point --sink-typed-view=3").unwrap();
+    assert!(!s.documents);
+    assert_eq!(s.typed, Some(SinkTyped { view: 3, offsets: OffsetMode::CodePoint }));
+    assert_eq!(sink("--sink-typed-offsets utf8").unwrap().typed.unwrap().offsets, OffsetMode::Utf8);
+    for bad in [
+        "--sink-typed-offsets utf32",
+        "--sink-typed-offsets UTF16",
+        "--sink-typed-offsets utf8 --sink-typed-view 65536",
+        "--sink-typed-offsets utf8 --sink-typed-view -1",
+        "--sink-typed-view 1",
+        "--sink-documents --sink-documents",
+        "--sink-documents=yes",
+        "--sink-typed-offsets utf8 --sink-typed-offsets utf16",
+    ] {
+        assert!(sink(bad).is_err(), "{bad}");
+    }
+    let alone = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    for needs_endpoint in ["--sink-documents", "--sink-typed-offsets utf8", "--sink-typed-view 0"] {
+        let e = args(&format!("{alone} {needs_endpoint}")).unwrap_err();
+        assert!(e.contains("need --sink-endpoint"), "{needs_endpoint}: {e}");
+    }
+    let env = |k: &str| match k {
+        ENV_SINK_ENDPOINT => Some("http://env:9".to_string()),
+        ENV_SINK_DOCUMENTS => Some("true".to_string()),
+        ENV_SINK_TYPED_OFFSETS => Some("utf16".to_string()),
+        ENV_SINK_TYPED_VIEW => Some("2".to_string()),
+        _ => None,
+    };
+    let s = Args::parse_with(alone.split_whitespace().map(String::from), env).unwrap().sink.unwrap();
+    assert!(s.documents);
+    assert_eq!(s.typed, Some(SinkTyped { view: 2, offsets: OffsetMode::Utf16 }));
+    let flags = format!("{alone} --sink-typed-offsets utf8 --sink-typed-view 0");
+    let s = Args::parse_with(flags.split_whitespace().map(String::from), env).unwrap().sink.unwrap();
+    assert_eq!(s.typed, Some(SinkTyped { view: 0, offsets: OffsetMode::Utf8 }), "a flag replaces its variable");
+    let off = |k: &str| match k {
+        ENV_SINK_ENDPOINT => Some("http://env:9".to_string()),
+        ENV_SINK_DOCUMENTS => Some("0".to_string()),
+        _ => None,
+    };
+    assert!(!Args::parse_with(alone.split_whitespace().map(String::from), off).unwrap().sink.unwrap().documents);
+    let junk = |k: &str| (k == ENV_SINK_DOCUMENTS).then(|| "maybe".to_string());
+    assert!(Args::parse_with(alone.split_whitespace().map(String::from), junk).is_err());
 }
 
 #[test]

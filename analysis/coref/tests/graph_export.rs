@@ -133,11 +133,11 @@ fn splice(graph: &mut DocumentGraph, layer: &str, edit: impl FnOnce(&mut Vec<u8>
 fn corrupted_coreference_payloads_are_refused() {
     let base = export(&annotated(), &codecs()).unwrap();
     let cases: [(&str, Edit, &str); 5] = [
-        ("opennlp:mentions", |b| b.truncate(1), "a truncated mentions payload"),
-        ("opennlp:mentions", |b| *b.last_mut().unwrap() = 0b11, "an agreement byte no agreement packs to"),
-        ("opennlp:mentions", |b| b.push(0), "trailing bytes after mentions"),
-        ("opennlp:speakers", |b| b.truncate(1), "a truncated speakers payload"),
-        ("opennlp:speakers", |b| b.push(0), "trailing bytes after speakers"),
+        ("turbo:mentions", |b| b.truncate(1), "a truncated mentions payload"),
+        ("turbo:mentions", |b| *b.last_mut().unwrap() = 0b11, "an agreement byte no agreement packs to"),
+        ("turbo:mentions", |b| b.push(0), "trailing bytes after mentions"),
+        ("turbo:speakers", |b| b.truncate(1), "a truncated speakers payload"),
+        ("turbo:speakers", |b| b.push(0), "trailing bytes after speakers"),
     ];
     for (layer, edit, what) in cases {
         let mut graph = base.clone();

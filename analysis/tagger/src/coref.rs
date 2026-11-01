@@ -25,7 +25,7 @@ use turbo_analysis::{
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Subwords, Tokens};
 
-use crate::annotate::{HeadRunner, find_head, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, model_ref, open_words, refuse};
 use crate::words::WordEncoder;
 
 /// The layer id a coreference head names.
@@ -52,7 +52,7 @@ impl CorefTagger {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, COREF_LAYER, HeadKind::CorefRanker)?;
         let head = CorefRanker::load(&bundle, &spec.name)?;
-        let words = WordEncoder::open(dir, o)?;
+        let words = open_words(dir, o, spec.layer_mix.map_or(1, |m| m.layers as usize))?;
         if words.hidden() != head.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",

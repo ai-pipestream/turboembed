@@ -43,9 +43,9 @@ class GoldenWriterTest {
         new Jdk("21.0.1", "21.0.1+12", "Vendor", "15.0"), "en/x", 6, 6, "ab", List.of(new ModelRef("m.bin", "cd")),
         "a.B", "run");
     List<Layer> layers = List.of(
-        new Layer("opennlp:tokens", "text", new Column.U32("start", new long[] {0, 3}),
+        new Layer("turbo:tokens", "text", new Column.U32("start", new long[] {0, 3}),
             new Column.U32("end", new long[] {2, 6})),
-        new Layer("opennlp:language", "document", new Column.Str("code", new String[] {"e\tn"}),
+        new Layer("turbo:language", "document", new Column.Str("code", new String[] {"e\tn"}),
             new Column.F64("confidence", new double[] {0.5})));
     String expected = """
         golden 1
@@ -56,13 +56,13 @@ class GoldenWriterTest {
         input\ten/x\t6\t6\tab
         model\tm.bin\tcd
         annotator\ta.B\trun
-        layer\topennlp:tokens\ttext\t2\tstart:u32\tend:u32
+        layer\tturbo:tokens\ttext\t2\tstart:u32\tend:u32
         0\t2
         3\t6
-        end\topennlp:tokens
-        layer\topennlp:language\tdocument\t1\tcode:str\tconfidence:f64
+        end\tturbo:tokens
+        layer\tturbo:language\tdocument\t1\tcode:str\tconfidence:f64
         e\\tn\t3fe0000000000000 0.5
-        end\topennlp:language
+        end\tturbo:language
         """;
     assertEquals(expected, new String(GoldenWriter.write(h, layers), StandardCharsets.UTF_8));
   }

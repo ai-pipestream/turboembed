@@ -142,12 +142,12 @@ fn rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and
 #[test]
 fn the_layer_names_tell_word_layers_from_token_layers() {
     assert_eq!(Words::NAME.to_string(), "turbo:words");
-    assert_eq!(WordPosTags::NAME.to_string(), "opennlp:pos<turbo:words>");
-    assert_eq!(WordLemmas::NAME.to_string(), "opennlp:lemmas<turbo:words>");
+    assert_eq!(WordPosTags::NAME.to_string(), "turbo:pos<turbo:words>");
+    assert_eq!(WordLemmas::NAME.to_string(), "turbo:lemmas<turbo:words>");
     assert_eq!(MorphFeatures::<Words>::NAME.to_string(), "turbo:feats<turbo:words>");
     assert_eq!(MorphFeatures::<Tokens>::NAME.to_string(), "turbo:feats");
-    assert_eq!(Dependencies::<Tokens>::NAME.to_string(), "opennlp:dependencies");
-    assert_eq!(Dependencies::<Words>::NAME.to_string(), "opennlp:dependencies<turbo:words>");
+    assert_eq!(Dependencies::<Tokens>::NAME.to_string(), "turbo:dependencies");
+    assert_eq!(Dependencies::<Words>::NAME.to_string(), "turbo:dependencies<turbo:words>");
     assert_eq!(Words::from_tokens(&make_tokens("")).of_token(Ix::new(0)), IxRange::new(0, 0));
 }
 

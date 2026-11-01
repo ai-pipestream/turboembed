@@ -356,6 +356,7 @@ so any number of heads fit one artifact.
 | `labels` | The labels in output order: 1 to 4096, unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
+| `layer_mix` | Optional: `{ "layers": K }` (`1` to `128`, at most the encoder's layers). A learned scalar mix of the encoder's last `K` layers, `gamma * sum_k softmax(weight)_k * tap_k`, before the adapter and output layer. |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
 | `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's: `DECODE_SPANS_NESTED` (every span whose best label is not `O`) or `DECODE_SPANS_FLAT` (those spans from the highest margin over `O` down, each kept unless it overlaps one kept, ties to the earlier span). A coreference ranker's: `DECODE_ANTECEDENT` (each mention's highest-scoring antecedent when it scores above the dummy's 0, else none; a tie goes to none, then to the nearer mention). A relation classifier's: `DECODE_RELATIONS` (every label of an ordered pair of entities that scores above `none`, the pair's threshold). |
 | `hash_embed` | Optional, for the kinds that score words as a tagger does (`HEAD_TOKEN_TAGGER`, `HEAD_SENTENCE_BOUNDARY`, `HEAD_TOKEN_SPLIT`): `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
@@ -381,6 +382,8 @@ wide and `L` labels, in the order the loader reads them:
 | `out.bias` | `[L]` | always |
 | `crf.transitions` | `[L, L]` | `DECODE_CRF`; row is the label before, column the label after |
 | `crf.start`, `crf.end` | `[L]` | `DECODE_CRF` |
+| `mix.weight` | `[K]` | with `layer_mix` (`K` = `layer_mix.layers`), after any head's other tensors |
+| `mix.gamma` | `[1]` | with `layer_mix`, after `mix.weight` |
 
 LSTM gates are stacked in the order input, forget, cell, output, and a
 layer's output joins its forward and backward states in that order. A

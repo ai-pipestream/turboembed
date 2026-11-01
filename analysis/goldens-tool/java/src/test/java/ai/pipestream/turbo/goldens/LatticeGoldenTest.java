@@ -55,12 +55,12 @@ class LatticeGoldenTest {
     LatticeGolden g = LatticeGolden.load(dictionary(tmp.resolve("d"), StandardCharsets.UTF_8), Set.of("s"));
     List<Layer> layers = g.layers(input("東京 峠x"));
     assertEquals(2, layers.size());
-    assertEquals("opennlp:tokens", layers.get(0).id());
+    assertEquals("turbo:tokens", layers.get(0).id());
     assertArrayEquals(new long[] {0, 7, 10}, ((Column.U32) layers.get(0).columns().get(0)).values());
     assertArrayEquals(new long[] {6, 10, 11}, ((Column.U32) layers.get(0).columns().get(1)).values());
     Layer morphemes = layers.get(1);
     assertEquals("turbo:morphemes", morphemes.id());
-    assertEquals("aligned:opennlp:tokens", morphemes.anchor());
+    assertEquals("aligned:turbo:tokens", morphemes.anchor());
     assertArrayEquals(new long[] {0, 1, 1}, ((Column.U32) morphemes.columns().get(0)).values());
     assertArrayEquals(new String[] {"名詞,地域,一般", "名詞,未知", "記号"},
         ((Column.Str) morphemes.columns().get(1)).values());

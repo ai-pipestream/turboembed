@@ -21,9 +21,9 @@ import opennlp.tools.util.Span;
 
 /**
  * The part-of-speech tagger's golden: the sentences of {@link SentenceDetectorME#sentPosDetect}
- * and the tokens {@link TokenizerME#tokenizePos} finds in each ({@code opennlp:sentences} and
- * {@code opennlp:tokens}, each with its {@code turbo:utf16} layer when a span cuts a character,
- * {@link SpanLayers}), then {@code opennlp:pos} aligned to the tokens: the tag
+ * and the tokens {@link TokenizerME#tokenizePos} finds in each ({@code turbo:sentences} and
+ * {@code turbo:tokens}, each with its {@code turbo:utf16} layer when a span cuts a character,
+ * {@link SpanLayers}), then {@code turbo:pos} aligned to the tokens: the tag
  * {@link POSTaggerME#tag(String[])} gave each token of its sentence and the probability
  * {@link POSTaggerME#probs()} reports for it. The tagger sees one sentence at a time, as the
  * sentence and token layers cut it, and the Rust port is run on the JVM's own tokens from the
@@ -249,13 +249,13 @@ final class PosGolden implements AnnotatorGolden {
       sentenceTokens.add(words);
       tokenStarts.add(starts);
     }
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:sentences", input.offsets(), sentences));
-    layers.addAll(SpanLayers.of("opennlp:tokens", input.offsets(), tokenSpans.toArray(new Span[0])));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:sentences", input.offsets(), sentences));
+    layers.addAll(SpanLayers.of("turbo:tokens", input.offsets(), tokenSpans.toArray(new Span[0])));
     double[] prob = new double[probs.size()];
     for (int i = 0; i < prob.length; i++) {
       prob[i] = probs.get(i);
     }
-    layers.add(new Layer("opennlp:pos", "aligned:opennlp:tokens", new Column.Str("tag", tags.toArray(new String[0])),
+    layers.add(new Layer("turbo:pos", "aligned:turbo:tokens", new Column.Str("tag", tags.toArray(new String[0])),
         new Column.F64("prob", prob)));
     return new Run(layers, sentenceTokens, tokenStarts);
   }

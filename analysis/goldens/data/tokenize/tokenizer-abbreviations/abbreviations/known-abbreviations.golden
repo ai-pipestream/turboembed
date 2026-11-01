@@ -6,7 +6,7 @@ unicode	15.0
 input	abbreviations/known-abbreviations	63	63	6e3db6e5829129e3935e173bcd72c11cde4a4faee929656454ac64b40ac15951
 model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
 annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
-layer	opennlp:tokens	text	15	start:u32	end:u32
+layer	turbo:tokens	text	15	start:u32	end:u32
 0	3
 4	9
 10	13
@@ -22,8 +22,8 @@ layer	opennlp:tokens	text	15	start:u32	end:u32
 53	57
 58	62
 62	63
-end	opennlp:tokens
-layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	15	value:f64
+end	turbo:tokens
+layer	turbo:confidence<turbo:tokens>	aligned:turbo:tokens	15	value:f64
 3fedf41f5f2304e9 0.9360501154079915
 3fec5256bdc3a018 0.8850511270839005
 3fe39925c1698bba 0.6124447610458141
@@ -39,4 +39,4 @@ layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	15	value:f64
 3fe58a7aa2af4520 0.6731541802820722
 3fe318bcb0122f1d 0.5967696608435947
 3ff0000000000000 1.0
-end	turbo:confidence<opennlp:tokens>
+end	turbo:confidence<turbo:tokens>

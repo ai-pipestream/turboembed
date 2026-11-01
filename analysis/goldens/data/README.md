@@ -668,7 +668,7 @@ hash and the run's options.
 
 Where a token or sentence starts or ends between the two halves of a
 surrogate pair, its row holds the whole character's bytes and the golden
-also has `turbo:utf16<opennlp:tokens>` (or `<opennlp:sentences>`) with
+also has `turbo:utf16<turbo:tokens>` (or `<turbo:sentences>`) with
 the JVM's exact UTF-16 spans. `en/emoji-split`, eight of the
 `surrogate` goldens, the `simple` goldens of inputs with characters
 outside the Basic Multilingual Plane (`SimpleTokenizer` classifies UTF-16
@@ -697,7 +697,7 @@ running `generate` and checking in the inputs and the goldens together.
 learned from `inputs/bpe/<id>.txt` alone with `numMerges` `<n>` (40 and
 400), and what `BPETokenizer` with those merges gave for the same text:
 the merges in order (`turbo:bpe-merges`, each side a string, a lone
-surrogate written `\uXXXX`) and the tokens (`opennlp:tokens`). The run
+surrogate written `\uXXXX`) and the tokens (`turbo:tokens`). The run
 has no model file; `merges-<n>` names it. The trainer counts symbols in
 UTF-16 units, so on `emoji` its merges hold halves of surrogate pairs;
 its tokens are whole characters. `analysis/bpe-trainer/tests/opennlp.rs`

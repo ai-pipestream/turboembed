@@ -3,7 +3,8 @@
 //! is the plain head, and a run learns to weight the layer that holds the
 //! labels.
 
-use turbo::manifest::{Adapter, Bilstm, Decode, HashEmbed, HeadKind, HeadSpec, Scheme, WordPooling};
+use turbo::head::tagger::Work as CoreWork;
+use turbo::manifest::{Adapter, Bilstm, Decode, HashEmbed, HeadKind, HeadSpec, LayerMix, Scheme, WordPooling};
 use turbo_trainer::mix::{MixExample, MixTagger, fit_mix};
 use turbo_trainer::rng::Rng;
 use turbo_trainer::tagger::Work;
@@ -25,6 +26,7 @@ fn spec(scheme: Scheme, adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         biaffine: None,
         pos_input: None,
         hash_embed: hash.then_some(HashEmbed { dim: 2, rows: [5, 3, 4, 3] }),
+        layer_mix: None,
         license_class: None,
         span: None,
         relation: None,
@@ -140,4 +142,18 @@ fn a_run_weights_the_layer_that_holds_the_labels() {
     // Two runs, one mix.
     let (again, _) = fit_mix(&s, hidden, layers, &train, &dev, &c, &mut |_, _, _| Ok(())).unwrap();
     assert_eq!(again.params(), m.params());
+
+    // The trained mix loads into the core's TokenTagger with layer_mix and scores identically.
+    assert_eq!(m.spec().layer_mix, Some(LayerMix { layers: layers as u32 }));
+    let core_mix = m.to_token_tagger().unwrap();
+    let core_plain = m.tagger().to_token_tagger().unwrap();
+    for e in &dev[..5] {
+        let words: Vec<u32> = (0..e.labels.len() as u32).collect();
+        let stacked: Vec<f32> = e.layers.iter().flatten().copied().collect();
+        let blended = m.mix(&e.layers).unwrap();
+        let (mut a, mut b, mut w) = (Vec::new(), Vec::new(), CoreWork::default());
+        core_mix.scores(&stacked, &words, &mut a, &mut w).unwrap();
+        core_plain.scores(&blended, &words, &mut b, &mut w).unwrap();
+        assert_eq!(a, b);
+    }
 }

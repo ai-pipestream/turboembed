@@ -19,6 +19,7 @@ pub(super) fn spec(kind: HeadKind, labels: &[&str], decode: Decode) -> HeadSpec 
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
         coref: None,

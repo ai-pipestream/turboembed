@@ -144,8 +144,8 @@ mod heads_kinds;
 mod helpers;
 pub use heads::*;
 pub use heads_kinds::{
-    BOUNDARY_LABELS, COREF_LABELS, CorefShape, KEEP_TOKEN, MAX_ANTECEDENTS, MAX_MENTION_DIM, MAX_SPAN_WIDTH_DIM,
-    MAX_SPAN_WORDS, MAX_TYPE_DIM, NO_RELATION, RelationShape, SpanShape,
+    BOUNDARY_LABELS, COREF_LABELS, CorefShape, KEEP_TOKEN, LayerMix, MAX_ANTECEDENTS, MAX_MENTION_DIM, MAX_MIX_LAYERS,
+    MAX_SPAN_WIDTH_DIM, MAX_SPAN_WORDS, MAX_TYPE_DIM, NO_RELATION, RelationShape, SpanShape,
 };
 mod provenance;
 mod qa;

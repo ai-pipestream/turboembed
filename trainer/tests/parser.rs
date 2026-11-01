@@ -23,6 +23,7 @@ fn spec(adapter: Option<(u32, u32)>) -> HeadSpec {
         biaffine: Some(Biaffine { arc: 3, rel: 2 }),
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
         coref: None,

@@ -1,10 +1,8 @@
 //! `TURBO_ZOO_SOURCE`: the places a model loads from, in the order tried.
 
-use std::path::Path;
+use turbo_zoo::{Holder, SignIn, Sources, UserId};
 
-use turbo_zoo::{Blobs, Sources, UserId};
-
-use crate::server::ZooServer;
+use crate::registry::{List, Opened, Registry};
 
 /// The environment variable [`sources`] reads its list from.
 pub const ENV_SOURCE: &str = "TURBO_ZOO_SOURCE";
@@ -29,60 +27,36 @@ pub const ENV_SOURCE: &str = "TURBO_ZOO_SOURCE";
 ///   the caller fetches them with (HTTPS, for one). Without it in the list
 ///   nothing is fetched from an index address.
 ///
-/// An empty spec, an unknown scheme, or `origin` named twice is refused.
+/// Any other scheme [`Registry::builtin`] knows opens too. An empty
+/// entry, an unknown scheme, or `origin` named twice is refused.
 pub fn sources<T>(spec: &str, user: &UserId, origin: T) -> Result<Sources, String>
 where
     T: turbo_zoo::Transport + Send + Sync + 'static,
 {
-    let mut out = Sources::new();
-    let mut origin = Some(origin);
-    let mut kept = false;
-    for item in spec.split(',').map(str::trim) {
-        if item.is_empty() {
-            return Err(format!("{ENV_SOURCE}={spec}: an empty entry"));
+    Registry::builtin().spec(spec, user, origin)
+}
+
+impl Registry {
+    /// [`sources`] through this registry's kinds: each entry is a holder
+    /// signed in from the environment, or `origin`.
+    pub fn spec<T>(&self, spec: &str, user: &UserId, origin: T) -> Result<Sources, String>
+    where
+        T: turbo_zoo::Transport + Send + Sync + 'static,
+    {
+        let mut list = List::default();
+        let mut origin = Some(origin);
+        for item in spec.split(',').map(str::trim) {
+            if item.is_empty() {
+                return Err(format!("{ENV_SOURCE}={spec}: an empty entry"));
+            }
+            if item == "origin" {
+                let t = origin.take().ok_or_else(|| format!("{ENV_SOURCE}={spec}: origin is named twice"))?;
+                list.push(item, Opened::Source(Box::new(t)));
+                continue;
+            }
+            let holder = Holder { name: item.to_owned(), address: item.to_owned(), sign_in: SignIn::Environment };
+            list.push(item, self.open(&holder, user)?);
         }
-        out = if let Some(dir) = item.strip_prefix("file://") {
-            if !dir.starts_with('/') && !Path::new(dir).is_absolute() {
-                return Err(format!("{item}: a file:// source names an absolute directory"));
-            }
-            if kept {
-                out.then(item, Blobs::new(dir))
-            } else {
-                kept = true;
-                out.then_keep(item, Blobs::new(dir))
-            }
-        } else if item.starts_with("s3://") {
-            out.then(item, s3(item)?)
-        } else if item.starts_with("gdrive://") {
-            out.then(item, gdrive(item)?)
-        } else if item.starts_with("grpc://") || item.starts_with("grpcs://") {
-            out.then(item, ZooServer::new(item, user.clone())?)
-        } else if item == "origin" {
-            let t = origin.take().ok_or_else(|| format!("{ENV_SOURCE}={spec}: origin is named twice"))?;
-            out.then(item, t)
-        } else {
-            return Err(format!("{item}: a source is file://, grpc://, grpcs://, s3://, gdrive:// or origin"));
-        };
+        Ok(list.out)
     }
-    Ok(out)
-}
-
-#[cfg(feature = "s3")]
-fn s3(item: &str) -> Result<crate::S3Bucket, String> {
-    crate::S3Bucket::new(item)
-}
-
-#[cfg(not(feature = "s3"))]
-fn s3(item: &str) -> Result<turbo_zoo::Offline, String> {
-    Err(format!("{item}: s3:// needs the s3 feature, which this build leaves out"))
-}
-
-#[cfg(feature = "gdrive")]
-fn gdrive(item: &str) -> Result<crate::GoogleDrive, String> {
-    crate::GoogleDrive::new(item)
-}
-
-#[cfg(not(feature = "gdrive"))]
-fn gdrive(item: &str) -> Result<turbo_zoo::Offline, String> {
-    Err(format!("{item}: gdrive:// needs the gdrive feature, which this build leaves out"))
 }

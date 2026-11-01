@@ -68,6 +68,9 @@ pub struct EncoderOptions {
     /// (`TURBO_CPU_THREADS`, else one per processor). Another device
     /// takes 0 alone.
     pub cpu_threads: u32,
+    /// Encoder layers from the end to tap on range writes (`run_ranges`):
+    /// 0 or 1 for the final layer alone, or K to write `[K, ranges, dim]`.
+    pub layers: u32,
 }
 
 impl Default for EncoderOptions {
@@ -79,6 +82,7 @@ impl Default for EncoderOptions {
             max_seq: 0,
             max_ranges: 0,
             cpu_threads: 0,
+            layers: 0,
         }
     }
 }
@@ -115,6 +119,7 @@ pub struct Encoder {
     device: turbo_device_info,
     model_info: turbo_model_info,
     desc: turbo_session_desc,
+    layers: u32,
     #[cfg(test)]
     runs: (usize, usize),
 }
@@ -187,6 +192,7 @@ impl Encoder {
             device: unsafe { std::mem::zeroed() },
             model_info: unsafe { std::mem::zeroed() },
             desc: unsafe { std::mem::zeroed() },
+            layers: o.layers,
             #[cfg(test)]
             runs: (0, 0),
         };
@@ -207,7 +213,9 @@ impl Encoder {
         let max_batch = if o.max_batch == 0 { m.max_batch } else { o.max_batch };
         let max_seq = if o.max_seq == 0 { m.max_seq } else { o.max_seq };
         let max_ranges = match o.max_ranges {
-            0 => default_ranges(max_batch, max_seq),
+            0 => default_ranges(max_batch, max_seq)
+                .saturating_mul(o.layers.max(1))
+                .min(max_batch.saturating_mul(max_seq)),
             n => n,
         };
         let desc = turbo_session_desc {
@@ -365,6 +373,8 @@ fn options(pooling: u32, normalize: u32) -> turbo_embed_options {
         output_dim: 0,
         quantization: 0,
         int8_ranges: std::ptr::null(),
+        layers: 0,
+        reserved: 0,
     }
 }
 

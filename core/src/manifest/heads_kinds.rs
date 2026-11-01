@@ -4,7 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::heads::{Decode, HeadKind, HeadSpec, MAX_BIAFFINE, MAX_LABELS, Scheme};
+use super::heads::{
+    Decode, HeadKind, HeadSpec, MAX_ADAPTER_HIDDEN, MAX_ADAPTER_LAYERS, MAX_BIAFFINE, MAX_HASH_DIM, MAX_HASH_ROWS,
+    MAX_LABELS, Scheme,
+};
 use super::helpers::{fits, positive, required};
 use crate::status::{Result, invalid};
 
@@ -29,6 +32,17 @@ pub const COREF_LABELS: [&str; 1] = ["coref"];
 pub const NO_RELATION: &str = "none";
 /// The widest entity type embedding a relation classifier reads.
 pub const MAX_TYPE_DIM: u32 = 256;
+/// The most encoder layers a head's scalar mix combines.
+pub const MAX_MIX_LAYERS: u32 = 128;
+
+/// A learned scalar mix (ELMo, Peters et al. 2018) of the encoder's last
+/// `layers` layers: `gamma * sum_k softmax(weight)_k * tap_k`, with
+/// tensors `mix.weight` `[layers]` and `mix.gamma` `[1]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LayerMix {
+    pub layers: u32,
+}
 
 /// How a coreference ranker scores a pair: each mention's vector is
 /// `dim` wide, and a mention is scored against at most `antecedents`
@@ -182,6 +196,46 @@ impl HeadSpec {
             fits(&field, l, 128)?;
             if r.entity_labels[..j].contains(l) {
                 return Err(invalid(format!("manifest.json: {field}: {l:?} is listed twice")));
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn validate_word_inputs(&self, at: &dyn Fn(&str) -> String) -> Result<()> {
+        if let Some(h) = &self.hash_embed {
+            if !self.kind.scores_words() {
+                return Err(invalid(format!(
+                    "manifest.json: {}: only a head that scores words, as a HEAD_TOKEN_TAGGER does, takes it",
+                    at("hash_embed")
+                )));
+            }
+            positive(&at("hash_embed.dim"), h.dim)?;
+            if h.dim > MAX_HASH_DIM || h.rows.iter().any(|&r| r == 0 || r > MAX_HASH_ROWS) {
+                return Err(invalid(format!(
+                    "manifest.json: {}: dim {} and rows {:?}; dim 1 to {MAX_HASH_DIM}, rows 1 to {MAX_HASH_ROWS}",
+                    at("hash_embed"),
+                    h.dim,
+                    h.rows
+                )));
+            }
+        }
+        if let Some(a) = &self.adapter {
+            positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;
+            positive(&at("adapter.bilstm.layers"), a.bilstm.layers)?;
+            if a.bilstm.hidden > MAX_ADAPTER_HIDDEN || a.bilstm.layers > MAX_ADAPTER_LAYERS {
+                return Err(invalid(format!(
+                    "manifest.json: {}: hidden {} and layers {}; at most {MAX_ADAPTER_HIDDEN} and {MAX_ADAPTER_LAYERS}",
+                    at("adapter.bilstm"),
+                    a.bilstm.hidden,
+                    a.bilstm.layers
+                )));
+            }
+        }
+        if let Some(m) = &self.layer_mix {
+            let field = at("layer_mix.layers");
+            positive(&field, m.layers)?;
+            if m.layers > MAX_MIX_LAYERS {
+                return Err(invalid(format!("manifest.json: {field}: {}, at most {MAX_MIX_LAYERS}", m.layers)));
             }
         }
         Ok(())

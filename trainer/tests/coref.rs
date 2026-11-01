@@ -27,6 +27,7 @@ fn spec(adapter: u32, antecedents: u32) -> HeadSpec {
         span: Some(SpanShape { max_words: 2, width_dim: 2 }),
         relation: None,
         coref: Some(CorefShape { dim: 4, antecedents }),
+        layer_mix: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "coref".into(),

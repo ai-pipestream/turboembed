@@ -83,28 +83,28 @@ fn spans_past_the_text_are_refused() {
     Layers::new("A", &[(0, 1)], (0, 5)).refused("does not slice the text");
     let mut l = Layers::new("A", &[(0, 1)], (0, 1));
     l.sentences = Sentences { spans: spans(&[(0, 9)]) };
-    l.refused("opennlp:sentences item 0");
+    l.refused("turbo:sentences item 0");
 }
 
 #[test]
 fn spans_off_char_boundaries_are_refused() {
     // "é" is two bytes: a token ending at byte 1 splits it.
-    Layers::new("\u{e9}x", &[(0, 1), (2, 3)], (2, 3)).refused("opennlp:tokens item 0");
+    Layers::new("\u{e9}x", &[(0, 1), (2, 3)], (2, 3)).refused("turbo:tokens item 0");
     let mut l = Layers::new("ab \u{e9}c", &[(0, 2), (3, 6)], (0, 2));
     let mut entity = Spans::new(ViewId::SOURCE);
     entity.try_push_fragments(&[Span::new(0, 1), Span::new(4, 5)]).unwrap();
     l.entities.spans = entity;
-    l.refused("opennlp:entities item 0");
+    l.refused("turbo:entities item 0");
 }
 
 #[test]
 fn tags_and_kinds_outside_their_tag_sets_are_refused() {
     let mut l = ada();
     l.tags.tags[1] = Tag(9);
-    l.refused("opennlp:pos");
+    l.refused("turbo:pos");
     let mut l = ada();
     l.entities.kind[0] = Tag(4);
-    l.refused("opennlp:entities");
+    l.refused("turbo:entities");
     let mut l = ada();
     l.tags.tags.pop();
     l.refused("aligned");
@@ -114,7 +114,7 @@ fn tags_and_kinds_outside_their_tag_sets_are_refused() {
 fn short_columns_are_refused() {
     let mut l = ada();
     l.entities.kind.clear();
-    l.refused("opennlp:entities");
+    l.refused("turbo:entities");
     let mut l = ada();
     l.chunks = Some(PhraseChunks {
         spans: spans(&[(0, 3)]),
@@ -122,10 +122,10 @@ fn short_columns_are_refused() {
         kind: vec![],
         kinds: TagSet::new("chunks", &["NP"]),
     });
-    l.refused("opennlp:chunks");
+    l.refused("turbo:phrase-chunks");
     let mut l = ada();
     l.speakers = Some(Speakers { spans: spans(&[(0, 8)]), speaker: vec![Tag(3)], speakers: TagSet::new("s", &["a"]) });
-    l.refused("opennlp:speakers");
+    l.refused("turbo:speakers");
 }
 
 #[test]
@@ -139,10 +139,10 @@ fn token_indexes_past_the_tokens_are_refused() {
         head: vec![Ix::new(7)],
         parent: vec![None],
     });
-    l.refused("opennlp:phrases item 0 has tokens 7..8 past 2 tokens");
+    l.refused("turbo:phrases item 0 has tokens 7..8 past 2 tokens");
     let mut l = ada();
     l.entities.tokens[0] = IxRange::new(0, 5);
-    l.refused("opennlp:entities item 0 has tokens 0..5 past 2 tokens");
+    l.refused("turbo:entities item 0 has tokens 0..5 past 2 tokens");
     let mut l = ada();
     l.chunks = Some(PhraseChunks {
         spans: spans(&[(0, 3)]),
@@ -150,7 +150,7 @@ fn token_indexes_past_the_tokens_are_refused() {
         kind: vec![Tag(0)],
         kinds: TagSet::new("chunks", &["NP"]),
     });
-    l.refused("opennlp:chunks item 0 has tokens 1..3 past 2 tokens");
+    l.refused("turbo:phrase-chunks item 0 has tokens 1..3 past 2 tokens");
     let mut l = ada();
     l.tokens.sentence = Some(vec![Ix::new(0), Ix::new(4)]);
     l.refused("token 1 names sentence 4 past 1 sentences");

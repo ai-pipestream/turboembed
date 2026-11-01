@@ -31,8 +31,8 @@ fn reversed_selection_still_restores_dependencies() {
     let (graph, codecs) = graph();
     let bytes = graph.to_bytes().unwrap();
     let dir = DocumentGraphRef::parse(&bytes).unwrap();
-    assert!(dir.import_selected(&codecs, &[("opennlp:sentences", ""), ("opennlp:tokens", "")]).is_ok());
-    let reversed = dir.import_selected(&codecs, &[("opennlp:tokens", ""), ("opennlp:sentences", "")]);
+    assert!(dir.import_selected(&codecs, &[("turbo:sentences", ""), ("turbo:tokens", "")]).is_ok());
+    let reversed = dir.import_selected(&codecs, &[("turbo:tokens", ""), ("turbo:sentences", "")]);
     assert!(reversed.is_ok(), "reversed selection error: {:?}", reversed.err());
 }
 
@@ -113,10 +113,10 @@ fn selection_refuses_duplicates_and_keeps_graph_record_order() {
     let (graph, _) = graph();
     let wire = graph.to_bytes().unwrap();
     let directory = DocumentGraphRef::parse(&wire).unwrap();
-    let selected = directory.selected_graph(&[("opennlp:tokens", ""), ("opennlp:sentences", "")]).unwrap();
+    let selected = directory.selected_graph(&[("turbo:tokens", ""), ("turbo:sentences", "")]).unwrap();
     assert_eq!(selected.layers, graph.layers);
     assert!(matches!(
-        directory.selected_graph(&[("opennlp:sentences", ""), ("opennlp:sentences", "")]),
+        directory.selected_graph(&[("turbo:sentences", ""), ("turbo:sentences", "")]),
         Err(ExportError::DuplicateLayer { .. })
     ));
     assert!(matches!(directory.selected_graph(&[("missing", "")]), Err(ExportError::DanglingReference { .. })));

@@ -27,6 +27,7 @@ fn spec(adapter: u32, types: &[&str], type_dim: u32) -> HeadSpec {
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         coref: None,
         relation: Some(RelationShape {

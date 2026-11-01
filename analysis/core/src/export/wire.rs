@@ -117,6 +117,14 @@ impl<'a> Reader<'a> {
         std::str::from_utf8(self.bytes()?).map_err(|_| malformed("a string that is not UTF-8"))
     }
 
+    /// A layer reference: the layer's full name and the instance name,
+    /// with a legacy layer id read as its current id
+    /// ([`crate::ids::canonical_layer_name`]). Codecs that carry
+    /// references to other layers in their payload read them here.
+    pub fn layer_ref(&mut self) -> Result<LayerRef, ExportError> {
+        Ok(LayerRef { layer: canonical_owned(self.string()?), instance: self.string()? })
+    }
+
     /// How many bytes have been read so far.
     pub fn position(&self) -> usize {
         self.at

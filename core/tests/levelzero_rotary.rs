@@ -173,6 +173,47 @@ fn a_nomic_bert_matches_the_cpu() {
     matches_the_cpu("a_nomic_bert_matches_the_cpu", rotary::nomic("lz-rotary-nomic"));
 }
 
+/// Batches of the shape a long document gives, eight rows of up to 766
+/// tokens with a masked hole and a left padded row, at each head width
+/// the tiled attention takes (32, 64 and 128): within BOUND of the CPU at
+/// MODEL and EXACT, global and windowed layers alike (window 128, 64 keys
+/// each side, global every third layer). #1765 lost the device in this
+/// pass; the device time of each run is printed.
+#[test]
+fn long_rows_at_each_tiled_head_width_match_the_cpu() {
+    let test = "long_rows_at_each_tiled_head_width_match_the_cpu";
+    let _t = turn();
+    if !device(test) {
+        return;
+    }
+    let seq = 768usize;
+    let lens = [766usize, 700, 691, 650, 600, 512, 300, 1];
+    for (h, heads) in [(64u64, 2u64), (128, 2), (128, 1)] {
+        let mut f = rotary::wide_modernbert(&format!("lz-rotary-wide-{h}-{heads}"), h, heads, 128);
+        f.manifest["artifacts"][0]["backends"] = json!(["levelzero", "cpu"]);
+        let (g, c) = (on_gpu(&f), f.load().unwrap());
+        for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
+            let desc = session_desc(8, seq as u32, precision);
+            let gs = Session::create(g.m, Some(&desc)).unwrap();
+            assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32, "a rotary session computes in F32");
+            let cs = Session::create(c.m, Some(&desc)).unwrap();
+            let t = rows(&lens, &[6], &[(0, 400), (3, 10)]);
+            let o = options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
+            let start = Instant::now();
+            gs.write_tokens(&t.batch(), Some(&o)).unwrap();
+            let got = gs.run().unwrap().rows();
+            let ms = start.elapsed().as_secs_f64() * 1e3;
+            cs.write_tokens(&t.batch(), Some(&o)).unwrap();
+            let d = worst(&got, &cs.run().unwrap().rows());
+            println!(
+                "{test}: head width {}: precision {precision}: largest difference {d:e}, {ms:.1} ms on the device",
+                h / heads
+            );
+            assert!(d < BOUND, "head width {}: precision {precision}: {d:e}", h / heads);
+        }
+    }
+}
+
 fn least_cosine(a: &[Vec<f32>], b: &[Vec<f32>]) -> f64 {
     a.iter()
         .zip(b)
