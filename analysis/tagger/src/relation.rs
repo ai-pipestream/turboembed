@@ -50,7 +50,7 @@ impl RelationTagger {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Relations::ID, HeadKind::RelationClassifier)?;
         let head = RelationClassifier::load(&bundle, &spec.name)?;
-        let read = Reader::open(dir, &bundle, head.hidden(), o)?;
+        let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
         let mut kind_of = Vec::new();
         let mut types: Vec<&str> = Vec::new();
         for l in head.labels() {

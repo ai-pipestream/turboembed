@@ -15,7 +15,7 @@ use turbo_analysis::{Annotator, Edges, Error, Execution, Fnv1a, ModelRef, Refs, 
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Sentences, Subwords, Tokens};
 use turbo_relation::Relations;
-use turbo_tagger::annotate::{HeadRunner, find_head};
+use turbo_tagger::annotate::{HeadRunner, find_head, open_words};
 use turbo_tagger::multi::{Head, HeadLayer, Input};
 use turbo_tagger::{RelationTagger, SpanTagger, WordEncoder};
 
@@ -58,7 +58,8 @@ impl HeadGroup {
             let spec = find_head(&bundle, Some(&spec.name), s.layer(), s.kind())?;
             heads.push((s, s.open(&bundle, spec)?));
         }
-        let words = WordEncoder::open(dir, o)?;
+        let taps = heads.iter().flat_map(|(_, h)| h.taps()).max().unwrap_or(1);
+        let words = open_words(dir, o, taps)?;
         for (_, h) in &heads {
             if let Some(&n) = h.hidden().iter().find(|&&n| n != words.hidden()) {
                 return Err(refuse(format!(
@@ -132,7 +133,8 @@ impl HeadGroup {
                 f
             }
         };
-        Ok(Input::new(view, tokens, seqs, self.poolings.clone(), features))
+        let taps = self.words.lock().unwrap_or_else(PoisonError::into_inner).taps();
+        Ok(Input::new(view, tokens, seqs, self.poolings.clone(), features).with_taps(taps))
     }
 
     /// Layer `L` of the step from the shared read of the document.
