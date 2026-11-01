@@ -140,3 +140,38 @@ fn currency_nouns_do_not_consume_following_articles() {
         assert!(quantities(text).is_empty(), "{text}: {:?}", quantities(text));
     }
 }
+
+#[test]
+fn spanish_pipeline_preserves_money_rate_denominators_and_unicode_offsets() {
+    use turbo_analysis::{Analyzer, Document, Ix, Layer, OffsetTable};
+    use turbo_grammar::annotator::{GRAMMAR_MONEY, GrammarAnnotator};
+
+    let text = "💶 5 dólares por hora, 5 dólares por día y 5 dólares.";
+    let analyzer = Analyzer::builder().step(GrammarAnnotator::spanish().bound()).build().unwrap();
+    let mut docs = [Document::new(text)];
+    assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
+    let money = docs[0].get_key(&GRAMMAR_MONEY).unwrap();
+    money.check().unwrap();
+    let got: Vec<(&str, &str, String, Option<&str>)> = (0..money.len())
+        .map(|i| {
+            let ix = Ix::new(i as u32);
+            let m = money.get(ix);
+            (&text[m.span.range()], money.currency[i].as_str(), money.amount(ix).to_plain_string(), money.per(ix))
+        })
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("5 dólares por hora", "USD", "5".to_string(), Some("h")),
+            ("5 dólares por día", "USD", "5".to_string(), Some("d")),
+            ("5 dólares", "USD", "5".to_string(), None),
+        ]
+    );
+    let offsets = OffsetTable::build(text);
+    for (_, span) in money.spans.iter() {
+        for byte in [span.start, span.end] {
+            assert_eq!(offsets.from_utf16(text, offsets.to_utf16(text, byte)).unwrap(), byte);
+            assert_eq!(offsets.from_code_point(text, offsets.to_code_point(text, byte)).unwrap(), byte);
+        }
+    }
+}

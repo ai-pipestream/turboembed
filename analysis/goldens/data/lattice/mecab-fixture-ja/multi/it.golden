@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
 model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	42	start:u32	end:u32
+layer	turbo:tokens	text	42	start:u32	end:u32
 0	4
 5	11
 12	14
@@ -49,8 +49,8 @@ layer	opennlp:tokens	text	42	start:u32	end:u32
 190	191
 191	195
 195	196
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	42	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	42	unknown:u32	features:str
 1	名詞,固有名詞,*,*
 1	名詞,固有名詞,*,*
 1	名詞,固有名詞,*,*

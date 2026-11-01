@@ -9,7 +9,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
-use turbo::manifest::HeadSpec;
+use turbo::manifest::{HeadSpec, LayerMix};
 use turbo_trainer::Example;
 use turbo_trainer::mix::{MixExample, fit_mix};
 
@@ -130,7 +130,7 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
     if corpus.record != cache.corpus {
         return Err(Error(format!("{}: a cache of another corpus or release", cache_dir.display())));
     }
-    let head = spec(&corpus, &HeadOptions { pooling: cache.pooling, crf, bilstm, hash })?;
+    let mut head = spec(&corpus, &HeadOptions { pooling: cache.pooling, crf, bilstm, hash })?;
     let hidden = cache.encoder.hidden;
     let s = &corpus.splits;
     let (train, train_left_out) = examples_at(&cache_dir, &cache, "train", &layers, &s.train, &head.labels)?;
@@ -148,9 +148,10 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         write_head(&out.path, &head, hidden, model.tensors())?;
         (report, None)
     } else {
+        head.layer_mix = Some(LayerMix { layers: layers.len() as u32 });
         let (model, report) = fit_mix(&head, hidden, layers.len(), &train, &dev, &c, &mut |_, _, _| Ok(()))
             .map_err(|e| Error(e.message))?;
-        write_head(&out.path, &head, hidden, model.tagger().tensors())?;
+        write_head(&out.path, &head, hidden, model.tensors())?;
         let (w, gain) = model.weights();
         (report, Some(Mix { weights: w.iter().map(|&v| f64::from(v)).collect(), gain: f64::from(gain) }))
     };

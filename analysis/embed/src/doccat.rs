@@ -4,7 +4,7 @@
 //!
 //! Opens a bundle carrying a `CLASSIFIER_SEQUENCE` head (`manifest.classifier`
 //! with `classifier.weight`, `classifier.bias`, and optional `pooler.dense.weight`
-//! and `pooler.dense.bias`), encodes each text chunk or `opennlp:subwords`
+//! and `pooler.dense.bias`), encodes each text chunk or `turbo:subwords`
 //! window with `TURBO_POOLING_CLS` and `TURBO_NORMALIZE_NONE` through
 //! [`Encoder::run_cls`], and evaluates [`turbo::head::Head::logits_into`] on
 //! the resulting CLS hidden states.

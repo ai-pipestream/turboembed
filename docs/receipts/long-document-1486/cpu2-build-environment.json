@@ -1,0 +1,12 @@
+{
+  "source_commit": "cee65da41953c054a1d142a1da63afe9daeb0c07",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)",
+  "profile": "release",
+  "build_command": "cargo +1.99 build --release -p turbo-eval --bin turbo-eval --example long_document_screen --example long_document_report -j 2",
+  "cpu_threads": 2,
+  "precision": "model",
+  "device": "cpu",
+  "timing_scope": "Shared host: stage times are provenance, not isolated throughput evidence.",
+  "bundle_manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3"
+}

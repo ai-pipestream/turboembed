@@ -119,6 +119,12 @@ pub trait Keep {
     fn keep(&self, bytes: &[u8]) -> Result<(), String>;
 }
 
+impl<K: Keep + ?Sized> Keep for std::sync::Arc<K> {
+    fn keep(&self, bytes: &[u8]) -> Result<(), String> {
+        (**self).keep(bytes)
+    }
+}
+
 impl Keep for Blobs {
     fn keep(&self, bytes: &[u8]) -> Result<(), String> {
         self.put(bytes).map(|_| ()).map_err(|e| e.to_string())

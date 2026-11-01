@@ -7,9 +7,9 @@ input	detokenizer/latin-empty	0	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b93
 model	latin-detokenizer.xml	8de094b90fd1856620ddb7c0d361833055c58d945b13f8263d027797de9510f6e1cd4b73fffaa6693dab807a11b618ffe8d6ec060d2d4fc40cdc83a91afaa32f
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	0	start:u32	end:u32
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	0	operation:str
+layer	turbo:tokens	text	0	start:u32	end:u32
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	0	operation:str
 end	turbo:detokenization
 layer	turbo:detokenized	document	1	text:str	marked:str
 	

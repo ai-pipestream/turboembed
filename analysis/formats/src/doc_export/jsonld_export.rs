@@ -113,7 +113,7 @@ impl DocumentFormatter for JsonLdFormatter {
 
         if let Some(sents) = doc.get::<Sentences>() {
             let view = sents.spans.view();
-            let mut s = String::from("    \"opennlp:sentences\": [");
+            let mut s = String::from("    \"turbo:sentences\": [");
             for (i, (_, span)) in sents.spans.iter().enumerate() {
                 if i > 0 {
                     s.push_str(", ");
@@ -123,7 +123,7 @@ impl DocumentFormatter for JsonLdFormatter {
                 let text = &source_text[src.range()];
                 let _ = write!(
                     s,
-                    "{{\"@type\": \"opennlp:Sentence\", \"index\": {i}, \"start\": {start}, \"end\": {end}, \"text\": {}}}",
+                    "{{\"@type\": \"turbo:Sentence\", \"index\": {i}, \"start\": {start}, \"end\": {end}, \"text\": {}}}",
                     json_string(text),
                 );
             }
@@ -145,7 +145,7 @@ impl DocumentFormatter for JsonLdFormatter {
             let deps = get_bound_layer::<Dependencies<Tokens>>(doc, tok_key, Some(tok_len))?;
             let stopwords = get_bound_layer::<Stopwords>(doc, tok_key, Some(tok_len))?;
 
-            let mut s = String::from("    \"opennlp:tokens\": [");
+            let mut s = String::from("    \"turbo:tokens\": [");
             for (t_ix, span) in tokens.spans.iter() {
                 let i = t_ix.get();
                 if i > 0 {
@@ -169,7 +169,7 @@ impl DocumentFormatter for JsonLdFormatter {
                 };
                 let _ = write!(
                     s,
-                    "{{\"@type\": \"opennlp:Token\", \"index\": {i}, \"sentence\": {sent_idx}, \"start\": {start}, \"end\": {end}, \"text\": {}, \"pos\": {}, \"lemma\": {}, \"stem\": {}, \"feats\": {}, \"head\": {head_json}, \"deprel\": {}, \"stopword\": {stop_val}}}",
+                    "{{\"@type\": \"turbo:Token\", \"index\": {i}, \"sentence\": {sent_idx}, \"start\": {start}, \"end\": {end}, \"text\": {}, \"pos\": {}, \"lemma\": {}, \"stem\": {}, \"feats\": {}, \"head\": {head_json}, \"deprel\": {}, \"stopword\": {stop_val}}}",
                     json_string(text),
                     json_string(pos_tag),
                     json_string(lemma_val),
@@ -226,7 +226,7 @@ impl DocumentFormatter for JsonLdFormatter {
 
         if let Some(entities) = doc.get::<Entities>() {
             let view = entities.spans.view();
-            let mut s = String::from("    \"opennlp:entities\": [");
+            let mut s = String::from("    \"turbo:entities\": [");
             for (e_ix, env) in entities.spans.iter() {
                 let row = e_ix.get();
                 if row > 0 {
@@ -251,7 +251,7 @@ impl DocumentFormatter for JsonLdFormatter {
                 let score = entities.score[row];
                 let _ = write!(
                     s,
-                    "{{\"@type\": \"opennlp:Entity\", \"index\": {row}, \"kind\": {}, \"start\": {start}, \"end\": {end}, \"fragments\": {frags_json}, \"text\": {}, \"score\": {}}}",
+                    "{{\"@type\": \"turbo:Entity\", \"index\": {row}, \"kind\": {}, \"start\": {start}, \"end\": {end}, \"fragments\": {frags_json}, \"text\": {}, \"score\": {}}}",
                     json_string(label),
                     json_string(&text),
                     format_json_f64(score),
@@ -263,7 +263,7 @@ impl DocumentFormatter for JsonLdFormatter {
 
         if let Some(relations) = get_bound_layer::<Edges<Entities, Entities>>(doc, Key::<Entities>::DEFAULT.id(), None)?
         {
-            let mut s = String::from("    \"turbo:edges<opennlp:entities,opennlp:entities>\": [");
+            let mut s = String::from("    \"turbo:edges<turbo:entities,turbo:entities>\": [");
             for (r_ix, edge) in relations.iter() {
                 let row = r_ix.get();
                 if row > 0 {

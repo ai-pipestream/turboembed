@@ -7,7 +7,7 @@ input	detokenizer/latin-test-string	22	22	303c706844bdaef56194e92ba2faa5067615f6
 model	latin-detokenizer.xml	8de094b90fd1856620ddb7c0d361833055c58d945b13f8263d027797de9510f6e1cd4b73fffaa6693dab807a11b618ffe8d6ec060d2d4fc40cdc83a91afaa32f
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	7	start:u32	end:u32
+layer	turbo:tokens	text	7	start:u32	end:u32
 0	1
 2	6
 7	8
@@ -15,8 +15,8 @@ layer	opennlp:tokens	text	7	start:u32	end:u32
 11	17
 18	19
 20	21
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	7	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	7	operation:str
 NO_OPERATION
 NO_OPERATION
 MERGE_TO_LEFT

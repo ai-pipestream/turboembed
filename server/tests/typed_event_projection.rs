@@ -159,13 +159,13 @@ async fn malformed_projected_arguments_and_anchors_are_refused() {
                         2 => a.span = Some(SpanFragment { start: 0, end: len + 1 }),
                         3 => a.span = Some(SpanFragment { start: interior, end: interior }),
                         4 => a.anchored_index = Some(0),
-                        5 => a.anchored_layer = "opennlp:entities".into(),
+                        5 => a.anchored_layer = "turbo:entities".into(),
                         6 => {
                             a.anchored_layer = "test:unknown".into();
                             a.anchored_index = Some(0);
                         }
                         7 => {
-                            a.anchored_layer = "opennlp:entities".into();
+                            a.anchored_layer = "turbo:entities".into();
                             a.anchored_index = Some(u32::MAX);
                         }
                         8 => a.anchored_layer.clear(),

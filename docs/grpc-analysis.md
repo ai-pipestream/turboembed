@@ -49,12 +49,49 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 | `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `Sentences`, `Tokens`, `turbo:boundaries`, `Entities`, `Subwords`, `turbo:chunks`, `turbo:levels`, `Embeddings<turbo:chunks>` | `TASK_EMBED` |
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
 | `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
+| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas` | `turbo:structure`, `Sentences`, `Tokens`, `PosTags`, `Entities`, `Dependencies`, `Lemmas` | `TASK_EMBED`, `head.pos`, `head.entities`, `head.dependencies`, `head.lemmas` |
 
 A profile's output set never changes within a version. When a profile or
-explicit step requires a bundle capability (`TASK_EMBED` or `embed.sparse`)
-that is not loaded on the server (or does not match `req.model` when named),
-the call refuses before streaming with `TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`)
-naming the missing bundle requirement.
+explicit step requires a bundle capability (`TASK_EMBED`, `embed.sparse` or
+a `head.*` entry) that is not loaded on the server (or does not match
+`req.model` when named), the call refuses before streaming with
+`TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`) naming the missing bundle
+requirement.
+
+### Bundle head steps
+
+A `TASK_EMBED` bundle may carry learned heads over its encoder
+(docs/bundle.md, Heads). Each head the bundle provides is a step, named
+for the layer it writes, and `Capabilities` lists a bundle's steps under
+`BundleCapabilities.head_steps`:
+
+| Step | Head | Layer written | Requirement |
+|---|---|---|---|
+| `turbo-tagger:pos` | `HEAD_TOKEN_TAGGER`, `SCHEME_TAGS`, layer `pos` | `PosTags` | `head.pos` |
+| `turbo-tagger:morphology` | `HEAD_TOKEN_TAGGER`, `SCHEME_TAGS`, layer `feats` | `MorphFeatures<Tokens>` (`turbo:feats`) | `head.morphology` |
+| `turbo-tagger:entities` | `HEAD_TOKEN_TAGGER`, `SCHEME_BIO` or `SCHEME_BILOU`, layer `entities` | `Entities` | `head.entities` |
+| `turbo-tagger:dependencies` | `HEAD_BIAFFINE_PARSER`, layer `dependencies` | `Dependencies<Tokens>` | `head.dependencies` |
+| `turbo-tagger:lemmas` | `HEAD_EDIT_TREE_LEMMATIZER`, layer `lemmas` | `Lemmas` | `head.lemmas` |
+| `turbo-tagger:spans` | `HEAD_SPAN_CLASSIFIER`, layer `entities` | `Entities` | `head.spans` |
+| `turbo-tagger:relations` | `HEAD_RELATION_CLASSIFIER`, layer `relations` | `Relations` and `Edges<Entities, Entities>` | `head.relations` |
+
+A step runs the one head of the bundle of that kind writing that layer; a
+bundle with two such heads, or none, serves no such step. The steps read
+the source view's `Tokens` and `Sentences` (and the bundle's `Subwords`
+when `turbo:subwords` ran on the same bundle), a sentence at a time, and
+write each layer exactly as the `turbo-tagger` crate's annotators write
+it. The first five share one encoder pass: whichever runs first reads
+every window of the document once, pooling the states each head asks for,
+and the others decode from the same states, so a request naming all of
+them costs one forward per window. The span step and the relation step
+read on their own; the relation step needs the `Entities` layer, so it
+runs after the entity or span step. `turbo-tagger:heads` in an explicit
+step list stands for every head step the chosen bundle provides (the
+entity step over the span step when it has both), and is refused when the
+bundle carries no head. A head step over a bundle lacking the head, or
+`req.model` naming such a bundle, refuses with `TURBO_E_BUNDLE_NOT_FOUND`
+naming the `head.*` requirement; with no `req.model`, the pipeline runs
+on the first loaded embed bundle providing every head it needs.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
@@ -251,6 +288,7 @@ request, per loaded bundle:
 | `context_limit` | Tokens per row; a longer row is `TURBO_E_CAPACITY` naming `max_seq`. |
 | `batch_limit` | Rows per run; a larger batch is `TURBO_E_CAPACITY` naming `max_batch`. |
 | `schema` | The limits an extraction schema may carry, the schema-extract crate's `Limits` (`max_entity_types`, `max_classification_tasks`, `max_labels_per_task`, `max_structures`, `max_fields_per_structure`, `max_text_bytes`, `max_prompt_subwords`, `max_words`); unset until the server loads a bundle whose task reads a schema. |
+| `head_steps` | The `AnalyzeDocumentProgressive` head steps the bundle's heads serve (`turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`, `turbo-tagger:relations`), in that order; empty for a bundle without heads. |
 
 The limits are the session's: what a request is actually held to, where a
 server started below the model's limits. The response's `limits` field

@@ -15,14 +15,28 @@ pub fn init<R: Real>(inp: usize, out: usize, rank: usize, rng: &mut Rng) -> (Vec
     ((0..rank * inp).map(|_| R::from_f64(rng.uniform(limit))).collect(), vec![R::ZERO; out * rank])
 }
 
-/// y [rows, out] += s (x A^T) B^T; h [rows, rank] keeps x A^T for backward.
+/// y [rows, out] += s (x A^T) B^T; h [rows, rank] keeps x A^T for
+/// backward, rounded to bfloat16 before B^T when `round` is set.
 #[allow(clippy::too_many_arguments)]
-pub fn forward<R: Real>(x: &[R], a: &[R], b: &[R], inp: usize, rank: usize, s: R, y: &mut [R], h: &mut Vec<R>) {
+pub fn forward<R: Real>(
+    x: &[R],
+    a: &[R],
+    b: &[R],
+    inp: usize,
+    rank: usize,
+    s: R,
+    round: bool,
+    y: &mut [R],
+    h: &mut Vec<R>,
+) {
     let rows = x.len() / inp;
     let out = y.len() / rows.max(1);
     h.clear();
     h.resize(rows * rank, R::ZERO);
     matmul::forward(x, a, inp, rank, h);
+    if round {
+        h.iter_mut().for_each(|v| *v = v.bf16());
+    }
     let mut low = vec![R::ZERO; rows * out];
     matmul::forward(h, b, rank, out, &mut low);
     for (y, l) in y.iter_mut().zip(&low) {

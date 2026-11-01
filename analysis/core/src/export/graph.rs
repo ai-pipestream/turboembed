@@ -82,7 +82,11 @@ pub(super) fn get_provenance(r: &mut Reader<'_>) -> Result<ProvenanceRecord, Exp
     let config = r.u64()?;
     let model = match r.u8()? {
         0 => None,
-        1 => Some(ModelRef { id: r.string()?, revision: r.string()?, sha256: r.string()? }),
+        1 => Some(ModelRef {
+            id: canonical_model_id(&r.string()?).into_owned(),
+            revision: r.string()?,
+            sha256: r.string()?,
+        }),
         tag => return Err(malformed(format!("a model tag of {tag}"))),
     };
     let exec_tag = r.u8()?;
@@ -239,7 +243,7 @@ impl DocumentGraph {
         }
         let mut layers = Vec::new();
         for _ in 0..r.usize()? {
-            let layer = r.string()?;
+            let layer = canonical_owned(r.string()?);
             let instance = r.string()?;
             let schema = r.u16()?;
             let len = r.u32()?;

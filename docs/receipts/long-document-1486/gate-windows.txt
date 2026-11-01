@@ -1,0 +1,7 @@
+contract-nli: 84.21 -> 85.81, +1.60 points (95% interval -1.97 to +5.79, p = 0.4809, 17 queries)
+cuad: 68.04 -> 68.57, +0.53 points (95% interval -2.81 to +3.66, p = 0.7603, 40 queries)
+gutenqa: 92.27 -> 93.98, +1.71 points (95% interval +1.09 to +2.36, p = 0.0001, 3000 queries)
+qasper: 38.59 -> 37.66, -0.93 points (95% interval -1.84 to -0.03, p = 0.0428, 1451 queries)  below the floor
+FAIL: 0 of 4 sets gained at least 2 points with an interval above zero (2 needed), floor -0.5
+
+exit_status=1

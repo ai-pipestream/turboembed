@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/crlf	47	47	47ea4b61f07bdb626b89e6517289425d31986a7b0043eaf68ddffde787b7c615
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	15	start:u32	end:u32
+layer	turbo:tokens	text	15	start:u32	end:u32
 0	5
 6	10
 10	11
@@ -22,4 +22,4 @@ layer	opennlp:tokens	text	15	start:u32	end:u32
 40	45
 45	46
 46	47
-end	opennlp:tokens
+end	turbo:tokens

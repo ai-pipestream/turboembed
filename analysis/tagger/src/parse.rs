@@ -15,7 +15,7 @@ use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Re
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Dependencies, Sentences, Subwords, Tag, Tokens};
 
-use crate::annotate::{HeadRunner, find_head, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, model_ref, open_words, refuse};
 use crate::words::WordEncoder;
 
 /// One sentence parsed: each word's head (0 the root, else the word's
@@ -45,7 +45,7 @@ impl DependencyParser {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Dependencies::<Tokens>::ID, HeadKind::BiaffineParser)?;
         let parser = BiaffineParser::load(&bundle, &spec.name)?;
-        let words = WordEncoder::open(dir, o)?;
+        let words = open_words(dir, o, parser.taps())?;
         if words.hidden() != parser.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",
@@ -125,10 +125,10 @@ impl Annotator for DependencyParser {
 /// Each sequence parsed by `parser` from its word features.
 pub(crate) fn parse_with(parser: &BiaffineParser, features: &[Vec<f32>]) -> Result<Vec<Parse>, CoreError> {
     let (mut arcs, mut scores, mut work) = (Vec::new(), Vec::new(), Work::default());
-    let hidden = parser.hidden();
+    let stride = parser.taps() * parser.hidden();
     let mut out = Vec::with_capacity(features.len());
     for f in features {
-        let ids: Vec<u32> = (0..(f.len() / hidden) as u32).collect();
+        let ids: Vec<u32> = (0..(f.len() / stride) as u32).collect();
         let n = parser.arcs(f, &ids, &mut arcs, &mut work)?;
         let mut heads = Vec::new();
         parser.decode(&arcs, n, &mut heads)?;

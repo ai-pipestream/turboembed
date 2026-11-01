@@ -17,7 +17,7 @@ use turbo_tokenize::{SimpleTokenizer, TokenizerOptions};
 use super::{Outcome, Run, RustError, analyze, analyze_document, has_cut, outcome};
 use crate::resources::{Resources, Unavailable};
 
-const TOKENS: &str = "opennlp:tokens";
+const TOKENS: &str = "turbo:tokens";
 
 /// The POS models that are checked-in fixtures rather than downloads: the
 /// JVM's and the one the Rust trainer wrote.

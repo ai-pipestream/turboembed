@@ -263,7 +263,8 @@ pub enum Rate {
 }
 
 impl Per {
-    pub(super) fn name(self) -> &'static str {
+    /// The canonical lowercase English name of the rate denominator (`"hour"`).
+    pub fn name(self) -> &'static str {
         match self {
             Per::Millisecond => "millisecond",
             Per::Second => "second",
@@ -276,7 +277,8 @@ impl Per {
         }
     }
 
-    pub(super) fn symbol(self) -> &'static str {
+    /// The canonical symbol of the rate denominator (`"h"`, `"d"`, `"s"`).
+    pub fn symbol(self) -> &'static str {
         match self {
             Per::Millisecond => "ms",
             Per::Second => "s",

@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/korean	71	29	60ba1fd14bb56d1bbd0a9ccc6162453017a491f787a98c5a8f0cd592411f196e
 model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	14	start:u32	end:u32
+layer	turbo:tokens	text	14	start:u32	end:u32
 0	6
 6	9
 9	15
@@ -21,8 +21,8 @@ layer	opennlp:tokens	text	14	start:u32	end:u32
 54	60
 60	69
 69	70
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	14	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	14	unknown:u32	features:str
 0	NNG,행위,T,안녕,*,*,*,*
 0	XSV,*,F,하,*,*,*,*
 0	EP+EF,*,F,세요,Inflect,EP,EF,시/EP/*+어요/EF/*
