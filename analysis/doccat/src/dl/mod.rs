@@ -409,7 +409,7 @@ impl<S: DlSequenceScorer, C: ClassificationScoringStrategy> DocumentCategorizerD
 
     pub(crate) fn config_hash_value(&self) -> u64 {
         let mut hash = turbo_analysis::Fnv1a::new();
-        hash.str("opennlp:doccat-dl")
+        hash.str("turbo-doccat:dl")
             .bytes(&[
                 u8::from(self.options.lower_case),
                 u8::from(self.options.normalize_whitespace),

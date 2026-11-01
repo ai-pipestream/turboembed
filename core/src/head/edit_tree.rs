@@ -14,11 +14,20 @@
 //! sentence-initial `Dogs` takes the tree of `dogs` instead of a tree of
 //! its own for every capital letter ([`EditTree::mine_cased`]).
 //!
+//! Two more are ours, for a token split head: `(h N T)` keeps the first
+//! N characters of the token and `(t N T)` the last N, dropping the
+//! rest whatever it is, then rewrites them by `T` (`()` for none). A
+//! clitic is cut from its verb by its own length, so `hacerse` and
+//! `ponerse` give `se` by one tree, `(t 2 ())`, where a match node would
+//! name each verb ([`EditTree::cuts`]). A cut must drop at least one
+//! character, so it never keeps a token whole.
+//!
 //! A tree is written as its label, an S-expression: `(m P S X Y)` keeps all
 //! but the first P and last S characters and rewrites those by X and Y
 //! (`()` for none); `(s 'from' 'to')` substitutes, with `\'` and `\\`
-//! escaping inside quotes; `(l T)` lowercases first. [`EditTree::label`]
-//! and [`EditTree::parse`] are inverses.
+//! escaping inside quotes; `(l T)` lowercases first; `(h N T)` and
+//! `(t N T)` cut. [`EditTree::label`] and [`EditTree::parse`] are
+//! inverses.
 
 use turbo_unicode::casemap;
 
@@ -34,6 +43,11 @@ pub enum EditTree {
     /// Lowercase every character by its simple mapping, then rewrite by
     /// the tree, which is never itself a `Lower`.
     Lower(Box<EditTree>),
+    /// Keep the first `keep` characters (at least one, fewer than the
+    /// word has), rewriting them by the tree (none: as they are).
+    Head { keep: u32, tree: Option<Box<EditTree>> },
+    /// Keep the last `keep` characters, as `Head` keeps the first.
+    Tail { keep: u32, tree: Option<Box<EditTree>> },
 }
 
 /// The longest common substring of `a` and `b` as (a start, b start,
@@ -121,7 +135,53 @@ impl EditTree {
                 before.as_deref().map_or(0, Self::substituted) + after.as_deref().map_or(0, Self::substituted)
             }
             EditTree::Lower(t) => t.substituted(),
+            EditTree::Head { tree, .. } | EditTree::Tail { tree, .. } => tree.as_deref().map_or(0, Self::substituted),
         }
+    }
+
+    /// The trees that give `word` from `form` without naming what they
+    /// drop, for a token split head: for each place `word` sits in
+    /// `form`, each way of dropping the characters before and after it
+    /// by a cut (`(h N T)`, `(t N T)`) or, when it is at most as long as
+    /// the word, by name. `se` in `hacerse` gives `(t 2 ())` and
+    /// `(m 5 0 (s 'hacer' '') ())`; `se` in `dárselo` gives
+    /// `(t 4 (h 2 ()))` among four. The whole form, or a word not in
+    /// it, gives none: [`mine`](Self::mine) has that tree.
+    pub fn cuts(form: &str, word: &str) -> Vec<EditTree> {
+        let (f, w): (Vec<char>, Vec<char>) = (form.chars().collect(), word.chars().collect());
+        let mut out = Vec::new();
+        if w.is_empty() || w.len() >= f.len() {
+            return out;
+        }
+        let keep = w.len() as u32;
+        for at in 0..=f.len() - w.len() {
+            if f[at..at + w.len()] != w[..] {
+                continue;
+            }
+            let (p, s) = (at, f.len() - at - w.len());
+            let drop = |part: &[char]| Box::new(EditTree::Subst { from: part.iter().collect(), to: String::new() });
+            let named = EditTree::Match {
+                prefix: p as u32,
+                suffix: s as u32,
+                before: (p > 0).then(|| drop(&f[..p])),
+                after: (s > 0).then(|| drop(&f[at + w.len()..])),
+            };
+            let tail = |t: Option<EditTree>| EditTree::Tail { keep: keep + s as u32, tree: t.map(Box::new) };
+            let head = |t: Option<EditTree>| EditTree::Head { keep: keep + p as u32, tree: t.map(Box::new) };
+            match (p > 0, s > 0) {
+                (false, false) => {}
+                (true, false) => out.extend([tail(None), named]),
+                (false, true) => out.extend([head(None), named]),
+                (true, true) => {
+                    let EditTree::Match { before, after, .. } = named.clone() else { unreachable!() };
+                    out.push(tail(Some(EditTree::Head { keep, tree: None })));
+                    out.push(tail(Some(EditTree::Match { prefix: 0, suffix: s as u32, before: None, after })));
+                    out.push(head(Some(EditTree::Match { prefix: p as u32, suffix: 0, before, after: None })));
+                    out.push(named);
+                }
+            }
+        }
+        out
     }
 
     /// The lemma of `form` by this tree, or None when the tree does not
@@ -166,6 +226,20 @@ impl EditTree {
                 let lowered: Vec<char> = part.iter().map(|&c| casemap::lower(c)).collect();
                 t.apply_to(&lowered, out)
             }
+            EditTree::Head { keep, tree } | EditTree::Tail { keep, tree } => {
+                let k = *keep as usize;
+                if k == 0 || k >= part.len() {
+                    return false;
+                }
+                let kept = if matches!(self, EditTree::Head { .. }) { &part[..k] } else { &part[part.len() - k..] };
+                match tree {
+                    Some(t) => t.apply_to(kept, out),
+                    None => {
+                        out.extend(kept);
+                        true
+                    }
+                }
+            }
         }
     }
 
@@ -201,6 +275,15 @@ impl EditTree {
             EditTree::Lower(t) => {
                 out.push_str("(l ");
                 t.write(out);
+                out.push(')');
+            }
+            EditTree::Head { keep, tree } | EditTree::Tail { keep, tree } => {
+                let node = if matches!(self, EditTree::Head { .. }) { 'h' } else { 't' };
+                out.push_str(&format!("({node} {keep} "));
+                match tree {
+                    Some(t) => t.write(out),
+                    None => out.push_str("()"),
+                }
                 out.push(')');
             }
         }
@@ -325,7 +408,19 @@ impl Parser<'_> {
                 self.eat(b')')?;
                 Ok(Some(EditTree::Lower(Box::new(inner))))
             }
-            _ => Err(self.error("expected l, m, s or )")),
+            Some(&node @ (b'h' | b't')) => {
+                self.at += 1;
+                self.eat(b' ')?;
+                let keep = self.number()?;
+                if keep == 0 {
+                    return Err(self.error("a cut keeps at least one character"));
+                }
+                self.eat(b' ')?;
+                let tree = self.tree()?.map(Box::new);
+                self.eat(b')')?;
+                Ok(Some(if node == b'h' { EditTree::Head { keep, tree } } else { EditTree::Tail { keep, tree } }))
+            }
+            _ => Err(self.error("expected h, l, m, s, t or )")),
         }
     }
 }

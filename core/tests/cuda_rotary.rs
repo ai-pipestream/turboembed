@@ -375,11 +375,13 @@ fn a_modernbert_of_head_width_64_matches_the_cpu() {
     }
 }
 
-/// FASTEST's attention past 4096 keys: the generated ModernBERT at 4097
-/// positions takes the tensor cores' attention with F32 sums of the
-/// scores and the output (mma128-acc32) in a session of max_seq 4097,
-/// tuned or not, and the F16 sums (mma128) at 4096. The F16 sums' error
-/// grows with a row's keys; past 4096 it can leave FASTEST's bound.
+/// Attention past 4096 keys: the generated ModernBERT at 4097 positions
+/// takes the tensor cores' attention with F32 cross-chunk sums
+/// (mma128-acc32) in a FASTEST session of max_seq 4097, tuned or not, and
+/// the F16 sums (mma128) at 4096; and on a row of 4097 tokens with a
+/// masked key and a second row past the window, MODEL (fma-tiled, 64
+/// queries to a block) holds to the CPU within BOUND and FASTEST
+/// (mma128-acc32) at the cosine floor.
 #[test]
 fn fastest_takes_f32_attention_sums_past_4096_keys() {
     let test = "fastest_takes_f32_attention_sums_past_4096_keys";
@@ -389,7 +391,7 @@ fn fastest_takes_f32_attention_sums_past_4096_keys() {
     }
     let f = wide_modernbert("cu-rotary-long", Some(4097));
     f.write();
-    let g = on_gpu(&f.dir);
+    let (g, c) = (on_gpu(&f.dir), Loaded::load(&f.dir).unwrap());
     turbo::tuning::use_cache_dir(Some(None));
     for (seq, tuning, attn) in [
         (4096, TURBO_AUTOTUNE_OFF, "attn=mma128,"),
@@ -406,6 +408,23 @@ fn fastest_takes_f32_attention_sums_past_4096_keys() {
         assert!(!choices.contains(other), "max_seq {seq}, tuning {tuning}: {choices}");
     }
     turbo::tuning::use_cache_dir(None);
+    let t = rows(&[4097], &[], &[(0, 2000)], false);
+    let cs = Session::create(c.m, Some(&session_desc(1, 4097, TURBO_PRECISION_MODEL))).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    for (prec, attn) in [(TURBO_PRECISION_MODEL, "attn=fma-tiled,"), (TURBO_PRECISION_FASTEST, "attn=mma128-acc32,")] {
+        let gs = Session::create(g.m, Some(&session_desc(1, 4097, prec))).unwrap();
+        assert!(field(&gs.info().choices).contains(attn));
+        gs.write_tokens(&t.batch(), None).unwrap();
+        let got = gs.run().unwrap().rows();
+        let (d, cos) = (worst(&got, &want), least_cosine(&got, &want));
+        println!("{test}: precision {prec} ({attn}): largest difference {d:e}, 1 - least cosine {:e}", 1.0 - cos);
+        if prec == TURBO_PRECISION_FASTEST {
+            assert!(cos >= FASTEST_COSINE, "cosine {cos}");
+        } else {
+            assert!(d < BOUND, "diff {d:e}");
+        }
+    }
 }
 
 /// FASTEST on the tiny bundles held to the CPU at the cosine floor on each

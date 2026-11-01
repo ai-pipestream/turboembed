@@ -24,14 +24,15 @@ pub struct Splits {
     pub test: Vec<Sentence>,
 }
 
-/// How a corpus's labels read: one tag a word, BIO entity spans, or
-/// typed relations between a document's entities (`redocred`), which no
-/// sentence of words holds and the tag and span scoring never sees.
+/// How a corpus's labels read: one tag a word, BIO entity spans,
+/// document-level coreference clusters, or typed relations between a
+/// document's entities (`redocred`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Task {
     Tags,
     Bio,
+    Coref,
     Relations,
 }
 

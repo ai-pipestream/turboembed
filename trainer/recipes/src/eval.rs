@@ -68,6 +68,15 @@ impl SpanScore {
     }
 }
 
+/// Precision, recall, and F1 for a single sub-metric.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Prf {
+    pub precision: f64,
+    pub recall: f64,
+    pub f1: f64,
+}
+
 /// A split's score.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -89,17 +98,37 @@ pub enum Metrics {
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         coarse: BTreeMap<String, SpanScore>,
     },
+    Coref {
+        documents: usize,
+        mentions: usize,
+        gold_clusters: usize,
+        predicted_clusters: usize,
+        muc: Prf,
+        b_cubed: Prf,
+        ceaf_e: Prf,
+        conll_f1: f64,
+    },
     /// Relations between entities: exact (head, tail, label) triples,
     /// micro over every label but `none`, and per label.
     Relations { all: SpanScore, per_type: BTreeMap<String, SpanScore> },
 }
 
 impl Metrics {
-    /// The headline number: accuracy, or micro span F1.
+    /// The headline number: accuracy, micro span F1, or CoNLL F1.
     pub fn score(&self) -> f64 {
         match self {
             Metrics::Tags { accuracy, .. } => *accuracy,
             Metrics::Spans { all, .. } | Metrics::Relations { all, .. } => all.f1,
+            Metrics::Coref { conll_f1, .. } => *conll_f1,
+        }
+    }
+
+    /// The name of the headline metric (`accuracy`, `span_f1`, or `conll_f1`).
+    pub fn metric_name(&self) -> &'static str {
+        match self {
+            Metrics::Tags { .. } => "accuracy",
+            Metrics::Spans { .. } | Metrics::Relations { .. } => "span_f1",
+            Metrics::Coref { .. } => "conll_f1",
         }
     }
 }
@@ -127,7 +156,7 @@ fn tallies(task: Task, gold: &[Sentence], predicted: &[Vec<String>]) -> Vec<[usi
     gold.iter()
         .zip(predicted)
         .map(|(g, p)| match task {
-            Task::Tags => [g.labels.iter().zip(p).filter(|(a, b)| a == b).count(), g.labels.len(), 0],
+            Task::Tags | Task::Coref => [g.labels.iter().zip(p).filter(|(a, b)| a == b).count(), g.labels.len(), 0],
             Task::Bio | Task::Relations => {
                 let (want, got) = (spans(&g.labels), spans(p));
                 [got.iter().filter(|s| want.contains(s)).count(), got.len(), want.len()]
@@ -144,7 +173,7 @@ fn headline(task: Task, t: &[[usize; 3]], pick: impl Fn(usize) -> usize) -> f64 
     }
     let r = |a: usize, b: usize| if b == 0 { 0.0 } else { a as f64 / b as f64 };
     match task {
-        Task::Tags => r(sum[0], sum[1]),
+        Task::Tags | Task::Coref => r(sum[0], sum[1]),
         Task::Bio | Task::Relations => r(2 * sum[0], sum[1] + sum[2]),
     }
 }
@@ -168,7 +197,7 @@ pub fn evaluate(
         assert_eq!(g.labels.len(), p.len(), "one label a word");
     }
     match task {
-        Task::Tags => {
+        Task::Tags | Task::Coref => {
             let (mut words, mut correct, mut uw, mut uc, mut ul) = (0, 0, 0, 0, 0);
             for (g, p) in gold.iter().zip(predicted) {
                 for ((w, a), b) in g.words.iter().zip(&g.labels).zip(p) {

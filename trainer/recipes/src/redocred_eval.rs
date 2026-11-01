@@ -62,6 +62,7 @@ pub fn spec(corpus: &RelationCorpus, o: &RelationOptions) -> Result<HeadSpec> {
         hash_embed: None,
         layer_mix: None,
         span: None,
+        coref: None,
         relation: Some(RelationShape {
             mlp: o.mlp,
             entity_labels: ENTITY_TYPES.iter().map(|t| (*t).to_owned()).collect(),

@@ -22,15 +22,15 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
         ids("en", Component::DocumentCategorizer),
         [
             "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1",
+            "turbo-en-goemotions-modernbert-base-head-1",
+            "turbo-en-civil-comments-modernbert-base-head-1",
+            "turbo-en-civil-comments-modernbert-base-context-head-1",
             "turbo-en-goemotions-minilm-l6-v2-head-1",
             "turbo-en-goemotions-bge-small-en-v1.5-head-1",
-            "turbo-en-goemotions-modernbert-base-head-1",
             "turbo-en-civil-comments-minilm-l6-v2-head-1",
             "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
             "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
             "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
-            "turbo-en-civil-comments-modernbert-base-head-1",
-            "turbo-en-civil-comments-modernbert-base-context-head-1",
         ]
     );
     // The tokenizers are fetched by id beside their models: no component,
