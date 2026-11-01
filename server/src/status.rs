@@ -37,8 +37,17 @@ pub fn grpc_code(code: i32) -> Code {
 
 /// The fields of turbo_embed_options, 1-based: what a write's
 /// turbo_error.field names.
-pub const EMBED_OPTIONS: [&str; 8] =
-    ["truncate", "max_tokens", "prompt_role", "normalize", "pooling", "output_dim", "quantization", "int8_ranges"];
+pub const EMBED_OPTIONS: [&str; 9] = [
+    "truncate",
+    "max_tokens",
+    "prompt_role",
+    "normalize",
+    "pooling",
+    "output_dim",
+    "quantization",
+    "int8_ranges",
+    "layers",
+];
 
 /// The fields of turbo_embed_options a request names as parameters: every
 /// one but int8_ranges, which is an input tensor.

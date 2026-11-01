@@ -67,6 +67,7 @@ pub fn spec(
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: Some(SpanShape { max_words, width_dim }),
         relation: None,
         license_class: Some(record.class()?),

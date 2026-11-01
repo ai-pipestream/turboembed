@@ -47,6 +47,7 @@ pub(super) struct Rows {
     lens: Vec<usize>,
     seq: usize,
     ranges: Vec<turbo_token_range>,
+    taps: usize,
     pooling: u32,
     normalize: u32,
     output_dim: usize,
@@ -90,6 +91,7 @@ impl Rows {
             lens,
             seq: 0,
             ranges,
+            taps: 1,
             pooling: 0,
             normalize: 0,
             output_dim: 0,
@@ -123,6 +125,7 @@ impl Rows {
         }
         self.seq = s;
         self.ranges.clear();
+        self.taps = 1;
         self.pooling = r.pooling;
         self.normalize = r.normalize;
         self.output_dim = r.output_dim as usize;
@@ -138,13 +141,39 @@ impl Rows {
     ) {
         self.write(r, ids, mask);
         self.ranges.extend_from_slice(ranges);
+        self.taps = (r.taps as usize).max(1);
     }
 
     /// Run the written rows into `out`: a vector per row, or per range
-    /// after `write_ranges`, output_dim values each. False when the
-    /// encoder refused a row, which the core's checks leave no input for.
+    /// after `write_ranges` (`[taps, ranges, output_dim]`), output_dim
+    /// values each. False when the encoder refused a row, which the
+    /// core's checks leave no input for.
     pub(super) fn run(&mut self, pool: &mut Pool, out: &mut [f32]) -> bool {
-        let (seq, h) = (self.seq, self.hidden);
+        let (seq, h, od) = (self.seq, self.hidden, self.output_dim);
+        if !self.ranges.is_empty() && self.taps > 1 {
+            let (ranges, count, normalize, taps) = (&self.ranges, self.ranges.len(), self.normalize, self.taps);
+            for (r, &len) in self.lens.iter().enumerate() {
+                let at = r * seq;
+                let row_states = &mut self.states[at * h..][..len * h];
+                let (ids, mask) = (&self.ids[at..at + len], &self.mask[at..at + len]);
+                let row_mask = &self.mask[at..];
+                if self
+                    .encoder
+                    .encode_taps_into(pool, &mut self.run, (ids, mask), taps, row_states, |k, states| {
+                        for (i, range) in ranges.iter().enumerate().filter(|(_, g)| g.row as usize == r) {
+                            let cols = range.start as usize..(range.end as usize).min(len);
+                            let dst = &mut out[(k * count + i) * od..][..od];
+                            mean_from(states, row_mask, h, cols, dst);
+                            finish_vec(normalize, dst);
+                        }
+                    })
+                    .is_err()
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
         for (r, &len) in self.lens.iter().enumerate() {
             let at = r * seq;
             let out = &mut self.states[at * h..][..len * h];
@@ -153,7 +182,6 @@ impl Rows {
                 return false;
             }
         }
-        let od = self.output_dim;
         if self.ranges.is_empty() {
             for r in 0..self.lens.len() {
                 let dst = &mut out[r * od..][..od];
@@ -180,29 +208,36 @@ impl Rows {
     /// The mean of row `r`'s live tokens in `cols`, as the BERT path takes
     /// it: summed in F32 in column order, then scaled by one over the count.
     fn mean(&self, r: usize, cols: std::ops::Range<usize>, dst: &mut [f32]) {
-        let mask = &self.mask[r * self.seq..];
-        dst.fill(0.0);
-        let mut n = 0u32;
-        for p in cols.filter(|&p| mask[p]) {
-            for (d, &x) in dst.iter_mut().zip(&self.state(r)[p * self.hidden..]) {
-                *d += x;
-            }
-            n += 1;
-        }
-        let inv = 1.0 / n.max(1) as f32;
-        for d in dst.iter_mut() {
-            *d *= inv;
-        }
+        mean_from(self.state(r), &self.mask[r * self.seq..], self.hidden, cols, dst);
     }
 
     /// Normalize a pooled vector as the write asked, as the BERT path does.
     fn finish(&self, dst: &mut [f32]) {
-        if self.normalize == TURBO_NORMALIZE_L2 {
-            let norm = dst.iter().map(|&v| v as f64 * v as f64).sum::<f64>().sqrt().max(1e-12);
-            let inv = (1.0 / norm) as f32;
-            for d in dst.iter_mut() {
-                *d *= inv;
-            }
+        finish_vec(self.normalize, dst);
+    }
+}
+
+fn mean_from(row_states: &[f32], mask: &[bool], hidden: usize, cols: std::ops::Range<usize>, dst: &mut [f32]) {
+    dst.fill(0.0);
+    let mut n = 0u32;
+    for p in cols.filter(|&p| mask[p]) {
+        for (d, &x) in dst.iter_mut().zip(&row_states[p * hidden..]) {
+            *d += x;
+        }
+        n += 1;
+    }
+    let inv = 1.0 / n.max(1) as f32;
+    for d in dst.iter_mut() {
+        *d *= inv;
+    }
+}
+
+fn finish_vec(normalize: u32, dst: &mut [f32]) {
+    if normalize == TURBO_NORMALIZE_L2 {
+        let norm = dst.iter().map(|&v| v as f64 * v as f64).sum::<f64>().sqrt().max(1e-12);
+        let inv = (1.0 / norm) as f32;
+        for d in dst.iter_mut() {
+            *d *= inv;
         }
     }
 }

@@ -116,6 +116,7 @@ fn make_spec(name: &str, layer: &str, kind: HeadKind, scheme: Scheme, decode: De
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
         license_class: None,

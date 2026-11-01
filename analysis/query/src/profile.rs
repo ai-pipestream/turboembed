@@ -188,7 +188,7 @@ impl QueryProfileBuilder {
         // Trigger-gated grammar and time chart parsers (English + Spanish).
         qb = qb
             .step_skip_when(
-                QueryGrammarAnnotator::english().bound(),
+                QueryGrammarAnnotator::for_language(&self.default_language).bound(),
                 Some(|doc| doc.get::<Tokens>().is_some_and(|t| !crate::model::has_grammar_trigger(doc.source(), t))),
             )
             .add(QueryTimeAnnotator::english(self.reference_datetime))

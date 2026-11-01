@@ -142,6 +142,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_embed_options", "output_dim", offset_of!(turbo_embed_options, output_dim)),
         ("turbo_embed_options", "quantization", offset_of!(turbo_embed_options, quantization)),
         ("turbo_embed_options", "int8_ranges", offset_of!(turbo_embed_options, int8_ranges)),
+        ("turbo_embed_options", "layers", offset_of!(turbo_embed_options, layers)),
+        ("turbo_embed_options", "reserved", offset_of!(turbo_embed_options, reserved)),
         ("turbo_token_batch", "batch", offset_of!(turbo_token_batch, batch)),
         ("turbo_token_batch", "seq", offset_of!(turbo_token_batch, seq)),
         ("turbo_token_batch", "row_stride", offset_of!(turbo_token_batch, row_stride)),

@@ -14,7 +14,7 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{LanguageSpans, Sentences, Subwords, Tokens, UNDETERMINED, Words};
 use turbo_unicode::Script;
 
-use crate::annotate::{Decoded, HeadRunner, decode_with, find_head, forms_of, model_ref, refuse};
+use crate::annotate::{Decoded, HeadRunner, decode_with, find_head, forms_of, model_ref, open_words, refuse};
 use crate::multi::{Head, HeadLayer, Input, wrong_head};
 use crate::words::WordEncoder;
 
@@ -38,7 +38,8 @@ impl WordSplitter {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Words::ID, HeadKind::TokenSplit)?;
         let splitter = TokenSplitter::load(&bundle, &spec.name)?;
-        let words = WordEncoder::open(dir, o)?;
+        let taps = spec.layer_mix.map_or(1, |m| m.layers as usize);
+        let words = open_words(dir, o, taps)?;
         if words.hidden() != splitter.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",
@@ -95,10 +96,10 @@ pub(crate) fn split_with(
     let mut scores = Vec::new();
     let mut labels = Vec::new();
     let mut work = Work::default();
-    let hidden = splitter.hidden();
+    let stride = splitter.spec().layer_mix.map_or(1, |m| m.layers as usize) * splitter.hidden();
     let mut out = Vec::with_capacity(features.len());
     for (f, s) in features.iter().zip(forms) {
-        let n = f.len() / hidden;
+        let n = f.len() / stride;
         let words: Vec<u32> = (0..n as u32).collect();
         splitter.scores(f, &words, Some(s), &mut scores, &mut work)?;
         splitter.decode(&scores, s, &mut labels)?;
@@ -171,8 +172,9 @@ impl HeadLayer for Words {
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Splitter { splitter } = head else { return wrong_head() };
-        let f = input.features(splitter.spec().word_pooling)?;
-        let split = split_with(splitter, f, &input.forms).map_err(|e| e.to_string())?;
+        let taps = splitter.spec().layer_mix.map_or(1, |m| m.layers as usize);
+        let f = input.tapped(splitter.spec().word_pooling, taps)?;
+        let split = split_with(splitter, &f, &input.forms).map_err(|e| e.to_string())?;
         words_layer(input.view, input.tokens, &input.seqs, split)
     }
 }
@@ -328,8 +330,8 @@ impl HeadLayer for LanguageSpans {
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
-        let f = input.features(tagger.spec().word_pooling)?;
-        let decoded = decode_with(tagger, f, &input.forms).map_err(|e| e.to_string())?;
+        let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
+        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
         language_layer(tagger, input.view, input.tokens, &input.seqs, &decoded, set)
     }
 }

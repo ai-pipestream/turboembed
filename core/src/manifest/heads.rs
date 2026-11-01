@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::helpers::{fits, positive, required};
-use super::{Format, LicenseClass, Manifest, RelationShape};
+use super::{Format, LayerMix, LicenseClass, Manifest, RelationShape};
 use crate::status::{Result, invalid};
 
 /// The most heads one bundle carries.
@@ -70,6 +70,11 @@ pub struct HeadSpec {
     /// absent for every other kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relation: Option<RelationShape>,
+    /// A learned scalar mix of the encoder's last `layers` layers, read
+    /// from per-layer taps in one forward pass (`mix.weight` and
+    /// `mix.gamma`); absent when the head reads the final layer alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer_mix: Option<LayerMix>,
     /// The class of the strictest licence among the corpora the head was
     /// trained on (docs/zoo.md); the bundle's tier counts it
     /// ([`Manifest::license_tier`]).
@@ -372,36 +377,7 @@ impl HeadSpec {
             }
         }
         self.validate_kind_rules(&at)?;
-        if let Some(h) = &self.hash_embed {
-            if !self.kind.scores_words() {
-                return Err(invalid(format!(
-                    "manifest.json: {}: only a head that scores words, as a HEAD_TOKEN_TAGGER does, takes it",
-                    at("hash_embed")
-                )));
-            }
-            positive(&at("hash_embed.dim"), h.dim)?;
-            if h.dim > MAX_HASH_DIM || h.rows.iter().any(|&r| r == 0 || r > MAX_HASH_ROWS) {
-                return Err(invalid(format!(
-                    "manifest.json: {}: dim {} and rows {:?}; dim 1 to {MAX_HASH_DIM}, rows 1 to {MAX_HASH_ROWS}",
-                    at("hash_embed"),
-                    h.dim,
-                    h.rows
-                )));
-            }
-        }
-        if let Some(a) = &self.adapter {
-            positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;
-            positive(&at("adapter.bilstm.layers"), a.bilstm.layers)?;
-            if a.bilstm.hidden > MAX_ADAPTER_HIDDEN || a.bilstm.layers > MAX_ADAPTER_LAYERS {
-                return Err(invalid(format!(
-                    "manifest.json: {}: hidden {} and layers {}; at most {MAX_ADAPTER_HIDDEN} and {MAX_ADAPTER_LAYERS}",
-                    at("adapter.bilstm"),
-                    a.bilstm.hidden,
-                    a.bilstm.layers
-                )));
-            }
-        }
-        Ok(())
+        self.validate_word_inputs(&at)
     }
 }
 
@@ -417,15 +393,25 @@ impl Manifest {
         if self.heads.is_empty() {
             return Ok(());
         }
-        if self.architecture.is_none() {
+        let Some(arch) = &self.architecture else {
             return Err(invalid("manifest.json: heads: requires an encoder architecture"));
-        }
+        };
         if self.heads.len() > MAX_HEADS {
             return Err(invalid(format!("manifest.json: heads: {} heads, at most {MAX_HEADS}", self.heads.len())));
         }
         for (i, h) in self.heads.iter().enumerate() {
             let at = |field: &str| format!("heads[{i}].{field}");
             h.validate(&format!("heads[{i}]"))?;
+            if let Some(m) = &h.layer_mix
+                && m.layers > arch.layers
+            {
+                return Err(invalid(format!(
+                    "manifest.json: {}: {}, over the encoder's {} layers",
+                    at("layer_mix.layers"),
+                    m.layers,
+                    arch.layers
+                )));
+            }
             if h.license_class.is_some() && self.model.license_class.is_none() {
                 return Err(invalid(format!(
                     "manifest.json: {}: set, and model.license_class is not, so the bundle's tier would leave the \

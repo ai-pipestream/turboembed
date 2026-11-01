@@ -186,6 +186,7 @@ impl EmbedContext {
             max_seq: slot.info.max_seq,
             max_ranges: 0,
             cpu_threads: 0,
+            layers: 0,
         }
     }
 
