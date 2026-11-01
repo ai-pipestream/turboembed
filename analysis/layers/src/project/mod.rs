@@ -202,6 +202,7 @@ impl ProjectableLayer for Money {
             coefficient: self.coefficient.clone(),
             scale: self.scale.clone(),
             currency: self.currency.clone(),
+            per: self.per.clone(),
         };
         check_invariants(&out)?;
         Ok(out)

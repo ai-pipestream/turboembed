@@ -10,11 +10,9 @@
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Bound, Error, Ix, IxRange, Refs, Span, Spans, View};
-use turbo_analysis_layers::{
-    DateTime, DocumentDate, Entities, Language, Money, Numbers, Ordinals, Quantities, Tag, TagSet, Times, Tokens,
-};
+use turbo_analysis_layers::{DateTime, DocumentDate, Entities, Language, Tag, TagSet, Times, Tokens};
 use turbo_geo::{DEFAULT_LOCATION_TYPE, Entry, Gazetteer, GeoResolution, Locations, by_prior_view};
-use turbo_grammar::{GRAMMAR, GrammarAnnotator, TimeAnnotator};
+use turbo_grammar::TimeAnnotator;
 use turbo_stopword::Stopwords;
 
 pub(crate) use crate::lang_model::SequentialBuilder;
@@ -22,7 +20,7 @@ use crate::lang_model::{
     COMMON_EN_TIME_PHRASES, COMMON_ES_TIME_PHRASES, is_en_time_trigger, is_es_time_trigger, is_loc_preposition,
     is_non_place_word, is_numeric_time_token, is_place_connector, is_time_ctx, is_time_modifier, with_lowercase,
 };
-pub use crate::lang_model::{QuerySpanDetector, default_span_detector};
+pub use crate::lang_model::{QueryGrammarAnnotator, QuerySpanDetector, default_span_detector};
 
 /// Scans 1-to-4 token phrases against a [`Gazetteer`] and emits candidate
 /// `"location"` entities in `turbo:entities` for [`turbo_geo::GeocodeAnnotator`].
@@ -230,48 +228,6 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for QueryGeocodeAnnotator<G
 
     fn config_hash(&self) -> u64 {
         self.candidates.config_hash()
-    }
-}
-
-/// Query wrapper around [`GrammarAnnotator`] with pre-warmed parser state and
-/// forwarded configuration hash.
-pub struct QueryGrammarAnnotator {
-    inner: GrammarAnnotator,
-    config_hash: u64,
-}
-
-impl QueryGrammarAnnotator {
-    pub fn english() -> Self {
-        let inner = GrammarAnnotator::english();
-        let _ = inner.find("", turbo_analysis::ViewId::SOURCE);
-        let config_hash = inner.config_hash();
-        Self { inner, config_hash }
-    }
-
-    pub fn bound(self) -> Bound<Self> {
-        Bound::new(self).write(0, GRAMMAR).write(1, GRAMMAR).write(3, GRAMMAR)
-    }
-}
-
-impl Annotator for QueryGrammarAnnotator {
-    const ID: &'static str = "turbo-query:grammar";
-    type Reads = (View, Tokens);
-    type Writes = (Numbers, Quantities, Ordinals, Money);
-
-    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        if !crate::model::has_grammar_trigger(view.text(), tokens) {
-            return Ok((
-                Numbers::new(view.id()),
-                Quantities::new(view.id()),
-                Ordinals::new(view.id()),
-                Money::new(view.id()),
-            ));
-        }
-        self.inner.annotate((view,))
-    }
-
-    fn config_hash(&self) -> u64 {
-        self.config_hash
     }
 }
 
