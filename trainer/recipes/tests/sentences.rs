@@ -125,6 +125,22 @@ fn ud_without_newdoc_groups_by_sentences_per_document() {
 }
 
 #[test]
+fn ud_single_marked_document_preserves_all_sentences() {
+    let dir = scratch("ud-one-newdoc");
+    let mut text = String::from("# newdoc id = only\n");
+    for i in 0..25 {
+        text += &format!(
+            "# sent_id = s-{i}\n# text = Hello.\n1\tHello\thello\tINTJ\tUH\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t.\t_\t1\tpunct\t_\t_\n\n"
+        );
+    }
+    write_treebank(&dir, &text);
+    let corpus = read("ud-en-ewt", &dir, true).unwrap();
+    let lens: Vec<_> = corpus.test.iter().map(|d| d.sentences.len()).collect();
+    fs::remove_dir_all(dir).unwrap();
+    assert_eq!(lens, [25]);
+}
+
+#[test]
 fn ud_preserves_authoritative_conllu_text_and_refuses_missing_or_unalignable_text() {
     let dir = scratch("ud-auth-text");
     let conllu_with_auth_text = "\
@@ -274,6 +290,12 @@ fn train_sentences_decreases_loss_is_deterministic_and_loads_into_sentence_tagge
     let r = train_cmd(&data, &out);
 
     assert_eq!(r.corpus.id, "ud-en-ewt-sentences");
+    assert!(r.eval.dictionary.is_none());
+    assert!(r.eval.open_span.is_none());
+    let raw: Value = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert!(raw["eval"].get("dictionary").is_none());
+    assert!(raw["eval"].get("open_span").is_none());
+    assert!(raw["eval"].get("rules").is_some());
     let head = r.head.clone().unwrap();
     assert_eq!(
         (head.kind, head.name.as_str(), head.layer.as_str(), head.labels.as_slice()),

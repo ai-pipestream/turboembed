@@ -290,7 +290,7 @@ fn ud_documents(sents: &[UdSent]) -> Result<Vec<Document>> {
     if sents.is_empty() {
         return Ok(Vec::new());
     }
-    let has_newdoc = sents.iter().skip(1).any(|s| s.new_document);
+    let has_newdoc = sents.iter().any(|s| s.new_document);
     let mut groups: Vec<&[UdSent]> = Vec::new();
     if has_newdoc {
         let mut start = 0;
