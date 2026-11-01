@@ -204,6 +204,10 @@ struct Shape {
      * (TURBO_CUDA_ATTENTION=split), for measuring against the default,
      * which computes Q K^T and P V as register tiles. */
     bool split_attention = false;
+    /* The FMA attention of register tiles at 32 queries to a block
+     * (TURBO_CUDA_ATTENTION=tiled32) in place of the default's 64: twice
+     * the blocks of a row, each loading its keys and values again. */
+    bool narrow_tiles = false;
     /* FASTEST's attention on the tensor cores at 128 queries to a block,
      * keys and values through cp.async (TURBO_CUDA_ATTENTION=128), for
      * measuring against the default of 64. */

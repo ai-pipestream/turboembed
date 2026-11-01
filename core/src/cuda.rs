@@ -58,6 +58,7 @@ unsafe extern "C" {
     fn turbo_cuda_fail_variant(name: *const std::ffi::c_char);
     fn turbo_cuda_variants(ordinal: u32, precision: u32, out: *mut std::ffi::c_char, len: usize) -> i32;
     fn turbo_cuda_use_split_attention(split: i32);
+    fn turbo_cuda_use_narrow_tiles(narrow: i32);
     fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_exact_attention(exact: i32);
     fn turbo_cuda_use_fa32_attention(fa32: i32);
@@ -338,12 +339,18 @@ pub fn use_split_attention(split: Option<bool>) {
     unsafe { turbo_cuda_use_split_attention(split.map_or(-1, i32::from)) };
 }
 
+/// The FMA attention of register tiles from now on: `Some(true)` 32 queries
+/// to a block (TURBO_CUDA_ATTENTION=tiled32), `Some(false)` the default's 64.
+#[cfg(feature = "internals")]
+pub fn use_narrow_tiles(narrow: Option<bool>) {
+    unsafe { turbo_cuda_use_narrow_tiles(narrow.map_or(-1, i32::from)) };
+}
+
 /// FASTEST's attention on the tensor cores in sessions made from now on:
 /// `Some(true)` the kernel of 128 queries to a block, keys and values
 /// through cp.async 64 at a time, the default, `Some(false)` the kernel
 /// of 64 that TURBO_CUDA_ATTENTION=64 picks, `None` to read the variable
-/// again.
-/// Built only with `internals`.
+/// again. Built only with `internals`.
 #[cfg(feature = "internals")]
 pub fn use_wide_attention(wide: Option<bool>) {
     unsafe { turbo_cuda_use_wide_attention(wide.map_or(-1, i32::from)) };

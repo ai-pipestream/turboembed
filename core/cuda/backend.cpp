@@ -1358,6 +1358,7 @@ enum : unsigned { CUBLAS_QKV = 1, CUBLAS_OUT = 2, CUBLAS_FFN1 = 4, CUBLAS_FFN2 =
 std::atomic<int> cublas_override{-1};
 std::atomic<int> tile_override{-1};
 std::atomic<int> split_attention_override{-1};
+std::atomic<int> narrow_tiles_override{-1};
 /* A test's choice of DeBERTa-v2's general attention kernel in place of the
  * tiled one (turbo_cuda_use_general_attention): 1 general, 0 the default. */
 std::atomic<int> deberta_general_override{0};
@@ -1415,6 +1416,20 @@ bool split_attention_named(bool *forced) {
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     *forced = *forced || v;
     return v && !strcasecmp(v, "split");
+}
+
+/* TURBO_CUDA_ATTENTION=tiled32: the FMA attention of register tiles at
+ * 32 queries to a block in place of 64, for measuring against the
+ * default. */
+bool narrow_tiles_named(bool *forced) {
+    const int o = overridden(narrow_tiles_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
+    return v && !strcasecmp(v, "tiled32");
 }
 
 /* On an RTX 4080 SUPER at 32 x 256 full rows the kernel of 128 takes 324
@@ -1652,15 +1667,22 @@ constexpr int ACC16_ATTENTION_MAX_KEYS = 4096;
 /* The backend's own choices for a session of the shape, in every bin: the
  * default tile and stream-K for each GEMM, the tensor cores' attention of
  * 128 queries where it applies (with F32 sums past
- * ACC16_ATTENTION_MAX_KEYS) and else the FMA kernel of register tiles,
- * the LayerNorm as a kernel of its own, and pooling by groups. */
+ * ACC16_ATTENTION_MAX_KEYS) and else the FMA kernel of register tiles, 32
+ * queries to a block in the le256 bin and 64 above it, the LayerNorm as a
+ * kernel of its own, and pooling by groups. */
 Choices defaults(const Shape &base) {
     Choices c;
     c.bins = bins_for(base.tcap);
     for (int i = 0; i < BIN_COUNT; i++) {
         BinChoices &b = c.bin[i];
         b = BinChoices{};
-        b.attention = !mma_attention(base)                      ? ATT_FMA_TILED
+        // The FMA attention: a run of 256 tokens or fewer leaves the
+        // device room, and blocks of 32 queries put twice as many of a
+        // row's queries in flight; from the le1k bin up the 64-query
+        // blocks, which load a row's keys and values half as often, are
+        // faster, and a short row in such a run is still computed as a
+        // 32-query tile.
+        b.attention = !mma_attention(base)                      ? (i == 0 ? ATT_FMA_TILED_32 : ATT_FMA_TILED)
                       : base.seq_cap > ACC16_ATTENTION_MAX_KEYS ? ATT_MMA_128_ACC32
                                                                 : ATT_MMA_128;
         // F16 on the tensor cores: whole tiles for QKV and the first
@@ -1722,6 +1744,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
     const bool sk_forced = sk_named(&sk);
     bool attn_forced = false;
     const bool split = split_attention_named(&attn_forced), wide = wide_attention_named(&attn_forced);
+    const bool narrow = narrow_tiles_named(&attn_forced);
     const bool exact = exact_attention_named(&attn_forced), fa32 = fa32_attention_named(&attn_forced);
     const bool acc32 = acc32_attention_named(&attn_forced);
     bool ln_forced = false, pool_forced = false;
@@ -1753,7 +1776,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
                                : acc32 ? ATT_MMA_128_ACC32
                                        : ATT_MMA_128;
             else
-                bc.attention = split ? ATT_FMA_SPLIT : ATT_FMA_TILED;
+                bc.attention = split ? ATT_FMA_SPLIT : narrow ? ATT_FMA_TILED_32 : ATT_FMA_TILED;
             bc.forced |= KNOB_ATTN;
         }
         if (ln_forced) {
@@ -1793,6 +1816,7 @@ Shape shape_for(const Shape &base, const Choices &c, int bin) {
     const BinChoices &bc = c.bin[bin];
     for (int g = 0; g < GEMM_COUNT; g++) sh.gemm[g] = bc.gemm[g];
     sh.split_attention = bc.attention == ATT_FMA_SPLIT;
+    sh.narrow_tiles = bc.attention == ATT_FMA_TILED_32;
     sh.wide_attention = bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT ||
                         bc.attention == ATT_MMA_128_FA32 || bc.attention == ATT_MMA_128_ACC32;
     sh.exact_exp2 = bc.attention == ATT_MMA_128_EXACT;
@@ -3861,6 +3885,11 @@ int32_t turbo_cuda_last_deberta_attention(void) { return deberta_last_pick.load(
 void turbo_cuda_use_split_attention(int32_t split) {
     split_attention_override.store(split, std::memory_order_relaxed);
 }
+
+/* The FMA attention of register tiles in sessions made from now on: 1 at
+ * 32 queries to a block (TURBO_CUDA_ATTENTION=tiled32), 0 the default's
+ * 64, -1 to read the variable again. */
+void turbo_cuda_use_narrow_tiles(int32_t narrow) { narrow_tiles_override.store(narrow, std::memory_order_relaxed); }
 
 /* FASTEST's attention on the tensor cores in sessions made from now on:
  * 1 the kernel of 128 queries to a block, the default, 0 the kernel of
