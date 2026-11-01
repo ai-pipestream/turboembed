@@ -50,6 +50,8 @@ public final class TurboLibrary {
     public static final int TURBO_ANALYSIS_LAYER_PII = 6;
     /** Native {@code TURBO_ANALYSIS_LAYER_DEPENDENCIES}. */
     public static final int TURBO_ANALYSIS_LAYER_DEPENDENCIES = 7;
+    /** Native {@code TURBO_ANALYSIS_LAYER_MORPHOLOGY}. */
+    public static final int TURBO_ANALYSIS_LAYER_MORPHOLOGY = 8;
 
     /** Native span flag: a view range is present. */
     public static final int TURBO_SPAN_VIEW_RANGE = 1;
@@ -242,6 +244,10 @@ public final class TurboLibrary {
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analyzer_pos_tag(turbo_analyzer *, const turbo_text *, uint32_t, turbo_analysis_result **, turbo_error *)} */
     public static final MethodHandle TURBO_ANALYZER_POS_TAG = downcall("turbo_analyzer_pos_tag",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_analyzer_morphology(turbo_analyzer *, const turbo_text *, uint32_t, turbo_analysis_result **, turbo_error *)} */
+    public static final MethodHandle TURBO_ANALYZER_MORPHOLOGY = downcall("turbo_analyzer_morphology",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                     ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analyzer_lemmatize(turbo_analyzer *, const turbo_text *, const turbo_text *, uint32_t, turbo_analysis_result **, turbo_error *)} */

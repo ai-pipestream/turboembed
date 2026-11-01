@@ -31,7 +31,7 @@
 
 # Bundles checked in under testdata/.
 blobs/sha256/35f69b13899b0fa0b7ccb88876f56db625197332695f7ea8117143fe08f5c741  bundle  testdata/tiny-bert-bundle
-blobs/sha256/0a8de8155e1ed276d6378ccf843528129b5852cb4b826d037c6b7879dc8648a7  bundle  testdata/tiny-bert-heads-bundle
+blobs/sha256/9fa507e8f7fc267176dd5667c1bc8e8e2939df0a25e7f3b8ac8f7859f4da0bc0  bundle  testdata/tiny-bert-heads-bundle
 blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
 blobs/sha256/223fe30ed3eec3abac9281ae1cc543d634eab145b3286fe9887a87273bf9d231  bundle  testdata/tiny-modernbert-bundle
 blobs/sha256/8b12f898db464a68fa09e1bb996472c0c2ece0564daad20e6a3ffc332fb0ecd5  bundle  testdata/tiny-nomic-bundle

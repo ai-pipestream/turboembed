@@ -74,8 +74,8 @@
     },
     {
       "path": "weights/model.safetensors",
-      "sha256": "8b9d33a7ef98611bbb352d29d568faec806036c045b84b471ad4768909ca13f6",
-      "size": 4061768
+      "sha256": "237700d9aee15f087c4f005309a1a086afa649515c93d6bae51ebb0c50dc13d5",
+      "size": 4062472
     }
   ],
   "heads": [
@@ -160,6 +160,22 @@
       },
       "scheme": "SCHEME_TAGS",
       "tensor_prefix": "heads.lemma",
+      "word_pooling": "WORD_POOLING_FIRST"
+    },
+    {
+      "artifact": "weights-f32",
+      "decode": "DECODE_ARGMAX",
+      "kind": "HEAD_TOKEN_TAGGER",
+      "labels": [
+        "_",
+        "Number=Sing",
+        "Number=Plur",
+        "Tense=Past|VerbForm=Fin"
+      ],
+      "layer": "turboembed:feats",
+      "name": "feats",
+      "scheme": "SCHEME_TAGS",
+      "tensor_prefix": "heads.feats",
       "word_pooling": "WORD_POOLING_FIRST"
     }
   ],

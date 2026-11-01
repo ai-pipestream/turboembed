@@ -10,8 +10,8 @@ use crate::analysis_api::{
     turbo_analysis_result_retain, turbo_analysis_result_spans, turbo_analysis_result_strings, turbo_analyzer,
     turbo_analyzer_analyze_graph, turbo_analyzer_create, turbo_analyzer_desc, turbo_analyzer_detect_pii,
     turbo_analyzer_detect_sentences, turbo_analyzer_find_text, turbo_analyzer_find_tokens,
-    turbo_analyzer_inspect_graph, turbo_analyzer_lemmatize, turbo_analyzer_pos_tag, turbo_analyzer_retain,
-    turbo_analyzer_tokenize, turbo_span,
+    turbo_analyzer_inspect_graph, turbo_analyzer_lemmatize, turbo_analyzer_morphology, turbo_analyzer_pos_tag,
+    turbo_analyzer_retain, turbo_analyzer_tokenize, turbo_span,
 };
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_HANDLE, Result};
 use crate::turbo_text;
@@ -152,6 +152,7 @@ macro_rules! token_task {
 }
 
 token_task!(Java_ai_pipestream_turboembed_jni_TurboJni_analyzerPosTag, turbo_analyzer_pos_tag);
+token_task!(Java_ai_pipestream_turboembed_jni_TurboJni_analyzerMorphology, turbo_analyzer_morphology);
 token_task!(Java_ai_pipestream_turboembed_jni_TurboJni_analyzerFindTokens, turbo_analyzer_find_tokens);
 
 /// `static native long analyzerLemmatize(long analyzer, byte[] tokens,
