@@ -44,6 +44,18 @@ pub enum EntityMergePolicy {
     RawUnion,
     /// The first recognizer's entities, then each later recognizer's
     /// where no entity kept so far overlaps it.
+    ///
+    /// When deterministic rule-backed [`Entities`] layers (from
+    /// [`RuleEntityProjector`](crate::RuleEntityProjector) or
+    /// [`RuleEntitiesAnnotator`](crate::RuleEntitiesAnnotator) for `"date"`,
+    /// `"time"`, `"money"`, and `"percent"`) are placed ahead of learned NER
+    /// heads (such as a MASC `"date"` head), the rule entity's exact boundaries
+    /// and producer win whenever both fire on overlapping tokens, while the
+    /// overlapping learned `"date"` prediction is absorbed as a corroborating
+    /// vote that supplies the merged entity's model confidence and raw score in
+    /// [`Evidence<Entities>`]. Disjoint learned entities fill any remaining
+    /// gaps, and conflicting cross-type predictions that overlap a rule entity
+    /// are suppressed.
     PriorityFallback,
     /// The groups at least `min_votes` recognizers voted for, with
     /// overlaps between groups of different types resolved by
