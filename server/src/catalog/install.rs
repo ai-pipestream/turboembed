@@ -56,6 +56,7 @@ pub(super) async fn start(
     user: UserId,
     id: String,
     installing: Arc<AtomicBool>,
+    sources: Arc<super::sources::Sources>,
 ) -> Result<UpdateStream, Status> {
     if id.is_empty() {
         return Err(invalid(2, "artifact_id is required"));
@@ -68,7 +69,7 @@ pub(super) async fn start(
     let (needed, count) = blocking(move || admit(&c, &u, &i)).await?;
     let (tx, rx) = mpsc::channel(16);
     let _ = tx.send(Ok(progress(InstallStage::Admitted, 0, count, "", needed))).await;
-    tokio::task::spawn_blocking(move || run(catalog, user, id, tx, slot));
+    tokio::task::spawn_blocking(move || run(catalog, user, id, tx, slot, sources));
     Ok(Box::pin(ReceiverStream::new(rx)))
 }
 
@@ -135,10 +136,12 @@ impl Transport for Reporting<'_> {
 
 /// The fetch, on a blocking thread. The install carries on when the client
 /// goes away: what it writes is verified, and the next install finds it.
-fn run(catalog: Catalog, user: UserId, id: String, tx: Tx, _slot: Slot) {
+/// The user's registered sources are tried first, then the catalog's.
+fn run(catalog: Catalog, user: UserId, id: String, tx: Tx, _slot: Slot, sources: Arc<super::sources::Sources>) {
     let outcome = (|| {
         let a = catalog.index.get(&id).map_err(zoo_status)?;
-        let reporting = Reporting { inner: &*catalog.transport, tx: &tx };
+        let through = super::sources::for_install(&catalog, &sources, &user)?;
+        let reporting = Reporting { inner: &*through, tx: &tx };
         let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &reporting);
         let fetched = zoo.fetch_with(&id, &user, || catalog.acceptances()).map_err(zoo_status)?;
         let total: u64 = a.files.iter().map(|f| f.size).sum();
