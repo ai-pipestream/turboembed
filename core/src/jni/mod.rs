@@ -23,7 +23,7 @@ mod sys;
 use std::ffi::CStr;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use crate::ffi::{new_error, panic_error};
+use crate::ffi::{new_error, panic_error, set_last_error};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_HANDLE, Result};
 use crate::{turbo_error, turbo_text};
 use sys::{Env, JNIEnv, jclass, jint, jobject, jstring, jvalue};
@@ -33,7 +33,9 @@ const EXCEPTION_INIT: &CStr = c"(ILjava/lang/String;ILjava/lang/String;)V";
 
 /// Run `f` as the body of an entry point: a panic stops here, and an error
 /// is thrown as a `TurboException` while `fail` is returned to Java, which
-/// discards it. An exception the virtual machine raised meanwhile (an
+/// discards it. The message is also the thread's last error message, as a
+/// `turbo_*` call's would be, so `TurboLibrary.lastErrorMessage()` matches
+/// the exception whether the refusal came from the C ABI or from here. An exception the virtual machine raised meanwhile (an
 /// allocation that failed) is left pending in place of ours.
 fn run<T>(env: *mut JNIEnv, fail: T, f: impl FnOnce(&Env) -> Result<T>) -> T {
     let env = unsafe { Env::new(env) };
@@ -41,6 +43,7 @@ fn run<T>(env: *mut JNIEnv, fail: T, f: impl FnOnce(&Env) -> Result<T>) -> T {
     match outcome {
         Ok(value) => value,
         Err(e) => {
+            set_last_error(&e.message);
             if !env.exception_check() {
                 throw(&env, &e);
             }

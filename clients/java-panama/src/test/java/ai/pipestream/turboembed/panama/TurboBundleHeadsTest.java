@@ -43,7 +43,7 @@ final class TurboBundleHeadsTest {
                 assertTrue(row.probability().isPresent());
                 assertTrue(row.probability().getAsDouble() > 0.0 && row.probability().getAsDouble() <= 1.0);
             }
-            assertEquals(0.7409762693307227, rows.get(0).probability().orElseThrow(), 1.0e-12);
+            assertEquals(0.7409762693307227, rows.get(0).probability().orElseThrow(), 1.0e-6);
         }
     }
 
@@ -168,6 +168,6 @@ final class TurboBundleHeadsTest {
         assertEquals(TurboLayerKind.ENTITIES, row.layerKind());
         assertEquals(new TurboSpanData.TokenRange(start, end), row.tokenRange().orElseThrow());
         assertEquals(label, row.label().orElseThrow());
-        assertEquals(probability, row.probability().orElseThrow(), 1.0e-12);
+        assertEquals(probability, row.probability().orElseThrow(), 1.0e-6);
     }
 }

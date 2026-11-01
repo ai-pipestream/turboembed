@@ -42,6 +42,18 @@ final class TurboJniTest {
     }
 
     @Test
+    void bridgeRefusalsSetTheLastErrorMessageToo() {
+        TurboException ex = assertThrows(TurboException.class, () -> TurboJni.resultRows(0L));
+        assertEquals("TURBO_E_INVALID_HANDLE", ex.statusName());
+        assertTrue(ex.getMessage().contains("result handle is released"), ex.getMessage());
+        assertTrue(TurboLibrary.lastErrorMessage().contains("result handle is released"), TurboLibrary.lastErrorMessage());
+        TurboException mismatch = assertThrows(
+                TurboException.class, () -> TurboJni.analyzerPosTag(0L, new byte[] {1, 2}, new int[] {1}));
+        assertEquals("TURBO_E_INVALID_HANDLE", mismatch.statusName());
+        assertTrue(TurboLibrary.lastErrorMessage().contains("analyzer handle is released"), TurboLibrary.lastErrorMessage());
+    }
+
+    @Test
     void javaArgumentValidationHappensBeforeTheBridge() {
         try (TurboAnalyzer analyzer = TurboAnalyzer.create()) {
             assertThrows(NullPointerException.class, () -> analyzer.detectSentences(null));

@@ -10,7 +10,7 @@ thread_local! {
     };
 }
 
-fn set_last_error(msg: &str) {
+pub(crate) fn set_last_error(msg: &str) {
     LAST_ERROR.with(|slot| {
         let buf = unsafe { &mut *slot.get() };
         if msg.is_empty() {

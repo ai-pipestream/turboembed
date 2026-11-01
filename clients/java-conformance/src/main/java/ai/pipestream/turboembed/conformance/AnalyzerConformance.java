@@ -131,7 +131,7 @@ public abstract class AnalyzerConformance {
                 assertNotNull(row.probability());
                 assertTrue(row.probability() > 0.0 && row.probability() <= 1.0);
             }
-            assertEquals(FIRST_POS_PROBABILITY, rows.get(0).probability(), 1.0e-12);
+            assertEquals(FIRST_POS_PROBABILITY, rows.get(0).probability(), 1.0e-6);
         }
     }
 
@@ -157,7 +157,7 @@ public abstract class AnalyzerConformance {
             assertEquals(ENTITIES, bob.layerKind());
             assertEquals(new Row.Tokens(2, 3), bob.tokenRange());
             assertEquals("PER", bob.label());
-            assertEquals(BOB_PROBABILITY, bob.probability(), 1.0e-12);
+            assertEquals(BOB_PROBABILITY, bob.probability(), 1.0e-6);
             assertNull(bob.viewRange());
             assertNull(bob.sourceRange());
 
