@@ -179,7 +179,7 @@
         "host_weights": "weights-f32",
         "produced_by": {
           "from": "onnx-f32",
-          "container": "turbo-hailo-dfc@sha256:910c672e28cb04dad3ffd13fbc2d0adab800aaad3e2d0976edf402af5afb6f24",
+          "container": "turbo-hailo-dfc@sha256:4bdfc1c1e40727e6c4366c9123de65700633556e476b17a435dc8ad46f653a72",
           "inputs": [
             "calibration/texts.jsonl"
           ],
@@ -204,7 +204,7 @@
         "host_weights": "weights-f32",
         "produced_by": {
           "from": "onnx-f32",
-          "container": "turbo-hailo-dfc3@sha256:43823fdc1f22aee36e0307d11e059be95e960e1ed796a145fb8a8bcbbeb3284d",
+          "container": "turbo-hailo-dfc3@sha256:aca2fd480f74d9173beba1b7af5a05702d76169d45070c93100653908e970f12",
           "inputs": [
             "calibration/texts.jsonl"
           ],
@@ -229,7 +229,7 @@
         "host_weights": "weights-f32",
         "produced_by": {
           "from": "onnx-f32",
-          "container": "turbo-hailo-dfc3@sha256:43823fdc1f22aee36e0307d11e059be95e960e1ed796a145fb8a8bcbbeb3284d",
+          "container": "turbo-hailo-dfc3@sha256:aca2fd480f74d9173beba1b7af5a05702d76169d45070c93100653908e970f12",
           "inputs": [
             "calibration/texts.jsonl"
           ],
