@@ -83,6 +83,24 @@ for the release after it goes above it.
   Python client seeds the chunker without a DocumentGraph writer; a
   malformed block is refused naming it (#1777).
 
+### Changed
+
+- The in-process analyzer (`turbo_analyzer_desc`) loads a bundle:
+  `bundle_path` names a bundle whose heads write the part-of-speech,
+  lemma, dependency and entity layers from one encoder pass a sentence,
+  as the Rust annotators write them. The five model path fields are
+  retired: they keep their offsets, a `struct_size` of 104 stays accepted
+  and names no bundle, and a non-empty value fails with
+  `TURBO_E_INVALID_ARGUMENT` naming its field. Dependency rows are the
+  new `TURBO_ANALYSIS_LAYER_DEPENDENCIES` layer kind: the relation as the
+  label, the head token plus one as the classification, zero for a root.
+  The Java Panama binding's `TurboAnalyzer.Config` takes the bundle path
+  in place of the model paths, and the binding now requires Java 25 or
+  newer, the current long-term release with the final Foreign Function
+  and Memory API. The heads' sigmoid and tanh (LSTM adapters, poolers)
+  use the cpu backend's own exponential in place of the C library's, so
+  a head gives the same bits on every machine (#1779).
+
 ### Breaking
 
 - The model ids layers record (`ModelRef.id`, in `TypedLayer`

@@ -3,7 +3,6 @@ package ai.pipestream.turboembed.opennlp;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,6 +16,16 @@ import org.junit.jupiter.api.Test;
 
 /** OpenNLP-style adapters must preserve coordinate spaces and explicit unknowns. */
 final class TurboAdaptersTest {
+
+    /** The first sentence of the bundle heads test, as the rule tokenizer splits it. */
+    private static final String[] TOKENS = {
+        "Ann", "met", "Bob", "in", "Paris", ",", "and", "the", "quiet", "old", "dog", "slept", "by", "the", "river", "."
+    };
+    /** The seeded part-of-speech head's output on {@link #TOKENS}; the adapter must not correct it. */
+    private static final String[] POS = {
+        "PUNCT", "DET", "ADJ", "DET", "ADJ", "ADJ", "PUNCT", "PUNCT", "VERB", "PUNCT", "PUNCT", "PUNCT", "DET", "ADJ",
+        "PUNCT", "PUNCT"
+    };
 
     @Test
     void ruleSentenceAndTokenizerAdaptersUseCoveredSourceTextAndNaNProbabilities() {
@@ -60,28 +69,26 @@ final class TurboAdaptersTest {
     }
 
     @Test
-    void configuredPosAndDictionaryLemmaAdaptersExposeExplicitUnknowns() {
-        String[] tokens = {"The", "driver", "stopped", "the", "bus", "at", "the", "station", "."};
-        try (TurboPOSTaggerME tagger = new TurboPOSTaggerME(TestPaths.fixture("pos-fixture.bin"))) {
-            assertArrayEquals(
-                    new String[] {"DET", "NOUN", "VERB", "DET", "NOUN", "PUNCT", "DET", "NOUN", "PUNCT"},
-                    tagger.tag(tokens));
+    void bundleHeadAdaptersReturnTheHeadsOutputAndExplicitUnknowns() {
+        try (TurboPOSTaggerME tagger = new TurboPOSTaggerME(TestPaths.headsBundle())) {
+            assertArrayEquals(POS, tagger.tag(TOKENS));
             assertTrue(Arrays.stream(tagger.probs()).allMatch(prob -> prob > 0.0 && prob <= 1.0));
         }
 
-        try (TurboLemmatizerME lemmatizer =
-                new TurboLemmatizerME(TestPaths.fixture("lemmatizer-dictionary.txt"))) {
-            String[] lemmas = lemmatizer.lemmatize(
-                    new String[] {"The", "rivers", "went", "zorped"},
-                    new String[] {"DET", "NOUN", "VERB", "NOUN"});
-            assertArrayEquals(new String[] {"the", "river", "go", null}, lemmas);
-            assertNull(lemmas[3]);
-            assertTrue(Arrays.stream(lemmatizer.probs()).allMatch(Double::isNaN));
+        try (TurboLemmatizerME lemmatizer = new TurboLemmatizerME(TestPaths.headsBundle())) {
+            String[] lemmas = lemmatizer.lemmatize(TOKENS, POS);
+            assertArrayEquals(
+                    new String[] {
+                        "Ann", "meet", "Bob", "in", "Pari", ",", "and", "the", "quiet", "old", "dog", "slept", "by", "the",
+                        "river", "."
+                    },
+                    lemmas);
+            assertTrue(Arrays.stream(lemmatizer.probs()).allMatch(Double::isNaN), "the lemmatizer head scores no lemma");
         }
     }
 
     @Test
-    void sharedDefaultAnalyzerAdaptersThrowUnsupportedForStatisticalTasks() {
+    void sharedDefaultAnalyzerAdaptersThrowUnsupportedForLearnedTasks() {
         try (TurboAnalyzer shared = TurboAnalyzer.create();
                 TurboPOSTaggerME tagger = new TurboPOSTaggerME(shared);
                 TurboLemmatizerME lemmatizer = new TurboLemmatizerME(shared);
@@ -99,19 +106,16 @@ final class TurboAdaptersTest {
 
     @Test
     void nameFinderSpansNeverConflateTokenAndCharacterOffsets() {
-        String[] tokens = {
-            "Maria", "Lindqvist", "joined", "Harbor", "Light", "Systems", "in", "March", "2019", "."
-        };
-        String text = "Maria Lindqvist joined Harbor Light Systems in March 2019.";
-        try (TurboNameFinderME finder = new TurboNameFinderME(TestPaths.fixture("ner-fixture-rust.bin"))) {
-            Span[] tokenSpans = finder.find(tokens);
-            assertEquals(3, tokenSpans.length);
+        String text = "Ann met Bob in Paris, and the quiet old dog slept by the river.";
+        try (TurboNameFinderME finder = new TurboNameFinderME(TestPaths.headsBundle())) {
+            Span[] tokenSpans = finder.find(TOKENS);
+            assertEquals(1, tokenSpans.length);
             Span person = tokenSpans[0];
             assertEquals(Span.CoordinateSpace.TOKEN, person.getCoordinateSpace());
-            assertEquals(0, person.getStart());
-            assertEquals(2, person.getEnd());
-            assertEquals("person", person.getType());
-            assertArrayEquals(new String[] {"Maria", "Lindqvist"}, person.getCoveredTokens(tokens));
+            assertEquals(2, person.getStart());
+            assertEquals(3, person.getEnd());
+            assertEquals("PER", person.getType());
+            assertArrayEquals(new String[] {"Bob"}, person.getCoveredTokens(TOKENS));
             assertThrows(IllegalStateException.class, () -> person.getCoveredText(text));
             assertThrows(IllegalStateException.class, person::getByteStart);
             assertThrows(IllegalStateException.class, person::getCodepointStart);
@@ -119,14 +123,14 @@ final class TurboAdaptersTest {
             double[] probsAfterFind = finder.probs();
             finder.clearAdaptiveData();
             assertArrayEquals(probsAfterFind, finder.probs(), "clearAdaptiveData does not erase last-call probs");
-            assertArrayEquals(tokenSpans, finder.find(tokens));
+            assertArrayEquals(tokenSpans, finder.find(TOKENS));
 
             Span[] textSpans = finder.findInText(text);
-            assertEquals(3, textSpans.length);
+            assertEquals(1, textSpans.length);
             assertEquals(Span.CoordinateSpace.UTF16, textSpans[0].getCoordinateSpace());
-            assertEquals("Maria Lindqvist", textSpans[0].getCoveredText(text).toString());
-            assertEquals(0, textSpans[0].getTokenStart());
-            assertEquals(2, textSpans[0].getTokenEnd());
+            assertEquals("Bob", textSpans[0].getCoveredText(text).toString());
+            assertEquals(2, textSpans[0].getTokenStart());
+            assertEquals(3, textSpans[0].getTokenEnd());
             assertTrue(textSpans[0].hasSourceCoordinates());
         }
     }

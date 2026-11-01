@@ -21,6 +21,7 @@ pub mod hash_embed;
 pub mod lemmatizer;
 pub mod parser;
 pub mod relation;
+pub mod run;
 pub mod span;
 pub mod split;
 pub mod tagger;
@@ -173,7 +174,7 @@ impl Head {
             let mut pooled = vec![0.0f32; rows * self.hidden];
             pooler.apply_rows(states, rows, &mut pooled);
             for v in &mut pooled {
-                *v = v.tanh();
+                *v = tanh(*v);
             }
             self.classifier.apply_rows(&pooled, rows, out);
         } else {
@@ -257,18 +258,32 @@ impl Head {
     }
 }
 
-/// The logistic sigmoid, numerically stable at both tails: the
-/// branch keeps `exp` away from overflow for large negative
-/// inputs, where the one-branch form yields `1.0 / (1.0 + inf)`
-/// through an intermediate infinity (and `NaN` in further
-/// arithmetic).
+/// The logistic sigmoid in F32, numerically stable at both tails: the
+/// branch keeps `exp` away from overflow for large negative inputs,
+/// where the one-branch form yields `1.0 / (1.0 + inf)` through an
+/// intermediate infinity (and `NaN` in further arithmetic). The
+/// exponential is the cpu backend's own (`turbo::cpu::exp`), not the C
+/// library's, whose bits differ between its versions: a head gives the
+/// same bits on every machine. That exponential is 0 under -80, which
+/// keeps the kernels off subnormals; the sigmoid's tail there is e^(x/2)
+/// squared, which is e^x / (1 + e^x) to F32 rounding and holds down to
+/// the smallest subnormal.
 pub fn sigmoid(x: f32) -> f32 {
     if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        let e = x.exp();
+        1.0 / (1.0 + crate::cpu::exp(-x))
+    } else if x >= -80.0 {
+        let e = crate::cpu::exp(x);
         e / (1.0 + e)
+    } else {
+        let h = crate::cpu::exp(x / 2.0);
+        h * h
     }
+}
+
+/// The hyperbolic tangent in F32, `1 - 2 / (e^2x + 1)`, from the same
+/// exponential as [`sigmoid`] for the same reason; exact at both tails.
+pub fn tanh(x: f32) -> f32 {
+    1.0 - 2.0 / (crate::cpu::exp(2.0 * x) + 1.0)
 }
 
 /// [`sigmoid`] in `f64`.

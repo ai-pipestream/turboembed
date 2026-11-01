@@ -98,6 +98,23 @@
   `truncation.direction` is present, as `"Right"`. Like the upstream
   file it is under Apache-2.0, the licence of
   sentence-transformers/all-MiniLM-L6-v2.
+- `tiny-bert-heads-bundle/`: `tiny-bert-bundle/` with four heads of
+  seeded weights appended to its weights file (`manifest.heads`,
+  docs/bundle.md "Heads"): the part-of-speech tagger `pos` (five tags,
+  argmax), the entity tagger `ner` (BIO over PER and LOC, a BiLSTM
+  adapter, CRF decoding), the biaffine dependency parser `deps` (six
+  relations, MST decoding) and the edit-tree lemmatizer `lemma`, which
+  reads the tags of `pos`. They are the heads
+  `analysis/tagger/tests/common/mod.rs` builds for the tagger tests,
+  written once and sealed, so the in-process analyzer
+  (`core/tests/analysis_bundle.rs`, `analysis/tagger/tests/analyzer.rs`)
+  and the Java binding (`clients/java-panama`) load a checked-in bundle
+  with heads. The encoder's weights, the tokenizer file and the reference
+  file are the tiny bundle's unchanged; the model id is
+  `turboembed/tiny-bert-heads`; the weights file is 4061768 bytes,
+  SHA-256 `8b9d33a7ef98611bbb352d29d568faec806036c045b84b471ad4768909ca13f6`.
+  The heads are untrained: their outputs are deterministic, not
+  meaningful.
 
 - `tiny-sat-recipe/`: the recipe of a small SaT model (wtpsplit's
   `SubwordXLMForTokenClassification`, XLM-R with two layers of width 32,
