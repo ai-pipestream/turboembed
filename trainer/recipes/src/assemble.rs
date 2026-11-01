@@ -95,18 +95,20 @@ pub fn verify_run(run_dir: &Path) -> Result<VerifiedRun> {
 }
 
 fn verify_corpus(c: &CorpusRecord) -> std::result::Result<(), String> {
-    for (field, val) in [
-        ("id", c.id.as_str()),
-        ("name", c.name.as_str()),
-        ("licence", c.licence.as_str()),
-        ("spdx", c.spdx.as_str()),
-        ("terms", c.terms.as_str()),
-        ("attribution", c.attribution.as_str()),
-        ("split", c.split.as_str()),
-    ] {
-        if val.trim().is_empty() {
-            return Err(format!("receipt.json: corpus.{field} is empty"));
-        }
+    if !c.recorded {
+        return Err("receipt.json: corpus.recorded is false (trained with --unrecorded-corpus; never a release)".into());
+    }
+    let fields = [
+        ("id", &c.id),
+        ("name", &c.name),
+        ("licence", &c.licence),
+        ("spdx", &c.spdx),
+        ("terms", &c.terms),
+        ("attribution", &c.attribution),
+        ("split", &c.split),
+    ];
+    if let Some((f, _)) = fields.into_iter().find(|(_, v)| v.trim().is_empty()) {
+        return Err(format!("receipt.json: corpus.{f} is empty"));
     }
     let has_digest = is_hex64(&c.corpus_sha256)
         || (!c.files.is_empty() && c.files.iter().all(|f| !f.path.is_empty() && is_hex64(&f.sha256)));
