@@ -190,7 +190,7 @@ fn session_with(m: *mut turbo_model, batch: u32, seq: u32, precision: u32, set: 
 
 /// The knobs a MODEL session is held to the CPU at: each GEMM kernel
 /// family the rotary epilogues have (the transposed FMA kernel, the FMA
-/// kernel's tiles, TF32 on the tensor cores) and both FMA attentions.
+/// kernel's tiles, TF32 on the tensor cores) and the FMA attentions.
 fn model_kernels() -> Vec<Knob> {
     vec![
         ("default", Box::new(|_| {})),
@@ -199,6 +199,7 @@ fn model_kernels() -> Vec<Knob> {
         ("CUTLASS SIMT tile", Box::new(|on| turbo::cuda::use_tile(on.then_some(Tile::Cs)))),
         ("TF32", Box::new(|on| turbo::cuda::use_tf32(on.then_some(true)))),
         ("split attention", Box::new(|on| turbo::cuda::use_split_attention(on.then_some(true)))),
+        ("attention of 32 queries", Box::new(|on| turbo::cuda::use_narrow_tiles(on.then_some(true)))),
     ]
 }
 

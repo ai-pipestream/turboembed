@@ -1,7 +1,8 @@
 name: release
 
 # A tag v<version> publishes Linux x86_64 CUDA, macOS arm64 Metal,
-# Linux aarch64 CPU and Windows x86_64 CPU archives with headers, plus
+# Linux aarch64 CPU, Windows x86_64 CPU and Android CPU archives with
+# headers (the Android one holds the JNI binding's libraries alone), plus
 # turbo-kserve images on GHCR (docs/release.md). workflow_dispatch builds
 # and checks archives and images without publishing. The runners execute
 # CPU smoke checks only; GPU execution and timing belong to the records
@@ -296,6 +297,67 @@ jobs:
             ${{ steps.package.outputs.name }}.BUILD
           if-no-files-found: error
 
+  # The cpu backend for Android, through the NDK the runner carries: the
+  # JNI binding's libturbo.so for the arm64-v8a and x86_64 ABIs at API
+  # level 26, in the jniLibs layout an application module takes as is
+  # (clients/java-jni/README.md, "Android"). Nothing runs: the runner has
+  # no Android device, and the binding's tests run on the host JVM in ci.
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+      - name: build
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: clients/java-jni/build-android.sh "$RUNNER_TEMP/jniLibs"
+      - name: the libraries are for Android, export the C ABI and the Java entry points, and link only bionic
+        run: |
+          for abi in arm64-v8a x86_64; do
+            lib="$RUNNER_TEMP/jniLibs/$abi/libturbo.so"
+            file "$lib"
+            nm -D --defined-only "$lib" | grep -q " turbo_version$"
+            nm -D --defined-only "$lib" | grep -q " Java_ai_pipestream_turboembed_jni_TurboJni_version$"
+            needed="$(readelf -d "$lib" | grep NEEDED | grep -oE '\[[^]]+\]' | tr -d '[]' | sort | tr '\n' ' ')"
+            echo "$abi needs: $needed"
+            for n in $needed; do
+              case "$n" in libc.so|libdl.so|libm.so|liblog.so) ;; *) echo "unexpected dependency $n"; exit 1 ;; esac
+            done
+          done
+          file "$RUNNER_TEMP/jniLibs/arm64-v8a/libturbo.so" | grep -q "ARM aarch64"
+          file "$RUNNER_TEMP/jniLibs/x86_64/libturbo.so" | grep -q "x86-64"
+      - name: package
+        id: package
+        run: |
+          tag="${GITHUB_REF_NAME//\//-}"
+          name="turboembed-${tag}-android"
+          mkdir -p "$name/licenses"
+          cp -r "$RUNNER_TEMP/jniLibs" "$name/jniLibs"
+          cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
+          cp docs/release.md "$name/README.md"
+          ndk="$(basename "$ANDROID_NDK_LATEST_HOME")"
+          {
+            echo "turboembed ${tag}, commit ${GITHUB_SHA}"
+            echo "android arm64-v8a and x86_64, cpu backend, API level 26; jniLibs/<abi>/libturbo.so for clients/java-jni"
+            echo "built with rustc $(rustc --version | cut -d' ' -f2) and NDK ${ndk}"
+          } > "$name/BUILD"
+          tar czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          cp "$name/BUILD" "$name.BUILD"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.tar.gz
+            ${{ steps.package.outputs.name }}.tar.gz.sha256
+            ${{ steps.package.outputs.name }}.BUILD
+          if-no-files-found: error
+
   # The turbo-kserve images (docs/release.md, Images): cpu for amd64 and
   # arm64, each built on a runner of its own architecture, and cuda for
   # amd64. Every build is run and has to turn healthy with the tiny bundle
@@ -473,7 +535,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push'
-    needs: [linux-x86_64, macos-arm64, linux-aarch64, windows-x86_64, proto-and-stubs, image-manifest]
+    needs: [linux-x86_64, macos-arm64, linux-aarch64, windows-x86_64, android, proto-and-stubs, image-manifest]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
