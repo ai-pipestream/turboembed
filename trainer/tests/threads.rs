@@ -27,6 +27,7 @@ fn spec() -> HeadSpec {
         // 2048 rows of 8: past the size at which the sum splits by element.
         pos_input: None,
         hash_embed: Some(HashEmbed { dim: 8, rows: [1024, 256, 512, 256] }),
+        layer_mix: None,
         span: None,
         relation: None,
         license_class: None,
