@@ -17,6 +17,9 @@
 mod common;
 #[path = "common/rotary.rs"]
 mod rotary;
+#[path = "common/vector_agreement.rs"]
+mod vector_agreement;
+use vector_agreement::least_cosine;
 
 use std::path::{Path, PathBuf};
 use std::ptr;
@@ -121,18 +124,6 @@ fn worst(a: &[Vec<f32>], b: &[Vec<f32>]) -> f32 {
             x.iter().zip(y).map(|(p, q)| if p.is_nan() || q.is_nan() { f32::INFINITY } else { (p - q).abs() })
         })
         .fold(0f32, f32::max)
-}
-
-/// The least cosine between two runs' vectors, row by row.
-fn least_cosine(a: &[Vec<f32>], b: &[Vec<f32>]) -> f64 {
-    a.iter()
-        .zip(b)
-        .map(|(x, y)| {
-            let dot: f64 = x.iter().zip(y).map(|(p, q)| *p as f64 * *q as f64).sum();
-            let n = |v: &[f32]| v.iter().map(|p| (*p as f64).powi(2)).sum::<f64>().sqrt();
-            dot / (n(x) * n(y))
-        })
-        .fold(1.0, f64::min)
 }
 
 /// The cases a tiny bundle runs, rows of up to `seq` tokens: lengths about
