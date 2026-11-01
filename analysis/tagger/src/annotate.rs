@@ -35,7 +35,7 @@ pub(crate) fn refuse(m: String) -> CoreError {
 
 /// The head of `bundle` named `name`, or, with no name, the one head that
 /// writes `layer`; refused unless it is of `kind`.
-pub(crate) fn find_head<'a>(
+pub fn find_head<'a>(
     bundle: &'a Bundle,
     name: Option<&str>,
     layer: &str,
@@ -65,6 +65,19 @@ pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
     ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() }
 }
 
+/// Opens `WordEncoder` configured for `taps` encoder layers.
+pub fn open_words(dir: &Path, o: &EncoderOptions, taps: usize) -> Result<WordEncoder, CoreError> {
+    let mut eo = o.clone();
+    if eo.layers <= 1 {
+        eo.layers = taps as u32;
+    } else if eo.layers as usize != taps {
+        return Err(refuse(format!("encoder options ask for {} layers, the head reads {taps}", eo.layers)));
+    }
+    WordEncoder::open(dir, &eo)
+}
+
+pub(crate) use turbo::head::run::tail_taps;
+
 impl HeadRunner {
     /// The head of the bundle at `dir` named `name`, or, with no name, the
     /// one head that writes `layer`.
@@ -72,7 +85,7 @@ impl HeadRunner {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, layer, HeadKind::TokenTagger)?;
         let tagger = TokenTagger::load(&bundle, &spec.name)?;
-        let words = WordEncoder::open(dir, o)?;
+        let words = open_words(dir, o, tagger.taps())?;
         if words.hidden() != tagger.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",

@@ -120,7 +120,7 @@ pub(crate) fn full_golden() -> Golden {
     let ends: Vec<u32> = u32s.iter().map(|&i| i + 3).collect();
     let layers = vec![
         GoldenLayer {
-            id: "opennlp:tokens".into(),
+            id: "turbo:tokens".into(),
             anchor: GoldenAnchor::Text,
             columns: vec![
                 Column { name: "start".into(), data: ColumnData::U32(u32s.clone()) },
@@ -128,25 +128,25 @@ pub(crate) fn full_golden() -> Golden {
             ],
         },
         GoldenLayer {
-            id: "turbo:confidence<opennlp:tokens>".into(),
-            anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+            id: "turbo:confidence<turbo:tokens>".into(),
+            anchor: GoldenAnchor::Aligned("turbo:tokens".into()),
             columns: vec![Column { name: "value".into(), data: ColumnData::F64((0..n).map(at).collect()) }],
         },
         GoldenLayer {
-            id: "opennlp:pos".into(),
-            anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+            id: "turbo:pos".into(),
+            anchor: GoldenAnchor::Aligned("turbo:tokens".into()),
             columns: vec![
                 Column { name: "tag".into(), data: ColumnData::Str(strs(&escapes)) },
                 Column { name: "prob".into(), data: ColumnData::F64((0..n).map(|i| at(i + 7)).collect()) },
             ],
         },
         GoldenLayer {
-            id: "opennlp:lemmas".into(),
-            anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+            id: "turbo:lemmas".into(),
+            anchor: GoldenAnchor::Aligned("turbo:tokens".into()),
             columns: vec![Column { name: "lemma".into(), data: ColumnData::Str(strs(&escapes)) }],
         },
         GoldenLayer {
-            id: "opennlp:entities".into(),
+            id: "turbo:entities".into(),
             anchor: GoldenAnchor::Text,
             columns: vec![
                 Column { name: "start".into(), data: ColumnData::U32(u32s.clone()) },
@@ -161,7 +161,7 @@ pub(crate) fn full_golden() -> Golden {
             ],
         },
         GoldenLayer {
-            id: "opennlp:language".into(),
+            id: "turbo:language".into(),
             anchor: GoldenAnchor::Document,
             columns: vec![
                 Column { name: "code".into(), data: ColumnData::Str(strs(&escapes)) },
@@ -224,7 +224,7 @@ fn every_column_type_special_value_and_escape_round_trips() {
     // f64 values come back with the same bits (PartialEq on ColumnData
     // compares bits, and this checks it did).
     let floats = f64_specials();
-    let conf = back.layer("turbo:confidence<opennlp:tokens>").unwrap().f64s("value").unwrap();
+    let conf = back.layer("turbo:confidence<turbo:tokens>").unwrap().f64s("value").unwrap();
     for (i, v) in conf.iter().enumerate() {
         assert_eq!(v.to_bits(), floats[i % floats.len()].to_bits(), "row {i}");
     }
@@ -232,7 +232,7 @@ fn every_column_type_special_value_and_escape_round_trips() {
     assert!(conf.iter().any(|v| v.to_bits() == (-0.0f64).to_bits()));
 
     // Strings come back as they were.
-    let tags = back.layer("opennlp:pos").unwrap().strs("tag").unwrap();
+    let tags = back.layer("turbo:pos").unwrap().strs("tag").unwrap();
     for (i, s) in escape_strings().iter().enumerate() {
         assert_eq!(tags.get(i), s, "row {i}");
     }
@@ -310,7 +310,7 @@ fn java_decimals_for_values_in_every_format() {
 #[test]
 fn a_surrogate_pair_in_a_file_reads_as_one_character_and_writes_as_utf8() {
     let g = Golden::parse(&lemma_file("\\ud83d\\ude00")).unwrap();
-    let lemma = g.layer("opennlp:lemmas").unwrap().strs("lemma").unwrap();
+    let lemma = g.layer("turbo:lemmas").unwrap().strs("lemma").unwrap();
     assert_eq!(lemma.get(0), "😀");
     let again = g.to_text().unwrap();
     assert!(again.contains("\n😀\n"), "{again}");
@@ -400,7 +400,7 @@ fn the_writer_refuses_bad_layers() {
     // No columns.
     let mut g = full_golden();
     g.layers[0].columns.clear();
-    refuses_write(&g, &["opennlp:tokens has no columns"]);
+    refuses_write(&g, &["turbo:tokens has no columns"]);
     // Columns of different lengths, in any of the columns after the first,
     // naming the column.
     for (layer, col) in [(0, 1), (2, 1), (4, 5), (6, 2)] {
@@ -453,7 +453,7 @@ fn the_writer_writes_a_layer_with_no_rows_and_a_file_with_no_layers() {
         }
     }
     let text = g.to_text().unwrap();
-    assert!(text.contains("layer\topennlp:tokens\ttext\t0\tstart:u32\tend:u32\nend\topennlp:tokens\n"));
+    assert!(text.contains("layer\tturbo:tokens\ttext\t0\tstart:u32\tend:u32\nend\tturbo:tokens\n"));
     assert_eq!(Golden::parse(&text).unwrap(), g);
     // A golden with no layers and no error record is refused by the writer.
     g.layers.clear();

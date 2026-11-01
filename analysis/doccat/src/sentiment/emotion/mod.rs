@@ -37,7 +37,7 @@ mod tests;
 pub use crate::scorers::{EmotionEvidence, EmotionStage, EmotionUnit, EmotionVectorScorer};
 pub use head::{
     EmotionFitOptions, EmotionHeadError, EmotionVectorHead, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD,
-    GOEMOTIONS_MINILM_HEAD,
+    GOEMOTIONS_MINILM_HEAD, GOEMOTIONS_MODERNBERT_HEAD,
 };
 pub use metrics::{EmotionMetrics, GoldEmotionUnit, evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds};
 

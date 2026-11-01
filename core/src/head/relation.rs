@@ -46,6 +46,7 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
         out.push((format!("{name}.bias"), vec![mlp]));
     }
     out.push(("rel.weight".into(), vec![labels, mlp + 1, mlp + 1]));
+    words::push_mix(spec, &mut out);
     out
 }
 
@@ -158,6 +159,11 @@ impl RelationClassifier {
     /// The encoder width the head reads.
     pub fn hidden(&self) -> usize {
         self.hidden
+    }
+
+    /// The number of encoder layers each word vector mixes.
+    pub fn taps(&self) -> usize {
+        self.reader.taps()
     }
 
     /// The number of ordered pairs `m` entities make, None past usize.

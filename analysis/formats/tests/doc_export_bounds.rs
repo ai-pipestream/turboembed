@@ -59,8 +59,8 @@ fn formatters_refuse_pos_tags_bound_to_named_gold_tokens() {
         {
             let err = fmt.format_to_vec("gold-short", target_doc, ExportOffsetMode::Utf8).unwrap_err();
             assert!(
-                matches!(&err, FormatExportError::InvalidData(msg) if msg.contains("bound to opennlp:tokens@gold")),
-                "expected InvalidData naming opennlp:tokens@gold from {}, got {err:?}",
+                matches!(&err, FormatExportError::InvalidData(msg) if msg.contains("bound to turbo:tokens@gold")),
+                "expected InvalidData naming turbo:tokens@gold from {}, got {err:?}",
                 fmt.descriptor().format_id
             );
         }
@@ -99,8 +99,8 @@ fn formatters_refuse_pos_tags_bound_to_named_gold_tokens() {
     {
         let err = fmt.format_to_vec("gold-equal", &doc_equal, ExportOffsetMode::Utf8).unwrap_err();
         assert!(
-            matches!(&err, FormatExportError::InvalidData(msg) if msg.contains("bound to opennlp:tokens@gold")),
-            "expected InvalidData naming opennlp:tokens@gold from {}, got {err:?}",
+            matches!(&err, FormatExportError::InvalidData(msg) if msg.contains("bound to turbo:tokens@gold")),
+            "expected InvalidData naming turbo:tokens@gold from {}, got {err:?}",
             fmt.descriptor().format_id
         );
     }
@@ -175,7 +175,7 @@ fn formatters_refuse_mixed_endpoint_entity_relations_and_accept_matching_default
         .unwrap();
 
     // Mixed-endpoint relation: `Edges::between(&Key::DEFAULT, &gold_ents_key, ...)`
-    // records bindings `[opennlp:entities, opennlp:entities@gold]`.
+    // records bindings `[turbo:entities, turbo:entities@gold]`.
     let rel_set = TagSet::new("rel", &["LINK"]);
     let link = rel_set.tag("LINK").unwrap();
     let mixed_edges = Edges::<Entities, Entities>::between(
@@ -197,8 +197,8 @@ fn formatters_refuse_mixed_endpoint_entity_relations_and_accept_matching_default
         for fmt in [&BratFormatter as &dyn DocumentFormatter, &JsonLdFormatter, &WarcFormatter] {
             let err = fmt.format_to_vec("mixed-rel", target_doc, ExportOffsetMode::Utf8).unwrap_err();
             assert!(
-                matches!(&err, FormatExportError::InvalidData(msg) if msg.contains("bound to opennlp:entities@gold")),
-                "expected InvalidData naming opennlp:entities@gold from {}, got {err:?}",
+                matches!(&err, FormatExportError::InvalidData(msg) if msg.contains("bound to turbo:entities@gold")),
+                "expected InvalidData naming turbo:entities@gold from {}, got {err:?}",
                 fmt.descriptor().format_id
             );
         }

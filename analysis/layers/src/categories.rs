@@ -13,7 +13,7 @@ use crate::{Aspects, Chunks, Opinions, Sentences, Structure};
 /// document: the layer is `turbo:categories`, anchored to the document,
 /// with one item. Any other scope is a layer whose items are categorized
 /// one by one: `Categories<Sentences>` is
-/// `turbo:categories<opennlp:sentences>`, aligned to the sentences.
+/// `turbo:categories<turbo:sentences>`, aligned to the sentences.
 ///
 /// A crate with its own layer of units to categorize implements this for
 /// that layer, as this crate does for `Sentences`, `Structure` and

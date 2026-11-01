@@ -188,7 +188,7 @@ impl QueryProfileBuilder {
         // Trigger-gated grammar and time chart parsers (English + Spanish).
         qb = qb
             .step_skip_when(
-                QueryGrammarAnnotator::english().bound(),
+                QueryGrammarAnnotator::for_language(&self.default_language).bound(),
                 Some(|doc| doc.get::<Tokens>().is_some_and(|t| !crate::model::has_grammar_trigger(doc.source(), t))),
             )
             .add(QueryTimeAnnotator::english(self.reference_datetime))
@@ -223,7 +223,7 @@ impl QueryProfileBuilder {
             qb = qb.add(GlossaryAnnotator::new(glossary, GlossaryMatcher::Text(text_matcher)));
         }
 
-        // Optional dictionary and regex entity finders on named `opennlp:entities` instances.
+        // Optional dictionary and regex entity finders on named `turbo:entities` instances.
         if let Some(dict_finder) = self.dictionary_finder.take() {
             qb = qb.step(Bound::new(dict_finder).write(0, DICT_ENTITIES));
         }

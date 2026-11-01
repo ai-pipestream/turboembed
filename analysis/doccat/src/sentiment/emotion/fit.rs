@@ -1,9 +1,11 @@
-//! Fitting an [`EmotionVectorHead`] to labelled vectors: logistic
-//! regression per label, by full-batch gradient descent on the mean log
-//! loss with an L2 penalty, from zero weights. Every step is in `f64` and
-//! in a fixed order, so the same data and options give the same head.
+//! Fitting an [`EmotionVectorHead`] to labelled vectors with `turbo-trainer`
+//! (`AdamW`, `linear::forward`, `linear::backward`, and `Real::sigmoid`):
+//! L2-regularized logistic regression per label from zero weights.
 
 use turbo_analysis_layers::{EmotionDimension, EmotionScores};
+use turbo_trainer::Real;
+use turbo_trainer::adamw::{AdamW, Settings};
+use turbo_trainer::linear;
 
 use super::{EmotionHeadError, EmotionVectorHead, N};
 
@@ -24,18 +26,9 @@ impl Default for EmotionFitOptions {
     }
 }
 
-fn sigmoid(x: f64) -> f64 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        let e = x.exp();
-        e / (1.0 + e)
-    }
-}
-
 impl EmotionVectorHead {
     /// A head fitted to `vectors` and their `targets` (each label's wanted
-    /// probability, `0.0..=1.0`).
+    /// probability, `0.0..=1.0`) through `turbo-trainer`.
     pub fn fit(vectors: &[&[f32]], targets: &[EmotionScores], o: &EmotionFitOptions) -> Result<Self, EmotionHeadError> {
         let value = |m: String| Err(EmotionHeadError::Value(m));
         let Some(first) = vectors.first() else { return value("no vectors to fit".into()) };
@@ -57,32 +50,58 @@ impl EmotionVectorHead {
         if !(o.learning_rate.is_finite() && o.learning_rate > 0.0 && o.l2.is_finite() && o.l2 >= 0.0) {
             return value(format!("learning rate {} and L2 {}", o.learning_rate, o.l2));
         }
-        let n = vectors.len() as f64;
-        let mut w = vec![0f64; N * dim];
-        let mut b = [0f64; N];
+        let n_inv = 1.0 / (vectors.len() as f32);
+        let l2 = o.l2 as f32;
+        let lr = (o.learning_rate * 0.05).clamp(1e-4, 0.15);
+        let settings = Settings {
+            lr,
+            weight_decay: 0.0,
+            clip: 10.0,
+            warmup: 0,
+            total: u64::from(o.epochs),
+            ..Settings::default()
+        };
+        let mut opt = AdamW::<f32>::new(settings, &[N * dim, N]).map_err(|e| EmotionHeadError::Value(e.to_string()))?;
+        let mut params = vec![vec![0.0f32; N * dim], vec![0.0f32; N]];
+        let mut grads = vec![vec![0.0f32; N * dim], vec![0.0f32; N]];
+        let decay = [false, false];
+
+        let chunk_rows = 256usize.min(vectors.len());
+        let mut x_chunk = Vec::with_capacity(chunk_rows * dim);
+        let mut logits = Vec::with_capacity(chunk_rows * N);
+        let mut dy = Vec::with_capacity(chunk_rows * N);
+
         for _ in 0..o.epochs {
-            let mut gw = vec![0f64; w.len()];
-            let mut gb = [0f64; N];
-            for (i, v) in vectors.iter().enumerate() {
-                for (l, label) in EmotionDimension::ALL.into_iter().enumerate() {
-                    let row = l * dim..(l + 1) * dim;
-                    let z = b[l] + v.iter().zip(&w[row.clone()]).map(|(&x, &y)| f64::from(x) * y).sum::<f64>();
-                    let err = sigmoid(z) - targets[i].get(label);
-                    gb[l] += err;
-                    for (g, &x) in gw[row].iter_mut().zip(v.iter()) {
-                        *g += err * f64::from(x);
+            let [gw, gb] = &mut grads[..] else { unreachable!() };
+            gw.fill(0.0);
+            gb.fill(0.0);
+
+            for (v_chunk, t_chunk) in vectors.chunks(chunk_rows).zip(targets.chunks(chunk_rows)) {
+                let b_len = v_chunk.len();
+                x_chunk.clear();
+                for v in v_chunk {
+                    x_chunk.extend_from_slice(v);
+                }
+                logits.resize(b_len * N, 0.0);
+                linear::forward(&params[0], &params[1], &x_chunk, dim, N, &mut logits);
+
+                dy.clear();
+                for (row_logits, t) in logits.as_chunks::<N>().0.iter().zip(t_chunk) {
+                    for (l, label) in EmotionDimension::ALL.into_iter().enumerate() {
+                        dy.push((row_logits[l].sigmoid() - t.get(label) as f32) * n_inv);
                     }
                 }
+                linear::backward(&params[0], &x_chunk, &dy, dim, N, gw, gb, None);
             }
-            for (x, g) in w.iter_mut().zip(&gw) {
-                *x -= o.learning_rate * (g / n + o.l2 * *x);
+            for (g, &w) in gw.iter_mut().zip(&params[0]) {
+                *g += l2 * w;
             }
-            for (x, g) in b.iter_mut().zip(gb) {
-                *x -= o.learning_rate * g / n;
-            }
+            opt.step(&mut params, &mut grads, &decay).map_err(|e| EmotionHeadError::Value(e.to_string()))?;
         }
-        let weights: Vec<f32> = w.into_iter().map(|x| x as f32).collect();
-        let bias: [f32; N] = std::array::from_fn(|l| b[l] as f32);
+        let mut it = params.into_iter();
+        let weights = it.next().unwrap();
+        let bias_vec = it.next().unwrap();
+        let bias: [f32; N] = std::array::from_fn(|l| bias_vec[l]);
         EmotionVectorHead::new(dim, weights, bias)
     }
 }

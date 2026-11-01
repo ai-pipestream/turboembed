@@ -21,7 +21,7 @@ fn target_identity_and_word_subspan_refusals() {
     // An encoded target instance the provenance does not bind to.
     let doc = document();
     let mut graph = export(&doc, &codecs()).unwrap();
-    splice(&mut graph, "opennlp:tokens", token_body("alt", &[0]), 1);
+    splice(&mut graph, "turbo:tokens", token_body("alt", &[0]), 1);
     match import(&graph, &codecs()) {
         Err(ExportError::InvalidLayer { detail, .. }) => assert!(detail.contains("alt"), "{detail}"),
         Ok(_) => panic!("a payload naming another target instance imported"),
@@ -30,12 +30,12 @@ fn target_identity_and_word_subspan_refusals() {
 
     // An empty sentence column naming a missing target.
     let mut graph = export(&doc, &codecs()).unwrap();
-    splice(&mut graph, "opennlp:tokens", token_body("missing", &[]), 0);
+    splice(&mut graph, "turbo:tokens", token_body("missing", &[]), 0);
     assert!(import(&graph, &codecs()).is_err(), "an empty column naming a missing target imported");
 
     // A token pointing at a sentence past the sentence layer.
     let mut graph = export(&doc, &codecs()).unwrap();
-    splice(&mut graph, "opennlp:tokens", token_body("", &[9]), 1);
+    splice(&mut graph, "turbo:tokens", token_body("", &[9]), 1);
     assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::DanglingEndpoint { .. })));
 
     // A structure block that is its own parent.
@@ -85,7 +85,7 @@ fn keyed_default_word_target_must_not_rebind_through_provenance() {
     // alt through provenance, so it must be refused.
     let mut graph = export(&doc, &codecs()).unwrap();
     let mut w = Writer::new();
-    w.str("opennlp:tokens").unwrap();
+    w.str("turbo:tokens").unwrap();
     w.str("").unwrap();
     w.usize(1).unwrap();
     w.u32(0);
@@ -123,7 +123,7 @@ fn keyed_default_opinion_target_must_not_rebind_through_provenance() {
     // be refused rather than rebound to alt through provenance.
     let mut graph = export(&doc, &codecs()).unwrap();
     let mut w = Writer::new();
-    w.str("opennlp:tokens").unwrap();
+    w.str("turbo:tokens").unwrap();
     w.str("").unwrap();
     w.usize(1).unwrap();
     w.u32(0);

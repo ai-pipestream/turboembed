@@ -56,7 +56,7 @@ import opennlp.tools.util.Span;
  *   <li>{@code turbo:svm-sidecar}: the rest of the model ({@link SvmDoccatExport#sidecar}).</li>
  * </ul>
  *
- * <p>The golden of a document (method {@code categorize}) holds, after {@code opennlp:tokens}
+ * <p>The golden of a document (method {@code categorize}) holds, after {@code turbo:tokens}
  * (the {@link WhitespaceTokenizer} tokens the categorizer is given), layers anchored on the
  * document:</p>
  * <ul>
@@ -335,7 +335,7 @@ final class SvmDoccatGolden implements AnnotatorGolden {
   public List<Layer> layers(Input input) throws AnnotatorException {
     Span[] spans = WhitespaceTokenizer.INSTANCE.tokenizePos(input.text());
     String[] tokens = Span.spansToStrings(spans, input.text());
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:tokens", input.offsets(), spans));
     DocumentCategorizerSVM categorizer = trained.categorizer();
     double[] probabilities = AnnotatorException.call(() -> categorizer.categorize(tokens));
 

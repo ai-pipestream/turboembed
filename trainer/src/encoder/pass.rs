@@ -22,9 +22,24 @@ pub struct Work<R> {
     emb: norm::Cache,
     x0: Vec<R>,
     layers: Vec<LayerWork<R>>,
+    /// Each layer's output [n, hidden] when the encoder is
+    /// checkpointed; empty otherwise.
+    checkpoints: Vec<Vec<R>>,
     fin: norm::Cache,
     /// The final states, [n, hidden].
     pub out: Vec<R>,
+}
+
+impl<R> Work<R> {
+    /// How many layers' inner workspaces are held across the forward.
+    pub fn buffered_layers(&self) -> usize {
+        self.layers.len()
+    }
+
+    /// How many layer-boundary elements `checkpoints` holds.
+    pub fn checkpoint_floats(&self) -> usize {
+        self.checkpoints.iter().map(Vec::len).sum()
+    }
 }
 
 impl<R: Real> Encoder<R> {
@@ -65,13 +80,30 @@ impl<R: Real> Encoder<R> {
             dropout::forward(&mut w.x0, d.embedding, key);
             self.store(&mut w.x0);
         }
-        w.layers.resize_with(self.geo.layers, LayerWork::default);
-        for l in 0..self.geo.layers {
-            let (done, rest) = w.layers.split_at_mut(l);
-            let x: &[R] = if l == 0 { &w.x0 } else { &done[l - 1].x_out };
-            self.layer_forward(l, at, x, &mut rest[0]);
+        if self.checkpoint {
+            w.layers.truncate(1);
+            w.layers.resize_with(1, LayerWork::default);
+            w.checkpoints.resize_with(self.geo.layers, Vec::new);
+            for l in 0..self.geo.layers {
+                let x: &[R] = if l == 0 { &w.x0 } else { &w.checkpoints[l - 1] };
+                self.layer_forward(l, at, x, &mut w.layers[0]);
+                w.checkpoints[l].clear();
+                w.checkpoints[l].extend_from_slice(&w.layers[0].x_out);
+            }
+        } else {
+            w.checkpoints.clear();
+            w.layers.resize_with(self.geo.layers, LayerWork::default);
+            for l in 0..self.geo.layers {
+                let (done, rest) = w.layers.split_at_mut(l);
+                let x: &[R] = if l == 0 { &w.x0 } else { &done[l - 1].x_out };
+                self.layer_forward(l, at, x, &mut rest[0]);
+            }
         }
-        let last: &[R] = w.layers.last().map_or(&w.x0, |l| &l.x_out);
+        let last: &[R] = if self.checkpoint {
+            w.checkpoints.last().map_or(&w.x0, Vec::as_slice)
+        } else {
+            w.layers.last().map_or(&w.x0, |l| &l.x_out)
+        };
         w.out.resize(n * h, R::ZERO);
         norm::forward(last, &self.weights()[FINAL_NORM], &self.empty, self.geo.eps, &mut w.out, &mut w.fin);
         self.store(&mut w.out);
@@ -88,17 +120,44 @@ impl<R: Real> Encoder<R> {
         if n == 0 || dout.len() != n * h {
             return Err(invalid("encoder: the gradient is not shaped as the last forward's states"));
         }
+        let matching = if self.checkpoint {
+            w.checkpoints.len() == self.geo.layers && (!w.layers.is_empty() || self.geo.layers == 0)
+        } else {
+            w.layers.len() == self.geo.layers
+        };
+        if !matching {
+            return Err(invalid("encoder: the workspace is not from this encoder's forward"));
+        }
         if !self.shaped(g) {
             return Err(invalid("encoder: the gradients are not shaped as the weights"));
         }
-        let last: &[R] = w.layers.last().map_or(&w.x0, |l| &l.x_out);
+        let last: &[R] = if self.checkpoint {
+            w.checkpoints.last().map_or(&w.x0, Vec::as_slice)
+        } else {
+            w.layers.last().map_or(&w.x0, |l| &l.x_out)
+        };
         let dout = self.stored(dout);
         let mut dx = vec![R::ZERO; n * h];
         let dw = (!self.frozen).then_some(FINAL_NORM);
         norm::backward(last, &self.weights()[FINAL_NORM], &w.fin, &dout, &mut dx, dw.map(|s| &mut g[s][..]), None);
         self.store(&mut dx);
-        for l in (0..self.geo.layers).rev() {
-            dx = self.layer_backward(l, w.at, &w.layers[l], &dx, g);
+        let stop = if self.frozen { self.lora_from } else { 0 };
+        if self.checkpoint {
+            let mut scratch = LayerWork::default();
+            for l in (stop..self.geo.layers).rev() {
+                let lw = if l + 1 == self.geo.layers {
+                    &w.layers[0]
+                } else {
+                    let x: &[R] = if l == 0 { &w.x0 } else { &w.checkpoints[l - 1] };
+                    self.layer_forward(l, w.at, x, &mut scratch);
+                    &scratch
+                };
+                dx = self.layer_backward(l, w.at, lw, &dx, g);
+            }
+        } else {
+            for l in (stop..self.geo.layers).rev() {
+                dx = self.layer_backward(l, w.at, &w.layers[l], &dx, g);
+            }
         }
         if self.frozen {
             return Ok(());

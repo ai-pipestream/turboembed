@@ -7,7 +7,7 @@
 
 use crate::{Answers, Question, Reranked, Shortlist};
 use turbo_analysis::export::{
-    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, put_spans,
+    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, NodeRef, Reader, Writer, get_spans, put_spans,
 };
 use turbo_analysis::{Document, Ix, Key, Layer, ModelRef};
 use turbo_analysis_layers::Levels;
@@ -44,7 +44,7 @@ fn put_items<L: Layer>(w: &mut Writer, cx: &ExportCx, key: &Key<L>, items: &[Ix<
 /// Reads what [`put_items`] wrote, holding every item to the restored
 /// source instance's length.
 fn get_items<L: Layer>(r: &mut Reader<'_>, cx: &mut ImportCx) -> Result<(Key<L>, Vec<Ix<L>>), ExportError> {
-    let target = LayerRef { layer: r.string()?, instance: r.string()? };
+    let target = r.layer_ref()?;
     cx.want_keyed_target::<L>(&target)?;
     let len = cx.layer_len(&target)?;
     let mut items = Vec::new();

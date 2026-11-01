@@ -237,7 +237,9 @@ With `--sink-endpoint`, the server is a client of
 `turbo.sink.v1.TurboSinkService` (`server/proto/turbo_sink.proto`): it
 streams every document an analysis stream completes to the sink at that
 address through a bounded queue (`--sink-queue-items`,
-`--sink-queue-bytes`). The receiving side of that service is in the
+`--sink-queue-bytes`), with `--sink-documents` the complete graph of
+every progressive analysis too, and with `--sink-typed-offsets` each
+graph's typed projection. The receiving side of that service is in the
 `turbo-kserve` library for programs that embed the server and want to
 accept documents themselves; the `turbo-kserve` binary does not serve it
 ([grpc-sink.md](docs/grpc-sink.md)).

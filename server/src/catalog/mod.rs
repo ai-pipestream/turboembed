@@ -13,10 +13,12 @@ mod entry;
 mod gate;
 mod install;
 mod read;
+mod sources;
 mod through;
 
 pub(crate) use gate::check_load;
 pub use read::READ_CHUNK_BYTES;
+pub use sources::{DriveSignIn, ENV_DRIVE_CLIENT_ID, ENV_DRIVE_CLIENT_SECRET, ENV_DRIVE_REDIRECT, SIGN_IN_SECONDS};
 
 use std::fmt;
 use std::path::PathBuf;
@@ -33,11 +35,13 @@ use crate::api::{
 use crate::kserve::Reply;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogService;
 use crate::proto::training::{
-    DescribeModelRequest, DescribeModelResponse, InstallModelRequest, LicenceTerms, ListInstalledModelsRequest,
-    ListInstalledModelsResponse, ListLicenceAcceptancesRequest, ListLicenceAcceptancesResponse,
-    ListModelCatalogRequest, ListModelCatalogResponse, ReadModelFileRequest, RecordLicenceAcceptanceRequest,
-    RecordLicenceAcceptanceResponse, ResolveModelRequest, ResolveModelResponse, RevokeLicenceAcceptanceRequest,
-    RevokeLicenceAcceptanceResponse,
+    DescribeModelRequest, DescribeModelResponse, FinishDriveSignInRequest, FinishDriveSignInResponse,
+    InstallModelRequest, LicenceTerms, ListInstalledModelsRequest, ListInstalledModelsResponse,
+    ListLicenceAcceptancesRequest, ListLicenceAcceptancesResponse, ListModelCatalogRequest, ListModelCatalogResponse,
+    ListModelSourcesRequest, ListModelSourcesResponse, ReadModelFileRequest, RecordLicenceAcceptanceRequest,
+    RecordLicenceAcceptanceResponse, RegisterModelSourceRequest, RegisterModelSourceResponse, RemoveModelSourceRequest,
+    RemoveModelSourceResponse, ResolveModelRequest, ResolveModelResponse, RevokeLicenceAcceptanceRequest,
+    RevokeLicenceAcceptanceResponse, StartDriveSignInRequest, StartDriveSignInResponse,
 };
 use crate::status::to_status;
 
@@ -122,12 +126,20 @@ pub(crate) struct CatalogService {
     installing: Arc<AtomicBool>,
     /// Held across each read, change and write of the acceptance file.
     accepting: Arc<Mutex<()>>,
+    /// Users' registered sources and the Google sign-ins waiting.
+    sources: Arc<sources::Sources>,
 }
 
 impl CatalogService {
     /// With `prefetch`, every permissive artifact is installed in the
     /// background from now on (through.rs).
-    pub(crate) fn new(catalog: Option<Catalog>, admin: bool, zoo: bool, prefetch: bool) -> CatalogService {
+    pub(crate) fn new(
+        catalog: Option<Catalog>,
+        admin: bool,
+        zoo: bool,
+        prefetch: bool,
+        drive: Option<DriveSignIn>,
+    ) -> CatalogService {
         let through = zoo.then(through::Fetching::default);
         if prefetch && let Some(c) = &catalog {
             let (c, gates) = (c.clone(), through.clone().unwrap_or_default());
@@ -139,6 +151,7 @@ impl CatalogService {
             through,
             installing: Arc::new(AtomicBool::new(false)),
             accepting: Arc::new(Mutex::new(())),
+            sources: sources::Sources::new(drive),
         }
     }
 
@@ -175,9 +188,11 @@ pub(crate) fn zoo_status(e: ZooError) -> Status {
     let code = match &e {
         ZooError::NotFound(_) => TURBO_E_BUNDLE_NOT_FOUND,
         ZooError::Integrity { .. } => TURBO_E_BUNDLE_INTEGRITY,
-        ZooError::Index(_) | ZooError::Acceptances(_) | ZooError::Refused { .. } | ZooError::NotAccepted { .. } => {
-            TURBO_E_INVALID_STATE
-        }
+        ZooError::Index(_)
+        | ZooError::Acceptances(_)
+        | ZooError::Holders(_)
+        | ZooError::Refused { .. }
+        | ZooError::NotAccepted { .. } => TURBO_E_INVALID_STATE,
         ZooError::Transport { .. } | ZooError::Io { .. } => TURBO_E_RUNTIME,
     };
     plain(Failure::new(code, 0, e.to_string()))
@@ -292,7 +307,8 @@ impl TurboCatalogService for CatalogService {
         let catalog = self.catalog()?;
         let req = req.into_inner();
         let who = user(1, &req.user)?;
-        let stream = install::start(catalog, who, req.artifact_id, self.installing.clone()).await?;
+        let stream =
+            install::start(catalog, who, req.artifact_id, self.installing.clone(), self.sources.clone()).await?;
         Ok(Response::new(stream))
     }
 
@@ -320,5 +336,64 @@ impl TurboCatalogService for CatalogService {
         let through = self.through.clone();
         let stream = read::start(catalog, who, req.artifact_id, req.path, req.sha256, through).await?;
         Ok(Response::new(stream))
+    }
+
+    async fn list_model_sources(&self, req: Request<ListModelSourcesRequest>) -> Reply<ListModelSourcesResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
+        let (s, admin) = (self.sources.clone(), self.admin || self.through.is_some());
+        blocking(move || sources::list(&catalog, &s, who.as_ref(), admin).map(Response::new)).await
+    }
+
+    async fn register_model_source(
+        &self,
+        req: Request<RegisterModelSourceRequest>,
+    ) -> Reply<RegisterModelSourceResponse> {
+        self.admin("RegisterModelSource")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let (s, operator) = (self.sources.clone(), self.admin);
+        blocking(move || {
+            let source = sources::register(&catalog, &s, &who, &req.name, &req.address, &req.api_key, operator)?;
+            Ok(Response::new(RegisterModelSourceResponse { user: who.to_string(), source: Some(source) }))
+        })
+        .await
+    }
+
+    async fn remove_model_source(&self, req: Request<RemoveModelSourceRequest>) -> Reply<RemoveModelSourceResponse> {
+        self.admin("RemoveModelSource")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let s = self.sources.clone();
+        blocking(move || {
+            let was_registered = sources::remove(&catalog, &s, &who, &req.name)?;
+            Ok(Response::new(RemoveModelSourceResponse { user: who.to_string(), was_registered }))
+        })
+        .await
+    }
+
+    async fn start_drive_sign_in(&self, req: Request<StartDriveSignInRequest>) -> Reply<StartDriveSignInResponse> {
+        self.admin("StartDriveSignIn")?;
+        self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let (authorize_url, state) = sources::start(&self.sources, &who, &req.name, &req.address)?;
+        Ok(Response::new(StartDriveSignInResponse { authorize_url, state, expires_in: SIGN_IN_SECONDS as u32 }))
+    }
+
+    async fn finish_drive_sign_in(&self, req: Request<FinishDriveSignInRequest>) -> Reply<FinishDriveSignInResponse> {
+        self.admin("FinishDriveSignIn")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let s = self.sources.clone();
+        blocking(move || {
+            let source = sources::finish(&catalog, &s, &who, &req.state, &req.code)?;
+            Ok(Response::new(FinishDriveSignInResponse { user: who.to_string(), source: Some(source) }))
+        })
+        .await
     }
 }

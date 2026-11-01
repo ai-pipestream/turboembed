@@ -189,4 +189,4 @@ pub use fit::EmotionFitOptions;
 
 #[path = "zoo.rs"]
 mod zoo;
-pub use zoo::{EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD};
+pub use zoo::{EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD, GOEMOTIONS_MODERNBERT_HEAD};

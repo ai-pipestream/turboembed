@@ -1,8 +1,8 @@
 # Sentence and token segmentation (`turbo-sentdetect`, `turbo-sat`, `turbo-tokenize`)
 
 Sentence segmentation and tokenization turn a `View` into the `Sentences`
-(`opennlp:sentences`), `Structure` (`turbo:structure`), `Tokens`
-(`opennlp:tokens`), `WordTypes` (`turbo:word-types`), and `Readings`
+(`turbo:sentences`), `Structure` (`turbo:structure`), `Tokens`
+(`turbo:tokens`), `WordTypes` (`turbo:word-types`), and `Readings`
 (`turbo:readings`) layers in `turbo-analysis-layers` and
 `turbo-tokenize-layers`. All offsets are UTF-8 byte offsets on character
 boundaries into the view they annotate.
@@ -16,8 +16,8 @@ three sentence segmenters plus classified abbreviation inventories:
 |---|---|---|
 | `ParagraphDetector` (`paragraph_spans`) | `analysis/sentdetect/src/paragraph.rs` | Splits a view on blank lines into paragraph `Block` items in `Structure` (`turbo:structure`) |
 | `RuleSentenceDetector` (`RuleSplitter`, `UnpunctuatedSplitter`) | `analysis/sentdetect/src/rules/mod.rs` | UAX #29 sentence boundaries refined with per-language `Rules`, `AbbreviationInventory` (`AbbreviationPreset`), bracket/quote balancing, list-marker suppression, unit/initial guards, and unpunctuated script fallback (`UNPUNCTUATED_SCRIPTS`) |
-| `NewlineDetector` (`newline_spans`) | `analysis/sentdetect/src/newline.rs` | Line-oriented sentence splitter writing one sentence per non-blank line into `Sentences` (`opennlp:sentences`) |
-| `SentenceDetector` (`SentenceModel`) | `analysis/sentdetect/src/me/mod.rs` | Maximum-entropy end-of-sentence classifier over candidate punctuation positions (`EndOfSentence`) and abbreviation dictionaries, writing `Sentences` (`opennlp:sentences`) and `Confidence<Sentences>` |
+| `NewlineDetector` (`newline_spans`) | `analysis/sentdetect/src/newline.rs` | Line-oriented sentence splitter writing one sentence per non-blank line into `Sentences` (`turbo:sentences`) |
+| `SentenceDetector` (`SentenceModel`) | `analysis/sentdetect/src/me/mod.rs` | Maximum-entropy end-of-sentence classifier over candidate punctuation positions (`EndOfSentence`) and abbreviation dictionaries, writing `Sentences` (`turbo:sentences`) and `Confidence<Sentences>` |
 
 ### Rule and abbreviation-inventory sentence detection
 
@@ -45,13 +45,13 @@ under-segment, `SatAnnotator` (`SatOptions`, `SatProvider`, `Scored`, `Head`,
 `rule_detector_with_sat`, `rule_splitter_with_sat` in `analysis/sat/src/lib.rs`)
 scores each token's sentence-boundary probability on the core's encoder over
 wtpsplit's overlapping windows, moves each cut to a grapheme cluster boundary,
-and writes `Sentences` (`opennlp:sentences`) (with `Scored` also writing
+and writes `Sentences` (`turbo:sentences`) (with `Scored` also writing
 `Confidence<Sentences>`).
 
 ## Tokenization (`turbo-tokenize` and `turbo-tokenize-layers`)
 
 `turbo-tokenize` (`analysis/tokenize/`) segments a `View` (or each sentence in
-`Sentences`) into `Tokens` (`opennlp:tokens`), and optionally writes word-type
+`Sentences`) into `Tokens` (`turbo:tokens`), and optionally writes word-type
 and morphological reading columns into `WordTypes` (`turbo:word-types`) and
 `Readings` (`turbo:readings`):
 

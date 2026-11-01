@@ -17,7 +17,7 @@ import opennlp.tools.tokenize.DictionaryDetokenizer;
  * dictionary {@code <name>-detokenizer.xml}, which is the golden's {@code model} record; the
  * directory is the dictionary's base name.
  *
- * <p>The layers are {@code opennlp:tokens}, each token's span in the input file, then
+ * <p>The layers are {@code turbo:tokens}, each token's span in the input file, then
  * {@code turbo:detokenization}, aligned to the tokens, with the name of the
  * {@code DetokenizationOperation} {@code detokenize(String[])} gave each token in its
  * {@code operation} column, then {@code turbo:detokenized}, one document row with what
@@ -118,8 +118,8 @@ final class DetokenizerGolden implements AnnotatorGolden {
     String plain = AnnotatorException.call(() -> detokenizer.detokenize(tokens, null));
     String marked = AnnotatorException.call(() -> detokenizer.detokenize(tokens, SPLIT_MARKER));
     return List.of(
-        new Layer("opennlp:tokens", "text", new Column.U32("start", starts), new Column.U32("end", ends)),
-        new Layer("turbo:detokenization", "aligned:opennlp:tokens", new Column.Str("operation", names)),
+        new Layer("turbo:tokens", "text", new Column.U32("start", starts), new Column.U32("end", ends)),
+        new Layer("turbo:detokenization", "aligned:turbo:tokens", new Column.Str("operation", names)),
         new Layer("turbo:detokenized", "document", new Column.Str("text", new String[] {plain}),
             new Column.Str("marked", new String[] {marked})));
   }

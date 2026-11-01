@@ -119,3 +119,38 @@ fn unsupported_named_note_has_no_assumed_currency() {
     // Upstream Currency case 12 is explicitly NotSupported for dotnet.
     assert!(quantities("Hij is me nog een tientje schuldig.").is_empty());
 }
+
+#[test]
+fn dutch_pipeline_preserves_money_rate_denominators_and_unicode_offsets() {
+    use turbo_analysis::{Analyzer, Document, Ix, Layer, OffsetTable};
+    use turbo_grammar::annotator::{GRAMMAR_MONEY, GrammarAnnotator};
+
+    let text = "💶 5 euro per uur, 5 euro per dag en 5 euro.";
+    let analyzer = Analyzer::builder().step(GrammarAnnotator::dutch().bound()).build().unwrap();
+    let mut docs = [Document::new(text)];
+    assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
+    let money = docs[0].get_key(&GRAMMAR_MONEY).unwrap();
+    money.check().unwrap();
+    let got: Vec<(&str, &str, String, Option<&str>)> = (0..money.len())
+        .map(|i| {
+            let ix = Ix::new(i as u32);
+            let m = money.get(ix);
+            (&text[m.span.range()], money.currency[i].as_str(), money.amount(ix).to_plain_string(), money.per(ix))
+        })
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("5 euro per uur", "EUR", "5".to_string(), Some("h")),
+            ("5 euro per dag", "EUR", "5".to_string(), Some("d")),
+            ("5 euro", "EUR", "5".to_string(), None),
+        ]
+    );
+    let offsets = OffsetTable::build(text);
+    for (_, span) in money.spans.iter() {
+        for byte in [span.start, span.end] {
+            assert_eq!(offsets.from_utf16(text, offsets.to_utf16(text, byte)).unwrap(), byte);
+            assert_eq!(offsets.from_code_point(text, offsets.to_code_point(text, byte)).unwrap(), byte);
+        }
+    }
+}

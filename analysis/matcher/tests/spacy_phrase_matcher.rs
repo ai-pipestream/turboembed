@@ -227,7 +227,7 @@ fn phrase_matcher_bool_attrs() {
 fn attr_pipeline_checks() {
     // The document must have the layer the field reads; text needs only
     // tokens.
-    for (attr, layer) in [(Attr::Pos, "opennlp:pos"), (Attr::Lemma, "opennlp:lemmas")] {
+    for (attr, layer) in [(Attr::Pos, "turbo:pos"), (Attr::Lemma, "turbo:lemmas")] {
         let mut m = PhraseMatcher::new(Field::Attr(attr));
         m.add("TEST", &["X"]).unwrap();
         assert_eq!(m.find(&Doc::split("Test").input()), Err(MatchError::Missing(layer)));

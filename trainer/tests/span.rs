@@ -23,6 +23,7 @@ fn spec(decode: Decode, adapter: u32) -> HeadSpec {
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: Some(SpanShape { max_words: 3, width_dim: 2 }),
         relation: None,
         license_class: None,

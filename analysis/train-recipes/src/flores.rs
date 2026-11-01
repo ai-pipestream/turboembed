@@ -34,8 +34,8 @@ pub fn read_gold(source: &str) -> Result<Vec<Example<'_>>, String> {
 }
 
 /// The model codes that differ from the converter's gold codes. The model
-/// answers with the recipe's Tatoeba codes; the gold set uses ISO 639-3 at
-/// macrolanguage grain for these six (see `convert_gold.py`).
+/// answers with the recipe's Tatoeba codes; the gold set uses the converter's
+/// label policy for these six (see `convert_gold.py`).
 pub const GOLD_CODES: [(&str, &str); 6] =
     [("ara", "arb"), ("cmn", "zho"), ("lvs", "lav"), ("pes", "fas"), ("swh", "swa"), ("zsm", "msa")];
 
@@ -126,6 +126,22 @@ mod tests {
         assert_eq!(scores["yor"], LanguageScore { texts: 1, correct: 0, supported: false });
         assert_eq!(gold_code("eng"), "eng");
         assert_eq!(gold_code("zsm"), "msa");
+
+        let all_langs: Vec<String> = crate::langdetect::LANGUAGES.iter().map(|p| p.tatoeba.to_owned()).collect();
+        let n = all_langs.len();
+        let full_model = NgramModel::new(
+            all_langs,
+            vec![0.0; 16 * n],
+            vec![0.0; n],
+            (1, 3),
+            16,
+            ModelRef { id: "test".into(), revision: "1".into(), sha256: "0".into() },
+        )
+        .unwrap();
+        for code in ["lug", "sna", "sot", "tsn", "tso", "xho", "yor"] {
+            let ex = [Example { text: "sample", language: code }];
+            assert!(per_language(&full_model, &ex)[code].supported, "{code}");
+        }
     }
 
     #[test]

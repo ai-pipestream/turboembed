@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/german	119	106	d48ae253086e3984a56fc973a73652963f5c48c360ab2859b8e383a73af3c063
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	34	start:u32	end:u32
+layer	turbo:tokens	text	34	start:u32	end:u32
 0	3
 4	11
 12	15
@@ -41,4 +41,4 @@ layer	opennlp:tokens	text	34	start:u32	end:u32
 114	117
 117	118
 118	119
-end	opennlp:tokens
+end	turbo:tokens
