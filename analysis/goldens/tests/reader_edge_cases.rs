@@ -33,9 +33,9 @@ fn file(body: &str) -> String {
     format!("{HEADER}{body}")
 }
 
-/// A `opennlp:sentences` block with these rows.
+/// A `turbo:sentences` block with these rows.
 fn sentences(rows: &[&str]) -> String {
-    block("opennlp:sentences", "text", &["start:u32", "end:u32"], rows)
+    block("turbo:sentences", "text", &["start:u32", "end:u32"], rows)
 }
 
 fn block(id: &str, anchor: &str, columns: &[&str], rows: &[&str]) -> String {
@@ -49,11 +49,11 @@ fn block(id: &str, anchor: &str, columns: &[&str], rows: &[&str]) -> String {
 }
 
 fn tokens(rows: &[&str]) -> String {
-    block("opennlp:tokens", "text", &["start:u32", "end:u32"], rows)
+    block("turbo:tokens", "text", &["start:u32", "end:u32"], rows)
 }
 
 fn lemmas(rows: &[&str]) -> String {
-    block("opennlp:lemmas", "aligned:opennlp:tokens", &["lemma:str"], rows)
+    block("turbo:lemmas", "aligned:turbo:tokens", &["lemma:str"], rows)
 }
 
 /// A file with one token and one lemma row `lemma` (line 12).
@@ -63,7 +63,7 @@ fn lemma_file(lemma: &str) -> String {
 
 /// A file with one sentence and one confidence row `value` (line 12).
 fn conf_file(value: &str) -> String {
-    let conf = block("turbo:confidence<opennlp:sentences>", "aligned:opennlp:sentences", &["value:f64"], &[value]);
+    let conf = block("turbo:confidence<turbo:sentences>", "aligned:turbo:sentences", &["value:f64"], &[value]);
     file(&format!("{}{}", sentences(&["0\t5"]), conf))
 }
 
@@ -101,9 +101,9 @@ fn the_helper_files_are_valid() {
     assert_eq!(g.layers.len(), 1);
     assert_eq!(g.layers[0].len(), 2);
     let g = Golden::parse(&lemma_file("go")).unwrap();
-    assert_eq!(g.layer("opennlp:lemmas").unwrap().strs("lemma").unwrap().get(0), "go");
+    assert_eq!(g.layer("turbo:lemmas").unwrap().strs("lemma").unwrap().get(0), "go");
     let g = Golden::parse(&conf_file("3fe0000000000000 0.5")).unwrap();
-    assert_eq!(g.layer("turbo:confidence<opennlp:sentences>").unwrap().f64s("value").unwrap(), [0.5]);
+    assert_eq!(g.layer("turbo:confidence<turbo:sentences>").unwrap().f64s("value").unwrap(), [0.5]);
 }
 
 // ---------------------------------------------------------------------
@@ -186,7 +186,7 @@ fn a_carriage_return_anywhere_names_its_line() {
     let base = file(&sentences(&["0\t5", "6\t9"]));
     // In a header field, in a layer record, in a row, and in the end line.
     for (needle, line) in
-        [("jdk\t21\t21+1\tV", 4), ("layer\topennlp:sentences", 8), ("6\t9", 10), ("end\topennlp:sentences", 11)]
+        [("jdk\t21\t21+1\tV", 4), ("layer\tturbo:sentences", 8), ("6\t9", 10), ("end\tturbo:sentences", 11)]
     {
         let text = base.replacen(needle, &format!("{needle}\r"), 1);
         let e = refused(&text, line);
@@ -328,19 +328,14 @@ fn config_keys_must_be_sorted_and_unique() {
 
 #[test]
 fn a_layer_id_must_be_a_known_shape() {
-    for id in [
-        "opennlp:sentence",
-        "OPENNLP:SENTENCES",
-        "opennlp:sentences ",
-        "",
-        "turbo:confidence<opennlp:pos>",
-        "turbo:view2",
-    ] {
+    for id in
+        ["opennlp:sentence", "OPENNLP:SENTENCES", "turbo:sentences ", "", "turbo:confidence<turbo:pos>", "turbo:view2"]
+    {
         let text = file(&format!("layer\t{id}\ttext\t0\tstart:u32\tend:u32\nend\t{id}\n"));
         let e = refused(&text, 8);
         assert!(matches!(e, GoldenError::UnknownLayer { .. }), "{id:?}: {e:?}");
         // The message lists what is known.
-        says(&e, &["opennlp:sentences", "opennlp:tokens", "turbo:view", "turbo:confidence<opennlp:tokens>"]);
+        says(&e, &["turbo:sentences", "turbo:tokens", "turbo:view", "turbo:confidence<turbo:tokens>"]);
     }
 }
 
@@ -348,7 +343,7 @@ fn a_layer_id_must_be_a_known_shape() {
 fn duplicate_blocks_are_refused_where_the_second_starts() {
     let text = file(&format!("{}{}{}", sentences(&["0\t5"]), tokens(&["0\t5"]), sentences(&["0\t5"])));
     let e = refused(&text, 14);
-    assert!(matches!(&e, GoldenError::Duplicate { layer, .. } if layer == "opennlp:sentences"), "{e:?}");
+    assert!(matches!(&e, GoldenError::Duplicate { layer, .. } if layer == "turbo:sentences"), "{e:?}");
     // Two blocks that differ in everything but the id are still duplicates.
     let text = file(&format!("{}{}", sentences(&["0\t5"]), sentences(&[])));
     refused(&text, 11);
@@ -359,69 +354,69 @@ fn an_aligned_layer_needs_its_anchor_earlier_in_the_file() {
     let pos = |n: usize| {
         let rows: Vec<String> = (0..n).map(|_| "NOUN\t3ff0000000000000 1.0".to_string()).collect();
         let rows: Vec<&str> = rows.iter().map(String::as_str).collect();
-        block("opennlp:pos", "aligned:opennlp:tokens", &["tag:str", "prob:f64"], &rows)
+        block("turbo:pos", "aligned:turbo:tokens", &["tag:str", "prob:f64"], &rows)
     };
     // The anchor is there, so this reads.
     Golden::parse(&file(&format!("{}{}", tokens(&["0\t5", "6\t9"]), pos(2)))).unwrap();
     // The anchor comes later.
     let text = file(&format!("{}{}", pos(2), tokens(&["0\t5", "6\t9"])));
     let e = refused(&text, 8);
-    assert!(matches!(&e, GoldenError::AnchorLayer { anchor, .. } if anchor == "opennlp:tokens"), "{e:?}");
-    says(&e, &["expected opennlp:tokens earlier in the file"]);
+    assert!(matches!(&e, GoldenError::AnchorLayer { anchor, .. } if anchor == "turbo:tokens"), "{e:?}");
+    says(&e, &["expected turbo:tokens earlier in the file"]);
     // The anchor is not in the file at all.
     let e = refused(&file(&pos(2)), 8);
     assert!(matches!(e, GoldenError::AnchorLayer { .. }), "{e:?}");
     // Another layer of the file is not the anchor: the type decides it.
     let other =
-        block("opennlp:pos", "aligned:opennlp:sentences", &["tag:str", "prob:f64"], &["NOUN\t3ff0000000000000 1.0"]);
+        block("turbo:pos", "aligned:turbo:sentences", &["tag:str", "prob:f64"], &["NOUN\t3ff0000000000000 1.0"]);
     let e = refused(&file(&format!("{}{}", sentences(&["0\t5"]), other)), 11);
     assert!(matches!(e, GoldenError::Anchor { .. }), "{e:?}");
-    says(&e, &["anchored to aligned:opennlp:sentences, expected aligned:opennlp:tokens"]);
+    says(&e, &["anchored to aligned:turbo:sentences, expected aligned:turbo:tokens"]);
     // Row counts must be the anchor's, in both directions, and the message
     // names the layer, the anchor and both counts.
     for n in [0, 1, 3] {
         let e = refused(&file(&format!("{}{}", tokens(&["0\t5", "6\t9"]), pos(n))), 12);
         assert!(matches!(&e, GoldenError::AlignedRows { expected: 2, found, .. } if *found == n), "{n}: {e:?}");
-        says(&e, &["opennlp:pos", "opennlp:tokens", &format!("declares {n} rows, expected 2")]);
+        says(&e, &["turbo:pos", "turbo:tokens", &format!("declares {n} rows, expected 2")]);
     }
     // Both empty is consistent.
     Golden::parse(&file(&format!("{}{}", tokens(&[]), pos(0)))).unwrap();
     // A layer anchored to the text or document cannot name an anchor layer, and an
     // aligned layer must name one.
-    let e = refused(&file(&block("opennlp:tokens", "aligned:opennlp:sentences", &["start:u32", "end:u32"], &[])), 8);
+    let e = refused(&file(&block("turbo:tokens", "aligned:turbo:sentences", &["start:u32", "end:u32"], &[])), 8);
     assert!(matches!(e, GoldenError::Anchor { .. }), "{e:?}");
-    let e = refused(&file(&block("opennlp:tokens", "aligned", &["start:u32", "end:u32"], &[])), 8);
+    let e = refused(&file(&block("turbo:tokens", "aligned", &["start:u32", "end:u32"], &[])), 8);
     says(&e, &["layer anchor", "text, document or aligned:<layer id>"]);
-    let e = refused(&file(&block("opennlp:tokens", "TEXT", &["start:u32", "end:u32"], &[])), 8);
+    let e = refused(&file(&block("turbo:tokens", "TEXT", &["start:u32", "end:u32"], &[])), 8);
     assert!(matches!(e, GoldenError::Field { .. }), "{e:?}");
 }
 
 #[test]
 fn layer_records_with_the_wrong_shape_of_fields() {
     // No column list at all.
-    let e = refused(&file("layer\topennlp:tokens\ttext\t0\nend\topennlp:tokens\n"), 8);
+    let e = refused(&file("layer\tturbo:tokens\ttext\t0\nend\tturbo:tokens\n"), 8);
     assert!(matches!(e, GoldenError::Fields { found: 4, .. }), "{e:?}");
     // A column without a type, with an empty name, with a type in upper case.
     for col in ["start", ":u32", "start:U32", "start:u64", "start:u32:x", "start::u32"] {
-        let text = file(&format!("layer\topennlp:tokens\ttext\t0\t{col}\tend:u32\nend\topennlp:tokens\n"));
+        let text = file(&format!("layer\tturbo:tokens\ttext\t0\t{col}\tend:u32\nend\tturbo:tokens\n"));
         let e = refused(&text, 8);
         assert!(matches!(e, GoldenError::Field { .. }), "{col:?}: {e:?}");
     }
     // Too many columns, too few, the wrong type.
-    let e = refused(&file("layer\topennlp:tokens\ttext\t0\tstart:u32\tend:u32\tx:u32\nend\topennlp:tokens\n"), 8);
+    let e = refused(&file("layer\tturbo:tokens\ttext\t0\tstart:u32\tend:u32\tx:u32\nend\tturbo:tokens\n"), 8);
     assert!(matches!(e, GoldenError::Columns { .. }), "{e:?}");
-    let e = refused(&file("layer\topennlp:tokens\ttext\t0\tstart:u32\nend\topennlp:tokens\n"), 8);
+    let e = refused(&file("layer\tturbo:tokens\ttext\t0\tstart:u32\nend\tturbo:tokens\n"), 8);
     assert!(matches!(e, GoldenError::Columns { .. }), "{e:?}");
-    let e = refused(&file("layer\topennlp:tokens\ttext\t0\tstart:u32\tend:f64\nend\topennlp:tokens\n"), 8);
+    let e = refused(&file("layer\tturbo:tokens\ttext\t0\tstart:u32\tend:f64\nend\tturbo:tokens\n"), 8);
     says(&e, &["[start:u32, end:f64]", "expected [start:u32, end:u32]"]);
     // Row counts that are not u32s.
     for n in ["-1", "+1", "01", "1.0", "", "4294967296", "x"] {
-        let text = file(&format!("layer\topennlp:tokens\ttext\t{n}\tstart:u32\tend:u32\nend\topennlp:tokens\n"));
+        let text = file(&format!("layer\tturbo:tokens\ttext\t{n}\tstart:u32\tend:u32\nend\tturbo:tokens\n"));
         let e = refused(&text, 8);
         assert!(matches!(e, GoldenError::Field { .. }), "{n:?}: {e:?}");
         says(&e, &["layer row count"]);
     }
     // A record that is not a layer, where a layer should start.
-    let e = refused(&file("lay\topennlp:tokens\ttext\t0\tstart:u32\tend:u32\n"), 8);
+    let e = refused(&file("lay\tturbo:tokens\ttext\t0\tstart:u32\tend:u32\n"), 8);
     assert!(matches!(e, GoldenError::Record { .. }), "{e:?}");
 }

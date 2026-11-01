@@ -147,7 +147,7 @@ const LOADERS: &[(&LayerName, LoadFn)] = &[
 ];
 
 /// Whether a golden block's id is this layer name, as `LayerName` prints
-/// it (`turbo:confidence<opennlp:tokens>` for a generic layer).
+/// it (`turbo:confidence<turbo:tokens>` for a generic layer).
 fn is_named(id: &str, name: &LayerName) -> bool {
     id == name.to_string()
 }
@@ -236,11 +236,11 @@ mod tests {
 
     #[test]
     fn block_ids_match_layer_names() {
-        assert!(is_named("opennlp:tokens", Tokens::NAME));
-        assert!(!is_named("opennlp:tokens", Confidence::<Tokens>::NAME));
-        assert!(is_named("turbo:confidence<opennlp:tokens>", Confidence::<Tokens>::NAME));
-        assert!(!is_named("turbo:confidence<opennlp:sentences>", Confidence::<Tokens>::NAME));
-        assert!(!is_named("turbo:confidence<opennlp:tokens", Confidence::<Tokens>::NAME));
+        assert!(is_named("turbo:tokens", Tokens::NAME));
+        assert!(!is_named("turbo:tokens", Confidence::<Tokens>::NAME));
+        assert!(is_named("turbo:confidence<turbo:tokens>", Confidence::<Tokens>::NAME));
+        assert!(!is_named("turbo:confidence<turbo:sentences>", Confidence::<Tokens>::NAME));
+        assert!(!is_named("turbo:confidence<turbo:tokens", Confidence::<Tokens>::NAME));
         assert!(!is_named("turbo:confidence", Confidence::<Tokens>::NAME));
     }
 

@@ -46,6 +46,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use crate::doc::{Document, Status, View};
 use crate::error::Error;
 use crate::graph::{Edge, Edges, Groups};
+use crate::ids::canonical_layer_name;
 use crate::layer::{Execution, Key, KeyId, Layer, ModelRef, Provenance, Tag, TagSet};
 use crate::span::{Ix, Span, Spans};
 use crate::text::{Alignment, Edit, ViewId};
@@ -87,3 +88,12 @@ use error::malformed;
 use error_wire::{get_error, put_error};
 use provenance::{provenance_record_for_entry, rebuild_error, rebuild_provenance, ref_of, status_record};
 use records::MAGIC;
+
+/// `name` with a legacy layer id read as its current id, reusing the
+/// string when it holds none.
+fn canonical_owned(name: String) -> String {
+    match canonical_layer_name(&name) {
+        std::borrow::Cow::Borrowed(_) => name,
+        std::borrow::Cow::Owned(current) => current,
+    }
+}

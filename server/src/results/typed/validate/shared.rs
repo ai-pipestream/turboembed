@@ -31,7 +31,7 @@ pub(super) fn key_value(ctx: &LayerCtx<'_>, i: usize, pair: &KeyValuePairAnnotat
 
 pub(super) fn event(ctx: &LayerCtx<'_>, i: usize, event: &EventAnnotation) -> Result<(), Failure> {
     check_f32_prob("confidence", ctx.lid, i, event.confidence)?;
-    target(ctx, "opennlp:sentences", event.sentence_index)?;
+    target(ctx, "turbo:sentences", event.sentence_index)?;
     for argument in &event.arguments {
         let span = argument.span.as_ref().ok_or_else(|| bad("event argument has no span"))?;
         // Native arguments are nonempty, but text deletion can project them
@@ -39,7 +39,7 @@ pub(super) fn event(ctx: &LayerCtx<'_>, i: usize, event: &EventAnnotation) -> Re
         ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
         match (argument.anchored_layer.as_str(), argument.anchored_index) {
             ("none", None) => {}
-            (layer @ ("turbo:temporal" | "turbo:money" | "turbo:quantities" | "opennlp:entities"), Some(index)) => {
+            (layer @ ("turbo:temporal" | "turbo:money" | "turbo:quantities" | "turbo:entities"), Some(index)) => {
                 target(ctx, layer, index)?;
             }
             _ => return Err(bad("event argument anchor layer/index is missing or inconsistent")),

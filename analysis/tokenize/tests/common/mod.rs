@@ -87,7 +87,7 @@ impl Case {
     /// Whether the golden has a layer of UTF-16 spans, so a row cuts a
     /// character.
     pub fn has_cut(&self) -> bool {
-        self.golden.layer("turbo:utf16<opennlp:tokens>").is_some()
+        self.golden.layer("turbo:utf16<turbo:tokens>").is_some()
     }
 }
 

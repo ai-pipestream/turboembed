@@ -50,7 +50,7 @@ class SegmentationGoldensTest {
       throws AnnotatorException {
     var simple = new PlainTokenGolden(PlainTokenGolden.Kind.SIMPLE, false, Set.of("e"));
     List<Layer> layers = simple.layers(input("e", "x", "a😀"));
-    assertEquals(List.of("opennlp:tokens", "turbo:utf16<opennlp:tokens>"), layers.stream().map(Layer::id).toList());
+    assertEquals(List.of("turbo:tokens", "turbo:utf16<turbo:tokens>"), layers.stream().map(Layer::id).toList());
     assertArrayEquals(new long[] {0, 1, 1}, u32(layers.get(0), 0));
     assertArrayEquals(new long[] {1, 5, 5}, u32(layers.get(0), 1));
     assertArrayEquals(new long[] {0, 1, 1}, u32(layers.get(1), 2));
@@ -70,8 +70,8 @@ class SegmentationGoldensTest {
   @Test
   void theWordTokenizerWritesTheWordTypeOfEachToken() throws AnnotatorException {
     List<Layer> layers = new WordTokenGolden(Set.of("e")).layers(input("e", "x", "Hi 42 東"));
-    assertEquals(List.of("opennlp:tokens", "turbo:word-types"), layers.stream().map(Layer::id).toList());
-    assertEquals("aligned:opennlp:tokens", layers.get(1).anchor());
+    assertEquals(List.of("turbo:tokens", "turbo:word-types"), layers.stream().map(Layer::id).toList());
+    assertEquals("aligned:turbo:tokens", layers.get(1).anchor());
     assertArrayEquals(new String[] {"ALPHANUMERIC", "NUMERIC", "IDEOGRAPHIC"}, str(layers.get(1), 0));
   }
 
@@ -91,7 +91,7 @@ class SegmentationGoldensTest {
     assertFalse(golden.accepts(input("e", "t-case", "")));
 
     List<Layer> layers = golden.layers(input("d", "t-case", "a\né\n,\n"));
-    assertEquals(List.of("opennlp:tokens", "turbo:detokenization", "turbo:detokenized"),
+    assertEquals(List.of("turbo:tokens", "turbo:detokenization", "turbo:detokenized"),
         layers.stream().map(Layer::id).toList());
     assertArrayEquals(new long[] {0, 2, 5}, u32(layers.get(0), 0));
     assertArrayEquals(new long[] {1, 4, 6}, u32(layers.get(0), 1));

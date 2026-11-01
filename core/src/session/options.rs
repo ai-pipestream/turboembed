@@ -25,12 +25,14 @@ pub(super) struct EmbedOptions {
     /// The caller's [2, output_dim] int8 ranges, valid for the write call
     /// and checked; NULL unless quantization is int8.
     pub(super) int8_ranges: *const f32,
+    /// Encoder layers from the end to tap on range writes (0 when none given).
+    pub(super) layers: u32,
 }
 
 pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_options) -> Result<EmbedOptions> {
-    // A caller built against the header before quantization gives fields
-    // 1 to 6 alone, which are read without a reference to the whole
-    // struct; the rest are then 0.
+    // A caller built against the header before quantization or layers
+    // gives the earlier prefix alone, which is read without a reference
+    // to the whole struct; the rest are then 0.
     let size = if opts.is_null() { 0 } else { unsafe { *(opts as *const u32) } };
     let o = if opts.is_null() {
         turbo_embed_options {
@@ -43,6 +45,8 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
             output_dim: 0,
             quantization: 0,
             int8_ranges: std::ptr::null(),
+            layers: 0,
+            reserved: 0,
         }
     } else if size as usize == TURBO_EMBED_OPTIONS_SIZE_V1 {
         let v1 = unsafe { std::slice::from_raw_parts(opts as *const u32, 7) };
@@ -56,10 +60,33 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
             output_dim: v1[6],
             quantization: 0,
             int8_ranges: std::ptr::null(),
+            layers: 0,
+            reserved: 0,
+        }
+    } else if size as usize == TURBO_EMBED_OPTIONS_SIZE_V2 {
+        let v2 = unsafe { std::slice::from_raw_parts(opts as *const u32, 8) };
+        let ranges_at = std::mem::offset_of!(turbo_embed_options, int8_ranges);
+        let int8_ranges = unsafe { *opts.cast::<u8>().add(ranges_at).cast::<*const f32>() };
+        turbo_embed_options {
+            struct_size: size,
+            truncate: v2[1],
+            max_tokens: v2[2],
+            prompt_role: v2[3],
+            normalize: v2[4],
+            pooling: v2[5],
+            output_dim: v2[6],
+            quantization: v2[7],
+            int8_ranges,
+            layers: 0,
+            reserved: 0,
         }
     } else {
         sized(size, size_of::<turbo_embed_options>(), "turbo_embed_options")?;
-        unsafe { *opts }
+        let raw = unsafe { *opts };
+        if raw.reserved != 0 {
+            return Err(Error::new(INVALID_ARGUMENT, "turbo_embed_options.reserved must be 0"));
+        }
+        raw
     };
     let enumerated = |name: &str, v: u32, last: u32, prefix: &str| {
         if v > last {
@@ -126,6 +153,7 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
         pooling_given: o.pooling,
         quantization,
         int8_ranges: o.int8_ranges,
+        layers: o.layers,
     })
 }
 

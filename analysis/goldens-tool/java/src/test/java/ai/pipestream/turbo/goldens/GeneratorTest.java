@@ -153,7 +153,7 @@ class GeneratorTest {
   void aRecorderThatDoesNotThrowWhereThePlainAnnotatorThrewStopsTheGenerator() {
     Input in = input("test", "x", "x");
     Stub stub = new Stub(Map.of(), THROWS);
-    StubDump fine = new StubDump(stub, i -> List.of(new Layer("opennlp:tokens", "text",
+    StubDump fine = new StubDump(stub, i -> List.of(new Layer("turbo:tokens", "text",
         new Column.U32("start", new long[] {0}), new Column.U32("end", new long[] {1}))));
     assertThrows(IllegalStateException.class, () -> generate(in, List.of(stub), List.of(fine)));
     StubDump other = new StubDump(stub, i -> AnnotatorException.call(() -> {
@@ -182,19 +182,19 @@ class GeneratorTest {
     String golden = text(files.get(Path.of("tokenize/t/test/smile.golden")));
     // "x" is too short to be split; "😀!" is three UTF-16 units and three tokens.
     assertTrue(golden.contains("""
-        layer\topennlp:tokens\ttext\t4\tstart:u32\tend:u32
+        layer\tturbo:tokens\ttext\t4\tstart:u32\tend:u32
         0\t1
         2\t6
         2\t6
         6\t7
-        end\topennlp:tokens
-        layer\tturbo:utf16<opennlp:tokens>\taligned:opennlp:tokens\t4\tstart16:u32\tend16:u32\tcut:u32
+        end\tturbo:tokens
+        layer\tturbo:utf16<turbo:tokens>\taligned:turbo:tokens\t4\tstart16:u32\tend16:u32\tcut:u32
         0\t1\t0
         2\t3\t1
         3\t4\t1
         4\t5\t0
-        end\tturbo:utf16<opennlp:tokens>
-        layer\tturbo:confidence<opennlp:tokens>\taligned:opennlp:tokens\t4\tvalue:f64
+        end\tturbo:utf16<turbo:tokens>
+        layer\tturbo:confidence<turbo:tokens>\taligned:turbo:tokens\t4\tvalue:f64
         """), golden);
     assertFalse(golden.contains("\nerror\t"), golden);
   }

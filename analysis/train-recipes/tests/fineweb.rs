@@ -262,7 +262,7 @@ fn choice<'a>(plan: &'a [FileChoice], tatoeba: &str, side: Side) -> Vec<&'a File
 fn ranges_are_fetched_recorded_checked_and_read() {
     let dir = scratch("fineweb-ranges");
     let (files, bytes) = served(&SPLIT);
-    assert_eq!(files.len(), 2 * 102);
+    assert_eq!(files.len(), 2 * 109);
     // The last 8 bytes, the footer's first bytes, then the head.
     assert_eq!(fetch_all(&dir, &files, &SPLIT, &bytes), 3);
     let made = record(&files, &SPLIT, &Store::new(&dir, None)).unwrap();

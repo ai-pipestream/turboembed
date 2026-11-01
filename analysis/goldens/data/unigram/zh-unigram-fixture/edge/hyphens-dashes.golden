@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	128	start:u32	end:u32
+layer	turbo:tokens	text	128	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -135,4 +135,4 @@ layer	opennlp:tokens	text	128	start:u32	end:u32
 164	165
 165	166
 166	167
-end	opennlp:tokens
+end	turbo:tokens

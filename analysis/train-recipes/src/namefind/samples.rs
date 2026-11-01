@@ -113,6 +113,7 @@ pub fn read_samples<'c>(
     let mut counts = NamesCard::default();
     let mut skipped = 0;
     for doc in corpus.documents().iter().filter(|d| d.has_named_entities()) {
+        doc.require_complete_entities().map_err(crate::Error::Masc)?;
         counts.documents += 1;
         for entity in doc.unplaced_entities() {
             if entity.kind.as_deref().and_then(|k| types.held_out(k)).is_some() {

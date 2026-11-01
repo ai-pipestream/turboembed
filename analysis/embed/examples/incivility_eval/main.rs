@@ -42,6 +42,7 @@ const FUSION_GATES: [f64; 7] = [0.05, 0.10, 0.15, 0.20, 0.25, 0.35, 1.0];
 struct Args {
     bundle: PathBuf,
     device: Device,
+    max_seq: u32,
     civil: PathBuf,
     toxic_spans: PathBuf,
     cache: PathBuf,
@@ -53,8 +54,17 @@ struct Args {
 
 fn args() -> Result<Args, String> {
     let mut a = std::env::args().skip(1);
-    let (mut bundle, mut device, mut civil, mut toxic_spans, mut cache, mut head_out, mut context_head_out, mut out) =
-        (None, Device::Cpu, None, None, None, None, None, None);
+    let (
+        mut bundle,
+        mut device,
+        mut max_seq,
+        mut civil,
+        mut toxic_spans,
+        mut cache,
+        mut head_out,
+        mut context_head_out,
+        mut out,
+    ) = (None, Device::Cpu, 0u32, None, None, None, None, None, None);
     let mut fit = IncivilityFitOptions { epochs: 500, learning_rate: 16.0, l2: 1e-4 };
     while let Some(flag) = a.next() {
         let mut value = || a.next().ok_or_else(|| format!("{flag} needs a value"));
@@ -66,6 +76,7 @@ fn args() -> Result<Args, String> {
                     d => Device::Backend(d.into()),
                 }
             }
+            "--max-seq" => max_seq = value()?.parse().map_err(|e| format!("--max-seq: {e}"))?,
             "--civil" => civil = Some(PathBuf::from(value()?)),
             "--toxic-spans" => toxic_spans = Some(PathBuf::from(value()?)),
             "--cache" => cache = Some(PathBuf::from(value()?)),
@@ -82,6 +93,7 @@ fn args() -> Result<Args, String> {
     Ok(Args {
         bundle: need(bundle, "--bundle")?,
         device,
+        max_seq,
         civil: need(civil, "--civil")?,
         toxic_spans: need(toxic_spans, "--toxic-spans")?,
         cache: need(cache, "--cache")?,
@@ -102,6 +114,7 @@ fn peak_rss_kb() -> Option<u64> {
     None
 }
 
+mod bootstrap;
 mod tuning;
 use tuning::tune_thresholds;
 
@@ -133,7 +146,7 @@ fn eval_stage_on_test(
     test_v: &[f32],
     parent_lookup: Option<&HashMap<String, &[f32]>>,
     dim: usize,
-) -> Result<(Value, f64, [f64; INCIVILITY_DIMENSIONS]), String> {
+) -> Result<(Value, f64, [f64; INCIVILITY_DIMENSIONS], Vec<u8>), String> {
     let (uni_t, val_uni_micro, per_label_t, val_pl_macro, val_pl_micro) =
         tune_thresholds(annotator, val_p, val_v, parent_lookup, dim)?;
     let per_label_map: serde_json::Map<String, Value> = IncivilityLabel::ALL
@@ -147,6 +160,7 @@ fn eval_stage_on_test(
     let m_uni = evaluate_incivility_corpus(&test_p.units, &layer_uni, uni_t);
     let layer_pl = score_split(&annotator.clone().with_thresholds(per_label_t), test_p, test_v, parent_lookup, dim)?;
     let m_pl = evaluate_incivility_corpus_with_thresholds(&test_p.units, &layer_pl, &per_label_t);
+    let pl_masks = bootstrap::layer_masks(&layer_pl, &per_label_t, test_p.units.len());
 
     let summary = json!({
         "val_tuning": {
@@ -160,7 +174,7 @@ fn eval_stage_on_test(
             "tuned_per_label_thresholds": { "thresholds": per_label_map, "metrics": corpus_json(&m_pl) },
         },
     });
-    Ok((summary, uni_t, per_label_t))
+    Ok((summary, uni_t, per_label_t, pl_masks))
 }
 
 fn head_meta_json(bytes: &[u8], fit_seconds: f64) -> Value {
@@ -188,8 +202,10 @@ fn run() -> Result<(), String> {
         toxic_ds.raw_non_ascii
     );
 
-    let mut embedder =
-        embed::Embedder::open(&a.bundle, &EncoderOptions { device: a.device.clone(), ..Default::default() })?;
+    let mut embedder = embed::Embedder::open(
+        &a.bundle,
+        &EncoderOptions { device: a.device.clone(), max_seq: a.max_seq, ..Default::default() },
+    )?;
     let dim = embedder.dim;
     let mut embed_units = |units: &[Unit], name: &str| {
         eprintln!("embedding {name}");
@@ -265,44 +281,55 @@ fn run() -> Result<(), String> {
     let scorer_hard_ctx: Arc<dyn IncivilityVectorScorer> = Arc::new(head_hard_ctx);
 
     let lex_ann = IncivilityAnnotator::new().with_stage(IncivilityStage::Lexicon);
-    let (lex_res, _, lex_pl_t) = eval_stage_on_test(&lex_ann, &val_p, &val_v, &test_p, &test_v, None, dim)?;
+    let (lex_res, _, lex_pl_t, lex_masks) = eval_stage_on_test(&lex_ann, &val_p, &val_v, &test_p, &test_v, None, dim)?;
 
     let learned_soft_ann =
         IncivilityAnnotator::new().with_vector_scorer(Arc::clone(&scorer_soft)).with_stage(IncivilityStage::Learned);
-    let (learned_soft_res, _, learned_soft_pl_t) =
+    let (learned_soft_res, _, learned_soft_pl_t, learned_soft_masks) =
         eval_stage_on_test(&learned_soft_ann, &val_p, &val_v, &test_p, &test_v, None, dim)?;
 
     let learned_soft_ctx_ann = IncivilityAnnotator::new()
         .with_vector_scorer(Arc::clone(&scorer_soft_ctx))
         .with_stage(IncivilityStage::Learned);
-    let (learned_soft_ctx_res, _, _) =
+    let (learned_soft_ctx_res, _, _, learned_soft_ctx_masks) =
         eval_stage_on_test(&learned_soft_ctx_ann, &val_p, &val_v, &test_p, &test_v, Some(&parent_map), dim)?;
 
     let fused_soft_ann =
         IncivilityAnnotator::new().with_vector_scorer(Arc::clone(&scorer_soft)).with_stage(IncivilityStage::Fused);
-    let (fused_soft_res, _, fused_soft_pl_t) =
+    let (fused_soft_res, _, fused_soft_pl_t, fused_soft_masks) =
         eval_stage_on_test(&fused_soft_ann, &val_p, &val_v, &test_p, &test_v, None, dim)?;
 
     let fused_soft_ctx_ann =
         IncivilityAnnotator::new().with_vector_scorer(Arc::clone(&scorer_soft_ctx)).with_stage(IncivilityStage::Fused);
-    let (fused_soft_ctx_res, _, _) =
+    let (fused_soft_ctx_res, _, _, fused_soft_ctx_masks) =
         eval_stage_on_test(&fused_soft_ctx_ann, &val_p, &val_v, &test_p, &test_v, Some(&parent_map), dim)?;
 
     let learned_hard_ann =
         IncivilityAnnotator::new().with_vector_scorer(Arc::clone(&scorer_hard)).with_stage(IncivilityStage::Learned);
-    let (learned_hard_res, _, learned_hard_pl_t) =
+    let (learned_hard_res, _, learned_hard_pl_t, _) =
         eval_stage_on_test(&learned_hard_ann, &val_p, &val_v, &test_p, &test_v, None, dim)?;
 
     let learned_hard_ctx_ann = IncivilityAnnotator::new()
         .with_vector_scorer(Arc::clone(&scorer_hard_ctx))
         .with_stage(IncivilityStage::Learned);
-    let (learned_hard_ctx_res, _, _) =
+    let (learned_hard_ctx_res, _, _, _) =
         eval_stage_on_test(&learned_hard_ctx_ann, &val_p, &val_v, &test_p, &test_v, Some(&parent_map), dim)?;
 
     let fused_hard_ann =
         IncivilityAnnotator::new().with_vector_scorer(Arc::clone(&scorer_hard)).with_stage(IncivilityStage::Fused);
-    let (fused_hard_res, _, fused_hard_pl_t) =
+    let (fused_hard_res, _, fused_hard_pl_t, _) =
         eval_stage_on_test(&fused_hard_ann, &val_p, &val_v, &test_p, &test_v, None, dim)?;
+
+    let test_gold_masks = bootstrap::gold_masks(&test_p.units);
+    let maj_masks = vec![0u8; test_p.units.len()];
+    let paired_bootstrap = json!({
+        "learned_soft_no_context_vs_majority": bootstrap::paired_bootstrap(&test_gold_masks, &learned_soft_masks, &maj_masks),
+        "learned_soft_no_context_vs_lexicon": bootstrap::paired_bootstrap(&test_gold_masks, &learned_soft_masks, &lex_masks),
+        "learned_soft_parent_context_vs_no_context": bootstrap::paired_bootstrap(&test_gold_masks, &learned_soft_ctx_masks, &learned_soft_masks),
+        "fused_soft_no_context_vs_majority": bootstrap::paired_bootstrap(&test_gold_masks, &fused_soft_masks, &maj_masks),
+        "fused_soft_no_context_vs_lexicon": bootstrap::paired_bootstrap(&test_gold_masks, &fused_soft_masks, &lex_masks),
+        "fused_soft_parent_context_vs_lexicon": bootstrap::paired_bootstrap(&test_gold_masks, &fused_soft_ctx_masks, &lex_masks),
+    });
 
     let mut fusion_sweep = Vec::new();
     for &gate in &FUSION_GATES {
@@ -379,6 +406,7 @@ fn run() -> Result<(), String> {
             "learned_hard_no_context": learned_hard_res, "learned_hard_parent_context": learned_hard_ctx_res,
             "fused_hard_no_context": fused_hard_res,
         },
+        "paired_bootstrap_1732": paired_bootstrap,
         "fusion_tuning_963": fusion_sweep,
         "toxic_spans_890": {
             "acl2022_11006": {

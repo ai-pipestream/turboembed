@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/zh	157	53	fec0f4f268aec5fb5b5f03e7a5d7e9bc8b5fd848d6ca3ce10c19d64a587fd7cc
 model	mecab-fixture-ko	527e0f80d5ed85fbda9aedadfedc64ab4f17bc4a9d4869cdf4b1cb274e34e5742211e7e91124dbb80a5fea50839546073e0f1cbd0695a15fb81fd0f5abbea44e
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	51	start:u32	end:u32
+layer	turbo:tokens	text	51	start:u32	end:u32
 0	3
 3	6
 6	9
@@ -58,8 +58,8 @@ layer	opennlp:tokens	text	51	start:u32	end:u32
 144	147
 147	153
 153	156
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	51	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	51	unknown:u32	features:str
 1	SH,*,*,*,*,*,*,*
 1	SH,*,*,*,*,*,*,*
 1	SH,*,*,*,*,*,*,*

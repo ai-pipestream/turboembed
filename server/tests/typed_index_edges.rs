@@ -204,12 +204,8 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
         assert_eq!(client.round_trip_typed_document(out.clone()).await.unwrap().into_inner(), out);
 
         let mut bad = out;
-        let entities = bad
-            .layers
-            .iter()
-            .find(|layer| layer.id == "opennlp:entities" && layer.instance.is_empty())
-            .unwrap()
-            .clone();
+        let entities =
+            bad.layers.iter().find(|layer| layer.id == "turbo:entities" && layer.instance.is_empty()).unwrap().clone();
         assert!(entities.annotations.len() > 1);
         let mut short = entities;
         short.instance = "short".into();
@@ -224,7 +220,7 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
         let default_bound = relation
             .indexes_layer
             .iter()
-            .find(|bound| bound.layer == "opennlp:entities" && bound.instance.is_empty())
+            .find(|bound| bound.layer == "turbo:entities" && bound.instance.is_empty())
             .unwrap()
             .clone();
         let mut short_bound = default_bound.clone();
@@ -240,7 +236,7 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
         }
         let error = client.round_trip_typed_document(bad).await.unwrap_err();
         assert_eq!(error.code(), tonic::Code::InvalidArgument, "{error}");
-        assert!(error.message().contains("ambiguous opennlp:entities index targets"), "{error}");
+        assert!(error.message().contains("ambiguous turbo:entities index targets"), "{error}");
     }
     server.stop().await;
 }
@@ -266,7 +262,7 @@ async fn token_ranges_reject_ambiguous_targets_in_either_order() {
             let mut short = bad
                 .layers
                 .iter()
-                .find(|layer| layer.id == "opennlp:tokens" && layer.instance.is_empty())
+                .find(|layer| layer.id == "turbo:tokens" && layer.instance.is_empty())
                 .unwrap()
                 .clone();
             short.instance = "short".into();
@@ -277,13 +273,13 @@ async fn token_ranges_reject_ambiguous_targets_in_either_order() {
             let mut default_bound = words
                 .indexes_layer
                 .iter()
-                .find(|bound| bound.layer == "opennlp:tokens" && bound.instance.is_empty())
+                .find(|bound| bound.layer == "turbo:tokens" && bound.instance.is_empty())
                 .unwrap()
                 .clone();
             let mut short_bound = default_bound.clone();
             short_bound.instance = "short".into();
             short_bound.bound = 1;
-            words.indexes_layer.retain(|bound| bound.layer != "opennlp:tokens");
+            words.indexes_layer.retain(|bound| bound.layer != "turbo:tokens");
             default_bound.bound = 3;
             if short_first {
                 words.indexes_layer.extend([short_bound, default_bound]);
@@ -292,7 +288,7 @@ async fn token_ranges_reject_ambiguous_targets_in_either_order() {
             }
             let error = client.round_trip_typed_document(bad).await.unwrap_err();
             assert_eq!(error.code(), tonic::Code::InvalidArgument, "{error}");
-            assert!(error.message().contains("ambiguous opennlp:tokens index targets"), "{error}");
+            assert!(error.message().contains("ambiguous turbo:tokens index targets"), "{error}");
         }
     }
     server.stop().await;

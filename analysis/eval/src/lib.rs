@@ -53,6 +53,7 @@ pub mod cuts;
 pub mod embedder;
 pub mod fetch;
 pub mod gate;
+pub mod grouped;
 pub mod hybrid;
 pub mod lexical;
 pub mod metrics;

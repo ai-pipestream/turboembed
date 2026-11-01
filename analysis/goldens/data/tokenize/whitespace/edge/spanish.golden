@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/spanish	140	122	f9fd56df613aecfdec7800f95eccc7f457cbd15ee602da070166ddeeed8c181d
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
-layer	opennlp:tokens	text	23	start:u32	end:u32
+layer	turbo:tokens	text	23	start:u32	end:u32
 0	2
 3	6
 7	14
@@ -29,4 +29,4 @@ layer	opennlp:tokens	text	23	start:u32	end:u32
 110	118
 119	129
 130	139
-end	opennlp:tokens
+end	turbo:tokens
