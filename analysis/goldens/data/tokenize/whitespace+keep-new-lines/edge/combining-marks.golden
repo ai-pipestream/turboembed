@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/combining-marks	42	33	5bb93bde76e271c3f8be37969bd35268dca5c9c638ffa47a59eb37a2ac142c5a
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	8	start:u32	end:u32
+layer	turbo:tokens	text	8	start:u32	end:u32
 0	3
 4	9
 10	16
@@ -15,4 +15,4 @@ layer	opennlp:tokens	text	8	start:u32	end:u32
 27	34
 35	41
 41	42
-end	opennlp:tokens
+end	turbo:tokens

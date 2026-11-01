@@ -27,30 +27,37 @@ fn nothing_in_the_builtin_index_is_refused() {
     }
 }
 
-/// The 28-label linear heads trained on GoEmotions (#926), listed at their
-/// addresses in a fifth release of this repository.
-const GOEMOTIONS_HEADS: [&str; 2] =
-    ["turbo-en-goemotions-minilm-l6-v2-head-1", "turbo-en-goemotions-bge-small-en-v1.5-head-1"];
+/// Default-tier sentiment, emotion, and incivility heads trained with
+/// `turbo-trainer` on `answerdotai/ModernBERT-base` (#1732).
+const MODERNBERT_SENTIMENT_HEADS: [&str; 4] = [
+    "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1",
+    "turbo-en-goemotions-modernbert-base-head-1",
+    "turbo-en-civil-comments-modernbert-base-head-1",
+    "turbo-en-civil-comments-modernbert-base-context-head-1",
+];
 
-/// The 6-label incivility linear heads trained on Civil Comments (#888),
-/// with and without parent-comment context, listed at their addresses in a
-/// sixth release of this repository.
-const CIVIL_COMMENTS_HEADS: [&str; 4] = [
+/// Legacy `all-MiniLM-L6-v2` and `bge-small-en-v1.5` sentiment heads (#924,
+/// #926, #888), reclassified to `CLASS_LOCAL_ONLY` via MS MARCO in their
+/// encoder training lineages (#1732).
+const LEGACY_MSMARCO_SENTIMENT_HEADS: [&str; 7] = [
+    "turbo-en-masc-3.0.0-aspect-sentiment-1",
+    "turbo-en-goemotions-minilm-l6-v2-head-1",
+    "turbo-en-goemotions-bge-small-en-v1.5-head-1",
     "turbo-en-civil-comments-minilm-l6-v2-head-1",
     "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
     "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
     "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
 ];
 
-const ASPECT_SENTIMENT: &str = "turbo-en-masc-3.0.0-aspect-sentiment-1";
+const OPEN_SPAN_HEAD: &str = "turbo-en-wnut17-modernbert-base-l12-open-span-1";
 
 /// The MASC 3.0.0 Penn POS head over ModernBERT-base (#1649), assembled
 /// into one bundle with its encoder.
 const MASC_POS: &str = "turbo-en-masc-pos-modernbert-base-1";
 
-/// A model this repository's recipes train.
-fn trained_here(id: &str) -> bool {
-    id == ASPECT_SENTIMENT || id == MASC_POS || GOEMOTIONS_HEADS.contains(&id) || CIVIL_COMMENTS_HEADS.contains(&id)
+/// A permissive model this repository's recipes train.
+fn trained_here_permissive(id: &str) -> bool {
+    id == OPEN_SPAN_HEAD || id == MASC_POS || MODERNBERT_SENTIMENT_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -124,9 +131,9 @@ const DATASETS: [&str; 12] = [
 #[test]
 fn the_builtin_catalogue_preserves_supported_artifacts() {
     let index = Index::builtin();
-    let mut expected = BTreeSet::from([ASPECT_SENTIMENT.to_owned(), MASC_POS.to_owned()]);
-    expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
-    expected.extend(CIVIL_COMMENTS_HEADS.map(str::to_owned));
+    let mut expected = BTreeSet::from([OPEN_SPAN_HEAD.to_owned(), MASC_POS.to_owned()]);
+    expected.extend(MODERNBERT_SENTIMENT_HEADS.map(str::to_owned));
+    expected.extend(LEGACY_MSMARCO_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
@@ -145,7 +152,7 @@ fn the_remaining_artifacts_keep_their_licence_requirements() {
     let index = Index::builtin();
     for a in index.list() {
         let needs = a.licences_to_accept(Policy::default());
-        if trained_here(a.id.as_str())
+        if trained_here_permissive(a.id.as_str())
             || CHECKPOINTS.contains(&a.id.as_str())
             || LEXICONS.contains(&a.id.as_str())
             || EVAL_SETS.contains(&a.id.as_str())
@@ -162,7 +169,9 @@ fn the_remaining_artifacts_keep_their_licence_requirements() {
                 "{}",
                 a.id
             );
-        } else if RETRIEVAL_CHECKPOINTS.contains(&a.id.as_str()) {
+        } else if RETRIEVAL_CHECKPOINTS.contains(&a.id.as_str())
+            || LEGACY_MSMARCO_SENTIMENT_HEADS.contains(&a.id.as_str())
+        {
             assert_eq!(
                 needs,
                 [turbo_zoo::Requirement {

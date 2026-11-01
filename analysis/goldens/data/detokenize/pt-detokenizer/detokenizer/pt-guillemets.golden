@@ -7,7 +7,7 @@ input	detokenizer/pt-guillemets	36	33	d8e1f62ab28152ef8e7022fe5bbaa8a3caf76f9747
 model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	9	start:u32	end:u32
+layer	turbo:tokens	text	9	start:u32	end:u32
 0	3
 4	9
 10	12
@@ -17,8 +17,8 @@ layer	opennlp:tokens	text	9	start:u32	end:u32
 23	31
 32	33
 34	35
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	9	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	9	operation:str
 NO_OPERATION
 NO_OPERATION
 MERGE_TO_RIGHT

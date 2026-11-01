@@ -9,7 +9,7 @@
   <version>0.1.0</version>
   <packaging>jar</packaging>
   <name>turboembed-panama</name>
-  <description>In-process Java 22+ Panama Foreign Function and Memory (FFM) binding over libturbo C ABI with OpenNLP-style adapters.</description>
+  <description>In-process Java 25+ Panama Foreign Function and Memory (FFM) binding over libturbo C ABI with OpenNLP-style adapters.</description>
 
   <licenses>
     <license>
@@ -22,9 +22,11 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
-    <maven.compiler.release>22</maven.compiler.release>
+    <maven.compiler.release>25</maven.compiler.release>
     <junit.version>5.11.4</junit.version>
     <license.source.dir>${project.basedir}/../..</license.source.dir>
+    <!-- The conformance suite both bindings run (clients/java-conformance). -->
+    <conformance.source.dir>${project.basedir}/../java-conformance/src/main/java</conformance.source.dir>
   </properties>
 
   <dependencies>
@@ -59,12 +61,31 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
-          <release>22</release>
+          <release>25</release>
           <compilerArgs>
             <arg>-Xlint:all,-restricted</arg>
             <arg>-Werror</arg>
           </compilerArgs>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>conformance-suite</id>
+            <phase>generate-test-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${conformance.source.dir}</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

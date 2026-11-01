@@ -170,6 +170,8 @@ fn with_heads(src: &Path, dst: &Path) {
             HeadKind::SentenceBoundary => turbo::head::boundary::tensors(&spec, hidden),
             HeadKind::TokenSplit => turbo::head::split::tensors(&spec, hidden),
             HeadKind::SpanClassifier => turbo::head::span::tensors(&spec, hidden),
+            HeadKind::OpenSpan => turbo::head::open_span::tensors(&spec, hidden),
+            HeadKind::CorefRanker => turbo::head::coref::tensors(&spec, hidden),
             HeadKind::RelationClassifier => turbo::head::relation::tensors(&spec, hidden),
         };
         for (k, (suffix, shape)) in shapes.into_iter().enumerate() {

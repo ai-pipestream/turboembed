@@ -203,6 +203,13 @@ message BundleCapabilities
   // whose task reads a schema. No bundle the server loads today has
   // such a task, so this is unset until the server loads one.
   SchemaLimits schema = 8;
+
+  // The AnalyzeDocumentProgressive head steps this bundle's heads serve
+  // ("turbo-tagger:pos", "turbo-tagger:entities", "turbo-tagger:dependencies",
+  // "turbo-tagger:lemmas", "turbo-tagger:morphology", "turbo-tagger:spans",
+  // "turbo-tagger:relations"), in that order; empty for a bundle without
+  // heads. "turbo-tagger:heads" runs every one listed.
+  repeated string head_steps = 9;
 }
 
 // The limits an extraction schema may carry, the schema-extract crate's
@@ -761,7 +768,7 @@ message StreamLimits
 }
 
 // One layer instance of a document graph: its standard layer id
-// (opennlp:* or turbo:*), instance, status and provenance.
+// (turbo:* or an add-on's own namespace), instance, status and provenance.
 message LayerInfo
 {
   string layer = 1;
@@ -792,7 +799,7 @@ message DocumentGraphResponse
   string source_text = 4;
 }
 
-// turbo:chunks, turbo:levels and opennlp:embeddings (over the chunks)
+// turbo:chunks, turbo:levels and turbo:embeddings (over the chunks)
 // in one message, over one view's text. Every span offset is counted
 // in `offsets`. Spans are fragment columns in item order: item i's
 // fragments are frag_at[i - 1]..frag_at[i] (0..frag_at[0] first), at
@@ -859,8 +866,8 @@ message AnalyzePipelineRequest
   // Client document identifier, echoed in AnalysisStarted.
   string doc_id = 1;
 
-  // Input UTF-8 text to analyze (used when source_bytes and initial_graph
-  // are empty).
+  // Input UTF-8 text to analyze (used when source_bytes, initial_graph and
+  // structure_seed are empty).
   string text = 2;
 
   // Raw UTF-8 source bytes to analyze (used when non-empty and
@@ -884,6 +891,70 @@ message AnalyzePipelineRequest
   // Optional pre-existing DocumentGraph bytes to seed the Document before
   // running the pipeline.
   bytes initial_graph = 8;
+
+  // Optional document text with its structure blocks, built into the
+  // default `turbo:structure` layer before the pipeline runs: the same
+  // document an `initial_graph` holding that one layer gives, without a
+  // DocumentGraph writer on the client. Exclusive with `text`,
+  // `source_bytes` and `initial_graph`.
+  StructureSeed structure_seed = 9;
+}
+
+// The kind of one structure block, the `turbo:structure` block kinds.
+enum StructureBlockKind
+{
+  STRUCTURE_BLOCK_KIND_UNSPECIFIED = 0;
+  STRUCTURE_BLOCK_KIND_SECTION = 1;
+  STRUCTURE_BLOCK_KIND_HEADING = 2;
+  STRUCTURE_BLOCK_KIND_PARAGRAPH = 3;
+  // A tight list.
+  STRUCTURE_BLOCK_KIND_LIST = 4;
+  STRUCTURE_BLOCK_KIND_LIST_ITEM = 5;
+  STRUCTURE_BLOCK_KIND_TABLE = 6;
+  STRUCTURE_BLOCK_KIND_TABLE_ROW = 7;
+  STRUCTURE_BLOCK_KIND_TABLE_CELL = 8;
+  STRUCTURE_BLOCK_KIND_CODE = 9;
+  STRUCTURE_BLOCK_KIND_QUOTE = 10;
+  STRUCTURE_BLOCK_KIND_CAPTION = 11;
+  STRUCTURE_BLOCK_KIND_FOOTNOTE = 12;
+  STRUCTURE_BLOCK_KIND_PAGE_HEADER = 13;
+  STRUCTURE_BLOCK_KIND_PAGE_FOOTER = 14;
+  // A list with blank lines between items or item blocks.
+  STRUCTURE_BLOCK_KIND_LOOSE_LIST = 15;
+  // A raw HTML block.
+  STRUCTURE_BLOCK_KIND_HTML = 16;
+}
+
+// A document's text and the structure an upstream parser found in it.
+message StructureSeed
+{
+  // The document's UTF-8 text, the source view.
+  string text = 1;
+
+  // The blocks, a tree in text order: each block starts at or after the
+  // one before it, inside its parent, and after the end of its previous
+  // sibling. An overlapping, out-of-range or out-of-order block refuses
+  // the call with TURBO_E_INVALID_ARGUMENT naming the block.
+  repeated StructureBlock blocks = 2;
+}
+
+// One structure block over StructureSeed.text.
+message StructureBlock
+{
+  StructureBlockKind kind = 1;
+
+  // The block's span in `text`, in the request's `offsets` unit (UTF-8
+  // bytes, UTF-16 code units or code points), end exclusive.
+  uint32 start = 2;
+  uint32 end = 3;
+
+  // A heading's or section's level, a list's, list item's or quote's
+  // nesting (1 for the outermost), 0 otherwise; at most 255.
+  uint32 level = 4;
+
+  // The index in `blocks` of the enclosing block, which comes before
+  // this one; unset for a top-level block.
+  optional uint32 parent = 5;
 }
 
 // One server-streamed event from AnalyzeDocumentProgressive, numbered with
@@ -956,7 +1027,7 @@ message DocumentWindowRequest
   // Zero-based page index into the view.
   uint32 page = 5;
 
-  // Optional allow-list of layer ids (e.g. "opennlp:entities",
+  // Optional allow-list of layer ids (e.g. "turbo:entities",
   // "turbo:chunks"); empty includes all positional layers on the view.
   repeated string filter_layers = 6;
 

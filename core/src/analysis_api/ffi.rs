@@ -4,11 +4,11 @@ use std::ffi::c_char;
 use std::sync::Arc;
 
 use super::{
-    ANALYSIS_RESULT_MAGIC, ANALYZER_MAGIC, AnalysisResultInner, AnalyzerEngine, analysis_result_handle,
-    analyzer_handle, turbo_analysis_result, turbo_analyzer, turbo_analyzer_desc, turbo_span,
+    ANALYSIS_RESULT_MAGIC, ANALYZER_MAGIC, AnalysisResultInner, AnalyzerEngine, TURBO_ANALYZER_DESC_SIZE_V1,
+    analysis_result_handle, analyzer_handle, turbo_analysis_result, turbo_analyzer, turbo_analyzer_desc, turbo_span,
 };
-use crate::ffi::{array_len, call, out_ptr, sized, text};
-use crate::status::{Error, INVALID_ARGUMENT, Result};
+use crate::ffi::{array_len, call, out_ptr, text};
+use crate::status::{Error, INVALID_ARGUMENT, INVALID_STRUCT_SIZE, Result};
 use crate::{turbo_error, turbo_text};
 
 unsafe fn text_slice<'a>(items: *const turbo_text, count: u32, what: &str) -> Result<Vec<&'a str>> {
@@ -54,11 +54,22 @@ pub unsafe extern "C" fn turbo_analyzer_create(
                 None
             } else {
                 let d = &*desc;
-                sized(d.struct_size, size_of::<turbo_analyzer_desc>(), "turbo_analyzer_desc")?;
+                // A program built before bundle_path was appended passes
+                // the earlier size; it then names no bundle.
+                let known = [TURBO_ANALYZER_DESC_SIZE_V1, size_of::<turbo_analyzer_desc>()];
+                if !known.contains(&(d.struct_size as usize)) {
+                    return Err(Error::new(
+                        INVALID_STRUCT_SIZE,
+                        format!(
+                            "turbo_analyzer_desc.struct_size is {}, this library knows {} and {}",
+                            d.struct_size, known[0], known[1]
+                        ),
+                    ));
+                }
                 if d.flags != 0 {
                     return Err(Error::new(INVALID_ARGUMENT, "turbo_analyzer_desc.flags must be 0"));
                 }
-                Some(d)
+                Some((d, d.struct_size as usize > TURBO_ANALYZER_DESC_SIZE_V1))
             };
             let engine = AnalyzerEngine::from_desc(desc_ref)?;
             *out =

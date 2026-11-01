@@ -7,8 +7,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::heads_kinds::{CorefShape, SpanShape};
 use super::helpers::{fits, positive, required};
-use super::{Format, LicenseClass, Manifest, RelationShape};
+use super::{Format, LayerMix, LicenseClass, Manifest, RelationShape};
 use crate::status::{Result, invalid};
 
 /// The most heads one bundle carries.
@@ -27,10 +28,6 @@ pub const MAX_POS_DIM: u32 = 1024;
 pub const MAX_HASH_DIM: u32 = 1024;
 /// The most rows one hashed feature table holds.
 pub const MAX_HASH_ROWS: u32 = 1 << 20;
-/// The most words one span of a span classifier covers.
-pub const MAX_SPAN_WORDS: u32 = 128;
-/// The widest span-width embedding.
-pub const MAX_SPAN_WIDTH_DIM: u32 = 256;
 /// The namespace every head's layer id is in.
 pub const LAYER_NAMESPACE: &str = "turboembed:";
 
@@ -62,14 +59,23 @@ pub struct HeadSpec {
     /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash_embed: Option<HashEmbed>,
-    /// The spans a HEAD_SPAN_CLASSIFIER scores; absent for every other
-    /// kind.
+    /// The spans a HEAD_SPAN_CLASSIFIER or HEAD_OPEN_SPAN head scores;
+    /// absent for every other kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<SpanShape>,
+    /// How a HEAD_COREF_RANKER scores antecedents; absent for every other
+    /// kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coref: Option<CorefShape>,
     /// The mention views and types a HEAD_RELATION_CLASSIFIER reads;
     /// absent for every other kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relation: Option<RelationShape>,
+    /// A learned scalar mix of the encoder's last `layers` layers, read
+    /// from per-layer taps in one forward pass (`mix.weight` and
+    /// `mix.gamma`); absent when the head reads the final layer alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer_mix: Option<LayerMix>,
     /// The class of the strictest licence among the corpora the head was
     /// trained on (docs/zoo.md); the bundle's tier counts it
     /// ([`Manifest::license_tier`]).
@@ -109,6 +115,17 @@ pub enum HeadKind {
     /// first and last word and its width (head/span.rs); `O` is no span.
     #[serde(rename = "HEAD_SPAN_CLASSIFIER")]
     SpanClassifier,
+    /// Open-label span typing (head/open_span.rs): scores every span of up
+    /// to `span.max_words` words against caller-supplied label vectors in
+    /// the encoder's hidden space. `labels` records the training type
+    /// names under SCHEME_TAGS.
+    #[serde(rename = "HEAD_OPEN_SPAN")]
+    OpenSpan,
+    /// For each given mention, its antecedent among the mentions before
+    /// it, or none (head/coref.rs); mentions read as a span classifier
+    /// reads spans (`span`), pairs scored as `coref` says.
+    #[serde(rename = "HEAD_COREF_RANKER")]
+    CorefRanker,
     /// The relations of every ordered pair of the entities given with a
     /// sequence, from their pooled mentions and types (head/relation.rs).
     #[serde(rename = "HEAD_RELATION_CLASSIFIER")]
@@ -121,20 +138,6 @@ impl HeadKind {
     pub fn scores_words(self) -> bool {
         matches!(self, HeadKind::TokenTagger | HeadKind::SentenceBoundary | HeadKind::TokenSplit)
     }
-}
-
-/// The labels of a HEAD_SENTENCE_BOUNDARY, in this order.
-pub const BOUNDARY_LABELS: [&str; 2] = ["inside", "last"];
-/// The label of a HEAD_TOKEN_SPLIT that keeps a token one word.
-pub const KEEP_TOKEN: &str = "_";
-
-/// The spans a span classifier reads: every run of 1 to `max_words`
-/// words, each with a learned embedding `width_dim` wide of its width.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpanShape {
-    pub max_words: u32,
-    pub width_dim: u32,
 }
 
 /// The tags a lemmatizer reads: head `head` (a SCHEME_TAGS token tagger
@@ -236,6 +239,10 @@ pub enum Decode {
     /// the highest score; a span classifier's decode.
     #[serde(rename = "DECODE_SPANS_FLAT")]
     SpansFlat,
+    /// Each mention's best antecedent, or none when no antecedent scores
+    /// above 0; a coreference ranker's decode.
+    #[serde(rename = "DECODE_ANTECEDENT")]
+    Antecedent,
     /// Every label of an ordered pair of entities that scores above
     /// `none`, the pair's threshold; a relation classifier's decode.
     #[serde(rename = "DECODE_RELATIONS")]
@@ -331,26 +338,8 @@ impl HeadSpec {
         if self.scheme != Scheme::Tags && !self.labels.iter().any(|l| l == "O") {
             return Err(invalid(format!("manifest.json: {}: {:?} needs the label \"O\"", at("labels"), self.scheme)));
         }
-        let fits_kind = self.decode_fits_kind();
-        let parser = self.kind == HeadKind::BiaffineParser;
-        let lemmatizer = self.kind == HeadKind::EditTreeLemmatizer;
-        if !fits_kind || parser != self.biaffine.is_some() || (!lemmatizer && self.pos_input.is_some()) {
-            return Err(invalid(format!(
-                "manifest.json: {}: {:?} with {:?}, {:?}, biaffine {} and pos_input {}: a HEAD_TOKEN_TAGGER takes \
-                 DECODE_ARGMAX or DECODE_CRF; a HEAD_BIAFFINE_PARSER takes SCHEME_TAGS, DECODE_MST or DECODE_EISNER and \
-                 biaffine; a HEAD_EDIT_TREE_LEMMATIZER takes SCHEME_TAGS, DECODE_EDIT_TREE and an optional pos_input; \
-                 a HEAD_SENTENCE_BOUNDARY takes SCHEME_TAGS and DECODE_ARGMAX or DECODE_CRF; a HEAD_TOKEN_SPLIT takes \
-                 SCHEME_TAGS and DECODE_EDIT_TREE; a HEAD_SPAN_CLASSIFIER takes SCHEME_TAGS and DECODE_SPANS_NESTED or \
-                 DECODE_SPANS_FLAT; a HEAD_RELATION_CLASSIFIER takes SCHEME_TAGS and DECODE_RELATIONS",
-                at("kind"),
-                self.kind,
-                self.scheme,
-                self.decode,
-                if self.biaffine.is_some() { "set" } else { "absent" },
-                if self.pos_input.is_some() { "set" } else { "absent" }
-            )));
-        }
-        if lemmatizer {
+        self.validate_kind_decode(&at)?;
+        if self.kind == HeadKind::EditTreeLemmatizer {
             for (j, l) in self.labels.iter().enumerate() {
                 crate::head::edit_tree::EditTree::parse(l)
                     .map_err(|e| invalid(format!("manifest.json: {}: {}", at(&format!("labels[{j}]")), e.message)))?;
@@ -384,36 +373,7 @@ impl HeadSpec {
             }
         }
         self.validate_kind_rules(&at)?;
-        if let Some(h) = &self.hash_embed {
-            if !self.kind.scores_words() {
-                return Err(invalid(format!(
-                    "manifest.json: {}: only a head that scores words, as a HEAD_TOKEN_TAGGER does, takes it",
-                    at("hash_embed")
-                )));
-            }
-            positive(&at("hash_embed.dim"), h.dim)?;
-            if h.dim > MAX_HASH_DIM || h.rows.iter().any(|&r| r == 0 || r > MAX_HASH_ROWS) {
-                return Err(invalid(format!(
-                    "manifest.json: {}: dim {} and rows {:?}; dim 1 to {MAX_HASH_DIM}, rows 1 to {MAX_HASH_ROWS}",
-                    at("hash_embed"),
-                    h.dim,
-                    h.rows
-                )));
-            }
-        }
-        if let Some(a) = &self.adapter {
-            positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;
-            positive(&at("adapter.bilstm.layers"), a.bilstm.layers)?;
-            if a.bilstm.hidden > MAX_ADAPTER_HIDDEN || a.bilstm.layers > MAX_ADAPTER_LAYERS {
-                return Err(invalid(format!(
-                    "manifest.json: {}: hidden {} and layers {}; at most {MAX_ADAPTER_HIDDEN} and {MAX_ADAPTER_LAYERS}",
-                    at("adapter.bilstm"),
-                    a.bilstm.hidden,
-                    a.bilstm.layers
-                )));
-            }
-        }
-        Ok(())
+        self.validate_word_inputs(&at)
     }
 }
 
@@ -429,15 +389,25 @@ impl Manifest {
         if self.heads.is_empty() {
             return Ok(());
         }
-        if self.architecture.is_none() {
+        let Some(arch) = &self.architecture else {
             return Err(invalid("manifest.json: heads: requires an encoder architecture"));
-        }
+        };
         if self.heads.len() > MAX_HEADS {
             return Err(invalid(format!("manifest.json: heads: {} heads, at most {MAX_HEADS}", self.heads.len())));
         }
         for (i, h) in self.heads.iter().enumerate() {
             let at = |field: &str| format!("heads[{i}].{field}");
             h.validate(&format!("heads[{i}]"))?;
+            if let Some(m) = &h.layer_mix
+                && m.layers > arch.layers
+            {
+                return Err(invalid(format!(
+                    "manifest.json: {}: {}, over the encoder's {} layers",
+                    at("layer_mix.layers"),
+                    m.layers,
+                    arch.layers
+                )));
+            }
             if h.license_class.is_some() && self.model.license_class.is_none() {
                 return Err(invalid(format!(
                     "manifest.json: {}: set, and model.license_class is not, so the bundle's tier would leave the \

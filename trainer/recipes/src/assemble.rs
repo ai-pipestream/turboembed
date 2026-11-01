@@ -1,6 +1,4 @@
-//! Assembling verified `turbo-trainer` receipt directories into a single-head
-//! or multi-task bundle (#1726), verifying receipts, checkpoint metadata,
-//! tensor names and shapes, and the assembled bundle via [`Bundle::open`].
+//! Assembling verified `turbo-trainer` receipt directories into a single-head or multi-task bundle (#1726).
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -9,8 +7,9 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::{
-    BiaffineParser, EditTreeLemmatizer, RelationClassifier, SentenceBoundary, SpanClassifier, TokenSplitter,
-    TokenTagger, boundary, lemmatizer, parser, relation, span, split, tagger,
+    BiaffineParser, CorefRanker, EditTreeLemmatizer, OpenSpanMatcher, RelationClassifier, SentenceBoundary,
+    SpanClassifier, TokenSplitter, TokenTagger, boundary, coref, lemmatizer, open_span, parser, relation, span, split,
+    tagger,
 };
 use turbo::manifest::{Format, HeadKind, HeadProvenance, HeadSpec, LicenseClass, Manifest};
 use turbo::safetensors;
@@ -95,18 +94,20 @@ pub fn verify_run(run_dir: &Path) -> Result<VerifiedRun> {
 }
 
 fn verify_corpus(c: &CorpusRecord) -> std::result::Result<(), String> {
-    for (field, val) in [
-        ("id", c.id.as_str()),
-        ("name", c.name.as_str()),
-        ("licence", c.licence.as_str()),
-        ("spdx", c.spdx.as_str()),
-        ("terms", c.terms.as_str()),
-        ("attribution", c.attribution.as_str()),
-        ("split", c.split.as_str()),
-    ] {
-        if val.trim().is_empty() {
-            return Err(format!("receipt.json: corpus.{field} is empty"));
-        }
+    if !c.recorded {
+        return Err("receipt.json: corpus.recorded is false (trained with --unrecorded-corpus; never a release)".into());
+    }
+    let fields = [
+        ("id", &c.id),
+        ("name", &c.name),
+        ("licence", &c.licence),
+        ("spdx", &c.spdx),
+        ("terms", &c.terms),
+        ("attribution", &c.attribution),
+        ("split", &c.split),
+    ];
+    if let Some((f, _)) = fields.into_iter().find(|(_, v)| v.trim().is_empty()) {
+        return Err(format!("receipt.json: corpus.{f} is empty"));
     }
     let has_digest = is_hex64(&c.corpus_sha256)
         || (!c.files.is_empty() && c.files.iter().all(|f| !f.path.is_empty() && is_hex64(&f.sha256)));
@@ -157,6 +158,8 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => boundary::tensors(spec, hidden),
         HeadKind::TokenSplit => split::tensors(spec, hidden),
         HeadKind::SpanClassifier => span::tensors(spec, hidden),
+        HeadKind::OpenSpan => open_span::tensors(spec, hidden),
+        HeadKind::CorefRanker => coref::tensors(spec, hidden),
         HeadKind::RelationClassifier => relation::tensors(spec, hidden),
     };
     if header.len() != expected.len() {
@@ -188,6 +191,8 @@ fn verify_head_tensors(
         HeadKind::SentenceBoundary => SentenceBoundary::from_tensors(spec, hidden, &get).map(|b| b.hidden()),
         HeadKind::TokenSplit => TokenSplitter::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
         HeadKind::SpanClassifier => SpanClassifier::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
+        HeadKind::OpenSpan => OpenSpanMatcher::from_tensors(spec, hidden, &get).map(|s| s.hidden()),
+        HeadKind::CorefRanker => CorefRanker::from_tensors(spec, hidden, &get).map(|c| c.hidden()),
         HeadKind::RelationClassifier => RelationClassifier::from_tensors(spec, hidden, &get).map(|r| r.hidden()),
     }
     .map_err(|e| format!("head.safetensors: {}", e.message))?;

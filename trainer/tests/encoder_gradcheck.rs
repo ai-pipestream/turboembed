@@ -142,29 +142,33 @@ fn gated_mlp_gradients_match_finite_differences() {
 
 #[test]
 fn lora_gradients_match_finite_differences() {
-    let mut rng = Rng::new(16);
-    let (rows, inp, out, rank, s) = (3, 4, 5, 2, 1.5);
-    let mut x = random(&mut rng, rows * inp, 1.0);
-    let (mut a, mut b) = (random(&mut rng, rank * inp, 0.5), random(&mut rng, out * rank, 0.5));
-    let r = random(&mut rng, rows * out, 1.0);
-    let loss = |x: &[f64], a: &[f64], b: &[f64]| {
+    for round in [false, true] {
+        let mut rng = Rng::new(16);
+        let (rows, inp, out, rank, s) = (3, 4, 5, 2, 1.5);
+        let mut x = random(&mut rng, rows * inp, 1.0);
+        let (mut a, mut b) = (random(&mut rng, rank * inp, 0.5), random(&mut rng, out * rank, 0.5));
+        let r = random(&mut rng, rows * out, 1.0);
+        let loss = |x: &[f64], a: &[f64], b: &[f64]| {
+            let (mut y, mut h) = (vec![0.0; rows * out], Vec::new());
+            lora::forward(x, a, b, inp, rank, s, round, &mut y, &mut h);
+            weighted(&y, &r)
+        };
         let (mut y, mut h) = (vec![0.0; rows * out], Vec::new());
-        lora::forward(x, a, b, inp, rank, s, &mut y, &mut h);
-        weighted(&y, &r)
-    };
-    let (mut y, mut h) = (vec![0.0; rows * out], Vec::new());
-    lora::forward(&x, &a, &b, inp, rank, s, &mut y, &mut h);
-    let (mut dx, mut da, mut db) = (vec![0.0; x.len()], vec![0.0; a.len()], vec![0.0; b.len()]);
-    lora::backward(&x, &a, &b, &h, inp, rank, s, &r, &mut da, &mut db, Some(&mut dx));
-    let (x0, a0, b0) = (x.clone(), a.clone(), b.clone());
-    check("x", &mut x, &dx, &mut |x| loss(x, &a0, &b0));
-    check("a", &mut a, &da, &mut |a| loss(&x0, a, &b0));
-    check("b", &mut b, &db, &mut |b| loss(&x0, &a0, b));
-    // A fresh adapter changes nothing.
-    let (a1, b1) = lora::init::<f64>(inp, out, rank, &mut rng);
-    let mut y1 = vec![0.0; rows * out];
-    lora::forward(&x, &a1, &b1, inp, rank, s, &mut y1, &mut h);
-    assert!(y1.iter().all(|&v| v == 0.0));
+        lora::forward(&x, &a, &b, inp, rank, s, round, &mut y, &mut h);
+        let (mut dx, mut da, mut db) = (vec![0.0; x.len()], vec![0.0; a.len()], vec![0.0; b.len()]);
+        lora::backward(&x, &a, &b, &h, inp, rank, s, &r, &mut da, &mut db, Some(&mut dx));
+        let (x0, a0, b0) = (x.clone(), a.clone(), b.clone());
+        if !round {
+            check("x", &mut x, &dx, &mut |x| loss(x, &a0, &b0));
+            check("a", &mut a, &da, &mut |a| loss(&x0, a, &b0));
+        }
+        check("b", &mut b, &db, &mut |b| loss(&x0, &a0, b));
+        // A fresh adapter changes nothing.
+        let (a1, b1) = lora::init::<f64>(inp, out, rank, &mut rng);
+        let mut y1 = vec![0.0; rows * out];
+        lora::forward(&x, &a1, &b1, inp, rank, s, round, &mut y1, &mut h);
+        assert!(y1.iter().all(|&v| v == 0.0));
+    }
 }
 
 /// Three layers over two heads: layers 0 and 2 global, 1 local with one

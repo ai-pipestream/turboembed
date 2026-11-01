@@ -557,6 +557,13 @@ typedef struct turbo_embed_options {
                                write call only. NULL with INT8, a value that is not
                                finite, a minimum over its maximum, or ranges given with
                                another quantization is TURBO_E_INVALID_ARGUMENT */
+    /* A struct_size of 40 ends here; the fields below are then 0. */
+    uint32_t layers;        /* 9: on range writes (turbo_embed_write_ranges), 0 or 1 for
+                               the final layer alone, or K to pool each range from each of
+                               the encoder's last K layers in one pass ([K, count, dim],
+                               see turbo_embed_write_layer_ranges); refused above 1 on row
+                               writes */
+    uint32_t reserved;      /* must be 0 */
 } turbo_embed_options;
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
@@ -664,18 +671,19 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
                                  const turbo_embed_options *opts, turbo_error *err);
 
 /* turbo_embed_write_ranges, each range pooled from each of the encoder's
- * last `layers` layers in one pass: the run's rows are [layers, count,
+ * last `layers` layers in one pass (equivalent to turbo_embed_write_ranges
+ * with opts->layers = layers): the run's rows are [layers, count,
  * dim], block k from layer L - layers + k + 1 of the model's L, so the
  * last block is what turbo_embed_write_ranges writes, bit for bit. A
  * ModernBERT's final_norm is applied to every layer read, as to the
  * last, so each block is on the scale of the final states. layers of 1
  * is turbo_embed_write_ranges; 0 or over the model's layers is
  * TURBO_E_INVALID_ARGUMENT; above 1 on a backend or model that does not
- * read the earlier layers (the cpu backend's BERT, RoBERTa, ModernBERT
- * and nomic-bert encoders do), or on a model whose device applies a span
- * head, is TURBO_E_UNSUPPORTED_OPTION. count times layers over the
- * session's max_ranges is TURBO_E_CAPACITY. Everything else is as for
- * turbo_embed_write_ranges, each row cut and normalized as there. */
+ * read the earlier layers (the cpu backend's BERT, RoBERTa, ModernBERT,
+ * nomic-bert and DeBERTa-v2 encoders do), or on a model whose device
+ * applies a span head, is TURBO_E_UNSUPPORTED_OPTION. count times layers
+ * over the session's max_ranges is TURBO_E_CAPACITY. Everything else is as
+ * for turbo_embed_write_ranges, each row cut and normalized as there. */
 int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
                                        const turbo_token_range *ranges, uint32_t count,
                                        uint32_t layers, const turbo_embed_options *opts,
@@ -791,6 +799,7 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_ANALYSIS_LAYER_LEMMAS    4
 #define TURBO_ANALYSIS_LAYER_ENTITIES  5
 #define TURBO_ANALYSIS_LAYER_PII       6
+#define TURBO_ANALYSIS_LAYER_DEPENDENCIES 7
 
 #define TURBO_SPAN_VIEW_RANGE   (1u << 0)
 #define TURBO_SPAN_SOURCE_RANGE (1u << 1)
@@ -803,20 +812,31 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_CONFIDENCE_CHECKSUM 2
 #define TURBO_PII_CONFIDENCE_LABELLED 3
 
-/* Model selection for an in-process analysis pipeline. desc may be NULL for
- * English with the rule sentence splitter and rule tokenizer only. An empty
- * path never selects a dictionary, recognizer or fixture: POS, lemmatization
- * and NER then fail with TURBO_E_UNSUPPORTED_TASK. The rule sentence and
- * tokenizer paths report no probability. */
+/* Configuration of an in-process analysis pipeline. desc may be NULL for
+ * English with the rule sentence splitter and rule tokenizer only. The
+ * learned components come from a bundle (docs/bundle.md) named by
+ * bundle_path: its heads write the part-of-speech, lemma, dependency and
+ * entity layers, each from the one head of the bundle whose layer it is,
+ * in one encoder pass a sentence on the cpu backend. Without a bundle, or
+ * with a bundle lacking a layer's head, that layer's tasks fail with
+ * TURBO_E_UNSUPPORTED_TASK naming what is missing. The rule sentence and
+ * tokenizer paths report no probability.
+ *
+ * The five model path fields are retired: they keep their place so a
+ * program built against an earlier header still runs, and a non-empty
+ * value fails with TURBO_E_INVALID_ARGUMENT naming its field. Fields are
+ * numbered from 1 for turbo_error.field. */
 typedef struct turbo_analyzer_desc {
     uint32_t   struct_size;
     uint32_t   flags;
     turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
-    turbo_text sent_model_path;   /*2: optional native sentence model .bin path */
-    turbo_text tok_model_path;    /*3: optional OpenNLP tokenizer model .bin path */
-    turbo_text pos_model_path;    /*4: optional OpenNLP POS model .bin path */
-    turbo_text lemma_model_path;  /*5: optional OpenNLP lemmatizer model/dict path */
-    turbo_text ner_model_path;    /*6: optional OpenNLP TokenNameFinder .bin path */
+    turbo_text sent_model_path;   /*2: retired; must be empty */
+    turbo_text tok_model_path;    /*3: retired; must be empty */
+    turbo_text pos_model_path;    /*4: retired; must be empty */
+    turbo_text lemma_model_path;  /*5: retired; must be empty */
+    turbo_text ner_model_path;    /*6: retired; must be empty */
+    /* A struct_size of 104 ends here; no bundle is then named. */
+    turbo_text bundle_path;       /*7: a bundle directory; empty names no bundle */
 } turbo_analyzer_desc;
 
 /* One typed row in an analysis result. The row identifies its layer kind,
@@ -827,7 +847,9 @@ typedef struct turbo_analyzer_desc {
  * TURBO_SPAN_* flag: token-only rows have no text range, absent numeric
  * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
  * Discontinuous items emit one row per fragment. classification is
- * layer-specific (TURBO_PII_CONFIDENCE_* for PII, otherwise zero). */
+ * layer-specific: TURBO_PII_CONFIDENCE_* for PII; for a dependency row,
+ * whose label is the relation, the head token's index plus one, 0 under
+ * the root; otherwise zero. */
 typedef struct turbo_span {
     uint32_t layer_kind;
     uint32_t flags;

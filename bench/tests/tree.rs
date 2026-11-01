@@ -362,7 +362,9 @@ fn core_and_analysis_external_dependencies_are_allowlisted() {
             }
             let Some((name, value)) = line.split_once('=') else { continue };
             let name = name.trim();
-            if !value.contains("path =") && !ALLOWED.contains(&name) {
+            // #1490: approved maintained AEAD only in the evaluation adapter.
+            let artifact_aead = path == "analysis/eval/Cargo.toml" && name == "ring";
+            if !value.contains("path =") && !ALLOWED.contains(&name) && !artifact_aead {
                 found.push(format!("{path}: {name}"));
             }
             if matches!(path.as_str(), "core/Cargo.toml" | "analysis/calibration/Cargo.toml")

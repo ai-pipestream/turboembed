@@ -11,8 +11,12 @@
 //! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
 //! | `ud_heads` | Lemma and dependency heads on a treebank, their examples and baselines |
 //! | `ud_split` | A treebank as surface tokens, for the token split head, its labels and baseline |
+//! | `split_labels` | The label each training token's split takes, chosen by the tokens it serves |
+//! | `redocred` | Re-DocRED documents, their entities and relations, pinned file by file |
+//! | `redocred_eval` | The relation head's spec, examples and test scoring on Re-DocRED |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
+//! | `ner_documents` | Strict span scores and paired bootstrap over whole documents |
 //! | `run` | Head spec, encoder features, prediction, outputs |
 //! | `receipt` | `receipt.json` |
 //! | `safetensors` | Writing the head's F32 tensors |
@@ -25,13 +29,21 @@ pub mod corpus;
 pub mod eval;
 pub mod fit_cache;
 pub mod germeval;
+pub mod litbank;
+pub mod litbank_eval;
+pub mod masc_ne;
 pub mod masc_pos;
 pub mod multiconer;
+pub mod ner_documents;
 pub mod ner_peer;
+pub mod open_span;
 pub mod peer;
 pub mod receipt;
+pub mod redocred;
+pub mod redocred_eval;
 pub mod run;
 pub mod safetensors;
+pub mod split_labels;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_banks_sa;
@@ -54,10 +66,16 @@ impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// The corpora the trainer reads, by id: MASC, MultiCoNER, and a tag
-/// corpus for each column of each UD treebank.
+/// The corpora the trainer reads, by id: MASC, MultiCoNER, WNUT-17,
+/// GermEval, LitBank, and a tag corpus for each column of each UD treebank.
 pub fn corpora() -> Vec<String> {
-    let mut all = vec![masc_pos::ID.to_owned(), multiconer::ID.to_owned(), wnut17::ID.to_owned()];
+    let mut all = vec![
+        masc_ne::ID.to_owned(),
+        masc_pos::ID.to_owned(),
+        multiconer::ID.to_owned(),
+        wnut17::ID.to_owned(),
+        litbank::ID.to_owned(),
+    ];
     all.extend([germeval::OUTER.to_owned(), germeval::INNER.to_owned()]);
     all.extend(ud::corpus_ids());
     all
@@ -74,8 +92,10 @@ pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<
     }
     match id {
         masc_pos::ID => masc_pos::read(dir, unrecorded),
+        masc_ne::ID => masc_ne::read(dir, unrecorded).map_err(|e| Error(e.to_string())),
         wnut17::ID => wnut17::read(dir, unrecorded),
         multiconer::ID => multiconer::read(dir, unrecorded),
+        litbank::ID => litbank::read(dir, unrecorded),
         _ => match ud::find(id) {
             Some((bank, column)) => ud::read(&bank, column, dir, unrecorded),
             None => Err(Error(format!("unknown corpus {id:?}: one of {}", corpora().join(", ")))),
@@ -94,6 +114,8 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
         (Some((_, column)), _) => column.head(),
         (None, corpus::Task::Tags) => ("pos", "turboembed:pos"),
         (None, corpus::Task::Bio) => ("ner", "turboembed:entities"),
+        (None, corpus::Task::Coref) => ("coref", "turboembed:coref"),
+        (None, corpus::Task::Relations) => (redocred::HEAD, redocred::LAYER),
     }
 }
 
@@ -107,6 +129,7 @@ pub fn coarse(id: &str) -> Option<fn(&str) -> &str> {
 pub fn fixed_entity_types(id: &str) -> Option<&'static [&'static str]> {
     match id {
         wnut17::ID => Some(&wnut17::TYPES),
+        masc_ne::ID => Some(&masc_ne::TYPES),
         germeval::OUTER | germeval::INNER => Some(&germeval::TYPES),
         _ => None,
     }

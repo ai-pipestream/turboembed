@@ -115,7 +115,8 @@ impl Transport for Blobs {
 
 /// A local directory transport that serves files from `<root>/<id>/<path>`
 /// (or `<root>/<path>` when `<root>` is the artifact directory itself),
-/// checking that every component is a plain file.
+/// checking that every directory on the way is a plain directory and the
+/// target is a plain file.
 #[derive(Debug, Clone)]
 pub struct Directory {
     root: PathBuf,
@@ -131,6 +132,28 @@ impl Directory {
     pub fn root(&self) -> &Path {
         &self.root
     }
+
+    fn read_under(&self, prefix: Option<&str>, rel: &str, size: u64) -> Result<Vec<u8>, (PathBuf, std::io::Error)> {
+        let mut cur = self.root.clone();
+        let parts: Vec<&str> = prefix.into_iter().chain(rel.split('/')).collect();
+        let (leaf, dirs) = parts.split_last().expect("file path is non-empty");
+        for &dir in dirs {
+            cur.push(dir);
+            match denied_again(|| fs::symlink_metadata(&cur)) {
+                Ok(m) if m.file_type().is_symlink() => {
+                    return Err((
+                        cur,
+                        std::io::Error::other("is a symlink; the directory transport holds only plain directories"),
+                    ));
+                }
+                Ok(m) if m.is_dir() => {}
+                Ok(_) => return Err((cur, std::io::Error::other("is not a directory"))),
+                Err(e) => return Err((cur, e)),
+            }
+        }
+        cur.push(leaf);
+        read_plain(&cur, size).map_err(|e| (cur, e))
+    }
 }
 
 impl Transport for Directory {
@@ -139,9 +162,12 @@ impl Transport for Directory {
     }
 
     fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
-        let by_id = self.root.join(artifact.id.as_str()).join(file.path.as_str());
-        let p = if by_id.exists() { by_id } else { self.root.join(file.path.as_str()) };
-        read_plain(&p, file.size).map_err(|e| format!("{}: {e}", p.display()))
+        let rel = file.path.as_str();
+        let res = match self.read_under(Some(artifact.id.as_str()), rel, file.size) {
+            Err((_, e)) if e.kind() == std::io::ErrorKind::NotFound => self.read_under(None, rel, file.size),
+            other => other,
+        };
+        res.map_err(|(p, e)| format!("{}: {e}", p.display()))
     }
 }
 
@@ -149,6 +175,12 @@ impl Transport for Directory {
 pub trait Keep {
     /// Keeps `bytes` under their own SHA-256.
     fn keep(&self, bytes: &[u8]) -> Result<(), String>;
+}
+
+impl<K: Keep + ?Sized> Keep for std::sync::Arc<K> {
+    fn keep(&self, bytes: &[u8]) -> Result<(), String> {
+        (**self).keep(bytes)
+    }
 }
 
 impl Keep for Blobs {

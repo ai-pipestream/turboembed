@@ -21,6 +21,7 @@ pub struct Writer {
     docs: u32,
     poisoned: bool,
     local_path: Option<PathBuf>,
+    redact_errors: bool,
 }
 impl Writer {
     /// Local convenience adapter. The codec itself uses the storage interface.
@@ -30,14 +31,29 @@ impl Writer {
         Ok(writer)
     }
     pub fn create_in(store: &dyn EvaluationArtifactStore, header: &Header) -> Result<Self> {
-        let key = key(&header.set)?;
+        let mut writer = Self::create_at(store, &key(&header.set)?, header)?;
+        writer.redact_errors = false;
+        Ok(writer)
+    }
+    /// Explicit object identity for encrypted/opaque stores. Set names and
+    /// document identifiers remain inside the encoded payload. Keep the mapping
+    /// from this key to the expected set in protected application metadata.
+    pub fn create_at(store: &dyn EvaluationArtifactStore, key: &ArtifactKey, header: &Header) -> Result<Self> {
         let header = wire::header(header)?;
         if header.len() > wire::HEADER {
             return Err("cut dump: header exceeds limit".into());
         }
-        let out = store.begin(&key).map_err(|e| e.to_string())?;
-        let mut w =
-            Self { out, hash: Sha256::new(), used: 0, codecs: codecs(), docs: 0, poisoned: false, local_path: None };
+        let out = store.begin(key).map_err(|e| e.to_string())?;
+        let mut w = Self {
+            out,
+            hash: Sha256::new(),
+            used: 0,
+            codecs: codecs(),
+            docs: 0,
+            poisoned: false,
+            local_path: None,
+            redact_errors: true,
+        };
         w.write(wire::MAGIC)?;
         w.write(&(header.len() as u32).to_le_bytes())?;
         w.write(&header)?;
@@ -51,6 +67,10 @@ impl Writer {
         result
     }
     pub fn document(&mut self, id: &str, doc: &Document) -> Result<()> {
+        let result = self.document_inner(id, doc);
+        if self.redact_errors { result.map_err(|_| "cut artifact document encoding failed".into()) } else { result }
+    }
+    fn document_inner(&mut self, id: &str, doc: &Document) -> Result<()> {
         if self.poisoned {
             return Err("cut dump: writer failed previously".into());
         }
@@ -103,6 +123,18 @@ impl Dump {
         Self::read_from(&TemporaryFileStore::new(path.parent().unwrap_or(Path::new("."))), &key)
     }
     pub fn read_from(store: &dyn EvaluationArtifactStore, name: &ArtifactKey) -> Result<Self> {
+        Self::read_checked(store, name, None)
+    }
+    /// Read an explicitly keyed artifact and check its protected expected set.
+    /// Error text omits decoded document identifiers and content.
+    pub fn read_at(store: &dyn EvaluationArtifactStore, name: &ArtifactKey, expected_set: &str) -> Result<Self> {
+        Self::read_checked(store, name, Some(expected_set)).map_err(|_| "cut artifact decoding failed".into())
+    }
+    fn read_checked(
+        store: &dyn EvaluationArtifactStore,
+        name: &ArtifactKey,
+        expected_set: Option<&str>,
+    ) -> Result<Self> {
         let source = store.open(name).map_err(|e| e.to_string())?;
         let mut input = wire::Input::new(BufReader::new(source));
         let magic = input.bytes(wire::MAGIC.len())?;
@@ -113,7 +145,11 @@ impl Dump {
             return Err("not a version 2 cut dump".into());
         }
         let header = wire::read_header(&input.chunk(wire::HEADER)?)?;
-        if key(&header.set)? != *name {
+        let matches = match expected_set {
+            Some(set) => header.set == set,
+            None => key(&header.set)? == *name,
+        };
+        if !matches {
             return Err("cut dump: header set disagrees with artifact key".into());
         }
         let mut docs = Vec::new();

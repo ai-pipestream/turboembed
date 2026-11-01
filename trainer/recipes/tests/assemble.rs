@@ -100,7 +100,10 @@ fn train_ner_run(data: &Path, out: &Path) -> Receipt {
     ];
     let o = run_cli(&args);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
-    serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap()
+    let mut r: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    r.corpus.recorded = true;
+    fs::write(out.join("receipt.json"), serde_json::to_vec_pretty(&r).unwrap()).unwrap();
+    r
 }
 
 fn make_spec(name: &str, layer: &str, kind: HeadKind, scheme: Scheme, decode: Decode, labels: &[&str]) -> HeadSpec {
@@ -116,8 +119,10 @@ fn make_spec(name: &str, layer: &str, kind: HeadKind, scheme: Scheme, decode: De
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),

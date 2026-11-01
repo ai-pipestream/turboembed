@@ -238,55 +238,51 @@ fn retained_handles_remain_usable_and_null_accessors_clear_stale_outputs() {
 }
 
 #[test]
-fn configured_dictionary_lemmas_are_exact_and_a_miss_has_no_value() {
-    let mut path = std::env::temp_dir();
-    path.push(format!("turbo-abi-lemma-{}.tsv", std::process::id()));
-    std::fs::write(
-        &path,
-        "went\tVERB\twalk\nwent\tVERB\tgo\textra\tfields\nthe\tDET\tcanonical-the\nThe\tDET\tunreachable\n",
-    )
-    .unwrap();
-    let path_text = path.to_str().unwrap().to_owned();
-
+fn retired_model_paths_are_refused_by_field_and_the_earlier_size_names_no_bundle() {
     unsafe {
-        let mut desc: turbo_analyzer_desc = std::mem::zeroed();
-        desc.struct_size = size_of::<turbo_analyzer_desc>() as u32;
-        desc.lemma_model_path = t(&path_text);
-        let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();
         let mut err = new_err();
+        let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();
+        // Each retired field, set to any non-empty value, is refused by
+        // its number, whatever it points at.
+        type Field = fn(&mut turbo_analyzer_desc) -> &mut turbo_text;
+        let retired: [(Field, u32); 5] = [
+            (|d| &mut d.sent_model_path, 2),
+            (|d| &mut d.tok_model_path, 3),
+            (|d| &mut d.pos_model_path, 4),
+            (|d| &mut d.lemma_model_path, 5),
+            (|d| &mut d.ner_model_path, 6),
+        ];
+        for (field, number) in retired {
+            let mut desc: turbo_analyzer_desc = std::mem::zeroed();
+            desc.struct_size = size_of::<turbo_analyzer_desc>() as u32;
+            *field(&mut desc) = t("en-sent.bin");
+            assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_ARGUMENT);
+            assert_eq!(err.field, number);
+            let msg = CStr::from_ptr(err.message.as_ptr()).to_str().unwrap();
+            assert!(msg.contains("is retired") && msg.contains("bundle_path"), "field {number}: {msg}");
+            assert!(analyzer.is_null());
+        }
+
+        // The size before bundle_path was appended is still accepted, and
+        // then names no bundle: what lies past it is not read.
+        let mut desc: turbo_analyzer_desc = std::mem::zeroed();
+        desc.struct_size = TURBO_ANALYZER_DESC_SIZE_V1 as u32;
+        desc.bundle_path = t("testdata/does-not-exist");
+        assert_eq!(TURBO_ANALYZER_DESC_SIZE_V1, 104);
         assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::OK);
-
-        let words = [t("went"), t("The"), t("zorped")];
-        let tags = [t("VERB"), t("DET"), t("NOUN")];
-        let mut result: *mut turbo_analysis_result = std::ptr::null_mut();
-        assert_eq!(
-            turbo_analyzer_lemmatize(analyzer, words.as_ptr(), tags.as_ptr(), 3, &mut result, &mut err),
-            status::OK
-        );
-        let (spans, labels) = read_spans(result);
-        assert_eq!(labels, ["go", "canonical-the", ""]);
-        assert_ne!(spans[0].flags & TURBO_SPAN_LABEL, 0);
-        assert_eq!(spans[2].flags & TURBO_SPAN_LABEL, 0, "a dictionary miss gets no synthetic label");
-
-        let mut pool_ptr: *const std::ffi::c_char = std::ptr::null();
-        let mut pool_len: u64 = 0;
-        assert_eq!(turbo_analysis_result_strings(result, &mut pool_ptr, &mut pool_len, &mut err), status::OK);
-        let pool = std::slice::from_raw_parts(pool_ptr.cast::<u8>(), pool_len as usize);
-        let values: Vec<Option<&str>> = spans
-            .iter()
-            .map(|span| {
-                if span.flags & TURBO_SPAN_VALUE == 0 {
-                    None
-                } else {
-                    let start = span.value_offset as usize;
-                    Some(std::str::from_utf8(&pool[start..start + span.value_len as usize]).unwrap())
-                }
-            })
-            .collect();
-        assert_eq!(values, [None, None, None], "lemmas use label; value is reserved for normalized payloads");
-        assert!(spans.iter().all(|span| span.flags & TURBO_SPAN_TOKEN_RANGE != 0));
-        turbo_analysis_result_release(result);
+        let words = [t("The"), t("river")];
+        let mut res: *mut turbo_analysis_result = std::ptr::null_mut();
+        assert_eq!(turbo_analyzer_pos_tag(analyzer, words.as_ptr(), 2, &mut res, &mut err), status::UNSUPPORTED_TASK);
+        let msg = CStr::from_ptr(err.message.as_ptr()).to_str().unwrap();
+        assert!(msg.contains("bundle_path"), "got: {msg}");
         turbo_analyzer_release(analyzer);
+
+        // Any other size, and a flag, are refused.
+        desc.struct_size = 112;
+        assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_STRUCT_SIZE);
+        desc.struct_size = size_of::<turbo_analyzer_desc>() as u32;
+        desc.bundle_path = t("");
+        desc.flags = 1;
+        assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_ARGUMENT);
     }
-    std::fs::remove_file(path).unwrap();
 }

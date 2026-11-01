@@ -129,7 +129,7 @@ fn pos_probabilities_within_and_outside_an_absolute_distance() {
         p.prob.as_mut().unwrap()[4] = 0.8123 + delta;
         let m = fail::<PosTags>(&p, &g, tol);
         assert!(matches!(m, Mismatch::Item { index: 4, what: "prob", .. }), "delta {delta:e}: {m:?}");
-        says(&m.to_string(), &["opennlp:pos item 4: the prob differs", "tolerance 1e-9", "(by "]);
+        says(&m.to_string(), &["turbo:pos item 4: the prob differs", "tolerance 1e-9", "(by "]);
     }
     // Exact fails on the smallest change that the absolute tolerance accepts.
     let mut p = Parts::matching();
@@ -226,7 +226,7 @@ fn a_mismatch_in_an_aligned_layer_shows_the_anchor_token_on_both_sides() {
     says(
         &m.to_string(),
         &[
-            "turbo:confidence<opennlp:sentences> item 1: the value differs",
+            "turbo:confidence<turbo:sentences> item 1: the value differs",
             "rust:   bytes 27..37 \"It rained!\", value 3fe0000000000000 (0.5)",
             "golden: bytes 27..37 \"It rained!\", value 3fee666666666666 (0.95)",
         ],
@@ -235,7 +235,7 @@ fn a_mismatch_in_an_aligned_layer_shows_the_anchor_token_on_both_sides() {
     let mut p = Parts::matching();
     p.lemmas[0] = "Dr";
     let m = fail::<Lemmas>(&p, &g, Tolerance::exact());
-    says(&m.to_string(), &["opennlp:lemmas item 0", "bytes 0..3 \"Dr.\", lemma \"Dr\"", "lemma \"Dr.\""]);
+    says(&m.to_string(), &["turbo:lemmas item 0", "bytes 0..3 \"Dr.\", lemma \"Dr\"", "lemma \"Dr.\""]);
     // The last one, at the end of the text.
     let mut p = Parts::matching();
     p.lemmas[8] = "?";
@@ -281,13 +281,13 @@ fn counts_report_the_first_item_past_the_shorter_side() {
     assert!(matches!(m, Mismatch::Count { rust: 10, golden: 9, .. }), "{m:?}");
     says(
         &m.to_string(),
-        &["opennlp:tokens: 10 items in Rust, 9 in the golden", "Rust item 9:", "Rust: bytes 37..37 \"\""],
+        &["turbo:tokens: 10 items in Rust, 9 in the golden", "Rust item 9:", "Rust: bytes 37..37 \"\""],
     );
     // The aligned layers report their counts the same way.
     let m = fail::<PosTags>(&p, &g, Tolerance::exact());
     says(
         &m.to_string(),
-        &["opennlp:pos: 10 items in Rust, 9 in the golden", "Rust item 9:", "bytes 37..37 \"\", tag \"PUNCT\""],
+        &["turbo:pos: 10 items in Rust, 9 in the golden", "Rust item 9:", "bytes 37..37 \"\", tag \"PUNCT\""],
     );
     // Rust has fewer; the first golden row past it is shown.
     let mut p = Parts::matching();
@@ -297,7 +297,7 @@ fn counts_report_the_first_item_past_the_shorter_side() {
     let m = fail::<Lemmas>(&p, &g, Tolerance::exact());
     says(
         &m.to_string(),
-        &["opennlp:lemmas: 3 items in Rust, 9 in the golden", "golden: bytes 15..17 \"to\", lemma \"to\""],
+        &["turbo:lemmas: 3 items in Rust, 9 in the golden", "golden: bytes 15..17 \"to\", lemma \"to\""],
     );
     // Rust has none at all.
     let mut p = Parts::matching();
@@ -329,14 +329,14 @@ fn a_golden_span_outside_character_boundaries_is_reported_without_a_panic() {
 
 fn language_golden(rows: &[&str]) -> Golden {
     let text = fixture_text();
-    let start = text.find("layer\topennlp:language").unwrap();
+    let start = text.find("layer\tturbo:language").unwrap();
     let mut out = text[..start].to_string();
-    out.push_str(&format!("layer\topennlp:language\tdocument\t{}\tcode:str\tconfidence:f64\n", rows.len()));
+    out.push_str(&format!("layer\tturbo:language\tdocument\t{}\tcode:str\tconfidence:f64\n", rows.len()));
     for r in rows {
         out.push_str(r);
         out.push('\n');
     }
-    out.push_str("end\topennlp:language\n");
+    out.push_str("end\tturbo:language\n");
     Golden::parse(&out).unwrap()
 }
 
@@ -347,7 +347,7 @@ fn language_compares_every_row_in_rank_order() {
     let deu = "deu\t3fa5182a9930be0e 0.0412";
     let nld = "nld\t3f889374bc6a7efa 0.012";
     let fra = "fra\t3ee4f8b588e368f1 1.0E-5";
-    assert_eq!(golden().layer("opennlp:language").unwrap().len(), 4);
+    assert_eq!(golden().layer("turbo:language").unwrap().len(), 4);
     assert_eq!(matches_golden::<Language>(&p.doc(), &golden(), Tolerance::exact()), Ok(()));
     assert_eq!(
         matches_golden::<Language>(&p.doc(), &language_golden(&[eng, deu, nld, fra]), Tolerance::exact()),
@@ -357,7 +357,7 @@ fn language_compares_every_row_in_rank_order() {
     let g = language_golden(&[eng, nld, deu, fra]);
     let m = fail::<Language>(&p, &g, Tolerance::exact());
     assert!(matches!(m, Mismatch::Item { index: 1, what: "code", .. }), "{m:?}");
-    says(&m.to_string(), &["opennlp:language item 1", "rust:   code \"deu\"", "golden: code \"nld\""]);
+    says(&m.to_string(), &["turbo:language item 1", "rust:   code \"deu\"", "golden: code \"nld\""]);
     // A later row's confidence is compared, with the tolerance.
     p.language[3].1 += 1e-12;
     assert_eq!(matches_golden::<Language>(&p.doc(), &golden(), Tolerance::abs(1e-9)), Ok(()));
@@ -366,7 +366,7 @@ fn language_compares_every_row_in_rank_order() {
     // A golden with fewer rows: a count difference naming the first extra Rust row.
     let m = fail::<Language>(&Parts::matching(), &language_golden(&[eng, deu]), Tolerance::exact());
     assert!(matches!(m, Mismatch::Count { rust: 4, golden: 2, .. }), "{m:?}");
-    says(&m.to_string(), &["opennlp:language: 4 items in Rust, 2 in the golden", "Rust item 2:", "Rust: code \"nld\""]);
+    says(&m.to_string(), &["turbo:language: 4 items in Rust, 2 in the golden", "Rust item 2:", "Rust: code \"nld\""]);
     // A golden with no rows.
     let m = fail::<Language>(&Parts::matching(), &language_golden(&[]), Tolerance::exact());
     assert!(matches!(m, Mismatch::Count { rust: 4, golden: 0, .. }), "{m:?}");
@@ -411,28 +411,28 @@ fn every_item_report_names_its_layer_and_row() {
         let mut cases = Vec::new();
         let mut p = Parts::matching();
         p.sentences[1] = (27, 36);
-        cases.push(("opennlp:sentences", fail::<Sentences>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:sentences", fail::<Sentences>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
         p.sentence_conf[0] = 0.0;
-        cases.push(("turbo:confidence<opennlp:sentences>", fail::<Confidence<Sentences>>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:confidence<turbo:sentences>", fail::<Confidence<Sentences>>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
         p.tokens[7] = (30, 35);
-        cases.push(("opennlp:tokens", fail::<Tokens>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:tokens", fail::<Tokens>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
         p.token_conf[7] = 0.0;
-        cases.push(("turbo:confidence<opennlp:tokens>", fail::<Confidence<Tokens>>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:confidence<turbo:tokens>", fail::<Confidence<Tokens>>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
         p.tags[7] = "NOUN";
-        cases.push(("opennlp:pos", fail::<PosTags>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:pos", fail::<PosTags>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
         p.lemmas[7] = "x";
-        cases.push(("opennlp:lemmas", fail::<Lemmas>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:lemmas", fail::<Lemmas>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
         p.entities[1].5 = 0.0;
-        cases.push(("opennlp:entities", fail::<Entities>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:entities", fail::<Entities>(&p, &g, Tolerance::exact())));
         let mut p = Parts::matching();
         p.language[0].0 = "xx";
-        cases.push(("opennlp:language", fail::<Language>(&p, &g, Tolerance::exact())));
+        cases.push(("turbo:language", fail::<Language>(&p, &g, Tolerance::exact())));
         cases
     };
     let index = [1, 0, 7, 7, 7, 7, 1, 0];
@@ -454,7 +454,7 @@ fn every_other_report_starts_with_the_layer_and_the_accessor_agrees() {
     reports.push(matches_golden::<Tokens>(&other, &g, Tolerance::exact()).unwrap_err());
     // MissingGolden.
     let mut no_lemmas = golden();
-    no_lemmas.layers.retain(|l| l.id != "opennlp:lemmas");
+    no_lemmas.layers.retain(|l| l.id != "turbo:lemmas");
     reports.push(matches_golden::<Lemmas>(&Parts::matching().doc(), &no_lemmas, Tolerance::exact()).unwrap_err());
     // MissingLayer, plain and for a named instance.
     let doc = Document::new(TEXT);
@@ -462,11 +462,11 @@ fn every_other_report_starts_with_the_layer_and_the_accessor_agrees() {
     reports.push(matches_golden_key(&doc, &Key::<Tokens>::named("x"), &g, Tolerance::exact()).unwrap_err());
     // Anchor.
     let mut anchored = golden();
-    anchored.layers.iter_mut().find(|l| l.id == "opennlp:tokens").unwrap().anchor = GoldenAnchor::Document;
+    anchored.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap().anchor = GoldenAnchor::Document;
     reports.push(matches_golden::<Tokens>(&Parts::matching().doc(), &anchored, Tolerance::exact()).unwrap_err());
     // Columns.
     let mut renamed = golden();
-    renamed.layers.iter_mut().find(|l| l.id == "opennlp:lemmas").unwrap().columns[0].name = "x".into();
+    renamed.layers.iter_mut().find(|l| l.id == "turbo:lemmas").unwrap().columns[0].name = "x".into();
     reports.push(matches_golden::<Lemmas>(&Parts::matching().doc(), &renamed, Tolerance::exact()).unwrap_err());
     // NoValues.
     let mut p = Parts::matching();
@@ -479,14 +479,14 @@ fn every_other_report_starts_with_the_layer_and_the_accessor_agrees() {
     reports.push(fail::<Sentences>(&p, &g, Tolerance::exact()));
 
     let expected = [
-        "opennlp:tokens",
-        "opennlp:lemmas",
-        "opennlp:tokens",
-        "opennlp:tokens@x",
-        "opennlp:tokens",
-        "opennlp:lemmas",
-        "opennlp:pos",
-        "opennlp:sentences",
+        "turbo:tokens",
+        "turbo:lemmas",
+        "turbo:tokens",
+        "turbo:tokens@x",
+        "turbo:tokens",
+        "turbo:lemmas",
+        "turbo:pos",
+        "turbo:sentences",
     ];
     assert_eq!(reports.len(), expected.len());
     for (m, id) in reports.iter().zip(expected) {
@@ -501,7 +501,7 @@ fn every_other_report_starts_with_the_layer_and_the_accessor_agrees() {
         &reports[0].to_string(),
         &["12 bytes", "expected 37 bytes", "f03e4a09022fa42c68b4fbab2730c195ceb468707eb0b2598a7b1e91abc4918f"],
     );
-    says(&reports[1].to_string(), &["[opennlp:sentences, turbo:confidence<opennlp:sentences>, opennlp:tokens"]);
+    says(&reports[1].to_string(), &["[turbo:sentences, turbo:confidence<turbo:sentences>, turbo:tokens"]);
     says(&reports[4].to_string(), &["anchored to document, expected text"]);
     says(&reports[5].to_string(), &["the columns [x:str], expected [lemma:str]"]);
     says(&reports[7].to_string(), &["1 items in Rust, 2 in the golden"]);
@@ -514,10 +514,10 @@ fn a_report_for_a_named_instance_carries_the_name_and_the_row() {
     let s = spans(&[(0, 3), (4, 9), (10, 14), (15, 17), (18, 25), (25, 26), (27, 29), (30, 36), (35, 37)]);
     doc.add(&Key::named("mine"), Tokens { spans: s, sentence: None }, Provenance::by("t")).unwrap();
     let m = matches_golden_key(&doc, &Key::<Tokens>::named("mine"), &g, Tolerance::exact()).unwrap_err();
-    assert_eq!(m.layer(), "opennlp:tokens@mine");
+    assert_eq!(m.layer(), "turbo:tokens@mine");
     says(
         &m.to_string(),
-        &["opennlp:tokens@mine item 8: the span differs", "rust:   bytes 35..37 \"d!\"", "golden: bytes 36..37 \"!\""],
+        &["turbo:tokens@mine item 8: the span differs", "rust:   bytes 35..37 \"d!\"", "golden: bytes 36..37 \"!\""],
     );
 }
 
@@ -527,16 +527,16 @@ fn a_report_for_a_named_instance_carries_the_name_and_the_row() {
 #[test]
 fn an_empty_golden_layer_is_a_count_difference_not_a_pass() {
     let text = fixture_text();
-    let sentences = "layer\topennlp:sentences\ttext\t2\tstart:u32\tend:u32\n0\t26\n27\t37\nend\topennlp:sentences\n";
+    let sentences = "layer\tturbo:sentences\ttext\t2\tstart:u32\tend:u32\n0\t26\n27\t37\nend\tturbo:sentences\n";
     assert!(text.contains(sentences));
     // The confidence layer is aligned to it, so empty both.
-    let conf = "layer\tturbo:confidence<opennlp:sentences>\taligned:opennlp:sentences\t2\tvalue:f64\n3fef9add3c1be9b8 0.9876543210987654\n3fee666666666666 0.95\nend\tturbo:confidence<opennlp:sentences>\n";
+    let conf = "layer\tturbo:confidence<turbo:sentences>\taligned:turbo:sentences\t2\tvalue:f64\n3fef9add3c1be9b8 0.9876543210987654\n3fee666666666666 0.95\nend\tturbo:confidence<turbo:sentences>\n";
     assert!(text.contains(conf));
     let emptied = text
-        .replace(sentences, "layer\topennlp:sentences\ttext\t0\tstart:u32\tend:u32\nend\topennlp:sentences\n")
+        .replace(sentences, "layer\tturbo:sentences\ttext\t0\tstart:u32\tend:u32\nend\tturbo:sentences\n")
         .replace(
             conf,
-            "layer\tturbo:confidence<opennlp:sentences>\taligned:opennlp:sentences\t0\tvalue:f64\nend\tturbo:confidence<opennlp:sentences>\n",
+            "layer\tturbo:confidence<turbo:sentences>\taligned:turbo:sentences\t0\tvalue:f64\nend\tturbo:confidence<turbo:sentences>\n",
         );
     let g = Golden::parse(&emptied).unwrap();
     let m = fail::<Sentences>(&Parts::matching(), &g, Tolerance::exact());
@@ -558,31 +558,31 @@ fn an_empty_golden_layer_is_a_count_difference_not_a_pass() {
 #[test]
 fn a_golden_whose_columns_have_different_lengths_is_a_columns_mismatch() {
     let mut g = golden();
-    let pos = g.layers.iter_mut().find(|l| l.id == "opennlp:pos").unwrap();
+    let pos = g.layers.iter_mut().find(|l| l.id == "turbo:pos").unwrap();
     pos.columns[1].data = ColumnData::F64(vec![0.5; 8]);
     let m = fail::<PosTags>(&Parts::matching(), &g, Tolerance::exact());
     assert!(matches!(m, Mismatch::Columns { .. }), "{m:?}");
     says(
         &m.to_string(),
-        &["opennlp:pos: the golden layer has the columns [tag:str, prob:f64], expected [tag:str, prob:f64]"],
+        &["turbo:pos: the golden layer has the columns [tag:str, prob:f64], expected [tag:str, prob:f64]"],
     );
 }
 
 #[test]
 fn a_golden_layer_with_extra_or_missing_columns() {
     let mut g = golden();
-    let toks = g.layers.iter_mut().find(|l| l.id == "opennlp:tokens").unwrap();
+    let toks = g.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap();
     toks.columns.push(Column { name: "extra".into(), data: ColumnData::U32(vec![0; 9]) });
     let m = fail::<Tokens>(&Parts::matching(), &g, Tolerance::exact());
     says(&m.to_string(), &["[start:u32, end:u32, extra:u32], expected [start:u32, end:u32]"]);
     let mut g = golden();
-    let toks = g.layers.iter_mut().find(|l| l.id == "opennlp:tokens").unwrap();
+    let toks = g.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap();
     toks.columns.pop();
     let m = fail::<Tokens>(&Parts::matching(), &g, Tolerance::exact());
     says(&m.to_string(), &["[start:u32], expected [start:u32, end:u32]"]);
     // Swapped types.
     let mut g = golden();
-    let toks = g.layers.iter_mut().find(|l| l.id == "opennlp:tokens").unwrap();
+    let toks = g.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap();
     toks.columns[0].data = ColumnData::F64(vec![0.0; 9]);
     let m = fail::<Tokens>(&Parts::matching(), &g, Tolerance::exact());
     says(&m.to_string(), &["[start:f64, end:u32]"]);
@@ -679,7 +679,7 @@ fn assert_matches_golden_panics_with_the_report() {
 }
 
 #[test]
-#[should_panic(expected = "opennlp:tokens@x: the document has no such layer")]
+#[should_panic(expected = "turbo:tokens@x: the document has no such layer")]
 fn assert_matches_golden_key_names_the_instance() {
     assert_matches_golden_key(&Document::new(TEXT), &Key::<Tokens>::named("x"), &golden(), Tolerance::exact());
 }

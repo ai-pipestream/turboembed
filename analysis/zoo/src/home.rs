@@ -42,6 +42,12 @@ impl Home {
     pub fn acceptances(&self) -> PathBuf {
         self.dir.join("acceptances.json")
     }
+
+    /// The holders file, as [`crate::Holders::load`] and
+    /// [`crate::Holders::save`] take it.
+    pub fn holders(&self) -> PathBuf {
+        self.dir.join("holders.json")
+    }
 }
 
 impl UserId {

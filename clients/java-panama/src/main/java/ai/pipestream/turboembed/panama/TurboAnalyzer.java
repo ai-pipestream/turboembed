@@ -20,43 +20,41 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * <p>Calls on one native analyzer are serialized, including calls made through analyzers made
  * by {@link #retain()}. A returned result is independent of this analyzer and remains usable
- * after the analyzer closes. Unconfigured POS, lemma, and NER models fail with
- * {@link TurboLibrary#TURBO_E_UNSUPPORTED_TASK}; no dictionary, pattern, or lexical fallback is
- * substituted in Java or native code.
+ * after the analyzer closes. The learned layers (part-of-speech tags, lemmas, dependencies and
+ * entities) come from the heads of the bundle named by {@link Config#bundlePath()}, all from
+ * one encoder pass per sentence. Without a bundle, or with a bundle lacking a layer's head,
+ * that layer's tasks fail with {@link TurboLibrary#TURBO_E_UNSUPPORTED_TASK} naming what is
+ * missing; no dictionary, pattern, or lexical fallback is substituted in Java or native code.
  */
 public final class TurboAnalyzer implements AutoCloseable {
 
     /**
      * Configuration for constructing a {@link TurboAnalyzer}.
      *
-     * @param language            BCP-47 language tag (null or blank defaults to {@code "en"})
-     * @param sentenceModelPath   optional OpenNLP sentence detector {@code .bin} model
-     * @param tokenizerModelPath  optional OpenNLP tokenizer {@code .bin} model
-     * @param posModelPath        optional OpenNLP POS tagger {@code .bin} model
-     * @param lemmatizerModelPath optional OpenNLP lemmatizer {@code .bin} or dictionary file
-     * @param nerModelPath        optional OpenNLP {@code TokenNameFinder} {@code .bin} model
+     * @param language   BCP-47 language tag (null or blank defaults to {@code "en"})
+     * @param bundlePath optional bundle directory whose heads write the learned layers; null
+     *                   configures the rule sentence splitter and tokenizer alone
      */
-    public record Config(
-            String language,
-            Path sentenceModelPath,
-            Path tokenizerModelPath,
-            Path posModelPath,
-            Path lemmatizerModelPath,
-            Path nerModelPath) {
+    public record Config(String language, Path bundlePath) {
 
         /** Normalizes an absent language to English. */
         public Config {
             language = language == null || language.isBlank() ? "en" : language;
         }
 
-        /** Returns the rule sentence/tokenizer configuration with no statistical task models. */
+        /** Returns the rule sentence/tokenizer configuration with no bundle. */
         public static Config defaults() {
-            return new Config("en", null, null, null, null, null);
+            return new Config("en", null);
         }
 
-        /** Returns a configuration for one BCP-47 language tag and no task models. */
+        /** Returns a configuration for one BCP-47 language tag and no bundle. */
         public static Config forLanguage(String language) {
-            return new Config(Objects.requireNonNull(language, "language"), null, null, null, null, null);
+            return new Config(Objects.requireNonNull(language, "language"), null);
+        }
+
+        /** Returns an English configuration over the heads of one bundle directory. */
+        public static Config forBundle(Path bundlePath) {
+            return new Config("en", Objects.requireNonNull(bundlePath, "bundlePath"));
         }
     }
 
@@ -82,11 +80,8 @@ public final class TurboAnalyzer implements AutoCloseable {
             desc.set(ValueLayout.JAVA_INT, descOffset("struct_size"), (int) TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT.byteSize());
             desc.set(ValueLayout.JAVA_INT, descOffset("flags"), 0);
             TurboLibrary.writeTextInPlace(arena, desc, descOffset("language"), config.language());
-            TurboLibrary.writeTextInPlace(arena, desc, descOffset("sent_model_path"), pathString(config.sentenceModelPath()));
-            TurboLibrary.writeTextInPlace(arena, desc, descOffset("tok_model_path"), pathString(config.tokenizerModelPath()));
-            TurboLibrary.writeTextInPlace(arena, desc, descOffset("pos_model_path"), pathString(config.posModelPath()));
-            TurboLibrary.writeTextInPlace(arena, desc, descOffset("lemma_model_path"), pathString(config.lemmatizerModelPath()));
-            TurboLibrary.writeTextInPlace(arena, desc, descOffset("ner_model_path"), pathString(config.nerModelPath()));
+            // The retired model path fields stay zero: an empty text.
+            TurboLibrary.writeTextInPlace(arena, desc, descOffset("bundle_path"), pathString(config.bundlePath()));
 
             MemorySegment outPtr = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment err = TurboLibrary.allocateError(arena);
@@ -184,7 +179,7 @@ public final class TurboAnalyzer implements AutoCloseable {
     }
 
     /**
-     * Tags one independent pre-tokenized sequence with the configured POS model.
+     * Tags one independent pre-tokenized sequence with the bundle's part-of-speech head.
      * Rows are token-only and carry no view or source range.
      */
     public TurboAnalysisResult posTag(String[] tokens) {
@@ -204,8 +199,9 @@ public final class TurboAnalyzer implements AutoCloseable {
     }
 
     /**
-     * Lemmatizes aligned token/tag pairs with the configured dictionary or model.
-     * A dictionary miss is a row with no label, never a lowercased token.
+     * Lemmatizes aligned token/tag pairs with the bundle's lemmatizer head. The tags must be
+     * labels of the tag head the lemmatizer reads; they are ignored by a lemmatizer that reads
+     * no tags. A row with no label is an explicit miss, never a lowercased token.
      */
     public TurboAnalysisResult lemmatize(String[] tokens, String[] tags) {
         validateStrings(tokens, "tokens");
@@ -230,7 +226,7 @@ public final class TurboAnalyzer implements AutoCloseable {
     }
 
     /**
-     * Finds named entities in one independent token sequence with the configured model only.
+     * Finds named entities in one independent token sequence with the bundle's entity head only.
      * No adaptive data is retained between calls.
      */
     public TurboAnalysisResult findTokens(String[] tokens) {
@@ -249,7 +245,7 @@ public final class TurboAnalyzer implements AutoCloseable {
         }
     }
 
-    /** Finds named entities directly in text with the configured model only. */
+    /** Finds named entities directly in text with the bundle's entity head only. */
     public TurboAnalysisResult findText(String text) {
         Objects.requireNonNull(text, "text");
         return execute("turbo_analyzer_find_text", (arena, outPtr, err) -> {
@@ -282,8 +278,9 @@ public final class TurboAnalyzer implements AutoCloseable {
     }
 
     /**
-     * Runs configured layers, serializes the binary graph into the result, and exposes typed
-     * rows for every supported layer instance present. Unconfigured layers are absent.
+     * Runs the rule splitter and tokenizer, every head of the bundle in one encoder pass per
+     * sentence, and the PII task; serializes the binary graph into the result; and exposes typed
+     * rows for every layer instance present. A layer without a head is absent.
      */
     public TurboAnalysisResult analyzeGraph(String text) {
         Objects.requireNonNull(text, "text");

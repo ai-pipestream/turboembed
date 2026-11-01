@@ -89,14 +89,33 @@ What is here:
   optimizer stay single; the states it gives sit within 2 percent of the
   single's over two layers and the gradients within 0.2 percent in norm
   on the tests' geometry, and the toy task is learnt under it with loss
-  scaling on. One sequence a thread, with no sum split: the reference
-  the CUDA backward is held to.
+  scaling on. `with_checkpointing` keeps only each layer's output state
+  and one layer's inner workspace across a forward, recomputing earlier
+  layers' inner activations in backward with identical states and
+  gradients. One sequence a thread, with no sum split: the reference
+  the device is held to. `cuda` (the `cuda` feature, nvcc; or
+  `cuda-shim`, the same kernels as plain C++ on the host, which CI
+  runs) is the encoder on a CUDA device: `CudaEncoder` takes an
+  `Encoder<f32>`, holds its weights (rounded under bfloat16), the
+  activations of one forward (one shared layer workspace when
+  checkpointed) and the gradients on the device, runs the
+  ops of `trainer/cuda/train.cu` in the CPU encoder's order, draws
+  dropout's masks from the same keys, and sums the gradients on the
+  device over as many sequences as the caller runs; `grads` brings
+  them to the host at once. Each output element is owned by one
+  thread and summed in a fixed order, so a device gives the same bytes
+  every run; against the CPU the states and gradients sit within 1e-4
+  of their largest (1e-6 measured through the shim), bfloat16 within
+  3e-2. docs/cuda.md, "The trainer's kernels", says how it is built
+  and tested on a GPU.
 
 Corpora, scoring, receipts and the `turbo-train-head` command are in
 `trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle
-output; the edit-tree head (R1c); the rest of R2 (CUDA backward,
-checkpointing of the other activations, full fine-tuning runs on a
-corpus and bundle output, #1519); distillation (R3, #1520).
+output; the edit-tree head (R1c); the rest of R2 (the device encoder
+under `Tuned` and the loop, with the step on the device; a tiled GEMM
+in place of the register-tiled one; full fine-tuning runs on a corpus
+and bundle output,
+#1519); distillation (R3, #1520).
 
 ```text
 cargo test -p turbo-trainer

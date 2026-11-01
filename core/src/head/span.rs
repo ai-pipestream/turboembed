@@ -33,6 +33,7 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
     out.push(("span.width".into(), vec![max, dim]));
     out.push(("out.weight".into(), vec![labels, 2 * width + dim]));
     out.push(("out.bias".into(), vec![labels]));
+    words::push_mix(spec, &mut out);
     out
 }
 
@@ -70,7 +71,7 @@ pub struct SpanWork {
 }
 
 /// Columns `from..from + n` of the rows of `w`, each `cols` wide.
-fn columns(w: &[f32], cols: usize, from: usize, n: usize) -> Vec<f32> {
+pub(super) fn columns(w: &[f32], cols: usize, from: usize, n: usize) -> Vec<f32> {
     w.chunks_exact(cols).flat_map(|row| row[from..from + n].iter().copied()).collect()
 }
 
@@ -125,6 +126,11 @@ impl SpanClassifier {
     /// The encoder width the head reads.
     pub fn hidden(&self) -> usize {
         self.hidden
+    }
+
+    /// The number of encoder layers each word vector mixes.
+    pub fn taps(&self) -> usize {
+        self.reader.taps()
     }
 
     /// Whether the head reads each word's text (a `hash_embed`).
@@ -214,7 +220,7 @@ impl SpanClassifier {
 
 /// Keeps the spans that do not overlap a span of a higher margin (on a
 /// tie, the one earlier in order wins), in order of first word.
-fn flat(spans: &mut Vec<Span>) {
+pub(super) fn flat(spans: &mut Vec<Span>) {
     let mut order: Vec<usize> = (0..spans.len()).collect();
     order.sort_by(|&a, &b| spans[b].margin.partial_cmp(&spans[a].margin).unwrap_or(std::cmp::Ordering::Equal));
     let mut kept: Vec<Span> = Vec::new();

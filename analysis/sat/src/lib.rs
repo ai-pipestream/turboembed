@@ -1,5 +1,5 @@
 //! Sentence boundaries from a SaT model (Segment any Text, wtpsplit) on
-//! turboembed's own encoder: `SatAnnotator` writes `opennlp:sentences`
+//! turboembed's own encoder: `SatAnnotator` writes `turbo:sentences`
 //! from a boundary score per token, read by the bundle's classifier from
 //! the encoder's final states.
 //!

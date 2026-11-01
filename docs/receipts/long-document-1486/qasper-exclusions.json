@@ -1,0 +1,12 @@
+{
+  "set": "qasper",
+  "source_member": "qasper-test-v0.3.json",
+  "unit": "raw evidence string occurrences and distinct query/evidence-string pairs before placement; not span-scored queries",
+  "counts": {
+    "raw_evidence_occurrences": 5744,
+    "float_selected_raw_occurrences": 459,
+    "float_selected_distinct_query_evidence_pairs": 322,
+    "empty_distinct_query_evidence_pairs": 0,
+    "empty_raw_occurrences": 0
+  }
+}

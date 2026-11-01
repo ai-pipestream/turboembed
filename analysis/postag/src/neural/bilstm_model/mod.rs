@@ -200,7 +200,7 @@ impl BilstmPosModel {
             }
         };
         self.model_ref = ModelRef {
-            id: "opennlp:BilstmPOSModel".into(),
+            id: "turbo:BilstmPOSModel".into(),
             revision: revision.into(),
             sha256: turbo_maxent::sha256(&bytes).to_hex(),
         };

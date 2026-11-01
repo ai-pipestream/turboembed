@@ -24,3 +24,4 @@ turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
 serde_json = "1"
+turbo-pins = { path = "../pins" }

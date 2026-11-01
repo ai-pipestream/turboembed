@@ -18,6 +18,7 @@ pub mod evidence;
 pub mod export;
 pub mod graph;
 pub mod hash;
+pub mod ids;
 pub mod layer;
 pub mod markup;
 pub mod math;

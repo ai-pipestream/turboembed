@@ -57,8 +57,11 @@ impl Default for HeadOptions {
 pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
     let (name, layer) = crate::head(&corpus.record.id, corpus.record.task);
     let scheme = match corpus.record.task {
-        Task::Tags => Scheme::Tags,
+        Task::Tags | Task::Coref => Scheme::Tags,
         Task::Bio => Scheme::Bio,
+        Task::Relations => {
+            return Err(Error(format!("{}: a relation corpus trains with train-relation", corpus.record.id)));
+        }
     };
     let spec = HeadSpec {
         name: name.into(),
@@ -72,8 +75,10 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         biaffine: None,
         pos_input: None,
         hash_embed: o.hash,
+        layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: Some(corpus.record.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),
@@ -146,7 +151,12 @@ pub fn predict(enc: &mut WordEncoder, tagger: &TokenTagger, sentences: &[Sentenc
 /// The head's tensors under their bundle names, with their shapes, as
 /// `crate::safetensors::write` takes them.
 pub fn named(spec: &HeadSpec, hidden: usize, values: Vec<(String, Vec<f32>)>) -> Vec<(String, Vec<u64>, Vec<f32>)> {
-    let shapes: BTreeMap<String, Vec<u64>> = tensors(spec, hidden).into_iter().collect();
+    let expected = match spec.kind {
+        HeadKind::OpenSpan => turbo::head::open_span::tensors(spec, hidden),
+        HeadKind::SpanClassifier => turbo::head::span::tensors(spec, hidden),
+        _ => tensors(spec, hidden),
+    };
+    let shapes: BTreeMap<String, Vec<u64>> = expected.into_iter().collect();
     values
         .into_iter()
         .map(|(suffix, v)| {

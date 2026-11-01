@@ -52,7 +52,7 @@ impl SvmDoccatModel {
         bytes.extend_from_slice(libsvm_text.as_bytes());
         bytes.extend_from_slice(sidecar_text.as_bytes());
         let model_ref = ModelRef {
-            id: format!("opennlp:SvmDoccatModel:{}", sidecar.language.as_deref().unwrap_or("und")),
+            id: format!("turbo:SvmDoccatModel:{}", sidecar.language.as_deref().unwrap_or("und")),
             revision: "1".into(),
             sha256: turbo_maxent::sha256(&bytes).to_hex(),
         };
@@ -79,7 +79,7 @@ impl SvmDoccatModel {
         &self.sidecar.categories
     }
 
-    /// What layers record as their model: `opennlp:SvmDoccatModel:` and
+    /// What layers record as their model: `turbo:SvmDoccatModel:` and
     /// the language (`und` when the sidecar has none), and the SHA-256 of
     /// the LIBSVM file's bytes followed by the sidecar's.
     pub fn model_ref(&self) -> &ModelRef {

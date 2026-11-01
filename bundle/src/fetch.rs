@@ -28,23 +28,17 @@ pub fn fetch(recipe: &Recipe, dir: &Path, accept_terms: bool) -> Result<()> {
     fetch_with(recipe, dir, &Consent::flag(accept_terms))
 }
 
-/// [`fetch`], with a licence that needs acceptance checked against, and
-/// recorded in, the zoo's acceptance file as [`crate::licence::check_fetch_with`]
-/// says. A notice still needs the flag on each fetch: it has no address
-/// of its own to record.
+/// [`fetch`], with a licence or `notice_terms` requirement checked
+/// against, and recorded in, the zoo's acceptance file as
+/// [`crate::licence::check_fetch_with`] and [`crate::licence::check_notice_with`]
+/// say. A notice with no `notice_terms` address still needs the flag on
+/// each fetch.
 pub fn fetch_with(recipe: &Recipe, dir: &Path, consent: &Consent) -> Result<()> {
     let (repository, commit) = recipe.source()?;
     let license = recipe.str_at("/model/license").unwrap_or("not stated");
     println!("{repository} at {commit}, licence {license}");
     let class = crate::licence::check_fetch_with(&recipe.manifest, consent)?;
-    if let Some(n) = &recipe.notice {
-        println!("notice: {n}");
-        if !consent.flag {
-            return Err("this model carries terms beyond its licence (the notice above): \
-                        fetch it with --accept-terms once you have read them"
-                .into());
-        }
-    }
+    crate::licence::check_notice_with(recipe, consent)?;
     let mut files = serde_json::Map::new();
     for u in &recipe.upstream {
         let dest = dir.join(&u.path);

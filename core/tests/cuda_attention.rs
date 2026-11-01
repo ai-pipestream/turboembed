@@ -229,12 +229,16 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
     }
 }
 
-/// Both FMA attentions, the default register-tiled one and the key-split
+/// The FMA attentions, the default register-tiled one of 64 queries to a
+/// block, the same at 32 (TURBO_CUDA_ATTENTION=tiled32) and the key-split
 /// one TURBO_CUDA_ATTENTION=split picks, on heads 16, 24, 32 and 64
-/// wide: rows of 300 tokens (five chunks of keys for the tiled kernel,
-/// three for the split one), 129, 64, 63, 17 and 1, masked tokens inside
-/// the longer ones, give the CPU's vectors within the F32 bound, and the
-/// same bits when run again.
+/// wide: rows of 300 tokens (five chunks of keys for the tiled kernels,
+/// three for the split one), 129, 64, 63, 17 and 1 (tiles of 64 live
+/// queries, and tiles of 32 or fewer, which a 64-query block takes as
+/// 32-query ones), masked tokens inside the longer ones, give the CPU's
+/// vectors within the F32 bound, and the same bits when run again; the
+/// two tiled kernels give the same bits as each other, their sums being
+/// in the same order.
 #[test]
 fn both_fma_attentions_match_the_cpu() {
     let _t = turn();
@@ -255,19 +259,31 @@ fn both_fma_attentions_match_the_cpu() {
         let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
         cs.write_tokens(&t.batch(), None).unwrap();
         let want = cs.run().unwrap().rows();
-        for split in [false, true] {
-            turbo::cuda::use_split_attention(Some(split));
+        let mut tiled: Option<Vec<Vec<f32>>> = None;
+        for (kernel, attn) in
+            [("tiled", "attn=fma-tiled,"), ("tiled32", "attn=fma-tiled32,"), ("split", "attn=fma-split,")]
+        {
+            turbo::cuda::use_split_attention(Some(kernel == "split"));
+            turbo::cuda::use_narrow_tiles(Some(kernel == "tiled32"));
             let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_EXACT)));
             turbo::cuda::use_split_attention(None);
+            turbo::cuda::use_narrow_tiles(None);
             let gs = gs.unwrap();
+            let choices = field(&gs.info().choices);
+            assert!(choices.contains(attn), "{kernel}: {choices}");
             let tol = record::tolerance(gs.info().compute_dtype).unwrap();
             gs.write_tokens(&t.batch(), None).unwrap();
             let got = gs.run().unwrap().rows();
-            let what = format!("heads of {}, split {split}", hidden / heads);
+            let what = format!("heads of {}, {kernel}", hidden / heads);
             let (cos, abs) = within(&what, &got, &want, tol);
             println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
             gs.write_tokens(&t.batch(), None).unwrap();
             assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+            match &tiled {
+                None => tiled = Some(got),
+                Some(t) if kernel == "tiled32" => assert_eq!(&got, t, "{what}: the 64-query tile's bits"),
+                Some(_) => {}
+            }
         }
     }
 }

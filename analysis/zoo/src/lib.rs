@@ -16,6 +16,8 @@
 //!   is checked by size, SHA-256 and SHA-512, cached or fetched; a file
 //!   served compressed is also checked on the wire before it is unpacked
 //!   ([`transfer`]).
+//! - [`Holders`]: the sources each user registered, and how each signs
+//!   in, in a strict JSON file of its own.
 //! - [`Home`]: where the `turbo-zoo` command keeps the cache and the
 //!   acceptance file, found from the environment.
 //!
@@ -26,6 +28,7 @@ pub mod accept;
 pub mod digest;
 pub mod error;
 pub mod fetch;
+pub mod holders;
 pub mod home;
 pub mod index;
 pub mod licence;
@@ -38,7 +41,11 @@ pub use fetch::{
     Blobs, CacheStatus, Directory, Fetched, Keep, Offline, Sources, Transport, Zoo, most_bytes, unpack, verify,
 };
 #[cfg(feature = "http")]
-pub use fetch::{Http, Mirror, S3Bucket, sigv4};
+pub use fetch::{
+    DRIVE_ENDPOINT, DRIVE_READONLY, DriveAuth, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleDrive, GoogleOAuth,
+    Grant, Http, Mirror, Pkce, Renewing, S3Bucket, sigv4,
+};
+pub use holders::{HOLDERS_VERSION, Holder, Holders, SignIn};
 pub use home::Home;
 pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
 pub use licence::{

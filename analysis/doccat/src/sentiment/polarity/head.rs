@@ -70,7 +70,7 @@ pub fn validate_polarity_scores(scores: PolarityScores) -> Result<PolarityScores
 
 /// Linear three-class polarity head (`[positive, negative, neutral]`) over
 /// `dim`-dimensional dense embeddings, trained with `turbo-trainer`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PolarityVectorHead {
     dim: usize,
     weights: Vec<f32>,

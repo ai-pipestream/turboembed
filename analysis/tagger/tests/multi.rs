@@ -8,11 +8,12 @@ mod common;
 
 use common::*;
 use serde_json::json;
+use turbo::head::edit_tree::EditTree;
 use turbo::manifest::LicenseClass;
-use turbo_analysis::{Annotator, Document, Key, View};
+use turbo_analysis::{Annotator, Document, Key, Layer, View};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Tokens};
-use turbo_tagger::{DependencyParser, EntityTagger, Lemmatizer, MultiTask, PosTagger};
+use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Sentences, Tokens, Words};
+use turbo_tagger::{DependencyParser, EntityTagger, Lemmatizer, MultiTask, PosTagger, SentenceTagger, WordTagger};
 
 type All = (PosTags, Entities, Dependencies<Tokens>, Lemmas);
 
@@ -162,4 +163,135 @@ fn refusals_name_the_problem() {
     let e = MultiTask::<(Lemmas,)>::open(&dir, &[Some("nope")], &o).err().unwrap();
     assert!(e.message.contains("no head \"nope\""), "{e:?}");
     assert_eq!(<MultiTask<All> as Annotator>::ID, "turbo-tagger-multitask");
+}
+
+#[test]
+fn sentence_and_word_split_heads_run_in_the_one_pass() {
+    let and_split = ["an", "d"].iter().map(|w| EditTree::mine("and", w).label()).collect::<Vec<_>>().join(" ");
+    let dir = bundle("multi-segment", |m| {
+        let arr = m["heads"].as_array_mut().unwrap();
+        arr.push(json!({
+            "name": "sents", "layer": "turboembed:sentences", "kind": "HEAD_SENTENCE_BOUNDARY",
+            "labels": ["inside", "last"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+            "decode": "DECODE_ARGMAX", "artifact": "weights-f32", "tensor_prefix": "heads.sents"
+        }));
+        arr.push(json!({
+            "name": "words", "layer": "turboembed:words", "kind": "HEAD_TOKEN_SPLIT",
+            "labels": ["_", and_split], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+            "decode": "DECODE_EDIT_TREE", "artifact": "weights-f32", "tensor_prefix": "heads.words"
+        }));
+    });
+    let o = EncoderOptions::default();
+    let doc = Document::new(LONG);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(LONG);
+
+    // Without the sentence head, Words in MultiTask matches WordTagger.
+    let mw = MultiTask::<(Words, PosTags)>::open(&dir, &[None, None], &o).unwrap();
+    let (w_multi, p_multi) = mw.annotate((view, &toks, None, None)).unwrap();
+    let (w_single,) = WordTagger::open(&dir, None, &o).unwrap().annotate((view, &toks, None, None)).unwrap();
+    let (p_single,) = PosTagger::open(&dir, None, &o).unwrap().annotate((view, &toks, None, None)).unwrap();
+    let word_triples =
+        |l: &Words| l.iter(LONG, &toks).map(|w| (w.tokens, w.subspan, w.form.to_owned())).collect::<Vec<_>>();
+    assert_eq!(word_triples(&w_multi), word_triples(&w_single));
+    assert_eq!(p_multi.tags, p_single.tags);
+
+    // With Sentences in MultiTask and no prior sentences, the encoder runs
+    // once over the whole view, Sentences matches SentenceTagger, and the
+    // other heads' sequences are sliced from those whole-view features by
+    // the decoded sentences (carrying cross-sentence encoder context).
+    type Six = (Sentences, Words, PosTags, Entities, Dependencies<Tokens>, Lemmas);
+    let six = MultiTask::<Six>::open(&dir, &[None; 6], &o).unwrap();
+    let st = SentenceTagger::open(&dir, None, &o).unwrap();
+    let (sents, words, pos, ents, deps, lemmas) = six.annotate((view, &toks, None, None)).unwrap();
+    let (want_sents,) = st.annotate((view, &toks, None)).unwrap();
+    assert_eq!(six.rows(), st.rows(), "one whole-view encoder pass serves all six heads");
+    let sent_spans = |s: &Sentences| s.spans.iter().map(|(_, sp)| (sp.start, sp.end)).collect::<Vec<_>>();
+    assert_eq!(sent_spans(&sents), sent_spans(&want_sents));
+    assert!(sents.spans.len() > 1, "the seeded boundary head splits LONG into multiple sentences");
+    words.check_against(LONG, &toks).unwrap();
+    assert_eq!(pos.tags.len(), toks.spans.len());
+    assert_eq!(lemmas.lemma.len(), toks.spans.len());
+    // Each decoded sentence gets its own dependency tree with one root,
+    // and no arc or entity crosses a decoded sentence boundary.
+    let roots = deps.head.iter().filter(|h| h.is_none()).count();
+    assert_eq!(roots, sents.spans.len());
+    for (_, sp) in ents.spans.iter() {
+        assert!(sents.spans.iter().any(|(_, s)| sp.start >= s.start && sp.end <= s.end));
+    }
+
+    // With prior sentences given, Sentences in W echoes those given
+    // sentences on token bounds, every written sentence has one dependency
+    // root, and the other layers match their single-head annotators on the
+    // same given sentences.
+    let mut given = Sentences { spans: turbo_analysis::Spans::new(view.id()) };
+    let mid = 10;
+    let first_end = toks.spans.get(turbo_analysis::Ix::new(mid - 1)).end;
+    let second_start = toks.spans.get(turbo_analysis::Ix::new(mid)).start;
+    let last_end = toks.spans.get(turbo_analysis::Ix::new(toks.spans.len() as u32 - 1)).end;
+    given.spans.push(turbo_analysis::Span::new(0, first_end));
+    given.spans.push(turbo_analysis::Span::new(second_start, last_end));
+    assert_ne!(sent_spans(&given), sent_spans(&want_sents));
+    let (gs, gw, gp, ge, gd, gl) = six.annotate((view, &toks, None, Some(&given))).unwrap();
+    assert_eq!(sent_spans(&gs), sent_spans(&given));
+    assert_eq!(gd.head.iter().filter(|h| h.is_none()).count(), gs.spans.len());
+    let (wp_single,) = WordTagger::open(&dir, None, &o).unwrap().annotate((view, &toks, None, Some(&given))).unwrap();
+    let (pp_single,) = PosTagger::open(&dir, None, &o).unwrap().annotate((view, &toks, None, Some(&given))).unwrap();
+    let (ep_single,) = EntityTagger::open(&dir, None, &o).unwrap().annotate((view, &toks, None, Some(&given))).unwrap();
+    let (dp_single,) =
+        DependencyParser::open(&dir, None, &o).unwrap().annotate((view, &toks, None, Some(&given))).unwrap();
+    let (lp_single,) = Lemmatizer::open(&dir, None, &o).unwrap().annotate((view, &toks, None, Some(&given))).unwrap();
+    assert_eq!(word_triples(&gw), word_triples(&wp_single));
+    assert_eq!((&gp.tags, &gp.prob), (&pp_single.tags, &pp_single.prob));
+    let ent_spans = |e: &Entities| e.spans.iter().map(|(_, s)| (s.start, s.end)).collect::<Vec<_>>();
+    assert_eq!((ent_spans(&ge), &ge.tokens, &ge.kind), (ent_spans(&ep_single), &ep_single.tokens, &ep_single.kind));
+    assert_eq!((&gd.head, &gd.relation), (&dp_single.head, &dp_single.relation));
+    let lemma_vec = |l: &Lemmas| l.lemma.iter().map(str::to_owned).collect::<Vec<_>>();
+    assert_eq!(lemma_vec(&gl), lemma_vec(&lp_single));
+
+    // Empty document through the six-head MultiTask.
+    let empty = Document::new("");
+    let ev = empty.require(&Key::<View>::DEFAULT).unwrap();
+    let none = Tokens { spans: turbo_analysis::Spans::new(ev.id()), sentence: None };
+    let (es, ew, ep, ee, ed, el) = six.annotate((ev, &none, None, None)).unwrap();
+    assert!(
+        es.spans.is_empty()
+            && ew.is_empty()
+            && ep.tags.is_empty()
+            && ee.spans.is_empty()
+            && ed.head.is_empty()
+            && el.lemma.is_empty()
+    );
+}
+
+#[test]
+fn two_named_sentence_heads_keep_their_own_predictions() {
+    let head = |name: &str| {
+        json!({
+            "name": name,
+            "layer": "turboembed:sentences",
+            "kind": "HEAD_SENTENCE_BOUNDARY",
+            "labels": ["inside", "last"],
+            "scheme": "SCHEME_TAGS",
+            "word_pooling": "WORD_POOLING_FIRST",
+            "decode": "DECODE_ARGMAX",
+            "artifact": "weights-f32",
+            "tensor_prefix": format!("heads.{name}")
+        })
+    };
+    let dir = bundle("two-sentence-heads", |m| {
+        m["heads"] = json!([head("first"), head("second")]);
+    });
+    let o = EncoderOptions::default();
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let sent_spans = |s: &Sentences| s.spans.iter().map(|(_, sp)| (sp.start, sp.end)).collect::<Vec<_>>();
+    let (first,) = SentenceTagger::open(&dir, Some("first"), &o).unwrap().annotate((view, &toks, None)).unwrap();
+    let (second,) = SentenceTagger::open(&dir, Some("second"), &o).unwrap().annotate((view, &toks, None)).unwrap();
+    assert_ne!(sent_spans(&first), sent_spans(&second));
+    let multi = MultiTask::<(Sentences, Sentences)>::open(&dir, &[Some("first"), Some("second")], &o).unwrap();
+    let (a, b) = multi.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!(sent_spans(&a), sent_spans(&first));
+    assert_eq!(sent_spans(&b), sent_spans(&second));
 }

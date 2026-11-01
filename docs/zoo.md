@@ -54,14 +54,18 @@ also identifies web-scraped and IBM-internal text with no auditable grant.
 The exception permits this named local download after user acceptance;
 it grants no rights to training text and approves no other model.
 
-`turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
-inputs. `turbo-fetch.json` saves the notice and acceptance. For a model
-whose licence itself needs acceptance, the tool also reads and writes the
-zoo's acceptance file (`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`):
-a licence that user accepted before, with the tool, `turbo-zoo accept` or
-the catalog service, needs no flag, and the flag records the acceptance
-there. A recipe notice is the project's own condition and has no single
-terms address, so it is never recorded and always needs the flag. API clients
+`turbo-bundle fetch` and `make` require acceptance of the notice, even for
+cached inputs. `turbo-fetch.json` saves the notice and acceptance. For a
+model whose licence itself needs acceptance or whose recipe carries
+`notice_terms` (Granite's model card README, MS MARCO's terms page), the
+tool reads and writes the zoo's acceptance file
+(`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`): `notice_terms` is
+recorded under `LicenseRef-RestrictedPublic` with that address as
+`license_text`, so a requirement the user accepted before, with the tool,
+`turbo-zoo accept` or the catalog service on the page, needs no
+`--accept-terms` flag, and `--accept-terms` records the acceptance there. A
+recipe notice with no single `notice_terms` address stays a per-run
+`--accept-terms` decision. API clients
 must set `accept_terms=true` only after an explicit user decision through
 configuration or a prompt. The manifest identifies the weight licence;
 the notice adds the project download restriction. The existing handling
@@ -448,6 +452,29 @@ another way overrides it (#1613).
   and the signatures against the S3 documentation's GET and PUT Object
   examples.
 
+- `GoogleDrive` (the `http` feature) is a Google Drive folder, read
+  through the Drive API v3 over the same HTTPS stack (no SDK), shared
+  drives included. `GoogleDrive::new("gdrive://<folder-id>[/name/...]")`
+  names the folder by its Drive id (`root` is My Drive), and the names
+  after the id walk down from it. A file is looked for at
+  `blobs/sha256/<hex>`, the layout the other stores share, and when it
+  is not there at `<artifact-id>/<path>`, the zoo cache's own layout,
+  so a store or a cache copied to Drive serves as is. Each folder on the
+  way is found with one `files.list` query and remembered; the file is
+  the first of its name whose size is the index's (read page by page),
+  so a file of another size is never downloaded, and is read with one
+  `files.get?alt=media`, at most its size and one byte more. Sign-in comes from `GOOGLE_OAUTH_ACCESS_TOKEN`, sent as a bearer
+  token (one from `gcloud auth print-access-token`, or any OAuth flow
+  the caller runs), or else `GOOGLE_API_KEY`, enough for a folder
+  shared with anyone who has the link (sent as `X-Goog-Api-Key`); one
+  of them is required. Neither ever travels in a URL, and a redirect is
+  followed over HTTPS only and unsigned. `GoogleDrive::with` takes
+  another endpoint; a plain `http://` one sends the token in clear text
+  and is only for a stand-in on loopback in tests. It
+  reads and does not keep: a library puts its own `file://` store first
+  to keep what Drive serves. `analysis/zoo/tests/drive.rs` runs it
+  against an in-process stand-in that answers the Drive API calls.
+
 A zoo server keeps its files in such a store with
 `--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
 (docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
@@ -455,8 +482,81 @@ its first read, so a library pointed at it with `grpc(s)://` needs no
 separate install step. docs/zoo-container.md packs that server, the
 page and a RustFS store into one `docker compose`. `turbo-zoo-remote`
 (top-level `zoo-remote/`) adds the library's remote sources: a zoo
-server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, and the
+server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, a
+Google Drive folder over `gdrive://` (the `gdrive` feature), and the
 `TURBO_ZOO_SOURCE` list that names them.
+
+### Holders: sources a user registers
+
+An application that lets each user bring a store keeps the user's
+sources as holders (#1744) rather than in one process-wide
+`TURBO_ZOO_SOURCE`. A holder (`turbo_zoo::Holder`) is a name the user
+picks (1 to 64 characters, no comma or control character, unique per
+user), a source address, and how it signs in (`SignIn`):
+
+- `environment`: from the process environment, as `TURBO_ZOO_SOURCE`
+  does, or not at all for a source that needs none;
+- `google_oauth`: a Google grant, kept as the OAuth client id (and
+  secret, for a client type that has one) and the grant's refresh token;
+- `api_key`: a key, for a Drive folder shared by link.
+
+`Holders` keeps every user's holders, in the order they are tried, in
+one strict JSON file (`Home::holders()`, `holders.json` beside the
+acceptance file), one canonical form, unknown fields refused:
+
+```json
+{
+  "holders_version": 1,
+  "users": [
+    {
+      "user": "alice",
+      "holders": [
+        { "name": "laptop", "address": "file:///srv/zoo" },
+        {
+          "name": "team drive",
+          "address": "gdrive://<folder-id>",
+          "sign_in": { "kind": "google_oauth", "client_id": "...", "refresh_token": "..." }
+        }
+      ]
+    }
+  ]
+}
+```
+
+The file holds sign-in secrets, so it is written through a temporary
+name readable and writable by its owner alone on Unix. `register` adds a
+holder last or replaces the one of the same name where it was; `remove`
+and `move_to` change the list.
+
+Signing a user in to Drive is `turbo_zoo::GoogleOAuth` (the `http`
+feature): OAuth 2.0 authorization code with PKCE (RFC 7636, S256), scope
+`drive.readonly`, offline so the grant carries a refresh token, over the
+zoo's HTTPS stack. A web application sends the user to
+`authorize_url(redirect, &pkce)` and calls `exchange(code, redirect,
+&pkce)` from its redirect, after checking the `state` it got back; a
+command line or desktop calls `sign_in_loopback`, which listens once on
+`127.0.0.1`, hands the consent page's address to a callback that opens
+a browser, and checks the `state` itself. Only the refresh token is
+kept. `DriveAuth::Refresh(Renewing)` gets an access token from it on
+first use, again a minute before each runs out, and once more when Drive
+answers 401. `analysis/zoo/tests/oauth.rs` runs all of it against an
+in-process server that answers both the token endpoint and the Drive
+API.
+
+Holders open into sources through `turbo_zoo_remote::Registry`, the
+kinds of source by scheme. `Registry::builtin()` has `file`, `grpc` and
+`grpcs`, `s3` and `gdrive` (a scheme whose feature the build leaves out
+is still known, and refused when opened); an application adds a kind of
+its own by implementing `Kind` (the schemes it claims, and how it opens
+a holder into a transport or a keeping store) and calling `register`,
+which also lets it take a built-in scheme over.
+`Registry::sources(holders.list(&user), &user, Some(origin))` is the
+user's list, in order, then the index's own addresses; the first store in it keeps what the
+sources after it serve, as the first `file://` store of
+`TURBO_ZOO_SOURCE` does. `TURBO_ZOO_SOURCE` itself is parsed through
+the same registry (`Registry::spec`), each entry a holder that signs in
+from the environment. A `file`, `grpc` or `s3` holder signs in from the
+environment only for now; a `gdrive` holder takes any of the three.
 
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.
