@@ -175,9 +175,11 @@ pub(crate) fn zoo_status(e: ZooError) -> Status {
     let code = match &e {
         ZooError::NotFound(_) => TURBO_E_BUNDLE_NOT_FOUND,
         ZooError::Integrity { .. } => TURBO_E_BUNDLE_INTEGRITY,
-        ZooError::Index(_) | ZooError::Acceptances(_) | ZooError::Refused { .. } | ZooError::NotAccepted { .. } => {
-            TURBO_E_INVALID_STATE
-        }
+        ZooError::Index(_)
+        | ZooError::Acceptances(_)
+        | ZooError::Holders(_)
+        | ZooError::Refused { .. }
+        | ZooError::NotAccepted { .. } => TURBO_E_INVALID_STATE,
         ZooError::Transport { .. } | ZooError::Io { .. } => TURBO_E_RUNTIME,
     };
     plain(Failure::new(code, 0, e.to_string()))
