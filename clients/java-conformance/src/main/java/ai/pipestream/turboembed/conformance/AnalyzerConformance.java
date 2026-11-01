@@ -56,7 +56,7 @@ public abstract class AnalyzerConformance {
             "Ann", "meet", "Bob", "in", "Pari", ",", "and", "the", "quiet", "old", "dog", "slept", "by", "the", "river",
             ".");
     static final double FIRST_POS_PROBABILITY = 0.7409762693307227;
-    static final double BOB_PROBABILITY = 0.23651068468515454;
+    static final double BOB_PROBABILITY = 0.23651067881995255;
 
     /** The binding under test. */
     protected abstract Binding binding();
@@ -131,7 +131,7 @@ public abstract class AnalyzerConformance {
                 assertNotNull(row.probability());
                 assertTrue(row.probability() > 0.0 && row.probability() <= 1.0);
             }
-            assertEquals(FIRST_POS_PROBABILITY, rows.get(0).probability(), 1.0e-6);
+            assertEquals(FIRST_POS_PROBABILITY, rows.get(0).probability(), 1.0e-12);
         }
     }
 
@@ -157,7 +157,7 @@ public abstract class AnalyzerConformance {
             assertEquals(ENTITIES, bob.layerKind());
             assertEquals(new Row.Tokens(2, 3), bob.tokenRange());
             assertEquals("PER", bob.label());
-            assertEquals(BOB_PROBABILITY, bob.probability(), 1.0e-6);
+            assertEquals(BOB_PROBABILITY, bob.probability(), 1.0e-12);
             assertNull(bob.viewRange());
             assertNull(bob.sourceRange());
 
