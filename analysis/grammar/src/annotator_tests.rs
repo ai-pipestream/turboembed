@@ -120,7 +120,6 @@ fn rates_reach_the_quantities_and_money_layers() {
     assert_eq!(f.money.get(Ix::new(0)).currency.as_str(), "USD");
     assert_eq!(f.money.amount(Ix::new(0)).to_plain_string(), "5");
     assert_eq!(f.money.per(Ix::new(0)), Some("h"));
-    assert_eq!(f.money.rate_unit(Ix::new(0)), Some("h"));
     assert_eq!(&text[f.money.spans.get(Ix::new(0)).range()], "$5 per hour", "the span carries the rate");
 }
 

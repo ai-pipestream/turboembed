@@ -93,33 +93,15 @@ pub(crate) fn is_non_place_word(lower: &str) -> bool {
 pub(crate) fn is_grammar_trigger(lower: &str) -> bool {
     matches!(
         lower,
-        "a" | "an" | "billion" | "cent" | "cents" | "couple" | "dag" | "dozen" | "eight" | "eighteen"
+        "a" | "an" | "billion" | "cent" | "centavo" | "centavos" | "cents" | "couple" | "céntimo"
+            | "céntimos" | "dolar" | "dolares" | "dozen" | "dólar" | "dólares" | "eight" | "eighteen"
             | "eighth" | "eighty" | "eleven" | "fifteen" | "fifth" | "fifty" | "first" | "five"
-            | "forty" | "four" | "fourteen" | "fourth" | "half" | "hundred" | "million" | "minus"
-            | "nine" | "nineteen" | "ninety" | "once" | "one" | "pair" | "per" | "por" | "quarter"
-            | "second" | "seven" | "seventeen" | "seventy" | "six" | "sixteen" | "sixty" | "ten"
-            | "tenth" | "third" | "thirteen" | "thirty" | "thousand" | "three" | "trillion"
-            | "twelve" | "twentieth" | "twenty" | "twice" | "two" | "uren" | "uur" | "zero"
-    )
-}
-
-#[rustfmt::skip]
-pub(crate) fn is_spanish_grammar_cue(lower: &str) -> bool {
-    matches!(
-        lower,
-        "ano" | "anos" | "año" | "años" | "centavo" | "centavos" | "centimo" | "centimos" | "céntimo"
-            | "céntimos" | "dia" | "dias" | "dolar" | "dolares" | "día" | "días" | "dólar" | "dólares"
-            | "hora" | "horas" | "mes" | "meses" | "minuto" | "minutos" | "por" | "segundo"
-            | "segundos" | "semana" | "semanas"
-    )
-}
-
-#[rustfmt::skip]
-pub(crate) fn is_dutch_grammar_cue(lower: &str) -> bool {
-    matches!(
-        lower,
-        "dag" | "gulden" | "guldens" | "jaar" | "maand" | "minuten" | "minuut" | "seconde"
-            | "seconden" | "uren" | "uur"
+            | "forty" | "four" | "fourteen" | "fourth" | "gulden" | "guldens" | "half" | "hundred"
+            | "million" | "minus" | "nine" | "nineteen" | "ninety" | "once" | "one" | "pair" | "per"
+            | "por" | "quarter" | "second" | "seven" | "seventeen" | "seventy" | "six" | "sixteen"
+            | "sixty" | "ten" | "tenth" | "third" | "thirteen" | "thirty" | "thousand" | "three"
+            | "trillion" | "twelve" | "twentieth" | "twenty" | "twice" | "two" | "uren" | "uur"
+            | "zero"
     )
 }
 
@@ -275,21 +257,12 @@ pub(crate) fn is_time_ctx(text: &str, s: usize, e: usize, trig: bool) -> bool {
 /// forwarded configuration hash.
 pub struct QueryGrammarAnnotator {
     inner: GrammarAnnotator,
-    spanish: Option<GrammarAnnotator>,
-    dutch: Option<GrammarAnnotator>,
     config_hash: u64,
 }
 
 impl QueryGrammarAnnotator {
     pub fn english() -> Self {
-        let inner = GrammarAnnotator::english();
-        let _ = inner.find("", turbo_analysis::ViewId::SOURCE);
-        let spanish = GrammarAnnotator::spanish();
-        let _ = spanish.find("", turbo_analysis::ViewId::SOURCE);
-        let dutch = GrammarAnnotator::dutch();
-        let _ = dutch.find("", turbo_analysis::ViewId::SOURCE);
-        let config_hash = inner.config_hash();
-        Self { inner, spanish: Some(spanish), dutch: Some(dutch), config_hash }
+        Self::from_inner(GrammarAnnotator::english())
     }
 
     pub fn spanish() -> Self {
@@ -321,7 +294,7 @@ impl QueryGrammarAnnotator {
     fn from_inner(inner: GrammarAnnotator) -> Self {
         let _ = inner.find("", turbo_analysis::ViewId::SOURCE);
         let config_hash = inner.config_hash();
-        Self { inner, spanish: None, dutch: None, config_hash }
+        Self { inner, config_hash }
     }
 
     pub fn bound(self) -> Bound<Self> {
@@ -335,33 +308,13 @@ impl Annotator for QueryGrammarAnnotator {
     type Writes = (Numbers, Quantities, Ordinals, Money);
 
     fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let text = view.text();
-        if !crate::model::has_grammar_trigger(text, tokens) {
+        if !crate::model::has_grammar_trigger(view.text(), tokens) {
             return Ok((
                 Numbers::new(view.id()),
                 Quantities::new(view.id()),
                 Ordinals::new(view.id()),
                 Money::new(view.id()),
             ));
-        }
-        if self.spanish.is_some() || self.dutch.is_some() {
-            let (starts, ends) = tokens.spans.columns();
-            let mut es_cue = false;
-            let mut nl_cue = false;
-            for (&s, &e) in starts.iter().zip(ends) {
-                if let Some(tok) = text.get(s as usize..e as usize) {
-                    with_lowercase(tok, |l| {
-                        es_cue |= is_spanish_grammar_cue(l);
-                        nl_cue |= is_dutch_grammar_cue(l);
-                    });
-                }
-            }
-            if es_cue && let Some(ref es) = self.spanish {
-                return es.annotate((view,));
-            }
-            if nl_cue && let Some(ref nl) = self.dutch {
-                return nl.annotate((view,));
-            }
         }
         self.inner.annotate((view,))
     }

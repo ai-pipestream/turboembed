@@ -126,12 +126,6 @@ impl Money {
         self.spans.push(m.span)
     }
 
-    /// Appends one currency rate mention with denominator unit symbol `per`
-    /// (`"h"` for per hour, `"d"` for per day).
-    pub fn push_rate(&mut self, m: MoneyMention<'_>, per: &str) -> Ix<Money> {
-        self.push_with_per(m, per)
-    }
-
     /// The amount of mention `i`.
     pub fn amount(&self, i: Ix<Money>) -> DecimalRef<'_> {
         DecimalRef {
@@ -146,11 +140,6 @@ impl Money {
     pub fn per(&self, i: Ix<Money>) -> Option<&str> {
         let s = self.per.get(i.get());
         (!s.is_empty()).then_some(s)
-    }
-
-    /// Alias for [`Money::per`]: the rate denominator unit symbol of mention `i`.
-    pub fn rate_unit(&self, i: Ix<Money>) -> Option<&str> {
-        self.per(i)
     }
 
     /// Mention `i`, column by column.
@@ -294,15 +283,12 @@ mod tests {
     fn rate_mentions_keep_their_denominator() {
         let mut m = Money::new(ViewId::SOURCE);
         let i0 = m.push(mention(0, 5, "5"));
-        let i1 = m.push_rate(mention(6, 17, "5"), "h");
+        let i1 = m.push_with_per(mention(6, 17, "5"), "h");
         let i2 = m.push_with_per(mention(18, 28, "5"), "d");
         assert_eq!(m.check(), Ok(()));
         assert_eq!(m.per(i0), None);
-        assert_eq!(m.rate_unit(i0), None);
         assert_eq!(m.per(i1), Some("h"));
-        assert_eq!(m.rate_unit(i1), Some("h"));
         assert_eq!(m.per(i2), Some("d"));
-        assert_eq!(m.rate_unit(i2), Some("d"));
     }
 
     #[test]

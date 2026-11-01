@@ -190,7 +190,7 @@ fn quantities_schema_1_is_refused() {
 fn money_schema_1_is_refused() {
     let mut doc = document();
     let mut m = Money::new(ViewId::SOURCE);
-    m.push_rate(
+    m.push_with_per(
         turbo_analysis_layers::MoneyMention {
             span: Span::new(0, 5),
             negative: false,

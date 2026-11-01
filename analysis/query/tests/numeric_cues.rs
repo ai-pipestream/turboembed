@@ -89,12 +89,6 @@ fn money_filters_distinguish_hourly_daily_and_plain_amounts_across_languages() {
         ("jobs paying $5/day", "$5/day", "USD", "5", Some("d")),
         ("jobs paying $5 a day", "$5 a day", "USD", "5", Some("d")),
         ("jobs paying 50 cents an hour", "50 cents an hour", "USD", "0.5", Some("h")),
-        ("trabajos a 5 dólares por hora", "5 dólares por hora", "USD", "5", Some("h")),
-        ("trabajos a 5 dólares por día", "5 dólares por día", "USD", "5", Some("d")),
-        ("trabajos a 5 dólares", "5 dólares", "USD", "5", None),
-        ("werk voor 5 euro per uur", "5 euro per uur", "EUR", "5", Some("h")),
-        ("werk voor 5 euro per dag", "5 euro per dag", "EUR", "5", Some("d")),
-        ("werk voor 5 euro", "5 euro", "EUR", "5", None),
     ] {
         let out = profile.analyze(query).unwrap();
         let (filter, money) = out.money_filters().next().unwrap_or_else(|| panic!("no money filter in {query:?}"));
@@ -104,4 +98,55 @@ fn money_filters_distinguish_hourly_daily_and_plain_amounts_across_languages() {
         assert_eq!(money.decimal_text, expected_val, "{query:?}");
         assert_eq!(money.per_unit(), expected_per, "{query:?}");
     }
+
+    let es_profile = QueryAnalysisProfile::builder().with_default_language("es").build().unwrap();
+    for (query, expected_surface, expected_curr, expected_val, expected_per) in [
+        ("trabajos a 5 dólares por hora", "5 dólares por hora", "USD", "5", Some("h")),
+        ("trabajos a 5 dólares por día", "5 dólares por día", "USD", "5", Some("d")),
+        ("trabajos a 5 dólares", "5 dólares", "USD", "5", None),
+    ] {
+        let out = es_profile.analyze(query).unwrap();
+        let (filter, money) = out.money_filters().next().unwrap_or_else(|| panic!("no money filter in {query:?}"));
+        assert_eq!(filter.surface, expected_surface, "{query:?}");
+        assert_eq!(&query[filter.span.range()], expected_surface, "{query:?}");
+        assert_eq!(money.currency.as_str(), expected_curr, "{query:?}");
+        assert_eq!(money.decimal_text, expected_val, "{query:?}");
+        assert_eq!(money.per_unit(), expected_per, "{query:?}");
+    }
+
+    let nl_profile = QueryAnalysisProfile::builder().with_default_language("nl").build().unwrap();
+    for (query, expected_surface, expected_curr, expected_val, expected_per) in [
+        ("werk voor 5 euro per uur", "5 euro per uur", "EUR", "5", Some("h")),
+        ("werk voor 5 euro per dag", "5 euro per dag", "EUR", "5", Some("d")),
+        ("werk voor 5 euro", "5 euro", "EUR", "5", None),
+    ] {
+        let out = nl_profile.analyze(query).unwrap();
+        let (filter, money) = out.money_filters().next().unwrap_or_else(|| panic!("no money filter in {query:?}"));
+        assert_eq!(filter.surface, expected_surface, "{query:?}");
+        assert_eq!(&query[filter.span.range()], expected_surface, "{query:?}");
+        assert_eq!(money.currency.as_str(), expected_curr, "{query:?}");
+        assert_eq!(money.decimal_text, expected_val, "{query:?}");
+        assert_eq!(money.per_unit(), expected_per, "{query:?}");
+    }
+}
+
+#[test]
+fn english_queries_with_dia_or_dag_preserve_english_money_and_quantity_mentions() {
+    let profile = QueryAnalysisProfile::default();
+
+    let pipe = profile.analyze("steel pipe 10 inch dia under twenty dollars").unwrap();
+    let (qty_filter, _) = pipe.quantity_filters().next().expect("quantity in pipe query");
+    assert_eq!(qty_filter.surface, "10 inch");
+    let (money_filter, money) = pipe.money_filters().next().expect("money in pipe query");
+    assert_eq!(money_filter.surface, "twenty dollars");
+    assert_eq!(money.currency.as_str(), "USD");
+    assert_eq!(money.decimal_text, "20");
+    assert_eq!(money.per_unit(), None);
+
+    let rate = profile.analyze("twenty-five dollars per hour dag").unwrap();
+    let (rate_filter, rate_money) = rate.money_filters().next().expect("money in dag query");
+    assert_eq!(rate_filter.surface, "twenty-five dollars per hour");
+    assert_eq!(rate_money.currency.as_str(), "USD");
+    assert_eq!(rate_money.decimal_text, "25");
+    assert_eq!(rate_money.per_unit(), Some("h"));
 }

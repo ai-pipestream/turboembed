@@ -414,35 +414,63 @@ pub(crate) fn point_end_from_grain(start_seconds: i64, grain: TimeGrain) -> i64 
 }
 
 pub(crate) fn has_grammar_trigger(text: &str, tokens: &turbo_analysis_layers::Tokens) -> bool {
-    let has_digit = text.bytes().any(|b| b.is_ascii_digit());
-    if has_digit && text.as_bytes().windows(2).any(|w| w[0] == b'/' && w[1].is_ascii_alphabetic()) {
+    if text.as_bytes().contains(&b'/')
+        && text.chars().any(char::is_numeric)
+        && text.match_indices('/').any(|(i, _)| text[i + 1..].chars().next().is_some_and(char::is_alphabetic))
+    {
         return true;
     }
     let (starts, ends) = tokens.spans.columns();
     let mut article_hits = 0usize;
     let mut prev_rel = false;
+    let mut prev_article = false;
     for (&s, &e) in starts.iter().zip(ends) {
         if let Some(tok) = text.get(s as usize..e as usize) {
-            if tok.len() > 9 || !tok.bytes().any(|b| b.is_ascii_alphabetic()) {
+            if tok.len() > 9 || !tok.chars().any(char::is_alphabetic) {
                 prev_rel = false;
+                prev_article = false;
                 continue;
             }
             let triggered = crate::lang_model::with_lowercase(tok, |lower| {
+                if prev_article
+                    && matches!(
+                        lower,
+                        "second"
+                            | "sec"
+                            | "minute"
+                            | "min"
+                            | "hour"
+                            | "hr"
+                            | "day"
+                            | "week"
+                            | "wk"
+                            | "month"
+                            | "mo"
+                            | "year"
+                            | "yr"
+                    )
+                {
+                    return true;
+                }
                 let is_rel = matches!(lower, "last" | "next" | "this" | "past" | "previous" | "coming");
                 if crate::lang_model::is_grammar_trigger(lower) {
                     if lower == "quarter" && prev_rel {
                         prev_rel = false;
+                        prev_article = false;
                         return false;
                     }
                     prev_rel = is_rel;
                     if lower != "a" && lower != "an" {
+                        prev_article = false;
                         return true;
                     }
                     article_hits += 1;
+                    prev_article = true;
                     false
                 } else {
                     prev_rel = is_rel;
-                    lower.bytes().any(|b| b.is_ascii_digit()) && lower.bytes().any(|b| b.is_ascii_alphabetic())
+                    prev_article = false;
+                    lower.chars().any(char::is_numeric) && lower.chars().any(char::is_alphabetic)
                 }
             });
             if triggered {
@@ -450,7 +478,7 @@ pub(crate) fn has_grammar_trigger(text: &str, tokens: &turbo_analysis_layers::To
             }
         }
     }
-    article_hits >= 2 || (article_hits >= 1 && has_digit)
+    article_hits >= 2
 }
 
 pub(crate) use crate::QueryCursorNumericAnnotator;
