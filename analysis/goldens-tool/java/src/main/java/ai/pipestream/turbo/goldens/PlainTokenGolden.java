@@ -11,8 +11,8 @@ import opennlp.tools.util.Span;
 
 /**
  * The golden of a tokenizer without a model, {@link SimpleTokenizer} or {@link WhitespaceTokenizer}:
- * {@code opennlp:tokens} from {@code tokenizePos} over the whole input, then
- * {@code turbo:utf16<opennlp:tokens>} when a token starts or ends inside a surrogate pair
+ * {@code turbo:tokens} from {@code tokenizePos} over the whole input, then
+ * {@code turbo:utf16<turbo:tokens>} when a token starts or ends inside a surrogate pair
  * ({@link SpanLayers}). The simple tokenizer classifies UTF-16 units, so it cuts every character
  * outside the Basic Multilingual Plane in two.
  *
@@ -91,7 +91,7 @@ final class PlainTokenGolden implements AnnotatorGolden {
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
     Span[] spans = AnnotatorException.call(() -> tokenize(input.text()));
-    return SpanLayers.of("opennlp:tokens", input.offsets(), spans);
+    return SpanLayers.of("turbo:tokens", input.offsets(), spans);
   }
 
   /**

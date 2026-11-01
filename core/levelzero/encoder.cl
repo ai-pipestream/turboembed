@@ -1811,6 +1811,71 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void rotary_attentio
     }
 }
 
+/* attention over F32 qkv into ctx as the tiled kernels, with window >= 0
+ * query i reading only the keys j with |i - j| <= window: a group walks
+ * just the keys some query of its own reaches. */
+#define ROTARY_FLASH(NAME, HD)                                                                                     \
+    __kernel __attribute__((reqd_work_group_size(QUERIES, 1, 1))) void NAME(                                       \
+        __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,    \
+        int window, __global float *ctx) {                                                                         \
+        __local float4 ks[KEYS][HD / 4];                                                                           \
+        __local float4 vs[KEYS][HD / 4];                                                                           \
+        __local int live[KEYS];                                                                                    \
+        const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);                             \
+        const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
+        const int i0 = get_group_id(0) * QUERIES, i = i0 + get_local_id(0);                                       \
+        if (i0 >= len) return;                                                                                     \
+        const int lid = get_local_id(0);                                                                           \
+        const int stride = 3 * hidden, col = head * HD;                                                            \
+        const bool mine = i < len;                                                                                 \
+        const int lo = window < 0 ? 0 : max(0, i0 - window);                                                       \
+        const int hi = window < 0 ? len : min(len, i0 + QUERIES + window);                                         \
+        float4 q[HD / 4], acc[HD / 4];                                                                             \
+        __global const float *qrow = qkv + (size_t)(start + (mine ? i : 0)) * stride + col;                        \
+        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) {                                     \
+            q[d] = vload4(d, qrow) * scale;                                                                        \
+            acc[d] = (float4)(0.0f);                                                                               \
+        }                                                                                                          \
+        float m = -INFINITY, l = 0.0f;                                                                             \
+        for (int j0 = lo; j0 < hi; j0 += KEYS) {                                                                   \
+            const int n = min(KEYS, hi - j0);                                                                      \
+            for (int e = lid; e < n * (HD / 4); e += QUERIES) {                                                    \
+                const int j = e / (HD / 4), d = e % (HD / 4);                                                      \
+                __global const float *kv = qkv + (size_t)(start + j0 + j) * stride + col;                          \
+                ks[j][d] = vload4(d, kv + hidden);                                                                 \
+                vs[j][d] = vload4(d, kv + 2 * hidden);                                                             \
+            }                                                                                                      \
+            for (int j = lid; j < n; j += QUERIES) live[j] = mask[start + j0 + j];                                 \
+            barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
+            if (mine) {                                                                                            \
+                for (int j = 0; j < n; j++) {                                                                      \
+                    if (live[j] == 0 || (window >= 0 && abs(i - (j0 + j)) > window)) continue;                     \
+                    float4 s4 = q[0] * ks[j][0];                                                                   \
+                    __attribute__((opencl_unroll_hint)) for (int d = 1; d < HD / 4; d++) s4 = fma(q[d], ks[j][d], s4); \
+                    const float s = (s4.x + s4.y) + (s4.z + s4.w);                                                 \
+                    if (s > m) {                                                                                   \
+                        const float c = exp(m - s);                                                                \
+                        l *= c;                                                                                    \
+                        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) acc[d] *= c;          \
+                        m = s;                                                                                     \
+                    }                                                                                              \
+                    const float p = exp(s - m);                                                                    \
+                    l += p;                                                                                        \
+                    __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) acc[d] = fma(p, vs[j][d], acc[d]); \
+                }                                                                                                  \
+            }                                                                                                      \
+            barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
+        }                                                                                                          \
+        if (!mine) return;                                                                                         \
+        const float inv = 1.0f / l;                                                                                \
+        __global float *out = ctx + (size_t)(start + i) * hidden + col;                                            \
+        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) vstore4(acc[d] * inv, d, out);        \
+    }
+
+ROTARY_FLASH(rotary_attention_32, 32)
+ROTARY_FLASH(rotary_attention_64, 64)
+ROTARY_FLASH(rotary_attention_128, 128)
+
 /* src narrowed to F16 into dst, n values, saturating at F16's largest
  * finite value as cuda and metal do: a finite value past it (a gated
  * middle product of 90000) becomes +/-65504, not infinity. The compares

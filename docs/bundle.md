@@ -260,6 +260,7 @@ this form before it is written or loaded.
 | `classifier.labels` | string[] | with `classifier` | The output labels in id order (`0..labels.len()`), matching `id2label` in the upstream `config.json`. At least one non-empty label. |
 | `projection.dim` | uint32 | with `projection` | Output width of a linear token-projection head (`[projection.dim, hidden]` weight, optional `[projection.dim]` bias) applied to unpooled token hidden states before L2 normalization, as ColBERT and late-interaction models carry. Requires an encoder `architecture`. |
 | `heads[]` | message[] | no | Task heads read on the host from the encoder's final-layer states, at most 32; see "Heads" below. Requires an encoder `architecture`. |
+| `head_provenance[]` | message[] | no | Provenance and corpus attribution recorded for heads assembled from `turbo-trainer` receipts (#1726): `head` (matching an entry in `heads[]`), `commit`, `encoder_manifest_sha256`, `corpus_id`, `corpus_name`, `license`, `spdx`, `terms`, `attribution`, `corpus_sha256`, `recorded`, optional `recipe_only`, `best_epoch`, `metric`, `dev_score`, `test_score`, and `baseline_score`. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_ONNX`. (`FORMAT_GGUF` is a header and manifest name only; no backend loads it.) |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_OPENVINO_IR` artifact is two: the xml, then its weights. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
@@ -352,16 +353,18 @@ so any number of heads fit one artifact.
 |---|---|
 | `name` | Unique in the bundle; lowercase ASCII letters, digits, `_` and `-`, at most 64 bytes. |
 | `layer` | The layer id the analysis annotator writes the output to: `turboembed:` and a lowercase name, such as `turboembed:pos`. |
-| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. `HEAD_SENTENCE_BOUNDARY`: whether each word ends its sentence. `HEAD_TOKEN_SPLIT`: the syntactic words of each token, as UD splits a multi-word token. `HEAD_SPAN_CLASSIFIER`: a label for every span of up to `span.max_words` words. `HEAD_RELATION_CLASSIFIER`: the relations, none, one or several, of every ordered pair of the entities given with a sequence. |
+| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. `HEAD_SENTENCE_BOUNDARY`: whether each word ends its sentence. `HEAD_TOKEN_SPLIT`: the syntactic words of each token, as UD splits a multi-word token. `HEAD_SPAN_CLASSIFIER`: a label for every span of up to `span.max_words` words. `HEAD_COREF_RANKER`: for each given mention, its antecedent among the mentions before it, or none. `HEAD_RELATION_CLASSIFIER`: the relations, none, one or several, of every ordered pair of the entities given with a sequence. |
 | `labels` | The labels in output order: 1 to 4096, unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
+| `layer_mix` | Optional: `{ "layers": K }` (`1` to `128`, at most the encoder's layers). A learned scalar mix of the encoder's last `K` layers, `gamma * sum_k softmax(weight)_k * tap_k`, before the adapter and output layer. |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
-| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's: `DECODE_SPANS_NESTED` (every span whose best label is not `O`) or `DECODE_SPANS_FLAT` (those spans from the highest margin over `O` down, each kept unless it overlaps one kept, ties to the earlier span). A relation classifier's: `DECODE_RELATIONS` (every label of an ordered pair of entities that scores above `none`, the pair's threshold). |
+| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's: `DECODE_SPANS_NESTED` (every span whose best label is not `O`) or `DECODE_SPANS_FLAT` (those spans from the highest margin over `O` down, each kept unless it overlaps one kept, ties to the earlier span). A coreference ranker's: `DECODE_ANTECEDENT` (each mention's highest-scoring antecedent when it scores above the dummy's 0, else none; a tie goes to none, then to the nearer mention). A relation classifier's: `DECODE_RELATIONS` (every label of an ordered pair of entities that scores above `none`, the pair's threshold). |
 | `hash_embed` | Optional, for the kinds that score words as a tagger does (`HEAD_TOKEN_TAGGER`, `HEAD_SENTENCE_BOUNDARY`, `HEAD_TOKEN_SPLIT`): `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
 | `biaffine` | A parser's MLP widths, `arc` and `rel`, each 1 to 4096; required for `HEAD_BIAFFINE_PARSER`, refused for any other kind. A parser's `scheme` is `SCHEME_TAGS` and its labels are the dependency relations. |
 | `pos_input` | A lemmatizer's optional tag input: `head` names a `SCHEME_TAGS` token tagger head of the same bundle with `labels` labels, and the lemmatizer reads each word's decoded tag as a learned `dim`-wide embedding (1 to 1024) beside the word vector. Refused for any other kind. A lemmatizer's `scheme` is `SCHEME_TAGS` and its labels are edit trees, each written as `turbo::head::edit_tree::EditTree::label` writes it. |
-| `span` | A span classifier's spans: `max_words` (1 to 128), the longest span scored, and `width_dim` (1 to 256), the width of its learned span-width embedding; required for `HEAD_SPAN_CLASSIFIER`, refused for any other kind. Its `scheme` is `SCHEME_TAGS` and its labels include `O`, no span. |
+| `span` | A span classifier's spans: `max_words` (1 to 128), the longest span scored, and `width_dim` (1 to 256), the width of its learned span-width embedding; required for `HEAD_SPAN_CLASSIFIER` and `HEAD_COREF_RANKER` (which reads mentions as spans), refused for any other kind. A span classifier's `scheme` is `SCHEME_TAGS` and its labels include `O`, no span. |
+| `coref` | A coreference ranker's pair scoring: `dim` (1 to 4096), the width of a mention vector, and `antecedents` (1 to 1024), the most mentions before a mention it is scored against; required for `HEAD_COREF_RANKER`, refused for any other kind. A ranker's `scheme` is `SCHEME_TAGS`, its one label is `coref`, and it takes no `hash_embed`. |
 | `relation` | A relation classifier's mention views: `mlp` (1 to 4096), the width of each entity's head and tail views, and optionally `entity_labels` (1 to 4096 unique entity types, as the entity head that found the mentions labels them) with `type_dim` (1 to 256), the width of each type's learned embedding; `type_dim` is 0 or absent exactly when `entity_labels` is. Required for `HEAD_RELATION_CLASSIFIER`, refused for any other kind. Its `scheme` is `SCHEME_TAGS` and its labels include `none`, no relation. |
 | `license_class` | Optional: the class (as `model.license_class` names classes, docs/zoo.md) of the strictest licence among the corpora the head was trained on. The bundle's tier (`Manifest::license_tier`) is the strictest of `model.license_class` and every head's, so a permissive encoder with a head trained on CC BY-SA data is `CLASS_SHARE_ALIKE`. Refused when `model.license_class` is not recorded, since the tier would leave the encoder out. |
 | `artifact` | The name of the `FORMAT_SAFETENSORS` artifact holding the tensors, as `from` and `host_weights` name artifacts. |
@@ -380,6 +383,8 @@ wide and `L` labels, in the order the loader reads them:
 | `out.bias` | `[L]` | always |
 | `crf.transitions` | `[L, L]` | `DECODE_CRF`; row is the label before, column the label after |
 | `crf.start`, `crf.end` | `[L]` | `DECODE_CRF` |
+| `mix.weight` | `[K]` | with `layer_mix` (`K` = `layer_mix.layers`), after any head's other tensors |
+| `mix.gamma` | `[1]` | with `layer_mix`, after `mix.weight` |
 
 LSTM gates are stacked in the order input, forget, cell, output, and a
 layer's output joins its forward and backward states in that order. A
@@ -440,8 +445,12 @@ itself an `l`. The trainer mines it when it substitutes fewer characters
 than the plain tree, so `Dogs` to `dog` is `(l (m 0 1 () (s 's' '')))`,
 the tree of `dogs` to `dog`, and a capital at the start of a sentence
 does not give the table one tree per letter; `Paris` to `Paris` stays
-`(m 0 0 () ())`. Only the canonical form of a label is accepted, so one
-tree has one label.
+`(m 0 0 () ())`. Two more nodes are ours, for a token split head's
+labels: `(h N T)` keeps the first `N` characters of the word and
+`(t N T)` the last `N`, whatever the rest is, and rewrites them by `T`
+(`()` for none); `N` is at least 1 and the word must be longer than
+`N`, so a cut never keeps a word whole. Only the canonical form of a
+label is accepted, so one tree has one label.
 
 A `HEAD_SENTENCE_BOUNDARY` and a `HEAD_TOKEN_SPLIT` have a tagger's
 tensors and differ only in their labels and decode. A sentence boundary
@@ -456,8 +465,11 @@ A token split head's `scheme` is `SCHEME_TAGS` and its labels are `_`,
 which keeps a token one word, and splits: two to eight edit trees
 separated by single spaces, the k-th tree rewriting the whole token into
 its k-th word. Spanish `del` is `de` and `el` by
-`(m 0 1 () (s 'l' '')) (m 1 0 (s 'd' '') ())`. A split fits a token when
-every tree applies to it and gives a word that is not empty.
+`(m 0 1 () (s 'l' '')) (m 1 0 (s 'd' '') ())`; `hacerse` is `hacer` and
+`se` by `(m 0 2 () (s 'se' '')) (t 2 ())`, which cuts the clitic by its
+own length, so the same label splits `ponerse` and every other verb,
+where a match tree would name the verb it drops. A split fits a token
+when every tree applies to it and gives a word that is not empty.
 
 The tensors of a `HEAD_SPAN_CLASSIFIER`, F32, with `M` =
 `span.max_words`, `E` = `span.width_dim`, `L` labels and `width` as
@@ -475,6 +487,25 @@ up to `M` (`SpanClassifier::span_count`). Each word's start and end parts of the
 are computed once and summed per span, so a span's score is the same
 sum the joined layer gives. A kept span carries its label and its
 margin, its label's score less `O`'s.
+
+The tensors of a `HEAD_COREF_RANKER`, F32, with `M` = `span.max_words`,
+`E` = `span.width_dim`, `D` = `coref.dim` and `width` as above (the
+adapter's tensors come first, as for a tagger):
+
+| Suffix | Shape | What |
+|---|---|---|
+| `span.width` | `[M, E]` | row `w - 1` embeds a mention of `w` words |
+| `mention.weight` | `[D, 2 * width + E]` | a mention's first word vector, its last, then its width embedding |
+| `mention.bias` | `[D]` | the mention vector is `tanh` of the layer |
+| `pair.weight` | `[D, D]` | `P` in `s(a, b) = g_a . (P g_b) + distance[bucket(a - b)]` |
+| `distance` | `[9]` | by the distance in mentions: 1, 2, 3, 4, 5 to 7, 8 to 15, 16 to 31, 32 to 63, 64 or more |
+
+The mentions are given, in order of first word then last, none twice and
+none longer than `M` words, so the head ranks the mentions a span
+classifier keeps rather than pruning every span (Lee et al. 2017). Each
+mention is scored against at most `coref.antecedents` mentions before
+it, nearest first, and the dummy antecedent scores 0. The chains follow
+the links: a mention without an antecedent starts one.
 
 The tensors of a `HEAD_RELATION_CLASSIFIER`, F32, with `D` =
 `relation.mlp`, `T` entity labels, `E` = `relation.type_dim`, `L`

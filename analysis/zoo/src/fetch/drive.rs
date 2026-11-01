@@ -5,10 +5,11 @@
 //! so a copied cache serves as well.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
 
+use super::oauth::Renewing;
 use super::transport::Transport;
 use crate::index::{Artifact, File, Url};
 
@@ -29,6 +30,23 @@ pub enum DriveAuth {
     /// An API key, enough for a folder shared with anyone who has the
     /// link.
     ApiKey(String),
+    /// A user's stored grant: access tokens from its refresh token, renewed
+    /// before they run out and once more when Drive turns one down (#1744).
+    Refresh(Arc<Renewing>),
+}
+
+impl DriveAuth {
+    /// `GOOGLE_OAUTH_ACCESS_TOKEN` when `var` has it, else
+    /// `GOOGLE_API_KEY`; an empty one counts as unset. `address` is for
+    /// the error alone.
+    pub fn from_vars(address: &str, var: impl Fn(&str) -> Option<String>) -> Result<DriveAuth, String> {
+        let var = |k: &str| var(k).filter(|v| !v.is_empty());
+        match (var("GOOGLE_OAUTH_ACCESS_TOKEN"), var("GOOGLE_API_KEY")) {
+            (Some(token), _) => Ok(DriveAuth::Token(token)),
+            (None, Some(key)) => Ok(DriveAuth::ApiKey(key)),
+            (None, None) => Err(format!("{address}: set GOOGLE_OAUTH_ACCESS_TOKEN or GOOGLE_API_KEY")),
+        }
+    }
 }
 
 impl std::fmt::Debug for DriveAuth {
@@ -36,6 +54,7 @@ impl std::fmt::Debug for DriveAuth {
         f.write_str(match self {
             DriveAuth::Token(_) => "Token(..)",
             DriveAuth::ApiKey(_) => "ApiKey(..)",
+            DriveAuth::Refresh(_) => "Refresh(..)",
         })
     }
 }
@@ -68,18 +87,16 @@ impl GoogleDrive {
         GoogleDrive::from_vars(address, |k| std::env::var(k).ok())
     }
 
+    /// Whether `address` is one [`GoogleDrive::with`] takes, without
+    /// signing in.
+    pub fn check_address(address: &str) -> Result<(), String> {
+        parse(address).map(|_| ())
+    }
+
     /// [`GoogleDrive::new`], reading the variables through `var`.
     pub fn from_vars(address: &str, var: impl Fn(&str) -> Option<String>) -> Result<GoogleDrive, String> {
-        let var = |k: &str| var(k).filter(|v| !v.is_empty());
         parse(address)?;
-        let auth = match (var("GOOGLE_OAUTH_ACCESS_TOKEN"), var("GOOGLE_API_KEY")) {
-            (Some(token), _) => DriveAuth::Token(token),
-            (None, Some(key)) => DriveAuth::ApiKey(key),
-            (None, None) => {
-                return Err(format!("{address}: set GOOGLE_OAUTH_ACCESS_TOKEN or GOOGLE_API_KEY"));
-            }
-        };
-        GoogleDrive::with(address, None, auth)
+        GoogleDrive::with(address, None, DriveAuth::from_vars(address, var)?)
     }
 
     /// The folder at `endpoint`, or at [`DRIVE_ENDPOINT`] when none is
@@ -95,6 +112,8 @@ impl GoogleDrive {
         }
         let secret = match &auth {
             DriveAuth::Token(s) | DriveAuth::ApiKey(s) => s,
+            // Checked when it was made.
+            DriveAuth::Refresh(_) => "-",
         };
         if secret.is_empty() || !secret.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(format!("{address}: the token or key is empty or holds spaces or control characters"));
@@ -126,20 +145,33 @@ impl GoogleDrive {
 
     /// One GET of `path?query` on the API, signed with a header; at most
     /// `limit` bytes of the body. A redirect is followed unsigned, so the
-    /// token or key never leaves the API's own host. Errors name the path.
+    /// token or key never leaves the API's own host. With a stored grant,
+    /// a 401 renews the token and asks once more. Errors name the path.
     fn call(&self, path: &str, query: &str, limit: u64) -> Result<Vec<u8>, String> {
+        match self.send(path, query, limit, false) {
+            Err((true, _)) if matches!(self.auth, DriveAuth::Refresh(_)) => self.send(path, query, limit, true),
+            r => r,
+        }
+        .map_err(|(_, e)| e)
+    }
+
+    /// One signed GET, as [`GoogleDrive::call`] makes it; an error says
+    /// whether Drive answered 401.
+    fn send(&self, path: &str, query: &str, limit: u64, renew: bool) -> Result<Vec<u8>, (bool, String)> {
         let url = format!("{}{path}?{query}&supportsAllDrives=true", self.base);
+        let bearer = |t: &str| self.signed.get(&url).header("Authorization", format!("Bearer {t}"));
         let req = match &self.auth {
-            DriveAuth::Token(t) => self.signed.get(&url).header("Authorization", format!("Bearer {t}")),
+            DriveAuth::Token(t) => bearer(t),
+            DriveAuth::Refresh(r) => bearer(&r.bearer(renew).map_err(|e| (false, format!("{}: {e}", self.address)))?),
             DriveAuth::ApiKey(k) => self.signed.get(&url).header("X-Goog-Api-Key", k.as_str()),
         };
-        let fail = |e: ureq::Error| format!("{}{path}: {e}", self.base);
+        let fail = |e: ureq::Error| (matches!(e, ureq::Error::StatusCode(401)), format!("{}{path}: {e}", self.base));
         let mut resp = req.call().map_err(fail)?;
         if resp.status().is_redirection() {
             let to = resp.headers().get("location").and_then(|v| v.to_str().ok());
-            let to = to.ok_or_else(|| format!("{}{path}: a redirect with no Location", self.base))?;
+            let to = to.ok_or_else(|| (false, format!("{}{path}: a redirect with no Location", self.base)))?;
             let to = resolve(&self.base, path, to);
-            let follow = |e: ureq::Error| format!("{}{path}: following its redirect: {e}", self.base);
+            let follow = |e: ureq::Error| (false, format!("{}{path}: following its redirect: {e}", self.base));
             resp = self.plain.get(&to).call().map_err(follow)?;
         }
         resp.body_mut().with_config().limit(limit).read_to_vec().map_err(fail)
@@ -330,7 +362,7 @@ fn literal(name: &str) -> String {
 }
 
 /// Percent-encodes every byte but RFC 3986's unreserved ones.
-fn encode(s: &str) -> String {
+pub(super) fn encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 3);
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {

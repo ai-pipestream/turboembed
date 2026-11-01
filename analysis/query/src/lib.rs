@@ -4,7 +4,7 @@
 //!   documents indexed with [`QueryAnalysisProfile::document_analyzer`] (or
 //!   [`QueryAnalysisProfile::document_terms`]),
 //! - per-span [`LanguageEvidence`] and [`LanguageSpanEvidence`] (`turbo:language-spans`
-//!   and `opennlp:language`) for single-language and mixed-language queries,
+//!   and `turbo:language`) for single-language and mixed-language queries,
 //! - structured [`QueryFilter`]s ([`TemporalFilter`], [`MoneyFilter`], [`QuantityFilter`],
 //!   [`PlaceFilter`], [`GlossaryFilter`], [`EntityFilter`]), each tied to an
 //!   exact UTF-8 source byte [`turbo_analysis::Span`] and [`FilterEvidence`]
@@ -369,10 +369,10 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                 m_cnt = sm.spans.len();
                 for (ix, sp) in sm.spans.iter() {
                     let m = sm.get(ix);
-                    money.push(turbo_analysis_layers::MoneyMention {
-                        span: Span::new(sp.start + off, sp.end + off),
-                        ..m
-                    });
+                    money.push_with_per(
+                        turbo_analysis_layers::MoneyMention { span: Span::new(sp.start + off, sp.end + off), ..m },
+                        sm.per.get(ix.get()),
+                    );
                 }
             }
             if qty_cue && m_cnt < d_cnt {

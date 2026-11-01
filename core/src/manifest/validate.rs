@@ -84,6 +84,7 @@ impl Manifest {
         self.validate_architecture(e, &listed_path)?;
         self.validate_artifacts(&listed_path)?;
         self.validate_heads()?;
+        self.validate_head_provenance()?;
         listed_path("reference.file", &self.reference.file)?;
         if self.reference.cases.is_empty() {
             return Err(invalid("manifest.json: reference.cases: empty"));

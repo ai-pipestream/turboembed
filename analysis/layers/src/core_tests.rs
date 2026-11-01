@@ -11,8 +11,8 @@ use crate::{
 
 #[test]
 fn utf16_spans_are_named_after_their_layer_and_aligned_to_it() {
-    assert_eq!(Utf16Spans::<Tokens>::NAME.to_string(), "turbo:utf16<opennlp:tokens>");
-    assert_eq!(Utf16Spans::<Sentences>::NAME.to_string(), "turbo:utf16<opennlp:sentences>");
+    assert_eq!(Utf16Spans::<Tokens>::NAME.to_string(), "turbo:utf16<turbo:tokens>");
+    assert_eq!(Utf16Spans::<Sentences>::NAME.to_string(), "turbo:utf16<turbo:sentences>");
     assert_eq!(Utf16Spans::<Tokens>::anchor(), Anchor::aligned::<Tokens>());
 }
 
@@ -256,7 +256,7 @@ fn phrases_check_columns_heads_and_parents() {
         head: vec![Ix::new(2), Ix::new(1), Ix::new(2)],
         parent: vec![None, Some(Ix::new(0)), Some(Ix::new(0))],
     };
-    assert_eq!(Phrases::ID, "opennlp:phrases");
+    assert_eq!(Phrases::ID, "turbo:phrases");
     assert_eq!(phrases.check(), Ok(()));
     assert_eq!(phrases.head_span(Ix::new(1), &tokens), Span::new(4, 7));
 

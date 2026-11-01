@@ -37,6 +37,8 @@ pub struct Manifest {
     pub projection: Option<Projection>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heads: Vec<HeadSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub head_provenance: Vec<HeadProvenance>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
@@ -143,7 +145,10 @@ mod heads;
 mod heads_kinds;
 mod helpers;
 pub use heads::*;
-pub use heads_kinds::{MAX_TYPE_DIM, NO_RELATION, RelationShape};
+pub use heads_kinds::{
+    BOUNDARY_LABELS, COREF_LABELS, CorefShape, KEEP_TOKEN, LayerMix, MAX_ANTECEDENTS, MAX_MENTION_DIM, MAX_MIX_LAYERS,
+    MAX_SPAN_WIDTH_DIM, MAX_SPAN_WORDS, MAX_TYPE_DIM, NO_RELATION, RelationShape, SpanShape,
+};
 mod provenance;
 mod qa;
 pub use qa::Qa;

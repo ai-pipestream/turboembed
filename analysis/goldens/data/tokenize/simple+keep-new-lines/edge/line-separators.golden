@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/line-separators	69	64	ccc7a376f910f5a8c3b25c8dd828b75cc7e435a329fe339a29aad303571c6e37
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	14	start:u32	end:u32
+layer	turbo:tokens	text	14	start:u32	end:u32
 0	6
 8	13
 14	18
@@ -21,4 +21,4 @@ layer	opennlp:tokens	text	14	start:u32	end:u32
 59	63
 64	68
 68	69
-end	opennlp:tokens
+end	turbo:tokens

@@ -17,6 +17,8 @@ use crate::licence::Policy;
 #[cfg(feature = "http")]
 mod drive;
 #[cfg(feature = "http")]
+mod oauth;
+#[cfg(feature = "http")]
 mod s3;
 #[cfg(feature = "http")]
 pub mod sigv4;
@@ -27,8 +29,10 @@ mod transport;
 #[cfg(feature = "http")]
 pub use drive::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive};
 #[cfg(feature = "http")]
+pub use oauth::{DRIVE_READONLY, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleOAuth, Grant, Pkce, Renewing};
+#[cfg(feature = "http")]
 pub use s3::S3Bucket;
-pub use sources::{Blobs, Keep, Sources};
+pub use sources::{Blobs, Directory, Keep, Sources};
 pub use status::CacheStatus;
 #[cfg(feature = "http")]
 pub use transport::Http;
@@ -103,6 +107,29 @@ impl<'t> Zoo<'t> {
             return Err(ZooError::NotAccepted { id: a.id.clone(), class: a.class, user: user.to_string(), missing });
         }
         Ok(a)
+    }
+
+    /// Ensures the redistributable artifact `id`'s files are on disk and
+    /// verified: enforces `Acceptances` for `CLASS_LGPL`,
+    /// `CLASS_SHARE_ALIKE` and `CLASS_GPL`, and refuses `CLASS_LOCAL_ONLY`
+    /// with [`ZooError::LocalOnly`] before touching the transport.
+    pub fn ensure(&self, id: &str, user: &UserId, acceptances: &Acceptances) -> Result<Fetched<'_>, ZooError> {
+        self.ensure_with(id, user, || Ok(acceptances.clone()))
+    }
+
+    /// [`Zoo::ensure`], reading the acceptances through `load` only when
+    /// the artifact needs some ([`Zoo::permit_with`]).
+    pub fn ensure_with(
+        &self,
+        id: &str,
+        user: &UserId,
+        load: impl FnOnce() -> Result<Acceptances, ZooError>,
+    ) -> Result<Fetched<'_>, ZooError> {
+        let a = self.index.get(id)?;
+        if !a.class.may_redistribute() {
+            return Err(ZooError::LocalOnly { id: a.id.clone() });
+        }
+        self.fetch_with(id, user, load)
     }
 
     /// The artifact `id`'s files on disk, after [`Zoo::permit`]. A file in
@@ -249,6 +276,12 @@ fn make_dirs(cache: &Path, id: &str, path: &str) -> Result<(), ZooError> {
 /// puts a whole file in place. The temporary file is removed when a write
 /// fails. The rename replaces `dest` itself, also when `dest` is a symlink.
 pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
+    write_atomic_as(dest, bytes, false)
+}
+
+/// [`write_atomic`]; with `private`, the file is made readable and
+/// writable by its owner alone on Unix, before any byte is written.
+pub(crate) fn write_atomic_as(dest: &Path, bytes: &[u8], private: bool) -> Result<(), ZooError> {
     static WRITES: AtomicU64 = AtomicU64::new(0);
     let io = |p: &Path, e: std::io::Error| ZooError::Io { path: p.to_path_buf(), message: e.to_string() };
     let parent = dest
@@ -265,7 +298,15 @@ pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
         let mut name = base.clone();
         name.push(format!(".partial.{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
         let tmp = dest.with_file_name(name);
-        match fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        if private {
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        }
+        #[cfg(not(unix))]
+        let _ = private;
+        match options.open(&tmp) {
             Ok(f) => break (tmp, f),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(e) => return Err(io(&tmp, e)),

@@ -21,8 +21,10 @@ fn spec() -> HeadSpec {
         biaffine: Some(Biaffine { arc: 1, rel: 1 }),
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "review".into(),
@@ -118,6 +120,8 @@ fn nonfinite_hash_tables_are_refused_at_load() {
         biaffine: None,
         hash_embed: Some(HashEmbed { dim: 1, rows: [1; 4] }),
         span: None,
+        relation: None,
+        coref: None,
         license_class: None,
         ..spec()
     };

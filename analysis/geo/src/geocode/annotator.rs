@@ -129,7 +129,7 @@ pub(crate) fn hash_location_types(seed: u64, location_types: &HashSet<String>) -
     hash.finish()
 }
 
-/// Resolves location entities from `opennlp:entities` into `turbo:locations`
+/// Resolves location entities from `turbo:entities` into `turbo:locations`
 /// (`opennlp.tools.geo.GeocodeAnnotator`).
 pub struct GeocodeAnnotator<G> {
     geocoder: G,

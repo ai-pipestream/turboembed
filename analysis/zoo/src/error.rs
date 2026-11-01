@@ -38,11 +38,17 @@ pub enum ZooError {
     Index(String),
     /// The acceptance file is malformed or inconsistent.
     Acceptances(String),
+    /// The holders file is malformed, or a holder is not one it takes.
+    Holders(String),
     /// No artifact of the index has this id.
     NotFound(String),
     /// The artifact is under terms the zoo refuses: it is not listed and
     /// never fetched.
     Refused { id: ArtifactId, licences: Vec<Licence> },
+    /// The artifact is `CLASS_LOCAL_ONLY` (trained on recipe-only or
+    /// non-redistributable data) and cannot be fetched as a redistributable
+    /// model or head from a remote zoo source.
+    LocalOnly { id: ArtifactId },
     /// The artifact's class needs the user's acceptance of these licences,
     /// and the user has not accepted them.
     NotAccepted { id: ArtifactId, class: LicenceClass, user: String, missing: Vec<Requirement> },
@@ -59,7 +65,11 @@ impl fmt::Display for ZooError {
         match self {
             ZooError::Index(m) => write!(f, "zoo index: {m}"),
             ZooError::Acceptances(m) => write!(f, "acceptance file: {m}"),
+            ZooError::Holders(m) => write!(f, "holders: {m}"),
             ZooError::NotFound(id) => write!(f, "{id}: the zoo has no artifact with this id"),
+            ZooError::LocalOnly { id } => {
+                write!(f, "{id}: CLASS_LOCAL_ONLY cannot be fetched from a remote zoo source")
+            }
             ZooError::Refused { id, licences } => {
                 write!(f, "{id}: refused, the zoo does not list or fetch artifacts under ")?;
                 for (i, l) in licences.iter().enumerate() {

@@ -17,6 +17,7 @@
 
 use super::graph::{get_edits, get_provenance, get_status};
 use super::*;
+use std::borrow::Cow;
 use std::ops::Range;
 
 /// One view in a borrowed graph directory.
@@ -36,7 +37,8 @@ pub struct ViewWireEntry<'a> {
 /// is located, not decoded: `body` is its byte range in the payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayerWireEntry<'a> {
-    pub layer: &'a str,
+    /// The layer's full name, a legacy id read as its current id.
+    pub layer: Cow<'a, str>,
     pub instance: &'a str,
     pub schema: u16,
     /// The item count the record claims.
@@ -233,7 +235,7 @@ impl<'a> DocumentGraphRef<'a> {
         let mut layers = Vec::new();
         for _ in 0..r.usize()? {
             let start = r.position();
-            let layer = r.str()?;
+            let layer = canonical_layer_name(r.str()?);
             let instance = r.str()?;
             let schema = r.u16()?;
             let len = r.u32()?;
@@ -289,6 +291,7 @@ impl<'a> DocumentGraphRef<'a> {
 
     /// The directory entry of one layer instance, if held.
     pub fn layer(&self, layer: &str, instance: &str) -> Option<&LayerWireEntry<'a>> {
+        let layer = canonical_layer_name(layer);
         self.layers.iter().find(|e| e.layer == layer && e.instance == instance)
     }
 
@@ -309,7 +312,7 @@ impl<'a> DocumentGraphRef<'a> {
     pub fn selected_graph(&self, selected: &[(&str, &str)]) -> Result<DocumentGraph, ExportError> {
         let mut wanted = HashSet::with_capacity(selected.len());
         for &(layer, instance) in selected {
-            if !wanted.insert((layer, instance)) {
+            if !wanted.insert((canonical_layer_name(layer), instance)) {
                 return Err(ExportError::DuplicateLayer { layer: layer.to_owned(), instance: instance.to_owned() });
             }
             if self.layer(layer, instance).is_none() {
@@ -354,10 +357,10 @@ impl<'a> DocumentGraphRef<'a> {
             });
         }
         let mut layers = Vec::with_capacity(selected.len());
-        for entry in self.layers.iter().filter(|entry| wanted.contains(&(entry.layer, entry.instance))) {
+        for entry in self.layers.iter().filter(|entry| wanted.contains(&(entry.layer.clone(), entry.instance))) {
             let mut r = Reader::new(&self.bytes[entry.record.clone()]);
             layers.push(LayerRecord {
-                layer: r.string()?,
+                layer: canonical_owned(r.string()?),
                 instance: r.string()?,
                 schema: r.u16()?,
                 len: r.u32()?,

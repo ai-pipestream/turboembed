@@ -18,7 +18,7 @@ import opennlp.tools.util.Span;
  * the golden's {@code model} record and names the directory. {@code StringUtil.isWhitespace}
  * decides both where a lexicon line's word ends and where the text is split.</p>
  *
- * <p>The layer is {@code opennlp:tokens}, one row per word. Every word is whole code points (the
+ * <p>The layer is {@code turbo:tokens}, one row per word. Every word is whole code points (the
  * step over an unlisted character takes a whole code point, and the lexicon words are whole), so
  * no row cuts a character.</p>
  */
@@ -79,7 +79,7 @@ final class UnigramGolden implements AnnotatorGolden {
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
     Span[] spans = AnnotatorException.call(() -> segmenter.tokenizePos(input.text()));
-    List<Layer> layers = SpanLayers.of("opennlp:tokens", input.offsets(), spans);
+    List<Layer> layers = SpanLayers.of("turbo:tokens", input.offsets(), spans);
     if (layers.size() != 1) {
       throw new IllegalStateException("input " + input.inputId() + ": a word cuts a character");
     }

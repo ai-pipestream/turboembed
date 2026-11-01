@@ -25,8 +25,9 @@ pub(super) fn export(corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args)
         read_corpus(corpus_id, dir, unrecorded)?
     };
     let text = match c.record.task {
-        Task::Tags => conllu(&c.splits.test),
+        Task::Tags | Task::Coref => conllu(&c.splits.test),
         Task::Bio => turbo_trainer_recipes::ner_peer::export(&c.splits.test)?,
+        Task::Relations => return Err(Error(format!("{corpus_id}: a relation corpus has no words to export"))),
     };
     std::fs::OpenOptions::new()
         .write(true)

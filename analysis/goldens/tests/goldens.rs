@@ -64,33 +64,33 @@ fn the_fixture_reads_into_typed_fields() {
     assert_eq!(
         ids,
         [
-            "opennlp:sentences",
-            "turbo:confidence<opennlp:sentences>",
-            "opennlp:tokens",
-            "turbo:confidence<opennlp:tokens>",
-            "opennlp:pos",
-            "opennlp:lemmas",
-            "opennlp:entities",
-            "opennlp:language"
+            "turbo:sentences",
+            "turbo:confidence<turbo:sentences>",
+            "turbo:tokens",
+            "turbo:confidence<turbo:tokens>",
+            "turbo:pos",
+            "turbo:lemmas",
+            "turbo:entities",
+            "turbo:language"
         ]
     );
-    let s = g.layer("opennlp:sentences").unwrap();
+    let s = g.layer("turbo:sentences").unwrap();
     assert_eq!(s.anchor, GoldenAnchor::Text);
     assert_eq!(s.u32s("start").unwrap(), [0, 27]);
     assert_eq!(s.u32s("end").unwrap(), [26, 37]);
-    let c = g.layer("turbo:confidence<opennlp:sentences>").unwrap();
-    assert_eq!(c.anchor, GoldenAnchor::Aligned("opennlp:sentences".into()));
+    let c = g.layer("turbo:confidence<turbo:sentences>").unwrap();
+    assert_eq!(c.anchor, GoldenAnchor::Aligned("turbo:sentences".into()));
     assert_eq!(c.f64s("value").unwrap(), [0.9876543210987654, 0.95]);
-    let t = g.layer("opennlp:tokens").unwrap();
+    let t = g.layer("turbo:tokens").unwrap();
     assert_eq!(t.len(), 9);
     assert_eq!(t.column_names(), ["start:u32", "end:u32"]);
-    let pos = g.layer("opennlp:pos").unwrap();
+    let pos = g.layer("turbo:pos").unwrap();
     assert_eq!(pos.strs("tag").unwrap().iter().collect::<Vec<_>>()[..3], ["PROPN", "PROPN", "VERB"]);
-    assert_eq!(g.layer("opennlp:lemmas").unwrap().strs("lemma").unwrap().get(4), "Zürich");
-    let e = g.layer("opennlp:entities").unwrap();
+    assert_eq!(g.layer("turbo:lemmas").unwrap().strs("lemma").unwrap().get(4), "Zürich");
+    let e = g.layer("turbo:entities").unwrap();
     assert_eq!(e.u32s("token_start").unwrap(), [1, 4]);
     assert_eq!(e.strs("kind").unwrap().get(1), "location");
-    let lang = g.layer("opennlp:language").unwrap();
+    let lang = g.layer("turbo:language").unwrap();
     assert_eq!(lang.anchor, GoldenAnchor::Document);
     assert_eq!(lang.len(), 4);
     assert_eq!(lang.f64s("confidence").unwrap()[3], 1.0e-5);
@@ -142,9 +142,9 @@ fn escapes_and_special_values_round_trip() {
     for s in ["tab\there", "line\nend", "cr\rx", "back\\slash", "nul\u{0}bell\u{7}", "😀", "", "x", "y"] {
         lemma.push(s);
     }
-    let lemmas = g.layers.iter_mut().find(|l| l.id == "opennlp:lemmas").unwrap();
+    let lemmas = g.layers.iter_mut().find(|l| l.id == "turbo:lemmas").unwrap();
     lemmas.columns[0].data = ColumnData::Str(lemma);
-    let conf = g.layers.iter_mut().find(|l| l.id == "turbo:confidence<opennlp:tokens>").unwrap();
+    let conf = g.layers.iter_mut().find(|l| l.id == "turbo:confidence<turbo:tokens>").unwrap();
     conf.columns[0].data = ColumnData::F64(vec![
         -0.0,
         f64::NAN,
@@ -173,7 +173,7 @@ fn the_writer_refuses_what_the_format_cannot_hold() {
     let mut g = golden();
     g.layers[0].columns[1].data = ColumnData::U32(vec![26]);
     let e = g.to_text().unwrap_err().to_string();
-    assert!(e.contains("opennlp:sentences has 2 rows in its first column and 1 in end"), "{e}");
+    assert!(e.contains("turbo:sentences has 2 rows in its first column and 1 in end"), "{e}");
 }
 
 // ---------------------------------------------------------------------
@@ -324,31 +324,29 @@ fn malformed_layers() {
         refused(&edit(10, Some("layer\topennlp:sentence\ttext\t2\tstart:u32\tend:u32")), 10),
         UnknownLayer { .. }
     ));
-    let e = refused(&edit(10, Some("layer\topennlp:sentences\tdocument\t2\tstart:u32\tend:u32")), 10);
+    let e = refused(&edit(10, Some("layer\tturbo:sentences\tdocument\t2\tstart:u32\tend:u32")), 10);
     assert!(matches!(e, Anchor { .. }), "{e:?}");
     assert!(e.to_string().contains("anchored to document, expected text"), "{e}");
-    let e = refused(&edit(10, Some("layer\topennlp:sentences\ttext\t2\tend:u32\tstart:u32")), 10);
+    let e = refused(&edit(10, Some("layer\tturbo:sentences\ttext\t2\tend:u32\tstart:u32")), 10);
     assert!(matches!(e, Columns { .. }), "{e:?}");
     assert!(e.to_string().contains("has the columns [end:u32, start:u32], expected [start:u32, end:u32]"), "{e}");
     assert!(matches!(
-        refused(&edit(10, Some("layer\topennlp:sentences\ttext\t2\tstart:i32\tend:u32")), 10),
+        refused(&edit(10, Some("layer\tturbo:sentences\ttext\t2\tstart:i32\tend:u32")), 10),
         Field { .. }
     ));
-    assert!(matches!(refused(&edit(10, Some("layer\topennlp:sentences\ttext\t2")), 10), Fields { .. }));
+    assert!(matches!(refused(&edit(10, Some("layer\tturbo:sentences\ttext\t2")), 10), Fields { .. }));
     assert!(matches!(
-        refused(&edit(14, Some("layer\tturbo:confidence<opennlp:sentences>\taligned:\t2\tvalue:f64")), 14),
+        refused(&edit(14, Some("layer\tturbo:confidence<turbo:sentences>\taligned:\t2\tvalue:f64")), 14),
         Field { .. }
     ));
-    let e = refused(
-        &edit(14, Some("layer\tturbo:confidence<opennlp:sentences>\taligned:opennlp:sentences\t3\tvalue:f64")),
-        14,
-    );
+    let e =
+        refused(&edit(14, Some("layer\tturbo:confidence<turbo:sentences>\taligned:turbo:sentences\t3\tvalue:f64")), 14);
     assert!(matches!(e, AlignedRows { expected: 2, found: 3, .. }), "{e:?}");
     // A second sentences block where the confidence block was.
     let text = fixture_text().replacen(
-        "layer\tturbo:confidence<opennlp:sentences>\taligned:opennlp:sentences\t2\tvalue:f64\n\
-         3fef9add3c1be9b8 0.9876543210987654\n3fee666666666666 0.95\nend\tturbo:confidence<opennlp:sentences>",
-        "layer\topennlp:sentences\ttext\t2\tstart:u32\tend:u32\n0\t26\n27\t37\nend\topennlp:sentences",
+        "layer\tturbo:confidence<turbo:sentences>\taligned:turbo:sentences\t2\tvalue:f64\n\
+         3fef9add3c1be9b8 0.9876543210987654\n3fee666666666666 0.95\nend\tturbo:confidence<turbo:sentences>",
+        "layer\tturbo:sentences\ttext\t2\tstart:u32\tend:u32\n0\t26\n27\t37\nend\tturbo:sentences",
         1,
     );
     assert!(matches!(refused(&text, 14), Duplicate { .. }));
@@ -386,8 +384,8 @@ fn malformed_rows() {
     // A row left out: the end line comes where row 1 was expected.
     let e = refused(&edit(12, None), 12);
     assert!(matches!(e, Rows { declared: 2, found: 1, .. }), "{e:?}");
-    assert!(e.to_string().contains("opennlp:sentences ends after 1 rows, expected the 2 it declares"), "{e}");
-    let e = refused(&edit(13, Some("end\topennlp:tokens")), 13);
+    assert!(e.to_string().contains("turbo:sentences ends after 1 rows, expected the 2 it declares"), "{e}");
+    let e = refused(&edit(13, Some("end\tturbo:tokens")), 13);
     assert!(matches!(e, Record { .. }), "{e:?}");
     let cut: String = fixture_text().lines().take(20).map(|l| format!("{l}\n")).collect();
     assert!(matches!(refused(&cut, 21), Eof { .. }));

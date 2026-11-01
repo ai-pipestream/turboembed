@@ -347,3 +347,74 @@ fn fit_handles_oversized_and_usize_max_batch_size_without_capacity_overflow() {
         assert!(report.final_train_loss.is_finite());
     }
 }
+
+#[test]
+fn polarity_zoo_loader_resolves_bound_head_and_validates_builtin_modernbert_entry() {
+    use turbo_zoo::{Acceptances, Index, Offline, Policy, Sha256, Sha512, UserId, Zoo};
+    let dir = std::env::temp_dir().join(format!("turbo-polarity-zoo-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let enc = encoder_ref("answerdotai/ModernBERT-base");
+    let head =
+        PolarityVectorHead::new(3, vec![1.5, -0.5, 0.0, -0.5, 1.5, 0.0, 0.0, 0.0, 1.5], [0.1, -0.1, 0.0], Some(enc))
+            .unwrap();
+    let bytes = head.to_bytes();
+    let sha256 = Sha256::of(&bytes);
+    let sha512 = Sha512::of(&bytes);
+    let art_dir = dir.join(MASC_MODERNBERT_POLARITY_HEAD);
+    std::fs::create_dir_all(&art_dir).unwrap();
+    std::fs::write(art_dir.join("head.tpvh"), &bytes).unwrap();
+    let index_json = format!(
+        r#"{{
+  "zoo_version": 1,
+  "artifacts": [
+    {{
+      "id": "{id}",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
+      "trained_on": [
+        {{
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }}
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0 (CC BY 3.0 US).",
+      "files": [
+        {{
+          "path": "head.tpvh",
+          "url": "https://example.org/models/{id}.tpvh",
+          "size": {len},
+          "sha256": "{sha256}",
+          "sha512": "{sha512}"
+        }}
+      ]
+    }}
+  ]
+}}"#,
+        id = MASC_MODERNBERT_POLARITY_HEAD,
+        len = bytes.len(),
+        sha256 = sha256,
+        sha512 = sha512,
+    );
+    let index = Index::parse(index_json.as_bytes()).unwrap();
+    let zoo = Zoo::new(index, dir.clone(), Policy::default(), &Offline);
+    let user: UserId = "test".parse().unwrap();
+    let loaded =
+        PolarityVectorHead::from_zoo(&zoo, MASC_MODERNBERT_POLARITY_HEAD, &user, || Ok(Acceptances::default()))
+            .unwrap();
+    assert_eq!(loaded, head);
+
+    let builtin_index = Index::builtin();
+    let entry = builtin_index.get(MASC_MODERNBERT_POLARITY_HEAD).unwrap();
+    assert_eq!(entry.kind, turbo_zoo::Kind::Head);
+    assert_eq!(entry.format, turbo_zoo::Format::Head);
+    assert_eq!(entry.class, turbo_zoo::LicenceClass::Permissive);
+    let _ = std::fs::remove_dir_all(&dir);
+}

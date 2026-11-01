@@ -2,11 +2,11 @@
 //! view is in, for documents that change language part way (a German
 //! e-mail quoting English, code-switched chat, a bilingual notice).
 //!
-//! `opennlp:language` ([`Language`](crate::Language)) stays what it is in
+//! `turbo:language` ([`Language`](crate::Language)) stays what it is in
 //! OpenNLP, one ranking for the whole document, so a pipeline written
 //! against OpenNLP reads the layer it expects. The spans are a layer of
 //! their own, `turbo:language-spans`, because a document-anchored layer
-//! has no spans to carry: changing the anchor of `opennlp:language`
+//! has no spans to carry: changing the anchor of `turbo:language`
 //! would change what every reader of it gets. A step that writes both
 //! derives the document ranking from the spans, so the two agree.
 

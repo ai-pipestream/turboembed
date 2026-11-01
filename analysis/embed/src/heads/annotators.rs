@@ -102,7 +102,7 @@ impl ScoringHead {
         }
     }
 
-    /// Scores every item of `vectors` (`opennlp:embeddings<L>`) into
+    /// Scores every item of `vectors` (`turbo:embeddings<L>`) into
     /// [`Categories<L>`] (`turbo:categories<L>`).
     pub fn categorize_vectors<L: CategoryScope>(
         &self,
@@ -136,7 +136,7 @@ impl ScoringHead {
     }
 }
 
-/// Annotator step that reads `Vectors<L>` (`opennlp:embeddings<L>`) and
+/// Annotator step that reads `Vectors<L>` (`turbo:embeddings<L>`) and
 /// writes `Categories<L>` (`turbo:categories<L>`) using a [`ScoringHead`].
 #[derive(Clone)]
 pub struct VectorHeadAnnotator<L: CategoryScope> {

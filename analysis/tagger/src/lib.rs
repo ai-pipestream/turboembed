@@ -10,6 +10,7 @@
 //! head scores and decodes on the host, the same on every backend.
 
 pub mod annotate;
+pub mod coref;
 pub mod dictionaries;
 pub mod lemma;
 pub mod multi;
@@ -17,6 +18,8 @@ pub mod parse;
 pub mod relation;
 pub mod segment;
 pub mod words;
+pub mod words_lang;
+pub mod zoo;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -28,13 +31,23 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tokens};
 
 pub use annotate::HeadRunner;
+pub use coref::CorefTagger;
 pub use dictionaries::{MorfologikLemmas, MorphyLemmas};
 pub use lemma::{LemmaDictionary, Lemmatizer};
 pub use multi::MultiTask;
 pub use parse::DependencyParser;
 pub use relation::RelationTagger;
-pub use segment::{SentenceTagger, SpanTagger};
+pub use segment::{SentenceTagger, SpanTagger, WordTagger};
 pub use words::WordEncoder;
+pub use words_lang::{LanguageTagger, WordSplitTagger, WordSplitter};
+pub use zoo::{TaggerZooError, ensure_bundle, ensure_component};
+
+/// Alias for [`SentenceTagger`].
+pub type SentenceSegmenter = SentenceTagger;
+/// Alias for [`DependencyParser`].
+pub type DepParser = DependencyParser;
+/// Alias for [`MultiTask`].
+pub type MultiTaskTagger<W> = MultiTask<W>;
 
 /// Writes the part-of-speech layer from a SCHEME_TAGS head.
 pub struct PosTagger {

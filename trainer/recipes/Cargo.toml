@@ -27,3 +27,7 @@ turbo-zoo = { path = "../../analysis/zoo", default-features = false }
 # The receipt.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+turbo-analysis = { path = "../../analysis/core" }
+turbo-analysis-layers = { path = "../../analysis/layers" }

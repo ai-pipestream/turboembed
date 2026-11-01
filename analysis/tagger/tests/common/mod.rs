@@ -90,6 +90,7 @@ pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
             HeadKind::BiaffineParser => parser::tensors(&spec, 32),
             HeadKind::EditTreeLemmatizer => lemmatizer::tensors(&spec, 32),
             HeadKind::SpanClassifier => span::tensors(&spec, 32),
+            HeadKind::CorefRanker => turbo::head::coref::tensors(&spec, 32),
             HeadKind::RelationClassifier => relation::tensors(&spec, 32),
             _ => tagger::tensors(&spec, 32),
         };

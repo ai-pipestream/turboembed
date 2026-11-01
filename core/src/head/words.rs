@@ -39,6 +39,15 @@ pub(crate) fn tensors(spec: &HeadSpec, hidden: usize) -> (Vec<(String, Vec<u64>)
     (out, width)
 }
 
+/// Appends `mix.weight` `[layers]` and `mix.gamma` `[1]` when `spec` mixes
+/// encoder layers (`spec.layer_mix`).
+pub(crate) fn push_mix(spec: &HeadSpec, out: &mut Vec<(String, Vec<u64>)>) {
+    if let Some(m) = &spec.layer_mix {
+        out.push(("mix.weight".into(), vec![m.layers as u64]));
+        out.push(("mix.gamma".into(), vec![1]));
+    }
+}
+
 /// Each tensor's value count, checked against overflow, so a width past
 /// what memory could hold is refused before anything is read.
 pub(crate) fn sizes(spec: &HeadSpec, shapes: &[(String, Vec<u64>)]) -> Result<Vec<(String, usize)>> {
@@ -91,6 +100,8 @@ impl std::fmt::Debug for AdapterLayer {
 pub(crate) struct WordReader {
     pooling: WordPooling,
     hidden: usize,
+    /// `gamma * softmax(mix.weight)` per tapped layer, when `spec.layer_mix` is set.
+    mix: Option<Vec<f32>>,
     hash: Option<Tables>,
     adapter: Vec<AdapterLayer>,
     width: usize,
@@ -100,6 +111,7 @@ pub(crate) struct WordReader {
 #[derive(Default)]
 pub struct Work {
     pub(crate) pooled: Vec<f32>,
+    tap: Vec<f32>,
     adapted: Vec<f32>,
     count: Vec<u32>,
     lstm: LstmWork,
@@ -107,6 +119,21 @@ pub struct Work {
 
 impl WordReader {
     pub(crate) fn new(spec: &HeadSpec, hidden: usize, t: &Take<'_>) -> Result<WordReader> {
+        let mix = match &spec.layer_mix {
+            Some(_) => {
+                let w = t.take("mix.weight")?;
+                let g = t.take("mix.gamma")?;
+                if !w.iter().chain(&g).all(|x| x.is_finite()) {
+                    return Err(invalid(format!("head {:?}: layer mix weights are not finite", spec.name)));
+                }
+                let max = w.iter().map(|&v| v as f64).fold(f64::NEG_INFINITY, f64::max);
+                let e: Vec<f64> = w.iter().map(|&v| (v as f64 - max).exp()).collect();
+                let z: f64 = e.iter().sum();
+                let gamma = g[0];
+                Some(e.into_iter().map(|v| gamma * (v / z) as f32).collect())
+            }
+            None => None,
+        };
         let hash = match spec.hash_embed {
             Some(h) => {
                 let take = |k| t.take(&hash_embed::suffix(k));
@@ -130,12 +157,17 @@ impl WordReader {
                 width = 2 * h;
             }
         }
-        Ok(WordReader { pooling: spec.word_pooling, hidden, hash, adapter, width })
+        Ok(WordReader { pooling: spec.word_pooling, hidden, mix, hash, adapter, width })
     }
 
     /// The width of the word vectors `read` gives.
     pub(crate) fn width(&self) -> usize {
         self.width
+    }
+
+    /// Encoder layers the reader mixes (1 when `layer_mix` is absent).
+    pub(crate) fn taps(&self) -> usize {
+        self.mix.as_ref().map_or(1, Vec::len)
     }
 
     /// Whether the reader needs each word's text (a `hash_embed`).
@@ -144,7 +176,8 @@ impl WordReader {
     }
 
     /// The word vectors [n, width] of one sequence into `w.pooled`, from
-    /// its subword states `states` [rows, hidden] and `words` [rows], each
+    /// its subword states `states` ([rows, hidden], or [taps, rows, hidden]
+    /// with `layer_mix`) and `words` [rows], each
     /// row's word index or [`NO_WORD`], and with a `hash_embed` each
     /// word's text `forms` (ignored without one). Returns n.
     ///
@@ -153,10 +186,16 @@ impl WordReader {
     /// that reads them (INVALID_ARGUMENT).
     pub(crate) fn read(&self, states: &[f32], words: &[u32], forms: Option<&[&str]>, w: &mut Work) -> Result<usize> {
         let rows = words.len();
-        if Some(states.len()) != rows.checked_mul(self.hidden) {
+        let taps = self.taps();
+        let want = taps.checked_mul(rows).and_then(|r| r.checked_mul(self.hidden));
+        if Some(states.len()) != want {
             return Err(Error::new(
                 INVALID_SHAPE,
-                format!("{} state values for {rows} rows of {}", states.len(), self.hidden),
+                if taps == 1 {
+                    format!("{} state values for {rows} rows of {}", states.len(), self.hidden)
+                } else {
+                    format!("{} state values for {taps} layers x {rows} rows of {}", states.len(), self.hidden)
+                },
             ));
         }
         if !states.iter().all(|v| v.is_finite()) {
@@ -196,29 +235,51 @@ impl WordReader {
 
     fn pool(&self, states: &[f32], words: &[u32], n: usize, w: &mut Work) {
         let h = self.hidden;
-        w.pooled.clear();
-        w.pooled.resize(n * h, 0.0);
-        let count = &mut w.count;
-        count.clear();
-        count.resize(n, 0);
-        for (r, &word) in words.iter().enumerate() {
-            if word == NO_WORD {
-                continue;
+        let rows = words.len();
+        if let Some(scales) = &self.mix {
+            w.pooled.clear();
+            w.pooled.resize(n * h, 0.0);
+            let block = rows * h;
+            for (t, &scale) in scales.iter().enumerate() {
+                pool_tap(self.pooling, h, &states[t * block..(t + 1) * block], words, n, &mut w.tap, &mut w.count);
+                w.pooled.iter_mut().zip(&w.tap).for_each(|(dst, &v)| *dst += scale * v);
             }
-            let i = word as usize;
-            let (row, dst) = (&states[r * h..][..h], &mut w.pooled[i * h..][..h]);
-            match self.pooling {
-                WordPooling::First if count[i] == 0 => dst.copy_from_slice(row),
-                WordPooling::First => {}
-                WordPooling::Mean => dst.iter_mut().zip(row).for_each(|(d, s)| *d += s),
-            }
-            count[i] += 1;
+        } else {
+            pool_tap(self.pooling, h, states, words, n, &mut w.pooled, &mut w.count);
         }
-        if self.pooling == WordPooling::Mean {
-            for (i, &c) in w.count.iter().enumerate() {
-                let inv = 1.0 / c as f32;
-                w.pooled[i * h..][..h].iter_mut().for_each(|v| *v *= inv);
-            }
+    }
+}
+
+fn pool_tap(
+    pooling: WordPooling,
+    h: usize,
+    states: &[f32],
+    words: &[u32],
+    n: usize,
+    out: &mut Vec<f32>,
+    count: &mut Vec<u32>,
+) {
+    out.clear();
+    out.resize(n * h, 0.0);
+    count.clear();
+    count.resize(n, 0);
+    for (r, &word) in words.iter().enumerate() {
+        if word == NO_WORD {
+            continue;
+        }
+        let i = word as usize;
+        let (row, dst) = (&states[r * h..][..h], &mut out[i * h..][..h]);
+        match pooling {
+            WordPooling::First if count[i] == 0 => dst.copy_from_slice(row),
+            WordPooling::First => {}
+            WordPooling::Mean => dst.iter_mut().zip(row).for_each(|(d, s)| *d += s),
+        }
+        count[i] += 1;
+    }
+    if pooling == WordPooling::Mean {
+        for (i, &c) in count.iter().enumerate() {
+            let inv = 1.0 / c as f32;
+            out[i * h..][..h].iter_mut().for_each(|v| *v *= inv);
         }
     }
 }

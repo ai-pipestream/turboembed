@@ -1996,6 +1996,7 @@ dependencies = [
  "turbo-pins",
  "turbo-sentdetect",
  "turbo-tokenize",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-zoo",
@@ -2172,6 +2173,7 @@ name = "turbo-eval"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "ring",
  "serde",
  "serde_json",
  "turbo",
@@ -2185,11 +2187,13 @@ dependencies = [
  "turbo-pins",
  "turbo-sat",
  "turbo-sentdetect",
+ "turbo-sha256",
  "turbo-stem",
  "turbo-structure",
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
+ "turbo-zoo",
  "turbo-zstd",
  "ureq",
 ]
@@ -2425,6 +2429,7 @@ dependencies = [
  "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-structure",
+ "turbo-tagger",
  "turbo-tokenize",
  "turbo-tokenize-layers",
  "turbo-vector-index",
@@ -2801,7 +2806,9 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-morfologik",
  "turbo-relation",
+ "turbo-unicode",
  "turbo-wordnet",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2903,7 +2910,9 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo",
+ "turbo-analysis",
  "turbo-analysis-embed",
+ "turbo-analysis-layers",
  "turbo-formats",
  "turbo-tagger",
  "turbo-train-recipes",
