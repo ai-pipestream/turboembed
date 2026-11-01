@@ -28,6 +28,7 @@ fn spec(kind: HeadKind, labels: &[&str], decode: Decode) -> HeadSpec {
         layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "seg".into(),

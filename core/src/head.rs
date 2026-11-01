@@ -14,6 +14,7 @@ mod linear;
 mod words;
 pub use linear::Linear;
 pub mod boundary;
+pub mod coref;
 pub mod crf;
 pub mod edit_tree;
 pub mod hash_embed;
@@ -25,6 +26,7 @@ pub mod split;
 pub mod tagger;
 pub mod tree;
 pub use boundary::SentenceBoundary;
+pub use coref::CorefRanker;
 pub use lemmatizer::EditTreeLemmatizer;
 pub use parser::BiaffineParser;
 pub use relation::RelationClassifier;
@@ -33,6 +35,8 @@ pub use split::TokenSplitter;
 pub use tagger::TokenTagger;
 #[cfg(test)]
 mod boundary_tests;
+#[cfg(test)]
+mod coref_tests;
 #[cfg(test)]
 mod edit_tree_tests;
 #[cfg(test)]

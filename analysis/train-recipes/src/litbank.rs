@@ -82,6 +82,12 @@ pub fn files() -> impl Iterator<Item = File> + 'static {
     })
 }
 
+/// The 100 coreference `.conll` files of [`FILES`], in the sorted order
+/// [`SPLIT`] partitions.
+pub fn coref_files() -> impl Iterator<Item = File> + 'static {
+    files().filter(|f| f.path.starts_with("coref/conll/"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,7 +105,8 @@ mod tests {
             ),
         ];
         let files: Vec<_> = files().collect();
-        assert_eq!(files.len(), fixtures.len());
+        assert_eq!(coref_files().count(), WORKS);
+        assert_eq!(files.len(), WORKS + 1);
         for (path, bytes) in fixtures {
             let file = files.iter().find(|f| f.path == path).unwrap();
             assert_eq!(file.size, bytes.len() as u64);

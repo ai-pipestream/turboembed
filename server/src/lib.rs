@@ -154,6 +154,8 @@ pub struct Serve {
     pub prefetch: bool,
     pub vocabulary: Option<PathBuf>,
     pub catalog: Option<catalog::Catalog>,
+    /// Google sign-in for users' Drive sources (docs/grpc-catalog.md).
+    pub drive: Option<catalog::DriveSignIn>,
     pub training: Option<PathBuf>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
@@ -254,6 +256,7 @@ impl Server {
             serve.admin,
             serve.zoo,
             serve.prefetch,
+            serve.drive,
         ))
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);

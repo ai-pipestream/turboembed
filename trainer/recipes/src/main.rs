@@ -25,6 +25,8 @@
 //!     [--min-tree-freq N])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
+//! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
+//!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N])
 //! turbo-train-head distill-head --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
 //!     [--student-bundle <student bundle>] [--teacher <teacher dir>] [--temperature T] [--alpha A]
 //!     [--max-accuracy-drop X] [--min-speedup X] [--allow-gate-failure] [head and training settings]
@@ -58,6 +60,7 @@ use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
+mod train_coref;
 mod train_relation;
 mod train_split;
 mod train_ud;
@@ -100,35 +103,42 @@ fn run(argv: Vec<String>) -> Result<()> {
             let commit = commit(a.value("--commit")?);
             a.done()?;
             let t = Instant::now();
-            let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-            let read = t.elapsed().as_secs_f64();
+            let (record, eval, read) = if corpus_id == turbo_trainer_recipes::litbank::ID {
+                let coref = turbo_trainer_recipes::litbank::read_coref(&dir, unrecorded)?;
+                let read = t.elapsed().as_secs_f64();
+                let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
+                let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
+                (
+                    coref.record,
+                    EvalRecord { split: "test".into(), model: None, baseline, comparison: None, uas: None },
+                    read,
+                )
+            } else {
+                let c = read_corpus(&corpus_id, &dir, unrecorded)?;
+                let read = t.elapsed().as_secs_f64();
+                let base = baseline(&c.splits.train, &c.splits.test);
+                let baseline =
+                    evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
+                (
+                    c.record,
+                    EvalRecord { split: "test".into(), model: None, baseline, comparison: None, uas: None },
+                    read,
+                )
+            };
             let t = Instant::now();
-            let base = baseline(&c.splits.train, &c.splits.test);
             let receipt = Receipt {
                 schema: SCHEMA.into(),
                 command: argv.clone(),
                 commit,
                 host: host(),
                 unix_time: unix_time(),
-                corpus: c.record.clone(),
+                corpus: record,
                 encoder: None,
                 head: None,
                 peer: None,
                 config: None,
                 training: None,
-                eval: EvalRecord {
-                    split: "test".into(),
-                    model: None,
-                    baseline: evaluate(
-                        c.record.task,
-                        &c.splits.test,
-                        &base,
-                        &Seen::of(&c.splits.train),
-                        coarse(&corpus_id),
-                    ),
-                    comparison: None,
-                    uas: None,
-                },
+                eval,
                 timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
                 outputs: Vec::new(),
             };
@@ -146,8 +156,9 @@ fn run(argv: Vec<String>) -> Result<()> {
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, distill-head, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-coref, distill-head, cache, fit-cache, export or peer"
         ))),
     }
 }

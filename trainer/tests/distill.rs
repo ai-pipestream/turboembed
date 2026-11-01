@@ -46,6 +46,7 @@ fn spec(labels: &[&str], adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.pos".into(),

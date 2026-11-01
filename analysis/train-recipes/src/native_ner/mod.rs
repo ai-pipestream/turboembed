@@ -40,6 +40,7 @@ pub fn head() -> HeadSpec {
         layer_mix: None,
         span: None,
         relation: None,
+        coref: None,
         license_class: Some(turbo::manifest::LicenseClass::Permissive),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.masc-ner".into(),
