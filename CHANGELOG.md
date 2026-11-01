@@ -34,6 +34,16 @@ for the release after it goes above it.
   x86_64 (cpu), each with the library, the headers and the server
   (docs/release.md) (#1326).
 - This changelog, and the compatibility policy in docs/release.md.
+- Versioned `turbo.<name>.v1` gRPC packages, with a `buf breaking`
+  check against main in CI (#1342).
+- Container images of `turbo-kserve`, CPU and CUDA, pushed to GHCR for
+  each tag (docs/release.md) (#1327).
+- TLS and mTLS, Prometheus metrics, and gRPC deadlines on the server
+  (docs/grpc.md) (#1343).
+- The integration guide (docs/integration.md) and server examples with
+  Java and Python clients (#1331, #1422).
+- Named analysis profiles on `AnalyzeDocumentProgressive`: `default-v1`,
+  `retrieval-v1` and `minimal-v1` (docs/grpc-analysis.md) (#1340).
 - The ModernBERT and nomic-bert families in the bundle format and
   `turbo_backend.h`: rotary positions, sliding-window attention, gated
   MLPs and bias-free norms, with the core's cos/sin table appended to
@@ -75,11 +85,8 @@ for the release after it goes above it.
 
 ### Not in this release yet
 
-Open in the Integration v0 milestone, and listed here as each lands:
-versioned `turbo.<name>.v1` gRPC packages and a breaking-change gate
-(#1296), published client stubs (#1297), container images (#1298), TLS,
-metrics and deadlines (#1300), an integration guide (#1301) and named
-analysis profiles (#1302).
+Published client stubs (#1297) are still open in the Integration v0
+milestone.
 
 ## v0.1.0 (2026-10-09)
 
