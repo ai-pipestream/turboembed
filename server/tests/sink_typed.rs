@@ -2,6 +2,8 @@
 //! for it forwards each document graph with the projection
 //! InspectDocumentGraph answers for it, one without it forwards the item as
 //! before, and the sink refuses a projection RoundTripTypedDocument would.
+//! With `documents` set, every AnalyzeDocumentProgressive call forwards its
+//! complete graph the same way.
 
 mod common;
 
@@ -9,13 +11,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use common::{open_stream, tiny};
+use tokio_stream::StreamExt;
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::Sentences;
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+use turbo_kserve::proto::result::analyze_progressive_event::Event;
 use turbo_kserve::proto::result::{
-    AnalyzeStreamResponse, DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, TypedDocumentResult,
+    AnalyzePipelineRequest, AnalyzeStreamResponse, DocumentGraphRequest, DocumentGraphResponse,
+    InspectDocumentGraphRequest, OffsetMode, TypedDocumentResult,
 };
 use turbo_kserve::proto::sink::DocumentSinkItem;
 use turbo_kserve::proto::sink::turbo_sink_service_client::TurboSinkServiceClient;
@@ -59,8 +64,12 @@ async fn sink_server() -> (Server, Got) {
 }
 
 async fn sender(sink: &Server, typed: Option<SinkTyped>) -> Server {
+    sender_with(sink, false, typed).await
+}
+
+async fn sender_with(sink: &Server, documents: bool, typed: Option<SinkTyped>) -> Server {
     let endpoint = format!("http://{}", sink.local_addr());
-    let config = SinkConfig { endpoint, max_queue_items: 16, max_queue_bytes: 64 << 20, typed };
+    let config = SinkConfig { endpoint, max_queue_items: 16, max_queue_bytes: 64 << 20, documents, typed };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap()
 }
@@ -193,6 +202,97 @@ async fn the_sink_refuses_a_projection_round_trip_typed_document_refuses() {
     let kept = got.lock().unwrap().clone();
     assert_eq!(kept.len(), 1);
     assert_eq!(kept[0].typed.as_ref(), Some(&typed));
+    s.stop().await;
+    sink.stop().await;
+}
+
+/// Runs one AnalyzeDocumentProgressive call of the default profile on `s`
+/// and answers its Complete event.
+async fn progressive(s: &Server, doc_id: &str) -> DocumentGraphResponse {
+    let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let req = AnalyzePipelineRequest {
+        doc_id: doc_id.into(),
+        text: TEXT.into(),
+        offsets: OffsetMode::Utf8 as i32,
+        profile: "default".into(),
+        ..Default::default()
+    };
+    let mut stream = c.analyze_document_progressive(req).await.unwrap().into_inner();
+    let mut complete = None;
+    while let Some(ev) = stream.next().await {
+        if let Some(Event::Complete(done)) = ev.unwrap().event {
+            complete = Some(done);
+        }
+    }
+    complete.expect("the call ends with its complete graph")
+}
+
+/// Waits, up to two seconds, for the sender to offer or refuse a graph:
+/// it does once the call's reply has ended.
+async fn settle(s: &Server) {
+    let start = std::time::Instant::now();
+    while start.elapsed() < Duration::from_secs(2) {
+        let st = s.sink_stats().unwrap();
+        if st.offered + st.refused > 0 {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+#[tokio::test]
+async fn a_progressive_call_forwards_its_graph_with_the_typed_projection() {
+    let (sink, got) = sink_server().await;
+    let s = sender_with(&sink, true, Some(SinkTyped { view: 0, offsets: OffsetMode::Utf16 })).await;
+    let complete = progressive(&s, "doc-p").await;
+    settle(&s).await;
+    let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+    assert_eq!((stats.offered, stats.forwarded, stats.dropped, stats.refused), (1, 1, 0, 0), "{stats:?}");
+    let summary = stats.last_summary.unwrap();
+    assert_eq!((summary.accepted_count, summary.rejected_count), (1, 0), "{:?}", summary.errors);
+    let item = got.lock().unwrap().pop().unwrap();
+    let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let listed = c.round_trip_document_graph(DocumentGraphRequest { graph: complete.graph.clone() }).await;
+    let listed = listed.unwrap().into_inner();
+    assert_eq!(item.doc_id, "doc-p");
+    assert_eq!(item.graph, listed.graph.to_vec());
+    assert_eq!((&item.layers, &item.views), (&listed.layers, &listed.views));
+    assert_eq!(item.layers, complete.layers, "the layers the call's Complete event listed");
+    assert!(item.analyzed.is_none());
+    let typed = item.typed.clone().expect("the item carries the typed projection");
+    let want =
+        TypedDocumentResult { doc_id: "doc-p".into(), ..inspect(&s, complete.graph.to_vec(), OffsetMode::Utf16).await };
+    assert_eq!(typed, want);
+    assert_eq!(typed.raw_text, TEXT);
+    assert!(!typed.layers.is_empty());
+    s.stop().await;
+    sink.stop().await;
+}
+
+#[tokio::test]
+async fn without_documents_a_progressive_call_forwards_nothing() {
+    let (sink, got) = sink_server().await;
+    let s = sender_with(&sink, false, Some(SinkTyped { view: 0, offsets: OffsetMode::Utf8 })).await;
+    progressive(&s, "doc-p").await;
+    settle(&s).await;
+    let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+    assert_eq!((stats.offered, stats.forwarded), (0, 0), "{stats:?}");
+    assert!(got.lock().unwrap().is_empty());
+    s.stop().await;
+    sink.stop().await;
+}
+
+#[tokio::test]
+async fn a_progressive_graph_without_the_typed_view_is_refused_and_counted() {
+    let (sink, got) = sink_server().await;
+    let s = sender_with(&sink, true, Some(SinkTyped { view: 9, offsets: OffsetMode::Utf8 })).await;
+    // The call itself completes as it would without a sink.
+    progressive(&s, "doc-p").await;
+    settle(&s).await;
+    let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+    assert_eq!((stats.offered, stats.refused), (0, 1), "{stats:?}");
+    assert!(stats.last_error.as_deref().is_some_and(|e| e.contains("target view 9")), "{stats:?}");
+    assert!(got.lock().unwrap().is_empty());
     s.stop().await;
     sink.stop().await;
 }

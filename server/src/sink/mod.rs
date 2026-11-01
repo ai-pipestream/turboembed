@@ -48,6 +48,9 @@ pub struct SinkConfig {
     pub endpoint: String,
     pub max_queue_items: usize,
     pub max_queue_bytes: u64,
+    /// Whether every AnalyzeDocumentProgressive call that ends with its
+    /// complete graph forwards that graph too.
+    pub documents: bool,
     /// The typed projection every item carrying a graph also carries;
     /// `None` sends none, and items are as they were without it.
     pub typed: Option<SinkTyped>,
@@ -63,6 +66,10 @@ pub struct SinkStats {
     pub forwarded: u64,
     /// Refused by a full queue.
     pub dropped: u64,
+    /// Document graphs refused before the queue: a graph that does not
+    /// import, or one without the typed projection's view. The latest
+    /// reason is `last_error`.
+    pub refused: u64,
     /// Left in the queue when close stopped a drain at its deadline.
     pub abandoned: u64,
     /// Items in the queue now, and their encoded bytes.
@@ -81,6 +88,7 @@ struct Counters {
     offered: AtomicU64,
     forwarded: AtomicU64,
     dropped: AtomicU64,
+    refused: AtomicU64,
     abandoned: AtomicU64,
     queued: AtomicU64,
     queued_bytes: AtomicU64,
@@ -96,6 +104,7 @@ pub(crate) struct SinkForwarder {
     tx: Mutex<Option<mpsc::Sender<Queued>>>,
     rx: Arc<Mutex<mpsc::Receiver<Queued>>>,
     max_bytes: u64,
+    documents: bool,
     typed: Option<SinkTyped>,
     counters: Arc<Counters>,
     task: Mutex<Option<JoinHandle<()>>>,
@@ -121,6 +130,7 @@ impl SinkForwarder {
             tx: Mutex::new(Some(tx)),
             rx,
             max_bytes: config.max_queue_bytes,
+            documents: config.documents,
             typed: config.typed,
             counters,
             task: Mutex::new(Some(task)),
@@ -143,8 +153,20 @@ impl SinkForwarder {
     /// Answers whether the queue took it. Imports the graph: call it off
     /// the async runtime.
     pub(crate) fn offer_graph(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, Failure> {
-        let item = document::graph_item(doc_id, graph, self.typed)?;
-        Ok(self.enqueue(item))
+        match document::graph_item(doc_id, graph, self.typed) {
+            Ok(item) => Ok(self.enqueue(item)),
+            Err(f) => {
+                let c = &self.counters;
+                c.refused.fetch_add(1, Ordering::Relaxed);
+                c.last.lock().unwrap_or_else(|p| p.into_inner()).0 = Some(format!("document {doc_id}: {}", f.message));
+                Err(f)
+            }
+        }
+    }
+
+    /// Whether AnalyzeDocumentProgressive graphs are forwarded.
+    pub(crate) fn documents(&self) -> bool {
+        self.documents
     }
 
     /// Queues `item`, or drops and counts it when the queue is full.
@@ -181,6 +203,7 @@ impl SinkForwarder {
             offered: c.offered.load(Ordering::Relaxed),
             forwarded: c.forwarded.load(Ordering::Relaxed),
             dropped: c.dropped.load(Ordering::Relaxed),
+            refused: c.refused.load(Ordering::Relaxed),
             abandoned: c.abandoned.load(Ordering::Relaxed),
             queued: c.queued.load(Ordering::Relaxed),
             queued_bytes: c.queued_bytes.load(Ordering::Relaxed),
@@ -308,6 +331,7 @@ mod tests {
             endpoint: "http://127.0.0.1:1".into(),
             max_queue_items: items,
             max_queue_bytes: bytes,
+            documents: false,
             typed: None,
         };
         let f = SinkForwarder::start(&config(2, 1 << 20)).unwrap();

@@ -354,8 +354,8 @@ impl Server {
     /// the typed projection when `SinkConfig::typed` asks for one. Answers
     /// whether the queue took it; a full queue drops and counts it. A graph
     /// that does not import, or a projection it cannot give (a view it
-    /// does not have), is refused and not offered, as is a graph for a
-    /// server without a sink.
+    /// does not have), is refused, not offered and counted refused; a graph
+    /// for a server without a sink is refused too.
     pub async fn forward_document(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, api::Failure> {
         let sink = self.sink.clone().ok_or_else(sink::no_sink)?;
         let doc_id = doc_id.to_owned();

@@ -194,7 +194,8 @@ impl AnalysisService for Analysis {
         &self,
         req: Request<AnalyzePipelineRequest>,
     ) -> Reply<Self::AnalyzeDocumentProgressiveStream> {
-        progressive::start_progressive(&self.state, req).await
+        let sink = self.sink.clone().filter(|s| s.documents());
+        progressive::start_progressive(&self.state, req, sink).await
     }
 
     async fn inspect_document_window(&self, req: Request<DocumentWindowRequest>) -> Reply<DocumentWindowResponse> {

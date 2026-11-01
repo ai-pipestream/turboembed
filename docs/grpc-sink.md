@@ -43,7 +43,7 @@ completed them. A call that fails is counted as it fails, also while no
 item is waiting, and a new one opens half a second later; the items it
 had taken are lost with it. `Server::sink_stats` gives the counts:
 offered, forwarded (taken by a call to send), dropped (refused by a full
-queue), abandoned (left in the queue when a close stopped the drain),
+queue), refused (document graphs refused before the queue), abandoned (left in the queue when a close stopped the drain),
 queued items and bytes, failed calls with the last
 error, and the last summary a sink answered with. When the server
 stops, it closes the queue and waits up to 10 seconds for what the queue
@@ -53,24 +53,46 @@ does that on its own and answers with the final counts.
 
 ## Forwarding document graphs
 
-A program embedding the server forwards a document graph with
-`Server::forward_document(doc_id, graph)`. The graph is imported and
-re-exported, and the item carries the re-exported bytes with their
-layers and views listed, as `RoundTripDocumentGraph` answers them. It goes
-through the same queue, counts and numbering as an `AnalyzeStream` answer,
-and the call answers whether the queue took it. A graph that does not
-import, or a server without a sink, is refused and nothing is offered.
+With `--sink-documents` as well (`SinkConfig::documents`), every
+`AnalyzeDocumentProgressive` call that ends with its `Complete` event, the
+document's whole graph, forwards that graph once the client has been
+handed the event and the reply has ended. The item's `doc_id` is the
+request's `doc_id`, as the call's own events carry it, empty when the
+request gives none, as an `AnalyzeStream` answer carries the id its
+document gave. A call that ends in an error, runs out of time, or whose
+client went away before the `Complete` event is not forwarded. Forwarding
+never fails or delays the call: a full queue drops and counts the item as
+it does an `AnalyzeStream` answer. Without the flag, progressive calls
+forward nothing.
 
-`SinkConfig::typed` asks for the typed projection on these items:
-`Some(SinkTyped { view, offsets })`, where `view` (`u32`) and `offsets`
-(`OffsetMode`) mean what they mean on `InspectDocumentGraphRequest`. The
-projection is built from the item's own graph bytes by the projection
-`InspectDocumentGraph` uses, so it equals what that call answers for the
-same graph and options. A view over `u16::MAX` refuses the start; a view
-a document does not have refuses that document, and nothing is offered.
-With `typed: None`, the default, items carry no projection and are what
-they were before it existed. Items carrying an `AnalyzeStream` answer
-never carry one: they have no graph.
+A program embedding the server forwards a document graph itself with
+`Server::forward_document(doc_id, graph)`, which answers whether the queue
+took it, and refuses, with nothing offered, a graph for a server without
+a sink.
+
+Either way, the graph is imported and re-exported, and the item carries
+the re-exported bytes with their layers and views listed, as
+`RoundTripDocumentGraph` answers them. It goes through the same queue,
+counts and numbering as an `AnalyzeStream` answer. A graph that does not
+import, or one the typed projection cannot be built for, is refused
+before the queue and counted `refused` in `Server::sink_stats`, with the
+reason as the last error.
+
+## The typed projection
+
+`--sink-typed-offsets utf8|utf16|code-point` asks for the typed
+projection on every item carrying a graph, with `--sink-typed-view N`
+(default 0, the source view) choosing the view; both need
+`--sink-endpoint`, and the view needs the offsets. In the library it is
+`SinkConfig::typed`, `Some(SinkTyped { view, offsets })`, where `view`
+(`u32`) and `offsets` (`OffsetMode`) mean what they mean on
+`InspectDocumentGraphRequest`. The projection is built from the item's
+own graph bytes by the projection `InspectDocumentGraph` uses, so it
+equals what that call answers for the same graph and options. A view
+over 65535 refuses the start; a view a document does not have refuses
+that document, which is counted `refused`. Without it, the default, items
+carry no projection and are what they were before it existed. Items
+carrying an `AnalyzeStream` answer never carry one: they have no graph.
 
 ## Serving the sink
 
