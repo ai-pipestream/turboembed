@@ -123,7 +123,7 @@ impl DocumentFormatter for JsonLdFormatter {
                 let text = &source_text[src.range()];
                 let _ = write!(
                     s,
-                    "{{\"@type\": \"opennlp:Sentence\", \"index\": {i}, \"start\": {start}, \"end\": {end}, \"text\": {}}}",
+                    "{{\"@type\": \"turbo:Sentence\", \"index\": {i}, \"start\": {start}, \"end\": {end}, \"text\": {}}}",
                     json_string(text),
                 );
             }
@@ -169,7 +169,7 @@ impl DocumentFormatter for JsonLdFormatter {
                 };
                 let _ = write!(
                     s,
-                    "{{\"@type\": \"opennlp:Token\", \"index\": {i}, \"sentence\": {sent_idx}, \"start\": {start}, \"end\": {end}, \"text\": {}, \"pos\": {}, \"lemma\": {}, \"stem\": {}, \"feats\": {}, \"head\": {head_json}, \"deprel\": {}, \"stopword\": {stop_val}}}",
+                    "{{\"@type\": \"turbo:Token\", \"index\": {i}, \"sentence\": {sent_idx}, \"start\": {start}, \"end\": {end}, \"text\": {}, \"pos\": {}, \"lemma\": {}, \"stem\": {}, \"feats\": {}, \"head\": {head_json}, \"deprel\": {}, \"stopword\": {stop_val}}}",
                     json_string(text),
                     json_string(pos_tag),
                     json_string(lemma_val),
@@ -251,7 +251,7 @@ impl DocumentFormatter for JsonLdFormatter {
                 let score = entities.score[row];
                 let _ = write!(
                     s,
-                    "{{\"@type\": \"opennlp:Entity\", \"index\": {row}, \"kind\": {}, \"start\": {start}, \"end\": {end}, \"fragments\": {frags_json}, \"text\": {}, \"score\": {}}}",
+                    "{{\"@type\": \"turbo:Entity\", \"index\": {row}, \"kind\": {}, \"start\": {start}, \"end\": {end}, \"fragments\": {frags_json}, \"text\": {}, \"score\": {}}}",
                     json_string(label),
                     json_string(&text),
                     format_json_f64(score),

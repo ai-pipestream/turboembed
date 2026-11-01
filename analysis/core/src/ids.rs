@@ -10,6 +10,11 @@
 //! or nested in a generic name such as `turbo:categories<...>`, to its
 //! current id and leaves every other name as it is. Writers only ever
 //! write the current ids.
+//!
+//! Model ids (`ModelRef::id`) moved with them: each one is
+//! `turbo:<Component>` with the language or name after another colon
+//! where the model has one. Readers of stored provenance pass the id
+//! through [`canonical_model_id`].
 
 use std::borrow::Cow;
 
@@ -71,6 +76,47 @@ const LEGACY: &[(&str, &str)] = &[
 /// sources or data for ids that should no longer be written.
 pub fn legacy_ids() -> impl Iterator<Item = (String, &'static str)> {
     LEGACY.iter().map(|&(old, new)| (format!("{LEGACY_NAMESPACE}{old}"), new))
+}
+
+/// The namespace every model id is written in.
+pub const MODEL_NAMESPACE: &str = "turbo:";
+
+/// The components whose model ids were written in [`LEGACY_NAMESPACE`].
+/// A model id is the namespace, the component, and for most of them a
+/// third part: the model's language, or a dictionary's name.
+const LEGACY_MODELS: &[&str] = &[
+    "SentenceDetectorME",
+    "POSTaggerME",
+    "ChunkerME",
+    "DocumentCategorizerME",
+    "SentimentME",
+    "SvmDoccatModel",
+    "CorefAnnotator",
+    "LanguageDetectorME",
+    "DictionaryLemmatizer",
+    "UnigramSegmenter",
+    "MecabDictionary",
+    "MorfologikDictionary",
+    "MorfologikDictionaryReader",
+    "PoliMorfDictionaryReader",
+    "FeedforwardPOSModel",
+    "BilstmPOSModel",
+];
+
+/// Every legacy model id prefix (namespace and component, without the
+/// language part) with the prefix that replaced it.
+pub fn legacy_model_ids() -> impl Iterator<Item = (String, String)> {
+    LEGACY_MODELS.iter().map(|c| (format!("{LEGACY_NAMESPACE}{c}"), format!("{MODEL_NAMESPACE}{c}")))
+}
+
+/// `id` with a legacy model namespace replaced by the current one. The
+/// component after the namespace must be one that was written in it;
+/// any other id, which is every id this build writes, comes back
+/// borrowed.
+pub fn canonical_model_id(id: &str) -> Cow<'_, str> {
+    let Some(rest) = id.strip_prefix(LEGACY_NAMESPACE) else { return Cow::Borrowed(id) };
+    let component = rest.split(':').next().unwrap_or(rest);
+    if LEGACY_MODELS.contains(&component) { Cow::Owned(format!("{MODEL_NAMESPACE}{rest}")) } else { Cow::Borrowed(id) }
 }
 
 /// The current id for one bare legacy id, if `id` is one.
@@ -152,6 +198,33 @@ mod tests {
         // Multibyte text around an id stays byte for byte.
         let wide = format!("é<{}>ü", old("tokens"));
         assert_eq!(canonical_layer_name(&wide), "é<turbo:tokens>ü");
+    }
+
+    #[test]
+    fn legacy_model_ids_map_with_their_language_part() {
+        let old = |s: &str| format!("{LEGACY_NAMESPACE}{s}");
+        assert_eq!(canonical_model_id(&old("SentenceDetectorME:en")), "turbo:SentenceDetectorME:en");
+        assert_eq!(
+            canonical_model_id(&old("DictionaryLemmatizer:en-lemmatizer.dict")),
+            "turbo:DictionaryLemmatizer:en-lemmatizer.dict"
+        );
+        assert_eq!(canonical_model_id(&old("MecabDictionary")), "turbo:MecabDictionary");
+        for (old, new) in legacy_model_ids() {
+            assert_eq!(canonical_model_id(&old), new);
+            assert!(new.starts_with(MODEL_NAMESPACE));
+        }
+    }
+
+    #[test]
+    fn current_and_unknown_model_ids_pass_through_borrowed() {
+        let old = |s: &str| format!("{LEGACY_NAMESPACE}{s}");
+        for id in ["turbo:SentenceDetectorME:en", "turbo:depparse-linear", "acme/model", "", "turbo:tokens"] {
+            assert!(matches!(canonical_model_id(id), Cow::Borrowed(n) if n == id));
+        }
+        // A model that never had a legacy id, and a layer id, are left alone.
+        for id in [old("Unknown:en"), old("tokens"), old("SentenceDetectorME-extra"), old("")] {
+            assert!(matches!(canonical_model_id(&id), Cow::Borrowed(n) if n == id));
+        }
     }
 
     #[test]

@@ -125,17 +125,25 @@ maximum is of the unscaled scores, and each probability is
 times log2 e less the maximum's. `ex2.approx` is within 2 ulp of F32,
 below the F16 rounding the probabilities take for P V.
 The output's F16 sums carry their error across every key of a row, so
-a session whose max_seq is over 4096 takes F32 sums of the scores and
-the output by default (`mma128-acc32`): on nomic-embed-text-v1.5 at
-FASTEST, 8 rows of 8192 synthetic tokens against the CPU, the F16 sums
-gave 1 - lowest cosine 1.41e-3, over FASTEST's bound of 1e-3 (1.5e-4 at
-4096 tokens), and F32 sums 1.1e-6 (docs/receipts/cuda-1461/). The F32
-sums make that attention slower; no timing of the cost is recorded yet.
+a session whose max_seq is over 4096 takes F32 cross-chunk sums of the
+output by default (`mma128-acc32`): each chunk's head products for the
+scores and its 32 or 64 key products for the output are summed in F16 on
+the tensor cores (full rate on GeForce, where F32 tensor-core
+accumulation is half rate) and widened to F32 at the end of the chunk,
+where the running output is rescaled and accumulated in F32. On
+nomic-embed-text-v1.5 at FASTEST, 8 rows of 8192 synthetic tokens
+against the CPU, the whole-row F16 sums (`mma128`) gave 1 - lowest
+cosine 1.41e-3, over FASTEST's bound of 1e-3 (1.5e-4 at 4096 tokens),
+while `mma128-acc32` gives 1.1e-6 (docs/receipts/cuda-1461/) at the
+same speed as `mma128` (on an RTX 4080 SUPER, 51.1 ms median at 1 x
+8192 and 377.6 ms at 8 x 8192 against 61.6 and 493.8 ms with F32
+tensor-core accumulation throughout, and 47.4 and 405.7 ms against 56.5
+and 454.5 ms on ModernBERT-base).
 `TURBO_CUDA_ATTENTION=128` (or a `TURBO_CUDA_CHOICES` line naming
-`mma128`) still gives such a session the F16 sums, for measuring.
-`TURBO_CUDA_ATTENTION=acc32` keeps F32 sums of the scores and the
-output, the arithmetic before the F16 sums, and
-`TURBO_CUDA_ATTENTION=exact` keeps the earlier softmax as well, the
+`mma128`) still gives such a session the whole-row F16 sums, for
+measuring. `TURBO_CUDA_ATTENTION=acc32` forces `mma128-acc32` at any
+length, and `TURBO_CUDA_ATTENTION=exact` keeps F32 tensor-core
+accumulation throughout and the earlier softmax as well, the
 scores scaled before the maximum is taken and `exp2f` for each
 probability, which gives the earliest bits; the default agrees with
 each within FASTEST's bound. Both widths fit two blocks to an SM.
@@ -536,13 +544,15 @@ older than the runtime, it lists none and the runtime's log says why.
      (64 keys for the FMA kernel, 256 on the tensor cores), the softmax
      carried from one block of keys to the next by its running largest
      score (flash attention's rescaling), with no mask read but the key
-     bias of a row that has masked tokens. EXACT and MODEL take 32
+     bias of a row that has masked tokens. EXACT and MODEL take 64
      queries of one head of one row to a block of 128 threads and compute
-     QKᵀ and then PV as register tiles, each thread 4 queries by 4 keys
-     and then 4 queries by head_dim / 16 values, every sum in the order
-     of the head's values or the keys' positions. FASTEST with heads of
-     32 or 64 computes QKᵀ and PV with `mma.sync` on the tensor cores, 64
-     queries to a block, F32 accumulators, softmax in F32;
+     QKᵀ and then PV as register tiles, each thread 8 queries by 4 keys
+     and then 8 queries by head_dim / 16 values, Q and K coalesced
+     through 4 × 4 register transposes and XOR-swizzled in shared memory,
+     every sum in the order of the head's values or the keys' positions.
+     FASTEST with heads of 32 or 64 computes QKᵀ and PV with `mma.sync`
+     on the tensor cores, 128 queries to a block (or 64 with `mma64`),
+     softmax in F32;
   3. the attention output GEMM, with its bias, the residual and
      LayerNorm in its epilogue: each tile's finishing block adds the
      bias and the residual into the hidden states and counts the tile
@@ -812,11 +822,14 @@ Attention takes a window per layer: a ModernBERT layer `l` with
 `l % global_every` not 0 reads, for query `i`, the keys `j` with
 `|i - j| <= attention_window / 2`. Every attention kernel reads only the
 chunks of keys that some query of its block can see, and masks the band's
-edges as it masks a masked key; the attention of 128 queries on the
-tensor cores also skips, per warp, a chunk outside the warp's band and
-takes a chunk wholly inside it as an unmasked one. A query that sees no
-live key (a pad at the start of a left-padded row, in a local layer)
-reads nothing: its context is 0, as on the CPU.
+edges as it masks a masked key; the FMA tiled attention of 64 queries
+(`fma-tiled`) takes a chunk wholly inside the row and the block's band,
+with no masked key, without per-key bounds or mask tests, and the
+attention of 128 queries on the tensor cores also skips, per warp, a
+chunk outside the warp's band and takes a chunk wholly inside it as an
+unmasked one. A query that sees no live key (a pad at the start of a
+left-padded row, in a local layer) reads nothing: its context is 0, as on
+the CPU.
 
 ModernBERT is pre-norm: the residual stays in F32 in `x`; after each
 residual add a kernel writes the sum to `x` and its LayerNorm to the rows
@@ -830,7 +843,8 @@ BERT's F16 residual stream at FASTEST.
 64 tokens, with left padding and holes) on each GEMM kernel and both FMA
 attentions, at FASTEST and TF32 to the cosine floor of 0.999, and a
 generated ModernBERT of head width 64 and window 128 over rows of up to
-256 tokens on each tensor-core attention.
+256 tokens on each tensor-core attention and at 4097 tokens on
+`fma-tiled` and `mma128-acc32`.
 
 ## The LSTM for the taggers
 

@@ -53,7 +53,7 @@ impl LanguageModel {
             }
         }
         let model_ref = ModelRef {
-            id: format!("opennlp:{COMPONENT}:{}", file.language()),
+            id: format!("turbo:{COMPONENT}:{}", file.language()),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
@@ -87,7 +87,7 @@ impl LanguageModel {
             .unwrap_or_else(|| panic!("outcome index {i} out of bounds for {} outcomes", self.maxent.num_outcomes()))
     }
 
-    /// What layers record as their model: `opennlp:LanguageDetectorME:`
+    /// What layers record as their model: `turbo:LanguageDetectorME:`
     /// and the manifest's language (`und` for the published models), the
     /// OpenNLP version that trained it, and the SHA-256 of the model file.
     pub fn model_ref(&self) -> &ModelRef {
