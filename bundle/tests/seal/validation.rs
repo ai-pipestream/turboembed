@@ -67,7 +67,7 @@ fn a_conversion_that_did_not_run_is_not_sealed() {
     assert!(
         e.contains(
             "the recipe converts [\"onnx-f16\", \"openvino-f16\", \"openvino-embeddings-f16\", \"hef-hailo10h-s128\", \
-             \"hef-hailo8-s128\"], and the runs made []"
+             \"hef-hailo8-s128\", \"hef-hailo8l-s128\"], and the runs made []"
         ),
         "{e}"
     );
