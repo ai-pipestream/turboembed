@@ -143,7 +143,7 @@ mod heads;
 mod heads_kinds;
 mod helpers;
 pub use heads::*;
-pub use heads_kinds::{MAX_TYPE_DIM, NO_RELATION, RelationShape};
+pub use heads_kinds::{LayerMix, MAX_MIX_LAYERS, MAX_TYPE_DIM, NO_RELATION, RelationShape};
 mod provenance;
 mod qa;
 pub use qa::Qa;

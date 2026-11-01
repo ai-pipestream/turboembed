@@ -272,6 +272,7 @@ pub fn spec(
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
         license_class: Some(corpus.class()?),

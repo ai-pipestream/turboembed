@@ -27,7 +27,7 @@ use turbo_analysis::{
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Subwords, Tag, Tokens, Words};
 
-use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, open_words, refuse};
 use crate::words::WordEncoder;
 
 /// The encoder a segmenting head reads, and what its annotator names.
@@ -39,8 +39,14 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(crate) fn open(dir: &Path, bundle: &Bundle, hidden: usize, o: &EncoderOptions) -> Result<Reader, CoreError> {
-        let words = WordEncoder::open(dir, o)?;
+    pub(crate) fn open(
+        dir: &Path,
+        bundle: &Bundle,
+        spec: &HeadSpec,
+        hidden: usize,
+        o: &EncoderOptions,
+    ) -> Result<Reader, CoreError> {
+        let words = open_words(dir, o, spec.layer_mix.map_or(1, |m| m.layers as usize))?;
         if words.hidden() != hidden {
             return Err(refuse(format!("the head reads {hidden} values a word, the encoder gives {}", words.hidden())));
         }
@@ -86,7 +92,7 @@ impl SentenceTagger {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Sentences::ID, HeadKind::SentenceBoundary)?;
         let head = SentenceBoundary::load(&bundle, &spec.name)?;
-        let read = Reader::open(dir, &bundle, head.hidden(), o)?;
+        let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
         Ok(SentenceTagger { head, read })
     }
 
@@ -180,7 +186,7 @@ impl WordTagger {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Words::ID, HeadKind::TokenSplit)?;
         let head = TokenSplitter::load(&bundle, &spec.name)?;
-        let read = Reader::open(dir, &bundle, head.hidden(), o)?;
+        let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
         Ok(WordTagger { head, read })
     }
 
@@ -241,11 +247,11 @@ pub(crate) fn split_with(
     features: &[Vec<f32>],
     forms: &[Vec<&str>],
 ) -> Result<Vec<Vec<Vec<String>>>, CoreError> {
-    let hidden = splitter.hidden();
+    let stride = splitter.spec().layer_mix.map_or(1, |m| m.layers as usize) * splitter.hidden();
     let (mut scores, mut labels, mut work) = (Vec::new(), Vec::new(), Work::default());
     let mut out = Vec::with_capacity(features.len());
     for (f, words) in features.iter().zip(forms) {
-        let n = f.len() / hidden;
+        let n = f.len() / stride;
         if words.len() != n {
             return Err(refuse(format!("{} forms for {n} words", words.len())));
         }
@@ -332,7 +338,7 @@ impl SpanTagger {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Entities::ID, HeadKind::SpanClassifier)?;
         let head = SpanClassifier::load(&bundle, &spec.name)?;
-        let read = Reader::open(dir, &bundle, head.hidden(), o)?;
+        let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
         let mut kind_of = Vec::new();
         let mut types: Vec<&str> = Vec::new();
         for l in head.labels() {

@@ -1,28 +1,15 @@
-//! One encoder pass, many heads (#1517): [`MultiTask`] reads each window
-//! of a document's words through the bundle's encoder once, pools the
-//! states every head asks for from that one read
-//! (`WordEncoder::token_features_pooled`), and each output layer is
-//! decoded from them by its own head on the host. The layers it writes
-//! are a tuple of types, as for any annotator: `MultiTask<(PosTags,
-//! Dependencies<Tokens>, Lemmas)>` writes those three, each from the head
-//! named for it or the one head of the bundle that writes its layer.
-//! The heads decode at once, one thread each, once the encoder is done.
+//! One encoder pass, many heads (#1517): [`MultiTask`] reads each window of a
+//! document's words through the bundle's encoder once, pools the states every
+//! head asks for from that one read (`WordEncoder::token_features_pooled`),
+//! and decodes each output layer on the host.
 //!
-//! Without a sentence head (or when prior sentences are supplied), each
-//! layer is written as the single-head annotator writes it
-//! ([`crate::PosTagger`], [`crate::EntityTagger`],
-//! [`crate::DependencyParser`], [`crate::Lemmatizer`] without a
-//! dictionary, [`crate::WordTagger`]), from the same per-sentence
-//! features: one read and several reads of the same rows give the same
-//! states. When [`Sentences`] is among the outputs and no prior sentences
-//! are given, the encoder runs once over the whole view, each
-//! [`Sentences`] output decodes its own [`SentenceBoundary`] head from
-//! that pass, and the other heads' sequences are sliced from those
-//! whole-view features by the first [`SentenceBoundary`] head (so their
-//! token states carry cross-sentence context rather than one separate
-//! encoder pass per sentence). When prior sentences are given, the
-//! encoder runs per sentence as usual and [`Sentences`] writes those
-//! given sentence sequences on token bounds.
+//! Without a sentence head (or when prior sentences are supplied), each layer
+//! matches its single-head annotator ([`crate::PosTagger`],
+//! [`crate::EntityTagger`], [`crate::DependencyParser`], [`crate::Lemmatizer`],
+//! [`crate::WordTagger`]). When [`Sentences`] is among the outputs and no prior
+//! sentences are given, the encoder runs once over the whole view, each
+//! [`Sentences`] output decodes its own [`SentenceBoundary`] head, and the
+//! other heads' sequences are sliced by the first [`SentenceBoundary`] head.
 
 use std::marker::PhantomData;
 use std::path::Path;
@@ -39,7 +26,9 @@ use turbo_analysis_layers::{
     Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Sentences, Strs, Subwords, Tokens, Words,
 };
 
-use crate::annotate::{HeadRunner, decode_with, entity_layer, find_head, forms_of, model_ref, pos_layer, refuse};
+use crate::annotate::{
+    HeadRunner, decode_with, entity_layer, find_head, forms_of, model_ref, open_words, pos_layer, refuse, tail_taps,
+};
 use crate::lemma::{lemma_layer, lemmas_with};
 use crate::parse::{dep_layer, parse_with};
 use crate::segment::{sentence_ranges, split_with, word_layer};
@@ -69,6 +58,19 @@ pub enum Head {
     Split {
         splitter: TokenSplitter,
     },
+}
+
+fn spec_taps(spec: &HeadSpec) -> usize {
+    spec.layer_mix.map_or(1, |m| m.layers as usize)
+}
+
+fn pooling_of(poolings: &[WordPooling], pooling: WordPooling) -> Result<usize, String> {
+    poolings.iter().position(|&q| q == pooling).ok_or_else(|| "a pooling no head asked for".into())
+}
+
+fn slice_tapped(seq: &[f32], taps: usize, hidden: usize, r: &std::ops::Range<usize>) -> Vec<f32> {
+    let stride = seq.len() / taps;
+    (0..taps).flat_map(|t| seq[t * stride + r.start * hidden..t * stride + r.end * hidden].iter().copied()).collect()
 }
 
 impl Head {
@@ -103,34 +105,42 @@ impl Head {
             _ => vec![own],
         }
     }
+
+    /// The layer taps the head reads, its tagger's included.
+    pub fn taps(&self) -> Vec<usize> {
+        match self {
+            Head::Tagger { tagger, .. } => vec![tagger.taps()],
+            Head::Parser { parser, .. } => vec![parser.taps()],
+            Head::Lemma { lemmatizer, pos } => {
+                std::iter::once(lemmatizer.taps()).chain(pos.as_ref().map(TokenTagger::taps)).collect()
+            }
+            Head::Sentence { boundary } => vec![spec_taps(boundary.spec())],
+            Head::Split { splitter } => vec![spec_taps(splitter.spec())],
+        }
+    }
 }
 
-/// Whole-view sequences, forms, and pooled features when no prior
-/// sentences were supplied and [`MultiTask`] decodes sentence boundaries
-/// from a single whole-view encoder pass.
+/// Whole-view sequences, forms, and pooled features for whole-view passes.
 struct Whole<'a> {
     seqs: Vec<Vec<usize>>,
     forms: Vec<Vec<&'a str>>,
     features: Vec<Vec<Vec<f32>>>,
 }
 
-/// One document's words as every head reads them: the sequences of
-/// token indices, their text, and the features of each pooling read.
+/// One document's words as every head reads them: token sequences, forms, and pooled features.
 pub struct Input<'a> {
     pub view: &'a View,
     pub tokens: &'a Tokens,
     pub seqs: Vec<Vec<usize>>,
     pub forms: Vec<Vec<&'a str>>,
     poolings: Vec<WordPooling>,
-    /// `features[p]` is `poolings[p]`'s, a sequence's words' features
-    /// each; shared, so several heads read one read's states.
     features: Arc<Vec<Vec<Vec<f32>>>>,
+    taps: usize,
     whole: Option<Whole<'a>>,
 }
 
 impl<'a> Input<'a> {
-    /// The words of `seqs` over `tokens`, `features[p]` their features
-    /// under `poolings[p]` (`WordEncoder::token_features_pooled`).
+    /// The words of `seqs` over `tokens`, `features[p]` their features under `poolings[p]`.
     pub fn new(
         view: &'a View,
         tokens: &'a Tokens,
@@ -139,18 +149,26 @@ impl<'a> Input<'a> {
         features: Arc<Vec<Vec<Vec<f32>>>>,
     ) -> Input<'a> {
         let forms = forms_of(view, tokens, &seqs);
-        Input { view, tokens, seqs, forms, poolings, features, whole: None }
+        Input { view, tokens, seqs, forms, poolings, features, taps: 1, whole: None }
+    }
+
+    /// Sets the number of encoder layer taps present in `features`.
+    pub fn with_taps(mut self, taps: usize) -> Input<'a> {
+        self.taps = taps;
+        self
     }
 
     /// Each sequence's features under `pooling`.
     pub fn features(&self, pooling: WordPooling) -> Result<&[Vec<f32>], String> {
-        let p = self.poolings.iter().position(|&q| q == pooling).ok_or("a pooling no head asked for")?;
-        Ok(&self.features[p])
+        Ok(&self.features[pooling_of(&self.poolings, pooling)?])
+    }
+
+    fn tapped(&self, pooling: WordPooling, taps: usize) -> Result<std::borrow::Cow<'_, [Vec<f32>]>, String> {
+        Ok(tail_taps(self.features(pooling)?, self.taps, taps))
     }
 }
 
-/// A layer a head writes: the head kind that writes it, how that head is
-/// opened, and how the layer is made from the shared features.
+/// A layer a head writes: its head kind, how it is opened, and how it decodes shared features.
 pub trait HeadLayer: Layer {
     const KIND: HeadKind;
     fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError>;
@@ -161,20 +179,24 @@ fn wrong_head<T>() -> Result<T, String> {
     Err("the head is of another kind than its layer".into())
 }
 
+fn open_tags(bundle: &Bundle, spec: &HeadSpec, role: &str) -> Result<Head, CoreError> {
+    if spec.scheme != Scheme::Tags {
+        return Err(refuse(format!("head {:?}: a {role} head reads SCHEME_TAGS labels", spec.name)));
+    }
+    let tagger = TokenTagger::load(bundle, &spec.name)?;
+    let labels: Vec<&str> = spec.labels.iter().map(String::as_str).collect();
+    Ok(Head::Tagger { set: TagSet::new(&spec.name, &labels), tagger })
+}
+
 impl HeadLayer for PosTags {
     const KIND: HeadKind = HeadKind::TokenTagger;
     fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
-        if spec.scheme != Scheme::Tags {
-            return Err(refuse(format!("head {:?}: a part-of-speech head reads SCHEME_TAGS labels", spec.name)));
-        }
-        let tagger = TokenTagger::load(bundle, &spec.name)?;
-        let labels: Vec<&str> = spec.labels.iter().map(String::as_str).collect();
-        Ok(Head::Tagger { set: TagSet::new(&spec.name, &labels), tagger })
+        open_tags(bundle, spec, "part-of-speech")
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
-        let f = input.features(tagger.spec().word_pooling)?;
-        let decoded = decode_with(tagger, f, &input.forms).map_err(|e| e.to_string())?;
+        let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
+        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
         pos_layer(input.tokens, &input.seqs, &decoded, set)
     }
 }
@@ -194,28 +216,22 @@ impl HeadLayer for Entities {
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
-        let f = input.features(tagger.spec().word_pooling)?;
-        let decoded = decode_with(tagger, f, &input.forms).map_err(|e| e.to_string())?;
+        let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
+        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
         entity_layer(tagger, input.view, input.tokens, &input.seqs, &decoded, set)
     }
 }
 
-/// The morphological features layer from a SCHEME_TAGS head whose labels
-/// are feature strings (`Gender=Masc|Number=Sing`, `_`).
+/// The morphological features layer from a SCHEME_TAGS head.
 impl HeadLayer for MorphFeatures<Tokens> {
     const KIND: HeadKind = HeadKind::TokenTagger;
     fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
-        if spec.scheme != Scheme::Tags {
-            return Err(refuse(format!("head {:?}: a morphology head reads SCHEME_TAGS labels", spec.name)));
-        }
-        let tagger = TokenTagger::load(bundle, &spec.name)?;
-        let labels: Vec<&str> = spec.labels.iter().map(String::as_str).collect();
-        Ok(Head::Tagger { set: TagSet::new(&spec.name, &labels), tagger })
+        open_tags(bundle, spec, "morphology")
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
-        let f = input.features(tagger.spec().word_pooling)?;
-        let decoded = decode_with(tagger, f, &input.forms).map_err(|e| e.to_string())?;
+        let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
+        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
         let tags = pos_layer(input.tokens, &input.seqs, &decoded, set)?;
         let mut feats = Strs::default();
         for &t in &tags.tags {
@@ -234,8 +250,8 @@ impl HeadLayer for Dependencies<Tokens> {
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Parser { parser, relations } = head else { return wrong_head() };
-        let f = input.features(parser.spec().word_pooling)?;
-        let parses = parse_with(parser, f).map_err(|e| e.to_string())?;
+        let f = input.tapped(parser.spec().word_pooling, parser.taps())?;
+        let parses = parse_with(parser, &f).map_err(|e| e.to_string())?;
         dep_layer(input.tokens, &input.seqs, &parses, relations)
     }
 }
@@ -244,21 +260,21 @@ impl HeadLayer for Lemmas {
     const KIND: HeadKind = HeadKind::EditTreeLemmatizer;
     fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
         let lemmatizer = EditTreeLemmatizer::load(bundle, &spec.name)?;
-        let pos = match &spec.pos_input {
-            Some(p) => Some(TokenTagger::load(bundle, &p.head)?),
-            None => None,
-        };
+        let pos = spec.pos_input.as_ref().map(|p| TokenTagger::load(bundle, &p.head)).transpose()?;
         Ok(Head::Lemma { lemmatizer, pos })
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Lemma { lemmatizer, pos } = head else { return wrong_head() };
         let own = lemmatizer.spec().word_pooling;
-        let f = input.features(own)?;
+        let f = input.tapped(own, lemmatizer.taps())?;
         let pf = match pos {
-            Some(t) if t.spec().word_pooling != own => Some(input.features(t.spec().word_pooling)?),
+            Some(t) if t.spec().word_pooling != own || t.taps() != lemmatizer.taps() => {
+                Some(input.tapped(t.spec().word_pooling, t.taps())?)
+            }
             _ => None,
         };
-        let lemmas = lemmas_with(lemmatizer, pos.as_ref(), None, f, pf, &input.forms).map_err(|e| e.to_string())?;
+        let lemmas =
+            lemmas_with(lemmatizer, pos.as_ref(), None, &f, pf.as_deref(), &input.forms).map_err(|e| e.to_string())?;
         lemma_layer(input.tokens, &input.seqs, lemmas)
     }
 }
@@ -266,31 +282,25 @@ impl HeadLayer for Lemmas {
 impl HeadLayer for Sentences {
     const KIND: HeadKind = HeadKind::SentenceBoundary;
     fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
-        let boundary = SentenceBoundary::load(bundle, &spec.name)?;
-        Ok(Head::Sentence { boundary })
+        Ok(Head::Sentence { boundary: SentenceBoundary::load(bundle, &spec.name)? })
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Sentence { boundary } = head else { return wrong_head() };
         let mut out = Sentences { spans: Spans::new(input.view.id()) };
+        let push = |out: &mut Sentences, s: &[usize]| {
+            let (a, b) = (s[0] as u32, s[s.len() - 1] as u32);
+            out.spans.push(Span::new(input.tokens.spans.get(Ix::new(a)).start, input.tokens.spans.get(Ix::new(b)).end));
+        };
         if let Some(whole) = &input.whole {
-            let p = input
-                .poolings
-                .iter()
-                .position(|&q| q == boundary.spec().word_pooling)
-                .ok_or("a pooling no head asked for")?;
-            let ranges = sentence_ranges(boundary, &whole.features[p], &whole.forms).map_err(|e| e.to_string())?;
-            for r in ranges {
-                let s = &whole.seqs[0][r];
-                let start = input.tokens.spans.get(Ix::new(s[0] as u32)).start;
-                let end = input.tokens.spans.get(Ix::new(s[s.len() - 1] as u32)).end;
-                out.spans.push(Span::new(start, end));
+            let p = pooling_of(&input.poolings, boundary.spec().word_pooling)?;
+            let wf = tail_taps(&whole.features[p], input.taps, spec_taps(boundary.spec()));
+            for r in sentence_ranges(boundary, &wf, &whole.forms).map_err(|e| e.to_string())? {
+                push(&mut out, &whole.seqs[0][r]);
             }
             return Ok(out);
         }
         for s in &input.seqs {
-            let start = input.tokens.spans.get(Ix::new(s[0] as u32)).start;
-            let end = input.tokens.spans.get(Ix::new(s[s.len() - 1] as u32)).end;
-            out.spans.push(Span::new(start, end));
+            push(&mut out, s);
         }
         Ok(out)
     }
@@ -299,13 +309,12 @@ impl HeadLayer for Sentences {
 impl HeadLayer for Words {
     const KIND: HeadKind = HeadKind::TokenSplit;
     fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
-        let splitter = TokenSplitter::load(bundle, &spec.name)?;
-        Ok(Head::Split { splitter })
+        Ok(Head::Split { splitter: TokenSplitter::load(bundle, &spec.name)? })
     }
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Split { splitter } = head else { return wrong_head() };
-        let f = input.features(splitter.spec().word_pooling)?;
-        let split = split_with(splitter, f, &input.forms).map_err(|e| e.to_string())?;
+        let f = input.tapped(splitter.spec().word_pooling, spec_taps(splitter.spec()))?;
+        let split = split_with(splitter, &f, &input.forms).map_err(|e| e.to_string())?;
         word_layer(input.view, input.tokens, &input.seqs, split)
     }
 }
@@ -359,9 +368,7 @@ pub struct MultiTask<W: Outputs> {
 }
 
 impl<W: Outputs> MultiTask<W> {
-    /// The heads of the bundle at `dir` for each output of `W`, `names[i]`
-    /// naming output `i`'s head or None for the one head that writes its
-    /// layer. One head is not two outputs.
+    /// The heads of the bundle at `dir` for each output of `W`.
     pub fn open(dir: &Path, names: &[Option<&str>], o: &EncoderOptions) -> Result<MultiTask<W>, CoreError> {
         if names.len() != W::N {
             return Err(refuse(format!("{} head names for {} outputs", names.len(), W::N)));
@@ -373,12 +380,13 @@ impl<W: Outputs> MultiTask<W> {
                 return Err(refuse(format!("head {:?} is named for two outputs", h.spec().name)));
             }
         }
-        let words = WordEncoder::open(dir, o)?;
+        let taps = heads.iter().flat_map(Head::taps).max().unwrap_or(1);
+        let words = open_words(dir, o, taps)?;
         for h in &heads {
             if let Some(&n) = h.hidden().iter().find(|&&n| n != words.hidden()) {
+                let name = &h.spec().name;
                 return Err(refuse(format!(
-                    "head {:?} reads {n} values a word, the encoder gives {}",
-                    h.spec().name,
+                    "head {name:?} reads {n} values a word, the encoder gives {}",
                     words.hidden()
                 )));
             }
@@ -417,8 +425,7 @@ impl<W: Outputs> MultiTask<W> {
         self.words.lock().unwrap_or_else(PoisonError::into_inner).rows()
     }
 
-    /// Every output layer over the tokens of the view, the pieces from
-    /// `subwords` when the encoder reads them (`WordEncoder::reads`).
+    /// Every output layer over the tokens of the view (`WordEncoder::reads`).
     pub fn layers(
         &self,
         view: &View,
@@ -426,45 +433,40 @@ impl<W: Outputs> MultiTask<W> {
         sentences: Option<&Sentences>,
         subwords: Option<&Subwords>,
     ) -> Result<W, String> {
-        let boundary = (sentences.is_none() && tokens.sentence.is_none())
-            .then(|| {
-                self.heads.iter().find_map(|h| match h {
-                    Head::Sentence { boundary } => Some(boundary),
-                    _ => None,
-                })
-            })
-            .flatten();
+        let boundary = if sentences.is_none() && tokens.sentence.is_none() {
+            self.heads.iter().find_map(|h| if let Head::Sentence { boundary } = h { Some(boundary) } else { None })
+        } else {
+            None
+        };
         let Some(boundary) = boundary else {
             let seqs = HeadRunner::sequences(view, tokens, sentences)?;
             let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
-            let features = words.token_features_pooled(view, tokens, &seqs, subwords, &self.poolings)?;
+            let (taps, features) =
+                (words.taps(), words.token_features_pooled(view, tokens, &seqs, subwords, &self.poolings)?);
             drop(words);
-            let input = Input::new(view, tokens, seqs, self.poolings.clone(), Arc::new(features));
+            let input = Input::new(view, tokens, seqs, self.poolings.clone(), Arc::new(features)).with_taps(taps);
             return W::write(&self.heads, &input);
         };
         let all = Tokens { spans: tokens.spans.clone(), sentence: None };
         let whole_seqs = HeadRunner::sequences(view, &all, None)?;
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
-        let hidden = words.hidden();
+        let (hidden, taps) = (words.hidden(), words.taps());
         let whole_features = words.token_features_pooled(view, &all, &whole_seqs, subwords, &self.poolings)?;
         drop(words);
         let whole_forms = forms_of(view, &all, &whole_seqs);
-        let p = self
-            .poolings
-            .iter()
-            .position(|&q| q == boundary.spec().word_pooling)
-            .ok_or("a pooling no head asked for")?;
-        let ranges = sentence_ranges(boundary, &whole_features[p], &whole_forms).map_err(|e| e.to_string())?;
+        let p = pooling_of(&self.poolings, boundary.spec().word_pooling)?;
+        let bf = tail_taps(&whole_features[p], taps, spec_taps(boundary.spec()));
+        let ranges = sentence_ranges(boundary, &bf, &whole_forms).map_err(|e| e.to_string())?;
         let seqs = ranges.iter().map(|r| whole_seqs[0][r.clone()].to_vec()).collect();
         let forms = ranges.iter().map(|r| whole_forms[0][r.clone()].to_vec()).collect();
         let features = Arc::new(
             whole_features
                 .iter()
-                .map(|wf| ranges.iter().map(|r| wf[0][r.start * hidden..r.end * hidden].to_vec()).collect())
+                .map(|wf| ranges.iter().map(|r| slice_tapped(&wf[0], taps, hidden, r)).collect())
                 .collect(),
         );
         let whole = Some(Whole { seqs: whole_seqs, forms: whole_forms, features: whole_features });
-        let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features, whole };
+        let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features, taps, whole };
         W::write(&self.heads, &input)
     }
 }

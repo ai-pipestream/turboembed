@@ -47,6 +47,7 @@ fn sentiment_family_refusals() {
             coefficient: strs(&["500"]),
             scale: vec![2],
             currency: vec![Currency::parse("USD").unwrap()],
+            per: strs(&[""]),
         },
         by.clone(),
     )
@@ -182,5 +183,32 @@ fn quantities_schema_1_is_refused() {
     assert!(matches!(
         import(&graph, &codecs()),
         Err(ExportError::IncompatibleSchema { ref layer, exported: 1, supported: 2 }) if layer == "turbo:quantities"
+    ));
+}
+
+#[test]
+fn money_schema_1_is_refused() {
+    let mut doc = document();
+    let mut m = Money::new(ViewId::SOURCE);
+    m.push_with_per(
+        turbo_analysis_layers::MoneyMention {
+            span: Span::new(0, 5),
+            negative: false,
+            coefficient: "5",
+            scale: 0,
+            currency: Currency::parse("USD").unwrap(),
+        },
+        "h",
+    );
+    doc.add(&Key::DEFAULT, m, Provenance::by("test")).unwrap();
+    let mut graph = export(&doc, &codecs()).unwrap();
+    for layer in &mut graph.layers {
+        if layer.layer == "turbo:money" {
+            layer.schema = 1;
+        }
+    }
+    assert!(matches!(
+        import(&graph, &codecs()),
+        Err(ExportError::IncompatibleSchema { ref layer, exported: 1, supported: 2 }) if layer == "turbo:money"
     ));
 }

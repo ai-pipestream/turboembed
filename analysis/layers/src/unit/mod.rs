@@ -210,6 +210,14 @@ impl Unit {
         self.write_symbol(&mut s);
         s
     }
+
+    /// The rate denominator when this unit is a speed or rate (`km/h`, `Mb/s`, `USD/h`).
+    pub fn per(self) -> Option<Per> {
+        match self {
+            Unit::Speed(Speed::Per(_, p)) | Unit::Rate(Rate::Information(_, p) | Rate::Currency(_, p)) => Some(p),
+            _ => None,
+        }
+    }
 }
 
 /// Writes `name` with its first letter in lowercase: `Square foot`.

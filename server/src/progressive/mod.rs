@@ -31,10 +31,11 @@ use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
     AnalysisLayerBatch, AnalysisStarted, AnalysisStepFailure, AnalyzeFailure, AnalyzePipelineRequest,
-    AnalyzeProgressiveEvent,
+    AnalyzeProgressiveEvent, DocumentGraphResponse,
 };
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
+use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
 
@@ -95,8 +96,14 @@ fn step_error_code(err: &turbo_analysis::Error) -> i32 {
 }
 
 /// Validates `req`, builds the [`Analyzer`] DAG, and starts the progressive
-/// execution task feeding the returned [`ProgressiveStream`].
-pub(crate) async fn start_progressive(state: &State, req: Request<AnalyzePipelineRequest>) -> Reply<ProgressiveStream> {
+/// execution task feeding the returned [`ProgressiveStream`]. With `sink`,
+/// the complete graph the client was handed is then forwarded to it, after
+/// the reply has ended: a full queue drops and counts it.
+pub(crate) async fn start_progressive(
+    state: &State,
+    req: Request<AnalyzePipelineRequest>,
+    sink: Option<Arc<SinkForwarder>>,
+) -> Reply<ProgressiveStream> {
     let deadline = Deadline::from_request(&req)?;
     deadline.check()?;
     let req = req.into_inner();
@@ -114,8 +121,15 @@ pub(crate) async fn start_progressive(state: &State, req: Request<AnalyzePipelin
     let proto_offsets = offsets.to_proto();
     let (stream_guard, doc_guard) = (Some(state.metrics.track_stream()), Some(state.metrics.track_docs(1, None)));
 
+    let sink_doc_id = doc_id.clone();
     tokio::task::spawn_blocking(move || {
-        run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, task_deadline, tx);
+        // The task owns the stream's one sender, so the reply has ended
+        // when it returns.
+        let delivered = run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, task_deadline, tx);
+        if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
+            // A refusal is counted in the forwarder's stats.
+            let _ = sink.offer_exported(&sink_doc_id, exported, &doc);
+        }
     });
 
     Ok(Response::new(ProgressiveStream {
@@ -193,10 +207,10 @@ fn run_progressive_task(
     cancel: Arc<AtomicBool>,
     deadline: Deadline,
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
-) {
+) -> Option<(DocumentGraphResponse, Document)> {
     if deadline.is_expired() {
         let _ = tx.blocking_send(Err(deadline_status()));
-        return;
+        return None;
     }
     let mut seq = 1u64;
     let c = codecs();
@@ -208,7 +222,7 @@ fn run_progressive_task(
                 0,
                 format!("initial document export failed: {e}"),
             ))));
-            return;
+            return None;
         }
     };
 
@@ -223,7 +237,7 @@ fn run_progressive_task(
     };
     if tx.blocking_send(Ok(started)).is_err() {
         cancel.store(true, Ordering::Relaxed);
-        return;
+        return None;
     }
 
     let mut docs = vec![doc];
@@ -327,21 +341,30 @@ fn run_progressive_task(
 
     if deadline.is_expired() {
         let _ = tx.blocking_send(Err(deadline_status()));
-        return;
+        return None;
     }
     if cancel.load(Ordering::Relaxed) {
-        return;
+        return None;
     }
 
     doc = docs.pop().expect("single document");
     match export_document_response(&doc) {
         Ok(complete) => {
             seq += 1;
-            let _ =
-                tx.blocking_send(Ok(AnalyzeProgressiveEvent { sequence: seq, event: Some(Event::Complete(complete)) }));
+            // What the sink is offered: the bytes, layers and views the
+            // client is handed, and the document they were exported from.
+            let exported = DocumentGraphResponse {
+                graph: complete.graph.clone(),
+                layers: complete.layers.clone(),
+                views: complete.views.clone(),
+                source_text: String::new(),
+            };
+            let event = AnalyzeProgressiveEvent { sequence: seq, event: Some(Event::Complete(complete)) };
+            tx.blocking_send(Ok(event)).is_ok().then_some((exported, doc))
         }
         Err(f) => {
             let _ = tx.blocking_send(Err(plain(f)));
+            None
         }
     }
 }

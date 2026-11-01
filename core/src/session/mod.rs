@@ -85,6 +85,8 @@ pub struct turbo_embed_options {
     pub output_dim: u32,
     pub quantization: u32,
     pub int8_ranges: *const f32,
+    pub layers: u32,
+    pub reserved: u32,
 }
 
 // int8_ranges is read during a write call alone, as turbo.h says: the
@@ -96,6 +98,10 @@ unsafe impl Sync for turbo_embed_options {}
 /// The size of turbo_embed_options before quantization was appended,
 /// which every write still accepts.
 pub const TURBO_EMBED_OPTIONS_SIZE_V1: usize = std::mem::offset_of!(turbo_embed_options, quantization);
+
+/// The size of turbo_embed_options before layers was appended, which
+/// every write still accepts.
+pub const TURBO_EMBED_OPTIONS_SIZE_V2: usize = std::mem::offset_of!(turbo_embed_options, layers);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

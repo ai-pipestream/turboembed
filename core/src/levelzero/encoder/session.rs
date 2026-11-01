@@ -225,8 +225,8 @@ pub(super) unsafe fn create(
             let mut kernels =
                 Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta.then_some((d, max_seq)))?;
             if is_rotary {
-                let rk = super::rotary::RotaryKernels::new(c)?;
-                let local = super::rotary::attention_local(max_seq, head_dim);
+                let rk = super::rotary::RotaryKernels::new(c, head_dim)?;
+                let local = rk.attention_local(max_seq, head_dim);
                 let room = (c.max_local as u64).saturating_sub(rk.attention_local_bytes()? as u64);
                 if local > room {
                     return Err(fail_field(

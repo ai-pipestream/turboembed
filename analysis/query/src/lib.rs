@@ -369,10 +369,10 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                 m_cnt = sm.spans.len();
                 for (ix, sp) in sm.spans.iter() {
                     let m = sm.get(ix);
-                    money.push(turbo_analysis_layers::MoneyMention {
-                        span: Span::new(sp.start + off, sp.end + off),
-                        ..m
-                    });
+                    money.push_with_per(
+                        turbo_analysis_layers::MoneyMention { span: Span::new(sp.start + off, sp.end + off), ..m },
+                        sm.per.get(ix.get()),
+                    );
                 }
             }
             if qty_cue && m_cnt < d_cnt {

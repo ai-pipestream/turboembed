@@ -21,7 +21,7 @@ use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Layer, ModelRef, Refs, 
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Lemmas, Sentences, Strs, Subwords, Tokens};
 
-use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, open_words, refuse, tail_taps};
 use crate::words::WordEncoder;
 
 /// A lemma lookup that overrides the head where it has an answer.
@@ -67,7 +67,8 @@ impl Lemmatizer {
             Some(p) => Some(TokenTagger::load(&bundle, &p.head)?),
             None => None,
         };
-        let words = WordEncoder::open(dir, o)?;
+        let taps = head.taps().max(pos.as_ref().map_or(1, TokenTagger::taps));
+        let words = open_words(dir, o, taps)?;
         for hidden in std::iter::once(head.hidden()).chain(pos.as_ref().map(TokenTagger::hidden)) {
             if hidden != words.hidden() {
                 return Err(refuse(format!(
@@ -144,7 +145,14 @@ impl Lemmatizer {
         forms: &[Vec<&str>],
     ) -> Result<Vec<Vec<String>>, CoreError> {
         let dictionary = self.dictionary.as_ref().map(|d| d.lookup.as_ref());
-        lemmas_with(&self.head, self.pos.as_ref(), dictionary, head, pos, forms)
+        let have = self.head.taps().max(self.pos.as_ref().map_or(1, TokenTagger::taps));
+        let head = tail_taps(head, have, self.head.taps());
+        let pos = match (&self.pos, pos) {
+            (Some(t), Some(pf)) => Some(tail_taps(pf, have, t.taps())),
+            (Some(t), None) if t.taps() != self.head.taps() => Some(tail_taps(&head, self.head.taps(), t.taps())),
+            _ => None,
+        };
+        lemmas_with(&self.head, self.pos.as_ref(), dictionary, &head, pos.as_deref(), forms)
     }
 
     /// The lemma layer over every token of the view, the pieces from
@@ -208,12 +216,12 @@ pub(crate) fn lemmas_with(
     pos: Option<&[Vec<f32>]>,
     forms: &[Vec<&str>],
 ) -> Result<Vec<Vec<String>>, CoreError> {
-    let hidden = lem.hidden();
+    let stride = lem.taps() * lem.hidden();
     let (mut scores, mut tags, mut trees) = (Vec::new(), Vec::new(), Vec::new());
     let (mut tw, mut lw) = (tagger::Work::default(), lemmatizer::Work::default());
     let mut out = Vec::with_capacity(head.len());
     for (s, f) in head.iter().enumerate() {
-        let n = f.len() / hidden;
+        let n = f.len() / stride;
         let ids: Vec<u32> = (0..n as u32).collect();
         let words = &forms[s];
         if words.len() != n {

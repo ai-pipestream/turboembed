@@ -28,6 +28,7 @@ fn spec(pos: Option<PosInput>) -> HeadSpec {
         biaffine: None,
         pos_input: pos,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
         license_class: None,
