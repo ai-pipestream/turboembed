@@ -75,6 +75,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         steps: steps.iter().map(|s| s.to_string()).collect(),
         model: String::new(),
         initial_graph: Vec::new(),
+        structure_seed: None,
     }
 }
 
