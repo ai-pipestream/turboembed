@@ -41,7 +41,8 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     }
     let record = split::record(&bank, &splits, files, recorded);
     let read = t.elapsed().as_secs_f64();
-    let labels = split::mine_labels(&splits.train, min_freq);
+    let chosen = turbo_trainer_recipes::split_labels::choose(&splits.train);
+    let labels = split::mine_labels(&splits.train, &chosen, min_freq);
     if labels.len() < 2 {
         return Err(Error(format!("{}: no multiword token's split comes up {min_freq} times in training", bank.id)));
     }
@@ -52,8 +53,8 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     let hidden = enc.hidden();
 
     let t = Instant::now();
-    let train_s = split::sentences(&splits.train);
-    let dev_s = split::sentences(&splits.dev);
+    let train_s = split::labelled(&splits.train, &chosen, &spec.labels);
+    let dev_s = split::labelled(&splits.dev, &chosen, &spec.labels);
     let (train_ex, _) = examples(&mut enc, &train_s, &spec.labels, pooling)?;
     let (dev_ex, dev_left_out) = examples(&mut enc, &dev_s, &spec.labels, pooling)?;
     let features_s = t.elapsed().as_secs_f64();
@@ -87,7 +88,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     let predicted = split::predict(&splitter, &splits.test, &test_f)?;
     let base = split::baseline(&splits.train, &splits.test);
     let test = split::sentences(&splits.test);
-    let seen = Seen::of(&train_s);
+    let seen = Seen::of(&split::sentences(&splits.train));
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate(Task::Tags, &test, &predicted, &seen, None)),

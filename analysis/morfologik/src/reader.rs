@@ -185,7 +185,7 @@ impl MorfologikDictionaryReader {
             entries.entries,
             MorfologikInputConversion::default(),
             &[dictionary, &[separator], encoding.as_str().as_bytes(), charset.canonical_name().as_bytes()],
-            "opennlp:MorfologikDictionaryReader",
+            "turbo:MorfologikDictionaryReader",
         ))
     }
 
@@ -198,7 +198,7 @@ impl MorfologikDictionaryReader {
             entries.entries,
             meta.input_conversion,
             &[dictionary, info],
-            "opennlp:MorfologikDictionaryReader",
+            "turbo:MorfologikDictionaryReader",
         ))
     }
 
@@ -216,7 +216,7 @@ impl MorfologikDictionaryReader {
             entries.entries,
             meta.input_conversion,
             &[&dict_bytes, &info_bytes],
-            "opennlp:MorfologikDictionaryReader",
+            "turbo:MorfologikDictionaryReader",
         ))
     }
 
@@ -318,7 +318,7 @@ impl PoliMorfDictionaryReader {
             entries.entries,
             MorfologikInputConversion::default(),
             &[dictionary, charset.canonical_name().as_bytes()],
-            "opennlp:PoliMorfDictionaryReader",
+            "turbo:PoliMorfDictionaryReader",
         ))
     }
 }

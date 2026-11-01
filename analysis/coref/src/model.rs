@@ -64,7 +64,7 @@ impl CorefModel {
         let language = file.language().to_owned();
         let bytes = file.bytes().to_vec();
         let model_ref = ModelRef {
-            id: format!("opennlp:{COMPONENT_NAME}:{language}"),
+            id: format!("turbo:{COMPONENT_NAME}:{language}"),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };

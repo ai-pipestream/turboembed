@@ -1,6 +1,4 @@
-//! Assembling verified `turbo-trainer` receipt directories into a single-head
-//! or multi-task bundle (#1726), verifying receipts, checkpoint metadata,
-//! tensor names and shapes, and the assembled bundle via [`Bundle::open`].
+//! Assembling verified `turbo-trainer` receipt directories into a single-head or multi-task bundle (#1726).
 
 use std::collections::BTreeMap;
 use std::fs;

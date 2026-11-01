@@ -46,7 +46,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use crate::doc::{Document, Status, View};
 use crate::error::Error;
 use crate::graph::{Edge, Edges, Groups};
-use crate::ids::canonical_layer_name;
+use crate::ids::{canonical_layer_name, canonical_model_id};
 use crate::layer::{Execution, Key, KeyId, Layer, ModelRef, Provenance, Tag, TagSet};
 use crate::span::{Ix, Span, Spans};
 use crate::text::{Alignment, Edit, ViewId};

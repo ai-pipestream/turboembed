@@ -265,7 +265,7 @@ impl FeedforwardPosModel {
         self.serialize(&mut bytes).expect("serializing an in-memory FeedforwardPosModel to Vec<u8> cannot fail");
         let revision = if self.pretrained_size > 0 { MAGIC_V2 } else { MAGIC_V1 };
         ModelRef {
-            id: "opennlp:FeedforwardPOSModel".into(),
+            id: "turbo:FeedforwardPOSModel".into(),
             revision: revision.into(),
             sha256: turbo_maxent::sha256(&bytes).to_hex(),
         }
