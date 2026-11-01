@@ -76,9 +76,29 @@ for the release after it goes above it.
   one): the F16 sums went over FASTEST's cosine bound at 8192 tokens.
   That attention is slower; sessions of 4096 or fewer keep the F16 sums
   (#1580).
+- `AnalyzePipelineRequest.structure_seed`: a document's text and its
+  headings, lists, tables and other blocks as a `StructureSeed` protobuf
+  message, offsets in the request's unit, built into the same
+  `turbo:structure` layer an `initial_graph` carries, so a Java or
+  Python client seeds the chunker without a DocumentGraph writer; a
+  malformed block is refused naming it (#1777).
 
 ### Breaking
 
+- The model ids layers record (`ModelRef.id`, in `TypedLayer`
+  provenance, DocumentGraph bytes and evidence records) moved from the
+  `opennlp:` namespace to `turbo:`: `turbo:SentenceDetectorME:<lang>`,
+  `turbo:POSTaggerME:<lang>`, `turbo:ChunkerME:<lang>`,
+  `turbo:DocumentCategorizerME:<lang>`, `turbo:SentimentME:<lang>`,
+  `turbo:SvmDoccatModel:<lang>`, `turbo:CorefAnnotator:<lang>`,
+  `turbo:LanguageDetectorME:<lang>`, `turbo:DictionaryLemmatizer:<name>`,
+  `turbo:UnigramSegmenter`, `turbo:MecabDictionary`,
+  `turbo:MorfologikDictionary`, `turbo:MorfologikDictionaryReader`,
+  `turbo:PoliMorfDictionaryReader`, `turbo:FeedforwardPOSModel` and
+  `turbo:BilstmPOSModel`. A DocumentGraph or an evidence record written
+  with an old id reads as the new id. The JSON-LD export's sentence,
+  token and entity objects are typed `turbo:Sentence`, `turbo:Token` and
+  `turbo:Entity`, like `turbo:Category` (#1797).
 - The shared analysis layers' ids moved from the `opennlp:` namespace
   to `turbo:`: `turbo:sentences`, `turbo:tokens`, `turbo:subwords`,
   `turbo:entities`, `turbo:pos`, `turbo:lemmas`, `turbo:language`,

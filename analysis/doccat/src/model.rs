@@ -74,7 +74,7 @@ impl DoccatModel {
         let categories = TagSet::new("turbo-doccat:maxent", &labels);
         let language = file.language().to_owned();
         let model_ref = ModelRef {
-            id: format!("opennlp:{COMPONENT_NAME}:{language}"),
+            id: format!("turbo:{COMPONENT_NAME}:{language}"),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
@@ -103,7 +103,7 @@ impl DoccatModel {
         let categories = TagSet::new("turbo-doccat:maxent", &labels);
         let language = language.into();
         let model_ref = ModelRef {
-            id: format!("opennlp:{COMPONENT_NAME}:{language}"),
+            id: format!("turbo:{COMPONENT_NAME}:{language}"),
             revision: "3.0.0".into(),
             sha256: String::new(),
         };

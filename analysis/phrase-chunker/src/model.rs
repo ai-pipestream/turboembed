@@ -72,7 +72,7 @@ impl ChunkerModel {
         }
         let kinds = TagSet::new("phrase", &kinds);
         let model_ref = ModelRef {
-            id: format!("opennlp:{COMPONENT_NAME}:{}", file.language()),
+            id: format!("turbo:{COMPONENT_NAME}:{}", file.language()),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
@@ -270,7 +270,7 @@ pub(crate) mod tests {
         assert_eq!(m.language(), "en");
         assert_eq!(m.opennlp_version(), "1");
         assert_eq!(m.beam_size(), 10);
-        assert_eq!(m.model_ref().id, "opennlp:ChunkerME:en");
+        assert_eq!(m.model_ref().id, "turbo:ChunkerME:en");
         assert_eq!(m.model_ref().revision, "1");
         assert_eq!(m.tagset().name, "chunk");
         assert_eq!(m.tagset().len(), m.maxent().num_outcomes());

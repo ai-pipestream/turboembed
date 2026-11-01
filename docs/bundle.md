@@ -260,6 +260,7 @@ this form before it is written or loaded.
 | `classifier.labels` | string[] | with `classifier` | The output labels in id order (`0..labels.len()`), matching `id2label` in the upstream `config.json`. At least one non-empty label. |
 | `projection.dim` | uint32 | with `projection` | Output width of a linear token-projection head (`[projection.dim, hidden]` weight, optional `[projection.dim]` bias) applied to unpooled token hidden states before L2 normalization, as ColBERT and late-interaction models carry. Requires an encoder `architecture`. |
 | `heads[]` | message[] | no | Task heads read on the host from the encoder's final-layer states, at most 32; see "Heads" below. Requires an encoder `architecture`. |
+| `head_provenance[]` | message[] | no | Provenance and corpus attribution recorded for heads assembled from `turbo-trainer` receipts (#1726): `head` (matching an entry in `heads[]`), `commit`, `encoder_manifest_sha256`, `corpus_id`, `corpus_name`, `license`, `spdx`, `terms`, `attribution`, `corpus_sha256`, `recorded`, optional `recipe_only`, `best_epoch`, `metric`, `dev_score`, `test_score`, and `baseline_score`. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_ONNX`. (`FORMAT_GGUF` is a header and manifest name only; no backend loads it.) |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_OPENVINO_IR` artifact is two: the xml, then its weights. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
@@ -444,8 +445,12 @@ itself an `l`. The trainer mines it when it substitutes fewer characters
 than the plain tree, so `Dogs` to `dog` is `(l (m 0 1 () (s 's' '')))`,
 the tree of `dogs` to `dog`, and a capital at the start of a sentence
 does not give the table one tree per letter; `Paris` to `Paris` stays
-`(m 0 0 () ())`. Only the canonical form of a label is accepted, so one
-tree has one label.
+`(m 0 0 () ())`. Two more nodes are ours, for a token split head's
+labels: `(h N T)` keeps the first `N` characters of the word and
+`(t N T)` the last `N`, whatever the rest is, and rewrites them by `T`
+(`()` for none); `N` is at least 1 and the word must be longer than
+`N`, so a cut never keeps a word whole. Only the canonical form of a
+label is accepted, so one tree has one label.
 
 A `HEAD_SENTENCE_BOUNDARY` and a `HEAD_TOKEN_SPLIT` have a tagger's
 tensors and differ only in their labels and decode. A sentence boundary
@@ -460,8 +465,11 @@ A token split head's `scheme` is `SCHEME_TAGS` and its labels are `_`,
 which keeps a token one word, and splits: two to eight edit trees
 separated by single spaces, the k-th tree rewriting the whole token into
 its k-th word. Spanish `del` is `de` and `el` by
-`(m 0 1 () (s 'l' '')) (m 1 0 (s 'd' '') ())`. A split fits a token when
-every tree applies to it and gives a word that is not empty.
+`(m 0 1 () (s 'l' '')) (m 1 0 (s 'd' '') ())`; `hacerse` is `hacer` and
+`se` by `(m 0 2 () (s 'se' '')) (t 2 ())`, which cuts the clitic by its
+own length, so the same label splits `ponerse` and every other verb,
+where a match tree would name the verb it drops. A split fits a token
+when every tree applies to it and gives a word that is not empty.
 
 The tensors of a `HEAD_SPAN_CLASSIFIER`, F32, with `M` =
 `span.max_words`, `E` = `span.width_dim`, `L` labels and `width` as

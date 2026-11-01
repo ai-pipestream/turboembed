@@ -86,7 +86,23 @@ turbo-train-head train-coref --corpus litbank --dir <litbank dir> --bundle <enco
 turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
 turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
     --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
+turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
+    [--zoo-id <id> --license-terms <https://...> --url-prefix <https://...>
+     [--component <COMPONENT_*>] [--language <lang>] [--version <ver>] [--origin <https://...>]
+     [--zoo-out <entry.json>]]
 ```
+
+`assemble` (#1726) verifies one or more training run directories against
+an encoder bundle (checking `receipt.json` schema, encoder model,
+revision, manifest digest and hidden width, corpus record and licence
+class, output file sizes and SHA-256 digests, `head.json` equality, and
+exact F32 tensor names and shapes loaded through the core head
+constructors), merges the head tensors into `weights/model.safetensors`,
+writes `heads[]` and `head_provenance[]` into `manifest.json`, verifies
+the assembled bundle with `Bundle::open`, and optionally writes a
+validated `turbo-zoo` artifact entry (`Kind::Head` for one head or
+`Kind::Model` for a multi-task bundle) whose `class` is computed from the
+encoder and every head's `CorpusRecord`.
 
 `cache` (#1616) reads every split once and writes each word's features
 at the encoder's last N layers, so heads on any one layer, or on a
@@ -134,10 +150,16 @@ the relation, the commonest overall when unseen.
 `train-split` trains the token split head (`words` on
 `turboembed:words`, #1698) over the treebank's surface tokens, where
 the other UD commands read syntactic words: each multiword token's
-label is one edit tree a word, mined over the tokens that come up at
+label is one edit tree a word, kept over the tokens that come up at
 least `--min-tree-freq` times, beside `_`, which keeps a token whole.
-It writes the same three files and scores as token labels, against
-each token's commonest training label (`_` when unseen). A treebank
+A word that sits inside its token may take a cut (`(t 2 ())` keeps the
+last two characters) or a tree that names what it drops
+(`(m 5 0 (s 'hacer' '') ())`); each training token takes, of the
+labels that give its words, the one that gives the most distinct
+training tokens theirs, so a clitic's label serves every verb and a
+contraction's names its letters (#1798). It writes the same three
+files and scores each token's words being right, against each token's
+commonest training words (the token itself when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
@@ -211,7 +233,6 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
     cargo test --release -p turbo-trainer-recipes
 ```
 
-Not yet here: bundle output (a sealed bundle carrying the head),
-a core head that reads a mix of layers (only if the mix wins, #1616),
-full NER training and peer records (WNUT-17, GermEval and MASC), and a lemmatizer that reads the
-tagger's UPOS (`pos_input`).
+Not yet here: a core head that reads a mix of layers (only if the mix
+wins, #1616), full NER training and peer records (WNUT-17, GermEval and
+MASC), and a lemmatizer that reads the tagger's UPOS (`pos_input`).
