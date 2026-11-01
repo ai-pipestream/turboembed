@@ -18,7 +18,10 @@ The export is cut to that shape first:
   - the word-embedding Gather's output, the one on input_ids, becomes the
     input word_rows;
   - the tensor every attention Softmax adds to its scores becomes the
-    input attn_bias, one bias per head.
+    input attn_bias, one bias per head. The scores are the query-key
+    MatMul, or that MatMul divided or multiplied by a constant: MiniLM's
+    export scales the query and key before the product, BGE's the
+    product itself.
 The cut graph is checked against the export under onnxruntime on every
 calibration text, on the positions the mask keeps, before it is compiled.
 
@@ -85,15 +88,28 @@ def word_gather(graph):
     return found[0]
 
 
+def is_scores(made, consts, node):
+    """The query-key MatMul, or that MatMul divided or multiplied by a
+    constant (an initializer or a Constant node)."""
+    if node.op_type == "MatMul":
+        return True
+    if node.op_type not in ("Div", "Mul"):
+        return False
+    x, k = node.input
+    constant = k in consts or (k in made and made[k].op_type == "Constant")
+    return x in made and made[x].op_type == "MatMul" and constant
+
+
 def attention_bias(graph):
     """The tensor every attention Softmax adds to its scores."""
     made = producers(graph)
+    consts = {t.name for t in graph.initializer}
     biases = set()
     for sm in (n for n in graph.node if n.op_type == "Softmax"):
         add = made.get(sm.input[0])
         if add is None or add.op_type != "Add":
             sys.exit(f"hef_compile: Softmax {sm.name} does not read an Add of the scores and a bias")
-        scores = [i for i in add.input if i in made and made[i].op_type == "MatMul"]
+        scores = [i for i in add.input if i in made and is_scores(made, consts, made[i])]
         others = [i for i in add.input if i not in scores]
         if len(scores) != 1 or len(others) != 1:
             sys.exit(f"hef_compile: Add {add.name} before a Softmax is not scores plus one bias")
