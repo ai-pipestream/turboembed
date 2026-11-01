@@ -260,13 +260,19 @@ impl Head {
 /// intermediate infinity (and `NaN` in further arithmetic). The
 /// exponential is the cpu backend's own (`turbo::cpu::exp`), not the C
 /// library's, whose bits differ between its versions: a head gives the
-/// same bits on every machine.
+/// same bits on every machine. That exponential is 0 under -80, which
+/// keeps the kernels off subnormals; the sigmoid's tail there is e^(x/2)
+/// squared, which is e^x / (1 + e^x) to F32 rounding and holds down to
+/// the smallest subnormal.
 pub fn sigmoid(x: f32) -> f32 {
     if x >= 0.0 {
         1.0 / (1.0 + crate::cpu::exp(-x))
-    } else {
+    } else if x >= -80.0 {
         let e = crate::cpu::exp(x);
         e / (1.0 + e)
+    } else {
+        let h = crate::cpu::exp(x / 2.0);
+        h * h
     }
 }
 

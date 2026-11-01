@@ -19,7 +19,7 @@ fn sigmoid_is_stable_at_the_tails() {
     assert_eq!(sigmoid(0.0), 0.5);
     assert_eq!(sigmoid(-1000.0), 0.0);
     assert_eq!(sigmoid(1000.0), 1.0);
-    assert!(sigmoid(-60.0).is_finite() && sigmoid(-60.0) > 0.0);
+    assert!(sigmoid(-100.0).is_finite() && sigmoid(-100.0) > 0.0);
     assert_eq!(sigmoid_f64(0.0), 0.5);
     assert_eq!(sigmoid_f64(-1000.0), 0.0);
     assert_eq!(sigmoid_f64(1000.0), 1.0);
