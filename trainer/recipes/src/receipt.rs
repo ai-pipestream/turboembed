@@ -2,7 +2,7 @@
 //! run, on what data and encoder, with what settings, what it scored
 //! against the majority baseline, and how long each stage took. Two runs
 //! of one command at one commit on one device give the same receipt but
-//! for `timing_s`, `host` and `unix_time`.
+//! for `timing_s` and `unix_time`.
 
 use serde::{Deserialize, Serialize};
 use turbo::manifest::HeadSpec;
@@ -21,7 +21,6 @@ pub struct Receipt {
     /// The commit the binary was built from, as given by `--commit` or
     /// `git rev-parse HEAD`, or "unknown".
     pub commit: String,
-    pub host: String,
     pub unix_time: u64,
     pub corpus: CorpusRecord,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -96,6 +95,8 @@ pub struct ConfigRecord {
 pub struct TrainingRecord {
     pub train_loss: Vec<f64>,
     pub dev: Vec<f64>,
+    /// The epoch (counted from 1, as the training log counts) whose
+    /// weights were kept.
     pub best_epoch: usize,
     /// Wall seconds each epoch took, dev scoring included.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -168,16 +169,6 @@ impl Timing {
     pub fn words_per_s(&self) -> Option<f64> {
         (self.feature_words > 0 && self.features > 0.0).then(|| self.feature_words as f64 / self.features)
     }
-}
-
-/// This machine's name, from `HOSTNAME` or `/etc/hostname`, or "unknown".
-pub fn host() -> String {
-    std::env::var("HOSTNAME")
-        .ok()
-        .filter(|h| !h.is_empty())
-        .or_else(|| std::fs::read_to_string("/etc/hostname").ok().map(|h| h.trim().to_owned()))
-        .filter(|h| !h.is_empty())
-        .unwrap_or_else(|| "unknown".into())
 }
 
 /// Seconds since the Unix epoch.

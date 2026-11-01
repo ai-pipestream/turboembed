@@ -148,8 +148,10 @@ fn committed_open_span_receipts_preserve_dictionary_and_holdout_evidence_and_nam
         let p = records.join(file);
         let raw = fs::read_to_string(&p).unwrap();
         assert!(!raw.contains("/work/"), "{file} contains host path");
+        let raw_val: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert!(raw_val.get("host").is_none(), "{file} contains host field");
         let r: Receipt = serde_json::from_str(&raw).unwrap();
-        assert_eq!(r.host, "unknown");
+        assert!((1..=r.training.as_ref().unwrap().dev.len()).contains(&r.training.as_ref().unwrap().best_epoch));
         assert!(r.eval.model.as_ref().unwrap().score() > r.eval.baseline.score());
         assert!(r.eval.model.as_ref().unwrap().score() > r.eval.dictionary.as_ref().unwrap().score());
         let os = r.eval.open_span.as_ref().unwrap();

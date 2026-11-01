@@ -155,7 +155,7 @@ fn synthesize_run(base_run: &Path, dest: &Path, spec: HeadSpec, spdx: &str, term
     let tensors = tagger_tensors(&spec.tensor_prefix, 32, spec.labels.len());
     let spec_bytes = serde_json::to_vec_pretty(&spec).unwrap();
     let tr = r.training.as_ref().unwrap();
-    let meta = [(CHECKPOINT_EPOCH, tr.best_epoch.to_string()), (CHECKPOINT_DEV, tr.dev[tr.best_epoch].to_string())];
+    let meta = [(CHECKPOINT_EPOCH, tr.best_epoch.to_string()), (CHECKPOINT_DEV, tr.dev[tr.best_epoch - 1].to_string())];
     let st_bytes = safetensors::write_with(&tensors, &meta);
     fs::write(dest.join("head.json"), &spec_bytes).unwrap();
     fs::write(dest.join("head.safetensors"), &st_bytes).unwrap();

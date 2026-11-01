@@ -30,7 +30,6 @@ pub struct CacheRecord {
     pub schema: String,
     pub command: Vec<String>,
     pub commit: String,
-    pub host: String,
     pub unix_time: u64,
     pub corpus: CorpusRecord,
     pub encoder: EncoderRecord,
