@@ -113,6 +113,7 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ("analysis/train-recipes/README.md", "Training recipes documentation owned by #1529"),
     ("analysis/eval/records/v1-172/metal/README.md", "Committed Metal chunker v1 evaluation record README (#172)"),
     ("clients/java-panama/README.md", "Java Panama adapter package ai.pipestream.turboembed.opennlp README (#1470)"),
+    ("clients/java-jni/README.md", "Java JNI adapter package ai.pipestream.turboembed.jni.opennlp README (#1800)"),
     ("trainer/recipes/records/masc-pos-1649/README.md", "Committed MASC Penn POS training record README (#1649)"),
 ];
 

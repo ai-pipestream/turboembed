@@ -33,14 +33,7 @@ pub(super) unsafe fn call(err: *mut turbo_error, f: impl FnOnce() -> Result<()>)
         set_last_error("turbo_error.struct_size does not match this library");
         return INVALID_STRUCT_SIZE;
     }
-    let outcome = catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|p| {
-        let why = p
-            .downcast_ref::<&str>()
-            .map(|s| s.to_string())
-            .or_else(|| p.downcast_ref::<String>().cloned())
-            .unwrap_or_default();
-        Err(Error::new(PANIC, format!("panic in libturbo: {why}")))
-    });
+    let outcome = catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|p| Err(panic_error(p)));
     let e = match outcome {
         Ok(()) => Error::new(status::OK, ""),
         Err(e) => e,
@@ -52,6 +45,17 @@ pub(super) unsafe fn call(err: *mut turbo_error, f: impl FnOnce() -> Result<()>)
         write_str(&mut out.message, &e.message);
     }
     e.code
+}
+
+/// The error a panic caught at a language boundary becomes: the C ABI's
+/// and the Java entry points' alike.
+pub(crate) fn panic_error(p: Box<dyn std::any::Any + Send>) -> Error {
+    let why = p
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| p.downcast_ref::<String>().cloned())
+        .unwrap_or_default();
+    Error::new(PANIC, format!("panic in libturbo: {why}"))
 }
 
 /// Copy `s` into a NUL-terminated buffer, cut at a character boundary.

@@ -428,3 +428,7 @@ pub use tokenizer_api::*;
 
 mod analysis_api;
 pub use analysis_api::*;
+
+// The Java Native Interface entry points over the C ABI above
+// (clients/java-jni/README.md).
+mod jni;
