@@ -25,6 +25,7 @@
 //!     [--min-tree-freq N])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
+//! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735)
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N])
 //! turbo-train-head distill-head --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
@@ -61,6 +62,7 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
 mod train_coref;
+mod train_open_span;
 mod train_relation;
 mod train_split;
 mod train_ud;
@@ -113,7 +115,15 @@ fn run(argv: Vec<String>) -> Result<()> {
                 let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
                 (
                     coref.record,
-                    EvalRecord { split: "test".into(), model: None, baseline, comparison: None, uas: None },
+                    EvalRecord {
+                        split: "test".into(),
+                        model: None,
+                        baseline,
+                        dictionary: None,
+                        open_span: None,
+                        comparison: None,
+                        uas: None,
+                    },
                     read,
                 )
             } else {
@@ -124,7 +134,15 @@ fn run(argv: Vec<String>) -> Result<()> {
                     evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
                 (
                     c.record,
-                    EvalRecord { split: "test".into(), model: None, baseline, comparison: None, uas: None },
+                    EvalRecord {
+                        split: "test".into(),
+                        model: None,
+                        baseline,
+                        dictionary: None,
+                        open_span: None,
+                        comparison: None,
+                        uas: None,
+                    },
                     read,
                 )
             };
@@ -159,9 +177,10 @@ fn run(argv: Vec<String>) -> Result<()> {
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-coref, distill-head, assemble, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, distill-head, assemble, cache, fit-cache, export or peer"
         ))),
     }
 }
@@ -371,6 +390,8 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         split: "test".into(),
         model: Some(evaluate(task, test, &predicted, &seen, coarse(corpus_id))),
         baseline: evaluate(task, test, &base, &seen, coarse(corpus_id)),
+        dictionary: None,
+        open_span: None,
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
     };

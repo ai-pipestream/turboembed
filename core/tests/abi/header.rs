@@ -283,6 +283,7 @@ fn struct_layouts_match_the_header() {
             ("turbo_analyzer_desc", "pos_model_path", offset_of!(turbo_analyzer_desc, pos_model_path)),
             ("turbo_analyzer_desc", "lemma_model_path", offset_of!(turbo_analyzer_desc, lemma_model_path)),
             ("turbo_analyzer_desc", "ner_model_path", offset_of!(turbo_analyzer_desc, ner_model_path)),
+            ("turbo_analyzer_desc", "bundle_path", offset_of!(turbo_analyzer_desc, bundle_path)),
             ("turbo_span", "layer_kind", offset_of!(turbo_span, layer_kind)),
             ("turbo_span", "flags", offset_of!(turbo_span, flags)),
             ("turbo_span", "item_index", offset_of!(turbo_span, item_index)),

@@ -1,6 +1,6 @@
-//! The sentence boundary, token split, span classifier, coreference
-//! ranker and relation classifier heads' own fields and rules, beside the
-//! rules every head meets (heads.rs).
+//! The sentence boundary, token split, span classifier, open-label span
+//! typing (#1516, #1735), coreference ranker and relation classifier
+//! heads' own fields and rules, beside the rules every head meets (heads.rs).
 
 use serde::{Deserialize, Serialize};
 
@@ -81,18 +81,39 @@ pub struct RelationShape {
 }
 
 impl HeadSpec {
-    /// Whether the head's scheme and decode are ones its kind takes.
-    pub(super) fn decode_fits_kind(&self) -> bool {
+    pub(super) fn validate_kind_decode(&self, at: &dyn Fn(&str) -> String) -> Result<()> {
         let tags = self.scheme == Scheme::Tags;
-        match self.kind {
+        let fits_kind = match self.kind {
             HeadKind::TokenTagger => matches!(self.decode, Decode::Argmax | Decode::Crf),
             HeadKind::BiaffineParser => matches!(self.decode, Decode::Mst | Decode::Eisner) && tags,
             HeadKind::EditTreeLemmatizer | HeadKind::TokenSplit => self.decode == Decode::EditTree && tags,
             HeadKind::SentenceBoundary => matches!(self.decode, Decode::Argmax | Decode::Crf) && tags,
-            HeadKind::SpanClassifier => matches!(self.decode, Decode::SpansNested | Decode::SpansFlat) && tags,
+            HeadKind::SpanClassifier | HeadKind::OpenSpan => {
+                matches!(self.decode, Decode::SpansNested | Decode::SpansFlat) && tags
+            }
             HeadKind::CorefRanker => self.decode == Decode::Antecedent && tags,
             HeadKind::RelationClassifier => self.decode == Decode::Relations && tags,
+        };
+        let parser = self.kind == HeadKind::BiaffineParser;
+        let lemmatizer = self.kind == HeadKind::EditTreeLemmatizer;
+        if !fits_kind || parser != self.biaffine.is_some() || (!lemmatizer && self.pos_input.is_some()) {
+            return Err(invalid(format!(
+                "manifest.json: {}: {:?} with {:?}, {:?}, biaffine {} and pos_input {}: a HEAD_TOKEN_TAGGER takes \
+                 DECODE_ARGMAX or DECODE_CRF; a HEAD_BIAFFINE_PARSER takes SCHEME_TAGS, DECODE_MST or DECODE_EISNER and \
+                 biaffine; a HEAD_EDIT_TREE_LEMMATIZER takes SCHEME_TAGS, DECODE_EDIT_TREE and an optional pos_input; \
+                 a HEAD_SENTENCE_BOUNDARY takes SCHEME_TAGS and DECODE_ARGMAX or DECODE_CRF; a HEAD_TOKEN_SPLIT takes \
+                 SCHEME_TAGS and DECODE_EDIT_TREE; a HEAD_SPAN_CLASSIFIER takes SCHEME_TAGS and DECODE_SPANS_NESTED or \
+                 DECODE_SPANS_FLAT; a HEAD_OPEN_SPAN takes SCHEME_TAGS and DECODE_SPANS_NESTED or DECODE_SPANS_FLAT; \
+                 a HEAD_COREF_RANKER takes SCHEME_TAGS and DECODE_ANTECEDENT; a HEAD_RELATION_CLASSIFIER takes SCHEME_TAGS and DECODE_RELATIONS",
+                at("kind"),
+                self.kind,
+                self.scheme,
+                self.decode,
+                if self.biaffine.is_some() { "set" } else { "absent" },
+                if self.pos_input.is_some() { "set" } else { "absent" }
+            )));
         }
+        Ok(())
     }
 
     /// What a head of this kind needs beyond `validate`'s kind, scheme and
@@ -100,10 +121,10 @@ impl HeadSpec {
     /// coref and relation shapes. `at` gives the field path an error names.
     pub(super) fn validate_kind_rules(&self, at: &dyn Fn(&str) -> String) -> Result<()> {
         let coref = self.kind == HeadKind::CorefRanker;
-        let spans = self.kind == HeadKind::SpanClassifier || coref;
+        let spans = matches!(self.kind, HeadKind::SpanClassifier | HeadKind::OpenSpan) || coref;
         if spans != self.span.is_some() {
             return Err(invalid(format!(
-                "manifest.json: {}: given exactly when the kind is HEAD_SPAN_CLASSIFIER or HEAD_COREF_RANKER",
+                "manifest.json: {}: given exactly when the kind is HEAD_SPAN_CLASSIFIER, HEAD_OPEN_SPAN or HEAD_COREF_RANKER",
                 at("span")
             )));
         }
@@ -145,6 +166,10 @@ impl HeadSpec {
             HeadKind::SpanClassifier if !self.labels.iter().any(|l| l == "O") => {
                 Err(invalid(format!("manifest.json: {}: a HEAD_SPAN_CLASSIFIER needs the label \"O\"", at("labels"))))
             }
+            HeadKind::OpenSpan if self.labels.iter().any(|l| l == "O") => Err(invalid(format!(
+                "manifest.json: {}: a HEAD_OPEN_SPAN lists only entity types, not \"O\"",
+                at("labels")
+            ))),
             HeadKind::CorefRanker => {
                 if self.labels != COREF_LABELS || self.hash_embed.is_some() {
                     return Err(invalid(format!(

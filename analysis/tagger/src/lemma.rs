@@ -14,7 +14,8 @@ use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
-use turbo::head::{EditTreeLemmatizer, TokenTagger, lemmatizer, tagger};
+use turbo::head::run::{LemmaTags, lemmatize_sequences};
+use turbo::head::{EditTreeLemmatizer, TokenTagger};
 use turbo::manifest::{HeadKind, WordPooling};
 use turbo::status::Error as CoreError;
 use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Layer, ModelRef, Refs, View};
@@ -24,18 +25,7 @@ use turbo_analysis_layers::{Lemmas, Sentences, Strs, Subwords, Tokens};
 use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, open_words, refuse, tail_taps};
 use crate::words::WordEncoder;
 
-/// A lemma lookup that overrides the head where it has an answer.
-pub trait LemmaDictionary: Send + Sync {
-    /// The lemma listed for `form` under `tag` (the tag head's label, None
-    /// when the lemmatizer reads no tags), or None to keep the head's.
-    fn lemma(&self, form: &str, tag: Option<&str>) -> Option<String>;
-}
-
-impl<F: Fn(&str, Option<&str>) -> Option<String> + Send + Sync> LemmaDictionary for F {
-    fn lemma(&self, form: &str, tag: Option<&str>) -> Option<String> {
-        self(form, tag)
-    }
-}
+pub use turbo::head::run::LemmaDictionary;
 
 /// A dictionary and the name that keys it in the config hash.
 struct Dictionary {
@@ -216,42 +206,7 @@ pub(crate) fn lemmas_with(
     pos: Option<&[Vec<f32>]>,
     forms: &[Vec<&str>],
 ) -> Result<Vec<Vec<String>>, CoreError> {
-    let stride = lem.taps() * lem.hidden();
-    let (mut scores, mut tags, mut trees) = (Vec::new(), Vec::new(), Vec::new());
-    let (mut tw, mut lw) = (tagger::Work::default(), lemmatizer::Work::default());
-    let mut out = Vec::with_capacity(head.len());
-    for (s, f) in head.iter().enumerate() {
-        let n = f.len() / stride;
-        let ids: Vec<u32> = (0..n as u32).collect();
-        let words = &forms[s];
-        if words.len() != n {
-            return Err(refuse(format!("{} forms for {n} words", words.len())));
-        }
-        let tagged = match pos_tagger {
-            Some(t) => {
-                let pf = pos.map_or(f, |p| &p[s]);
-                // A hashed tag head reads each word's text too.
-                t.scores_forms(pf, &ids, Some(words), &mut scores, &mut tw)?;
-                t.decode(&scores, n, &mut tags)?;
-                Some(&tags[..])
-            }
-            None => None,
-        };
-        lem.scores(f, &ids, tagged, &mut scores, &mut lw)?;
-        lem.decode(&scores, words, &mut trees)?;
-        let mut lemmas = lem.lemmas(&trees, words)?;
-        if let Some(d) = dictionary {
-            let labels = pos_tagger.map(TokenTagger::labels);
-            for (k, lemma) in lemmas.iter_mut().enumerate() {
-                let tag = labels.zip(tagged).map(|(l, t)| l[t[k] as usize].as_str());
-                if let Some(listed) = d.lemma(words[k], tag) {
-                    *lemma = listed;
-                }
-            }
-        }
-        out.push(lemmas);
-    }
-    Ok(out)
+    lemmatize_sequences(lem, LemmaTags { pos_tagger, pos, given: None }, dictionary, head, forms)
 }
 
 /// The lemma layer from each sequence's lemmas.

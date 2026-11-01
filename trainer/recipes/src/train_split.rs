@@ -93,6 +93,8 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
         split: "test".into(),
         model: Some(evaluate(Task::Tags, &test, &predicted, &seen, None)),
         baseline: evaluate(Task::Tags, &test, &base, &seen, None),
+        dictionary: None,
+        open_span: None,
         comparison: Some(bootstrap(Task::Tags, &test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
     };

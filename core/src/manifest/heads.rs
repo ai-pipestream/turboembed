@@ -59,8 +59,8 @@ pub struct HeadSpec {
     /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash_embed: Option<HashEmbed>,
-    /// The spans a HEAD_SPAN_CLASSIFIER scores; absent for every other
-    /// kind.
+    /// The spans a HEAD_SPAN_CLASSIFIER or HEAD_OPEN_SPAN head scores;
+    /// absent for every other kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<SpanShape>,
     /// How a HEAD_COREF_RANKER scores antecedents; absent for every other
@@ -115,6 +115,12 @@ pub enum HeadKind {
     /// first and last word and its width (head/span.rs); `O` is no span.
     #[serde(rename = "HEAD_SPAN_CLASSIFIER")]
     SpanClassifier,
+    /// Open-label span typing (head/open_span.rs): scores every span of up
+    /// to `span.max_words` words against caller-supplied label vectors in
+    /// the encoder's hidden space. `labels` records the training type
+    /// names under SCHEME_TAGS.
+    #[serde(rename = "HEAD_OPEN_SPAN")]
+    OpenSpan,
     /// For each given mention, its antecedent among the mentions before
     /// it, or none (head/coref.rs); mentions read as a span classifier
     /// reads spans (`span`), pairs scored as `coref` says.
@@ -332,26 +338,8 @@ impl HeadSpec {
         if self.scheme != Scheme::Tags && !self.labels.iter().any(|l| l == "O") {
             return Err(invalid(format!("manifest.json: {}: {:?} needs the label \"O\"", at("labels"), self.scheme)));
         }
-        let fits_kind = self.decode_fits_kind();
-        let parser = self.kind == HeadKind::BiaffineParser;
-        let lemmatizer = self.kind == HeadKind::EditTreeLemmatizer;
-        if !fits_kind || parser != self.biaffine.is_some() || (!lemmatizer && self.pos_input.is_some()) {
-            return Err(invalid(format!(
-                "manifest.json: {}: {:?} with {:?}, {:?}, biaffine {} and pos_input {}: a HEAD_TOKEN_TAGGER takes \
-                 DECODE_ARGMAX or DECODE_CRF; a HEAD_BIAFFINE_PARSER takes SCHEME_TAGS, DECODE_MST or DECODE_EISNER and \
-                 biaffine; a HEAD_EDIT_TREE_LEMMATIZER takes SCHEME_TAGS, DECODE_EDIT_TREE and an optional pos_input; \
-                 a HEAD_SENTENCE_BOUNDARY takes SCHEME_TAGS and DECODE_ARGMAX or DECODE_CRF; a HEAD_TOKEN_SPLIT takes \
-                 SCHEME_TAGS and DECODE_EDIT_TREE; a HEAD_SPAN_CLASSIFIER takes SCHEME_TAGS and DECODE_SPANS_NESTED or \
-                 DECODE_SPANS_FLAT; a HEAD_COREF_RANKER takes SCHEME_TAGS and DECODE_ANTECEDENT; a HEAD_RELATION_CLASSIFIER takes SCHEME_TAGS and DECODE_RELATIONS",
-                at("kind"),
-                self.kind,
-                self.scheme,
-                self.decode,
-                if self.biaffine.is_some() { "set" } else { "absent" },
-                if self.pos_input.is_some() { "set" } else { "absent" }
-            )));
-        }
-        if lemmatizer {
+        self.validate_kind_decode(&at)?;
+        if self.kind == HeadKind::EditTreeLemmatizer {
             for (j, l) in self.labels.iter().enumerate() {
                 crate::head::edit_tree::EditTree::parse(l)
                     .map_err(|e| invalid(format!("manifest.json: {}: {}", at(&format!("labels[{j}]")), e.message)))?;

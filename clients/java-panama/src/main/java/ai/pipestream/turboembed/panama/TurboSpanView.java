@@ -3,6 +3,7 @@ package ai.pipestream.turboembed.panama;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalLong;
 
 /**
  * A lightweight, lifetime-bound view of one row in a {@link TurboAnalysisResult}.
@@ -46,9 +47,20 @@ public final class TurboSpanView {
         return owner.viewId(index);
     }
 
-    /** Returns the raw layer-specific classification. For PII use {@link #piiConfidence()}. */
+    /**
+     * Returns the raw layer-specific classification. For PII use {@link #piiConfidence()}; for a
+     * dependency row use {@link #dependencyHead()}.
+     */
     public long classification() {
         return owner.classification(index);
+    }
+
+    /**
+     * Returns the head token index of a dependency row, or empty for the root of its sentence and
+     * for another layer kind. The relation is the row's label.
+     */
+    public OptionalLong dependencyHead() {
+        return TurboSpanData.dependencyHead(layerKind(), classification());
     }
 
     /** Returns the PII evidence classification, or empty for another layer kind. */

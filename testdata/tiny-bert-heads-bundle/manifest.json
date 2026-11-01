@@ -1,0 +1,282 @@
+{
+  "architecture": {
+    "activation": "ACTIVATION_GELU_ERF",
+    "family": "FAMILY_BERT",
+    "heads": 4,
+    "hidden": 32,
+    "intermediate": 64,
+    "layer_norm_eps": 1e-12,
+    "layers": 2,
+    "max_positions": 512,
+    "position_embedding": "POSITION_ABSOLUTE",
+    "token_types": 2,
+    "vocab_size": 30522
+  },
+  "artifacts": [
+    {
+      "backends": [
+        "cuda",
+        "metal",
+        "levelzero",
+        "cpu"
+      ],
+      "files": [
+        "weights/model.safetensors"
+      ],
+      "format": "FORMAT_SAFETENSORS",
+      "graph_input": "INPUT_TOKEN_IDS",
+      "graph_output": "OUTPUT_HIDDEN_STATES",
+      "name": "weights-f32",
+      "tensor_names": {
+        "attn_ln_bias": "encoder.layer.{layer}.attention.output.LayerNorm.bias",
+        "attn_ln_weight": "encoder.layer.{layer}.attention.output.LayerNorm.weight",
+        "attn_out_bias": "encoder.layer.{layer}.attention.output.dense.bias",
+        "attn_out_weight": "encoder.layer.{layer}.attention.output.dense.weight",
+        "embeddings_ln_bias": "embeddings.LayerNorm.bias",
+        "embeddings_ln_weight": "embeddings.LayerNorm.weight",
+        "ffn_in_bias": "encoder.layer.{layer}.intermediate.dense.bias",
+        "ffn_in_weight": "encoder.layer.{layer}.intermediate.dense.weight",
+        "ffn_ln_bias": "encoder.layer.{layer}.output.LayerNorm.bias",
+        "ffn_ln_weight": "encoder.layer.{layer}.output.LayerNorm.weight",
+        "ffn_out_bias": "encoder.layer.{layer}.output.dense.bias",
+        "ffn_out_weight": "encoder.layer.{layer}.output.dense.weight",
+        "k_bias": "encoder.layer.{layer}.attention.self.key.bias",
+        "k_weight": "encoder.layer.{layer}.attention.self.key.weight",
+        "position_embeddings": "embeddings.position_embeddings.weight",
+        "q_bias": "encoder.layer.{layer}.attention.self.query.bias",
+        "q_weight": "encoder.layer.{layer}.attention.self.query.weight",
+        "token_type_embeddings": "embeddings.token_type_embeddings.weight",
+        "v_bias": "encoder.layer.{layer}.attention.self.value.bias",
+        "v_weight": "encoder.layer.{layer}.attention.self.value.weight",
+        "word_embeddings": "embeddings.word_embeddings.weight"
+      }
+    }
+  ],
+  "bundle_version": 1,
+  "embed": {
+    "dim": 32,
+    "max_batch": 64,
+    "max_seq": 64,
+    "normalize": "NORMALIZE_L2",
+    "pooling": "POOLING_MEAN",
+    "prefix_query": "query: "
+  },
+  "files": [
+    {
+      "path": "reference/reference.safetensors",
+      "sha256": "328a285e331978c6141c4c10a1580d7efc6a201f9b7b3ce4b7a03b09d199720a",
+      "size": 3700
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0",
+      "size": 711661
+    },
+    {
+      "path": "weights/model.safetensors",
+      "sha256": "8b9d33a7ef98611bbb352d29d568faec806036c045b84b471ad4768909ca13f6",
+      "size": 4061768
+    }
+  ],
+  "heads": [
+    {
+      "artifact": "weights-f32",
+      "decode": "DECODE_ARGMAX",
+      "kind": "HEAD_TOKEN_TAGGER",
+      "labels": [
+        "NOUN",
+        "VERB",
+        "DET",
+        "ADJ",
+        "PUNCT"
+      ],
+      "layer": "turboembed:pos",
+      "name": "pos",
+      "scheme": "SCHEME_TAGS",
+      "tensor_prefix": "heads.pos",
+      "word_pooling": "WORD_POOLING_MEAN"
+    },
+    {
+      "adapter": {
+        "bilstm": {
+          "hidden": 4,
+          "layers": 1
+        }
+      },
+      "artifact": "weights-f32",
+      "decode": "DECODE_CRF",
+      "kind": "HEAD_TOKEN_TAGGER",
+      "labels": [
+        "O",
+        "B-PER",
+        "I-PER",
+        "B-LOC",
+        "I-LOC"
+      ],
+      "layer": "turboembed:entities",
+      "name": "ner",
+      "scheme": "SCHEME_BIO",
+      "tensor_prefix": "heads.ner",
+      "word_pooling": "WORD_POOLING_FIRST"
+    },
+    {
+      "artifact": "weights-f32",
+      "biaffine": {
+        "arc": 6,
+        "rel": 4
+      },
+      "decode": "DECODE_MST",
+      "kind": "HEAD_BIAFFINE_PARSER",
+      "labels": [
+        "root",
+        "nsubj",
+        "obj",
+        "det",
+        "amod",
+        "punct"
+      ],
+      "layer": "turboembed:dependencies",
+      "name": "deps",
+      "scheme": "SCHEME_TAGS",
+      "tensor_prefix": "heads.deps",
+      "word_pooling": "WORD_POOLING_FIRST"
+    },
+    {
+      "artifact": "weights-f32",
+      "decode": "DECODE_EDIT_TREE",
+      "kind": "HEAD_EDIT_TREE_LEMMATIZER",
+      "labels": [
+        "(m 0 0 () ())",
+        "(m 0 1 () (s 's' ''))",
+        "(m 0 2 () (s 'ed' ''))",
+        "(s 'met' 'meet')"
+      ],
+      "layer": "turboembed:lemmas",
+      "name": "lemma",
+      "pos_input": {
+        "dim": 3,
+        "head": "pos",
+        "labels": 5
+      },
+      "scheme": "SCHEME_TAGS",
+      "tensor_prefix": "heads.lemma",
+      "word_pooling": "WORD_POOLING_FIRST"
+    }
+  ],
+  "model": {
+    "id": "turboembed/tiny-bert-heads",
+    "license": "Apache-2.0",
+    "revision": "1",
+    "source": {
+      "commit": "af146a9213260f30554ba972a9c79d6053b84ad0",
+      "repository": "https://github.com/ai-pipestream/turboembed"
+    }
+  },
+  "reference": {
+    "cases": [
+      {
+        "prompt_role": "PROMPT_NONE",
+        "text": ""
+      },
+      {
+        "prompt_role": "PROMPT_NONE",
+        "text": "The quick brown fox jumps over the lazy dog."
+      },
+      {
+        "prompt_role": "PROMPT_NONE",
+        "text": "Café naïve RÉSUMÉ"
+      },
+      {
+        "prompt_role": "PROMPT_NONE",
+        "text": "东京是日本的首都。"
+      },
+      {
+        "prompt_role": "PROMPT_NONE",
+        "text": "emoji 🙂 and tabs\tand\nnewlines"
+      },
+      {
+        "prompt_role": "PROMPT_QUERY",
+        "text": "how do I reset a password"
+      },
+      {
+        "prompt_role": "PROMPT_DOCUMENT",
+        "text": "To reset a password, open Settings and choose Security."
+      },
+      {
+        "prompt_role": "PROMPT_NONE",
+        "text": "A bundle is a directory that carries one model, so that the same program gives the same answer on every machine. The manifest names every file with its size and hash, says exactly how to tokenize for the model, what it computes, and which artifact each backend runs. It also carries a small reference: token ids and vectors produced by the upstream pipeline in full precision on a CPU. Every machine that loads the bundle encodes the reference texts again and compares the ids exactly, so a tokenizer that drifts is caught before a single vector is computed."
+      },
+      {
+        "prompt_role": "PROMPT_NONE",
+        "text": "Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware."
+      }
+    ],
+    "file": "reference/reference.safetensors",
+    "produced_by": {
+      "args": [
+        "--device",
+        "cpu",
+        "--dtype",
+        "float32",
+        "--batch-size",
+        "1",
+        "--max-seq",
+        "64",
+        "--torch",
+        "2.14.0+cu130"
+      ],
+      "container": "turbo-reference@sha256:",
+      "reproducible": false,
+      "tool": "sentence-transformers",
+      "tool_version": "6.1.0"
+    }
+  },
+  "task": "TASK_EMBED",
+  "tokenizer": {
+    "file": "tokenizer.json",
+    "normalizer": {
+      "clean_text": true,
+      "lowercase": true,
+      "split_cjk": true,
+      "strip_accents": true,
+      "unicode_form": "UNICODE_NONE"
+    },
+    "special_tokens": [
+      {
+        "content": "[PAD]",
+        "id": 0,
+        "role": "SPECIAL_PAD"
+      },
+      {
+        "content": "[UNK]",
+        "id": 100,
+        "role": "SPECIAL_UNK"
+      },
+      {
+        "content": "[CLS]",
+        "id": 101,
+        "role": "SPECIAL_BOS"
+      },
+      {
+        "content": "[SEP]",
+        "id": 102,
+        "role": "SPECIAL_EOS"
+      },
+      {
+        "content": "[MASK]",
+        "id": 103,
+        "role": "SPECIAL_MASK"
+      }
+    ],
+    "template": [
+      "[CLS]",
+      "$TEXT",
+      "[SEP]"
+    ],
+    "truncation": "TRUNCATE_RIGHT",
+    "wordpiece": {
+      "continuing_prefix": "##",
+      "max_chars_per_word": 100
+    }
+  }
+}
