@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::doc::Document;
 use crate::export::{ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer};
+use crate::ids::canonical_model_id;
 use crate::layer::{Layer, ModelRef};
 use crate::span::Span;
 
@@ -100,7 +101,11 @@ impl<L: Layer> LayerCodec for Evidence<L> {
         for _ in 0..r.usize()? {
             let annotator = r.string()?;
             let model = if get_flag(&mut r, "model")? {
-                Some(ModelRef { id: r.string()?, revision: r.string()?, sha256: r.string()? })
+                Some(ModelRef {
+                    id: canonical_model_id(&r.string()?).into_owned(),
+                    revision: r.string()?,
+                    sha256: r.string()?,
+                })
             } else {
                 None
             };
