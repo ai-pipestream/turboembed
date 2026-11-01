@@ -820,7 +820,14 @@ head-major as BERT's. The first feed-forward GEMM, twice the intermediate
 width, writes `act(gate) * up` to a buffer one intermediate wide
 (`EPI_GATED_*`): GELU by `erff` at F32 and at F16 the session's GELU
 (`TURBO_CUDA_GELU`, the tanh form by default; `erf` and `poly` take
-`erff`), SiLU by `expf` or `__expf`. The epilogues are in the FMA
+`erff`), SiLU by `expf` or `__expf`. At an F16 output `gated_of` clamps
+the product to `[-65504, 65504]` before rounding to F16 so an activation
+product past F16's finite range saturates rather than rounding to
+infinity (`NaN` stays `NaN`), as Metal and Level Zero do, and the second
+feed-forward GEMM sums in F32 (`f32_sums_of` in `canonical_tile`) and
+writes the F32 product (`EPI_PLAIN`), since summing `intermediate` terms
+of up to `65504` overflows F16 sums and an F16 product (#1602, #1632).
+The epilogues are in the FMA
 kernels, the transposed FMA kernel and the tensor-core kernel; a session
 that names a swizzled or CUTLASS tile (`TURBO_CUDA_TILE`, or the tuner's
 candidates) runs these two GEMMs on the tensor-core kernel's default or
@@ -851,10 +858,14 @@ BERT's F16 residual stream at FASTEST.
 `core/tests/cuda_rotary.rs` holds the device to the CPU at MODEL within
 1e-4 on the tiny sealed bundles (ModernBERT's window 8 over rows of up to
 64 tokens, with left padding and holes) on each GEMM kernel and both FMA
-attentions, at FASTEST and TF32 to the cosine floor of 0.999, and a
+attentions, at FASTEST and TF32 to the cosine floor of 0.999, a
 generated ModernBERT of head width 64 and window 128 over rows of up to
 256 tokens on each tensor-core attention and at 4097 tokens on
-`fma-tiled` and `mma128-acc32`.
+`fma-tiled` and `mma128-acc32`, and the 32/64-wide `overflow_modernbert`
+and `overflow_nomic` bundles (whose layer 0 gated middle product passes
+`65504` while every weight stays in `[-30, 30]`) finite and near the CPU
+by cosine at FASTEST across every kernel choice and row shape (#1602,
+#1632).
 
 ## The LSTM for the taggers
 
