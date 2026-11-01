@@ -10,8 +10,8 @@
 mod gate;
 
 pub use gate::{
-    DistillExample, DistillReport, DistillTask, StudentGate, ThroughputComparison, distill_multi_head, distill_tagger,
-    make_distill_examples, measure_throughput, score_tagger,
+    DistillExample, DistillReport, DistillTask, StudentGate, ThroughputComparison, decode_teacher_example,
+    distill_multi_head, distill_tagger, make_distill_examples, measure_throughput, score_tagger,
 };
 
 use turbo::head::hash_embed::{self, SEEDS};

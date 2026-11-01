@@ -1,12 +1,9 @@
 //! Student distillation training loop, multi-head runner, throughput benchmark,
 //! and accuracy-margin gate (#1520).
 
-use std::collections::BTreeMap;
-use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use turbo::head::boundary::LAST;
-use turbo::head::crf::argmax;
 use turbo::head::tagger::Work as CoreWork;
 use turbo::manifest::{Decode, HeadKind, HeadSpec};
 use turbo::status::{Result, invalid};
@@ -23,6 +20,7 @@ use crate::tally::Tally;
 pub struct DistillExample {
     pub features: Vec<f32>,
     pub teacher_scores: Vec<f32>,
+    pub teacher_tags: Vec<u32>,
     pub labels: Vec<u32>,
     pub forms: Vec<String>,
 }
@@ -36,29 +34,10 @@ impl DistillExample {
     }
 }
 
-fn scores_key(scores: &[f32], forms: &[String]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for &s in scores {
-        for b in s.to_bits().to_le_bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0100_0000_01b3);
-        }
-    }
-    for f in forms {
-        for &b in f.as_bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0100_0000_01b3);
-        }
-    }
-    h
-}
-
-fn decoded_cache() -> &'static Mutex<BTreeMap<u64, Vec<u32>>> {
-    static CACHE: OnceLock<Mutex<BTreeMap<u64, Vec<u32>>>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(BTreeMap::new()))
-}
-
-fn decode_teacher_example(teacher: &Tagger<f32>, scores: &[f32], n: usize, forms: &[String]) -> Result<Vec<u32>> {
+/// Decodes one sequence's `scores` (`[n, labels]`) using `teacher`'s runtime
+/// decoder (including Viterbi decoding for CRF teachers, valid-tree filtering
+/// for `TokenSplit`, and final-token boundary enforcement for `SentenceBoundary`).
+pub fn decode_teacher_example(teacher: &Tagger<f32>, scores: &[f32], n: usize, forms: &[String]) -> Result<Vec<u32>> {
     match teacher.spec().kind {
         HeadKind::SentenceBoundary => {
             let b = teacher.to_boundary()?;
@@ -101,13 +80,11 @@ pub fn make_distill_examples(
             }
             teacher.forward_forms(&te.features, te.forms().as_deref(), &mut work)?;
             let teacher_scores = work.scores().to_vec();
-            let decoded = decode_teacher_example(teacher, &teacher_scores, se.labels.len(), &se.forms)?;
-            if let Ok(mut guard) = decoded_cache().lock() {
-                guard.insert(scores_key(&teacher_scores, &se.forms), decoded);
-            }
+            let teacher_tags = decode_teacher_example(teacher, &teacher_scores, se.labels.len(), &se.forms)?;
             Ok(DistillExample {
                 features: se.features.clone(),
                 teacher_scores,
+                teacher_tags,
                 labels: se.labels.clone(),
                 forms: se.forms.clone(),
             })
@@ -190,10 +167,14 @@ fn check_distill_examples(examples: &[DistillExample], hidden: usize, labels: us
         if hidden == 0
             || n.checked_mul(hidden) != Some(e.features.len())
             || n.checked_mul(labels) != Some(e.teacher_scores.len())
+            || e.teacher_tags.len() != n
+            || e.teacher_tags.iter().any(|&l| l as usize >= labels)
             || e.labels.iter().any(|&l| l as usize >= labels)
             || (forms && e.forms.len() != n)
         {
-            return Err(invalid(format!("distill: example {i} has mismatched features, teacher scores, or forms")));
+            return Err(invalid(format!(
+                "distill: example {i} has mismatched features, teacher scores, teacher tags, or forms"
+            )));
         }
     }
     Ok(())
@@ -214,36 +195,33 @@ fn score_student(student: &Tagger<f32>, examples: &[DistillExample]) -> Result<f
     score_tagger(student, &plain)
 }
 
-fn score_teacher_logits(spec: &HeadSpec, examples: &[DistillExample]) -> Result<f64> {
-    let labels = spec.labels.len();
+fn score_teacher_tags(spec: &HeadSpec, examples: &[DistillExample]) -> Result<f64> {
     if spec.kind == HeadKind::SentenceBoundary {
-        let (mut right, mut total, mut tags) = (0usize, 0usize, Vec::new());
+        let (mut right, mut total) = (0usize, 0usize);
         for e in examples {
             let n = e.labels.len();
-            let cached =
-                decoded_cache().lock().ok().and_then(|g| g.get(&scores_key(&e.teacher_scores, &e.forms)).cloned());
-            if let Some(dec) = cached {
-                tags = dec;
-            } else {
-                argmax(&e.teacher_scores, n, labels, &mut tags)?;
-                if let Some(last) = tags.last_mut() {
-                    *last = LAST;
-                }
-            }
-            right += tags.iter().zip(&e.labels).filter(|&(&pred, &gold)| (pred == LAST) == (gold == LAST)).count();
+            right += e
+                .teacher_tags
+                .iter()
+                .enumerate()
+                .zip(&e.labels)
+                .filter(|&((i, &pred), &gold)| (pred == LAST || i + 1 == n) == (gold == LAST))
+                .count();
             total += n;
         }
         return Ok(if total == 0 { 0.0 } else { right as f64 / total as f64 });
     }
-    let (mut tally, mut tags) = (Tally::new(spec), Vec::new());
-    for e in examples {
-        let cached = decoded_cache().lock().ok().and_then(|g| g.get(&scores_key(&e.teacher_scores, &e.forms)).cloned());
-        if let Some(dec) = cached {
-            tags = dec;
-        } else {
-            argmax(&e.teacher_scores, e.labels.len(), labels, &mut tags)?;
+    if spec.kind == HeadKind::TokenSplit {
+        let (mut right, mut total) = (0usize, 0usize);
+        for e in examples {
+            right += e.teacher_tags.iter().zip(&e.labels).filter(|(a, b)| a == b).count();
+            total += e.labels.len();
         }
-        tally.add(&tags, &e.labels)?;
+        return Ok(if total == 0 { 0.0 } else { right as f64 / total as f64 });
+    }
+    let mut tally = Tally::new(spec);
+    for e in examples {
+        tally.add(&e.teacher_tags, &e.labels)?;
     }
     Ok(tally.score())
 }
@@ -264,7 +242,7 @@ pub fn distill_tagger(
     if train.is_empty() {
         return Err(invalid("distill: training set must not be empty"));
     }
-    let (labels, forms) = (spec.labels.len(), spec.hash_embed.is_some());
+    let (labels, forms) = (spec.labels.len(), spec.hash_embed.is_some() || spec.kind == HeadKind::TokenSplit);
     for s in [train, val, test] {
         check_distill_examples(s, student_hidden, labels, forms)?;
     }
@@ -328,8 +306,8 @@ pub fn distill_tagger(
     if let Some(params) = best_params {
         student.set_params(params)?;
     }
-    let (t_val, s_val) = (score_teacher_logits(spec, eval_val)?, score_student(&student, eval_val)?);
-    let (t_test, s_test) = (score_teacher_logits(spec, eval_test)?, score_student(&student, eval_test)?);
+    let (t_val, s_val) = (score_teacher_tags(spec, eval_val)?, score_student(&student, eval_val)?);
+    let (t_test, s_test) = (score_teacher_tags(spec, eval_test)?, score_student(&student, eval_test)?);
     let accuracy_drop = t_test - s_test;
     let final_loss = train_loss.last().copied().unwrap_or(0.0);
     Ok((

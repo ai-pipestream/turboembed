@@ -239,6 +239,7 @@ fn soft_target_distillation_transfers_teacher_predictions_and_passes_gate() {
         .map(|e| DistillExample {
             features: e.features.clone(),
             teacher_scores: e.teacher_scores.clone(),
+            teacher_tags: e.teacher_tags.clone(),
             labels: vec![0; e.labels.len()],
             forms: e.forms.clone(),
         })
@@ -280,4 +281,63 @@ fn soft_target_distillation_transfers_teacher_predictions_and_passes_gate() {
     let multi = distill_multi_head(d_student, &tasks, &DistillOptions { alpha: 0.7, ..opts }).unwrap();
     assert_eq!(multi.len(), 2);
     assert!(multi.iter().all(|(_, r)| r.within_margin));
+}
+
+#[test]
+fn crf_teachers_with_identical_emissions_and_manual_examples_score_accurately() {
+    let mut teacher_spec = spec(&["A", "B"], None, false);
+    teacher_spec.decode = Decode::Crf;
+    let student_spec = spec(&["A", "B"], None, false);
+
+    // Build two CRF teachers with identical emission weights (all zero logits)
+    // and different CRF start/transition/end parameters.
+    let mut teacher_a = Tagger::<f32>::new(&teacher_spec, 2, &mut Rng::new(7)).unwrap();
+    teacher_a.param_mut(0).fill(0.0);
+    teacher_a.param_mut(1).fill(0.0);
+    let mut teacher_b = teacher_a.clone();
+
+    // teacher_a favors path [0, 0]; teacher_b favors path [1, 1] under identical emissions.
+    teacher_a.param_mut(2).copy_from_slice(&[2.0, -2.0, -2.0, 2.0]);
+    teacher_a.param_mut(3).copy_from_slice(&[2.0, -2.0]);
+    teacher_a.param_mut(4).copy_from_slice(&[2.0, -2.0]);
+
+    teacher_b.param_mut(2).copy_from_slice(&[2.0, -2.0, -2.0, 2.0]);
+    teacher_b.param_mut(3).copy_from_slice(&[-2.0, 2.0]);
+    teacher_b.param_mut(4).copy_from_slice(&[-2.0, 2.0]);
+
+    let ex = Example { features: vec![1.0, 0.0, 0.0, 1.0], labels: vec![1, 1], forms: Vec::new() };
+    let d_a = make_distill_examples(&teacher_a, std::slice::from_ref(&ex), std::slice::from_ref(&ex)).unwrap();
+    let d_b = make_distill_examples(&teacher_b, std::slice::from_ref(&ex), std::slice::from_ref(&ex)).unwrap();
+    assert_eq!(d_a[0].teacher_scores, d_b[0].teacher_scores, "identical emission scores");
+    assert_eq!(d_a[0].teacher_tags, vec![0, 0]);
+    assert_eq!(d_b[0].teacher_tags, vec![1, 1]);
+
+    let opts = DistillOptions { epochs: 2, batch_size: 1, ..DistillOptions::default() };
+    let (_, rep_a) = distill_tagger(&student_spec, 2, &d_a, &d_a, &d_a, &opts).unwrap();
+    let (_, rep_b) = distill_tagger(&student_spec, 2, &d_b, &d_b, &d_b, &opts).unwrap();
+    assert_eq!(rep_a.teacher_test_accuracy, score_tagger(&teacher_a, std::slice::from_ref(&ex)).unwrap());
+    assert_eq!(rep_b.teacher_test_accuracy, score_tagger(&teacher_b, std::slice::from_ref(&ex)).unwrap());
+    assert_eq!(rep_a.teacher_test_accuracy, 0.0);
+    assert_eq!(rep_b.teacher_test_accuracy, 1.0);
+
+    // Manually constructed DistillExample whose runtime-decoded teacher_tags ([1, 1])
+    // differ from argmax(teacher_scores) ([0, 0]) is scored using teacher_tags.
+    let manual = DistillExample {
+        features: vec![1.0, 0.0, 0.0, 1.0],
+        teacher_scores: vec![3.0, -1.0, 3.0, -1.0],
+        teacher_tags: vec![1, 1],
+        labels: vec![1, 1],
+        forms: Vec::new(),
+    };
+    let (_, rep_manual) =
+        distill_tagger(&student_spec, 2, std::slice::from_ref(&manual), &[], std::slice::from_ref(&manual), &opts)
+            .unwrap();
+    assert_eq!(rep_manual.teacher_val_accuracy, 1.0);
+    assert_eq!(rep_manual.teacher_test_accuracy, 1.0);
+
+    // Mismatched or out-of-range teacher_tags are refused.
+    let bad_len = DistillExample { teacher_tags: vec![1], ..manual.clone() };
+    let bad_tag = DistillExample { teacher_tags: vec![1, 2], ..manual };
+    assert!(distill_tagger(&student_spec, 2, &[bad_len], &[], &[], &opts).is_err());
+    assert!(distill_tagger(&student_spec, 2, &[bad_tag], &[], &[], &opts).is_err());
 }

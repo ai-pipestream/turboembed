@@ -23,7 +23,6 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::WordEncoder;
 use turbo_trainer::{
     DistillOptions, Example, StudentGate, Tagger, ThroughputComparison, distill_tagger, fit, make_distill_examples,
-    score_tagger,
 };
 
 use crate::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
@@ -244,14 +243,8 @@ where
     let d_val = make_distill_examples(teacher, t_val, s_val).map_err(|e| Error(e.message))?;
     let d_test = make_distill_examples(teacher, t_test, s_test).map_err(|e| Error(e.message))?;
 
-    let (student, mut report) = distill_tagger(student_spec, student_hidden, &d_train, &d_val, &d_test, options)
+    let (student, report) = distill_tagger(student_spec, student_hidden, &d_train, &d_val, &d_test, options)
         .map_err(|e| Error(e.message))?;
-    let eval_t_val = if t_val.is_empty() { t_train } else { t_val };
-    let eval_t_test = if t_test.is_empty() { eval_t_val } else { t_test };
-    report.teacher_val_accuracy = score_tagger(teacher, eval_t_val).map_err(|e| Error(e.message))?;
-    report.teacher_test_accuracy = score_tagger(teacher, eval_t_test).map_err(|e| Error(e.message))?;
-    report.accuracy_drop = report.teacher_test_accuracy - report.student_test_accuracy;
-    report.within_margin = report.accuracy_drop <= options.max_accuracy_drop;
 
     let (throughput, device, backend) = bench(&student)?;
     let gate = StudentGate::evaluate(&report, throughput, options.max_accuracy_drop, min_speedup_ratio);
