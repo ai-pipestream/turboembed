@@ -1,0 +1,272 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train-sentences",
+    "--corpus",
+    "ud-es-ancora",
+    "--dir",
+    "ud-es-ancora",
+    "--bundle",
+    "xlm-roberta-base",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--hash-embed",
+    "64",
+    "--threads",
+    "16",
+    "--commit",
+    "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+    "--out",
+    "out-ud-es-ancora"
+  ],
+  "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+  "host": "rtx-4080-machine",
+  "unix_time": 1793425761,
+  "corpus": {
+    "id": "ud-es-ancora-sentences",
+    "name": "Universal Dependencies Spanish AnCora r2.16 (r2.16 b35db4b8)",
+    "task": "tags",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Spanish AnCora r2.16, published at https://github.com/UniversalDependencies/UD_Spanish-AnCora; used under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "es_ancora-ud-train.conllu",
+        "size": 42958918,
+        "sha256": "79e7463700e75bdf921c85b6e04495af118462a2b032bbff590fb82aa6ad8d5d"
+      },
+      {
+        "path": "es_ancora-ud-dev.conllu",
+        "size": 5104844,
+        "sha256": "e257745f4c339be53d5158867a28a2bfbcb98d890db86faa324e5f45f0284afc"
+      },
+      {
+        "path": "es_ancora-ud-test.conllu",
+        "size": 5106509,
+        "sha256": "2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b"
+      }
+    ],
+    "split": "official Universal Dependencies Spanish AnCora r2.16 train, dev and test files",
+    "train": {
+      "sentences": 14287,
+      "words": 442892
+    },
+    "dev": {
+      "sentences": 1654,
+      "words": 52212
+    },
+    "test": {
+      "sentences": 1721,
+      "words": 52454
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "sentences",
+    "layer": "turboembed:sentences",
+    "kind": "HEAD_SENTENCE_BOUNDARY",
+    "labels": [
+      "inside",
+      "last"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_PERMISSIVE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.sentences"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 6,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.3135464515388356,
+      0.01209724125763727,
+      0.003811054113091766,
+      0.0030079014579123377,
+      0.002741826800999726,
+      0.0026046143850661408,
+      0.002462999348144197,
+      0.0023616141258747804,
+      0.0023311264309815115,
+      0.002244326457798305,
+      0.002182110702951351,
+      0.0021430450759980977
+    ],
+    "dev": [
+      0.9991955872213284,
+      0.9992147399065349,
+      0.9991189764805025,
+      0.9992147399065349,
+      0.9992147399065349,
+      0.9992147399065349,
+      0.9991764345361219,
+      0.999138129165709,
+      0.9991955872213284,
+      0.9991955872213284,
+      0.9991572818509155,
+      0.9991572818509155
+    ],
+    "best_epoch": 1,
+    "epoch_seconds": [
+      1.411795451,
+      1.4203712849999999,
+      1.354907969,
+      1.322220972,
+      1.400889415,
+      1.737769579,
+      1.60326792,
+      1.3552504779999999,
+      1.40400346,
+      1.331256386,
+      1.335140409,
+      1.395595744
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "spans": {
+        "all": {
+          "gold": 1721,
+          "found": 1705,
+          "correct": 1671,
+          "precision": 0.980058651026393,
+          "recall": 0.9709471237652527,
+          "f1": 0.9754816112084063
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 1721,
+            "found": 1705,
+            "correct": 1671,
+            "precision": 0.980058651026393,
+            "recall": 0.9709471237652527,
+            "f1": 0.9754816112084063
+          }
+        }
+      }
+    },
+    "baseline": {
+      "spans": {
+        "all": {
+          "gold": 1721,
+          "found": 168,
+          "correct": 2,
+          "precision": 0.011904761904761904,
+          "recall": 0.0011621150493898896,
+          "f1": 0.0021175224986765486
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 1721,
+            "found": 168,
+            "correct": 2,
+            "precision": 0.011904761904761904,
+            "recall": 0.0011621150493898896,
+            "f1": 0.0021175224986765486
+          }
+        }
+      }
+    },
+    "comparison": {
+      "model": 0.9754816112084063,
+      "baseline": 0.0021175224986765486,
+      "delta": 0.9733640887097297,
+      "low": 0.9617755332121575,
+      "high": 0.984005068506146,
+      "resamples": 1000,
+      "seed": 1
+    },
+    "rules": {
+      "name": "sentdetect-rules-es",
+      "baseline": {
+        "spans": {
+          "all": {
+            "gold": 1721,
+            "found": 1640,
+            "correct": 1582,
+            "precision": 0.9646341463414634,
+            "recall": 0.9192330040674027,
+            "f1": 0.9413864921154418
+          },
+          "per_type": {
+            "sentence": {
+              "gold": 1721,
+              "found": 1640,
+              "correct": 1582,
+              "precision": 0.9646341463414634,
+              "recall": 0.9192330040674027,
+              "f1": 0.9413864921154418
+            }
+          }
+        }
+      },
+      "comparison": {
+        "model": 0.9754816112084063,
+        "baseline": 0.9413864921154418,
+        "delta": 0.034095119092964477,
+        "low": -0.0034931091271560577,
+        "high": 0.07997608314049287,
+        "resamples": 1000,
+        "seed": 1
+      }
+    }
+  },
+  "timing_s": {
+    "read": 0.464485999,
+    "features": 7.427449575,
+    "train": 17.101106984,
+    "eval": 0.974997086,
+    "feature_words": 495104
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 2824832,
+      "sha256": "af7edff0b39d4258fba670418ae6955ae9347c7810b66cf66c3113491eae07e4"
+    },
+    {
+      "path": "head.json",
+      "size": 447,
+      "sha256": "bc56bd9c8f14c9e5a203806470f5e07387f837b1ebd2230bfb41ceab2c8fb81e"
+    }
+  ]
+}

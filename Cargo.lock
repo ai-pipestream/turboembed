@@ -2912,6 +2912,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-sentdetect",
  "turbo-tagger",
  "turbo-train-recipes",
  "turbo-trainer",
