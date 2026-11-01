@@ -92,7 +92,7 @@ for the release after it goes above it.
   `turbo:BilstmPOSModel`. A DocumentGraph or an evidence record written
   with an old id reads as the new id. The JSON-LD export's sentence,
   token and entity objects are typed `turbo:Sentence`, `turbo:Token` and
-  `turbo:Entity`, like `turbo:Category` (#1796).
+  `turbo:Entity`, like `turbo:Category` (#1797).
 - The shared analysis layers' ids moved from the `opennlp:` namespace
   to `turbo:`: `turbo:sentences`, `turbo:tokens`, `turbo:subwords`,
   `turbo:entities`, `turbo:pos`, `turbo:lemmas`, `turbo:language`,
