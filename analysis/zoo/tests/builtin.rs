@@ -49,9 +49,11 @@ const LEGACY_MSMARCO_SENTIMENT_HEADS: [&str; 7] = [
     "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
 ];
 
+const OPEN_SPAN_HEAD: &str = "turbo-en-wnut17-modernbert-base-l12-open-span-1";
+
 /// A permissive model this repository's recipes train.
 fn trained_here_permissive(id: &str) -> bool {
-    MODERNBERT_SENTIMENT_HEADS.contains(&id)
+    id == OPEN_SPAN_HEAD || MODERNBERT_SENTIMENT_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -125,7 +127,7 @@ const DATASETS: [&str; 12] = [
 #[test]
 fn the_builtin_catalogue_preserves_supported_artifacts() {
     let index = Index::builtin();
-    let mut expected = BTreeSet::new();
+    let mut expected = BTreeSet::from([OPEN_SPAN_HEAD.to_owned()]);
     expected.extend(MODERNBERT_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(LEGACY_MSMARCO_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
