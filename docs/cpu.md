@@ -92,6 +92,11 @@ The instruction set is chosen once per model, when its first session is
 made: AVX-512 (F and VL) where the processor has it, else AVX2 with FMA,
 else portable Rust. The AVX-512 and AVX2 kernels give the same bits.
 Everything is computed in F32; F16 and BF16 weights are widened once.
+The exponential behind GELU, SiLU and the softmax, and behind the
+sigmoid and tanh of the heads' LSTM adapters and poolers, is the
+backend's own (`core/src/cpu/kernels/rowwise.rs`), never the C
+library's, whose bits differ between its versions: a bundle gives the
+same bits on every machine.
 
 The linear layers' weight matrices are copied once per model into the
 panel layout the matrix kernel reads: for all-MiniLM-L6-v2, 42.5 MB

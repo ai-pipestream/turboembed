@@ -91,7 +91,9 @@ for the release after it goes above it.
   The Java Panama binding's `TurboAnalyzer.Config` takes the bundle path
   in place of the model paths, and the binding now requires Java 25 or
   newer, the current long-term release with the final Foreign Function
-  and Memory API (#1779).
+  and Memory API. The heads' sigmoid and tanh (LSTM adapters, poolers)
+  use the cpu backend's own exponential in place of the C library's, so
+  a head gives the same bits on every machine (#1779).
 
 ### Breaking
 

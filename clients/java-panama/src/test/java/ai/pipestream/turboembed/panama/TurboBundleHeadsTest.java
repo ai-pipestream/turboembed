@@ -67,7 +67,7 @@ final class TurboBundleHeadsTest {
         try (TurboAnalyzer analyzer = TurboAnalyzer.create(TurboAnalyzer.Config.forBundle(TestPaths.headsBundle()))) {
             List<TurboSpanData> first = analyzer.findTokensCopied(TOKENS);
             assertEquals(1, first.size());
-            assertEntity(first.get(0), 2, 3, "PER", 0.23651068468515454);
+            assertEntity(first.get(0), 2, 3, "PER", 0.23651067881995255);
             assertTrue(first.get(0).viewRange().isEmpty() && first.get(0).sourceRange().isEmpty());
 
             analyzer.findTokensCopied(new String[] {"Bo", "gave", "Ann", "a", "map"});
