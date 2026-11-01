@@ -11,6 +11,7 @@
 //! | `ud` | Universal Dependencies treebanks as syntactic words, one tag corpus a column |
 //! | `ud_heads` | Lemma and dependency heads on a treebank, their examples and baselines |
 //! | `ud_split` | A treebank as surface tokens, for the token split head, its labels and baseline |
+//! | `split_labels` | The label each training token's split takes, chosen by the tokens it serves |
 //! | `redocred` | Re-DocRED documents, their entities and relations, pinned file by file |
 //! | `redocred_eval` | The relation head's spec, examples and test scoring on Re-DocRED |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
@@ -37,6 +38,7 @@ pub mod redocred;
 pub mod redocred_eval;
 pub mod run;
 pub mod safetensors;
+pub mod split_labels;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_banks_sa;

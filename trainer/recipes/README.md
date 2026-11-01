@@ -131,10 +131,16 @@ the relation, the commonest overall when unseen.
 `train-split` trains the token split head (`words` on
 `turboembed:words`, #1698) over the treebank's surface tokens, where
 the other UD commands read syntactic words: each multiword token's
-label is one edit tree a word, mined over the tokens that come up at
+label is one edit tree a word, kept over the tokens that come up at
 least `--min-tree-freq` times, beside `_`, which keeps a token whole.
-It writes the same three files and scores as token labels, against
-each token's commonest training label (`_` when unseen). A treebank
+A word that sits inside its token may take a cut (`(t 2 ())` keeps the
+last two characters) or a tree that names what it drops
+(`(m 5 0 (s 'hacer' '') ())`); each training token takes, of the
+labels that give its words, the one that gives the most distinct
+training tokens theirs, so a clitic's label serves every verb and a
+contraction's names its letters (#1798). It writes the same three
+files and scores each token's words being right, against each token's
+commonest training words (the token itself when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
