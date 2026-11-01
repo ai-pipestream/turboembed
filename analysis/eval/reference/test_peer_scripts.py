@@ -20,6 +20,8 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONVERT = os.path.join(HERE, "peers", "flores", "convert_gold.py")
 FETCH = os.path.join(HERE, "peers", "gliner", "fetch_checkpoint.py")
+GLOTLID_FETCH = os.path.join(HERE, "peers", "glotlid", "fetch_model.py")
+GLOTLID_PREDICT = os.path.join(HERE, "peers", "glotlid", "lang_predict.py")
 RECEIPT = os.path.join(HERE, "throughput_receipt.py")
 
 
@@ -91,6 +93,79 @@ class FetchGate(unittest.TestCase):
         done = self.fetch({"TURBO_ACCEPT_TERMS": "yes"})
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("refusing to download", done.stderr + done.stdout)
+
+
+class GlotLidFetchGate(unittest.TestCase):
+    def fetch(self, extra_env, pythonpath=None):
+        env = {k: v for k, v in os.environ.items() if k != "TURBO_ACCEPT_TERMS"}
+        env.update(extra_env)
+        if pythonpath is not None:
+            env["PYTHONPATH"] = pythonpath
+        return run(
+            [sys.executable, GLOTLID_FETCH, "cis-lmu/glotlid", "rev", "0" * 64, "/nonexistent-dir"],
+            env=env,
+        )
+
+    def test_unaccepted_refuses_before_download(self):
+        done = self.fetch({})
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("refusing to download", done.stderr + done.stdout)
+
+    def test_wrong_acceptance_refuses(self):
+        done = self.fetch({"TURBO_ACCEPT_TERMS": "yes"})
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("refusing to download", done.stderr + done.stdout)
+
+    def test_wrong_digest_is_refused_and_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = os.path.join(tmp, "huggingface_hub.py")
+            with open(stub, "w", encoding="utf-8") as f:
+                f.write(
+                    "import os\n"
+                    "def hf_hub_download(checkpoint, filename, revision, local_dir):\n"
+                    "    os.makedirs(local_dir, exist_ok=True)\n"
+                    "    path = os.path.join(local_dir, filename)\n"
+                    "    open(path, 'wb').write(b'wrong bytes')\n"
+                    "    return path\n"
+                )
+            model_dir = os.path.join(tmp, "model")
+            env = {"TURBO_ACCEPT_TERMS": "cis-lmu/glotlid"}
+            env["PYTHONPATH"] = tmp
+            done = run(
+                [sys.executable, GLOTLID_FETCH, "cis-lmu/glotlid", "rev", "0" * 64, model_dir],
+                env=env,
+            )
+            self.assertNotEqual(done.returncode, 0)
+            self.assertIn("expected", done.stderr + done.stdout)
+            self.assertFalse(os.path.exists(os.path.join(model_dir, "model.bin")))
+
+
+class GlotLidPredict(unittest.TestCase):
+    def test_script_and_macro_mapping_and_no_prediction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = os.path.join(tmp, "fasttext.py")
+            with open(stub, "w", encoding="utf-8") as f:
+                f.write(
+                    "class Model:\n"
+                    "    def predict(self, text, k):\n"
+                    "        rows = {\n"
+                    "            'Chinese': (['__label__cmn_Hans'], [0.75]),\n"
+                    "            'Persian': (['__label__pes_Arab'], [0.5]),\n"
+                    "            'Empty': ([], []),\n"
+                    "        }\n"
+                    "        return rows[text]\n"
+                    "def load_model(path):\n"
+                    "    return Model()\n"
+                )
+            gold = os.path.join(tmp, "gold.tsv")
+            out = os.path.join(tmp, "out.txt")
+            with open(gold, "w", encoding="utf-8") as f:
+                f.write("zho\tChinese\npes\tPersian\neng\tEmpty\n")
+            env = dict(os.environ, PYTHONPATH=tmp)
+            done = run([sys.executable, GLOTLID_PREDICT, "unused", gold, out], env=env)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            with open(out, encoding="utf-8") as f:
+                self.assertEqual(f.read(), "zho\t0.750000\nfas\t0.500000\nund\t0\n")
 
 
 STUB = """import sys
