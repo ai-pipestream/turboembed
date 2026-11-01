@@ -104,11 +104,12 @@ cargo run --release -p turbo-bundle -- make \
 container runs with no network. Each conversion runs twice, and the
 manifest records whether the two runs gave the same bytes.
 
-The MiniLM recipe also lists the Hailo-10H HEF, whose container is
+The MiniLM recipe, and the `-hailo` builds of bge-small and bge-base,
+also list the Hailo HEFs, whose containers are
 built from the Dataflow Compiler. Without that image `make` stops when
 it reaches the HEF, after the other conversions. To make the MiniLM
-bundle without a HEF, delete the `hef-hailo10h-s128` artifact from your
-copy of the recipe.
+bundle without a HEF, delete the `hef-*` artifacts from your copy of
+the recipe.
 
 ### Other commands
 
