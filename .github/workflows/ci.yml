@@ -316,10 +316,12 @@ jobs:
   # (clients/java-jni, Java 21) over the debug libturbo, which exports its
   # entry points beside the C ABI, and the conformance suite both bindings
   # run (clients/java-conformance). The Panama binding needs Java 25, which
-  # this lane does not set up; its tests run where that JDK is.
+  # this lane does not set up; its tests run where that JDK is. A hosted
+  # runner, as for the proto job: the self-hosted image (.github/runner)
+  # carries no Maven.
   java-jni:
     if: github.event_name != 'push'
-    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
