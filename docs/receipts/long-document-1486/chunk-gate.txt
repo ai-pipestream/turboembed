@@ -1,0 +1,11 @@
+evidence contract-nli: recall@10 +1.88 (+0.17..+4.15), contained@10 +0.56 (-1.13..+2.82), split 5.3% vs 7.2%, short documents 2%  FAIL
+evidence cuad: recall@10 -0.47 (-2.73..+1.70), contained@10 +0.53 (-1.71..+2.73), split 4.3% vs 4.7%, short documents 2%  FAIL
+evidence gutenqa: recall@10 +10.80 (+9.11..+12.52), contained@10 +12.05 (+10.18..+13.92), split 5.8% vs 9.0%, short documents 0%  pass
+evidence qasper: recall@10 +5.68 (+4.44..+6.95), contained@10 +13.78 (+12.05..+15.56), split 7.7% vs 51.0%, short documents 0%  pass
+floor contract-nli against fixed-tokens: nDCG@10 -1.85 (-4.94..+0.89)
+floor cuad against fixed-tokens: nDCG@10 -1.04 (-3.89..+1.65)
+floor gutenqa against fixed-tokens: nDCG@10 +0.01 (-0.43..+0.44)
+floor qasper against opennlp-sandbox-semantic: nDCG@10 -1.31 (-2.62..-0.01)
+FAIL: 2 of 4 gated evidence sets pass; 4 of 4 sets above the nDCG@10 floor -0.5
+
+exit_status=1

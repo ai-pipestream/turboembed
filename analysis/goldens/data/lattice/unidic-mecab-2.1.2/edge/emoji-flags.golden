@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/emoji-flags	50	32	b322415aacd6335bcb52b5f337296ec760bd4f0369a6af7b30317f0340b8a015
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	8	start:u32	end:u32
+layer	turbo:tokens	text	8	start:u32	end:u32
 0	5
 6	30
 31	32
@@ -15,8 +15,8 @@ layer	opennlp:tokens	text	8	start:u32	end:u32
 35	43
 43	44
 45	49
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	8	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	8	unknown:u32	features:str
 1	名詞,普通名詞,一般,*,*,*
 1	補助記号,一般,*,*,*,*
 0	記号,文字,*,*,*,*,エー,Ａ,a,エー,a,エー,記号,*,*,*,*

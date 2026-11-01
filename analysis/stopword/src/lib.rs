@@ -4,8 +4,8 @@
 //! - [`StopwordList`] is the filter `StopwordLists.forLanguage` returns for
 //!   one of the eleven languages ([`StopwordLanguage`]): its words, and
 //!   `isStopword` as [`StopwordList::contains`].
-//! - [`StopwordAnnotator`] reads `opennlp:tokens` and, optionally,
-//!   `opennlp:language`, and writes `turbo:stopwords` ([`Stopwords`]), a
+//! - [`StopwordAnnotator`] reads `turbo:tokens` and, optionally,
+//!   `turbo:language`, and writes `turbo:stopwords` ([`Stopwords`]), a
 //!   flag per token. It never removes a token.
 //!
 //! The lists in `data/` are OpenNLP's files byte for byte (`data/README.md`

@@ -435,32 +435,49 @@ is not a multiple of 16) or, at FASTEST, `linear_dpas`, and these kernels
 of encoder.cl between them: `rotary_embed` (the word row, plus the type
 row for nomic-bert, LayerNormed with or without a bias), `rotary_rope` (Q
 and K turned in place, column c of a head with column c + head/2, by the
-token's column in its row), `rotary_attention` (the general kernel's
-shape; on a sliding-window layer query i reads only the keys within
-`attention_window / 2` of it, and a masked key is skipped, never weighed
-by zero), `rotary_gated` (GELU by erf or SiLU of the gate times up),
+token's column in its row), the attention (on a sliding-window layer
+query i reads only the keys within `attention_window / 2` of it, and a
+masked key is skipped, never weighed by zero), `rotary_gated` (GELU by erf or SiLU of the gate times up),
 `rotary_norm` (a LayerNorm into a second buffer, for ModernBERT's
 pre-norm layers), `rotary_add` (the residual) and `rotary_narrow`. RoPE
 and the gated MLP fused into the products' epilogues, as the CPU does
 them, are not done yet.
 
+At heads 32, 64 or 128 wide (both bundles' 64) the attention is
+`rotary_attention_<width>`, the tiled kernels' shape: a work-item per
+query, 256 queries a group, the row's keys and values streamed through
+local memory 64 at a time under an online softmax, so each key and value
+is read once per group rather than once per query; a windowed layer's
+group walks only the keys some query of its own reaches. Other widths
+take `rotary_attention`, the general kernel's shape, a group per query
+whose lanes each sum the context over every key of the row. On the B70
+(2026-10-31, TURBO_LEVELZERO_PROFILE, modernbert-base at MODEL) the
+longest attention launch of a pass went from 16.9 to 0.43 ms on one row
+of 1,022 tokens, from 43.5 to 1.13 ms on Re-DocRED's eight longest
+documents (511 to 469 words), and from 133 to 2.3 ms at 8 x 1,022; the
+whole pass from 8.2 to 5.9 ms on a row of 126 tokens and from 542 to 126
+ms on those eight documents.
+
 On the B70 (2026-10-31, `rotary_speed` in core/tests/levelzero_rotary.rs,
 ignored by default: `TURBO_SPEED_BUNDLE` a real bundle, MODEL and FASTEST
-interleaved, `TURBO_SPEED_RUNS=7`, three rounds; milliseconds a pass, the
-best of 21 / the median of the three rounds' medians):
+interleaved, `TURBO_SPEED_RUNS=7`, three rounds, each round timing the
+general attention kernel then the tiled one; milliseconds a pass, the
+best of 21 / the median of the three rounds' medians, general -> tiled):
 
 | Bundle, batch x tokens | MODEL | FASTEST |
 | --- | ---: | ---: |
-| modernbert-base, 8 x 128 | 90.7 / 136.6 | 71.8 / 101.9 |
-| modernbert-base, 8 x 512 | 1115.5 / 1264.9 | 1004.3 / 1066.4 |
-| nomic-embed-text-v1.5, 8 x 128 | 78.5 / 129.8 | 28.3 / 69.1 |
-| nomic-embed-text-v1.5, 8 x 512 | 1275.5 / 1412.3 | 1042.9 / 1235.8 |
+| modernbert-base, 8 x 128 | 46.4 / 92.0 -> 24.5 / 29.0 | 29.4 / 78.7 -> 9.1 / 9.8 |
+| modernbert-base, 8 x 512 | 716.5 / 755.3 -> 95.9 / 175.5 | 575.3 / 741.0 -> 37.8 / 81.5 |
+| nomic-embed-text-v1.5, 8 x 128 | 36.7 / 82.3 -> 21.8 / 26.0 | 22.7 / 31.3 -> 7.9 / 8.0 |
+| nomic-embed-text-v1.5, 8 x 512 | 831.8 / 923.0 -> 137.2 / 173.3 | 734.6 / 829.3 -> 32.3 / 38.1 |
 
-The box was not quiet: CI jobs and a training run held the host's
-one-minute load average at 20 to 88, and other clients shared the
-device, so the medians spread widely and the best passes are the
-comparable figures. At 8 x 512 most of a pass is attention, which FASTEST
-leaves in F32. nomic-embed-text-v1.5 at MODEL, the one fused [2 *
+CI jobs and a training run shared the host (one-minute load average 10
+to 14) and other clients the device, so the medians spread and the best
+passes are the comparable figures.
+
+Before the tiled kernel, with the host's one-minute load average at 20
+to 88, most of a pass at 8 x 512 was attention, which FASTEST leaves in
+F32; nomic-embed-text-v1.5 at MODEL, the one fused [2 *
 intermediate, hidden] feed-forward input against main's two [intermediate,
 hidden] products, six interleaved rounds of 10 a side: best 51.0 ms
 against 50.7 at 8 x 128, and 1137.5 against 1194.6 at 8 x 512 (medians

@@ -40,6 +40,7 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
     }
     out.push(("arc.weight".into(), vec![arc + 1, arc]));
     out.push(("rel.weight".into(), vec![labels, rel + 1, rel + 1]));
+    words::push_mix(spec, &mut out);
     out
 }
 
@@ -149,6 +150,11 @@ impl BiaffineParser {
     /// The encoder width the parser reads.
     pub fn hidden(&self) -> usize {
         self.hidden
+    }
+
+    /// The number of encoder layers each word vector mixes.
+    pub fn taps(&self) -> usize {
+        self.reader.taps()
     }
 
     /// The arc scores [n, n + 1] of one sentence into `out` (row d - 1:

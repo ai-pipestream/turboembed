@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	17	start:u32	end:u32
+layer	turbo:tokens	text	17	start:u32	end:u32
 0	3
 3	6
 6	12
@@ -24,8 +24,8 @@ layer	opennlp:tokens	text	17	start:u32	end:u32
 57	63
 63	66
 66	69
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	17	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	17	unknown:u32	features:str
 0	連体詞,*,*,*,*,*,ワガ,我が,我,ワガ,我,ワガ,和,*,*,*,*
 1	名詞,普通名詞,一般,*,*,*
 0	名詞,固有名詞,地名,一般,*,*,ペキン,ペキン,北京,ペキン,北京,ペキン,固,*,*,*,*

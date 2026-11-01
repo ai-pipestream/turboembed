@@ -25,7 +25,7 @@ pub enum DlChunkingMode {
     /// `AbstractDL.whitespaceChunks` in OpenNLP's `DocumentCategorizerDL`.
     #[default]
     WhitespaceWords,
-    /// Windows directly over pre-tokenized `opennlp:subwords` (`Subwords`)
+    /// Windows directly over pre-tokenized `turbo:subwords` (`Subwords`)
     /// piece IDs in overlapping windows of `min(document_split_size, max_content_tokens)`
     /// pieces with `split_overlap_size` piece overlap.
     Subwords,

@@ -80,7 +80,7 @@ impl LabelCentroids {
         Ok(out)
     }
 
-    /// Classifies every item in `vectors` (`opennlp:embeddings<L>`) into
+    /// Classifies every item in `vectors` (`turbo:embeddings<L>`) into
     /// single-label [`Categories<L>`] (`turbo:categories<L>`).
     ///
     /// Items listed in `vectors.empty` receive uniform probability `1.0 / K`

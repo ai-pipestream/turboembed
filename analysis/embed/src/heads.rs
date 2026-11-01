@@ -11,10 +11,10 @@
 //!   any vector or span-pooling annotator step can run either a fixed-weight
 //!   head or a prototype centroid classifier.
 //! - [`VectorHeadAnnotator`] scores an existing `Vectors<L>`
-//!   (`opennlp:embeddings<L>`) layer into `Categories<L>`.
+//!   (`turbo:embeddings<L>`) layer into `Categories<L>`.
 //! - [`SentenceSpanHead`], [`ChunkSpanHead`], [`OpinionSpanHead`], and
 //!   [`AspectSpanHead`] pool exact subword piece ranges from `Subwords`
-//!   (`opennlp:subwords`) through the stage 2 range write (`#263`,
+//!   (`turbo:subwords`) through the stage 2 range write (`#263`,
 //!   [`VectorAnnotator::embed_spans`](crate::vectors::VectorAnnotator::embed_spans)) so opinion and aspect heads pool only
 //!   the opinion or aspect span rather than the full sentence.
 //! - [`IncivilityHeadAnnotator`] and [`PragmaticsHeadAnnotator`] write the
@@ -319,7 +319,7 @@ impl ClassifierHead {
         Ok(argmax_tag(scores))
     }
 
-    /// Scores every item in `vectors` (`opennlp:embeddings<L>`) into
+    /// Scores every item in `vectors` (`turbo:embeddings<L>`) into
     /// [`Categories<L>`] (`turbo:categories<L>`).
     pub fn categorize_vectors<L: CategoryScope>(
         &self,

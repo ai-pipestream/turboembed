@@ -14,7 +14,7 @@ use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Re
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Dependencies, Sentences, Subwords, Tag, Tokens};
 
-use crate::annotate::{HeadRunner, find_head, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, model_ref, open_words, refuse};
 use crate::words::WordEncoder;
 
 pub use turbo::head::run::Parse;
@@ -38,7 +38,7 @@ impl DependencyParser {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, Dependencies::<Tokens>::ID, HeadKind::BiaffineParser)?;
         let parser = BiaffineParser::load(&bundle, &spec.name)?;
-        let words = WordEncoder::open(dir, o)?;
+        let words = open_words(dir, o, parser.taps())?;
         if words.hidden() != parser.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",

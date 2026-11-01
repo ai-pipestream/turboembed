@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::doc::Document;
-use crate::export::{ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, Reader, Writer};
+use crate::export::{ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer};
 use crate::layer::{Layer, ModelRef};
 use crate::span::Span;
 
@@ -121,7 +121,7 @@ impl<L: Layer> LayerCodec for Evidence<L> {
         }
         let mut layers = Vec::new();
         for _ in 0..r.usize()? {
-            layers.push(LayerRef { layer: r.string()?, instance: r.string()? });
+            layers.push(r.layer_ref()?);
         }
         let support_row = get_u32s(&mut r)?;
         let mut support = Vec::new();

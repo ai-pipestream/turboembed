@@ -4,7 +4,7 @@
 
 use super::crf::{Crf, WordSpan, allowed, argmax, spans, viterbi};
 use super::tagger::{NO_WORD, TokenTagger, Work, tensors, word_count};
-use crate::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
+use crate::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, LayerMix, MAX_MIX_LAYERS, Scheme, WordPooling};
 use crate::status::{INVALID_ARGUMENT, INVALID_SHAPE};
 
 /// xorshift64*, so the tests need no dependency and repeat exactly.
@@ -43,6 +43,7 @@ fn spec(
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
         license_class: None,
@@ -292,7 +293,7 @@ fn a_head_no_bundle_could_carry_is_not_built() {
     no_o.name = "no-o".into();
     bad.push(no_o);
     let mut layer = spec(TAGS, Scheme::Tags, WordPooling::First, None, Decode::Argmax);
-    layer.layer = "opennlp:pos".into();
+    layer.layer = "turbo:pos".into();
     bad.push(layer);
     let mut adapter = spec(TAGS, Scheme::Tags, WordPooling::First, Some((2, 9)), Decode::Argmax);
     adapter.name = "deep".into();
@@ -383,4 +384,49 @@ fn missing_and_misshapen_tensors_are_refused() {
         w.iter().find(|(n, _)| n == k).map(|(_, v)| if k == "out.weight" { v[1..].to_vec() } else { v.clone() })
     };
     assert_eq!(TokenTagger::from_tensors(&s, 3, &short).unwrap_err().code, INVALID_SHAPE);
+}
+
+#[test]
+fn a_learned_layer_mix_blends_taps_before_the_adapter_and_output() {
+    let mut rng = Rng(0x51a0);
+    let (hidden, taps) = (6, 3usize);
+    let words = [NO_WORD, 0, 0, 1, 2, 2, NO_WORD];
+    for pooling in [WordPooling::First, WordPooling::Mean] {
+        for adapter in [None, Some((3, 1))] {
+            let mut s = spec(TAGS, Scheme::Tags, pooling, adapter, Decode::Argmax);
+            s.layer_mix = Some(LayerMix { layers: taps as u32 });
+            let ts = tensors(&s, hidden);
+            assert_eq!(ts[ts.len() - 2], ("mix.weight".to_string(), vec![taps as u64]));
+            assert_eq!(ts[ts.len() - 1], ("mix.gamma".to_string(), vec![1]));
+            let w = weights(&s, hidden, &mut rng);
+            let t = tagger(&s, hidden, &w);
+            assert_eq!(t.taps(), taps);
+            let states = rng.vec(taps * words.len() * hidden);
+            let (mut out, mut work) = (Vec::new(), Work::default());
+            assert_eq!(t.scores(&states, &words, &mut out, &mut work).unwrap(), 3);
+
+            let mw = get(&w, "mix.weight");
+            let gamma = get(&w, "mix.gamma")[0] as f64;
+            let max = mw.iter().copied().fold(f64::NEG_INFINITY, |a, b| a.max(b as f64));
+            let exps: Vec<f64> = mw.iter().map(|&v| ((v as f64) - max).exp()).collect();
+            let z: f64 = exps.iter().sum();
+            let scales: Vec<f64> = exps.iter().map(|&e| gamma * ((e / z) as f32 as f64)).collect();
+            let stride = words.len() * hidden;
+            let mut mixed = vec![0.0f32; stride];
+            for (r, dst) in mixed.iter_mut().enumerate() {
+                let v: f64 = (0..taps).map(|k| scales[k] * states[k * stride + r] as f64).sum();
+                *dst = v as f32;
+            }
+            let want = scores_ref(&s, hidden, &w, &mixed, &words);
+            for (g, r) in out.iter().zip(&want) {
+                assert!((*g as f64 - r).abs() < 1e-4, "{pooling:?} {adapter:?}: {g} vs {r}");
+            }
+            assert_eq!(t.scores(&states[..stride], &words, &mut out, &mut work).unwrap_err().code, INVALID_SHAPE);
+        }
+    }
+    for bad in [0, MAX_MIX_LAYERS + 1] {
+        let mut s = spec(TAGS, Scheme::Tags, WordPooling::First, None, Decode::Argmax);
+        s.layer_mix = Some(LayerMix { layers: bad });
+        assert!(s.validate("head").is_err(), "{bad}");
+    }
 }

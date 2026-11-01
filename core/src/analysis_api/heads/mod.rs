@@ -7,6 +7,7 @@
 //! that layer; a head of a kind the analyzer does not run leaves its
 //! layer unsupported, named in the refusal.
 
+use std::borrow::Cow;
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -14,7 +15,9 @@ use turbo_analysis::TagSet;
 use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Tokens};
 
 use crate::bundle::Bundle;
-use crate::head::run::{Decoded, LemmaTags, Parse, decode_tagger, lemmatize_sequences, parse_sequences, same_layer};
+use crate::head::run::{
+    Decoded, LemmaTags, Parse, decode_tagger, lemmatize_sequences, parse_sequences, same_layer, tail_taps,
+};
 use crate::head::{BiaffineParser, EditTreeLemmatizer, TokenTagger};
 use crate::manifest::{HeadKind, HeadSpec, Scheme, WordPooling};
 use crate::status::{BUNDLE_INVALID, Error, INVALID_ARGUMENT, Result, UNSUPPORTED_TASK};
@@ -117,7 +120,15 @@ impl BundleHeads {
     pub(crate) fn open(path: &str) -> Result<BundleHeads> {
         let dir = Path::new(path);
         let bundle = Bundle::open(dir)?;
-        let words = Words::open(dir, &bundle)?;
+        // The encoder reads each word at as many layers as the widest
+        // head mixes; a head of fewer takes the last of them.
+        let taps = [PosTags::ID, Entities::ID, Dependencies::<Tokens>::ID, Lemmas::ID]
+            .iter()
+            .filter_map(|layer| head_for(&bundle, layer).ok().flatten())
+            .map(|h| h.layer_mix.as_ref().map_or(1, |m| m.layers as usize))
+            .max()
+            .unwrap_or(1);
+        let words = Words::open(dir, &bundle, taps)?;
         let hidden = words.hidden();
         let width = |name: &str, h: usize| -> Result<()> {
             if h != hidden {
@@ -310,13 +321,19 @@ impl BundleHeads {
                 pool(t.spec().word_pooling);
             }
         }
-        let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, &poolings)?;
-        let of = |p: WordPooling| -> &[Vec<f32>] { &features[poolings.iter().position(|&q| q == p).expect("pooled")] };
+        let (features, have) = {
+            let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
+            (words.features(sequences, &poolings)?, words.taps())
+        };
+        // Pooling `p`'s features at the last `taps` of the encoder's layers.
+        let of = |p: WordPooling, taps: usize| -> Cow<'_, [Vec<f32>]> {
+            tail_taps(&features[poolings.iter().position(|&q| q == p).expect("pooled")], have, taps)
+        };
         if let Some((t, _)) = pos {
-            out.pos = Some(decode_tagger(t, of(t.spec().word_pooling), sequences)?);
+            out.pos = Some(decode_tagger(t, &of(t.spec().word_pooling, t.taps()), sequences)?);
         }
         if let Some((t, _)) = ents {
-            let decoded = decode_tagger(t, of(t.spec().word_pooling), sequences)?;
+            let decoded = decode_tagger(t, &of(t.spec().word_pooling, t.taps()), sequences)?;
             let mut all = Vec::with_capacity(decoded.len());
             for d in &decoded {
                 let mut found = Vec::new();
@@ -330,16 +347,18 @@ impl BundleHeads {
             out.entities = Some(all);
         }
         if let Some((p, _)) = deps {
-            out.dependencies = Some(parse_sequences(p, of(p.spec().word_pooling))?);
+            out.dependencies = Some(parse_sequences(p, &of(p.spec().word_pooling, p.taps()))?);
         }
         if let Some((l, pos_tagger)) = lem {
-            let own = l.spec().word_pooling;
+            let (own, taps) = (l.spec().word_pooling, l.taps());
             let pos_features = match (pos_tagger, want.tags) {
-                (Some(t), None) if t.spec().word_pooling != own => Some(of(t.spec().word_pooling)),
+                (Some(t), None) if t.spec().word_pooling != own || t.taps() != taps => {
+                    Some(of(t.spec().word_pooling, t.taps()))
+                }
                 _ => None,
             };
-            let tags = LemmaTags { pos_tagger: pos_tagger.as_ref(), pos: pos_features, given: want.tags };
-            out.lemmas = Some(lemmatize_sequences(l, tags, None, of(own), sequences)?);
+            let tags = LemmaTags { pos_tagger: pos_tagger.as_ref(), pos: pos_features.as_deref(), given: want.tags };
+            out.lemmas = Some(lemmatize_sequences(l, tags, None, &of(own, taps), sequences)?);
         }
         Ok(out)
     }

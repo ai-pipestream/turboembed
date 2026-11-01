@@ -152,6 +152,9 @@ pub(super) struct RotaryKernels {
     rope: Kernel,
     gated: Kernel,
     attention: Kernel,
+    /// attention is rotary_attention_<head_dim>, a group per QUERIES
+    /// queries, rather than the general kernel's group per query.
+    tiled: bool,
 }
 
 impl RotaryKernels {
@@ -160,7 +163,13 @@ impl RotaryKernels {
         self.attention.local_bytes()
     }
 
-    pub(super) fn new(c: &Context) -> Res<RotaryKernels> {
+    pub(super) fn new(c: &Context, head_dim: u32) -> Res<RotaryKernels> {
+        let tiled = matches!(head_dim, 32 | 64 | 128);
+        let attention = if tiled {
+            c.kernel(&format!("rotary_attention_{head_dim}"), [QUERIES, 1, 1])?
+        } else {
+            c.kernel("rotary_attention", [BLOCK, 1, 1])?
+        };
         Ok(RotaryKernels {
             narrow: c.kernel("rotary_narrow", [WIDE, 1, 1])?,
             embed: c.kernel("rotary_embed", [BLOCK, 1, 1])?,
@@ -168,8 +177,15 @@ impl RotaryKernels {
             add: c.kernel("rotary_add", [WIDE, 1, 1])?,
             rope: c.kernel("rotary_rope", [WIDE, 1, 1])?,
             gated: c.kernel("rotary_gated", [WIDE, 1, 1])?,
-            attention: c.kernel("rotary_attention", [BLOCK, 1, 1])?,
+            attention,
+            tiled,
         })
+    }
+
+    /// Bytes of local memory the attention launch takes for rows of seq
+    /// tokens beside its own: none for the tiled kernel.
+    pub(super) fn attention_local(&self, seq: u32, head_dim: u32) -> u64 {
+        if self.tiled { 0 } else { attention_local(seq, head_dim) }
     }
 }
 
@@ -394,18 +410,31 @@ impl Session {
             ];
             rk.rope.launch(c, q, "the rotation", &args, [elementwise_groups(pairs), 1, 1])?;
             let window = if global || d.attention_window == 0 { -1 } else { (d.attention_window / 2) as i32 };
-            let args = [
-                Ptr(self.qkv),
-                Ptr(self.packed_mask),
-                Ptr(self.rows),
-                I32(h as i32),
-                I32(head_dim as i32),
-                F32(scale),
-                I32(window),
-                Ptr(self.att),
-                Local(attention_local(self.longest, head_dim) as usize),
-            ];
-            rk.attention.launch(c, q, "attention", &args, [self.longest, d.heads, batch])?;
+            if rk.tiled {
+                let args = [
+                    Ptr(self.qkv),
+                    Ptr(self.packed_mask),
+                    Ptr(self.rows),
+                    I32(h as i32),
+                    F32(scale),
+                    I32(window),
+                    Ptr(self.att),
+                ];
+                rk.attention.launch(c, q, "attention", &args, [self.longest.div_ceil(QUERIES), d.heads, batch])?;
+            } else {
+                let args = [
+                    Ptr(self.qkv),
+                    Ptr(self.packed_mask),
+                    Ptr(self.rows),
+                    I32(h as i32),
+                    I32(head_dim as i32),
+                    F32(scale),
+                    I32(window),
+                    Ptr(self.att),
+                    Local(attention_local(self.longest, head_dim) as usize),
+                ];
+                rk.attention.launch(c, q, "attention", &args, [self.longest, d.heads, batch])?;
+            }
             let out_w = lw(l, if modern { TURBO_MODERNBERT_ATTN_OUT_WEIGHT } else { TURBO_NOMIC_ATTN_OUT_WEIGHT });
             linear(q, self.att, (l, 1, out_w), h, h, self.tmp, "the attention output projection")?;
             add(q, "the attention residual")?;

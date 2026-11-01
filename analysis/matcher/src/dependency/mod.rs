@@ -121,7 +121,7 @@ impl DependencyMatcher {
         input: &Input<'_>,
         limits: MatchLimits,
     ) -> Result<Vec<DependencyMatch>, DependencyError> {
-        let dependencies = input.dependencies.ok_or(MatchError::Missing("opennlp:dependencies"))?;
+        let dependencies = input.dependencies.ok_or(MatchError::Missing("turbo:dependencies"))?;
         let graph = op::Graph::new(dependencies);
         let mut work = Work { remaining: limits.visits };
         let mut out = Vec::new();

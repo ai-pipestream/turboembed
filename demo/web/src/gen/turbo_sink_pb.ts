@@ -12,13 +12,13 @@ import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2
 import type { AnalyzeStreamResponse, LayerInfo } from "./turbo_analysis_pb.js";
 import { file_turbo_analysis } from "./turbo_analysis_pb.js";
 import type { Message } from "@bufbuild/protobuf";
-import type { ViewInfo } from "./turbo_typed_annotations_pb.js";
+import type { TypedDocumentResult, ViewInfo } from "./turbo_typed_annotations_pb.js";
 
 /**
  * Describes the file turbo_sink.proto.
  */
 export const file_turbo_sink: GenFile = /*@__PURE__*/
-  fileDesc("ChB0dXJib19zaW5rLnByb3RvEg10dXJiby5zaW5rLnYxIt8BChBEb2N1bWVudFNpbmtJdGVtEhAKCHNlcXVlbmNlGAEgASgEEg4KBmRvY19pZBgCIAEoCRINCgVncmFwaBgDIAEoDBIqCgZsYXllcnMYBCADKAsyGi50dXJiby5yZXN1bHQudjEuTGF5ZXJJbmZvEigKBXZpZXdzGAUgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvEjgKCGFuYWx5emVkGAggASgLMiYudHVyYm8ucmVzdWx0LnYxLkFuYWx5emVTdHJlYW1SZXNwb25zZUoECAYQB0oECAcQCCJtChNEb2N1bWVudFNpbmtTdW1tYXJ5EhYKDnJlY2VpdmVkX2NvdW50GAEgASgEEhYKDmFjY2VwdGVkX2NvdW50GAIgASgEEhYKDnJlamVjdGVkX2NvdW50GAMgASgEEg4KBmVycm9ycxgEIAMoCTJuChBUdXJib1NpbmtTZXJ2aWNlEloKD1N0cmVhbURvY3VtZW50cxIfLnR1cmJvLnNpbmsudjEuRG9jdW1lbnRTaW5rSXRlbRoiLnR1cmJvLnNpbmsudjEuRG9jdW1lbnRTaW5rU3VtbWFyeSIAKAFiBnByb3RvMw", [file_turbo_analysis]);
+  fileDesc("ChB0dXJib19zaW5rLnByb3RvEg10dXJiby5zaW5rLnYxIpQCChBEb2N1bWVudFNpbmtJdGVtEhAKCHNlcXVlbmNlGAEgASgEEg4KBmRvY19pZBgCIAEoCRINCgVncmFwaBgDIAEoDBIqCgZsYXllcnMYBCADKAsyGi50dXJiby5yZXN1bHQudjEuTGF5ZXJJbmZvEigKBXZpZXdzGAUgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvEjMKBXR5cGVkGAkgASgLMiQudHVyYm8ucmVzdWx0LnYxLlR5cGVkRG9jdW1lbnRSZXN1bHQSOAoIYW5hbHl6ZWQYCCABKAsyJi50dXJiby5yZXN1bHQudjEuQW5hbHl6ZVN0cmVhbVJlc3BvbnNlSgQIBhAHSgQIBxAIIm0KE0RvY3VtZW50U2lua1N1bW1hcnkSFgoOcmVjZWl2ZWRfY291bnQYASABKAQSFgoOYWNjZXB0ZWRfY291bnQYAiABKAQSFgoOcmVqZWN0ZWRfY291bnQYAyABKAQSDgoGZXJyb3JzGAQgAygJMm4KEFR1cmJvU2lua1NlcnZpY2USWgoPU3RyZWFtRG9jdW1lbnRzEh8udHVyYm8uc2luay52MS5Eb2N1bWVudFNpbmtJdGVtGiIudHVyYm8uc2luay52MS5Eb2N1bWVudFNpbmtTdW1tYXJ5IgAoAWIGcHJvdG8z", [file_turbo_analysis]);
 
 /**
  * One analyzed document. It carries a document graph, or one
@@ -60,6 +60,16 @@ export type DocumentSinkItem = Message<"turbo.sink.v1.DocumentSinkItem"> & {
    * @generated from field: repeated turbo.result.v1.ViewInfo views = 5;
    */
   views: ViewInfo[];
+
+  /**
+   * The typed document projection of `graph`, as InspectDocumentGraph
+   * answers for it in the view and offset mode the sender was configured
+   * with; unset unless the sender asks for it, and only on an item that
+   * carries a graph. The sink checks it as RoundTripTypedDocument does.
+   *
+   * @generated from field: turbo.result.v1.TypedDocumentResult typed = 9;
+   */
+  typed?: TypedDocumentResult | undefined;
 
   /**
    * The AnalyzeStream answer, when the item is one.

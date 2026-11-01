@@ -293,16 +293,22 @@ on an Intel Mac (docs/metal.md).
 ## Making one
 
 ```
-git tag v0.1.0 <commit on main>
-git push origin v0.1.0
+git tag v0.2.0 <commit on main>
+git push origin v0.2.0
 ```
 
-The version is the `turbo` crate's (`core/Cargo.toml`). A tag on a
+The version is the `turbo` crate's (`core/Cargo.toml`). The tagged
+commit sets it, and `turbo-kserve`'s (`server/Cargo.toml`), to the
+tag's version, so `turbo_version()` and the server report the version
+the tag names. A tag on a
 commit whose records are not on `main` publishes a library that carries
 fewer records than it could; tag after the records land.
 
 Tag only after `CHANGELOG.md`'s top heading is the version being tagged
 and holds every change since the last tag.
+Once the tag is pushed, the next pull request that changes a promised
+surface adds a new top heading to `CHANGELOG.md`, `## v<next> (not yet
+tagged)`, above the tagged one, and the tagged heading gets its date.
 
 ## Versions and compatibility
 

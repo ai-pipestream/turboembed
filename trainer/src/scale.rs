@@ -30,11 +30,11 @@ impl Default for LossScale {
 }
 
 impl LossScale {
-    /// Refuses a scale that is not positive and finite, a growth below
-    /// 1, a backoff outside (0, 1), or an interval of 0.
+    /// Refuses a scale that is not normal, positive and finite, a growth
+    /// below 1, a backoff outside (0, 1), or an interval of 0.
     pub fn check(&self) -> Result<()> {
         let fine = self.initial.is_finite()
-            && self.initial > 0.0
+            && self.initial >= f32::MIN_POSITIVE
             && self.growth.is_finite()
             && self.growth >= 1.0
             && self.backoff > 0.0
@@ -42,8 +42,8 @@ impl LossScale {
             && self.interval > 0;
         if !fine {
             return Err(invalid(
-                "trainer: loss scaling needs a positive finite initial scale, a growth of at least 1, a backoff in \
-                 (0, 1) and an interval of at least 1",
+                "trainer: loss scaling needs a normal positive finite initial scale, a growth of at least 1, a \
+                 backoff in (0, 1) and an interval of at least 1",
             ));
         }
         Ok(())
@@ -76,10 +76,14 @@ impl Scaler {
 
     /// Takes whether a step's unscaled gradients were all finite; returns
     /// whether to take the step. A step that is not backs the scale off
-    /// and is skipped; `interval` finite steps in a row grow it.
+    /// (down to `f32::MIN_POSITIVE`) and is skipped; `interval` finite
+    /// steps in a row grow it.
     pub fn update(&mut self, finite: bool) -> bool {
         if !finite {
-            self.scale *= self.setting.backoff;
+            let backed = self.scale * self.setting.backoff;
+            if backed >= f32::MIN_POSITIVE {
+                self.scale = backed;
+            }
             self.good = 0;
             self.skipped += 1;
             return false;

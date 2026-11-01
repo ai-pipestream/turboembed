@@ -6,6 +6,8 @@
 //! analyzer of the C interface both decode through here, so a head gives
 //! one answer whichever asks.
 
+use std::borrow::Cow;
+
 use super::{BiaffineParser, EditTreeLemmatizer, TokenTagger, lemmatizer, parser, tagger};
 use crate::status::{Error, INVALID_ARGUMENT, Result};
 
@@ -46,15 +48,26 @@ pub fn same_layer(head: &str, id: &str) -> bool {
     name(head) == name(id)
 }
 
-/// Each sequence decoded by `tagger` from its word features `[words *
-/// hidden]` and its words' text, which a head with a `hash_embed` reads.
+/// Keeps the last `want` of the `have` layer taps of each sequence's
+/// `[have, words, hidden]` features: what a head reading fewer layers
+/// than the encoder gave takes.
+pub fn tail_taps(features: &[Vec<f32>], have: usize, want: usize) -> Cow<'_, [Vec<f32>]> {
+    if have == want {
+        return Cow::Borrowed(features);
+    }
+    Cow::Owned(features.iter().map(|f| f[f.len() - (f.len() / have) * want..].to_vec()).collect())
+}
+
+/// Each sequence decoded by `tagger` from its word features `[taps *
+/// words * hidden]` and its words' text, which a head with a `hash_embed`
+/// reads.
 pub fn decode_tagger(tagger: &TokenTagger, features: &[Vec<f32>], forms: &[Vec<&str>]) -> Result<Vec<Decoded>> {
     let (mut scores, mut work) = (Vec::new(), tagger::Work::default());
     let labels = tagger.labels().len();
-    let hidden = tagger.hidden();
+    let stride = tagger.taps() * tagger.hidden();
     let mut out = Vec::with_capacity(features.len());
     for (f, forms) in features.iter().zip(forms) {
-        let n = f.len() / hidden;
+        let n = f.len() / stride;
         let words: Vec<u32> = (0..n as u32).collect();
         tagger.scores_forms(f, &words, Some(forms), &mut scores, &mut work)?;
         let mut tags = Vec::new();
@@ -77,10 +90,10 @@ pub fn decode_tagger(tagger: &TokenTagger, features: &[Vec<f32>], forms: &[Vec<&
 /// Each sequence parsed by `parser` from its word features.
 pub fn parse_sequences(parser: &BiaffineParser, features: &[Vec<f32>]) -> Result<Vec<Parse>> {
     let (mut arcs, mut scores, mut work) = (Vec::new(), Vec::new(), parser::Work::default());
-    let hidden = parser.hidden();
+    let stride = parser.taps() * parser.hidden();
     let mut out = Vec::with_capacity(features.len());
     for f in features {
-        let ids: Vec<u32> = (0..(f.len() / hidden) as u32).collect();
+        let ids: Vec<u32> = (0..(f.len() / stride) as u32).collect();
         let n = parser.arcs(f, &ids, &mut arcs, &mut work)?;
         let mut heads = Vec::new();
         parser.decode(&arcs, n, &mut heads)?;
@@ -95,7 +108,7 @@ pub fn parse_sequences(parser: &BiaffineParser, features: &[Vec<f32>]) -> Result
 /// The tags the lemmatizer `lem` reads for each sequence, when its
 /// `pos_input` names a tagger: `given` as they are, else decoded by
 /// `pos_tagger` from `pos` (the tagger's features, or the lemmatizer's
-/// own when both pool words alike).
+/// own when both pool words alike and read the same layer taps).
 pub struct LemmaTags<'a> {
     pub pos_tagger: Option<&'a TokenTagger>,
     pub pos: Option<&'a [Vec<f32>]>,
@@ -111,12 +124,12 @@ pub fn lemmatize_sequences(
     head: &[Vec<f32>],
     forms: &[Vec<&str>],
 ) -> Result<Vec<Vec<String>>> {
-    let hidden = lem.hidden();
+    let stride = lem.taps() * lem.hidden();
     let (mut scores, mut decoded, mut trees) = (Vec::new(), Vec::new(), Vec::new());
     let (mut tw, mut lw) = (tagger::Work::default(), lemmatizer::Work::default());
     let mut out = Vec::with_capacity(head.len());
     for (s, f) in head.iter().enumerate() {
-        let n = f.len() / hidden;
+        let n = f.len() / stride;
         let ids: Vec<u32> = (0..n as u32).collect();
         let words = &forms[s];
         if words.len() != n {

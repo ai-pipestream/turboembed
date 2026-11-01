@@ -6,7 +6,7 @@ unicode	15.0
 input	ja/ambiguity	72	28	c8df24334fa28729d0ff8b964b54517c8b011a5d98a1ed76fb03824dda85f706
 model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	10	start:u32	end:u32
+layer	turbo:tokens	text	10	start:u32	end:u32
 0	9
 10	16
 17	23
@@ -17,8 +17,8 @@ layer	opennlp:tokens	text	10	start:u32	end:u32
 53	59
 59	65
 65	71
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	10	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	10	unknown:u32	features:str
 0	名詞,固有名詞,地域,トウキョウト
 0	名詞,固有名詞,地域,キョウト
 0	名詞,固有名詞,組織,トウキョウ

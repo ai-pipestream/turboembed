@@ -6,7 +6,9 @@
 //! first piece under WORD_POOLING_FIRST, the mean of its pieces under
 //! WORD_POOLING_MEAN. A word the tokenizer gives no piece is read as the
 //! unknown piece; a word of more pieces than a row holds keeps the first
-//! row's worth. The session runs on the cpu backend.
+//! row's worth. A head that mixes the encoder's last layers reads each
+//! word at each of them (`turbo_embed_write_layer_ranges`), as features
+//! `[taps, words, hidden]`. The session runs on the cpu backend.
 
 use std::path::Path;
 use std::ptr;
@@ -19,11 +21,11 @@ use crate::tokenizer::{Encode, Tokenizer};
 use crate::{
     TURBO_AUTOTUNE_RUNTIME, TURBO_DEVICE_CPU, TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN,
     TURBO_PRECISION_MODEL, turbo_context, turbo_context_create, turbo_context_release, turbo_device_info,
-    turbo_embed_options, turbo_embed_write_ranges, turbo_error, turbo_model, turbo_model_load, turbo_model_release,
-    turbo_result, turbo_result_get_info, turbo_result_info, turbo_result_read, turbo_result_release, turbo_runtime,
-    turbo_runtime_create, turbo_runtime_device_count, turbo_runtime_device_info, turbo_runtime_release, turbo_session,
-    turbo_session_create, turbo_session_desc, turbo_session_release, turbo_session_run, turbo_text, turbo_token_batch,
-    turbo_token_range,
+    turbo_embed_options, turbo_embed_write_layer_ranges, turbo_embed_write_ranges, turbo_error, turbo_model,
+    turbo_model_load, turbo_model_release, turbo_result, turbo_result_get_info, turbo_result_info, turbo_result_read,
+    turbo_result_release, turbo_runtime, turbo_runtime_create, turbo_runtime_device_count, turbo_runtime_device_info,
+    turbo_runtime_release, turbo_session, turbo_session_create, turbo_session_desc, turbo_session_release,
+    turbo_session_run, turbo_text, turbo_token_batch, turbo_token_range,
 };
 
 const BARE: Encode =
@@ -43,6 +45,8 @@ pub(super) struct Words {
     max_batch: usize,
     max_ranges: usize,
     hidden: usize,
+    /// Layers each range is read at: the last `taps` of the encoder's.
+    taps: usize,
     /// The backend and device the session runs on, for provenance.
     pub(super) backend: String,
     pub(super) device: String,
@@ -139,12 +143,23 @@ struct Owner {
 impl Words {
     /// The encoder of `bundle`, read from `dir`, on the first CPU device
     /// the runtime lists, in rows of the bundle's max_seq, max_batch a run,
-    /// with the ranges the Rust annotators hold by default.
-    pub(super) fn open(dir: &Path, bundle: &Bundle) -> Result<Words> {
+    /// with the ranges the Rust annotators hold (a full batch of rows, one
+    /// a token), each read at the encoder's last `taps` layers.
+    pub(super) fn open(dir: &Path, bundle: &Bundle, taps: usize) -> Result<Words> {
         let path =
             dir.to_str().ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("{}: not a UTF-8 path", dir.display())))?;
         let tokenizer = Tokenizer::load(bundle)?;
         let embed = bundle.manifest.embed();
+        let layers = bundle.manifest.architecture.as_ref().map_or(0, |a| a.layers) as usize;
+        if taps > 1 && layers == 0 {
+            return Err(Error::new(UNSUPPORTED_OPTION, "static_embedding has no encoder layers"));
+        }
+        if taps == 0 || (taps > 1 && (taps > layers || taps > embed.max_batch as usize)) {
+            return Err(Error::new(
+                INVALID_ARGUMENT,
+                format!("{taps} layers: 1 to {}", layers.min(embed.max_batch as usize)),
+            ));
+        }
         let (cls, sep) = tokenizer.template_ends();
         let overhead = cls.len() + sep.len();
         if embed.max_seq as usize <= overhead {
@@ -160,8 +175,9 @@ impl Words {
             session: ptr::null_mut(),
             width: embed.max_seq as usize - overhead,
             max_batch: embed.max_batch as usize,
-            max_ranges: default_ranges(embed.max_batch as usize, embed.max_seq as usize),
+            max_ranges: (embed.max_batch as usize).saturating_mul(embed.max_seq as usize),
             hidden: embed.dim as usize,
+            taps,
             tokenizer,
             cls,
             sep,
@@ -207,9 +223,14 @@ impl Words {
         Err(Error::new(DEVICE_NOT_FOUND, format!("no cpu device is listed among {n}")))
     }
 
-    /// Values per word.
+    /// Values per word at each layer.
     pub(super) fn hidden(&self) -> usize {
         self.hidden
+    }
+
+    /// Layers each word is read at.
+    pub(super) fn taps(&self) -> usize {
+        self.taps
     }
 
     /// A word's pieces as a row holds them: the unknown piece for none,
@@ -224,14 +245,31 @@ impl Words {
         Ok(ids)
     }
 
-    /// Each sequence's word features `[words * hidden]` under each pooling
-    /// of `poolings`, `out[p][s]` being `poolings[p]`'s for `sequences[s]`,
-    /// from one read of each window whatever the poolings.
+    /// Each sequence's word features `[taps, words, hidden]` under each
+    /// pooling of `poolings`, `out[p][s]` being `poolings[p]`'s for
+    /// `sequences[s]`, from one read of each window whatever the poolings.
     pub(super) fn features(&mut self, sequences: &[Vec<&str>], poolings: &[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>> {
         let pieces: Vec<Vec<Vec<i32>>> =
             sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
-        let mut out: Vec<Vec<Vec<f32>>> =
-            poolings.iter().map(|_| pieces.iter().map(|s| vec![0.0; s.len() * self.hidden]).collect()).collect();
+        let raw = self.features_of(&pieces, poolings)?;
+        if self.taps == 1 {
+            return Ok(raw);
+        }
+        let per = poolings.len();
+        let join = |p: usize, s: usize| -> Vec<f32> {
+            (0..self.taps).flat_map(|t| raw[t * per + p][s].iter().copied()).collect()
+        };
+        Ok((0..per).map(|p| (0..pieces.len()).map(|s| join(p, s)).collect()).collect())
+    }
+
+    /// The features of each pooling at each tap, `out[t * poolings + p]`
+    /// pooling `p` at tap `t`, each `[words * hidden]` a sequence.
+    fn features_of(&mut self, pieces: &[Vec<Vec<i32>>], poolings: &[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>> {
+        let mut out: Vec<Vec<Vec<f32>>> = (0..self.taps * poolings.len())
+            .map(|_| pieces.iter().map(|s| vec![0.0; s.len() * self.hidden]).collect())
+            .collect();
+        // A run reads every range at every tap.
+        let max_ranges = self.max_ranges / self.taps;
         let stride = self.width + self.cls.len() + self.sep.len();
         let mut rows =
             Rows { ids: Vec::new(), mask: Vec::new(), stride, fill: self.tokenizer.fill_id(), batch: 0, seq: 0 };
@@ -246,9 +284,9 @@ impl Words {
                 // A range a word and pooling, unless those outgrow a run
                 // (one row a batch): then a range a piece, which every
                 // pooling reads, so the row is still read once.
-                let per_piece = kept.len() * poolings.len() > self.max_ranges;
+                let per_piece = kept.len() * poolings.len() > max_ranges;
                 let need = if per_piece { kept_pieces } else { kept.len() * poolings.len() };
-                if rows.batch as usize == self.max_batch || ranges.len() + need > self.max_ranges {
+                if rows.batch as usize == self.max_batch || ranges.len() + need > max_ranges {
                     self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out, poolings)?;
                 }
                 row_ids.clear();
@@ -297,32 +335,36 @@ impl Words {
     ) -> Result<()> {
         if !ranges.is_empty() {
             self.run_ranges(rows, ranges, states)?;
-            let h = self.hidden;
-            for (r, o) in owners.iter().enumerate() {
-                let state = &states[r * h..][..h];
-                let Some(p) = o.pooling else {
-                    // A word's pieces come in order in one run; the mean
-                    // is the cpu's: the sum in order, times 1 / pieces.
-                    for (p, pooling) in poolings.iter().enumerate() {
-                        let dst = &mut out[p][o.seq][o.word * h..][..h];
-                        match pooling {
-                            WordPooling::First if o.piece == 0 => dst.copy_from_slice(state),
-                            WordPooling::First => {}
-                            WordPooling::Mean => {
-                                if o.piece == 0 {
-                                    dst.fill(0.0);
-                                }
-                                dst.iter_mut().zip(state).for_each(|(d, &x)| *d += x);
-                                if o.piece + 1 == o.pieces {
-                                    let inv = 1.0 / o.pieces as f32;
-                                    dst.iter_mut().for_each(|d| *d *= inv);
+            let (h, n, per) = (self.hidden, ranges.len(), poolings.len());
+            // states: [taps, ranges, hidden].
+            for t in 0..self.taps {
+                for (r, o) in owners.iter().enumerate() {
+                    let state = &states[(t * n + r) * h..][..h];
+                    let Some(p) = o.pooling else {
+                        // A word's pieces come in order in one run; the
+                        // mean is the cpu's: the sum in order, times 1 /
+                        // pieces.
+                        for (p, pooling) in poolings.iter().enumerate() {
+                            let dst = &mut out[t * per + p][o.seq][o.word * h..][..h];
+                            match pooling {
+                                WordPooling::First if o.piece == 0 => dst.copy_from_slice(state),
+                                WordPooling::First => {}
+                                WordPooling::Mean => {
+                                    if o.piece == 0 {
+                                        dst.fill(0.0);
+                                    }
+                                    dst.iter_mut().zip(state).for_each(|(d, &x)| *d += x);
+                                    if o.piece + 1 == o.pieces {
+                                        let inv = 1.0 / o.pieces as f32;
+                                        dst.iter_mut().for_each(|d| *d *= inv);
+                                    }
                                 }
                             }
                         }
-                    }
-                    continue;
-                };
-                out[p][o.seq][o.word * h..][..h].copy_from_slice(state);
+                        continue;
+                    };
+                    out[t * per + p][o.seq][o.word * h..][..h].copy_from_slice(state);
+                }
             }
         }
         rows.clear();
@@ -332,7 +374,8 @@ impl Words {
     }
 
     /// `rows` encoded once and, into `out`, the mean of the encoder's
-    /// final states over each range's tokens: `[ranges.len(), hidden]`.
+    /// states over each range's tokens at each of its last `taps` layers:
+    /// `[taps, ranges.len(), hidden]`.
     fn run_ranges(&mut self, rows: &Rows, ranges: &[turbo_token_range], out: &mut Vec<f32>) -> Result<()> {
         struct Owned(*mut turbo_result);
         impl Drop for Owned {
@@ -350,27 +393,38 @@ impl Words {
             output_dim: 0,
             quantization: 0,
             int8_ranges: ptr::null(),
+            layers: 0,
+            reserved: 0,
         };
         let mut err = new_error();
-        let n = ranges.len() as u32;
+        let (n, taps) = (ranges.len() as u32, self.taps as u32);
         let mut r = Owned(ptr::null_mut());
         let mut info: turbo_result_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_result_info>() as u32;
         unsafe {
-            check(turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, &o, &mut err), &err)?;
+            let b = rows.batch();
+            let rc = if taps == 1 {
+                turbo_embed_write_ranges(self.session, &b, ranges.as_ptr(), n, &o, &mut err)
+            } else {
+                turbo_embed_write_layer_ranges(self.session, &b, ranges.as_ptr(), n, taps, &o, &mut err)
+            };
+            check(rc, &err)?;
             check(turbo_session_run(self.session, &mut r.0, &mut err), &err)?;
             check(turbo_result_get_info(r.0, &mut info, &mut err), &err)?;
         }
         if info.dtype != TURBO_DTYPE_F32 {
             return Err(Error::new(UNSUPPORTED_OPTION, format!("vectors of dtype {}, not f32", info.dtype)));
         }
-        if info.batch != n || info.dim as usize != self.hidden {
+        if info.batch != n * taps || info.dim as usize != self.hidden {
             return Err(Error::new(
                 INTERNAL,
-                format!("a result of {} vectors of {}, for {n} vectors of {}", info.batch, info.dim, self.hidden),
+                format!(
+                    "a result of {} vectors of {}, for {n} vectors of {} at {taps} layers",
+                    info.batch, info.dim, self.hidden
+                ),
             ));
         }
-        out.resize(n as usize * self.hidden, 0.0);
+        out.resize((n * taps) as usize * self.hidden, 0.0);
         let bytes = size_of_val(out.as_slice()) as u64;
         let mut written = 0u64;
         unsafe { check(turbo_result_read(r.0, out.as_mut_ptr().cast(), bytes, &mut written, &mut err), &err)? };
@@ -385,10 +439,4 @@ impl Words {
 fn c_field(b: &[std::ffi::c_char]) -> String {
     let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
     String::from_utf8_lossy(&bytes).into_owned()
-}
-
-/// The ranges a session holds by default: 16 a row, at most one a token,
-/// as `turbo-analysis-embed` chooses when asked for none in particular.
-fn default_ranges(max_batch: usize, max_seq: usize) -> usize {
-    max_batch.saturating_mul(16).min(max_batch.saturating_mul(max_seq))
 }

@@ -35,6 +35,7 @@ fn spec(decode: Decode) -> HeadSpec {
         biaffine: Some(Biaffine { arc: 5, rel: 3 }),
         pos_input: None,
         hash_embed: None,
+        layer_mix: None,
         span: None,
         relation: None,
         license_class: None,

@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/spanish	140	122	f9fd56df613aecfdec7800f95eccc7f457cbd15ee602da070166ddeeed8c181d
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	38	start:u32	end:u32
+layer	turbo:tokens	text	38	start:u32	end:u32
 0	2
 3	5
 5	6
@@ -45,4 +45,4 @@ layer	opennlp:tokens	text	38	start:u32	end:u32
 130	138
 138	139
 139	140
-end	opennlp:tokens
+end	turbo:tokens

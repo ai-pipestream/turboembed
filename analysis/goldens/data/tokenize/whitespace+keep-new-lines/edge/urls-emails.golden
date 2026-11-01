@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	13	start:u32	end:u32
+layer	turbo:tokens	text	13	start:u32	end:u32
 0	5
 6	47
 48	50
@@ -20,4 +20,4 @@ layer	opennlp:tokens	text	13	start:u32	end:u32
 170	174
 175	188
 188	189
-end	opennlp:tokens
+end	turbo:tokens

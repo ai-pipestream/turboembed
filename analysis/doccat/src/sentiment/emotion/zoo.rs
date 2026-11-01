@@ -18,6 +18,9 @@ pub const GOEMOTIONS_MINILM_HEAD: &str = "turbo-en-goemotions-minilm-l6-v2-head-
 /// GoEmotions 28-label head trained over `BAAI/bge-small-en-v1.5` (384-dim).
 pub const GOEMOTIONS_BGE_SMALL_HEAD: &str = "turbo-en-goemotions-bge-small-en-v1.5-head-1";
 
+/// GoEmotions 28-label head trained over `answerdotai/ModernBERT-base` (768-dim).
+pub const GOEMOTIONS_MODERNBERT_HEAD: &str = "turbo-en-goemotions-modernbert-base-head-1";
+
 /// Why a head could not be fetched or loaded from the zoo.
 #[derive(Debug)]
 pub enum EmotionZooError {

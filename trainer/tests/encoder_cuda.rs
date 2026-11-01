@@ -179,6 +179,16 @@ fn bf16_compute_rounds_where_the_cpu_emulation_does() {
     // Sums inside an op run in another order, so a rounding can land on
     // the other side: within a few bfloat16 steps.
     compare("bf16", &got, &want, 3e-2);
+    // Nonzero adapters under bfloat16 round their intermediate on both.
+    let mut adapted = e.with_lora_top(Lora { rank: 3, alpha: 6.0 }, 2, &mut rng).unwrap();
+    let params: Vec<Vec<f32>> =
+        adapted.params().iter().map(|p| p.iter().map(|_| rng.uniform(0.5) as f32).collect()).collect();
+    adapted.set_params(params).unwrap();
+    let want = cpu(&adapted, None, &dout);
+    let mut d = CudaEncoder::new(&adapted, device).unwrap();
+    let got = gpu(&mut d, None, &dout, 1);
+    assert!(got.0.iter().all(|v| v.bf16() == *v));
+    compare("bf16 adapters", &got, &want, 3e-2);
 }
 
 #[test]
