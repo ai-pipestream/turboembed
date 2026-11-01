@@ -146,7 +146,10 @@ carry them: `recipes/all-minilm-l6-v2.json`, and
 `recipes/bge-small-en-v1.5-hailo.json` and
 `recipes/bge-base-en-v1.5-hailo.json`, each a second build of the
 catalogued BGE recipe with the HEFs and the calibration texts added, so
-that a BGE bundle made by name still needs no compiler image. The compiler is not the
+that a BGE bundle made by name still needs no compiler image. The two BGE
+recipes carry only the Hailo-8 and Hailo-8L HEFs: the 5.4.0 compiler
+cannot allocate the BGE graph for the Hailo-10H at 128 tokens, at either
+optimization. The compiler is not the
 same for every chip: the Hailo-10H's is the 5.x line
 (`bundle/hailo/Dockerfile`, image `turbo-hailo-dfc`), the Hailo-8's and
 Hailo-8L's the 3.x line on Python 3.10 (`bundle/hailo/Dockerfile.hailo8`,
