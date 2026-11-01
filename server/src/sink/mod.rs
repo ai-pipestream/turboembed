@@ -190,19 +190,19 @@ impl SinkForwarder {
     /// Queues `item`, or drops and counts it when the queue is full.
     fn enqueue(&self, mut item: DocumentSinkItem) -> bool {
         let c = &self.counters;
-        c.offered.fetch_add(1, Ordering::Relaxed);
         // The sequence is set as the item is sent; measured at its widest
         // here, so the queue's byte count is never under what it sends.
         item.sequence = u64::MAX;
         let bytes = item.encoded_len() as u64;
         let fits = reserve(&c.queued_bytes, bytes, self.max_bytes);
-        let sent = fits
-            && self
-                .tx
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .as_ref()
-                .is_some_and(|tx| tx.try_send((item, bytes)).is_ok());
+        // Hold the sender across the offered count and the send so close
+        // cannot take it between them: settle-then-close would otherwise
+        // see offered and drop an item that never reached the queue.
+        let guard = self.tx.lock().unwrap_or_else(|p| p.into_inner());
+        c.offered.fetch_add(1, Ordering::Relaxed);
+        #[cfg(test)]
+        enqueue_gap();
+        let sent = fits && guard.as_ref().is_some_and(|tx| tx.try_send((item, bytes)).is_ok());
         if sent {
             c.queued.fetch_add(1, Ordering::Relaxed);
         } else {
@@ -329,9 +329,27 @@ async fn drain(endpoint: Endpoint, rx: Arc<Mutex<mpsc::Receiver<Queued>>>, c: Ar
 }
 
 #[cfg(test)]
+fn enqueue_gap() {
+    if let Some(hook) = tests::ENQUEUE_GAP.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
+        hook();
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
+
     use crate::proto::result::{AnalyzeFailure, AnalyzeVectors};
+
+    pub(super) static ENQUEUE_GAP: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
+
+    struct GapGuard;
+    impl Drop for GapGuard {
+        fn drop(&mut self) {
+            *ENQUEUE_GAP.lock().unwrap_or_else(|p| p.into_inner()) = None;
+        }
+    }
 
     fn answer(id: &str, failed: bool) -> AnalyzeStreamResponse {
         let outcome = match failed {
@@ -341,17 +359,20 @@ mod tests {
         AnalyzeStreamResponse { id: id.into(), outcome: Some(outcome) }
     }
 
-    // On one thread the draining task cannot run between offers, so the
-    // queue holds what its bounds let in and the rest is dropped.
-    #[tokio::test(flavor = "current_thread")]
-    async fn a_full_queue_drops_and_counts_without_waiting() {
-        let config = |items, bytes| SinkConfig {
+    fn config(items: usize, bytes: u64) -> SinkConfig {
+        SinkConfig {
             endpoint: "http://127.0.0.1:1".into(),
             max_queue_items: items,
             max_queue_bytes: bytes,
             documents: false,
             typed: None,
-        };
+        }
+    }
+
+    // On one thread the draining task cannot run between offers, so the
+    // queue holds what its bounds let in and the rest is dropped.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_full_queue_drops_and_counts_without_waiting() {
         let f = SinkForwarder::start(&config(2, 1 << 20)).unwrap();
         for i in 0..5 {
             f.offer(&answer(&i.to_string(), false));
@@ -368,5 +389,68 @@ mod tests {
         assert!(SinkForwarder::start(&SinkConfig { endpoint: "not a uri".into(), ..config(1, 1) }).is_err());
         let typed = SinkTyped { view: 1 << 16, offsets: crate::proto::result::OffsetMode::Utf8 };
         assert!(SinkForwarder::start(&SinkConfig { typed: Some(typed), ..config(1, 1) }).is_err());
+    }
+
+    /// close takes the sender under the same lock as enqueue's offered count
+    /// and send. Pausing an offer after it has counted offered, then starting
+    /// close, must still let that offer into the queue: close blocks on the
+    /// lock, the send finishes, and the item is not counted dropped.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn close_waits_out_an_in_flight_offer_instead_of_dropping_it() {
+        let _gap = GapGuard;
+        let f = SinkForwarder::start(&config(8, 1 << 20)).unwrap();
+        let entered = Arc::new(Barrier::new(2));
+        let finish = Arc::new(Barrier::new(2));
+        {
+            let entered = entered.clone();
+            let finish = finish.clone();
+            *ENQUEUE_GAP.lock().unwrap_or_else(|p| p.into_inner()) = Some(Box::new(move || {
+                entered.wait();
+                finish.wait();
+            }));
+        }
+        let offer = {
+            let f = f.clone();
+            std::thread::spawn(move || f.offer(&answer("in-flight", false)))
+        };
+        entered.wait();
+        assert_eq!(f.stats().offered, 1, "the offer counted before the send");
+        let close = {
+            let f = f.clone();
+            tokio::spawn(async move { f.close(Duration::from_millis(400)).await })
+        };
+        // close is blocked on the sender lock held by the offer; release the
+        // offer so it can send, then close takes the sender and drains.
+        finish.wait();
+        offer.join().unwrap();
+        close.await.unwrap();
+        let s = f.stats();
+        assert_eq!(s.offered, 1, "{s:?}");
+        assert_eq!(s.dropped, 0, "an in-flight offer must not be dropped by close: {s:?}");
+        assert_eq!(s.forwarded + s.abandoned + s.queued, 1, "{s:?}");
+    }
+
+    /// Offers that finished before close took the sender stay in the queue
+    /// for close to drain or abandon; they are not counted dropped.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn offers_finished_before_close_are_not_dropped() {
+        let f = SinkForwarder::start(&config(64, 1 << 20)).unwrap();
+        let start = Arc::new(Barrier::new(8));
+        let mut offers = Vec::new();
+        for i in 0..8 {
+            let f = f.clone();
+            let start = start.clone();
+            offers.push(std::thread::spawn(move || {
+                start.wait();
+                f.offer(&answer(&i.to_string(), false));
+            }));
+        }
+        for o in offers {
+            o.join().unwrap();
+        }
+        assert_eq!(f.stats().queued, 8);
+        f.close(Duration::from_millis(400)).await;
+        let s = f.stats();
+        assert_eq!((s.offered, s.dropped, s.abandoned, s.queued), (8, 0, 8, 0), "{s:?}");
     }
 }

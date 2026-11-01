@@ -228,7 +228,9 @@ async fn progressive(s: &Server, doc_id: &str) -> DocumentGraphResponse {
 }
 
 /// Waits, up to two seconds, for the sender to offer or refuse a graph:
-/// it does once the call's reply has ended.
+/// it does once the call's reply has ended. `offered` is counted under the
+/// same lock as the queue send, so once it moves the item is in the queue
+/// (or counted dropped for a full queue), and close can drain it.
 async fn settle(s: &Server) {
     let start = std::time::Instant::now();
     while start.elapsed() < Duration::from_secs(2) {
@@ -295,4 +297,58 @@ async fn a_progressive_graph_without_the_typed_view_is_refused_and_counted() {
     assert!(got.lock().unwrap().is_empty());
     s.stop().await;
     sink.stop().await;
+}
+
+/// The progressive path offers after the reply ends. Closing the moment
+/// `offered` moves must still forward: that is the race that used to drop
+/// the item when `offered` was counted before the queue send.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn closing_as_soon_as_offered_still_forwards_the_progressive_graph() {
+    for i in 0..32 {
+        let (sink, got) = sink_server().await;
+        let s = sender_with(&sink, true, Some(SinkTyped { view: 0, offsets: OffsetMode::Utf8 })).await;
+        progressive(&s, &format!("doc-{i}")).await;
+        settle(&s).await;
+        let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+        assert_eq!(
+            (stats.offered, stats.forwarded, stats.dropped, stats.refused),
+            (1, 1, 0, 0),
+            "iteration {i}: {stats:?}"
+        );
+        assert_eq!(got.lock().unwrap().len(), 1, "iteration {i}");
+        s.stop().await;
+        sink.stop().await;
+    }
+}
+
+/// `forward_document` offers on a blocking thread. Closing the moment the
+/// offered count moves must still forward the item to a live sink, even
+/// when close races the rest of that offer.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn closing_as_soon_as_a_document_is_offered_still_forwards_it() {
+    for i in 0..64 {
+        let (sink, got) = sink_server().await;
+        let s = Arc::new(sender(&sink, None).await);
+        let graph = graph();
+        let send = {
+            let s = s.clone();
+            tokio::spawn(async move { s.forward_document(&format!("doc-{i}"), graph).await.unwrap() })
+        };
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_secs(2) {
+            if s.sink_stats().unwrap().offered > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+        assert!(send.await.unwrap(), "iteration {i}");
+        assert_eq!((stats.offered, stats.forwarded, stats.dropped), (1, 1, 0), "iteration {i}: {stats:?}");
+        assert_eq!(got.lock().unwrap().len(), 1, "iteration {i}");
+        match Arc::try_unwrap(s) {
+            Ok(s) => s.stop().await,
+            Err(_) => panic!("sender still held after close"),
+        }
+        sink.stop().await;
+    }
 }
