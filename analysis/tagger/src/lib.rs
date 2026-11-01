@@ -10,6 +10,7 @@
 //! head scores and decodes on the host, the same on every backend.
 
 pub mod annotate;
+pub mod coref;
 pub mod dictionaries;
 pub mod lemma;
 pub mod multi;
@@ -28,6 +29,7 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tokens};
 
 pub use annotate::HeadRunner;
+pub use coref::CorefTagger;
 pub use dictionaries::{MorfologikLemmas, MorphyLemmas};
 pub use lemma::{LemmaDictionary, Lemmatizer};
 pub use multi::MultiTask;

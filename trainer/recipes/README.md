@@ -10,6 +10,7 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | `wnut17` | WNUT-17 (CC BY 4.0, default-tier training under #1524) | BIO, six types kept separate from MASC | size and SHA-256 of each file | publisher train/dev/test, canonical `emerging.test.annotated`; [recipe and limits](wnut17.md) |
 | `germeval2014-outer`, `germeval2014-inner` | GermEval 2014 corrected 2022-04-28 (CC BY 4.0) | separate outer and inner BIO heads, 12 types each | size and SHA-256 of each file | publisher train/dev/test; [recipe and limits](germeval.md) |
 | `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
+| `litbank` | LitBank (`dbamman/litbank` at `3e50db0f`, CC BY 4.0 over public-domain Project Gutenberg works) | coref (`coref` on `turboembed:coref`, `HEAD_COREF_RANKER`) | size and SHA-256 of all 100 `coref/conll/*.conll` files (`litbank::pins`) | sorted 80/10/10 work split (`turbo_train_recipes::litbank::SPLIT`) |
 | `re-docred` | Re-DocRED at commit `ccfb54f5` (CC BY-SA 4.0, share-alike, as MultiCoNER: Wikipedia documents, MIT annotations; docs/licences.md) | relations between a document's entities, `relation` on `turboembed:relations` | size and SHA-256 of each file and the repository's `LICENSE` | the release's own train, dev and test; counts are of documents |
 | `ud-en-ewt-upos`, `ud-en-ewt-xpos`, `ud-en-ewt-feats` | UD English EWT r2.18 (commit `b7711cce`), one corpus a column, read as syntactic words (CC BY-SA 4.0: share-alike, as MultiCoNER) | tags, heads `upos` on `turboembed:pos`, `xpos`, `feats` | size and SHA-256 of each file (`ud::EN_EWT`) | the release's own train, dev and test; the test file is the one the spaCy, Stanza and Trankit peer records score |
 | `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd`, and in `ud_banks_sa` and `ud_banks_sa2` `af-afribooms`, `hy-bsut`, `hr-set`, `da-ddt`, `ka-glc`, `is-icepahc`, `id-gsd`, `ga-idt`, `ko-kaist`, `lv-lvtb`, `no-bokmaal`, `fa-perdt`, `ro-rrt`, `sr-set`, `sk-snk`, `sl-ssj`, `sv-talbanken`, `tr-boun` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the rest CC BY-SA 4.0 (Irish IDT CC BY-SA 3.0), share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
@@ -80,6 +81,8 @@ turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-coref --corpus litbank --dir <litbank dir> --bundle <encoder bundle> --out <new dir>
+    [as train, without --crf and --hash-embed] [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N]
 turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
 turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
     --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
@@ -138,6 +141,14 @@ each token's commonest training label (`_` when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
+
+`train-coref` trains the antecedent-ranking coreference head (`coref` on
+`turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
+10 dev, 10 test), checkpointing `head.safetensors` and `head.json` by
+dev antecedent accuracy and scoring the test split by micro-averaged
+MUC, B-cubed, CEAF-e and their mean CoNLL F1 beside the deterministic
+singleton baseline (every mention in its own cluster) with a seeded
+paired bootstrap over documents.
 
 `export` writes a corpus's test words, and nothing else, as CoNLL-U
 for a peer system (spaCy, Stanza) to tag as given; `peer` reads the
