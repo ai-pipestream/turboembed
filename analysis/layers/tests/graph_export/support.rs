@@ -228,7 +228,7 @@ pub(super) fn token_body(instance: &str, sentence: &[u32]) -> Vec<u8> {
     let spans: Vec<Span> = sentence.iter().enumerate().map(|(i, _)| Span::new(i as u32, i as u32 + 1)).collect();
     write_spans(&mut w, "", &spans);
     w.u8(1);
-    w.str("opennlp:sentences").unwrap();
+    w.str("turbo:sentences").unwrap();
     w.str(instance).unwrap();
     w.usize(sentence.len()).unwrap();
     for s in sentence {

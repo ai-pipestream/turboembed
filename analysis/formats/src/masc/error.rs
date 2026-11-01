@@ -68,6 +68,9 @@ pub enum MascStream {
 /// reports them through [`MascCorpus::skipped`](super::MascCorpus::skipped).
 #[derive(Debug)]
 pub enum MascError {
+    /// A sentence-only consumer cannot represent an incomplete entity.
+    /// Offsets identify the refused piece in source UTF-16 units.
+    CutEntity { path: PathBuf, entity: i32, start: i32, end: i32 },
     /// The corpus path is not a directory.
     NotADirectory { path: PathBuf },
     /// A file could not be read. Java names no class here: OpenNLP checks
@@ -160,7 +163,8 @@ impl MascError {
             Substring { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             NegativeTokenStart { .. } | TokenOutOfBounds { .. } | NullTag => Some("java.lang.IllegalArgumentException"),
             Sample(e) => e.java_class(),
-            Io { .. }
+            CutEntity { .. }
+            | Io { .. }
             | DirectoryCycle { .. }
             | SplitsSurrogatePair { .. }
             | TooLong { .. }
@@ -187,6 +191,9 @@ impl fmt::Display for MascError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use MascError::*;
         match self {
+            CutEntity { path, entity, start, end } => {
+                write!(f, "{}: entity ne-n{entity} is incomplete at UTF-16 offsets {start}..{end}", path.display())
+            }
             NotADirectory { .. } => {
                 f.write_str("Input corpus directory must be a directory according to File.isDirectory()!")
             }

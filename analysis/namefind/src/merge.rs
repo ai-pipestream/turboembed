@@ -185,7 +185,7 @@ impl Annotator for FilterEntities {
     }
 }
 
-/// Merges `N` instances of `opennlp:entities` into one, as
+/// Merges `N` instances of `turbo:entities` into one, as
 /// [`merge`] does. Bind the instances it reads with `Bound::read`, in
 /// finder order: the first wins a tie.
 #[derive(Copy, Clone, Debug, Default)]

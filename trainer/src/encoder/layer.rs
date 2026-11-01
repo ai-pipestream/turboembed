@@ -61,9 +61,8 @@ impl<R: Real> Encoder<R> {
         self.store(y);
         if let Some(a) = self.adapter(l) {
             let (sa, sb) = self.lora_slots(l, which);
-            lora::forward(x, &p[sa], &p[sb], inp, a.rank, a.scale(), y, h);
+            lora::forward(x, &p[sa], &p[sb], inp, a.rank, a.scale(), self.rounds(), y, h);
             self.store(y);
-            self.store(h);
         }
     }
 

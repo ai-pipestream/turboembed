@@ -272,6 +272,12 @@ fn zoo_loader_resolves_bound_head_bytes_and_rejects_non_head_artifacts() {
         IncivilityVectorHead::from_zoo(&builtin, "civil-comments", &user, || Ok(Acceptances::default())),
         Err(IncivilityZooError::NotAHead { .. })
     ));
+    for id in [CIVIL_COMMENTS_MODERNBERT_HEAD, CIVIL_COMMENTS_MODERNBERT_CONTEXT_HEAD] {
+        let entry = builtin_index.get(id).unwrap();
+        assert_eq!(entry.kind, turbo_zoo::Kind::Head);
+        assert_eq!(entry.format, turbo_zoo::Format::Head);
+        assert_eq!(entry.class, turbo_zoo::LicenceClass::Permissive);
+    }
     for id in [
         CIVIL_COMMENTS_MINILM_HEAD,
         CIVIL_COMMENTS_MINILM_CONTEXT_HEAD,
@@ -281,7 +287,7 @@ fn zoo_loader_resolves_bound_head_bytes_and_rejects_non_head_artifacts() {
         let entry = builtin_index.get(id).unwrap();
         assert_eq!(entry.kind, turbo_zoo::Kind::Head);
         assert_eq!(entry.format, turbo_zoo::Format::Head);
-        assert_eq!(entry.class, turbo_zoo::LicenceClass::Permissive);
+        assert_eq!(entry.class, turbo_zoo::LicenceClass::LocalOnly);
     }
     let _ = std::fs::remove_dir_all(&dir);
 }

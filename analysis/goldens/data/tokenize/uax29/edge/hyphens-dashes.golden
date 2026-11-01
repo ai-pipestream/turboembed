@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
 annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
-layer	opennlp:tokens	text	30	start:u32	end:u32
+layer	turbo:tokens	text	30	start:u32	end:u32
 0	4
 5	10
 11	16
@@ -36,8 +36,8 @@ layer	opennlp:tokens	text	30	start:u32	end:u32
 143	146
 149	157
 160	166
-end	opennlp:tokens
-layer	turbo:word-types	aligned:opennlp:tokens	30	kind:str
+end	turbo:tokens
+layer	turbo:word-types	aligned:turbo:tokens	30	kind:str
 ALPHANUMERIC
 ALPHANUMERIC
 ALPHANUMERIC

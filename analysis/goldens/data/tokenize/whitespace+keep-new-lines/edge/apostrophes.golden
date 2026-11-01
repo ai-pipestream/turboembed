@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/apostrophes	117	111	6b69b6f64d24416906fcab108088306ae2ac284629d75125905f2f4cb02bb05d
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	20	start:u32	end:u32
+layer	turbo:tokens	text	20	start:u32	end:u32
 0	5
 6	11
 12	18
@@ -27,4 +27,4 @@ layer	opennlp:tokens	text	20	start:u32	end:u32
 101	109
 110	116
 116	117
-end	opennlp:tokens
+end	turbo:tokens

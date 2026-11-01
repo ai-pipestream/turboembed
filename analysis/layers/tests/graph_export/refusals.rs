@@ -27,7 +27,7 @@ fn vector_dimension_mismatches_are_refused() {
     w.str("m").unwrap();
     w.str("r").unwrap();
     w.str("s").unwrap();
-    splice(&mut graph, "opennlp:embeddings", w.finish(), 2);
+    splice(&mut graph, "turbo:embeddings", w.finish(), 2);
     match import(&graph, &codecs()) {
         Err(ExportError::Malformed(detail)) => assert!(detail.contains("vector values"), "{detail}"),
         Ok(_) => panic!("a vector block with a value count mismatch imported"),
@@ -99,7 +99,7 @@ fn sentiment_family_refusals() {
     w.u32(1);
     w.usize(u32::MAX as usize).unwrap();
     w.usize(u32::MAX as usize).unwrap();
-    splice(&mut graph, "opennlp:embeddings", w.finish(), u32::MAX);
+    splice(&mut graph, "turbo:embeddings", w.finish(), u32::MAX);
     assert!(import(&graph, &codecs()).is_err(), "a vector body claiming billions of values imported");
 
     // An extreme number span must be refused, never panicking in the
@@ -129,7 +129,7 @@ fn sentiment_family_refusals() {
     let mut graph = export(&doc, &codecs()).unwrap();
     let mut w = Writer::new();
     write_spans(&mut w, "", &[Span::new(0, 5)]);
-    w.str("opennlp:tokens").unwrap();
+    w.str("turbo:tokens").unwrap();
     w.str("").unwrap();
     w.usize(1).unwrap();
     w.u32(0);
@@ -142,7 +142,7 @@ fn sentiment_family_refusals() {
     w.u32(5);
     w.usize(1).unwrap();
     w.u8(0);
-    splice(&mut graph, "opennlp:phrases", w.finish(), 1);
+    splice(&mut graph, "turbo:phrases", w.finish(), 1);
     assert!(import(&graph, &codecs()).is_err(), "a phrase head outside its tokens imported");
 
     // An unknown currency code.

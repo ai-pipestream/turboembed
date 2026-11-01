@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/ru	307	170	0694c88d949a90a29192dbe856add99bbd2f60b9be7448fa0d53b04407bfbbbf
 model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	33	start:u32	end:u32
+layer	turbo:tokens	text	33	start:u32	end:u32
 0	8
 9	11
 12	20
@@ -40,8 +40,8 @@ layer	opennlp:tokens	text	33	start:u32	end:u32
 276	292
 293	305
 305	306
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	33	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	33	unknown:u32	features:str
 1	SL,*,*,*,*,*,*,*
 1	SL,*,*,*,*,*,*,*
 1	SL,*,*,*,*,*,*,*

@@ -39,10 +39,10 @@ use crate::state::State;
 use crate::status::to_status;
 
 pub use profiles::{
-    AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile, profile_capabilities,
+    ANNOTATE_V1, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile, profile_capabilities,
 };
-pub use steps::compile_analyzer;
 use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state};
+pub use steps::{compile_analyzer, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
 /// drop guard that sets the cooperative cancellation flag as soon as the stream
@@ -175,7 +175,7 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
             "chunking" => (CHUNKING_STEPS.to_vec(), req.profile.as_str(), &[]),
             other => {
                 return Err(plain(bad(format!(
-                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'default', 'minimal', or 'chunking'"
+                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'annotate-v1', 'default', 'minimal', or 'chunking'"
                 ))));
             }
         }

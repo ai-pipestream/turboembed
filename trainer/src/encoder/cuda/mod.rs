@@ -108,6 +108,7 @@ pub struct CudaEncoder {
     lora: Option<Lora>,
     lora_from: usize,
     frozen: bool,
+    checkpoint: bool,
     dropout: Option<Dropout>,
     compute: Compute,
     lens: Vec<usize>,
@@ -159,6 +160,7 @@ impl CudaEncoder {
             lora: e.lora,
             lora_from: e.lora_from,
             frozen: e.frozen,
+            checkpoint: e.checkpoint,
             dropout: e.dropout,
             compute: e.compute,
             lens: e.lens.clone(),
@@ -169,7 +171,7 @@ impl CudaEncoder {
             pairs: e.table.pairs(),
             work: pass::Workspace::default(),
         };
-        out.work.ensure(&out.geo, out.lora, 1)?;
+        out.work.ensure(&out.geo, out.lora, out.checkpoint, 1)?;
         Ok(out)
     }
 
@@ -187,6 +189,15 @@ impl CudaEncoder {
 
     pub fn frozen(&self) -> bool {
         self.frozen
+    }
+
+    pub fn is_checkpointed(&self) -> bool {
+        self.checkpoint
+    }
+
+    /// How many layers' inner workspaces are held on the device.
+    pub fn buffered_layers(&self) -> usize {
+        self.work.buffered_layers()
     }
 
     /// Replaces slot `s`'s weights with `p`, which must keep the length,

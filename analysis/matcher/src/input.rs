@@ -86,14 +86,14 @@ impl<'a> Input<'a> {
 
     /// Part-of-speech tags, one per token.
     pub fn with_pos(mut self, pos: &'a PosTags) -> Result<Self, MatchError> {
-        self.aligned("opennlp:pos", pos.tags.len())?;
+        self.aligned("turbo:pos", pos.tags.len())?;
         self.pos = Some(pos);
         Ok(self)
     }
 
     /// Lemmas, one per token.
     pub fn with_lemmas(mut self, lemmas: &'a Strs) -> Result<Self, MatchError> {
-        self.aligned("opennlp:lemmas", lemmas.len())?;
+        self.aligned("turbo:lemmas", lemmas.len())?;
         self.lemmas = Some(lemmas);
         Ok(self)
     }
@@ -129,7 +129,7 @@ impl<'a> Input<'a> {
 
     /// A checked dependency forest, borrowed without copying its columns.
     pub fn with_dependencies(mut self, dependencies: &'a Dependencies) -> Result<Self, MatchError> {
-        self.aligned("opennlp:dependencies", dependencies.head.len())?;
+        self.aligned("turbo:dependencies", dependencies.head.len())?;
         dependencies.check_forest().map_err(MatchError::Dependencies)?;
         if let Some(sentences) = self.sentence {
             for (i, head) in dependencies.head.iter().enumerate() {
@@ -146,20 +146,20 @@ impl<'a> Input<'a> {
     pub fn with_entities(mut self, entities: &'a Entities) -> Result<Self, MatchError> {
         if entities.spans.view() != self.view {
             return Err(MatchError::ViewMismatch {
-                layer: "opennlp:entities",
+                layer: "turbo:entities",
                 expected: self.view,
                 actual: entities.spans.view(),
             });
         }
         let past = entities.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0);
         if past > self.len() || entities.tokens.iter().any(|r| r.start > r.end) {
-            return Err(MatchError::Misaligned { layer: "opennlp:entities", len: past, tokens: self.len() });
+            return Err(MatchError::Misaligned { layer: "turbo:entities", len: past, tokens: self.len() });
         }
         if entities.spans.len() != entities.tokens.len() || entities.kind.len() != entities.tokens.len() {
             let bad =
                 if entities.spans.len() != entities.tokens.len() { entities.spans.len() } else { entities.kind.len() };
             return Err(MatchError::Misaligned {
-                layer: "opennlp:entities",
+                layer: "turbo:entities",
                 len: if bad == self.len() { entities.tokens.len() } else { bad },
                 tokens: self.len(),
             });
@@ -227,7 +227,7 @@ impl<'a> Input<'a> {
     fn strings(&self, attr: Attr) -> Result<&'a Strs, MatchError> {
         let (column, layer) = match attr {
             Attr::Norm => (self.norms, "norms"),
-            Attr::Lemma => (self.lemmas, "opennlp:lemmas"),
+            Attr::Lemma => (self.lemmas, "turbo:lemmas"),
             Attr::Stem => (self.stems, "turbo:stems"),
             Attr::Morph => (self.morph, "turbo:feats"),
             Attr::Tag => (self.tags, "tags"),
@@ -272,10 +272,10 @@ impl<'a> Input<'a> {
     /// The first entity covering each token of `range`, as an index into
     /// the entities, or `u32::MAX` where none does.
     fn entity_of(&self, range: &Range<usize>) -> Result<Vec<u32>, MatchError> {
-        let entities = self.entities.ok_or(MatchError::Missing("opennlp:entities"))?;
+        let entities = self.entities.ok_or(MatchError::Missing("turbo:entities"))?;
         if entities.spans.view() != self.view {
             return Err(MatchError::ViewMismatch {
-                layer: "opennlp:entities",
+                layer: "turbo:entities",
                 expected: self.view,
                 actual: entities.spans.view(),
             });
@@ -377,14 +377,14 @@ impl Columns {
                     range.clone().map(|i| vocab.get(&crate::predicates::morph(strs.get(i)))).collect()
                 }
                 Attr::Pos => {
-                    let pos = input.pos.ok_or(MatchError::Missing("opennlp:pos"))?;
+                    let pos = input.pos.ok_or(MatchError::Missing("turbo:pos"))?;
                     let ids: Vec<u32> = (0..pos.tagset.len())
                         .map(|t| vocab.get(pos.tagset.label(turbo_analysis::Tag(t as u16))))
                         .collect();
                     pos.tags[range.clone()].iter().map(|t| ids[t.0 as usize]).collect()
                 }
                 Attr::Dep => {
-                    let dep = input.dependencies.ok_or(MatchError::Missing("opennlp:dependencies"))?;
+                    let dep = input.dependencies.ok_or(MatchError::Missing("turbo:dependencies"))?;
                     range.clone().map(|i| vocab.get(dep.relations.label(dep.relation[i]))).collect()
                 }
                 Attr::Entity => {
@@ -439,7 +439,7 @@ fn flag_column(input: &Input<'_>, range: &Range<usize>, wanted: u32) -> Result<V
         }
     }
     if wanted & Flag::SentStart.bit() != 0 {
-        let sentence = input.sentence.ok_or(MatchError::Missing("opennlp:sentences"))?;
+        let sentence = input.sentence.ok_or(MatchError::Missing("turbo:sentences"))?;
         for (b, i) in bits.iter_mut().zip(range.clone()) {
             if i == 0 || sentence[i] != sentence[i - 1] {
                 *b |= Flag::SentStart.bit();

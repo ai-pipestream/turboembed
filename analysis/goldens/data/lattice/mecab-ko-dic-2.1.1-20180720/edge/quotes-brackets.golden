@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
 model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	49	start:u32	end:u32
+layer	turbo:tokens	text	49	start:u32	end:u32
 0	2
 3	7
 7	8
@@ -56,8 +56,8 @@ layer	opennlp:tokens	text	49	start:u32	end:u32
 125	126
 126	134
 134	138
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	49	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	49	unknown:u32	features:str
 1	SL,*,*,*,*,*,*,*
 1	SL,*,*,*,*,*,*,*
 0	SC,*,*,*,*,*,*,*

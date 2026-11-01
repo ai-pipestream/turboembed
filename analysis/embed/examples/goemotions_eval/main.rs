@@ -45,6 +45,7 @@ const STAGES: [(&str, EmotionStage); 3] =
 struct Args {
     bundle: PathBuf,
     device: Device,
+    max_seq: u32,
     goemotions: PathBuf,
     cache: PathBuf,
     head_out: Option<PathBuf>,
@@ -54,8 +55,8 @@ struct Args {
 
 fn args() -> Result<Args, String> {
     let mut a = std::env::args().skip(1);
-    let (mut bundle, mut device, mut goemotions, mut cache, mut head_out, mut out) =
-        (None, Device::Cpu, None, None, None, None);
+    let (mut bundle, mut device, mut max_seq, mut goemotions, mut cache, mut head_out, mut out) =
+        (None, Device::Cpu, 0u32, None, None, None, None);
     let mut fit = EmotionFitOptions { epochs: 500, learning_rate: 16.0, l2: 1e-4 };
     while let Some(flag) = a.next() {
         let mut value = || a.next().ok_or_else(|| format!("{flag} needs a value"));
@@ -67,6 +68,7 @@ fn args() -> Result<Args, String> {
                     d => Device::Backend(d.into()),
                 }
             }
+            "--max-seq" => max_seq = value()?.parse().map_err(|e| format!("--max-seq: {e}"))?,
             "--goemotions" => goemotions = Some(PathBuf::from(value()?)),
             "--cache" => cache = Some(PathBuf::from(value()?)),
             "--head-out" => head_out = Some(PathBuf::from(value()?)),
@@ -81,6 +83,7 @@ fn args() -> Result<Args, String> {
     Ok(Args {
         bundle: need(bundle, "--bundle")?,
         device,
+        max_seq,
         goemotions: need(goemotions, "--goemotions")?,
         cache: need(cache, "--cache")?,
         head_out,
@@ -142,6 +145,7 @@ fn verify_emotions_txt(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+mod bootstrap;
 mod prepared;
 use prepared::{Prepared, prepare, score_split};
 
@@ -215,8 +219,10 @@ fn run() -> Result<(), String> {
     let test = read_split(&a.goemotions.join("test.tsv"))?;
     eprintln!("{} train, {} dev, {} test comments", train.len(), dev.len(), test.len());
 
-    let mut embedder =
-        embed::Embedder::open(&a.bundle, &EncoderOptions { device: a.device.clone(), ..Default::default() })?;
+    let mut embedder = embed::Embedder::open(
+        &a.bundle,
+        &EncoderOptions { device: a.device.clone(), max_seq: a.max_seq, ..Default::default() },
+    )?;
     let dim = embedder.dim;
     let mut vectors = |rows: &[Row], name: &str| {
         eprintln!("embedding {name}");
@@ -248,6 +254,10 @@ fn run() -> Result<(), String> {
     let test_p = prepare(&test)?;
     let mut tuned_json = serde_json::Map::new();
     let mut test_json = serde_json::Map::new();
+    let test_gold_masks = bootstrap::gold_masks(&test_p.gold);
+    let maj_masks = bootstrap::majority_masks(test.len());
+    let mut stage_pl_masks: std::collections::BTreeMap<String, Vec<u32>> = std::collections::BTreeMap::new();
+    let mut stage_uni_masks: std::collections::BTreeMap<String, Vec<u32>> = std::collections::BTreeMap::new();
 
     for (stage_name, stage) in STAGES {
         let base = EmotionAnnotator::new().with_vector_scorer(Arc::clone(&scorer)).with_stage(stage);
@@ -280,6 +290,10 @@ fn run() -> Result<(), String> {
         let layer_pl = score_split(&base.with_thresholds(per_label_t), &test_p, &test_v, dim)?;
         let m_pl = evaluate_emotion_corpus_with_thresholds(&test_p.gold, &layer_pl, &per_label_t)?;
 
+        stage_uni_masks
+            .insert(stage_name.into(), bootstrap::layer_masks(&layer_uni, &[uni_t; EMOTION_DIMENSIONS], test.len()));
+        stage_pl_masks.insert(stage_name.into(), bootstrap::layer_masks(&layer_pl, &per_label_t, test.len()));
+
         test_json.insert(
             stage_name.into(),
             json!({
@@ -296,14 +310,27 @@ fn run() -> Result<(), String> {
         );
     }
 
+    let (maj_macro, maj_micro) = bootstrap::macro_micro_f1(&test_gold_masks, &maj_masks);
+    let bootstrap_json = json!({
+        "learned_per_label_vs_majority": bootstrap::paired_bootstrap(&test_gold_masks, &stage_pl_masks["learned"], &maj_masks),
+        "learned_uniform_vs_majority": bootstrap::paired_bootstrap(&test_gold_masks, &stage_uni_masks["learned"], &maj_masks),
+        "learned_per_label_vs_lexicon_per_label": bootstrap::paired_bootstrap(&test_gold_masks, &stage_pl_masks["learned"], &stage_pl_masks["lexicon"]),
+        "hybrid_per_label_vs_majority": bootstrap::paired_bootstrap(&test_gold_masks, &stage_pl_masks["hybrid"], &maj_masks),
+        "hybrid_per_label_vs_lexicon_per_label": bootstrap::paired_bootstrap(&test_gold_masks, &stage_pl_masks["hybrid"], &stage_pl_masks["lexicon"]),
+        "hybrid_uniform_vs_lexicon_uniform": bootstrap::paired_bootstrap(&test_gold_masks, &stage_uni_masks["hybrid"], &stage_uni_masks["lexicon"]),
+        "hybrid_per_label_vs_learned_per_label": bootstrap::paired_bootstrap(&test_gold_masks, &stage_pl_masks["hybrid"], &stage_pl_masks["learned"]),
+    });
+
     let record = json!({
         "encoder": {
             "id": embedder.model.id,
             "revision": embedder.model.revision,
             "manifest_sha256": embedder.model.sha256,
             "dim": dim,
+            "max_seq": embedder.max_seq(),
         },
         "head": {
+            "trainer": "turbo-trainer (linear::forward, linear::backward, Real::sigmoid)",
             "train_comments": train.len(),
             "epochs": a.fit.epochs,
             "learning_rate": a.fit.learning_rate,
@@ -313,6 +340,16 @@ fn run() -> Result<(), String> {
             "sha256": head_sha256,
             "sha512": head_sha512,
         },
+        "baselines": {
+            "majority_always_neutral": {
+                "macro_f1": maj_macro,
+                "micro_f1": maj_micro,
+            },
+            "published_demszky_acl2020_finetuned_bert": {
+                "macro_f1": 0.46,
+                "micro_f1": 0.51,
+            },
+        },
         "tuned_on_dev": {
             "dev_comments": dev.len(),
             "stages": tuned_json,
@@ -320,6 +357,7 @@ fn run() -> Result<(), String> {
         "test": {
             "test_comments": test.len(),
             "stages": test_json,
+            "paired_bootstrap": bootstrap_json,
         },
     });
     if let Some(parent) = a.out.parent() {

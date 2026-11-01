@@ -56,7 +56,7 @@ impl Codecs {
     }
 
     pub(super) fn by_layer_name(&self, name: &str) -> Option<&Codec> {
-        self.by_name.get(name).and_then(|ty| self.by_type.get(ty))
+        self.by_name.get(canonical_layer_name(name).as_ref()).and_then(|ty| self.by_type.get(ty))
     }
 
     pub(super) fn key_id(&self, layer: &LayerRef, cx: &mut ImportCx) -> Result<KeyId, ExportError> {

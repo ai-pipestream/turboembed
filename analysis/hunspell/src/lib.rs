@@ -1,7 +1,7 @@
 //! OpenNLP's Hunspell stemmer: `HunspellDictionary` (here [`Dictionary`]),
 //! `HunspellStemmer` ([`Stemmer`]), `HunspellStemmerFactory` (a shared
 //! [`Dictionary`] and [`Stemmer::new`]) and, through `StemmerAnnotator`,
-//! an analysis step that reads `opennlp:tokens` and writes `turbo:stems`
+//! an analysis step that reads `turbo:tokens` and writes `turbo:stems`
 //! ([`HunspellAnnotator`]).
 //!
 //! The behaviour follows the classes of the `OPENNLP-1927-hunspell-compatibility`
