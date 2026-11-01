@@ -76,7 +76,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             replace(&dir, "head.json", &spec_json)?;
             saved = true;
         }
-        let at = [(CHECKPOINT_EPOCH, epoch.to_string()), (CHECKPOINT_DEV, dev.to_string())];
+        let at = [(CHECKPOINT_EPOCH, (epoch + 1).to_string()), (CHECKPOINT_DEV, dev.to_string())];
         replace(&dir, "head.safetensors", &safetensors::write_with(&named(&spec, hidden, m.tensors()), &at))?;
         Ok(())
     };
@@ -106,14 +106,13 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let eval_s = t.elapsed().as_secs_f64();
 
     let best = report.best_epoch;
-    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
+    let at = [(CHECKPOINT_EPOCH, (best + 1).to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
     let weights = safetensors::write_with(&named(&spec, hidden, model.tensors()), &at);
     let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus: corpus.record,
         encoder: Some(encoder),
@@ -136,7 +135,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         training: Some(TrainingRecord {
             train_loss: report.train_loss,
             dev: report.dev,
-            best_epoch: report.best_epoch,
+            best_epoch: best + 1,
             epoch_seconds: report.epoch_seconds,
         }),
         eval,

@@ -104,7 +104,6 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus: c.record.clone(),
         encoder: None,

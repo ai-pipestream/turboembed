@@ -140,14 +140,14 @@ fn assemble_refuses_mismatched_encoders_checkpoint_metadata_tampered_files_and_c
     let bad_epoch = clone_run("refuse-bad-epoch", &["head.json", "head.safetensors"]);
     let mut r_ep: Receipt = serde_json::from_slice(&fs::read(base_run.join("receipt.json")).unwrap()).unwrap();
     let tr = r_ep.training.as_mut().unwrap();
-    tr.best_epoch = usize::from(tr.best_epoch == 0);
+    tr.best_epoch = if tr.best_epoch == 1 { 2 } else { 1 };
     fs::write(bad_epoch.join("receipt.json"), serde_json::to_vec_pretty(&r_ep).unwrap()).unwrap();
     assert!(verify_run(&bad_epoch).unwrap_err().0.contains("__metadata__.best_epoch"));
 
     let bad_dev = clone_run("refuse-bad-dev", &["head.json", "head.safetensors"]);
     let mut r_dv: Receipt = serde_json::from_slice(&fs::read(base_run.join("receipt.json")).unwrap()).unwrap();
     let tr = r_dv.training.as_mut().unwrap();
-    tr.dev[tr.best_epoch] += 0.125;
+    tr.dev[tr.best_epoch - 1] += 0.125;
     fs::write(bad_dev.join("receipt.json"), serde_json::to_vec_pretty(&r_dv).unwrap()).unwrap();
     assert!(verify_run(&bad_dev).unwrap_err().0.contains("__metadata__.dev"));
 

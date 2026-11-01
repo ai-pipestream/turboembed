@@ -205,3 +205,53 @@ fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
         fs::remove_dir_all(p).unwrap();
     }
 }
+
+#[test]
+fn legacy_cache_host_is_discarded_and_cached_features_still_train() {
+    let data = scratch("legacy-data");
+    corpus(&data);
+    let cache = scratch("legacy-cache");
+    let fit = scratch("legacy-fit");
+    let b = tiny();
+    let common = ["--corpus", "multiconer2-en", "--dir", data.to_str().unwrap(), "--unrecorded-corpus"];
+    let result = run(&[
+        &["cache"][..],
+        &common,
+        &["--bundle", b.to_str().unwrap(), "--out", cache.to_str().unwrap(), "--layers", "1"],
+    ]
+    .concat());
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let path = cache.join("cache.json");
+    let mut record: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert!(record.get("host").is_none());
+    record["host"] = serde_json::json!("legacy value");
+    fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+    let result = run(&[
+        &["fit-cache"][..],
+        &common,
+        &[
+            "--cache",
+            cache.to_str().unwrap(),
+            "--out",
+            fit.to_str().unwrap(),
+            "--layer",
+            "2",
+            "--epochs",
+            "2",
+            "--batch",
+            "8",
+        ],
+    ]
+    .concat());
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let fitted: serde_json::Value = serde_json::from_slice(&fs::read(fit.join("fit.json")).unwrap()).unwrap();
+    assert!(fitted.get("host").is_none());
+    assert!(fitted["cache"].get("host").is_none());
+    let parsed: CacheRecord = serde_json::from_value(record.clone()).unwrap();
+    assert!(serde_json::to_value(parsed).unwrap().get("host").is_none());
+    record["unexpected"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<CacheRecord>(record).is_err(), "other unknown fields remain refused");
+    for dir in [data, cache, fit] {
+        fs::remove_dir_all(dir).unwrap();
+    }
+}

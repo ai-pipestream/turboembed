@@ -68,9 +68,23 @@ fn gives(label: &str, token: &str, words: &[String]) -> bool {
     })
 }
 
+/// How many `Head` and `Tail` cut nodes a tree holds.
+fn tree_cuts(tree: &EditTree) -> usize {
+    match tree {
+        EditTree::Head { tree: inner, .. } | EditTree::Tail { tree: inner, .. } => {
+            1 + inner.as_deref().map_or(0, tree_cuts)
+        }
+        EditTree::Match { before, after, .. } => {
+            before.as_deref().map_or(0, tree_cuts) + after.as_deref().map_or(0, tree_cuts)
+        }
+        EditTree::Lower(inner) => tree_cuts(inner),
+        EditTree::Subst { .. } => 0,
+    }
+}
+
 /// How many cuts a label holds.
 fn cuts(label: &str) -> usize {
-    label.matches("(h ").count() + label.matches("(t ").count()
+    parse_split(label).map_or(0, |trees| trees.iter().map(tree_cuts).sum())
 }
 
 /// Each distinct split of training (a token and its words) with its
@@ -106,4 +120,26 @@ pub fn choose(train: &[TokenSentence]) -> BTreeMap<(String, Vec<String>), String
             Some((k.clone(), best.clone()))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn substitutions_holding_cut_syntax_are_not_counted_as_cuts() {
+        let named = "(m 0 4 () (s '(h 1' '')) (m 1 0 (s 'a' '') ())";
+        let cut = "(h 1 ()) (m 1 0 (s 'a' '') ())";
+        assert_eq!(cuts(named), 0);
+        assert_eq!(cuts(cut), 1);
+        assert_eq!(cuts("(m 0 4 () (s '(t 1' '')) (m 1 0 (s 'a' '') ())"), 0);
+        let train =
+            [TokenSentence { tokens: vec!["a(h 1".to_owned()], words: vec![vec!["a".to_owned(), "(h 1".to_owned()]] }];
+        let chosen = choose(&train);
+        assert_eq!(
+            chosen[&("a(h 1".to_owned(), vec!["a".to_owned(), "(h 1".to_owned()])],
+            named,
+            "the named tree has zero cuts, even with `(h ` inside its substitution"
+        );
+    }
 }

@@ -236,10 +236,11 @@ many epochs, and each better epoch is saved as it comes.
 `turbo_trainer::fit`, predicts the test split through the core's
 `TokenTagger`, and writes `head.safetensors` (the head's F32 tensors
 under `heads.<name>.`), `head.json` (its `HeadSpec`) and `receipt.json`
-(`receipt::Receipt`: command, commit, host, corpus record with digests
-and counts, encoder model and manifest digest, backend and device, head,
-settings, per-epoch loss and dev score, test scores of model and
-baseline, the bootstrap, timings, and the outputs' digests).
+(`receipt::Receipt`: command, commit, corpus record with digests and
+counts, encoder model and manifest digest, backend and device, head,
+settings, per-epoch loss and dev score with `best_epoch` counted from 1
+as in the training log, test scores of model and baseline, the
+bootstrap, timings, and the outputs' digests).
 
 Majority baselines on the test splits (CPU, 2026-10-28, at the recorded
 releases): MASC Penn POS accuracy 0.8964 (85,292 words), MultiCoNER v2

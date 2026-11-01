@@ -70,7 +70,7 @@ pub fn verify_run(run_dir: &Path) -> Result<VerifiedRun> {
     let training = receipt.training.as_ref().ok_or_else(|| at("receipt.json: missing training record".into()))?;
     if training.dev.is_empty()
         || training.train_loss.is_empty()
-        || training.best_epoch >= training.dev.len()
+        || !(1..=training.dev.len()).contains(&training.best_epoch)
         || training.dev.iter().chain(&training.train_loss).chain(&training.epoch_seconds).any(|v| !v.is_finite())
     {
         return Err(at("receipt.json: invalid best_epoch or non-finite training curves".into()));
@@ -87,7 +87,7 @@ pub fn verify_run(run_dir: &Path) -> Result<VerifiedRun> {
         return Err(at("head.json does not match receipt.head".into()));
     }
     let weights_bytes = verify_output(run_dir, &receipt, "head.safetensors")?;
-    verify_head_tensors(&spec, enc.hidden, training.best_epoch, training.dev[training.best_epoch], &weights_bytes)
+    verify_head_tensors(&spec, enc.hidden, training.best_epoch, training.dev[training.best_epoch - 1], &weights_bytes)
         .map_err(at)?;
 
     Ok(VerifiedRun { dir: run_dir.to_path_buf(), receipt, spec, license_class, weights_bytes })
@@ -345,7 +345,7 @@ pub fn assemble_bundle(encoder_bundle: &Path, run_dirs: &[&Path], out_dir: &Path
             recipe_only: run.receipt.corpus.recipe_only,
             best_epoch: tr.best_epoch,
             metric: ev.metric_name().into(),
-            dev_score: tr.dev[tr.best_epoch],
+            dev_score: tr.dev[tr.best_epoch - 1],
             test_score: ev.score(),
             baseline_score: run.receipt.eval.baseline.score(),
         });
@@ -418,7 +418,8 @@ fn verify_checkpoint_metadata(
         .map_err(|e| format!("head.safetensors: invalid __metadata__.{CHECKPOINT_DEV} {dev_str:?}: {e}"))?;
     if !dev.is_finite() || (dev - best_dev).abs() > 1e-12 {
         return Err(format!(
-            "head.safetensors: __metadata__.{CHECKPOINT_DEV} is {dev}, receipt.training.dev[{best_epoch}] is {best_dev}"
+            "head.safetensors: __metadata__.{CHECKPOINT_DEV} is {dev}, receipt.training.dev[{}] is {best_dev}",
+            best_epoch - 1
         ));
     }
     Ok(())

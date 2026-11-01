@@ -124,6 +124,12 @@ fn a_clitic_split_takes_the_label_that_serves_the_most_tokens() {
     // other token.
     assert_eq!(chosen[&("del".to_owned(), w(&["de", "el"]))], "(h 2 ()) (t 2 ())");
     assert_eq!(chosen[&("al".to_owned(), w(&["a", "el"]))], "(m 0 1 () (s 'l' '')) (m 1 0 (s 'a' 'e') ())");
+    // A substitution holding `(h ` is not counted as a cut in the tie-break.
+    let quoted = [token_sentence(&[("a(h 1", &["a", "(h 1"])])];
+    assert_eq!(
+        choose(&quoted)[&("a(h 1".to_owned(), w(&["a", "(h 1"]))],
+        "(m 0 4 () (s '(h 1' '')) (m 1 0 (s 'a' '') ())"
+    );
     let labels = mine_labels(&train, &chosen, 2);
     let le = "(m 0 2 () (s 'le' '')) (t 2 ())";
     assert_eq!(labels[..2], ["_", se], "four tokens take the `se` label: {labels:?}");

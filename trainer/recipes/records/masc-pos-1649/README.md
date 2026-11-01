@@ -57,8 +57,7 @@ epochs, the last of them the best on dev at 0.9733. Seen words score 0.9724 and 
 (3,647 of 5,005). The head file, `head.safetensors`, is 13,426,024 bytes
 with SHA-256 `76fac774...a3b6`, pinned in `analysis/pins/models.txt`;
 publishing it as a release asset is a maintainer step. The receipt's
-command gives directory names in place of the training host's paths,
-and its host field names the kind of machine, not its hostname.
+command gives directory names in place of the training host's paths.
 ModernBERT-base is the default-tier encoder until one that beats it
 replaces it (#1666).
 

@@ -25,7 +25,6 @@
     "runs/wnut17-open-span"
   ],
   "commit": "63fd0bfdbdc7f11a967217e7a2e5a4a0260ef56a",
-  "host": "unknown",
   "unix_time": 1793447693,
   "corpus": {
     "id": "wnut17",
@@ -135,7 +134,7 @@
       0.21806853582554517,
       0.2271604938271605
     ],
-    "best_epoch": 1,
+    "best_epoch": 2,
     "epoch_seconds": [
       28.824439438,
       29.953913445,

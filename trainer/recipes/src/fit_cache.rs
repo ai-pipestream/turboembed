@@ -16,7 +16,7 @@ use turbo_trainer::mix::{MixExample, fit_mix};
 use crate::cache::{CacheRecord, read_layer};
 use crate::cli::{Args, HeadArgs, OutDir, commit, head_args};
 use crate::corpus::Sentence;
-use crate::receipt::{host, unix_time};
+use crate::receipt::unix_time;
 use crate::run::{HeadOptions, spec, write};
 use crate::{Error, Result, read_corpus};
 
@@ -29,7 +29,6 @@ pub struct FitRecord {
     pub schema: String,
     pub command: Vec<String>,
     pub commit: String,
-    pub host: String,
     pub unix_time: u64,
     /// The cache's record, as read.
     pub cache: CacheRecord,
@@ -159,7 +158,6 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         cache,
         layers,
@@ -176,7 +174,7 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         best_dev: report.dev[report.best_epoch],
         train_loss: report.train_loss,
         dev: report.dev,
-        best_epoch: report.best_epoch,
+        best_epoch: report.best_epoch + 1,
         read_s,
         train_s: t.elapsed().as_secs_f64(),
     };
@@ -187,7 +185,7 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         out.path.display(),
         record.layers,
         record.best_dev,
-        record.best_epoch + 1,
+        record.best_epoch,
         record.mix.as_ref().map_or(String::new(), |m| format!(", mix {:.3?} gain {:.3}", m.weights, m.gain))
     );
     Ok(())
