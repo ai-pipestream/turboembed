@@ -11,11 +11,7 @@ Versions and compatibility.
 The top heading is the next release. Once it is tagged, a new heading
 for the release after it goes above it.
 
-## v0.1.0 (not yet tagged)
-
-The first release, cut when the Integration v0 milestone closes: the
-first one other ai-pipestream products (protomolt, grparse, the docling
-gRPC service) build against. Everything below is new.
+## v0.2.0 (not yet tagged)
 
 ### Added
 
@@ -27,27 +23,16 @@ gRPC service) build against. Everything below is new.
   `annotate-v1` profile runs the part-of-speech, entity, dependency and
   lemma heads, and `BundleCapabilities.head_steps` lists each loaded
   bundle's head steps (docs/grpc-analysis.md). (#1775)
-- The C interface, `include/turbo/turbo.h` and `turbo_backend.h`: the
-  text embedding, reranking and extractive QA tasks; runtimes, devices and their capability cells; sessions at the
-  `MODEL`, `FASTEST` and `EXACT` precision tiers; device selection from
-  the benchmark records the library carries.
-- Backends: cpu everywhere; cuda (NVIDIA, Turing and later), levelzero
-  (Intel Arc Xe2), npu (Intel Core Ultra), metal (Apple silicon) and hailo
-  (Hailo-8 and Hailo-10H), each a Cargo feature (README.md).
-- The bundle format, `bundle_version` 1 (docs/bundle.md), with reference
-  vectors a bundle carries and the conformance check against them
-  (docs/conformance.md).
-- `turbo-kserve`, the gRPC server (docs/grpc.md): the Open Inference
-  Protocol, the analysis service (docs/grpc-analysis.md), the search,
-  vocabulary, catalog and sink services, and `grpc.health.v1`;
-  configured by flags or `TURBO_KSERVE_*` variables, with a message size
-  limit and per-stream bounds.
+- The C interface's reranking (#759) and extractive QA (#767) tasks.
+- In `turbo-kserve`: the analysis service (docs/grpc-analysis.md), the
+  search, vocabulary, catalog and sink services, and `grpc.health.v1`;
+  per-stream bounds.
 - The analysis layers behind the analysis service: normalisation with
   offsets kept across every view, tokenisation, segmentation, chunking,
   and the OpenNLP components ported so far (docs/analysis.md).
-- Release archives with SHA-256 sums: Linux x86_64 (cpu and cuda), macOS
-  arm64 (metal and cpu), Linux aarch64 (cpu) and Windows x86_64 (cpu),
-  each with the library, the headers and the server (docs/release.md).
+- Release archives with SHA-256 sums for Linux aarch64 (cpu) and Windows
+  x86_64 (cpu), each with the library, the headers and the server
+  (docs/release.md) (#1326).
 - This changelog, and the compatibility policy in docs/release.md.
 - The ModernBERT and nomic-bert families in the bundle format and
   `turbo_backend.h`: rotary positions, sliding-window attention, gated
@@ -95,3 +80,26 @@ versioned `turbo.<name>.v1` gRPC packages and a breaking-change gate
 (#1296), published client stubs (#1297), container images (#1298), TLS,
 metrics and deadlines (#1300), an integration guide (#1301) and named
 analysis profiles (#1302).
+
+## v0.1.0 (2026-10-09)
+
+The first release. Everything below is new.
+
+### Added
+
+- The C interface, `include/turbo/turbo.h` and `turbo_backend.h`: the
+  text embedding task; runtimes, devices and their capability cells;
+  sessions at the `MODEL`, `FASTEST` and `EXACT` precision tiers; device
+  selection from the benchmark records the library carries.
+- Backends: cpu everywhere; cuda (NVIDIA, Turing and later), levelzero
+  (Intel Arc Xe2), npu (Intel Core Ultra), metal (Apple silicon) and hailo
+  (Hailo-8 and Hailo-10H), each a Cargo feature (README.md).
+- The bundle format, `bundle_version` 1 (docs/bundle.md), with reference
+  vectors a bundle carries and the conformance check against them
+  (docs/conformance.md).
+- `turbo-kserve`, the gRPC server (docs/grpc.md): the Open Inference
+  Protocol, configured by flags or `TURBO_KSERVE_*` variables, with a
+  message size limit.
+- Release archives with SHA-256 sums: Linux x86_64 (cpu and cuda), with
+  the library, the headers and the server, and macOS arm64 (metal and
+  cpu), with the library and the headers (docs/release.md).

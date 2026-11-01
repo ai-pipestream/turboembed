@@ -283,8 +283,8 @@ on an Intel Mac (docs/metal.md).
 ## Making one
 
 ```
-git tag v0.1.0 <commit on main>
-git push origin v0.1.0
+git tag v0.2.0 <commit on main>
+git push origin v0.2.0
 ```
 
 The version is the `turbo` crate's (`core/Cargo.toml`). A tag on a
