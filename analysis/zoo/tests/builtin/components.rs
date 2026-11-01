@@ -18,6 +18,7 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::SparseEncoder), ["opensearch-neural-sparse-encoding-v1"]);
     assert_eq!(ids("en", Component::LateInteractionEncoder), ["colbert-ir-colbertv2.0"]);
     assert_eq!(ids("en", Component::AspectSentiment), ["turbo-en-masc-3.0.0-aspect-sentiment-1"]);
+    assert_eq!(ids("en", Component::Pos), ["turbo-en-masc-pos-modernbert-base-1"]);
     for language in ["es", "ca", "fi", "it"] {
         assert!(ids(language, Component::DependencyParser).is_empty());
     }

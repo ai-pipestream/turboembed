@@ -91,3 +91,35 @@ fn committed_receipts_name_no_machine() {
         }
     }
 }
+
+/// The zoo's English part-of-speech entry is the head-B bundle: our own,
+/// permissive, trained on MASC 3.0.0, and attributed with the receipt's
+/// test score.
+#[test]
+fn the_builtin_english_pos_entry_is_the_head_b_bundle() {
+    let head = receipt("head-B.json");
+    let index = turbo_zoo::Index::builtin();
+    let found: Vec<_> = index.find("en", turbo_zoo::Component::Pos).collect();
+    assert_eq!(found.len(), 1, "one English POS entry");
+    let a = found[0];
+    assert_eq!(a.id.as_str(), "turbo-en-masc-pos-modernbert-base-1");
+    assert_eq!((a.kind, a.format), (turbo_zoo::Kind::Head, turbo_zoo::Format::Safetensors));
+    assert_eq!(a.class, turbo_zoo::LicenceClass::Permissive);
+    assert_eq!(a.computed_class(), turbo_zoo::LicenceClass::Permissive);
+    assert_eq!(a.trained_on.len(), 1);
+    assert_eq!(a.trained_on[0].name, head.corpus.name);
+    assert_eq!(a.trained_on[0].license.to_string(), head.corpus.spdx);
+    let score = format!("test accuracy {:.4}", head.eval.model.as_ref().unwrap().score());
+    let attribution = a.attribution.as_deref().unwrap();
+    assert!(attribution.starts_with(head.corpus.attribution.trim()), "{attribution}");
+    assert!(attribution.contains(&score), "{attribution} lacks {score}");
+    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        ["manifest.json", "reference/reference.safetensors", "tokenizer.json", "weights/model.safetensors"]
+    );
+    // The head adds its tensors to the encoder's weights file.
+    let weights = a.files.iter().find(|f| f.path.as_str() == "weights/model.safetensors").unwrap();
+    let head_file = head.outputs.iter().find(|o| o.path == "head.safetensors").unwrap();
+    assert!(weights.size > head_file.size);
+}
