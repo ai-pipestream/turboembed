@@ -100,7 +100,15 @@ precision's bound, not bit for bit; only the time should differ.
 that compute attention with FMAs the kernel that splits each query's
 keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
-default. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
+default. The default computes QKᵀ and PV as register tiles over 64
+queries to a block (`fma-tiled`), or 32 (`fma-tiled32`, which
+`TURBO_CUDA_ATTENTION=tiled32` forces): a block of 32 queries covers a
+row in twice the blocks, each loading the row's keys and values again,
+so it is faster when a run leaves the device room and slower when the
+run fills it. Unforced, a run of 256 packed tokens or fewer (the `le256`
+bin) takes `fma-tiled32` and the bins above it `fma-tiled`; either way a
+tile with 32 live queries or fewer is computed as a 32-query tile, and
+both give the same bits, every sum in the same order. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
 runs 128 queries to a block of eight warps, so each chunk of keys and
 values in shared memory serves 128 queries; the keys and values go a
 chunk at a time (64 keys at heads of 32, 32 at heads of 64) through
@@ -287,8 +295,8 @@ Each GEMM (`qkv`, `out`, `ffn1`, `ffn2`) names its tile as
 `TURBO_CUDA_TILE` spells it (`acc16-8w` and `acc16-sw8w` being the
 F16 accumulators' eight-warp and swizzled eight-warp tiles), then its
 stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
-`attn` is `fma-tiled`, `fma-split`, `mma64`, `mma128`, `mma128-exact`,
-`mma128-fa32` or `mma128-acc32`; `ln` is
+`attn` is `fma-tiled`, `fma-tiled32`, `fma-split`, `mma64`, `mma128`,
+`mma128-exact`, `mma128-fa32` or `mma128-acc32`; `ln` is
 `separate` or `fused`; `pool` is `groups` or `columns`. The names are of
 the kernels that run: a tile the session's operands or device do not
 take is reported as the one that runs in its place. `forced=` lists the
@@ -545,11 +553,13 @@ older than the runtime, it lists none and the runtime's log says why.
      carried from one block of keys to the next by its running largest
      score (flash attention's rescaling), with no mask read but the key
      bias of a row that has masked tokens. EXACT and MODEL take 64
-     queries of one head of one row to a block of 128 threads and compute
-     QKᵀ and then PV as register tiles, each thread 8 queries by 4 keys
-     and then 8 queries by head_dim / 16 values, Q and K coalesced
-     through 4 × 4 register transposes and XOR-swizzled in shared memory,
-     every sum in the order of the head's values or the keys' positions.
+     queries of one head of one row to a block of 128 threads (32 in the
+     `le256` bin, or where a tile has 32 live queries or fewer) and
+     compute QKᵀ and then PV as register tiles, each thread 8 (or 4)
+     queries by 4 keys and then the same queries by head_dim / 16 values,
+     Q and K coalesced through 4 × 4 register transposes and XOR-swizzled
+     in shared memory, every sum in the order of the head's values or the
+     keys' positions.
      FASTEST with heads of 32 or 64 computes QKᵀ and PV with `mma.sync`
      on the tensor cores, 128 queries to a block (or 64 with `mma64`),
      softmax in F32;
@@ -822,8 +832,8 @@ Attention takes a window per layer: a ModernBERT layer `l` with
 `l % global_every` not 0 reads, for query `i`, the keys `j` with
 `|i - j| <= attention_window / 2`. Every attention kernel reads only the
 chunks of keys that some query of its block can see, and masks the band's
-edges as it masks a masked key; the FMA tiled attention of 64 queries
-(`fma-tiled`) takes a chunk wholly inside the row and the block's band,
+edges as it masks a masked key; the FMA tiled attention (`fma-tiled`
+and `fma-tiled32`) takes a chunk wholly inside the row and the block's band,
 with no masked key, without per-key bounds or mask tests, and the
 attention of 128 queries on the tensor cores also skips, per warp, a
 chunk outside the warp's band and takes a chunk wholly inside it as an

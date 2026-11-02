@@ -108,9 +108,9 @@
   `analysis/tagger/tests/common/mod.rs` builds for the tagger tests,
   written once and sealed, so the in-process analyzer
   (`core/tests/analysis_bundle.rs`, `analysis/tagger/tests/analyzer.rs`)
-  and the Java binding (`clients/java-panama`) load a checked-in bundle
-  with heads. The encoder's weights, the tokenizer file and the reference
-  file are the tiny bundle's unchanged; the model id is
+  and the Java bindings (`clients/java-panama`, `clients/java-jni`) load a
+  checked-in bundle with heads. The encoder's weights, the tokenizer file
+  and the reference file are the tiny bundle's unchanged; the model id is
   `turboembed/tiny-bert-heads`; the weights file is 4061768 bytes,
   SHA-256 `8b9d33a7ef98611bbb352d29d568faec806036c045b84b471ad4768909ca13f6`.
   The heads are untrained: their outputs are deterministic, not

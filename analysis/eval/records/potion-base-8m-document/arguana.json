@@ -1,29 +1,29 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-27T06:36:26Z",
+  "recorded_at": "2026-11-01T16:29:36Z",
   "provenance": {
-    "commit": "412511a4c36e1bca09ed8147e73e40d5c17996d7",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/muse/permissive-encoder"
+      "origin/main"
     ],
     "machine": {
       "arch": "x86_64",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
       "backend": "cpu",
       "kind": "DEVICE_CPU",
-      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
       "vendor": "AuthenticAMD",
       "driver_version": "",
       "runtime_version": "",
-      "memory_total": 130171322368
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "minishlab/potion-base-8M",
       "revision": "1",
-      "manifest_sha256": "246591f84bb828e2482b23f4e22a000b9f0930b96373f357771d625dea35feeb",
+      "manifest_sha256": "5f54c2e24d2e33053803e03ae7e7374d32796f5df6cb0107f859bac304decc70",
       "artifact_sha256": "f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2",
       "tokenizer_sha256": "e67e803f624fb4d67dea1c730d06e1067e1b14d830e2c2202569e3ef0f70bb50"
     }
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "document",
@@ -5682,10 +5682,10 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 200.88714199999998,
-      "chunking_ms": 5.485816,
-      "embedding_ms": 309.937807,
-      "retrieval_ms": 107.899608
+      "analysis_ms": 203.89598,
+      "chunking_ms": 2.272123,
+      "embedding_ms": 148.193152,
+      "retrieval_ms": 56.104718999999996
     },
     "tokens_embedded": 2105670,
     "chunks": 8674,

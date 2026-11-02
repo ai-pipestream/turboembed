@@ -67,3 +67,31 @@ turbo-train-head train --corpus masc-pos --dir MASC-3.0.0 --commit e352cf36 \
   --bundle modernbert-base --device cuda --pooling first --hash-embed 64 \
   --bilstm 256x1 --threads 16 --out masc-pos-B
 ```
+
+## In the zoo
+
+`turbo-train-head assemble` (#1726) put head B into the ModernBERT-base
+bundle it was trained on: one bundle, `turbo-en-masc-pos-modernbert-base-1`
+in `analysis/zoo/index/zoo.json` (`KIND_HEAD`, `COMPONENT_POS`, `en`,
+`CLASS_PERMISSIVE`), manifest SHA-256 `593959a8...5359`, its weights file
+612,061,000 bytes with the head's tensors added under `heads.pos`. It is
+the only English `COMPONENT_POS` entry, so `PosTagger::from_zoo_language`
+picks it for English.
+
+The test split read through the annotator on that bundle, on CPU, gives
+the receipt's number: 6,384 sentences, 85,292 words, accuracy 0.9581
+(81,717 right), 231.7 s for the annotator on a 16-core desktop CPU.
+
+```sh
+turbo-train-head assemble --bundle modernbert-base --run masc-pos-B \
+  --out turbo-en-masc-pos-modernbert-base-1 --zoo-id turbo-en-masc-pos-modernbert-base-1 \
+  --component COMPONENT_POS --language en --version 1 \
+  --license-terms https://github.com/ai-pipestream/turboembed/blob/main/LICENSE \
+  --url-prefix https://github.com/ai-pipestream/turboembed/releases/download \
+  --zoo-out turbo-en-masc-pos-modernbert-base-1.zoo.json
+cargo run --release -p turbo-trainer-recipes --example pos_annotator_eval -- \
+  --corpus masc-pos --dir MASC-3.0.0 --bundle turbo-en-masc-pos-modernbert-base-1
+```
+
+The index lists each file at a flat asset name of the release
+`turbo-en-masc-pos-modernbert-base-1` (a release asset name has no `/`).

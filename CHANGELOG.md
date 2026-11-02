@@ -76,6 +76,14 @@ for the release after it goes above it.
   one): the F16 sums went over FASTEST's cosine bound at 8192 tokens.
   That attention is slower; sessions of 4096 or fewer keep the F16 sums
   (#1580).
+- `clients/java-jni`, the Java binding over the Java Native Interface for
+  Java 21 or newer and for Android, with the Panama binding's API and
+  OpenNLP-style adapters: its `native` methods are exported by `libturbo`
+  itself, so one library per platform serves both bindings. The release
+  gains `turboembed-v<version>-android.tar.gz`, `libturbo.so` for the
+  `arm64-v8a` and `x86_64` ABIs at API level 26, and both bindings run the
+  conformance suite in `clients/java-conformance` over the sealed
+  `testdata` bundles (#1801).
 - `AnalyzePipelineRequest.structure_seed`: a document's text and its
   headings, lists, tables and other blocks as a `StructureSeed` protobuf
   message, offsets in the request's unit, built into the same

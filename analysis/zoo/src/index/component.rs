@@ -34,6 +34,9 @@ constant_enum! {
         ZeroShotCategorizer => "COMPONENT_ZERO_SHOT_CATEGORIZER",
         /// Typed dependency arcs between tokens.
         DependencyParser => "COMPONENT_DEPENDENCY_PARSER",
+        /// One pooled, normalized vector per text (a BGE dense retrieval
+        /// encoder).
+        DenseEncoder => "COMPONENT_DENSE_ENCODER",
         /// A vocabulary-sized sparse term-weight vector per text (SPLADE).
         SparseEncoder => "COMPONENT_SPARSE_ENCODER",
         /// One vector per token, scored by late interaction (ColBERT).

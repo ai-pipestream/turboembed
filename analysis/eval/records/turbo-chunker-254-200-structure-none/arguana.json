@@ -1,25 +1,24 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-22T13:03:25Z",
+  "recorded_at": "2026-11-01T16:58:09Z",
   "provenance": {
-    "commit": "2b204cfc88cd5366371c58ba256f43dd2d13b338",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/fable/165-structure-records",
       "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
@@ -35,8 +34,8 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
-      "opennlp:subwords"
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -94,11 +93,11 @@
   },
   "metrics": {
     "queries": 1406,
-    "ndcg_at_10": 0.49551051138263863,
+    "ndcg_at_10": 0.4943699052354558,
     "recall": {
-      "at_1": 0.2524893314366999,
-      "at_5": 0.6194879089615932,
-      "at_10": 0.7752489331436699,
+      "at_1": 0.24679943100995733,
+      "at_5": 0.620199146514936,
+      "at_10": 0.7759601706970128,
       "at_100": 0.9637268847795164
     },
     "span": null,
@@ -145,7 +144,7 @@
       },
       {
         "query": "test-culture-ascidfakhba-pro01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-culture-ascidfakhba-pro02a",
@@ -157,7 +156,7 @@
       },
       {
         "query": "test-culture-ascidfakhba-pro04a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-culture-cgeeghwmeo-con01a",
@@ -193,7 +192,7 @@
       },
       {
         "query": "test-culture-mmciahbans-con01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-culture-mmciahbans-con02a",
@@ -353,7 +352,7 @@
       },
       {
         "query": "test-culture-tlhrilsfhwr-con01a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-culture-tlhrilsfhwr-con02a",
@@ -361,7 +360,7 @@
       },
       {
         "query": "test-culture-tlhrilsfhwr-con03a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-culture-tlhrilsfhwr-pro01a",
@@ -501,7 +500,7 @@
       },
       {
         "query": "test-digital-freedoms-efsappgdfp-pro04a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-digital-freedoms-eifdfaihs-con01a",
@@ -929,7 +928,7 @@
       },
       {
         "query": "test-economy-epehwmrbals-pro03a",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.2890648263178879
       },
       {
         "query": "test-economy-epehwmrbals-pro04a",
@@ -961,7 +960,7 @@
       },
       {
         "query": "test-economy-epiasghbf-pro02a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-economy-epiasghbf-pro03a",
@@ -985,7 +984,7 @@
       },
       {
         "query": "test-economy-epsihbdns-pro01a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-economy-epsihbdns-pro02a",
@@ -1029,7 +1028,7 @@
       },
       {
         "query": "test-economy-fiahwpamu-con01a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-economy-fiahwpamu-con02a",
@@ -1045,7 +1044,7 @@
       },
       {
         "query": "test-economy-fiahwpamu-pro02a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-economy-fiahwpamu-pro03a",
@@ -1065,7 +1064,7 @@
       },
       {
         "query": "test-economy-thhghwhwift-con02a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-economy-thhghwhwift-con03a",
@@ -1077,7 +1076,7 @@
       },
       {
         "query": "test-economy-thhghwhwift-pro02a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-economy-thhghwhwift-pro03a",
@@ -1097,7 +1096,7 @@
       },
       {
         "query": "test-economy-thsptr-con04a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-economy-thsptr-con05a",
@@ -1113,7 +1112,7 @@
       },
       {
         "query": "test-economy-thsptr-pro03a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-economy-thsptr-pro04a",
@@ -1233,7 +1232,7 @@
       },
       {
         "query": "test-education-pstrgsehwt-con04a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-education-pstrgsehwt-pro01a",
@@ -1361,7 +1360,7 @@
       },
       {
         "query": "test-education-ufsdfkhbwu-pro02a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-education-ufsdfkhbwu-pro03a",
@@ -1489,11 +1488,11 @@
       },
       {
         "query": "test-environment-aiahwagit-con03a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-environment-aiahwagit-con04a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.2890648263178879
       },
       {
         "query": "test-environment-aiahwagit-pro01a",
@@ -1509,7 +1508,7 @@
       },
       {
         "query": "test-environment-aiahwagit-pro04a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-environment-aiahwagit-pro05a",
@@ -1521,7 +1520,7 @@
       },
       {
         "query": "test-environment-assgbatj-con02a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-environment-assgbatj-con03a",
@@ -1561,7 +1560,7 @@
       },
       {
         "query": "test-environment-chbwtlgcc-con02a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 1.0
       },
       {
         "query": "test-environment-chbwtlgcc-con03a",
@@ -1661,7 +1660,7 @@
       },
       {
         "query": "test-free-speech-debate-fsaphgiap-con01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-free-speech-debate-fsaphgiap-con02a",
@@ -1673,7 +1672,7 @@
       },
       {
         "query": "test-free-speech-debate-fsaphgiap-con04a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-free-speech-debate-fsaphgiap-pro01a",
@@ -1865,7 +1864,7 @@
       },
       {
         "query": "test-free-speech-debate-yfsdfkhbwu-pro02a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-free-speech-debate-yfsdfkhbwu-pro03a",
@@ -2409,7 +2408,7 @@
       },
       {
         "query": "test-international-apwhbaucmip-con03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-international-apwhbaucmip-con04a",
@@ -2521,7 +2520,7 @@
       },
       {
         "query": "test-international-eghrhbeusli-con03a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-international-eghrhbeusli-con04a",
@@ -2549,7 +2548,7 @@
       },
       {
         "query": "test-international-eghrhbeusli-pro05a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-international-ehbfe-con01a",
@@ -2589,7 +2588,7 @@
       },
       {
         "query": "test-international-eiahwpamu-con01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-eiahwpamu-con02a",
@@ -2605,7 +2604,7 @@
       },
       {
         "query": "test-international-eiahwpamu-pro02a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-eiahwpamu-pro03a",
@@ -2649,7 +2648,7 @@
       },
       {
         "query": "test-international-epdlhfcefp-con02a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.2890648263178879
       },
       {
         "query": "test-international-epdlhfcefp-con03a",
@@ -2673,7 +2672,7 @@
       },
       {
         "query": "test-international-epglghbni-con01a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-international-epglghbni-con02a",
@@ -2701,7 +2700,7 @@
       },
       {
         "query": "test-international-epglghbni-pro05a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-international-epvhwhranet-con01a",
@@ -2781,7 +2780,7 @@
       },
       {
         "query": "test-international-ghwcitca-con03a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-international-ghwcitca-pro01a",
@@ -2801,15 +2800,15 @@
       },
       {
         "query": "test-international-glilpdwhsn-con01a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-glilpdwhsn-con02a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-glilpdwhsn-con03a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-international-glilpdwhsn-con04a",
@@ -2821,7 +2820,7 @@
       },
       {
         "query": "test-international-glilpdwhsn-pro02a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-international-glilpdwhsn-pro03a",
@@ -2841,7 +2840,7 @@
       },
       {
         "query": "test-international-gmehbisrip1b-pro01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-gmehbisrip1b-pro02a",
@@ -2849,7 +2848,7 @@
       },
       {
         "query": "test-international-gmehbisrip1b-pro03a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-gmehwasr-con01a",
@@ -2981,7 +2980,7 @@
       },
       {
         "query": "test-international-iiahwagit-con01a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-international-iiahwagit-con02a",
@@ -3001,7 +3000,7 @@
       },
       {
         "query": "test-international-iiahwagit-pro02a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-iiahwagit-pro03a",
@@ -3009,7 +3008,7 @@
       },
       {
         "query": "test-international-iiahwagit-pro04a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-international-iiahwagit-pro05a",
@@ -3049,7 +3048,7 @@
       },
       {
         "query": "test-international-ipecfiepg-con03a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-international-ipecfiepg-con04a",
@@ -3597,7 +3596,7 @@
       },
       {
         "query": "test-law-ralhrilglv-pro02a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-law-ralhrilglv-pro03a",
@@ -3713,7 +3712,7 @@
       },
       {
         "query": "test-law-tahglcphsld-pro04a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-law-tahglcphsld-pro05a",
@@ -3921,7 +3920,7 @@
       },
       {
         "query": "test-philosophy-eppphwlrtjs-pro01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-philosophy-eppphwlrtjs-pro02a",
@@ -3985,7 +3984,7 @@
       },
       {
         "query": "test-philosophy-npegiepp-pro01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-philosophy-npegiepp-pro02a",
@@ -4141,7 +4140,7 @@
       },
       {
         "query": "test-politics-cdfsaphgiap-con01a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-politics-cdfsaphgiap-con02a",
@@ -4153,7 +4152,7 @@
       },
       {
         "query": "test-politics-cdfsaphgiap-con04a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-politics-cdfsaphgiap-pro01a",
@@ -4221,7 +4220,7 @@
       },
       {
         "query": "test-politics-cpecfiepg-con03a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-politics-cpecfiepg-con04a",
@@ -4261,7 +4260,7 @@
       },
       {
         "query": "test-politics-cpegiepgh-pro03a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-politics-cpegiepgh-pro04a",
@@ -4297,11 +4296,11 @@
       },
       {
         "query": "test-politics-dhbanhrnw-pro03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-politics-dhbanhrnw-pro04a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-politics-dhbanhrnw-pro05a",
@@ -4465,7 +4464,7 @@
       },
       {
         "query": "test-politics-ghbgussbsbt-pro02a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-politics-ghbgussbsbt-pro03a",
@@ -4477,7 +4476,7 @@
       },
       {
         "query": "test-politics-glghssi-con01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-politics-glghssi-con02a",
@@ -4505,7 +4504,7 @@
       },
       {
         "query": "test-politics-glgvhbqssc-con02a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-politics-glgvhbqssc-pro01a",
@@ -4525,11 +4524,11 @@
       },
       {
         "query": "test-politics-grcrgshwbr-con02a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-politics-grcrgshwbr-con03a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-politics-grcrgshwbr-con04a",
@@ -4545,7 +4544,7 @@
       },
       {
         "query": "test-politics-grcrgshwbr-pro03a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-politics-grcrgshwbr-pro04a",
@@ -4553,7 +4552,7 @@
       },
       {
         "query": "test-politics-grcrgshwbr-pro05a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-politics-gvhbhlsbr-con01a",
@@ -4605,7 +4604,7 @@
       },
       {
         "query": "test-politics-gvhwhnerse-pro01a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-politics-gvhwhnerse-pro02a",
@@ -4749,7 +4748,7 @@
       },
       {
         "query": "test-politics-oepdlhfcefp-con03a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-politics-oepdlhfcefp-pro01a",
@@ -4837,11 +4836,11 @@
       },
       {
         "query": "test-politics-oglilpdwhsn-con02a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-politics-oglilpdwhsn-con03a",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-politics-oglilpdwhsn-con04a",
@@ -4853,7 +4852,7 @@
       },
       {
         "query": "test-politics-oglilpdwhsn-pro02a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-politics-oglilpdwhsn-pro03a",
@@ -4873,7 +4872,7 @@
       },
       {
         "query": "test-politics-pgsimhwoia-pro01a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-politics-pgsimhwoia-pro02a",
@@ -4881,7 +4880,7 @@
       },
       {
         "query": "test-politics-pgsimhwoia-pro03a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.0
       },
       {
         "query": "test-politics-ypppdghwid-con01a",
@@ -4949,7 +4948,7 @@
       },
       {
         "query": "test-politics-ypppgvhwmv-pro05a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-religion-cmrsgfhbr-con01a",
@@ -4961,7 +4960,7 @@
       },
       {
         "query": "test-religion-cmrsgfhbr-con03a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 1.0
       },
       {
         "query": "test-religion-cmrsgfhbr-pro01a",
@@ -5017,7 +5016,7 @@
       },
       {
         "query": "test-religion-grcrgshwbr-con03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-religion-grcrgshwbr-con04a",
@@ -5033,7 +5032,7 @@
       },
       {
         "query": "test-religion-grcrgshwbr-pro03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-religion-grcrgshwbr-pro04a",
@@ -5041,7 +5040,7 @@
       },
       {
         "query": "test-religion-grcrgshwbr-pro05a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-religion-msgfhwbamec-con01a",
@@ -5149,7 +5148,7 @@
       },
       {
         "query": "test-science-ascidfakhba-pro01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-science-ascidfakhba-pro02a",
@@ -5161,7 +5160,7 @@
       },
       {
         "query": "test-science-ascidfakhba-pro04a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-science-ciidfaihwc-con01a",
@@ -5205,7 +5204,7 @@
       },
       {
         "query": "test-science-cpisydfphwj-pro01a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-science-cpisydfphwj-pro02a",
@@ -5249,7 +5248,7 @@
       },
       {
         "query": "test-science-eassgbatj-con02a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-science-eassgbatj-con03a",
@@ -5273,7 +5272,7 @@
       },
       {
         "query": "test-science-eassgbatj-pro03a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-science-eassgbatj-pro04a",
@@ -5329,7 +5328,7 @@
       },
       {
         "query": "test-science-sghwbdgmo-pro01a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 1.0
       },
       {
         "query": "test-science-sghwbdgmo-pro02a",
@@ -5337,7 +5336,7 @@
       },
       {
         "query": "test-science-sghwbdgmo-pro03a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-science-wsihwclscaaw-con01a",
@@ -5353,7 +5352,7 @@
       },
       {
         "query": "test-science-wsihwclscaaw-pro01a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-science-wsihwclscaaw-pro02a",
@@ -5365,11 +5364,11 @@
       },
       {
         "query": "test-society-asfhwapg-con01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-society-asfhwapg-con02a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-society-asfhwapg-con03a",
@@ -5401,7 +5400,7 @@
       },
       {
         "query": "test-society-cpisydfphwj-pro01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-society-cpisydfphwj-pro02a",
@@ -5433,7 +5432,7 @@
       },
       {
         "query": "test-society-epiasghbf-pro02a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-society-epiasghbf-pro03a",
@@ -5441,7 +5440,7 @@
       },
       {
         "query": "test-society-epsihbdns-con01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-society-epsihbdns-con02a",
@@ -5457,7 +5456,7 @@
       },
       {
         "query": "test-society-epsihbdns-pro01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-society-epsihbdns-pro02a",
@@ -5473,11 +5472,11 @@
       },
       {
         "query": "test-society-ghbgqeaaems-con01a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-society-ghbgqeaaems-con02a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-society-ghbgqeaaems-con03a",
@@ -5553,11 +5552,11 @@
       },
       {
         "query": "test-society-simhbrasnba-pro03a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-society-tlhrilsfhwr-con01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-society-tlhrilsfhwr-con02a",
@@ -5565,7 +5564,7 @@
       },
       {
         "query": "test-society-tlhrilsfhwr-con03a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-society-tlhrilsfhwr-pro01a",
@@ -5577,7 +5576,7 @@
       },
       {
         "query": "test-society-tlhrilsfhwr-pro03a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-society-tlhrilsfhwr-pro04a",
@@ -5597,7 +5596,7 @@
       },
       {
         "query": "test-society-tsmihwurpp-pro01a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-society-tsmihwurpp-pro02a",
@@ -5669,7 +5668,7 @@
       },
       {
         "query": "test-sport-tshbmlbscac-con01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-sport-tshbmlbscac-con02a",
@@ -5677,23 +5676,23 @@
       },
       {
         "query": "test-sport-tshbmlbscac-con03a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-sport-tshbmlbscac-con04a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-sport-tshbmlbscac-pro01a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-sport-tshbmlbscac-pro02a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-sport-tshbmlbscac-pro03a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-sport-tshbmlbscac-pro04a",
@@ -5731,24 +5730,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 174.439446,
-      "chunking_ms": 63.038989,
-      "embedding_ms": 2333.978373,
-      "retrieval_ms": 176.566515
+      "analysis_ms": 308.56962599999997,
+      "chunking_ms": 91.830778,
+      "embedding_ms": 44253.128124,
+      "retrieval_ms": 186.306826
     },
-    "tokens_embedded": 2078933,
-    "chunks": 11145,
+    "tokens_embedded": 2078349,
+    "chunks": 11166,
     "chunk_bytes": {
       "min": 2,
-      "p50": 781,
-      "p90": 1105,
-      "max": 1464
+      "p50": 779,
+      "p90": 1104,
+      "max": 2874
     },
     "chunk_tokens": {
       "min": 4,
-      "p50": 160,
+      "p50": 159,
       "p90": 224,
-      "max": 254
+      "max": 596
     }
   }
 }

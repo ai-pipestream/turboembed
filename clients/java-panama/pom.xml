@@ -25,6 +25,8 @@
     <maven.compiler.release>25</maven.compiler.release>
     <junit.version>5.11.4</junit.version>
     <license.source.dir>${project.basedir}/../..</license.source.dir>
+    <!-- The conformance suite both bindings run (clients/java-conformance). -->
+    <conformance.source.dir>${project.basedir}/../java-conformance/src/main/java</conformance.source.dir>
   </properties>
 
   <dependencies>
@@ -65,6 +67,25 @@
             <arg>-Werror</arg>
           </compilerArgs>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>conformance-suite</id>
+            <phase>generate-test-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${conformance.source.dir}</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

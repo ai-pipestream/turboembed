@@ -312,6 +312,42 @@ jobs:
           TURBO_BENCH_REQUIRE_RECORD: "1"
         run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
 
+  # The Java bindings' tests on the host JVM: the JNI binding
+  # (clients/java-jni, Java 21) over the debug libturbo, which exports its
+  # entry points beside the C ABI, and the conformance suite both bindings
+  # run (clients/java-conformance). The Panama binding needs Java 25, which
+  # this lane does not set up; its tests run where that JDK is. A hosted
+  # runner, as for the proto job: the self-hosted image (.github/runner)
+  # carries no Maven.
+  java-jni:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: java-jni
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: libturbo exports the Java entry points
+        run: |
+          cargo build --locked -p turbo
+          nm -D --defined-only target/debug/libturbo.so | grep -c " Java_ai_pipestream_turboembed_jni_TurboJni_"
+      - name: the conformance suite compiles on its own
+        run: mvn -q -B -f clients/java-conformance/pom.xml compile
+      - name: the JNI binding's tests, the conformance suite among them
+        run: mvn -B -f clients/java-jni/pom.xml test
+      - name: the Android targets compile
+        run: |
+          rustup target add aarch64-linux-android x86_64-linux-android
+          cargo check --locked -p turbo --target aarch64-linux-android
+          cargo check --locked -p turbo --target x86_64-linux-android
+
   parity:
     # Skipped on pushes to main, as the shards are.
     if: github.event_name != 'push'
@@ -382,7 +418,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, proto, bench-throughput, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04

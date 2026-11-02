@@ -1,6 +1,6 @@
 # Releases
 
-A tag `v<version>` on `main` makes four binary archives, a proto archive,
+A tag `v<version>` on `main` makes five binary archives, a proto archive,
 and generated Java and Python client stub artifacts through
 `.github/workflows/release.yml` and publishes them as one GitHub release,
 each with its SHA-256:
@@ -11,6 +11,10 @@ each with its SHA-256:
 - `turboembed-v<version>-linux-aarch64.tar.gz`: the cpu backend.
 - `turboembed-v<version>-windows-x86_64.zip`: the cpu backend, built with
   MSVC.
+- `turboembed-v<version>-android.tar.gz`: the cpu backend as
+  `jniLibs/arm64-v8a/libturbo.so` and `jniLibs/x86_64/libturbo.so`, built
+  with the Android NDK at API level 26, for the JNI binding
+  (`clients/java-jni/README.md`, "Android").
 - `turboembed-proto-v<version>.tar.gz`: the versioned `server/proto/*.proto`
   definitions and `buf.yaml`.
 - `turboembed-grpc-<version>.jar`, `turboembed-grpc-<version>-sources.jar`,
@@ -33,9 +37,15 @@ in-process Java 25+ Panama Foreign Function and Memory (FFM) bindings over
 `include/turbo/turbo.h` and its analysis adapters live in
 `clients/java-panama/pom.xml` (`ai.pipestream:turboembed-panama:<version>`,
 requiring Java 25 or newer with `--enable-native-access=ALL-UNNAMED` and the
-platform's `libturbo` shared library from the binary archive). The
-Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
-(`Cargo.lock`).
+platform's `libturbo` shared library from the binary archive). The same
+API over the Java Native Interface, for Java 21 or newer and for Android,
+lives in `clients/java-jni/pom.xml` (`ai.pipestream:turboembed-jni:<version>`,
+requiring the platform's `libturbo` from the binary archive, or on Android
+the `jniLibs` of the Android archive below); its `native` methods are
+exported by `libturbo` itself (`core/src/jni`), so no other native artifact
+exists. Both bindings run the conformance suite in
+`clients/java-conformance`. The Rust server builds its own stubs with
+tonic 0.14.6 and prost 0.14.4 (`Cargo.lock`).
 
 The demo page's TypeScript code is not a release artifact: it is
 generated into `demo/web/src/gen` by `scripts/generate-web-stubs.sh`

@@ -51,9 +51,13 @@ const LEGACY_MSMARCO_SENTIMENT_HEADS: [&str; 7] = [
 
 const OPEN_SPAN_HEAD: &str = "turbo-en-wnut17-modernbert-base-l12-open-span-1";
 
+/// The MASC 3.0.0 Penn POS head over ModernBERT-base (#1649), assembled
+/// into one bundle with its encoder.
+const MASC_POS: &str = "turbo-en-masc-pos-modernbert-base-1";
+
 /// A permissive model this repository's recipes train.
 fn trained_here_permissive(id: &str) -> bool {
-    id == OPEN_SPAN_HEAD || MODERNBERT_SENTIMENT_HEADS.contains(&id)
+    id == OPEN_SPAN_HEAD || id == MASC_POS || MODERNBERT_SENTIMENT_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -101,10 +105,17 @@ const EVAL_SETS: [&str; 1] = ["symspell-noisy-query-en-1000"];
 /// fetched only after the user accepts that licence.
 const SHARE_ALIKE_EVAL_SETS: [&str; 1] = ["codespell-dictionary-en"];
 
-/// The retrieval checkpoints the SPLATE study lists (#913): permissive
-/// model licences over MS MARCO, so local-only through their training
-/// data and fetched only after accepting MS MARCO's terms.
-const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1", "colbert-ir-colbertv2.0"];
+/// The retrieval checkpoints the SPLATE study lists (#913) and the BGE
+/// v1.5 dense encoders (#1068): permissive model licences over MS MARCO,
+/// so local-only through their training data and fetched only after
+/// accepting MS MARCO's terms.
+pub(crate) const RETRIEVAL_CHECKPOINTS: [&str; 5] = [
+    "opensearch-neural-sparse-encoding-v1",
+    "colbert-ir-colbertv2.0",
+    "baai-bge-small-en-v1.5",
+    "baai-bge-base-en-v1.5",
+    "baai-bge-large-en-v1.5",
+];
 
 /// The permissive training and evaluation datasets in the built-in index (#945, #890, #925):
 /// CSC, MASC, the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
@@ -127,7 +138,7 @@ const DATASETS: [&str; 12] = [
 #[test]
 fn the_builtin_catalogue_preserves_supported_artifacts() {
     let index = Index::builtin();
-    let mut expected = BTreeSet::from([OPEN_SPAN_HEAD.to_owned()]);
+    let mut expected = BTreeSet::from([OPEN_SPAN_HEAD.to_owned(), MASC_POS.to_owned()]);
     expected.extend(MODERNBERT_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(LEGACY_MSMARCO_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
