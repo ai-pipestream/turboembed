@@ -32,6 +32,8 @@ final class TurboJni {
 
     static native long analyzerPosTag(long analyzer, byte[] tokens, int[] lengths);
 
+    static native long analyzerMorphology(long analyzer, byte[] tokens, int[] lengths);
+
     static native long analyzerLemmatize(long analyzer, byte[] tokens, int[] tokenLengths, byte[] tags, int[] tagLengths);
 
     static native long analyzerFindTokens(long analyzer, byte[] tokens, int[] lengths);

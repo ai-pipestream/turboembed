@@ -104,6 +104,13 @@ fn analyzer_pipeline_and_utf16_emoji_offsets_round_trip() {
         );
         assert!(pos_res.is_null(), "stale result pointer survives an unsupported call");
 
+        let mut morph_res: *mut turbo_analysis_result = std::ptr::dangling_mut();
+        assert_eq!(
+            turbo_analyzer_morphology(analyzer, words.as_ptr(), words.len() as u32, &mut morph_res, &mut err),
+            status::UNSUPPORTED_TASK
+        );
+        assert!(morph_res.is_null());
+
         let tags = [t("DET"), t("NOUN"), t("VERB"), t("ADV")];
         let mut lemma_res: *mut turbo_analysis_result = std::ptr::dangling_mut();
         assert_eq!(

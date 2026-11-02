@@ -800,6 +800,7 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_ANALYSIS_LAYER_ENTITIES  5
 #define TURBO_ANALYSIS_LAYER_PII       6
 #define TURBO_ANALYSIS_LAYER_DEPENDENCIES 7
+#define TURBO_ANALYSIS_LAYER_MORPHOLOGY 8
 
 #define TURBO_SPAN_VIEW_RANGE   (1u << 0)
 #define TURBO_SPAN_SOURCE_RANGE (1u << 1)
@@ -815,12 +816,12 @@ void    turbo_result_release(turbo_result *r);
 /* Configuration of an in-process analysis pipeline. desc may be NULL for
  * English with the rule sentence splitter and rule tokenizer only. The
  * learned components come from a bundle (docs/bundle.md) named by
- * bundle_path: its heads write the part-of-speech, lemma, dependency and
- * entity layers, each from the one head of the bundle whose layer it is,
- * in one encoder pass a sentence on the cpu backend. Without a bundle, or
- * with a bundle lacking a layer's head, that layer's tasks fail with
- * TURBO_E_UNSUPPORTED_TASK naming what is missing. The rule sentence and
- * tokenizer paths report no probability.
+ * bundle_path: its heads write the part-of-speech, morphology, lemma,
+ * dependency and entity layers, each from the one head of the bundle whose
+ * layer it is, in one encoder pass a sentence on the cpu backend. Without a
+ * bundle, or with a bundle lacking a layer's head, that layer's tasks fail
+ * with TURBO_E_UNSUPPORTED_TASK naming what is missing. The rule sentence
+ * and tokenizer paths report no probability.
  *
  * The five model path fields are retired: they keep their place so a
  * program built against an earlier header still runs, and a non-empty
@@ -846,10 +847,12 @@ typedef struct turbo_analyzer_desc {
  * and Unicode scalar bounds. Fields are meaningful only under their
  * TURBO_SPAN_* flag: token-only rows have no text range, absent numeric
  * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
- * Discontinuous items emit one row per fragment. classification is
- * layer-specific: TURBO_PII_CONFIDENCE_* for PII; for a dependency row,
- * whose label is the relation, the head token's index plus one, 0 under
- * the root; otherwise zero. */
+ * Discontinuous items emit one row per fragment. For a morphology row,
+ * there is one row per token and label is the feature string as the
+ * MorphFeatures layer writes it. classification is layer-specific:
+ * TURBO_PII_CONFIDENCE_* for PII; for a dependency row, whose label is the
+ * relation, the head token's index plus one, 0 under the root; otherwise
+ * zero. */
 typedef struct turbo_span {
     uint32_t layer_kind;
     uint32_t flags;
@@ -905,6 +908,12 @@ int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
  * model finds a sequence. Without a POS model this is unsupported. */
 int32_t turbo_analyzer_pos_tag(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
                                turbo_analysis_result **out, turbo_error *err);
+
+/* Tag one independent, pre-tokenized sequence with the bundle's morphology
+ * head. Rows are token-only: one row per token, with the feature string as
+ * the label. Without a morphology head this is unsupported. */
+int32_t turbo_analyzer_morphology(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                                  turbo_analysis_result **out, turbo_error *err);
 
 /* Lemmatize count (token, pos_tag) pairs with the configured dictionary or
  * model. A dictionary miss has no label and no probability; it is never

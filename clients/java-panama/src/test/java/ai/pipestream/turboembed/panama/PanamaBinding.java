@@ -38,6 +38,11 @@ final class PanamaBinding implements Binding {
             }
 
             @Override
+            public List<Row> morphology(String[] tokens) {
+                return rows(analyzer.morphologyCopied(tokens));
+            }
+
+            @Override
             public List<Row> lemmatize(String[] tokens, String[] tags) {
                 return rows(analyzer.lemmatizeCopied(tokens, tags));
             }

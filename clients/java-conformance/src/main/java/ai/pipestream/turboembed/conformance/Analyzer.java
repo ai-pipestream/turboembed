@@ -10,6 +10,8 @@ public interface Analyzer extends AutoCloseable {
 
     List<Row> posTag(String[] tokens);
 
+    List<Row> morphology(String[] tokens);
+
     List<Row> lemmatize(String[] tokens, String[] tags);
 
     List<Row> findTokens(String[] tokens);
