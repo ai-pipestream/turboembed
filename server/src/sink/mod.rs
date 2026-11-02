@@ -109,6 +109,10 @@ pub(crate) struct SinkForwarder {
     typed: Option<SinkTyped>,
     counters: Arc<Counters>,
     task: Mutex<Option<JoinHandle<()>>>,
+    /// Test-only: one-shot hook taken under the sender lock after offered++
+    /// and before try_send, so a close racing that offer can be proven to wait.
+    #[cfg(test)]
+    enqueue_gap: Mutex<Option<Box<dyn FnOnce() + Send>>>,
 }
 
 impl SinkForwarder {
@@ -135,6 +139,8 @@ impl SinkForwarder {
             typed: config.typed,
             counters,
             task: Mutex::new(Some(task)),
+            #[cfg(test)]
+            enqueue_gap: Mutex::new(None),
         }))
     }
 
@@ -201,7 +207,9 @@ impl SinkForwarder {
         let guard = self.tx.lock().unwrap_or_else(|p| p.into_inner());
         c.offered.fetch_add(1, Ordering::Relaxed);
         #[cfg(test)]
-        enqueue_gap();
+        if let Some(hook) = self.enqueue_gap.lock().unwrap_or_else(|p| p.into_inner()).take() {
+            hook();
+        }
         let sent = fits && guard.as_ref().is_some_and(|tx| tx.try_send((item, bytes)).is_ok());
         if sent {
             c.queued.fetch_add(1, Ordering::Relaxed);
@@ -329,27 +337,11 @@ async fn drain(endpoint: Endpoint, rx: Arc<Mutex<mpsc::Receiver<Queued>>>, c: Ar
 }
 
 #[cfg(test)]
-fn enqueue_gap() {
-    if let Some(hook) = tests::ENQUEUE_GAP.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
-        hook();
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::{Arc, Barrier};
 
     use crate::proto::result::{AnalyzeFailure, AnalyzeVectors};
-
-    pub(super) static ENQUEUE_GAP: Mutex<Option<Box<dyn Fn() + Send>>> = Mutex::new(None);
-
-    struct GapGuard;
-    impl Drop for GapGuard {
-        fn drop(&mut self) {
-            *ENQUEUE_GAP.lock().unwrap_or_else(|p| p.into_inner()) = None;
-        }
-    }
 
     fn answer(id: &str, failed: bool) -> AnalyzeStreamResponse {
         let outcome = match failed {
@@ -397,14 +389,13 @@ mod tests {
     /// lock, the send finishes, and the item is not counted dropped.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn close_waits_out_an_in_flight_offer_instead_of_dropping_it() {
-        let _gap = GapGuard;
         let f = SinkForwarder::start(&config(8, 1 << 20)).unwrap();
         let entered = Arc::new(Barrier::new(2));
         let finish = Arc::new(Barrier::new(2));
         {
             let entered = entered.clone();
             let finish = finish.clone();
-            *ENQUEUE_GAP.lock().unwrap_or_else(|p| p.into_inner()) = Some(Box::new(move || {
+            *f.enqueue_gap.lock().unwrap_or_else(|p| p.into_inner()) = Some(Box::new(move || {
                 entered.wait();
                 finish.wait();
             }));
@@ -452,5 +443,40 @@ mod tests {
         f.close(Duration::from_millis(400)).await;
         let s = f.stats();
         assert_eq!((s.offered, s.dropped, s.abandoned, s.queued), (8, 0, 8, 0), "{s:?}");
+    }
+
+    /// The enqueue gap hook lives on the forwarder, so a barrier parked on
+    /// one instance cannot stall offers on another running in parallel.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn enqueue_gap_on_one_forwarder_does_not_stall_another() {
+        let parked = SinkForwarder::start(&config(8, 1 << 20)).unwrap();
+        let free = SinkForwarder::start(&config(8, 1 << 20)).unwrap();
+        let entered = Arc::new(Barrier::new(2));
+        let finish = Arc::new(Barrier::new(2));
+        {
+            let entered = entered.clone();
+            let finish = finish.clone();
+            *parked.enqueue_gap.lock().unwrap_or_else(|p| p.into_inner()) = Some(Box::new(move || {
+                entered.wait();
+                finish.wait();
+            }));
+        }
+        let offer_parked = {
+            let f = parked.clone();
+            std::thread::spawn(move || f.offer(&answer("parked", false)))
+        };
+        entered.wait();
+        assert_eq!(parked.stats().offered, 1);
+        for i in 0..5 {
+            free.offer(&answer(&i.to_string(), false));
+        }
+        assert_eq!(free.stats().offered, 5, "{:?}", free.stats());
+        assert_eq!(free.stats().dropped, 0, "{:?}", free.stats());
+        finish.wait();
+        offer_parked.join().unwrap();
+        parked.close(Duration::from_millis(400)).await;
+        free.close(Duration::from_millis(400)).await;
+        assert_eq!(parked.stats().dropped, 0, "{:?}", parked.stats());
+        assert_eq!(free.stats().dropped, 0, "{:?}", free.stats());
     }
 }
