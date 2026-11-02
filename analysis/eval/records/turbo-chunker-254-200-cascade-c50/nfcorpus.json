@@ -1,29 +1,29 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-26T10:27:17Z",
+  "recorded_at": "2026-11-01T19:19:19Z",
   "provenance": {
-    "commit": "7961ed7f667f69894b521ea6d0dc35fba9aa35ca",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/muse/879-cascade"
+      "origin/main"
     ],
     "machine": {
       "arch": "x86_64",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
       "backend": "cpu",
       "kind": "DEVICE_CPU",
-      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
       "vendor": "AuthenticAMD",
       "driver_version": "",
       "runtime_version": "",
-      "memory_total": 130171322368
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
-      "revision": "2",
-      "manifest_sha256": "2d16573646925a45fcd353dd485c50429b552986e88b6f470702908eb1b53817",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
       "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
       "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
     }
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -119,12 +119,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.32762201850582107,
+    "ndcg_at_10": 0.3268801513227367,
     "recall": {
-      "at_1": 0.04952074071897977,
-      "at_5": 0.1314346818769497,
-      "at_10": 0.1635218799026476,
-      "at_100": 0.24359867137403035
+      "at_1": 0.04907845854295147,
+      "at_5": 0.1305485322841188,
+      "at_10": 0.16356694413039954,
+      "at_100": 0.24430554779085295
     },
     "span": null,
     "per_query": [
@@ -166,7 +166,7 @@
       },
       {
         "query": "PLAIN-1109",
-        "ndcg_at_10": 0.6059848036189867
+        "ndcg_at_10": 0.6722390270733757
       },
       {
         "query": "PLAIN-1119",
@@ -266,7 +266,7 @@
       },
       {
         "query": "PLAIN-1342",
-        "ndcg_at_10": 0.42650769853316917
+        "ndcg_at_10": 0.4193979998881982
       },
       {
         "query": "PLAIN-1353",
@@ -438,7 +438,7 @@
       },
       {
         "query": "PLAIN-1762",
-        "ndcg_at_10": 0.4695140628038533
+        "ndcg_at_10": 0.46372828840737135
       },
       {
         "query": "PLAIN-1772",
@@ -498,7 +498,7 @@
       },
       {
         "query": "PLAIN-1909",
-        "ndcg_at_10": 0.34301849170611365
+        "ndcg_at_10": 0.4228506620510153
       },
       {
         "query": "PLAIN-1919",
@@ -566,7 +566,7 @@
       },
       {
         "query": "PLAIN-207",
-        "ndcg_at_10": 0.6168295842361274
+        "ndcg_at_10": 0.5919268187287083
       },
       {
         "query": "PLAIN-2071",
@@ -758,7 +758,7 @@
       },
       {
         "query": "PLAIN-2520",
-        "ndcg_at_10": 0.0868333356739959
+        "ndcg_at_10": 0.08815005330171456
       },
       {
         "query": "PLAIN-2530",
@@ -950,7 +950,7 @@
       },
       {
         "query": "PLAIN-2960",
-        "ndcg_at_10": 0.22883924989280793
+        "ndcg_at_10": 0.21974347732050664
       },
       {
         "query": "PLAIN-2970",
@@ -1078,7 +1078,7 @@
       },
       {
         "query": "PLAIN-3292",
-        "ndcg_at_10": 0.5864813403100305
+        "ndcg_at_10": 0.4555975552713322
       },
       {
         "query": "PLAIN-33",
@@ -1098,11 +1098,11 @@
       },
       {
         "query": "PLAIN-3322",
-        "ndcg_at_10": 0.28952298823485745
+        "ndcg_at_10": 0.22009176629808017
       },
       {
         "query": "PLAIN-3332",
-        "ndcg_at_10": 0.575900043728445
+        "ndcg_at_10": 0.628044308575003
       },
       {
         "query": "PLAIN-3342",
@@ -1138,7 +1138,7 @@
       },
       {
         "query": "PLAIN-3422",
-        "ndcg_at_10": 0.045528035918548065
+        "ndcg_at_10": 0.03712651420061503
       },
       {
         "query": "PLAIN-3432",
@@ -1194,7 +1194,7 @@
       },
       {
         "query": "PLAIN-44",
-        "ndcg_at_10": 0.3073659651246774
+        "ndcg_at_10": 0.2705340951674102
       },
       {
         "query": "PLAIN-441",
@@ -1274,11 +1274,11 @@
       },
       {
         "query": "PLAIN-634",
-        "ndcg_at_10": 0.2051166673279436
+        "ndcg_at_10": 0.2082936658103318
       },
       {
         "query": "PLAIN-645",
-        "ndcg_at_10": 0.06943122193677727
+        "ndcg_at_10": 0.0
       },
       {
         "query": "PLAIN-660",
@@ -1290,7 +1290,7 @@
       },
       {
         "query": "PLAIN-68",
-        "ndcg_at_10": 0.4730531414417106
+        "ndcg_at_10": 0.47521153257931126
       },
       {
         "query": "PLAIN-681",
@@ -1330,7 +1330,7 @@
       },
       {
         "query": "PLAIN-771",
-        "ndcg_at_10": 0.8519590445170673
+        "ndcg_at_10": 0.8451850618939637
       },
       {
         "query": "PLAIN-78",
@@ -1358,7 +1358,7 @@
       },
       {
         "query": "PLAIN-838",
-        "ndcg_at_10": 0.6930221935231562
+        "ndcg_at_10": 0.6858190769033709
       },
       {
         "query": "PLAIN-850",
@@ -1402,7 +1402,7 @@
       },
       {
         "query": "PLAIN-956",
-        "ndcg_at_10": 0.841492960259019
+        "ndcg_at_10": 0.772837825180752
       },
       {
         "query": "PLAIN-966",
@@ -1424,24 +1424,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 154.124193,
-      "chunking_ms": 40.313193999999996,
-      "embedding_ms": 30718.242037,
-      "retrieval_ms": 417.961294
+      "analysis_ms": 229.518136,
+      "chunking_ms": 40.705281,
+      "embedding_ms": 25301.216116,
+      "retrieval_ms": 454.65549
     },
-    "tokens_embedded": 2451495,
-    "chunks": 6819,
+    "tokens_embedded": 2451516,
+    "chunks": 6826,
     "chunk_bytes": {
       "min": 90,
       "p50": 792,
-      "p90": 1030,
+      "p90": 1029,
       "max": 1510
     },
     "chunk_tokens": {
       "min": 19,
       "p50": 180,
-      "p90": 229,
-      "max": 358
+      "p90": 230,
+      "max": 435
     }
   }
 }

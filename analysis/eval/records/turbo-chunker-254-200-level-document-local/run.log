@@ -1,0 +1,12 @@
+== turbo-chunker-254-200-level-document-local 2026-11-01T18:05:53Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 58.70 59.72 56.36
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper,gutenqa --cache <cache> --device cpu --out <records>/turbo-chunker-254-200-level-document-local --chunker turbo-chunker --max 254 --target 200 --level document --level-vectors local
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+set gutenqa: 112 judgements could not be placed in their document and are left out
+<records>/turbo-chunker-254-200-level-document-local/scifact.json
+<records>/turbo-chunker-254-200-level-document-local/nfcorpus.json
+<records>/turbo-chunker-254-200-level-document-local/arguana.json
+<records>/turbo-chunker-254-200-level-document-local/qasper.json
+<records>/turbo-chunker-254-200-level-document-local/gutenqa.json
+wall 856.05 s maxrss 1237948 KB
+exit 0 load 56.85 58.35 57.67

@@ -1,0 +1,14 @@
+== sentence-windows-5 2026-11-01T17:07:59Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 55.01 52.45 38.93
+target/release/turbo-eval run --bundle <bundles>/minilm --sets scifact,nfcorpus,arguana,qasper,legalbench-rag-mini,conteb-squad,gutenqa --cache <cache> --device cpu --out <records>/sentence-windows-5 --chunker sentence-windows --window 5
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+set gutenqa: 112 judgements could not be placed in their document and are left out
+<records>/sentence-windows-5/scifact.json
+<records>/sentence-windows-5/nfcorpus.json
+<records>/sentence-windows-5/arguana.json
+<records>/sentence-windows-5/qasper.json
+<records>/sentence-windows-5/legalbench-rag-mini.json
+<records>/sentence-windows-5/conteb-squad.json
+<records>/sentence-windows-5/gutenqa.json
+wall 302.82 s maxrss 1052876 KB
+exit 0 load 47.32 51.85 42.60

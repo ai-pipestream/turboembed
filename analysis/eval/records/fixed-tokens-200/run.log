@@ -1,0 +1,14 @@
+== fixed-tokens-200 2026-11-01T17:00:39Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 45.93 30.08 25.53
+target/release/turbo-eval run --bundle <bundles>/minilm --sets scifact,nfcorpus,arguana,qasper,legalbench-rag-mini,conteb-squad,gutenqa --cache <cache> --device cpu --out <records>/fixed-tokens-200 --chunker fixed-tokens --tokens 200 --overlap 0
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+set gutenqa: 112 judgements could not be placed in their document and are left out
+<records>/fixed-tokens-200/scifact.json
+<records>/fixed-tokens-200/nfcorpus.json
+<records>/fixed-tokens-200/arguana.json
+<records>/fixed-tokens-200/qasper.json
+<records>/fixed-tokens-200/legalbench-rag-mini.json
+<records>/fixed-tokens-200/conteb-squad.json
+<records>/fixed-tokens-200/gutenqa.json
+wall 439.54 s maxrss 898528 KB
+exit 0 load 55.01 52.45 38.93
