@@ -1748,6 +1748,55 @@
           "sha512": "5c1b6bd0e0d1e48acebfdaf39fc9b9849d0d39abd0cbad1f787af75f265b1e51455931f538abd7a108d284894b2bdb78fac723d70d22f9b481ef23136d1240f5"
         }
       ]
+    },
+    {
+      "id": "turbo-en-masc-pos-modernbert-base-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_POS",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/). (pos): test accuracy 0.9581 (baseline 0.8964, masc-pos)",
+      "files": [
+        {
+          "path": "manifest.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/manifest.json",
+          "size": 98166,
+          "sha256": "593959a881e9f744118191a4a1f1498a235b3132ea7afc365cc723f94eca5359",
+          "sha512": "2ae919c27435839a8ec18439c363ce379cb79c30f78ce73d43966746cab571ae022f0ac5f6b2f92ee53605bae1c3945d322439d955c4d0e75600631a3da34faf"
+        },
+        {
+          "path": "reference/reference.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/reference.safetensors",
+          "size": 430352,
+          "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
+          "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/tokenizer.json",
+          "size": 2132967,
+          "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
+          "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
+        },
+        {
+          "path": "weights/model.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/model.safetensors",
+          "size": 612061000,
+          "sha256": "3b11d52c296aa465cfebaaba55873d3df820b380674738c4bec71025eade1210",
+          "sha512": "53e30960d9d65630240d60183af43a7fd99d36f8b7acd772116e8f1398e5144a1c7fb41f6da1250b1491e0fa2c803f7e2b3ccd7244cb490c0c2689ba5cbc68b0"
+        }
+      ]
     }
   ]
 }

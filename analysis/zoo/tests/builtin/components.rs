@@ -22,6 +22,7 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
         ["baai-bge-small-en-v1.5", "baai-bge-base-en-v1.5", "baai-bge-large-en-v1.5"]
     );
     assert_eq!(ids("en", Component::AspectSentiment), ["turbo-en-masc-3.0.0-aspect-sentiment-1"]);
+    assert_eq!(ids("en", Component::Pos), ["turbo-en-masc-pos-modernbert-base-1"]);
     for language in ["es", "ca", "fi", "it"] {
         assert!(ids(language, Component::DependencyParser).is_empty());
     }
