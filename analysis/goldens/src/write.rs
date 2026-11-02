@@ -391,7 +391,7 @@ mod tests {
             error: None,
         };
         let tokens = GoldenLayer {
-            id: "opennlp:tokens".into(),
+            id: "turbo:tokens".into(),
             anchor: GoldenAnchor::Text,
             columns: vec![
                 Column { name: "start".into(), data: ColumnData::U32(vec![0, 3]) },
@@ -415,16 +415,16 @@ mod tests {
 
         // Aligned layer appearing before its anchor, or with mismatched row count.
         let conf_bad_rows = GoldenLayer {
-            id: "turbo:confidence<opennlp:tokens>".into(),
-            anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+            id: "turbo:confidence<turbo:tokens>".into(),
+            anchor: GoldenAnchor::Aligned("turbo:tokens".into()),
             columns: vec![Column { name: "value".into(), data: ColumnData::F64(vec![0.9]) }],
         };
         let g = Golden { header: base_header.clone(), layers: vec![tokens.clone(), conf_bad_rows] };
         assert!(g.to_text().is_err());
 
         let conf_ok_rows = GoldenLayer {
-            id: "turbo:confidence<opennlp:tokens>".into(),
-            anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+            id: "turbo:confidence<turbo:tokens>".into(),
+            anchor: GoldenAnchor::Aligned("turbo:tokens".into()),
             columns: vec![Column { name: "value".into(), data: ColumnData::F64(vec![0.9, 0.8]) }],
         };
         let g = Golden { header: base_header.clone(), layers: vec![conf_ok_rows.clone(), tokens] };

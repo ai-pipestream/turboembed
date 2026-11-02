@@ -16,8 +16,8 @@ import opennlp.tools.tokenize.lang.Factory;
 import opennlp.tools.util.Span;
 
 /**
- * The tokenizer's golden: {@code opennlp:tokens} from {@link TokenizerME#tokenizePos(String)}
- * over the whole input, then {@code turbo:utf16<opennlp:tokens>} when a token starts or ends
+ * The tokenizer's golden: {@code turbo:tokens} from {@link TokenizerME#tokenizePos(String)}
+ * over the whole input, then {@code turbo:utf16<turbo:tokens>} when a token starts or ends
  * inside a surrogate pair ({@link SpanLayers}), then its confidence layer from {@code getTokenProbabilities()}, which
  * must hold one value per token.
  *
@@ -149,8 +149,8 @@ final class TokenGolden implements AnnotatorGolden {
       throw new IllegalStateException("input " + input.inputId() + ": getTokenProbabilities returned "
           + probs.length + " values for " + spans.length + " tokens");
     }
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
-    layers.add(new Layer("turbo:confidence<opennlp:tokens>", "aligned:opennlp:tokens", new Column.F64("value", probs)));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:tokens", input.offsets(), spans));
+    layers.add(new Layer("turbo:confidence<turbo:tokens>", "aligned:turbo:tokens", new Column.F64("value", probs)));
     return layers;
   }
 }

@@ -96,8 +96,16 @@ async fn main() -> ExitCode {
         },
         None => None,
     };
+    let drive = match turbo_kserve::catalog::DriveSignIn::from_vars(|k| std::env::var(k).ok()) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("turbo-kserve: {e}");
+            return ExitCode::from(2);
+        }
+    };
     let serve = Serve {
         admin: args.admin,
+        drive,
         zoo: args.zoo,
         prefetch: args.catalog_prefetch,
         vocabulary: args.vocabulary_dir.map(PathBuf::from),

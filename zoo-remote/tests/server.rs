@@ -272,6 +272,12 @@ fn a_source_list_names_only_what_it_can_read() {
     } else {
         assert!(s3.err().unwrap().contains("needs the s3 feature"));
     }
+    let drive = sources("gdrive://a folder", &alice(), Offline).err().unwrap();
+    if cfg!(feature = "gdrive") {
+        assert!(drive.contains("a folder id is"), "{drive}");
+    } else {
+        assert!(drive.contains("needs the gdrive feature"), "{drive}");
+    }
     for (bad, says) in [
         ("", "an empty entry"),
         ("file:///zoo,,origin", "an empty entry"),

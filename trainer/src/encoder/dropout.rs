@@ -28,11 +28,12 @@ impl Dropout {
 }
 
 /// The key of one mask: the run's seed, the example's place `at`, the
-/// layer (the embedding is u32::MAX) and the branch, mixed so that
-/// neighbouring places give unrelated streams.
+/// layer (the embedding is u32::MAX) and the branch, each mixed in
+/// after the last through SplitMix64, so no two places, layers or
+/// branches share a stream by the shape of their bits.
 pub fn key(seed: u64, at: u64, layer: u32, branch: u32) -> u64 {
-    let mut r = Rng::new(seed ^ at.rotate_left(17) ^ ((layer as u64) << 40) ^ ((branch as u64) << 56));
-    r.next_u64()
+    let mix = |state: u64| Rng::new(state).next_u64();
+    mix(mix(mix(mix(seed) ^ at) ^ layer as u64) ^ branch as u64)
 }
 
 /// Drops `x` in place under `p` and `key`; nothing happens at p = 0.

@@ -187,3 +187,31 @@ async fn a_bundle_loads_for_the_demos_user() {
     s.stop().await;
     fs::remove_dir_all(dir).unwrap();
 }
+
+const REGISTER: &str = "/turbo.training.v1.TurboCatalogService/RegisterModelSource";
+const SOURCES: &str = "/turbo.training.v1.TurboCatalogService/ListModelSources";
+
+/// Model sources go through the same rewrite: registered and listed for
+/// the demo's user, whatever the page names.
+#[tokio::test]
+async fn the_page_registers_sources_for_the_demos_user_only() {
+    let dir = scratch("sources");
+    let serve = Serve { zoo: true, catalog: Some(catalog(&dir.join("home"))), ..Serve::default() };
+    let s = server(&[], serve).await;
+    let allow = Allow::with(&[REGISTER.to_string()]).unwrap();
+    let d = demo_with(s.local_addr(), Options { allow, user: Some("alice".into()), ..Options::default() }).await;
+    let req = RegisterModelSourceRequest {
+        user: "mallory".into(),
+        name: "shared".into(),
+        address: "gdrive://1AbC".into(),
+        api_key: "key-1".into(),
+    };
+    let r: RegisterModelSourceResponse = ok(&d, REGISTER, &req).await;
+    assert_eq!(r.user, "alice");
+    let mine: ListModelSourcesResponse = ok(&d, SOURCES, &ListModelSourcesRequest { user: "mallory".into() }).await;
+    assert_eq!((mine.user.as_str(), mine.sources.len(), mine.admin), ("alice", 1, true));
+    let mut direct = TurboCatalogServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let theirs = direct.list_model_sources(ListModelSourcesRequest { user: "mallory".into() }).await.unwrap();
+    assert!(theirs.into_inner().sources.is_empty());
+    fs::remove_dir_all(dir).unwrap();
+}

@@ -58,7 +58,7 @@ impl DictionaryLemmatizer {
             entries.entry(fields[0].to_owned()).or_default().insert(fields[1].to_owned(), lemmas);
         }
         let model_ref = ModelRef {
-            id: format!("opennlp:DictionaryLemmatizer:{name}"),
+            id: format!("turbo:DictionaryLemmatizer:{name}"),
             revision: String::new(),
             sha256: sha256(bytes).to_hex(),
         };

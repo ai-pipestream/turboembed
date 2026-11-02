@@ -85,11 +85,12 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     doc.add(
         &Key::DEFAULT,
         Money {
-            spans: spans(&[(0, 5)]),
-            negative: vec![false],
-            coefficient: strs(&["500"]),
-            scale: vec![2],
-            currency: vec![Currency::parse("USD").unwrap()],
+            spans: spans(&[(0, 5), (6, 11)]),
+            negative: vec![false, false],
+            coefficient: strs(&["500", "5"]),
+            scale: vec![2, 0],
+            currency: vec![Currency::parse("USD").unwrap(), Currency::parse("USD").unwrap()],
+            per: strs(&["", "h"]),
         },
         by.clone(),
     )
@@ -239,6 +240,8 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     assert_eq!(back.get::<Incivility>().unwrap().target[0], IncivilityTarget::Sentence(Ix::new(0)));
     assert_eq!(back.get::<Numbers>().unwrap().coefficient.get(0), "42");
     assert_eq!(back.get::<Money>().unwrap().currency[0].as_str(), "USD");
+    assert_eq!(back.get::<Money>().unwrap().per(Ix::new(0)), None);
+    assert_eq!(back.get::<Money>().unwrap().per(Ix::new(1)), Some("h"));
     assert_eq!(back.get::<Ordinals>().unwrap().offset, [-2]);
     assert_eq!(back.get::<Quantities>().unwrap().unit.get(0), "%");
     assert_eq!(back.get::<Times>().unwrap().timex.get(0), "2027-01-15");

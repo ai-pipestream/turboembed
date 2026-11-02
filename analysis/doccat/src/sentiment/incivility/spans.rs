@@ -5,7 +5,7 @@
 //! offsets `[char_start, char_end)` into each comment's text. Inside this
 //! workspace every span is a UTF-8 byte [`Span`] in a [`View`], and evidence
 //! spans on [`Incivility`] are [`IxRange<Tokens>`] token ranges over
-//! `opennlp:tokens`.
+//! `turbo:tokens`.
 //!
 //! [`char_span_to_utf8_span`] converts a Unicode codepoint span in `view` into
 //! a UTF-8 byte [`Span`] via [`View::span_from_code_point`] and verifies the
@@ -66,7 +66,7 @@ pub fn char_span_to_token_range(
 pub struct GoldToxicSpanUnit {
     /// Gold UTF-8 byte spans in the comment's [`View`].
     pub utf8_spans: Vec<Span>,
-    /// Gold overlapping token index ranges in `opennlp:tokens`.
+    /// Gold overlapping token index ranges in `turbo:tokens`.
     pub token_ranges: Vec<IxRange<Tokens>>,
 }
 

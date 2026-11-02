@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use turbo_zoo::{
-    Acceptances, Artifact, Blobs, File, Index, Licence, Policy, Requirement, Sha256, Sha512, Sources, Transport, Url,
-    UserId, Zoo, ZooError,
+    Acceptances, Artifact, Blobs, Directory, File, Index, Licence, Policy, Requirement, Sha256, Sha512, Sources,
+    Transport, Url, UserId, Zoo, ZooError,
 };
 
 const TEXT: &[u8] = b"hello hello hello\n";
@@ -288,4 +288,53 @@ fn the_keeping_store_neither_serves_nor_keeps_a_local_only_file() {
         .then("origin", Always(NC.to_vec(), AtomicUsize::new(0)));
     assert_eq!(fresh.get_file(a, f).unwrap(), NC);
     assert!(!Blobs::new(&empty.0).path(&f.sha256).exists(), "no copy of a local-only file");
+}
+
+#[cfg(unix)]
+#[test]
+fn directory_transport_refuses_symlinked_intermediate_directories_and_files() {
+    use std::os::unix::fs::symlink;
+    let (dir, outside) = (Dir::new("dir-link"), Dir::new("dir-link-outside"));
+    fs::create_dir_all(&dir.0).unwrap();
+    fs::create_dir_all(&outside.0).unwrap();
+    let index = index();
+    let (a, f) = file_of(&index, "nc");
+    fs::write(outside.0.join("nc.txt"), NC).unwrap();
+
+    // <root>/<id> is a symlink to an outside directory containing nc.txt: refused.
+    symlink(&outside.0, dir.0.join("nc")).unwrap();
+    let dt = Directory::new(&dir.0);
+    assert_eq!(dt.root(), dir.0.as_path());
+    assert!(dt.get_file(a, f).unwrap_err().contains("is a symlink"));
+    fs::remove_file(dir.0.join("nc")).unwrap();
+
+    // Nested file path where an intermediate directory (<root>/nc/sub or <root>/sub) is a symlink: refused.
+    let sub_json = format!(
+        r#"{{"zoo_version": 1, "artifacts": [{{"id": "nc", "kind": "KIND_LEXICON", "format": "FORMAT_TEXT", "version": "1",
+          "license": "CC-BY-NC-4.0", "license_terms": "https://example.org/nc/LICENSE", "trained_on": [],
+          "class": "CLASS_LOCAL_ONLY", "origin": "https://example.org/nc", "attribution": "Example attribution for nc.",
+          "files": [{{"path": "sub/nc.txt", "url": "https://example.org/nc/sub/nc.txt", "size": {}, "sha256": "{}", "sha512": "{}"}}]}}]}}"#,
+        NC.len(),
+        Sha256::of(NC),
+        Sha512::of(NC),
+    );
+    let sub_idx = Index::parse(sub_json.as_bytes()).unwrap();
+    let (sa, sf) = file_of(&sub_idx, "nc");
+    fs::create_dir_all(dir.0.join("nc")).unwrap();
+    symlink(&outside.0, dir.0.join("nc/sub")).unwrap();
+    assert!(dt.get_file(sa, sf).unwrap_err().contains("is a symlink"));
+    fs::remove_file(dir.0.join("nc/sub")).unwrap();
+    fs::remove_dir(dir.0.join("nc")).unwrap();
+
+    // Direct layout <root>/sub/nc.txt where <root>/sub is a symlink: refused.
+    symlink(&outside.0, dir.0.join("sub")).unwrap();
+    assert!(dt.get_file(sa, sf).unwrap_err().contains("is a symlink"));
+    fs::remove_file(dir.0.join("sub")).unwrap();
+
+    // Plain directory <root>/nc/sub with plain file works; root itself may be a symlink.
+    fs::create_dir_all(dir.0.join("nc/sub")).unwrap();
+    fs::write(dir.0.join("nc/sub/nc.txt"), NC).unwrap();
+    let root_link = Dir::new("dir-root-link");
+    symlink(&dir.0, &root_link.0).unwrap();
+    assert_eq!(Directory::new(&root_link.0).get_file(sa, sf).unwrap(), NC);
 }

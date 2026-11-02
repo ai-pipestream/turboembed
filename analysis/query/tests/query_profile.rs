@@ -24,7 +24,7 @@ fn assert_span_and_evidence_invariants(query: &str, analysis: &QueryAnalysis) {
     }
     if let Some(ref lang) = analysis.language {
         assert!(!lang.best_code.is_empty());
-        assert_eq!(lang.evidence.layer_id, "opennlp:language");
+        assert_eq!(lang.evidence.layer_id, "turbo:language");
         assert!(!lang.evidence.annotator.is_empty());
         for s in &lang.spans {
             assert_eq!(&query[s.span.range()], s.surface, "language span must match exact query byte slice");
@@ -196,7 +196,7 @@ fn extracts_glossary_dictionary_and_regex_entities() {
     let entities: Vec<_> = a.entity_filters().collect();
     assert_eq!(entities.len(), 3);
     assert_eq!(entities[0].0.surface, "TurboEmbed");
-    assert_eq!(entities[0].0.evidence.layer_id, "opennlp:entities");
+    assert_eq!(entities[0].0.evidence.layer_id, "turbo:entities");
     assert_eq!(entities[0].0.evidence.instance.as_deref(), Some("dict"));
     assert_eq!(entities[0].1.entity_type, "product");
 

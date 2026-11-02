@@ -11,8 +11,8 @@ import opennlp.tools.sentdetect.SentenceModel;
 import opennlp.tools.util.Span;
 
 /**
- * The sentence detector's golden: {@code opennlp:sentences} from
- * {@link SentenceDetectorME#sentPosDetect(CharSequence)}, then {@code turbo:utf16<opennlp:sentences>}
+ * The sentence detector's golden: {@code turbo:sentences} from
+ * {@link SentenceDetectorME#sentPosDetect(CharSequence)}, then {@code turbo:utf16<turbo:sentences>}
  * when a sentence starts or ends inside a surrogate pair ({@link SpanLayers}), then its confidence
  * layer with each returned span's probability. The probabilities are checked bit for bit against
  * {@code getSentenceProbabilities()}, which must report the same values.
@@ -95,8 +95,8 @@ final class SentenceGolden implements AnnotatorGolden {
       probs[i] = spans[i].getProb();
     }
     Probabilities.checkSame(input.inputId(), "getSentenceProbabilities", probs, reported);
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:sentences", input.offsets(), spans));
-    layers.add(new Layer("turbo:confidence<opennlp:sentences>", "aligned:opennlp:sentences",
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:sentences", input.offsets(), spans));
+    layers.add(new Layer("turbo:confidence<turbo:sentences>", "aligned:turbo:sentences",
         new Column.F64("value", probs)));
     return layers;
   }

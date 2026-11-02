@@ -3,12 +3,10 @@
 //! own layers live in a small schema crate beside it, so another add-on
 //! reads them without depending on the code that makes them.
 //!
-//! A layer the OpenNLP gRPC standard defines (the layer ids in
-//! opennlp_document.proto) has the standard's id, so Java, Rust and the
-//! wire call it one thing. A layer the standard lacks is "turbo:" until
-//! the standard adds it. `Chunks` is one of those: the standard's
-//! "opennlp:chunks" are phrase chunks (noun and verb groups), not
-//! retrieval chunks, so `Chunks` is "turbo:chunks".
+//! Every shared layer's id is in the `turbo:` namespace, from the one
+//! table in `turbo_analysis::ids`, so Java, Rust and the wire call it one
+//! thing. Phrase chunks (noun and verb groups) are
+//! "turbo:phrase-chunks"; retrieval chunks are `Chunks`, "turbo:chunks".
 
 use turbo_analysis::Ix;
 pub use turbo_analysis::{

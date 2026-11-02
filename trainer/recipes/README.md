@@ -6,11 +6,14 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | Corpus id | Data | Task | Pinned by | Splits |
 |---|---|---|---|---|
 | `masc-pos` | MASC 3.0.0, Penn tags (CC BY 3.0 US) | tags | corpus digest of the extracted release (`turbo_train_recipes::masc::RELEASE`) | test: the recipes' held-out documents (every tenth, Twitter genre left out), so numbers compare with the MASC tagger's gate; dev: every tenth training-side document |
+| `masc-ne` | MASC 3.0.0 named entities (CC BY 3.0 US) | BIO, person/location/organization/date | same recorded corpus digest as MASC POS | same held-out documents and Twitter exclusion; training-only dev; [recipe and refusals](masc-ne.md) |
 | `wnut17` | WNUT-17 (CC BY 4.0, default-tier training under #1524) | BIO, six types kept separate from MASC | size and SHA-256 of each file | publisher train/dev/test, canonical `emerging.test.annotated`; [recipe and limits](wnut17.md) |
 | `germeval2014-outer`, `germeval2014-inner` | GermEval 2014 corrected 2022-04-28 (CC BY 4.0) | separate outer and inner BIO heads, 12 types each | size and SHA-256 of each file | publisher train/dev/test; [recipe and limits](germeval.md) |
 | `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
+| `litbank` | LitBank (`dbamman/litbank` at `3e50db0f`, CC BY 4.0 over public-domain Project Gutenberg works) | coref (`coref` on `turboembed:coref`, `HEAD_COREF_RANKER`) | size and SHA-256 of all 100 `coref/conll/*.conll` files (`litbank::pins`) | sorted 80/10/10 work split (`turbo_train_recipes::litbank::SPLIT`) |
+| `re-docred` | Re-DocRED at commit `ccfb54f5` (CC BY-SA 4.0, share-alike, as MultiCoNER: Wikipedia documents, MIT annotations; docs/licences.md) | relations between a document's entities, `relation` on `turboembed:relations` | size and SHA-256 of each file and the repository's `LICENSE` | the release's own train, dev and test; counts are of documents |
 | `ud-en-ewt-upos`, `ud-en-ewt-xpos`, `ud-en-ewt-feats` | UD English EWT r2.18 (commit `b7711cce`), one corpus a column, read as syntactic words (CC BY-SA 4.0: share-alike, as MultiCoNER) | tags, heads `upos` on `turboembed:pos`, `xpos`, `feats` | size and SHA-256 of each file (`ud::EN_EWT`) | the release's own train, dev and test; the test file is the one the spaCy, Stanza and Trankit peer records score |
-| `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the last five CC BY-SA 4.0, share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
+| `ud-<lang>-<bank>-upos`, `-xpos`, `-feats` for `es-ancora`, `ca-ancora`, `fi-ftb`, `it-markit`, `pt-porttinari`, `de-gsd`, `fr-gsd`, `nl-alpino`, `ru-gsd`, `pt-gsd`, and in `ud_banks_sa` and `ud_banks_sa2` `af-afribooms`, `hy-bsut`, `hr-set`, `da-ddt`, `ka-glc`, `is-icepahc`, `id-gsd`, `ga-idt`, `ko-kaist`, `lv-lvtb`, `no-bokmaal`, `fa-perdt`, `ro-rrt`, `sr-set`, `sk-snk`, `sl-ssj`, `sv-talbanken`, `tr-boun` | UD r2.16 (`ud_banks`): the first five CC BY 4.0, a default-tier head (FTB under its CC BY 4.0 option; Porttinari's text rights not settled, so no head of it ships), the rest CC BY-SA 4.0 (Irish IDT CC BY-SA 3.0), share-alike | tags, as EWT | size and SHA-256 of each file, and the tag's commit | the release's own train, dev and test |
 
 A directory that is not the recorded release is refused unless the run
 passes `--unrecorded-corpus`, and its receipt then says
@@ -26,7 +29,13 @@ done
 The r2.16 treebanks the same way, each from its repository at `r2.16`
 (`UD_Spanish-AnCora`, `UD_Catalan-AnCora`, `UD_Finnish-FTB`,
 `UD_Italian-MarkIT`, `UD_Portuguese-Porttinari`, `UD_German-GSD`,
-`UD_French-GSD`, `UD_Dutch-Alpino`, `UD_Russian-GSD`, `UD_Portuguese-GSD`),
+`UD_French-GSD`, `UD_Dutch-Alpino`, `UD_Russian-GSD`, `UD_Portuguese-GSD`,
+`UD_Afrikaans-AfriBooms`, `UD_Armenian-BSUT`, `UD_Croatian-SET`,
+`UD_Danish-DDT`, `UD_Georgian-GLC`, `UD_Icelandic-IcePaHC`,
+`UD_Indonesian-GSD`, `UD_Irish-IDT`, `UD_Korean-Kaist`, `UD_Latvian-LVTB`,
+`UD_Norwegian-Bokmaal`, `UD_Persian-PerDT`, `UD_Romanian-RRT`,
+`UD_Serbian-SET`, `UD_Slovak-SNK`, `UD_Slovenian-SSJ`,
+`UD_Swedish-Talbanken`, `UD_Turkish-BOUN`),
 the `<code>_<bank>-ud-{train,dev,test}.conllu` files the repository holds:
 
 ```text
@@ -72,7 +81,35 @@ turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <e
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
+turbo-train-head train-open-span --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    [--cache <cache dir>] [--layer N] [--max-words N] [--width-dim N]
+    [--hold-out <type> ...] [training settings]
+turbo-train-head train-coref --corpus litbank --dir <litbank dir> --bundle <encoder bundle> --out <new dir>
+    [as train, without --crf and --hash-embed] [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N]
+turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
+    [--zoo-id <id> [--component <COMPONENT_*>] [--language <lang>] [--version <ver>]
+     [--license-terms <https://...>] [--url-prefix <https://...>] [--origin <https://...>]
+     [--zoo-out <entry.json>]]
+turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
+turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
+    --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
+turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
+    [--zoo-id <id> --license-terms <https://...> --url-prefix <https://...>
+     [--component <COMPONENT_*>] [--language <lang>] [--version <ver>] [--origin <https://...>]
+     [--zoo-out <entry.json>]]
 ```
+
+`assemble` (#1726) verifies one or more training run directories against
+an encoder bundle (checking `receipt.json` schema, encoder model,
+revision, manifest digest and hidden width, corpus record and licence
+class, output file sizes and SHA-256 digests, `head.json` equality, and
+exact F32 tensor names and shapes loaded through the core head
+constructors), merges the head tensors into `weights/model.safetensors`,
+writes `heads[]` and `head_provenance[]` into `manifest.json`, verifies
+the assembled bundle with `Bundle::open`, and optionally writes a
+validated `turbo-zoo` artifact entry (`Kind::Head` for one head or
+`Kind::Model` for a multi-task bundle) whose `class` is computed from the
+encoder and every head's `CorpusRecord`.
 
 `cache` (#1616) reads every split once and writes each word's features
 at the encoder's last N layers, so heads on any one layer, or on a
@@ -120,13 +157,75 @@ the relation, the commonest overall when unseen.
 `train-split` trains the token split head (`words` on
 `turboembed:words`, #1698) over the treebank's surface tokens, where
 the other UD commands read syntactic words: each multiword token's
-label is one edit tree a word, mined over the tokens that come up at
+label is one edit tree a word, kept over the tokens that come up at
 least `--min-tree-freq` times, beside `_`, which keeps a token whole.
-It writes the same three files and scores as token labels, against
-each token's commonest training label (`_` when unseen). A treebank
+A word that sits inside its token may take a cut (`(t 2 ())` keeps the
+last two characters) or a tree that names what it drops
+(`(m 5 0 (s 'hacer' '') ())`); each training token takes, of the
+labels that give its words, the one that gives the most distinct
+training tokens theirs, so a clitic's label serves every verb and a
+contraction's names its letters (#1798). It writes the same three
+files and scores each token's words being right, against each token's
+commonest training words (the token itself when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
+
+`train-open-span` (#1735) trains the open-label span matching head
+(`open_ner` on `turboembed:entities`, `HEAD_OPEN_SPAN`) on any BIO
+corpus (`wnut17`, `germeval2014-outer`, `germeval2014-inner`,
+`multiconer2-en`) or UD treebank (`ud-<lang>-<bank>`, extracting
+contiguous `PROPN` runs as `"proper noun"` spans). Entity type names
+are encoded by the same frozen encoder (`turbo::head::open_span::label_words`
+and `pool_label_words`), centered against the empirical training word
+and label means (`center.weight`), and scored against candidate spans
+up to `--max-words` (8 by default). Passing `--hold-out <type>` drops
+that entity type from training and dev and evaluates test span F1 on
+all types, seen types, and held-out (zero-shot unseen) types alongside
+the majority baseline and the case-insensitive label-name dictionary
+matcher.
+
+`train-coref` trains the antecedent-ranking coreference head (`coref` on
+`turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
+10 dev, 10 test), checkpointing `head.safetensors` and `head.json` by
+dev antecedent accuracy and scoring the test split by micro-averaged
+MUC, B-cubed, CEAF-e and their mean CoNLL F1 beside the deterministic
+singleton baseline (every mention in its own cluster) with a seeded
+paired bootstrap over documents.
+
+`export` writes a corpus's test words, and nothing else, as CoNLL-U
+for a peer system (spaCy, Stanza) to tag as given; `peer` reads the
+peer's CoNLL-U back and scores the column named exactly as the
+matching head is scored, with the same baseline and bootstrap, so the
+receipts stand side by side. `upos`, `xpos` and `feats` read a tag
+corpus (`ud-es-ancora-feats`); `lemma` and `deps` read the treebank
+(`ud-es-ancora`), against the labels `train-lemma` and `train-parse`
+score, LAS with UAS beside it. A treebank id exports the same
+syntactic words as its tag corpora. The LAS here is strict: a relation
+counts only with its subtype (`nsubj:pass`), as `train-parse` scores
+it, where CoNLL 2018 and published Stanza tables count the universal
+part alone. The words are syntactic words, multiword tokens already
+split, so a peer runs pretokenized with no multiword expansion (Stanza
+`tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
+its file for words other than the split's.
+
+`train-relation` trains the relation classifier head (`relation` on
+`turboembed:relations`, #1734) on `re-docred`: each document is one
+sequence, its entities typed by their first mention, each entity's
+mentions pooled before the pair is scored, and every label above
+`none`, the pair's own threshold, kept, so a pair holds several. Its
+labels are `none` and the property ids training gives; `--mlp` and
+`--type-dim` set the projection and entity type widths, and `--lr`
+defaults to 3e-4, below the other heads' 2e-3, at which this head's
+loss climbs again after its second epoch. It writes the
+same three files and scores exact (head, tail, label) triples on the
+test split, micro and per label, against the majority baseline, which
+labels every pair `none` and so finds nothing, with a paired bootstrap
+over documents:
+
+```text
+turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --bundle <encoder bundle> --out <new dir>
+```
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for
@@ -155,9 +254,8 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
     cargo test --release -p turbo-trainer-recipes
 ```
 
-Not yet here: bundle output (a sealed bundle carrying the head),
-a core head that reads a mix of layers (only if the mix wins, #1616),
-full NER training and peer records (WNUT-17, GermEval and MASC), and a lemmatizer that reads the
-tagger's UPOS (`pos_input`).
+Not yet here: a core head that reads a mix of layers (only if the mix
+wins, #1616), full NER training and peer records (WNUT-17, GermEval and
+MASC), and a lemmatizer that reads the tagger's UPOS (`pos_input`).
 
 Native NER bundle prediction and paired peer comparison: [ner-release.md](ner-release.md).

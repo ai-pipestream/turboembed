@@ -12,8 +12,11 @@ use serde_json::Value;
 use turbo::head::TokenSplitter;
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo_trainer_recipes::receipt::Receipt;
+use turbo_trainer_recipes::split_labels::{candidates, choose};
 use turbo_trainer_recipes::ud::EN_EWT;
-use turbo_trainer_recipes::ud_split::{TokenSentence, baseline, gold_label, mine_labels, parse_tokens, sentences};
+use turbo_trainer_recipes::ud_split::{
+    TokenSentence, baseline, gold_label, labelled, mine_labels, parse_tokens, sentences,
+};
 
 fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -86,14 +89,54 @@ fn labels_are_mined_by_frequency_and_give_the_words_back() {
         token_sentence(&[("del", &["de", "el"]), ("della", &["di", "la"])]),
         token_sentence(&[("del", &["de", "el"]), ("al", &["a", "el"])]),
     ];
-    let labels = mine_labels(&train, 2);
+    let labels = mine_labels(&train, &choose(&train), 2);
     assert_eq!(labels.len(), 3, "`della` comes up once, under the frequency: {labels:?}");
     assert_eq!(labels[0], "_");
     assert_eq!(applied(&labels[1], "del"), ["de", "el"], "the commonest split first");
     assert_eq!(applied(&labels[2], "al"), ["a", "el"]);
-    assert_eq!(labels[1], gold_label("del", &["de".to_owned(), "el".to_owned()]));
-    // A tree serves every token cut the same way.
-    assert_eq!(applied(&labels[2], "al"), applied(&gold_label("al", &["a".to_owned(), "el".to_owned()]), "al"));
+    assert_eq!(gold_label("del", &["de".to_owned(), "el".to_owned()]), "de\tel", "the gold is the words");
+}
+
+/// A clitic is cut from its verb by its own length, so the verbs that
+/// take it share one label, which serves a verb training never saw;
+/// `del` and `al`, which rewrite, keep named trees.
+#[test]
+fn a_clitic_split_takes_the_label_that_serves_the_most_tokens() {
+    let w = |ws: &[&str]| ws.iter().map(|w| (*w).to_owned()).collect::<Vec<_>>();
+    let c = candidates("hacerse", &w(&["hacer", "se"]));
+    assert!(c.contains(&"(h 5 ()) (t 2 ())".to_owned()), "{c:?}");
+    assert!(c.contains(&"(m 0 2 () (s 'se' '')) (t 2 ())".to_owned()), "{c:?}");
+    assert!(c.contains(&"(m 0 2 () (s 'se' '')) (m 5 0 (s 'hacer' '') ())".to_owned()), "{c:?}");
+    assert!(candidates("mar", &w(&["mar"])).is_empty());
+    assert!(candidates("x", &w(&["a"; 9])).is_empty());
+    let train = [
+        token_sentence(&[("hacerse", &["hacer", "se"]), ("ponerse", &["poner", "se"]), ("del", &["de", "el"])]),
+        token_sentence(&[("irse", &["ir", "se"]), ("quedarse", &["quedar", "se"]), ("al", &["a", "el"])]),
+        token_sentence(&[("darle", &["dar", "le"]), ("verle", &["ver", "le"]), ("del", &["de", "el"])]),
+    ];
+    let chosen = choose(&train);
+    let se = "(m 0 2 () (s 'se' '')) (t 2 ())";
+    for t in ["hacerse", "ponerse", "irse", "quedarse"] {
+        assert_eq!(chosen[&(t.to_owned(), w(&[&t[..t.len() - 2], "se"]))], se, "{t}");
+    }
+    // `del` shares its cuts with `irse` (two first, two last); `al`
+    // rewrites, so its mined tree stands, over a cut that serves no
+    // other token.
+    assert_eq!(chosen[&("del".to_owned(), w(&["de", "el"]))], "(h 2 ()) (t 2 ())");
+    assert_eq!(chosen[&("al".to_owned(), w(&["a", "el"]))], "(m 0 1 () (s 'l' '')) (m 1 0 (s 'a' 'e') ())");
+    let labels = mine_labels(&train, &chosen, 2);
+    let le = "(m 0 2 () (s 'le' '')) (t 2 ())";
+    assert_eq!(labels[..2], ["_", se], "four tokens take the `se` label: {labels:?}");
+    assert_eq!(labels.len(), 4, "`del` twice, `le` twice, `al` once: {labels:?}");
+    assert!(labels.contains(&le.to_owned()) && labels.contains(&"(h 2 ()) (t 2 ())".to_owned()), "{labels:?}");
+    assert_eq!(applied(se, "verse"), ["ver", "se"], "a verb training never saw");
+    assert_eq!(applied(se, "sentirse"), ["sentir", "se"]);
+    // Dev sentences take the head's labels: a split training never saw
+    // takes the head label that gives its words, one the head lacks
+    // stays its gold words.
+    let dev = [token_sentence(&[("verse", &["ver", "se"]), ("al", &["a", "el"]), ("della", &["di", "la"])])];
+    let got = labelled(&dev, &chosen, &labels);
+    assert_eq!(got[0].labels, [se, "a\tel", "di\tla"], "`al` came up once, under the frequency");
 }
 
 #[test]
@@ -104,11 +147,9 @@ fn the_baseline_keeps_an_unseen_token_whole() {
     ];
     let test = [token_sentence(&[("del", &["de", "el"]), ("never", &["never"]), ("x", &["x", "a"])])];
     let got = baseline(&train, &test);
-    assert_eq!(applied(&got[0][0], "del"), ["de", "el"]);
+    assert_eq!(got[0][0], "de\tel");
     assert_eq!(got[0][1], "_", "an unseen token keeps whole");
-    let (a, b) =
-        (gold_label("x", &["x".to_owned(), "a".to_owned()]), gold_label("x", &["x".to_owned(), "b".to_owned()]));
-    assert_eq!(got[0][2], a.min(b), "a tie goes to the smaller label");
+    assert_eq!(got[0][2], "x\ta", "a tie goes to the smaller label");
     let gold = sentences(&test);
     assert_eq!(gold[0].words, ["del", "never", "x"]);
     assert_eq!(gold[0].labels[1], "_");

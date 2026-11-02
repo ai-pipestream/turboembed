@@ -1,29 +1,32 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-25T03:35:22Z",
+  "recorded_at": "2026-11-01T17:25:20Z",
   "provenance": {
-    "commit": "1d7d2cbff4a60e82c5b16ab5b947b6dbf5f7288f",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/claude/956-bge-query-instruction"
+      "origin/claude/project-thread-2zw2ao",
+      "origin/claude/project-thread-3kv94e",
+      "origin/claude/project-thread-on98lt",
+      "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
+      "arch": "x86_64",
       "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 130171314176
     },
     "bundle": {
       "model_id": "BAAI/bge-small-en-v1.5",
       "revision": "1",
-      "manifest_sha256": "352402c205716d9ea3325b4e4df5e5e5ca34ada21c643be5719885572030605b",
+      "manifest_sha256": "cb28c3c7cd30bfafe809994c0c9ea0df921f75b2bc9c5856275854b14bcfcbaa",
       "artifact_sha256": "3c9f31665447c8911517620762200d2245a2518d6e7208acc78cd9db317e21ad",
       "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
     }
@@ -34,9 +37,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -94,12 +97,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.35211215898858655,
+    "ndcg_at_10": 0.3513537279484329,
     "recall": {
-      "at_1": 0.060267156398589865,
-      "at_5": 0.13094238745475598,
-      "at_10": 0.1664967582625813,
-      "at_100": 0.3093630681448995
+      "at_1": 0.060216402706258755,
+      "at_5": 0.13050010527872766,
+      "at_10": 0.16614521752937708,
+      "at_100": 0.3105211614149751
     },
     "span": null,
     "per_query": [
@@ -221,7 +224,7 @@
       },
       {
         "query": "PLAIN-1299",
-        "ndcg_at_10": 0.22009176629808017
+        "ndcg_at_10": 0.11004588314904008
       },
       {
         "query": "PLAIN-1309",
@@ -241,7 +244,7 @@
       },
       {
         "query": "PLAIN-1342",
-        "ndcg_at_10": 0.4419240888751214
+        "ndcg_at_10": 0.45718160765461063
       },
       {
         "query": "PLAIN-1353",
@@ -285,11 +288,11 @@
       },
       {
         "query": "PLAIN-1453",
-        "ndcg_at_10": 0.5519699720241614
+        "ndcg_at_10": 0.4269620754585236
       },
       {
         "query": "PLAIN-1463",
-        "ndcg_at_10": 0.42838543210841196
+        "ndcg_at_10": 0.42520843362602373
       },
       {
         "query": "PLAIN-1473",
@@ -325,7 +328,7 @@
       },
       {
         "query": "PLAIN-1547",
-        "ndcg_at_10": 0.19526086862591913
+        "ndcg_at_10": 0.09109240322345806
       },
       {
         "query": "PLAIN-1557",
@@ -473,7 +476,7 @@
       },
       {
         "query": "PLAIN-1909",
-        "ndcg_at_10": 0.6505132600483449
+        "ndcg_at_10": 0.6531466953037821
       },
       {
         "query": "PLAIN-1919",
@@ -541,7 +544,7 @@
       },
       {
         "query": "PLAIN-207",
-        "ndcg_at_10": 0.6812060741152737
+        "ndcg_at_10": 0.6175852859163219
       },
       {
         "query": "PLAIN-2071",
@@ -605,7 +608,7 @@
       },
       {
         "query": "PLAIN-2220",
-        "ndcg_at_10": 0.31339406588598046
+        "ndcg_at_10": 0.3091941646995599
       },
       {
         "query": "PLAIN-2230",
@@ -621,7 +624,7 @@
       },
       {
         "query": "PLAIN-2261",
-        "ndcg_at_10": 0.6235744328990731
+        "ndcg_at_10": 0.6898286563534621
       },
       {
         "query": "PLAIN-227",
@@ -645,7 +648,7 @@
       },
       {
         "query": "PLAIN-2301",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.06362078819895171
       },
       {
         "query": "PLAIN-2311",
@@ -741,7 +744,7 @@
       },
       {
         "query": "PLAIN-2540",
-        "ndcg_at_10": 0.4138347650695565
+        "ndcg_at_10": 0.3123394721972682
       },
       {
         "query": "PLAIN-2550",
@@ -837,7 +840,7 @@
       },
       {
         "query": "PLAIN-2760",
-        "ndcg_at_10": 0.17907045092245474
+        "ndcg_at_10": 0.2259617509448683
       },
       {
         "query": "PLAIN-2770",
@@ -973,7 +976,7 @@
       },
       {
         "query": "PLAIN-3085",
-        "ndcg_at_10": 0.17723928678404774
+        "ndcg_at_10": 0.18457569677956817
       },
       {
         "query": "PLAIN-3097",
@@ -989,7 +992,7 @@
       },
       {
         "query": "PLAIN-3141",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.0866178136927642
       },
       {
         "query": "PLAIN-3151",
@@ -1053,7 +1056,7 @@
       },
       {
         "query": "PLAIN-3292",
-        "ndcg_at_10": 0.5410015666822333
+        "ndcg_at_10": 0.5127774780667372
       },
       {
         "query": "PLAIN-33",
@@ -1129,7 +1132,7 @@
       },
       {
         "query": "PLAIN-3452",
-        "ndcg_at_10": 0.48875016475165084
+        "ndcg_at_10": 0.49584771568878766
       },
       {
         "query": "PLAIN-3462",
@@ -1181,7 +1184,7 @@
       },
       {
         "query": "PLAIN-468",
-        "ndcg_at_10": 0.4260967530293622
+        "ndcg_at_10": 0.42142110103371916
       },
       {
         "query": "PLAIN-478",
@@ -1281,7 +1284,7 @@
       },
       {
         "query": "PLAIN-711",
-        "ndcg_at_10": 0.49435723575344825
+        "ndcg_at_10": 0.49828993591603105
       },
       {
         "query": "PLAIN-721",
@@ -1399,24 +1402,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 118.224342,
-      "chunking_ms": 31.724576999999996,
-      "embedding_ms": 2684.9663379999997,
-      "retrieval_ms": 14.035540000000001
+      "analysis_ms": 178.04224799999997,
+      "chunking_ms": 36.643336999999995,
+      "embedding_ms": 30395.156891,
+      "retrieval_ms": 13.525175
     },
-    "tokens_embedded": 1233173,
-    "chunks": 6819,
+    "tokens_embedded": 1233187,
+    "chunks": 6826,
     "chunk_bytes": {
       "min": 90,
       "p50": 792,
-      "p90": 1030,
+      "p90": 1029,
       "max": 1510
     },
     "chunk_tokens": {
       "min": 19,
       "p50": 180,
-      "p90": 229,
-      "max": 358
+      "p90": 230,
+      "max": 435
     }
   }
 }

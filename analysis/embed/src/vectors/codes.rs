@@ -1,5 +1,5 @@
 //! int8 and ubinary codes of a vector layer (#1462): the step that turns
-//! `opennlp:embeddings<L>` into `turbo:vector-codes<L>` with the core's
+//! `turbo:embeddings<L>` into `turbo:vector-codes<L>` with the core's
 //! `turbo::quantize`, the layout `turbo_embed_options` fields 7 and 8
 //! return and sentence-transformers' `quantize_embeddings` makes. int8
 //! ranges always come from the caller, calibrated on vectors of the same

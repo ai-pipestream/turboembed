@@ -26,22 +26,23 @@ impl Encoder {
     }
 
     /// Late pooling: `rows` encoded once and, into `out`, the mean of the
-    /// encoder's final states over each range's tokens, neither cut nor
-    /// normalized: `[ranges.len(), dim]` values. A caller that wants unit
-    /// vectors normalizes them with `normalize`, as the core would.
+    /// encoder's states over each range's tokens (`[ranges.len(), dim]`
+    /// when `EncoderOptions::layers` is 0 or 1, or `[layers, ranges.len(),
+    /// dim]` when `layers > 1`), neither cut nor normalized. A caller that
+    /// wants unit vectors normalizes them with `normalize`, as the core
+    /// would.
     pub fn run_ranges(&mut self, rows: &Rows, ranges: &[turbo_token_range], out: &mut Vec<f32>) -> Result<(), Error> {
-        let o = options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE);
+        let o = turbo_embed_options { layers: self.layers, ..options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE) };
         let mut err = new_error();
-        let rc = unsafe {
-            turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), ranges.len() as u32, &o, &mut err)
-        };
+        let n = ranges.len() as u32;
+        let rc = unsafe { turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, &o, &mut err) };
         check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
         #[cfg(test)]
         {
             self.runs.0 += 1;
             self.runs.1 += rows.len() as usize;
         }
-        self.run(ranges.len() as u32, out)
+        self.run(n.saturating_mul(self.layers.max(1)), out)
     }
 
     /// `run_ranges` from each of the encoder's last `layers` layers in one

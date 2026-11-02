@@ -81,13 +81,16 @@ fn convert<R: FxRates>(
             if let Some(scale) = round_scale {
                 amount.round_to_scale(scale);
             }
-            out.push(MoneyMention {
-                span,
-                negative: amount.negative,
-                coefficient: &amount.digits,
-                scale: amount.scale,
-                currency: target,
-            });
+            out.push_with_per(
+                MoneyMention {
+                    span,
+                    negative: amount.negative,
+                    coefficient: &amount.digits,
+                    scale: amount.scale,
+                    currency: target,
+                },
+                money.per.get(i.get()),
+            );
         }
     }
     Ok(())

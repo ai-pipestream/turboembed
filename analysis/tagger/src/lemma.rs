@@ -14,28 +14,18 @@ use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
-use turbo::head::{EditTreeLemmatizer, TokenTagger, lemmatizer, tagger};
+use turbo::head::run::{LemmaTags, lemmatize_sequences};
+use turbo::head::{EditTreeLemmatizer, TokenTagger};
 use turbo::manifest::{HeadKind, WordPooling};
 use turbo::status::Error as CoreError;
 use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Layer, ModelRef, Refs, View};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Lemmas, Sentences, Strs, Subwords, Tokens};
 
-use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, refuse};
+use crate::annotate::{HeadRunner, find_head, forms_of, model_ref, open_words, refuse, tail_taps};
 use crate::words::WordEncoder;
 
-/// A lemma lookup that overrides the head where it has an answer.
-pub trait LemmaDictionary: Send + Sync {
-    /// The lemma listed for `form` under `tag` (the tag head's label, None
-    /// when the lemmatizer reads no tags), or None to keep the head's.
-    fn lemma(&self, form: &str, tag: Option<&str>) -> Option<String>;
-}
-
-impl<F: Fn(&str, Option<&str>) -> Option<String> + Send + Sync> LemmaDictionary for F {
-    fn lemma(&self, form: &str, tag: Option<&str>) -> Option<String> {
-        self(form, tag)
-    }
-}
+pub use turbo::head::run::LemmaDictionary;
 
 /// A dictionary and the name that keys it in the config hash.
 struct Dictionary {
@@ -67,7 +57,8 @@ impl Lemmatizer {
             Some(p) => Some(TokenTagger::load(&bundle, &p.head)?),
             None => None,
         };
-        let words = WordEncoder::open(dir, o)?;
+        let taps = head.taps().max(pos.as_ref().map_or(1, TokenTagger::taps));
+        let words = open_words(dir, o, taps)?;
         for hidden in std::iter::once(head.hidden()).chain(pos.as_ref().map(TokenTagger::hidden)) {
             if hidden != words.hidden() {
                 return Err(refuse(format!(
@@ -144,7 +135,14 @@ impl Lemmatizer {
         forms: &[Vec<&str>],
     ) -> Result<Vec<Vec<String>>, CoreError> {
         let dictionary = self.dictionary.as_ref().map(|d| d.lookup.as_ref());
-        lemmas_with(&self.head, self.pos.as_ref(), dictionary, head, pos, forms)
+        let have = self.head.taps().max(self.pos.as_ref().map_or(1, TokenTagger::taps));
+        let head = tail_taps(head, have, self.head.taps());
+        let pos = match (&self.pos, pos) {
+            (Some(t), Some(pf)) => Some(tail_taps(pf, have, t.taps())),
+            (Some(t), None) if t.taps() != self.head.taps() => Some(tail_taps(&head, self.head.taps(), t.taps())),
+            _ => None,
+        };
+        lemmas_with(&self.head, self.pos.as_ref(), dictionary, &head, pos.as_deref(), forms)
     }
 
     /// The lemma layer over every token of the view, the pieces from
@@ -208,42 +206,7 @@ pub(crate) fn lemmas_with(
     pos: Option<&[Vec<f32>]>,
     forms: &[Vec<&str>],
 ) -> Result<Vec<Vec<String>>, CoreError> {
-    let hidden = lem.hidden();
-    let (mut scores, mut tags, mut trees) = (Vec::new(), Vec::new(), Vec::new());
-    let (mut tw, mut lw) = (tagger::Work::default(), lemmatizer::Work::default());
-    let mut out = Vec::with_capacity(head.len());
-    for (s, f) in head.iter().enumerate() {
-        let n = f.len() / hidden;
-        let ids: Vec<u32> = (0..n as u32).collect();
-        let words = &forms[s];
-        if words.len() != n {
-            return Err(refuse(format!("{} forms for {n} words", words.len())));
-        }
-        let tagged = match pos_tagger {
-            Some(t) => {
-                let pf = pos.map_or(f, |p| &p[s]);
-                // A hashed tag head reads each word's text too.
-                t.scores_forms(pf, &ids, Some(words), &mut scores, &mut tw)?;
-                t.decode(&scores, n, &mut tags)?;
-                Some(&tags[..])
-            }
-            None => None,
-        };
-        lem.scores(f, &ids, tagged, &mut scores, &mut lw)?;
-        lem.decode(&scores, words, &mut trees)?;
-        let mut lemmas = lem.lemmas(&trees, words)?;
-        if let Some(d) = dictionary {
-            let labels = pos_tagger.map(TokenTagger::labels);
-            for (k, lemma) in lemmas.iter_mut().enumerate() {
-                let tag = labels.zip(tagged).map(|(l, t)| l[t[k] as usize].as_str());
-                if let Some(listed) = d.lemma(words[k], tag) {
-                    *lemma = listed;
-                }
-            }
-        }
-        out.push(lemmas);
-    }
-    Ok(out)
+    lemmatize_sequences(lem, LemmaTags { pos_tagger, pos, given: None }, dictionary, head, forms)
 }
 
 /// The lemma layer from each sequence's lemmas.

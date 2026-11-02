@@ -1,6 +1,6 @@
 # Releases
 
-A tag `v<version>` on `main` makes four binary archives, a proto archive,
+A tag `v<version>` on `main` makes five binary archives, a proto archive,
 and generated Java and Python client stub artifacts through
 `.github/workflows/release.yml` and publishes them as one GitHub release,
 each with its SHA-256:
@@ -11,6 +11,10 @@ each with its SHA-256:
 - `turboembed-v<version>-linux-aarch64.tar.gz`: the cpu backend.
 - `turboembed-v<version>-windows-x86_64.zip`: the cpu backend, built with
   MSVC.
+- `turboembed-v<version>-android.tar.gz`: the cpu backend as
+  `jniLibs/arm64-v8a/libturbo.so` and `jniLibs/x86_64/libturbo.so`, built
+  with the Android NDK at API level 26, for the JNI binding
+  (`clients/java-jni/README.md`, "Android").
 - `turboembed-proto-v<version>.tar.gz`: the versioned `server/proto/*.proto`
   definitions and `buf.yaml`.
 - `turboembed-grpc-<version>.jar`, `turboembed-grpc-<version>-sources.jar`,
@@ -29,13 +33,19 @@ each with its SHA-256:
 
 The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 `grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
-in-process Java 22+ Panama Foreign Function and Memory (FFM) bindings over
+in-process Java 25+ Panama Foreign Function and Memory (FFM) bindings over
 `include/turbo/turbo.h` and its analysis adapters live in
 `clients/java-panama/pom.xml` (`ai.pipestream:turboembed-panama:<version>`,
-requiring Java 22 or newer with `--enable-native-access=ALL-UNNAMED` and the
-platform's `libturbo` shared library from the binary archive). The
-Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
-(`Cargo.lock`).
+requiring Java 25 or newer with `--enable-native-access=ALL-UNNAMED` and the
+platform's `libturbo` shared library from the binary archive). The same
+API over the Java Native Interface, for Java 21 or newer and for Android,
+lives in `clients/java-jni/pom.xml` (`ai.pipestream:turboembed-jni:<version>`,
+requiring the platform's `libturbo` from the binary archive, or on Android
+the `jniLibs` of the Android archive below); its `native` methods are
+exported by `libturbo` itself (`core/src/jni`), so no other native artifact
+exists. Both bindings run the conformance suite in
+`clients/java-conformance`. The Rust server builds its own stubs with
+tonic 0.14.6 and prost 0.14.4 (`Cargo.lock`).
 
 The demo page's TypeScript code is not a release artifact: it is
 generated into `demo/web/src/gen` by `scripts/generate-web-stubs.sh`
@@ -283,16 +293,22 @@ on an Intel Mac (docs/metal.md).
 ## Making one
 
 ```
-git tag v0.1.0 <commit on main>
-git push origin v0.1.0
+git tag v0.2.0 <commit on main>
+git push origin v0.2.0
 ```
 
-The version is the `turbo` crate's (`core/Cargo.toml`). A tag on a
+The version is the `turbo` crate's (`core/Cargo.toml`). The tagged
+commit sets it, and `turbo-kserve`'s (`server/Cargo.toml`), to the
+tag's version, so `turbo_version()` and the server report the version
+the tag names. A tag on a
 commit whose records are not on `main` publishes a library that carries
 fewer records than it could; tag after the records land.
 
 Tag only after `CHANGELOG.md`'s top heading is the version being tagged
 and holds every change since the last tag.
+Once the tag is pushed, the next pull request that changes a promised
+surface adds a new top heading to `CHANGELOG.md`, `## v<next> (not yet
+tagged)`, above the tagged one, and the tagged heading gets its date.
 
 ## Versions and compatibility
 
@@ -328,6 +344,14 @@ signature; reusing a task, status or enumeration number; changing what
 an existing value or call means. A program must treat a status code it
 does not know as a failure (`turbo_status_name` names it
 `TURBO_E_UNKNOWN`) and must not assume a list of devices or backends.
+
+A field that stops meaning anything is retired, not removed: it keeps
+its name, type and offset, the header marks it retired, and a non-empty
+or non-zero value fails with `TURBO_E_INVALID_ARGUMENT` naming the field
+in `turbo_error.field`. A program that left the field empty runs as
+before. The model path fields of `turbo_analyzer_desc` are retired this
+way: learned components load from its `bundle_path`, and the struct's
+earlier `struct_size` (104) stays accepted and names no bundle.
 
 ### The gRPC services and the server's configuration
 

@@ -3,10 +3,10 @@
 //! merge of several finders' names, and CRF annotators decoding
 //! caller-provided numerical scores with explicit provenance.
 //!
-//! Each finder reads a text view and its `opennlp:tokens` and writes
-//! `opennlp:entities`: token ranges, UTF-8 byte spans of the view, entity
+//! Each finder reads a text view and its `turbo:tokens` and writes
+//! `turbo:entities`: token ranges, UTF-8 byte spans of the view, entity
 //! types and scores. [`MergeEntities`] reads several named instances of
-//! `opennlp:entities` and writes one without overlaps. On the token level
+//! `turbo:entities` and writes one without overlaps. On the token level
 //! the finders are [`TokenNameFinder`]s, which take a sentence's tokens as
 //! strings.
 //!
@@ -27,6 +27,12 @@
 //!   scores through the typed entity schema of `turbo-sequence`.
 //! - [`calibrated`][]: [`CalibratedCrfNameAnnotator`](calibrated::CalibratedCrfNameAnnotator)
 //!   and its calibration identity, span marginals with an abstaining policy.
+//! - [`rules`]: deterministic projection of [`Temporals`](turbo_analysis_layers::Temporals),
+//!   [`Times`](turbo_analysis_layers::Times), [`Money`](turbo_analysis_layers::Money),
+//!   and percentage [`Quantities`](turbo_analysis_layers::Quantities) into
+//!   [`Entities`](turbo_analysis_layers::Entities) (`"date"`, `"time"`,
+//!   `"money"`, `"percent"`), preserving source provenance for
+//!   [`ConsensusEntityMerger`].
 //!
 //! # Regular expressions
 //!
@@ -86,6 +92,7 @@ pub mod error;
 pub mod merge;
 pub mod name;
 pub mod regex_finder;
+pub mod rules;
 
 pub use builtin::BuiltIn;
 pub use consensus::{Consensus, ConsensusEntityMerger, EntityMergePolicy, Vote, consensus};
@@ -94,4 +101,9 @@ pub use error::Error;
 pub use merge::{FilterEntities, MergeEntities, drop_overlapping, merge};
 pub use name::{Name, TokenNameFinder};
 pub use regex_finder::{Pattern, RegexNameFinder, Test, Tok, TokensPattern};
+pub use rules::{
+    DATE_ENTITY, DateTimeEntityKind, MONEY_ENTITY, PERCENT_ENTITY, RULE_ENTITY_KINDS, RuleEntitiesAnnotator,
+    RuleEntityProjector, RuleEntitySource, TIME_ENTITY, TimeEntityFilter, money_to_entities, quantities_to_entities,
+    rule_entities, span_token_range, temporals_to_entities, times_to_entities, times_to_entities_with,
+};
 pub use turbo_analysis::FilterRule;

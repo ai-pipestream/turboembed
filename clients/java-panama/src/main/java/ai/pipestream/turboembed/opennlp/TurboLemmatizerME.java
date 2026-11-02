@@ -9,17 +9,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * OpenNLP-style lemmatizer backed only by a configured dictionary or statistical model.
- * A miss returns {@code null}; there is deliberately no no-model constructor or fallback form.
+ * OpenNLP-style lemmatizer backed only by the lemmatizer head of a bundle.
+ * A miss returns {@code null}; there is deliberately no no-bundle constructor or fallback form.
  */
 public final class TurboLemmatizerME extends TurboAdapterSupport implements Lemmatizer, AutoCloseable {
 
-    /** Creates a lemmatizer using an OpenNLP lemmatizer {@code .bin} model or dictionary file. */
-    public TurboLemmatizerME(Path modelPath) {
-        this(
-                TurboAnalyzer.create(new TurboAnalyzer.Config(
-                        "en", null, null, null, Objects.requireNonNull(modelPath, "modelPath"), null)),
-                true);
+    /** Creates a lemmatizer over the lemmatizer head of the bundle directory at {@code bundlePath}. */
+    public TurboLemmatizerME(Path bundlePath) {
+        this(TurboAnalyzer.create(TurboAnalyzer.Config.forBundle(bundlePath)), true);
     }
 
     /** Creates a lemmatizer sharing an analyzer without owning its lifecycle. */

@@ -1,7 +1,7 @@
-// Models: the model catalog with licence acceptance (licences.ts) and a
-// streaming InstallModel monitor, and static model distillation with a streaming
-// TrainStaticModel monitor, the teachers it can use and the static
-// models it made.
+// Models: the model catalog with licence acceptance (licences.ts), the
+// user's model sources (sources.ts), a streaming InstallModel monitor,
+// and static model distillation with a streaming TrainStaticModel
+// monitor, the teachers it can use and the static models it made.
 
 import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
@@ -9,6 +9,7 @@ import { catalog, describe, training } from "../rpc.js";
 import { refresh } from "../state.js";
 import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
 import { download, nonCommercial } from "./download.js";
+import * as sources from "./sources.js";
 
 let installing: AbortController | null = null;
 let saving: AbortController | null = null;
@@ -244,4 +245,5 @@ export function init(): void {
   $("train-stop").addEventListener("click", stopTraining);
   $("train-refresh").addEventListener("click", () => void loadTraining());
   void loadTraining();
+  sources.init();
 }

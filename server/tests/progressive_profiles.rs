@@ -17,7 +17,7 @@ use turbo_analysis::export::{DocumentGraph, import};
 use turbo_analysis::{CodePointOffset, Ix, Key, Layer, Utf16Offset, View, ViewId};
 use turbo_analysis_layers::{Chunks, Entities, Levels, Sentences, SparseTerms, Structure, Subwords, Tokens, Vectors};
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
-use turbo_kserve::progressive::{DEFAULT_V1, MINIMAL_V1, RETRIEVAL_V1};
+use turbo_kserve::progressive::{ANNOTATE_V1, DEFAULT_V1, MINIMAL_V1, RETRIEVAL_V1};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_progressive_event::Event;
 use turbo_kserve::proto::result::*;
@@ -113,9 +113,9 @@ async fn serve_models(models: Vec<ModelConfig>) -> (Server, AnalysisServiceClien
 async fn capabilities_lists_versioned_profiles_with_steps_layers_and_bundles() {
     let (server, mut client) = serve().await;
     let caps = client.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
-    assert_eq!(caps.profiles.len(), 3);
+    assert_eq!(caps.profiles.len(), 4);
 
-    for (proto, spec) in caps.profiles.iter().zip([DEFAULT_V1, RETRIEVAL_V1, MINIMAL_V1]) {
+    for (proto, spec) in caps.profiles.iter().zip([DEFAULT_V1, RETRIEVAL_V1, MINIMAL_V1, ANNOTATE_V1]) {
         assert_eq!(proto.name, spec.name);
         assert_eq!(proto.version, spec.version);
         assert_eq!(proto.steps, spec.steps);
@@ -151,6 +151,7 @@ async fn each_named_profile_runs_from_single_request_and_produces_exact_listed_l
             steps: Vec::new(),
             model: String::new(),
             initial_graph: Vec::new(),
+            structure_seed: None,
         };
         let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
         let mut events = Vec::new();
@@ -212,6 +213,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             steps: Vec::new(),
             model: String::new(),
             initial_graph: Vec::new(),
+            structure_seed: None,
         })
         .await
         .unwrap_err();
@@ -231,6 +233,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             steps: Vec::new(),
             model: String::new(),
             initial_graph: Vec::new(),
+            structure_seed: None,
         })
         .await
         .unwrap_err();
@@ -248,6 +251,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             steps: Vec::new(),
             model: "nonexistent-embed-bundle".into(),
             initial_graph: Vec::new(),
+            structure_seed: None,
         })
         .await
         .unwrap_err();
@@ -301,6 +305,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
         steps,
         model: "splade-embed".into(),
         initial_graph: Vec::new(),
+        structure_seed: None,
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();

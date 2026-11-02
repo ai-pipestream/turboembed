@@ -29,6 +29,7 @@ fn nomic_cli_fetch_and_make_require_consent() {
         let upstream = root.join(format!("upstream-{action}"));
         let bundle = root.join(format!("bundle-{action}"));
         let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-bundle"));
+        command.env("TURBO_ZOO_HOME", root.join("empty-zoo-home")).env("USER", "alice");
         command.arg(action).arg(&path).arg(&upstream);
         if action == "make" {
             command.arg(&bundle);

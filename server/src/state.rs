@@ -55,6 +55,8 @@ pub(crate) struct Loaded {
     pub(crate) task: u32,
     pub(crate) device: u32,
     pub(crate) revision: String,
+    /// The head steps the bundle provides (`progressive::heads::available`).
+    pub(crate) head_steps: Vec<String>,
     pub(crate) idle: Mutex<Vec<usize>>,
     pub(crate) metrics: Arc<Metrics>,
 }
@@ -398,6 +400,7 @@ impl State {
             task: info.task,
             device,
             revision: api::field(&info.revision),
+            head_steps: crate::progressive::heads::available(&c.bundle),
             idle,
             metrics: Arc::clone(&self.metrics),
         };

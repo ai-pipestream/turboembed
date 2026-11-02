@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/ar	224	124	421843fa20516ed200f358d541cb8ecd397177813c10f6207e75b9f1632bc013
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	24	start:u32	end:u32
+layer	turbo:tokens	text	24	start:u32	end:u32
 0	10
 11	17
 18	28
@@ -31,8 +31,8 @@ layer	opennlp:tokens	text	24	start:u32	end:u32
 195	203
 204	212
 213	223
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	24	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	24	unknown:u32	features:str
 1	補助記号,一般,*,*,*,*
 1	補助記号,一般,*,*,*,*
 1	補助記号,一般,*,*,*,*

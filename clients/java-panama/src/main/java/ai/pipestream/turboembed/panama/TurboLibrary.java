@@ -48,6 +48,10 @@ public final class TurboLibrary {
     public static final int TURBO_ANALYSIS_LAYER_ENTITIES = 5;
     /** Native {@code TURBO_ANALYSIS_LAYER_PII}. */
     public static final int TURBO_ANALYSIS_LAYER_PII = 6;
+    /** Native {@code TURBO_ANALYSIS_LAYER_DEPENDENCIES}. */
+    public static final int TURBO_ANALYSIS_LAYER_DEPENDENCIES = 7;
+    /** Native {@code TURBO_ANALYSIS_LAYER_MORPHOLOGY}. */
+    public static final int TURBO_ANALYSIS_LAYER_MORPHOLOGY = 8;
 
     /** Native span flag: a view range is present. */
     public static final int TURBO_SPAN_VIEW_RANGE = 1;
@@ -96,7 +100,11 @@ public final class TurboLibrary {
             ValueLayout.JAVA_INT.withName("field"),
             MemoryLayout.sequenceLayout(TURBO_ERROR_MESSAGE_LEN, ValueLayout.JAVA_BYTE).withName("message"));
 
-    /** Layout of {@code struct turbo_analyzer_desc} (104 bytes). */
+    /**
+     * Layout of {@code struct turbo_analyzer_desc} (120 bytes). The five model path fields are
+     * retired: they keep their place, and the native library refuses a non-empty value with
+     * {@link #TURBO_E_INVALID_ARGUMENT}. Learned components come from {@code bundle_path}.
+     */
     public static final StructLayout TURBO_ANALYZER_DESC_LAYOUT = MemoryLayout.structLayout(
             ValueLayout.JAVA_INT.withName("struct_size"),
             ValueLayout.JAVA_INT.withName("flags"),
@@ -105,7 +113,14 @@ public final class TurboLibrary {
             TURBO_TEXT_LAYOUT.withName("tok_model_path"),
             TURBO_TEXT_LAYOUT.withName("pos_model_path"),
             TURBO_TEXT_LAYOUT.withName("lemma_model_path"),
-            TURBO_TEXT_LAYOUT.withName("ner_model_path"));
+            TURBO_TEXT_LAYOUT.withName("ner_model_path"),
+            TURBO_TEXT_LAYOUT.withName("bundle_path"));
+
+    /**
+     * The {@code struct_size} of a {@code turbo_analyzer_desc} from before {@code bundle_path}
+     * (104 bytes). The native library still accepts it; such a descriptor names no bundle.
+     */
+    public static final int TURBO_ANALYZER_DESC_SIZE_V1 = 104;
 
     /** Layout of {@code struct turbo_span} (120 bytes, alignment 8). */
     public static final StructLayout TURBO_SPAN_LAYOUT = MemoryLayout.structLayout(
@@ -229,6 +244,10 @@ public final class TurboLibrary {
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analyzer_pos_tag(turbo_analyzer *, const turbo_text *, uint32_t, turbo_analysis_result **, turbo_error *)} */
     public static final MethodHandle TURBO_ANALYZER_POS_TAG = downcall("turbo_analyzer_pos_tag",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_analyzer_morphology(turbo_analyzer *, const turbo_text *, uint32_t, turbo_analysis_result **, turbo_error *)} */
+    public static final MethodHandle TURBO_ANALYZER_MORPHOLOGY = downcall("turbo_analyzer_morphology",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                     ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analyzer_lemmatize(turbo_analyzer *, const turbo_text *, const turbo_text *, uint32_t, turbo_analysis_result **, turbo_error *)} */

@@ -42,7 +42,7 @@ const fn stream(m: Method) -> Method {
 }
 
 /// Every method the demo knows.
-pub const METHODS: [Method; 61] = [
+pub const METHODS: [Method; 66] = [
     read("/inference.GRPCInferenceService/ServerLive"),
     read("/inference.GRPCInferenceService/ServerReady"),
     read("/inference.GRPCInferenceService/ModelReady"),
@@ -91,6 +91,11 @@ pub const METHODS: [Method; 61] = [
     stream(read("/turbo.training.v1.TurboCatalogService/ReadModelFile")),
     write("/turbo.training.v1.TurboCatalogService/RevokeLicenceAcceptance"),
     read("/turbo.training.v1.TurboCatalogService/ListLicenceAcceptances"),
+    read("/turbo.training.v1.TurboCatalogService/ListModelSources"),
+    write("/turbo.training.v1.TurboCatalogService/RegisterModelSource"),
+    write("/turbo.training.v1.TurboCatalogService/RemoveModelSource"),
+    write("/turbo.training.v1.TurboCatalogService/StartDriveSignIn"),
+    write("/turbo.training.v1.TurboCatalogService/FinishDriveSignIn"),
     read("/turbo.training.v1.TurboTrainingService/ListTeachers"),
     stream(write("/turbo.training.v1.TurboTrainingService/TrainStaticModel")),
     read("/turbo.training.v1.TurboTrainingService/ListStaticModels"),

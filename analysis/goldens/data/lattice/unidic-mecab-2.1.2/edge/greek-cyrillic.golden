@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	31	start:u32	end:u32
+layer	turbo:tokens	text	31	start:u32	end:u32
 0	16
 17	27
 27	28
@@ -38,8 +38,8 @@ layer	opennlp:tokens	text	31	start:u32	end:u32
 179	180
 181	189
 189	190
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	31	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	31	unknown:u32	features:str
 1	名詞,普通名詞,一般,*,*,*
 1	名詞,普通名詞,一般,*,*,*
 0	補助記号,句点,*,*,*,*,,！,!,,!,,記号,*,*,*,*

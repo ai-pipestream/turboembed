@@ -934,13 +934,12 @@ is read.
   of 2026-10-10 ("Full run" below), so `tatoeba` refuses any other
   export unless given `--unrecorded-export`, and then writes a card with
   `recorded: false`, which is not a release of the model.
-- Languages. `langdetect::LANGUAGES` is the explicit table of the 100
+- Languages. `langdetect::LANGUAGES` is the explicit table of the 107
   Tatoeba languages the recipe reads and their ISO 639-3 gold aliases.
   Seven pairs map a macrolanguage to an individual language where the
   evaluation convention differs. The Tatoeba codes are those of Tatoeba's
   language list. A code the export does not use leaves its language with
-  no sentences, listed in the card's `excluded_languages`; in the
-  recorded export every one of the 100 codes has sentences. The card also
+  no sentences, listed in the card's `excluded_languages`. The card also
   counts the export's sentences of languages outside the table
   (`other_languages`). The native model's outcomes are Tatoeba's codes.
 - Split (`langdetect::SPLIT`). Per language, after the licence check, a
@@ -1157,7 +1156,7 @@ run:
 
 | Model | Evaluation | Data | Measure |
 |---|---|---|---|
-| Native character n-gram language model (`langid`) | Gold Tatoeba and FineWeb language labels | the language detector recipe's Tatoeba sentences, and web text of the same 100 languages from FineWeb-2 and FineWeb (ODC-By 1.0): at most 1,000 windows of at most 300 characters per language | accuracy, one unit per held-out sentence and one per held-out window |
+| Native character n-gram language model (`langid`) | Gold Tatoeba and FineWeb language labels | the language detector recipe's Tatoeba sentences, and web text of the same 107 languages from FineWeb-2 and FineWeb (ODC-By 1.0): at most 1,000 windows of at most 300 characters per language | accuracy, one unit per held-out sentence and one per held-out window |
 
 ```
 cargo run --release -p turbo-train-recipes -- fineweb-ranges --paths
@@ -1197,7 +1196,7 @@ less tidy, and with it those 29 languages.
   labels each document with GlotLID and FineWeb with fastText's
   language identifier. The recipe trains on those labels, and the native
   evaluation scores exact accuracy against them.
-- Languages (`fineweb::WEB_LANGUAGES`): the 100 languages of
+- Languages (`fineweb::WEB_LANGUAGES`): the 107 languages of
   `langdetect::LANGUAGES`, in its order, each with the FineWeb-2
   configuration of the language in the script Tatoeba writes it in.
   Most configurations share Tatoeba's code. Where they do not, the
@@ -1216,7 +1215,7 @@ less tidy, and with it those 29 languages.
   `train` split (`data/<configuration>/train/000_00000.parquet`) and its
   held-out ones from the first file of its `test` split; FineWeb has no
   test split, so English's come from `sample/10BT/000_00000.parquet` and
-  `sample/10BT/001_00000.parquet`. That is 204 files
+  `sample/10BT/001_00000.parquet`. That is 218 files
   (`fineweb-ranges --paths` lists them with their revisions).
 - Reading by range. FineWeb-2's files are large (German's first training
   file is about 4.8 GB, with a footer of about 13 MB) and the recipe
@@ -1233,7 +1232,7 @@ less tidy, and with it those 29 languages.
   binary). The first lists each file's repository, revision, path, size
   and SHA-256, as the hub's API gives them at the revision; the second
   lists each range's file, start, end and SHA-256. A run checks the
-  files listed are exactly the 204 the recipe reads, that the ranges
+  files listed are exactly the 218 the recipe reads, that the ranges
   listed are exactly the ones those files give, and every range it reads
   against its SHA-256; a changed byte, a missing range or one not listed
   is refused. The binary checks ranges, not files (only for 16 small
@@ -1271,7 +1270,7 @@ less tidy, and with it those 29 languages.
   iterations, cutoff 5, one thread, the `OnePass` indexer) and the same
   fixed `Timestamp`, so a run gives the same bytes. A language left out
   of the Tatoeba split is trained on its windows alone, so the model
-  chooses among all 100 languages.
+  chooses among all 107 languages.
 - Evaluation: exact native accuracy on the language detector recipe's
   held-out sentences and on the held-out windows. The receipt reports
   correct counts and throughput for both sets, with no reference model.
@@ -1907,7 +1906,7 @@ language code. No reference model is read.
 
 `tests/fineweb.rs` runs the web recipe's reading on Parquet files a
 writer in the test makes (`text`, `id` and `url` columns, row groups of
-four rows), one for each of the 204 files, served from memory: the
+four rows), one for each of the 218 files, served from memory: the
 ranges fetched round by round as the workflow fetches them (the last 8
 bytes, the footer's first bytes, the head), kept under their file's
 revision, recorded, listed and checked against what the files give;
@@ -1925,7 +1924,7 @@ listed, a file the recipe does not read and a footer prefix too short
 for the rows wanted are refused. Native training is checked separately
 by `langid` tests. The retired `langdetect_web::run` and `score` return
 explicit errors, with tests for those paths. The binary checks
-`fineweb-ranges --paths`, which lists the 204 files,
+`fineweb-ranges --paths`, which lists the 218 files,
 `--need` with nothing fetched asks for each file's last 8 bytes,
 `--record` refuses ranges not fetched, a flag a command does not read
 is refused, and `tatoeba-fineweb` without its two models or its web

@@ -17,7 +17,7 @@ use turbo_analysis_layers::{Entities, Sentences};
 use super::{Mention, RelationError, RelationLabel, RelationScorer, ZeroShotRelationConfig, check};
 use crate::layer::Relations;
 
-/// Writes `opennlp:relations` and `Edges<Entities, Entities>` for the
+/// Writes `turbo:relations` and `Edges<Entities, Entities>` for the
 /// caller's relation labels, scored by `S`.
 pub struct ZeroShotRelationAnnotator<S: RelationScorer> {
     config: ZeroShotRelationConfig,

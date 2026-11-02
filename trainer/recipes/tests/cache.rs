@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use turbo::manifest::WordPooling;
+use turbo::manifest::{LayerMix, WordPooling};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::WordEncoder;
 use turbo_trainer_recipes::cache::{CacheRecord, SCHEMA, layer_file, read_layer};
@@ -169,6 +169,7 @@ fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
 
     let mix = fit("fit-mix", &["--mix"]);
     assert_eq!(mix.layers, [1, 2]);
+    assert_eq!(mix.head.layer_mix, Some(LayerMix { layers: 2 }));
     let m = mix.mix.as_ref().unwrap();
     assert_eq!(m.weights.len(), 2);
     assert!((m.weights.iter().sum::<f64>() - 1.0).abs() < 1e-6 && m.gain.is_finite(), "{m:?}");

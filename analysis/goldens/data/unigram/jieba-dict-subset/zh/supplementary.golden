@@ -6,7 +6,7 @@ unicode	15.0
 input	zh/supplementary	123	49	b60b4d4fd78a1f917d6e640df576eee5c01be3729cd14621ea970a27ea336e64
 model	jieba-dict-subset.txt	365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	31	start:u32	end:u32
+layer	turbo:tokens	text	31	start:u32	end:u32
 0	4
 4	7
 7	10
@@ -38,4 +38,4 @@ layer	opennlp:tokens	text	31	start:u32	end:u32
 110	114
 114	118
 118	122
-end	opennlp:tokens
+end	turbo:tokens

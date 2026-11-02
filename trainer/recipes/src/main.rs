@@ -18,11 +18,19 @@
 //!     [--min-tree-freq N])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
-//!     --out <dir> [--column xpos|upos|bio] [--map FROM=TO,...] [--commit <sha>]
+//!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--arc N] [--rel N])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N])
+//! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
+//!     [--mlp N] [--type-dim N])
+//! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735)
+//! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
+//!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N])
+//! turbo-train-head distill-head --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
+//!     [--student-bundle <student bundle>] [--teacher <teacher dir>] [--temperature T] [--alpha A]
+//!     [--max-accuracy-drop X] [--min-speedup X] [--allow-gate-failure] [head and training settings]
 //! ```
 //!
 //! `cache` writes every split's word features at the encoder's last N
@@ -53,6 +61,9 @@ use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod peer_cmd;
+mod train_coref;
+mod train_open_span;
+mod train_relation;
 mod train_split;
 mod train_ud;
 
@@ -71,10 +82,20 @@ fn main() -> ExitCode {
 fn run(argv: Vec<String>) -> Result<()> {
     let command = argv.get(1).cloned().unwrap_or_default();
     let mut a = Args { rest: argv[2.min(argv.len())..].to_vec() };
+    if command == "assemble" {
+        return assemble_cmd(a);
+    }
     let corpus_id = a.required("--corpus")?;
     let dir = PathBuf::from(a.required("--dir")?);
     let unrecorded = a.flag("--unrecorded-corpus");
     match command.as_str() {
+        "check" if corpus_id == turbo_trainer_recipes::redocred::ID => {
+            a.done()?;
+            let c = train_relation::read(&corpus_id, &dir, unrecorded)?;
+            println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
+            println!("labels: {}", c.labels().len());
+            Ok(())
+        }
         "check" => {
             a.done()?;
             let c = read_corpus(&corpus_id, &dir, unrecorded)?;
@@ -87,35 +108,58 @@ fn run(argv: Vec<String>) -> Result<()> {
             let commit = commit(a.value("--commit")?);
             a.done()?;
             let t = Instant::now();
-            let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-            let read = t.elapsed().as_secs_f64();
+            let (record, eval, read) = if corpus_id == turbo_trainer_recipes::litbank::ID {
+                let coref = turbo_trainer_recipes::litbank::read_coref(&dir, unrecorded)?;
+                let read = t.elapsed().as_secs_f64();
+                let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
+                let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
+                (
+                    coref.record,
+                    EvalRecord {
+                        split: "test".into(),
+                        model: None,
+                        baseline,
+                        dictionary: None,
+                        open_span: None,
+                        comparison: None,
+                        uas: None,
+                    },
+                    read,
+                )
+            } else {
+                let c = read_corpus(&corpus_id, &dir, unrecorded)?;
+                let read = t.elapsed().as_secs_f64();
+                let base = baseline(&c.splits.train, &c.splits.test);
+                let baseline =
+                    evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
+                (
+                    c.record,
+                    EvalRecord {
+                        split: "test".into(),
+                        model: None,
+                        baseline,
+                        dictionary: None,
+                        open_span: None,
+                        comparison: None,
+                        uas: None,
+                    },
+                    read,
+                )
+            };
             let t = Instant::now();
-            let base = baseline(&c.splits.train, &c.splits.test);
             let receipt = Receipt {
                 schema: SCHEMA.into(),
                 command: argv.clone(),
                 commit,
                 host: host(),
                 unix_time: unix_time(),
-                corpus: c.record.clone(),
+                corpus: record,
                 encoder: None,
                 head: None,
                 peer: None,
                 config: None,
                 training: None,
-                eval: EvalRecord {
-                    split: "test".into(),
-                    model: None,
-                    baseline: evaluate(
-                        c.record.task,
-                        &c.splits.test,
-                        &base,
-                        &Seen::of(&c.splits.train),
-                        coarse(&corpus_id),
-                    ),
-                    comparison: None,
-                    uas: None,
-                },
+                eval,
                 timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
                 outputs: Vec::new(),
             };
@@ -124,6 +168,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "distill-head" => turbo_trainer_recipes::distill::command(&argv, &corpus_id, &dir, unrecorded, a),
         "predict-ner" => turbo_trainer_recipes::ner_cmd::predict(&corpus_id, &dir, unrecorded, a),
         "compare-ner" => turbo_trainer_recipes::ner_cmd::compare(&corpus_id, &dir, unrecorded, a),
         "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
@@ -133,10 +178,78 @@ fn run(argv: Vec<String>) -> Result<()> {
             train_ud::train(&argv, head, &corpus_id, &dir, unrecorded, a)
         }
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, cache, fit-cache, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, distill-head, assemble, cache, fit-cache, export, peer, predict-ner or compare-ner"
         ))),
     }
+}
+
+fn assemble_cmd(mut a: Args) -> Result<()> {
+    let bundle = PathBuf::from(a.required("--bundle")?);
+    let runs: Vec<PathBuf> = a.values("--run")?.into_iter().map(PathBuf::from).collect();
+    if runs.is_empty() {
+        return Err(Error("--run is required at least once".into()));
+    }
+    let out_arg = a.required("--out")?;
+    let zoo_id = a.value("--zoo-id")?;
+    let component = match a.value("--component")? {
+        Some(c) => Some(c.parse().map_err(Error)?),
+        None => None,
+    };
+    let language = a.value("--language")?;
+    let version = a.value("--version")?.unwrap_or_else(|| "1".into());
+    let license_terms = a.value("--license-terms")?;
+    let url_prefix = a.value("--url-prefix")?;
+    let origin = a.value("--origin")?;
+    let zoo_out = a.value("--zoo-out")?.map(PathBuf::from);
+    a.done()?;
+    let zoo_req = match zoo_id {
+        Some(id) => {
+            let terms =
+                license_terms.ok_or_else(|| Error("--license-terms is required when --zoo-id is given".into()))?;
+            let prefix = url_prefix.ok_or_else(|| Error("--url-prefix is required when --zoo-id is given".into()))?;
+            Some((id, terms, prefix))
+        }
+        None => None,
+    };
+    let mut out = OutDir::claim(&out_arg)?;
+
+    let run_refs: Vec<&Path> = runs.iter().map(PathBuf::as_path).collect();
+    let assembled = turbo_trainer_recipes::assemble::assemble_bundle(&bundle, &run_refs, &out.path)?;
+    out.keep = true;
+    println!(
+        "{}: assembled {} head(s), tier {:?}, manifest {}",
+        out.path.display(),
+        assembled.runs.len(),
+        assembled.license_tier,
+        assembled.manifest_sha256
+    );
+    if let Some((id, license_terms, url_prefix)) = zoo_req {
+        let kind = if assembled.runs.len() == 1 { turbo_zoo::Kind::Head } else { turbo_zoo::Kind::Model };
+        let entry = turbo_trainer_recipes::assemble_zoo::zoo_artifact(
+            &assembled,
+            &turbo_trainer_recipes::assemble_zoo::ZooEntryOptions {
+                id,
+                kind,
+                component,
+                language,
+                version,
+                license_terms,
+                url_prefix,
+                origin,
+            },
+        )?;
+        let json = serde_json::to_string_pretty(&entry).expect("artifact serializes");
+        if let Some(p) = zoo_out {
+            std::fs::write(&p, format!("{json}\n")).map_err(|e| Error(format!("{}: {e}", p.display())))?;
+        } else {
+            println!("{json}");
+        }
+    }
+    Ok(())
 }
 
 /// Writes the word features of every split at the encoder's last
@@ -279,6 +392,8 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         split: "test".into(),
         model: Some(evaluate(task, test, &predicted, &seen, coarse(corpus_id))),
         baseline: evaluate(task, test, &base, &seen, coarse(corpus_id)),
+        dictionary: None,
+        open_span: None,
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
     };

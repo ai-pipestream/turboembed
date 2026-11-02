@@ -9,17 +9,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * OpenNLP-style POS tagger backed only by a configured statistical model.
- * There is deliberately no no-model constructor or lexical fallback.
+ * OpenNLP-style POS tagger backed only by the part-of-speech head of a bundle.
+ * There is deliberately no no-bundle constructor or lexical fallback.
  */
 public final class TurboPOSTaggerME extends TurboAdapterSupport implements POSTagger, AutoCloseable {
 
-    /** Creates a POS tagger using an OpenNLP {@code POSModel} {@code .bin} file. */
-    public TurboPOSTaggerME(Path modelPath) {
-        this(
-                TurboAnalyzer.create(new TurboAnalyzer.Config(
-                        "en", null, null, Objects.requireNonNull(modelPath, "modelPath"), null, null)),
-                true);
+    /** Creates a POS tagger over the part-of-speech head of the bundle directory at {@code bundlePath}. */
+    public TurboPOSTaggerME(Path bundlePath) {
+        this(TurboAnalyzer.create(TurboAnalyzer.Config.forBundle(bundlePath)), true);
     }
 
     /** Creates a POS tagger sharing an analyzer without owning its lifecycle. */

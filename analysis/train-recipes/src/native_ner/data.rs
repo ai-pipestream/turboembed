@@ -153,6 +153,7 @@ pub fn sentences(doc: &MascDocument) -> Result<Vec<Sentence>> {
     if !doc.has_named_entities() {
         return Ok(Vec::new());
     }
+    doc.require_complete_entities().map_err(invalid)?;
     if !doc.unplaced_entities().is_empty() {
         return Err(invalid("document has unplaced entities"));
     }

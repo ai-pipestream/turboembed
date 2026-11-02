@@ -101,12 +101,6 @@ fn the_rotary_bundles_match_upstream() {
         eprintln!("skipped: the {backend} backend runs no rotary family");
         return;
     }
-    // Level Zero runs the rotary families in F32 alone and refuses FASTEST
-    // (core/tests/levelzero_rotary.rs holds it to that).
-    if backend == "levelzero" && precision() == TURBO_PRECISION_FASTEST {
-        eprintln!("skipped: the levelzero backend refuses FASTEST on the rotary families");
-        return;
-    }
     for name in ["tiny-modernbert-bundle", "tiny-nomic-bundle"] {
         conformance::check(&testdata().join(name), device, precision());
     }

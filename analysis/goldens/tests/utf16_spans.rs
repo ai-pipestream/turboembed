@@ -4,7 +4,7 @@
 //! `tests/fixtures/smile.golden`, for the input `Smile 😀`
 //! (`tests/fixtures/inputs/test/smile.txt`, 10 UTF-8 bytes, 8 UTF-16
 //! units), holds what the generator writes for that: both token rows
-//! widened to the character's bytes 6..10, and `turbo:utf16<opennlp:tokens>`
+//! widened to the character's bytes 6..10, and `turbo:utf16<turbo:tokens>`
 //! with the JVM's UTF-16 spans 6..7 and 7..8, each marked as a cut.
 
 use std::path::PathBuf;
@@ -67,12 +67,12 @@ fn jvm_units() -> Utf16Spans<Tokens> {
 fn the_utf16_layer_reads_back_with_the_cut_rows() {
     let g = golden();
     assert_eq!(g.input_text(fixtures()).unwrap(), TEXT);
-    let t = g.layer("opennlp:tokens").unwrap();
+    let t = g.layer("turbo:tokens").unwrap();
     // Two rows over the same bytes: the halves of one character, widened.
     assert_eq!(t.u32s("start").unwrap(), [0, 6, 6]);
     assert_eq!(t.u32s("end").unwrap(), [5, 10, 10]);
-    let u = g.layer("turbo:utf16<opennlp:tokens>").unwrap();
-    assert_eq!(u.anchor, GoldenAnchor::Aligned("opennlp:tokens".into()));
+    let u = g.layer("turbo:utf16<turbo:tokens>").unwrap();
+    assert_eq!(u.anchor, GoldenAnchor::Aligned("turbo:tokens".into()));
     assert_eq!(u.column_names(), ["start16:u32", "end16:u32", "cut:u32"]);
     assert_eq!(u.u32s("start16").unwrap(), [0, 6, 7]);
     assert_eq!(u.u32s("end16").unwrap(), [5, 7, 8]);
@@ -95,12 +95,12 @@ fn the_shapes_come_from_the_layer_type() {
         ColumnSpec::new("cut", ColumnType::U32),
     ];
     let t = shape_of::<Utf16Spans<Tokens>>();
-    assert_eq!(t.id, "turbo:utf16<opennlp:tokens>");
-    assert_eq!(t.anchor, GoldenAnchor::Aligned("opennlp:tokens".into()));
+    assert_eq!(t.id, "turbo:utf16<turbo:tokens>");
+    assert_eq!(t.anchor, GoldenAnchor::Aligned("turbo:tokens".into()));
     assert_eq!(t.columns, columns);
     let s = shape_of::<Utf16Spans<Sentences>>();
-    assert_eq!(s.id, "turbo:utf16<opennlp:sentences>");
-    assert_eq!(s.anchor, GoldenAnchor::Aligned("opennlp:sentences".into()));
+    assert_eq!(s.id, "turbo:utf16<turbo:sentences>");
+    assert_eq!(s.anchor, GoldenAnchor::Aligned("turbo:sentences".into()));
     assert_eq!(s.columns, columns);
     let known = known_shapes();
     assert!(known.contains(&t) && known.contains(&s));
@@ -111,11 +111,10 @@ fn the_reader_checks_the_utf16_layer_against_its_shape() {
     let e = parse_with_change("\tcut:u32", "\tcut:str").unwrap_err();
     assert!(matches!(e, GoldenError::Columns { line: 13, .. }), "{e:?}");
     assert!(e.to_string().contains("expected [start16:u32, end16:u32, cut:u32]"), "{e}");
-    let e = parse_with_change("\taligned:opennlp:tokens\t3", "\ttext\t3").unwrap_err();
+    let e = parse_with_change("\taligned:turbo:tokens\t3", "\ttext\t3").unwrap_err();
     assert!(matches!(e, GoldenError::Anchor { line: 13, .. }), "{e:?}");
-    let e =
-        parse_with_change("<opennlp:tokens>\taligned:opennlp:tokens\t3", "<opennlp:tokens>\taligned:opennlp:tokens\t2")
-            .unwrap_err();
+    let e = parse_with_change("<turbo:tokens>\taligned:turbo:tokens\t3", "<turbo:tokens>\taligned:turbo:tokens\t2")
+        .unwrap_err();
     assert!(matches!(e, GoldenError::AlignedRows { line: 13, expected: 3, found: 2, .. }), "{e:?}");
 }
 
@@ -143,10 +142,10 @@ fn one_rust_token_over_the_character_is_a_count_mismatch() {
     let m = matches_golden::<Tokens>(&d, &g, Tolerance::exact()).unwrap_err();
     assert!(matches!(m, Mismatch::Count { rust: 2, golden: 3, .. }), "{m:?}");
     let shown = m.to_string();
-    assert!(shown.contains("opennlp:tokens: 2 items in Rust, 3 in the golden"), "{shown}");
+    assert!(shown.contains("turbo:tokens: 2 items in Rust, 3 in the golden"), "{shown}");
     assert!(shown.contains("golden: bytes 6..10 \"😀\""), "{shown}");
     // The golden keeps the JVM's answer: the two halves, each a cut.
-    let u = g.layer("turbo:utf16<opennlp:tokens>").unwrap();
+    let u = g.layer("turbo:utf16<turbo:tokens>").unwrap();
     assert_eq!(u.u32s("cut").unwrap()[1..], [1, 1]);
     // With no UTF-16 layer on the Rust side, that comparison says so.
     let m = matches_golden::<Utf16Spans<Tokens>>(&d, &g, Tolerance::exact()).unwrap_err();
@@ -161,9 +160,9 @@ fn a_cut_inside_the_text_shows_as_the_next_span() {
     let golden_text = format!(
         "golden 1\ngenerator\tg\t1\nopennlp\t0123456789abcdef0123456789abcdef01234567\tv\njdk\t21\t21+1\tV\n\
          unicode\t15.0\ninput\ttest/x\t6\t4\t{}\nannotator\tC\tm\n\
-         layer\topennlp:tokens\ttext\t4\tstart:u32\tend:u32\n0\t1\n1\t5\n1\t5\n5\t6\nend\topennlp:tokens\n\
-         layer\tturbo:utf16<opennlp:tokens>\taligned:opennlp:tokens\t4\tstart16:u32\tend16:u32\tcut:u32\n\
-         0\t1\t0\n1\t2\t1\n2\t3\t1\n3\t4\t0\nend\tturbo:utf16<opennlp:tokens>\n",
+         layer\tturbo:tokens\ttext\t4\tstart:u32\tend:u32\n0\t1\n1\t5\n1\t5\n5\t6\nend\tturbo:tokens\n\
+         layer\tturbo:utf16<turbo:tokens>\taligned:turbo:tokens\t4\tstart16:u32\tend16:u32\tcut:u32\n\
+         0\t1\t0\n1\t2\t1\n2\t3\t1\n3\t4\t0\nend\tturbo:utf16<turbo:tokens>\n",
         hex::to_hex(&sha256(text.as_bytes()))
     );
     let g = Golden::parse(&golden_text).unwrap();
@@ -193,7 +192,7 @@ fn a_utf16_span_or_cut_that_differs_is_reported_with_its_token() {
     assert!(matches!(m, Mismatch::Item { index: 1, what: "UTF-16 span", .. }), "{m:?}");
     let shown = m.to_string();
     for part in [
-        "turbo:utf16<opennlp:tokens> item 1: the UTF-16 span differs",
+        "turbo:utf16<turbo:tokens> item 1: the UTF-16 span differs",
         "rust:   bytes 6..10 \"😀\", UTF-16 units 6..8, cut",
         "golden: bytes 6..10 \"😀\", UTF-16 units 6..7, cut",
     ] {
@@ -232,10 +231,10 @@ fn sentences_have_a_utf16_layer_too() {
     let text = fixture_text()
         .replace("annotator\topennlp.tools.tokenize.SimpleTokenizer\ttokenizePos\n", "annotator\tC\tm\n")
         .replace(
-            "layer\topennlp:tokens",
-            "layer\topennlp:sentences\ttext\t1\tstart:u32\tend:u32\n0\t10\nend\topennlp:sentences\n\
-             layer\tturbo:utf16<opennlp:sentences>\taligned:opennlp:sentences\t1\tstart16:u32\tend16:u32\tcut:u32\n\
-             0\t7\t1\nend\tturbo:utf16<opennlp:sentences>\nlayer\topennlp:tokens",
+            "layer\tturbo:tokens",
+            "layer\tturbo:sentences\ttext\t1\tstart:u32\tend:u32\n0\t10\nend\tturbo:sentences\n\
+             layer\tturbo:utf16<turbo:sentences>\taligned:turbo:sentences\t1\tstart16:u32\tend16:u32\tcut:u32\n\
+             0\t7\t1\nend\tturbo:utf16<turbo:sentences>\nlayer\tturbo:tokens",
         );
     let g = Golden::parse(&text).unwrap();
     assert_eq!(g.to_text().unwrap(), text);

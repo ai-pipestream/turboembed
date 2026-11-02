@@ -192,7 +192,7 @@ final class NameFindGolden implements AnnotatorGolden {
   }
 
   private static List<Layer> generated(Map<String, String[]> fuzz, Map<String, String[]> dictFuzz) {
-    Table t = new Table("turbo:sentences", "sentence:str", "token:str");
+    Table t = new Table("turbo:sentence-tokens", "sentence:str", "token:str");
     for (Map<String, String[]> set : List.of(fuzz, dictFuzz)) {
       for (Map.Entry<String, String[]> e : set.entrySet()) {
         for (String token : e.getValue()) {

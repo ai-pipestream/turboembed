@@ -45,7 +45,7 @@ fn put_ref(w: &mut Writer, layer: &LayerRef) -> Result<(), ExportError> {
 }
 
 fn get_ref(r: &mut Reader<'_>) -> Result<LayerRef, ExportError> {
-    Ok(LayerRef { layer: r.string()?, instance: r.string()? })
+    r.layer_ref()
 }
 
 /// Reads one index into `target` and requires it inside the restored instance.

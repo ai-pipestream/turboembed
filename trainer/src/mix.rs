@@ -4,7 +4,8 @@
 //! once (`turbo-train-head cache`). The mix starts uniform with gain 1;
 //! neither takes weight decay.
 
-use turbo::manifest::HeadSpec;
+use turbo::head::TokenTagger;
+use turbo::manifest::{HeadSpec, LayerMix};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
@@ -36,7 +37,16 @@ impl<R: Real> MixTagger<R> {
         if layers == 0 {
             return Err(invalid("trainer: a mix of no layers"));
         }
-        let tagger = Tagger::new(spec, hidden, rng)?;
+        if let Some(m) = spec.layer_mix
+            && m.layers as usize != layers
+        {
+            return Err(invalid(format!(
+                "trainer: head {:?} has layer_mix.layers = {}, not {layers}",
+                spec.name, m.layers
+            )));
+        }
+        let plain = HeadSpec { layer_mix: None, ..spec.clone() };
+        let tagger = Tagger::new(&plain, hidden, rng)?;
         let mut params = tagger.params().to_vec();
         params.push(vec![R::ZERO; layers]);
         params.push(vec![R::ONE]);
@@ -121,6 +131,36 @@ impl<R: Real> MixTagger<R> {
         }
         mix[1][0] += R::from_f64(mean);
         Ok(loss)
+    }
+}
+
+impl MixTagger<f32> {
+    /// The head's spec with `layer_mix` set to this mix's layer count.
+    pub fn spec(&self) -> HeadSpec {
+        let layers = self.params[self.head_len()].len() as u32;
+        HeadSpec { layer_mix: Some(LayerMix { layers }), ..self.tagger.spec().clone() }
+    }
+
+    /// Each tensor of the head and its mix by suffix (`tagger::tensors`),
+    /// ready for `TokenTagger::from_tensors` or a safetensors file.
+    pub fn tensors(&self) -> Vec<(String, Vec<f32>)> {
+        let k = self.head_len();
+        let mut out = self.tagger.tensors();
+        out.push(("mix.weight".into(), self.params[k].clone()));
+        out.push(("mix.gamma".into(), self.params[k + 1].clone()));
+        out
+    }
+
+    /// A [`TokenTagger`] carrying `layer_mix` and these weights.
+    ///
+    /// # Errors
+    ///
+    /// A weight that is not finite.
+    pub fn to_token_tagger(&self) -> Result<TokenTagger> {
+        let spec = self.spec();
+        let tensors = self.tensors();
+        let get = |s: &str| tensors.iter().find(|(k, _)| k == s).map(|(_, v)| v.clone());
+        TokenTagger::from_tensors(&spec, self.tagger.hidden(), &get)
     }
 }
 

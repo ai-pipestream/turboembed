@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/spanish	140	122	f9fd56df613aecfdec7800f95eccc7f457cbd15ee602da070166ddeeed8c181d
 annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
-layer	opennlp:tokens	text	23	start:u32	end:u32
+layer	turbo:tokens	text	23	start:u32	end:u32
 0	2
 3	5
 7	14
@@ -29,8 +29,8 @@ layer	opennlp:tokens	text	23	start:u32	end:u32
 110	115
 119	128
 130	138
-end	opennlp:tokens
-layer	turbo:word-types	aligned:opennlp:tokens	23	kind:str
+end	turbo:tokens
+layer	turbo:word-types	aligned:turbo:tokens	23	kind:str
 ALPHANUMERIC
 ALPHANUMERIC
 ALPHANUMERIC

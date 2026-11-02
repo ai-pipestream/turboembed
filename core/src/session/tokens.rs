@@ -19,6 +19,13 @@ pub unsafe extern "C" fn turbo_embed_write_tokens(
             let tb = token_batch(batch)?;
             let o = embed_options(s, opts)?;
             no_text_options(&o)?;
+            if o.layers > 1 {
+                return Err(Error::field(
+                    INVALID_ARGUMENT,
+                    9,
+                    format!("layers {}: per-layer taps apply to range writes, not row writes", o.layers),
+                ));
+            }
             check_tokens(s, &tb, o.max_tokens)?;
             write_rows(s, &mut state, caller_rows(&o, &tb), &o, false)
         })
@@ -37,7 +44,7 @@ pub unsafe extern "C" fn turbo_embed_write_ranges(
     opts: *const turbo_embed_options,
     err: *mut turbo_error,
 ) -> i32 {
-    unsafe { call(err, || write_ranges(s, batch, ranges, count, 1, opts)) }
+    unsafe { call(err, || write_ranges(s, batch, ranges, count, None, opts)) }
 }
 
 /// # Safety
@@ -52,17 +59,17 @@ pub unsafe extern "C" fn turbo_embed_write_layer_ranges(
     opts: *const turbo_embed_options,
     err: *mut turbo_error,
 ) -> i32 {
-    unsafe { call(err, || write_ranges(s, batch, ranges, count, layers, opts)) }
+    unsafe { call(err, || write_ranges(s, batch, ranges, count, Some(layers), opts)) }
 }
 
 /// A range write pooling each range from each of the last `taps` layers
-/// (turbo.h, turbo_embed_write_layer_ranges); 1 for the final alone.
+/// (turbo.h, turbo_embed_write_ranges and turbo_embed_write_layer_ranges).
 unsafe fn write_ranges(
     s: *mut turbo_session,
     batch: *const turbo_token_batch,
     ranges: *const turbo_token_range,
     count: u32,
-    taps: u32,
+    layers: Option<u32>,
     opts: *const turbo_embed_options,
 ) -> Result<()> {
     unsafe {
@@ -70,6 +77,19 @@ unsafe fn write_ranges(
         let mut state = begin_write(s)?;
         let tb = token_batch(batch)?;
         let o = embed_options(s, opts)?;
+        let taps = match layers {
+            Some(l) => {
+                if o.layers > 1 && o.layers != l {
+                    return Err(Error::field(
+                        INVALID_ARGUMENT,
+                        9,
+                        format!("turbo_embed_options.layers {} does not match layers {l}", o.layers),
+                    ));
+                }
+                l
+            }
+            None => o.layers.max(1),
+        };
         if o.pooling_given != TURBO_POOLING_MODEL && o.pooling_given != TURBO_POOLING_MEAN {
             return Err(Error::field(
                 UNSUPPORTED_OPTION,
@@ -130,32 +150,43 @@ unsafe fn write_ranges(
 }
 
 /// turbo.h: 1 to the model's layers, and above 1 only on the cpu
-/// backend's BERT, RoBERTa, ModernBERT and nomic-bert encoders, with no
-/// span head on the device.
+/// backend's BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2
+/// encoders, with no span head on the device.
 fn check_taps(s: &SessionInner, taps: u32) -> Result<()> {
     if taps == 1 {
         return Ok(());
     }
-    let layers = s.model.weights.layers();
-    if taps == 0 || taps > layers {
-        return Err(Error::new(INVALID_ARGUMENT, format!("layers {taps}: the model has 1 to {layers} to read")));
+    if taps == 0 {
+        return Err(Error::field(INVALID_ARGUMENT, 9, "layers 0: a range write needs at least 1 layer"));
     }
-    use crate::backend::{TURBO_FAMILY_BERT, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT, TURBO_FAMILY_ROBERTA};
+    use crate::backend::{
+        TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT,
+        TURBO_FAMILY_ROBERTA,
+    };
     let family = s.model.weights.family();
     let backend = s.backend.name();
     if backend != "cpu"
         || !matches!(
             family,
-            TURBO_FAMILY_BERT | TURBO_FAMILY_ROBERTA | TURBO_FAMILY_MODERNBERT | TURBO_FAMILY_NOMIC_BERT
+            TURBO_FAMILY_BERT
+                | TURBO_FAMILY_ROBERTA
+                | TURBO_FAMILY_MODERNBERT
+                | TURBO_FAMILY_NOMIC_BERT
+                | TURBO_FAMILY_DEBERTA_V2
         )
     {
-        return Err(Error::new(
+        return Err(Error::field(
             UNSUPPORTED_OPTION,
+            9,
             format!("layers {taps}: the {backend} backend reads only the final layer of this model"),
         ));
     }
+    let layers = s.model.weights.layers();
+    if taps > layers {
+        return Err(Error::field(INVALID_ARGUMENT, 9, format!("layers {taps}: the model has 1 to {layers} to read")));
+    }
     if s.model.span_head.is_some() {
-        return Err(Error::new(UNSUPPORTED_OPTION, format!("layers {taps}: the span head reads the final layer")));
+        return Err(Error::field(UNSUPPORTED_OPTION, 9, format!("layers {taps}: the span head reads the final layer")));
     }
     Ok(())
 }

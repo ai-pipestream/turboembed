@@ -25,6 +25,28 @@ pub trait Transport {
     }
 }
 
+/// A boxed or shared transport is one too, so a list can hold sources
+/// opened at run time (#1744).
+impl<T: Transport + ?Sized> Transport for Box<T> {
+    fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
+        (**self).get(url, size)
+    }
+
+    fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
+        (**self).get_file(artifact, file)
+    }
+}
+
+impl<T: Transport + ?Sized> Transport for std::sync::Arc<T> {
+    fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
+        (**self).get(url, size)
+    }
+
+    fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
+        (**self).get_file(artifact, file)
+    }
+}
+
 /// The most the zoo takes for `file`: its size, or for a file served
 /// compressed the larger of that and its wire size, since a transport that
 /// decodes a `Content-Encoding` hands over the file itself.

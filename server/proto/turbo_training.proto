@@ -38,6 +38,110 @@ service TurboCatalogService {
   // The terms a user accepted, in the order accepted, and whether the
   // server serves the admin calls.
   rpc ListLicenceAcceptances(ListLicenceAcceptancesRequest) returns (ListLicenceAcceptancesResponse);
+  // The model sources a user registered (docs/zoo.md, "Holders"), in the
+  // order an install for that user tries them, before the catalog's own.
+  // No secret is ever returned.
+  rpc ListModelSources(ListModelSourcesRequest) returns (ListModelSourcesResponse);
+  // Admin. Registers a source for a user, or replaces theirs of the same
+  // name where it was. In zoo mode without the admin flag only gdrive://
+  // sources are taken.
+  rpc RegisterModelSource(RegisterModelSourceRequest) returns (RegisterModelSourceResponse);
+  // Admin. Removes a user's source by name.
+  rpc RemoveModelSource(RemoveModelSourceRequest) returns (RemoveModelSourceResponse);
+  // Admin. Starts a user's Google sign-in for a gdrive:// source: the
+  // consent page to send the user to, and the state it comes back with.
+  rpc StartDriveSignIn(StartDriveSignInRequest) returns (StartDriveSignInResponse);
+  // Admin. Finishes that sign-in with the code and state the consent page
+  // redirected back with, and registers the source with the grant.
+  rpc FinishDriveSignIn(FinishDriveSignInRequest) returns (FinishDriveSignInResponse);
+}
+
+// How a registered source signs in.
+enum SourceSignIn {
+  SOURCE_SIGN_IN_UNSPECIFIED = 0;
+  // From the server's environment, or not at all.
+  SOURCE_SIGN_IN_ENVIRONMENT = 1;
+  // A Google grant from FinishDriveSignIn.
+  SOURCE_SIGN_IN_GOOGLE = 2;
+  // An API key, for a Drive folder shared by link.
+  SOURCE_SIGN_IN_API_KEY = 3;
+}
+
+// One registered source, without its secrets.
+message ModelSource {
+  string name = 1;
+  // file:///dir, s3://bucket/prefix or gdrive://<folder-id>[/name/...].
+  string address = 2;
+  SourceSignIn sign_in = 3;
+}
+
+message ListModelSourcesRequest {
+  // Empty lists nothing.
+  string user = 1;
+}
+
+message ListModelSourcesResponse {
+  string user = 1;
+  repeated ModelSource sources = 2;
+  // Whether the server serves the calls that change them.
+  bool admin = 3;
+  // Whether the server was configured for Google sign-in.
+  bool drive_sign_in = 4;
+}
+
+message RegisterModelSourceRequest {
+  string user = 1;
+  // 1 to 64 characters, no comma or control character.
+  string name = 2;
+  string address = 3;
+  // For a gdrive:// source shared by link; empty signs in from the
+  // server's environment.
+  string api_key = 4;
+}
+
+message RegisterModelSourceResponse {
+  string user = 1;
+  ModelSource source = 2;
+}
+
+message RemoveModelSourceRequest {
+  string user = 1;
+  string name = 2;
+}
+
+message RemoveModelSourceResponse {
+  string user = 1;
+  // Whether there was a source of that name to remove.
+  bool was_registered = 2;
+}
+
+message StartDriveSignInRequest {
+  string user = 1;
+  // The source to register once signed in, as RegisterModelSourceRequest
+  // names it; the address is a gdrive:// one.
+  string name = 2;
+  string address = 3;
+}
+
+message StartDriveSignInResponse {
+  // Google's consent page, which redirects to the address the server was
+  // configured with.
+  string authorize_url = 1;
+  // What the redirect brings back; FinishDriveSignIn takes it.
+  string state = 2;
+  // Seconds the sign-in may take before it is forgotten.
+  uint32 expires_in = 3;
+}
+
+message FinishDriveSignInRequest {
+  string user = 1;
+  string state = 2;
+  string code = 3;
+}
+
+message FinishDriveSignInResponse {
+  string user = 1;
+  ModelSource source = 2;
 }
 
 // A licence and the address of the text a user accepts for it.

@@ -1,0 +1,342 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-31T11:46:13Z",
+  "provenance": {
+    "commit": "cee65da41953c054a1d142a1da63afe9daeb0c07",
+    "pushed_to": [
+      "origin/codex/astra-1486-long-document-gates"
+    ],
+    "machine": {
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+      "os": "linux"
+    },
+    "device": {
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
+    },
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+      "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+      "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    }
+  },
+  "set": {
+    "name": "contract-nli",
+    "sha256": "4709f5fc3ec80601d0656c009e15eb72ffd06e145cb5cd6576e50a936c41a7cd"
+  },
+  "pipeline": {
+    "analyzer": [
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
+      "turbo:structure plain",
+      "opennlp:subwords"
+    ],
+    "chunker": {
+      "name": "turbo-chunker",
+      "config": [
+        {
+          "name": "max",
+          "value": "254"
+        },
+        {
+          "name": "target",
+          "value": "200"
+        },
+        {
+          "name": "size_weight",
+          "value": "1000"
+        },
+        {
+          "name": "overhead",
+          "value": "2"
+        },
+        {
+          "name": "cost.section",
+          "value": "0"
+        },
+        {
+          "name": "cost.heading",
+          "value": "100"
+        },
+        {
+          "name": "cost.paragraph",
+          "value": "400"
+        },
+        {
+          "name": "cost.item",
+          "value": "600"
+        },
+        {
+          "name": "cost.sentence",
+          "value": "1000"
+        },
+        {
+          "name": "cost.after_heading",
+          "value": "4000"
+        },
+        {
+          "name": "signals",
+          "value": "structure"
+        },
+        {
+          "name": "clauses",
+          "value": "over-budget sentences split at clause punctuation, then token windows"
+        },
+        {
+          "name": "cohesion.weight",
+          "value": "none"
+        }
+      ]
+    },
+    "retrieval": {
+      "name": "hybrid",
+      "config": [
+        {
+          "name": "fusion",
+          "value": "weighted"
+        },
+        {
+          "name": "bm25_weight",
+          "value": "0.35"
+        },
+        {
+          "name": "k1",
+          "value": "1.2"
+        },
+        {
+          "name": "b",
+          "value": "0.75"
+        },
+        {
+          "name": "terms",
+          "value": "folded"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "queries": 17,
+    "ndcg_at_10": 0.8580923924432603,
+    "recall": {
+      "at_1": 0.015630457873082478,
+      "at_5": 0.07791603925896251,
+      "at_10": 0.15043419560720628,
+      "at_100": 0.9190293155928173
+    },
+    "span": {
+      "queries": 17,
+      "mean": {
+        "at_1": {
+          "precision": 0.2782514658649516,
+          "recall": 0.010842184456064581,
+          "contained": 0.009016433212258718
+        },
+        "at_5": {
+          "precision": 0.2874415861806267,
+          "recall": 0.06496201489441737,
+          "contained": 0.05413865120899372
+        },
+        "at_10": {
+          "precision": 0.2940674764404227,
+          "recall": 0.12300625490211796,
+          "contained": 0.10841031880807046
+        },
+        "at_100": {
+          "precision": 0.12997946166619379,
+          "recall": 0.44101408356341465,
+          "contained": 0.43176398689607287
+        }
+      },
+      "integrity": {
+        "split": 0.05324459234608985,
+        "short_documents": 0.016260162601626018
+      },
+      "per_query": [
+        {
+          "query": "nda-1",
+          "recall": 0.08630315989546211,
+          "contained": 0.06201550387596899
+        },
+        {
+          "query": "nda-10",
+          "recall": 0.09154136068694875,
+          "contained": 0.10526315789473684
+        },
+        {
+          "query": "nda-11",
+          "recall": 0.6560126582278482,
+          "contained": 0.65
+        },
+        {
+          "query": "nda-12",
+          "recall": 0.12562794035563352,
+          "contained": 0.07909604519774012
+        },
+        {
+          "query": "nda-13",
+          "recall": 0.04334391415489199,
+          "contained": 0.03524229074889868
+        },
+        {
+          "query": "nda-15",
+          "recall": 0.10199266698549339,
+          "contained": 0.09285714285714286
+        },
+        {
+          "query": "nda-16",
+          "recall": 0.12070938215102975,
+          "contained": 0.12307692307692308
+        },
+        {
+          "query": "nda-17",
+          "recall": 0.04705313342085262,
+          "contained": 0.013333333333333334
+        },
+        {
+          "query": "nda-18",
+          "recall": 0.017393144308082944,
+          "contained": 0.0
+        },
+        {
+          "query": "nda-19",
+          "recall": 0.08744086165822233,
+          "contained": 0.08666666666666667
+        },
+        {
+          "query": "nda-2",
+          "recall": 0.08600330070566811,
+          "contained": 0.06542056074766354
+        },
+        {
+          "query": "nda-20",
+          "recall": 0.20421302477377243,
+          "contained": 0.14634146341463414
+        },
+        {
+          "query": "nda-3",
+          "recall": 0.13596401553874463,
+          "contained": 0.12096774193548387
+        },
+        {
+          "query": "nda-4",
+          "recall": 0.03977942098007269,
+          "contained": 0.041474654377880185
+        },
+        {
+          "query": "nda-5",
+          "recall": 0.05525769473779222,
+          "contained": 0.045
+        },
+        {
+          "query": "nda-7",
+          "recall": 0.07496670146513554,
+          "contained": 0.04608294930875576
+        },
+        {
+          "query": "nda-8",
+          "recall": 0.11750395329035397,
+          "contained": 0.13013698630136986
+        }
+      ]
+    },
+    "per_query": [
+      {
+        "query": "nda-1",
+        "ndcg_at_10": 0.7885497208855957
+      },
+      {
+        "query": "nda-10",
+        "ndcg_at_10": 0.7453016244178956
+      },
+      {
+        "query": "nda-11",
+        "ndcg_at_10": 0.933745776545611
+      },
+      {
+        "query": "nda-12",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-13",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-15",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-16",
+        "ndcg_at_10": 0.4883491838252097
+      },
+      {
+        "query": "nda-17",
+        "ndcg_at_10": 0.6316243658611127
+      },
+      {
+        "query": "nda-18",
+        "ndcg_at_10": 0.14465249243306436
+      },
+      {
+        "query": "nda-19",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-2",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-20",
+        "ndcg_at_10": 0.933745776545611
+      },
+      {
+        "query": "nda-3",
+        "ndcg_at_10": 0.9216017310213247
+      },
+      {
+        "query": "nda-4",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-5",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-7",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-8",
+        "ndcg_at_10": 1.0
+      }
+    ]
+  },
+  "cost": {
+    "wall": {
+      "analysis_ms": 44.085143,
+      "chunking_ms": 57.468646,
+      "embedding_ms": 19520.83136,
+      "retrieval_ms": 86.283963
+    },
+    "tokens_embedded": 283889,
+    "chunks": 1424,
+    "chunk_bytes": {
+      "min": 41,
+      "p50": 1027,
+      "p90": 1252,
+      "max": 1449
+    },
+    "chunk_tokens": {
+      "min": 12,
+      "p50": 207,
+      "p90": 241,
+      "max": 254
+    }
+  }
+}

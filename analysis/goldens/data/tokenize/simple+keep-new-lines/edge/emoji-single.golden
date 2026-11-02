@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/emoji-single	43	31	0f0e6ac72c443230d882bc1f0284daf265454349b1625c3151cf8b971e92cee6
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	14	start:u32	end:u32
+layer	turbo:tokens	text	14	start:u32	end:u32
 0	5
 6	10
 6	10
@@ -21,8 +21,8 @@ layer	opennlp:tokens	text	14	start:u32	end:u32
 35	38
 39	42
 42	43
-end	opennlp:tokens
-layer	turbo:utf16<opennlp:tokens>	aligned:opennlp:tokens	14	start16:u32	end16:u32	cut:u32
+end	turbo:tokens
+layer	turbo:utf16<turbo:tokens>	aligned:turbo:tokens	14	start16:u32	end16:u32	cut:u32
 0	5	0
 6	7	1
 7	8	1
@@ -37,4 +37,4 @@ layer	turbo:utf16<opennlp:tokens>	aligned:opennlp:tokens	14	start16:u32	end16:u3
 25	26	0
 27	30	0
 30	31	0
-end	turbo:utf16<opennlp:tokens>
+end	turbo:utf16<turbo:tokens>

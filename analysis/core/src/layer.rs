@@ -75,8 +75,8 @@ impl TagSet {
 /// crates; the container never enumerates them.
 pub trait Layer: Any + Send + Sync + Sized {
     /// The stable, namespaced id the wire and provenance use. A shared
-    /// layer the OpenNLP gRPC standard defines has the standard's id
-    /// ("opennlp:tokens", "opennlp:pos"); an add-on's own layers are in
+    /// layer's id is in the `turbo:` namespace, from [`crate::ids`]
+    /// ("turbo:tokens", "turbo:pos"); an add-on's own layers are in
     /// its own namespace ("acme:invoice-fields").
     const ID: &'static str;
     /// Bumped when what the layer's fields mean changes.
@@ -86,11 +86,11 @@ pub trait Layer: Any + Send + Sync + Sized {
     /// two (`Edges<From, To>`), the first one's, so distinct instantiations
     /// have distinct names. It is the inner layer's full name, so nested
     /// generic layers stay distinct too: `Groups<Edges<Entities, Tokens>>`
-    /// is `turbo:groups<turbo:edges<opennlp:entities, opennlp:tokens>>`.
+    /// is `turbo:groups<turbo:edges<turbo:entities, turbo:tokens>>`.
     const OF: Option<&'static LayerName> = None;
     /// For a layer generic over two layers (`Edges<From, To>`), the second
     /// one's name, so `Edges<Entities, Tokens>` is
-    /// `turbo:edges<opennlp:entities, opennlp:tokens>`. Set only with `OF`.
+    /// `turbo:edges<turbo:entities, turbo:tokens>`. Set only with `OF`.
     const TO: Option<&'static LayerName> = None;
     /// The static name a `KeyId` points at.
     const NAME: &'static LayerName = &LayerName { id: Self::ID, of: Self::OF, to: Self::TO };

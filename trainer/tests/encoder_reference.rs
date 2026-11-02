@@ -163,7 +163,7 @@ fn fine_tune(
             }
             opt.step(&mut params, &mut grads, &decay).unwrap();
             for (p, &s) in params.iter().zip(&slots) {
-                e.params_mut()[s].copy_from_slice(p);
+                e.put_slot(s, p.clone()).unwrap();
             }
         }
     }

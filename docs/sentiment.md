@@ -164,10 +164,11 @@ turboembed encoder (`#262` and `#263`):
   with `HiddenActivation::Relu`, `Gelu`, or `Tanh`) forward pass in
   deterministic `f64` arithmetic, with softmax (`HeadMode::SingleLabel`) or
   independent logistic sigmoid (`HeadMode::MultiLabel`). Heads serialize to and
-  from a plain typed binary format (`THEAD001`) and can be fitted
-  deterministically from labeled embeddings via full-batch L2-regularized
-  cross-entropy gradient descent (`ClassifierHead::fit_single_label` and
-  `ClassifierHead::fit_multi_label`).
+  from a plain typed binary format (`THEAD001`) and are fitted
+  deterministically from labeled embeddings through `turbo-trainer`
+  (`linear::forward`, `linear::backward`, `xent::loss`, and `Real::sigmoid`,
+  with algebraic mean-centering for unnormalized encoders in
+  `ClassifierHead::fit_single_label` and `ClassifierHead::fit_multi_label`).
 - **Vector and span-pooling annotators (`ScoringHead`, `VectorHeadAnnotator`,
   `SentenceSpanHead`, `ChunkSpanHead`, `OpinionSpanHead`, `AspectSpanHead`,
   `IncivilityHeadAnnotator`, `PragmaticsHeadAnnotator`)**:
@@ -185,19 +186,38 @@ turboembed encoder (`#262` and `#263`):
     `Vectors<Sentences>` with a multi-label `ClassifierHead` to populate
     `Incivility` (`turbo:incivility`) and `Pragmatics` (`turbo:pragmatics`).
 
-### Sentiment classification comparison and CPU/GPU parity
+### Sentiment classification comparison, default-tier ModernBERT head, and CPU/GPU parity (`#321`, `#1526`, `#1732`)
 
 `analysis/embed/tests/heads_sentiment.rs` compares `LexiconSentiment` (`#320`),
-`LabelCentroids` (`#321`), and `ClassifierHead` (`#321`) on a self-contained
-12-sentence evaluation benchmark (`testdata/tiny-bert-bundle`, 32-dim) and on
-471 MPQA subjective polarity spans from MASC 3.0.0 (`CC BY 3.0 US`, 376 train /
-95 test spans) embedded with `sentence-transformers/all-MiniLM-L6-v2` (384-dim,
-mean-pooled, L2-normalized):
+`LabelCentroids` (`#321`), `ClassifierHead` (`#321`), and `PolarityVectorHead`
+(`#1526`, `#1732`) on a self-contained 12-sentence evaluation benchmark
+(`testdata/tiny-bert-bundle`, 32-dim) and on 471 MPQA subjective polarity spans
+from MASC 3.0.0 (`CC BY 3.0 US`, 376 train / 95 test spans, `79` positive and
+`16` negative in test) embedded with the default-tier encoder
+`answerdotai/ModernBERT-base` (768-dim, `CLASS_PERMISSIVE`) and the legacy
+reference encoder `sentence-transformers/all-MiniLM-L6-v2` (384-dim,
+`CLASS_LOCAL_ONLY`).
 
-| Dataset | Embedding model | `LexiconSentiment` (`#320`) | `LabelCentroids` (`#321`) | `ClassifierHead` (`#321`) |
-| --- | --- | --- | --- | --- |
-| Self-contained benchmark (12 test sentences) | `tiny-bert-bundle` (32-dim) | `12 / 12` (`100.0%`) | `10 / 12` (`83.3%`) | `10 / 12` (`83.3%`) |
-| MASC 3.0.0 MPQA polarity spans (376 train, 95 test) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | `87 / 95` (`91.6%`) | `81 / 95` (`85.3%`) | `84 / 95` (`88.4%`) |
+The default-tier polarity head `MASC_MODERNBERT_POLARITY_HEAD`
+(`turbo-en-masc-3.0.0-modernbert-base-polarity-head-1`, `TPVH` v1, `9,349`
+bytes, SHA-256 `5fb54814d92530072e90fa9d0e701792a4cbb7487353ae1a3ddb4cb60b196909`)
+is published in `models-sentiment-1732-1` as `CLASS_PERMISSIVE` and loaded via
+`PolarityVectorHead::from_zoo`. Full evaluation metrics and 10,000-resample
+paired-bootstrap comparisons are committed in
+`docs/receipts/polarity-1732/modernbert-base.json`:
+
+| Dataset | Embedding model | Majority baseline (`positive`) | `LexiconSentiment` (`#320`) | `LabelCentroids` (`#321`) | `ClassifierHead` (`#321`) | `PolarityVectorHead` (`Learned`, `#1526` / `#1732`) | `PolarityAnnotator` (`Hybrid`, `#1526` / `#1732`) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Self-contained benchmark (12 test sentences) | `tiny-bert-bundle` (32-dim) | `6 / 12` (`50.0%`) | `12 / 12` (`100.0%`) | `10 / 12` (`83.3%`) | `10 / 12` (`83.3%`) | `12 / 12` (`100.0%`) | `12 / 12` (`100.0%`) |
+| MASC 3.0.0 MPQA polarity spans (376 train, 95 test) | `answerdotai/ModernBERT-base` (768-dim, default tier) | `79 / 95` (`83.2%`, macro F1 `0.454`) | `87 / 95` (`91.6%`, macro F1 `0.809`) | `61 / 95` (`64.2%`, macro F1 `0.578`) | `70 / 95` (`73.7%`, macro F1 `0.647`) | `73 / 95` (`76.8%`, macro F1 `0.684`, `p = 0.0001` vs majority macro F1) | `84 / 95` (`88.4%`, macro F1 `0.815`, `p = 0.0000` vs majority macro F1) |
+| MASC 3.0.0 MPQA polarity spans (376 train, 95 test) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim, local-only) | `79 / 95` (`83.2%`, macro F1 `0.454`) | `87 / 95` (`91.6%`, macro F1 `0.809`) | `81 / 95` (`85.3%`, macro F1 `0.778`) | `84 / 95` (`88.4%`, macro F1 `0.823`) | `87 / 95` (`91.6%`, macro F1 `0.850`) | `87 / 95` (`91.6%`, macro F1 `0.850`) |
+
+On `answerdotai/ModernBERT-base` (`d = 768 > n = 376`), `PolarityVectorHead`
+lifts negative-class recall from `0.000` (majority) and `0.500` (`LexiconSentiment`)
+to `0.750` (macro F1 `0.684` vs `0.454` majority, paired bootstrap diff `+0.230`,
+95% CI `[+0.104, +0.343]`, `p = 0.0001`), and the `Hybrid` stage reaches
+`88.4%` accuracy and `0.815` macro F1 (negative recall `0.813`, macro F1 above
+both majority `0.454` at `p = 0.0000` and `LexiconSentiment` `0.809`).
 
 CPU and CUDA parity (`heads_and_centroids_cpu_and_device_parity` in
 `analysis/embed/tests/heads_parity.rs`) was verified on `NVIDIA GeForce RTX 4080 SUPER`
@@ -428,9 +448,10 @@ terms and are not committed to the repository.
   distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
   `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
 
-### Trained MASC aspect head and external evaluation (`#924`)
+### Trained MASC aspect head and external evaluation (`#924`, `#1732`)
 
-The zoo publishes `turbo-en-masc-3.0.0-aspect-sentiment-1` as an experimental
+The zoo lists `turbo-en-masc-3.0.0-aspect-sentiment-1` (`CLASS_LOCAL_ONLY` via
+MS MARCO in `all-MiniLM-L6-v2`'s training lineage, `#1732`) as an experimental
 zip containing BIO and polarity `THEAD001` heads and their complete training
 configuration. It uses `sentence-transformers/all-MiniLM-L6-v2` at 384
 dimensions and MASC 3.0.0 MPQA target, attitude, and direct-subjective links
@@ -439,25 +460,31 @@ attribution and records the source encoder commit.
 
 `analysis/embed/tests/aspect_masc.rs` is the real-data receipt. It reads the
 corpus through `TURBO_MASC_ROOT` and the encoder through
-`TURBO_MINILM_BUNDLE`. `TURBO_ASPECT_OUT` trains and writes the heads;
-`TURBO_ASPECT_HEAD` reloads them. `fit_balanced` opts into deterministic
-background down-sampling without changing the existing `fit` behavior. The
-published configuration selects `with_bio_threshold(0.4)`, which is included
-in the annotator's configuration hash.
+`TURBO_MINILM_BUNDLE` (and optionally evaluates `answerdotai/ModernBERT-base`
+through `TURBO_MODERNBERT_BUNDLE` and writes the comparison receipt to
+`TURBO_ASPECT_RECEIPT_OUT`, committed at
+`docs/receipts/polarity-1732/aspect-modernbert-base.json`). `TURBO_ASPECT_OUT`
+trains and writes the heads; `TURBO_ASPECT_HEAD` reloads them. `fit_balanced`
+opts into deterministic background down-sampling without changing the existing
+`fit` behavior. The published configuration selects `with_bio_threshold(0.4)`,
+which is included in the annotator's configuration hash.
 
 The split is by document: 56 training files and 15 held-out files. The
 held-out set has 127 annotations covering 125 unique token ranges. Exact
 aspect-range F1 and polarity accuracy on exact matches are:
 
-| Path | Aspect TP / FP / FN | Aspect F1 | Polarity accuracy |
-| --- | ---: | ---: | ---: |
-| Learned head | 4 / 464 / 121 | 0.013491 | 4 / 4 (1.000) |
-| Rule path | 0 / 41 / 125 | 0.000000 | no exact matches |
+| Path | Encoder | Aspect TP / FP / FN | Aspect F1 | Polarity accuracy |
+| --- | --- | ---: | ---: | ---: |
+| Learned head (`with_bio_threshold(0.4)`) | `answerdotai/ModernBERT-base` (768-dim) | 0 / 20 / 125 | 0.000000 | no exact matches |
+| Learned head (`with_bio_threshold(0.4)`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | 4 / 464 / 121 | 0.013491 | 4 / 4 (1.000) |
+| Rule path (`RuleAspectSentiment`) | none | 0 / 41 / 125 | 0.000000 | no exact matches |
 
-This head is experimental and is not the default extractor. Its polarity
-figure covers only four exact aspect matches and is not evidence of general
-polarity quality. The low F1 and the false-positive count are published with
-the artifacts so later training work must improve on a visible baseline.
+Because `LearnedAspectSentiment` on `answerdotai/ModernBERT-base` does not beat
+`RuleAspectSentiment` on the held-out MASC split (`0.000000` vs `0.000000`
+exact aspect F1), `RuleAspectSentiment` remains the default extractor and no
+`CLASS_PERMISSIVE` aspect head is published in the zoo (`#1732`). The legacy
+`turbo-en-masc-3.0.0-aspect-sentiment-1` entry remains available as
+`CLASS_LOCAL_ONLY` so later training work must improve on a visible baseline.
 
 ## Incivility and toxicity annotator (`IncivilityAnnotator`, `#323`)
 
@@ -536,8 +563,8 @@ first or after a unit with no vector) or `Parent` (one vector for every
 unit, the post the document replies to; `with_parent_vector` sets it). A
 head without a context matrix ignores the context vector. The weights
 come from the caller; `IncivilityVectorHead::fit` fits them to labelled
-vectors (logistic regression per label, full-batch gradient descent from
-zero, deterministic), with context vectors when given.
+vectors through `turbo-trainer` (`AdamW`, `linear::forward`,
+`linear::backward`, and `Real::sigmoid`), with context vectors when given.
 
 `to_bytes` writes the head as the magic `TIVH`, the version 1, the
 dimension and flags (bit 0 a context matrix, bit 1 an encoder; all
@@ -714,7 +741,7 @@ Insult on the madlibs, with the lowest BPSN and BNSP over the 50 terms:
 The lexicon finds few of the templates' toxic adjectives, so its scores
 barely depend on the identity term and every term has the same AUC.
 
-### Civil Comments soft-target and parent-context heads, fusion tuning, and Toxic Spans evidence evaluation (`#888`, `#963`, `#890`)
+### Civil Comments soft-target and parent-context heads, fusion tuning, and Toxic Spans evidence evaluation (`#888`, `#963`, `#890`, `#1732`)
 
 Threshold selection first scores each uniform candidate on development using
 production Unicode token keys (`evaluation_protocol`:
@@ -733,39 +760,48 @@ Run those tests explicitly with `cargo test --locked -p turbo-analysis-embed
 The head test uses a finite adversarial vector to verify threshold-dependent
 scoring, not a new held-out accuracy estimate.
 
-`analysis/embed/examples/incivility_eval` trains and evaluates four
-redistributable `IncivilityVectorHead` artifacts on the zoo-pinned Civil
-Comments WILDS dataset (`civil-comments-wilds`, `all_data_with_identities.csv`, 269,038
-train / 45,180 val / 133,782 test comments, CC0-1.0) and evaluates evidence
-spans on `ipavlopoulos/toxic_spans` (`toxic-spans`, revision
-`beaf170538df8275c3447b2e26070f2f82e55272`, CC0-1.0). All four heads are
-published under the `models-civil-comments-1` release and loadable via
+`analysis/embed/examples/incivility_eval` trains and evaluates six
+`IncivilityVectorHead` artifacts on the zoo-pinned Civil Comments WILDS dataset
+(`civil-comments-wilds`, `all_data_with_identities.csv`, 269,038 train / 45,180
+val / 133,782 test comments, CC0-1.0) and evaluates evidence spans on
+`ipavlopoulos/toxic_spans` (`toxic-spans`, revision
+`beaf170538df8275c3447b2e26070f2f82e55272`, CC0-1.0). The two default-tier
+`answerdotai/ModernBERT-base` heads are published under `models-sentiment-1732-1`
+as `CLASS_PERMISSIVE`, while the four legacy `all-MiniLM-L6-v2` and
+`bge-small-en-v1.5` heads under `models-civil-comments-1` are classified as
+`CLASS_LOCAL_ONLY` (`#1732`). All six are loadable via
 `IncivilityVectorHead::from_zoo`:
 
-| Zoo constant / entry ID | Encoder | Context matrix | Size (bytes) | SHA-256 | Fit time (s) |
-|---|---|---|---|---|---|
-| `CIVIL_COMMENTS_MINILM_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | No | 9,371 | `26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba` | 405.93 |
-| `CIVIL_COMMENTS_MINILM_CONTEXT_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-context-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | Yes (`[6, 384]`) | 18,587 | `43f80c1aee79f005cbd058905c73649dfed5536708657172966032dbe36e9b4d` | 416.31 |
-| `CIVIL_COMMENTS_BGE_SMALL_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | No | 9,355 | `378ccd113df231a0db4cdb6e3dbe634a094151f8a4f0c02e71a596d172742fa3` | 235.15 |
-| `CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-context-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | Yes (`[6, 384]`) | 18,571 | `dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7` | 282.38 |
+| Zoo constant / entry ID | Encoder | Class | Context matrix | Size (bytes) | SHA-256 | Fit time (s) |
+|---|---|---|---|---|---|---|
+| `CIVIL_COMMENTS_MODERNBERT_HEAD` (`turbo-en-civil-comments-modernbert-base-head-1`) | `answerdotai/ModernBERT-base` (768-dim) | `CLASS_PERMISSIVE` | No | 18,576 | `dff23f93bc24e36e48f0da8cb3cca7201cb3a34f7124492bb02137cf963a9260` | 130.36 |
+| `CIVIL_COMMENTS_MODERNBERT_CONTEXT_HEAD` (`turbo-en-civil-comments-modernbert-base-context-head-1`) | `answerdotai/ModernBERT-base` (768-dim) | `CLASS_PERMISSIVE` | Yes (`[6, 768]`) | 37,008 | `465cb98642303556687fd397ea508cf92b9f001c33701bc842b0ba33f45a3330` | 163.54 |
+| `CIVIL_COMMENTS_MINILM_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | `CLASS_LOCAL_ONLY` | No | 9,371 | `26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba` | 405.93 |
+| `CIVIL_COMMENTS_MINILM_CONTEXT_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-context-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | `CLASS_LOCAL_ONLY` | Yes (`[6, 384]`) | 18,587 | `43f80c1aee79f005cbd058905c73649dfed5536708657172966032dbe36e9b4d` | 416.31 |
+| `CIVIL_COMMENTS_BGE_SMALL_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | `CLASS_LOCAL_ONLY` | No | 9,355 | `378ccd113df231a0db4cdb6e3dbe634a094151f8a4f0c02e71a596d172742fa3` | 235.15 |
+| `CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-context-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | `CLASS_LOCAL_ONLY` | Yes (`[6, 384]`) | 18,571 | `dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7` | 282.38 |
 
-Training runs 500 epochs of full-batch logistic regression (`learning_rate = 16.0`,
-`l2 = 1e-4`) directly on the continuous rater fractions in `0.0..=1.0` (soft
-targets), with hard-target (`>= 0.5`) heads fitted alongside for comparison
-(MiniLM hard no-context 228.12 s, hard parent-context 296.06 s; BGE-small hard
-no-context 222.07 s, hard parent-context 278.60 s). Across all four fits on
-269,038 train comments (59,986 with a parent comment vector present in the
-dataset; 10,360 in val and 20,702 in test), process peak RSS (`VmHWM`) stays at
-2,019,728 KB (`1.93 GiB`) for MiniLM and 2,214,208 KB (`2.11 GiB`) for
-BGE-small. The unchanged high-water marks do not measure allocation counts
-or prove zero heap growth within the earlier peak. Full JSON receipts are in
-`docs/receipts/incivility-888-963-890/all-minilm-l6-v2.json` and
+Training runs 500 epochs of `IncivilityVectorHead::fit` (`turbo-trainer`
+`AdamW`, `linear::forward`, `linear::backward`, `Real::sigmoid`, with
+`learning_rate = 16.0`, `l2 = 1e-4`) directly on the continuous rater fractions
+in `0.0..=1.0` (soft targets), with hard-target (`>= 0.5`) heads fitted
+alongside for comparison (ModernBERT hard no-context 114.66 s, hard
+parent-context 161.26 s; MiniLM hard no-context 228.12 s, hard parent-context
+296.06 s; BGE-small hard no-context 222.07 s, hard parent-context 278.60 s).
+Across all four fits on 269,038 train comments (59,986 with a parent comment
+vector present in the dataset; 10,360 in val and 20,702 in test), process peak
+RSS (`VmHWM`) stays at 3,246,796 KB (`3.10 GiB`) for ModernBERT-base, 2,019,728
+KB (`1.93 GiB`) for MiniLM, and 2,214,208 KB (`2.11 GiB`) for BGE-small. The
+unchanged high-water marks do not measure allocation counts or prove zero heap
+growth within the earlier peak. Full JSON receipts are in
+`docs/receipts/incivility-888-963-890/modernbert-base.json`,
+`docs/receipts/incivility-888-963-890/all-minilm-l6-v2.json`, and
 `docs/receipts/incivility-888-963-890/bge-small-en-v1.5.json`. As in
 `goemotions_eval`, `incivility_eval` retains original tokenizer UTF-8 byte
 spans per comment and verifies every evidence span against the borrowed source
 comment and production `Analyzer`.
 
-#### Civil Comments held-out test P / R / F1 with per-label dev thresholds (`#888`)
+#### Civil Comments held-out test P / R / F1 with per-label dev thresholds (`#888`, `#1732`)
 
 Per-label and macro/micro precision, recall, and F1 on the 133,782 test
 comments using per-label thresholds tuned on the 45,180 val comments (`0.05`
@@ -774,27 +810,37 @@ to `0.50` in steps of `0.05`), plus uniform-threshold micro F1:
 | Stage & Target | Encoder | Context | Uniform thresh (micro P / R / F1) | `insult` P / R / F1 | `profanity` P / R / F1 | `threat` P / R / F1 | `identity_attack` P / R / F1 | Per-label macro P / R / F1 | Per-label micro P / R / F1 |
 |---|---|---|---|---|---|---|---|---|---|
 | `Lexicon` | none | none | 0.05 (0.4985 / 0.2299 / 0.3146) | 0.6461 / 0.3056 / 0.4149 | 0.2228 / 0.5200 / 0.3120 | 0.1019 / 0.0341 / 0.0510 | 0.1134 / 0.0028 / 0.0055 | 0.1807 / 0.3104 / 0.1306 | 0.4985 / 0.2299 / 0.3146 |
+| `Learned` (soft) | `ModernBERT-base` | none | 0.25 (0.4310 / 0.3760 / 0.4017) | 0.4027 / 0.5469 / 0.4639 | 0.3792 / 0.2500 / 0.3013 | 0.2255 / 0.3065 / 0.2598 | 0.3389 / 0.2925 / 0.3140 | 0.4832 / 0.3489 / 0.3719 | 0.3834 / 0.4156 / 0.3988 |
+| `Learned` (soft) | `ModernBERT-base` | parent | 0.25 (0.4274 / 0.3779 / 0.4011) | 0.4022 / 0.5453 / 0.4629 | 0.3802 / 0.2535 / 0.3042 | 0.2179 / 0.3096 / 0.2557 | 0.3372 / 0.2950 / 0.3147 | 0.4820 / 0.3497 / 0.3719 | 0.3821 / 0.4156 / 0.3981 |
 | `Learned` (soft) | `all-MiniLM-L6-v2` | none | 0.20 (0.2963 / 0.4844 / 0.3677) | 0.3274 / 0.5316 / 0.4052 | 0.0999 / 0.1710 / 0.1261 | 0.0556 / 0.3808 / 0.0970 | 0.2406 / 0.5177 / 0.3285 | 0.4539 / 0.4335 / 0.3261 | 0.2662 / 0.5031 / 0.3481 |
 | `Learned` (soft) | `all-MiniLM-L6-v2` | parent | 0.20 (0.2969 / 0.4836 / 0.3679) | 0.3269 / 0.5318 / 0.4049 | 0.0984 / 0.1722 / 0.1253 | 0.0546 / 0.3777 / 0.0954 | 0.2422 / 0.5144 / 0.3293 | 0.4537 / 0.4327 / 0.3258 | 0.2660 / 0.5023 / 0.3478 |
 | `Learned` (soft) | `bge-small-en-v1.5` | none | 0.20 (0.3647 / 0.3622 / 0.3634) | 0.3618 / 0.5264 / 0.4289 | 0.1010 / 0.1321 / 0.1145 | 0.1225 / 0.2477 / 0.1639 | 0.2613 / 0.4772 / 0.3377 | 0.4744 / 0.3972 / 0.3408 | 0.3099 / 0.4834 / 0.3777 |
 | `Learned` (soft) | `bge-small-en-v1.5` | parent | 0.15 (0.2961 / 0.4764 / 0.3652) | 0.4015 / 0.4601 / 0.4288 | 0.0998 / 0.1368 / 0.1154 | 0.1169 / 0.2508 / 0.1594 | 0.2632 / 0.4715 / 0.3378 | 0.4802 / 0.3865 / 0.3403 | 0.3238 / 0.4394 / 0.3728 |
+| `Fused` (soft) | `ModernBERT-base` | none | 0.30 (0.4525 / 0.4526 / 0.4525) | 0.5236 / 0.5567 / 0.5396 | 0.2286 / 0.5625 / 0.3251 | 0.1932 / 0.3158 / 0.2397 | 0.3324 / 0.2935 / 0.3117 | 0.2156 / 0.6258 / 0.2390 | 0.4150 / 0.4616 / 0.4371 |
+| `Fused` (soft) | `ModernBERT-base` | parent | 0.30 (0.4519 / 0.4518 / 0.4518) | 0.5231 / 0.5553 / 0.5387 | 0.2288 / 0.5649 / 0.3257 | 0.1755 / 0.3189 / 0.2264 | 0.3309 / 0.2960 / 0.3125 | 0.2121 / 0.6269 / 0.2373 | 0.4117 / 0.4618 / 0.4342 |
 | `Fused` (soft) | `all-MiniLM-L6-v2` | none | 0.25 (0.3664 / 0.4850 / 0.4175) | 0.5102 / 0.4766 / 0.4928 | 0.2228 / 0.5200 / 0.3120 | 0.1446 / 0.1115 / 0.1259 | 0.2388 / 0.5187 / 0.3271 | 0.1877 / 0.6045 / 0.2128 | 0.3555 / 0.4824 / 0.4094 |
 | `Fused` (soft) | `all-MiniLM-L6-v2` | parent | 0.25 (0.3668 / 0.4856 / 0.4179) | 0.5106 / 0.4782 / 0.4939 | 0.2228 / 0.5200 / 0.3120 | 0.1502 / 0.1176 / 0.1319 | 0.2403 / 0.5151 / 0.3277 | 0.1889 / 0.6052 / 0.2140 | 0.3571 / 0.4826 / 0.4105 |
 | `Fused` (soft) | `bge-small-en-v1.5` | none | 0.20 (0.3726 / 0.5046 / 0.4287) | 0.5645 / 0.4447 / 0.4975 | 0.2228 / 0.5200 / 0.3120 | 0.1185 / 0.2755 / 0.1657 | 0.2587 / 0.4777 / 0.3356 | 0.1947 / 0.6197 / 0.2197 | 0.3725 / 0.4543 / 0.4093 |
 | `Fused` (soft) | `bge-small-en-v1.5` | parent | 0.20 (0.3827 / 0.4762 / 0.4244) | 0.5251 / 0.4893 / 0.5066 | 0.2228 / 0.5200 / 0.3120 | 0.1138 / 0.2786 / 0.1616 | 0.2605 / 0.4720 / 0.3357 | 0.1876 / 0.6267 / 0.2205 | 0.3682 / 0.4817 / 0.4174 |
+| `Learned` (hard) | `ModernBERT-base` | none | 0.25 (0.4357 / 0.4099 / 0.4224) | 0.4648 / 0.5069 / 0.4849 | 0.4408 / 0.2335 / 0.3053 | 0.2537 / 0.2632 / 0.2584 | 0.3676 / 0.2606 / 0.3050 | 0.5252 / 0.3249 / 0.3898 | 0.4328 / 0.4097 / 0.4209 |
 | `Learned` (hard) | `all-MiniLM-L6-v2` | none | 0.15 (0.3261 / 0.4606 / 0.3819) | 0.4153 / 0.4278 / 0.4215 | 1.0000 / 0.0000 / 0.0000 | 1.0000 / 0.0000 / 0.0000 | 0.2905 / 0.3971 / 0.3356 | 0.7843 / 0.3042 / 0.2928 | 0.3707 / 0.3845 / 0.3775 |
 | `Learned` (hard) | `bge-small-en-v1.5` | none | 0.15 (0.3409 / 0.4569 / 0.3905) | 0.4277 / 0.4435 / 0.4354 | 1.0000 / 0.0000 / 0.0000 | 1.0000 / 0.0000 / 0.0000 | 0.2555 / 0.5300 / 0.3448 | 0.7805 / 0.3289 / 0.2967 | 0.3491 / 0.4308 / 0.3856 |
+| `Fused` (hard) | `ModernBERT-base` | none | 0.30 (0.4611 / 0.4637 / 0.4624) | 0.5637 / 0.5222 / 0.5422 | 0.2323 / 0.5566 / 0.3278 | 0.2119 / 0.2755 / 0.2396 | 0.3596 / 0.2617 / 0.3029 | 0.2305 / 0.6041 / 0.2492 | 0.4596 / 0.4506 / 0.4550 |
 | `Fused` (hard) | `all-MiniLM-L6-v2` | none | 0.20 (0.3874 / 0.4702 / 0.4248) | 0.5494 / 0.4512 / 0.4955 | 0.2228 / 0.5200 / 0.3120 | 0.1019 / 0.0341 / 0.0510 | 0.2867 / 0.3984 / 0.3335 | 0.1969 / 0.5673 / 0.2053 | 0.4080 / 0.4316 / 0.4195 |
 | `Fused` (hard) | `bge-small-en-v1.5` | none | 0.20 (0.4035 / 0.4642 / 0.4317) | 0.5120 / 0.5099 / 0.5109 | 0.2228 / 0.5200 / 0.3120 | 0.1019 / 0.0341 / 0.0510 | 0.2532 / 0.5305 / 0.3428 | 0.1847 / 0.5991 / 0.2088 | 0.3709 / 0.5054 / 0.4278 |
 
-Fitting to soft rater fractions with per-label thresholds recovers `profanity`
-(F1 `0.1261` on MiniLM, `0.1145` on BGE-small) and `threat` (F1 `0.0970` on
-MiniLM, `0.1639` on BGE-small) in the `Learned` stage, whereas hard-target
-heads never exceed `0.05` on those rare labels (`0` positive predictions). Adding
-the parent comment context vector (`CIVIL_COMMENTS_*_CONTEXT_HEAD`) lifts
-per-label tuned `Fused` micro F1 from `0.4094` to `0.4105` on MiniLM (`threat`
-F1 `0.1259 -> 0.1319`) and from `0.4093` to `0.4174` on BGE-small (`insult` F1
-`0.4975 -> 0.5066`).
+`answerdotai/ModernBERT-base` improves over both legacy encoders on every
+incivility stage: in `Learned` (soft, per-label tuned), macro F1 rises to
+`0.3719` (`0.3988` micro F1) vs `0.3261` (`0.3481` micro) on `all-MiniLM-L6-v2`
+and `0.3408` (`0.3777` micro) on `bge-small-en-v1.5`, with `profanity` F1
+rising from `0.1261` / `0.1145` to `0.3013` and `threat` F1 rising from
+`0.0970` / `0.1639` to `0.2598`. In `Fused` (soft), `ModernBERT-base` reaches
+`0.2390` macro F1 / `0.4371` micro F1 per-label (`0.4525` uniform micro F1 at
+`0.30`) vs `0.2128` / `0.4094` on MiniLM and `0.2197` / `0.4093` on BGE-small.
+In the 2,000-resample paired bootstrap on the 133,782 test comments
+(`docs/receipts/incivility-888-963-890/modernbert-base.json`), both
+`Learned` and `Fused` on `ModernBERT-base` beat `Lexicon` and the all-negative
+majority baseline with `p = 0.0000` on both macro F1 and micro F1.
 
 #### Fusion gate and `SevereToxicity` co-occurrence rule tuning (`#963`)
 
@@ -812,6 +858,8 @@ custom low-weight lexicon entries.
 
 | Encoder | `fusion_gate` | `use_severe_toxicity_rule` | Val uniform micro F1 | Val per-label macro / micro F1 | Test per-label macro F1 | Test per-label micro F1 | Test `severe_toxicity` TP / FP / FN (P / R / F1) |
 |---|---|---|---|---|---|---|---|
+| `ModernBERT-base` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4608 | 0.2463 / 0.4457 | 0.2390 | 0.4371 | 1 / 128 / 0 (0.0078 / 1.0000 / 0.0154) |
+| `ModernBERT-base` | `0.25` (or `0.05..=1.0`) | `false` | 0.4614 | 0.2463 / 0.4480 | 0.2365 | 0.4386 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
 | `all-MiniLM-L6-v2` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4200 | 0.2120 / 0.4171 | 0.2128 | 0.4094 | 1 / 102 / 0 (0.0097 / 1.0000 / 0.0192) |
 | `all-MiniLM-L6-v2` | `0.25` (or `0.05..=1.0`) | `false` | 0.4203 | 0.2120 / 0.4182 | 0.2096 | 0.4103 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
 | `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4333 | 0.2251 / 0.4196 | 0.2197 | 0.4093 | 1 / 261 / 0 (0.0038 / 1.0000 / 0.0076) |
@@ -862,17 +910,22 @@ overlaps at least one gold toxic token:
 | Split | Stage & Thresholds | Encoder | Predicted-positive units | Gold-pos char macro P / R / F1 | Gold-pos token macro P / R / F1 | All-units token macro P / R / F1 | Micro token P / R / F1 | Gold overlap rate |
 |---|---|---|---|---|---|---|---|---|
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Lexicon` (`0.50`) | none | 5,796 | 0.5491 / 0.5490 / 0.5348 | 0.5485 / 0.5512 / 0.5365 | 0.5654 / 0.5668 / 0.5593 | 0.4910 / 0.4768 / 0.4838 | 0.9320 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Learned` soft (per-label) | `ModernBERT-base` | 6,625 | 0.1194 / 0.1046 / 0.1088 | 0.1194 / 0.1018 / 0.1063 | 0.2788 / 0.2698 / 0.2721 | 0.1030 / 0.0903 / 0.0962 | 0.1857 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Learned` soft (`0.50`) | `all-MiniLM-L6-v2` | 1,234 | 0.0339 / 0.0285 / 0.0302 | 0.0339 / 0.0276 / 0.0294 | 0.4665 / 0.4632 / 0.4642 | 0.1548 / 0.0252 / 0.0433 | 0.2349 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Learned` soft (per-label) | `all-MiniLM-L6-v2` | 6,713 | 0.1214 / 0.1046 / 0.1099 | 0.1214 / 0.1018 / 0.1074 | 0.2758 / 0.2658 / 0.2687 | 0.1020 / 0.0903 / 0.0958 | 0.1851 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Learned` soft (per-label) | `bge-small-en-v1.5` | 6,721 | 0.1303 / 0.1117 / 0.1176 | 0.1303 / 0.1086 / 0.1147 | 0.2858 / 0.2747 / 0.2778 | 0.1094 / 0.0969 / 0.1027 | 0.1951 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (`0.50`) | `ModernBERT-base` | 6,533 | 0.5718 / 0.5714 / 0.5564 | 0.5720 / 0.5733 / 0.5582 | 0.5467 / 0.5474 / 0.5400 | 0.4609 / 0.4959 / 0.4778 | 0.8812 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (`0.50`) | `all-MiniLM-L6-v2` | 6,173 | 0.5654 / 0.5639 / 0.5501 | 0.5648 / 0.5658 / 0.5514 | 0.5591 / 0.5596 / 0.5523 | 0.4779 / 0.4893 / 0.4836 | 0.9036 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (`0.50`) | `bge-small-en-v1.5` | 5,991 | 0.5567 / 0.5568 / 0.5421 | 0.5563 / 0.5586 / 0.5437 | 0.5621 / 0.5633 / 0.5557 | 0.4838 / 0.4838 / 0.4838 | 0.9162 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (per-label) | `ModernBERT-base` | 7,416 | 0.5764 / 0.5818 / 0.5618 | 0.5792 / 0.5831 / 0.5666 | 0.4969 / 0.4998 / 0.4903 | 0.4158 / 0.5067 / 0.4568 | 0.8316 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (per-label) | `all-MiniLM-L6-v2` | 7,497 | 0.5813 / 0.5879 / 0.5676 | 0.5832 / 0.5891 / 0.5704 | 0.4955 / 0.4985 / 0.4889 | 0.4142 / 0.5103 / 0.4573 | 0.8296 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (per-label) | `bge-small-en-v1.5` | 7,478 | 0.5834 / 0.5925 / 0.5698 | 0.5862 / 0.5934 / 0.5732 | 0.5018 / 0.5055 / 0.4951 | 0.4158 / 0.5152 / 0.4602 | 0.8318 |
 | `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` hard (per-label) | `bge-small-en-v1.5` | 7,981 | 0.5904 / 0.6021 / 0.5773 | 0.5939 / 0.6027 / 0.5812 | 0.4816 / 0.4861 / 0.4751 | 0.3985 / 0.5231 / 0.4524 | 0.8010 |
 | `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Lexicon` (`0.05` / `0.50`) | none | 8,482 | 0.5070 / 0.4804 / 0.4756 | 0.5078 / 0.4826 / 0.4782 | 0.5307 / 0.5155 / 0.5129 | 0.5368 / 0.3615 / 0.4320 | 0.9204 |
+| `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Learned` soft (per-label) | `ModernBERT-base` | 9,708 | 0.1282 / 0.1021 / 0.1092 | 0.1287 / 0.0976 / 0.1050 | 0.2611 / 0.2422 / 0.2467 | 0.1297 / 0.0789 / 0.0981 | 0.2015 |
 | `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Learned` soft (per-label) | `all-MiniLM-L6-v2` | 9,843 | 0.1313 / 0.1027 / 0.1109 | 0.1318 / 0.0981 / 0.1066 | 0.2592 / 0.2390 / 0.2441 | 0.1293 / 0.0794 / 0.0984 | 0.2020 |
 | `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Learned` soft (per-label) | `bge-small-en-v1.5` | 9,867 | 0.1398 / 0.1103 / 0.1188 | 0.1404 / 0.1054 / 0.1143 | 0.2694 / 0.2484 / 0.2537 | 0.1374 / 0.0846 / 0.1047 | 0.2117 |
+| `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Fused` soft (per-label) | `ModernBERT-base` | 10,858 | 0.5378 / 0.5125 / 0.5041 | 0.5416 / 0.5131 / 0.5084 | 0.4910 / 0.4750 / 0.4710 | 0.4596 / 0.3887 / 0.4212 | 0.8002 |
 | `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Fused` soft (per-label) | `all-MiniLM-L6-v2` | 10,964 | 0.5429 / 0.5184 / 0.5097 | 0.5462 / 0.5189 / 0.5123 | 0.4902 / 0.4737 / 0.4698 | 0.4584 / 0.3916 / 0.4224 | 0.7973 |
 | `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Fused` soft (per-label) | `bge-small-en-v1.5` | 10,945 | 0.5438 / 0.5226 / 0.5113 | 0.5480 / 0.5227 / 0.5144 | 0.4929 / 0.4777 / 0.4727 | 0.4600 / 0.3953 / 0.4252 | 0.8037 |
 
@@ -895,9 +948,11 @@ at mirror revision `3fbfeca80bad0f3aec37e72fa07eff222b6e752f`,
 SHA-256 `403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f`.
 It is distinct from the Google Parquet `civil-comments` entry; the harness
 verifies the CSV size and both digests before training and writes that source
-identity into new receipts. The four Civil Comments `IncivilityVectorHead` entries
-(`models-civil-comments-1`) and the `toxic-spans` dataset (`CC0-1.0`) are
-pinned in `analysis/zoo/index/zoo.json`. Other Jigsaw releases and Social
+identity into new receipts. The default-tier `ModernBERT-base` `IncivilityVectorHead` entries
+(`models-sentiment-1732-1`, `CLASS_PERMISSIVE`), the four legacy Civil Comments
+`IncivilityVectorHead` entries (`models-civil-comments-1`, `CLASS_LOCAL_ONLY`),
+and the `toxic-spans` dataset (`CC0-1.0`) are pinned in
+`analysis/zoo/index/zoo.json`. Other Jigsaw releases and Social
 Bias Frames require separate source-permission checks. Project-authored
 incivility rules and fixtures use the repository licence.
 
@@ -999,12 +1054,15 @@ the dimension and flags (bit 1 an encoder; all `u32` little-endian), the
 biases and the weights as little-endian `f32`, then, for a head bound to
 an encoder, its id, revision and SHA-256 as `u32`-length-prefixed UTF-8.
 `from_bytes` checks each part and the exact length, and a head read back
-keeps its encoder. `EmotionVectorHead::fit` fits the 28-label linear head
-deterministically by full-batch L2-regularized logistic regression from zero
-(`EmotionFitOptions`, default 500 epochs, learning rate `0.5`, L2 `1e-4`), and
-`EmotionVectorHead::from_zoo` loads a `KIND_HEAD` / `FORMAT_HEAD` (`TEVH`)
-artifact from `turbo-zoo` (`GOEMOTIONS_MINILM_HEAD = "turbo-en-goemotions-minilm-l6-v2-head-1"`
-and `GOEMOTIONS_BGE_SMALL_HEAD = "turbo-en-goemotions-bge-small-en-v1.5-head-1"`).
+keeps its encoder. `EmotionVectorHead::fit` fits the 28-label linear head deterministically through
+`turbo-trainer` (`AdamW`, `linear::forward`, `linear::backward`, and
+`Real::sigmoid`, configured via `EmotionFitOptions`, default 500 epochs,
+learning rate `0.5`, L2 `1e-4`), and `EmotionVectorHead::from_zoo` loads a
+`KIND_HEAD` / `FORMAT_HEAD` (`TEVH`) artifact from `turbo-zoo`
+(`GOEMOTIONS_MODERNBERT_HEAD = "turbo-en-goemotions-modernbert-base-head-1"`,
+default-tier `CLASS_PERMISSIVE`, plus the legacy `CLASS_LOCAL_ONLY` entries
+`GOEMOTIONS_MINILM_HEAD = "turbo-en-goemotions-minilm-l6-v2-head-1"` and
+`GOEMOTIONS_BGE_SMALL_HEAD = "turbo-en-goemotions-bge-small-en-v1.5-head-1"`).
 
 `EmotionAnnotator::with_thresholds` configures per-label activation thresholds
 in `EmotionDimension::ALL` order (controlling which emotions receive token
@@ -1013,30 +1071,34 @@ evidence spans and `Provenance` hash differentiation), and
 per-label precision, recall and F1, macro and micro averages, and how many
 active emotions carry evidence.
 
-### Trained GoEmotions heads and evaluation (`#926`)
+### Trained GoEmotions heads and evaluation (`#926`, `#1732`)
 
 `analysis/embed/examples/goemotions_eval` trains and evaluates
 `EmotionVectorHead` on the GoEmotions filtered split (`goemotions` in
 `analysis/zoo/index/zoo.json`, `google-research/google-research/goemotions` at
 `7de3624754e2b0f2f505ae496db3ba194bb40be9`, CC BY 4.0: 43,410 train, 5,426 dev,
 and 5,427 test Reddit comments across 27 emotions plus `neutral`). Each comment
-is embedded as one unit vector (up to 256 tokens for
-`sentence-transformers/all-MiniLM-L6-v2` and 512 tokens for
-`BAAI/bge-small-en-v1.5`), and `EmotionVectorHead::fit` is run on the 43,410
-train comments with `EmotionFitOptions { epochs: 500, learning_rate: 16.0, l2: 1e-4 }`.
-The two resulting `.tevh` heads are published in the `models-goemotions-1`
-release under `Apache-2.0` and registered in `analysis/zoo/index/zoo.json` as
-`KIND_HEAD` (`FORMAT_HEAD`, `COMPONENT_DOCUMENT_CATEGORIZER`, `CLASS_PERMISSIVE`):
+is embedded as one unit vector (up to 512 tokens for
+`answerdotai/ModernBERT-base` and `BAAI/bge-small-en-v1.5`, and 256 tokens for
+`sentence-transformers/all-MiniLM-L6-v2`), and `EmotionVectorHead::fit` is run
+on the 43,410 train comments with `EmotionFitOptions { epochs: 500, learning_rate: 16.0, l2: 1e-4 }`.
+The default-tier `ModernBERT-base` head is published in `models-sentiment-1732-1`
+as `CLASS_PERMISSIVE`, while the two legacy heads in `models-goemotions-1` are
+classified as `CLASS_LOCAL_ONLY` (`#1732`):
 
+- `turbo-en-goemotions-modernbert-base-head-1` (`86,248` bytes, SHA-256
+  `e5e54e034221c36b5f89715e09c7c5ef08488ecac71151f2b43acdc4b3913919`, bound to
+  `answerdotai/ModernBERT-base` rev `1`, `CLASS_PERMISSIVE`)
 - `turbo-en-goemotions-minilm-l6-v2-head-1` (`43,251` bytes, SHA-256
   `9b280043bff1293280808a38d35d0cf0489cde4c6f92c08423d5c88fc5021723`, bound to
-  `sentence-transformers/all-MiniLM-L6-v2` rev `2`)
+  `sentence-transformers/all-MiniLM-L6-v2` rev `2`, `CLASS_LOCAL_ONLY`)
 - `turbo-en-goemotions-bge-small-en-v1.5-head-1` (`43,235` bytes, SHA-256
   `f82b1beb02642576d12e8932b6f3cf0b8487d3f150c0066b576c50011665123a`, bound to
-  `BAAI/bge-small-en-v1.5` rev `1`)
+  `BAAI/bge-small-en-v1.5` rev `1`, `CLASS_LOCAL_ONLY`)
 
 Full evaluation receipts are committed in
-`docs/receipts/goemotions-926/all-minilm-l6-v2.json` and
+`docs/receipts/goemotions-926/modernbert-base.json`,
+`docs/receipts/goemotions-926/all-minilm-l6-v2.json`, and
 `docs/receipts/goemotions-926/bge-small-en-v1.5.json`. Across all stages and
 threshold regimes on the 5,427 test comments, every active non-neutral emotion
 prediction carries a non-empty token evidence span (`active == active_with_evidence`). The
@@ -1056,8 +1118,15 @@ uniformly) and evaluated once on the 5,427 test comments:
 
 | Stage | Encoder | Threshold regime | Macro P / R / F1 | Micro P / R / F1 | Active emotions (with evidence) |
 | --- | --- | --- | --- | --- | ---: |
+| `majority` (`neutral` only) | none | constant | `0.012 / 0.036 / 0.018` | `0.329 / 0.282 / 0.304` | `0 (0)` |
 | `lexicon` | none | default (`0.50`) | `0.652 / 0.267 / 0.301` | `0.497 / 0.448 / 0.471` | `1,678 (1,678)` |
 | `lexicon` | none | per-label dev tuned | `0.661 / 0.262 / 0.304` | `0.501 / 0.447 / 0.472` | `1,615 (1,615)` |
+| `learned` | `ModernBERT-base` | default (`0.50`) | `0.709 / 0.175 / 0.228` | `0.619 / 0.351 / 0.448` | `1,275 (1,275)` |
+| `learned` | `ModernBERT-base` | uniform dev tuned (`0.25`) | `0.545 / 0.322 / 0.348` | `0.475 / 0.552 / 0.511` | `3,572 (3,572)` |
+| `learned` | `ModernBERT-base` | per-label dev tuned | `0.440 / 0.415 / 0.375` | `0.427 / 0.579 / 0.492` | `5,834 (5,834)` |
+| `hybrid` | `ModernBERT-base` | default (`0.50`) | `0.640 / 0.331 / 0.386` | `0.602 / 0.464 / 0.524` | `2,331 (2,331)` |
+| `hybrid` | `ModernBERT-base` | uniform dev tuned (`0.30`) | `0.586 / 0.391 / 0.422` | `0.525 / 0.550 / 0.537` | `3,371 (3,371)` |
+| `hybrid` | `ModernBERT-base` | per-label dev tuned | `0.491 / 0.447 / 0.429` | `0.467 / 0.597 / 0.524` | `5,477 (5,477)` |
 | `learned` | `all-MiniLM-L6-v2` | default (`0.50`) | `0.836 / 0.103 / 0.127` | `0.498 / 0.343 / 0.406` | `682 (682)` |
 | `learned` | `all-MiniLM-L6-v2` | uniform dev tuned (`0.15`) | `0.468 / 0.313 / 0.291` | `0.387 / 0.576 / 0.463` | `4,629 (4,629)` |
 | `learned` | `all-MiniLM-L6-v2` | per-label dev tuned | `0.403 / 0.395 / 0.314` | `0.332 / 0.576 / 0.421` | `7,949 (7,949)` |
@@ -1071,13 +1140,14 @@ uniformly) and evaluated once on the 5,427 test comments:
 | `hybrid` | `bge-small-en-v1.5` | uniform dev tuned (`0.30`) | `0.601 / 0.338 / 0.370` | `0.526 / 0.526 / 0.526` | `2,899 (2,899)` |
 | `hybrid` | `bge-small-en-v1.5` | per-label dev tuned | `0.486 / 0.440 / 0.410` | `0.446 / 0.597 / 0.511` | `5,539 (5,539)` |
 
-The `hybrid` stage consistently improves over both `lexicon` and `learned`
-alone: with per-label dev thresholds, `hybrid` reaches `0.396` macro F1 / `0.494`
-micro F1 on `all-MiniLM-L6-v2` (versus `0.304` macro F1 for `lexicon` and
-`0.314` macro F1 for `learned`) and `0.410` macro F1 / `0.511` micro F1 on
-`bge-small-en-v1.5` (versus `0.331` macro F1 for `learned`), and with a single
-uniform dev-tuned threshold (`0.30`) reaches `0.512` micro F1 on
-`all-MiniLM-L6-v2` and `0.526` micro F1 on `bge-small-en-v1.5`.
+On `answerdotai/ModernBERT-base`, `learned` (per-label dev tuned) reaches
+`0.375` macro F1 / `0.492` micro F1, outperforming both legacy encoders
+(`0.314 / 0.421` on `all-MiniLM-L6-v2` and `0.331 / 0.476` on `bge-small-en-v1.5`),
+`lexicon` (`0.304 / 0.472`, paired bootstrap `p = 0.0000` macro / `0.0008` micro),
+and `majority` (`0.018 / 0.304`, `p = 0.0000`). The `hybrid` stage on
+`ModernBERT-base` reaches `0.429` macro F1 / `0.524` micro F1 per-label (`p = 0.0000`
+vs `lexicon`, `learned`, and `majority`) and `0.422` macro F1 / `0.537` micro F1
+at the uniform dev-tuned threshold (`0.30`).
 
 #### Per-label precision, recall, and F1 on the GoEmotions test split
 
@@ -1122,8 +1192,11 @@ terms and are not used; the seed lexicon is project-authored under the
 repository licence. GoEmotions (`google-research/google-research/goemotions`,
 CC BY 4.0) is approved in [docs/licences.md](licences.md#complex-sentiment-licence-audit-326)
 and pinned in `analysis/zoo/index/zoo.json` (`goemotions` and `goemotions-raw`),
-and the two trained linear heads (`turbo-en-goemotions-minilm-l6-v2-head-1` and
-`turbo-en-goemotions-bge-small-en-v1.5-head-1`) are published in the
+and the default-tier `ModernBERT-base` linear head
+(`turbo-en-goemotions-modernbert-base-head-1`) is published in the
+`models-sentiment-1732-1` release (`CLASS_PERMISSIVE`), alongside the two legacy
+heads (`turbo-en-goemotions-minilm-l6-v2-head-1` and
+`turbo-en-goemotions-bge-small-en-v1.5-head-1`, `CLASS_LOCAL_ONLY`) in the
 `models-goemotions-1` release under `Apache-2.0` with CC BY 4.0 attribution.
 
 - `analysis/doccat/src/sentiment/emotion/tests/mod.rs`: cues with their

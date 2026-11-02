@@ -4,7 +4,6 @@ import ai.pipestream.turboembed.panama.TurboAnalysisResult;
 import ai.pipestream.turboembed.panama.TurboAnalyzer;
 import ai.pipestream.turboembed.panama.TurboLayerKind;
 import ai.pipestream.turboembed.panama.TurboSpanView;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
@@ -14,14 +13,6 @@ public final class TurboTokenizerME extends TurboAdapterSupport implements Token
     /** Creates a tokenizer with the default rule tokenizer. */
     public TurboTokenizerME() {
         this(TurboAnalyzer.create(), true);
-    }
-
-    /** Creates a tokenizer using an OpenNLP {@code TokenizerModel} {@code .bin} file. */
-    public TurboTokenizerME(Path modelPath) {
-        this(
-                TurboAnalyzer.create(new TurboAnalyzer.Config(
-                        "en", null, Objects.requireNonNull(modelPath, "modelPath"), null, null, null)),
-                true);
     }
 
     /** Creates a tokenizer sharing an analyzer without owning its lifecycle. */

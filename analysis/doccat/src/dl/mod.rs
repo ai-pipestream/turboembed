@@ -90,7 +90,7 @@ impl fmt::Display for DlDoccatError {
 impl std::error::Error for DlDoccatError {}
 
 /// A sequence-classification transformer model that scores text chunks or
-/// pre-tokenized `opennlp:subwords` windows into raw per-category `f32` logits.
+/// pre-tokenized `turbo:subwords` windows into raw per-category `f32` logits.
 pub trait DlSequenceScorer: Send + Sync {
     /// Ordered category labels (`0..num_categories`).
     fn categories(&self) -> &[String];
@@ -119,7 +119,7 @@ pub trait DlSequenceScorer: Send + Sync {
     /// of raw `f32` logits (`[categories().len()]`) per chunk.
     fn score_chunks(&self, chunks: &[String], options: &DlInferenceOptions) -> Result<Vec<Vec<f32>>, DlDoccatError>;
 
-    /// Scores pre-tokenized subword piece windows from `opennlp:subwords` and
+    /// Scores pre-tokenized subword piece windows from `turbo:subwords` and
     /// returns one row of raw `f32` logits (`[categories().len()]`) per window.
     fn score_subword_windows(&self, windows: &[&[i32]]) -> Result<Vec<Vec<f32>>, DlDoccatError>;
 }
@@ -260,7 +260,7 @@ impl<S: DlSequenceScorer, C: ClassificationScoringStrategy> DocumentCategorizerD
         self.categorize(&[text])
     }
 
-    /// Categorizes a document directly from its pre-tokenized `opennlp:subwords`
+    /// Categorizes a document directly from its pre-tokenized `turbo:subwords`
     /// (`Subwords`) layer.
     pub fn categorize_subwords(&self, subwords: &Subwords) -> Result<Vec<f64>, DlDoccatError> {
         let expected = self.scorer.model_ref();
@@ -409,7 +409,7 @@ impl<S: DlSequenceScorer, C: ClassificationScoringStrategy> DocumentCategorizerD
 
     pub(crate) fn config_hash_value(&self) -> u64 {
         let mut hash = turbo_analysis::Fnv1a::new();
-        hash.str("opennlp:doccat-dl")
+        hash.str("turbo-doccat:dl")
             .bytes(&[
                 u8::from(self.options.lower_case),
                 u8::from(self.options.normalize_whitespace),

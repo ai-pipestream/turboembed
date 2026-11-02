@@ -14,7 +14,8 @@ The C API (`include/turbo/turbo.h`) has three tasks:
 - `TURBO_TASK_EMBED`: text or token ids in, one pooled vector per row out,
   or one vector per token range (`turbo_embed_write_ranges`, late pooling),
   or per range and per each of the last layers
-  (`turbo_embed_write_layer_ranges`, for heads that read earlier layers).
+  (`turbo_embed_options.layers` and `turbo_embed_write_layer_ranges`, for
+  heads that read earlier layers).
 - `TURBO_TASK_RERANK`: query and passage pairs in, one relevance logit per
   pair out (`turbo_rerank_write_pairs`, [reranking.md](reranking.md)).
 - `TURBO_TASK_EXTRACTIVE_QA`: question and context windows in, start and

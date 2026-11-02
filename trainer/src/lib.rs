@@ -17,11 +17,16 @@
 pub mod adamw;
 pub mod adapter;
 mod batch;
+pub mod coref;
 pub mod crf;
+pub mod distill;
 pub mod encoder;
 pub mod fit;
+pub mod fit_coref;
 pub mod fit_lemma;
+pub mod fit_open_span;
 pub mod fit_parse;
+pub mod fit_relation;
 pub mod fit_span;
 pub mod langid;
 pub mod lemma;
@@ -29,21 +34,36 @@ pub mod linear;
 pub mod logspace;
 pub mod lstm;
 pub mod mix;
+pub mod open_span;
 pub mod parser;
 pub mod real;
+pub mod relation;
 pub mod rng;
+pub mod scale;
 mod shapes;
 pub mod span;
 pub mod tagger;
+pub mod tally;
 pub mod xent;
 
+pub use distill::{
+    DistillExample, DistillOptions, DistillReport, DistillScratch, DistillTask, DistillWork, StudentGate,
+    ThroughputComparison, decode_teacher_example, distill_loss, distill_loss_with, distill_multi_head, distill_tagger,
+    feature_align_loss, make_distill_examples, measure_throughput, score_tagger, tagger_distill_loss,
+};
 pub use encoder::tuned::{Tuned, TunedExample, fit_tuned, fit_tuned_with, tuned_gradients};
-pub use fit::{Config, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
+pub use fit::{Config, Draw, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
+pub use fit_coref::{CorefExample, fit_coref, fit_coref_with};
 pub use fit_lemma::{LemmaExample, fit_lemmatizer, fit_lemmatizer_with, mine_trees};
+pub use fit_open_span::{OpenSpanExample, fit_open_spans, fit_open_spans_with, open_span_f1};
 pub use fit_parse::{ParseExample, fit_parser, fit_parser_with};
+pub use fit_relation::{RelationExample, fit_relations, fit_relations_with};
 pub use fit_span::{SpanExample, fit_spans};
 pub use lemma::Lemmatizer;
+pub use open_span::OpenSpans;
 pub use parser::Parser;
 pub use real::Real;
+pub use relation::Relations;
+pub use scale::{LossScale, Scaler};
 pub use span::Spans;
 pub use tagger::Tagger;

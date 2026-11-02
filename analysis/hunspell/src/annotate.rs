@@ -11,7 +11,7 @@ use turbo_stem_layers::Stems;
 use crate::dictionary::Dictionary;
 use crate::stemmer::Stemmer;
 
-/// Reads a text view and its `opennlp:tokens` and writes `turbo:stems`:
+/// Reads a text view and its `turbo:tokens` and writes `turbo:stems`:
 /// each token's first stem, or the token itself when the dictionary does
 /// not read it, as OpenNLP's `HunspellStemmer.stem` returns.
 ///

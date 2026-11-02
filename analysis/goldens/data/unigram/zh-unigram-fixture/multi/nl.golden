@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/nl	199	199	3f17963ed7870277a2a9e701567e7a4d5f9adcc7d2880300e666acf388ac7a57
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	168	start:u32	end:u32
+layer	turbo:tokens	text	168	start:u32	end:u32
 0	1
 1	2
 3	4
@@ -175,4 +175,4 @@ layer	opennlp:tokens	text	168	start:u32	end:u32
 195	196
 196	197
 197	198
-end	opennlp:tokens
+end	turbo:tokens

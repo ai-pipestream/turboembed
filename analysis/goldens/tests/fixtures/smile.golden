@@ -5,13 +5,13 @@ jdk	21.0.5	21.0.5+11-LTS	Eclipse Adoptium
 unicode	15.0
 input	test/smile	10	8	b7b55bcbe6c0c7d889485a656f2840a7d40808f36385d86e65d1ffb7798b82f4
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
-layer	opennlp:tokens	text	3	start:u32	end:u32
+layer	turbo:tokens	text	3	start:u32	end:u32
 0	5
 6	10
 6	10
-end	opennlp:tokens
-layer	turbo:utf16<opennlp:tokens>	aligned:opennlp:tokens	3	start16:u32	end16:u32	cut:u32
+end	turbo:tokens
+layer	turbo:utf16<turbo:tokens>	aligned:turbo:tokens	3	start16:u32	end16:u32	cut:u32
 0	5	0
 6	7	1
 7	8	1
-end	turbo:utf16<opennlp:tokens>
+end	turbo:utf16<turbo:tokens>

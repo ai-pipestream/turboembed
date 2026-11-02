@@ -49,12 +49,49 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 | `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `Sentences`, `Tokens`, `turbo:boundaries`, `Entities`, `Subwords`, `turbo:chunks`, `turbo:levels`, `Embeddings<turbo:chunks>` | `TASK_EMBED` |
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
 | `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
+| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas` | `turbo:structure`, `Sentences`, `Tokens`, `PosTags`, `Entities`, `Dependencies`, `Lemmas` | `TASK_EMBED`, `head.pos`, `head.entities`, `head.dependencies`, `head.lemmas` |
 
 A profile's output set never changes within a version. When a profile or
-explicit step requires a bundle capability (`TASK_EMBED` or `embed.sparse`)
-that is not loaded on the server (or does not match `req.model` when named),
-the call refuses before streaming with `TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`)
-naming the missing bundle requirement.
+explicit step requires a bundle capability (`TASK_EMBED`, `embed.sparse` or
+a `head.*` entry) that is not loaded on the server (or does not match
+`req.model` when named), the call refuses before streaming with
+`TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`) naming the missing bundle
+requirement.
+
+### Bundle head steps
+
+A `TASK_EMBED` bundle may carry learned heads over its encoder
+(docs/bundle.md, Heads). Each head the bundle provides is a step, named
+for the layer it writes, and `Capabilities` lists a bundle's steps under
+`BundleCapabilities.head_steps`:
+
+| Step | Head | Layer written | Requirement |
+|---|---|---|---|
+| `turbo-tagger:pos` | `HEAD_TOKEN_TAGGER`, `SCHEME_TAGS`, layer `pos` | `PosTags` | `head.pos` |
+| `turbo-tagger:morphology` | `HEAD_TOKEN_TAGGER`, `SCHEME_TAGS`, layer `feats` | `MorphFeatures<Tokens>` (`turbo:feats`) | `head.morphology` |
+| `turbo-tagger:entities` | `HEAD_TOKEN_TAGGER`, `SCHEME_BIO` or `SCHEME_BILOU`, layer `entities` | `Entities` | `head.entities` |
+| `turbo-tagger:dependencies` | `HEAD_BIAFFINE_PARSER`, layer `dependencies` | `Dependencies<Tokens>` | `head.dependencies` |
+| `turbo-tagger:lemmas` | `HEAD_EDIT_TREE_LEMMATIZER`, layer `lemmas` | `Lemmas` | `head.lemmas` |
+| `turbo-tagger:spans` | `HEAD_SPAN_CLASSIFIER`, layer `entities` | `Entities` | `head.spans` |
+| `turbo-tagger:relations` | `HEAD_RELATION_CLASSIFIER`, layer `relations` | `Relations` and `Edges<Entities, Entities>` | `head.relations` |
+
+A step runs the one head of the bundle of that kind writing that layer; a
+bundle with two such heads, or none, serves no such step. The steps read
+the source view's `Tokens` and `Sentences` (and the bundle's `Subwords`
+when `turbo:subwords` ran on the same bundle), a sentence at a time, and
+write each layer exactly as the `turbo-tagger` crate's annotators write
+it. The first five share one encoder pass: whichever runs first reads
+every window of the document once, pooling the states each head asks for,
+and the others decode from the same states, so a request naming all of
+them costs one forward per window. The span step and the relation step
+read on their own; the relation step needs the `Entities` layer, so it
+runs after the entity or span step. `turbo-tagger:heads` in an explicit
+step list stands for every head step the chosen bundle provides (the
+entity step over the span step when it has both), and is refused when the
+bundle carries no head. A head step over a bundle lacking the head, or
+`req.model` naming such a bundle, refuses with `TURBO_E_BUNDLE_NOT_FOUND`
+naming the `head.*` requirement; with no `req.model`, the pipeline runs
+on the first loaded embed bundle providing every head it needs.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
@@ -149,6 +186,93 @@ rpcs from the same messages.
   they are checked for order and source only. `RoundTripRecords` answers
   with the message it was given.
 
+## Seeding structure from a parser
+
+A client that already has a document's headings, lists and tables
+(from docling, a Markdown or HTML parser, a PDF layout tool) sends them
+so the chunker cuts along them. `AnalyzePipelineRequest` takes them two
+ways, and both give the same document:
+
+- `initial_graph`: DocumentGraph bytes holding a `turbo:structure`
+  layer, which needs the Rust DocumentGraph writer.
+- `structure_seed`: a `StructureSeed` message, the text plus one
+  `StructureBlock` per block, which any language with protobuf builds.
+
+A block names its `kind` (`StructureBlockKind`), its `start` and `end`
+in the request's `offsets` unit (UTF-8 bytes, UTF-16 units as Java
+strings index, or code points as Python strings index), its `level`
+(a heading's or section's level, a list's, list item's or quote's
+nesting, 0 otherwise) and its `parent`, the index of the enclosing
+block, unset at the top. The server builds the default
+`turbo:structure` layer from the blocks, with provenance
+`turbo:structure-seed`, the layer an `initial_graph` written with that
+provenance holds; the steps then run as they do over that graph. The
+seed carries the text, so `text`, `source_bytes` and `initial_graph`
+stay empty beside it.
+
+Blocks are a tree in text order: each starts at or after the block
+before it, lies inside its parent, which comes before it, and starts
+after its previous sibling ends. A block with an unspecified or unknown
+kind, a level over 255, a span outside the text or inside a code point
+(or a UTF-16 surrogate pair), a parent at or after it, or a span that
+overlaps a sibling or leaves its parent refuses the call before it
+streams, `INVALID_ARGUMENT` with `TURBO_E_INVALID_ARGUMENT` and a
+message naming the block (`structure_seed block 3 overlaps the block
+before it`).
+
+For the text
+
+```
+# Café menu
+
+- crème brûlée
+- 😀 soup
+
+| a | b |
+| ü | é |
+```
+
+a heading, a list and a table, in UTF-16 units:
+
+| Block | kind | start | end | level | parent |
+|---|---|---|---|---|---|
+| 0 | `STRUCTURE_BLOCK_KIND_HEADING` | 0 | 11 | 1 | |
+| 1 | `STRUCTURE_BLOCK_KIND_LIST` | 13 | 37 | 1 | |
+| 2 | `STRUCTURE_BLOCK_KIND_LIST_ITEM` | 13 | 27 | 1 | 1 |
+| 3 | `STRUCTURE_BLOCK_KIND_LIST_ITEM` | 28 | 37 | 1 | 1 |
+| 4 | `STRUCTURE_BLOCK_KIND_TABLE` | 39 | 58 | 0 | |
+| 5 | `STRUCTURE_BLOCK_KIND_TABLE_ROW` | 39 | 48 | 0 | 4 |
+| 6 | `STRUCTURE_BLOCK_KIND_TABLE_CELL` | 41 | 42 | 0 | 5 |
+| 7 | `STRUCTURE_BLOCK_KIND_TABLE_ROW` | 49 | 58 | 0 | 4 |
+| 8 | `STRUCTURE_BLOCK_KIND_TABLE_CELL` | 51 | 52 | 0 | 7 |
+
+The emoji is two UTF-16 units, so item 3 ends at 37 in UTF-16 units, 36
+in code points and 43 in UTF-8 bytes. From Java:
+
+```java
+String text = "# Café menu\n\n- crème brûlée\n- 😀 soup\n\n| a | b |\n| ü | é |\n";
+int at = text.indexOf("# Café menu");
+StructureSeed seed = StructureSeed.newBuilder()
+        .setText(text)
+        .addBlocks(StructureBlock.newBuilder()
+                .setKind(StructureBlockKind.STRUCTURE_BLOCK_KIND_HEADING)
+                .setStart(at).setEnd(at + "# Café menu".length()).setLevel(1))
+        // ... the list, its items, the table, its rows and cells ...
+        .build();
+AnalyzePipelineRequest req = AnalyzePipelineRequest.newBuilder()
+        .setOffsets(OffsetMode.OFFSET_MODE_UTF16)
+        .setProfile("default-v1")
+        .setStructureSeed(seed)
+        .build();
+```
+
+`server/tests/progressive_seed.rs` holds the server to this: the seed
+above in each offset unit gives the same graph, byte for byte, as the
+same structure sent as `initial_graph`, and every refusal above names
+its block. The Java and Python stub clients (`clients/java`,
+`clients/python/smoke_test.py`) send a heading and a list as a seed
+against the release binary and check an overlapping block is refused.
+
 ## Capabilities
 
 `Capabilities` answers with what a client needs to refuse its own
@@ -164,6 +288,7 @@ request, per loaded bundle:
 | `context_limit` | Tokens per row; a longer row is `TURBO_E_CAPACITY` naming `max_seq`. |
 | `batch_limit` | Rows per run; a larger batch is `TURBO_E_CAPACITY` naming `max_batch`. |
 | `schema` | The limits an extraction schema may carry, the schema-extract crate's `Limits` (`max_entity_types`, `max_classification_tasks`, `max_labels_per_task`, `max_structures`, `max_fields_per_structure`, `max_text_bytes`, `max_prompt_subwords`, `max_words`); unset until the server loads a bundle whose task reads a schema. |
+| `head_steps` | The `AnalyzeDocumentProgressive` head steps the bundle's heads serve (`turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`, `turbo-tagger:relations`), in that order; empty for a bundle without heads. |
 
 The limits are the session's: what a request is actually held to, where a
 server started below the model's limits. The response's `limits` field

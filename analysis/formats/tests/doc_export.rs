@@ -409,8 +409,8 @@ fn tsv_csv_markdown_jsonld_and_warc_handle_special_chars_and_child_view_projecti
         let jsonld = JsonLdFormatter.format_to_string("doc-special", &doc, mode).unwrap();
         assert!(jsonld.contains("\"@context\": \"https://turboembed.ai/ns/jsonld/v1\""));
         assert!(jsonld.contains(&format!("\"offsetMode\": \"{}\"", mode.as_str())));
-        assert!(jsonld.contains("\"opennlp:tokens\": ["));
-        assert!(jsonld.contains("\"opennlp:entities\": ["));
+        assert!(jsonld.contains("\"turbo:tokens\": ["));
+        assert!(jsonld.contains("\"turbo:entities\": ["));
         assert!(jsonld.contains("\"turbo:pii\": ["));
     }
 

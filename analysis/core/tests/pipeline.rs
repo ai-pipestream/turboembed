@@ -370,7 +370,7 @@ fn a_batch_reaches_a_batching_annotator_in_one_call() {
     // The vectors name the layer they describe, the model that made them
     // and where it ran: an FP16 run is not an FP32 run.
     let key = Key::<Vectors<Sentences>>::DEFAULT.id();
-    assert_eq!(key.to_string(), "opennlp:embeddings<opennlp:sentences>");
+    assert_eq!(key.to_string(), "turbo:embeddings<turbo:sentences>");
     let p = docs[7].provenance(key).unwrap();
     assert_eq!(p.model.as_ref().unwrap().id, "toy");
     assert_eq!(p.execution.as_ref().unwrap().precision, "f32");
@@ -389,7 +389,7 @@ fn one_document_failing_leaves_the_rest() {
     // the step that did not need it still ran.
     let d = &docs[1];
     assert_eq!(d.status(Key::<Tokens>::DEFAULT.id()), Some(&Status::Failed(failed)));
-    let why = "opennlp:tokens failed: test:tokens: asked to fail";
+    let why = "turbo:tokens failed: test:tokens: asked to fail";
     assert_eq!(d.status(Key::<PosTags>::DEFAULT.id()), Some(&Status::Skipped(why.into())));
     assert!(d.get::<Vectors<Sentences>>().is_some());
 }
@@ -414,10 +414,10 @@ fn a_broken_pipeline_is_refused_when_it_is_built() {
     let no_sentences = Analyzer::builder().step(Bound::new(Tokenizer)).build();
     assert_eq!(
         no_sentences.err().unwrap(),
-        Error::Pipeline("test:tokens reads opennlp:sentences, which nothing writes".into())
+        Error::Pipeline("test:tokens reads turbo:sentences, which nothing writes".into())
     );
     let twice = Analyzer::builder().add(Sentencer).add(Sentencer).build();
-    assert!(matches!(twice, Err(Error::Pipeline(m)) if m.contains("both write opennlp:sentences")));
+    assert!(matches!(twice, Err(Error::Pipeline(m)) if m.contains("both write turbo:sentences")));
 }
 
 #[test]
@@ -474,7 +474,7 @@ fn a_layer_is_read_only_beside_the_instance_it_was_made_on() {
     // of the one is not about item i of the other.
     let mut docs = vec![doc.clone()];
     let e = pipeline(Bound::new(Lemmatizer)).run(&mut docs).remove(0).unwrap_err();
-    assert_eq!(e.to_string(), "opennlp:pos was made on opennlp:tokens@gold, not on the opennlp:tokens the step reads");
+    assert_eq!(e.to_string(), "turbo:pos was made on turbo:tokens@gold, not on the turbo:tokens the step reads");
     assert_eq!(docs[0].status(Key::<Lemmas>::DEFAULT.id()), Some(&Status::Failed(e)));
 
     // Beside the gold tokens they line up.
@@ -489,7 +489,7 @@ fn one_id_names_one_layer_type() {
     /// Another crate's idea of sentences, under the shared id.
     struct OtherSentences;
     impl Layer for OtherSentences {
-        const ID: &'static str = "opennlp:sentences";
+        const ID: &'static str = "turbo:sentences";
         fn anchor() -> Anchor {
             Anchor::Document
         }
@@ -507,18 +507,18 @@ fn one_id_names_one_layer_type() {
         }
     }
 
-    // On the wire both would be opennlp:sentences, so the second is refused,
+    // On the wire both would be turbo:sentences, so the second is refused,
     // under any instance name.
     let mut doc = Document::new("Dogs bark.");
     let mut s = Spans::new(ViewId::SOURCE);
     s.push(Span::new(0, 10));
     doc.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("t")).unwrap();
     let e = doc.add(&Key::named("other"), OtherSentences, Provenance::by("t")).unwrap_err();
-    assert_eq!(e.to_string(), "opennlp:sentences@other already names another layer type");
+    assert_eq!(e.to_string(), "turbo:sentences@other already names another layer type");
 
     // And a pipeline holding both is refused when it is built.
     let both = Analyzer::builder().add(Sentencer).step(Bound::new(OtherSentencer).write(0, "other")).build();
-    assert_eq!(both.err().unwrap(), Error::Pipeline("two layer types are both opennlp:sentences".into()));
+    assert_eq!(both.err().unwrap(), Error::Pipeline("two layer types are both turbo:sentences".into()));
 }
 
 #[test]
@@ -553,7 +553,7 @@ fn layers_are_checked_when_they_are_added() {
     t.push(Span::new(0, 4));
     let tokens = Tokens { spans: t, sentence: Some(vec![Ix::new(1)]) };
     let e = doc.add(&Key::DEFAULT, tokens, Provenance::by("t")).unwrap_err();
-    assert_eq!(e.to_string(), "opennlp:tokens: an index past the end of opennlp:sentences, which has 1");
+    assert_eq!(e.to_string(), "turbo:tokens: an index past the end of turbo:sentences, which has 1");
 }
 
 #[test]
@@ -638,7 +638,7 @@ fn a_declined_layer_is_recorded_and_what_needs_it_is_skipped_too() {
     assert_eq!(d.status(language), Some(&Status::Skipped("no language evidence".into())));
     assert!(d.get::<Language>().is_none());
     // The stemmer needed it, so it was skipped too, and says why.
-    let why = Status::Skipped("opennlp:language was skipped: no language evidence".into());
+    let why = Status::Skipped("turbo:language was skipped: no language evidence".into());
     assert_eq!(d.status(Key::<Lemmas>::DEFAULT.id()), Some(&why));
     // Skipped is neither empty nor missing: the tokens are there, and a
     // layer nothing wrote has no status at all.
@@ -678,7 +678,7 @@ fn a_confidence_column_hangs_on_any_layer() {
 
     let key = Key::<Confidence<Tokens>>::DEFAULT;
     let e = doc.add(&key, Confidence::new(vec![0.9, 1.5]), Provenance::by("t")).unwrap_err();
-    assert_eq!(e.to_string(), "turbo:confidence<opennlp:tokens>: a confidence between 0 and 1");
+    assert_eq!(e.to_string(), "turbo:confidence<turbo:tokens>: a confidence between 0 and 1");
     doc.add(&key, Confidence::new(vec![0.9, 0.6]), Provenance::by("t")).unwrap();
     assert_eq!(doc.get_key(&key).unwrap().value, [0.9, 0.6]);
     // One per layer it describes: a sentence confidence is another layer.
@@ -838,8 +838,8 @@ fn an_aligned_output_needs_its_base_read_or_written_first() {
     let e = Analyzer::builder().add(Backwards).build().err().unwrap();
     assert_eq!(
         e.to_string(),
-        "pipeline: test:backwards writes turbo:confidence<opennlp:tokens>, aligned to opennlp:tokens, \
-         before opennlp:tokens: the base must come first in its writes"
+        "pipeline: test:backwards writes turbo:confidence<turbo:tokens>, aligned to turbo:tokens, \
+         before turbo:tokens: the base must come first in its writes"
     );
 
     /// Writes a confidence column for tokens it neither reads nor writes.
@@ -856,8 +856,8 @@ fn an_aligned_output_needs_its_base_read_or_written_first() {
     assert_eq!(
         e,
         Error::Pipeline(
-            "test:unread writes turbo:confidence<opennlp:tokens>, aligned to opennlp:tokens, \
-             without reading opennlp:tokens"
+            "test:unread writes turbo:confidence<turbo:tokens>, aligned to turbo:tokens, \
+             without reading turbo:tokens"
                 .into()
         )
     );

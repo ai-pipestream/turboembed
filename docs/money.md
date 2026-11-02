@@ -188,6 +188,26 @@ Default extraction rules:
 - Currency words are lowercased code point by code point, so `RENMİNBİ`,
   with U+0130, is `renminbi`.
 
+## Named entities (`money`)
+
+The `"money"` named entity type in `Entities` comes from deterministic rules
+rather than a statistical sequence NER model:
+
+- `money_to_entities` and `RuleEntityProjector::money` in `turbo-namefind`
+  (`analysis/namefind/src/rules/mod.rs`) project `Money` (`turbo:money`,
+  produced by `MoneyExtractor`, `RegionAwareMoneyAnnotator`, or
+  `GrammarAnnotator` with `GRAMMAR_MONEY`) into `Entities` spans typed
+  `"money"`, aligned to `Tokens` with exact source byte spans and score `0.0`.
+- `RuleEntityProjector::money` preserves the upstream `Money` layer's
+  provenance (`"turbo-numeric:money"` or `"turbo-grammar:numbers"`, version,
+  configuration hash, and execution metadata) and records both `Money` and
+  `Tokens` in `reads`.
+- When combined with learned NER heads through `ConsensusEntityMerger`
+  (`analysis/namefind/src/consensus.rs`) under
+  `EntityMergePolicy::PriorityFallback`, rule-backed `"money"` spans take
+  priority over conflicting overlapping model predictions and record the
+  deterministic rule producer in `Evidence<Entities>`.
+
 ## Testing
 
 `analysis/numeric/tests/money_extract.rs`,
@@ -197,3 +217,7 @@ Default extraction rules:
 disambiguation, weight-context exclusions, ECB rate parsing, and fixed-date
 and dated currency conversion, alongside the `money` and `money-convert`
 snapshot suites in both `LatinUs` and `LatinEu` notations.
+`analysis/namefind/tests/rule_entities.rs`,
+`analysis/namefind/tests/rule_entities_eval.rs`, and
+`analysis/query/tests/rule_entities_gold.rs` test `"money"` projection into
+`Entities`, provenance preservation, and exact-span gold F1.

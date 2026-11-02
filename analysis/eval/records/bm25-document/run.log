@@ -1,0 +1,10 @@
+== bm25-document 2026-11-01T16:29:37Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 17.51 8.70 6.33
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --out <records>/bm25-document --chunker document --retrieval bm25
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/bm25-document/scifact.json
+<records>/bm25-document/nfcorpus.json
+<records>/bm25-document/arguana.json
+<records>/bm25-document/qasper.json
+wall 4.49 s maxrss 559536 KB
+exit 0 load 16.35 8.60 6.31

@@ -37,7 +37,7 @@ use run::*;
 use session::*;
 
 pub use kernels::{Matrix, Mode};
-pub(crate) use kernels::{gelu, softmax};
+pub(crate) use kernels::{exp, gelu, softmax};
 pub(crate) use session::{MAX_THREADS, threads};
 
 pub static BACKEND: turbo_backend = turbo_backend {

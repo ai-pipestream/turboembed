@@ -32,7 +32,7 @@ fn with_lines(extra: &str) -> String {
     format!("{}{extra}", fixture_text())
 }
 
-const TOKENS: &str = "layer\topennlp:tokens\ttext\t0\tstart:u32\tend:u32\nend\topennlp:tokens\n";
+const TOKENS: &str = "layer\tturbo:tokens\ttext\t0\tstart:u32\tend:u32\nend\tturbo:tokens\n";
 
 #[test]
 fn the_error_record_reads_into_the_header() {
@@ -85,7 +85,7 @@ fn the_reader_refuses_a_layer_block_after_the_error_record() {
         ),
         "{shown}"
     );
-    assert!(shown.contains("found \"layer\\topennlp:tokens"), "{shown}");
+    assert!(shown.contains("found \"layer\\tturbo:tokens"), "{shown}");
 }
 
 #[test]
@@ -151,15 +151,15 @@ fn a_comparison_reports_the_jvm_error() {
     assert_eq!(
         m,
         Mismatch::JvmError {
-            layer: "opennlp:tokens".into(),
+            layer: "turbo:tokens".into(),
             class: "java.lang.IllegalArgumentException".into(),
             message: "start index must be zero or greater: -1".into(),
         }
     );
-    assert_eq!(m.layer(), "opennlp:tokens");
+    assert_eq!(m.layer(), "turbo:tokens");
     assert_eq!(
         m.to_string(),
-        "opennlp:tokens: the annotator threw on the JVM, so the golden has no layers: \
+        "turbo:tokens: the annotator threw on the JVM, so the golden has no layers: \
          java.lang.IllegalArgumentException: \"start index must be zero or greater: -1\""
     );
     // With the error asserted, the test checks the corrected output itself.

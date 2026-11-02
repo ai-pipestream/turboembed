@@ -13,7 +13,16 @@ public enum TurboLayerKind {
     /** Named-entity rows. */
     ENTITIES(TurboLibrary.TURBO_ANALYSIS_LAYER_ENTITIES),
     /** Personally identifiable information rows. */
-    PII(TurboLibrary.TURBO_ANALYSIS_LAYER_PII);
+    PII(TurboLibrary.TURBO_ANALYSIS_LAYER_PII),
+    /**
+     * Dependency rows aligned to tokens: the relation is the label and the head token is the
+     * classification, read through {@code dependencyHead()}.
+     */
+    DEPENDENCIES(TurboLibrary.TURBO_ANALYSIS_LAYER_DEPENDENCIES),
+    /**
+     * Morphology rows aligned to tokens: one row per token, with the feature string as the label.
+     */
+    MORPHOLOGY(TurboLibrary.TURBO_ANALYSIS_LAYER_MORPHOLOGY);
 
     private final int nativeCode;
 

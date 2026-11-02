@@ -1,4 +1,4 @@
-//! Entity keys: which mentions of `opennlp:entities` name the same
+//! Entity keys: which mentions of `turbo:entities` name the same
 //! entity, and in which sentences each entity is mentioned. Two entities
 //! share a key when their normalized surfaces match (NFKC, full case
 //! folding, whitespace collapsed, edge punctuation dropped), optionally

@@ -5,6 +5,6 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/spanish	140	122	f9fd56df613aecfdec7800f95eccc7f457cbd15ee602da070166ddeeed8c181d
 annotator	opennlp.tools.sentdetect.NewlineSentenceDetector	sentPosDetect
-layer	opennlp:sentences	text	1	start:u32	end:u32
+layer	turbo:sentences	text	1	start:u32	end:u32
 0	139
-end	opennlp:sentences
+end	turbo:sentences

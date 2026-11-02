@@ -44,7 +44,7 @@ class BpeGoldenTest {
     assertArrayEquals(new String[] {"a", "b"}, str(merges, 0));
     assertArrayEquals(new String[] {"b</w>", "c</w>"}, str(merges, 1));
     Layer tokens = layers.get(1);
-    assertEquals("opennlp:tokens", tokens.id());
+    assertEquals("turbo:tokens", tokens.id());
     // ab four times, then a bc twice, then bc.
     assertArrayEquals(new long[] {0, 3, 6, 9, 12, 13, 16, 17, 20}, u32(tokens, 0));
     assertArrayEquals(new long[] {2, 5, 8, 11, 13, 15, 17, 19, 22}, u32(tokens, 1));

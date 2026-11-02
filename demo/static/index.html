@@ -263,6 +263,20 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
     <p class="muted">Licence acceptances and installs are for the user the demo was started with (--user).</p>
     <button id="models-catalog-load" type="button">Read the catalog</button>
     <p id="models-note" class="note" hidden></p>
+    <h2>Model sources</h2>
+    <p class="muted">Stores an install for this user reads before the catalog's own, tried in order.</p>
+    <form id="sources-form" class="options" hidden>
+      <label>Name <input id="sources-name" autocomplete="off" placeholder="team drive"></label>
+      <label>Address <input id="sources-address" autocomplete="off" placeholder="gdrive://FOLDER-ID, s3://bucket/prefix or file:///dir"></label>
+      <label>API key <input id="sources-key" type="password" autocomplete="off" placeholder="for a Drive folder shared by link, optional"></label>
+      <div class="row"><button type="submit" class="go">Add source</button></div>
+    </form>
+    <div id="sources-drive" class="options" hidden>
+      <label>Name <input id="sources-drive-name" autocomplete="off" value="Google Drive"></label>
+      <label>Folder <input id="sources-drive-folder" autocomplete="off" placeholder="root, a folder id, or root/a/b"></label>
+      <div class="row"><button id="sources-connect" type="button" class="go">Connect Google Drive</button></div>
+    </div>
+    <p id="sources-note" class="note" hidden></p>
     <h2>Distill a static model</h2>
     <form id="train-form" class="options">
       <label>Name <input id="train-name" autocomplete="off" value="static-demo"></label>
@@ -278,6 +292,10 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
   <div class="results">
     <div class="card" id="models-catalog"><p class="muted">Read the catalog to list the models it offers.</p></div>
     <div class="card" id="models-install"></div>
+    <div class="card">
+      <div class="head"><h3>Model sources</h3><button id="sources-refresh" type="button">Refresh</button></div>
+      <div id="sources-list"><p class="muted">Loading the sources.</p></div>
+    </div>
     <div class="card">
       <h3>Training</h3>
       <div id="train-progress"></div>

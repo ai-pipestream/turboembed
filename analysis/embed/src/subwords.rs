@@ -11,7 +11,7 @@ use turbo_analysis::registry::{Provider, Spec};
 use turbo_analysis::{Annotator, Bound, Error, Ix, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Subwords, Tokens};
 
-/// Writes `opennlp:subwords` over one text view with a bundle's tokenizer.
+/// Writes `turbo:subwords` over one text view with a bundle's tokenizer.
 ///
 /// The whole view is encoded in one row, never truncated, so the layer
 /// covers all of it however long it is, past the model's `max_seq`. The

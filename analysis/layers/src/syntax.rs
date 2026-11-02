@@ -14,7 +14,7 @@ pub struct PosTags {
 }
 
 impl Layer for PosTags {
-    const ID: &'static str = "opennlp:pos";
+    const ID: &'static str = turbo_analysis::ids::POS;
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
     }
@@ -44,7 +44,7 @@ pub struct Lemmas {
 }
 
 impl Layer for Lemmas {
-    const ID: &'static str = "opennlp:lemmas";
+    const ID: &'static str = turbo_analysis::ids::LEMMAS;
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
     }
@@ -150,8 +150,8 @@ impl Layer for Terms {
 }
 
 /// A head and a relation per token or syntactic word (`A = Tokens` by
-/// default: `opennlp:dependencies`; `A = Words`:
-/// `opennlp:dependencies<turbo:words>`): the tree is the columns, no nodes.
+/// default: `turbo:dependencies`; `A = Words`:
+/// `turbo:dependencies<turbo:words>`): the tree is the columns, no nodes.
 /// `Layer::check` validates columns and head indices without allocating.
 /// Call [`Self::check_forest`] to also reject multi-node cycles. Document
 /// insertion alone permits such cycles; parser graphs and wire import do not.
@@ -177,14 +177,14 @@ impl<A: WordOrTokenAnchor> std::fmt::Debug for Dependencies<A> {
     }
 }
 
-/// Dependencies anchored on [`Tokens`] (`opennlp:dependencies`).
+/// Dependencies anchored on [`Tokens`] (`turbo:dependencies`).
 pub type DependencyGraph = Dependencies<Tokens>;
 
-/// Dependencies anchored on syntactic [`Words`] (`opennlp:dependencies<turbo:words>`).
+/// Dependencies anchored on syntactic [`Words`] (`turbo:dependencies<turbo:words>`).
 pub type WordDependencies = Dependencies<Words>;
 
 impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
-    const ID: &'static str = "opennlp:dependencies";
+    const ID: &'static str = turbo_analysis::ids::DEPENDENCIES;
     const OF: Option<&'static LayerName> = A::TARGET_OF;
     fn anchor() -> Anchor {
         Anchor::aligned::<A>()
@@ -286,7 +286,7 @@ impl Entities {
 }
 
 impl Layer for Entities {
-    const ID: &'static str = "opennlp:entities";
+    const ID: &'static str = turbo_analysis::ids::ENTITIES;
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Entities);
     fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
@@ -327,7 +327,7 @@ pub struct ChunkTags {
 }
 
 impl Layer for ChunkTags {
-    const ID: &'static str = "opennlp:chunk-tags";
+    const ID: &'static str = turbo_analysis::ids::CHUNK_TAGS;
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
     }
@@ -359,7 +359,7 @@ pub struct PhraseChunks {
 }
 
 impl Layer for PhraseChunks {
-    const ID: &'static str = "opennlp:chunks";
+    const ID: &'static str = turbo_analysis::ids::PHRASE_CHUNKS;
     /// Phrases are runs of tokens, and two UTF-16 tokens that split a
     /// character outside the Basic Multilingual Plane are both widened to
     /// it, so two phrases meeting there share its bytes.
@@ -388,7 +388,7 @@ impl Layer for PhraseChunks {
 }
 
 /// Constituency phrases from a parser (`ParserAnnotator.PHRASES`,
-/// `"opennlp:phrases"`): every non-terminal phrase node above the
+/// `"turbo:phrases"`): every non-terminal phrase node above the
 /// part-of-speech level (excluding `TOP`, `INC` and `TK`), in pre-order,
 /// with its span in the document text, its token range, its syntactic
 /// category (`NP`, `VP`, `S`, ...), its head token and its enclosing
@@ -415,7 +415,7 @@ impl Phrases {
 }
 
 impl Layer for Phrases {
-    const ID: &'static str = "opennlp:phrases";
+    const ID: &'static str = turbo_analysis::ids::PHRASES;
     /// Two UTF-16 tokens that split a character outside the Basic
     /// Multilingual Plane are both widened to that character, so two
     /// adjacent phrases meeting there share its bytes.

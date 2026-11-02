@@ -173,7 +173,7 @@ impl DocumentCategorizerME {
 }
 
 impl Annotator for DocumentCategorizerME {
-    const ID: &'static str = "opennlp:doccat";
+    const ID: &'static str = "turbo-doccat:maxent";
     type Reads = (View, Tokens);
     type Writes = (Categories,);
 
@@ -228,7 +228,7 @@ impl<L: SpanCategorizable> SpanCategorizer<L> {
 }
 
 impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
-    const ID: &'static str = "opennlp:doccat-spans";
+    const ID: &'static str = "turbo-doccat:maxent-spans";
     const VERSION: &'static str = "2";
     type Reads = (View, Tokens, L);
     type Writes = (Categories<L>,);

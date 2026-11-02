@@ -1,0 +1,501 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-31T11:49:06Z",
+  "provenance": {
+    "commit": "cee65da41953c054a1d142a1da63afe9daeb0c07",
+    "pushed_to": [
+      "origin/codex/astra-1486-long-document-gates"
+    ],
+    "machine": {
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+      "os": "linux"
+    },
+    "device": {
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
+    },
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+      "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+      "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    }
+  },
+  "set": {
+    "name": "cuad",
+    "sha256": "834c186d02553f989434c69d2bbebae6f7db79f20adb5211a5b31a379aadcf33"
+  },
+  "pipeline": {
+    "analyzer": [
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
+      "turbo:structure plain",
+      "opennlp:subwords"
+    ],
+    "chunker": {
+      "name": "sentence-windows",
+      "config": [
+        {
+          "name": "sentences",
+          "value": "5"
+        }
+      ]
+    },
+    "retrieval": {
+      "name": "hybrid",
+      "config": [
+        {
+          "name": "fusion",
+          "value": "weighted"
+        },
+        {
+          "name": "bm25_weight",
+          "value": "0.35"
+        },
+        {
+          "name": "k1",
+          "value": "1.2"
+        },
+        {
+          "name": "b",
+          "value": "0.75"
+        },
+        {
+          "name": "terms",
+          "value": "folded"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "queries": 40,
+    "ndcg_at_10": 0.680443067161334,
+    "recall": {
+      "at_1": 0.059263224730565986,
+      "at_5": 0.17697909325113886,
+      "at_10": 0.28600226283540897,
+      "at_100": 0.9987507906388362
+    },
+    "span": {
+      "queries": 40,
+      "mean": {
+        "at_1": {
+          "precision": 0.26429069679914957,
+          "recall": 0.01656606161320858,
+          "contained": 0.014844949474630326
+        },
+        "at_5": {
+          "precision": 0.22265719907367365,
+          "recall": 0.09622253870793994,
+          "contained": 0.07375334341214858
+        },
+        "at_10": {
+          "precision": 0.19142254708359188,
+          "recall": 0.1573599107519893,
+          "contained": 0.12105676730301995
+        },
+        "at_100": {
+          "precision": 0.06597652734548229,
+          "recall": 0.4385505964757256,
+          "contained": 0.38503676720133406
+        }
+      },
+      "integrity": {
+        "split": 0.04691638289822172,
+        "short_documents": 0.0196078431372549
+      },
+      "per_query": [
+        {
+          "query": "Affiliate License-Licensee",
+          "recall": 0.045516255805644876,
+          "contained": 0.07407407407407407
+        },
+        {
+          "query": "Affiliate License-Licensor",
+          "recall": 0.05704672325456909,
+          "contained": 0.05
+        },
+        {
+          "query": "Agreement Date",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Anti-Assignment",
+          "recall": 0.07111740361576999,
+          "contained": 0.051094890510948905
+        },
+        {
+          "query": "Audit Rights",
+          "recall": 0.16869826937547028,
+          "contained": 0.10476190476190476
+        },
+        {
+          "query": "Cap On Liability",
+          "recall": 0.09533792314839079,
+          "contained": 0.09322033898305085
+        },
+        {
+          "query": "Change Of Control",
+          "recall": 0.07788390889052167,
+          "contained": 0.03225806451612903
+        },
+        {
+          "query": "Competitive Restriction Exception",
+          "recall": 0.0498812351543943,
+          "contained": 0.0
+        },
+        {
+          "query": "Covenant Not To Sue",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Document Name",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Effective Date",
+          "recall": 0.0861952861952862,
+          "contained": 0.05952380952380952
+        },
+        {
+          "query": "Exclusivity",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Expiration Date",
+          "recall": 0.0635357624831309,
+          "contained": 0.07228915662650602
+        },
+        {
+          "query": "Governing Law",
+          "recall": 0.11265391668849882,
+          "contained": 0.07777777777777778
+        },
+        {
+          "query": "Insurance",
+          "recall": 0.17582704585026118,
+          "contained": 0.13675213675213677
+        },
+        {
+          "query": "Ip Ownership Assignment",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Irrevocable Or Perpetual License",
+          "recall": 0.49660354673880375,
+          "contained": 0.43478260869565216
+        },
+        {
+          "query": "Joint Ip Ownership",
+          "recall": 0.7076011009951302,
+          "contained": 0.42857142857142855
+        },
+        {
+          "query": "License Grant",
+          "recall": 0.03758412130505154,
+          "contained": 0.02962962962962963
+        },
+        {
+          "query": "Liquidated Damages",
+          "recall": 0.24566042073801586,
+          "contained": 0.21739130434782608
+        },
+        {
+          "query": "Minimum Commitment",
+          "recall": 0.12802689735937442,
+          "contained": 0.10227272727272728
+        },
+        {
+          "query": "Most Favored Nation",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "No-Solicit Of Customers",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "No-Solicit Of Employees",
+          "recall": 0.21245117765416024,
+          "contained": 0.2222222222222222
+        },
+        {
+          "query": "Non-Compete",
+          "recall": 0.13529411764705881,
+          "contained": 0.15254237288135594
+        },
+        {
+          "query": "Non-Disparagement",
+          "recall": 0.3965618284821254,
+          "contained": 0.08333333333333333
+        },
+        {
+          "query": "Non-Transferable License",
+          "recall": 0.20488541237820776,
+          "contained": 0.23255813953488372
+        },
+        {
+          "query": "Notice Period To Terminate Renewal",
+          "recall": 0.18226230740323188,
+          "contained": 0.2222222222222222
+        },
+        {
+          "query": "Parties",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Post-Termination Services",
+          "recall": 0.03838834569197454,
+          "contained": 0.04878048780487805
+        },
+        {
+          "query": "Renewal Term",
+          "recall": 0.38660616754894545,
+          "contained": 0.3225806451612903
+        },
+        {
+          "query": "Revenue/Profit Sharing",
+          "recall": 0.029719070024910046,
+          "contained": 0.034482758620689655
+        },
+        {
+          "query": "Rofr/Rofo/Rofn",
+          "recall": 0.18965762687735782,
+          "contained": 0.1323529411764706
+        },
+        {
+          "query": "Source Code Escrow",
+          "recall": 0.9963420210333791,
+          "contained": 0.6
+        },
+        {
+          "query": "Termination For Convenience",
+          "recall": 0.10068164040674936,
+          "contained": 0.12195121951219512
+        },
+        {
+          "query": "Third Party Beneficiary",
+          "recall": 0.19477513227513227,
+          "contained": 0.18181818181818182
+        },
+        {
+          "query": "Uncapped Liability",
+          "recall": 0.42808649735981896,
+          "contained": 0.3125
+        },
+        {
+          "query": "Unlimited/All-You-Can-Eat-License",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Volume Restriction",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "Warranty Duration",
+          "recall": 0.17951526769820622,
+          "contained": 0.21052631578947367
+        }
+      ]
+    },
+    "per_query": [
+      {
+        "query": "Affiliate License-Licensee",
+        "ndcg_at_10": 0.44988737637276544
+      },
+      {
+        "query": "Affiliate License-Licensor",
+        "ndcg_at_10": 0.43830722522726884
+      },
+      {
+        "query": "Agreement Date",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Anti-Assignment",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Audit Rights",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Cap On Liability",
+        "ndcg_at_10": 0.9266360779006401
+      },
+      {
+        "query": "Change Of Control",
+        "ndcg_at_10": 0.6722390270733757
+      },
+      {
+        "query": "Competitive Restriction Exception",
+        "ndcg_at_10": 0.7183424120903081
+      },
+      {
+        "query": "Covenant Not To Sue",
+        "ndcg_at_10": 0.6975961695061491
+      },
+      {
+        "query": "Document Name",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Effective Date",
+        "ndcg_at_10": 0.914856882358379
+      },
+      {
+        "query": "Exclusivity",
+        "ndcg_at_10": 0.2684550357175426
+      },
+      {
+        "query": "Expiration Date",
+        "ndcg_at_10": 0.9266360779006401
+      },
+      {
+        "query": "Governing Law",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Insurance",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Ip Ownership Assignment",
+        "ndcg_at_10": 0.6214011939609386
+      },
+      {
+        "query": "Irrevocable Or Perpetual License",
+        "ndcg_at_10": 0.933745776545611
+      },
+      {
+        "query": "Joint Ip Ownership",
+        "ndcg_at_10": 0.546216915252498
+      },
+      {
+        "query": "License Grant",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Liquidated Damages",
+        "ndcg_at_10": 0.727329844310522
+      },
+      {
+        "query": "Minimum Commitment",
+        "ndcg_at_10": 0.9305687780632227
+      },
+      {
+        "query": "Most Favored Nation",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "No-Solicit Of Customers",
+        "ndcg_at_10": 0.0979129253499678
+      },
+      {
+        "query": "No-Solicit Of Employees",
+        "ndcg_at_10": 0.5321408435198608
+      },
+      {
+        "query": "Non-Compete",
+        "ndcg_at_10": 0.7065443116025598
+      },
+      {
+        "query": "Non-Disparagement",
+        "ndcg_at_10": 0.265053101293003
+      },
+      {
+        "query": "Non-Transferable License",
+        "ndcg_at_10": 0.6851198693323691
+      },
+      {
+        "query": "Notice Period To Terminate Renewal",
+        "ndcg_at_10": 0.2999050316974944
+      },
+      {
+        "query": "Parties",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Post-Termination Services",
+        "ndcg_at_10": 0.8236998933965709
+      },
+      {
+        "query": "Renewal Term",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Revenue/Profit Sharing",
+        "ndcg_at_10": 0.7778721720600673
+      },
+      {
+        "query": "Rofr/Rofo/Rofn",
+        "ndcg_at_10": 0.6489315753318465
+      },
+      {
+        "query": "Source Code Escrow",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "Termination For Convenience",
+        "ndcg_at_10": 0.6020521034564038
+      },
+      {
+        "query": "Third Party Beneficiary",
+        "ndcg_at_10": 0.5337936505754552
+      },
+      {
+        "query": "Uncapped Liability",
+        "ndcg_at_10": 0.6870165078530993
+      },
+      {
+        "query": "Unlimited/All-You-Can-Eat-License",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "Volume Restriction",
+        "ndcg_at_10": 0.18340980524840012
+      },
+      {
+        "query": "Warranty Duration",
+        "ndcg_at_10": 0.6020521034564038
+      }
+    ]
+  },
+  "cost": {
+    "wall": {
+      "analysis_ms": 122.522557,
+      "chunking_ms": 0.43914200000000003,
+      "embedding_ms": 52133.743911000005,
+      "retrieval_ms": 177.77600800000002
+    },
+    "tokens_embedded": 909734,
+    "chunks": 5635,
+    "chunk_bytes": {
+      "min": 1,
+      "p50": 763,
+      "p90": 1448,
+      "max": 6132
+    },
+    "chunk_tokens": {
+      "min": 3,
+      "p50": 157,
+      "p90": 297,
+      "max": 1238
+    }
+  }
+}

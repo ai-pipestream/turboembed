@@ -4,7 +4,6 @@ import ai.pipestream.turboembed.panama.TurboAnalysisResult;
 import ai.pipestream.turboembed.panama.TurboAnalyzer;
 import ai.pipestream.turboembed.panama.TurboLayerKind;
 import ai.pipestream.turboembed.panama.TurboSpanView;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
@@ -14,14 +13,6 @@ public final class TurboSentenceDetectorME extends TurboAdapterSupport implement
     /** Creates a sentence detector with the default English rule splitter. */
     public TurboSentenceDetectorME() {
         this(TurboAnalyzer.create(), true);
-    }
-
-    /** Creates a sentence detector using an OpenNLP {@code SentenceModel} {@code .bin} file. */
-    public TurboSentenceDetectorME(Path modelPath) {
-        this(
-                TurboAnalyzer.create(new TurboAnalyzer.Config(
-                        "en", Objects.requireNonNull(modelPath, "modelPath"), null, null, null, null)),
-                true);
     }
 
     /** Creates a detector sharing an analyzer without owning its lifecycle. */

@@ -16,7 +16,7 @@
 //! rows, so a sequence's states do not depend on the others in the batch.
 
 use super::kernels::{Matrix, Mode};
-use crate::head::sigmoid;
+use crate::head::{sigmoid, tanh};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, OUT_OF_MEMORY, Result, invalid};
 
 /// One direction's recurrent weights and its place in the stacked input
@@ -269,8 +269,8 @@ impl Lstm {
                     }
                     let (state, cell) = (&mut w.state[s * h..][..h], &mut w.cell[s * h..][..h]);
                     for j in 0..h {
-                        let c = sigmoid(gs[h + j]) * cell[j] + sigmoid(gs[j]) * gs[2 * h + j].tanh();
-                        (cell[j], state[j]) = (c, sigmoid(gs[3 * h + j]) * c.tanh());
+                        let c = sigmoid(gs[h + j]) * cell[j] + sigmoid(gs[j]) * tanh(gs[2 * h + j]);
+                        (cell[j], state[j]) = (c, sigmoid(gs[3 * h + j]) * tanh(c));
                     }
                     if !finite(state) {
                         return Err(argument(format!("lstm: a state is not finite at row {}", at(s))));

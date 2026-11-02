@@ -1,3 +1,4 @@
+use turbo_analysis::ids::canonical_layer_name;
 use turbo_analysis_layers::Strs;
 
 use crate::compare::Shape;
@@ -30,12 +31,14 @@ pub(super) fn read_layer(
             found: fields.len(),
         });
     }
-    let id = fields[1];
+    // Golden files written before the shared layers moved to `turbo:` name them by their legacy ids.
+    let id = canonical_layer_name(fields[1]);
+    let id = id.as_ref();
     let anchor = match fields[2] {
         "text" => GoldenAnchor::Text,
         "document" => GoldenAnchor::Document,
         a => match a.strip_prefix("aligned:") {
-            Some(of) if !of.is_empty() => GoldenAnchor::Aligned(of.into()),
+            Some(of) if !of.is_empty() => GoldenAnchor::Aligned(canonical_layer_name(of).into_owned()),
             _ => return Err(field_error(line, "layer anchor", "text, document or aligned:<layer id>", a)),
         },
     };
@@ -113,7 +116,9 @@ pub(super) fn read_layer(
         let end = specs.iter().position(|s| s == &("end16", ColumnType::U32));
         start.zip(end)
     };
-    let end_line = format!("end\t{id}");
+    // The end line repeats the id as the file wrote it.
+    let written = fields[1];
+    let end_line = format!("end\t{written}");
     let mut buf = String::new();
     let mut last_start = 0;
     for r in 0..rows {
@@ -168,11 +173,11 @@ pub(super) fn read_layer(
             }
         }
     }
-    let l = lines.expect(&format!("\"end\t{id}\""))?;
+    let l = lines.expect(&format!("\"end\t{written}\""))?;
     if l != end_line {
         return Err(GoldenError::Record {
             line: lines.line,
-            expected: format!("\"end\\t{id}\" after {rows} rows"),
+            expected: format!("\"end\\t{written}\" after {rows} rows"),
             found: l.into(),
         });
     }

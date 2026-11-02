@@ -27,7 +27,7 @@ fn vector_dimension_mismatches_are_refused() {
     w.str("m").unwrap();
     w.str("r").unwrap();
     w.str("s").unwrap();
-    splice(&mut graph, "opennlp:embeddings", w.finish(), 2);
+    splice(&mut graph, "turbo:embeddings", w.finish(), 2);
     match import(&graph, &codecs()) {
         Err(ExportError::Malformed(detail)) => assert!(detail.contains("vector values"), "{detail}"),
         Ok(_) => panic!("a vector block with a value count mismatch imported"),
@@ -47,6 +47,7 @@ fn sentiment_family_refusals() {
             coefficient: strs(&["500"]),
             scale: vec![2],
             currency: vec![Currency::parse("USD").unwrap()],
+            per: strs(&[""]),
         },
         by.clone(),
     )
@@ -99,7 +100,7 @@ fn sentiment_family_refusals() {
     w.u32(1);
     w.usize(u32::MAX as usize).unwrap();
     w.usize(u32::MAX as usize).unwrap();
-    splice(&mut graph, "opennlp:embeddings", w.finish(), u32::MAX);
+    splice(&mut graph, "turbo:embeddings", w.finish(), u32::MAX);
     assert!(import(&graph, &codecs()).is_err(), "a vector body claiming billions of values imported");
 
     // An extreme number span must be refused, never panicking in the
@@ -129,7 +130,7 @@ fn sentiment_family_refusals() {
     let mut graph = export(&doc, &codecs()).unwrap();
     let mut w = Writer::new();
     write_spans(&mut w, "", &[Span::new(0, 5)]);
-    w.str("opennlp:tokens").unwrap();
+    w.str("turbo:tokens").unwrap();
     w.str("").unwrap();
     w.usize(1).unwrap();
     w.u32(0);
@@ -142,7 +143,7 @@ fn sentiment_family_refusals() {
     w.u32(5);
     w.usize(1).unwrap();
     w.u8(0);
-    splice(&mut graph, "opennlp:phrases", w.finish(), 1);
+    splice(&mut graph, "turbo:phrases", w.finish(), 1);
     assert!(import(&graph, &codecs()).is_err(), "a phrase head outside its tokens imported");
 
     // An unknown currency code.
@@ -182,5 +183,32 @@ fn quantities_schema_1_is_refused() {
     assert!(matches!(
         import(&graph, &codecs()),
         Err(ExportError::IncompatibleSchema { ref layer, exported: 1, supported: 2 }) if layer == "turbo:quantities"
+    ));
+}
+
+#[test]
+fn money_schema_1_is_refused() {
+    let mut doc = document();
+    let mut m = Money::new(ViewId::SOURCE);
+    m.push_with_per(
+        turbo_analysis_layers::MoneyMention {
+            span: Span::new(0, 5),
+            negative: false,
+            coefficient: "5",
+            scale: 0,
+            currency: Currency::parse("USD").unwrap(),
+        },
+        "h",
+    );
+    doc.add(&Key::DEFAULT, m, Provenance::by("test")).unwrap();
+    let mut graph = export(&doc, &codecs()).unwrap();
+    for layer in &mut graph.layers {
+        if layer.layer == "turbo:money" {
+            layer.schema = 1;
+        }
+    }
+    assert!(matches!(
+        import(&graph, &codecs()),
+        Err(ExportError::IncompatibleSchema { ref layer, exported: 1, supported: 2 }) if layer == "turbo:money"
     ));
 }

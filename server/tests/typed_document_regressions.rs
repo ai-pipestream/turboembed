@@ -148,7 +148,7 @@ async fn missing_aligned_anchor_is_refused() {
     // Remove entities to keep this independent of token-range validation.
     out.layers.retain(|l| l.id != Entities::NAME.to_string());
     out.layers.iter_mut().find(|l| l.id == PosTags::NAME.to_string()).unwrap().anchor_layer =
-        Some("opennlp:tokens@absent".into());
+        Some("turbo:tokens@absent".into());
     let result = client.round_trip_typed_document(out).await;
     assert!(result.is_err(), "missing aligned anchor was accepted");
     invalid(&result.unwrap_err());

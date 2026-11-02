@@ -7,8 +7,8 @@ import opennlp.tools.sentdetect.NewlineSentenceDetector;
 import opennlp.tools.util.Span;
 
 /**
- * The golden of {@link NewlineSentenceDetector}, which has no model: {@code opennlp:sentences}
- * from {@code sentPosDetect}, then {@code turbo:utf16<opennlp:sentences>} when a sentence cuts a
+ * The golden of {@link NewlineSentenceDetector}, which has no model: {@code turbo:sentences}
+ * from {@code sentPosDetect}, then {@code turbo:utf16<turbo:sentences>} when a sentence cuts a
  * surrogate pair ({@link SpanLayers}). The directory is {@code newline}.
  */
 final class NewlineSentenceGolden implements AnnotatorGolden {
@@ -58,6 +58,6 @@ final class NewlineSentenceGolden implements AnnotatorGolden {
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
     Span[] spans = AnnotatorException.call(() -> detector.sentPosDetect(input.text()));
-    return SpanLayers.of("opennlp:sentences", input.offsets(), spans);
+    return SpanLayers.of("turbo:sentences", input.offsets(), spans);
   }
 }

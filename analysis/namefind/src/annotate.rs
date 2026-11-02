@@ -1,5 +1,5 @@
 //! The finders as analysis steps: each reads a text view and its tokens
-//! and writes `opennlp:entities`.
+//! and writes `turbo:entities`.
 //!
 //! The finders run once per sentence, on the tokens of that sentence,
 //! when the tokens say which sentence each is in, and once on all the

@@ -221,7 +221,7 @@ fn evidence_records_cover_each_head_and_tail_byte_for_byte() {
         let p = ev.producer_of(i);
         assert_eq!((p.annotator.as_str(), &p.model), ("turbo:zero-shot-relations", &None));
     }
-    assert_eq!(ev.layers[0].layer, "opennlp:entities");
+    assert_eq!(ev.layers[0].layer, "turbo:entities");
     assert_eq!(ev.verify(&doc), Ok(()));
 }
 

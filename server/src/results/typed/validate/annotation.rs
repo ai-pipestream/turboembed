@@ -1,8 +1,7 @@
 use super::*;
 
 pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotation) -> Result<(), Failure> {
-    let LayerCtx { text, offsetter, known_models, layer_lengths, token_len, ref target_bounds, layer_len, lid, .. } =
-        *ctx;
+    let LayerCtx { text, offsetter, known_models, token_len, ref target_bounds, layer_len, lid, .. } = *ctx;
     if let Some(mref) = &ann.model_ref {
         check_model_ref(known_models, &format!("{lid}[{i}].model_ref"), mref)?;
     }
@@ -41,7 +40,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::KeyValuePair(pair) => shared::key_value(ctx, i, pair)?,
         Value::Token(t) => {
             if let Some(sentence) = t.sentence_index {
-                shared::target(ctx, "opennlp:sentences", sentence)?;
+                shared::target(ctx, "turbo:sentences", sentence)?;
             }
         }
         Value::Word(w) => {
@@ -89,22 +88,23 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
             }
         }
         Value::Relation(relation) => {
-            shared::target(ctx, "opennlp:entities", relation.subject_entity)?;
-            shared::target(ctx, "opennlp:entities", relation.object_entity)?;
+            shared::target(ctx, "turbo:entities", relation.subject_entity)?;
+            shared::target(ctx, "turbo:entities", relation.object_entity)?;
             if relation.subject_entity == relation.object_entity {
                 return Err(bad(format!("{lid}[{i}] relation has identical subject and object")));
             }
         }
         Value::CorefMention(cm) => {
-            shared::target(ctx, "opennlp:sentences", cm.sentence_index)?;
+            shared::target(ctx, "turbo:sentences", cm.sentence_index)?;
             if let Some(entity) = cm.entity_index {
-                shared::target(ctx, "opennlp:entities", entity)?;
+                shared::target(ctx, "turbo:entities", entity)?;
             }
             check_token_range(token_len, "coref_mention", lid, i, cm.token_start, cm.token_end)?;
             check_head_in_range("coref_mention", lid, i, cm.head_token, cm.token_start, cm.token_end)?;
         }
         Value::CorefChain(cc) => {
-            let lim = target_bounds.first().or_else(|| layer_lengths.get(&("turbo:mentions", ""))).copied();
+            // A chain names the mentions it indexes; one without that bound is refused.
+            let lim = target_bounds.first().copied();
             check_index_slice("coref_chain mention_indices", lid, i, &cc.mention_indices, lim)?;
         }
         Value::GlossaryTerm(gt) => check_token_range(token_len, "glossary_term", lid, i, gt.token_start, gt.token_end)?,
@@ -136,7 +136,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::Aspect(asp) => {
             check_opt_tokens(token_len, "aspect", lid, i, asp.token_start, asp.token_end)?;
             if let Some(sentence) = asp.sentence_index {
-                shared::target(ctx, "opennlp:sentences", sentence)?;
+                shared::target(ctx, "turbo:sentences", sentence)?;
             }
             for &opinion in &asp.opinion_indices {
                 shared::target(ctx, "turbo:opinions", opinion)?;
@@ -212,7 +212,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
                     ch.sentence_start, ch.sentence_end
                 )));
             }
-            if ch.sentence_end > 0 && ch.sentence_end as usize > shared::bound(ctx, "opennlp:sentences")? {
+            if ch.sentence_end > 0 && ch.sentence_end as usize > shared::bound(ctx, "turbo:sentences")? {
                 return Err(bad(format!("{lid}[{i}] chunk sentence_end exceeds its sentence target")));
             }
             check_parent("chunk", lid, i, ch.parent_index)?;

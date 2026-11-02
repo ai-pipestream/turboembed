@@ -148,7 +148,7 @@ impl SentimentModel {
             return Err(SentimentModelError::OutcomeNotText(outcome.clone()));
         }
         let model_ref = ModelRef {
-            id: format!("opennlp:{COMPONENT}:{}", file.language()),
+            id: format!("turbo:{COMPONENT}:{}", file.language()),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
@@ -171,7 +171,7 @@ impl SentimentModel {
         self.maxent.outcome_str(i).expect("the outcomes were checked to be text when the model was opened")
     }
 
-    /// What layers record as their model: `opennlp:SentimentME:` and the
+    /// What layers record as their model: `turbo:SentimentME:` and the
     /// manifest's language, the OpenNLP version that wrote it, and the
     /// SHA-256 of the model file.
     pub fn model_ref(&self) -> &ModelRef {

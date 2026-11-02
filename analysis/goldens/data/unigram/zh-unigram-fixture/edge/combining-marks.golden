@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/combining-marks	42	33	5bb93bde76e271c3f8be37969bd35268dca5c9c638ffa47a59eb37a2ac142c5a
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	26	start:u32	end:u32
+layer	turbo:tokens	text	26	start:u32	end:u32
 0	1
 1	3
 4	5
@@ -33,4 +33,4 @@ layer	opennlp:tokens	text	26	start:u32	end:u32
 36	38
 38	40
 40	41
-end	opennlp:tokens
+end	turbo:tokens

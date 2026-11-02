@@ -63,17 +63,17 @@ impl<From, To> fmt::Debug for Edge<From, To> {
 /// struct Tokens;
 /// struct Entities;
 /// impl Layer for Sentences {
-///     const ID: &'static str = "opennlp:sentences";
+///     const ID: &'static str = "turbo:sentences";
 ///     fn anchor() -> Anchor { Anchor::Document }
 ///     fn len(&self) -> usize { 0 }
 /// }
 /// impl Layer for Tokens {
-///     const ID: &'static str = "opennlp:tokens";
+///     const ID: &'static str = "turbo:tokens";
 ///     fn anchor() -> Anchor { Anchor::Document }
 ///     fn len(&self) -> usize { 0 }
 /// }
 /// impl Layer for Entities {
-///     const ID: &'static str = "opennlp:entities";
+///     const ID: &'static str = "turbo:entities";
 ///     fn anchor() -> Anchor { Anchor::Document }
 ///     fn len(&self) -> usize { 0 }
 /// }
