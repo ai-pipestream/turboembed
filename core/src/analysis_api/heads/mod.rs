@@ -2,17 +2,17 @@
 //! bundle `turbo_analyzer_desc.bundle_path` names (`manifest.heads`,
 //! docs/bundle.md "Heads"), run over one encoder pass a sentence as the
 //! analysis annotators run them (`turbo-tagger`), through the same
-//! decoders (`head::run`). The part-of-speech, entity, dependency and
-//! lemma layers each come from the one head of the bundle that writes
-//! that layer; a head of a kind the analyzer does not run leaves its
-//! layer unsupported, named in the refusal.
+//! decoders (`head::run`). The part-of-speech, morphology, entity,
+//! dependency and lemma layers each come from the one head of the bundle
+//! that writes that layer; a head of a kind the analyzer does not run
+//! leaves its layer unsupported, named in the refusal.
 
 use std::borrow::Cow;
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo_analysis::TagSet;
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Tokens};
+use turbo_analysis_layers::{Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Tokens};
 
 use crate::bundle::Bundle;
 use crate::head::run::{
@@ -41,6 +41,7 @@ pub(crate) struct Entity {
 #[derive(Default)]
 pub(crate) struct Want<'a> {
     pub(crate) pos: bool,
+    pub(crate) morphology: bool,
     pub(crate) entities: bool,
     pub(crate) dependencies: bool,
     pub(crate) lemmas: bool,
@@ -51,6 +52,7 @@ pub(crate) struct Want<'a> {
 #[derive(Default)]
 pub(crate) struct Written {
     pub(crate) pos: Option<Vec<Decoded>>,
+    pub(crate) morphology: Option<Vec<Decoded>>,
     pub(crate) entities: Option<Vec<Vec<Entity>>>,
     pub(crate) dependencies: Option<Vec<Parse>>,
     pub(crate) lemmas: Option<Vec<Vec<String>>>,
@@ -71,6 +73,7 @@ type Loaded<T> = std::result::Result<T, Missing>;
 pub(crate) struct BundleHeads {
     words: Mutex<Words>,
     pos: Loaded<(TokenTagger, Arc<TagSet>)>,
+    morphology: Loaded<(TokenTagger, Arc<TagSet>)>,
     entities: Loaded<(TokenTagger, Arc<TagSet>)>,
     dependencies: Loaded<(BiaffineParser, Arc<TagSet>)>,
     lemmas: Loaded<(EditTreeLemmatizer, Option<TokenTagger>)>,
@@ -122,7 +125,7 @@ impl BundleHeads {
         let bundle = Bundle::open(dir)?;
         // The encoder reads each word at as many layers as the widest
         // head mixes; a head of fewer takes the last of them.
-        let taps = [PosTags::ID, Entities::ID, Dependencies::<Tokens>::ID, Lemmas::ID]
+        let taps = [PosTags::ID, MorphFeatures::<Tokens>::ID, Entities::ID, Dependencies::<Tokens>::ID, Lemmas::ID]
             .iter()
             .filter_map(|layer| head_for(&bundle, layer).ok().flatten())
             .map(|h| h.layer_mix.as_ref().map_or(1, |m| m.layers as usize))
@@ -139,24 +142,24 @@ impl BundleHeads {
             }
             Ok(())
         };
-        let pos = match head_for(&bundle, PosTags::ID)? {
-            None => Err(Missing::NoHead),
-            Some(spec) => match kind_of(spec, HeadKind::TokenTagger) {
-                Err(m) => Err(m),
-                Ok(()) => {
-                    if spec.scheme != Scheme::Tags {
-                        return Err(Error::new(
-                            BUNDLE_INVALID,
-                            format!("head {:?}: a part-of-speech head reads SCHEME_TAGS labels", spec.name),
-                        ));
-                    }
-                    let t = TokenTagger::load(&bundle, &spec.name)?;
-                    width(&spec.name, t.hidden())?;
-                    let set = tagset(&spec.name, &spec.labels);
-                    Ok((t, set))
-                }
-            },
+        let tag_head = |layer: &str, what: &str| -> Result<Loaded<(TokenTagger, Arc<TagSet>)>> {
+            let Some(spec) = head_for(&bundle, layer)? else { return Ok(Err(Missing::NoHead)) };
+            let Ok(()) = kind_of(spec, HeadKind::TokenTagger) else {
+                return Ok(Err(Missing::Kind { head: spec.name.clone(), kind: spec.kind }));
+            };
+            if spec.scheme != Scheme::Tags {
+                return Err(Error::new(
+                    BUNDLE_INVALID,
+                    format!("head {:?}: a {what} head reads SCHEME_TAGS labels", spec.name),
+                ));
+            }
+            let t = TokenTagger::load(&bundle, &spec.name)?;
+            width(&spec.name, t.hidden())?;
+            let set = tagset(&spec.name, &spec.labels);
+            Ok(Ok((t, set)))
         };
+        let pos = tag_head(PosTags::ID, "part-of-speech")?;
+        let morphology = tag_head(MorphFeatures::<Tokens>::ID, "morphology")?;
         let entities = match head_for(&bundle, Entities::ID)? {
             None => Err(Missing::NoHead),
             Some(spec) => match kind_of(spec, HeadKind::TokenTagger) {
@@ -212,6 +215,7 @@ impl BundleHeads {
             device: words.device.clone(),
             words: Mutex::new(words),
             pos,
+            morphology,
             entities,
             dependencies,
             lemmas,
@@ -224,6 +228,11 @@ impl BundleHeads {
     /// The part-of-speech head's tag set, or why there is none.
     pub(crate) fn pos_tagset(&self) -> Result<&Arc<TagSet>> {
         self.pos.as_ref().map(|(_, set)| set).map_err(|m| unsupported("POS tagging", "pos", Some(m)))
+    }
+
+    /// The morphology head's tag set, or why there is none.
+    pub(crate) fn morph_tagset(&self) -> Result<&Arc<TagSet>> {
+        self.morphology.as_ref().map(|(_, set)| set).map_err(|m| unsupported("morphology", "morphology", Some(m)))
     }
 
     pub(crate) fn entity_kinds(&self) -> Result<&Arc<TagSet>> {
@@ -244,6 +253,7 @@ impl BundleHeads {
     pub(crate) fn has(&self) -> Want<'static> {
         Want {
             pos: self.pos.is_ok(),
+            morphology: self.morphology.is_ok(),
             entities: self.entities.is_ok(),
             dependencies: self.dependencies.is_ok(),
             lemmas: self.lemmas.is_ok(),
@@ -271,6 +281,11 @@ impl BundleHeads {
                 self.pos_tagset()?;
                 out.pos = Some(sequences.iter().map(|_| Decoded { tags: Vec::new(), prob: Vec::new() }).collect());
             }
+            if want.morphology {
+                self.morph_tagset()?;
+                out.morphology =
+                    Some(sequences.iter().map(|_| Decoded { tags: Vec::new(), prob: Vec::new() }).collect());
+            }
             if want.entities {
                 self.entity_kinds()?;
                 out.entities = Some(sequences.iter().map(|_| Vec::new()).collect());
@@ -294,6 +309,10 @@ impl BundleHeads {
         };
         let pos =
             want.pos.then(|| self.pos.as_ref().map_err(|m| unsupported("POS tagging", "pos", Some(m)))).transpose()?;
+        let morph = want
+            .morphology
+            .then(|| self.morphology.as_ref().map_err(|m| unsupported("morphology", "morphology", Some(m))))
+            .transpose()?;
         let ents = want
             .entities
             .then(|| self.entities.as_ref().map_err(|m| unsupported("named entity recognition", "entities", Some(m))))
@@ -307,6 +326,9 @@ impl BundleHeads {
             .then(|| self.lemmas.as_ref().map_err(|m| unsupported("lemmatization", "lemmas", Some(m))))
             .transpose()?;
         if let Some((t, _)) = pos {
+            pool(t.spec().word_pooling);
+        }
+        if let Some((t, _)) = morph {
             pool(t.spec().word_pooling);
         }
         if let Some((t, _)) = ents {
@@ -331,6 +353,9 @@ impl BundleHeads {
         };
         if let Some((t, _)) = pos {
             out.pos = Some(decode_tagger(t, &of(t.spec().word_pooling, t.taps()), sequences)?);
+        }
+        if let Some((t, _)) = morph {
+            out.morphology = Some(decode_tagger(t, &of(t.spec().word_pooling, t.taps()), sequences)?);
         }
         if let Some((t, _)) = ents {
             let decoded = decode_tagger(t, &of(t.spec().word_pooling, t.taps()), sequences)?;

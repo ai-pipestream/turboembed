@@ -27,6 +27,7 @@ pub const TURBO_ANALYSIS_LAYER_LEMMAS: u32 = 4;
 pub const TURBO_ANALYSIS_LAYER_ENTITIES: u32 = 5;
 pub const TURBO_ANALYSIS_LAYER_PII: u32 = 6;
 pub const TURBO_ANALYSIS_LAYER_DEPENDENCIES: u32 = 7;
+pub const TURBO_ANALYSIS_LAYER_MORPHOLOGY: u32 = 8;
 
 pub const TURBO_SPAN_VIEW_RANGE: u32 = 1 << 0;
 pub const TURBO_SPAN_SOURCE_RANGE: u32 = 1 << 1;
@@ -230,7 +231,7 @@ impl SpanPoolBuilder {
     }
 
     pub(crate) fn layer_ref(&mut self, kind: u32, layer: &str, instance: &str, view_id: u32) -> Result<LayerRef> {
-        if !(TURBO_ANALYSIS_LAYER_SENTENCES..=TURBO_ANALYSIS_LAYER_DEPENDENCIES).contains(&kind) {
+        if !(TURBO_ANALYSIS_LAYER_SENTENCES..=TURBO_ANALYSIS_LAYER_MORPHOLOGY).contains(&kind) {
             return Err(Error::new(CAPACITY, format!("unknown analysis layer kind {kind}")));
         }
         Ok(LayerRef { kind, view_id, layer: self.intern(layer)?, instance: self.intern(instance)? })

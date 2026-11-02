@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,7 @@ public abstract class AnalyzerConformance {
     protected static final int ENTITIES = 5;
     protected static final int PII = 6;
     protected static final int DEPENDENCIES = 7;
+    protected static final int MORPHOLOGY = 8;
 
     /** Native status codes. */
     protected static final int INVALID_ARGUMENT = 256;
@@ -52,6 +54,8 @@ public abstract class AnalyzerConformance {
     static final List<String> POS = List.of(
             "PUNCT", "DET", "ADJ", "DET", "ADJ", "ADJ", "PUNCT", "PUNCT", "VERB", "PUNCT", "PUNCT", "PUNCT", "DET",
             "ADJ", "PUNCT", "PUNCT");
+    static final Set<String> FEATS =
+            Set.of("_", "Number=Sing", "Number=Plur", "Tense=Past|VerbForm=Fin");
     static final List<String> LEMMAS = List.of(
             "Ann", "meet", "Bob", "in", "Pari", ",", "and", "the", "quiet", "old", "dog", "slept", "by", "the", "river",
             ".");
@@ -114,6 +118,23 @@ public abstract class AnalyzerConformance {
                 surfaces.add(byUtf16);
             }
             assertEquals(List.of("Hello", "🚀", "Café", "東京", "!", "Dr", ".", "John", "Smith", "works", "."), surfaces);
+        }
+    }
+
+    @Test
+    public void morphologyRowsComeFromTheMorphologyHead() {
+        try (Analyzer analyzer = heads()) {
+            List<Row> rows = analyzer.morphology(TOKENS);
+            assertEquals(TOKENS.length, rows.size());
+            for (int i = 0; i < rows.size(); i++) {
+                Row row = rows.get(i);
+                assertEquals(MORPHOLOGY, row.layerKind());
+                assertNull(row.viewRange(), "pre-tokenized morphology rows have no text view range");
+                assertNull(row.sourceRange(), "pre-tokenized morphology rows have no source range");
+                assertEquals(new Row.Tokens(i, i + 1L), row.tokenRange());
+                assertTrue(FEATS.contains(row.label()), row.label());
+                assertNull(row.probability(), "morphology rows carry no probability");
+            }
         }
     }
 
@@ -184,24 +205,32 @@ public abstract class AnalyzerConformance {
                 kinds.add(row.layerKind());
             }
             assertEquals(
-                    new TreeSet<>(List.of(SENTENCES, TOKENS_LAYER, POS_LAYER, LEMMAS_LAYER, ENTITIES, DEPENDENCIES)),
+                    new TreeSet<>(List.of(
+                            SENTENCES, TOKENS_LAYER, POS_LAYER, LEMMAS_LAYER, ENTITIES, DEPENDENCIES, MORPHOLOGY)),
                     kinds,
                     "the text holds no PII");
 
             List<Row> tokens = ofKind(graph.rows(), TOKENS_LAYER);
             List<Row> pos = ofKind(graph.rows(), POS_LAYER);
+            List<Row> morph = ofKind(graph.rows(), MORPHOLOGY);
             List<Row> lemmas = ofKind(graph.rows(), LEMMAS_LAYER);
             List<Row> deps = ofKind(graph.rows(), DEPENDENCIES);
             assertEquals(22, tokens.size());
             assertEquals(tokens.size(), pos.size());
+            assertEquals(tokens.size(), morph.size());
             assertEquals(tokens.size(), lemmas.size());
             assertEquals(tokens.size(), deps.size());
             assertEquals(POS, labels(pos.subList(0, TOKENS.length)));
+            assertEquals(labels(analyzer.morphology(TOKENS)), labels(morph.subList(0, TOKENS.length)));
             assertEquals(LEMMAS, labels(lemmas.subList(0, TOKENS.length)));
             for (int i = 0; i < tokens.size(); i++) {
                 assertEquals(tokens.get(i).sourceRange(), pos.get(i).sourceRange());
+                assertEquals(tokens.get(i).sourceRange(), morph.get(i).sourceRange());
                 assertEquals(tokens.get(i).sourceRange(), lemmas.get(i).sourceRange());
                 assertEquals(tokens.get(i).sourceRange(), deps.get(i).sourceRange());
+                assertEquals(new Row.Tokens(i, i + 1L), morph.get(i).tokenRange());
+                assertTrue(FEATS.contains(morph.get(i).label()));
+                assertNull(morph.get(i).probability());
                 assertEquals(new Row.Tokens(i, i + 1L), deps.get(i).tokenRange());
             }
 
@@ -238,9 +267,14 @@ public abstract class AnalyzerConformance {
             RuntimeException pos = assertThrows(RuntimeException.class, () -> analyzer.posTag(new String[] {"The"}));
             assertStatus(pos, UNSUPPORTED_TASK, "TURBO_E_UNSUPPORTED_TASK");
             assertTrue(pos.getMessage().contains("no head writing pos"), pos.getMessage());
+            RuntimeException morph =
+                    assertThrows(RuntimeException.class, () -> analyzer.morphology(new String[] {"The"}));
+            assertStatus(morph, UNSUPPORTED_TASK, "TURBO_E_UNSUPPORTED_TASK");
+            assertTrue(morph.getMessage().contains("no head writing morphology"), morph.getMessage());
             Graph graph = analyzer.analyzeGraph("The river.");
             assertFalse(ofKind(graph.rows(), TOKENS_LAYER).isEmpty());
             assertTrue(ofKind(graph.rows(), POS_LAYER).isEmpty());
+            assertTrue(ofKind(graph.rows(), MORPHOLOGY).isEmpty());
             assertTrue(ofKind(graph.rows(), DEPENDENCIES).isEmpty());
         }
     }
@@ -259,6 +293,11 @@ public abstract class AnalyzerConformance {
         try (Analyzer analyzer = rules()) {
             assertStatus(
                     assertThrows(RuntimeException.class, () -> analyzer.posTag(new String[] {"The", "rivers", "went"})),
+                    UNSUPPORTED_TASK,
+                    "TURBO_E_UNSUPPORTED_TASK");
+            assertStatus(
+                    assertThrows(
+                            RuntimeException.class, () -> analyzer.morphology(new String[] {"The", "rivers", "went"})),
                     UNSUPPORTED_TASK,
                     "TURBO_E_UNSUPPORTED_TASK");
             assertStatus(
@@ -288,6 +327,7 @@ public abstract class AnalyzerConformance {
             assertEquals(0, analyzer.detectSentences("").size());
             assertEquals(0, analyzer.tokenize("").size());
             assertEquals(0, analyzer.posTag(new String[0]).size());
+            assertEquals(0, analyzer.morphology(new String[0]).size());
             assertEquals(0, analyzer.lemmatize(new String[0], new String[0]).size());
             assertEquals(0, analyzer.findTokens(new String[0]).size());
             assertEquals(0, analyzer.detectPii("").size());

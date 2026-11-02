@@ -1,0 +1,10 @@
+== bge-base-turbo-chunker-254-200-instruction 2026-11-01T20:04:52Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 83.97 83.96 83.27
+target/release/turbo-eval run --bundle <bundles>/bge-base-instr --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --out <records>/bge-base-turbo-chunker-254-200-instruction --chunker turbo-chunker --max 254 --target 200
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/bge-base-turbo-chunker-254-200-instruction/scifact.json
+<records>/bge-base-turbo-chunker-254-200-instruction/nfcorpus.json
+<records>/bge-base-turbo-chunker-254-200-instruction/arguana.json
+<records>/bge-base-turbo-chunker-254-200-instruction/qasper.json
+wall 671.19 s maxrss 1922116 KB
+exit 0 load 53.01 66.90 74.84

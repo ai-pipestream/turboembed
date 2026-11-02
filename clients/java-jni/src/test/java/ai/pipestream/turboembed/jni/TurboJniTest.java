@@ -58,6 +58,7 @@ final class TurboJniTest {
         try (TurboAnalyzer analyzer = TurboAnalyzer.create()) {
             assertThrows(NullPointerException.class, () -> analyzer.detectSentences(null));
             assertThrows(NullPointerException.class, () -> analyzer.posTag(new String[] {"ok", null}));
+            assertThrows(NullPointerException.class, () -> analyzer.morphology(new String[] {"ok", null}));
             assertThrows(
                     IllegalArgumentException.class,
                     () -> analyzer.lemmatize(new String[] {"went"}, new String[] {"VERB", "NOUN"}));

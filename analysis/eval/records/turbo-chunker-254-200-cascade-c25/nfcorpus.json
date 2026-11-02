@@ -1,29 +1,29 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-26T10:15:09Z",
+  "recorded_at": "2026-11-01T19:10:42Z",
   "provenance": {
-    "commit": "7961ed7f667f69894b521ea6d0dc35fba9aa35ca",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/muse/879-cascade"
+      "origin/main"
     ],
     "machine": {
       "arch": "x86_64",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
       "backend": "cpu",
       "kind": "DEVICE_CPU",
-      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
       "vendor": "AuthenticAMD",
       "driver_version": "",
       "runtime_version": "",
-      "memory_total": 130171322368
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
-      "revision": "2",
-      "manifest_sha256": "2d16573646925a45fcd353dd485c50429b552986e88b6f470702908eb1b53817",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
       "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
       "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
     }
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -119,12 +119,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.32962423100150057,
+    "ndcg_at_10": 0.32976013587684544,
     "recall": {
-      "at_1": 0.05515609220493988,
+      "at_1": 0.054713810028911576,
       "at_5": 0.13239155111532216,
-      "at_10": 0.16415728890213463,
-      "at_100": 0.21006586164103
+      "at_10": 0.16447952699543775,
+      "at_100": 0.21019930382589225
     },
     "span": null,
     "per_query": [
@@ -166,7 +166,7 @@
       },
       {
         "query": "PLAIN-1109",
-        "ndcg_at_10": 0.6136525857537393
+        "ndcg_at_10": 0.6168295842361274
       },
       {
         "query": "PLAIN-1119",
@@ -266,7 +266,7 @@
       },
       {
         "query": "PLAIN-1342",
-        "ndcg_at_10": 0.42650769853316917
+        "ndcg_at_10": 0.4193979998881982
       },
       {
         "query": "PLAIN-1353",
@@ -294,7 +294,7 @@
       },
       {
         "query": "PLAIN-1419",
-        "ndcg_at_10": 0.6083169141195838
+        "ndcg_at_10": 0.6122496142821665
       },
       {
         "query": "PLAIN-1429",
@@ -386,7 +386,7 @@
       },
       {
         "query": "PLAIN-1645",
-        "ndcg_at_10": 0.09109240322345806
+        "ndcg_at_10": 0.09546043308946733
       },
       {
         "query": "PLAIN-165",
@@ -438,7 +438,7 @@
       },
       {
         "query": "PLAIN-1762",
-        "ndcg_at_10": 0.361879195385413
+        "ndcg_at_10": 0.35079429740281753
       },
       {
         "query": "PLAIN-1772",
@@ -498,7 +498,7 @@
       },
       {
         "query": "PLAIN-1909",
-        "ndcg_at_10": 0.4697368900553819
+        "ndcg_at_10": 0.5519699720241614
       },
       {
         "query": "PLAIN-1919",
@@ -566,7 +566,7 @@
       },
       {
         "query": "PLAIN-207",
-        "ndcg_at_10": 0.5473983622993502
+        "ndcg_at_10": 0.5224955967919311
       },
       {
         "query": "PLAIN-2071",
@@ -778,7 +778,7 @@
       },
       {
         "query": "PLAIN-2570",
-        "ndcg_at_10": 0.33901920430175153
+        "ndcg_at_10": 0.3743504690541114
       },
       {
         "query": "PLAIN-2580",
@@ -926,7 +926,7 @@
       },
       {
         "query": "PLAIN-291",
-        "ndcg_at_10": 0.3589542101716347
+        "ndcg_at_10": 0.42257499837058643
       },
       {
         "query": "PLAIN-2910",
@@ -1078,7 +1078,7 @@
       },
       {
         "query": "PLAIN-3292",
-        "ndcg_at_10": 0.7224962565157056
+        "ndcg_at_10": 0.6146911597319491
       },
       {
         "query": "PLAIN-33",
@@ -1102,7 +1102,7 @@
       },
       {
         "query": "PLAIN-3332",
-        "ndcg_at_10": 0.6302026997126037
+        "ndcg_at_10": 0.6328066009683491
       },
       {
         "query": "PLAIN-3342",
@@ -1194,7 +1194,7 @@
       },
       {
         "query": "PLAIN-44",
-        "ndcg_at_10": 0.038356439954197026
+        "ndcg_at_10": 0.04019569404504287
       },
       {
         "query": "PLAIN-441",
@@ -1290,7 +1290,7 @@
       },
       {
         "query": "PLAIN-68",
-        "ndcg_at_10": 0.47933773604889957
+        "ndcg_at_10": 0.481941637304645
       },
       {
         "query": "PLAIN-681",
@@ -1334,7 +1334,7 @@
       },
       {
         "query": "PLAIN-78",
-        "ndcg_at_10": 0.09176419909785698
+        "ndcg_at_10": 0.08948744797499744
       },
       {
         "query": "PLAIN-782",
@@ -1402,7 +1402,7 @@
       },
       {
         "query": "PLAIN-956",
-        "ndcg_at_10": 0.8512360941594274
+        "ndcg_at_10": 0.84860265890399
       },
       {
         "query": "PLAIN-966",
@@ -1424,24 +1424,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 122.44116700000001,
-      "chunking_ms": 31.660197,
-      "embedding_ms": 38658.185935,
-      "retrieval_ms": 835.074134
+      "analysis_ms": 147.552413,
+      "chunking_ms": 34.183207,
+      "embedding_ms": 17636.168169,
+      "retrieval_ms": 469.16073200000005
     },
-    "tokens_embedded": 2451495,
-    "chunks": 6819,
+    "tokens_embedded": 2451516,
+    "chunks": 6826,
     "chunk_bytes": {
       "min": 90,
       "p50": 792,
-      "p90": 1030,
+      "p90": 1029,
       "max": 1510
     },
     "chunk_tokens": {
       "min": 19,
       "p50": 180,
-      "p90": 229,
-      "max": 358
+      "p90": 230,
+      "max": 435
     }
   }
 }

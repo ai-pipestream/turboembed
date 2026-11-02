@@ -20,11 +20,12 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * <p>Calls on one native analyzer are serialized, including calls made through analyzers made
  * by {@link #retain()}. A returned result is independent of this analyzer and remains usable
- * after the analyzer closes. The learned layers (part-of-speech tags, lemmas, dependencies and
- * entities) come from the heads of the bundle named by {@link Config#bundlePath()}, all from
- * one encoder pass per sentence. Without a bundle, or with a bundle lacking a layer's head,
- * that layer's tasks fail with {@link TurboLibrary#TURBO_E_UNSUPPORTED_TASK} naming what is
- * missing; no dictionary, pattern, or lexical fallback is substituted in Java or native code.
+ * after the analyzer closes. The learned layers (part-of-speech tags, morphology, lemmas,
+ * dependencies and entities) come from the heads of the bundle named by
+ * {@link Config#bundlePath()}, all from one encoder pass per sentence. Without a bundle, or
+ * with a bundle lacking a layer's head, that layer's tasks fail with
+ * {@link TurboLibrary#TURBO_E_UNSUPPORTED_TASK} naming what is missing; no dictionary,
+ * pattern, or lexical fallback is substituted in Java or native code.
  */
 public final class TurboAnalyzer implements AutoCloseable {
 
@@ -194,6 +195,26 @@ public final class TurboAnalyzer implements AutoCloseable {
     /** Tags tokens and explicitly copies every resulting row. */
     public List<TurboSpanData> posTagCopied(String[] tokens) {
         try (TurboAnalysisResult result = posTag(tokens)) {
+            return result.copySpans();
+        }
+    }
+
+    /**
+     * Tags one independent pre-tokenized sequence with the bundle's morphology head.
+     * Rows are token-only and carry one row per token, with the feature string as the label.
+     */
+    public TurboAnalysisResult morphology(String[] tokens) {
+        validateStrings(tokens, "tokens");
+        return execute("turbo_analyzer_morphology", (arena, outPtr, err) -> {
+            MemorySegment tokenArray = TurboLibrary.allocateTextArray(arena, tokens);
+            return (int) TurboLibrary.TURBO_ANALYZER_MORPHOLOGY.invokeExact(
+                    handle, tokenArray, tokens.length, outPtr, err);
+        });
+    }
+
+    /** Tags tokens for morphology and explicitly copies every resulting row. */
+    public List<TurboSpanData> morphologyCopied(String[] tokens) {
+        try (TurboAnalysisResult result = morphology(tokens)) {
             return result.copySpans();
         }
     }
