@@ -567,6 +567,135 @@
       ]
     },
     {
+      "id": "baai-bge-small-en-v1.5",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DENSE_ENCODER",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/BAAI/bge-small-en-v1.5/blob/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/README.md",
+      "trained_on": [
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
+        }
+      ],
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "BAAI/bge-small-en-v1.5 at 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a (MIT, https://huggingface.co/BAAI/bge-small-en-v1.5/blob/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/README.md): a 12-layer BERT dense retrieval encoder, 384 dimensions, CLS pooling, L2-normalized, query prefix on the card. The card does not enumerate its fine-tuning data; the family's report (C-Pack, arXiv 2309.07597) lists MS MARCO (LicenseRef-RestrictedPublic, https://microsoft.github.io/msmarco/) among the fine-tuning corpora, which keeps the checkpoint local-only.",
+      "origin": "https://huggingface.co/BAAI/bge-small-en-v1.5",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/model.safetensors",
+          "size": 133466304,
+          "sha256": "3c9f31665447c8911517620762200d2245a2518d6e7208acc78cd9db317e21ad",
+          "sha512": "8d3020a7e12ab6eafaba81edd01cc96a05f6671c60a5e92bcceba51ea03ac9cfaf80cfb9514df5a8ad42818259861a4227d3c772163700c66f282dc7be2f3c56"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config.json",
+          "size": 743,
+          "sha256": "094f8e891b932f2000c92cfc663bac4c62069f5d8af5b5278c4306aef3084750",
+          "sha512": "edfe22f7d4b8d20698acee4d8f5e75ef7aa95957557962bed0628c803aedef7d3a5e8d0f648e8419679e0b389b941ab651b920db77383c1a48c7b76e04bb37d1"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/tokenizer.json",
+          "size": 711396,
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "sha512": "0194b6aa6a1a8e7583e11a5c3d720a1ab052d035026053af4e4afc207f54589ab45b2215b1e26cff9fb412b5aa0e635bf93689cafb700a92a39b0b2993ff6731"
+        }
+      ]
+    },
+    {
+      "id": "baai-bge-base-en-v1.5",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DENSE_ENCODER",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/BAAI/bge-base-en-v1.5/blob/a5beb1e3e68b9ab74eb54cfd186867f64f240e1a/README.md",
+      "trained_on": [
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
+        }
+      ],
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "BAAI/bge-base-en-v1.5 at a5beb1e3e68b9ab74eb54cfd186867f64f240e1a (MIT, https://huggingface.co/BAAI/bge-base-en-v1.5/blob/a5beb1e3e68b9ab74eb54cfd186867f64f240e1a/README.md): a 12-layer BERT dense retrieval encoder, 768 dimensions, CLS pooling, L2-normalized, query prefix on the card. The card does not enumerate its fine-tuning data; the family's report (C-Pack, arXiv 2309.07597) lists MS MARCO (LicenseRef-RestrictedPublic, https://microsoft.github.io/msmarco/) among the fine-tuning corpora, which keeps the checkpoint local-only.",
+      "origin": "https://huggingface.co/BAAI/bge-base-en-v1.5",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/BAAI/bge-base-en-v1.5/resolve/a5beb1e3e68b9ab74eb54cfd186867f64f240e1a/model.safetensors",
+          "size": 437955512,
+          "sha256": "c7c1988aae201f80cf91a5dbbd5866409503b89dcaba877ca6dba7dd0a5167d7",
+          "sha512": "85488c1ae64e20a40dd56ecda1fbc2e7dc56f51b08c24a1d2cfa5cd1f6d676282faf06f37148f83bf24ec51b3bd3ccfa2184b277674a2a3f70229f42d676ead6"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/BAAI/bge-base-en-v1.5/resolve/a5beb1e3e68b9ab74eb54cfd186867f64f240e1a/config.json",
+          "size": 777,
+          "sha256": "bc00af31a4a31b74040d73370aa83b62da34c90b75eb77bfa7db039d90abd591",
+          "sha512": "20ad1b10ff9db1a2aed5e776b7d479cd3cf2b045b77ae8ec81dda07f515ecabea4b20bce28699328b8f4f64d8eb96c4c41c8426bd884748fb3e403ad6182c2ac"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://huggingface.co/BAAI/bge-base-en-v1.5/resolve/a5beb1e3e68b9ab74eb54cfd186867f64f240e1a/tokenizer.json",
+          "size": 711396,
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "sha512": "0194b6aa6a1a8e7583e11a5c3d720a1ab052d035026053af4e4afc207f54589ab45b2215b1e26cff9fb412b5aa0e635bf93689cafb700a92a39b0b2993ff6731"
+        }
+      ]
+    },
+    {
+      "id": "baai-bge-large-en-v1.5",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DENSE_ENCODER",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "d4aa6901d3a41ba39fb536a557fa166f842b0e09",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/BAAI/bge-large-en-v1.5/blob/d4aa6901d3a41ba39fb536a557fa166f842b0e09/README.md",
+      "trained_on": [
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
+        }
+      ],
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "BAAI/bge-large-en-v1.5 at d4aa6901d3a41ba39fb536a557fa166f842b0e09 (MIT, https://huggingface.co/BAAI/bge-large-en-v1.5/blob/d4aa6901d3a41ba39fb536a557fa166f842b0e09/README.md): a 24-layer BERT dense retrieval encoder, 1024 dimensions, CLS pooling, L2-normalized, query prefix on the card. The card does not enumerate its fine-tuning data; the family's report (C-Pack, arXiv 2309.07597) lists MS MARCO (LicenseRef-RestrictedPublic, https://microsoft.github.io/msmarco/) among the fine-tuning corpora, which keeps the checkpoint local-only.",
+      "origin": "https://huggingface.co/BAAI/bge-large-en-v1.5",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/BAAI/bge-large-en-v1.5/resolve/d4aa6901d3a41ba39fb536a557fa166f842b0e09/model.safetensors",
+          "size": 1340616616,
+          "sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7",
+          "sha512": "15fe344fdfddedd378a567bbe2a0cd0b9bc018c6d0c63087ca6724f0763438a0a0f9102c66d430836bddddc810d08b6e67472ab6288e04ab058c230bae600dc7"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/BAAI/bge-large-en-v1.5/resolve/d4aa6901d3a41ba39fb536a557fa166f842b0e09/config.json",
+          "size": 779,
+          "sha256": "446712fac367857b4b1302762fe1cd7bfa8b3c4b77b4dc5d77c4025407660896",
+          "sha512": "b393ffc83da3d888837c33f51995801916bdf8f514a204332e0a761500863e5783e1b6ffce0418833cb2b38cdb5749cbb23300f053c94316e8578f567969a908"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://huggingface.co/BAAI/bge-large-en-v1.5/resolve/d4aa6901d3a41ba39fb536a557fa166f842b0e09/tokenizer.json",
+          "size": 711396,
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "sha512": "0194b6aa6a1a8e7583e11a5c3d720a1ab052d035026053af4e4afc207f54589ab45b2215b1e26cff9fb412b5aa0e635bf93689cafb700a92a39b0b2993ff6731"
+        }
+      ]
+    },
+    {
       "id": "symspell-frequency-dictionary-en-82-765",
       "kind": "KIND_LEXICON",
       "language": "en",
