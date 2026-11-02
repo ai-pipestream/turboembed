@@ -1,29 +1,29 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-26T09:27:40Z",
+  "recorded_at": "2026-11-01T18:55:20Z",
   "provenance": {
-    "commit": "7961ed7f667f69894b521ea6d0dc35fba9aa35ca",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/muse/879-cascade"
+      "origin/main"
     ],
     "machine": {
       "arch": "x86_64",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
       "backend": "cpu",
       "kind": "DEVICE_CPU",
-      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
       "vendor": "AuthenticAMD",
       "driver_version": "",
       "runtime_version": "",
-      "memory_total": 130171322368
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "minishlab/potion-base-8M",
       "revision": "1",
-      "manifest_sha256": "246591f84bb828e2482b23f4e22a000b9f0930b96373f357771d625dea35feeb",
+      "manifest_sha256": "5f54c2e24d2e33053803e03ae7e7374d32796f5df6cb0107f859bac304decc70",
       "artifact_sha256": "f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2",
       "tokenizer_sha256": "e67e803f624fb4d67dea1c730d06e1067e1b14d830e2c2202569e3ef0f70bb50"
     }
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -94,12 +94,12 @@
   },
   "metrics": {
     "queries": 1406,
-    "ndcg_at_10": 0.37381242908831064,
+    "ndcg_at_10": 0.3730420844000595,
     "recall": {
-      "at_1": 0.18349928876244664,
-      "at_5": 0.4772403982930299,
-      "at_10": 0.5910384068278806,
-      "at_100": 0.8748221906116643
+      "at_1": 0.18421052631578946,
+      "at_5": 0.4779516358463727,
+      "at_10": 0.5874822190611664,
+      "at_100": 0.8762446657183499
     },
     "span": null,
     "per_query": [
@@ -369,7 +369,7 @@
       },
       {
         "query": "test-culture-tlhrilsfhwr-pro02a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-culture-tlhrilsfhwr-pro03a",
@@ -525,7 +525,7 @@
       },
       {
         "query": "test-digital-freedoms-eifdfaihs-pro03a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-digital-freedoms-eifpgdff-con01a",
@@ -541,7 +541,7 @@
       },
       {
         "query": "test-digital-freedoms-eifpgdff-pro01a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-digital-freedoms-eifpgdff-pro02a",
@@ -617,7 +617,7 @@
       },
       {
         "query": "test-digital-freedoms-piidfiphwu-pro02a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-digital-freedoms-piidfiphwu-pro03a",
@@ -645,7 +645,7 @@
       },
       {
         "query": "test-economy-beghwbh-pro02a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-economy-beghwbh-pro03a",
@@ -921,7 +921,7 @@
       },
       {
         "query": "test-economy-epehwmrbals-pro01a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.0
       },
       {
         "query": "test-economy-epehwmrbals-pro02a",
@@ -933,7 +933,7 @@
       },
       {
         "query": "test-economy-epehwmrbals-pro04a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 1.0
       },
       {
         "query": "test-economy-epehwmrbals-pro05a",
@@ -1117,7 +1117,7 @@
       },
       {
         "query": "test-economy-thsptr-pro04a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-economy-thsptr-pro05a",
@@ -1193,7 +1193,7 @@
       },
       {
         "query": "test-education-pshhghwpba0-con02a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-education-pshhghwpba0-con03a",
@@ -1597,7 +1597,7 @@
       },
       {
         "query": "test-environment-ehwsnwu-pro01a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-environment-ehwsnwu-pro02a",
@@ -1953,7 +1953,7 @@
       },
       {
         "query": "test-health-dhghwapgd-pro02a",
-        "ndcg_at_10": 0.2890648263178879
+        "ndcg_at_10": 0.0
       },
       {
         "query": "test-health-dhghwapgd-pro03a",
@@ -2805,11 +2805,11 @@
       },
       {
         "query": "test-international-glilpdwhsn-con02a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-international-glilpdwhsn-con03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-glilpdwhsn-con04a",
@@ -2825,7 +2825,7 @@
       },
       {
         "query": "test-international-glilpdwhsn-pro03a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.0
       },
       {
         "query": "test-international-gmehbisrip1b-con01a",
@@ -2841,7 +2841,7 @@
       },
       {
         "query": "test-international-gmehbisrip1b-pro01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-gmehbisrip1b-pro02a",
@@ -3021,7 +3021,7 @@
       },
       {
         "query": "test-international-iighbopcc-con02a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.0
       },
       {
         "query": "test-international-iighbopcc-con03a",
@@ -3441,7 +3441,7 @@
       },
       {
         "query": "test-law-ilppppghb-con02a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-law-ilppppghb-con03a",
@@ -3741,7 +3741,7 @@
       },
       {
         "query": "test-law-thgglcplgphw-pro01a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-law-thgglcplgphw-pro02a",
@@ -3981,7 +3981,7 @@
       },
       {
         "query": "test-philosophy-npegiepp-con04a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-philosophy-npegiepp-pro01a",
@@ -3997,7 +3997,7 @@
       },
       {
         "query": "test-philosophy-npegiepp-pro04a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-philosophy-npegiepp-pro05a",
@@ -4125,7 +4125,7 @@
       },
       {
         "query": "test-philosophy-pppthbtcb-pro02a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-philosophy-pppthbtcb-pro03a",
@@ -4477,7 +4477,7 @@
       },
       {
         "query": "test-politics-glghssi-con01a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-politics-glghssi-con02a",
@@ -4701,7 +4701,7 @@
       },
       {
         "query": "test-politics-oapdhwinkp-con01a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-politics-oapdhwinkp-con02a",
@@ -4725,7 +4725,7 @@
       },
       {
         "query": "test-politics-oapghwliva-con01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-politics-oapghwliva-con02a",
@@ -4837,11 +4837,11 @@
       },
       {
         "query": "test-politics-oglilpdwhsn-con02a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-politics-oglilpdwhsn-con03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-politics-oglilpdwhsn-con04a",
@@ -4857,7 +4857,7 @@
       },
       {
         "query": "test-politics-oglilpdwhsn-pro03a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.0
       },
       {
         "query": "test-politics-pgsimhwoia-con01a",
@@ -4925,7 +4925,7 @@
       },
       {
         "query": "test-politics-ypppgvhwmv-con02a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-politics-ypppgvhwmv-con03a",
@@ -4993,7 +4993,7 @@
       },
       {
         "query": "test-religion-frghbbgi-pro02a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-religion-frghbbgi-pro03a",
@@ -5337,7 +5337,7 @@
       },
       {
         "query": "test-science-sghwbdgmo-pro03a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-science-wsihwclscaaw-con01a",
@@ -5573,7 +5573,7 @@
       },
       {
         "query": "test-society-tlhrilsfhwr-pro02a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-society-tlhrilsfhwr-pro03a",
@@ -5653,7 +5653,7 @@
       },
       {
         "query": "test-sport-otshwbe2uuyt-con05a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3010299956639812
       },
       {
         "query": "test-sport-otshwbe2uuyt-pro01a",
@@ -5717,7 +5717,7 @@
       },
       {
         "query": "test-sport-ybfgsohbhog-pro02a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.43067655807339306
       },
       {
         "query": "test-sport-ybfgsohbhog-pro03a",
@@ -5731,24 +5731,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 368.02529400000003,
-      "chunking_ms": 152.86282300000002,
-      "embedding_ms": 712.595948,
-      "retrieval_ms": 388.548173
+      "analysis_ms": 449.334784,
+      "chunking_ms": 168.804335,
+      "embedding_ms": 697.389051,
+      "retrieval_ms": 181.643764
     },
     "tokens_embedded": 2105670,
-    "chunks": 11102,
+    "chunks": 11117,
     "chunk_bytes": {
       "min": 2,
-      "p50": 784,
+      "p50": 782,
       "p90": 1111,
-      "max": 1464
+      "max": 2874
     },
     "chunk_tokens": {
       "min": 2,
       "p50": 158,
       "p90": 223,
-      "max": 254
+      "max": 594
     }
   }
 }

@@ -1,25 +1,24 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-21T04:00:17Z",
+  "recorded_at": "2026-11-01T16:41:29Z",
   "provenance": {
-    "commit": "c9913018d56b1e8af790747ee4229b27449df7c2",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/fable/332-chunker-records",
       "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
@@ -35,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -131,12 +130,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.3182553674429955,
+    "ndcg_at_10": 0.3212005202521289,
     "recall": {
-      "at_1": 0.048673719272707985,
-      "at_5": 0.11821415523693965,
-      "at_10": 0.1584072948808342,
-      "at_100": 0.3116269018526215
+      "at_1": 0.04823143709667969,
+      "at_5": 0.11942803900149072,
+      "at_10": 0.16158715096908266,
+      "at_100": 0.3109698641032018
     },
     "span": null,
     "per_query": [
@@ -178,7 +177,7 @@
       },
       {
         "query": "PLAIN-1109",
-        "ndcg_at_10": 0.6235744328990731
+        "ndcg_at_10": 0.6871952210980248
       },
       {
         "query": "PLAIN-1119",
@@ -198,7 +197,7 @@
       },
       {
         "query": "PLAIN-1151",
-        "ndcg_at_10": 0.4163824138054737
+        "ndcg_at_10": 0.34695119186869644
       },
       {
         "query": "PLAIN-1161",
@@ -234,7 +233,7 @@
       },
       {
         "query": "PLAIN-123",
-        "ndcg_at_10": 0.19112600325556087
+        "ndcg_at_10": 0.18229299499732662
       },
       {
         "query": "PLAIN-1236",
@@ -246,7 +245,7 @@
       },
       {
         "query": "PLAIN-1262",
-        "ndcg_at_10": 0.4440973278132557
+        "ndcg_at_10": 0.4690000933206748
       },
       {
         "query": "PLAIN-1275",
@@ -294,7 +293,7 @@
       },
       {
         "query": "PLAIN-1387",
-        "ndcg_at_10": 0.6371523797895856
+        "ndcg_at_10": 0.6332196796270029
       },
       {
         "query": "PLAIN-1398",
@@ -306,7 +305,7 @@
       },
       {
         "query": "PLAIN-1419",
-        "ndcg_at_10": 0.5836175861945262
+        "ndcg_at_10": 0.5077181160122074
       },
       {
         "query": "PLAIN-1429",
@@ -322,7 +321,7 @@
       },
       {
         "query": "PLAIN-1453",
-        "ndcg_at_10": 0.5958595188912912
+        "ndcg_at_10": 0.6122496142821665
       },
       {
         "query": "PLAIN-1463",
@@ -394,7 +393,7 @@
       },
       {
         "query": "PLAIN-1635",
-        "ndcg_at_10": 0.7917063341896681
+        "ndcg_at_10": 0.7948833326720564
       },
       {
         "query": "PLAIN-1645",
@@ -442,7 +441,7 @@
       },
       {
         "query": "PLAIN-175",
-        "ndcg_at_10": 0.27132028051944623
+        "ndcg_at_10": 0.30190255404928124
       },
       {
         "query": "PLAIN-1752",
@@ -486,7 +485,7 @@
       },
       {
         "query": "PLAIN-1857",
-        "ndcg_at_10": 0.5384313152574521
+        "ndcg_at_10": 0.5352543167750639
       },
       {
         "query": "PLAIN-186",
@@ -562,15 +561,15 @@
       },
       {
         "query": "PLAIN-2030",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.19092086617893467
       },
       {
         "query": "PLAIN-2040",
-        "ndcg_at_10": 0.6086182388744239
+        "ndcg_at_10": 0.6136525857537393
       },
       {
         "query": "PLAIN-2051",
-        "ndcg_at_10": 0.8415908474314976
+        "ndcg_at_10": 0.8512360941594274
       },
       {
         "query": "PLAIN-2061",
@@ -582,7 +581,7 @@
       },
       {
         "query": "PLAIN-2071",
-        "ndcg_at_10": 0.38363315291837646
+        "ndcg_at_10": 0.40002324830925196
       },
       {
         "query": "PLAIN-2081",
@@ -626,7 +625,7 @@
       },
       {
         "query": "PLAIN-2177",
-        "ndcg_at_10": 0.5958595188912912
+        "ndcg_at_10": 0.6652907408280685
       },
       {
         "query": "PLAIN-2187",
@@ -634,7 +633,7 @@
       },
       {
         "query": "PLAIN-2197",
-        "ndcg_at_10": 0.7655934900767002
+        "ndcg_at_10": 0.7605591431973849
       },
       {
         "query": "PLAIN-2209",
@@ -654,11 +653,11 @@
       },
       {
         "query": "PLAIN-2250",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.17723928678404774
       },
       {
         "query": "PLAIN-2261",
-        "ndcg_at_10": 0.22400556151517553
+        "ndcg_at_10": 0.28762634971412726
       },
       {
         "query": "PLAIN-227",
@@ -742,7 +741,7 @@
       },
       {
         "query": "PLAIN-2460",
-        "ndcg_at_10": 0.43152453020089276
+        "ndcg_at_10": 0.3511643449202447
       },
       {
         "query": "PLAIN-2470",
@@ -762,11 +761,11 @@
       },
       {
         "query": "PLAIN-2500",
-        "ndcg_at_10": 0.5755887625847714
+        "ndcg_at_10": 0.6164830995388102
       },
       {
         "query": "PLAIN-2510",
-        "ndcg_at_10": 0.5419536889808304
+        "ndcg_at_10": 0.6082079124352194
       },
       {
         "query": "PLAIN-2520",
@@ -830,7 +829,7 @@
       },
       {
         "query": "PLAIN-2660",
-        "ndcg_at_10": 0.15457433957839825
+        "ndcg_at_10": 0.1478294909154526
       },
       {
         "query": "PLAIN-2670",
@@ -846,7 +845,7 @@
       },
       {
         "query": "PLAIN-270",
-        "ndcg_at_10": 0.2863459897524692
+        "ndcg_at_10": 0.3531437764338092
       },
       {
         "query": "PLAIN-2700",
@@ -858,7 +857,7 @@
       },
       {
         "query": "PLAIN-2720",
-        "ndcg_at_10": 0.25983227167304035
+        "ndcg_at_10": 0.23101571094852588
       },
       {
         "query": "PLAIN-2730",
@@ -870,7 +869,7 @@
       },
       {
         "query": "PLAIN-2750",
-        "ndcg_at_10": 0.6598093368714198
+        "ndcg_at_10": 0.6625013210493148
       },
       {
         "query": "PLAIN-2760",
@@ -878,7 +877,7 @@
       },
       {
         "query": "PLAIN-2770",
-        "ndcg_at_10": 0.26654985587615626
+        "ndcg_at_10": 0.26394997933924963
       },
       {
         "query": "PLAIN-2780",
@@ -966,7 +965,7 @@
       },
       {
         "query": "PLAIN-2970",
-        "ndcg_at_10": 0.38062652754129855
+        "ndcg_at_10": 0.4356393980791516
       },
       {
         "query": "PLAIN-2981",
@@ -1034,7 +1033,7 @@
       },
       {
         "query": "PLAIN-3161",
-        "ndcg_at_10": 0.415081693065718
+        "ndcg_at_10": 0.41768559432146346
       },
       {
         "query": "PLAIN-3171",
@@ -1082,7 +1081,7 @@
       },
       {
         "query": "PLAIN-3271",
-        "ndcg_at_10": 0.11004588314904008
+        "ndcg_at_10": 0.1884441521277154
       },
       {
         "query": "PLAIN-3281",
@@ -1098,11 +1097,11 @@
       },
       {
         "query": "PLAIN-3302",
-        "ndcg_at_10": 0.07768953695765952
+        "ndcg_at_10": 0.0521442648465579
       },
       {
         "query": "PLAIN-3312",
-        "ndcg_at_10": 0.33132519904313446
+        "ndcg_at_10": 0.3298627431249981
       },
       {
         "query": "PLAIN-332",
@@ -1110,7 +1109,7 @@
       },
       {
         "query": "PLAIN-3322",
-        "ndcg_at_10": 0.29727159644205703
+        "ndcg_at_10": 0.28762634971412726
       },
       {
         "query": "PLAIN-3332",
@@ -1126,7 +1125,7 @@
       },
       {
         "query": "PLAIN-3362",
-        "ndcg_at_10": 0.43929373490672136
+        "ndcg_at_10": 0.4634153650075699
       },
       {
         "query": "PLAIN-3372",
@@ -1170,11 +1169,11 @@
       },
       {
         "query": "PLAIN-3462",
-        "ndcg_at_10": 0.5774250016294136
+        "ndcg_at_10": 0.6311443278613471
       },
       {
         "query": "PLAIN-3472",
-        "ndcg_at_10": 0.04754488915824038
+        "ndcg_at_10": 0.12790507443888846
       },
       {
         "query": "PLAIN-358",
@@ -1218,7 +1217,7 @@
       },
       {
         "query": "PLAIN-468",
-        "ndcg_at_10": 0.20436662668128655
+        "ndcg_at_10": 0.29799860886693574
       },
       {
         "query": "PLAIN-478",
@@ -1230,7 +1229,7 @@
       },
       {
         "query": "PLAIN-499",
-        "ndcg_at_10": 0.14201905717762703
+        "ndcg_at_10": 0.1487639058405727
       },
       {
         "query": "PLAIN-510",
@@ -1262,7 +1261,7 @@
       },
       {
         "query": "PLAIN-571",
-        "ndcg_at_10": 0.27487633291429087
+        "ndcg_at_10": 0.17342765698823945
       },
       {
         "query": "PLAIN-583",
@@ -1370,7 +1369,7 @@
       },
       {
         "query": "PLAIN-838",
-        "ndcg_at_10": 0.6804426793756725
+        "ndcg_at_10": 0.6762427781892519
       },
       {
         "query": "PLAIN-850",
@@ -1406,7 +1405,7 @@
       },
       {
         "query": "PLAIN-934",
-        "ndcg_at_10": 0.5079937796926363
+        "ndcg_at_10": 0.5747915663739762
       },
       {
         "query": "PLAIN-946",
@@ -1414,7 +1413,7 @@
       },
       {
         "query": "PLAIN-956",
-        "ndcg_at_10": 0.6936634693435663
+        "ndcg_at_10": 0.7630946912803436
       },
       {
         "query": "PLAIN-966",
@@ -1436,16 +1435,16 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 92.12763,
-      "chunking_ms": 2806.973082,
-      "embedding_ms": 1375.823561,
-      "retrieval_ms": 15.905309999999998
+      "analysis_ms": 153.955199,
+      "chunking_ms": 26056.734438,
+      "embedding_ms": 15220.719360000001,
+      "retrieval_ms": 16.714945
     },
-    "tokens_embedded": 2521268,
-    "chunks": 6829,
+    "tokens_embedded": 2520394,
+    "chunks": 6834,
     "chunk_bytes": {
       "min": 72,
-      "p50": 800,
+      "p50": 798,
       "p90": 1067,
       "max": 1510
     },
@@ -1453,7 +1452,7 @@
       "min": 17,
       "p50": 184,
       "p90": 238,
-      "max": 358
+      "max": 435
     }
   }
 }

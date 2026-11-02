@@ -1,24 +1,24 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-22T12:56:44Z",
+  "recorded_at": "2026-11-01T17:53:22Z",
   "provenance": {
-    "commit": "b240811fb43233979a1f283e170bf862dba79594",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/fable/171-level-records"
+      "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -102,9 +102,9 @@
   },
   "metrics": {
     "queries": 1406,
-    "ndcg_at_10": 0.49319754429585194,
+    "ndcg_at_10": 0.4924813489764025,
     "recall": {
-      "at_1": 0.25391180654338547,
+      "at_1": 0.2524893314366999,
       "at_5": 0.6116642958748222,
       "at_10": 0.7724039829302988,
       "at_100": 0.9630156472261735
@@ -445,7 +445,7 @@
       },
       {
         "query": "test-digital-freedoms-aihwbasmn-pro03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-digital-freedoms-aihwbasmn-pro04a",
@@ -965,7 +965,7 @@
       },
       {
         "query": "test-economy-epiasghbf-pro01a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-economy-epiasghbf-pro02a",
@@ -1241,11 +1241,11 @@
       },
       {
         "query": "test-education-pstrgsehwt-con04a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-education-pstrgsehwt-pro01a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-education-pstrgsehwt-pro02a",
@@ -2149,7 +2149,7 @@
       },
       {
         "query": "test-health-hpehwadvoee-pro03a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-health-hpehwadvoee-pro04a",
@@ -2705,7 +2705,7 @@
       },
       {
         "query": "test-international-epglghbni-pro04a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-international-epglghbni-pro05a",
@@ -2789,7 +2789,7 @@
       },
       {
         "query": "test-international-ghwcitca-con03a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-international-ghwcitca-pro01a",
@@ -2817,7 +2817,7 @@
       },
       {
         "query": "test-international-glilpdwhsn-con03a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-international-glilpdwhsn-con04a",
@@ -2853,7 +2853,7 @@
       },
       {
         "query": "test-international-gmehbisrip1b-pro02a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-international-gmehbisrip1b-pro03a",
@@ -3753,7 +3753,7 @@
       },
       {
         "query": "test-law-thgglcplgphw-pro02a",
-        "ndcg_at_10": 0.3010299956639812
+        "ndcg_at_10": 0.31546487678572877
       },
       {
         "query": "test-law-thgglcplgphw-pro03a",
@@ -4849,7 +4849,7 @@
       },
       {
         "query": "test-politics-oglilpdwhsn-con03a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-politics-oglilpdwhsn-con04a",
@@ -4881,7 +4881,7 @@
       },
       {
         "query": "test-politics-pgsimhwoia-pro01a",
-        "ndcg_at_10": 0.38685280723454163
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-politics-pgsimhwoia-pro02a",
@@ -5361,7 +5361,7 @@
       },
       {
         "query": "test-science-wsihwclscaaw-pro01a",
-        "ndcg_at_10": 0.3333333333333333
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-science-wsihwclscaaw-pro02a",
@@ -5377,7 +5377,7 @@
       },
       {
         "query": "test-society-asfhwapg-con02a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-society-asfhwapg-con03a",
@@ -5437,7 +5437,7 @@
       },
       {
         "query": "test-society-epiasghbf-pro01a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-society-epiasghbf-pro02a",
@@ -5481,7 +5481,7 @@
       },
       {
         "query": "test-society-ghbgqeaaems-con01a",
-        "ndcg_at_10": 0.31546487678572877
+        "ndcg_at_10": 0.3333333333333333
       },
       {
         "query": "test-society-ghbgqeaaems-con02a",
@@ -5605,7 +5605,7 @@
       },
       {
         "query": "test-society-tsmihwurpp-pro01a",
-        "ndcg_at_10": 0.3562071871080222
+        "ndcg_at_10": 0.38685280723454163
       },
       {
         "query": "test-society-tsmihwurpp-pro02a",
@@ -5685,7 +5685,7 @@
       },
       {
         "query": "test-sport-tshbmlbscac-con03a",
-        "ndcg_at_10": 0.5
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-sport-tshbmlbscac-con04a",
@@ -5697,15 +5697,15 @@
       },
       {
         "query": "test-sport-tshbmlbscac-pro02a",
-        "ndcg_at_10": 0.43067655807339306
+        "ndcg_at_10": 0.3562071871080222
       },
       {
         "query": "test-sport-tshbmlbscac-pro03a",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "test-sport-tshbmlbscac-pro04a",
-        "ndcg_at_10": 1.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "test-sport-ybfgsohbhog-con01a",
@@ -5739,24 +5739,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 162.33183200000002,
-      "chunking_ms": 6571.933187,
-      "embedding_ms": 371.559272,
-      "retrieval_ms": 89.785378
+      "analysis_ms": 313.726806,
+      "chunking_ms": 119370.75064,
+      "embedding_ms": 5312.531099,
+      "retrieval_ms": 135.915584
     },
     "tokens_embedded": 290784,
-    "chunks": 11145,
+    "chunks": 11166,
     "chunk_bytes": {
       "min": 2,
-      "p50": 781,
-      "p90": 1105,
-      "max": 1464
+      "p50": 779,
+      "p90": 1104,
+      "max": 2874
     },
     "chunk_tokens": {
       "min": 4,
-      "p50": 160,
+      "p50": 159,
       "p90": 224,
-      "max": 254
+      "max": 596
     }
   }
 }

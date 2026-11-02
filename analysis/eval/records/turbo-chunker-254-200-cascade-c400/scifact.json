@@ -1,29 +1,29 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-26T10:53:39Z",
+  "recorded_at": "2026-11-01T19:41:29Z",
   "provenance": {
-    "commit": "7961ed7f667f69894b521ea6d0dc35fba9aa35ca",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/muse/879-cascade"
+      "origin/main"
     ],
     "machine": {
       "arch": "x86_64",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
       "backend": "cpu",
       "kind": "DEVICE_CPU",
-      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
       "vendor": "AuthenticAMD",
       "driver_version": "",
       "runtime_version": "",
-      "memory_total": 130171322368
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
-      "revision": "2",
-      "manifest_sha256": "2d16573646925a45fcd353dd485c50429b552986e88b6f470702908eb1b53817",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
       "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
       "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
     }
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -119,12 +119,12 @@
   },
   "metrics": {
     "queries": 300,
-    "ndcg_at_10": 0.656043033134509,
+    "ndcg_at_10": 0.6576721325370827,
     "recall": {
       "at_1": 0.48583333333333334,
-      "at_5": 0.7342222222222222,
-      "at_10": 0.8043333333333332,
-      "at_100": 0.9483333333333334
+      "at_5": 0.7375555555555555,
+      "at_10": 0.8076666666666666,
+      "at_100": 0.9516666666666667
     },
     "span": null,
     "per_query": [
@@ -182,7 +182,7 @@
       },
       {
         "query": "1088",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.6309297535714575
       },
       {
         "query": "1089",
@@ -230,7 +230,7 @@
       },
       {
         "query": "1140",
-        "ndcg_at_10": 0.6309297535714575
+        "ndcg_at_10": 0.5
       },
       {
         "query": "1144",
@@ -510,7 +510,7 @@
       },
       {
         "query": "1379",
-        "ndcg_at_10": 0.8326783988613894
+        "ndcg_at_10": 0.8270433092474515
       },
       {
         "query": "1382",
@@ -558,7 +558,7 @@
       },
       {
         "query": "179",
-        "ndcg_at_10": 0.876848805629635
+        "ndcg_at_10": 0.8712137160156971
       },
       {
         "query": "180",
@@ -1332,24 +1332,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 683.44259,
-      "chunking_ms": 111.007619,
-      "embedding_ms": 25345.768884,
-      "retrieval_ms": 483.669929
+      "analysis_ms": 355.904239,
+      "chunking_ms": 70.430349,
+      "embedding_ms": 34484.767711,
+      "retrieval_ms": 833.055376
     },
-    "tokens_embedded": 3282381,
-    "chunks": 9126,
+    "tokens_embedded": 3282312,
+    "chunks": 9134,
     "chunk_bytes": {
       "min": 93,
-      "p50": 782,
+      "p50": 781,
       "p90": 1047,
-      "max": 1462
+      "max": 1584
     },
     "chunk_tokens": {
       "min": 27,
       "p50": 179,
       "p90": 231,
-      "max": 330
+      "max": 356
     }
   }
 }

@@ -1,0 +1,14 @@
+== opennlp-sandbox-semantic 2026-11-01T17:13:02Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 47.32 51.85 42.60
+target/release/turbo-eval run --bundle <bundles>/minilm --sets scifact,nfcorpus,arguana,qasper,legalbench-rag-mini,conteb-squad,gutenqa --cache <cache> --device cpu --out <records>/opennlp-sandbox-semantic --chunker opennlp-sandbox-semantic
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+set gutenqa: 112 judgements could not be placed in their document and are left out
+<records>/opennlp-sandbox-semantic/scifact.json
+<records>/opennlp-sandbox-semantic/nfcorpus.json
+<records>/opennlp-sandbox-semantic/arguana.json
+<records>/opennlp-sandbox-semantic/qasper.json
+<records>/opennlp-sandbox-semantic/legalbench-rag-mini.json
+<records>/opennlp-sandbox-semantic/conteb-squad.json
+<records>/opennlp-sandbox-semantic/gutenqa.json
+wall 697.98 s maxrss 1732628 KB
+exit 0 load 46.15 46.96 44.61

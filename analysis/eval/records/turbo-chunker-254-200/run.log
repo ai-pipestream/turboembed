@@ -1,0 +1,10 @@
+== turbo-chunker-254-200 2026-11-01T16:35:07Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 33.74 25.24 14.44
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --out <records>/turbo-chunker-254-200 --chunker turbo-chunker --max 254 --target 200
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/turbo-chunker-254-200/scifact.json
+<records>/turbo-chunker-254-200/nfcorpus.json
+<records>/turbo-chunker-254-200/arguana.json
+<records>/turbo-chunker-254-200/qasper.json
+wall 90.69 s maxrss 556680 KB
+exit 0 load 44.90 30.35 17.20
