@@ -14,6 +14,7 @@
 //! | `split_labels` | The label each training token's split takes, chosen by the tokens it serves |
 //! | `redocred` | Re-DocRED documents, their entities and relations, pinned file by file |
 //! | `redocred_eval` | The relation head's spec, examples and test scoring on Re-DocRED |
+//! | `redocred_path` | The dependency-path rule baseline on Re-DocRED (#1825) |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
 //! | `ner_documents` | Strict span scores and paired bootstrap over whole documents |
@@ -24,6 +25,7 @@
 pub mod assemble;
 pub mod assemble_zoo;
 pub mod cache;
+pub mod cached_ud;
 pub mod cli;
 pub mod corpus;
 pub mod distill;
@@ -42,10 +44,12 @@ pub mod peer;
 pub mod receipt;
 pub mod redocred;
 pub mod redocred_eval;
+pub mod redocred_path;
 pub mod run;
 pub mod safetensors;
 pub mod sentences;
 pub mod split_labels;
+pub mod sweep;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_banks_sa;

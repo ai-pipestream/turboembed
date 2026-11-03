@@ -243,6 +243,54 @@ fn parse_cluster_id(file: &str, ln: usize, digits: &str, raw: &str) -> Result<u3
     digits.parse::<u32>().map_err(|_| Error(format!("{file}:{ln}: invalid cluster ID in coreference bracket {raw:?}")))
 }
 
+/// Parses a file of one or more CoNLL coreference documents (a peer's
+/// prediction file, #1825): each `#begin document` to `#end document`
+/// section read by [`parse`], so a peer writes one file for every test
+/// work. Section line numbers in errors are of the section, and the file
+/// name is the section's ordinal.
+///
+/// # Errors
+///
+/// What [`parse`] refuses; also a file with no document, or two documents
+/// with one id.
+pub fn parse_many(file: &str, bytes: &[u8]) -> Result<Vec<CorefDoc>> {
+    let text = std::str::from_utf8(bytes).map_err(|e| Error(format!("{file}: not UTF-8: {e}")))?;
+    let mut docs = Vec::new();
+    let mut current: Option<String> = None;
+    for line in text.lines() {
+        if line.starts_with("#begin document") {
+            if current.is_some() {
+                return Err(Error(format!("{file}: nested #begin document")));
+            }
+            current = Some(String::new());
+        }
+        let Some(c) = current.as_mut() else {
+            if line.trim().is_empty() {
+                continue;
+            }
+            return Err(Error(format!("{file}: content before the first #begin document")));
+        };
+        c.push_str(line);
+        c.push('\n');
+        if line.starts_with("#end document") {
+            let section = current.take().expect("a section is open");
+            docs.push(parse(&format!("{file}:document{}", docs.len()), section.as_bytes())?);
+        }
+    }
+    if current.is_some() {
+        return Err(Error(format!("{file}: unclosed #begin document at end of file")));
+    }
+    if docs.is_empty() {
+        return Err(Error(format!("{file}: no documents")));
+    }
+    for (i, d) in docs.iter().enumerate() {
+        if docs[..i].iter().any(|o| o.id == d.id) {
+            return Err(Error(format!("{file}: document {:?} twice", d.id)));
+        }
+    }
+    Ok(docs)
+}
+
 fn parse_doc_header(rest: &str) -> Option<String> {
     let trimmed = rest.trim();
     if let Some(after_open) = trimmed.strip_prefix('(')

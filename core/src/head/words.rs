@@ -40,9 +40,11 @@ pub(crate) fn tensors(spec: &HeadSpec, hidden: usize) -> (Vec<(String, Vec<u64>)
 }
 
 /// Appends `mix.weight` `[layers]` and `mix.gamma` `[1]` when `spec` mixes
-/// encoder layers (`spec.layer_mix`).
+/// encoder layers (`spec.layer_mix` without a single `layer` override).
 pub(crate) fn push_mix(spec: &HeadSpec, out: &mut Vec<(String, Vec<u64>)>) {
-    if let Some(m) = &spec.layer_mix {
+    if let Some(m) = &spec.layer_mix
+        && m.layer.is_none()
+    {
         out.push(("mix.weight".into(), vec![m.layers as u64]));
         out.push(("mix.gamma".into(), vec![1]));
     }
@@ -100,7 +102,8 @@ impl std::fmt::Debug for AdapterLayer {
 pub(crate) struct WordReader {
     pooling: WordPooling,
     hidden: usize,
-    /// `gamma * softmax(mix.weight)` per tapped layer, when `spec.layer_mix` is set.
+    taps: usize,
+    /// `gamma * softmax(mix.weight)` per tapped layer, when `spec.layer_mix` mixes layers.
     mix: Option<Vec<f32>>,
     hash: Option<Tables>,
     adapter: Vec<AdapterLayer>,
@@ -119,8 +122,9 @@ pub struct Work {
 
 impl WordReader {
     pub(crate) fn new(spec: &HeadSpec, hidden: usize, t: &Take<'_>) -> Result<WordReader> {
-        let mix = match &spec.layer_mix {
-            Some(_) => {
+        let (taps, mix) = match &spec.layer_mix {
+            Some(m) if m.layer.is_some() => (m.layers as usize, None),
+            Some(m) => {
                 let w = t.take("mix.weight")?;
                 let g = t.take("mix.gamma")?;
                 if !w.iter().chain(&g).all(|x| x.is_finite()) {
@@ -130,9 +134,9 @@ impl WordReader {
                 let e: Vec<f64> = w.iter().map(|&v| (v as f64 - max).exp()).collect();
                 let z: f64 = e.iter().sum();
                 let gamma = g[0];
-                Some(e.into_iter().map(|v| gamma * (v / z) as f32).collect())
+                (m.layers as usize, Some(e.into_iter().map(|v| gamma * (v / z) as f32).collect()))
             }
-            None => None,
+            None => (1, None),
         };
         let hash = match spec.hash_embed {
             Some(h) => {
@@ -157,7 +161,7 @@ impl WordReader {
                 width = 2 * h;
             }
         }
-        Ok(WordReader { pooling: spec.word_pooling, hidden, mix, hash, adapter, width })
+        Ok(WordReader { pooling: spec.word_pooling, hidden, taps, mix, hash, adapter, width })
     }
 
     /// The width of the word vectors `read` gives.
@@ -165,9 +169,9 @@ impl WordReader {
         self.width
     }
 
-    /// Encoder layers the reader mixes (1 when `layer_mix` is absent).
+    /// Encoder layers the reader taps from the top of the encoder (1 when `layer_mix` is absent).
     pub(crate) fn taps(&self) -> usize {
-        self.mix.as_ref().map_or(1, Vec::len)
+        self.taps
     }
 
     /// Whether the reader needs each word's text (a `hash_embed`).
@@ -187,8 +191,17 @@ impl WordReader {
     pub(crate) fn read(&self, states: &[f32], words: &[u32], forms: Option<&[&str]>, w: &mut Work) -> Result<usize> {
         let rows = words.len();
         let taps = self.taps();
+        let one = rows.checked_mul(self.hidden);
         let want = taps.checked_mul(rows).and_then(|r| r.checked_mul(self.hidden));
-        if Some(states.len()) != want {
+        let ok = if self.mix.is_some() {
+            Some(states.len()) == want
+        } else {
+            // A single-layer head (`layer: Some(k)`) reads the first tap of
+            // the trailing `taps` encoder slice at runtime (`want`), or the
+            // pre-extracted layer `k` buffer (`one`) in cached evaluation.
+            Some(states.len()) == want || Some(states.len()) == one
+        };
+        if !ok {
             return Err(Error::new(
                 INVALID_SHAPE,
                 if taps == 1 {

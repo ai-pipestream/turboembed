@@ -118,7 +118,26 @@ fn a_sign_in_a_kind_does_not_take_is_refused() {
     let key = || SignIn::ApiKey { key: "k".into() };
     for address in ["file:///zoo", "grpc://zoo.example:8081", "s3://models/zoo"] {
         let e = registry.open(&Holder::new("h", address, key()).unwrap(), &alice()).err().unwrap();
-        assert!(e.contains("environment only") || e.contains("needs the s3 feature"), "{address}: {e}");
+        let why = ["environment only", "with its own S3 keys", "needs the s3 feature"];
+        assert!(why.iter().any(|w| e.contains(w)), "{address}: {e}");
+    }
+    let keys = SignIn::S3Keys {
+        access_key_id: "AKIDEXAMPLE".into(),
+        secret_access_key: "a-secret".into(),
+        session_token: None,
+        region: Some("eu-west-1".into()),
+        endpoint: None,
+    };
+    for address in ["file:///zoo", "grpc://zoo.example:8081"] {
+        let e = registry.open(&Holder::new("h", address, keys.clone()).unwrap(), &alice()).err().unwrap();
+        assert!(e.contains("environment only"), "{address}: {e}");
+    }
+    // Opening asks the bucket for nothing; the keys sign each request.
+    let bucket = registry.open(&Holder::new("b", "s3://models/zoo", keys).unwrap(), &alice());
+    if cfg!(feature = "s3") {
+        assert!(bucket.is_ok());
+    } else {
+        assert!(bucket.err().unwrap().contains("needs the s3 feature"));
     }
     let grant = SignIn::GoogleOauth { client_id: "c".into(), client_secret: None, refresh_token: "r".into() };
     let bad = Holder::new("d", "gdrive://a.b", grant.clone()).unwrap();

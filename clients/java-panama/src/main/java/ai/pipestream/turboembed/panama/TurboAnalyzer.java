@@ -194,7 +194,7 @@ public final class TurboAnalyzer implements ai.pipestream.turboembed.TurboAnalyz
     /**
      * Lemmatizes aligned token/tag pairs with the bundle's lemmatizer head. The tags must be
      * labels of the tag head the lemmatizer reads; they are ignored by a lemmatizer that reads
-     * no tags. A row with no label is an explicit miss, never a lowercased token.
+     * no tags, which must still be one per token. Every row carries its lemma as the label.
      */
     public TurboAnalysisResult lemmatize(String[] tokens, String[] tags) {
         validateStrings(tokens, "tokens");
@@ -220,7 +220,7 @@ public final class TurboAnalyzer implements ai.pipestream.turboembed.TurboAnalyz
 
     /**
      * Finds named entities in one independent token sequence with the bundle's entity head only.
-     * No adaptive data is retained between calls.
+     * Nothing is kept between calls.
      */
     public TurboAnalysisResult findTokens(String[] tokens) {
         validateStrings(tokens, "tokens");

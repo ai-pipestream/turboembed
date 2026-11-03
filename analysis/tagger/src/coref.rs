@@ -17,7 +17,7 @@ use turbo::bundle::Bundle;
 use turbo::head::CorefRanker;
 use turbo::head::coref::chains;
 use turbo::head::tagger::Work;
-use turbo::manifest::HeadKind;
+use turbo::manifest::{HeadKind, HeadSpec};
 use turbo::status::Error as CoreError;
 use turbo_analysis::{
     Annotator, Edge, Edges, Error, Execution, Fnv1a, Groups, Ix, Layer, ModelRef, Refs, TagSet, View,
@@ -31,19 +31,25 @@ use crate::words::WordEncoder;
 /// The layer id a coreference head names.
 pub const COREF_LAYER: &str = "turboembed:coref";
 
-/// Writes coreference chains over the entity layer from a
-/// HEAD_COREF_RANKER head.
-pub struct CorefTagger {
+/// A coreference ranker head and the edge kind its links name.
+pub struct CorefHead {
     head: CorefRanker,
-    words: Mutex<WordEncoder>,
-    model: ModelRef,
-    execution: Execution,
-    width: usize,
     kinds: Arc<TagSet>,
 }
 
 /// The chains and links of one view.
 pub type Resolution = (Groups<Entities>, Edges<Entities, Entities>);
+
+/// Writes coreference chains over the entity layer from a
+/// HEAD_COREF_RANKER head, reading the words through the bundle's
+/// encoder itself.
+pub struct CorefTagger {
+    head: CorefHead,
+    words: Mutex<WordEncoder>,
+    model: ModelRef,
+    execution: Execution,
+    width: usize,
+}
 
 impl CorefTagger {
     /// The head named `name` in the bundle at `dir`, or with no name the
@@ -51,12 +57,12 @@ impl CorefTagger {
     pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<CorefTagger, CoreError> {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, COREF_LAYER, HeadKind::CorefRanker)?;
-        let head = CorefRanker::load(&bundle, &spec.name)?;
+        let head = CorefHead::load(&bundle, spec)?;
         let words = open_words(dir, o, spec.layer_mix.map_or(1, |m| m.layers as usize))?;
-        if words.hidden() != head.hidden() {
+        if words.hidden() != head.head.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",
-                head.hidden(),
+                head.head.hidden(),
                 words.hidden()
             )));
         }
@@ -64,10 +70,40 @@ impl CorefTagger {
             execution: words.execution().clone(),
             width: words.width(),
             model: model_ref(&bundle),
-            kinds: TagSet::new(&spec.name, &["antecedent"]),
             words: Mutex::new(words),
             head,
         })
+    }
+
+    pub fn head(&self) -> &CorefRanker {
+        &self.head.head
+    }
+
+    /// Rows the encoder has read so far.
+    pub fn rows(&self) -> u64 {
+        self.words.lock().unwrap_or_else(PoisonError::into_inner).rows()
+    }
+
+    /// [`CorefHead::resolve_with`] over the encoder's own read of the
+    /// view's tokens as one sequence.
+    pub fn resolve(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        entities: &Entities,
+        subwords: Option<&Subwords>,
+    ) -> Result<Resolution, String> {
+        let pooling = self.head.head.spec().word_pooling;
+        self.head.resolve_with(view, tokens, entities, |all, seqs| {
+            self.words.lock().unwrap_or_else(PoisonError::into_inner).token_features(view, all, seqs, subwords, pooling)
+        })
+    }
+}
+
+impl CorefHead {
+    /// The coreference ranker head `spec` of `bundle`.
+    pub fn load(bundle: &Bundle, spec: &HeadSpec) -> Result<CorefHead, CoreError> {
+        Ok(CorefHead { head: CorefRanker::load(bundle, &spec.name)?, kinds: TagSet::new(&spec.name, &["antecedent"]) })
     }
 
     pub fn head(&self) -> &CorefRanker {
@@ -78,12 +114,17 @@ impl CorefTagger {
     /// included, in order of first member) and the link from each linked
     /// mention's entities to its antecedent's first entity, scored by the
     /// antecedent's softmax probability among the mention's candidates.
-    pub fn resolve(
+    ///
+    /// The view's tokens are read as one sequence: `features` is handed
+    /// those tokens (without a sentence column) and that one sequence and
+    /// returns its word features under the head's pooling and taps; it is
+    /// not called when no mention is scored.
+    pub fn resolve_with(
         &self,
         view: &View,
         tokens: &Tokens,
         entities: &Entities,
-        subwords: Option<&Subwords>,
+        features: impl FnOnce(&Tokens, &[Vec<usize>]) -> Result<Vec<Vec<f32>>, String>,
     ) -> Result<Resolution, String> {
         let all = Tokens { spans: tokens.spans.clone(), sentence: None };
         let seqs = HeadRunner::sequences(view, &all, None)?;
@@ -104,13 +145,11 @@ impl CorefTagger {
         let scored: Vec<(u32, u32)> = ranges.iter().copied().filter(|&(i, j)| j - i < max).collect();
         let mut links: Vec<Option<(u32, f64)>> = vec![None; scored.len()];
         if !scored.is_empty() {
-            let pooling = self.head.spec().word_pooling;
-            let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
-            let features = words.token_features(view, &all, &seqs, subwords, pooling)?;
-            drop(words);
+            let features = features(&all, &seqs)?;
+            let Some(features) = features.first() else { return Err("no features for the view's words".into()) };
             let ids: Vec<u32> = (0..n as u32).collect();
             let (mut g, mut scores, mut best, mut w) = (Vec::new(), Vec::new(), Vec::new(), Work::default());
-            self.head.mentions(&features[0], &ids, &scored, &mut g, &mut w).map_err(|e| e.to_string())?;
+            self.head.mentions(features, &ids, &scored, &mut g, &mut w).map_err(|e| e.to_string())?;
             self.head.scores(&g, &mut scores).map_err(|e| e.to_string())?;
             self.head.decode(&scores, &mut best).map_err(|e| e.to_string())?;
             let k = self.head.antecedents();
@@ -190,6 +229,6 @@ impl Annotator for CorefTagger {
     }
 
     fn config_hash(&self) -> u64 {
-        Fnv1a::new().str(&self.head.spec().name).u64(self.width as u64).finish()
+        Fnv1a::new().str(&self.head.head.spec().name).u64(self.width as u64).finish()
     }
 }

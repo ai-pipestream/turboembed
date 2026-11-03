@@ -169,7 +169,8 @@ impl Kind for ZooServerKind {
     }
 }
 
-/// `s3://bucket/prefix`, configured from the `AWS_*` environment.
+/// `s3://bucket/prefix`, signed in from the `AWS_*` environment or with
+/// the holder's own S3 keys ([`crate::S3Bucket::signed_in`]).
 pub struct S3Kind;
 
 impl Kind for S3Kind {
@@ -179,8 +180,7 @@ impl Kind for S3Kind {
 
     #[cfg(feature = "s3")]
     fn open(&self, holder: &Holder, _user: &UserId) -> Result<Opened, String> {
-        environment_only(holder)?;
-        Ok(Opened::Source(Box::new(crate::S3Bucket::new(&holder.address)?)))
+        Ok(Opened::Source(Box::new(crate::S3Bucket::signed_in(&holder.address, &holder.sign_in)?)))
     }
 
     #[cfg(not(feature = "s3"))]
@@ -190,7 +190,8 @@ impl Kind for S3Kind {
 }
 
 /// `gdrive://<folder-id>[/name/...]`: a Google Drive folder, signed in
-/// from the environment, an API key, or a stored Google grant.
+/// from the environment, an API key, or a stored Google grant; S3 keys
+/// are refused.
 #[derive(Clone, Default)]
 pub struct DriveKind {
     drive: Option<String>,
@@ -225,6 +226,7 @@ impl Kind for DriveKind {
                 };
                 DriveAuth::Refresh(Arc::new(Renewing::new(oauth, refresh_token)?))
             }
+            SignIn::S3Keys { .. } => return Err(format!("{address}: S3 keys are for an s3:// source")),
         };
         Ok(Opened::Source(Box::new(GoogleDrive::with(address, self.drive.as_deref(), auth)?)))
     }

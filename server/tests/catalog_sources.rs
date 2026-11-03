@@ -99,6 +99,7 @@ fn register(user: &str, name: &str, address: &str, api_key: &str) -> RegisterMod
         name: name.into(),
         address: address.into(),
         api_key: api_key.into(),
+        s3_keys: None,
     }
 }
 

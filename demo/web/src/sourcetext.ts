@@ -2,14 +2,32 @@
 // back from Google's consent page brought, kept apart from the calls so
 // the unit tests run under Node.
 
-import { SourceSignIn, type ListModelSourcesResponse } from "./gen/turbo_training_pb.js";
+import type { MessageInitShape } from "@bufbuild/protobuf";
+import { SourceSignIn, type ListModelSourcesResponse, type S3KeysSchema } from "./gen/turbo_training_pb.js";
 
 /** How a source signs in, in plain words. */
 export function signInText(s: SourceSignIn): string {
   if (s === SourceSignIn.GOOGLE) return "Google sign-in";
   if (s === SourceSignIn.API_KEY) return "API key";
+  if (s === SourceSignIn.S3_KEYS) return "S3 keys";
   if (s === SourceSignIn.ENVIRONMENT) return "the server's own";
   return "";
+}
+
+/** The S3 keys the form names, trimmed, or none when it names no key. */
+export function s3KeysOf(f: {
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  endpoint: string;
+}): MessageInitShape<typeof S3KeysSchema> | undefined {
+  const k = {
+    accessKeyId: f.accessKeyId.trim(),
+    secretAccessKey: f.secretAccessKey.trim(),
+    region: f.region.trim(),
+    endpoint: f.endpoint.trim(),
+  };
+  return k.accessKeyId || k.secretAccessKey ? k : undefined;
 }
 
 /** Why the page may not change the sources, or "" when it may. */

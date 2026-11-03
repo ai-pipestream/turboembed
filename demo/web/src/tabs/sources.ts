@@ -8,7 +8,7 @@
 import type { ListModelSourcesResponse, ModelSource } from "../gen/turbo_training_pb.js";
 import { $, el, input, say, table } from "../dom.js";
 import { catalog, describe } from "../rpc.js";
-import { readOnly, redirected, signInText } from "../sourcetext.js";
+import { readOnly, redirected, s3KeysOf, signInText } from "../sourcetext.js";
 
 const note = () => $("sources-note");
 
@@ -63,9 +63,17 @@ function add(ev: Event): void {
   const name = input("sources-name").value.trim();
   const address = input("sources-address").value.trim();
   const apiKey = input("sources-key").value.trim();
+  const s3Keys = s3KeysOf({
+    accessKeyId: input("sources-s3-key-id").value,
+    secretAccessKey: input("sources-s3-secret").value,
+    region: input("sources-s3-region").value,
+    endpoint: input("sources-s3-endpoint").value,
+  });
   void act(async () => {
-    const r = await catalog.registerModelSource({ name, address, apiKey });
+    const r = await catalog.registerModelSource({ name, address, apiKey, s3Keys });
     input("sources-key").value = "";
+    input("sources-s3-key-id").value = "";
+    input("sources-s3-secret").value = "";
     return `Registered ${r.source?.name ?? name}.`;
   }, load);
 }

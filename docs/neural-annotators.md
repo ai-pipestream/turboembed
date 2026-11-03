@@ -66,8 +66,10 @@ Face hub):
   keys ahead a layer), and a bundle carries that per-layer value as
   `architecture.lookahead` (docs/bundle.md); `turbo-bundle` seal holds a
   recipe's value to the upstream `config.json`. The CPU backend runs the
-  band; the other backends refuse such a model at load with
-  `TURBO_E_UNSUPPORTED`, naming the backend. They are trained on mC4
+  band; on the other backends the loader skips the artifact, so a load
+  there is `TURBO_E_BUNDLE_NO_ARTIFACT`, naming the backend, before any
+  weights are read, and `bundle/recipes/sat-3l.json` lists `cpu` alone.
+  They are trained on mC4
   alone, so they are permissive; `sat-3l` at
   `a3b7ba6b61881d619989757aea971cde7d3d6a98` is in the zoo index
   (`segment-any-text-sat-3l`, its PyTorch checkpoint and `config.json`).
@@ -185,8 +187,8 @@ a Hailo host) a Hailo session refused with the range-pooling error.
 `TURBO_TEST_REQUIRE_METAL=1` makes it fail when no device is named. It
 passes at every tier on CUDA, Level Zero and Metal, each with `sat-1l-sm`
 too; docs/receipts/sat-884.md has the figures and, for each of the
-three, the speed against the CPU. A model of limited lookahead is refused on
-every device, which the lookahead parity test checks there.
+three, the speed against the CPU. No device loads a model of limited
+lookahead, which the lookahead parity test checks there.
 
 On a released checkpoint, `sat-1l-sm` at revision
 `00a783439c201b20ee91ee1624dc817f1bf0e578` (one layer, width 768, the
@@ -334,9 +336,9 @@ different machine from the 4-core rows above.
   must be established before this decision can change; local licence
   acceptance is insufficient. No entry or download receipt is created.
   `sat-12l-sm` and the other sizes have not been run here.
-- Limited lookahead on a device: every backend but the CPU refuses a
-  bundle with `architecture.lookahead` (`turbo::model::runs_band`), so
-  `sat-3l` runs on the CPU only.
+- Limited lookahead on a device: the loader skips the artifact of a
+  bundle with `architecture.lookahead` on every backend but the CPU
+  (`turbo::model::runs_band`), so `sat-3l` runs on the CPU only.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.

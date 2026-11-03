@@ -3,10 +3,14 @@
 //! Extraction never slices a caller-supplied text. Coordinates come from
 //! the document's own source and views, and every view range is projected
 //! to source with `Document::map_span` before it is exposed over the ABI.
+//! A caller's graph that holds what no row may carry (a probability
+//! outside 0..=1, which graph import does not refuse) is the caller's
+//! invalid argument; in the analyzer's own document it is the analyzer's
+//! fault.
 
 use std::any::TypeId;
 
-use turbo_analysis::{Document, Ix, Key, KeyId, Layer, Span, Spans, ViewId};
+use turbo_analysis::{Document, Ix, Key, KeyId, Layer, OffsetTable, Span, Spans, ViewId};
 use turbo_analysis_layers::{
     Confidence, Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiConfidence, PosTags, Sentences, Tokens,
 };
@@ -17,11 +21,7 @@ use super::{
     TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_ANALYSIS_LAYER_SENTENCES, TURBO_ANALYSIS_LAYER_TOKENS,
     TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
 };
-use crate::status::{BUNDLE_INVALID, CAPACITY, Error, Result};
-
-fn invalid(message: impl Into<String>) -> Error {
-    Error::new(BUNDLE_INVALID, message.into())
-}
+use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
 fn index_u32(index: usize, what: &str) -> Result<u32> {
     u32::try_from(index).map_err(|_| Error::new(CAPACITY, format!("{what} exceeds u32")))
@@ -31,32 +31,52 @@ fn get_by_id<L: Layer>(doc: &Document, id: KeyId) -> Option<&L> {
     doc.get_key(&Key::<L>::named(id.name))
 }
 
-fn confidence<L: Layer>(doc: &Document, id: KeyId, expected: usize) -> Result<Option<&[f64]>> {
-    let Some(confidence) = get_by_id::<Confidence<L>>(doc, id) else {
+fn confidence<'d, L: Layer>(mapper: &Mapper<'d>, id: KeyId, expected: usize) -> Result<Option<&'d [f64]>> {
+    let Some(confidence) = get_by_id::<Confidence<L>>(mapper.doc, id) else {
         return Ok(None);
     };
     if confidence.value.len() != expected {
-        return Err(invalid(format!("confidence for {id} has {} values for {expected} items", confidence.value.len())));
+        let n = confidence.value.len();
+        return Err(mapper.invalid(format!("confidence for {id} has {n} values for {expected} items")));
     }
     Ok(Some(&confidence.value))
 }
 
+/// Whose document the rows are read from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Origin {
+    /// The analyzer's own, just analyzed.
+    Analyzed,
+    /// Imported from the caller's graph bytes.
+    Caller,
+}
+
 struct Mapper<'a> {
     doc: &'a Document,
+    origin: Origin,
 }
 
 impl Mapper<'_> {
+    /// The refusal of what the document holds: `code` for the analyzer's
+    /// own document, TURBO_E_INVALID_ARGUMENT for a caller's graph.
+    fn refuse(&self, code: i32, message: String) -> Error {
+        Error::new(if self.origin == Origin::Caller { INVALID_ARGUMENT } else { code }, message)
+    }
+
+    fn invalid(&self, message: String) -> Error {
+        self.refuse(BUNDLE_INVALID, message)
+    }
+
     fn coordinates(&self, view: ViewId, span: Span) -> Result<(CoordRange, CoordRange)> {
-        let view_range = coordinate_range(self.doc.text(view), self.doc.offsets(view), (span.start, span.end))?;
+        let range = |text: &str, offsets: &OffsetTable, span: Span| {
+            coordinate_range(text, offsets, (span.start, span.end)).map_err(|e| self.refuse(e.code, e.message))
+        };
+        let view_range = range(self.doc.text(view), self.doc.offsets(view), span)?;
         let source_span = self
             .doc
             .map_span(view, ViewId::SOURCE, span)
-            .map_err(|e| invalid(format!("graph span cannot project to source: {e}")))?;
-        let source_range = coordinate_range(
-            self.doc.source(),
-            self.doc.offsets(ViewId::SOURCE),
-            (source_span.start, source_span.end),
-        )?;
+            .map_err(|e| self.invalid(format!("graph span cannot project to source: {e}")))?;
+        let source_range = range(self.doc.source(), self.doc.offsets(ViewId::SOURCE), source_span)?;
         Ok((view_range, source_range))
     }
 }
@@ -78,6 +98,12 @@ fn push_fragments<L: Layer>(
     fields: ItemFields,
 ) -> Result<()> {
     let item_index = index_u32(item, "graph item count")?;
+    if let Some(prob) = fields.prob
+        && !(0.0..=1.0).contains(&prob)
+    {
+        let message = format!("graph item {item} of layer kind {} has probability {prob}, outside 0..=1", layer.kind);
+        return Err(mapper.refuse(CAPACITY, message));
+    }
     for (fragment, span) in spans.fragments(Ix::new(item_index)).enumerate() {
         let (view, source) = mapper.coordinates(spans.view(), span)?;
         builder.push(
@@ -115,7 +141,7 @@ fn layer_ref(builder: &mut SpanPoolBuilder, kind: u32, id: KeyId, view: ViewId) 
 
 fn extract_sentences(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<Sentences>(doc, id) else { return Ok(()) };
-    let probs = confidence::<Sentences>(doc, id, layer.spans.len())?;
+    let probs = confidence::<Sentences>(mapper, id, layer.spans.len())?;
     let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_SENTENCES, id, layer.spans.view())?;
     for item in 0..layer.spans.len() {
         push_fragments(
@@ -138,7 +164,7 @@ fn extract_sentences(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &D
 
 fn extract_tokens(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<Tokens>(doc, id) else { return Ok(()) };
-    let probs = confidence::<Tokens>(doc, id, layer.spans.len())?;
+    let probs = confidence::<Tokens>(mapper, id, layer.spans.len())?;
     let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_TOKENS, id, layer.spans.view())?;
     for item in 0..layer.spans.len() {
         let item_u32 = index_u32(item, "graph token count")?;
@@ -163,10 +189,10 @@ fn extract_tokens(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Docu
 fn extract_pos(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<PosTags>(doc, id) else { return Ok(()) };
     let Some(anchor) = anchor_tokens(doc, id) else {
-        return Err(invalid(format!("aligned layer {id} has no token anchor")));
+        return Err(mapper.invalid(format!("aligned layer {id} has no token anchor")));
     };
     if layer.tags.len() != anchor.spans.len() {
-        return Err(invalid(format!(
+        return Err(mapper.invalid(format!(
             "POS layer {id} has {} tags for {} anchor tokens",
             layer.tags.len(),
             anchor.spans.len()
@@ -197,16 +223,16 @@ fn extract_pos(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
 fn extract_lemmas(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<Lemmas>(doc, id) else { return Ok(()) };
     let Some(anchor) = anchor_tokens(doc, id) else {
-        return Err(invalid(format!("aligned layer {id} has no token anchor")));
+        return Err(mapper.invalid(format!("aligned layer {id} has no token anchor")));
     };
     if layer.lemma.len() != anchor.spans.len() {
-        return Err(invalid(format!(
+        return Err(mapper.invalid(format!(
             "lemma layer {id} has {} values for {} anchor tokens",
             layer.lemma.len(),
             anchor.spans.len()
         )));
     }
-    let probs = confidence::<Lemmas>(doc, id, layer.lemma.len())?;
+    let probs = confidence::<Lemmas>(mapper, id, layer.lemma.len())?;
     let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_LEMMAS, id, anchor.spans.view())?;
     for item in 0..layer.lemma.len() {
         let item_u32 = index_u32(item, "graph lemma count")?;
@@ -234,16 +260,16 @@ fn extract_lemmas(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Docu
 fn extract_morphology(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<MorphFeatures<Tokens>>(doc, id) else { return Ok(()) };
     let Some(anchor) = anchor_tokens(doc, id) else {
-        return Err(invalid(format!("aligned layer {id} has no token anchor")));
+        return Err(mapper.invalid(format!("aligned layer {id} has no token anchor")));
     };
     if layer.feats.len() != anchor.spans.len() {
-        return Err(invalid(format!(
+        return Err(mapper.invalid(format!(
             "morphology layer {id} has {} values for {} anchor tokens",
             layer.feats.len(),
             anchor.spans.len()
         )));
     }
-    let probs = confidence::<MorphFeatures<Tokens>>(doc, id, layer.feats.len())?;
+    let probs = confidence::<MorphFeatures<Tokens>>(mapper, id, layer.feats.len())?;
     let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_MORPHOLOGY, id, anchor.spans.view())?;
     for item in 0..layer.feats.len() {
         let item_u32 = index_u32(item, "graph morphology count")?;
@@ -271,10 +297,10 @@ fn extract_morphology(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &
 fn extract_dependencies(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<Dependencies<Tokens>>(doc, id) else { return Ok(()) };
     let Some(anchor) = anchor_tokens(doc, id) else {
-        return Err(invalid(format!("aligned layer {id} has no token anchor")));
+        return Err(mapper.invalid(format!("aligned layer {id} has no token anchor")));
     };
     if layer.head.len() != anchor.spans.len() || layer.relation.len() != anchor.spans.len() {
-        return Err(invalid(format!(
+        return Err(mapper.invalid(format!(
             "dependency layer {id} has {} heads for {} anchor tokens",
             layer.head.len(),
             anchor.spans.len()
@@ -311,13 +337,13 @@ fn extract_dependencies(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc:
 fn extract_entities(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<Entities>(doc, id) else { return Ok(()) };
     if layer.tokens.len() != layer.spans.len() || layer.kind.len() != layer.spans.len() {
-        return Err(invalid(format!("entity layer {id} has inconsistent columns")));
+        return Err(mapper.invalid(format!("entity layer {id} has inconsistent columns")));
     }
     if !layer.score.is_empty() && layer.score.len() != layer.spans.len() {
-        return Err(invalid(format!("entity layer {id} has inconsistent scores")));
+        return Err(mapper.invalid(format!("entity layer {id} has inconsistent scores")));
     }
     let anchor_len = anchor_tokens(doc, id).map(|tokens| tokens.spans.len());
-    let confidence = confidence::<Entities>(doc, id, layer.spans.len())?;
+    let confidence = confidence::<Entities>(mapper, id, layer.spans.len())?;
     let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_ENTITIES, id, layer.spans.view())?;
     for item in 0..layer.spans.len() {
         let range = layer.tokens[item];
@@ -325,7 +351,7 @@ fn extract_entities(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Do
         let tokens = match anchor_len {
             Some(count) => {
                 if start > end || end > count {
-                    return Err(invalid(format!("entity layer {id} token range is outside its anchor")));
+                    return Err(mapper.invalid(format!("entity layer {id} token range is outside its anchor")));
                 }
                 Some((index_u32(start, "graph entity token range")?, index_u32(end, "graph entity token range")?))
             }
@@ -369,8 +395,8 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
     Ok(())
 }
 
-pub(crate) fn extract_graph(doc: &Document, graph: Vec<u8>) -> Result<AnalysisResultInner> {
-    let mapper = Mapper { doc };
+pub(crate) fn extract_graph(doc: &Document, graph: Vec<u8>, origin: Origin) -> Result<AnalysisResultInner> {
+    let mapper = Mapper { doc, origin };
     let mut builder = SpanPoolBuilder::default();
     for id in doc.layers() {
         if id.ty == TypeId::of::<Sentences>() {

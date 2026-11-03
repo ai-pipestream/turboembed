@@ -50,10 +50,11 @@ use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
-use turbo_trainer_recipes::cache::{self, CacheRecord};
+use turbo_trainer_recipes::cache;
 use turbo_trainer_recipes::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
 use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
+use turbo_trainer_recipes::fit_cache::CacheTask;
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{
     CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, examples, named, predict, replace, spec, write,
@@ -61,6 +62,7 @@ use turbo_trainer_recipes::run::{
 use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
+mod baseline_cmd;
 mod peer_cmd;
 mod train_coref;
 mod train_open_span;
@@ -105,72 +107,13 @@ fn run(argv: Vec<String>) -> Result<()> {
             println!("labels: {}", c.labels().len());
             Ok(())
         }
-        "baseline" => {
-            let out = OutDir::claim(&a.required("--out")?)?;
-            let commit = commit(a.value("--commit")?);
-            a.done()?;
-            let t = Instant::now();
-            let (record, eval, read) = if corpus_id == turbo_trainer_recipes::litbank::ID {
-                let coref = turbo_trainer_recipes::litbank::read_coref(&dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
-                let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
-                (
-                    coref.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            } else {
-                let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = baseline(&c.splits.train, &c.splits.test);
-                let baseline =
-                    evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
-                (
-                    c.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            };
-            let t = Instant::now();
-            let receipt = Receipt {
-                schema: SCHEMA.into(),
-                command: argv.clone(),
-                commit,
-                unix_time: unix_time(),
-                corpus: record,
-                encoder: None,
-                head: None,
-                peer: None,
-                config: None,
-                training: None,
-                eval,
-                timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
-                outputs: Vec::new(),
-            };
-            finish(out, receipt)
-        }
+        "baseline" => baseline_cmd::baseline_cmd(&argv, &corpus_id, &dir, unrecorded, a),
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
-        "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
-        "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "cache" => cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "fit-cache" | "train-cached" => {
+            turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a)
+        }
+        "sweep" => turbo_trainer_recipes::sweep::command(&argv, &corpus_id, &dir, unrecorded, a),
         "distill-head" => turbo_trainer_recipes::distill::command(&argv, &corpus_id, &dir, unrecorded, a),
         "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
         "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
@@ -184,7 +127,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, train-cached, sweep, export or peer"
         ))),
     }
 }
@@ -254,58 +197,6 @@ fn assemble_cmd(mut a: Args) -> Result<()> {
     Ok(())
 }
 
-/// Writes the word features of every split at the encoder's last
-/// `--layers` layers, and `cache.json` last.
-fn cache(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
-    let bundle = PathBuf::from(a.required("--bundle")?);
-    let mut out = OutDir::claim(&a.required("--out")?)?;
-    let (device, precision, pooling) = encoder_args(&mut a)?;
-    let taps: u32 = a.parsed("--layers", 0)?;
-    let max_batch: u32 = a.parsed("--max-batch", 32)?;
-    let wanted = a.value("--splits")?.unwrap_or_else(|| "train,dev,test".into());
-    let commit = commit(a.value("--commit")?);
-    a.done()?;
-    let wanted: Vec<&str> = wanted.split(',').collect();
-    if wanted.is_empty() || wanted.iter().any(|w| !["train", "dev", "test"].contains(w)) {
-        return Err(Error(format!("--splits {wanted:?}: train, dev and test, comma separated")));
-    }
-    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
-    let o = EncoderOptions { device, precision, max_batch: max_batch.max(taps), ..EncoderOptions::default() };
-    let mut enc = WordEncoder::open(&bundle, &o).map_err(|e| Error(e.message))?;
-    let encoder = encoder_record(&bundle, &enc)?;
-    let model_layers = encoder.layers.ok_or_else(|| Error(format!("{}: no architecture.layers", bundle.display())))?;
-    let t = Instant::now();
-    let s = &corpus.splits;
-    let splits: Vec<(&str, &[_])> = [("train", &s.train[..]), ("dev", &s.dev[..]), ("test", &s.test[..])]
-        .into_iter()
-        .filter(|(n, _)| wanted.contains(n))
-        .collect();
-    let (layers, splits) = cache::write(&mut enc, &splits, pooling, taps, model_layers, &out.path)?;
-    let record = CacheRecord {
-        schema: cache::SCHEMA.into(),
-        command: argv.to_vec(),
-        commit,
-        unix_time: unix_time(),
-        corpus: corpus.record.clone(),
-        encoder,
-        pooling,
-        layers,
-        splits,
-        features_s: t.elapsed().as_secs_f64(),
-    };
-    write(&out.path, "cache.json", serde_json::to_string_pretty(&record).expect("serializes").as_bytes())?;
-    out.keep = true;
-    let words: u64 = record.splits.iter().map(|s| s.words).sum();
-    println!(
-        "{}: layers {:?} of {words} words in {:.1} s, {:.0} words/s",
-        out.path.display(),
-        record.layers,
-        record.features_s,
-        words as f64 / record.features_s.max(1e-9)
-    );
-    Ok(())
-}
-
 /// The settings `train` and the UD commands share.
 struct Opts {
     bundle: PathBuf,
@@ -332,6 +223,16 @@ fn options(a: &mut Args) -> Result<Opts> {
 }
 
 fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    if a.rest.iter().any(|x| x == "--cache") {
+        return turbo_trainer_recipes::fit_cache::command_with_task(
+            argv,
+            corpus_id,
+            dir,
+            unrecorded,
+            Some(CacheTask::Tag),
+            a,
+        );
+    }
     let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
@@ -398,6 +299,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

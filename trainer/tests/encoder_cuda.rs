@@ -55,8 +55,9 @@ fn random(rng: &mut Rng, n: usize) -> Vec<f32> {
 /// The largest |a - b| over the largest |b|, 0 when both are empty.
 fn error(a: &[f32], b: &[f32]) -> f64 {
     assert_eq!(a.len(), b.len());
-    let scale = b.iter().fold(0f32, |m, v| m.max(v.abs())) as f64;
-    let worst = a.iter().zip(b).map(|(a, b)| (a - b).abs() as f64).fold(0.0, f64::max);
+    assert!(a.iter().chain(b).all(|v| v.is_finite()), "parity requires finite values on both sides");
+    let scale = b.iter().map(|v| f64::from(*v).abs()).fold(0.0, f64::max);
+    let worst = a.iter().zip(b).map(|(a, b)| (f64::from(*a) - f64::from(*b)).abs()).fold(0.0, f64::max);
     if scale == 0.0 { worst } else { worst / scale }
 }
 
@@ -88,6 +89,7 @@ fn gpu(d: &mut CudaEncoder, at: Option<u64>, dout: &[f32], times: usize) -> (Vec
 
 /// Every state and every slot within `tol`, printing the worst.
 fn compare(what: &str, (out, g): &(Vec<f32>, Vec<Vec<f32>>), (want_out, want_g): &(Vec<f32>, Vec<Vec<f32>>), tol: f64) {
+    assert_eq!(g.len(), want_g.len(), "{what}: gradient slot count");
     let states = error(out, want_out);
     let mut worst = 0.0f64;
     for (s, (a, b)) in g.iter().zip(want_g).enumerate() {
@@ -98,6 +100,36 @@ fn compare(what: &str, (out, g): &(Vec<f32>, Vec<Vec<f32>>), (want_out, want_g):
     }
     println!("{what}: states within {states:.2e}, gradients within {worst:.2e} of the CPU's");
     assert!(states <= tol, "{what}: the states differ by {states}");
+}
+
+#[test]
+fn parity_rejects_nonfinite_states_and_gradients() {
+    let reference = (vec![1.0], vec![vec![1.0]]);
+    for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        for actual in [(vec![value], vec![vec![1.0]]), (vec![1.0], vec![vec![value]])] {
+            assert!(std::panic::catch_unwind(|| compare("actual", &actual, &reference, 1e-4)).is_err());
+            assert!(std::panic::catch_unwind(|| compare("reference", &reference, &actual, 1e-4)).is_err());
+        }
+    }
+}
+
+#[test]
+fn parity_rejects_missing_or_extra_gradient_slots() {
+    let reference = (vec![1.0], vec![vec![1.0]]);
+    let missing = (vec![1.0], Vec::new());
+    assert!(std::panic::catch_unwind(|| compare("missing", &missing, &reference, 1e-4)).is_err());
+    assert!(std::panic::catch_unwind(|| compare("extra", &reference, &missing, 1e-4)).is_err());
+    for wrong in [(Vec::new(), vec![vec![1.0]]), (vec![1.0], vec![Vec::new()])] {
+        assert!(std::panic::catch_unwind(|| compare("length", &wrong, &reference, 1e-4)).is_err());
+        assert!(std::panic::catch_unwind(|| compare("length", &reference, &wrong, 1e-4)).is_err());
+    }
+}
+
+#[test]
+fn parity_handles_finite_extremes_without_subtraction_overflow() {
+    assert_eq!(error(&[f32::MAX], &[-f32::MAX]), 2.0);
+    assert_eq!(error(&[], &[]), 0.0);
+    assert_eq!(error(&[0.0], &[0.0]), 0.0);
 }
 
 #[test]

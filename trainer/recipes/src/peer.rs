@@ -35,6 +35,9 @@ pub enum Column {
     Deps,
     /// Two tab-separated fields: original token and BIO entity label.
     Bio,
+    /// The last column of a CoNLL coreference file: the cluster brackets of
+    /// each word, read per document (LitBank, #1825).
+    Coref,
 }
 
 impl Column {
@@ -55,7 +58,8 @@ impl std::str::FromStr for Column {
             "lemma" => Ok(Column::Lemma),
             "deps" => Ok(Column::Deps),
             "bio" => Ok(Column::Bio),
-            _ => Err(Error(format!("column {s:?}: upos, xpos, feats, lemma, deps or bio"))),
+            "coref" => Ok(Column::Coref),
+            _ => Err(Error(format!("column {s:?}: upos, xpos, feats, lemma, deps, bio or coref"))),
         }
     }
 }
@@ -136,6 +140,9 @@ pub fn read(file: &str, bytes: &[u8], column: Column, gold: &[Sentence]) -> Resu
     if column == Column::Bio {
         return crate::ner_peer::read(file, bytes, gold);
     }
+    if column == Column::Coref {
+        return Err(Error(format!("{file}: coreference predictions are read by document, not by column")));
+    }
     let text = std::str::from_utf8(bytes).map_err(|e| Error(format!("{file}: not UTF-8: {e}")))?;
     let mut out = Vec::with_capacity(gold.len());
     for (n, sentence) in ConlluWordReader::new(text).map_err(|e| Error(format!("{file}: {e}")))?.enumerate() {
@@ -158,6 +165,7 @@ pub fn read(file: &str, bytes: &[u8], column: Column, gold: &[Sentence]) -> Resu
                     Column::Lemma => w.lemma.text.to_string(),
                     Column::Deps => format!("{} {}", w.head.text, w.deprel.text),
                     Column::Bio => unreachable!("BIO is handled before CoNLL-U parsing"),
+                    Column::Coref => unreachable!("coreference is read by document, not by column"),
                 })
                 .collect(),
         );

@@ -4,8 +4,8 @@ package ai.pipestream.turboembed.opennlp;
  * OpenNLP-style lemmatizer interface in this project's namespace.
  *
  * <p>This is not {@code opennlp.tools.lemmatizer.Lemmatizer}. A {@code null} element means the
- * configured dictionary or model produced no lemma for that token; it is never replaced by a
- * lowercased token or another placeholder.
+ * analyzer wrote no lemma for that token; it is never replaced by a lowercased token or another
+ * placeholder.
  */
 public interface Lemmatizer {
     /**

@@ -252,6 +252,11 @@ pub enum Decode {
     /// `none`, the pair's threshold; a relation classifier's decode.
     #[serde(rename = "DECODE_RELATIONS")]
     Relations,
+    /// Each ordered pair of entities' best label when it scores above
+    /// `none` (ties to the lower index), so a pair holds at most one; a
+    /// relation classifier's single-label decode.
+    #[serde(rename = "DECODE_RELATION")]
+    Relation,
 }
 
 /// A label read under a scheme: outside any span, or a part of a span of
@@ -403,15 +408,25 @@ impl Manifest {
         for (i, h) in self.heads.iter().enumerate() {
             let at = |field: &str| format!("heads[{i}].{field}");
             h.validate(&format!("heads[{i}]"))?;
-            if let Some(m) = &h.layer_mix
-                && m.layers > arch.layers
-            {
-                return Err(invalid(format!(
-                    "manifest.json: {}: {}, over the encoder's {} layers",
-                    at("layer_mix.layers"),
-                    m.layers,
-                    arch.layers
-                )));
+            if let Some(m) = &h.layer_mix {
+                if m.layers > arch.layers {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: {}, over the encoder's {} layers",
+                        at("layer_mix.layers"),
+                        m.layers,
+                        arch.layers
+                    )));
+                }
+                if let Some(layer) = m.layer
+                    && layer.saturating_add(m.layers) != arch.layers + 1
+                {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: layer {layer} with {} trailing taps does not match the encoder's {} layers",
+                        at("layer_mix.layer"),
+                        m.layers,
+                        arch.layers
+                    )));
+                }
             }
             if h.license_class.is_some() && self.model.license_class.is_none() {
                 return Err(invalid(format!(

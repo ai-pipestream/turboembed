@@ -1,0 +1,24 @@
+# Pinned Stanza coreference peer (#1825). The base image is pinned by
+# digest; torch (CPU build) and Stanza by exact version; the English
+# models, coref included, are baked in at build time so runs need no
+# network. The peer runs as shipped: the default packages, no treebank
+# override.
+FROM python@sha256:12316debbfb86890f6b2d825820612741ba527ad5a44e3902759141d572bfe8f
+
+ARG STANZA_VERSION=1.10.1
+ARG TORCH_VERSION=2.6.0
+ARG STANZA_LANG=en
+
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+    "torch==${TORCH_VERSION}"
+RUN pip install --no-cache-dir "stanza==${STANZA_VERSION}" "transformers==4.49.0" "peft==0.14.0"
+RUN python -c "import stanza; stanza.download('${STANZA_LANG}', model_dir='/stanza', processors='tokenize,mwt,pos,lemma,depparse,coref', verbose=False)"
+# The coref processor's backbone (xlm-roberta-large) comes from the Hub on
+# first use; bake it in with a warm-up run so runs need no network.
+RUN python -c "\
+import stanza; \
+p = stanza.Pipeline('${STANZA_LANG}', dir='/stanza', processors='tokenize,pos,coref', tokenize_pretokenized=True, use_gpu=False, verbose=False); \
+p([['Alice','met','Bob'],['She','left']])"
+
+COPY coref_predict.py /coref_predict.py
+ENTRYPOINT ["python", "/coref_predict.py"]
