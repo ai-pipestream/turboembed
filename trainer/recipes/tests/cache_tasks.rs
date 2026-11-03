@@ -333,3 +333,6 @@ fn sweep_writes_per_layer_and_mix_receipts_and_comparison_table() {
         let _ = fs::remove_dir_all(p);
     }
 }
+
+#[path = "cache_tasks/regressions.rs"]
+mod regressions;

@@ -16,9 +16,12 @@ use crate::eval::{Comparison, bootstrap};
 use crate::fit_cache::{
     CacheTask, DEFAULT_ARC, DEFAULT_MIN_TREE_FREQ, DEFAULT_REL, Mix, read_cache_record, run_cached,
 };
-use crate::receipt::{Receipt, host, unix_time};
+use crate::receipt::{host, unix_time};
 use crate::run::write;
 use crate::{Error, Result};
+
+#[path = "sweep_peer.rs"]
+mod peer;
 
 pub const SCHEMA: &str = "turboembed.layer-sweep.v1";
 const RESAMPLES: usize = 1000;
@@ -104,11 +107,6 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
     if layers.is_empty() {
         return Err(Error(format!("--from-layer {:?}: the cache holds {:?}", from, cache.layers)));
     }
-    let peer = match peer_path {
-        Some(p) => Some(read_peer(&p)?),
-        None => None,
-    };
-
     let base = CachedParams {
         argv: argv.to_vec(),
         commit: commit.clone(),
@@ -127,6 +125,8 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         config,
         max_train,
     };
+
+    let peer = peer_path.as_ref().map(|path| peer::read(path, &base, task)).transpose()?;
 
     let mut specs: Vec<(String, String, Vec<u32>, bool)> =
         layers.iter().map(|&k| (format!("layer-{k}"), format!("layer-{k:02}"), vec![k], false)).collect();
@@ -203,20 +203,6 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
     out.keep = true;
     print!("{md}");
     Ok(())
-}
-
-fn read_peer(path: &Path) -> Result<SweepPeer> {
-    let text = std::fs::read(path).map_err(|e| Error(format!("{}: {e}", path.display())))?;
-    let r: Receipt = serde_json::from_slice(&text).map_err(|e| Error(format!("{}: {e}", path.display())))?;
-    let name = r.peer.as_ref().map_or_else(|| "peer".into(), |p| p.name.clone());
-    let test = r
-        .eval
-        .model
-        .as_ref()
-        .map(|m| m.score())
-        .ok_or_else(|| Error(format!("{}: peer receipt has no eval.model score", path.display())))?;
-    let uas = r.eval.uas.as_ref().map(|u| u.model);
-    Ok(SweepPeer { name, test, uas })
 }
 
 /// Formats a [`SweepRecord`] as a Markdown comparison table.

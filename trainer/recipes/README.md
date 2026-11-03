@@ -146,7 +146,11 @@ and (when `"test"` is cached) `receipt.json`. `sweep` runs every layer
 from `--from-layer` to the top cached layer plus `--mix`, writes each
 run's `fit.json` and `receipt.json`, and writes `sweep.json` and
 `sweep.md` with paired bootstrap against the last layer and an optional
-`--peer-receipt`.
+`--peer-receipt`. The peer must identify its prediction file and match the
+same gold test corpus, release hashes, task and score column; incompatible
+receipts are refused before training. `--max-train N` selects the original
+first N training sentences before unsupported-label filtering, including
+when training from a cache. Later sentences never backfill the prefix.
 
 `train-lemma` trains the edit-tree lemmatizer (`lemma` on
 `turboembed:lemmas`) over the trees that come up at least

@@ -18,7 +18,7 @@ use turbo_trainer::{
 use crate::cache::{CacheRecord, layer_mix_for, read_layer, same_corpus_release, stack_layers};
 use crate::corpus::{Sentence, Task};
 use crate::eval::{Majority, Seen, bootstrap, evaluate};
-use crate::fit_cache::{CachedOutcome, Mix, TestEval, examples_at, finish_cached};
+use crate::fit_cache::{CachedOutcome, Mix, TestEval, examples_at, examples_prefix, finish_cached};
 use crate::receipt::{EvalRecord, Uas};
 use crate::ud::{TREEBANKS, Treebank, UdSentence, read_treebank};
 use crate::ud_heads::{
@@ -353,11 +353,8 @@ pub fn run_split(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> 
 
     let full_train_s = split::labelled(&full_splits.train, &chosen, &head.labels);
     let dev_s = split::labelled(&splits.dev, &chosen, &head.labels);
-    let (mut train_ex, train_left_out) =
-        examples_at(&p.cache_dir, &cache, "train", &p.layers, &full_train_s, &head.labels)?;
-    if p.max_train > 0 && train_ex.len() > p.max_train {
-        train_ex.truncate(p.max_train);
-    }
+    let (train_ex, train_left_out) =
+        examples_prefix(&p.cache_dir, &cache, "train", &p.layers, &full_train_s, &head.labels, splits.train.len())?;
     let (dev_ex, dev_left_out) = examples_at(&p.cache_dir, &cache, "dev", &p.layers, &dev_s, &head.labels)?;
     let read_s = t_read.elapsed().as_secs_f64();
     let feature_words: u64 = train_ex.iter().chain(&dev_ex).map(|e| e.labels.len() as u64).sum();

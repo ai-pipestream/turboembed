@@ -147,12 +147,32 @@ pub fn examples_at(
     sentences: &[Sentence],
     labels: &[String],
 ) -> Result<(Vec<MixExample>, usize)> {
+    examples_prefix(dir, record, split, layers, sentences, labels, sentences.len())
+}
+
+/// Select a source prefix before label filtering, while validating and
+/// reading the full cache so retained features keep their original rows.
+/// `limit` counts source sentences, including those with unsupported labels.
+///
+/// # Errors
+///
+/// What [`read_layer`] refuses.
+pub(crate) fn examples_prefix(
+    dir: &Path,
+    record: &CacheRecord,
+    split: &str,
+    layers: &[u32],
+    sentences: &[Sentence],
+    labels: &[String],
+    limit: usize,
+) -> Result<(Vec<MixExample>, usize)> {
+    let selected = &sentences[..limit.min(sentences.len())];
     let index: BTreeMap<&str, u32> = labels.iter().enumerate().map(|(i, l)| (l.as_str(), i as u32)).collect();
-    let ids: Vec<Option<Vec<u32>>> = sentences
+    let ids: Vec<Option<Vec<u32>>> = selected
         .iter()
         .map(|s| s.labels.iter().map(|l| index.get(l.as_str()).copied()).collect::<Option<Vec<u32>>>())
         .collect();
-    let mut out: Vec<MixExample> = sentences
+    let mut out: Vec<MixExample> = selected
         .iter()
         .zip(&ids)
         .filter_map(|(s, l)| l.clone().map(|labels| MixExample { layers: Vec::new(), labels, forms: s.words.clone() }))
@@ -162,7 +182,7 @@ pub fn examples_at(
         let kept = feats.into_iter().zip(&ids).filter(|(_, l)| l.is_some()).map(|(f, _)| f);
         out.iter_mut().zip(kept).for_each(|(e, f)| e.layers.push(f));
     }
-    let left = sentences.len() - out.len();
+    let left = selected.len() - out.len();
     Ok((out, left))
 }
 
@@ -292,10 +312,8 @@ fn run_tag(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> {
     head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers);
     let hidden = cache.encoder.hidden;
     let s = &corpus.splits;
-    let (mut train, train_left_out) = examples_at(&p.cache_dir, &cache, "train", &p.layers, &full_train, &head.labels)?;
-    if p.max_train > 0 && train.len() > p.max_train {
-        train.truncate(p.max_train);
-    }
+    let (train, train_left_out) =
+        examples_prefix(&p.cache_dir, &cache, "train", &p.layers, &full_train, &head.labels, s.train.len())?;
     let (dev, dev_left_out) = examples_at(&p.cache_dir, &cache, "dev", &p.layers, &s.dev, &head.labels)?;
     let read_s = t.elapsed().as_secs_f64();
     let feature_words: u64 = train.iter().chain(&dev).map(|e| e.labels.len() as u64).sum();
