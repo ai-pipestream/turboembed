@@ -3,58 +3,70 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>turboembed demo</title>
+<title>turboembed workbench</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>turboembed <span class="sub">KServe v2 gRPC demo</span></h1>
-  <p id="server" class="muted">Checking the server…</p>
+<header class="site">
+  <h1>turboembed <span class="sub">workbench</span></h1>
+  <nav class="tabs" role="tablist" aria-label="Workbench">
+    <button type="button" role="tab" id="tab-analyze" aria-controls="panel-analyze" data-tab="analyze">Analyze</button>
+    <button type="button" role="tab" id="tab-embed" aria-controls="panel-embed" data-tab="embed">Embed</button>
+    <button type="button" role="tab" id="tab-models" aria-controls="panel-models" data-tab="models">Models &amp; data</button>
+    <button type="button" role="tab" id="tab-trainer" aria-controls="panel-trainer" data-tab="trainer">Trainer</button>
+    <button type="button" role="tab" id="tab-workspace" aria-controls="panel-workspace" data-tab="workspace">Workspace</button>
+    <button type="button" role="tab" id="tab-lifecycle" aria-controls="panel-lifecycle" data-tab="lifecycle">Index lifecycle</button>
+  </nav>
+  <button type="button" id="theme" class="theme" title="Color theme">Auto</button>
+  <p id="service" class="service" role="status" aria-live="polite">Checking the server</p>
 </header>
 
 <main>
-  <section class="panel" id="input">
-    <h2>Texts</h2>
-    <p class="muted">One text per line; all of them go in one request.</p>
-    <textarea id="texts" rows="7" wrap="off" spellcheck="false">A cat is sleeping on the windowsill.
+  <section id="panel-analyze" role="tabpanel" aria-labelledby="tab-analyze" class="panel-tab" hidden></section>
+
+  <section id="panel-embed" role="tabpanel" aria-labelledby="tab-embed" class="panel-tab embed-layout" hidden>
+    <div class="panel" id="embed-input">
+      <h2>Texts</h2>
+      <p class="muted">One text per line; all of them go in one request.</p>
+      <textarea id="embed-texts" rows="7" wrap="off" spellcheck="false">A cat is sleeping on the windowsill.
 A kitten naps in the warm sun by the window.
 The central bank raised interest rates again.
 Inflation pushed borrowing costs higher this quarter.
 How do I reset my router?</textarea>
-
-    <div class="options">
-      <label>Prompt role
-        <select id="prompt_role">
-          <option value="">none</option>
-          <option value="PROMPT_QUERY">query</option>
-          <option value="PROMPT_DOCUMENT">document</option>
-        </select>
-      </label>
-      <label>Cut each text to
-        <input id="max_tokens" type="number" min="0" step="1" placeholder="all"> tokens
-      </label>
+      <div class="options">
+        <label>Prompt role
+          <select id="embed-prompt_role">
+            <option value="">none</option>
+            <option value="PROMPT_QUERY">query</option>
+            <option value="PROMPT_DOCUMENT">document</option>
+          </select>
+        </label>
+        <label>Cut each text to
+          <input id="embed-max_tokens" type="number" min="0" step="1" placeholder="all"> tokens
+        </label>
+      </div>
+      <h2>Models</h2>
+      <p id="embed-server" class="muted">Checking the server</p>
+      <p class="muted">Each name is one model the server serves, with its own tier and device.
+        Pick several to send the same texts to each and compare.</p>
+      <div id="embed-models"></div>
+      <form id="embed-add" class="add">
+        <input id="embed-add-name" placeholder="another served model name" autocomplete="off">
+        <button type="submit">Add</button>
+      </form>
+      <button id="embed-run" class="primary wide">Embed</button>
+      <p id="embed-error" class="error" hidden></p>
     </div>
-
-    <h2>Models</h2>
-    <p class="muted">Each name is one model the server serves, with its own tier and device.
-      Pick several to send the same texts to each and compare.</p>
-    <div id="models"></div>
-    <form id="add" class="add">
-      <input id="add-name" placeholder="another served model name" autocomplete="off">
-      <button type="submit">Add</button>
-    </form>
-
-    <button id="run" class="primary">Embed</button>
-    <p id="error" class="error" hidden></p>
+    <div id="embed-results"></div>
+    <p class="muted note">Times shown are the round trip the browser saw, through this demo and the server,
+      one request at a time: a look at the call, not a benchmark.</p>
   </section>
 
-  <section id="results"></section>
+  <section id="panel-models" role="tabpanel" aria-labelledby="tab-models" class="panel-tab" hidden></section>
+  <section id="panel-trainer" role="tabpanel" aria-labelledby="tab-trainer" class="panel-tab" hidden></section>
+  <section id="panel-workspace" role="tabpanel" aria-labelledby="tab-workspace" class="panel-tab" hidden></section>
+  <section id="panel-lifecycle" role="tabpanel" aria-labelledby="tab-lifecycle" class="panel-tab" hidden></section>
 </main>
-
-<footer class="muted">
-  Times shown are the round trip the browser saw, through this demo and the server, one request at a time:
-  a look at the call, not a benchmark.
-</footer>
-<script src="app.js"></script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

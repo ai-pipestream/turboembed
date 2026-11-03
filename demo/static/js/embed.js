@@ -1,9 +1,9 @@
-"use strict";
-
+// The Embed tab: texts through one or more served models with
+// GRPCInferenceService/ModelInfer (api/infer), and their cosine similarity.
 // The page talks to the demo binary's JSON calls; the demo makes the gRPC
 // calls to turbo-kserve. Nothing here is fetched from anywhere else.
 
-const $ = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(`embed-${id}`);
 
 // A DOM element with properties and children; text is always set as text.
 function el(tag, props, ...children) {
@@ -112,7 +112,7 @@ function renderModels() {
   }
 }
 
-$("add").addEventListener("submit", async (ev) => {
+async function add(ev) {
   ev.preventDefault();
   const name = $("add-name").value.trim();
   if (!name || models.has(name)) return;
@@ -120,7 +120,7 @@ $("add").addEventListener("submit", async (ev) => {
   await loadMeta(name);
   $("add-name").value = "";
   renderModels();
-});
+}
 
 // ---- Math -----------------------------------------------------------------
 
@@ -186,7 +186,6 @@ async function run() {
   render(texts, results);
 }
 
-$("run").addEventListener("click", run);
 
 // ---- Results --------------------------------------------------------------
 
@@ -261,7 +260,7 @@ function comparison(texts, ok) {
   }
   const base = ok[0];
   const agree = ok.map((r) => {
-    if (r.body.vectors[0].length !== base.body.vectors[0].length) return "—";
+    if (r.body.vectors[0].length !== base.body.vectors[0].length) return "n/a";
     const c = r.body.vectors.map((row, i) => cosine(row, base.body.vectors[i]));
     return Math.min(...c).toFixed(6);
   });
@@ -288,7 +287,12 @@ function render(texts, results) {
   out.append(el("div", { class: "cards" }, results.map((r) => card(texts, r))));
 }
 
-loadStatus().catch((e) => {
-  $("server").textContent = `Could not reach the demo: ${e}`;
-  $("server").className = "error";
-});
+// Wires the tab's form, which index.html holds, and loads the models.
+export function mount() {
+  $("add").addEventListener("submit", add);
+  $("run").addEventListener("click", run);
+  loadStatus().catch((e) => {
+    $("server").textContent = `Could not reach the demo: ${e}`;
+    $("server").className = "error";
+  });
+}
