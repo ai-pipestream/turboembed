@@ -25,6 +25,16 @@ the receipt's `uas` is beside it. spaCy's parser writes ClearNLP-style
 relations (`prep`, `pobj`, `ROOT`) against EWT's UD r2 labels, so its LAS
 row is a conventions row, not a parser-quality row.
 
+The historical spaCy LAS/UAS row also needs a rerun. The exporter merged
+in #1847 used Python object identity to recognize a root; real spaCy
+tokens have distinct wrappers, so it emitted the root's own 1-based
+index instead of CoNLL-U head `0`. The exporter now compares token
+indices, with a regression using spaCy 3.8.7 and known parses. The
+numbers and prediction digest above remain the original receipt, not
+corrected scores. Regenerate the predictions and rescore before using
+the spaCy dependency row as evidence; the ClearNLP/UD label difference
+still applies after that correction.
+
 ## LitBank coreference (the ten test works, singleton baseline CoNLL F1 0.3009)
 
 | row | MUC | B-cubed | CEAF-e | CoNLL F1 | vs singleton [95%] |
@@ -66,7 +76,10 @@ predictions bytes.
 | trained head (#1734 receipt) | 0.6177 | 0.3650 | 0.4589 | 10,311 | 6,369 |
 
 The rule is a floor, as expected: it sees only same-sentence pairs whose
-path the training split annotated, over predicted parses.
+path the training split annotated, over predicted parses. Mining counts
+only gold relation triples, with no vote for unlabelled (`none`) pairs.
+A path seen with a relation therefore predicts that relation even if
+most training pairs on that path had no relation.
 
 ## Reproduce
 

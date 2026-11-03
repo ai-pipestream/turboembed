@@ -67,7 +67,8 @@ def main():
         for n, doc in enumerate(nlp.pipe(docs, batch_size=16), start=1):
             f.write(f"# sent_id = {n}\n")
             for i, tok in enumerate(doc, start=1):
-                head = tok.head.i + 1 if tok.head is not tok else 0
+                # Token access creates wrappers; identity does not identify a root.
+                head = tok.head.i + 1 if tok.head.i != tok.i else 0
                 f.write("\t".join([
                     str(i), tok.text, tok.lemma_ or "_", tok.pos_ or "_", tok.tag_ or "_",
                     feats(tok), str(head), tok.dep_ or "_", "_", "_",
