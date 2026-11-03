@@ -9,8 +9,8 @@ closing #1803. Every run at commit
 f32, defaults (seed 1, batch 16, lr 0.002, patience 6), on the recorded
 UD_Italian-MarkIT r2.16 files (`recorded: true`; 611 training sentences,
 18,759 tokens). Each receipt is one `turbo-train-head train-split` run;
-`host` names the kind of machine and the commands name directories, as
-the other records do.
+the commands name directories in place of the training machine's paths,
+as the other records do. Epoch numbers in the table are counted from 1.
 
 | run | flags | labels | seen table | dev best (epoch) | test model | delta vs baseline [95%] |
 |---|---|---|---|---|---|---|

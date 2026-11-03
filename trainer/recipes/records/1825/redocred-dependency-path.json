@@ -1,0 +1,944 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "baseline",
+    "--corpus",
+    "re-docred",
+    "--dir",
+    "ccfb54f5ddf5836027c87badda10f6dfc56efaac",
+    "--dependency-path",
+    "--parser",
+    "bilstm",
+    "--bundle",
+    "modernbert-base",
+    "--out",
+    "redocred-path",
+    "--commit",
+    "59b827c01768dc9c5580cd907f0a569b882bd9d6"
+  ],
+  "commit": "59b827c01768dc9c5580cd907f0a569b882bd9d6",
+  "unix_time": 1793681465,
+  "corpus": {
+    "id": "re-docred",
+    "name": "Re-DocRED",
+    "task": "relations",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/tonytan48/Re-DocRED",
+    "attribution": "Trained on Re-DocRED (Tan, Xu, Bing, Ng and Aljunied, Revisiting DocRED: Addressing the False Negative Problem in Relation Extraction, EMNLP 2022), published at https://github.com/tonytan48/Re-DocRED under the MIT licence; its documents are from Wikipedia and are used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "data/train_revised.json",
+        "size": 18602933,
+        "sha256": "c40a137a1c57f3e2daaf5ebf511eaa1518f9305ffaa3052d46271921a91826f2"
+      },
+      {
+        "path": "data/dev_revised.json",
+        "size": 3245588,
+        "sha256": "051ee1d057204a5d08ef5502beacdadf191245b5eaf0e29ec2c607cf002c016f"
+      },
+      {
+        "path": "data/test_revised.json",
+        "size": 3207228,
+        "sha256": "ea673b7ef91e16510d7eb88863d3903e47318dc5653ef361266f27ae3b84723c"
+      },
+      {
+        "path": "LICENSE",
+        "size": 1066,
+        "sha256": "0a06d894a38e1948af6fb9e76e0415ecc7ec36dfe6c9fd5f21d470b1bb5714a5"
+      }
+    ],
+    "split": "the release's own train, dev and test files; counts are of documents",
+    "train": {
+      "sentences": 3053,
+      "words": 603468
+    },
+    "dev": {
+      "sentences": 500,
+      "words": 101970
+    },
+    "test": {
+      "sentences": 500,
+      "words": 98734
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "answerdotai/ModernBERT-base",
+    "revision": "1",
+    "manifest_sha256": "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8",
+    "hidden": 768,
+    "layers": 22,
+    "width": 8190,
+    "backend": "cpu",
+    "device": "AMD Ryzen 9 9950X 16-Core Processor",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "deps",
+    "layer": "turboembed:dependencies",
+    "kind": "HEAD_BIAFFINE_PARSER",
+    "labels": [
+      "acl",
+      "acl:relcl",
+      "advcl",
+      "advcl:relcl",
+      "advmod",
+      "amod",
+      "appos",
+      "aux",
+      "aux:pass",
+      "case",
+      "cc",
+      "cc:preconj",
+      "ccomp",
+      "compound",
+      "compound:prt",
+      "conj",
+      "cop",
+      "csubj",
+      "csubj:outer",
+      "csubj:pass",
+      "dep",
+      "det",
+      "det:predet",
+      "discourse",
+      "dislocated",
+      "expl",
+      "fixed",
+      "flat",
+      "goeswith",
+      "iobj",
+      "list",
+      "mark",
+      "nmod",
+      "nmod:desc",
+      "nmod:poss",
+      "nmod:unmarked",
+      "nsubj",
+      "nsubj:outer",
+      "nsubj:pass",
+      "nummod",
+      "obj",
+      "obl",
+      "obl:agent",
+      "obl:unmarked",
+      "orphan",
+      "parataxis",
+      "punct",
+      "reparandum",
+      "root",
+      "vocative",
+      "xcomp"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_MST",
+    "biaffine": {
+      "arc": 256,
+      "rel": 64
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.deps"
+  },
+  "eval": {
+    "split": "test",
+    "baseline": {
+      "relations": {
+        "all": {
+          "gold": 17448,
+          "found": 16630,
+          "correct": 1090,
+          "precision": 0.06554419723391461,
+          "recall": 0.062471343420449334,
+          "f1": 0.06397089031046423
+        },
+        "per_type": {
+          "P1001": {
+            "gold": 238,
+            "found": 118,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P102": {
+            "gold": 44,
+            "found": 89,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P1056": {
+            "gold": 13,
+            "found": 7,
+            "correct": 1,
+            "precision": 0.14285714285714285,
+            "recall": 0.07692307692307693,
+            "f1": 0.1
+          },
+          "P108": {
+            "gold": 79,
+            "found": 56,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P112": {
+            "gold": 61,
+            "found": 125,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P118": {
+            "gold": 71,
+            "found": 49,
+            "correct": 1,
+            "precision": 0.02040816326530612,
+            "recall": 0.014084507042253521,
+            "f1": 0.016666666666666666
+          },
+          "P1198": {
+            "gold": 1,
+            "found": 5,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P123": {
+            "gold": 86,
+            "found": 17,
+            "correct": 3,
+            "precision": 0.17647058823529413,
+            "recall": 0.03488372093023256,
+            "f1": 0.05825242718446602
+          },
+          "P127": {
+            "gold": 84,
+            "found": 38,
+            "correct": 2,
+            "precision": 0.05263157894736842,
+            "recall": 0.023809523809523808,
+            "f1": 0.03278688524590164
+          },
+          "P131": {
+            "gold": 4048,
+            "found": 8245,
+            "correct": 564,
+            "precision": 0.06840509399636144,
+            "recall": 0.13932806324110672,
+            "f1": 0.09175953794842594
+          },
+          "P1336": {
+            "gold": 19,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P1344": {
+            "gold": 263,
+            "found": 225,
+            "correct": 3,
+            "precision": 0.013333333333333334,
+            "recall": 0.011406844106463879,
+            "f1": 0.012295081967213115
+          },
+          "P136": {
+            "gold": 56,
+            "found": 20,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P1365": {
+            "gold": 10,
+            "found": 5,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P1366": {
+            "gold": 10,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P137": {
+            "gold": 37,
+            "found": 16,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P1376": {
+            "gold": 31,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P140": {
+            "gold": 67,
+            "found": 21,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P1412": {
+            "gold": 71,
+            "found": 10,
+            "correct": 1,
+            "precision": 0.1,
+            "recall": 0.014084507042253521,
+            "f1": 0.024691358024691357
+          },
+          "P1441": {
+            "gold": 217,
+            "found": 47,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P150": {
+            "gold": 733,
+            "found": 2728,
+            "correct": 116,
+            "precision": 0.04252199413489736,
+            "recall": 0.1582537517053206,
+            "f1": 0.06703264952325917
+          },
+          "P155": {
+            "gold": 84,
+            "found": 129,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P156": {
+            "gold": 84,
+            "found": 63,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P159": {
+            "gold": 40,
+            "found": 23,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P161": {
+            "gold": 198,
+            "found": 41,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P162": {
+            "gold": 92,
+            "found": 3,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P166": {
+            "gold": 93,
+            "found": 39,
+            "correct": 1,
+            "precision": 0.02564102564102564,
+            "recall": 0.010752688172043012,
+            "f1": 0.015151515151515152
+          },
+          "P17": {
+            "gold": 2766,
+            "found": 186,
+            "correct": 6,
+            "precision": 0.03225806451612903,
+            "recall": 0.0021691973969631237,
+            "f1": 0.0040650406504065045
+          },
+          "P170": {
+            "gold": 70,
+            "found": 22,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P171": {
+            "gold": 4,
+            "found": 8,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P172": {
+            "gold": 26,
+            "found": 17,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P175": {
+            "gold": 283,
+            "found": 189,
+            "correct": 6,
+            "precision": 0.031746031746031744,
+            "recall": 0.02120141342756184,
+            "f1": 0.025423728813559324
+          },
+          "P176": {
+            "gold": 29,
+            "found": 5,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P178": {
+            "gold": 116,
+            "found": 28,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P179": {
+            "gold": 85,
+            "found": 73,
+            "correct": 1,
+            "precision": 0.0136986301369863,
+            "recall": 0.011764705882352941,
+            "f1": 0.012658227848101266
+          },
+          "P19": {
+            "gold": 102,
+            "found": 106,
+            "correct": 2,
+            "precision": 0.018867924528301886,
+            "recall": 0.0196078431372549,
+            "f1": 0.019230769230769232
+          },
+          "P194": {
+            "gold": 60,
+            "found": 8,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P20": {
+            "gold": 60,
+            "found": 14,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P205": {
+            "gold": 31,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P206": {
+            "gold": 132,
+            "found": 41,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P22": {
+            "gold": 75,
+            "found": 9,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P241": {
+            "gold": 68,
+            "found": 14,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P25": {
+            "gold": 27,
+            "found": 2,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P26": {
+            "gold": 80,
+            "found": 143,
+            "correct": 1,
+            "precision": 0.006993006993006993,
+            "recall": 0.0125,
+            "f1": 0.008968609865470852
+          },
+          "P264": {
+            "gold": 209,
+            "found": 50,
+            "correct": 1,
+            "precision": 0.02,
+            "recall": 0.004784688995215311,
+            "f1": 0.007722007722007722
+          },
+          "P27": {
+            "gold": 781,
+            "found": 323,
+            "correct": 86,
+            "precision": 0.26625386996904027,
+            "recall": 0.11011523687580026,
+            "f1": 0.15579710144927536
+          },
+          "P272": {
+            "gold": 40,
+            "found": 6,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P276": {
+            "gold": 77,
+            "found": 15,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P279": {
+            "gold": 36,
+            "found": 6,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P30": {
+            "gold": 190,
+            "found": 123,
+            "correct": 1,
+            "precision": 0.008130081300813009,
+            "recall": 0.005263157894736842,
+            "f1": 0.006389776357827476
+          },
+          "P31": {
+            "gold": 56,
+            "found": 8,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P3373": {
+            "gold": 118,
+            "found": 129,
+            "correct": 1,
+            "precision": 0.007751937984496124,
+            "recall": 0.00847457627118644,
+            "f1": 0.008097165991902834
+          },
+          "P35": {
+            "gold": 68,
+            "found": 17,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P355": {
+            "gold": 47,
+            "found": 12,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P36": {
+            "gold": 31,
+            "found": 5,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P361": {
+            "gold": 456,
+            "found": 79,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P364": {
+            "gold": 36,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P37": {
+            "gold": 36,
+            "found": 16,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P39": {
+            "gold": 11,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P40": {
+            "gold": 106,
+            "found": 21,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P400": {
+            "gold": 91,
+            "found": 7,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P403": {
+            "gold": 63,
+            "found": 30,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P449": {
+            "gold": 36,
+            "found": 8,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P463": {
+            "gold": 310,
+            "found": 24,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P488": {
+            "gold": 24,
+            "found": 12,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P495": {
+            "gold": 250,
+            "found": 28,
+            "correct": 1,
+            "precision": 0.03571428571428571,
+            "recall": 0.004,
+            "f1": 0.007194244604316547
+          },
+          "P50": {
+            "gold": 102,
+            "found": 115,
+            "correct": 4,
+            "precision": 0.034782608695652174,
+            "recall": 0.0392156862745098,
+            "f1": 0.03686635944700461
+          },
+          "P527": {
+            "gold": 525,
+            "found": 250,
+            "correct": 2,
+            "precision": 0.008,
+            "recall": 0.0038095238095238095,
+            "f1": 0.005161290322580645
+          },
+          "P54": {
+            "gold": 80,
+            "found": 11,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P551": {
+            "gold": 13,
+            "found": 5,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P569": {
+            "gold": 200,
+            "found": 398,
+            "correct": 108,
+            "precision": 0.271356783919598,
+            "recall": 0.54,
+            "f1": 0.3612040133779264
+          },
+          "P57": {
+            "gold": 72,
+            "found": 20,
+            "correct": 4,
+            "precision": 0.2,
+            "recall": 0.05555555555555555,
+            "f1": 0.08695652173913043
+          },
+          "P570": {
+            "gold": 170,
+            "found": 282,
+            "correct": 62,
+            "precision": 0.2198581560283688,
+            "recall": 0.36470588235294116,
+            "f1": 0.2743362831858407
+          },
+          "P571": {
+            "gold": 180,
+            "found": 267,
+            "correct": 21,
+            "precision": 0.07865168539325842,
+            "recall": 0.11666666666666667,
+            "f1": 0.09395973154362416
+          },
+          "P576": {
+            "gold": 51,
+            "found": 7,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P577": {
+            "gold": 342,
+            "found": 470,
+            "correct": 29,
+            "precision": 0.06170212765957447,
+            "recall": 0.0847953216374269,
+            "f1": 0.07142857142857142
+          },
+          "P58": {
+            "gold": 52,
+            "found": 8,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P580": {
+            "gold": 47,
+            "found": 16,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P582": {
+            "gold": 27,
+            "found": 2,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P585": {
+            "gold": 73,
+            "found": 37,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P6": {
+            "gold": 66,
+            "found": 80,
+            "correct": 3,
+            "precision": 0.0375,
+            "recall": 0.045454545454545456,
+            "f1": 0.0410958904109589
+          },
+          "P607": {
+            "gold": 154,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P674": {
+            "gold": 111,
+            "found": 12,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P676": {
+            "gold": 21,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P69": {
+            "gold": 98,
+            "found": 7,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P706": {
+            "gold": 87,
+            "found": 3,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P710": {
+            "gold": 263,
+            "found": 231,
+            "correct": 5,
+            "precision": 0.021645021645021644,
+            "recall": 0.019011406844106463,
+            "f1": 0.020242914979757085
+          },
+          "P737": {
+            "gold": 10,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P740": {
+            "gold": 17,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P749": {
+            "gold": 47,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P800": {
+            "gold": 598,
+            "found": 489,
+            "correct": 54,
+            "precision": 0.11042944785276074,
+            "recall": 0.0903010033444816,
+            "f1": 0.09935602575896964
+          },
+          "P807": {
+            "gold": 3,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P840": {
+            "gold": 20,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P86": {
+            "gold": 57,
+            "found": 3,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "P937": {
+            "gold": 46,
+            "found": 2,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        }
+      }
+    }
+  },
+  "timing_s": {
+    "read": 0.254517399,
+    "features": 211.773241716,
+    "train": 0.0,
+    "eval": 0.037280186,
+    "feature_words": 0
+  },
+  "outputs": [
+    {
+      "path": "predictions.json",
+      "size": 948593,
+      "sha256": "9ea91257dda03b94da53773c7327e2a6c1720c1f5dc45c79ee9702655c6d867d"
+    }
+  ]
+}

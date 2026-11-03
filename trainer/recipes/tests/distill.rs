@@ -123,9 +123,12 @@ fn distill_head_writes_verified_student_bundle_and_deterministic_outputs() {
     let dist = run(&distill_args);
     assert!(dist.status.success(), "{}", String::from_utf8_lossy(&dist.stderr));
 
-    let receipt: DistillReceipt = serde_json::from_slice(&fs::read(student_out.join("receipt.json")).unwrap()).unwrap();
+    let raw: serde_json::Value = serde_json::from_slice(&fs::read(student_out.join("receipt.json")).unwrap()).unwrap();
+    assert!(raw.get("host").is_none(), "no host field in distill receipt.json");
+    let receipt: DistillReceipt = serde_json::from_value(raw).unwrap();
     assert_eq!(receipt.schema, SCHEMA);
     assert_eq!(receipt.commit, "test-sha");
+    assert!((1..=receipt.val_scores.len()).contains(&receipt.best_epoch), "epochs are counted from 1");
     assert_eq!((receipt.teacher_hidden, receipt.student_hidden), (32, 32));
     assert_eq!(receipt.teacher_sha256, teacher_sha);
     assert_eq!((receipt.temperature, receipt.alpha), (2.0, 0.5));

@@ -97,7 +97,7 @@ public interface TurboAnalyzer extends AutoCloseable {
     /**
      * Lemmatizes aligned token/tag pairs with the bundle's lemmatizer head. The tags must be
      * labels of the tag head the lemmatizer reads; they are ignored by a lemmatizer that reads
-     * no tags. A row with no label is an explicit miss, never a lowercased token.
+     * no tags, which must still be one per token. Every row carries its lemma as the label.
      */
     TurboAnalysisResult lemmatize(String[] tokens, String[] tags);
 
@@ -106,7 +106,7 @@ public interface TurboAnalyzer extends AutoCloseable {
 
     /**
      * Finds named entities in one independent token sequence with the bundle's entity head only.
-     * No adaptive data is retained between calls.
+     * Nothing is kept between calls.
      */
     TurboAnalysisResult findTokens(String[] tokens);
 

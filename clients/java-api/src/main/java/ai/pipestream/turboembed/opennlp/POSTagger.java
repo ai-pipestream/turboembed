@@ -4,7 +4,7 @@ package ai.pipestream.turboembed.opennlp;
  * OpenNLP-style POS tagger interface in this project's namespace.
  *
  * <p>This is not {@code opennlp.tools.postag.POSTagger}. A {@code null} element means the
- * configured model produced no tag for that token.
+ * analyzer wrote no tag for that token.
  */
 public interface POSTagger {
     /**

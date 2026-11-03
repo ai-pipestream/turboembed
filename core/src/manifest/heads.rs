@@ -252,6 +252,11 @@ pub enum Decode {
     /// `none`, the pair's threshold; a relation classifier's decode.
     #[serde(rename = "DECODE_RELATIONS")]
     Relations,
+    /// Each ordered pair of entities' best label when it scores above
+    /// `none` (ties to the lower index), so a pair holds at most one; a
+    /// relation classifier's single-label decode.
+    #[serde(rename = "DECODE_RELATION")]
+    Relation,
 }
 
 /// A label read under a scheme: outside any span, or a part of a span of

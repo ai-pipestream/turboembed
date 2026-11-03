@@ -62,6 +62,7 @@ use turbo_trainer_recipes::run::{
 use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
+mod baseline_cmd;
 mod peer_cmd;
 mod summarize;
 mod train_coref;
@@ -109,70 +110,7 @@ fn run(argv: Vec<String>) -> Result<()> {
             println!("labels: {}", c.labels().len());
             Ok(())
         }
-        "baseline" => {
-            let out = OutDir::claim(&a.required("--out")?)?;
-            let commit = commit(a.value("--commit")?);
-            a.done()?;
-            let t = Instant::now();
-            let (record, eval, read) = if corpus_id == turbo_trainer_recipes::litbank::ID {
-                let coref = turbo_trainer_recipes::litbank::read_coref(&dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
-                let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
-                (
-                    coref.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            } else {
-                let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = baseline(&c.splits.train, &c.splits.test);
-                let baseline =
-                    evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
-                (
-                    c.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            };
-            let t = Instant::now();
-            let receipt = Receipt {
-                schema: SCHEMA.into(),
-                command: argv.clone(),
-                commit,
-                host: host(),
-                unix_time: unix_time(),
-                corpus: record,
-                encoder: None,
-                head: None,
-                peer: None,
-                config: None,
-                training: None,
-                eval,
-                timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
-                outputs: Vec::new(),
-            };
-            finish(out, receipt)
-        }
+        "baseline" => baseline_cmd::baseline_cmd(&argv, &corpus_id, &dir, unrecorded, a),
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache::command(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" | "train-cached" => {
@@ -333,7 +271,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
                 replace(&dir, "head.json", &spec_json)?;
                 saved = true;
             }
-            let at = [(CHECKPOINT_EPOCH, epoch.to_string()), (CHECKPOINT_DEV, dev.to_string())];
+            let at = [(CHECKPOINT_EPOCH, (epoch + 1).to_string()), (CHECKPOINT_DEV, dev.to_string())];
             replace(&dir, "head.safetensors", &safetensors::write_with(&named(&head, hidden, m.tensors()), &at))?;
             Ok(())
         };
@@ -362,6 +300,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
@@ -369,14 +308,13 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     // epoch and dev score, so no moment of finishing leaves weights
     // without the record of where they are from.
     let best = report.best_epoch;
-    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
+    let at = [(CHECKPOINT_EPOCH, (best + 1).to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
     let weights = safetensors::write_with(&named(&head, enc.hidden(), model.tensors()), &at);
     let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus: corpus.record.clone(),
         encoder: Some(encoder),
@@ -399,7 +337,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         training: Some(TrainingRecord {
             train_loss: report.train_loss,
             dev: report.dev,
-            best_epoch: report.best_epoch,
+            best_epoch: best + 1,
             epoch_seconds: report.epoch_seconds,
         }),
         eval,
