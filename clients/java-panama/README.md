@@ -1,12 +1,18 @@
 # Java Panama binding
 
 This module binds the `libturbo` C ABI from Java 25 or newer through the
-Panama Foreign Function and Memory API. It contains:
+Panama Foreign Function and Memory API. Add both
+`ai.pipestream:turboembed-api` and `ai.pipestream:turboembed-panama` at the
+same version. The public interfaces, values, exceptions and adapters live
+once in `clients/java-api`; `ai.pipestream.turboembed.panama` contains the
+FFM implementation and its native-buffer callbacks. The shared
+`ai.pipestream.turboembed.opennlp` adapters are not Apache classes or
+source/binary replacements for `opennlp.tools`.
 
-- `ai.pipestream.turboembed.panama`: the typed primary API.
-- `ai.pipestream.turboembed.opennlp`: OpenNLP-style adapters in this
-  project's namespace. These are not Apache OpenNLP classes and are not
-  source- or binary-compatible drop-in replacements for `opennlp.tools`.
+Import `ai.pipestream.turboembed` for portable callers. `TurboRuntime.load()`
+selects this bridge on Java 25+ with the foreign API. Use
+`TurboRuntime.load(TurboBridge.PANAMA)` or `-Dturbo.bridge=panama` to require
+it explicitly. A missing selected jar is an error; see `clients/java-api/README.md`.
 
 No accuracy or speed comparison with Apache OpenNLP is claimed by this
 binding. The tests run over the sealed small bundles in `testdata`, whose
@@ -18,7 +24,7 @@ Build the native library first, then run Maven with a Java 25 or newer JDK:
 
 ```sh
 cargo build -p turbo --locked
-mvn -f clients/java-panama/pom.xml test
+mvn -f clients/pom.xml -pl java-panama -am test
 ```
 
 Applications must run with:
@@ -45,6 +51,8 @@ Primary operations return `TurboAnalysisResult`, which owns one native
 result reference:
 
 ```java
+import ai.pipestream.turboembed.*;
+
 try (TurboAnalyzer analyzer = TurboAnalyzer.create();
      TurboAnalysisResult result = analyzer.tokenize(text)) {
     for (TurboSpanView token : result.spans(TurboLayerKind.TOKENS)) {
@@ -132,7 +140,8 @@ probability; the binding does not invent one.
 ## Graphs
 
 `analyzeGraph` returns typed rows plus the serialized binary graph in the
-same `TurboAnalysisResult`. Use the read-only `withSpansSegment`,
+same `TurboAnalysisResult`. On the concrete
+`ai.pipestream.turboembed.panama.TurboAnalysisResult`, use the read-only `withSpansSegment`,
 `withStringPoolSegment`, and `withGraphSegment` callbacks to inspect native
 buffers without copying them, or `copyGraphBytes` for explicit copy-out.
 

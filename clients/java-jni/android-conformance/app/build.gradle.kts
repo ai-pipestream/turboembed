@@ -38,20 +38,26 @@ android {
 
     sourceSets {
         getByName("main") {
-            // Typed JNI API and OpenNLP-style adapters from the Maven module.
+            // Shared API contracts (#1814) plus the JNI implementation (includes JniRuntime).
+            java.srcDir("../../../java-api/src/main/java")
             java.srcDir("../../src/main/java")
             // build-android.sh / run-android-conformance.sh drop libturbo.so here.
             jniLibs.srcDir("src/main/jniLibs")
             assets.srcDir("src/main/assets")
         }
         getByName("androidTest") {
-            // Shared conformance suite and the host JNI tests (JniBinding, TurboJniTest).
-            java.srcDir("../../../java-conformance/src/main/java")
-            java.srcDir("../../src/test/java")
-            java.srcDir("src/androidTest/java")
-            // Android* suites below own the ART run; skip the host wrapper names.
-            exclude("**/JniAnalyzerConformanceTest.java")
-            exclude("**/JniSessionConformanceTest.java")
+            // Shared conformance suite plus host JNI bridge tests. Maven wrappers
+            // (Jni*ConformanceTest) and RuntimeConformance (host ProcessBuilder) stay out;
+            // Android* suites own Analyzer/Session on ART.
+            java.setSrcDirs(
+                listOf(
+                    "../../../java-conformance/src/main/java",
+                    "../../src/test/java/ai/pipestream/turboembed/jni/TestPaths.java",
+                    "../../src/test/java/ai/pipestream/turboembed/jni/TurboJniTest.java",
+                    "../../src/test/java/ai/pipestream/turboembed/opennlp",
+                    "src/androidTest/java",
+                ),
+            )
         }
     }
 

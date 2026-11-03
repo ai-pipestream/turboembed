@@ -3,17 +3,17 @@
 This module binds the `libturbo` C ABI from Java 21 or newer, and from
 Android, through the Java Native Interface. It is the bridge for the
 runtimes the Panama binding (`clients/java-panama`) cannot serve: Android's
-runtime has no `java.lang.foreign`, and JVMs before 22 have it only as a
-preview. It contains:
+runtime has no `java.lang.foreign`, and this project's Panama implementation
+requires Java 25. Add `ai.pipestream:turboembed-api` and
+`ai.pipestream:turboembed-jni` at the same version. Import the common
+`ai.pipestream.turboembed` interfaces and values; the JNI package contains
+only their native implementation. The adapters now live once in
+`ai.pipestream.turboembed.opennlp` in `clients/java-api`.
 
-- `ai.pipestream.turboembed.jni`: the typed primary API, with the same
-  classes and methods as `ai.pipestream.turboembed.panama`: `TurboAnalyzer`,
-  `TurboAnalysisResult`, `TurboSpanView`, `TurboSpanData`, `TurboLayerKind`,
-  `TurboPiiConfidence`, `TurboSession`, `TurboException` and `TurboLibrary`.
-- `ai.pipestream.turboembed.jni.opennlp`: OpenNLP-style adapters in this
-  project's namespace, the same as the Panama binding's. These are not
-  Apache OpenNLP classes and are not source- or binary-compatible drop-in
-  replacements for `opennlp.tools`.
+`TurboRuntime.load()` selects JNI on Java 21 through 24 and Android. On
+Java 25+, use `-Dturbo.bridge=jni` or `TurboRuntime.load(TurboBridge.JNI)`
+to choose JNI explicitly, even if Panama is installed. The API reports a
+missing selected jar instead of silently choosing another bridge.
 
 The native side is part of `libturbo` itself: `core/src/jni` exports the
 `native` methods of `ai.pipestream.turboembed.jni.TurboJni` beside the C
@@ -30,7 +30,7 @@ Build the native library first, then run Maven with a Java 21 or newer JDK:
 
 ```sh
 cargo build -p turbo --locked
-mvn -f clients/java-jni/pom.xml test
+mvn -f clients/pom.xml -pl java-jni -am test
 ```
 
 No `--enable-native-access` flag is needed. Library discovery, in order:
@@ -62,7 +62,7 @@ The release workflow publishes the same two libraries as
 `turboembed-v<version>-android.tar.gz` (docs/release.md). The Java side is
 compiled for Java 21 and uses no platform API above Android API 26, so an
 application module with `minSdk 26` and a toolchain that accepts Java 21
-class files consumes the jar unchanged. On Android, bundles live where the
+class files consumes the API and JNI jars with the required record/desugaring support. On Android, bundles live where the
 application can read them as directories, such as the application's files
 directory, and are named by their absolute path.
 
@@ -86,7 +86,14 @@ an emulator. The opt-in CI job `.github/workflows/android-conformance.yml`
 runs the same script on an `x86_64` emulator at API 26 (and 35 on labeled
 pull requests) via `workflow_dispatch` or the `ci:android-emulator` label.
 The host-only `:helpers:test` target checks the asset-staging layout without
-talking to ART.
+talking to ART. The Gradle wrapper jar under `android-conformance/gradle/wrapper/`
+is the stock Gradle 8.11.1 wrapper (`distributionSha256Sum` is set in
+`gradle-wrapper.properties`).
+
+ART results are recorded from that opt-in CI job (API 26 and API 35 on
+`x86_64`), not from a host JVM stand-in. After a green emulator run, paste
+the job URL and the instrumented-test summary into the pull request that
+carried the harness change.
 
 ## Primary typed API
 
@@ -94,6 +101,8 @@ Primary operations return `TurboAnalysisResult`, which owns one native
 result reference:
 
 ```java
+import ai.pipestream.turboembed.*;
+
 try (TurboAnalyzer analyzer = TurboAnalyzer.create();
      TurboAnalysisResult result = analyzer.tokenize(text)) {
     for (TurboSpanView token : result.spans(TurboLayerKind.TOKENS)) {
@@ -167,7 +176,7 @@ subclasses. A caller sees the same result whichever bridge is loaded.
 
 ## OpenNLP-style adapters
 
-The adapters are the Panama binding's, over this binding's analyzer: they
+The shared adapters in `java-api` use this binding's analyzer: they
 return copied arrays, their `Span` names its coordinate space (UTF-16 or
 token), absent probabilities are `Double.NaN`, unknown tags and lemmas are
 `null` elements, and discontinuous native items are rejected rather than

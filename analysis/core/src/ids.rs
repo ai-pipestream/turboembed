@@ -50,7 +50,7 @@ pub const SPEAKERS: &str = "turbo:speakers";
 pub const RELATIONS: &str = "turbo:relations";
 
 /// The namespace the shared layers used before `turbo:`.
-const LEGACY_NAMESPACE: &str = "opennlp:";
+pub const LEGACY_NAMESPACE: &str = "opennlp:";
 
 /// Each legacy id's name inside [`LEGACY_NAMESPACE`], with the id that
 /// replaced it.

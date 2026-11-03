@@ -8,6 +8,8 @@ use turbo_zoo::{Http, Index, Licence, LicenceClass, Policy};
 mod checkpoints;
 #[path = "builtin/components.rs"]
 mod components;
+#[path = "builtin/coref_head.rs"]
+mod coref_head;
 
 #[test]
 fn the_builtin_index_parses_and_is_canonical() {
@@ -55,9 +57,13 @@ const OPEN_SPAN_HEAD: &str = "turbo-en-wnut17-modernbert-base-l12-open-span-1";
 /// into one bundle with its encoder.
 const MASC_POS: &str = "turbo-en-masc-pos-modernbert-base-1";
 
+/// The antecedent-ranking coreference head `train-coref` trains on LitBank
+/// over `answerdotai/ModernBERT-base` (#1813), assembled with its encoder.
+pub(crate) const COREF_HEAD: &str = "turbo-en-litbank-modernbert-base-coref-1";
+
 /// A permissive model this repository's recipes train.
 fn trained_here_permissive(id: &str) -> bool {
-    id == OPEN_SPAN_HEAD || id == MASC_POS || MODERNBERT_SENTIMENT_HEADS.contains(&id)
+    id == OPEN_SPAN_HEAD || id == MASC_POS || id == COREF_HEAD || MODERNBERT_SENTIMENT_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -138,7 +144,7 @@ const DATASETS: [&str; 12] = [
 #[test]
 fn the_builtin_catalogue_preserves_supported_artifacts() {
     let index = Index::builtin();
-    let mut expected = BTreeSet::from([OPEN_SPAN_HEAD.to_owned(), MASC_POS.to_owned()]);
+    let mut expected = BTreeSet::from([OPEN_SPAN_HEAD.to_owned(), MASC_POS.to_owned(), COREF_HEAD.to_owned()]);
     expected.extend(MODERNBERT_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(LEGACY_MSMARCO_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));

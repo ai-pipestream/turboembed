@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.pipestream.turboembed.TurboException;
 import ai.pipestream.turboembed.jni.TestPaths;
 import ai.pipestream.turboembed.jni.TurboAnalyzer;
-import ai.pipestream.turboembed.jni.TurboException;
 import ai.pipestream.turboembed.jni.TurboLibrary;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +31,8 @@ final class AndroidTurboJniBridgeTest {
         TurboException ex = assertThrows(
                 TurboException.class,
                 () -> TurboAnalyzer.create(
-                        new TurboAnalyzer.Config("en", TestPaths.repoRoot().resolve("testdata/does-not-exist"))));
+                        new ai.pipestream.turboembed.TurboAnalyzer.Config(
+                                "en", TestPaths.repoRoot().resolve("testdata/does-not-exist"))));
         assertEquals(TurboLibrary.TURBO_E_BUNDLE_NOT_FOUND, ex.code());
         assertEquals("TURBO_E_BUNDLE_NOT_FOUND", ex.statusName());
     }
