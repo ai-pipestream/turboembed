@@ -205,6 +205,7 @@ async fn the_page_registers_sources_for_the_demos_user_only() {
         name: "shared".into(),
         address: "gdrive://1AbC".into(),
         api_key: "key-1".into(),
+        s3_keys: None,
     };
     let r: RegisterModelSourceResponse = ok(&d, REGISTER, &req).await;
     assert_eq!(r.user, "alice");

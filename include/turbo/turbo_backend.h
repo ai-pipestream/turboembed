@@ -423,7 +423,8 @@ typedef struct turbo_backend_embed_rows {
                                     (turbo_embed_write_layer_ranges): each range pooled from
                                     each of the last T layers, the run's output [T, count,
                                     output_dim], the last block the final layer's. The core
-                                    passes T > 1 only to a backend and family that take it;
+                                    passes T > 1 only to a backend whose cell sets field
+                                    9's bit, on a family that takes it;
                                     head is then 0 and T * count at most max_ranges */
     uint32_t       reserved;     /* 0 */
 } turbo_backend_embed_rows;
@@ -462,7 +463,8 @@ typedef struct turbo_backend {
      * as in turbo_capability, both read only when status is EXPERIMENTAL.
      * The core honors the options it applies before the backend sees the
      * rows (for embed: truncate, max_tokens and prompt_role) and sets
-     * their bits itself; the backend sets the bits of those its run takes;
+     * their bits itself; the backend sets the bits of those its run takes,
+     * embed's layers (field 9) where its range writes take taps above 1;
      * reason (NUL-terminated, reason_len bytes) says why it is not
      * EXPERIMENTAL, else is empty. */
     int32_t (*capability)(uint32_t ordinal, uint32_t task, uint32_t precision,

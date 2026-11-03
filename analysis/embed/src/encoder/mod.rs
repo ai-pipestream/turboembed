@@ -392,5 +392,6 @@ pub fn normalize(v: &mut [f32]) {
 mod rows;
 mod run;
 pub use rows::Rows;
+pub use run::forwarded_rows;
 #[cfg(test)]
 mod tests;

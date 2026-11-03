@@ -396,7 +396,7 @@ fn a_learned_layer_mix_blends_taps_before_the_adapter_and_output() {
     for pooling in [WordPooling::First, WordPooling::Mean] {
         for adapter in [None, Some((3, 1))] {
             let mut s = spec(TAGS, Scheme::Tags, pooling, adapter, Decode::Argmax);
-            s.layer_mix = Some(LayerMix { layers: taps as u32 });
+            s.layer_mix = Some(LayerMix { layers: taps as u32, layer: None });
             let ts = tensors(&s, hidden);
             assert_eq!(ts[ts.len() - 2], ("mix.weight".to_string(), vec![taps as u64]));
             assert_eq!(ts[ts.len() - 1], ("mix.gamma".to_string(), vec![1]));
@@ -428,7 +428,10 @@ fn a_learned_layer_mix_blends_taps_before_the_adapter_and_output() {
     }
     for bad in [0, MAX_MIX_LAYERS + 1] {
         let mut s = spec(TAGS, Scheme::Tags, WordPooling::First, None, Decode::Argmax);
-        s.layer_mix = Some(LayerMix { layers: bad });
+        s.layer_mix = Some(LayerMix { layers: bad, layer: None });
         assert!(s.validate("head").is_err(), "{bad}");
     }
+    let mut s = spec(TAGS, Scheme::Tags, WordPooling::First, None, Decode::Argmax);
+    s.layer_mix = Some(LayerMix { layers: 3, layer: Some(0) });
+    assert!(s.validate("head").is_err());
 }
