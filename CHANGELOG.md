@@ -132,7 +132,7 @@ for the release after it goes above it.
   why each was skipped, before any artifact's file is hashed; it was
   `TURBO_E_UNSUPPORTED` after the weights were verified. The rotary
   families' reason names levelzero among the backends that run them,
-  and `bundle/recipes/sat-3l.json` lists `cpu` alone (#PR).
+  and `bundle/recipes/sat-3l.json` lists `cpu` alone (#1855).
 
 ### Breaking
 
