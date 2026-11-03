@@ -9,7 +9,7 @@ use std::process::Command;
 use serde_json::{Value, json};
 use turbo::head::RelationClassifier;
 use turbo::head::relation::{Mention, tensors};
-use turbo::manifest::{HeadSpec, LicenseClass, NO_RELATION};
+use turbo::manifest::{Decode, HeadSpec, LicenseClass, NO_RELATION};
 use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::eval::Metrics;
 use turbo_trainer_recipes::receipt::Receipt;
@@ -221,7 +221,75 @@ fn a_relation_run_writes_a_head_the_core_reads_and_a_receipt() {
     assert!(run(&data, &plain, &["--epochs", "1"]).status.success());
     let p: Receipt = serde_json::from_slice(&fs::read(plain.join("receipt.json")).unwrap()).unwrap();
     assert_eq!(p.config.unwrap().lr, 3e-4);
-    for d in [data, out, again, plain] {
+    // The single-label variant beside the threshold head: its spec says
+    // DECODE_RELATION, its receipt holds the threshold head's test score
+    // and the paired bootstrap against it on the same documents, and the
+    // run prints the per-label table.
+    let single = scratch("train-single");
+    let against = out.to_str().unwrap();
+    let o = train(&data, &single, &["--decode", "relation", "--against", against]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let s: Receipt = serde_json::from_slice(&fs::read(single.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(s.head.as_ref().unwrap().decode, Decode::Relation);
+    let vs = s.eval.against.as_ref().unwrap();
+    assert!(vs.name.ends_with("-train-out (Relations)"), "{}", vs.name);
+    assert_eq!(vs.baseline, r.eval.model.clone().unwrap(), "the prior head scores as its own run did");
+    let (mine, theirs) = (s.eval.model.as_ref().unwrap().score(), r.eval.model.as_ref().unwrap().score());
+    assert_eq!((vs.comparison.model, vs.comparison.baseline), (mine, theirs));
+    assert!(vs.comparison.low <= vs.comparison.delta && vs.comparison.delta <= vs.comparison.high, "{vs:?}");
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.contains("| label | gold | found | P | R | F1 |") && stdout.contains("| P108 |"), "{stdout}");
+    for (i, (flag, value, says)) in
+        [("--decode", "crf", "--decode"), ("--against", "/nonexistent", "nonexistent")].into_iter().enumerate()
+    {
+        let o = run(&data, &scratch(&format!("train-bad-{i}")), &[flag, value, "--epochs", "1"]);
+        let err = String::from_utf8_lossy(&o.stderr);
+        assert!(!o.status.success() && err.contains(says), "{flag} {value}: {err}");
+    }
+    // The prior head is named by the digests of the files it was read from.
+    let digest = |name: &str| turbo::bundle::sha256_hex(&fs::read(out.join(name)).unwrap());
+    let files: Vec<(&str, String)> = vs.files.iter().map(|f| (f.path.as_str(), f.sha256.clone())).collect();
+    let names = ["head.json", "head.safetensors", "receipt.json"];
+    assert_eq!(files, names.map(|n| (n, digest(n))).to_vec());
+
+    // A prior head that would read other features than this run computes
+    // is refused before training: another pooling, another entity type
+    // table, another encoder, or no receipt to say which encoder.
+    let copy = |name: &str, edit: &dyn Fn(&Path)| -> PathBuf {
+        let d = scratch(name);
+        fs::create_dir_all(&d).unwrap();
+        for n in names {
+            fs::copy(out.join(n), d.join(n)).unwrap();
+        }
+        edit(&d);
+        d
+    };
+    let edit_json = |d: &Path, file: &str, change: &dyn Fn(&mut Value)| {
+        let mut v: Value = serde_json::from_slice(&fs::read(d.join(file)).unwrap()).unwrap();
+        change(&mut v);
+        fs::write(d.join(file), serde_json::to_vec(&v).unwrap()).unwrap();
+    };
+    let swapped = copy("prior-types", &|d| {
+        edit_json(d, "head.json", &|v| v["relation"]["entity_labels"].as_array_mut().unwrap().swap(0, 1))
+    });
+    let other_encoder =
+        copy("prior-encoder", &|d| edit_json(d, "receipt.json", &|v| v["encoder"]["manifest_sha256"] = json!("0")));
+    let no_receipt = copy("prior-unrecorded", &|d| fs::remove_file(d.join("receipt.json")).unwrap());
+    let refusals = [
+        (out.clone(), "mean", "word pooling"),
+        (swapped, "first", "entity type table"),
+        (other_encoder, "first", "the encoder"),
+        (no_receipt, "first", "receipt.json"),
+    ];
+    for (i, (prior, pooling, says)) in refusals.iter().enumerate() {
+        let args = ["--against", prior.to_str().unwrap(), "--pooling", pooling, "--epochs", "1"];
+        let dir = scratch(&format!("train-refused-{i}"));
+        let o = run(&data, &dir, &args);
+        let err = String::from_utf8_lossy(&o.stderr);
+        assert!(!o.status.success() && err.contains(says), "{says}: {err}");
+        assert!(!dir.join("head.json").exists(), "refused before the first checkpoint: {says}");
+    }
+    for d in [data, out, again, plain, single] {
         let _ = fs::remove_dir_all(d);
     }
 }

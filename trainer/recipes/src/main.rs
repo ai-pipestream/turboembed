@@ -116,40 +116,14 @@ fn run(argv: Vec<String>) -> Result<()> {
                 let read = t.elapsed().as_secs_f64();
                 let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
                 let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
-                (
-                    coref.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
+                (coref.record, EvalRecord::baseline_only(baseline), read)
             } else {
                 let c = read_corpus(&corpus_id, &dir, unrecorded)?;
                 let read = t.elapsed().as_secs_f64();
                 let base = baseline(&c.splits.train, &c.splits.test);
                 let baseline =
                     evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
-                (
-                    c.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
+                (c.record, EvalRecord::baseline_only(baseline), read)
             };
             let t = Instant::now();
             let receipt = Receipt {
@@ -361,6 +335,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
