@@ -8,10 +8,13 @@ unambiguous seen-form lookup (`--seen-lookup 2` and `--seen-lookup 1`) and a
 inside `turbo-train-head train-lemma` (`seed = 42`, `epochs = 5`, `lr = 0.05`,
 1,000 paired sentence bootstrap resamples against the majority baseline).
 
-Every variant (48 training runs), the 4 majority baseline receipts
-(`<treebank>/majority.json`), and the 4 Stanza peer receipts
-(`<treebank>/stanza.json`) are committed beside this README under
-`en-ewt/`, `it-markit/`, `de-gsd/`, and `es-ancora/`.
+Every variant (48 training runs at commit `2a05cf523424b06981f8281c819f4e54189a0c66`),
+the 4 majority baseline receipts (`<treebank>/majority.json`, generated with
+`turbo-train-head baseline --corpus ud-<bank>-lemma` at commit
+`4873eb828a13345e1a41ab6a23c0b71103d89c63`), and the 4 Stanza peer receipts
+(`<treebank>/stanza.json`, generated at `bc426f41b7ef3714d36e2f24d4f1ca8ef1c0c56b`
+and `f48a400a21417d9a712fa2de765e54e84c5d7b11`) are committed beside this README
+under `en-ewt/`, `it-markit/`, `de-gsd/`, and `es-ancora/`.
 
 ## Dev-selected winning configurations vs majority baseline and Stanza
 
@@ -115,6 +118,9 @@ and `k = 1`.
 ## Reproduce
 
 ```sh
+turbo-train-head baseline --corpus ud-en-ewt-lemma \
+  --dir UD_English-EWT-r2.18 --out en-ewt/majority
+
 turbo-train-head train-lemma --bundle modernbert-base \
   --corpus ud-en-ewt --dir UD_English-EWT-r2.18 \
   --out en-ewt/mtf3-lookup1 --seed 42 --epochs 5 --lr 0.05 \

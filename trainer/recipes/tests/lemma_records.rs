@@ -267,6 +267,22 @@ fn lemma_sweep_receipts_name_no_machine_or_host_path() {
                 r.host
             );
             assert!(
+                r.commit.len() == 40 && r.commit.bytes().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+                "{}/{name}: commit {}",
+                b.dir,
+                r.commit
+            );
+            assert!(
+                std::process::Command::new("git")
+                    .args(["cat-file", "-e", &format!("{}^{{commit}}", r.commit)])
+                    .status()
+                    .unwrap()
+                    .success(),
+                "{}/{name}: commit {} does not exist in git",
+                b.dir,
+                r.commit
+            );
+            assert!(
                 r.command.iter().all(|c| !c.starts_with('/') && !c.contains("/work/") && !c.contains("/home/")),
                 "{}/{name}: path in command {:?}",
                 b.dir,
@@ -279,4 +295,40 @@ fn lemma_sweep_receipts_name_no_machine_or_host_path() {
         }
         assert_eq!(count, 14, "{} has 12 sweep + majority + stanza receipts", b.dir);
     }
+}
+
+#[test]
+fn lemma_baseline_command_replays_through_cli() {
+    let tmp = std::env::temp_dir().join(format!("turbo-lemma-base-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let corpus = tmp.join("corpus");
+    let out = tmp.join("out");
+    std::fs::create_dir_all(&corpus).unwrap();
+    let sample = "1\tCats\tcat\tNOUN\tNNS\tNumber=Plur\t2\tnsubj\t_\t_\n\
+                  2\trun\trun\tVERB\tVBP\tMood=Ind\t0\troot\t_\tSpaceAfter=No\n\
+                  3\t.\t.\tPUNCT\t.\t_\t2\tpunct\t_\t_\n\n";
+    for f in [EN_EWT.train, EN_EWT.dev, EN_EWT.test] {
+        std::fs::write(corpus.join(f.path), sample).unwrap();
+    }
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args([
+            "baseline",
+            "--corpus",
+            "ud-en-ewt-lemma",
+            "--dir",
+            corpus.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--unrecorded-corpus",
+            "--commit",
+            "4873eb828a13345e1a41ab6a23c0b71103d89c63",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success(), "turbo-train-head baseline ud-en-ewt-lemma exited with {status}");
+    let r: Receipt = serde_json::from_slice(&std::fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    let _ = std::fs::remove_dir_all(&tmp);
+    assert_eq!(r.corpus.id, "ud-en-ewt-lemma");
+    assert!(r.eval.model.is_none());
+    assert_eq!(r.eval.baseline.score(), 1.0);
 }
