@@ -119,9 +119,9 @@ fn store_first(store: &str, origin: turbo_zoo::Http) -> Result<turbo_zoo::Source
 pub(crate) struct CatalogService {
     catalog: Option<Catalog>,
     admin: bool,
-    /// The read-through gates in zoo mode; `None` refuses a read of a
-    /// file not yet cached.
-    through: Option<through::Fetching>,
+    /// The read-through gates and sources in zoo mode; `None` refuses a
+    /// read of a file not yet cached.
+    through: Option<through::ReadThrough>,
     /// Held by the one install that may run.
     installing: Arc<AtomicBool>,
     /// Held across each read, change and write of the acceptance file.
@@ -140,9 +140,11 @@ impl CatalogService {
         prefetch: bool,
         drive: Option<DriveSignIn>,
     ) -> CatalogService {
-        let through = zoo.then(through::Fetching::default);
+        let sources = sources::Sources::new(drive);
+        let through =
+            zoo.then(|| through::ReadThrough { gates: through::Fetching::default(), sources: sources.clone() });
         if prefetch && let Some(c) = &catalog {
-            let (c, gates) = (c.clone(), through.clone().unwrap_or_default());
+            let (c, gates) = (c.clone(), through.as_ref().map(|t| t.gates.clone()).unwrap_or_default());
             tokio::task::spawn_blocking(move || through::prefetch(&c, &gates));
         }
         CatalogService {
@@ -151,7 +153,7 @@ impl CatalogService {
             through,
             installing: Arc::new(AtomicBool::new(false)),
             accepting: Arc::new(Mutex::new(())),
-            sources: sources::Sources::new(drive),
+            sources,
         }
     }
 
@@ -357,7 +359,8 @@ impl TurboCatalogService for CatalogService {
         let who = user(1, &req.user)?;
         let (s, operator) = (self.sources.clone(), self.admin);
         blocking(move || {
-            let source = sources::register(&catalog, &s, &who, &req.name, &req.address, &req.api_key, operator)?;
+            let sign_in = sources::SignInAsked { api_key: &req.api_key, s3_keys: req.s3_keys.as_ref() };
+            let source = sources::register(&catalog, &s, &who, &req.name, &req.address, sign_in, operator)?;
             Ok(Response::new(RegisterModelSourceResponse { user: who.to_string(), source: Some(source) }))
         })
         .await
