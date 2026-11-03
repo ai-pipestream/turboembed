@@ -93,3 +93,75 @@ fn committed_receipts_name_no_machine() {
         }
     }
 }
+
+/// The #1803 MarkIT split-head sweep records: receipts of the recorded
+/// r2.16 files, the gate cleared by the two runs the README names, and
+/// no machine or path leaked into a committed receipt.
+#[test]
+fn the_markit_split_sweep_records_are_receipts_of_the_recorded_release() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("records/1803");
+    let read = |name: &str| -> Receipt {
+        serde_json::from_slice(&std::fs::read(dir.join(name)).unwrap())
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.join(name).display()))
+    };
+    let full = read("full1.json");
+    assert_eq!(full.schema, SCHEMA);
+    assert_eq!(full.corpus.id, "ud-it-markit-split");
+    assert!(full.corpus.recorded);
+    assert_eq!(full.corpus.train.sentences, 611);
+    assert_eq!((full.corpus.test.sentences, full.corpus.test.words), (340, 9_654));
+    let h = full.head.as_ref().unwrap();
+    assert_eq!(h.kind, HeadKind::TokenSplit);
+    assert_eq!(h.license_class, Some(LicenseClass::Permissive));
+    let seen = h.seen.as_ref().expect("the seen lookup is the head's");
+    assert_eq!(seen.min_count, 1);
+    assert_eq!(seen.tokens.len(), 4_122);
+    assert!(seen.tokens.windows(2).all(|w| w[0].token < w[1].token), "sorted by token");
+    assert!(seen.tokens.iter().all(|e| h.labels.contains(&e.label)), "every label is the head's");
+    let c = full.eval.comparison.as_ref().unwrap();
+    assert!(c.delta > 0.0 && c.low > 0.0, "the gate: the whole interval above zero");
+    assert_eq!(round(full.eval.baseline.score()), 0.9925);
+    assert_eq!(round(full.eval.model.as_ref().unwrap().score()), 0.9939);
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let name = entry.unwrap().file_name().into_string().unwrap();
+        if name.ends_with(".json") {
+            let r = read(&name);
+            assert_eq!(r.host, "cpu-32-core-machine", "{name}: host {}", r.host);
+            assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
+            let text = serde_json::to_string(&r).unwrap().to_lowercase();
+            assert!(!text.contains("opennlp"), "{name}: no OpenNLP row (#1509)");
+        }
+    }
+}
+
+/// The zoo's English part-of-speech entry is the head-B bundle: our own,
+/// permissive, trained on MASC 3.0.0, and attributed with the receipt's
+/// test score.
+#[test]
+fn the_builtin_english_pos_entry_is_the_head_b_bundle() {
+    let head = receipt("head-B.json");
+    let index = turbo_zoo::Index::builtin();
+    let found: Vec<_> = index.find("en", turbo_zoo::Component::Pos).collect();
+    assert_eq!(found.len(), 1, "one English POS entry");
+    let a = found[0];
+    assert_eq!(a.id.as_str(), "turbo-en-masc-pos-modernbert-base-1");
+    assert_eq!((a.kind, a.format), (turbo_zoo::Kind::Head, turbo_zoo::Format::Safetensors));
+    assert_eq!(a.class, turbo_zoo::LicenceClass::Permissive);
+    assert_eq!(a.computed_class(), turbo_zoo::LicenceClass::Permissive);
+    assert_eq!(a.trained_on.len(), 1);
+    assert_eq!(a.trained_on[0].name, head.corpus.name);
+    assert_eq!(a.trained_on[0].license.to_string(), head.corpus.spdx);
+    let score = format!("test accuracy {:.4}", head.eval.model.as_ref().unwrap().score());
+    let attribution = a.attribution.as_deref().unwrap();
+    assert!(attribution.starts_with(head.corpus.attribution.trim()), "{attribution}");
+    assert!(attribution.contains(&score), "{attribution} lacks {score}");
+    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        ["manifest.json", "reference/reference.safetensors", "tokenizer.json", "weights/model.safetensors"]
+    );
+    // The head adds its tensors to the encoder's weights file.
+    let weights = a.files.iter().find(|f| f.path.as_str() == "weights/model.safetensors").unwrap();
+    let head_file = head.outputs.iter().find(|o| o.path == "head.safetensors").unwrap();
+    assert!(weights.size > head_file.size);
+}

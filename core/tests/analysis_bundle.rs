@@ -1,9 +1,9 @@
 //! The in-process analysis C ABI over a bundle with heads
 //! (`turbo_analyzer_desc.bundle_path`): the sealed small BERT in testdata
-//! with its four seeded heads writes the part-of-speech, lemma,
-//! dependency and entity layers; the pre-tokenized tasks agree with the
-//! graph; a bundle without heads leaves those layers unsupported, by
-//! name.
+//! with its five seeded heads writes the part-of-speech, morphology,
+//! lemma, dependency and entity layers; the pre-tokenized tasks agree
+//! with the graph; a bundle without heads leaves those layers
+//! unsupported, by name.
 
 use std::collections::BTreeSet;
 use std::ffi::CStr;
@@ -32,7 +32,7 @@ fn testdata() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata")
 }
 
-/// The sealed tiny bundle with four heads, pinned.
+/// The sealed tiny bundle with five heads, pinned.
 fn heads_bundle() -> String {
     turbo_pins::require(testdata().join("tiny-bert-heads-bundle")).to_str().unwrap().to_owned()
 }
@@ -100,6 +100,7 @@ fn of(rows: &[Row], kind: u32) -> Vec<Row> {
 
 const TEXT: &str = "Ann met Bob in Paris , and the quiet old dog slept by the river . Bob walked the old dog .";
 const POS: [&str; 5] = ["NOUN", "VERB", "DET", "ADJ", "PUNCT"];
+const FEATS: [&str; 4] = ["_", "Number=Sing", "Number=Plur", "Tense=Past|VerbForm=Fin"];
 const RELATIONS: [&str; 6] = ["root", "nsubj", "obj", "det", "amod", "punct"];
 
 #[test]
@@ -118,6 +119,7 @@ fn the_bundle_heads_write_every_layer_of_the_graph() {
                 TURBO_ANALYSIS_LAYER_LEMMAS,
                 TURBO_ANALYSIS_LAYER_ENTITIES,
                 TURBO_ANALYSIS_LAYER_DEPENDENCIES,
+                TURBO_ANALYSIS_LAYER_MORPHOLOGY,
             ])
         );
         let sentences = of(&rows, TURBO_ANALYSIS_LAYER_SENTENCES);
@@ -135,6 +137,19 @@ fn the_bundle_heads_write_every_layer_of_the_graph() {
             assert!(p.span.flags & TURBO_SPAN_PROBABILITY != 0 && p.span.prob > 0.0 && p.span.prob <= 1.0);
             assert_eq!(
                 (p.span.source_byte_start, p.span.source_byte_end),
+                (tok.span.source_byte_start, tok.span.source_byte_end)
+            );
+        }
+        // A feature string a token, in the head's label set, with no
+        // probability, over the token's own text range.
+        let morph = of(&rows, TURBO_ANALYSIS_LAYER_MORPHOLOGY);
+        assert_eq!(morph.len(), tokens.len());
+        for (i, (m, tok)) in morph.iter().zip(&tokens).enumerate() {
+            assert!(FEATS.contains(&m.label.as_str()), "{}", m.label);
+            assert_eq!((m.span.token_start, m.span.token_end), (i as u32, i as u32 + 1));
+            assert!(m.span.flags & TURBO_SPAN_LABEL != 0 && m.span.prob.is_nan());
+            assert_eq!(
+                (m.span.source_byte_start, m.span.source_byte_end),
                 (tok.span.source_byte_start, tok.span.source_byte_end)
             );
         }
@@ -239,6 +254,23 @@ fn the_pre_tokenized_tasks_agree_with_the_graph() {
             assert_eq!(p.span.flags & (TURBO_SPAN_VIEW_RANGE | TURBO_SPAN_SOURCE_RANGE), 0, "token-only rows");
         }
 
+        // The morphology rows of the sentence's tokens are the graph's.
+        assert_eq!(
+            turbo_analyzer_morphology(a, words.as_ptr(), n, &mut res, &mut err),
+            status::OK,
+            "{}",
+            message(&err)
+        );
+        let morph = read_rows(res);
+        turbo_analysis_result_release(res);
+        let graph_morph = of(&rows, TURBO_ANALYSIS_LAYER_MORPHOLOGY);
+        assert_eq!(morph.len(), in_first.len());
+        for (m, &i) in morph.iter().zip(&in_first) {
+            assert_eq!(m.label.as_str(), graph_morph[i].label.as_str());
+            assert!(m.span.prob.is_nan());
+            assert_eq!(m.span.flags & (TURBO_SPAN_VIEW_RANGE | TURBO_SPAN_SOURCE_RANGE), 0, "token-only rows");
+        }
+
         // Lemmatized under those tags, the lemmas are the graph's.
         let tags: Vec<turbo_text> = pos.iter().map(|p| t(&p.label)).collect();
         assert_eq!(turbo_analyzer_lemmatize(a, words.as_ptr(), tags.as_ptr(), n, &mut res, &mut err), status::OK);
@@ -304,6 +336,10 @@ fn a_bundle_without_heads_leaves_the_layers_unsupported_by_name() {
         assert_eq!(turbo_analyzer_pos_tag(a, words.as_ptr(), 2, &mut res, &mut err), status::UNSUPPORTED_TASK);
         assert!(res.is_null());
         assert!(message(&err).contains("no head writing pos"), "{}", message(&err));
+        let mut res: *mut turbo_analysis_result = std::ptr::dangling_mut();
+        assert_eq!(turbo_analyzer_morphology(a, words.as_ptr(), 2, &mut res, &mut err), status::UNSUPPORTED_TASK);
+        assert!(res.is_null());
+        assert!(message(&err).contains("no head writing morphology"), "{}", message(&err));
         assert_eq!(turbo_analyzer_find_text(a, t(TEXT), &mut res, &mut err), status::UNSUPPORTED_TASK);
         assert!(message(&err).contains("no head writing entities"), "{}", message(&err));
         let (rows, _) = graph(a, TEXT);
@@ -312,6 +348,9 @@ fn a_bundle_without_heads_leaves_the_layers_unsupported_by_name() {
         // No input is no rows, head or not.
         let none: [turbo_text; 0] = [];
         assert_eq!(turbo_analyzer_pos_tag(a, none.as_ptr(), 0, &mut res, &mut err), status::OK);
+        assert!(read_rows(res).is_empty());
+        turbo_analysis_result_release(res);
+        assert_eq!(turbo_analyzer_morphology(a, none.as_ptr(), 0, &mut res, &mut err), status::OK);
         assert!(read_rows(res).is_empty());
         turbo_analysis_result_release(res);
         assert_eq!(turbo_analyzer_find_text(a, t(""), &mut res, &mut err), status::OK);

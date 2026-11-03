@@ -15,6 +15,17 @@ for the release after it goes above it.
 
 ### Added
 
+- A pure Java API module shared by the JNI and Panama implementations,
+  with typed runtime selection, one adapter package, and shared native
+  conformance tests (`clients/java-api`, #1814).
+
+- Morphology rows in the in-process analyzer and the Java bindings
+  (`clients/java-panama`, `clients/java-jni`):
+  a bundle's morphology head writes `TURBO_ANALYSIS_LAYER_MORPHOLOGY`
+  (`TurboLayerKind.MORPHOLOGY`) from the same encoder pass as the other
+  word-level heads, one row per token with the feature string as the
+  label, and `turbo_analyzer_morphology` (`TurboAnalyzer.morphology`,
+  `TurboAnalyzer.morphologyCopied`) tags pre-tokenized tokens (#1812).
 - `DocumentSinkItem.typed` (field 9) carries the item's graph as
   `InspectDocumentGraph` projects it: `--sink-typed-offsets` and
   `--sink-typed-view` (`TURBO_KSERVE_SINK_TYPED_OFFSETS`,
@@ -76,6 +87,14 @@ for the release after it goes above it.
   one): the F16 sums went over FASTEST's cosine bound at 8192 tokens.
   That attention is slower; sessions of 4096 or fewer keep the F16 sums
   (#1580).
+- `clients/java-jni`, the Java binding over the Java Native Interface for
+  Java 21 or newer and for Android, with the Panama binding's API and
+  OpenNLP-style adapters: its `native` methods are exported by `libturbo`
+  itself, so one library per platform serves both bindings. The release
+  gains `turboembed-v<version>-android.tar.gz`, `libturbo.so` for the
+  `arm64-v8a` and `x86_64` ABIs at API level 26, and both bindings run the
+  conformance suite in `clients/java-conformance` over the sealed
+  `testdata` bundles (#1801).
 - `AnalyzePipelineRequest.structure_seed`: a document's text and its
   headings, lists, tables and other blocks as a `StructureSeed` protobuf
   message, offsets in the request's unit, built into the same
@@ -101,7 +120,25 @@ for the release after it goes above it.
   use the cpu backend's own exponential in place of the C library's, so
   a head gives the same bits on every machine (#1779).
 
+### Fixed
+
+- `turbo_analyzer_create` decodes `turbo_analyzer_desc` through raw
+  field reads after validating `struct_size`, without forming a
+  reference to the 120-byte struct over a legacy 104-byte allocation
+  from before `bundle_path` was appended (#1833).
+
 ### Breaking
+
+- Java callers now import shared values, exceptions and interfaces from
+  `ai.pipestream.turboembed`, and adapters from its `opennlp` package.
+  Add `turboembed-api` alongside either matching-version bridge jar.
+  The duplicated bridge-local value classes and JNI adapter package are
+  removed. JNI retains its old exception name as a deprecated subclass
+  for existing native libraries; catch the shared exception in new code.
+  Bridge-local analyzer, result, session and span-view classes implement
+  the common contracts; Panama's buffer callbacks remain concrete-only.
+  Native entry points and layouts are unchanged (#1814).
+
 
 - The model ids layers record (`ModelRef.id`, in `TypedLayer`
   provenance, DocumentGraph bytes and evidence records) moved from the

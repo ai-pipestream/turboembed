@@ -75,6 +75,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         biaffine: None,
         pos_input: None,
         hash_embed: o.hash,
+        seen: None,
         layer_mix: None,
         span: None,
         relation: None,

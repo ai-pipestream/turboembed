@@ -100,7 +100,15 @@ precision's bound, not bit for bit; only the time should differ.
 that compute attention with FMAs the kernel that splits each query's
 keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
-default. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
+default. The default computes QKᵀ and PV as register tiles over 64
+queries to a block (`fma-tiled`), or 32 (`fma-tiled32`, which
+`TURBO_CUDA_ATTENTION=tiled32` forces): a block of 32 queries covers a
+row in twice the blocks, each loading the row's keys and values again,
+so it is faster when a run leaves the device room and slower when the
+run fills it. Unforced, a run of 256 packed tokens or fewer (the `le256`
+bin) takes `fma-tiled32` and the bins above it `fma-tiled`; either way a
+tile with 32 live queries or fewer is computed as a 32-query tile, and
+both give the same bits, every sum in the same order. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
 runs 128 queries to a block of eight warps, so each chunk of keys and
 values in shared memory serves 128 queries; the keys and values go a
 chunk at a time (64 keys at heads of 32, 32 at heads of 64) through
@@ -287,8 +295,8 @@ Each GEMM (`qkv`, `out`, `ffn1`, `ffn2`) names its tile as
 `TURBO_CUDA_TILE` spells it (`acc16-8w` and `acc16-sw8w` being the
 F16 accumulators' eight-warp and swizzled eight-warp tiles), then its
 stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
-`attn` is `fma-tiled`, `fma-split`, `mma64`, `mma128`, `mma128-exact`,
-`mma128-fa32` or `mma128-acc32`; `ln` is
+`attn` is `fma-tiled`, `fma-tiled32`, `fma-split`, `mma64`, `mma128`,
+`mma128-exact`, `mma128-fa32` or `mma128-acc32`; `ln` is
 `separate` or `fused`; `pool` is `groups` or `columns`. The names are of
 the kernels that run: a tile the session's operands or device do not
 take is reported as the one that runs in its place. `forced=` lists the
@@ -545,11 +553,13 @@ older than the runtime, it lists none and the runtime's log says why.
      carried from one block of keys to the next by its running largest
      score (flash attention's rescaling), with no mask read but the key
      bias of a row that has masked tokens. EXACT and MODEL take 64
-     queries of one head of one row to a block of 128 threads and compute
-     QKᵀ and then PV as register tiles, each thread 8 queries by 4 keys
-     and then 8 queries by head_dim / 16 values, Q and K coalesced
-     through 4 × 4 register transposes and XOR-swizzled in shared memory,
-     every sum in the order of the head's values or the keys' positions.
+     queries of one head of one row to a block of 128 threads (32 in the
+     `le256` bin, or where a tile has 32 live queries or fewer) and
+     compute QKᵀ and then PV as register tiles, each thread 8 (or 4)
+     queries by 4 keys and then the same queries by head_dim / 16 values,
+     Q and K coalesced through 4 × 4 register transposes and XOR-swizzled
+     in shared memory, every sum in the order of the head's values or the
+     keys' positions.
      FASTEST with heads of 32 or 64 computes QKᵀ and PV with `mma.sync`
      on the tensor cores, 128 queries to a block (or 64 with `mma64`),
      softmax in F32;
@@ -810,7 +820,14 @@ head-major as BERT's. The first feed-forward GEMM, twice the intermediate
 width, writes `act(gate) * up` to a buffer one intermediate wide
 (`EPI_GATED_*`): GELU by `erff` at F32 and at F16 the session's GELU
 (`TURBO_CUDA_GELU`, the tanh form by default; `erf` and `poly` take
-`erff`), SiLU by `expf` or `__expf`. The epilogues are in the FMA
+`erff`), SiLU by `expf` or `__expf`. At an F16 output `gated_of` clamps
+the product to `[-65504, 65504]` before rounding to F16 so an activation
+product past F16's finite range saturates rather than rounding to
+infinity (`NaN` stays `NaN`), as Metal and Level Zero do, and the second
+feed-forward GEMM sums in F32 (`f32_sums_of` in `canonical_tile`) and
+writes the F32 product (`EPI_PLAIN`), since summing `intermediate` terms
+of up to `65504` overflows F16 sums and an F16 product (#1602, #1632).
+The epilogues are in the FMA
 kernels, the transposed FMA kernel and the tensor-core kernel; a session
 that names a swizzled or CUTLASS tile (`TURBO_CUDA_TILE`, or the tuner's
 candidates) runs these two GEMMs on the tensor-core kernel's default or
@@ -822,8 +839,8 @@ Attention takes a window per layer: a ModernBERT layer `l` with
 `l % global_every` not 0 reads, for query `i`, the keys `j` with
 `|i - j| <= attention_window / 2`. Every attention kernel reads only the
 chunks of keys that some query of its block can see, and masks the band's
-edges as it masks a masked key; the FMA tiled attention of 64 queries
-(`fma-tiled`) takes a chunk wholly inside the row and the block's band,
+edges as it masks a masked key; the FMA tiled attention (`fma-tiled`
+and `fma-tiled32`) takes a chunk wholly inside the row and the block's band,
 with no masked key, without per-key bounds or mask tests, and the
 attention of 128 queries on the tensor cores also skips, per warp, a
 chunk outside the warp's band and takes a chunk wholly inside it as an
@@ -841,10 +858,14 @@ BERT's F16 residual stream at FASTEST.
 `core/tests/cuda_rotary.rs` holds the device to the CPU at MODEL within
 1e-4 on the tiny sealed bundles (ModernBERT's window 8 over rows of up to
 64 tokens, with left padding and holes) on each GEMM kernel and both FMA
-attentions, at FASTEST and TF32 to the cosine floor of 0.999, and a
+attentions, at FASTEST and TF32 to the cosine floor of 0.999, a
 generated ModernBERT of head width 64 and window 128 over rows of up to
 256 tokens on each tensor-core attention and at 4097 tokens on
-`fma-tiled` and `mma128-acc32`.
+`fma-tiled` and `mma128-acc32`, and the 32/64-wide `overflow_modernbert`
+and `overflow_nomic` bundles (whose layer 0 gated middle product passes
+`65504` while every weight stays in `[-30, 30]`) finite and near the CPU
+by cosine at FASTEST across every kernel choice and row shape (#1602,
+#1632).
 
 ## The LSTM for the taggers
 

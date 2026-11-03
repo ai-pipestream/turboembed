@@ -86,6 +86,11 @@ fn open_span_hold_out_round_trip_and_bundle_assembly() {
     let a = dir.join("a");
     let first = train_open_span(&data, &bundle, &a, Some("location"));
     assert!(!first.corpus.recorded);
+    assert!(first.eval.rules.is_none());
+    let raw: serde_json::Value = serde_json::from_slice(&fs::read(a.join("receipt.json")).unwrap()).unwrap();
+    assert!(raw["eval"].get("rules").is_none());
+    assert!(raw["eval"].get("dictionary").is_some());
+    assert!(raw["eval"].get("open_span").is_some());
     let head_spec = first.head.as_ref().unwrap();
     assert_eq!(head_spec.kind, HeadKind::OpenSpan);
     assert_eq!(head_spec.labels.len(), 5);

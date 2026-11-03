@@ -29,6 +29,18 @@
 
   <dependencies>
     <dependency>
+      <groupId>ai.pipestream</groupId>
+      <artifactId>turboembed-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.pipestream</groupId>
+      <artifactId>turboembed-conformance</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
       <version>${junit.version}</version>
@@ -73,6 +85,7 @@
         <configuration>
           <argLine>--enable-native-access=ALL-UNNAMED</argLine>
           <systemPropertyVariables>
+            <turbo.bridge>panama</turbo.bridge>
             <turbo.library.dir>${project.basedir}/../../target/debug:${project.basedir}/../../target/release</turbo.library.dir>
             <turbo.repo.root>${project.basedir}/../..</turbo.repo.root>
           </systemPropertyVariables>

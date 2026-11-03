@@ -1,29 +1,39 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-25T03:36:10Z",
+  "recorded_at": "2026-11-01T20:07:34Z",
   "provenance": {
-    "commit": "1d7d2cbff4a60e82c5b16ab5b947b6dbf5f7288f",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/claude/956-bge-query-instruction"
+      "origin/argon/1520-distil-student",
+      "origin/argon/1725-train-sentences",
+      "origin/argon/1726-zoo-trainer-bundles",
+      "origin/argon/1735-open-span-ner",
+      "origin/claude/project-thread-2zw2ao",
+      "origin/claude/project-thread-dzouxq",
+      "origin/claude/project-thread-mt8eco",
+      "origin/claude/project-thread-zmecno",
+      "origin/gh-readonly-queue/main/pr-1748-55db1b3c19419f5f5a6faade640a30533b5bcf07",
+      "origin/gh-readonly-queue/main/pr-1777-e9f91d1be2ea82f5469eda77b5e7a887a55793ac",
+      "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
+      "arch": "x86_64",
       "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 130171314176
     },
     "bundle": {
       "model_id": "BAAI/bge-base-en-v1.5",
       "revision": "1",
-      "manifest_sha256": "fd11eab406647ca0c909e1618b8a24c9866310c1493e8020e7ce23e659f0546b",
+      "manifest_sha256": "8685892d070d4a9c2fa842da5d28fc416e811c33da6254d431b94b93e06c5a16",
       "artifact_sha256": "c7c1988aae201f80cf91a5dbbd5866409503b89dcaba877ca6dba7dd0a5167d7",
       "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
     }
@@ -34,9 +44,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "turbo-chunker",
@@ -94,12 +104,12 @@
   },
   "metrics": {
     "queries": 323,
-    "ndcg_at_10": 0.36699515785931486,
+    "ndcg_at_10": 0.3664777331917691,
     "recall": {
-      "at_1": 0.0586279608359489,
+      "at_1": 0.05811196496391587,
       "at_5": 0.13615324540348936,
-      "at_10": 0.17743286298093028,
-      "at_100": 0.34420800645864463
+      "at_10": 0.17733726178242287,
+      "at_100": 0.3436831288430321
     },
     "span": null,
     "per_query": [
@@ -241,7 +251,7 @@
       },
       {
         "query": "PLAIN-1342",
-        "ndcg_at_10": 0.44202197604759985
+        "ndcg_at_10": 0.41320541532308547
       },
       {
         "query": "PLAIN-1353",
@@ -285,7 +295,7 @@
       },
       {
         "query": "PLAIN-1453",
-        "ndcg_at_10": 0.09478836436955078
+        "ndcg_at_10": 0.1584091525685025
       },
       {
         "query": "PLAIN-1463",
@@ -529,7 +539,7 @@
       },
       {
         "query": "PLAIN-2040",
-        "ndcg_at_10": 0.6431211415940209
+        "ndcg_at_10": 0.6457545768494583
       },
       {
         "query": "PLAIN-2051",
@@ -541,7 +551,7 @@
       },
       {
         "query": "PLAIN-207",
-        "ndcg_at_10": 0.6136525857537393
+        "ndcg_at_10": 0.5887498202463202
       },
       {
         "query": "PLAIN-2071",
@@ -705,7 +715,7 @@
       },
       {
         "query": "PLAIN-2460",
-        "ndcg_at_10": 0.1661496599951319
+        "ndcg_at_10": 0.17544996359712883
       },
       {
         "query": "PLAIN-2470",
@@ -717,7 +727,7 @@
       },
       {
         "query": "PLAIN-2480",
-        "ndcg_at_10": 0.5254812828139142
+        "ndcg_at_10": 0.4927580576451585
       },
       {
         "query": "PLAIN-2490",
@@ -741,7 +751,7 @@
       },
       {
         "query": "PLAIN-2540",
-        "ndcg_at_10": 0.5146615217507586
+        "ndcg_at_10": 0.4388871882397895
       },
       {
         "query": "PLAIN-2550",
@@ -793,7 +803,7 @@
       },
       {
         "query": "PLAIN-2660",
-        "ndcg_at_10": 0.21726071285222986
+        "ndcg_at_10": 0.1884441521277154
       },
       {
         "query": "PLAIN-2670",
@@ -901,7 +911,7 @@
       },
       {
         "query": "PLAIN-291",
-        "ndcg_at_10": 0.5352543167750639
+        "ndcg_at_10": 0.5384313152574521
       },
       {
         "query": "PLAIN-2910",
@@ -985,7 +995,7 @@
       },
       {
         "query": "PLAIN-3131",
-        "ndcg_at_10": 0.617449705668599
+        "ndcg_at_10": 0.4816521804718888
       },
       {
         "query": "PLAIN-3141",
@@ -1053,7 +1063,7 @@
       },
       {
         "query": "PLAIN-3292",
-        "ndcg_at_10": 0.42983316427602286
+        "ndcg_at_10": 0.43753840702598623
       },
       {
         "query": "PLAIN-33",
@@ -1073,7 +1083,7 @@
       },
       {
         "query": "PLAIN-3322",
-        "ndcg_at_10": 0.0
+        "ndcg_at_10": 0.06362078819895171
       },
       {
         "query": "PLAIN-3332",
@@ -1241,7 +1251,7 @@
       },
       {
         "query": "PLAIN-613",
-        "ndcg_at_10": 0.08514311764162098
+        "ndcg_at_10": 0.09478836436955078
       },
       {
         "query": "PLAIN-623",
@@ -1399,24 +1409,24 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 135.85143399999998,
-      "chunking_ms": 37.535697,
-      "embedding_ms": 8838.714918000001,
-      "retrieval_ms": 21.306400999999997
+      "analysis_ms": 279.13268000000005,
+      "chunking_ms": 56.854936,
+      "embedding_ms": 124891.111667,
+      "retrieval_ms": 23.661893
     },
-    "tokens_embedded": 1235757,
-    "chunks": 6819,
+    "tokens_embedded": 1235771,
+    "chunks": 6826,
     "chunk_bytes": {
       "min": 90,
       "p50": 792,
-      "p90": 1030,
+      "p90": 1029,
       "max": 1510
     },
     "chunk_tokens": {
       "min": 19,
       "p50": 180,
-      "p90": 229,
-      "max": 358
+      "p90": 230,
+      "max": 435
     }
   }
 }

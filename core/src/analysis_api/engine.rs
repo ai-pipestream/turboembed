@@ -9,7 +9,9 @@ use turbo_analysis::{
     Tag, TagSet, ViewId, export, import,
 };
 use turbo_analysis_layers::export::register_codecs;
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens};
+use turbo_analysis_layers::{
+    Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens,
+};
 use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::RuleSplitter;
 use turbo_tokenize::{TokenizerOptions, simple_spans};
@@ -18,13 +20,26 @@ use super::graph::extract_graph;
 use super::heads::{BundleHeads, Want, unsupported};
 use super::{
     AnalysisResultInner, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
-    TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT,
-    TURBO_PII_CONFIDENCE_LABELLED, coordinate_range, turbo_analyzer_desc,
+    TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM,
+    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
 };
-use crate::ffi::text;
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
 mod direct;
+
+/// Configuration decoded from `turbo_analyzer_desc` using only the fields
+/// proven present by `struct_size`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AnalyzerConfig<'a> {
+    pub(crate) language: &'a str,
+    pub(crate) bundle_path: &'a str,
+}
+
+impl Default for AnalyzerConfig<'_> {
+    fn default() -> Self {
+        Self { language: "en", bundle_path: "" }
+    }
+}
 
 pub struct AnalyzerEngine {
     rule_splitter: RuleSplitter,
@@ -39,18 +54,8 @@ fn index_u32(index: usize, what: &str) -> Result<u32> {
 
 const SOURCE_VIEW: u32 = ViewId::SOURCE.0 as u32;
 
-/// The retired model path fields, each with its field number in the
-/// header's numbering.
 /// `turbo_analyzer_desc.bundle_path` as `turbo_error.field` numbers it.
 const BUNDLE_PATH_FIELD: u32 = 7;
-
-const RETIRED: [(&str, u32); 5] = [
-    ("sent_model_path", 2),
-    ("tok_model_path", 3),
-    ("pos_model_path", 4),
-    ("lemma_model_path", 5),
-    ("ner_model_path", 6),
-];
 
 /// Each token's text, checked to lie in `text` on character boundaries.
 fn forms<'t>(text: &'t str, tokens: &[Span]) -> Result<Vec<&'t str>> {
@@ -88,29 +93,9 @@ fn sequences(tokens: &[Span], sentences: &[Span]) -> Vec<Vec<usize>> {
 }
 
 impl AnalyzerEngine {
-    /// The engine `desc` configures: `with_bundle` says whether the
-    /// descriptor is long enough to carry `bundle_path`.
-    pub(crate) unsafe fn from_desc(desc: Option<(&turbo_analyzer_desc, bool)>) -> Result<Self> {
-        let (lang, bundle) = match desc {
-            Some((d, with_bundle)) => unsafe {
-                let lang = text(d.language, "language")?;
-                let paths =
-                    [d.sent_model_path, d.tok_model_path, d.pos_model_path, d.lemma_model_path, d.ner_model_path];
-                for (value, (name, field)) in paths.iter().zip(RETIRED) {
-                    if value.len != 0 {
-                        return Err(Error::field(
-                            INVALID_ARGUMENT,
-                            field,
-                            format!("turbo_analyzer_desc.{name} is retired: learned components load from bundle_path"),
-                        ));
-                    }
-                }
-                let bundle = if with_bundle { text(d.bundle_path, "bundle_path")? } else { "" };
-                (if lang.is_empty() { "en" } else { lang }, bundle)
-            },
-            None => ("en", ""),
-        };
-        let heads = match bundle {
+    /// The engine `cfg` configures.
+    pub(crate) fn from_desc(cfg: AnalyzerConfig<'_>) -> Result<Self> {
+        let heads = match cfg.bundle_path {
             "" => None,
             path => Some(BundleHeads::open(path).map_err(|e| Error {
                 field: BUNDLE_PATH_FIELD,
@@ -121,7 +106,7 @@ impl AnalyzerEngine {
         let mut codecs = Codecs::new();
         register_codecs(&mut codecs);
         Ok(Self {
-            rule_splitter: RuleSplitter::new(lang),
+            rule_splitter: RuleSplitter::new(cfg.language),
             heads,
             pii_detector: PiiDetector::pack(Pack::AllStructured),
             codecs,
@@ -169,6 +154,30 @@ impl AnalyzerEngine {
                 tokens: Some((item, item + 1)),
                 label: Some(label),
                 prob: Some(prob),
+                ..SpanDraft::default()
+            };
+            builder.push(layer, draft)?;
+        }
+        Ok(builder.finish(Vec::new()))
+    }
+
+    pub fn morphology(&self, tokens: &[&str]) -> Result<AnalysisResultInner> {
+        if tokens.is_empty() {
+            return Ok(Self::empty());
+        }
+        let heads = self.heads("morphology", "morphology")?;
+        let tagset = heads.morph_tagset()?;
+        let written = heads.run(&[tokens.to_vec()], &Want { morphology: true, ..Want::default() })?;
+        let decoded = written.morphology.expect("asked for").remove(0);
+        let mut builder = SpanPoolBuilder::with_capacity(tokens.len(), tokens.len() * 8);
+        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_MORPHOLOGY, MorphFeatures::<Tokens>::ID, "", SOURCE_VIEW)?;
+        for (idx, &tag) in decoded.tags.iter().enumerate() {
+            let item = index_u32(idx, "morphology token count")?;
+            let label = builder.string_ref(tagset.label(Tag(tag as u16)))?;
+            let draft = SpanDraft {
+                item_index: item,
+                tokens: Some((item, item + 1)),
+                label: Some(label),
                 ..SpanDraft::default()
             };
             builder.push(layer, draft)?;
@@ -345,6 +354,25 @@ impl AnalyzerEngine {
             let layer = PosTags { tagset, tags, prob: Some(prob) };
             doc.add(&Key::<PosTags>::DEFAULT, layer, Self::head_provenance(heads, "turbo-tagger-pos"))
                 .map_err(added)?;
+        }
+        if let Some(decoded) = written.morphology {
+            let tagset: Arc<TagSet> = heads.morph_tagset()?.clone();
+            let mut of: Vec<&str> = vec![""; n];
+            for (s, d) in seqs.iter().zip(&decoded) {
+                for (k, &i) in s.iter().enumerate() {
+                    of[i] = tagset.label(Tag(d.tags[k] as u16));
+                }
+            }
+            let mut feats = Strs::default();
+            for f in of {
+                feats.push(f);
+            }
+            doc.add(
+                &Key::<MorphFeatures<Tokens>>::DEFAULT,
+                MorphFeatures::new(feats),
+                Self::head_provenance(heads, "turbo-tagger-morphology"),
+            )
+            .map_err(added)?;
         }
         if let Some(lemmas) = written.lemmas {
             let mut of: Vec<&str> = vec![""; n];

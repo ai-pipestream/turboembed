@@ -170,7 +170,7 @@ impl GoogleDrive {
         if resp.status().is_redirection() {
             let to = resp.headers().get("location").and_then(|v| v.to_str().ok());
             let to = to.ok_or_else(|| (false, format!("{}{path}: a redirect with no Location", self.base)))?;
-            let to = resolve(&self.base, path, to);
+            let to = resolve(&self.base, &url[self.base.len()..], to);
             let follow = |e: ureq::Error| (false, format!("{}{path}: following its redirect: {e}", self.base));
             resp = self.plain.get(&to).call().map_err(follow)?;
         }
@@ -283,14 +283,20 @@ struct Listed {
     size: Option<String>,
 }
 
-/// The `Location` of a redirect from `path` on `base` (`scheme://host`),
+/// The `Location` of a redirect from a path and query on `base` (`scheme://host`),
 /// as an absolute URL (RFC 3986 section 5.2): an absolute address as it
 /// is, `//host/x` on the request's scheme, `/x` on its host, and any
 /// other reference beside the request's last path segment, with `.` and
 /// `..` segments removed. Whether the result may be fetched (HTTPS only
 /// for an HTTPS endpoint) is the unsigned agent's check.
 fn resolve(base: &str, path: &str, location: &str) -> String {
-    if location.contains("://") {
+    // A scheme can only precede the first path, query or fragment delimiter.
+    // In particular, an absolute URL inside a query is not this URI's scheme.
+    let first = location.split(['/', '?', '#']).next().unwrap_or_default();
+    if first.split_once(':').is_some_and(|(s, _)| {
+        s.starts_with(|c: char| c.is_ascii_alphabetic())
+            && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'-' | b'.'))
+    }) {
         return location.to_owned();
     }
     let scheme = base.split_once("://").map_or("https", |(s, _)| s);
@@ -301,10 +307,17 @@ fn resolve(base: &str, path: &str, location: &str) -> String {
         Some(at) => location.split_at(at),
         None => (location, ""),
     };
+    // An empty reference or fragment-only reference inherits the original
+    // query. A present query (including bare '?') replaces it instead.
+    if reference.is_empty() {
+        let original = path.split_once('#').map_or(path, |(p, _)| p);
+        let original =
+            if query.starts_with('?') { original.split_once('?').map_or(original, |(p, _)| p) } else { original };
+        return format!("{base}{original}{query}");
+    }
+    let path = path.split(['?', '#']).next().unwrap_or_default();
     let joined = if reference.starts_with('/') {
         reference.to_owned()
-    } else if reference.is_empty() {
-        path.to_owned()
     } else {
         format!("{}/{reference}", path.rsplit_once('/').map_or("", |(dir, _)| dir))
     };
@@ -391,6 +404,24 @@ mod tests {
         assert_eq!(r("https://cdn.example/b?t=1"), "https://cdn.example/b?t=1");
         assert_eq!(r("?alt=media"), "https://api.example/drive/v3/files/abc?alt=media");
         assert_eq!(resolve("http://127.0.0.1:9", "/a/b", "//h/c"), "http://h/c");
+    }
+
+    #[test]
+    fn redirect_queries_and_fragments_do_not_change_the_uri_scheme() {
+        let r = |to: &str| resolve("https://api.example", "/a/b?old=1", to);
+        assert_eq!(
+            r("media?next=https://example.org/object"),
+            "https://api.example/a/media?next=https://example.org/object"
+        );
+        assert_eq!(r("?next=https://example.org/object"), "https://api.example/a/b?next=https://example.org/object");
+        assert_eq!(r("media#https://example.org/object"), "https://api.example/a/media#https://example.org/object");
+        assert_eq!(r("#part"), "https://api.example/a/b?old=1#part");
+        assert_eq!(r(""), "https://api.example/a/b?old=1");
+        assert_eq!(r("?"), "https://api.example/a/b?");
+        assert_eq!(r("?new=2#part"), "https://api.example/a/b?new=2#part");
+        assert_eq!(r("media"), "https://api.example/a/media");
+        assert_eq!(r("./media:1"), "https://api.example/a/media:1");
+        assert_eq!(r("urn:example"), "urn:example");
     }
 
     #[test]

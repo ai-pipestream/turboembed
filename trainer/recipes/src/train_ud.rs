@@ -128,6 +128,7 @@ pub(super) fn train(
         open_span: None,
         comparison: Some(bootstrap(Task::Tags, &test, &predicted, &base, RESAMPLES, c.seed)),
         uas: (head == UdHead::Deps).then(|| Uas { model: uas(&test, &predicted), baseline: uas(&test, &base) }),
+        rules: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

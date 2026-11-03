@@ -1,0 +1,10 @@
+== potion-base-8m-document 2026-11-01T16:29:36Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 17.51 8.70 6.33
+target/release/turbo-eval run --bundle <bundles>/potion-base-8M --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --out <records>/potion-base-8m-document --chunker document
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/potion-base-8m-document/scifact.json
+<records>/potion-base-8m-document/nfcorpus.json
+<records>/potion-base-8m-document/arguana.json
+<records>/potion-base-8m-document/qasper.json
+wall 1.70 s maxrss 233460 KB
+exit 0 load 17.51 8.70 6.33

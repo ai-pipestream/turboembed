@@ -1,0 +1,10 @@
+== turbo-chunker-254-200-cohesion-1000 2026-11-01T16:36:38Z 42886cee3b3f07fcb1ff74708af0bac3e25ab3ca load 44.90 30.35 17.20
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --out <records>/turbo-chunker-254-200-cohesion-1000 --chunker turbo-chunker --max 254 --target 200 --cohesion 1000
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/turbo-chunker-254-200-cohesion-1000/scifact.json
+<records>/turbo-chunker-254-200-cohesion-1000/nfcorpus.json
+<records>/turbo-chunker-254-200-cohesion-1000/arguana.json
+<records>/turbo-chunker-254-200-cohesion-1000/qasper.json
+wall 237.79 s maxrss 556320 KB
+exit 0 load 41.68 37.47 23.25

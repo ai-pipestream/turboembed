@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.pipestream.turboembed.TurboException;
 import ai.pipestream.turboembed.panama.TestPaths;
 import ai.pipestream.turboembed.panama.TurboAnalyzer;
-import ai.pipestream.turboembed.panama.TurboException;
 import ai.pipestream.turboembed.panama.TurboLibrary;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;

@@ -287,18 +287,22 @@ the sequence of nodes. `NearDuplicates<L>` and `cross_duplicates` link
 the instance as they link word sketches, and the search engine indexes
 its band keys the same way (`analysis/group/tests/syntax.rs`).
 
+Every chunker record under `analysis/eval/records/` splits sentences with
+the rule detector (`turbo-sentdetect:rules`); the records the tables below
+read were taken on CPU at one commit, each directory holding its run log.
+
 Multi-level retrieval (`analysis/eval/records/turbo-chunker-254-200-level-*`,
 `all-MiniLM-L6-v2`, `--max 254 --target 200`, plain structure) nDCG@10:
 
 | Level, vectors | scifact | nfcorpus | arguana | qasper | gutenqa |
 | --- | --- | --- | --- | --- | --- |
-| chunk, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
-| chunk, local | 0.6504 | 0.3172 | 0.4918 | 0.2817 | 0.8637 |
-| chunk, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2750 | 0.8563 |
-| section, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2841 (10207) | 0.8570 (67572) |
-| section, local | 0.6504 | 0.3172 | 0.4918 | 0.2838 | 0.8569 |
-| section, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2771 | 0.8506 |
-| document, text | 0.6402 (5183) | 0.3097 (3633) | 0.5033 (8674) | 0.2519 (416) | 0.3161 (100) |
+| chunk, text | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2823 (10727) | 0.8464 (62843) |
+| chunk, local | 0.6499 | 0.3176 | 0.4917 | 0.2827 | 0.8461 |
+| chunk, contextual | 0.6600 | 0.3230 | 0.4925 | 0.2756 | 0.8438 |
+| section, text | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2842 (10339) | 0.8396 (61161) |
+| section, local | 0.6499 | 0.3176 | 0.4917 | 0.2848 | 0.8392 |
+| section, contextual | 0.6600 | 0.3230 | 0.4925 | 0.2774 | 0.8384 |
+| document, text | 0.6402 (5183) | 0.3094 (3633) | 0.5015 (8674) | 0.2519 (416) | 0.3161 (100) |
 | document, local | 0.6518 | 0.3167 | 0.4872 | 0.2328 | 0.6238 |
 
 ### Hybrid BM25 + dense retrieval, structure, and larger embedders
@@ -307,12 +311,12 @@ Hybrid fusion sweep across `scifact`, `nfcorpus`, `arguana`, and `qasper`:
 
 | Chunker | Fusion | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean | Gate vs stage-0 (3 baselines) | Gate vs `bm25-document` |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |
-| `turbo-chunker-254-200` | `weighted` `w = 0.35` (default) | `69.24` | `34.28` | `51.65` | `37.85` | `48.26` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.09`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.38` | `69.13` | `34.28` | `51.22` | `38.36` | `48.25` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.60`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.40` | `69.04` | `34.11` | `51.12` | `38.44` | `48.18` | PASS (4/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.68`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.45` | `68.79` | `33.96` | `50.86` | `39.11` | `48.18` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.35`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.50` (untuned 50/50) | `68.45` | `33.62` | `50.48` | `39.42` | `47.99` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.66`) |
-| `turbo-chunker-254-200` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `68.13` | `34.17` | `49.69` | `36.82` | `47.20` | PASS (2/4, 3/4, 4/4) | FAIL (3/4, `qasper` `-0.94`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.35` (default) | `69.07` | `34.22` | `51.49` | `37.64` | `48.10` | PASS (3/4, 4/4, 4/4) | PASS (3/4, `qasper` `-0.13`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.38` | `68.97` | `34.19` | `51.05` | `38.08` | `48.07` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.32`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.40` | `68.86` | `34.04` | `50.91` | `38.25` | `48.02` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.49`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.45` | `68.61` | `33.86` | `50.66` | `38.92` | `48.01` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.16`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.50` (untuned 50/50) | `68.09` | `33.50` | `50.35` | `39.35` | `47.82` | PASS (2/4, 2/4, 4/4) | PASS (3/4, `qasper` `+1.58`) |
+| `turbo-chunker-254-200` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `67.84` | `34.09` | `49.78` | `36.59` | `47.08` | PASS (2/4, 2/4, 4/4) | FAIL (3/4, `qasper` `-1.17`) |
 
 Held-out `bm25_weight` selection (`Hybrid::choose_bm25_weight_held_out`,
 `analysis/eval/tests/heldout_hybrid.rs`,
@@ -347,33 +351,33 @@ Structure ablation (`--structure none`, `plain`, and `markdown`) at `--max 254 -
 
 | Structure | scifact | nfcorpus | arguana | qasper | gutenqa |
 | --- | --- | --- | --- | --- | --- |
-| none | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2792 (9453) | 0.8631 (69197) |
-| plain | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
-| markdown | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2825 (10544) | 0.8634 (69228) |
+| none | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2763 (9378) | 0.8465 (62817) |
+| plain | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2823 (10727) | 0.8464 (62843) |
+| markdown | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2826 (10686) | 0.8466 (62842) |
 
 Larger embedders with `turbo-chunker --max 254 --target 200`, nDCG@10:
 
 | Embedder | Retrieval | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
-| all-MiniLM-L6-v2 | dense | `65.06` | `31.76` | `49.55` | `28.17` | `43.63` |
-| bge-small-en-v1.5 | dense | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
-| bge-base-en-v1.5 | dense | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
-| all-MiniLM-L6-v2 | hybrid, `w = 0.35` | `69.24` | `34.28` | `51.65` | `37.85` | `48.25` |
-| bge-small-en-v1.5 | hybrid, `w = 0.35` | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
-| bge-base-en-v1.5 | hybrid, `w = 0.35` | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+| all-MiniLM-L6-v2 | dense | `65.02` | `31.79` | `49.44` | `28.23` | `43.62` |
+| bge-small-en-v1.5 | dense | `70.55` | `35.14` | `62.63` | `30.15` | `49.62` |
+| bge-base-en-v1.5 | dense | `73.75` | `36.57` | `64.17` | `30.19` | `51.17` |
+| all-MiniLM-L6-v2 | hybrid, `w = 0.35` | `69.07` | `34.22` | `51.49` | `37.64` | `48.10` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | `70.56` | `34.85` | `58.40` | `38.78` | `50.65` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | `72.25` | `36.04` | `60.18` | `38.86` | `51.83` |
 
 Query instruction ablation on `bge-small-en-v1.5` and `bge-base-en-v1.5`, nDCG@10:
 
 | Embedder | Retrieval | Query | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
 | :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
-| bge-small-en-v1.5 | dense | none | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
-| bge-small-en-v1.5 | dense | instruction | `70.21` | `35.15` | `61.39` | `31.28` | `49.51` |
-| bge-base-en-v1.5 | dense | none | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
-| bge-base-en-v1.5 | dense | instruction | `73.90` | `36.70` | `62.84` | `31.64` | `51.27` |
-| bge-small-en-v1.5 | hybrid, `w = 0.35` | none | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
-| bge-small-en-v1.5 | hybrid, `w = 0.35` | instruction | `70.44` | `35.16` | `57.66` | `38.63` | `50.47` |
-| bge-base-en-v1.5 | hybrid, `w = 0.35` | none | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
-| bge-base-en-v1.5 | hybrid, `w = 0.35` | instruction | `71.77` | `36.42` | `59.29` | `39.22` | `51.68` |
+| bge-small-en-v1.5 | dense | none | `70.55` | `35.14` | `62.63` | `30.15` | `49.62` |
+| bge-small-en-v1.5 | dense | instruction | `70.21` | `35.12` | `61.26` | `31.09` | `49.42` |
+| bge-base-en-v1.5 | dense | none | `73.75` | `36.57` | `64.17` | `30.19` | `51.17` |
+| bge-base-en-v1.5 | dense | instruction | `73.90` | `36.65` | `62.63` | `31.00` | `51.04` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | none | `70.56` | `34.85` | `58.40` | `38.78` | `50.65` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | instruction | `70.44` | `35.14` | `57.49` | `38.93` | `50.50` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | none | `72.25` | `36.04` | `60.18` | `38.86` | `51.83` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | instruction | `71.74` | `36.43` | `59.15` | `39.16` | `51.62` |
 
 ### Encoder audit and optional Granite download
 
