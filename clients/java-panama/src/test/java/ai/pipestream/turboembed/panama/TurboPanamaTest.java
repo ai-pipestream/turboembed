@@ -7,6 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.pipestream.turboembed.TurboException;
+import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboPiiConfidence;
+import ai.pipestream.turboembed.TurboSpanData;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
