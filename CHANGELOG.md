@@ -15,6 +15,10 @@ for the release after it goes above it.
 
 ### Added
 
+- A pure Java API module shared by the JNI and Panama implementations,
+  with typed runtime selection, one adapter package, and shared native
+  conformance tests (`clients/java-api`, #1814).
+
 - Morphology rows in the in-process analyzer and the Java bindings
   (`clients/java-panama`, `clients/java-jni`):
   a bundle's morphology head writes `TURBO_ANALYSIS_LAYER_MORPHOLOGY`
@@ -117,6 +121,17 @@ for the release after it goes above it.
   a head gives the same bits on every machine (#1779).
 
 ### Breaking
+
+- Java callers now import shared values, exceptions and interfaces from
+  `ai.pipestream.turboembed`, and adapters from its `opennlp` package.
+  Add `turboembed-api` alongside either matching-version bridge jar.
+  The duplicated bridge-local value classes and JNI adapter package are
+  removed. JNI retains its old exception name as a deprecated subclass
+  for existing native libraries; catch the shared exception in new code.
+  Bridge-local analyzer, result, session and span-view classes implement
+  the common contracts; Panama's buffer callbacks remain concrete-only.
+  Native entry points and layouts are unchanged (#1814).
+
 
 - The model ids layers record (`ModelRef.id`, in `TypedLayer`
   provenance, DocumentGraph bytes and evidence records) moved from the

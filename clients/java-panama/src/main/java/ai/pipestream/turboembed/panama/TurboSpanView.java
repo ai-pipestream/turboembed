@@ -1,5 +1,8 @@
 package ai.pipestream.turboembed.panama;
 
+import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboPiiConfidence;
+import ai.pipestream.turboembed.TurboSpanData;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -13,7 +16,7 @@ import java.util.OptionalLong;
  * The native span array, pool, and graph are not copied. All accessors fail after the owning
  * result closes. Call {@link #materialize()} for an explicit copied snapshot.
  */
-public final class TurboSpanView {
+public final class TurboSpanView implements ai.pipestream.turboembed.TurboSpanView {
     private final TurboAnalysisResult owner;
     private final int index;
 
