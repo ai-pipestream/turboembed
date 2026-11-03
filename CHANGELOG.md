@@ -21,7 +21,7 @@ for the release after it goes above it.
   `AWS_*` environment, and zoo mode takes such a source on AWS
   (`turbo_zoo::SignIn::S3Keys`, `S3Bucket::signed_in`). Zoo mode's
   read-through now fetches through the reading user's model sources
-  before the catalog's own, as `InstallModel` does (#1744).
+  before the catalog's own, as `InstallModel` does (#1853).
 - A pure Java API module shared by the JNI and Panama implementations,
   with typed runtime selection, one adapter package, and shared native
   conformance tests (`clients/java-api`, #1814).
