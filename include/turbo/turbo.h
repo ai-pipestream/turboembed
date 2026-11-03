@@ -302,7 +302,11 @@ typedef struct turbo_capability {
     uint32_t status;              /* TURBO_CAP_* */
     uint32_t dtype;               /* compute dtype used, TURBO_DTYPE_*; 0 when UNSUPPORTED */
     uint32_t options_honored;     /* bit (i-1) set: field i of the task's options struct is
-                                   * honored; 0 when UNSUPPORTED */
+                                   * honored; 0 when UNSUPPORTED. For embed's field 9
+                                   * (layers), whose 0 and 1 every device takes, the bit
+                                   * says the device reads the earlier layers of the
+                                   * encoder families turbo_embed_write_layer_ranges
+                                   * names; a static model has its table alone there */
     float    cosine_floor;        /* lowest cosine against the fp32 reference in the record, 0 if none */
     float    speed_ratio;         /* our p50 latency over the fastest reference program's, from the
                                    * record, 0 if none */
@@ -561,7 +565,8 @@ typedef struct turbo_embed_options {
     uint32_t layers;        /* 9: on range writes (turbo_embed_write_ranges), 0 or 1 for
                                the final layer alone, or K to pool each range from each of
                                the encoder's last K layers in one pass ([K, count, dim],
-                               see turbo_embed_write_layer_ranges); refused above 1 on row
+                               see turbo_embed_write_layer_ranges, which says what is
+                               refused and in what order); refused above 1 on row
                                writes */
     uint32_t reserved;      /* must be 0 */
 } turbo_embed_options;
@@ -677,11 +682,14 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * last block is what turbo_embed_write_ranges writes, bit for bit. A
  * ModernBERT's final_norm is applied to every layer read, as to the
  * last, so each block is on the scale of the final states. layers of 1
- * is turbo_embed_write_ranges; 0 or over the model's layers is
- * TURBO_E_INVALID_ARGUMENT; above 1 on a backend or model that does not
- * read the earlier layers (the cpu backend's BERT, RoBERTa, ModernBERT,
- * nomic-bert and DeBERTa-v2 encoders do), or on a model whose device
- * applies a span head, is TURBO_E_UNSUPPORTED_OPTION. count times layers
+ * is turbo_embed_write_ranges. 0, or over an encoder's layers, is
+ * TURBO_E_INVALID_ARGUMENT naming field 9 on every device: the count is
+ * checked against the model before the device. Only then is above 1 on a
+ * device whose turbo_capability.options_honored lacks field 9's bit, on a
+ * static model (its table is its one layer), or on a model whose device
+ * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu
+ * backend sets the bit and reads the earlier layers of its BERT, RoBERTa,
+ * ModernBERT, nomic-bert and DeBERTa-v2 encoders. count times layers
  * over the session's max_ranges is TURBO_E_CAPACITY. Everything else is as
  * for turbo_embed_write_ranges, each row cut and normalized as there. */
 int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,

@@ -74,7 +74,12 @@ post-norm, and a BERT, RoBERTa or nomic-bert layer's states are pooled
 where the layer leaves them. Block k is the same bits a model cut after
 layer L - layers + k + 1 writes for the ranges
 (`core/src/cpu/encoder/taps_tests.rs`). Static models read only their
-table.
+table. The embed cell sets field 9's bit in
+`turbo_capability.options_honored` (bit 8, so the cpu's cells read
+0b111111111); the other backends leave it clear. A count of 0, or over
+an encoder's layers, is `TURBO_E_INVALID_ARGUMENT` naming field 9 on
+every device, checked before whether the device reads the earlier
+layers, so a request gets the same code wherever it runs.
 
 For a static model, a range's vector is the mean of the table rows of
 its live tokens, times their weights where the model has them: the sum
