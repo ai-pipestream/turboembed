@@ -34,6 +34,9 @@ constant_enum! {
         ZeroShotCategorizer => "COMPONENT_ZERO_SHOT_CATEGORIZER",
         /// Typed dependency arcs between tokens.
         DependencyParser => "COMPONENT_DEPENDENCY_PARSER",
+        /// Mentions grouped into coreference chains by an antecedent-ranking
+        /// head (`HEAD_COREF_RANKER`).
+        CoreferenceResolver => "COMPONENT_COREFERENCE_RESOLVER",
         /// One pooled, normalized vector per text (a BGE dense retrieval
         /// encoder).
         DenseEncoder => "COMPONENT_DENSE_ENCODER",
