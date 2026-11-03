@@ -62,6 +62,7 @@ fn spec(adapter: Option<(u32, u32)>) -> HeadSpec {
         decode: Decode::Argmax,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: Some(H),
         layer_mix: None,
         span: None,

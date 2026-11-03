@@ -20,6 +20,7 @@ fn spec() -> HeadSpec {
         decode: Decode::Mst,
         biaffine: Some(Biaffine { arc: 1, rel: 1 }),
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         layer_mix: None,
         span: None,

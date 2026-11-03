@@ -22,6 +22,7 @@ fn spec(adapter: Option<(u32, u32)>) -> HeadSpec {
         decode: Decode::Mst,
         biaffine: Some(Biaffine { arc: 3, rel: 2 }),
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         layer_mix: None,
         span: None,

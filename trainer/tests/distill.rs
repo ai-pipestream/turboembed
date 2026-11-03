@@ -42,6 +42,7 @@ fn spec(labels: &[&str], adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         decode: Decode::Argmax,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: hash.then_some(HashEmbed { dim: 2, rows: [8, 4, 4, 4] }),
         layer_mix: None,
         span: None,

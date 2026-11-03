@@ -59,6 +59,7 @@ pub fn spec(corpus: &RelationCorpus, o: &RelationOptions) -> Result<HeadSpec> {
         decode: Decode::Relations,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         layer_mix: None,
         span: None,

@@ -162,7 +162,23 @@ fn train_lemma_writes_a_lemmatizer_the_core_loads() {
     EditTreeLemmatizer::from_tensors(&head, 32, &get).unwrap();
     let stored: HeadSpec = serde_json::from_slice(&fs::read(out.join("head.json")).unwrap()).unwrap();
     assert_eq!(stored, head);
-    for d in [data, out] {
+    assert!(head.seen_lookup.is_none());
+
+    let out_lookup = scratch("out-lemma-lookup");
+    let rl = train("train-lemma", &data, &out_lookup, &["--min-tree-freq", "3", "--seen-lookup", "2"]);
+    let hl = rl.head.clone().unwrap();
+    let lookup = hl.seen_lookup.as_ref().expect("seen_lookup recorded in head.json and receipt.json");
+    assert_eq!(lookup.min_freq, 2);
+    assert!(!lookup.entries.is_empty());
+    assert!(lookup.entries.iter().any(|e| e.form == "dogs" && e.lemma == "dog" && e.tag.is_none()));
+    let tl = check_tensors(&out_lookup, &hl, turbo::head::lemmatizer::tensors(&hl, 32));
+    let get_l = |s: &str| tl.iter().find(|(k, _, _)| *k == format!("heads.lemma.{s}")).map(|(_, _, v)| v.clone());
+    let loaded = EditTreeLemmatizer::from_tensors(&hl, 32, &get_l).unwrap();
+    assert_eq!(loaded.lemmas(&[None], &["dogs"]).unwrap(), ["dog"]);
+    let verified = turbo_trainer_recipes::assemble::verify_run(&out_lookup).unwrap_err();
+    assert!(verified.0.contains("corpus.recorded is false"), "{verified:?}");
+
+    for d in [data, out, out_lookup] {
         fs::remove_dir_all(d).unwrap();
     }
 }
@@ -216,6 +232,15 @@ fn ud_commands_refuse_tag_only_settings_and_unknown_treebanks() {
     assert!(!o.status.success());
     assert!(String::from_utf8_lossy(&o.stderr).contains("--crf"));
     assert!(!out.exists(), "a refused run leaves no directory");
+    for bad in [
+        vec!["train-parse", "--corpus", "ud-en-ewt", "--dir", "x", "--bundle", "x", "--out", out.to_str().unwrap(), "--seen-lookup", "1"],
+        vec!["train-lemma", "--corpus", "ud-en-ewt", "--dir", "x", "--bundle", "x", "--out", out.to_str().unwrap(), "--seen-lookup", "0"],
+    ] {
+        let o = run(&bad);
+        assert!(!o.status.success());
+        assert!(String::from_utf8_lossy(&o.stderr).contains("--seen-lookup"));
+        assert!(!out.exists());
+    }
 }
 
 #[test]

@@ -3,12 +3,12 @@
 //! lemmas, scored on dev by lemma accuracy through the core's own
 //! lemmatizer (`turbo::head::EditTreeLemmatizer`).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use turbo::head::EditTreeLemmatizer;
 use turbo::head::edit_tree::EditTree;
 use turbo::head::lemmatizer::Work as CoreWork;
-use turbo::manifest::{HeadSpec, MAX_LABELS};
+use turbo::manifest::{HeadSpec, MAX_LABELS, MAX_SEEN_FORM_BYTES, MAX_SEEN_LOOKUP, SeenLemma, SeenLookup};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
@@ -52,6 +52,56 @@ pub fn mine_trees<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>, min_f
     kept.into_iter().map(|(l, _)| l).collect()
 }
 
+/// Unambiguous training word forms seen at least `min_freq` times, for
+/// [`HeadSpec::seen_lookup`]: a form whose training occurrences all had
+/// one lemma is listed with that lemma, ordered by form.
+pub fn mine_seen_lookup<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>, min_freq: usize) -> SeenLookup {
+    mine_seen_lookup_tagged(pairs.into_iter().map(|(f, l)| (f, None, l)), min_freq)
+}
+
+/// [`mine_seen_lookup`] with an optional tag index per training word:
+/// a form that is unambiguous across all tags is listed with `tag: None`;
+/// a form that is ambiguous overall is listed with `tag: Some(t)` for each
+/// tag `t` under which it had one lemma at least `min_freq` times.
+pub fn mine_seen_lookup_tagged<'a>(
+    triples: impl IntoIterator<Item = (&'a str, Option<u32>, &'a str)>,
+    min_freq: usize,
+) -> SeenLookup {
+    let min_freq = min_freq.max(1);
+    let mut by_form: BTreeMap<&'a str, BTreeMap<&'a str, usize>> = BTreeMap::new();
+    let mut by_tag: BTreeMap<(&'a str, u32), BTreeMap<&'a str, usize>> = BTreeMap::new();
+    for (form, tag, lemma) in triples {
+        if form.is_empty() || form.len() > MAX_SEEN_FORM_BYTES || lemma.is_empty() || lemma.len() > MAX_SEEN_FORM_BYTES
+        {
+            continue;
+        }
+        *by_form.entry(form).or_default().entry(lemma).or_default() += 1;
+        if let Some(t) = tag {
+            *by_tag.entry((form, t)).or_default().entry(lemma).or_default() += 1;
+        }
+    }
+    let mut entries = Vec::new();
+    for (&form, lemmas) in &by_form {
+        if lemmas.len() == 1 {
+            let (&lemma, &count) = lemmas.iter().next().expect("one lemma");
+            if count >= min_freq {
+                entries.push(SeenLemma { form: form.to_owned(), tag: None, lemma: lemma.to_owned() });
+            }
+        } else {
+            for (&(f, t), tag_lemmas) in by_tag.range((form, 0)..=(form, u32::MAX)) {
+                if tag_lemmas.len() == 1 {
+                    let (&lemma, &count) = tag_lemmas.iter().next().expect("one lemma");
+                    if count >= min_freq {
+                        entries.push(SeenLemma { form: f.to_owned(), tag: Some(t), lemma: lemma.to_owned() });
+                    }
+                }
+            }
+        }
+    }
+    entries.truncate(MAX_SEEN_LOOKUP);
+    SeenLookup { min_freq: min_freq as u32, entries }
+}
+
 /// A sentence with each word's gold tree among the head's, None when the
 /// head does not have it.
 pub(crate) struct Prepared {
@@ -77,7 +127,7 @@ fn accuracy_of<'a>(head: &EditTreeLemmatizer, examples: impl Iterator<Item = &'a
         head.scores(&e.features, &words, tags, &mut scores, &mut w)?;
         let forms: Vec<&str> = e.forms.iter().map(String::as_str).collect();
         head.decode(&scores, &forms, &mut trees)?;
-        let lemmas = head.lemmas(&trees, &forms)?;
+        let lemmas = head.lemmas_tagged(&trees, &forms, tags)?;
         right += lemmas.iter().zip(&e.lemmas).filter(|(a, b)| a == b).count();
         total += n;
     }

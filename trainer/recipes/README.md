@@ -76,7 +76,7 @@ turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bun
 turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
     (--layer N | --mix [--from-layer N]) [--crf] [--bilstm ..] [--hash-embed ..] [training settings]
 turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
-    [as train, without --crf and --hash-embed] [--min-tree-freq N]
+    [as train, without --crf and --hash-embed] [--min-tree-freq N] [--seen-lookup K]
 turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
@@ -141,7 +141,11 @@ encoder.
 
 `train-lemma` trains the edit-tree lemmatizer (`lemma` on
 `turboembed:lemmas`) over the trees that come up at least
-`--min-tree-freq` times in training (3, spaCy's default);
+`--min-tree-freq` times in training (3, spaCy's default), and with
+`--seen-lookup K` records an unambiguous seen-form lookup table
+(`seen_lookup` in `head.json`, forms seen at least `K` times with a
+single training lemma) applied in front of the edit-tree classifier at
+decode during dev and test evaluation and at runtime;
 `train-parse` trains the biaffine parser (`deps` on
 `turboembed:dependencies`, MST decoding, arc and relation widths 256
 and 64 by default) over the training relations. Both take the

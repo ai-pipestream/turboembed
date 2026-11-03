@@ -277,6 +277,7 @@ pub fn spec(
         decode: Decode::EditTree,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         layer_mix: None,
         span: None,

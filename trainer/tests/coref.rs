@@ -23,6 +23,7 @@ fn spec(adapter: u32, antecedents: u32) -> HeadSpec {
         decode: Decode::Antecedent,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         span: Some(SpanShape { max_words: 2, width_dim: 2 }),
         relation: None,

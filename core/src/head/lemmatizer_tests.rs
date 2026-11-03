@@ -5,7 +5,9 @@
 use super::edit_tree::EditTree;
 use super::lemmatizer::{EditTreeLemmatizer, Work, tensors};
 use super::words::NO_WORD;
-use crate::manifest::{Decode, HeadKind, HeadSpec, PosInput, Scheme, WordPooling};
+use crate::manifest::{
+    Decode, HeadKind, HeadSpec, MAX_SEEN_FORM_BYTES, PosInput, Scheme, SeenLemma, SeenLookup, WordPooling,
+};
 
 const HIDDEN: usize = 6;
 
@@ -27,6 +29,7 @@ fn spec(pos: Option<PosInput>) -> HeadSpec {
         decode: Decode::EditTree,
         biaffine: None,
         pos_input: pos,
+        seen_lookup: None,
         hash_embed: None,
         layer_mix: None,
         span: None,
@@ -171,4 +174,72 @@ fn a_tag_embedding_that_is_not_finite_is_refused() {
         let e = build(&s, Some(v)).unwrap_err();
         assert!(e.message.contains("pos.embedding holds a value that is not finite"), "{v}: {e:?}");
     }
+}
+
+#[test]
+fn seen_lookup_overrides_the_classifier_for_unambiguous_forms_and_tags() {
+    let mut s = spec(Some(PosInput { head: "pos".into(), labels: 3, dim: 2 }));
+    s.seen_lookup = Some(SeenLookup {
+        min_freq: 2,
+        entries: vec![
+            // "jumped" is in the lookup table, overriding tree 2 (identity).
+            SeenLemma { form: "jumped".into(), tag: None, lemma: "jump".into() },
+            // "saw" is ambiguous overall, unambiguous under tag 0 (NOUN) and tag 1 (VERB),
+            // and its verb lemma "see" has no edit tree in `s.labels`.
+            SeenLemma { form: "saw".into(), tag: Some(0), lemma: "saw".into() },
+            SeenLemma { form: "saw".into(), tag: Some(1), lemma: "see".into() },
+            // "went" -> "go" has no edit tree in `s.labels` at all.
+            SeenLemma { form: "went".into(), tag: None, lemma: "go".into() },
+        ],
+    });
+    let h = head(&s);
+    // Trees: 0 walked, 1 running, 2 identity, 3 was->be.
+    // Force every word's highest score onto tree 2 (identity).
+    let forms = ["jumped", "went", "saw", "saw", "saw", "walked"];
+    let scores: Vec<f32> = (0..forms.len()).flat_map(|_| [0.0, 0.0, 9.0, 0.0]).collect();
+    let mut out = Vec::new();
+    h.decode(&scores, &forms, &mut out).unwrap();
+    assert_eq!(out, [Some(2); 6]);
+    // Without tags, tag-less entries apply and tag-specific ones fall back to the decoded tree.
+    assert_eq!(h.lemmas(&out, &forms).unwrap(), ["jump", "go", "saw", "saw", "saw", "walked"]);
+    // With tags, tag 1 maps "saw" to "see", tag 0 to "saw", and tag 2 falls back to the tree.
+    let tags = [1, 1, 0, 1, 2, 1];
+    assert_eq!(h.lemmas_tagged(&out, &forms, Some(&tags)).unwrap(), ["jump", "go", "saw", "see", "saw", "walked"]);
+    assert!(h.lemmas_tagged(&out, &forms, Some(&[0])).is_err(), "a tag a word");
+    assert!(h.lemmas_tagged(&out, &forms, Some(&[0, 0, 0, 0, 0, 3])).is_err(), "tag out of range");
+}
+
+#[test]
+fn the_spec_refuses_malformed_seen_lookup_tables() {
+    let entry = |form: &str, tag: Option<u32>, lemma: &str| SeenLemma { form: form.into(), tag, lemma: lemma.into() };
+    let mut s = spec(None);
+    s.seen_lookup = Some(SeenLookup { min_freq: 0, entries: Vec::new() });
+    assert!(s.validate("head").is_err(), "zero min_freq");
+
+    let mut on_tagger = spec(None);
+    on_tagger.kind = HeadKind::TokenTagger;
+    on_tagger.decode = Decode::Argmax;
+    on_tagger.labels = vec!["NOUN".into()];
+    on_tagger.seen_lookup = Some(SeenLookup { min_freq: 1, entries: vec![entry("dogs", None, "dog")] });
+    assert!(on_tagger.validate("head").is_err(), "seen_lookup on a tagger");
+
+    for bad in [
+        vec![entry("", None, "a")],
+        vec![entry("a", None, "")],
+        vec![entry(&"a".repeat(MAX_SEEN_FORM_BYTES + 1), None, "a")],
+        vec![entry("a", Some(0), "a")],
+        vec![entry("b", None, "b"), entry("a", None, "a")],
+        vec![entry("a", None, "a"), entry("a", None, "b")],
+    ] {
+        let mut s = spec(None);
+        s.seen_lookup = Some(SeenLookup { min_freq: 1, entries: bad });
+        assert!(s.validate("head").is_err());
+    }
+
+    let mut tagged = spec(Some(PosInput { head: "pos".into(), labels: 2, dim: 2 }));
+    tagged.seen_lookup =
+        Some(SeenLookup { min_freq: 1, entries: vec![entry("saw", Some(0), "saw"), entry("saw", Some(1), "see")] });
+    assert!(tagged.validate("head").is_ok());
+    tagged.seen_lookup = Some(SeenLookup { min_freq: 1, entries: vec![entry("saw", Some(2), "see")] });
+    assert!(tagged.validate("head").is_err(), "tag past pos_input.labels");
 }

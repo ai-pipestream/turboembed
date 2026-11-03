@@ -26,6 +26,7 @@ fn spec() -> HeadSpec {
         decode: Decode::Argmax,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         layer_mix: None,
         license_class: None,

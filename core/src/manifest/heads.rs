@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::heads_kinds::{CorefShape, SpanShape};
+use super::heads_kinds::{CorefShape, SeenLookup, SpanShape};
 use super::helpers::{fits, positive, required};
 use super::{Format, LayerMix, LicenseClass, Manifest, RelationShape};
 use crate::status::{Result, invalid};
@@ -55,6 +55,11 @@ pub struct HeadSpec {
     /// kind, and optional for a lemmatizer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos_input: Option<PosInput>,
+    /// Unambiguous seen training forms a HEAD_EDIT_TREE_LEMMATIZER
+    /// answers before its edit-tree classifier; absent for every other
+    /// kind, and optional for a lemmatizer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seen_lookup: Option<SeenLookup>,
     /// Hashed embeddings of the word's own text joined after its pooled
     /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
     #[serde(default, skip_serializing_if = "Option::is_none")]

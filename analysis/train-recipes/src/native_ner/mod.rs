@@ -36,6 +36,7 @@ pub fn head() -> HeadSpec {
         decode: Decode::Crf,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         layer_mix: None,
         span: None,
