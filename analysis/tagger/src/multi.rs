@@ -163,7 +163,7 @@ impl<'a> Input<'a> {
         Ok(&self.features[pooling_of(&self.poolings, pooling)?])
     }
 
-    pub(crate) fn tapped(&self, pooling: WordPooling, taps: usize) -> Result<std::borrow::Cow<'_, [Vec<f32>]>, String> {
+    pub fn tapped(&self, pooling: WordPooling, taps: usize) -> Result<std::borrow::Cow<'_, [Vec<f32>]>, String> {
         Ok(tail_taps(self.features(pooling)?, self.taps, taps))
     }
 }

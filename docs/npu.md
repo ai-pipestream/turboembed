@@ -96,7 +96,8 @@ extension exports the compiled blob, a load initializes that blob as a
   `MODEL` and `FASTEST`, honoring `normalize`, `pooling` and
   `output_dim` (the core owns `truncate`, `max_tokens`,
   `prompt_role`, `quantization` and `int8_ranges`, and sets their bits
-  itself, so `turbo_capability.options_honored` reads 0b11111111). The reported
+  itself, so `turbo_capability.options_honored` reads 0b11111111; the bit
+  of `layers`, field 9, is clear, so it takes 0 or 1 alone). The reported
   dtype is `TURBO_DTYPE_F16`, the compute dtype the published npu
   recipes declare, which the backend knows without loading an
   artifact. `model_load` still reads the compiled graph, and

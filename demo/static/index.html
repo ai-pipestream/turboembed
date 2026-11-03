@@ -269,6 +269,10 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <label>Name <input id="sources-name" autocomplete="off" placeholder="team drive"></label>
       <label>Address <input id="sources-address" autocomplete="off" placeholder="gdrive://FOLDER-ID, s3://bucket/prefix or file:///dir"></label>
       <label>API key <input id="sources-key" type="password" autocomplete="off" placeholder="for a Drive folder shared by link, optional"></label>
+      <label>S3 key id <input id="sources-s3-key-id" autocomplete="off" placeholder="for an s3:// bucket with its own keys, optional"></label>
+      <label>S3 secret <input id="sources-s3-secret" type="password" autocomplete="off"></label>
+      <label>S3 region <input id="sources-s3-region" autocomplete="off" placeholder="us-east-1"></label>
+      <label>S3 endpoint <input id="sources-s3-endpoint" autocomplete="off" placeholder="empty for AWS, or the URL of another store"></label>
       <div class="row"><button type="submit" class="go">Add source</button></div>
     </form>
     <div id="sources-drive" class="options" hidden>

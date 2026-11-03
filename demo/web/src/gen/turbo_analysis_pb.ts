@@ -247,10 +247,11 @@ export type BundleCapabilities = Message<"turbo.result.v1.BundleCapabilities"> &
 
   /**
    * The AnalyzeDocumentProgressive head steps this bundle's heads serve
-   * ("turbo-tagger:pos", "turbo-tagger:entities", "turbo-tagger:dependencies",
-   * "turbo-tagger:lemmas", "turbo-tagger:morphology", "turbo-tagger:spans",
-   * "turbo-tagger:relations"), in that order; empty for a bundle without
-   * heads. "turbo-tagger:heads" runs every one listed.
+   * ("turbo-tagger:pos", "turbo-tagger:morphology", "turbo-tagger:entities",
+   * "turbo-tagger:dependencies", "turbo-tagger:lemmas", "turbo-tagger:spans",
+   * "turbo-tagger:relations", "turbo-tagger:sentences", "turbo-tagger:words",
+   * "turbo-tagger:coref"), in that order; empty for a bundle without heads.
+   * "turbo-tagger:heads" and the annotate-v2 profile run every one listed.
    *
    * @generated from field: repeated string head_steps = 9;
    */
