@@ -1,5 +1,7 @@
 //! Compile the actual host kernels and check concurrent launch isolation.
-#![cfg(feature = "cuda-shim")]
+//! This harness compiles the shim itself, so ordinary Unix test shards must
+//! discover it without the cuda-shim feature. Windows has no C++ toolchain guarantee.
+#![cfg(unix)]
 
 use std::path::PathBuf;
 use std::process::Command;
