@@ -16,7 +16,7 @@ use std::sync::Arc;
 use turbo::bundle::Bundle;
 use turbo::head::relation::{Mention, RelationWork};
 use turbo::head::{RelationClassifier, sigmoid_f64};
-use turbo::manifest::{HeadKind, NO_RELATION};
+use turbo::manifest::{HeadKind, HeadSpec, NO_RELATION};
 use turbo::status::Error as CoreError;
 use turbo_analysis::{
     Annotator, Edge, Edges, Error, Execution, Ix, Layer as _, ModelRef, Refs, Span, Spans, Tag, TagSet, View,
@@ -32,25 +32,20 @@ use crate::segment::Reader;
 /// and its words `first..=last` in the sequence.
 type Found = Vec<(u32, u32, u32, u32)>;
 
-/// Writes the relation layer and its edges from a relation classifier
-/// head; each relation's score is the logistic of its margin over `none`,
-/// the pair's threshold, so a pair holding two relations scores each.
-pub struct RelationTagger {
+/// A relation classifier head and the kinds its relation layer names;
+/// each relation's score is the logistic of its margin over `none`, the
+/// pair's threshold, so a pair holding two relations scores each.
+pub struct RelationHead {
     head: RelationClassifier,
     kinds: Arc<TagSet>,
     /// Each label's kind index; None for `none`.
     kind_of: Vec<Option<u16>>,
-    read: Reader,
 }
 
-impl RelationTagger {
-    /// The head named `name` in the bundle at `dir`, or with no name the
-    /// one head whose `layer` is the relation layer's.
-    pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<RelationTagger, CoreError> {
-        let bundle = Bundle::open(dir)?;
-        let spec = find_head(&bundle, name, Relations::ID, HeadKind::RelationClassifier)?;
-        let head = RelationClassifier::load(&bundle, &spec.name)?;
-        let read = Reader::open(dir, &bundle, spec, head.hidden(), o)?;
+impl RelationHead {
+    /// The relation classifier head `spec` of `bundle`.
+    pub fn load(bundle: &Bundle, spec: &HeadSpec) -> Result<RelationHead, CoreError> {
+        let head = RelationClassifier::load(bundle, &spec.name)?;
         let mut kind_of = Vec::new();
         let mut types: Vec<&str> = Vec::new();
         for l in head.labels() {
@@ -60,7 +55,7 @@ impl RelationTagger {
             }));
         }
         let kinds = TagSet::new(&spec.name, &types);
-        Ok(RelationTagger { head, kinds, kind_of, read })
+        Ok(RelationHead { head, kinds, kind_of })
     }
 
     pub fn head(&self) -> &RelationClassifier {
@@ -101,25 +96,34 @@ impl RelationTagger {
         out
     }
 
-    /// The relations the head keeps among the view's entities, in order
-    /// of sequence, then head entity, then tail entity.
-    pub fn relations(
+    /// The relations the head keeps among the view's entities over the
+    /// sequences `all`, in order of sequence, then head entity, then tail
+    /// entity. Only a sequence of two mentions or more has a pair to
+    /// score: `features` is handed those sequences' places in `all` and
+    /// returns each one's word features under the head's pooling and
+    /// taps, and is not called when there is none.
+    pub fn relations_with(
         &self,
         view: &View,
         tokens: &Tokens,
         entities: &Entities,
-        sentences: Option<&Sentences>,
-        subwords: Option<&Subwords>,
+        all: Vec<Vec<usize>>,
+        features: impl FnOnce(&[usize], &[Vec<usize>]) -> Result<Vec<Vec<f32>>, String>,
     ) -> Result<(Relations, Edges<Entities, Entities>), String> {
         if entities.spans.view() != view.id() {
             return Err("the entities are in another view".into());
         }
         entities.check()?;
-        let all = HeadRunner::sequences(view, tokens, sentences)?;
         let by_seq = self.mentions(tokens, entities, &all);
-        // Only a sequence of two mentions or more has a pair to score.
-        let (seqs, found): (Vec<Vec<usize>>, Vec<Found>) =
-            all.into_iter().zip(by_seq).filter(|(_, m)| m.len() > 1).unzip();
+        let mut places = Vec::new();
+        let (mut seqs, mut found): (Vec<Vec<usize>>, Vec<Found>) = (Vec::new(), Vec::new());
+        for (i, (seq, m)) in all.into_iter().zip(by_seq).enumerate() {
+            if m.len() > 1 {
+                places.push(i);
+                seqs.push(seq);
+                found.push(m);
+            }
+        }
         let mut out = Relations {
             spans: Spans::new(view.id()),
             subject: Vec::new(),
@@ -128,11 +132,10 @@ impl RelationTagger {
             kinds: self.kinds.clone(),
             score: Vec::new(),
         };
-        let features = if seqs.is_empty() {
-            Vec::new()
-        } else {
-            self.read.features(view, tokens, &seqs, subwords, self.head.spec())?
-        };
+        let features = if seqs.is_empty() { Vec::new() } else { features(&places, &seqs)? };
+        if features.len() != seqs.len() {
+            return Err(format!("{} feature rows for {} sequences", features.len(), seqs.len()));
+        }
         let (mut scores, mut kept, mut w) = (Vec::new(), Vec::new(), RelationWork::default());
         for ((seq, f), found) in seqs.iter().zip(&features).zip(&found) {
             let words: Vec<u32> = (0..seq.len() as u32).collect();
@@ -163,6 +166,58 @@ impl RelationTagger {
     }
 }
 
+/// Writes the relation layer and its edges from a relation classifier
+/// head, reading the words through the bundle's encoder itself.
+pub struct RelationTagger {
+    head: RelationHead,
+    read: Reader,
+}
+
+impl RelationTagger {
+    /// The head named `name` in the bundle at `dir`, or with no name the
+    /// one head whose `layer` is the relation layer's.
+    pub fn open(dir: &Path, name: Option<&str>, o: &EncoderOptions) -> Result<RelationTagger, CoreError> {
+        let bundle = Bundle::open(dir)?;
+        let spec = find_head(&bundle, name, Relations::ID, HeadKind::RelationClassifier)?;
+        let head = RelationHead::load(&bundle, spec)?;
+        let read = Reader::open(dir, &bundle, spec, head.head.hidden(), o)?;
+        Ok(RelationTagger { head, read })
+    }
+
+    pub fn head(&self) -> &RelationClassifier {
+        &self.head.head
+    }
+
+    pub fn kinds(&self) -> &Arc<TagSet> {
+        &self.head.kinds
+    }
+
+    /// Rows the encoder has read so far.
+    pub fn rows(&self) -> u64 {
+        self.read.rows()
+    }
+
+    /// The relations the head keeps among the view's entities, in order
+    /// of sequence, then head entity, then tail entity.
+    pub fn relations(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        entities: &Entities,
+        sentences: Option<&Sentences>,
+        subwords: Option<&Subwords>,
+    ) -> Result<(Relations, Edges<Entities, Entities>), String> {
+        if entities.spans.view() != view.id() {
+            return Err("the entities are in another view".into());
+        }
+        let all = HeadRunner::sequences(view, tokens, sentences)?;
+        let spec = self.head.head.spec();
+        self.head.relations_with(view, tokens, entities, all, |_, seqs| {
+            self.read.features(view, tokens, seqs, subwords, spec)
+        })
+    }
+}
+
 impl Annotator for RelationTagger {
     const ID: &'static str = "turbo-tagger-relations";
     type Reads = (View, Tokens, Entities, Option<Subwords>, Option<Sentences>);
@@ -182,6 +237,6 @@ impl Annotator for RelationTagger {
     }
 
     fn config_hash(&self) -> u64 {
-        self.read.config(self.head.spec())
+        self.read.config(self.head.head.spec())
     }
 }

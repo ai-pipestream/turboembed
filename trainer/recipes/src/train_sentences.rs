@@ -47,6 +47,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         biaffine: None,
         pos_input: None,
         hash_embed: hash,
+        seen: None,
         layer_mix: None,
         span: None,
         relation: None,

@@ -34,14 +34,40 @@ pub const NO_RELATION: &str = "none";
 pub const MAX_TYPE_DIM: u32 = 256;
 /// The most encoder layers a head's scalar mix combines.
 pub const MAX_MIX_LAYERS: u32 = 128;
+/// The most entries a token split head's seen lookup holds.
+pub const MAX_SEEN_TOKENS: usize = 1 << 16;
+
+/// One entry of a token split head's seen lookup: a token whose every
+/// training occurrence split the same way, and the label of that split.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SeenToken {
+    pub token: String,
+    pub label: String,
+}
+
+/// A token split head's seen-token lookup (#1803): the tokens whose
+/// training split was unambiguous over at least `min_count` occurrences,
+/// each with that split's label. A looked-up token takes its label
+/// without the scorer being read; the head decides every other token.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SeenLookup {
+    pub min_count: u32,
+    pub tokens: Vec<SeenToken>,
+}
 
 /// A learned scalar mix (ELMo, Peters et al. 2018) of the encoder's last
-/// `layers` layers: `gamma * sum_k softmax(weight)_k * tap_k`, with
-/// tensors `mix.weight` `[layers]` and `mix.gamma` `[1]`.
+/// `layers` layers (`gamma * sum_k softmax(weight)_k * tap_k`, with
+/// tensors `mix.weight` `[layers]` and `mix.gamma` `[1]`), or a single
+/// chosen 1-based encoder layer `layer` (`architecture.layers - layers + 1`)
+/// tapped directly without `mix.weight` or `mix.gamma`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LayerMix {
     pub layers: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer: Option<u32>,
 }
 
 /// How a coreference ranker scores a pair: each mention's vector is
@@ -128,6 +154,9 @@ impl HeadSpec {
                 at("span")
             )));
         }
+        if self.seen.is_some() && self.kind != HeadKind::TokenSplit {
+            return Err(invalid(format!("manifest.json: {}: a seen lookup is a HEAD_TOKEN_SPLIT's alone", at("seen"))));
+        }
         if coref != self.coref.is_some() {
             return Err(invalid(format!(
                 "manifest.json: {}: given exactly when the kind is HEAD_COREF_RANKER",
@@ -160,6 +189,9 @@ impl HeadSpec {
                     crate::head::split::parse(l).map_err(|e| {
                         invalid(format!("manifest.json: {}: {}", at(&format!("labels[{j}]")), e.message))
                     })?;
+                }
+                if let Some(s) = &self.seen {
+                    self.check_seen(at, s)?;
                 }
                 Ok(())
             }
@@ -226,6 +258,37 @@ impl HeadSpec {
         Ok(())
     }
 
+    /// A seen lookup's own bounds: a positive `min_count`, at most
+    /// MAX_SEEN_TOKENS entries, each token listed once, each label one
+    /// of the head's.
+    fn check_seen(&self, at: &dyn Fn(&str) -> String, s: &SeenLookup) -> Result<()> {
+        positive(&at("seen.min_count"), s.min_count)?;
+        if s.tokens.len() > MAX_SEEN_TOKENS {
+            return Err(invalid(format!(
+                "manifest.json: {}: {} tokens, at most {MAX_SEEN_TOKENS}",
+                at("seen.tokens"),
+                s.tokens.len()
+            )));
+        }
+        let mut listed = std::collections::HashSet::with_capacity(s.tokens.len());
+        for (j, e) in s.tokens.iter().enumerate() {
+            let field = at(&format!("seen.tokens[{j}].token"));
+            required(&field, &e.token)?;
+            fits(&field, &e.token, 256)?;
+            if !listed.insert(&e.token) {
+                return Err(invalid(format!("manifest.json: {field}: {:?} is listed twice", e.token)));
+            }
+            if !self.labels.contains(&e.label) {
+                return Err(invalid(format!(
+                    "manifest.json: {}: {:?} is not one of the head's labels",
+                    at(&format!("seen.tokens[{j}].label")),
+                    e.label
+                )));
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_word_inputs(&self, at: &dyn Fn(&str) -> String) -> Result<()> {
         if let Some(h) = &self.hash_embed {
             if !self.kind.scores_words() {
@@ -261,6 +324,9 @@ impl HeadSpec {
             positive(&field, m.layers)?;
             if m.layers > MAX_MIX_LAYERS {
                 return Err(invalid(format!("manifest.json: {field}: {}, at most {MAX_MIX_LAYERS}", m.layers)));
+            }
+            if let Some(layer) = m.layer {
+                positive(&at("layer_mix.layer"), layer)?;
             }
         }
         Ok(())

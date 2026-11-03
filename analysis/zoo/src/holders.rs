@@ -5,9 +5,9 @@
 //!
 //! The record is a strict JSON file in one canonical form, keyed by user
 //! like the acceptance file. It holds sign-in secrets (a Drive grant's
-//! refresh token, an API key), so it is written readable by its owner
-//! alone on Unix. Opening a holder into a source is the kind registry's
-//! work (`turbo-zoo-remote`), not this file's.
+//! refresh token, an API key, an S3 key pair), so it is written readable
+//! by its owner alone on Unix. Opening a holder into a source is the kind
+//! registry's work (`turbo-zoo-remote`), not this file's.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -55,6 +55,21 @@ pub enum SignIn {
     /// An API key, for a source that takes one (a Drive folder shared by
     /// link).
     ApiKey { key: String },
+    /// An S3 access key pair, and for temporary keys the session token,
+    /// that an `s3://` holder signs its requests with in place of the
+    /// process `AWS_*` environment: on AWS in `region` (else `us-east-1`),
+    /// or on the S3-compatible store at `endpoint` (`http://host:port` or
+    /// `https://host`).
+    S3Keys {
+        access_key_id: String,
+        secret_access_key: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        session_token: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        region: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        endpoint: Option<String>,
+    },
 }
 
 impl SignIn {
@@ -62,7 +77,13 @@ impl SignIn {
         matches!(self, SignIn::Environment)
     }
 
-    /// Every secret it holds, each printable ASCII and not empty.
+    /// Checks it as [`Holder::new`] does: every secret printable ASCII
+    /// and not empty; an S3 region of lower-case letters, digits and
+    /// hyphens; an S3 endpoint `http://` or `https://` and printable.
+    pub fn validate(&self) -> Result<(), ZooError> {
+        self.check().map_err(ZooError::Holders)
+    }
+
     fn check(&self) -> Result<(), String> {
         let ok = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_graphic());
         let fine = match self {
@@ -71,6 +92,19 @@ impl SignIn {
                 ok(client_id) && ok(refresh_token) && client_secret.as_deref().is_none_or(ok)
             }
             SignIn::ApiKey { key } => ok(key),
+            SignIn::S3Keys { access_key_id, secret_access_key, session_token, region, endpoint } => {
+                if let Some(r) = region
+                    && (r.is_empty() || !r.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
+                {
+                    return Err(format!("{r:?} is not an S3 region name"));
+                }
+                if let Some(e) = endpoint
+                    && !(ok(e) && (e.starts_with("http://") || e.starts_with("https://")))
+                {
+                    return Err(format!("{e:?} is not an S3 endpoint: http://host:port or https://host"));
+                }
+                ok(access_key_id) && ok(secret_access_key) && session_token.as_deref().is_none_or(ok)
+            }
         };
         if fine { Ok(()) } else { Err("a sign-in secret is empty or holds spaces or control characters".into()) }
     }
@@ -82,6 +116,7 @@ impl std::fmt::Debug for SignIn {
             SignIn::Environment => "Environment",
             SignIn::GoogleOauth { .. } => "GoogleOauth(..)",
             SignIn::ApiKey { .. } => "ApiKey(..)",
+            SignIn::S3Keys { .. } => "S3Keys(..)",
         })
     }
 }

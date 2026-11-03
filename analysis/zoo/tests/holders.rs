@@ -125,3 +125,80 @@ fn a_bad_holder_or_file_is_refused() {
         assert!(e.contains(says), "{bad}: {e}");
     }
 }
+
+fn s3_keys(region: Option<&str>, endpoint: Option<&str>) -> SignIn {
+    SignIn::S3Keys {
+        access_key_id: "AKIDEXAMPLE".into(),
+        secret_access_key: "secret-1".into(),
+        session_token: Some("session-1".into()),
+        region: region.map(str::to_owned),
+        endpoint: endpoint.map(str::to_owned),
+    }
+}
+
+#[test]
+fn an_s3_holder_keeps_its_own_keys_and_shows_none_of_them() {
+    let alice = user("alice");
+    let bucket = Holder::new("bucket", "s3://models/zoo", s3_keys(Some("eu-west-1"), None)).unwrap();
+    let local = Holder::new("rustfs", "s3://models", s3_keys(None, Some("http://127.0.0.1:9000"))).unwrap();
+    let mut h = Holders::default();
+    h.register(&alice, bucket.clone()).unwrap();
+    h.register(&alice, local.clone()).unwrap();
+    let text = h.to_canonical_json();
+    assert_eq!(Holders::parse(text.as_bytes()).unwrap(), h);
+    assert!(text.contains("\"kind\": \"s3_keys\""), "{text}");
+    assert!(text.contains("\"region\": \"eu-west-1\"") && text.contains("\"endpoint\": \"http://127.0.0.1:9000\""));
+    // A field it leaves out is not written as a null.
+    assert_eq!(text.matches("\"region\"").count(), 1, "{text}");
+    assert_eq!(h.list(&alice), [bucket.clone(), local]);
+    let shown = format!("{bucket:?}");
+    assert!(shown.contains("S3Keys(..)"), "{shown}");
+    for secret in ["AKIDEXAMPLE", "secret-1", "session-1"] {
+        assert!(!shown.contains(secret), "Debug shows no secret: {shown}");
+    }
+    let minimal = r#"{"holders_version": 1, "users": [{"user": "alice", "holders": [{"name": "b",
+        "address": "s3://models", "sign_in": {"kind": "s3_keys", "access_key_id": "k", "secret_access_key": "s"}}]}]}"#;
+    let parsed = Holders::parse(minimal.as_bytes()).unwrap();
+    let want = SignIn::S3Keys {
+        access_key_id: "k".into(),
+        secret_access_key: "s".into(),
+        session_token: None,
+        region: None,
+        endpoint: None,
+    };
+    assert_eq!(parsed.list(&alice)[0].sign_in, want);
+}
+
+#[test]
+fn bad_s3_keys_are_refused() {
+    let empty = SignIn::S3Keys {
+        access_key_id: String::new(),
+        secret_access_key: "s".into(),
+        session_token: None,
+        region: None,
+        endpoint: None,
+    };
+    let spaced = SignIn::S3Keys {
+        access_key_id: "k".into(),
+        secret_access_key: "s e".into(),
+        session_token: None,
+        region: None,
+        endpoint: None,
+    };
+    for (sign_in, says) in [
+        (empty, "secret is empty"),
+        (spaced, "secret is empty"),
+        (s3_keys(Some(""), None), "region"),
+        (s3_keys(Some("US East"), None), "region"),
+        (s3_keys(None, Some("ftp://rustfs")), "endpoint"),
+        (s3_keys(None, Some("http://rust fs")), "endpoint"),
+        (s3_keys(None, Some("")), "endpoint"),
+    ] {
+        let e = sign_in.validate().unwrap_err().to_string();
+        assert!(e.contains(says), "{sign_in:?}: {e}");
+        assert!(Holder::new("b", "s3://models", sign_in).is_err());
+    }
+    let bad = r#"{"holders_version": 1, "users": [{"user": "a", "holders": [{"name": "b", "address": "s3://models",
+        "sign_in": {"kind": "s3_keys", "access_key_id": "k", "secret_access_key": "s", "acl": "public"}}]}]}"#;
+    assert!(Holders::parse(bad.as_bytes()).unwrap_err().to_string().contains("unknown field"));
+}

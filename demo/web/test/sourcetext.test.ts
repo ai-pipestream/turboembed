@@ -5,11 +5,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { create } from "@bufbuild/protobuf";
 import { ListModelSourcesResponseSchema, SourceSignIn } from "../src/gen/turbo_training_pb.js";
-import { readOnly, redirected, signInText } from "../src/sourcetext.js";
+import { readOnly, redirected, s3KeysOf, signInText } from "../src/sourcetext.js";
 
 test("each sign-in reads in plain words", () => {
   assert.equal(signInText(SourceSignIn.GOOGLE), "Google sign-in");
   assert.equal(signInText(SourceSignIn.API_KEY), "API key");
+  assert.equal(signInText(SourceSignIn.S3_KEYS), "S3 keys");
   assert.equal(signInText(SourceSignIn.ENVIRONMENT), "the server's own");
   assert.equal(signInText(SourceSignIn.UNSPECIFIED), "");
 });
@@ -28,4 +29,17 @@ test("a redirect brings a code and a state, or an error", () => {
   assert.deepEqual(redirected("?state=s1&error=access_denied"), { code: "", state: "s1", error: "access_denied" });
   assert.equal(redirected("?code=only"), null);
   assert.equal(redirected(""), null);
+});
+
+test("S3 keys are sent only when the form names one", () => {
+  const blank = { accessKeyId: " ", secretAccessKey: "", region: "eu-west-1", endpoint: "" };
+  assert.equal(s3KeysOf(blank), undefined);
+  assert.deepEqual(s3KeysOf({ ...blank, accessKeyId: " AKID ", secretAccessKey: "s3cret " }), {
+    accessKeyId: "AKID",
+    secretAccessKey: "s3cret",
+    region: "eu-west-1",
+    endpoint: "",
+  });
+  // A secret with no key id is sent, so the server names what is missing.
+  assert.equal(s3KeysOf({ ...blank, secretAccessKey: "s" })?.accessKeyId, "");
 });
