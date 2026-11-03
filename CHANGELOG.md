@@ -15,6 +15,13 @@ for the release after it goes above it.
 
 ### Added
 
+- `RegisterModelSource.s3_keys` (field 5, `S3Keys`) and
+  `SOURCE_SIGN_IN_S3_KEYS`: an `s3://` model source signs in with its
+  own access key pair, region and endpoint instead of the server's
+  `AWS_*` environment, and zoo mode takes such a source on AWS
+  (`turbo_zoo::SignIn::S3Keys`, `S3Bucket::signed_in`). Zoo mode's
+  read-through now fetches through the reading user's model sources
+  before the catalog's own, as `InstallModel` does (#1853).
 - A pure Java API module shared by the JNI and Panama implementations,
   with typed runtime selection, one adapter package, and shared native
   conformance tests (`clients/java-api`, #1814).
@@ -141,6 +148,13 @@ for the release after it goes above it.
   field reads after validating `struct_size`, without forming a
   reference to the 120-byte struct over a legacy 104-byte allocation
   from before `bundle_path` was appended (#1833).
+- `turbo_model_load` skips an artifact whose backend has no encoder for
+  the manifest's family or no attention for its `lookahead` (loader rule
+  6), so a bundle with no other is `TURBO_E_BUNDLE_NO_ARTIFACT`, saying
+  why each was skipped, before any artifact's file is hashed; it was
+  `TURBO_E_UNSUPPORTED` after the weights were verified. The rotary
+  families' reason names levelzero among the backends that run them,
+  and `bundle/recipes/sat-3l.json` lists `cpu` alone (#1855).
 
 ### Breaking
 

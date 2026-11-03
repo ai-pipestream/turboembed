@@ -166,10 +166,11 @@ fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
     assert_eq!(Some(one.head.clone()), receipt.head);
     let below = fit("fit-below", &["--layer", "1"]);
     assert_eq!(below.layers, [1]);
+    assert_eq!(below.head.layer_mix, Some(LayerMix { layers: 2, layer: Some(1) }));
 
     let mix = fit("fit-mix", &["--mix"]);
     assert_eq!(mix.layers, [1, 2]);
-    assert_eq!(mix.head.layer_mix, Some(LayerMix { layers: 2 }));
+    assert_eq!(mix.head.layer_mix, Some(LayerMix { layers: 2, layer: None }));
     let m = mix.mix.as_ref().unwrap();
     assert_eq!(m.weights.len(), 2);
     assert!((m.weights.iter().sum::<f64>() - 1.0).abs() < 1e-6 && m.gain.is_finite(), "{m:?}");
@@ -201,6 +202,12 @@ fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
         fs::write(other.join(format!("EN-English/{f}.conll")), "# id 0\tdomain=en\nx _ _ O\n\n").unwrap();
     }
     refused("r4", &["--layer", "2"], other.to_str().unwrap(), "another corpus");
+    assert!(
+        turbo_trainer_recipes::cache::layer_mix_for(&[1], false, None)
+            .unwrap_err()
+            .0
+            .contains("requires encoder.layers")
+    );
     for p in [data, cache, enc_out, other] {
         fs::remove_dir_all(p).unwrap();
     }
