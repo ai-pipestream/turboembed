@@ -123,6 +123,21 @@ pub struct EvalRecord {
     /// attachment is the tag accuracy above.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uas: Option<Uas>,
+    /// For `train-sentences`, the rule-based sentence splitter baseline
+    /// (`analysis/sentdetect`) and its paired bootstrap comparison with
+    /// the model, beside the newline baseline in `baseline`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rules: Option<BaselineEval>,
+}
+
+/// A named deterministic baseline on the test split and its paired
+/// bootstrap comparison with the model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BaselineEval {
+    pub name: String,
+    pub baseline: Metrics,
+    pub comparison: Comparison,
 }
 
 /// Seen-type and zero-shot held-out-type evaluation slices for an open-span run.
