@@ -1,6 +1,5 @@
 //! `turbo-train-head`: checks a corpus, scores its majority baseline, or
 //! trains a head on a frozen encoder, writing a receipt each time.
-//!
 //! ```text
 //! turbo-train-head check    --corpus <id> --dir <corpus dir> [--unrecorded-corpus]
 //! turbo-train-head baseline --corpus <id> --dir <corpus dir> --out <dir> [--unrecorded-corpus]
@@ -33,10 +32,8 @@
 //!     [--student-bundle <student bundle>] [--teacher <teacher dir>] [--temperature T] [--alpha A]
 //!     [--max-accuracy-drop X] [--min-speedup X] [--allow-gate-failure] [head and training settings]
 //! ```
-//!
 //! `cache` writes every split's word features at the encoder's last N
 //! layers, for heads on one layer or a mix of them (`cache` module).
-//!
 //! Exit status 2 on any error. `--out` must not exist yet. A run claims
 //! it before anything else, by making it, which fails when it exists, so
 //! of two runs given one `--out` exactly one goes on; a run that fails
