@@ -394,9 +394,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         dump_cuts,
     };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
-    if turbo_eval::source::source(&repo)? != source {
-        return Err("the working tree moved during the run; the records written name the commit it started at".into());
-    }
+    turbo_eval::source::check_unchanged(&repo, &source)?;
     for p in written {
         println!("{}", p.display());
     }

@@ -44,6 +44,18 @@ encoder requires an encoder of the same dimension. `link_probability`
 refuses feature values that are not one finite value per feature and
 subtracts the largest logit when the plain exponential sum overflows.
 
+## The LitBank head in the zoo
+
+`turbo-train-head train-coref` trains an antecedent-ranking head
+(`HEAD_COREF_RANKER`) on LitBank's 100 literary works over a frozen
+encoder, and `assemble` packs it with that encoder into one bundle. The
+zoo lists the first such bundle as `turbo-en-litbank-modernbert-base-coref-1`
+(`KIND_HEAD`, `COMPONENT_COREFERENCE_RESOLVER`, `language` `en`,
+`CLASS_PERMISSIVE`): `Index::find("en", Component::CoreferenceResolver)`
+returns it, and `docs/licences.md` records the data. On the ten held-out
+test works it reaches CoNLL F1 0.7094 against the singleton baseline's
+0.3009; the receipt beside the release carries every setting and digest.
+
 ## Training and scoring
 
 `train::train` trains the pair classifier with any `turbo-train`

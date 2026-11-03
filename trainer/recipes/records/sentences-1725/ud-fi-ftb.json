@@ -1,0 +1,290 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train-sentences",
+    "--corpus",
+    "ud-fi-ftb",
+    "--dir",
+    "ud-fi-ftb",
+    "--bundle",
+    "xlm-roberta-base",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--hash-embed",
+    "64",
+    "--bilstm",
+    "64x1",
+    "--patience",
+    "6",
+    "--tolerance",
+    "0.0005",
+    "--threads",
+    "16",
+    "--commit",
+    "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+    "--out",
+    "out-ud-fi-ftb-bilstm"
+  ],
+  "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
+  "host": "rtx-4080-machine",
+  "unix_time": 1793426770,
+  "corpus": {
+    "id": "ud-fi-ftb-sentences",
+    "name": "Universal Dependencies Finnish FTB r2.16 (r2.16 d34cfa9f)",
+    "task": "tags",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Finnish FTB r2.16, published at https://github.com/UniversalDependencies/UD_Finnish-FTB; FTB1U is Copyright 2014 FIN-CLARIN. Used under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "fi_ftb-ud-train.conllu",
+        "size": 10505459,
+        "sha256": "0cc04932f18613c4491ace06f597b7b8caed36e557168b9b6ef154da7ae2d71b"
+      },
+      {
+        "path": "fi_ftb-ud-dev.conllu",
+        "size": 1296909,
+        "sha256": "1e46f7f88b6f1fa4f39b010b4ac8b8664b1be2c899f531f21b7bdc3fcf2e9142"
+      },
+      {
+        "path": "fi_ftb-ud-test.conllu",
+        "size": 1342602,
+        "sha256": "3aca7fbd727846c0955e9db581571a0fca89d46f825ee7f2a32fab1ea0bc31ba"
+      }
+    ],
+    "split": "official Universal Dependencies Finnish FTB r2.16 train, dev and test files",
+    "train": {
+      "sentences": 14981,
+      "words": 127359
+    },
+    "dev": {
+      "sentences": 1875,
+      "words": 15694
+    },
+    "test": {
+      "sentences": 1867,
+      "words": 16261
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "sentences",
+    "layer": "turboembed:sentences",
+    "kind": "HEAD_SENTENCE_BOUNDARY",
+    "labels": [
+      "inside",
+      "last"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 64,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_PERMISSIVE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.sentences"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 6,
+    "tolerance": 0.0005,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.3023945296532118,
+      0.09943400858077173,
+      0.05010064442678151,
+      0.022691207428331972,
+      0.010412250673915035,
+      0.005342169612981282,
+      0.0031427223140638666,
+      0.001630450703841628,
+      0.000852042157463885,
+      0.0004925737024386005,
+      0.000329902547170453,
+      0.00024094137958182663,
+      0.00017054736301145583,
+      0.00013997860511267695
+    ],
+    "dev": [
+      0.9692239072256913,
+      0.9769338600739136,
+      0.9867465273352873,
+      0.9893589906970817,
+      0.990505925831528,
+      0.9907608003058493,
+      0.9901873327386262,
+      0.9914617051102332,
+      0.9910793933987511,
+      0.99088823754301,
+      0.9912705492544922,
+      0.9913979864916529,
+      0.9912705492544922,
+      0.9912705492544922
+    ],
+    "best_epoch": 7,
+    "epoch_seconds": [
+      9.373459824,
+      6.861269168,
+      4.000496367,
+      3.789176051,
+      3.86864603,
+      3.555872247,
+      3.527316156,
+      3.514543205,
+      3.469134326,
+      3.406607867,
+      3.488688617,
+      3.433007098,
+      3.425271589,
+      4.215881312
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "spans": {
+        "all": {
+          "gold": 1867,
+          "found": 1819,
+          "correct": 1700,
+          "precision": 0.9345794392523364,
+          "recall": 0.9105516871987145,
+          "f1": 0.9224091155724362
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 1867,
+            "found": 1819,
+            "correct": 1700,
+            "precision": 0.9345794392523364,
+            "recall": 0.9105516871987145,
+            "f1": 0.9224091155724362
+          }
+        }
+      }
+    },
+    "baseline": {
+      "spans": {
+        "all": {
+          "gold": 1867,
+          "found": 187,
+          "correct": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "per_type": {
+          "sentence": {
+            "gold": 1867,
+            "found": 187,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        }
+      }
+    },
+    "comparison": {
+      "model": 0.9224091155724362,
+      "baseline": 0.0,
+      "delta": 0.9224091155724362,
+      "low": 0.904019688269073,
+      "high": 0.9384781435509983,
+      "resamples": 1000,
+      "seed": 1
+    },
+    "rules": {
+      "name": "sentdetect-rules-fi",
+      "baseline": {
+        "spans": {
+          "all": {
+            "gold": 1867,
+            "found": 1362,
+            "correct": 1085,
+            "precision": 0.7966226138032305,
+            "recall": 0.5811462238885913,
+            "f1": 0.6720346856611954
+          },
+          "per_type": {
+            "sentence": {
+              "gold": 1867,
+              "found": 1362,
+              "correct": 1085,
+              "precision": 0.7966226138032305,
+              "recall": 0.5811462238885913,
+              "f1": 0.6720346856611954
+            }
+          }
+        }
+      },
+      "comparison": {
+        "model": 0.9224091155724362,
+        "baseline": 0.6720346856611954,
+        "delta": 0.2503744299112408,
+        "low": 0.22162301262448592,
+        "high": 0.28102660232176635,
+        "resamples": 1000,
+        "seed": 1
+      }
+    }
+  },
+  "timing_s": {
+    "read": 0.304150821,
+    "features": 2.603472803,
+    "train": 60.123333001,
+    "eval": 0.419273167,
+    "feature_words": 143053
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 5048520,
+      "sha256": "da977be654e42538ee81738a5c25b91f3406924817b49c604f9e34678c440115"
+    },
+    {
+      "path": "head.json",
+      "size": 527,
+      "sha256": "de108accae09799b55343fa0b563ac86da34121131aec967b8cf40e9213ab141"
+    }
+  ]
+}
