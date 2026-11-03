@@ -351,7 +351,9 @@ or non-zero value fails with `TURBO_E_INVALID_ARGUMENT` naming the field
 in `turbo_error.field`. A program that left the field empty runs as
 before. The model path fields of `turbo_analyzer_desc` are retired this
 way: learned components load from its `bundle_path`, and the struct's
-earlier `struct_size` (104) stays accepted and names no bundle.
+earlier `struct_size` (104) stays accepted and names no bundle, decoded
+from that 104-byte prefix alone without reading or requiring memory
+past it.
 
 ### The gRPC services and the server's configuration
 
