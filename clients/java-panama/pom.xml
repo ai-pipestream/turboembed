@@ -25,11 +25,21 @@
     <maven.compiler.release>25</maven.compiler.release>
     <junit.version>5.11.4</junit.version>
     <license.source.dir>${project.basedir}/../..</license.source.dir>
-    <!-- The conformance suite both bindings run (clients/java-conformance). -->
-    <conformance.source.dir>${project.basedir}/../java-conformance/src/main/java</conformance.source.dir>
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>ai.pipestream</groupId>
+      <artifactId>turboembed-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.pipestream</groupId>
+      <artifactId>turboembed-conformance</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
@@ -69,31 +79,13 @@
         </configuration>
       </plugin>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>build-helper-maven-plugin</artifactId>
-        <version>3.6.0</version>
-        <executions>
-          <execution>
-            <id>conformance-suite</id>
-            <phase>generate-test-sources</phase>
-            <goals>
-              <goal>add-test-source</goal>
-            </goals>
-            <configuration>
-              <sources>
-                <source>${conformance.source.dir}</source>
-              </sources>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.4</version>
         <configuration>
           <argLine>--enable-native-access=ALL-UNNAMED</argLine>
           <systemPropertyVariables>
+            <turbo.bridge>panama</turbo.bridge>
             <turbo.library.dir>${project.basedir}/../../target/debug:${project.basedir}/../../target/release</turbo.library.dir>
             <turbo.repo.root>${project.basedir}/../..</turbo.repo.root>
           </systemPropertyVariables>

@@ -1,5 +1,6 @@
 package ai.pipestream.turboembed.panama;
 
+import ai.pipestream.turboembed.TurboException;
 import java.io.File;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;

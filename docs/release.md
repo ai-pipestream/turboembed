@@ -33,18 +33,26 @@ each with its SHA-256:
 
 The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 `grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
-in-process Java 25+ Panama Foreign Function and Memory (FFM) bindings over
-`include/turbo/turbo.h` and its analysis adapters live in
-`clients/java-panama/pom.xml` (`ai.pipestream:turboembed-panama:<version>`,
-requiring Java 25 or newer with `--enable-native-access=ALL-UNNAMED` and the
-platform's `libturbo` shared library from the binary archive). The same
-API over the Java Native Interface, for Java 21 or newer and for Android,
-lives in `clients/java-jni/pom.xml` (`ai.pipestream:turboembed-jni:<version>`,
-requiring the platform's `libturbo` from the binary archive, or on Android
-the `jniLibs` of the Android archive below); its `native` methods are
-exported by `libturbo` itself (`core/src/jni`), so no other native artifact
-exists. Both bindings run the conformance suite in
-`clients/java-conformance`. The Rust server builds its own stubs with
+in-process bindings share `clients/java-api/pom.xml`
+(`ai.pipestream:turboembed-api:<version>`, pure Java 21+, no native or bridge
+dependency). Callers add that API plus a matching-version implementation:
+`ai.pipestream:turboembed-panama:<version>` from `clients/java-panama` for
+Java 25+ FFM, or `ai.pipestream:turboembed-jni:<version>` from
+`clients/java-jni` for Java 21+ and Android. Both use the platform's
+`libturbo` from the binary archive; JNI entry points remain in that same
+library, and Android uses the archive's `jniLibs`. Panama requires
+`--enable-native-access=ALL-UNNAMED`.
+
+The shared runtime chooses Panama on supported Java 25+ runtimes and JNI
+on older supported runtimes or Android. `turbo.bridge=jni|panama` or the
+typed `TurboRuntime.load(TurboBridge)` override selects one explicitly.
+Public callers import `ai.pipestream.turboembed` and its compatibility adapter
+package; concrete bridge packages expose implementation-specific access.
+The `clients/pom.xml` reactor builds API, conformance and JNI on Java 21,
+and also Panama on Java 25+. `clients/java-conformance` tests the shared
+interfaces directly against actual native results. These in-process jars
+are built from source; this change does not add published release assets.
+The Rust server builds its own stubs with
 tonic 0.14.6 and prost 0.14.4 (`Cargo.lock`).
 
 The demo page's TypeScript code is not a release artifact: it is
@@ -351,7 +359,9 @@ or non-zero value fails with `TURBO_E_INVALID_ARGUMENT` naming the field
 in `turbo_error.field`. A program that left the field empty runs as
 before. The model path fields of `turbo_analyzer_desc` are retired this
 way: learned components load from its `bundle_path`, and the struct's
-earlier `struct_size` (104) stays accepted and names no bundle.
+earlier `struct_size` (104) stays accepted and names no bundle, decoded
+from that 104-byte prefix alone without reading or requiring memory
+past it.
 
 ### The gRPC services and the server's configuration
 

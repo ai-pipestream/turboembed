@@ -120,6 +120,9 @@ fn answer(tree: &[Entry], target: &str) -> (&'static str, String, Vec<u8>) {
     if param("alt").as_deref() != Some("media") {
         return ("400 Bad Request", String::new(), b"alt".to_vec());
     }
+    if let Some(to) = id.strip_prefix("query-moved-") {
+        return ("302 Found", format!("Location: ../../../media/{to}?next=https://example.org/object\r\n"), Vec::new());
+    }
     if let Some(to) = id.strip_prefix("moved-") {
         return ("302 Found", format!("Location: ../../../media/{to}\r\n"), Vec::new());
     }
@@ -174,6 +177,22 @@ fn cache(name: &str) -> std::path::PathBuf {
 
 fn alice() -> UserId {
     "alice".parse().unwrap()
+}
+
+#[test]
+fn a_relative_redirect_keeps_an_absolute_url_inside_its_query() {
+    let mut tree = blob_tree(TEXT);
+    tree[2].0 = "query-moved-textid";
+    tree.push(("textid", "elsewhere", "body".into(), Some(TEXT.to_vec())));
+    let (endpoint, seen) = stand_in(tree);
+    let drive = GoogleDrive::with("gdrive://top", Some(&endpoint), DriveAuth::Token("tok-1".into())).unwrap();
+    let index = index();
+    let artifact = index.get("hello").unwrap();
+    assert_eq!(drive.get_file(artifact, &artifact.files[0]).unwrap(), TEXT);
+    let seen = seen.lock().unwrap();
+    let (target, headers) = seen.last().unwrap();
+    assert_eq!(target, "/media/textid?next=https://example.org/object");
+    assert!(!headers.iter().any(|h| h.starts_with("authorization") || h.starts_with("x-goog-api-key")));
 }
 
 #[test]

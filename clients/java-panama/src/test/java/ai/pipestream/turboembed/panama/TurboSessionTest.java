@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.pipestream.turboembed.TurboException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;

@@ -176,13 +176,12 @@ impl Scores {
         let predicted_bounds: Vec<u32> = predicted.iter().skip(1).map(|(s, _)| next_letter(text, s.start)).collect();
         self.gold_boundaries += gold_bounds.len();
         self.predicted_boundaries += predicted_bounds.len();
-        let matched = predicted_bounds.iter().filter(|b| gold_bounds.contains(b)).count();
+        let matched = count_matches(gold_bounds.iter().copied(), predicted_bounds.iter().copied());
         self.matched_boundaries += matched;
-        self.exact_boundaries += predicted
-            .iter()
-            .skip(1)
-            .filter(|(p, _)| gold.spans.iter().skip(1).any(|(g, _)| g.start == p.start))
-            .count();
+        self.exact_boundaries += count_matches(
+            gold.spans.iter().skip(1).map(|(s, _)| s.start),
+            predicted.iter().skip(1).map(|(s, _)| s.start),
+        );
         if all_spans_right {
             all_spans_right = matched == gold_bounds.len()
                 && gold.spans.iter().zip(predicted).all(|((_, g), (_, p))| g.as_str() == *p);
@@ -216,6 +215,23 @@ impl Scores {
     pub fn letter_accuracy(&self) -> f64 {
         Scores::share(self.correct_letters, self.letters)
     }
+}
+
+/// Match sorted boundaries one-to-one. Distinct boundaries can normalize
+/// to the same letter, but neither gold nor prediction may be reused.
+fn count_matches(mut gold: impl Iterator<Item = u32>, predicted: impl Iterator<Item = u32>) -> usize {
+    let mut next = gold.next();
+    let mut matched = 0;
+    for boundary in predicted {
+        while next.is_some_and(|g| g < boundary) {
+            next = gold.next();
+        }
+        if next == Some(boundary) {
+            matched += 1;
+            next = gold.next();
+        }
+    }
+    matched
 }
 
 impl fmt::Display for Scores {
