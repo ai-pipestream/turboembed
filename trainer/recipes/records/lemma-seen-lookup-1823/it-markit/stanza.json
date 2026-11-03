@@ -1,0 +1,113 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "peer",
+    "--corpus",
+    "ud-it-markit",
+    "--column",
+    "lemma",
+    "--out",
+    "stanza-lemma",
+    "--peer",
+    "stanza-1.15.0-it_markit",
+    "--predictions",
+    "pred.conllu",
+    "--dir",
+    "UD_Italian-MarkIT-r2.16",
+    "--commit",
+    "5c57fdd764d6bf5779c081fc8f18f8cb34178afd"
+  ],
+  "commit": "5c57fdd764d6bf5779c081fc8f18f8cb34178afd",
+  "host": "cpu-32-core-machine",
+  "unix_time": 1793426973,
+  "corpus": {
+    "id": "ud-it-markit-lemma",
+    "name": "Universal Dependencies Italian MarkIT r2.16, lemma",
+    "task": "tags",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Italian MarkIT r2.16, published at https://github.com/UniversalDependencies/UD_Italian-MarkIT; used under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "it_markit-ud-train.conllu",
+        "size": 1266080,
+        "sha256": "4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6"
+      },
+      {
+        "path": "it_markit-ud-dev.conllu",
+        "size": 665430,
+        "sha256": "633b6186f47ecfebfcff4ff9c7e19a0cbffd1f655f14fc1e9265b12bda597f97"
+      },
+      {
+        "path": "it_markit-ud-test.conllu",
+        "size": 658412,
+        "sha256": "9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (fa54dc64d616cd9fc42bd2c4a0d8003f8ef47b4d)",
+    "train": {
+      "sentences": 611,
+      "words": 19893
+    },
+    "dev": {
+      "sentences": 341,
+      "words": 10399
+    },
+    "test": {
+      "sentences": 340,
+      "words": 10196
+    },
+    "skipped": 0
+  },
+  "peer": {
+    "name": "stanza-1.15.0-it_markit",
+    "column": "lemma",
+    "predictions": {
+      "path": "pred.conllu",
+      "size": 567913,
+      "sha256": "f5dab40db97533e30fae2da98c4254095629263eb82e2a6509d5fa2bb58202bf"
+    }
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 10196,
+        "correct": 8865,
+        "accuracy": 0.8694586112200863,
+        "unseen_words": 1306,
+        "unseen_correct": 1085,
+        "unseen_labels": 836
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 10196,
+        "correct": 8332,
+        "accuracy": 0.8171832091016085,
+        "unseen_words": 1306,
+        "unseen_correct": 639,
+        "unseen_labels": 836
+      }
+    },
+    "comparison": {
+      "model": 0.8694586112200863,
+      "baseline": 0.8171832091016085,
+      "delta": 0.05227540211847781,
+      "low": 0.04754066615027108,
+      "high": 0.057330916722312275,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.052410476,
+    "features": 0.0,
+    "train": 0.0,
+    "eval": 0.010377976,
+    "feature_words": 0
+  }
+}

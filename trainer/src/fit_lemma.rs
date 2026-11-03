@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap};
 use turbo::head::EditTreeLemmatizer;
 use turbo::head::edit_tree::EditTree;
 use turbo::head::lemmatizer::Work as CoreWork;
-use turbo::manifest::{HeadSpec, MAX_LABELS, MAX_SEEN_FORM_BYTES, MAX_SEEN_LOOKUP, SeenLemma, SeenLookup};
+use turbo::manifest::{HeadSpec, LemmaLookup, MAX_LABELS, MAX_SEEN_FORM_BYTES, SeenLemma};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
@@ -55,7 +55,7 @@ pub fn mine_trees<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>, min_f
 /// Unambiguous training word forms seen at least `min_freq` times, for
 /// [`HeadSpec::seen_lookup`]: a form whose training occurrences all had
 /// one lemma is listed with that lemma, ordered by form.
-pub fn mine_seen_lookup<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>, min_freq: usize) -> SeenLookup {
+pub fn mine_seen_lookup<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>, min_freq: usize) -> LemmaLookup {
     mine_seen_lookup_tagged(pairs.into_iter().map(|(f, l)| (f, None, l)), min_freq)
 }
 
@@ -66,7 +66,7 @@ pub fn mine_seen_lookup<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>,
 pub fn mine_seen_lookup_tagged<'a>(
     triples: impl IntoIterator<Item = (&'a str, Option<u32>, &'a str)>,
     min_freq: usize,
-) -> SeenLookup {
+) -> LemmaLookup {
     let min_freq = min_freq.max(1);
     let mut by_form: BTreeMap<&'a str, BTreeMap<&'a str, usize>> = BTreeMap::new();
     let mut by_tag: BTreeMap<(&'a str, u32), BTreeMap<&'a str, usize>> = BTreeMap::new();
@@ -98,8 +98,7 @@ pub fn mine_seen_lookup_tagged<'a>(
             }
         }
     }
-    entries.truncate(MAX_SEEN_LOOKUP);
-    SeenLookup { min_freq: min_freq as u32, entries }
+    LemmaLookup { min_freq: min_freq as u32, entries }
 }
 
 /// A sentence with each word's gold tree among the head's, None when the

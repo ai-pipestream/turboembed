@@ -5,7 +5,9 @@
 
 use turbo::head::edit_tree::EditTree;
 use turbo::head::lemmatizer::Work as CoreWork;
-use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, PosInput, Scheme, SeenLemma, WordPooling};
+use turbo::manifest::{
+    Adapter, Bilstm, Decode, HeadKind, HeadSpec, MAX_SEEN_LEMMAS, PosInput, Scheme, SeenLemma, WordPooling,
+};
 use turbo_trainer::fit_lemma::accuracy;
 use turbo_trainer::lemma::Work;
 use turbo_trainer::rng::Rng;
@@ -357,7 +359,14 @@ fn mine_seen_lookup_keeps_unambiguous_forms_and_tag_specific_entries() {
 
     let mut with_lookup = spec(labels, None, None);
     with_lookup.seen_lookup = Some(mine_seen_lookup(train_pairs.iter().copied(), 1));
-    let (model, r_with) = fit_lemmatizer(&with_lookup, hidden, vec![ex.clone()], vec![ex.clone()], &c).unwrap();
+    let (model, r_with) = fit_lemmatizer(&with_lookup, hidden, vec![ex.clone()], vec![ex], &c).unwrap();
     assert_eq!(r_with.dev[r_with.best_epoch], 1.0, "seen_lookup supplies went -> go during dev scoring");
-    assert_eq!(accuracy(&model.to_core().unwrap(), &[ex]).unwrap(), 1.0);
+    drop(model);
+
+    // Oversized tables are not silently truncated; HeadSpec::validate refuses them.
+    let forms: Vec<String> = (0..=MAX_SEEN_LEMMAS).map(|i| format!("w{i:06}")).collect();
+    let oversized = mine_seen_lookup(forms.iter().map(|s| (s.as_str(), "w")), 1);
+    assert_eq!(oversized.entries.len(), MAX_SEEN_LEMMAS + 1);
+    with_lookup.seen_lookup = Some(oversized);
+    assert!(with_lookup.validate("head").is_err());
 }

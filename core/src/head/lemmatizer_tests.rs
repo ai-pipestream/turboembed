@@ -6,7 +6,8 @@ use super::edit_tree::EditTree;
 use super::lemmatizer::{EditTreeLemmatizer, Work, tensors};
 use super::words::NO_WORD;
 use crate::manifest::{
-    Decode, HeadKind, HeadSpec, MAX_SEEN_FORM_BYTES, PosInput, Scheme, SeenLemma, SeenLookup, WordPooling,
+    Decode, HeadKind, HeadSpec, LemmaLookup, MAX_SEEN_FORM_BYTES, MAX_SEEN_LEMMAS, PosInput, Scheme, SeenLemma,
+    WordPooling,
 };
 
 const HIDDEN: usize = 6;
@@ -179,7 +180,7 @@ fn a_tag_embedding_that_is_not_finite_is_refused() {
 #[test]
 fn seen_lookup_overrides_the_classifier_for_unambiguous_forms_and_tags() {
     let mut s = spec(Some(PosInput { head: "pos".into(), labels: 3, dim: 2 }));
-    s.seen_lookup = Some(SeenLookup {
+    s.seen_lookup = Some(LemmaLookup {
         min_freq: 2,
         entries: vec![
             // "jumped" is in the lookup table, overriding tree 2 (identity).
@@ -213,14 +214,21 @@ fn seen_lookup_overrides_the_classifier_for_unambiguous_forms_and_tags() {
 fn the_spec_refuses_malformed_seen_lookup_tables() {
     let entry = |form: &str, tag: Option<u32>, lemma: &str| SeenLemma { form: form.into(), tag, lemma: lemma.into() };
     let mut s = spec(None);
-    s.seen_lookup = Some(SeenLookup { min_freq: 0, entries: Vec::new() });
+    s.seen_lookup = Some(LemmaLookup { min_freq: 0, entries: Vec::new() });
     assert!(s.validate("head").is_err(), "zero min_freq");
+
+    let mut oversized = spec(None);
+    oversized.seen_lookup = Some(LemmaLookup {
+        min_freq: 1,
+        entries: (0..=MAX_SEEN_LEMMAS).map(|i| entry(&format!("w{i:06}"), None, "w")).collect(),
+    });
+    assert!(oversized.validate("head").is_err(), "more than MAX_SEEN_LEMMAS entries");
 
     let mut on_tagger = spec(None);
     on_tagger.kind = HeadKind::TokenTagger;
     on_tagger.decode = Decode::Argmax;
     on_tagger.labels = vec!["NOUN".into()];
-    on_tagger.seen_lookup = Some(SeenLookup { min_freq: 1, entries: vec![entry("dogs", None, "dog")] });
+    on_tagger.seen_lookup = Some(LemmaLookup { min_freq: 1, entries: vec![entry("dogs", None, "dog")] });
     assert!(on_tagger.validate("head").is_err(), "seen_lookup on a tagger");
 
     for bad in [
@@ -232,14 +240,14 @@ fn the_spec_refuses_malformed_seen_lookup_tables() {
         vec![entry("a", None, "a"), entry("a", None, "b")],
     ] {
         let mut s = spec(None);
-        s.seen_lookup = Some(SeenLookup { min_freq: 1, entries: bad });
+        s.seen_lookup = Some(LemmaLookup { min_freq: 1, entries: bad });
         assert!(s.validate("head").is_err());
     }
 
     let mut tagged = spec(Some(PosInput { head: "pos".into(), labels: 2, dim: 2 }));
     tagged.seen_lookup =
-        Some(SeenLookup { min_freq: 1, entries: vec![entry("saw", Some(0), "saw"), entry("saw", Some(1), "see")] });
+        Some(LemmaLookup { min_freq: 1, entries: vec![entry("saw", Some(0), "saw"), entry("saw", Some(1), "see")] });
     assert!(tagged.validate("head").is_ok());
-    tagged.seen_lookup = Some(SeenLookup { min_freq: 1, entries: vec![entry("saw", Some(2), "see")] });
+    tagged.seen_lookup = Some(LemmaLookup { min_freq: 1, entries: vec![entry("saw", Some(2), "see")] });
     assert!(tagged.validate("head").is_err(), "tag past pos_input.labels");
 }

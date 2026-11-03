@@ -1,0 +1,113 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "peer",
+    "--corpus",
+    "ud-de-gsd",
+    "--column",
+    "lemma",
+    "--out",
+    "de-gsd-lemma",
+    "--peer",
+    "stanza-1.15.0-de_gsd",
+    "--predictions",
+    "pred.conllu",
+    "--dir",
+    "UD_German-GSD-r2.16",
+    "--commit",
+    "056f2854b4e015fb51e4708480d2b30635aa8f90"
+  ],
+  "commit": "056f2854b4e015fb51e4708480d2b30635aa8f90",
+  "host": "cpu-32-core-machine",
+  "unix_time": 1793427986,
+  "corpus": {
+    "id": "ud-de-gsd-lemma",
+    "name": "Universal Dependencies German GSD r2.16, lemma",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies German GSD r2.16, published at https://github.com/UniversalDependencies/UD_German-GSD; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "de_gsd-ud-train.conllu",
+        "size": 19627297,
+        "sha256": "b01561c37fafa1b505630f69d173ca0c015a91e444a2cfe7aeca67288b1c77f2"
+      },
+      {
+        "path": "de_gsd-ud-dev.conllu",
+        "size": 904804,
+        "sha256": "00431f2624cbbf66796c097a9303bbc8f8e8ca88ef35c4c5664aa396b2d674c9"
+      },
+      {
+        "path": "de_gsd-ud-test.conllu",
+        "size": 1207783,
+        "sha256": "bceb8e867ba3ee7f1449d44fb31538d63a514f07e6763e7d9a5ffe794407bed4"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (0726bb0c7e7328d5ef1a5d65c70d184882eacd95)",
+    "train": {
+      "sentences": 13813,
+      "words": 263777
+    },
+    "dev": {
+      "sentences": 799,
+      "words": 12480
+    },
+    "test": {
+      "sentences": 977,
+      "words": 16499
+    },
+    "skipped": 0
+  },
+  "peer": {
+    "name": "stanza-1.15.0-de_gsd",
+    "column": "lemma",
+    "predictions": {
+      "path": "pred.conllu",
+      "size": 1042009,
+      "sha256": "186f8a55fa624905dc10bb7ff5dd64d787030ec14f93d51598e305c835a84158"
+    }
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 16499,
+        "correct": 16075,
+        "accuracy": 0.9743014728165343,
+        "unseen_words": 1932,
+        "unseen_correct": 1636,
+        "unseen_labels": 1406
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 16499,
+        "correct": 15548,
+        "accuracy": 0.9423601430389721,
+        "unseen_words": 1932,
+        "unseen_correct": 1125,
+        "unseen_labels": 1406
+      }
+    },
+    "comparison": {
+      "model": 0.9743014728165343,
+      "baseline": 0.9423601430389721,
+      "delta": 0.031941329777562255,
+      "low": 0.028956268913546523,
+      "high": 0.035111328602887126,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.80119209,
+    "features": 0.0,
+    "train": 0.0,
+    "eval": 0.18807933,
+    "feature_words": 0
+  }
+}

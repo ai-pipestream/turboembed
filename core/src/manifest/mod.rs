@@ -147,12 +147,13 @@ mod helpers;
 pub use heads::*;
 pub use heads_kinds::{
     BOUNDARY_LABELS, COREF_LABELS, CorefShape, KEEP_TOKEN, LayerMix, MAX_ANTECEDENTS, MAX_MENTION_DIM, MAX_MIX_LAYERS,
-    MAX_SEEN_FORM_BYTES, MAX_SEEN_LOOKUP, MAX_SPAN_WIDTH_DIM, MAX_SPAN_WORDS, MAX_TYPE_DIM, NO_RELATION, RelationShape,
-    SeenLemma, SeenLookup, SpanShape,
+    MAX_SPAN_WIDTH_DIM, MAX_SPAN_WORDS, MAX_TYPE_DIM, NO_RELATION, RelationShape, SpanShape,
 };
 mod provenance;
 mod qa;
 pub use qa::Qa;
+mod seen_lemma;
+pub use seen_lemma::{LemmaLookup, MAX_SEEN_FORM_BYTES, MAX_SEEN_LEMMAS, SeenLemma};
 mod tokenizer;
 mod validate;
 mod validate_architecture;

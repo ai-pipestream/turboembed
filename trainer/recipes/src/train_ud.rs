@@ -39,7 +39,7 @@ pub(super) fn train(
         .find(|b| b.id == bank)
         .ok_or_else(|| Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
     let min_freq: usize = a.parsed("--min-tree-freq", MIN_TREE_FREQ)?;
-    let seen_lookup: Option<usize> = match a.value("--seen-lookup")?.or(a.value("--seen-lookup-freq")?) {
+    let seen_lookup: Option<usize> = match a.value("--seen-lookup")? {
         None => None,
         Some(v) => Some(
             v.parse::<usize>()

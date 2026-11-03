@@ -1,0 +1,113 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "peer",
+    "--corpus",
+    "ud-es-ancora",
+    "--column",
+    "lemma",
+    "--out",
+    "stanza-lemma",
+    "--peer",
+    "stanza-1.15.0-es_ancora",
+    "--predictions",
+    "pred.conllu",
+    "--dir",
+    "UD_Spanish-AnCora-r2.16",
+    "--commit",
+    "5c57fdd764d6bf5779c081fc8f18f8cb34178afd"
+  ],
+  "commit": "5c57fdd764d6bf5779c081fc8f18f8cb34178afd",
+  "host": "cpu-32-core-machine",
+  "unix_time": 1793427070,
+  "corpus": {
+    "id": "ud-es-ancora-lemma",
+    "name": "Universal Dependencies Spanish AnCora r2.16, lemma",
+    "task": "tags",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Spanish AnCora r2.16, published at https://github.com/UniversalDependencies/UD_Spanish-AnCora; used under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "es_ancora-ud-train.conllu",
+        "size": 42958918,
+        "sha256": "79e7463700e75bdf921c85b6e04495af118462a2b032bbff590fb82aa6ad8d5d"
+      },
+      {
+        "path": "es_ancora-ud-dev.conllu",
+        "size": 5104844,
+        "sha256": "e257745f4c339be53d5158867a28a2bfbcb98d890db86faa324e5f45f0284afc"
+      },
+      {
+        "path": "es_ancora-ud-test.conllu",
+        "size": 5106509,
+        "sha256": "2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (b35db4b8727856c00052b7380fdb61790c8d427f)",
+    "train": {
+      "sentences": 14287,
+      "words": 453039
+    },
+    "dev": {
+      "sentences": 1654,
+      "words": 53476
+    },
+    "test": {
+      "sentences": 1721,
+      "words": 53622
+    },
+    "skipped": 0
+  },
+  "peer": {
+    "name": "stanza-1.15.0-es_ancora",
+    "column": "lemma",
+    "predictions": {
+      "path": "pred.conllu",
+      "size": 3178905,
+      "sha256": "2bd3ce58ecf4726c8ccd5510ffc00fc23d594fa8a0d41ac15f77154defbb5d4f"
+    }
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 53622,
+        "correct": 53087,
+        "accuracy": 0.9900227518555816,
+        "unseen_words": 2847,
+        "unseen_correct": 2706,
+        "unseen_labels": 1932
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 53622,
+        "correct": 51888,
+        "accuracy": 0.9676625265749133,
+        "unseen_words": 2847,
+        "unseen_correct": 1638,
+        "unseen_labels": 1932
+      }
+    },
+    "comparison": {
+      "model": 0.9900227518555816,
+      "baseline": 0.9676625265749133,
+      "delta": 0.02236022528066839,
+      "low": 0.020720923261390856,
+      "high": 0.024039832006233275,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 1.534152874,
+    "features": 0.0,
+    "train": 0.0,
+    "eval": 0.480676538,
+    "feature_words": 0
+  }
+}

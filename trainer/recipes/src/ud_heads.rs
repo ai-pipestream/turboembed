@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 
 use turbo::head::{BiaffineParser, EditTreeLemmatizer};
-use turbo::manifest::{Adapter, Biaffine, Bilstm, Decode, HeadKind, HeadSpec, Scheme, SeenLookup, WordPooling};
+use turbo::manifest::{Adapter, Biaffine, Bilstm, Decode, HeadKind, HeadSpec, LemmaLookup, Scheme, WordPooling};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::{LemmaExample, ParseExample};
 
@@ -141,7 +141,7 @@ pub fn spec(head: UdHead, labels: Vec<String>, corpus: &CorpusRecord, o: &UdOpti
 pub fn spec_with_lookup(
     head: UdHead,
     labels: Vec<String>,
-    seen_lookup: Option<SeenLookup>,
+    seen_lookup: Option<LemmaLookup>,
     corpus: &CorpusRecord,
     o: &UdOptions,
 ) -> Result<HeadSpec> {

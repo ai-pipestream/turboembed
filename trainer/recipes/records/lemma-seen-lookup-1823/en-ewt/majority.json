@@ -1,0 +1,80 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "baseline",
+    "--corpus",
+    "ud-en-ewt-lemma",
+    "--dir",
+    "UD_English-EWT-r2.18",
+    "--out",
+    "en-ewt/majority",
+    "--commit",
+    "59b827c013fb6829528799ca6ff2d1bfaa215f98"
+  ],
+  "commit": "59b827c013fb6829528799ca6ff2d1bfaa215f98",
+  "host": "cpu-32-core-machine",
+  "unix_time": 1793674297,
+  "corpus": {
+    "id": "ud-en-ewt-lemma",
+    "name": "Universal Dependencies English Web Treebank r2.18, lemma",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.18/README.md",
+    "attribution": "Trained on the Universal Dependencies English Web Treebank (Silveira et al., 2014), annotations by The Board of Trustees of The Leland Stanford Junior University, published at https://github.com/UniversalDependencies/UD_English-EWT; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "en_ewt-ud-train.conllu",
+        "size": 15034493,
+        "sha256": "d68e06122a702464c613076523d56740f047e5bbe89dd90ec32737e04d952143"
+      },
+      {
+        "path": "en_ewt-ud-dev.conllu",
+        "size": 1898574,
+        "sha256": "39239e0a60db3ae68f4b7036189f11b6692741d10ff8240dd91f74f2760d90f8"
+      },
+      {
+        "path": "en_ewt-ud-test.conllu",
+        "size": 1900101,
+        "sha256": "fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.18 (b7711cce01cdd4f5fcc0a8199b8a50d951b16c0c)",
+    "train": {
+      "sentences": 12544,
+      "words": 204578
+    },
+    "dev": {
+      "sentences": 2001,
+      "words": 25148
+    },
+    "test": {
+      "sentences": 2077,
+      "words": 25094
+    },
+    "skipped": 0
+  },
+  "eval": {
+    "split": "test",
+    "baseline": {
+      "tags": {
+        "words": 25094,
+        "correct": 23847,
+        "accuracy": 0.9503068462580696,
+        "unseen_words": 2292,
+        "unseen_correct": 1474,
+        "unseen_labels": 1763
+      }
+    }
+  },
+  "timing_s": {
+    "read": 0.172848495,
+    "features": 0.0,
+    "train": 0.0,
+    "eval": 0.01,
+    "feature_words": 0
+  },
+  "outputs": []
+}

@@ -1,0 +1,80 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "baseline",
+    "--corpus",
+    "ud-es-ancora-lemma",
+    "--dir",
+    "UD_Spanish-AnCora-r2.16",
+    "--out",
+    "es-ancora/majority",
+    "--commit",
+    "59b827c013fb6829528799ca6ff2d1bfaa215f98"
+  ],
+  "commit": "59b827c013fb6829528799ca6ff2d1bfaa215f98",
+  "host": "cpu-32-core-machine",
+  "unix_time": 1793677230,
+  "corpus": {
+    "id": "ud-es-ancora-lemma",
+    "name": "Universal Dependencies Spanish AnCora r2.16, lemma",
+    "task": "tags",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Spanish AnCora r2.16, published at https://github.com/UniversalDependencies/UD_Spanish-AnCora; used under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "es_ancora-ud-train.conllu",
+        "size": 42958918,
+        "sha256": "79e7463700e75bdf921c85b6e04495af118462a2b032bbff590fb82aa6ad8d5d"
+      },
+      {
+        "path": "es_ancora-ud-dev.conllu",
+        "size": 5104844,
+        "sha256": "e257745f4c339be53d5158867a28a2bfbcb98d890db86faa324e5f45f0284afc"
+      },
+      {
+        "path": "es_ancora-ud-test.conllu",
+        "size": 5106509,
+        "sha256": "2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (b35db4b8727856c00052b7380fdb61790c8d427f)",
+    "train": {
+      "sentences": 14287,
+      "words": 453039
+    },
+    "dev": {
+      "sentences": 1654,
+      "words": 53476
+    },
+    "test": {
+      "sentences": 1721,
+      "words": 53622
+    },
+    "skipped": 0
+  },
+  "eval": {
+    "split": "test",
+    "baseline": {
+      "tags": {
+        "words": 53622,
+        "correct": 51888,
+        "accuracy": 0.9676625265749133,
+        "unseen_words": 2847,
+        "unseen_correct": 1638,
+        "unseen_labels": 1932
+      }
+    }
+  },
+  "timing_s": {
+    "read": 0.510166265,
+    "features": 0.0,
+    "train": 0.0,
+    "eval": 0.01,
+    "feature_words": 0
+  },
+  "outputs": []
+}
