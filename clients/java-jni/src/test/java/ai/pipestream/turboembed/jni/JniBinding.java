@@ -8,8 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** This binding under the shared conformance suite. */
-final class JniBinding implements Binding {
-    static final JniBinding INSTANCE = new JniBinding();
+public final class JniBinding implements Binding {
+    public static final JniBinding INSTANCE = new JniBinding();
 
     private JniBinding() {}
 

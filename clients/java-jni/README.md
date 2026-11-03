@@ -66,6 +66,28 @@ class files consumes the jar unchanged. On Android, bundles live where the
 application can read them as directories, such as the application's files
 directory, and are named by their absolute path.
 
+### Conformance on an emulator or device
+
+`android-conformance/` is a Gradle harness kept apart from the Maven build. It
+packs the sealed `testdata` bundles as APK assets, copies them into the
+application files directory at test start, and runs `AnalyzerConformance`,
+`SessionConformance`, and the JNI bridge tests as instrumented tests. The
+loader path under test is `System.loadLibrary("turbo")` from the packaged
+`jniLibs`; the harness clears `turbo.library.path` and `turbo.library.dir`
+so a host-JVM library cannot satisfy the load.
+
+```sh
+ANDROID_NDK_HOME=/path/to/ndk ANDROID_HOME=/path/to/sdk \
+  clients/java-jni/run-android-conformance.sh
+```
+
+`TURBO_ANDROID_ABI` defaults to `x86_64,arm64-v8a`. Use `x86_64` alone for
+an emulator. The opt-in CI job `.github/workflows/android-conformance.yml`
+runs the same script on an `x86_64` emulator at API 26 (and 35 on labeled
+pull requests) via `workflow_dispatch` or the `ci:android-emulator` label.
+The host-only `:helpers:test` target checks the asset-staging layout without
+talking to ART.
+
 ## Primary typed API
 
 Primary operations return `TurboAnalysisResult`, which owns one native
