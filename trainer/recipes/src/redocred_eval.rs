@@ -6,10 +6,12 @@
 //! documents.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use turbo::head::RelationClassifier;
 use turbo::head::relation::RelationWork;
 use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, RelationShape, Scheme, WordPooling};
+use turbo::safetensors;
 use turbo_tagger::WordEncoder;
 use turbo_trainer::RelationExample;
 use turbo_trainer::relation::GoldRelation;
@@ -32,12 +34,68 @@ pub struct RelationOptions {
     pub type_dim: u32,
     /// BiLSTM adapter (hidden, layers), or none.
     pub bilstm: Option<(u32, u32)>,
+    /// `Decode::Relations` (adaptive threshold, several labels a pair) or
+    /// `Decode::Relation` (the single-label softmax variant).
+    pub decode: Decode,
 }
 
 impl Default for RelationOptions {
     fn default() -> Self {
-        RelationOptions { pooling: WordPooling::First, mlp: 256, type_dim: 32, bilstm: None }
+        RelationOptions { pooling: WordPooling::First, mlp: 256, type_dim: 32, bilstm: None, decode: Decode::Relations }
     }
+}
+
+/// The decode `--decode` names: `relations` (the adaptive threshold) or
+/// `relation` (the single-label variant), or either's manifest name.
+///
+/// # Errors
+///
+/// Any other name.
+pub fn decode_named(name: &str) -> Result<Decode> {
+    match name {
+        "relations" | "DECODE_RELATIONS" => Ok(Decode::Relations),
+        "relation" | "DECODE_RELATION" => Ok(Decode::Relation),
+        _ => Err(Error(format!("--decode {name:?}: relations (adaptive threshold) or relation (single label)"))),
+    }
+}
+
+/// The relation head written to `dir` (`head.json` and
+/// `head.safetensors`, as `train-relation` writes them), to score beside
+/// a new one: it must be a relation classifier over `labels` and an
+/// encoder `hidden` wide.
+///
+/// # Errors
+///
+/// A file missing or malformed, another kind of head, other labels, or
+/// what the core refuses of its tensors.
+pub fn load_head(dir: &Path, labels: &[String], hidden: usize) -> Result<RelationClassifier> {
+    let read =
+        |name: &str| std::fs::read(dir.join(name)).map_err(|e| Error(format!("{}: {e}", dir.join(name).display())));
+    let spec: HeadSpec = serde_json::from_slice(&read("head.json")?)
+        .map_err(|e| Error(format!("{}: {e}", dir.join("head.json").display())))?;
+    if spec.kind != HeadKind::RelationClassifier || spec.labels != labels {
+        return Err(Error(format!("{}: not a relation head over this corpus's labels", dir.display())));
+    }
+    let bytes = read("head.safetensors")?;
+    let file = safetensors::File::parse("head.safetensors", &bytes).map_err(|e| Error(e.message))?;
+    let get = |s: &str| file.tensor(&format!("{}.{s}", spec.tensor_prefix)).map(|t| t.f32s());
+    RelationClassifier::from_tensors(&spec, hidden, &get)
+        .map_err(|e| Error(format!("{}: {}", dir.display(), e.message)))
+}
+
+/// The `top` labels with the most gold relations in `m` (ties by name),
+/// as a markdown table of gold, found, precision, recall and F1.
+pub fn label_table(m: &Metrics, top: usize) -> String {
+    let Metrics::Relations { per_type, .. } = m else { return String::new() };
+    let mut rows: Vec<(&String, &SpanScore)> = per_type.iter().collect();
+    rows.sort_by(|a, b| b.1.gold.cmp(&a.1.gold).then(a.0.cmp(b.0)));
+    let mut out = String::from("| label | gold | found | P | R | F1 |\n|---|---|---|---|---|---|\n");
+    for (label, s) in rows.into_iter().take(top) {
+        let line =
+            format!("| {label} | {} | {} | {:.4} | {:.4} | {:.4} |\n", s.gold, s.found, s.precision, s.recall, s.f1);
+        out.push_str(&line);
+    }
+    out
 }
 
 /// The relation head for `corpus`, over its labels and entity types,
@@ -56,7 +114,7 @@ pub fn spec(corpus: &RelationCorpus, o: &RelationOptions) -> Result<HeadSpec> {
         scheme: Scheme::Tags,
         word_pooling: o.pooling,
         adapter: o.bilstm.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
-        decode: Decode::Relations,
+        decode: o.decode,
         biaffine: None,
         pos_input: None,
         hash_embed: None,

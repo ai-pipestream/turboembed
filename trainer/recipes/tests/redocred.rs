@@ -9,7 +9,7 @@ use std::process::Command;
 use serde_json::{Value, json};
 use turbo::head::RelationClassifier;
 use turbo::head::relation::{Mention, tensors};
-use turbo::manifest::{HeadSpec, LicenseClass, NO_RELATION};
+use turbo::manifest::{Decode, HeadSpec, LicenseClass, NO_RELATION};
 use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::eval::Metrics;
 use turbo_trainer_recipes::receipt::Receipt;
@@ -221,7 +221,32 @@ fn a_relation_run_writes_a_head_the_core_reads_and_a_receipt() {
     assert!(run(&data, &plain, &["--epochs", "1"]).status.success());
     let p: Receipt = serde_json::from_slice(&fs::read(plain.join("receipt.json")).unwrap()).unwrap();
     assert_eq!(p.config.unwrap().lr, 3e-4);
-    for d in [data, out, again, plain] {
+    // The single-label variant beside the threshold head: its spec says
+    // DECODE_RELATION, its receipt holds the threshold head's test score
+    // and the paired bootstrap against it on the same documents, and the
+    // run prints the per-label table.
+    let single = scratch("train-single");
+    let against = out.to_str().unwrap();
+    let o = train(&data, &single, &["--decode", "relation", "--against", against]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let s: Receipt = serde_json::from_slice(&fs::read(single.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(s.head.as_ref().unwrap().decode, Decode::Relation);
+    let vs = s.eval.against.as_ref().unwrap();
+    assert!(vs.name.ends_with("-train-out (Relations)"), "{}", vs.name);
+    assert_eq!(vs.baseline, r.eval.model.clone().unwrap(), "the prior head scores as its own run did");
+    let (mine, theirs) = (s.eval.model.as_ref().unwrap().score(), r.eval.model.as_ref().unwrap().score());
+    assert_eq!((vs.comparison.model, vs.comparison.baseline), (mine, theirs));
+    assert!(vs.comparison.low <= vs.comparison.delta && vs.comparison.delta <= vs.comparison.high, "{vs:?}");
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.contains("| label | gold | found | P | R | F1 |") && stdout.contains("| P108 |"), "{stdout}");
+    for (i, (flag, value, says)) in
+        [("--decode", "crf", "--decode"), ("--against", "/nonexistent", "nonexistent")].into_iter().enumerate()
+    {
+        let o = run(&data, &scratch(&format!("train-bad-{i}")), &[flag, value, "--epochs", "1"]);
+        let err = String::from_utf8_lossy(&o.stderr);
+        assert!(!o.status.success() && err.contains(says), "{flag} {value}: {err}");
+    }
+    for d in [data, out, again, plain, single] {
         let _ = fs::remove_dir_all(d);
     }
 }

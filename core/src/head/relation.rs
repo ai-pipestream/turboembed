@@ -20,10 +20,12 @@
 //!
 //! `none` is each pair's threshold (an adaptive threshold, Zhou et al.
 //! 2021): DECODE_RELATIONS keeps every label of a pair that scores above
-//! it, so a pair holds no relation, one, or several.
+//! it, so a pair holds no relation, one, or several. DECODE_RELATION,
+//! the single-label variant, keeps only a pair's best label, and only
+//! when it scores above `none`.
 
 use crate::bundle::Bundle;
-use crate::manifest::{HeadKind, HeadSpec, NO_RELATION};
+use crate::manifest::{Decode, HeadKind, HeadSpec, NO_RELATION};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
 
 use super::Linear;
@@ -274,8 +276,10 @@ impl RelationClassifier {
     }
 
     /// The relations of `m` entities kept from their `scores` [pairs,
-    /// labels]: every label of a pair that scores above `none`, in order
-    /// of head entity, tail entity, then label.
+    /// labels]: every label of a pair that scores above `none`
+    /// (DECODE_RELATIONS), or only the pair's best label, ties to the
+    /// lower index (DECODE_RELATION), in order of head entity, tail
+    /// entity, then label.
     pub fn decode(&self, scores: &[f32], m: usize, out: &mut Vec<Relation>) -> Result<()> {
         let labels = self.spec.labels.len();
         if m > u32::MAX as usize || Some(scores.len()) != Self::pair_count(m).and_then(|p| p.checked_mul(labels)) {
@@ -285,12 +289,15 @@ impl RelationClassifier {
             return Err(Error::new(INVALID_ARGUMENT, "a relation score is not finite"));
         }
         out.clear();
+        let single = self.spec.decode == Decode::Relation;
         let mut rows = scores.chunks_exact(labels);
         for a in 0..m {
             for b in (0..m).filter(|&b| b != a) {
                 let Some(row) = rows.next() else { break };
                 let threshold = row[self.none];
-                for (l, &v) in row.iter().enumerate().filter(|&(l, &v)| l != self.none && v > threshold) {
+                let best = if single { best_label(row, self.none) } else { None };
+                let kept = |l: usize, v: f32| l != self.none && v > threshold && (!single || best == Some(l));
+                for (l, &v) in row.iter().enumerate().filter(|&(l, &v)| kept(l, v)) {
                     let margin = v - threshold;
                     if !margin.is_finite() {
                         return Err(Error::new(INVALID_ARGUMENT, "a relation margin is past f32"));
@@ -301,6 +308,18 @@ impl RelationClassifier {
         }
         Ok(())
     }
+}
+
+/// The label other than `none` that scores highest in `row`, ties to the
+/// lower index.
+fn best_label(row: &[f32], none: usize) -> Option<usize> {
+    let mut best: Option<usize> = None;
+    for (l, &v) in row.iter().enumerate().filter(|&(l, _)| l != none) {
+        if best.is_none_or(|b| v > row[b]) {
+            best = Some(l);
+        }
+    }
+    best
 }
 
 /// Refuses mentions past `n` words, backwards or of no entity, and

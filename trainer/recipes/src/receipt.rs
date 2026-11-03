@@ -128,6 +128,29 @@ pub struct EvalRecord {
     /// the model, beside the newline baseline in `baseline`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules: Option<BaselineEval>,
+    /// A previous head of the same task on the same test split (named by
+    /// its directory and decode), and the model's paired bootstrap against
+    /// it, for a run given `--against`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub against: Option<BaselineEval>,
+}
+
+impl EvalRecord {
+    /// The test split's record of a baseline alone (the `baseline`
+    /// command): no model and no comparison.
+    pub fn baseline_only(baseline: Metrics) -> Self {
+        EvalRecord {
+            split: "test".into(),
+            model: None,
+            baseline,
+            dictionary: None,
+            open_span: None,
+            comparison: None,
+            uas: None,
+            rules: None,
+            against: None,
+        }
+    }
 }
 
 /// A named deterministic baseline on the test split and its paired

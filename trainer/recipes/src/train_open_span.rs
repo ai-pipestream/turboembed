@@ -221,6 +221,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         comparison: Some(bootstrap(Task::Bio, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
