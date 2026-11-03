@@ -34,6 +34,9 @@ use super::{Args, Opts, RESAMPLES, encoder_record, finish, options, saved_any};
 /// 3e-4 falls steadily to a dev micro F1 of 0.446 at epoch 7.
 pub(super) const LR: f64 = 3e-4;
 
+/// The labels, most gold relations first, the per-label table prints.
+const TABLE: usize = 10;
+
 /// Reads the relation corpus `id` from `dir`.
 pub(super) fn read(id: &str, dir: &Path, unrecorded: bool) -> Result<RelationCorpus> {
     match id {
@@ -49,6 +52,8 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     }
     let mlp = a.parsed("--mlp", d.mlp)?;
     let type_dim = a.parsed("--type-dim", d.type_dim)?;
+    let decode = a.value("--decode")?.map_or(Ok(d.decode), |v| decode_named(&v))?;
+    let against = a.value("--against")?.map(PathBuf::from);
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
         options(&mut a)?;
     a.done()?;
@@ -62,11 +67,14 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         corpus.splits.train.truncate(max_train);
     }
     let read_s = t.elapsed().as_secs_f64();
-    let spec = spec(&corpus, &RelationOptions { pooling, mlp, type_dim, bilstm })?;
+    let spec = spec(&corpus, &RelationOptions { pooling, mlp, type_dim, bilstm, decode })?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
     let hidden = enc.hidden();
+    // The head to score against, read before training so a bad one fails
+    // first.
+    let prior = against.as_deref().map(|dir| load_head(dir, &spec, &encoder)).transpose()?;
 
     let t = Instant::now();
     let s = &corpus.splits;
@@ -103,6 +111,14 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let (test_ex, _) = examples(&mut enc, test, &spec.labels, pooling)?;
     let predicted = predict(&head, &test_ex)?;
     let base = baseline(test);
+    let against = match prior {
+        Some(PriorHead { head: prior, name, files }) => {
+            let theirs = predict(&prior, &test_ex)?;
+            let comparison = bootstrap(test, &predicted, &theirs, RESAMPLES, c.seed);
+            Some(BaselineEval { name, baseline: evaluate(test, &theirs), comparison, files })
+        }
+        None => None,
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate(test, &predicted)),
@@ -112,7 +128,11 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         comparison: Some(bootstrap(test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against,
     };
+    if let Some(m) = &eval.model {
+        println!("{}", label_table(m, TABLE));
+    }
     let eval_s = t.elapsed().as_secs_f64();
 
     let best = report.best_epoch;
@@ -243,16 +263,7 @@ pub(super) fn dependency_path(
         peer: None,
         config: None,
         training: None,
-        eval: EvalRecord {
-            split: "test".into(),
-            model: None,
-            baseline,
-            dictionary: None,
-            open_span: None,
-            comparison: None,
-            uas: None,
-            rules: None,
-        },
+        eval: EvalRecord::baseline_only(baseline),
         timing_s: Timing { read, features: features_s, eval: eval_s, ..Timing::default() },
         outputs,
     };

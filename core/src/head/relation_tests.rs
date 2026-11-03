@@ -1,5 +1,6 @@
 //! The relation classifier against a plain f64 reference of its pooled
-//! entity views and biaffine, its threshold decode, and its spec rules.
+//! entity views and biaffine, its threshold and single-label decodes, and
+//! its spec rules.
 
 use super::boundary_tests::spec;
 use super::relation::{Mention, Relation, RelationClassifier, RelationWork, tensors};
@@ -125,6 +126,30 @@ fn decode_keeps_every_label_above_none_with_its_margin() {
     let mut bad = scores;
     bad[4] = f32::NAN;
     assert!(h.decode(&bad, 3, &mut out).is_err());
+}
+
+#[test]
+fn the_single_label_decode_keeps_only_each_pairs_best_label_above_none() {
+    let mut s = rel_spec(&[], 0);
+    s.decode = Decode::Relation;
+    s.validate("head").unwrap();
+    let mut rng = Rng(3);
+    let h = head(&s, 2, &weights(&s, 2, &mut rng));
+    let scores = [
+        1.0, 0.0, 0.0, // none
+        0.0, 2.0, 0.5, // works_for only, though born_in is above none too
+        0.0, 1.0, 1.0, // a tie between labels goes to the lower index
+        0.5, 0.0, 3.0, // born_in
+        2.0, 2.0, 1.0, // the best ties with none: no relation
+        -1.0, 0.0, -1.0, // works_for
+    ];
+    let mut out = Vec::new();
+    h.decode(&scores, 3, &mut out).unwrap();
+    let r = |head, tail, label, margin| Relation { head, tail, label, margin };
+    assert_eq!(out, vec![r(0, 2, 1, 2.0), r(1, 0, 1, 1.0), r(1, 2, 2, 2.5), r(2, 1, 1, 1.0)]);
+    let mut tagger = spec(HeadKind::TokenTagger, &["O", "X"], Decode::Relation);
+    tagger.relation = None;
+    assert!(tagger.validate("head").is_err(), "DECODE_RELATION is a relation classifier's only");
 }
 
 #[test]

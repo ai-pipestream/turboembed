@@ -73,10 +73,11 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let tokenizer = Tokenizer::load(&bundle)?; // rule 5
     let m = &bundle.manifest;
     let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
+    // Rule 6 skips an artifact whose backend has no encoder for the family
+    // or no attention for the band, so nothing is hashed for a model the
+    // device cannot run.
     let index = model::choose(m, b.name(), b.formats(), &arch)?; // rule 6
     let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
-    model::runs_band(b.name(), weights.lookahead)?;
-    model::runs_family(b.name(), weights.family())?;
     let art = &m.artifacts[index];
 
     let e = m.encoder();

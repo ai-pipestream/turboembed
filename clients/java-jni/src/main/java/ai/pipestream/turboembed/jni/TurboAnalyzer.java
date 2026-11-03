@@ -1,5 +1,7 @@
 package ai.pipestream.turboembed.jni;
 
+import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboSpanData;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,46 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * {@link TurboLibrary#TURBO_E_UNSUPPORTED_TASK} naming what is missing; no dictionary,
  * pattern, or lexical fallback is substituted in Java or native code.
  */
-public final class TurboAnalyzer implements AutoCloseable {
-
-    /**
-     * Configuration for constructing a {@link TurboAnalyzer}.
-     *
-     * @param language   BCP-47 language tag (null or blank defaults to {@code "en"})
-     * @param bundlePath optional bundle directory whose heads write the learned layers; null
-     *                   configures the rule sentence splitter and tokenizer alone
-     */
-    public record Config(String language, Path bundlePath) {
-
-        /** Normalizes an absent language to English. */
-        public Config {
-            language = language == null || isBlank(language) ? "en" : language;
-        }
-
-        /** Returns the rule sentence/tokenizer configuration with no bundle. */
-        public static Config defaults() {
-            return new Config("en", null);
-        }
-
-        /** Returns a configuration for one BCP-47 language tag and no bundle. */
-        public static Config forLanguage(String language) {
-            return new Config(Objects.requireNonNull(language, "language"), null);
-        }
-
-        /** Returns an English configuration over the heads of one bundle directory. */
-        public static Config forBundle(Path bundlePath) {
-            return new Config("en", Objects.requireNonNull(bundlePath, "bundlePath"));
-        }
-
-        private static boolean isBlank(String text) {
-            for (int i = 0; i < text.length(); i++) {
-                if (!Character.isWhitespace(text.charAt(i))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
+public final class TurboAnalyzer implements ai.pipestream.turboembed.TurboAnalyzer {
 
     private final long handle;
     private final ReentrantLock invocationLock;
@@ -187,7 +150,7 @@ public final class TurboAnalyzer implements AutoCloseable {
     /**
      * Lemmatizes aligned token/tag pairs with the bundle's lemmatizer head. The tags must be
      * labels of the tag head the lemmatizer reads; they are ignored by a lemmatizer that reads
-     * no tags. A row with no label is an explicit miss, never a lowercased token.
+     * no tags, which must still be one per token. Every row carries its lemma as the label.
      */
     public TurboAnalysisResult lemmatize(String[] tokens, String[] tags) {
         Utf8.Packed packedTokens = Utf8.pack(tokens, "tokens");
@@ -209,7 +172,7 @@ public final class TurboAnalyzer implements AutoCloseable {
 
     /**
      * Finds named entities in one independent token sequence with the bundle's entity head only.
-     * No adaptive data is retained between calls.
+     * Nothing is kept between calls.
      */
     public TurboAnalysisResult findTokens(String[] tokens) {
         Utf8.Packed packed = Utf8.pack(tokens, "tokens");

@@ -1,11 +1,12 @@
 //! The relation classifier in training: its gradients against central
 //! finite differences in f64 (adapter, mention pooling and type
-//! embeddings included), its refusals, and a run on synthetic entity
+//! embeddings included) under both the threshold and the single-label
+//! loss, its refusals, and a run on synthetic entity
 //! pairs, some holding two relations, whose weights the core decodes as
 //! the trainer scored, falling in loss and the same bytes for the same
 //! seed.
 
-use turbo::head::relation::Mention;
+use turbo::head::relation::{Mention, RelationWork};
 use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, RelationShape, Scheme, WordPooling};
 use turbo_trainer::fit_relation::{relation_counts, relation_f1};
 use turbo_trainer::relation::{GoldRelation, Relations, Work};
@@ -27,6 +28,7 @@ fn spec(adapter: u32, types: &[&str], type_dim: u32) -> HeadSpec {
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         span: None,
         coref: None,
@@ -51,7 +53,13 @@ fn gr(head: u32, tail: u32, label: u32) -> GoldRelation {
 
 #[test]
 fn gradients_match_finite_differences() {
-    let s = spec(3, &["PER", "ORG"], 2);
+    for decode in [Decode::Relations, Decode::Relation] {
+        gradients_match_finite_differences_under(decode);
+    }
+}
+
+fn gradients_match_finite_differences_under(decode: Decode) {
+    let s = HeadSpec { decode, ..spec(3, &["PER", "ORG"], 2) };
     let mut rng = Rng::new(3);
     let mut model = Relations::<f64>::new(&s, HIDDEN, &mut rng).unwrap();
     // The biaffine starts at zero, which would leave the MLPs without a
@@ -80,7 +88,7 @@ fn gradients_match_finite_differences() {
             let numeric = (at(eps) - at(-eps)) / (2.0 * eps);
             assert!(
                 (numeric - analytic).abs() < 1e-6 * (1.0 + numeric.abs()),
-                "{} [{i}]: {analytic} vs {numeric}",
+                "{decode:?} {} [{i}]: {analytic} vs {numeric}",
                 model.names()[t]
             );
         }
@@ -172,6 +180,35 @@ fn a_trained_classifier_finds_the_relations_and_the_core_agrees() {
     let threads = Config { threads: 4, ..c };
     let (again, _) = fit_relations(&s, HIDDEN, &data(1, 200), &data(2, 50), &threads).unwrap();
     assert_eq!(again.params(), trained.params(), "the same seed gives the same bytes on any thread count");
+}
+
+#[test]
+fn the_single_label_variant_trains_and_the_core_keeps_one_label_a_pair() {
+    let s = HeadSpec { decode: Decode::Relation, ..spec(0, &["PER", "ORG"], 2) };
+    let c = Config { epochs: 40, batch: 8, lr: 2e-2, patience: 0, threads: 1, ..Config::default() };
+    let (dev, train) = (data(2, 50), data(1, 200));
+    let (trained, report) = fit_relations(&s, HIDDEN, &train, &dev, &c).unwrap();
+    let best = report.dev[report.best_epoch];
+    assert!(report.train_loss.last().unwrap() < &(report.train_loss[0] / 2.0), "{:?}", report.train_loss);
+    let core = trained.to_core().unwrap();
+    assert_eq!(core.spec().decode, Decode::Relation);
+    assert_eq!(relation_f1(&core, &dev).unwrap(), best);
+    // A senior PER's pair also holds leads, which one label a pair cannot
+    // add: the decode keeps at most one relation a pair.
+    let (mut scores, mut kept, mut w) = (Vec::new(), Vec::new(), RelationWork::default());
+    let mut found = 0;
+    for e in &dev {
+        let words: Vec<u32> = (0..(e.features.len() / HIDDEN) as u32).collect();
+        core.scores(&e.features, &words, &e.mentions, &e.types, &mut scores, &mut w).unwrap();
+        core.decode(&scores, e.types.len(), &mut kept).unwrap();
+        let mut pairs: Vec<(u32, u32)> = kept.iter().map(|r| (r.head, r.tail)).collect();
+        pairs.sort_unstable();
+        pairs.dedup();
+        assert_eq!(pairs.len(), kept.len(), "one label a pair: {kept:?}");
+        found += kept.len();
+    }
+    assert_eq!(found, relation_counts(&core, &dev).unwrap().iter().map(|c| c.found).sum::<usize>());
+    assert!(best > 0.7, "{report:?}");
 }
 
 #[test]

@@ -300,7 +300,7 @@ fn limited_lookahead_matches_wtpsplit() {
     let dir = banded_bundle();
     if encoder().device != Device::Cpu {
         // Only the CPU's attention takes a band (`turbo::model::runs_band`):
-        // a device refuses the model rather than read whole rows.
+        // rule 6 skips the artifact on a device rather than read whole rows.
         let o = SatOptions { encoder: encoder(), ..SatOptions::default() };
         let Err(e) = SatAnnotator::open(&dir, &o) else { panic!("a device opened a model of limited lookahead") };
         assert!(e.to_string().contains("has no limited-lookahead attention"), "{e}");

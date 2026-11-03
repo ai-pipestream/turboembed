@@ -1,4 +1,19 @@
 use super::*;
+
+/// Rows every [`Encoder`] of this process has forwarded, each window once
+/// whatever is read from it: what a request's encoder work is measured by
+/// (`forwarded_rows`).
+static FORWARDED_ROWS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The rows every encoder of this process has forwarded so far.
+pub fn forwarded_rows() -> u64 {
+    FORWARDED_ROWS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn forwarded(rows: &Rows) {
+    FORWARDED_ROWS.fetch_add(u64::from(rows.len()), std::sync::atomic::Ordering::Relaxed);
+}
+
 impl Encoder {
     #[cfg(test)]
     pub(crate) fn run_counts(&self) -> (usize, usize) {
@@ -37,6 +52,7 @@ impl Encoder {
         let n = ranges.len() as u32;
         let rc = unsafe { turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, &o, &mut err) };
         check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
+        forwarded(rows);
         #[cfg(test)]
         {
             self.runs.0 += 1;
@@ -64,6 +80,7 @@ impl Encoder {
             turbo_embed_write_layer_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, layers, &o, &mut err)
         };
         check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
+        forwarded(rows);
         #[cfg(test)]
         {
             self.runs.0 += 1;
@@ -86,6 +103,7 @@ impl Encoder {
         let o = options(pooling, normalize);
         let mut err = new_error();
         check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
+        forwarded(rows);
         self.run(rows.len(), out)
     }
 
@@ -96,6 +114,7 @@ impl Encoder {
         let o = options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE);
         let mut err = new_error();
         check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
+        forwarded(rows);
         self.run(rows.len(), out)
     }
 

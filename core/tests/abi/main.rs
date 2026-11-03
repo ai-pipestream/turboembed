@@ -2,11 +2,13 @@
 //! C++17, the Rust mirrors of its structs have the C compiler's layout, and
 //! a C program linked against libturbo makes a context and buffers on the
 //! CPU, loads a model there, gets the upstream ids, and embeds two texts;
-//! another returns int8 and ubinary codes and checks them itself.
+//! another returns int8 and ubinary codes and checks them itself; a third
+//! calls every analyzer and analysis result function.
 
 #[path = "../common/mod.rs"]
 mod common;
 
+mod analyzer;
 mod constants;
 mod header;
 mod program;

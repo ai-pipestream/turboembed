@@ -16,17 +16,30 @@ use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::RuleSplitter;
 use turbo_tokenize::{TokenizerOptions, simple_spans};
 
-use super::graph::extract_graph;
+use super::graph::{Origin, extract_graph};
 use super::heads::{BundleHeads, Want, unsupported};
 use super::{
     AnalysisResultInner, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
     TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM,
-    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range, turbo_analyzer_desc,
+    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
 };
-use crate::ffi::text;
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
 mod direct;
+
+/// Configuration decoded from `turbo_analyzer_desc` using only the fields
+/// proven present by `struct_size`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AnalyzerConfig<'a> {
+    pub(crate) language: &'a str,
+    pub(crate) bundle_path: &'a str,
+}
+
+impl Default for AnalyzerConfig<'_> {
+    fn default() -> Self {
+        Self { language: "en", bundle_path: "" }
+    }
+}
 
 pub struct AnalyzerEngine {
     rule_splitter: RuleSplitter,
@@ -41,27 +54,19 @@ fn index_u32(index: usize, what: &str) -> Result<u32> {
 
 const SOURCE_VIEW: u32 = ViewId::SOURCE.0 as u32;
 
-/// The retired model path fields, each with its field number in the
-/// header's numbering.
 /// `turbo_analyzer_desc.bundle_path` as `turbo_error.field` numbers it.
 const BUNDLE_PATH_FIELD: u32 = 7;
 
-const RETIRED: [(&str, u32); 5] = [
-    ("sent_model_path", 2),
-    ("tok_model_path", 3),
-    ("pos_model_path", 4),
-    ("lemma_model_path", 5),
-    ("ner_model_path", 6),
-];
-
-/// Each token's text, checked to lie in `text` on character boundaries.
+/// Each token's text, checked to lie in `text` on character boundaries:
+/// a span outside its text is TURBO_E_CAPACITY, as for any row (turbo.h,
+/// turbo_span).
 fn forms<'t>(text: &'t str, tokens: &[Span]) -> Result<Vec<&'t str>> {
     tokens
         .iter()
         .map(|s| {
             let (start, end) = (s.start as usize, s.end as usize);
             if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
-                return Err(Error::new(BUNDLE_INVALID, "tokenizer returned a span outside the text"));
+                return Err(Error::new(CAPACITY, "tokenizer returned a span outside the text"));
             }
             Ok(&text[start..end])
         })
@@ -90,29 +95,9 @@ fn sequences(tokens: &[Span], sentences: &[Span]) -> Vec<Vec<usize>> {
 }
 
 impl AnalyzerEngine {
-    /// The engine `desc` configures: `with_bundle` says whether the
-    /// descriptor is long enough to carry `bundle_path`.
-    pub(crate) unsafe fn from_desc(desc: Option<(&turbo_analyzer_desc, bool)>) -> Result<Self> {
-        let (lang, bundle) = match desc {
-            Some((d, with_bundle)) => unsafe {
-                let lang = text(d.language, "language")?;
-                let paths =
-                    [d.sent_model_path, d.tok_model_path, d.pos_model_path, d.lemma_model_path, d.ner_model_path];
-                for (value, (name, field)) in paths.iter().zip(RETIRED) {
-                    if value.len != 0 {
-                        return Err(Error::field(
-                            INVALID_ARGUMENT,
-                            field,
-                            format!("turbo_analyzer_desc.{name} is retired: learned components load from bundle_path"),
-                        ));
-                    }
-                }
-                let bundle = if with_bundle { text(d.bundle_path, "bundle_path")? } else { "" };
-                (if lang.is_empty() { "en" } else { lang }, bundle)
-            },
-            None => ("en", ""),
-        };
-        let heads = match bundle {
+    /// The engine `cfg` configures.
+    pub(crate) fn from_desc(cfg: AnalyzerConfig<'_>) -> Result<Self> {
+        let heads = match cfg.bundle_path {
             "" => None,
             path => Some(BundleHeads::open(path).map_err(|e| Error {
                 field: BUNDLE_PATH_FIELD,
@@ -123,7 +108,7 @@ impl AnalyzerEngine {
         let mut codecs = Codecs::new();
         register_codecs(&mut codecs);
         Ok(Self {
-            rule_splitter: RuleSplitter::new(lang),
+            rule_splitter: RuleSplitter::new(cfg.language),
             heads,
             pii_detector: PiiDetector::pack(Pack::AllStructured),
             codecs,
@@ -469,7 +454,7 @@ impl AnalyzerEngine {
 
         let graph = export(&doc, &self.codecs).map_err(|e| Error::new(BUNDLE_INVALID, format!("export graph: {e}")))?;
         let wire = graph.to_bytes().map_err(|e| Error::new(BUNDLE_INVALID, format!("encode graph: {e}")))?;
-        extract_graph(&doc, wire)
+        extract_graph(&doc, wire, Origin::Analyzed)
     }
 
     pub fn inspect_graph(&self, graph_bytes: &[u8]) -> Result<AnalysisResultInner> {
@@ -477,6 +462,6 @@ impl AnalyzerEngine {
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("invalid DocumentGraph wire bytes: {e}")))?;
         let doc = import(&graph, &self.codecs)
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("DocumentGraph import failed: {e}")))?;
-        extract_graph(&doc, graph_bytes.to_vec())
+        extract_graph(&doc, graph_bytes.to_vec(), Origin::Caller)
     }
 }

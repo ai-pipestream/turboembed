@@ -22,11 +22,22 @@ use super::{Args, Opts, RESAMPLES, encoder_record, finish, options, saved_any};
 const MIN_TREE_FREQ: usize = 3;
 
 pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    if a.rest.iter().any(|x| x == "--cache") {
+        return turbo_trainer_recipes::fit_cache::command_with_task(
+            argv,
+            bank,
+            dir,
+            unrecorded,
+            Some(turbo_trainer_recipes::fit_cache::CacheTask::Split),
+            a,
+        );
+    }
     let bank = *TREEBANKS
         .iter()
         .find(|b| b.id == bank)
         .ok_or_else(|| Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
     let min_freq: usize = a.parsed("--min-tree-freq", MIN_TREE_FREQ)?;
+    let seen_k: u32 = a.parsed("--seen-lookup", 0)?;
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
         options(&mut a)?;
     a.done()?;
@@ -46,7 +57,9 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     if labels.len() < 2 {
         return Err(Error(format!("{}: no multiword token's split comes up {min_freq} times in training", bank.id)));
     }
-    let spec = split::spec(labels, &record, pooling, bilstm)?;
+    // Mined from the training split alone; the receipt's head carries it.
+    let seen = (seen_k > 0).then(|| split::seen_lookup(&splits.train, &chosen, &labels, seen_k));
+    let spec = split::spec(labels, &record, pooling, bilstm, seen)?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
@@ -98,6 +111,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
         comparison: Some(bootstrap(Task::Tags, &test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
