@@ -169,6 +169,9 @@ fn the_rule_walks_the_shortest_path_between_entity_head_words() {
     assert_eq!(rule::path(parse, 0, 0), None, "a word to itself is no pair's");
     let cyc = vec![(2, "a".to_owned()), (1, "b".to_owned())];
     assert_eq!(rule::path(&cyc, 0, 1), None, "a cycle is no tree, so no path");
+    // a's chain reaches the root; b's cycles (1 -> 2 -> 1) and never meets it.
+    let b_cycles = vec![(0, "root".to_owned()), (3, "x".to_owned()), (2, "y".to_owned())];
+    assert_eq!(rule::path(&b_cycles, 0, 1), None, "b's cycle is no tree either");
 }
 
 #[test]

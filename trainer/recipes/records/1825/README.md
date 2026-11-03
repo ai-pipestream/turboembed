@@ -30,10 +30,22 @@ row is a conventions row, not a parser-quality row.
 | row | MUC | B-cubed | CEAF-e | CoNLL F1 | vs singleton [95%] |
 |---|---|---|---|---|---|
 | spaCy 3.4.4 `en_coreference_web_trf` 3.4.0a2 | 0.7768 | 0.5418 | 0.1989 | 0.5058 | +0.2049 [+0.0791, +0.3122] |
-| Stanza 1.10.1 coref | 0.8939 | 0.8083 | 0.7130 | 0.8051 | +0.5041 [+0.3991, +0.5859] |
+| Stanza 1.10.1 coref (contaminated) | 0.8939 | 0.8083 | 0.7130 | 0.8051 | +0.5041 [+0.3991, +0.5859] |
 
 A span a peer gives two clusters is kept in the first; a span crossing a
 sentence end is clipped to its sentence (the peer scripts note both).
+
+The Stanza row is contaminated and is not a peer comparison. Stanza 1.10.1
+has no default English coref package; the image runs its optional one,
+`udcoref_xlm-roberta-lora` (xlm-roberta-large with LoRA). The `udcoref`
+packages are trained on CorefUD, English included (Stanza's
+`convert_udcoref.py` reads the Catalan, English, French, German, Norwegian
+and Spanish CorefUD sets), and CorefUD's English data carries a LitBank
+part converted from the same hundred works. We have not shown that the ten
+test works here are outside its training split, and 0.8051 is above any
+published LitBank result, so read the row as an upper bound on a model
+that has likely seen the test works. The spaCy row
+(`en_coreference_web_trf`, trained on OntoNotes) is the clean peer row.
 
 ## Re-DocRED (the #1734 test split: 500 documents, 17,448 gold triples)
 

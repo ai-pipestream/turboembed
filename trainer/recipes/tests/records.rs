@@ -176,6 +176,11 @@ fn the_1825_rows_are_receipts_of_the_recorded_releases() {
         assert_eq!(r.peer.as_ref().unwrap().predictions.sha256, sha, "{file}");
         assert!(r.eval.comparison.as_ref().unwrap().low > 0.0, "{file}: above the singleton baseline");
     }
+    let readme = std::fs::read_to_string(dir.join("README.md")).unwrap();
+    assert!(
+        readme.contains("| Stanza 1.10.1 coref (contaminated) |") && readme.contains("`udcoref_xlm-roberta-lora`"),
+        "the Stanza coref row names its package and is labelled contaminated (CorefUD carries LitBank)"
+    );
     let rule = read("redocred-dependency-path.json");
     assert_eq!(rule.corpus.id, "re-docred");
     assert!(rule.corpus.recorded);

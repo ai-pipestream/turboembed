@@ -67,6 +67,9 @@ pub fn path(parse: &Parse, a: usize, b: usize) -> Option<String> {
             break up_to;
         }
         down.push(i);
+        if down.len() > parse.len() {
+            return None; // b's chain cycles without meeting a's
+        }
         at = Some(parent(i)?);
     };
     let mut steps: Vec<String> = up[..up_to].iter().map(|&i| format!("<{}", parse[i].1)).collect();
