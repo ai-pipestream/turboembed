@@ -59,10 +59,12 @@ ANDROID_NDK_HOME=/path/to/ndk clients/java-jni/build-android.sh app/src/main/jni
 ```
 
 The release workflow publishes the same two libraries as
-`turboembed-v<version>-android.tar.gz` (docs/release.md). The Java side is
-compiled for Java 21 and uses no platform API above Android API 26, so an
-application module with `minSdk 26` and a toolchain that accepts Java 21
-class files consumes the API and JNI jars with the required record/desugaring support. On Android, bundles live where the
+`turboembed-v<version>-android.tar.gz` (docs/release.md). The Maven jars target Java 21. The Android conformance harness compiles
+the same sources at language level 17 against `android.jar` (exhaustive
+enum switches would otherwise require `java.lang.MatchException`, which
+that jar does not declare) and uses no platform API above Android API 26,
+so an application module with `minSdk 26` and desugaring for records
+consumes the API and JNI code on ART. On Android, bundles live where the
 application can read them as directories, such as the application's files
 directory, and are named by their absolute path.
 

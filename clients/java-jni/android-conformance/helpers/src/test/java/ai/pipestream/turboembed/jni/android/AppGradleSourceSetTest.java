@@ -36,6 +36,9 @@ final class AppGradleSourceSetTest {
         assertTrue(text.contains("**/JniRuntimeConformanceTest.java"), text);
         assertTrue(text.contains("**/RuntimeConformance.java"), text);
         assertTrue(text.contains("**/LoaderProbe.java"), text);
+        // android.jar lacks MatchException; keep the Android compile at language level 17.
+        assertTrue(text.contains("JavaVersion.VERSION_17"), text);
+        assertFalse(text.contains("JavaVersion.VERSION_21"), text);
     }
 
     /** Returns the brace-delimited block that starts at the first '{' after {@code marker}. */

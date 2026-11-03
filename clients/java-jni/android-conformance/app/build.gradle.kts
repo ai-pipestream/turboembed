@@ -22,8 +22,11 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        // Language level 17: javac 21 against android.jar synthesizes MatchException for
+        // exhaustive enum switches, and that class is absent from the Android bootclasspath.
+        // Level 17 lowers those switches with IncompatibleClassChangeError instead.
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
 
