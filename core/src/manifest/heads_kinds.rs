@@ -118,7 +118,7 @@ impl HeadSpec {
                 matches!(self.decode, Decode::SpansNested | Decode::SpansFlat) && tags
             }
             HeadKind::CorefRanker => self.decode == Decode::Antecedent && tags,
-            HeadKind::RelationClassifier => self.decode == Decode::Relations && tags,
+            HeadKind::RelationClassifier => matches!(self.decode, Decode::Relations | Decode::Relation) && tags,
         };
         let parser = self.kind == HeadKind::BiaffineParser;
         let lemmatizer = self.kind == HeadKind::EditTreeLemmatizer;
@@ -130,7 +130,8 @@ impl HeadSpec {
                  a HEAD_SENTENCE_BOUNDARY takes SCHEME_TAGS and DECODE_ARGMAX or DECODE_CRF; a HEAD_TOKEN_SPLIT takes \
                  SCHEME_TAGS and DECODE_EDIT_TREE; a HEAD_SPAN_CLASSIFIER takes SCHEME_TAGS and DECODE_SPANS_NESTED or \
                  DECODE_SPANS_FLAT; a HEAD_OPEN_SPAN takes SCHEME_TAGS and DECODE_SPANS_NESTED or DECODE_SPANS_FLAT; \
-                 a HEAD_COREF_RANKER takes SCHEME_TAGS and DECODE_ANTECEDENT; a HEAD_RELATION_CLASSIFIER takes SCHEME_TAGS and DECODE_RELATIONS",
+                 a HEAD_COREF_RANKER takes SCHEME_TAGS and DECODE_ANTECEDENT; a HEAD_RELATION_CLASSIFIER takes SCHEME_TAGS and \
+                 DECODE_RELATIONS or DECODE_RELATION",
                 at("kind"),
                 self.kind,
                 self.scheme,

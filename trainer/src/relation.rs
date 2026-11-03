@@ -4,7 +4,9 @@
 //! mentions.
 //!
 //! Every ordered pair of distinct entities adds its adaptive threshold
-//! loss, `none` the threshold, so a pair may hold several relations. The
+//! loss, `none` the threshold, so a pair may hold several relations; a
+//! head decoded by DECODE_RELATION (the single-label variant) adds its
+//! softmax cross-entropy over the labels and `none` instead. The
 //! forward is the core's (`turbo::head::relation`): each entity's mentions
 //! pooled by logsumexp, its type embedding joined, through the head and
 //! tail LeakyReLU(0.1) MLPs, then the biaffine with a bias on both sides.
@@ -12,7 +14,7 @@
 use turbo::head::RelationClassifier;
 use turbo::head::parser::LEAKY_SLOPE;
 use turbo::head::relation::{Mention, check, tensors};
-use turbo::manifest::{HeadKind, HeadSpec, NO_RELATION};
+use turbo::manifest::{Decode, HeadKind, HeadSpec, NO_RELATION};
 use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
@@ -160,6 +162,8 @@ impl<R: Real> Relations<R> {
     /// Each pair's loss is the adaptive threshold loss with `none` as the
     /// threshold (Zhou et al. 2021): each gold label against the others
     /// and `none`, plus `none` against every label the pair does not hold.
+    /// Under DECODE_RELATION it is the softmax cross-entropy of each gold
+    /// label (of `none` when the pair holds none) over every label.
     /// Refused: what the core refuses of the mentions and types; a gold
     /// relation on entities out of range or on itself, labelled `none` or
     /// past the labels, or given twice; gradients of another shape. A
@@ -186,6 +190,7 @@ impl<R: Real> Relations<R> {
         let m = types.len();
         let pairs = RelationClassifier::pair_count(m).ok_or_else(|| invalid(format!("trainer: {m} entities")))?;
         let none = self.none as usize;
+        let pair_loss = if self.spec.decode == Decode::Relation { softmax_loss } else { threshold_loss };
         let mut target = vec![false; m * m * labels];
         for g in gold {
             let (a, b, l) = (g.head as usize, g.tail as usize, g.label as usize);
@@ -241,7 +246,7 @@ impl<R: Real> Relations<R> {
                     *r = (dot(x, &p[l * k..][..mlp]) + p[l * k + mlp]).to_f64();
                 }
                 let held = &target[(a * m + b) * labels..][..labels];
-                total += threshold_loss(&row, held, none, &mut d);
+                total += pair_loss(&row, held, none, &mut d);
                 for (l, &dl) in d.iter().enumerate().filter(|(_, dl)| **dl != 0.0) {
                     let dl = R::from_f64(dl);
                     for i in 0..k {
@@ -322,6 +327,24 @@ fn threshold_loss(row: &[f64], held: &[bool], none: usize, d: &mut [f64]) -> f64
     total += lse - row[none];
     for (l, &v) in row.iter().enumerate().filter(|&(l, _)| !held[l]) {
         d[l] += (v - lse).exp() - if l == none { 1.0 } else { 0.0 };
+    }
+    total
+}
+
+/// The single-label loss of one pair's scores `row`: the softmax
+/// cross-entropy over every label of each label in `held`, or of `none`
+/// when `held` has none, and its gradient by score into `d`.
+fn softmax_loss(row: &[f64], held: &[bool], none: usize, d: &mut [f64]) -> f64 {
+    let lse = logsumexp(row.iter().copied());
+    let gold = |l: usize| held[l] || (l == none && !held.contains(&true));
+    let count = (0..row.len()).filter(|&l| gold(l)).count() as f64;
+    let mut total = 0f64;
+    for (l, &v) in row.iter().enumerate() {
+        d[l] = count * (v - lse).exp();
+        if gold(l) {
+            total += lse - v;
+            d[l] -= 1.0;
+        }
     }
     total
 }

@@ -133,9 +133,9 @@ NER. `detectPii` remains a separate operation and layer.
 
 `lemmatize` takes the tags the bundle's lemmatizer head reads: they must
 be labels of that head's tag head, and a lemmatizer reading no tags
-ignores them. A row with no label is an explicit miss. It is never
-replaced by a lowercased token. Rule sentence and token rows have no
-probability; the binding does not invent one.
+ignores them, though it still takes one a token. Every row carries its
+lemma as the label. Rule sentence and token rows have no probability;
+the binding does not invent one.
 
 ## Graphs
 

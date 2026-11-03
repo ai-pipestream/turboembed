@@ -231,7 +231,13 @@ it, where CoNLL 2018 and published Stanza tables count the universal
 part alone. The words are syntactic words, multiword tokens already
 split, so a peer runs pretokenized with no multiword expansion (Stanza
 `tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
-its file for words other than the split's.
+its file for words other than the split's. For `litbank`, `export`
+writes the ten test works as one CoNLL coreference file each under the
+output directory (the gold words and sentence framing, the coreference
+column blank) and `peer --column coref` reads a peer's prediction file
+of one document a work, matched by document id, scored with the CoNLL
+coreference metrics against the same works beside the singleton
+baseline (#1825).
 
 `train-relation` trains the relation classifier head (`relation` on
 `turboembed:relations`, #1734) on `re-docred`: each document is one
@@ -249,6 +255,40 @@ over documents:
 
 ```text
 turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --bundle <encoder bundle> --out <new dir>
+```
+
+`baseline --corpus re-docred --dependency-path` writes the deterministic
+dependency-path rule row (#1825): the documents' own sentences parsed by
+our dependency head (`--parser`, a `train-parse` run directory, over
+`--bundle`), an ordered entity pair labelled by the most frequent
+training relation on the shortest path between the two entities' first
+mentions' head words, no relation when the path is one training never
+gave (`redocred_path`). The receipt's `baseline` is the rule's score,
+its `encoder` and `head` name the parser, and `outputs` digests the
+rule's predictions:
+
+```text
+turbo-train-head baseline --corpus re-docred --dir <Re-DocRED checkout> \
+  --dependency-path --parser <train-parse run dir> --bundle <encoder bundle> --out <new dir>
+```
+
+`--decode relation` trains the single-label variant instead (#1826):
+`DECODE_RELATION`, a softmax cross-entropy over the labels and `none`
+for each pair, and at most one label a pair kept. `--decode relations`
+is the default. `--against <head dir>` reads a head an earlier
+`train-relation` wrote (its `head.json`, `head.safetensors` and
+`receipt.json`) before training starts. It refuses the head unless it
+reads the features this run computes: the same labels, `--pooling` and
+entity type table, on the same encoder (model, revision, manifest
+digest, width and layers; backend, device and precision may differ).
+It then scores that head on the same test documents and records it in
+the receipt's `eval.against`: its metrics, the new head's paired
+bootstrap over documents against it, and the three files with their
+digests. Every run prints the per-label
+table of the ten labels with the most gold test relations.
+
+```text
+turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --bundle <encoder bundle> --out <new dir> --decode relation --against <threshold head dir>
 ```
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
