@@ -27,7 +27,6 @@
     "runs/wnut17-open-span-holdout-location"
   ],
   "commit": "63fd0bfdbdc7f11a967217e7a2e5a4a0260ef56a",
-  "host": "unknown",
   "unix_time": 1793447949,
   "corpus": {
     "id": "wnut17",
@@ -142,7 +141,7 @@
       0.22676579925650558,
       0.24706943192064923
     ],
-    "best_epoch": 4,
+    "best_epoch": 5,
     "epoch_seconds": [
       22.170222058,
       24.66832497,

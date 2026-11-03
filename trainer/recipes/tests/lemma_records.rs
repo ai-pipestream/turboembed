@@ -210,7 +210,16 @@ fn lemma_sweep_winners_baselines_and_stanza_peers_match_readme() {
                 assert!(r.eval.comparison.as_ref().unwrap().low > 0.0, "{}/{v} clears baseline", b.dir);
             }
             let tr = r.training.as_ref().unwrap();
-            let dev = tr.dev[tr.best_epoch];
+            assert!(
+                (1..=tr.dev.len()).contains(&tr.best_epoch),
+                "{}/{v}: best_epoch {} counts from 1 over {} epochs",
+                b.dir,
+                tr.best_epoch,
+                tr.dev.len()
+            );
+            let dev = tr.dev[tr.best_epoch - 1];
+            let peak = tr.dev.iter().copied().fold(f64::MIN, f64::max);
+            assert_eq!(dev, peak, "{}/{v}: kept epoch is the dev peak", b.dir);
             if dev > best_dev.1 {
                 best_dev = (v, dev);
             }
@@ -260,12 +269,8 @@ fn lemma_sweep_receipts_name_no_machine_or_host_path() {
             count += 1;
             let name = path.file_stem().unwrap().to_str().unwrap();
             let r = receipt(b.dir, name);
-            assert!(
-                ["rtx-4080-machine", "cpu-32-core-machine"].contains(&r.host.as_str()),
-                "{}/{name}: host {}",
-                b.dir,
-                r.host
-            );
+            let top: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            assert!(top.get("host").is_none(), "{}/{name}: receipt records a host", b.dir);
             assert!(
                 r.commit.len() == 40 && r.commit.bytes().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
                 "{}/{name}: commit {}",

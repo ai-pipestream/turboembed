@@ -17,7 +17,6 @@
     "256x1"
   ],
   "commit": "e97a161b5f1c8f903e2a64d5cf199952dda308ea",
-  "host": "cpu-32-core-machine",
   "unix_time": 1793675784,
   "corpus": {
     "id": "ud-it-markit-split",
@@ -187,7 +186,7 @@
       0.9949798101058606,
       0.9948706755429445
     ],
-    "best_epoch": 8,
+    "best_epoch": 9,
     "epoch_seconds": [
       2.032047747,
       2.051413357,

@@ -9,8 +9,8 @@
 //! student weights (`student_sha256`), training losses (`train_loss`,
 //! `final_loss`), and accuracy scores (`val_scores`, `teacher_val_accuracy`,
 //! `student_val_accuracy`, `teacher_test_accuracy`, `student_test_accuracy`,
-//! `accuracy_drop`, `within_margin`); `host`, `unix_time`, and `throughput`
-//! record the execution environment and wall-clock benchmark on `throughput.device`.
+//! `accuracy_drop`, `within_margin`); `unix_time` and `throughput`
+//! record wall-clock timing and the benchmark on `throughput.device`.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -27,7 +27,7 @@ use turbo_trainer::{
 
 use crate::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
 use crate::corpus::{CorpusRecord, FileRecord, Sentence};
-use crate::receipt::{host, unix_time};
+use crate::receipt::unix_time;
 use crate::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, PREDICT_CHUNK, examples, named, replace, spec, write};
 use crate::{Error, Result, read_corpus, safetensors};
 
@@ -74,15 +74,14 @@ impl ThroughputRecord {
 /// Distillation receipt written to `receipt.json`.
 ///
 /// Training outputs (`student_sha256`, `train_loss`, `val_scores`, accuracy metrics)
-/// are deterministic for a fixed seed; `host`, `unix_time`, and `throughput`
-/// record runtime metadata and wall-clock timings on `throughput.device`.
+/// are deterministic for a fixed seed; `unix_time` and `throughput`
+/// record wall-clock timings on `throughput.device`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DistillReceipt {
     pub schema: String,
     pub command: Vec<String>,
     pub commit: String,
-    pub host: String,
     pub unix_time: u64,
     pub corpus: CorpusRecord,
     pub teacher_head: HeadSpec,
@@ -263,7 +262,7 @@ where
 
     let best = report.best_epoch;
     let best_val = report.val_scores.get(best).copied().unwrap_or(report.student_val_accuracy);
-    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, best_val.to_string())];
+    let at = [(CHECKPOINT_EPOCH, (best + 1).to_string()), (CHECKPOINT_DEV, best_val.to_string())];
     let weights = safetensors::write_with(&named(student_spec, student_hidden, student.tensors()), &at);
     let spec_json = serde_json::to_vec_pretty(student_spec).expect("a head spec serializes");
     let st_rec = replace(out_dir, "head.safetensors", &weights)?;
@@ -275,7 +274,6 @@ where
         schema: SCHEMA.into(),
         command,
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus,
         teacher_head: teacher.spec().clone(),
@@ -292,7 +290,7 @@ where
         lr: options.lr,
         weight_decay: options.weight_decay,
         epochs_run: report.epochs_run,
-        best_epoch: report.best_epoch,
+        best_epoch: report.best_epoch + 1,
         final_loss: report.final_loss,
         train_loss: report.train_loss,
         val_scores: report.val_scores,

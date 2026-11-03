@@ -16,7 +16,7 @@ use crate::eval::{Comparison, bootstrap};
 use crate::fit_cache::{
     CacheTask, DEFAULT_ARC, DEFAULT_MIN_TREE_FREQ, DEFAULT_REL, Mix, read_cache_record, run_cached,
 };
-use crate::receipt::{host, unix_time};
+use crate::receipt::unix_time;
 use crate::run::write;
 use crate::{Error, Result};
 
@@ -64,7 +64,6 @@ pub struct SweepRecord {
     pub schema: String,
     pub command: Vec<String>,
     pub commit: String,
-    pub host: String,
     pub unix_time: u64,
     pub corpus_id: String,
     pub task: CacheTask,
@@ -188,7 +187,6 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus_id: corpus_id.to_owned(),
         task,
