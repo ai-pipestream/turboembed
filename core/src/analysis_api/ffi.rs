@@ -4,12 +4,76 @@ use std::ffi::c_char;
 use std::sync::Arc;
 
 use super::{
-    ANALYSIS_RESULT_MAGIC, ANALYZER_MAGIC, AnalysisResultInner, AnalyzerEngine, TURBO_ANALYZER_DESC_SIZE_V1,
-    analysis_result_handle, analyzer_handle, turbo_analysis_result, turbo_analyzer, turbo_analyzer_desc, turbo_span,
+    ANALYSIS_RESULT_MAGIC, ANALYZER_MAGIC, AnalysisResultInner, AnalyzerConfig, AnalyzerEngine,
+    TURBO_ANALYZER_DESC_SIZE_V1, analysis_result_handle, analyzer_handle, turbo_analysis_result, turbo_analyzer,
+    turbo_analyzer_desc, turbo_span,
 };
 use crate::ffi::{array_len, call, out_ptr, text};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_STRUCT_SIZE, Result};
 use crate::{turbo_error, turbo_text};
+
+/// The retired model path fields, each with its 1-based field number in
+/// `turbo_analyzer_desc`.
+const RETIRED_MODEL_FIELDS: [(&str, u32); 5] = [
+    ("sent_model_path", 2),
+    ("tok_model_path", 3),
+    ("pos_model_path", 4),
+    ("lemma_model_path", 5),
+    ("ner_model_path", 6),
+];
+
+/// Decode `desc` through raw field reads after validating `struct_size`,
+/// without forming `&turbo_analyzer_desc` over a smaller allocation.
+pub(crate) unsafe fn decode_analyzer_desc<'a>(desc: *const turbo_analyzer_desc) -> Result<AnalyzerConfig<'a>> {
+    if desc.is_null() {
+        return Ok(AnalyzerConfig::default());
+    }
+    if !desc.is_aligned() {
+        return Err(Error::new(INVALID_ARGUMENT, "turbo_analyzer_desc is misaligned"));
+    }
+    let struct_size = unsafe { std::ptr::addr_of!((*desc).struct_size).read() };
+    // A program built before bundle_path was appended passes the earlier
+    // size; its allocation ends after ner_model_path and names no bundle.
+    let known = [TURBO_ANALYZER_DESC_SIZE_V1, size_of::<turbo_analyzer_desc>()];
+    if !known.contains(&(struct_size as usize)) {
+        return Err(Error::new(
+            INVALID_STRUCT_SIZE,
+            format!(
+                "turbo_analyzer_desc.struct_size is {struct_size}, this library knows {} and {}",
+                known[0], known[1]
+            ),
+        ));
+    }
+    let flags = unsafe { std::ptr::addr_of!((*desc).flags).read() };
+    if flags != 0 {
+        return Err(Error::new(INVALID_ARGUMENT, "turbo_analyzer_desc.flags must be 0"));
+    }
+    let language = unsafe { text(std::ptr::addr_of!((*desc).language).read(), "language") }?;
+    let retired = unsafe {
+        [
+            std::ptr::addr_of!((*desc).sent_model_path).read(),
+            std::ptr::addr_of!((*desc).tok_model_path).read(),
+            std::ptr::addr_of!((*desc).pos_model_path).read(),
+            std::ptr::addr_of!((*desc).lemma_model_path).read(),
+            std::ptr::addr_of!((*desc).ner_model_path).read(),
+        ]
+    };
+    for (value, (name, field)) in retired.into_iter().zip(RETIRED_MODEL_FIELDS) {
+        if value.len != 0 {
+            return Err(Error::field(
+                INVALID_ARGUMENT,
+                field,
+                format!("turbo_analyzer_desc.{name} is retired: learned components load from bundle_path"),
+            ));
+        }
+    }
+    let bundle_path = if struct_size as usize > TURBO_ANALYZER_DESC_SIZE_V1 {
+        unsafe { text(std::ptr::addr_of!((*desc).bundle_path).read(), "bundle_path") }?
+    } else {
+        ""
+    };
+    Ok(AnalyzerConfig { language: if language.is_empty() { "en" } else { language }, bundle_path })
+}
 
 unsafe fn text_slice<'a>(items: *const turbo_text, count: u32, what: &str) -> Result<Vec<&'a str>> {
     if count == 0 {
@@ -50,28 +114,8 @@ pub unsafe extern "C" fn turbo_analyzer_create(
         call(err, || {
             let out = out_ptr(out, "out")?;
             *out = std::ptr::null_mut();
-            let desc_ref = if desc.is_null() {
-                None
-            } else {
-                let d = &*desc;
-                // A program built before bundle_path was appended passes
-                // the earlier size; it then names no bundle.
-                let known = [TURBO_ANALYZER_DESC_SIZE_V1, size_of::<turbo_analyzer_desc>()];
-                if !known.contains(&(d.struct_size as usize)) {
-                    return Err(Error::new(
-                        INVALID_STRUCT_SIZE,
-                        format!(
-                            "turbo_analyzer_desc.struct_size is {}, this library knows {} and {}",
-                            d.struct_size, known[0], known[1]
-                        ),
-                    ));
-                }
-                if d.flags != 0 {
-                    return Err(Error::new(INVALID_ARGUMENT, "turbo_analyzer_desc.flags must be 0"));
-                }
-                Some((d, d.struct_size as usize > TURBO_ANALYZER_DESC_SIZE_V1))
-            };
-            let engine = AnalyzerEngine::from_desc(desc_ref)?;
+            let cfg = decode_analyzer_desc(desc)?;
+            let engine = AnalyzerEngine::from_desc(cfg)?;
             *out =
                 Arc::into_raw(Arc::new(turbo_analyzer { magic: ANALYZER_MAGIC, inner: Arc::new(engine) })).cast_mut();
             Ok(())

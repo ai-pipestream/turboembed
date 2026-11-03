@@ -116,6 +116,13 @@ for the release after it goes above it.
   use the cpu backend's own exponential in place of the C library's, so
   a head gives the same bits on every machine (#1779).
 
+### Fixed
+
+- `turbo_analyzer_create` decodes `turbo_analyzer_desc` through raw
+  field reads after validating `struct_size`, without forming a
+  reference to the 120-byte struct over a legacy 104-byte allocation
+  from before `bundle_path` was appended (#1833).
+
 ### Breaking
 
 - The model ids layers record (`ModelRef.id`, in `TypedLayer`
