@@ -202,6 +202,12 @@ fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
         fs::write(other.join(format!("EN-English/{f}.conll")), "# id 0\tdomain=en\nx _ _ O\n\n").unwrap();
     }
     refused("r4", &["--layer", "2"], other.to_str().unwrap(), "another corpus");
+    assert!(
+        turbo_trainer_recipes::cache::layer_mix_for(&[1], false, None)
+            .unwrap_err()
+            .0
+            .contains("requires encoder.layers")
+    );
     for p in [data, cache, enc_out, other] {
         fs::remove_dir_all(p).unwrap();
     }

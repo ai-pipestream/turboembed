@@ -240,15 +240,17 @@ pub fn read_cache_corpus(id: &str, task: Option<&str>, dir: &Path, unrecorded: b
 /// model with `model_layers` total layers: `None` on the final layer alone,
 /// `Some(LayerMix { layers: L - k + 1, layer: Some(k) })` on an earlier
 /// single layer `k`, or `Some(LayerMix { layers: K, layer: None })` on a mix.
-pub fn layer_mix_for(layers: &[u32], mixed: bool, model_layers: Option<u32>) -> Option<LayerMix> {
+pub fn layer_mix_for(layers: &[u32], mixed: bool, model_layers: Option<u32>) -> Result<Option<LayerMix>> {
     if mixed {
-        Some(LayerMix { layers: layers.len() as u32, layer: None })
-    } else if let ([k], Some(total)) = (layers, model_layers)
-        && *k < total
-    {
-        Some(LayerMix { layers: total - *k + 1, layer: Some(*k) })
+        Ok(Some(LayerMix { layers: layers.len() as u32, layer: None }))
+    } else if let [k] = layers {
+        let total = model_layers.ok_or_else(|| Error(format!("--layer {k} requires encoder.layers in cache.json")))?;
+        if *k == 0 || *k > total {
+            return Err(Error(format!("--layer {k}: 1 to the model's {total}")));
+        }
+        Ok((*k < total).then_some(LayerMix { layers: total - *k + 1, layer: Some(*k) }))
     } else {
-        None
+        Ok(None)
     }
 }
 

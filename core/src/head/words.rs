@@ -196,6 +196,9 @@ impl WordReader {
         let ok = if self.mix.is_some() {
             Some(states.len()) == want
         } else {
+            // A single-layer head (`layer: Some(k)`) reads the first tap of
+            // the trailing `taps` encoder slice at runtime (`want`), or the
+            // pre-extracted layer `k` buffer (`one`) in cached evaluation.
             Some(states.len()) == want || Some(states.len()) == one
         };
         if !ok {

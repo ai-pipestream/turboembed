@@ -309,7 +309,7 @@ fn run_tag(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> {
         corpus.splits.train.truncate(p.max_train);
     }
     let mut head = spec(&corpus, &HeadOptions { pooling: cache.pooling, crf: p.crf, bilstm: p.bilstm, hash: p.hash })?;
-    head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers);
+    head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers)?;
     let hidden = cache.encoder.hidden;
     let s = &corpus.splits;
     let (train, train_left_out) =

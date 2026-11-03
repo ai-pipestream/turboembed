@@ -100,7 +100,7 @@ pub fn run_ud(p: &CachedParams, head_kind: UdHead, cache: CacheRecord) -> Result
         &record,
         &UdOptions { pooling: cache.pooling, bilstm: p.bilstm, biaffine: p.biaffine },
     )?;
-    head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers);
+    head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers)?;
     let hidden = cache.encoder.hidden;
 
     let train_layers = read_ud_layers(&p.cache_dir, &cache, "train", &p.layers, &full_train_sents, splits.train.len())?;
@@ -348,7 +348,7 @@ pub fn run_split(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> 
         )));
     }
     let mut head = split::spec(labels, &record, cache.pooling, p.bilstm)?;
-    head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers);
+    head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers)?;
     let hidden = cache.encoder.hidden;
 
     let full_train_s = split::labelled(&full_splits.train, &chosen, &head.labels);
