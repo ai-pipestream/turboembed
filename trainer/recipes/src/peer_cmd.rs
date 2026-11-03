@@ -16,11 +16,114 @@ use turbo_trainer_recipes::{Error, Result, read_corpus};
 
 use super::{Args, OutDir, RESAMPLES, baseline, commit, finish};
 
+pub(super) fn check(corpus_id: &str, dir: &Path, unrecorded: bool, a: Args) -> Result<()> {
+    a.done()?;
+    let c = match ud_head_corpus(corpus_id) {
+        Some((bank, head)) => treebank(bank, dir, unrecorded, head)?.0,
+        None => read_corpus(corpus_id, dir, unrecorded)?,
+    };
+    println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
+    println!("labels: {}", c.labels().len());
+    Ok(())
+}
+
+pub(super) fn baseline_cmd(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let out = OutDir::claim(&a.required("--out")?)?;
+    let commit = commit(a.value("--commit")?);
+    a.done()?;
+    let t = Instant::now();
+    let (record, eval, read) = if corpus_id == turbo_trainer_recipes::litbank::ID {
+        let coref = turbo_trainer_recipes::litbank::read_coref(dir, unrecorded)?;
+        let read = t.elapsed().as_secs_f64();
+        let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
+        let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
+        (
+            coref.record,
+            EvalRecord {
+                split: "test".into(),
+                model: None,
+                baseline,
+                dictionary: None,
+                open_span: None,
+                comparison: None,
+                uas: None,
+                rules: None,
+            },
+            read,
+        )
+    } else if let Some((bank, head)) = ud_head_corpus(corpus_id) {
+        let (c, base) = treebank(bank, dir, unrecorded, head)?;
+        let read = t.elapsed().as_secs_f64();
+        let test = &c.splits.test;
+        let baseline = evaluate(c.record.task, test, &base, &Seen::of(&c.splits.train), None);
+        let uas = (head == UdHead::Deps).then(|| Uas { model: 0.0, baseline: uas(test, &base) });
+        (
+            c.record,
+            EvalRecord {
+                split: "test".into(),
+                model: None,
+                baseline,
+                dictionary: None,
+                open_span: None,
+                comparison: None,
+                uas,
+                rules: None,
+            },
+            read,
+        )
+    } else {
+        let c = read_corpus(corpus_id, dir, unrecorded)?;
+        let read = t.elapsed().as_secs_f64();
+        let base = baseline(&c.splits.train, &c.splits.test);
+        let baseline = evaluate(
+            c.record.task,
+            &c.splits.test,
+            &base,
+            &Seen::of(&c.splits.train),
+            turbo_trainer_recipes::coarse(corpus_id),
+        );
+        (
+            c.record,
+            EvalRecord {
+                split: "test".into(),
+                model: None,
+                baseline,
+                dictionary: None,
+                open_span: None,
+                comparison: None,
+                uas: None,
+                rules: None,
+            },
+            read,
+        )
+    };
+    let t = Instant::now();
+    let receipt = Receipt {
+        schema: SCHEMA.into(),
+        command: argv.to_vec(),
+        commit,
+        host: host(),
+        unix_time: unix_time(),
+        corpus: record,
+        encoder: None,
+        head: None,
+        peer: None,
+        config: None,
+        training: None,
+        eval,
+        timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
+        outputs: Vec::new(),
+    };
+    finish(out, receipt)
+}
+
 pub(super) fn export(corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
     let out = PathBuf::from(a.required("--out")?);
     a.done()?;
     let c = if TREEBANKS.iter().any(|b| b.id == corpus_id) {
         treebank(corpus_id, dir, unrecorded, UdHead::Lemma)?.0
+    } else if let Some((bank, head)) = ud_head_corpus(corpus_id) {
+        treebank(bank, dir, unrecorded, head)?.0
     } else {
         read_corpus(corpus_id, dir, unrecorded)?
     };
@@ -120,11 +223,20 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
     finish(out, receipt)
 }
 
+fn ud_head_corpus(corpus_id: &str) -> Option<(&str, UdHead)> {
+    let (bank, head) = corpus_id
+        .strip_suffix("-lemma")
+        .map(|b| (b, UdHead::Lemma))
+        .or_else(|| corpus_id.strip_suffix("-deps").map(|b| (b, UdHead::Deps)))?;
+    TREEBANKS.iter().any(|t| t.id == bank).then_some((bank, head))
+}
+
 /// A treebank read for `head`: its sentences labelled as the head scores
 /// them, and the head's baseline on test. Refuses an id that names no
 /// treebank, as a column of `peer` it is the treebank's (`ud-es-ancora`).
 fn treebank(id: &str, dir: &Path, unrecorded: bool, head: UdHead) -> Result<(Corpus, Vec<Vec<String>>)> {
-    let bank = TREEBANKS.iter().find(|b| b.id == id).ok_or_else(|| {
+    let bank_id = ud_head_corpus(id).filter(|(_, h)| *h == head).map_or(id, |(b, _)| b);
+    let bank = TREEBANKS.iter().find(|b| b.id == bank_id).ok_or_else(|| {
         Error(format!(
             "{id}: --column lemma and deps take a treebank id, one of {}",
             TREEBANKS.map(|b| b.id).join(", ")

@@ -98,77 +98,8 @@ fn run(argv: Vec<String>) -> Result<()> {
             println!("labels: {}", c.labels().len());
             Ok(())
         }
-        "check" => {
-            a.done()?;
-            let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-            println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
-            println!("labels: {}", c.labels().len());
-            Ok(())
-        }
-        "baseline" => {
-            let out = OutDir::claim(&a.required("--out")?)?;
-            let commit = commit(a.value("--commit")?);
-            a.done()?;
-            let t = Instant::now();
-            let (record, eval, read) = if corpus_id == turbo_trainer_recipes::litbank::ID {
-                let coref = turbo_trainer_recipes::litbank::read_coref(&dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
-                let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
-                (
-                    coref.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            } else {
-                let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = baseline(&c.splits.train, &c.splits.test);
-                let baseline =
-                    evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
-                (
-                    c.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            };
-            let t = Instant::now();
-            let receipt = Receipt {
-                schema: SCHEMA.into(),
-                command: argv.clone(),
-                commit,
-                host: host(),
-                unix_time: unix_time(),
-                corpus: record,
-                encoder: None,
-                head: None,
-                peer: None,
-                config: None,
-                training: None,
-                eval,
-                timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
-                outputs: Vec::new(),
-            };
-            finish(out, receipt)
-        }
+        "check" => peer_cmd::check(&corpus_id, &dir, unrecorded, a),
+        "baseline" => peer_cmd::baseline_cmd(&argv, &corpus_id, &dir, unrecorded, a),
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
