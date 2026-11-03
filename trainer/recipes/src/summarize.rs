@@ -19,11 +19,11 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use turbo::bundle::sha256_hex;
 
-use crate::cli::Args;
-use crate::corpus::{FileRecord, Task};
-use crate::eval::Comparison;
-use crate::receipt::Receipt;
-use crate::{Error, Result};
+use turbo_trainer_recipes::cli::Args;
+use turbo_trainer_recipes::corpus::{FileRecord, Task};
+use turbo_trainer_recipes::eval::Comparison;
+use turbo_trainer_recipes::receipt::Receipt;
+use turbo_trainer_recipes::{Error, Result};
 
 pub const SCHEMA: &str = "turboembed.trainer.summary/1";
 
