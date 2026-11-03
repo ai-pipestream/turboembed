@@ -176,7 +176,9 @@ unsafe fn int8_ranges(q: Quantization, ranges: *const f32, output_dim: u32) -> R
 }
 
 /// A field the device does not honor may only be left to the bundle: any
-/// other value is refused by its number.
+/// other value is refused by its number. Field 9 is not read here: every
+/// device takes 1 as well as 0, and a count is checked against the model
+/// before the bit (tokens.rs, check_taps).
 pub(super) fn honored(o: &turbo_embed_options, honored: u32, backend: &str) -> Result<()> {
     let fields = [
         ("truncate", o.truncate),

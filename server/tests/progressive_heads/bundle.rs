@@ -1,7 +1,8 @@
 //! The small BERT in testdata with seeded heads, as the tagger crate's
 //! tests build it: a part-of-speech head, an entity head, a dependency
 //! parser head and a lemmatizer head reading the part-of-speech tags,
-//! and on request a relation classifier head over the entities.
+//! and on request a relation classifier, span classifier, morphology,
+//! sentence boundary, token split or coreference head.
 
 #![allow(dead_code)]
 
@@ -10,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use turbo::bundle::sha256_hex;
-use turbo::head::{lemmatizer, parser, relation, span, tagger};
+use turbo::head::{boundary, coref, lemmatizer, parser, relation, span, split, tagger};
 use turbo::manifest::{HeadKind, HeadSpec};
 
 pub const TEXT: &str = "Ann met Bob in Paris , and the quiet old dog slept by the river .";
@@ -90,6 +91,9 @@ pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
             HeadKind::EditTreeLemmatizer => lemmatizer::tensors(&spec, 32),
             HeadKind::SpanClassifier => span::tensors(&spec, 32),
             HeadKind::RelationClassifier => relation::tensors(&spec, 32),
+            HeadKind::SentenceBoundary => boundary::tensors(&spec, 32),
+            HeadKind::TokenSplit => split::tensors(&spec, 32),
+            HeadKind::CorefRanker => coref::tensors(&spec, 32),
             _ => tagger::tensors(&spec, 32),
         };
         for (suffix, shape) in shapes {
@@ -130,5 +134,58 @@ pub fn relation_head(types: &[&str]) -> Value {
         "labels": ["none", "met", "located_in"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
         "decode": "DECODE_RELATIONS", "relation": {"mlp": 6, "entity_labels": types, "type_dim": dim},
         "artifact": "weights-f32", "tensor_prefix": "heads.rels"
+    })
+}
+
+/// A span classifier head writing the entity layer.
+pub fn span_head() -> Value {
+    json!({
+        "name": "mentions", "layer": "turboembed:entities", "kind": "HEAD_SPAN_CLASSIFIER",
+        "labels": ["O", "PER", "LOC"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+        "decode": "DECODE_SPANS_FLAT", "span": {"max_words": 3, "width_dim": 4},
+        "artifact": "weights-f32", "tensor_prefix": "heads.mentions"
+    })
+}
+
+/// A morphology head of feature-string tags.
+pub fn morph_head() -> Value {
+    json!({
+        "name": "feats", "layer": "turboembed:feats", "kind": "HEAD_TOKEN_TAGGER",
+        "labels": ["_", "Number=Sing", "Number=Plur", "Tense=Past"], "scheme": "SCHEME_TAGS",
+        "word_pooling": "WORD_POOLING_MEAN", "decode": "DECODE_ARGMAX", "artifact": "weights-f32",
+        "tensor_prefix": "heads.feats"
+    })
+}
+
+/// A sentence boundary head.
+pub fn sentence_head() -> Value {
+    json!({
+        "name": "sents", "layer": "turboembed:sentences", "kind": "HEAD_SENTENCE_BOUNDARY",
+        "labels": ["inside", "last"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+        "decode": "DECODE_ARGMAX", "artifact": "weights-f32", "tensor_prefix": "heads.sents"
+    })
+}
+
+/// A token split head: keep a token, or split `and` and `del`.
+pub fn split_head() -> Value {
+    use turbo::head::edit_tree::EditTree;
+    let label = |form: &str, words: &[&str]| {
+        words.iter().map(|w| EditTree::mine(form, w).label()).collect::<Vec<_>>().join(" ")
+    };
+    json!({
+        "name": "words", "layer": "turboembed:words", "kind": "HEAD_TOKEN_SPLIT",
+        "labels": ["_", label("del", &["de", "el"]), label("and", &["an", "d"])], "scheme": "SCHEME_TAGS",
+        "word_pooling": "WORD_POOLING_FIRST", "decode": "DECODE_EDIT_TREE", "artifact": "weights-f32",
+        "tensor_prefix": "heads.words"
+    })
+}
+
+/// A coreference ranker head over mentions of up to three words.
+pub fn coref_head() -> Value {
+    json!({
+        "name": "coref", "layer": "turboembed:coref", "kind": "HEAD_COREF_RANKER",
+        "labels": ["coref"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+        "decode": "DECODE_ANTECEDENT", "span": {"max_words": 3, "width_dim": 3},
+        "coref": {"dim": 6, "antecedents": 4}, "artifact": "weights-f32", "tensor_prefix": "heads.coref"
     })
 }
