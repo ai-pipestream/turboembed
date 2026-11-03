@@ -149,43 +149,64 @@ unsafe fn write_ranges(
     }
 }
 
-/// turbo.h: 1 to the model's layers, and above 1 only on the cpu
-/// backend's BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2
-/// encoders, with no span head on the device.
+/// turbo.h: 1 to the model's layers, and above 1 only where the device's
+/// cell honors field 9 (the cpu backend), on its BERT, RoBERTa,
+/// ModernBERT, nomic-bert and DeBERTa-v2 encoders, with no span head on
+/// the device.
 fn check_taps(s: &SessionInner, taps: u32) -> Result<()> {
+    let w = &s.model.weights;
+    let model = Taps { layers: w.layers(), family: w.family(), span_head: s.model.span_head.is_some() };
+    taps_refusal(taps, model, s.honored & 1 << 8 != 0, s.backend.name())
+}
+
+/// What check_taps reads of the model.
+#[derive(Clone, Copy)]
+pub(super) struct Taps {
+    pub(super) layers: u32,
+    pub(super) family: u32,
+    pub(super) span_head: bool,
+}
+
+/// check_taps on what it reads, `read` saying whether the device's cell
+/// honors field 9. A count of 0, or over an encoder's layers, is wrong for
+/// the model on any device, so it is refused before what the device reads
+/// is asked: the same request gets the same code everywhere.
+pub(super) fn taps_refusal(taps: u32, model: Taps, read: bool, backend: &str) -> Result<()> {
+    use crate::backend::{
+        TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT,
+        TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC,
+    };
     if taps == 1 {
         return Ok(());
     }
     if taps == 0 {
         return Err(Error::field(INVALID_ARGUMENT, 9, "layers 0: a range write needs at least 1 layer"));
     }
-    use crate::backend::{
-        TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT,
-        TURBO_FAMILY_ROBERTA,
-    };
-    let family = s.model.weights.family();
-    let backend = s.backend.name();
-    if backend != "cpu"
-        || !matches!(
-            family,
-            TURBO_FAMILY_BERT
-                | TURBO_FAMILY_ROBERTA
-                | TURBO_FAMILY_MODERNBERT
-                | TURBO_FAMILY_NOMIC_BERT
-                | TURBO_FAMILY_DEBERTA_V2
-        )
-    {
+    // A static model has no encoder layers to count: its table is read
+    // as the final layer, and nothing before it.
+    if model.family == TURBO_FAMILY_STATIC {
+        return Err(Error::field(UNSUPPORTED_OPTION, 9, format!("layers {taps}: a static model has its table alone")));
+    }
+    let layers = model.layers;
+    if taps > layers {
+        return Err(Error::field(INVALID_ARGUMENT, 9, format!("layers {taps}: the model has 1 to {layers} to read")));
+    }
+    let encoder = matches!(
+        model.family,
+        TURBO_FAMILY_BERT
+            | TURBO_FAMILY_ROBERTA
+            | TURBO_FAMILY_MODERNBERT
+            | TURBO_FAMILY_NOMIC_BERT
+            | TURBO_FAMILY_DEBERTA_V2
+    );
+    if !read || !encoder {
         return Err(Error::field(
             UNSUPPORTED_OPTION,
             9,
             format!("layers {taps}: the {backend} backend reads only the final layer of this model"),
         ));
     }
-    let layers = s.model.weights.layers();
-    if taps > layers {
-        return Err(Error::field(INVALID_ARGUMENT, 9, format!("layers {taps}: the model has 1 to {layers} to read")));
-    }
-    if s.model.span_head.is_some() {
+    if model.span_head {
         return Err(Error::field(UNSUPPORTED_OPTION, 9, format!("layers {taps}: the span head reads the final layer")));
     }
     Ok(())

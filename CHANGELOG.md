@@ -122,6 +122,12 @@ for the release after it goes above it.
 
 ### Fixed
 
+- The cpu backend's embed cells set field 9's bit (`layers`) in
+  `turbo_capability.options_honored`, which reads `0b1_1111_1111` there,
+  and a layer count of 0 or over an encoder's layers is
+  `TURBO_E_INVALID_ARGUMENT` naming field 9 on every device, checked
+  before whether the device reads the earlier layers; off the CPU it
+  was `TURBO_E_UNSUPPORTED_OPTION` (#1851).
 - `turbo_analyzer_create` decodes `turbo_analyzer_desc` through raw
   field reads after validating `struct_size`, without forming a
   reference to the 120-byte struct over a legacy 104-byte allocation
