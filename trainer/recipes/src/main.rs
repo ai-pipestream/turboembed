@@ -4,6 +4,8 @@
 //! ```text
 //! turbo-train-head check    --corpus <id> --dir <corpus dir> [--unrecorded-corpus]
 //! turbo-train-head baseline --corpus <id> --dir <corpus dir> --out <dir> [--unrecorded-corpus]
+//!     (re-docred also takes --dependency-path --parser <train-parse run dir> --bundle <encoder bundle>,
+//!     the deterministic dependency-path rule row of #1825)
 //! turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
 //!     [--device cpu|cuda|levelzero|metal] [--precision model|exact] [--pooling first|mean] [--crf]
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
@@ -60,6 +62,7 @@ use turbo_trainer_recipes::run::{
 use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
+mod path_baseline;
 mod peer_cmd;
 mod train_coref;
 mod train_open_span;
@@ -104,6 +107,12 @@ fn run(argv: Vec<String>) -> Result<()> {
             Ok(())
         }
         "baseline" => {
+            if a.flag("--dependency-path") {
+                if corpus_id != turbo_trainer_recipes::redocred::ID {
+                    return Err(Error(format!("{corpus_id}: --dependency-path is re-docred's baseline")));
+                }
+                return path_baseline::dependency_path(&argv, &dir, unrecorded, a);
+            }
             let out = OutDir::claim(&a.required("--out")?)?;
             let commit = commit(a.value("--commit")?);
             a.done()?;

@@ -207,7 +207,13 @@ it, where CoNLL 2018 and published Stanza tables count the universal
 part alone. The words are syntactic words, multiword tokens already
 split, so a peer runs pretokenized with no multiword expansion (Stanza
 `tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
-its file for words other than the split's.
+its file for words other than the split's. For `litbank`, `export`
+writes the ten test works as one CoNLL coreference file each under the
+output directory (the gold words and sentence framing, the coreference
+column blank) and `peer --column coref` reads a peer's prediction file
+of one document a work, matched by document id, scored with the CoNLL
+coreference metrics against the same works beside the singleton
+baseline (#1825).
 
 `train-relation` trains the relation classifier head (`relation` on
 `turboembed:relations`, #1734) on `re-docred`: each document is one
@@ -225,6 +231,21 @@ over documents:
 
 ```text
 turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --bundle <encoder bundle> --out <new dir>
+```
+
+`baseline --corpus re-docred --dependency-path` writes the deterministic
+dependency-path rule row (#1825): the documents' own sentences parsed by
+our dependency head (`--parser`, a `train-parse` run directory, over
+`--bundle`), an ordered entity pair labelled by the most frequent
+training relation on the shortest path between the two entities' first
+mentions' head words, no relation when the path is one training never
+gave (`redocred_path`). The receipt's `baseline` is the rule's score,
+its `encoder` and `head` name the parser, and `outputs` digests the
+rule's predictions:
+
+```text
+turbo-train-head baseline --corpus re-docred --dir <Re-DocRED checkout> \
+  --dependency-path --parser <train-parse run dir> --bundle <encoder bundle> --out <new dir>
 ```
 
 A head with a BiLSTM adapter waits 15 epochs without progress before

@@ -51,6 +51,83 @@ fn the_masc_pos_rows_are_receipts_of_the_recorded_release() {
 /// pins it.
 const HEAD_B_SHA256: &str = "76fac774d60210b9279a47ebcb565e12e2b353897f560afa4806e43771e8a3b6";
 
+/// The #1825 peer rows: EWT peers, LitBank coref peers and the Re-DocRED
+/// dependency-path rule, each a receipt of the recorded release with the
+/// predictions pinned, the README's numbers, and no machine or path in it.
+#[test]
+fn the_1825_rows_are_receipts_of_the_recorded_releases() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("records/1825");
+    let read = |name: &str| -> Receipt {
+        serde_json::from_slice(&std::fs::read(dir.join(name)).unwrap()).unwrap_or_else(|e| panic!("{name}: {e}"))
+    };
+    let ewt = [
+        ("ewt-spacy-trf-upos.json", "ud-en-ewt-upos", 0.9326, "a49403f2c17cdc3d3ee8d3d5f5e5f1d40d43f4e31c5c6a8893b6341605ba6905"),
+        ("ewt-spacy-trf-xpos.json", "ud-en-ewt-xpos", 0.9532, "a49403f2c17cdc3d3ee8d3d5f5e5f1d40d43f4e31c5c6a8893b6341605ba6905"),
+        ("ewt-spacy-trf-feats.json", "ud-en-ewt-feats", 0.6766, "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a"),
+        ("ewt-spacy-trf-lemma.json", "ud-en-ewt-lemma", 0.9531, "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a"),
+        ("ewt-spacy-trf-deps.json", "ud-en-ewt-deps", 0.3795, "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a"),
+        ("ewt-stanza-upos.json", "ud-en-ewt-upos", 0.9677, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
+        ("ewt-stanza-xpos.json", "ud-en-ewt-xpos", 0.9624, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
+        ("ewt-stanza-feats.json", "ud-en-ewt-feats", 0.9622, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
+        ("ewt-stanza-lemma.json", "ud-en-ewt-lemma", 0.9683, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
+        ("ewt-stanza-deps.json", "ud-en-ewt-deps", 0.8835, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
+        ("ewt-trankit-upos.json", "ud-en-ewt-upos", 0.9649, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
+        ("ewt-trankit-xpos.json", "ud-en-ewt-xpos", 0.9700, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
+        ("ewt-trankit-feats.json", "ud-en-ewt-feats", 0.8534, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
+        ("ewt-trankit-lemma.json", "ud-en-ewt-lemma", 0.9138, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
+        ("ewt-trankit-deps.json", "ud-en-ewt-deps", 0.8578, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
+    ];
+    for (file, corpus, score, sha) in ewt {
+        let r = read(file);
+        assert_eq!(r.corpus.id, corpus, "{file}");
+        assert!(r.corpus.recorded, "{file}");
+        assert_eq!(r.corpus.test.words, 25_094, "{file}");
+        assert_eq!(round(r.eval.model.as_ref().unwrap().score()), score, "{file}");
+        assert!(r.peer.as_ref().unwrap().predictions.sha256 == sha, "{file}");
+        assert_eq!(r.head, None, "{file}: a peer row carries no head of ours");
+    }
+    let singleton = read("litbank-singleton.json");
+    assert!(singleton.eval.model.is_none());
+    assert_eq!(round(singleton.eval.baseline.score()), 0.3009);
+    for (file, score, sha) in [
+        ("litbank-spacy-coref.json", 0.5058, "b0c515a6021bc6c77c56e1a90b81555f8a5fa66e379ad691fd7e542565a4da5b"),
+        ("litbank-stanza-coref.json", 0.8051, "cfb02c756747d62eda9971567656aeefccacb55367e98a8a850ac4caaec22690"),
+    ] {
+        let r = read(file);
+        assert_eq!(r.corpus.id, "litbank", "{file}");
+        assert!(r.corpus.recorded, "{file}");
+        assert_eq!(r.corpus.test.sentences, 759, "{file}");
+        assert_eq!(round(r.eval.model.as_ref().unwrap().score()), score, "{file}");
+        assert_eq!(r.peer.as_ref().unwrap().predictions.sha256, sha, "{file}");
+        assert!(r.eval.comparison.as_ref().unwrap().low > 0.0, "{file}: above the singleton baseline");
+    }
+    let rule = read("redocred-dependency-path.json");
+    assert_eq!(rule.corpus.id, "re-docred");
+    assert!(rule.corpus.recorded);
+    assert_eq!((rule.corpus.test.sentences, rule.corpus.test.words), (500, 98_734));
+    assert_eq!(round(rule.eval.baseline.score()), 0.0640);
+    assert!(rule.eval.model.is_none(), "a baseline row");
+    assert_eq!(rule.head.as_ref().unwrap().kind, HeadKind::BiaffineParser, "the parser the rule ran on");
+    assert_eq!(
+        rule.encoder.as_ref().unwrap().manifest_sha256,
+        "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8"
+    );
+    assert_eq!(
+        rule.outputs.iter().find(|o| o.path == "predictions.json").unwrap().sha256,
+        "9ea91257dda03b94da53773c7327e2a6c1720c1f5dc45c79ee9702655c6d867d"
+    );
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let name = entry.unwrap().file_name().into_string().unwrap();
+        if name.ends_with(".json") {
+            let r = read(&name);
+            assert_eq!(r.host, "cpu-32-core-machine", "{name}: host {}", r.host);
+            assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
+            let text = serde_json::to_string(&r).unwrap().to_lowercase();
+            assert!(!text.contains("opennlp"), "{name}: no OpenNLP row (#1509)");
+        }
+    }
+}
+
 #[test]
 fn the_head_row_clears_the_gate_on_the_recorded_release() {
     let Release::Recorded(release) = RELEASE else { panic!("MASC has a recorded release") };
