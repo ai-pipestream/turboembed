@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::heads_kinds::{CorefShape, SpanShape};
+use super::heads_kinds::{CorefShape, SeenLookup, SpanShape};
 use super::helpers::{fits, positive, required};
 use super::{Format, LayerMix, LicenseClass, Manifest, RelationShape};
 use crate::status::{Result, invalid};
@@ -59,6 +59,11 @@ pub struct HeadSpec {
     /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash_embed: Option<HashEmbed>,
+    /// A HEAD_TOKEN_SPLIT's seen-token lookup (#1803): tokens whose
+    /// training split was unambiguous take it without the scorer;
+    /// absent for every other kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seen: Option<SeenLookup>,
     /// The spans a HEAD_SPAN_CLASSIFIER or HEAD_OPEN_SPAN head scores;
     /// absent for every other kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]

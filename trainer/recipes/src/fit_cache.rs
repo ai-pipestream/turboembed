@@ -244,6 +244,7 @@ pub fn command_with_task(
     let from: Option<u32> =
         a.value("--from-layer")?.map(|v| v.parse()).transpose().map_err(|_| Error("--from-layer N".into()))?;
     let min_tree_freq: usize = a.parsed("--min-tree-freq", DEFAULT_MIN_TREE_FREQ)?;
+    let seen_lookup: u32 = a.parsed("--seen-lookup", 0)?;
     let biaffine = Biaffine { arc: a.parsed("--arc", DEFAULT_ARC)?, rel: a.parsed("--rel", DEFAULT_REL)? };
     let max_train: usize = a.parsed("--max-train", 0)?;
     let HeadArgs { crf, bilstm, hash, config } = head_args(&mut a)?;
@@ -266,6 +267,7 @@ pub fn command_with_task(
         bilstm,
         hash,
         min_tree_freq,
+        seen_lookup,
         biaffine,
         config,
         max_train,

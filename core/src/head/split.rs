@@ -11,9 +11,16 @@
 //! words rewrite from it the same way, as a lemmatizer's tree serves
 //! every word inflected the same way. The tensors are a token tagger's
 //! (tagger.rs); the decode takes the best label that fits.
+//!
+//! A head may carry a seen-token lookup (`seen`, #1803): the tokens
+//! whose training split was unambiguous, each with that split's label.
+//! The decode takes a looked-up token's label without the scorer's row
+//! being read; every other token's label is the scorer's as above.
+
+use std::collections::HashMap;
 
 use crate::bundle::Bundle;
-use crate::manifest::{HeadKind, HeadSpec, KEEP_TOKEN};
+use crate::manifest::{HeadKind, HeadSpec, KEEP_TOKEN, SeenLookup};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
 
 use super::edit_tree::EditTree;
@@ -88,6 +95,8 @@ pub struct TokenSplitter {
     scorer: TokenTagger,
     /// Each label's trees; None for `_`.
     splits: Vec<Option<Vec<EditTree>>>,
+    /// The seen lookup: a token's fixed label, when the head carries one.
+    seen: Option<HashMap<String, u32>>,
 }
 
 impl TokenSplitter {
@@ -109,8 +118,9 @@ impl TokenSplitter {
             .labels
             .iter()
             .map(|l| if l == KEEP_TOKEN { Ok(None) } else { parse(l).map(Some) })
-            .collect::<Result<_>>()?;
-        Ok(TokenSplitter { scorer, splits })
+            .collect::<Result<Vec<Option<Vec<EditTree>>>>>()?;
+        let seen = spec.seen.as_ref().map(|s| check_seen(s, &spec.labels, &splits)).transpose()?;
+        Ok(TokenSplitter { scorer, splits, seen })
     }
 
     pub fn spec(&self) -> &HeadSpec {
@@ -146,8 +156,10 @@ impl TokenSplitter {
         self.scorer.scores_forms(states, words, forms, out, w)
     }
 
-    /// Each token's label: the best-scoring one that fits `forms[i]` (a
-    /// tie to the lower index). `_` always fits.
+    /// Each token's label: a looked-up token's own label, else the
+    /// best-scoring one that fits `forms[i]` (a tie to the lower index).
+    /// `_` always fits. A looked-up token's scores are not read, so a
+    /// non-finite row it owns is no error; any other non-finite score is.
     pub fn decode(&self, scores: &[f32], forms: &[&str], out: &mut Vec<u32>) -> Result<()> {
         let k = self.splits.len();
         if Some(scores.len()) != forms.len().checked_mul(k) {
@@ -156,12 +168,16 @@ impl TokenSplitter {
                 format!("{} scores for {} tokens of {k} labels", scores.len(), forms.len()),
             ));
         }
-        if scores.iter().any(|v| !v.is_finite()) {
-            return Err(Error::new(INVALID_ARGUMENT, "a split score is not finite"));
-        }
         out.clear();
         let mut order: Vec<usize> = Vec::with_capacity(k);
         for (row, form) in scores.chunks_exact(k).zip(forms) {
+            if let Some(&l) = self.seen.as_ref().and_then(|s| s.get(*form)) {
+                out.push(l);
+                continue;
+            }
+            if row.iter().any(|v| !v.is_finite()) {
+                return Err(Error::new(INVALID_ARGUMENT, "a split score is not finite"));
+            }
             order.clear();
             order.extend(0..k);
             // Stable, so equal scores keep the lower index first.
@@ -194,4 +210,26 @@ impl TokenSplitter {
             })
             .collect()
     }
+}
+
+/// The lookup `seen` names as token to label index: every label one of
+/// `labels`, every entry's split fitting its token (which training
+/// guarantees; a hand-edited head could break it, so it is checked here,
+/// once, rather than at decode). A token listed twice or a label the
+/// head lacks is refused.
+fn check_seen(seen: &SeenLookup, labels: &[String], splits: &[Option<Vec<EditTree>>]) -> Result<HashMap<String, u32>> {
+    let mut out = HashMap::with_capacity(seen.tokens.len());
+    for e in &seen.tokens {
+        let Some(l) = labels.iter().position(|l| l == &e.label) else {
+            return Err(invalid(format!("seen token {:?} names {:?}, not one of the head's labels", e.token, e.label)));
+        };
+        let fits = splits[l].as_ref().is_none_or(|t| apply(t, &e.token).is_some());
+        if !fits {
+            return Err(invalid(format!("seen token {:?} does not fit its label {:?}", e.token, e.label)));
+        }
+        if out.insert(e.token.clone(), l as u32).is_some() {
+            return Err(invalid(format!("seen token {:?} is listed twice", e.token)));
+        }
+    }
+    Ok(out)
 }

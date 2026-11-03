@@ -46,6 +46,7 @@ pub struct CachedParams {
     pub bilstm: Option<(u32, u32)>,
     pub hash: Option<turbo::manifest::HashEmbed>,
     pub min_tree_freq: usize,
+    pub seen_lookup: u32,
     pub biaffine: Biaffine,
     pub config: Config,
     pub max_train: usize,
@@ -347,7 +348,8 @@ pub fn run_split(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> 
             bank.id, p.min_tree_freq
         )));
     }
-    let mut head = split::spec(labels, &record, cache.pooling, p.bilstm)?;
+    let seen = (p.seen_lookup > 0).then(|| split::seen_lookup(&splits.train, &chosen, &labels, p.seen_lookup));
+    let mut head = split::spec(labels, &record, cache.pooling, p.bilstm, seen)?;
     head.layer_mix = layer_mix_for(&p.layers, p.mixed, cache.encoder.layers)?;
     let hidden = cache.encoder.hidden;
 

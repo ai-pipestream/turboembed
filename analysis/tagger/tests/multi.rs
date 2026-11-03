@@ -295,3 +295,52 @@ fn two_named_sentence_heads_keep_their_own_predictions() {
     assert_eq!(sent_spans(&a), sent_spans(&first));
     assert_eq!(sent_spans(&b), sent_spans(&second));
 }
+
+/// A split head with a seen lookup (#1803) in the bundle: its tokens take
+/// the lookup's label with the byte offsets the split implies, and every
+/// other token is the head's, byte for byte what the same bundle without
+/// the lookup writes.
+#[test]
+fn a_seen_lookup_decides_its_tokens_and_the_head_decides_the_rest() {
+    let and_split = ["an", "d"].iter().map(|w| EditTree::mine("and", w).label()).collect::<Vec<_>>().join(" ");
+    let build = |name: &str, seen: bool| {
+        bundle(name, |m| {
+            let mut h = json!({
+                "name": "words", "layer": "turboembed:words", "kind": "HEAD_TOKEN_SPLIT",
+                "labels": ["_", and_split], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+                "decode": "DECODE_EDIT_TREE", "artifact": "weights-f32", "tensor_prefix": "heads.words"
+            });
+            if seen {
+                h["seen"] = json!({"min_count": 2, "tokens": [{"token": "and", "label": and_split}]});
+            }
+            m["heads"].as_array_mut().unwrap().push(h);
+        })
+    };
+    let (with, without) = (build("seen-some", true), build("seen-none", false));
+    let o = EncoderOptions::default();
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let run = |dir: &std::path::Path| {
+        let (w,) = WordTagger::open(dir, None, &o).unwrap().annotate((view, &toks, None, None)).unwrap();
+        w.iter(TEXT, &toks).map(|w| (w.token_span, w.subspan, w.form.to_owned())).collect::<Vec<_>>()
+    };
+    let (a, b) = (run(&with), run(&without));
+
+    // The looked-up `and` is `an` and `d`, byte subspans tiling the token.
+    let at = TEXT.find(" and ").unwrap() + 1;
+    let token = turbo_analysis::Span::new(at as u32, at as u32 + 3);
+    let and: Vec<_> = a.iter().filter(|(ts, _, _)| *ts == token).collect();
+    assert_eq!(and.len(), 2, "two words for the token: {and:?}");
+    let got: Vec<_> = and.iter().map(|(_, s, f)| (*s, f.as_str())).collect();
+    let want = [
+        (Some(turbo_analysis::Span::new(at as u32, at as u32 + 2)), "an"),
+        (Some(turbo_analysis::Span::new(at as u32 + 2, at as u32 + 3)), "d"),
+    ];
+    assert_eq!(got, want);
+
+    // Every other token is the head's: identical to the bundle without the
+    // lookup, tensors and scores being the same.
+    let rest = |v: &[_]| -> Vec<_> { v.iter().filter(|(ts, _, _)| *ts != token).cloned().collect() };
+    assert_eq!(rest(&a), rest(&b));
+}

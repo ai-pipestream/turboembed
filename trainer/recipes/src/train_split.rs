@@ -37,6 +37,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
         .find(|b| b.id == bank)
         .ok_or_else(|| Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
     let min_freq: usize = a.parsed("--min-tree-freq", MIN_TREE_FREQ)?;
+    let seen_k: u32 = a.parsed("--seen-lookup", 0)?;
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
         options(&mut a)?;
     a.done()?;
@@ -56,7 +57,9 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     if labels.len() < 2 {
         return Err(Error(format!("{}: no multiword token's split comes up {min_freq} times in training", bank.id)));
     }
-    let spec = split::spec(labels, &record, pooling, bilstm)?;
+    // Mined from the training split alone; the receipt's head carries it.
+    let seen = (seen_k > 0).then(|| split::seen_lookup(&splits.train, &chosen, &labels, seen_k));
+    let spec = split::spec(labels, &record, pooling, bilstm, seen)?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;

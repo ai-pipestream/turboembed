@@ -1,0 +1,6257 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train-split",
+    "--corpus",
+    "ud-it-markit",
+    "--dir",
+    "UD_Italian-MarkIT-r2.16",
+    "--bundle",
+    "xlm-roberta-base",
+    "--out",
+    "seen2",
+    "--commit",
+    "e97a161b5f1c8f903e2a64d5cf199952dda308ea",
+    "--seen-lookup",
+    "2"
+  ],
+  "commit": "e97a161b5f1c8f903e2a64d5cf199952dda308ea",
+  "host": "cpu-32-core-machine",
+  "unix_time": 1793675856,
+  "corpus": {
+    "id": "ud-it-markit-split",
+    "name": "Universal Dependencies Italian MarkIT r2.16, token split",
+    "task": "tags",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Italian MarkIT r2.16, published at https://github.com/UniversalDependencies/UD_Italian-MarkIT; used under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "it_markit-ud-train.conllu",
+        "size": 1266080,
+        "sha256": "4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6"
+      },
+      {
+        "path": "it_markit-ud-dev.conllu",
+        "size": 665430,
+        "sha256": "633b6186f47ecfebfcff4ff9c7e19a0cbffd1f655f14fc1e9265b12bda597f97"
+      },
+      {
+        "path": "it_markit-ud-test.conllu",
+        "size": 658412,
+        "sha256": "9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (fa54dc64d616cd9fc42bd2c4a0d8003f8ef47b4d)",
+    "train": {
+      "sentences": 611,
+      "words": 18759
+    },
+    "dev": {
+      "sentences": 341,
+      "words": 9824
+    },
+    "test": {
+      "sentences": 340,
+      "words": 9654
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cpu",
+    "device": "AMD Ryzen 9 9950X 16-Core Processor",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "words",
+    "layer": "turboembed:words",
+    "kind": "HEAD_TOKEN_SPLIT",
+    "labels": [
+      "_",
+      "(m 0 4 () (s 'ella' 'i')) (t 2 ())",
+      "(h 1 ()) (t 2 ())",
+      "(m 0 2 () (s 'el' 'i')) (m 2 0 (s 'de' 'i') ())",
+      "(m 0 4 () (s 'ell\\'' 'i')) (m 3 0 (s 'del' '') ())",
+      "(m 0 2 (s '' 'i') (s 'el' '')) (m 2 0 (s 'ne' 'i') ())",
+      "(m 0 1 () (s 'l' '')) (m 1 0 (s 'a' 'i') ())",
+      "(m 0 4 (s '' 'i') (s 'ella' '')) (m 3 0 (s 'nel' '') ())",
+      "(h 2 ()) (t 2 ())",
+      "(m 0 2 () (s 'si' '')) (t 2 ())",
+      "(m 0 2 () (m 1 0 (s 'e' '') ())) (m 2 0 (s 'de' '') ())",
+      "(m 0 4 () (s 'elle' 'i')) (m 3 0 (s 'del' '') ())",
+      "(m 0 1 () (s 'l' '')) (m 2 0 (s 'da' 'i') ())",
+      "(m 0 1 () (s 'i' '')) (t 1 ())",
+      "(m 0 4 () (m 3 0 (s 'egl' '') ())) (m 2 0 (s 'de' '') ())",
+      "(m 0 4 (s '' 'i') (s 'ell\\'' '')) (m 3 0 (s 'nel' '') ())",
+      "(m 0 2 () (s 'lo' '')) (t 2 ())",
+      "(m 0 2 () (s 'la' '')) (t 2 ())",
+      "(m 0 2 (s '' 'i') (s 'ei' '')) (m 2 0 (s 'ne' '') ())",
+      "(m 0 1 () (s 'l' '')) (m 2 0 (s 'su' 'i') ())",
+      "(m 0 3 () (s 'gli' '')) (t 3 ())",
+      "(m 0 2 () (s 'ci' '')) (t 2 ())",
+      "(m 0 4 (s '' 'i') (s 'egli' '')) (m 2 0 (s 'ne' '') ())",
+      "(m 0 4 () (s 'ello' 'i')) (m 3 0 (s 'del' '') ())",
+      "(m 0 4 (s '' 'i') (s 'elle' '')) (m 3 0 (s 'nel' '') ())",
+      "(m 0 4 (s '' 'i') (s 'ello' '')) (m 3 0 (s 'nel' '') ())",
+      "(h 8 ()) (t 2 ())",
+      "(s 'Nel' 'In') (m 2 0 (s 'Ne' 'i') ())",
+      "(h 11 ()) (t 2 ())",
+      "(h 7 ()) (t 2 ())",
+      "(m 0 1 () (s 'l' 'n')) (m 2 0 (s 'co' 'i') ())",
+      "(m 0 4 (s '' 'I') (s 'ell\\'' '')) (m 3 0 (s 'nel' '') ())",
+      "(m 1 1 (s 'd' 'D') (s 'l' '')) (m 2 0 (s 'da' 'i') ())",
+      "(s 'all\\'' 'A') (m 2 0 (s 'al' '') ())"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "decode": "DECODE_EDIT_TREE",
+    "seen": {
+      "min_count": 2,
+      "tokens": [
+        {
+          "token": "!",
+          "label": "_"
+        },
+        {
+          "token": "\"",
+          "label": "_"
+        },
+        {
+          "token": "'",
+          "label": "_"
+        },
+        {
+          "token": "(",
+          "label": "_"
+        },
+        {
+          "token": ")",
+          "label": "_"
+        },
+        {
+          "token": ",",
+          "label": "_"
+        },
+        {
+          "token": "-",
+          "label": "_"
+        },
+        {
+          "token": ".",
+          "label": "_"
+        },
+        {
+          "token": "...",
+          "label": "_"
+        },
+        {
+          "token": "13",
+          "label": "_"
+        },
+        {
+          "token": "1600",
+          "label": "_"
+        },
+        {
+          "token": "1929",
+          "label": "_"
+        },
+        {
+          "token": "2001",
+          "label": "_"
+        },
+        {
+          "token": "2004",
+          "label": "_"
+        },
+        {
+          "token": "2013",
+          "label": "_"
+        },
+        {
+          "token": "24",
+          "label": "_"
+        },
+        {
+          "token": "28",
+          "label": "_"
+        },
+        {
+          "token": "68",
+          "label": "_"
+        },
+        {
+          "token": "9",
+          "label": "_"
+        },
+        {
+          "token": ":",
+          "label": "_"
+        },
+        {
+          "token": ";",
+          "label": "_"
+        },
+        {
+          "token": "?",
+          "label": "_"
+        },
+        {
+          "token": "A",
+          "label": "_"
+        },
+        {
+          "token": "A.",
+          "label": "_"
+        },
+        {
+          "token": "Ad",
+          "label": "_"
+        },
+        {
+          "token": "Adolf",
+          "label": "_"
+        },
+        {
+          "token": "Altre",
+          "label": "_"
+        },
+        {
+          "token": "America",
+          "label": "_"
+        },
+        {
+          "token": "Anche",
+          "label": "_"
+        },
+        {
+          "token": "Andrea",
+          "label": "_"
+        },
+        {
+          "token": "Annunzio",
+          "label": "_"
+        },
+        {
+          "token": "Aristotele",
+          "label": "_"
+        },
+        {
+          "token": "B.",
+          "label": "_"
+        },
+        {
+          "token": "Berlino",
+          "label": "_"
+        },
+        {
+          "token": "Bodei",
+          "label": "_"
+        },
+        {
+          "token": "Brain",
+          "label": "_"
+        },
+        {
+          "token": "C'",
+          "label": "_"
+        },
+        {
+          "token": "CEE",
+          "label": "_"
+        },
+        {
+          "token": "Chiesa",
+          "label": "_"
+        },
+        {
+          "token": "Ci",
+          "label": "_"
+        },
+        {
+          "token": "Cicerone",
+          "label": "_"
+        },
+        {
+          "token": "Ciò",
+          "label": "_"
+        },
+        {
+          "token": "Come",
+          "label": "_"
+        },
+        {
+          "token": "Con",
+          "label": "_"
+        },
+        {
+          "token": "Cosa",
+          "label": "_"
+        },
+        {
+          "token": "Costituzione",
+          "label": "_"
+        },
+        {
+          "token": "D'",
+          "label": "_"
+        },
+        {
+          "token": "Da",
+          "label": "_"
+        },
+        {
+          "token": "Danimarca",
+          "label": "_"
+        },
+        {
+          "token": "De",
+          "label": "_"
+        },
+        {
+          "token": "Di",
+          "label": "_"
+        },
+        {
+          "token": "Dichiarazione",
+          "label": "_"
+        },
+        {
+          "token": "Dopo",
+          "label": "_"
+        },
+        {
+          "token": "Duchamp",
+          "label": "_"
+        },
+        {
+          "token": "E",
+          "label": "_"
+        },
+        {
+          "token": "E'",
+          "label": "_"
+        },
+        {
+          "token": "Ed",
+          "label": "_"
+        },
+        {
+          "token": "Era",
+          "label": "_"
+        },
+        {
+          "token": "Erano",
+          "label": "_"
+        },
+        {
+          "token": "Esempi",
+          "label": "_"
+        },
+        {
+          "token": "Europa",
+          "label": "_"
+        },
+        {
+          "token": "Europea",
+          "label": "_"
+        },
+        {
+          "token": "Exupery",
+          "label": "_"
+        },
+        {
+          "token": "Fin",
+          "label": "_"
+        },
+        {
+          "token": "Forse",
+          "label": "_"
+        },
+        {
+          "token": "Fu",
+          "label": "_"
+        },
+        {
+          "token": "Galilei",
+          "label": "_"
+        },
+        {
+          "token": "Galileo",
+          "label": "_"
+        },
+        {
+          "token": "Germania",
+          "label": "_"
+        },
+        {
+          "token": "Giovanni",
+          "label": "_"
+        },
+        {
+          "token": "Giulietta",
+          "label": "_"
+        },
+        {
+          "token": "Già",
+          "label": "_"
+        },
+        {
+          "token": "Guglielmo",
+          "label": "_"
+        },
+        {
+          "token": "Ha",
+          "label": "_"
+        },
+        {
+          "token": "Hawking",
+          "label": "_"
+        },
+        {
+          "token": "Hitler",
+          "label": "_"
+        },
+        {
+          "token": "Hobsbawm",
+          "label": "_"
+        },
+        {
+          "token": "Human",
+          "label": "_"
+        },
+        {
+          "token": "I",
+          "label": "_"
+        },
+        {
+          "token": "II",
+          "label": "_"
+        },
+        {
+          "token": "Il",
+          "label": "_"
+        },
+        {
+          "token": "In",
+          "label": "_"
+        },
+        {
+          "token": "Infatti",
+          "label": "_"
+        },
+        {
+          "token": "Io",
+          "label": "_"
+        },
+        {
+          "token": "Italia",
+          "label": "_"
+        },
+        {
+          "token": "L'",
+          "label": "_"
+        },
+        {
+          "token": "La",
+          "label": "_"
+        },
+        {
+          "token": "Leopardi",
+          "label": "_"
+        },
+        {
+          "token": "Lo",
+          "label": "_"
+        },
+        {
+          "token": "M.",
+          "label": "_"
+        },
+        {
+          "token": "Ma",
+          "label": "_"
+        },
+        {
+          "token": "Malavoglia",
+          "label": "_"
+        },
+        {
+          "token": "Malpelo",
+          "label": "_"
+        },
+        {
+          "token": "Manzoni",
+          "label": "_"
+        },
+        {
+          "token": "Marconi",
+          "label": "_"
+        },
+        {
+          "token": "Molti",
+          "label": "_"
+        },
+        {
+          "token": "Molto",
+          "label": "_"
+        },
+        {
+          "token": "Morse",
+          "label": "_"
+        },
+        {
+          "token": "Mussolini",
+          "label": "_"
+        },
+        {
+          "token": "Ne",
+          "label": "_"
+        },
+        {
+          "token": "Nel",
+          "label": "(s 'Nel' 'In') (m 2 0 (s 'Ne' 'i') ())"
+        },
+        {
+          "token": "Non",
+          "label": "_"
+        },
+        {
+          "token": "Novecento",
+          "label": "_"
+        },
+        {
+          "token": "Ora",
+          "label": "_"
+        },
+        {
+          "token": "PIL",
+          "label": "_"
+        },
+        {
+          "token": "Paese",
+          "label": "_"
+        },
+        {
+          "token": "Paesi",
+          "label": "_"
+        },
+        {
+          "token": "Paolo",
+          "label": "_"
+        },
+        {
+          "token": "Papa",
+          "label": "_"
+        },
+        {
+          "token": "Parlamento",
+          "label": "_"
+        },
+        {
+          "token": "Pascal",
+          "label": "_"
+        },
+        {
+          "token": "Pascoli",
+          "label": "_"
+        },
+        {
+          "token": "Pasolini",
+          "label": "_"
+        },
+        {
+          "token": "Per",
+          "label": "_"
+        },
+        {
+          "token": "Perché",
+          "label": "_"
+        },
+        {
+          "token": "Pietro",
+          "label": "_"
+        },
+        {
+          "token": "Pirandello",
+          "label": "_"
+        },
+        {
+          "token": "Provvidenza",
+          "label": "_"
+        },
+        {
+          "token": "Purtroppo",
+          "label": "_"
+        },
+        {
+          "token": "Questa",
+          "label": "_"
+        },
+        {
+          "token": "Questo",
+          "label": "_"
+        },
+        {
+          "token": "Quindi",
+          "label": "_"
+        },
+        {
+          "token": "Remo",
+          "label": "_"
+        },
+        {
+          "token": "Renzo",
+          "label": "_"
+        },
+        {
+          "token": "Repubblica",
+          "label": "_"
+        },
+        {
+          "token": "Roma",
+          "label": "_"
+        },
+        {
+          "token": "Romeo",
+          "label": "_"
+        },
+        {
+          "token": "Rosso",
+          "label": "_"
+        },
+        {
+          "token": "Russia",
+          "label": "_"
+        },
+        {
+          "token": "Saba",
+          "label": "_"
+        },
+        {
+          "token": "Se",
+          "label": "_"
+        },
+        {
+          "token": "Seconda",
+          "label": "_"
+        },
+        {
+          "token": "Secondo",
+          "label": "_"
+        },
+        {
+          "token": "Shakespeare",
+          "label": "_"
+        },
+        {
+          "token": "Si",
+          "label": "_"
+        },
+        {
+          "token": "Sicilia",
+          "label": "_"
+        },
+        {
+          "token": "Sole",
+          "label": "_"
+        },
+        {
+          "token": "Sono",
+          "label": "_"
+        },
+        {
+          "token": "Spesso",
+          "label": "_"
+        },
+        {
+          "token": "Stati",
+          "label": "_"
+        },
+        {
+          "token": "Stato",
+          "label": "_"
+        },
+        {
+          "token": "Stephen",
+          "label": "_"
+        },
+        {
+          "token": "Svevo",
+          "label": "_"
+        },
+        {
+          "token": "Terra",
+          "label": "_"
+        },
+        {
+          "token": "Terzo",
+          "label": "_"
+        },
+        {
+          "token": "Tozzi",
+          "label": "_"
+        },
+        {
+          "token": "Tra",
+          "label": "_"
+        },
+        {
+          "token": "Tutte",
+          "label": "_"
+        },
+        {
+          "token": "UE",
+          "label": "_"
+        },
+        {
+          "token": "UFO",
+          "label": "_"
+        },
+        {
+          "token": "Uhlman",
+          "label": "_"
+        },
+        {
+          "token": "Umberto",
+          "label": "_"
+        },
+        {
+          "token": "Un",
+          "label": "_"
+        },
+        {
+          "token": "Un'",
+          "label": "_"
+        },
+        {
+          "token": "Unione",
+          "label": "_"
+        },
+        {
+          "token": "Unita",
+          "label": "_"
+        },
+        {
+          "token": "Uniti",
+          "label": "_"
+        },
+        {
+          "token": "Uno",
+          "label": "_"
+        },
+        {
+          "token": "Verga",
+          "label": "_"
+        },
+        {
+          "token": "Verona",
+          "label": "_"
+        },
+        {
+          "token": "Zeno",
+          "label": "_"
+        },
+        {
+          "token": "[",
+          "label": "_"
+        },
+        {
+          "token": "]",
+          "label": "_"
+        },
+        {
+          "token": "a",
+          "label": "_"
+        },
+        {
+          "token": "abbandonare",
+          "label": "_"
+        },
+        {
+          "token": "abbia",
+          "label": "_"
+        },
+        {
+          "token": "abbiamo",
+          "label": "_"
+        },
+        {
+          "token": "abbiano",
+          "label": "_"
+        },
+        {
+          "token": "abituati",
+          "label": "_"
+        },
+        {
+          "token": "accomuna",
+          "label": "_"
+        },
+        {
+          "token": "accordo",
+          "label": "_"
+        },
+        {
+          "token": "ad",
+          "label": "_"
+        },
+        {
+          "token": "adulti",
+          "label": "_"
+        },
+        {
+          "token": "afferma",
+          "label": "_"
+        },
+        {
+          "token": "affermando",
+          "label": "_"
+        },
+        {
+          "token": "affermare",
+          "label": "_"
+        },
+        {
+          "token": "affermazione",
+          "label": "_"
+        },
+        {
+          "token": "affetto",
+          "label": "_"
+        },
+        {
+          "token": "agli",
+          "label": "(m 0 3 () (s 'gli' '')) (t 3 ())"
+        },
+        {
+          "token": "ai",
+          "label": "(m 0 1 () (s 'i' '')) (t 1 ())"
+        },
+        {
+          "token": "aiuta",
+          "label": "_"
+        },
+        {
+          "token": "aiuto",
+          "label": "_"
+        },
+        {
+          "token": "alcune",
+          "label": "_"
+        },
+        {
+          "token": "alcuni",
+          "label": "_"
+        },
+        {
+          "token": "alla",
+          "label": "(h 1 ()) (t 2 ())"
+        },
+        {
+          "token": "alle",
+          "label": "(h 1 ()) (t 2 ())"
+        },
+        {
+          "token": "allo",
+          "label": "(h 1 ()) (t 2 ())"
+        },
+        {
+          "token": "allontana",
+          "label": "_"
+        },
+        {
+          "token": "allora",
+          "label": "_"
+        },
+        {
+          "token": "almeno",
+          "label": "_"
+        },
+        {
+          "token": "alquanto",
+          "label": "_"
+        },
+        {
+          "token": "altra",
+          "label": "_"
+        },
+        {
+          "token": "altre",
+          "label": "_"
+        },
+        {
+          "token": "altri",
+          "label": "_"
+        },
+        {
+          "token": "altro",
+          "label": "_"
+        },
+        {
+          "token": "ambiente",
+          "label": "_"
+        },
+        {
+          "token": "ambito",
+          "label": "_"
+        },
+        {
+          "token": "americano",
+          "label": "_"
+        },
+        {
+          "token": "amici",
+          "label": "_"
+        },
+        {
+          "token": "amicizia",
+          "label": "_"
+        },
+        {
+          "token": "amico",
+          "label": "_"
+        },
+        {
+          "token": "amore",
+          "label": "_"
+        },
+        {
+          "token": "ampliare",
+          "label": "_"
+        },
+        {
+          "token": "analisi",
+          "label": "_"
+        },
+        {
+          "token": "analizzare",
+          "label": "_"
+        },
+        {
+          "token": "anche",
+          "label": "_"
+        },
+        {
+          "token": "ancora",
+          "label": "_"
+        },
+        {
+          "token": "andare",
+          "label": "_"
+        },
+        {
+          "token": "andava",
+          "label": "_"
+        },
+        {
+          "token": "anima",
+          "label": "_"
+        },
+        {
+          "token": "animale",
+          "label": "_"
+        },
+        {
+          "token": "animo",
+          "label": "_"
+        },
+        {
+          "token": "anni",
+          "label": "_"
+        },
+        {
+          "token": "anno",
+          "label": "_"
+        },
+        {
+          "token": "anonimi",
+          "label": "_"
+        },
+        {
+          "token": "anzi",
+          "label": "_"
+        },
+        {
+          "token": "apparenza",
+          "label": "_"
+        },
+        {
+          "token": "appena",
+          "label": "_"
+        },
+        {
+          "token": "applicazione",
+          "label": "_"
+        },
+        {
+          "token": "apprezzare",
+          "label": "_"
+        },
+        {
+          "token": "appunto",
+          "label": "_"
+        },
+        {
+          "token": "aprire",
+          "label": "_"
+        },
+        {
+          "token": "argomento",
+          "label": "_"
+        },
+        {
+          "token": "armonioso",
+          "label": "_"
+        },
+        {
+          "token": "arrivando",
+          "label": "_"
+        },
+        {
+          "token": "arrivare",
+          "label": "_"
+        },
+        {
+          "token": "arte",
+          "label": "_"
+        },
+        {
+          "token": "articolo",
+          "label": "_"
+        },
+        {
+          "token": "artista",
+          "label": "_"
+        },
+        {
+          "token": "artisti",
+          "label": "_"
+        },
+        {
+          "token": "aspetta",
+          "label": "_"
+        },
+        {
+          "token": "aspettative",
+          "label": "_"
+        },
+        {
+          "token": "aspetti",
+          "label": "_"
+        },
+        {
+          "token": "aspetto",
+          "label": "_"
+        },
+        {
+          "token": "assassino",
+          "label": "_"
+        },
+        {
+          "token": "associazione",
+          "label": "_"
+        },
+        {
+          "token": "assoluta",
+          "label": "_"
+        },
+        {
+          "token": "assoluto",
+          "label": "_"
+        },
+        {
+          "token": "assume",
+          "label": "_"
+        },
+        {
+          "token": "astratto",
+          "label": "_"
+        },
+        {
+          "token": "atmosfera",
+          "label": "_"
+        },
+        {
+          "token": "atomica",
+          "label": "_"
+        },
+        {
+          "token": "attivamente",
+          "label": "_"
+        },
+        {
+          "token": "attività",
+          "label": "_"
+        },
+        {
+          "token": "attraversa",
+          "label": "_"
+        },
+        {
+          "token": "attraverso",
+          "label": "_"
+        },
+        {
+          "token": "attuale",
+          "label": "_"
+        },
+        {
+          "token": "autore",
+          "label": "_"
+        },
+        {
+          "token": "autori",
+          "label": "_"
+        },
+        {
+          "token": "avanti",
+          "label": "_"
+        },
+        {
+          "token": "aver",
+          "label": "_"
+        },
+        {
+          "token": "avere",
+          "label": "_"
+        },
+        {
+          "token": "aveva",
+          "label": "_"
+        },
+        {
+          "token": "avevo",
+          "label": "_"
+        },
+        {
+          "token": "avrebbe",
+          "label": "_"
+        },
+        {
+          "token": "avuta",
+          "label": "_"
+        },
+        {
+          "token": "avuto",
+          "label": "_"
+        },
+        {
+          "token": "avvenimenti",
+          "label": "_"
+        },
+        {
+          "token": "avvenimento",
+          "label": "_"
+        },
+        {
+          "token": "avvento",
+          "label": "_"
+        },
+        {
+          "token": "avviene",
+          "label": "_"
+        },
+        {
+          "token": "azione",
+          "label": "_"
+        },
+        {
+          "token": "azioni",
+          "label": "_"
+        },
+        {
+          "token": "bambini",
+          "label": "_"
+        },
+        {
+          "token": "basata",
+          "label": "_"
+        },
+        {
+          "token": "basato",
+          "label": "_"
+        },
+        {
+          "token": "base",
+          "label": "_"
+        },
+        {
+          "token": "bellezza",
+          "label": "_"
+        },
+        {
+          "token": "belli",
+          "label": "_"
+        },
+        {
+          "token": "bello",
+          "label": "_"
+        },
+        {
+          "token": "ben",
+          "label": "_"
+        },
+        {
+          "token": "bene",
+          "label": "_"
+        },
+        {
+          "token": "benessere",
+          "label": "_"
+        },
+        {
+          "token": "beni",
+          "label": "_"
+        },
+        {
+          "token": "bensì",
+          "label": "_"
+        },
+        {
+          "token": "bisogna",
+          "label": "_"
+        },
+        {
+          "token": "bisogni",
+          "label": "_"
+        },
+        {
+          "token": "bisogno",
+          "label": "_"
+        },
+        {
+          "token": "bomba",
+          "label": "_"
+        },
+        {
+          "token": "borghi",
+          "label": "_"
+        },
+        {
+          "token": "brain",
+          "label": "_"
+        },
+        {
+          "token": "breve",
+          "label": "_"
+        },
+        {
+          "token": "buio",
+          "label": "_"
+        },
+        {
+          "token": "c'",
+          "label": "_"
+        },
+        {
+          "token": "calibro",
+          "label": "_"
+        },
+        {
+          "token": "cambiare",
+          "label": "_"
+        },
+        {
+          "token": "cambiato",
+          "label": "_"
+        },
+        {
+          "token": "cammino",
+          "label": "_"
+        },
+        {
+          "token": "campi",
+          "label": "_"
+        },
+        {
+          "token": "campo",
+          "label": "_"
+        },
+        {
+          "token": "cantante",
+          "label": "_"
+        },
+        {
+          "token": "canzone",
+          "label": "_"
+        },
+        {
+          "token": "capacità",
+          "label": "_"
+        },
+        {
+          "token": "capire",
+          "label": "_"
+        },
+        {
+          "token": "capitalista",
+          "label": "_"
+        },
+        {
+          "token": "capito",
+          "label": "_"
+        },
+        {
+          "token": "caratteristica",
+          "label": "_"
+        },
+        {
+          "token": "caratteristiche",
+          "label": "_"
+        },
+        {
+          "token": "caratterizza",
+          "label": "_"
+        },
+        {
+          "token": "cari",
+          "label": "_"
+        },
+        {
+          "token": "caro",
+          "label": "_"
+        },
+        {
+          "token": "carta",
+          "label": "_"
+        },
+        {
+          "token": "casa",
+          "label": "_"
+        },
+        {
+          "token": "casi",
+          "label": "_"
+        },
+        {
+          "token": "caso",
+          "label": "_"
+        },
+        {
+          "token": "categoria",
+          "label": "_"
+        },
+        {
+          "token": "causa",
+          "label": "_"
+        },
+        {
+          "token": "ce",
+          "label": "_"
+        },
+        {
+          "token": "celebre",
+          "label": "_"
+        },
+        {
+          "token": "centrale",
+          "label": "_"
+        },
+        {
+          "token": "cerca",
+          "label": "_"
+        },
+        {
+          "token": "cercano",
+          "label": "_"
+        },
+        {
+          "token": "cercare",
+          "label": "_"
+        },
+        {
+          "token": "cerebrale",
+          "label": "_"
+        },
+        {
+          "token": "certezze",
+          "label": "_"
+        },
+        {
+          "token": "certo",
+          "label": "_"
+        },
+        {
+          "token": "cervello",
+          "label": "_"
+        },
+        {
+          "token": "cessazione",
+          "label": "_"
+        },
+        {
+          "token": "che",
+          "label": "_"
+        },
+        {
+          "token": "chi",
+          "label": "_"
+        },
+        {
+          "token": "chiave",
+          "label": "_"
+        },
+        {
+          "token": "chiede",
+          "label": "_"
+        },
+        {
+          "token": "chiusi",
+          "label": "_"
+        },
+        {
+          "token": "ci",
+          "label": "_"
+        },
+        {
+          "token": "cielo",
+          "label": "_"
+        },
+        {
+          "token": "cioè",
+          "label": "_"
+        },
+        {
+          "token": "circolazione",
+          "label": "_"
+        },
+        {
+          "token": "cita",
+          "label": "_"
+        },
+        {
+          "token": "citato",
+          "label": "_"
+        },
+        {
+          "token": "cittadini",
+          "label": "_"
+        },
+        {
+          "token": "cittadino",
+          "label": "_"
+        },
+        {
+          "token": "città",
+          "label": "_"
+        },
+        {
+          "token": "ciò",
+          "label": "_"
+        },
+        {
+          "token": "codice",
+          "label": "_"
+        },
+        {
+          "token": "col",
+          "label": "(m 0 1 () (s 'l' 'n')) (m 2 0 (s 'co' 'i') ())"
+        },
+        {
+          "token": "collaborazione",
+          "label": "_"
+        },
+        {
+          "token": "colmare",
+          "label": "_"
+        },
+        {
+          "token": "coloro",
+          "label": "_"
+        },
+        {
+          "token": "colpa",
+          "label": "_"
+        },
+        {
+          "token": "colpire",
+          "label": "_"
+        },
+        {
+          "token": "colui",
+          "label": "_"
+        },
+        {
+          "token": "come",
+          "label": "_"
+        },
+        {
+          "token": "commissione",
+          "label": "_"
+        },
+        {
+          "token": "compagnia",
+          "label": "_"
+        },
+        {
+          "token": "competenze",
+          "label": "_"
+        },
+        {
+          "token": "compito",
+          "label": "_"
+        },
+        {
+          "token": "complesso",
+          "label": "_"
+        },
+        {
+          "token": "completamente",
+          "label": "_"
+        },
+        {
+          "token": "complicato",
+          "label": "_"
+        },
+        {
+          "token": "comportamento",
+          "label": "_"
+        },
+        {
+          "token": "composta",
+          "label": "_"
+        },
+        {
+          "token": "comprendere",
+          "label": "_"
+        },
+        {
+          "token": "comprensione",
+          "label": "_"
+        },
+        {
+          "token": "compresi",
+          "label": "_"
+        },
+        {
+          "token": "compromessi",
+          "label": "_"
+        },
+        {
+          "token": "comune",
+          "label": "_"
+        },
+        {
+          "token": "comuni",
+          "label": "_"
+        },
+        {
+          "token": "comunità",
+          "label": "_"
+        },
+        {
+          "token": "comunque",
+          "label": "_"
+        },
+        {
+          "token": "con",
+          "label": "_"
+        },
+        {
+          "token": "concetti",
+          "label": "_"
+        },
+        {
+          "token": "concetto",
+          "label": "_"
+        },
+        {
+          "token": "conclude",
+          "label": "_"
+        },
+        {
+          "token": "conclusioni",
+          "label": "_"
+        },
+        {
+          "token": "condizione",
+          "label": "_"
+        },
+        {
+          "token": "condizioni",
+          "label": "_"
+        },
+        {
+          "token": "conduce",
+          "label": "_"
+        },
+        {
+          "token": "confini",
+          "label": "_"
+        },
+        {
+          "token": "conformismo",
+          "label": "_"
+        },
+        {
+          "token": "confronti",
+          "label": "_"
+        },
+        {
+          "token": "congresso",
+          "label": "_"
+        },
+        {
+          "token": "conoscenza",
+          "label": "_"
+        },
+        {
+          "token": "conoscenze",
+          "label": "_"
+        },
+        {
+          "token": "conoscere",
+          "label": "_"
+        },
+        {
+          "token": "conosciamo",
+          "label": "_"
+        },
+        {
+          "token": "conosciuto",
+          "label": "_"
+        },
+        {
+          "token": "consapevole",
+          "label": "_"
+        },
+        {
+          "token": "consapevolezza",
+          "label": "_"
+        },
+        {
+          "token": "conseguenza",
+          "label": "_"
+        },
+        {
+          "token": "conseguenze",
+          "label": "_"
+        },
+        {
+          "token": "considerata",
+          "label": "_"
+        },
+        {
+          "token": "considerazione",
+          "label": "_"
+        },
+        {
+          "token": "consiste",
+          "label": "_"
+        },
+        {
+          "token": "consumo",
+          "label": "_"
+        },
+        {
+          "token": "contemplazione",
+          "label": "_"
+        },
+        {
+          "token": "contemporanea",
+          "label": "_"
+        },
+        {
+          "token": "contesto",
+          "label": "_"
+        },
+        {
+          "token": "continua",
+          "label": "_"
+        },
+        {
+          "token": "continuare",
+          "label": "_"
+        },
+        {
+          "token": "continuato",
+          "label": "_"
+        },
+        {
+          "token": "continuo",
+          "label": "_"
+        },
+        {
+          "token": "conto",
+          "label": "_"
+        },
+        {
+          "token": "contrapposizione",
+          "label": "_"
+        },
+        {
+          "token": "contrario",
+          "label": "_"
+        },
+        {
+          "token": "contribuiscono",
+          "label": "_"
+        },
+        {
+          "token": "contro",
+          "label": "_"
+        },
+        {
+          "token": "controllo",
+          "label": "_"
+        },
+        {
+          "token": "convivenza",
+          "label": "_"
+        },
+        {
+          "token": "cooperazione",
+          "label": "_"
+        },
+        {
+          "token": "coprire",
+          "label": "_"
+        },
+        {
+          "token": "corpo",
+          "label": "_"
+        },
+        {
+          "token": "corso",
+          "label": "_"
+        },
+        {
+          "token": "cos'",
+          "label": "_"
+        },
+        {
+          "token": "cosa",
+          "label": "_"
+        },
+        {
+          "token": "coscienza",
+          "label": "_"
+        },
+        {
+          "token": "cose",
+          "label": "_"
+        },
+        {
+          "token": "costituisce",
+          "label": "_"
+        },
+        {
+          "token": "costituiscono",
+          "label": "_"
+        },
+        {
+          "token": "costituzionale",
+          "label": "_"
+        },
+        {
+          "token": "costituzione",
+          "label": "_"
+        },
+        {
+          "token": "costruzione",
+          "label": "_"
+        },
+        {
+          "token": "così",
+          "label": "_"
+        },
+        {
+          "token": "crea",
+          "label": "_"
+        },
+        {
+          "token": "creano",
+          "label": "_"
+        },
+        {
+          "token": "creare",
+          "label": "_"
+        },
+        {
+          "token": "creata",
+          "label": "_"
+        },
+        {
+          "token": "creazione",
+          "label": "_"
+        },
+        {
+          "token": "crede",
+          "label": "_"
+        },
+        {
+          "token": "credere",
+          "label": "_"
+        },
+        {
+          "token": "credo",
+          "label": "_"
+        },
+        {
+          "token": "crescere",
+          "label": "_"
+        },
+        {
+          "token": "crescita",
+          "label": "_"
+        },
+        {
+          "token": "crisi",
+          "label": "_"
+        },
+        {
+          "token": "cristiana",
+          "label": "_"
+        },
+        {
+          "token": "cristianesimo",
+          "label": "_"
+        },
+        {
+          "token": "criterio",
+          "label": "_"
+        },
+        {
+          "token": "cui",
+          "label": "_"
+        },
+        {
+          "token": "cultura",
+          "label": "_"
+        },
+        {
+          "token": "culturale",
+          "label": "_"
+        },
+        {
+          "token": "culturali",
+          "label": "_"
+        },
+        {
+          "token": "culture",
+          "label": "_"
+        },
+        {
+          "token": "cuore",
+          "label": "_"
+        },
+        {
+          "token": "d'",
+          "label": "_"
+        },
+        {
+          "token": "da",
+          "label": "_"
+        },
+        {
+          "token": "dagli",
+          "label": "(m 0 3 () (s 'gli' '')) (t 3 ())"
+        },
+        {
+          "token": "dai",
+          "label": "(m 0 1 () (s 'i' '')) (t 1 ())"
+        },
+        {
+          "token": "dall'",
+          "label": "(h 2 ()) (t 2 ())"
+        },
+        {
+          "token": "dalla",
+          "label": "(h 2 ()) (t 2 ())"
+        },
+        {
+          "token": "dalle",
+          "label": "(h 2 ()) (t 2 ())"
+        },
+        {
+          "token": "dallo",
+          "label": "(h 2 ()) (t 2 ())"
+        },
+        {
+          "token": "dando",
+          "label": "_"
+        },
+        {
+          "token": "dare",
+          "label": "_"
+        },
+        {
+          "token": "data",
+          "label": "_"
+        },
+        {
+          "token": "dati",
+          "label": "_"
+        },
+        {
+          "token": "dato",
+          "label": "_"
+        },
+        {
+          "token": "davanti",
+          "label": "_"
+        },
+        {
+          "token": "davvero",
+          "label": "_"
+        },
+        {
+          "token": "de",
+          "label": "_"
+        },
+        {
+          "token": "decide",
+          "label": "_"
+        },
+        {
+          "token": "decisione",
+          "label": "_"
+        },
+        {
+          "token": "deciso",
+          "label": "_"
+        },
+        {
+          "token": "definire",
+          "label": "_"
+        },
+        {
+          "token": "definisce",
+          "label": "_"
+        },
+        {
+          "token": "definizione",
+          "label": "_"
+        },
+        {
+          "token": "definizioni",
+          "label": "_"
+        },
+        {
+          "token": "dell'",
+          "label": "(m 0 4 () (s 'ell\\'' 'i')) (m 3 0 (s 'del' '') ())"
+        },
+        {
+          "token": "dello",
+          "label": "(m 0 4 () (s 'ello' 'i')) (m 3 0 (s 'del' '') ())"
+        },
+        {
+          "token": "democratica",
+          "label": "_"
+        },
+        {
+          "token": "democrazia",
+          "label": "_"
+        },
+        {
+          "token": "denaro",
+          "label": "_"
+        },
+        {
+          "token": "dentro",
+          "label": "_"
+        },
+        {
+          "token": "depressione",
+          "label": "_"
+        },
+        {
+          "token": "deriva",
+          "label": "_"
+        },
+        {
+          "token": "descrive",
+          "label": "_"
+        },
+        {
+          "token": "descrizione",
+          "label": "_"
+        },
+        {
+          "token": "desiderio",
+          "label": "_"
+        },
+        {
+          "token": "destra",
+          "label": "_"
+        },
+        {
+          "token": "detti",
+          "label": "_"
+        },
+        {
+          "token": "detto",
+          "label": "_"
+        },
+        {
+          "token": "deve",
+          "label": "_"
+        },
+        {
+          "token": "devono",
+          "label": "_"
+        },
+        {
+          "token": "di",
+          "label": "_"
+        },
+        {
+          "token": "dialogo",
+          "label": "_"
+        },
+        {
+          "token": "dibattito",
+          "label": "_"
+        },
+        {
+          "token": "dice",
+          "label": "_"
+        },
+        {
+          "token": "dicono",
+          "label": "_"
+        },
+        {
+          "token": "dieci",
+          "label": "_"
+        },
+        {
+          "token": "diede",
+          "label": "_"
+        },
+        {
+          "token": "dietro",
+          "label": "_"
+        },
+        {
+          "token": "difetti",
+          "label": "_"
+        },
+        {
+          "token": "differenti",
+          "label": "_"
+        },
+        {
+          "token": "differenzia",
+          "label": "_"
+        },
+        {
+          "token": "difficile",
+          "label": "_"
+        },
+        {
+          "token": "difficoltà",
+          "label": "_"
+        },
+        {
+          "token": "digitale",
+          "label": "_"
+        },
+        {
+          "token": "dire",
+          "label": "_"
+        },
+        {
+          "token": "direttamente",
+          "label": "_"
+        },
+        {
+          "token": "diritti",
+          "label": "_"
+        },
+        {
+          "token": "diritto",
+          "label": "_"
+        },
+        {
+          "token": "disciplina",
+          "label": "_"
+        },
+        {
+          "token": "discorsi",
+          "label": "_"
+        },
+        {
+          "token": "discorso",
+          "label": "_"
+        },
+        {
+          "token": "discussione",
+          "label": "_"
+        },
+        {
+          "token": "discutere",
+          "label": "_"
+        },
+        {
+          "token": "discutono",
+          "label": "_"
+        },
+        {
+          "token": "disposizione",
+          "label": "_"
+        },
+        {
+          "token": "dissenso",
+          "label": "_"
+        },
+        {
+          "token": "distanza",
+          "label": "_"
+        },
+        {
+          "token": "distinguere",
+          "label": "_"
+        },
+        {
+          "token": "dittatura",
+          "label": "_"
+        },
+        {
+          "token": "diventa",
+          "label": "_"
+        },
+        {
+          "token": "diventare",
+          "label": "_"
+        },
+        {
+          "token": "diversa",
+          "label": "_"
+        },
+        {
+          "token": "diverse",
+          "label": "_"
+        },
+        {
+          "token": "diversi",
+          "label": "_"
+        },
+        {
+          "token": "diversità",
+          "label": "_"
+        },
+        {
+          "token": "diverso",
+          "label": "_"
+        },
+        {
+          "token": "divino",
+          "label": "_"
+        },
+        {
+          "token": "divisione",
+          "label": "_"
+        },
+        {
+          "token": "dobbiamo",
+          "label": "_"
+        },
+        {
+          "token": "documento",
+          "label": "_"
+        },
+        {
+          "token": "dolore",
+          "label": "_"
+        },
+        {
+          "token": "domanda",
+          "label": "_"
+        },
+        {
+          "token": "domande",
+          "label": "_"
+        },
+        {
+          "token": "dominano",
+          "label": "_"
+        },
+        {
+          "token": "donna",
+          "label": "_"
+        },
+        {
+          "token": "dono",
+          "label": "_"
+        },
+        {
+          "token": "dopo",
+          "label": "_"
+        },
+        {
+          "token": "dopoguerra",
+          "label": "_"
+        },
+        {
+          "token": "dove",
+          "label": "_"
+        },
+        {
+          "token": "dover",
+          "label": "_"
+        },
+        {
+          "token": "doveri",
+          "label": "_"
+        },
+        {
+          "token": "dovrebbe",
+          "label": "_"
+        },
+        {
+          "token": "dubbi",
+          "label": "_"
+        },
+        {
+          "token": "dubbio",
+          "label": "_"
+        },
+        {
+          "token": "due",
+          "label": "_"
+        },
+        {
+          "token": "dunque",
+          "label": "_"
+        },
+        {
+          "token": "durante",
+          "label": "_"
+        },
+        {
+          "token": "durata",
+          "label": "_"
+        },
+        {
+          "token": "dà",
+          "label": "_"
+        },
+        {
+          "token": "e",
+          "label": "_"
+        },
+        {
+          "token": "eccellenza",
+          "label": "_"
+        },
+        {
+          "token": "economia",
+          "label": "_"
+        },
+        {
+          "token": "economica",
+          "label": "_"
+        },
+        {
+          "token": "economico",
+          "label": "_"
+        },
+        {
+          "token": "ed",
+          "label": "_"
+        },
+        {
+          "token": "effetti",
+          "label": "_"
+        },
+        {
+          "token": "effettivamente",
+          "label": "_"
+        },
+        {
+          "token": "efficacia",
+          "label": "_"
+        },
+        {
+          "token": "egli",
+          "label": "_"
+        },
+        {
+          "token": "elementi",
+          "label": "_"
+        },
+        {
+          "token": "elemento",
+          "label": "_"
+        },
+        {
+          "token": "elencati",
+          "label": "_"
+        },
+        {
+          "token": "emerge",
+          "label": "_"
+        },
+        {
+          "token": "emozioni",
+          "label": "_"
+        },
+        {
+          "token": "enorme",
+          "label": "_"
+        },
+        {
+          "token": "entità",
+          "label": "_"
+        },
+        {
+          "token": "entra",
+          "label": "_"
+        },
+        {
+          "token": "entrambi",
+          "label": "_"
+        },
+        {
+          "token": "equilibrio",
+          "label": "_"
+        },
+        {
+          "token": "era",
+          "label": "_"
+        },
+        {
+          "token": "erano",
+          "label": "_"
+        },
+        {
+          "token": "errori",
+          "label": "_"
+        },
+        {
+          "token": "esaltazione",
+          "label": "_"
+        },
+        {
+          "token": "esattamente",
+          "label": "_"
+        },
+        {
+          "token": "esattezza",
+          "label": "_"
+        },
+        {
+          "token": "esempio",
+          "label": "_"
+        },
+        {
+          "token": "esigenza",
+          "label": "_"
+        },
+        {
+          "token": "esilio",
+          "label": "_"
+        },
+        {
+          "token": "esiste",
+          "label": "_"
+        },
+        {
+          "token": "esistenza",
+          "label": "_"
+        },
+        {
+          "token": "esistenziale",
+          "label": "_"
+        },
+        {
+          "token": "esperienza",
+          "label": "_"
+        },
+        {
+          "token": "esperienze",
+          "label": "_"
+        },
+        {
+          "token": "esperti",
+          "label": "_"
+        },
+        {
+          "token": "espressione",
+          "label": "_"
+        },
+        {
+          "token": "espresso",
+          "label": "_"
+        },
+        {
+          "token": "esprime",
+          "label": "_"
+        },
+        {
+          "token": "essa",
+          "label": "_"
+        },
+        {
+          "token": "essendo",
+          "label": "_"
+        },
+        {
+          "token": "essenziale",
+          "label": "_"
+        },
+        {
+          "token": "essere",
+          "label": "_"
+        },
+        {
+          "token": "esseri",
+          "label": "_"
+        },
+        {
+          "token": "essi",
+          "label": "_"
+        },
+        {
+          "token": "esso",
+          "label": "_"
+        },
+        {
+          "token": "estremamente",
+          "label": "_"
+        },
+        {
+          "token": "eternità",
+          "label": "_"
+        },
+        {
+          "token": "età",
+          "label": "_"
+        },
+        {
+          "token": "europea",
+          "label": "_"
+        },
+        {
+          "token": "europei",
+          "label": "_"
+        },
+        {
+          "token": "europeo",
+          "label": "_"
+        },
+        {
+          "token": "eventi",
+          "label": "_"
+        },
+        {
+          "token": "evidente",
+          "label": "_"
+        },
+        {
+          "token": "evitare",
+          "label": "_"
+        },
+        {
+          "token": "evoluzione",
+          "label": "_"
+        },
+        {
+          "token": "evolve",
+          "label": "_"
+        },
+        {
+          "token": "fa",
+          "label": "_"
+        },
+        {
+          "token": "faccia",
+          "label": "_"
+        },
+        {
+          "token": "facciamo",
+          "label": "_"
+        },
+        {
+          "token": "facendo",
+          "label": "_"
+        },
+        {
+          "token": "facilmente",
+          "label": "_"
+        },
+        {
+          "token": "facoltà",
+          "label": "_"
+        },
+        {
+          "token": "familiari",
+          "label": "_"
+        },
+        {
+          "token": "famosa",
+          "label": "_"
+        },
+        {
+          "token": "famosi",
+          "label": "_"
+        },
+        {
+          "token": "fanno",
+          "label": "_"
+        },
+        {
+          "token": "far",
+          "label": "_"
+        },
+        {
+          "token": "fare",
+          "label": "_"
+        },
+        {
+          "token": "farlo",
+          "label": "(m 0 2 () (s 'lo' '')) (t 2 ())"
+        },
+        {
+          "token": "fascista",
+          "label": "_"
+        },
+        {
+          "token": "fascisti",
+          "label": "_"
+        },
+        {
+          "token": "fatica",
+          "label": "_"
+        },
+        {
+          "token": "fatta",
+          "label": "_"
+        },
+        {
+          "token": "fatte",
+          "label": "_"
+        },
+        {
+          "token": "fatti",
+          "label": "_"
+        },
+        {
+          "token": "fatto",
+          "label": "_"
+        },
+        {
+          "token": "fede",
+          "label": "_"
+        },
+        {
+          "token": "felice",
+          "label": "_"
+        },
+        {
+          "token": "felici",
+          "label": "_"
+        },
+        {
+          "token": "felicità",
+          "label": "_"
+        },
+        {
+          "token": "fenomeni",
+          "label": "_"
+        },
+        {
+          "token": "fermare",
+          "label": "_"
+        },
+        {
+          "token": "fermi",
+          "label": "_"
+        },
+        {
+          "token": "festa",
+          "label": "_"
+        },
+        {
+          "token": "fiducia",
+          "label": "_"
+        },
+        {
+          "token": "figlio",
+          "label": "_"
+        },
+        {
+          "token": "figura",
+          "label": "_"
+        },
+        {
+          "token": "filosofia",
+          "label": "_"
+        },
+        {
+          "token": "filosofo",
+          "label": "_"
+        },
+        {
+          "token": "fin",
+          "label": "_"
+        },
+        {
+          "token": "finale",
+          "label": "_"
+        },
+        {
+          "token": "fine",
+          "label": "_"
+        },
+        {
+          "token": "fino",
+          "label": "_"
+        },
+        {
+          "token": "fisica",
+          "label": "_"
+        },
+        {
+          "token": "fissata",
+          "label": "_"
+        },
+        {
+          "token": "fondamentale",
+          "label": "_"
+        },
+        {
+          "token": "fondo",
+          "label": "_"
+        },
+        {
+          "token": "forma",
+          "label": "_"
+        },
+        {
+          "token": "formare",
+          "label": "_"
+        },
+        {
+          "token": "formazione",
+          "label": "_"
+        },
+        {
+          "token": "forme",
+          "label": "_"
+        },
+        {
+          "token": "fornendo",
+          "label": "_"
+        },
+        {
+          "token": "forse",
+          "label": "_"
+        },
+        {
+          "token": "forte",
+          "label": "_"
+        },
+        {
+          "token": "forza",
+          "label": "_"
+        },
+        {
+          "token": "forze",
+          "label": "_"
+        },
+        {
+          "token": "fosse",
+          "label": "_"
+        },
+        {
+          "token": "fra",
+          "label": "_"
+        },
+        {
+          "token": "frase",
+          "label": "_"
+        },
+        {
+          "token": "frenesia",
+          "label": "_"
+        },
+        {
+          "token": "fronte",
+          "label": "_"
+        },
+        {
+          "token": "fu",
+          "label": "_"
+        },
+        {
+          "token": "funzionamento",
+          "label": "_"
+        },
+        {
+          "token": "funzione",
+          "label": "_"
+        },
+        {
+          "token": "funzioni",
+          "label": "_"
+        },
+        {
+          "token": "fuori",
+          "label": "_"
+        },
+        {
+          "token": "future",
+          "label": "_"
+        },
+        {
+          "token": "futuri",
+          "label": "_"
+        },
+        {
+          "token": "futuro",
+          "label": "_"
+        },
+        {
+          "token": "garantire",
+          "label": "_"
+        },
+        {
+          "token": "generale",
+          "label": "_"
+        },
+        {
+          "token": "generali",
+          "label": "_"
+        },
+        {
+          "token": "generazioni",
+          "label": "_"
+        },
+        {
+          "token": "genere",
+          "label": "_"
+        },
+        {
+          "token": "gennaio",
+          "label": "_"
+        },
+        {
+          "token": "gente",
+          "label": "_"
+        },
+        {
+          "token": "gesto",
+          "label": "_"
+        },
+        {
+          "token": "gioco",
+          "label": "_"
+        },
+        {
+          "token": "gioia",
+          "label": "_"
+        },
+        {
+          "token": "giorni",
+          "label": "_"
+        },
+        {
+          "token": "giorno",
+          "label": "_"
+        },
+        {
+          "token": "giovani",
+          "label": "_"
+        },
+        {
+          "token": "giunge",
+          "label": "_"
+        },
+        {
+          "token": "giustizia",
+          "label": "_"
+        },
+        {
+          "token": "giusto",
+          "label": "_"
+        },
+        {
+          "token": "già",
+          "label": "_"
+        },
+        {
+          "token": "gli",
+          "label": "_"
+        },
+        {
+          "token": "globalizzazione",
+          "label": "_"
+        },
+        {
+          "token": "governi",
+          "label": "_"
+        },
+        {
+          "token": "governo",
+          "label": "_"
+        },
+        {
+          "token": "grado",
+          "label": "_"
+        },
+        {
+          "token": "gran",
+          "label": "_"
+        },
+        {
+          "token": "grande",
+          "label": "_"
+        },
+        {
+          "token": "grandi",
+          "label": "_"
+        },
+        {
+          "token": "grazie",
+          "label": "_"
+        },
+        {
+          "token": "grosse",
+          "label": "_"
+        },
+        {
+          "token": "gruppi",
+          "label": "_"
+        },
+        {
+          "token": "gruppo",
+          "label": "_"
+        },
+        {
+          "token": "guadagno",
+          "label": "_"
+        },
+        {
+          "token": "guardare",
+          "label": "_"
+        },
+        {
+          "token": "guerra",
+          "label": "_"
+        },
+        {
+          "token": "guerre",
+          "label": "_"
+        },
+        {
+          "token": "ha",
+          "label": "_"
+        },
+        {
+          "token": "hanno",
+          "label": "_"
+        },
+        {
+          "token": "hip",
+          "label": "_"
+        },
+        {
+          "token": "ho",
+          "label": "_"
+        },
+        {
+          "token": "hop",
+          "label": "_"
+        },
+        {
+          "token": "i",
+          "label": "_"
+        },
+        {
+          "token": "idea",
+          "label": "_"
+        },
+        {
+          "token": "ideali",
+          "label": "_"
+        },
+        {
+          "token": "idee",
+          "label": "_"
+        },
+        {
+          "token": "idrogeno",
+          "label": "_"
+        },
+        {
+          "token": "ignoranza",
+          "label": "_"
+        },
+        {
+          "token": "il",
+          "label": "_"
+        },
+        {
+          "token": "illusione",
+          "label": "_"
+        },
+        {
+          "token": "immagine",
+          "label": "_"
+        },
+        {
+          "token": "immensità",
+          "label": "_"
+        },
+        {
+          "token": "impedire",
+          "label": "_"
+        },
+        {
+          "token": "impone",
+          "label": "_"
+        },
+        {
+          "token": "importante",
+          "label": "_"
+        },
+        {
+          "token": "importanti",
+          "label": "_"
+        },
+        {
+          "token": "importanza",
+          "label": "_"
+        },
+        {
+          "token": "impressione",
+          "label": "_"
+        },
+        {
+          "token": "in",
+          "label": "_"
+        },
+        {
+          "token": "incomprensibile",
+          "label": "_"
+        },
+        {
+          "token": "incontrare",
+          "label": "_"
+        },
+        {
+          "token": "incontro",
+          "label": "_"
+        },
+        {
+          "token": "indica",
+          "label": "_"
+        },
+        {
+          "token": "indipendenza",
+          "label": "_"
+        },
+        {
+          "token": "indirettamente",
+          "label": "_"
+        },
+        {
+          "token": "indissolubile",
+          "label": "_"
+        },
+        {
+          "token": "individualità",
+          "label": "_"
+        },
+        {
+          "token": "individui",
+          "label": "_"
+        },
+        {
+          "token": "individuo",
+          "label": "_"
+        },
+        {
+          "token": "industria",
+          "label": "_"
+        },
+        {
+          "token": "industriale",
+          "label": "_"
+        },
+        {
+          "token": "industrializzazione",
+          "label": "_"
+        },
+        {
+          "token": "infanzia",
+          "label": "_"
+        },
+        {
+          "token": "infatti",
+          "label": "_"
+        },
+        {
+          "token": "infinità",
+          "label": "_"
+        },
+        {
+          "token": "influenza",
+          "label": "_"
+        },
+        {
+          "token": "informazioni",
+          "label": "_"
+        },
+        {
+          "token": "iniziativa",
+          "label": "_"
+        },
+        {
+          "token": "iniziava",
+          "label": "_"
+        },
+        {
+          "token": "inizio",
+          "label": "_"
+        },
+        {
+          "token": "innato",
+          "label": "_"
+        },
+        {
+          "token": "innovazione",
+          "label": "_"
+        },
+        {
+          "token": "inoltre",
+          "label": "_"
+        },
+        {
+          "token": "inserire",
+          "label": "_"
+        },
+        {
+          "token": "insieme",
+          "label": "_"
+        },
+        {
+          "token": "instaurare",
+          "label": "_"
+        },
+        {
+          "token": "integrale",
+          "label": "_"
+        },
+        {
+          "token": "intelligente",
+          "label": "_"
+        },
+        {
+          "token": "intento",
+          "label": "_"
+        },
+        {
+          "token": "intera",
+          "label": "_"
+        },
+        {
+          "token": "interesse",
+          "label": "_"
+        },
+        {
+          "token": "interessi",
+          "label": "_"
+        },
+        {
+          "token": "internazionali",
+          "label": "_"
+        },
+        {
+          "token": "interno",
+          "label": "_"
+        },
+        {
+          "token": "interpretazione",
+          "label": "_"
+        },
+        {
+          "token": "intervento",
+          "label": "_"
+        },
+        {
+          "token": "inteso",
+          "label": "_"
+        },
+        {
+          "token": "intitolato",
+          "label": "_"
+        },
+        {
+          "token": "intorno",
+          "label": "_"
+        },
+        {
+          "token": "inutile",
+          "label": "_"
+        },
+        {
+          "token": "invano",
+          "label": "_"
+        },
+        {
+          "token": "invece",
+          "label": "_"
+        },
+        {
+          "token": "investimenti",
+          "label": "_"
+        },
+        {
+          "token": "investimento",
+          "label": "_"
+        },
+        {
+          "token": "investire",
+          "label": "_"
+        },
+        {
+          "token": "inviolabilità",
+          "label": "_"
+        },
+        {
+          "token": "io",
+          "label": "_"
+        },
+        {
+          "token": "istituti",
+          "label": "_"
+        },
+        {
+          "token": "istituzione",
+          "label": "_"
+        },
+        {
+          "token": "italiana",
+          "label": "_"
+        },
+        {
+          "token": "italiani",
+          "label": "_"
+        },
+        {
+          "token": "italiano",
+          "label": "_"
+        },
+        {
+          "token": "l'",
+          "label": "_"
+        },
+        {
+          "token": "la",
+          "label": "_"
+        },
+        {
+          "token": "laboratorio",
+          "label": "_"
+        },
+        {
+          "token": "lamentarsi",
+          "label": "(m 0 2 () (s 'si' '')) (t 2 ())"
+        },
+        {
+          "token": "lampante",
+          "label": "_"
+        },
+        {
+          "token": "lasci",
+          "label": "_"
+        },
+        {
+          "token": "lascia",
+          "label": "_"
+        },
+        {
+          "token": "lasciando",
+          "label": "_"
+        },
+        {
+          "token": "lavori",
+          "label": "_"
+        },
+        {
+          "token": "lavoro",
+          "label": "_"
+        },
+        {
+          "token": "le",
+          "label": "_"
+        },
+        {
+          "token": "lealtà",
+          "label": "_"
+        },
+        {
+          "token": "legame",
+          "label": "_"
+        },
+        {
+          "token": "legati",
+          "label": "_"
+        },
+        {
+          "token": "legato",
+          "label": "_"
+        },
+        {
+          "token": "legava",
+          "label": "_"
+        },
+        {
+          "token": "legge",
+          "label": "_"
+        },
+        {
+          "token": "leggere",
+          "label": "_"
+        },
+        {
+          "token": "leggero",
+          "label": "_"
+        },
+        {
+          "token": "leggi",
+          "label": "_"
+        },
+        {
+          "token": "lei",
+          "label": "_"
+        },
+        {
+          "token": "letteraria",
+          "label": "_"
+        },
+        {
+          "token": "letteratura",
+          "label": "_"
+        },
+        {
+          "token": "lettore",
+          "label": "_"
+        },
+        {
+          "token": "lettura",
+          "label": "_"
+        },
+        {
+          "token": "li",
+          "label": "_"
+        },
+        {
+          "token": "libera",
+          "label": "_"
+        },
+        {
+          "token": "libero",
+          "label": "_"
+        },
+        {
+          "token": "libertà",
+          "label": "_"
+        },
+        {
+          "token": "libri",
+          "label": "_"
+        },
+        {
+          "token": "libro",
+          "label": "_"
+        },
+        {
+          "token": "limite",
+          "label": "_"
+        },
+        {
+          "token": "limiti",
+          "label": "_"
+        },
+        {
+          "token": "linea",
+          "label": "_"
+        },
+        {
+          "token": "linee",
+          "label": "_"
+        },
+        {
+          "token": "lingua",
+          "label": "_"
+        },
+        {
+          "token": "lirica",
+          "label": "_"
+        },
+        {
+          "token": "livello",
+          "label": "_"
+        },
+        {
+          "token": "lo",
+          "label": "_"
+        },
+        {
+          "token": "logica",
+          "label": "_"
+        },
+        {
+          "token": "logico",
+          "label": "_"
+        },
+        {
+          "token": "lontano",
+          "label": "_"
+        },
+        {
+          "token": "lordo",
+          "label": "_"
+        },
+        {
+          "token": "loro",
+          "label": "_"
+        },
+        {
+          "token": "lotta",
+          "label": "_"
+        },
+        {
+          "token": "luce",
+          "label": "_"
+        },
+        {
+          "token": "lui",
+          "label": "_"
+        },
+        {
+          "token": "lungo",
+          "label": "_"
+        },
+        {
+          "token": "luoghi",
+          "label": "_"
+        },
+        {
+          "token": "luogo",
+          "label": "_"
+        },
+        {
+          "token": "ma",
+          "label": "_"
+        },
+        {
+          "token": "macchina",
+          "label": "_"
+        },
+        {
+          "token": "madre",
+          "label": "_"
+        },
+        {
+          "token": "magari",
+          "label": "_"
+        },
+        {
+          "token": "maggio",
+          "label": "_"
+        },
+        {
+          "token": "maggior",
+          "label": "_"
+        },
+        {
+          "token": "maggiore",
+          "label": "_"
+        },
+        {
+          "token": "maggiormente",
+          "label": "_"
+        },
+        {
+          "token": "mai",
+          "label": "_"
+        },
+        {
+          "token": "malattie",
+          "label": "_"
+        },
+        {
+          "token": "male",
+          "label": "_"
+        },
+        {
+          "token": "mancano",
+          "label": "_"
+        },
+        {
+          "token": "mancanza",
+          "label": "_"
+        },
+        {
+          "token": "mani",
+          "label": "_"
+        },
+        {
+          "token": "manifesta",
+          "label": "_"
+        },
+        {
+          "token": "manifestazioni",
+          "label": "_"
+        },
+        {
+          "token": "mantenere",
+          "label": "_"
+        },
+        {
+          "token": "mare",
+          "label": "_"
+        },
+        {
+          "token": "massa",
+          "label": "_"
+        },
+        {
+          "token": "masse",
+          "label": "_"
+        },
+        {
+          "token": "matematica",
+          "label": "_"
+        },
+        {
+          "token": "materiali",
+          "label": "_"
+        },
+        {
+          "token": "me",
+          "label": "_"
+        },
+        {
+          "token": "meccanismo",
+          "label": "_"
+        },
+        {
+          "token": "media",
+          "label": "_"
+        },
+        {
+          "token": "mediante",
+          "label": "_"
+        },
+        {
+          "token": "meglio",
+          "label": "_"
+        },
+        {
+          "token": "membri",
+          "label": "_"
+        },
+        {
+          "token": "memoria",
+          "label": "_"
+        },
+        {
+          "token": "meno",
+          "label": "_"
+        },
+        {
+          "token": "mente",
+          "label": "_"
+        },
+        {
+          "token": "menti",
+          "label": "_"
+        },
+        {
+          "token": "mentre",
+          "label": "_"
+        },
+        {
+          "token": "meraviglia",
+          "label": "_"
+        },
+        {
+          "token": "mercanti",
+          "label": "_"
+        },
+        {
+          "token": "mercato",
+          "label": "_"
+        },
+        {
+          "token": "merci",
+          "label": "_"
+        },
+        {
+          "token": "mesi",
+          "label": "_"
+        },
+        {
+          "token": "messo",
+          "label": "_"
+        },
+        {
+          "token": "metodo",
+          "label": "_"
+        },
+        {
+          "token": "mette",
+          "label": "_"
+        },
+        {
+          "token": "mettere",
+          "label": "_"
+        },
+        {
+          "token": "metà",
+          "label": "_"
+        },
+        {
+          "token": "mezzo",
+          "label": "_"
+        },
+        {
+          "token": "mi",
+          "label": "_"
+        },
+        {
+          "token": "mia",
+          "label": "_"
+        },
+        {
+          "token": "microscopico",
+          "label": "_"
+        },
+        {
+          "token": "miei",
+          "label": "_"
+        },
+        {
+          "token": "migliore",
+          "label": "_"
+        },
+        {
+          "token": "migliori",
+          "label": "_"
+        },
+        {
+          "token": "mio",
+          "label": "_"
+        },
+        {
+          "token": "missione",
+          "label": "_"
+        },
+        {
+          "token": "misura",
+          "label": "_"
+        },
+        {
+          "token": "mito",
+          "label": "_"
+        },
+        {
+          "token": "modelli",
+          "label": "_"
+        },
+        {
+          "token": "modello",
+          "label": "_"
+        },
+        {
+          "token": "moderna",
+          "label": "_"
+        },
+        {
+          "token": "moderno",
+          "label": "_"
+        },
+        {
+          "token": "modo",
+          "label": "_"
+        },
+        {
+          "token": "molte",
+          "label": "_"
+        },
+        {
+          "token": "molteplici",
+          "label": "_"
+        },
+        {
+          "token": "molti",
+          "label": "_"
+        },
+        {
+          "token": "molto",
+          "label": "_"
+        },
+        {
+          "token": "momenti",
+          "label": "_"
+        },
+        {
+          "token": "momento",
+          "label": "_"
+        },
+        {
+          "token": "mondi",
+          "label": "_"
+        },
+        {
+          "token": "mondiale",
+          "label": "_"
+        },
+        {
+          "token": "mondo",
+          "label": "_"
+        },
+        {
+          "token": "moneta",
+          "label": "_"
+        },
+        {
+          "token": "monetaria",
+          "label": "_"
+        },
+        {
+          "token": "monumenti",
+          "label": "_"
+        },
+        {
+          "token": "mortali",
+          "label": "_"
+        },
+        {
+          "token": "morte",
+          "label": "_"
+        },
+        {
+          "token": "mostrano",
+          "label": "_"
+        },
+        {
+          "token": "motivo",
+          "label": "_"
+        },
+        {
+          "token": "movimento",
+          "label": "_"
+        },
+        {
+          "token": "muro",
+          "label": "_"
+        },
+        {
+          "token": "musica",
+          "label": "_"
+        },
+        {
+          "token": "musicale",
+          "label": "_"
+        },
+        {
+          "token": "musicali",
+          "label": "_"
+        },
+        {
+          "token": "nasce",
+          "label": "_"
+        },
+        {
+          "token": "nascere",
+          "label": "_"
+        },
+        {
+          "token": "nascita",
+          "label": "_"
+        },
+        {
+          "token": "nasconde",
+          "label": "_"
+        },
+        {
+          "token": "nascono",
+          "label": "_"
+        },
+        {
+          "token": "nascoste",
+          "label": "_"
+        },
+        {
+          "token": "natale",
+          "label": "_"
+        },
+        {
+          "token": "natura",
+          "label": "_"
+        },
+        {
+          "token": "naturale",
+          "label": "_"
+        },
+        {
+          "token": "naturali",
+          "label": "_"
+        },
+        {
+          "token": "ne",
+          "label": "_"
+        },
+        {
+          "token": "nebbia",
+          "label": "_"
+        },
+        {
+          "token": "necessaria",
+          "label": "_"
+        },
+        {
+          "token": "necessariamente",
+          "label": "_"
+        },
+        {
+          "token": "necessario",
+          "label": "_"
+        },
+        {
+          "token": "necessita",
+          "label": "_"
+        },
+        {
+          "token": "necessità",
+          "label": "_"
+        },
+        {
+          "token": "negativa",
+          "label": "_"
+        },
+        {
+          "token": "negativo",
+          "label": "_"
+        },
+        {
+          "token": "nei",
+          "label": "(m 0 2 (s '' 'i') (s 'ei' '')) (m 2 0 (s 'ne' '') ())"
+        },
+        {
+          "token": "nelle",
+          "label": "(m 0 4 (s '' 'i') (s 'elle' '')) (m 3 0 (s 'nel' '') ())"
+        },
+        {
+          "token": "nello",
+          "label": "(m 0 4 (s '' 'i') (s 'ello' '')) (m 3 0 (s 'nel' '') ())"
+        },
+        {
+          "token": "nemmeno",
+          "label": "_"
+        },
+        {
+          "token": "nervoso",
+          "label": "_"
+        },
+        {
+          "token": "nessuno",
+          "label": "_"
+        },
+        {
+          "token": "neurobiologia",
+          "label": "_"
+        },
+        {
+          "token": "neurologia",
+          "label": "_"
+        },
+        {
+          "token": "niente",
+          "label": "_"
+        },
+        {
+          "token": "noi",
+          "label": "_"
+        },
+        {
+          "token": "nome",
+          "label": "_"
+        },
+        {
+          "token": "non",
+          "label": "_"
+        },
+        {
+          "token": "nonché",
+          "label": "_"
+        },
+        {
+          "token": "nonostante",
+          "label": "_"
+        },
+        {
+          "token": "norme",
+          "label": "_"
+        },
+        {
+          "token": "nostra",
+          "label": "_"
+        },
+        {
+          "token": "nostre",
+          "label": "_"
+        },
+        {
+          "token": "nostri",
+          "label": "_"
+        },
+        {
+          "token": "nostro",
+          "label": "_"
+        },
+        {
+          "token": "nota",
+          "label": "_"
+        },
+        {
+          "token": "notevole",
+          "label": "_"
+        },
+        {
+          "token": "noto",
+          "label": "_"
+        },
+        {
+          "token": "nulla",
+          "label": "_"
+        },
+        {
+          "token": "numerosi",
+          "label": "_"
+        },
+        {
+          "token": "nuova",
+          "label": "_"
+        },
+        {
+          "token": "nuove",
+          "label": "_"
+        },
+        {
+          "token": "nuovi",
+          "label": "_"
+        },
+        {
+          "token": "nuovo",
+          "label": "_"
+        },
+        {
+          "token": "né",
+          "label": "_"
+        },
+        {
+          "token": "o",
+          "label": "_"
+        },
+        {
+          "token": "obiettivi",
+          "label": "_"
+        },
+        {
+          "token": "obiettivo",
+          "label": "_"
+        },
+        {
+          "token": "occasione",
+          "label": "_"
+        },
+        {
+          "token": "occhi",
+          "label": "_"
+        },
+        {
+          "token": "odierno",
+          "label": "_"
+        },
+        {
+          "token": "offre",
+          "label": "_"
+        },
+        {
+          "token": "oggetti",
+          "label": "_"
+        },
+        {
+          "token": "oggi",
+          "label": "_"
+        },
+        {
+          "token": "ogni",
+          "label": "_"
+        },
+        {
+          "token": "oltre",
+          "label": "_"
+        },
+        {
+          "token": "omicidi",
+          "label": "_"
+        },
+        {
+          "token": "opera",
+          "label": "_"
+        },
+        {
+          "token": "opere",
+          "label": "_"
+        },
+        {
+          "token": "opinione",
+          "label": "_"
+        },
+        {
+          "token": "opinioni",
+          "label": "_"
+        },
+        {
+          "token": "opportunità",
+          "label": "_"
+        },
+        {
+          "token": "opposto",
+          "label": "_"
+        },
+        {
+          "token": "oppure",
+          "label": "_"
+        },
+        {
+          "token": "ora",
+          "label": "_"
+        },
+        {
+          "token": "ordine",
+          "label": "_"
+        },
+        {
+          "token": "organo",
+          "label": "_"
+        },
+        {
+          "token": "origine",
+          "label": "_"
+        },
+        {
+          "token": "origini",
+          "label": "_"
+        },
+        {
+          "token": "ormai",
+          "label": "_"
+        },
+        {
+          "token": "ospita",
+          "label": "_"
+        },
+        {
+          "token": "ossia",
+          "label": "_"
+        },
+        {
+          "token": "ottenere",
+          "label": "_"
+        },
+        {
+          "token": "ottica",
+          "label": "_"
+        },
+        {
+          "token": "ovvero",
+          "label": "_"
+        },
+        {
+          "token": "ovvio",
+          "label": "_"
+        },
+        {
+          "token": "pace",
+          "label": "_"
+        },
+        {
+          "token": "padre",
+          "label": "_"
+        },
+        {
+          "token": "paesaggi",
+          "label": "_"
+        },
+        {
+          "token": "paesaggio",
+          "label": "_"
+        },
+        {
+          "token": "paese",
+          "label": "_"
+        },
+        {
+          "token": "paesi",
+          "label": "_"
+        },
+        {
+          "token": "palese",
+          "label": "_"
+        },
+        {
+          "token": "panorama",
+          "label": "_"
+        },
+        {
+          "token": "parere",
+          "label": "_"
+        },
+        {
+          "token": "parla",
+          "label": "_"
+        },
+        {
+          "token": "parlando",
+          "label": "_"
+        },
+        {
+          "token": "parlare",
+          "label": "_"
+        },
+        {
+          "token": "parola",
+          "label": "_"
+        },
+        {
+          "token": "parole",
+          "label": "_"
+        },
+        {
+          "token": "parte",
+          "label": "_"
+        },
+        {
+          "token": "partecipano",
+          "label": "_"
+        },
+        {
+          "token": "partecipazione",
+          "label": "_"
+        },
+        {
+          "token": "partendo",
+          "label": "_"
+        },
+        {
+          "token": "particolare",
+          "label": "_"
+        },
+        {
+          "token": "partiti",
+          "label": "_"
+        },
+        {
+          "token": "passato",
+          "label": "_"
+        },
+        {
+          "token": "passi",
+          "label": "_"
+        },
+        {
+          "token": "passioni",
+          "label": "_"
+        },
+        {
+          "token": "passo",
+          "label": "_"
+        },
+        {
+          "token": "paterna",
+          "label": "_"
+        },
+        {
+          "token": "patria",
+          "label": "_"
+        },
+        {
+          "token": "patrimonio",
+          "label": "_"
+        },
+        {
+          "token": "paura",
+          "label": "_"
+        },
+        {
+          "token": "pensa",
+          "label": "_"
+        },
+        {
+          "token": "pensano",
+          "label": "_"
+        },
+        {
+          "token": "pensare",
+          "label": "_"
+        },
+        {
+          "token": "pensieri",
+          "label": "_"
+        },
+        {
+          "token": "pensiero",
+          "label": "_"
+        },
+        {
+          "token": "per",
+          "label": "_"
+        },
+        {
+          "token": "perché",
+          "label": "_"
+        },
+        {
+          "token": "perciò",
+          "label": "_"
+        },
+        {
+          "token": "perdita",
+          "label": "_"
+        },
+        {
+          "token": "periodi",
+          "label": "_"
+        },
+        {
+          "token": "periodo",
+          "label": "_"
+        },
+        {
+          "token": "perlomeno",
+          "label": "_"
+        },
+        {
+          "token": "permesso",
+          "label": "_"
+        },
+        {
+          "token": "permette",
+          "label": "_"
+        },
+        {
+          "token": "persona",
+          "label": "_"
+        },
+        {
+          "token": "personaggi",
+          "label": "_"
+        },
+        {
+          "token": "personale",
+          "label": "_"
+        },
+        {
+          "token": "personali",
+          "label": "_"
+        },
+        {
+          "token": "persone",
+          "label": "_"
+        },
+        {
+          "token": "però",
+          "label": "_"
+        },
+        {
+          "token": "peso",
+          "label": "_"
+        },
+        {
+          "token": "piace",
+          "label": "_"
+        },
+        {
+          "token": "piacere",
+          "label": "_"
+        },
+        {
+          "token": "pianeta",
+          "label": "_"
+        },
+        {
+          "token": "pianeti",
+          "label": "_"
+        },
+        {
+          "token": "piano",
+          "label": "_"
+        },
+        {
+          "token": "piazza",
+          "label": "_"
+        },
+        {
+          "token": "piccole",
+          "label": "_"
+        },
+        {
+          "token": "piccoli",
+          "label": "_"
+        },
+        {
+          "token": "piccolo",
+          "label": "_"
+        },
+        {
+          "token": "piena",
+          "label": "_"
+        },
+        {
+          "token": "pieno",
+          "label": "_"
+        },
+        {
+          "token": "piuttosto",
+          "label": "_"
+        },
+        {
+          "token": "più",
+          "label": "_"
+        },
+        {
+          "token": "plasma",
+          "label": "_"
+        },
+        {
+          "token": "po'",
+          "label": "_"
+        },
+        {
+          "token": "poche",
+          "label": "_"
+        },
+        {
+          "token": "pochi",
+          "label": "_"
+        },
+        {
+          "token": "poco",
+          "label": "_"
+        },
+        {
+          "token": "poesia",
+          "label": "_"
+        },
+        {
+          "token": "poeti",
+          "label": "_"
+        },
+        {
+          "token": "poetica",
+          "label": "_"
+        },
+        {
+          "token": "poi",
+          "label": "_"
+        },
+        {
+          "token": "poiché",
+          "label": "_"
+        },
+        {
+          "token": "politica",
+          "label": "_"
+        },
+        {
+          "token": "politici",
+          "label": "_"
+        },
+        {
+          "token": "politico",
+          "label": "_"
+        },
+        {
+          "token": "pone",
+          "label": "_"
+        },
+        {
+          "token": "ponte",
+          "label": "_"
+        },
+        {
+          "token": "pop",
+          "label": "_"
+        },
+        {
+          "token": "popolazione",
+          "label": "_"
+        },
+        {
+          "token": "popolo",
+          "label": "_"
+        },
+        {
+          "token": "porsi",
+          "label": "(m 0 2 () (s 'si' '')) (t 2 ())"
+        },
+        {
+          "token": "porta",
+          "label": "_"
+        },
+        {
+          "token": "portare",
+          "label": "_"
+        },
+        {
+          "token": "porterà",
+          "label": "_"
+        },
+        {
+          "token": "portò",
+          "label": "_"
+        },
+        {
+          "token": "positivo",
+          "label": "_"
+        },
+        {
+          "token": "possa",
+          "label": "_"
+        },
+        {
+          "token": "possesso",
+          "label": "_"
+        },
+        {
+          "token": "possiamo",
+          "label": "_"
+        },
+        {
+          "token": "possibile",
+          "label": "_"
+        },
+        {
+          "token": "possibili",
+          "label": "_"
+        },
+        {
+          "token": "possibilità",
+          "label": "_"
+        },
+        {
+          "token": "possiede",
+          "label": "_"
+        },
+        {
+          "token": "possono",
+          "label": "_"
+        },
+        {
+          "token": "posto",
+          "label": "_"
+        },
+        {
+          "token": "poter",
+          "label": "_"
+        },
+        {
+          "token": "potere",
+          "label": "_"
+        },
+        {
+          "token": "potesse",
+          "label": "_"
+        },
+        {
+          "token": "potrebbe",
+          "label": "_"
+        },
+        {
+          "token": "potrebbero",
+          "label": "_"
+        },
+        {
+          "token": "potremmo",
+          "label": "_"
+        },
+        {
+          "token": "potuto",
+          "label": "_"
+        },
+        {
+          "token": "pratica",
+          "label": "_"
+        },
+        {
+          "token": "precedentemente",
+          "label": "_"
+        },
+        {
+          "token": "precisione",
+          "label": "_"
+        },
+        {
+          "token": "prese",
+          "label": "_"
+        },
+        {
+          "token": "presenta",
+          "label": "_"
+        },
+        {
+          "token": "presente",
+          "label": "_"
+        },
+        {
+          "token": "presenti",
+          "label": "_"
+        },
+        {
+          "token": "presenza",
+          "label": "_"
+        },
+        {
+          "token": "presidente",
+          "label": "_"
+        },
+        {
+          "token": "preso",
+          "label": "_"
+        },
+        {
+          "token": "pressappoco",
+          "label": "_"
+        },
+        {
+          "token": "prezioso",
+          "label": "_"
+        },
+        {
+          "token": "prima",
+          "label": "_"
+        },
+        {
+          "token": "primi",
+          "label": "_"
+        },
+        {
+          "token": "primo",
+          "label": "_"
+        },
+        {
+          "token": "principale",
+          "label": "_"
+        },
+        {
+          "token": "principali",
+          "label": "_"
+        },
+        {
+          "token": "principalmente",
+          "label": "_"
+        },
+        {
+          "token": "principe",
+          "label": "_"
+        },
+        {
+          "token": "principi",
+          "label": "_"
+        },
+        {
+          "token": "principio",
+          "label": "_"
+        },
+        {
+          "token": "priva",
+          "label": "_"
+        },
+        {
+          "token": "probabilmente",
+          "label": "_"
+        },
+        {
+          "token": "problema",
+          "label": "_"
+        },
+        {
+          "token": "problemi",
+          "label": "_"
+        },
+        {
+          "token": "processi",
+          "label": "_"
+        },
+        {
+          "token": "processo",
+          "label": "_"
+        },
+        {
+          "token": "prodotti",
+          "label": "_"
+        },
+        {
+          "token": "prodotto",
+          "label": "_"
+        },
+        {
+          "token": "profonda",
+          "label": "_"
+        },
+        {
+          "token": "profondo",
+          "label": "_"
+        },
+        {
+          "token": "progetti",
+          "label": "_"
+        },
+        {
+          "token": "progetto",
+          "label": "_"
+        },
+        {
+          "token": "programmate",
+          "label": "_"
+        },
+        {
+          "token": "progresso",
+          "label": "_"
+        },
+        {
+          "token": "project",
+          "label": "_"
+        },
+        {
+          "token": "promessi",
+          "label": "_"
+        },
+        {
+          "token": "pronti",
+          "label": "_"
+        },
+        {
+          "token": "proposito",
+          "label": "_"
+        },
+        {
+          "token": "proposte",
+          "label": "_"
+        },
+        {
+          "token": "propri",
+          "label": "_"
+        },
+        {
+          "token": "propria",
+          "label": "_"
+        },
+        {
+          "token": "proprie",
+          "label": "_"
+        },
+        {
+          "token": "proprio",
+          "label": "_"
+        },
+        {
+          "token": "prosperità",
+          "label": "_"
+        },
+        {
+          "token": "protagonista",
+          "label": "_"
+        },
+        {
+          "token": "protagonisti",
+          "label": "_"
+        },
+        {
+          "token": "prova",
+          "label": "_"
+        },
+        {
+          "token": "provocare",
+          "label": "_"
+        },
+        {
+          "token": "psicologia",
+          "label": "_"
+        },
+        {
+          "token": "psicologico",
+          "label": "_"
+        },
+        {
+          "token": "pubblica",
+          "label": "_"
+        },
+        {
+          "token": "pubblico",
+          "label": "_"
+        },
+        {
+          "token": "punizione",
+          "label": "_"
+        },
+        {
+          "token": "punti",
+          "label": "_"
+        },
+        {
+          "token": "puntino",
+          "label": "_"
+        },
+        {
+          "token": "punto",
+          "label": "_"
+        },
+        {
+          "token": "pur",
+          "label": "_"
+        },
+        {
+          "token": "pure",
+          "label": "_"
+        },
+        {
+          "token": "purpurea",
+          "label": "_"
+        },
+        {
+          "token": "purtroppo",
+          "label": "_"
+        },
+        {
+          "token": "può",
+          "label": "_"
+        },
+        {
+          "token": "quadro",
+          "label": "_"
+        },
+        {
+          "token": "qualche",
+          "label": "_"
+        },
+        {
+          "token": "qualcosa",
+          "label": "_"
+        },
+        {
+          "token": "qualcuno",
+          "label": "_"
+        },
+        {
+          "token": "quale",
+          "label": "_"
+        },
+        {
+          "token": "quali",
+          "label": "_"
+        },
+        {
+          "token": "qualità",
+          "label": "_"
+        },
+        {
+          "token": "qualsiasi",
+          "label": "_"
+        },
+        {
+          "token": "qualunque",
+          "label": "_"
+        },
+        {
+          "token": "quando",
+          "label": "_"
+        },
+        {
+          "token": "quantità",
+          "label": "_"
+        },
+        {
+          "token": "quanto",
+          "label": "_"
+        },
+        {
+          "token": "quasi",
+          "label": "_"
+        },
+        {
+          "token": "quei",
+          "label": "_"
+        },
+        {
+          "token": "quel",
+          "label": "_"
+        },
+        {
+          "token": "quell'",
+          "label": "_"
+        },
+        {
+          "token": "quella",
+          "label": "_"
+        },
+        {
+          "token": "quelle",
+          "label": "_"
+        },
+        {
+          "token": "quelli",
+          "label": "_"
+        },
+        {
+          "token": "quello",
+          "label": "_"
+        },
+        {
+          "token": "quest'",
+          "label": "_"
+        },
+        {
+          "token": "questa",
+          "label": "_"
+        },
+        {
+          "token": "queste",
+          "label": "_"
+        },
+        {
+          "token": "questi",
+          "label": "_"
+        },
+        {
+          "token": "questione",
+          "label": "_"
+        },
+        {
+          "token": "questo",
+          "label": "_"
+        },
+        {
+          "token": "qui",
+          "label": "_"
+        },
+        {
+          "token": "quiete",
+          "label": "_"
+        },
+        {
+          "token": "quindi",
+          "label": "_"
+        },
+        {
+          "token": "quotidiana",
+          "label": "_"
+        },
+        {
+          "token": "racchiude",
+          "label": "_"
+        },
+        {
+          "token": "raccolta",
+          "label": "_"
+        },
+        {
+          "token": "racconta",
+          "label": "_"
+        },
+        {
+          "token": "racconto",
+          "label": "_"
+        },
+        {
+          "token": "ragazzi",
+          "label": "_"
+        },
+        {
+          "token": "raggiungere",
+          "label": "_"
+        },
+        {
+          "token": "ragione",
+          "label": "_"
+        },
+        {
+          "token": "rapporti",
+          "label": "_"
+        },
+        {
+          "token": "rapporto",
+          "label": "_"
+        },
+        {
+          "token": "rappresenta",
+          "label": "_"
+        },
+        {
+          "token": "razza",
+          "label": "_"
+        },
+        {
+          "token": "realizzazione",
+          "label": "_"
+        },
+        {
+          "token": "realizzò",
+          "label": "_"
+        },
+        {
+          "token": "realmente",
+          "label": "_"
+        },
+        {
+          "token": "realtà",
+          "label": "_"
+        },
+        {
+          "token": "regole",
+          "label": "_"
+        },
+        {
+          "token": "relativamente",
+          "label": "_"
+        },
+        {
+          "token": "relazione",
+          "label": "_"
+        },
+        {
+          "token": "relazioni",
+          "label": "_"
+        },
+        {
+          "token": "rende",
+          "label": "_"
+        },
+        {
+          "token": "rendere",
+          "label": "_"
+        },
+        {
+          "token": "responsabilità",
+          "label": "_"
+        },
+        {
+          "token": "ricchezza",
+          "label": "_"
+        },
+        {
+          "token": "ricerca",
+          "label": "_"
+        },
+        {
+          "token": "ricercata",
+          "label": "_"
+        },
+        {
+          "token": "ricerche",
+          "label": "_"
+        },
+        {
+          "token": "riconosce",
+          "label": "_"
+        },
+        {
+          "token": "riconoscere",
+          "label": "_"
+        },
+        {
+          "token": "riconoscersi",
+          "label": "(m 0 2 () (s 'si' '')) (t 2 ())"
+        },
+        {
+          "token": "ricordo",
+          "label": "_"
+        },
+        {
+          "token": "riesce",
+          "label": "_"
+        },
+        {
+          "token": "riescono",
+          "label": "_"
+        },
+        {
+          "token": "riferimento",
+          "label": "_"
+        },
+        {
+          "token": "riflessione",
+          "label": "_"
+        },
+        {
+          "token": "rigorosamente",
+          "label": "_"
+        },
+        {
+          "token": "riguarda",
+          "label": "_"
+        },
+        {
+          "token": "riguardanti",
+          "label": "_"
+        },
+        {
+          "token": "riguardo",
+          "label": "_"
+        },
+        {
+          "token": "rimasta",
+          "label": "_"
+        },
+        {
+          "token": "riportato",
+          "label": "_"
+        },
+        {
+          "token": "ripresenta",
+          "label": "_"
+        },
+        {
+          "token": "riscontrare",
+          "label": "_"
+        },
+        {
+          "token": "riscoperta",
+          "label": "_"
+        },
+        {
+          "token": "risolvere",
+          "label": "_"
+        },
+        {
+          "token": "risorse",
+          "label": "_"
+        },
+        {
+          "token": "rispecchia",
+          "label": "_"
+        },
+        {
+          "token": "rispetto",
+          "label": "_"
+        },
+        {
+          "token": "risposta",
+          "label": "_"
+        },
+        {
+          "token": "risposte",
+          "label": "_"
+        },
+        {
+          "token": "risultati",
+          "label": "_"
+        },
+        {
+          "token": "risultato",
+          "label": "_"
+        },
+        {
+          "token": "rito",
+          "label": "_"
+        },
+        {
+          "token": "ritorno",
+          "label": "_"
+        },
+        {
+          "token": "ritrova",
+          "label": "_"
+        },
+        {
+          "token": "ritrovato",
+          "label": "_"
+        },
+        {
+          "token": "ritrovo",
+          "label": "_"
+        },
+        {
+          "token": "riusciamo",
+          "label": "_"
+        },
+        {
+          "token": "riuscire",
+          "label": "_"
+        },
+        {
+          "token": "rivolge",
+          "label": "_"
+        },
+        {
+          "token": "rivoluzione",
+          "label": "_"
+        },
+        {
+          "token": "romanzi",
+          "label": "_"
+        },
+        {
+          "token": "romanzo",
+          "label": "_"
+        },
+        {
+          "token": "rosso",
+          "label": "_"
+        },
+        {
+          "token": "ruoli",
+          "label": "_"
+        },
+        {
+          "token": "ruolo",
+          "label": "_"
+        },
+        {
+          "token": "sa",
+          "label": "_"
+        },
+        {
+          "token": "saggi",
+          "label": "_"
+        },
+        {
+          "token": "sanno",
+          "label": "_"
+        },
+        {
+          "token": "sapere",
+          "label": "_"
+        },
+        {
+          "token": "sappiamo",
+          "label": "_"
+        },
+        {
+          "token": "saranno",
+          "label": "_"
+        },
+        {
+          "token": "sarebbe",
+          "label": "_"
+        },
+        {
+          "token": "sarà",
+          "label": "_"
+        },
+        {
+          "token": "scapito",
+          "label": "_"
+        },
+        {
+          "token": "sceglie",
+          "label": "_"
+        },
+        {
+          "token": "scelta",
+          "label": "_"
+        },
+        {
+          "token": "scientifica",
+          "label": "_"
+        },
+        {
+          "token": "scientifico",
+          "label": "_"
+        },
+        {
+          "token": "scienza",
+          "label": "_"
+        },
+        {
+          "token": "scienziati",
+          "label": "_"
+        },
+        {
+          "token": "scienziato",
+          "label": "_"
+        },
+        {
+          "token": "scoperte",
+          "label": "_"
+        },
+        {
+          "token": "scopo",
+          "label": "_"
+        },
+        {
+          "token": "scoppio",
+          "label": "_"
+        },
+        {
+          "token": "scritti",
+          "label": "_"
+        },
+        {
+          "token": "scritto",
+          "label": "_"
+        },
+        {
+          "token": "scrittore",
+          "label": "_"
+        },
+        {
+          "token": "scrive",
+          "label": "_"
+        },
+        {
+          "token": "scuola",
+          "label": "_"
+        },
+        {
+          "token": "se",
+          "label": "_"
+        },
+        {
+          "token": "sec",
+          "label": "_"
+        },
+        {
+          "token": "secoli",
+          "label": "_"
+        },
+        {
+          "token": "secolo",
+          "label": "_"
+        },
+        {
+          "token": "seconda",
+          "label": "_"
+        },
+        {
+          "token": "secondo",
+          "label": "_"
+        },
+        {
+          "token": "segna",
+          "label": "_"
+        },
+        {
+          "token": "segnato",
+          "label": "_"
+        },
+        {
+          "token": "seguenti",
+          "label": "_"
+        },
+        {
+          "token": "seguire",
+          "label": "_"
+        },
+        {
+          "token": "seguito",
+          "label": "_"
+        },
+        {
+          "token": "sembra",
+          "label": "_"
+        },
+        {
+          "token": "semplicemente",
+          "label": "_"
+        },
+        {
+          "token": "semplici",
+          "label": "_"
+        },
+        {
+          "token": "sempre",
+          "label": "_"
+        },
+        {
+          "token": "sensazione",
+          "label": "_"
+        },
+        {
+          "token": "senso",
+          "label": "_"
+        },
+        {
+          "token": "sente",
+          "label": "_"
+        },
+        {
+          "token": "sentimento",
+          "label": "_"
+        },
+        {
+          "token": "sentire",
+          "label": "_"
+        },
+        {
+          "token": "senza",
+          "label": "_"
+        },
+        {
+          "token": "serate",
+          "label": "_"
+        },
+        {
+          "token": "sereno",
+          "label": "_"
+        },
+        {
+          "token": "serie",
+          "label": "_"
+        },
+        {
+          "token": "sforzi",
+          "label": "_"
+        },
+        {
+          "token": "sfumature",
+          "label": "_"
+        },
+        {
+          "token": "si",
+          "label": "_"
+        },
+        {
+          "token": "sia",
+          "label": "_"
+        },
+        {
+          "token": "siamo",
+          "label": "_"
+        },
+        {
+          "token": "siano",
+          "label": "_"
+        },
+        {
+          "token": "sicuramente",
+          "label": "_"
+        },
+        {
+          "token": "sicurezza",
+          "label": "_"
+        },
+        {
+          "token": "sicuro",
+          "label": "_"
+        },
+        {
+          "token": "siepe",
+          "label": "_"
+        },
+        {
+          "token": "significativo",
+          "label": "_"
+        },
+        {
+          "token": "significato",
+          "label": "_"
+        },
+        {
+          "token": "simbolo",
+          "label": "_"
+        },
+        {
+          "token": "simili",
+          "label": "_"
+        },
+        {
+          "token": "sincera",
+          "label": "_"
+        },
+        {
+          "token": "singoli",
+          "label": "_"
+        },
+        {
+          "token": "singolo",
+          "label": "_"
+        },
+        {
+          "token": "sistema",
+          "label": "_"
+        },
+        {
+          "token": "situazione",
+          "label": "_"
+        },
+        {
+          "token": "situazioni",
+          "label": "_"
+        },
+        {
+          "token": "so",
+          "label": "_"
+        },
+        {
+          "token": "sociale",
+          "label": "_"
+        },
+        {
+          "token": "sociali",
+          "label": "_"
+        },
+        {
+          "token": "società",
+          "label": "_"
+        },
+        {
+          "token": "soddisfare",
+          "label": "_"
+        },
+        {
+          "token": "soddisfazione",
+          "label": "_"
+        },
+        {
+          "token": "sofferenza",
+          "label": "_"
+        },
+        {
+          "token": "sola",
+          "label": "_"
+        },
+        {
+          "token": "solamente",
+          "label": "_"
+        },
+        {
+          "token": "soli",
+          "label": "_"
+        },
+        {
+          "token": "solo",
+          "label": "_"
+        },
+        {
+          "token": "soluzione",
+          "label": "_"
+        },
+        {
+          "token": "sono",
+          "label": "_"
+        },
+        {
+          "token": "sopportare",
+          "label": "_"
+        },
+        {
+          "token": "soprattutto",
+          "label": "_"
+        },
+        {
+          "token": "sopravvive",
+          "label": "_"
+        },
+        {
+          "token": "sorpassano",
+          "label": "_"
+        },
+        {
+          "token": "sorta",
+          "label": "_"
+        },
+        {
+          "token": "sospendere",
+          "label": "_"
+        },
+        {
+          "token": "sosteneva",
+          "label": "_"
+        },
+        {
+          "token": "sostiene",
+          "label": "_"
+        },
+        {
+          "token": "sotto",
+          "label": "_"
+        },
+        {
+          "token": "sottolineano",
+          "label": "_"
+        },
+        {
+          "token": "sottolineare",
+          "label": "_"
+        },
+        {
+          "token": "spaventa",
+          "label": "_"
+        },
+        {
+          "token": "spazi",
+          "label": "_"
+        },
+        {
+          "token": "spazio",
+          "label": "_"
+        },
+        {
+          "token": "specie",
+          "label": "_"
+        },
+        {
+          "token": "speranza",
+          "label": "_"
+        },
+        {
+          "token": "sperimentale",
+          "label": "_"
+        },
+        {
+          "token": "spesso",
+          "label": "_"
+        },
+        {
+          "token": "spiegazione",
+          "label": "_"
+        },
+        {
+          "token": "spinge",
+          "label": "_"
+        },
+        {
+          "token": "spirito",
+          "label": "_"
+        },
+        {
+          "token": "splendido",
+          "label": "_"
+        },
+        {
+          "token": "spontanee",
+          "label": "_"
+        },
+        {
+          "token": "sposi",
+          "label": "_"
+        },
+        {
+          "token": "sta",
+          "label": "_"
+        },
+        {
+          "token": "stabile",
+          "label": "_"
+        },
+        {
+          "token": "stabilire",
+          "label": "_"
+        },
+        {
+          "token": "stanno",
+          "label": "_"
+        },
+        {
+          "token": "stare",
+          "label": "_"
+        },
+        {
+          "token": "stata",
+          "label": "_"
+        },
+        {
+          "token": "stati",
+          "label": "_"
+        },
+        {
+          "token": "stato",
+          "label": "_"
+        },
+        {
+          "token": "statunitense",
+          "label": "_"
+        },
+        {
+          "token": "stessa",
+          "label": "_"
+        },
+        {
+          "token": "stessi",
+          "label": "_"
+        },
+        {
+          "token": "stesso",
+          "label": "_"
+        },
+        {
+          "token": "stile",
+          "label": "_"
+        },
+        {
+          "token": "stimoli",
+          "label": "_"
+        },
+        {
+          "token": "storia",
+          "label": "_"
+        },
+        {
+          "token": "storici",
+          "label": "_"
+        },
+        {
+          "token": "storico",
+          "label": "_"
+        },
+        {
+          "token": "strumento",
+          "label": "_"
+        },
+        {
+          "token": "studenti",
+          "label": "_"
+        },
+        {
+          "token": "studi",
+          "label": "_"
+        },
+        {
+          "token": "studia",
+          "label": "_"
+        },
+        {
+          "token": "studio",
+          "label": "_"
+        },
+        {
+          "token": "su",
+          "label": "_"
+        },
+        {
+          "token": "sua",
+          "label": "_"
+        },
+        {
+          "token": "subito",
+          "label": "_"
+        },
+        {
+          "token": "succede",
+          "label": "_"
+        },
+        {
+          "token": "sue",
+          "label": "_"
+        },
+        {
+          "token": "sugli",
+          "label": "(m 0 3 () (s 'gli' '')) (t 3 ())"
+        },
+        {
+          "token": "sul",
+          "label": "(m 0 1 () (s 'l' '')) (m 2 0 (s 'su' 'i') ())"
+        },
+        {
+          "token": "sull'",
+          "label": "(h 2 ()) (t 2 ())"
+        },
+        {
+          "token": "sulla",
+          "label": "(h 2 ()) (t 2 ())"
+        },
+        {
+          "token": "sulle",
+          "label": "(h 2 ()) (t 2 ())"
+        },
+        {
+          "token": "suo",
+          "label": "_"
+        },
+        {
+          "token": "suoi",
+          "label": "_"
+        },
+        {
+          "token": "superare",
+          "label": "_"
+        },
+        {
+          "token": "superiore",
+          "label": "_"
+        },
+        {
+          "token": "supremo",
+          "label": "_"
+        },
+        {
+          "token": "sviluppare",
+          "label": "_"
+        },
+        {
+          "token": "sviluppate",
+          "label": "_"
+        },
+        {
+          "token": "sviluppo",
+          "label": "_"
+        },
+        {
+          "token": "svolge",
+          "label": "_"
+        },
+        {
+          "token": "svolgere",
+          "label": "_"
+        },
+        {
+          "token": "svolto",
+          "label": "_"
+        },
+        {
+          "token": "sé",
+          "label": "_"
+        },
+        {
+          "token": "tale",
+          "label": "_"
+        },
+        {
+          "token": "tali",
+          "label": "_"
+        },
+        {
+          "token": "talvolta",
+          "label": "_"
+        },
+        {
+          "token": "tanta",
+          "label": "_"
+        },
+        {
+          "token": "tanti",
+          "label": "_"
+        },
+        {
+          "token": "tanto",
+          "label": "_"
+        },
+        {
+          "token": "tecnica",
+          "label": "_"
+        },
+        {
+          "token": "tecnologia",
+          "label": "_"
+        },
+        {
+          "token": "tecnologie",
+          "label": "_"
+        },
+        {
+          "token": "televisione",
+          "label": "_"
+        },
+        {
+          "token": "televisivi",
+          "label": "_"
+        },
+        {
+          "token": "tema",
+          "label": "_"
+        },
+        {
+          "token": "tempesta",
+          "label": "_"
+        },
+        {
+          "token": "tempi",
+          "label": "_"
+        },
+        {
+          "token": "tempo",
+          "label": "_"
+        },
+        {
+          "token": "temporanea",
+          "label": "_"
+        },
+        {
+          "token": "tentativi",
+          "label": "_"
+        },
+        {
+          "token": "teoria",
+          "label": "_"
+        },
+        {
+          "token": "termini",
+          "label": "_"
+        },
+        {
+          "token": "terra",
+          "label": "_"
+        },
+        {
+          "token": "tesi",
+          "label": "_"
+        },
+        {
+          "token": "testi",
+          "label": "_"
+        },
+        {
+          "token": "testimoni",
+          "label": "_"
+        },
+        {
+          "token": "testimonianza",
+          "label": "_"
+        },
+        {
+          "token": "testo",
+          "label": "_"
+        },
+        {
+          "token": "ti",
+          "label": "_"
+        },
+        {
+          "token": "tipi",
+          "label": "_"
+        },
+        {
+          "token": "tipo",
+          "label": "_"
+        },
+        {
+          "token": "tomba",
+          "label": "_"
+        },
+        {
+          "token": "tornare",
+          "label": "_"
+        },
+        {
+          "token": "totalmente",
+          "label": "_"
+        },
+        {
+          "token": "tra",
+          "label": "_"
+        },
+        {
+          "token": "tradizione",
+          "label": "_"
+        },
+        {
+          "token": "tradizioni",
+          "label": "_"
+        },
+        {
+          "token": "trae",
+          "label": "_"
+        },
+        {
+          "token": "tramite",
+          "label": "_"
+        },
+        {
+          "token": "trascende",
+          "label": "_"
+        },
+        {
+          "token": "trascorrere",
+          "label": "_"
+        },
+        {
+          "token": "trasformazione",
+          "label": "_"
+        },
+        {
+          "token": "trasmettere",
+          "label": "_"
+        },
+        {
+          "token": "trattato",
+          "label": "_"
+        },
+        {
+          "token": "tratto",
+          "label": "_"
+        },
+        {
+          "token": "tre",
+          "label": "_"
+        },
+        {
+          "token": "troppo",
+          "label": "_"
+        },
+        {
+          "token": "trova",
+          "label": "_"
+        },
+        {
+          "token": "trovano",
+          "label": "_"
+        },
+        {
+          "token": "trovare",
+          "label": "_"
+        },
+        {
+          "token": "trovato",
+          "label": "_"
+        },
+        {
+          "token": "troviamo",
+          "label": "_"
+        },
+        {
+          "token": "tutela",
+          "label": "_"
+        },
+        {
+          "token": "tutta",
+          "label": "_"
+        },
+        {
+          "token": "tuttavia",
+          "label": "_"
+        },
+        {
+          "token": "tutte",
+          "label": "_"
+        },
+        {
+          "token": "tutti",
+          "label": "_"
+        },
+        {
+          "token": "tutto",
+          "label": "_"
+        },
+        {
+          "token": "tuttora",
+          "label": "_"
+        },
+        {
+          "token": "uguali",
+          "label": "_"
+        },
+        {
+          "token": "ultimi",
+          "label": "_"
+        },
+        {
+          "token": "ultimo",
+          "label": "_"
+        },
+        {
+          "token": "umana",
+          "label": "_"
+        },
+        {
+          "token": "umani",
+          "label": "_"
+        },
+        {
+          "token": "umanità",
+          "label": "_"
+        },
+        {
+          "token": "umano",
+          "label": "_"
+        },
+        {
+          "token": "un",
+          "label": "_"
+        },
+        {
+          "token": "un'",
+          "label": "_"
+        },
+        {
+          "token": "una",
+          "label": "_"
+        },
+        {
+          "token": "unica",
+          "label": "_"
+        },
+        {
+          "token": "unico",
+          "label": "_"
+        },
+        {
+          "token": "unificazione",
+          "label": "_"
+        },
+        {
+          "token": "unione",
+          "label": "_"
+        },
+        {
+          "token": "unire",
+          "label": "_"
+        },
+        {
+          "token": "uniti",
+          "label": "_"
+        },
+        {
+          "token": "unità",
+          "label": "_"
+        },
+        {
+          "token": "universo",
+          "label": "_"
+        },
+        {
+          "token": "uno",
+          "label": "_"
+        },
+        {
+          "token": "uomini",
+          "label": "_"
+        },
+        {
+          "token": "uomo",
+          "label": "_"
+        },
+        {
+          "token": "usare",
+          "label": "_"
+        },
+        {
+          "token": "uscire",
+          "label": "_"
+        },
+        {
+          "token": "uso",
+          "label": "_"
+        },
+        {
+          "token": "utile",
+          "label": "_"
+        },
+        {
+          "token": "va",
+          "label": "_"
+        },
+        {
+          "token": "validi",
+          "label": "_"
+        },
+        {
+          "token": "valore",
+          "label": "_"
+        },
+        {
+          "token": "valori",
+          "label": "_"
+        },
+        {
+          "token": "valorizzare",
+          "label": "_"
+        },
+        {
+          "token": "vasto",
+          "label": "_"
+        },
+        {
+          "token": "vede",
+          "label": "_"
+        },
+        {
+          "token": "vedere",
+          "label": "_"
+        },
+        {
+          "token": "vedono",
+          "label": "_"
+        },
+        {
+          "token": "vengono",
+          "label": "_"
+        },
+        {
+          "token": "vera",
+          "label": "_"
+        },
+        {
+          "token": "veramente",
+          "label": "_"
+        },
+        {
+          "token": "vere",
+          "label": "_"
+        },
+        {
+          "token": "verità",
+          "label": "_"
+        },
+        {
+          "token": "vero",
+          "label": "_"
+        },
+        {
+          "token": "verso",
+          "label": "_"
+        },
+        {
+          "token": "vi",
+          "label": "_"
+        },
+        {
+          "token": "via",
+          "label": "_"
+        },
+        {
+          "token": "vicino",
+          "label": "_"
+        },
+        {
+          "token": "viene",
+          "label": "_"
+        },
+        {
+          "token": "violenza",
+          "label": "_"
+        },
+        {
+          "token": "virtù",
+          "label": "_"
+        },
+        {
+          "token": "visione",
+          "label": "_"
+        },
+        {
+          "token": "vista",
+          "label": "_"
+        },
+        {
+          "token": "visto",
+          "label": "_"
+        },
+        {
+          "token": "vita",
+          "label": "_"
+        },
+        {
+          "token": "vitale",
+          "label": "_"
+        },
+        {
+          "token": "vive",
+          "label": "_"
+        },
+        {
+          "token": "viventi",
+          "label": "_"
+        },
+        {
+          "token": "vivere",
+          "label": "_"
+        },
+        {
+          "token": "viviamo",
+          "label": "_"
+        },
+        {
+          "token": "vivo",
+          "label": "_"
+        },
+        {
+          "token": "vivono",
+          "label": "_"
+        },
+        {
+          "token": "voce",
+          "label": "_"
+        },
+        {
+          "token": "volontà",
+          "label": "_"
+        },
+        {
+          "token": "volta",
+          "label": "_"
+        },
+        {
+          "token": "volte",
+          "label": "_"
+        },
+        {
+          "token": "vorrebbe",
+          "label": "_"
+        },
+        {
+          "token": "vorrei",
+          "label": "_"
+        },
+        {
+          "token": "vostra",
+          "label": "_"
+        },
+        {
+          "token": "vuole",
+          "label": "_"
+        },
+        {
+          "token": "È",
+          "label": "_"
+        },
+        {
+          "token": "è",
+          "label": "_"
+        },
+        {
+          "token": "–",
+          "label": "_"
+        },
+        {
+          "token": "…",
+          "label": "_"
+        }
+      ]
+    },
+    "license_class": "CLASS_PERMISSIVE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.words"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 6,
+    "tolerance": 0.001,
+    "threads": 0,
+    "max_train": 0,
+    "dev_left_out": 17
+  },
+  "training": {
+    "train_loss": [
+      4.704509092413587,
+      3.4496111222307313,
+      1.4087146701062832,
+      0.38383795628172596,
+      0.2244183558865487,
+      0.15749163957740062,
+      0.11855337821450017,
+      0.09546823482401513,
+      0.0805596476670235,
+      0.06998055446409833,
+      0.06190942878912617,
+      0.055586114086812695,
+      0.05054147453798849,
+      0.04664508336413441,
+      0.043242291460827184,
+      0.040445216541662055,
+      0.0378562203520222,
+      0.03576079630381634,
+      0.033833443496505425
+    ],
+    "dev": [
+      0.7695078031212484,
+      0.8186183564334825,
+      0.9627851140456183,
+      0.9628942486085343,
+      0.9703153988868275,
+      0.982538469933428,
+      0.9879951980792316,
+      0.9903961584633854,
+      0.9912692349667139,
+      0.9919240423442104,
+      0.9924697151587908,
+      0.9926879842846229,
+      0.9930153879733712,
+      0.9931245225362872,
+      0.9932336570992033,
+      0.9933427916621194,
+      0.9934519262250354,
+      0.9934519262250354,
+      0.9934519262250354
+    ],
+    "best_epoch": 16,
+    "epoch_seconds": [
+      0.038856438,
+      0.037210504,
+      0.035987794,
+      0.035586372,
+      0.035930415,
+      0.035303816,
+      0.035711951,
+      0.036358096,
+      0.035715687,
+      0.036303503,
+      0.035598445,
+      0.03541167,
+      0.036124684,
+      0.035751205,
+      0.035589708,
+      0.035717911,
+      0.035072387,
+      0.035257719,
+      0.036142497
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 9654,
+        "correct": 9565,
+        "accuracy": 0.9907810234099855,
+        "unseen_words": 1335,
+        "unseen_correct": 1283,
+        "unseen_labels": 54
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 9654,
+        "correct": 9582,
+        "accuracy": 0.9925419515226849,
+        "unseen_words": 1335,
+        "unseen_correct": 1280,
+        "unseen_labels": 54
+      }
+    },
+    "comparison": {
+      "model": 0.9907810234099855,
+      "baseline": 0.9925419515226849,
+      "delta": -0.0017609281126993448,
+      "low": -0.0029936918635732335,
+      "high": -0.000612244897959191,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.011694953,
+    "features": 2.592137214,
+    "train": 0.696173512,
+    "eval": 0.960100604,
+    "feature_words": 26875
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 104816,
+      "sha256": "53acca6f4bda7155d2ce349816186f5cd077246501297ce4a7dacbf606dffec1"
+    },
+    {
+      "path": "head.json",
+      "size": 101431,
+      "sha256": "327803c6cfff10ffa73f18bbbdef5a38435ecf27cdcbb29af09eed612c149663"
+    }
+  ]
+}
