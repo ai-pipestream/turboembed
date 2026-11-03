@@ -2111,7 +2111,9 @@ int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
         if (half) return s.x16;
         return modern && !first ? static_cast<const void *>(s.xn) : static_cast<const void *>(s.x);
     };
-    for (uint32_t l = 0; l < d.layers; l++) {
+    uint32_t debug_layers = d.layers;
+    if (const char *v = getenv("TURBO_DEBUG_LAYERS")) debug_layers = std::min<uint32_t>(d.layers, (uint32_t)atoi(v));
+    for (uint32_t l = 0; l < debug_layers; l++) {
         const bool global = d.global_every == 0 || l % d.global_every == 0;
         g.rope_cos = mo.rope + (global ? 0 : 2 * table);
         g.rope_sin = g.rope_cos + table;
@@ -2156,7 +2158,7 @@ int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
         g.bias = prod16 ? layer(l, TURBO_BERT_FFN_OUT_BIAS) : nullptr;
         g.out = s.part;
         TRY_CUDA(gemm_as(GEMM_FFN2, prod16 ? EPI_BIAS : EPI_PLAIN, g), "the MLP's output");
-        if (modern && l + 1 < d.layers)
+        if (modern && l + 1 < debug_layers)
             TRY_CUDA(add_norm_into(st, s.x, s.part, prod16 ? part16 : nullptr,
                                    layer(l + 1, TURBO_BERT_ATTN_LN_WEIGHT), zero, eps, info, h,
                                    half ? nullptr : s.xn, half ? s.x16 : nullptr, plan),
