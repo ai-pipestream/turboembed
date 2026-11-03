@@ -1,8 +1,10 @@
 //! DescribeModel, ResolveModel and ReadModelFile: one artifact's entry, the
 //! artifact and file the index pins at a SHA-256, and an installed file's
 //! bytes streamed to a user the licence check admits. A read is not an
-//! admin call. In zoo mode a file not yet cached is fetched first
-//! (through.rs); otherwise it is refused until the artifact is installed. The bytes are hashed as they are sent, and a file whose
+//! admin call. In zoo mode a file not yet cached is fetched first, through
+//! the reader's own sources and then the catalog's (through.rs);
+//! otherwise it is refused until the artifact is installed. The bytes are
+//! hashed as they are sent, and a file whose
 //! size or SHA-256 no longer matches the index ends the stream with
 //! DATA_LOSS instead of a clean end; the client verifies every digest too.
 
@@ -79,7 +81,7 @@ pub(super) async fn start(
     id: String,
     path: String,
     pin: String,
-    through: Option<through::Fetching>,
+    through: Option<through::ReadThrough>,
 ) -> Result<ChunkStream, Status> {
     if id.is_empty() {
         return Err(invalid(2, "artifact_id is required"));
@@ -110,7 +112,7 @@ fn open(
     id: &str,
     path: &str,
     pin: Option<Sha256>,
-    through: Option<&through::Fetching>,
+    through: Option<&through::ReadThrough>,
 ) -> Result<Opened, Status> {
     let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &Offline);
     let a = zoo.permit_with(id, user, || catalog.acceptances()).map_err(zoo_status)?;
@@ -131,9 +133,9 @@ fn open(
     let local = catalog.cache().join(a.id.as_str()).join(f.path.as_str());
     let installed = || fs::symlink_metadata(&local).is_ok_and(|m| m.is_file() && m.len() == f.size);
     if !installed()
-        && let Some(gates) = through
+        && let Some(through) = through
     {
-        through::fetch(catalog, user, a.id.as_str(), gates)?;
+        through::fetch(catalog, user, a.id.as_str(), through)?;
     }
     if !installed() {
         return Err(plain(Failure::new(
