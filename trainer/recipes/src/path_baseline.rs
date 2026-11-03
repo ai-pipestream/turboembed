@@ -21,7 +21,16 @@ use turbo_trainer_recipes::{Error, Result, redocred, redocred_eval, redocred_pat
 
 use super::{encoder_record, finish};
 
-pub(super) fn dependency_path(argv: &[String], dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+pub(super) fn dependency_path(
+    argv: &[String],
+    corpus_id: &str,
+    dir: &Path,
+    unrecorded: bool,
+    mut a: Args,
+) -> Result<()> {
+    if corpus_id != redocred::ID {
+        return Err(Error(format!("{corpus_id}: --dependency-path is re-docred's baseline")));
+    }
     let parser_dir = PathBuf::from(a.required("--parser")?);
     let bundle = PathBuf::from(a.required("--bundle")?);
     let (device, precision, _) = encoder_args(&mut a)?;
