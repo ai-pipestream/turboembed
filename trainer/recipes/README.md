@@ -93,10 +93,8 @@ turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run 
 turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test words.conllu>
 turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and version> --predictions <peer.conllu>
     --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
-turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
-    [--zoo-id <id> --license-terms <https://...> --url-prefix <https://...>
-     [--component <COMPONENT_*>] [--language <lang>] [--version <ver>] [--origin <https://...>]
-     [--zoo-out <entry.json>]]
+turbo-train-head train-sentences --corpus <masc-pos|ud-*> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
+    [as train]
 ```
 
 `assemble` (#1726) verifies one or more training run directories against
@@ -170,6 +168,17 @@ commonest training words (the token itself when unseen). A treebank
 whose training split has no split that frequent is refused: English
 EWT's are its contractions, and Spanish or Catalan AnCora and Italian
 MarkIT hold the fused forms the head is for.
+
+`train-sentences` trains the sentence boundary head (`sentences` on
+`turboembed:sentences`, #1725) on multi-sentence MASC (`masc-pos`) or
+UD documents (`ud-es-ancora`, `ud-ca-ancora`, `ud-fi-ftb`,
+`ud-it-markit`, `ud-en-ewt`, and the other pinned UD treebanks),
+keeping original MASC inter-sentence whitespace and UD `# newdoc` /
+`# newpar` / `SpacesAfter` / `SpaceAfter=No` joins intact. It scores
+the test split by exact sentence span precision, recall and F1, with
+paired bootstrap comparisons against both the newline baseline
+(`eval.baseline` and `eval.comparison`) and the rule/abbreviation
+sentencer in `analysis/sentdetect` (`eval.rules`).
 
 `train-open-span` (#1735) trains the open-label span matching head
 (`open_ner` on `turboembed:entities`, `HEAD_OPEN_SPAN`) on any BIO

@@ -46,6 +46,7 @@ pub mod redocred_eval;
 pub mod redocred_path;
 pub mod run;
 pub mod safetensors;
+pub mod sentences;
 pub mod split_labels;
 pub mod ud;
 pub mod ud_banks;
