@@ -16,7 +16,7 @@ use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::RuleSplitter;
 use turbo_tokenize::{TokenizerOptions, simple_spans};
 
-use super::graph::extract_graph;
+use super::graph::{Origin, extract_graph};
 use super::heads::{BundleHeads, Want, unsupported};
 use super::{
     AnalysisResultInner, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
@@ -57,14 +57,16 @@ const SOURCE_VIEW: u32 = ViewId::SOURCE.0 as u32;
 /// `turbo_analyzer_desc.bundle_path` as `turbo_error.field` numbers it.
 const BUNDLE_PATH_FIELD: u32 = 7;
 
-/// Each token's text, checked to lie in `text` on character boundaries.
+/// Each token's text, checked to lie in `text` on character boundaries:
+/// a span outside its text is TURBO_E_CAPACITY, as for any row (turbo.h,
+/// turbo_span).
 fn forms<'t>(text: &'t str, tokens: &[Span]) -> Result<Vec<&'t str>> {
     tokens
         .iter()
         .map(|s| {
             let (start, end) = (s.start as usize, s.end as usize);
             if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
-                return Err(Error::new(BUNDLE_INVALID, "tokenizer returned a span outside the text"));
+                return Err(Error::new(CAPACITY, "tokenizer returned a span outside the text"));
             }
             Ok(&text[start..end])
         })
@@ -452,7 +454,7 @@ impl AnalyzerEngine {
 
         let graph = export(&doc, &self.codecs).map_err(|e| Error::new(BUNDLE_INVALID, format!("export graph: {e}")))?;
         let wire = graph.to_bytes().map_err(|e| Error::new(BUNDLE_INVALID, format!("encode graph: {e}")))?;
-        extract_graph(&doc, wire)
+        extract_graph(&doc, wire, Origin::Analyzed)
     }
 
     pub fn inspect_graph(&self, graph_bytes: &[u8]) -> Result<AnalysisResultInner> {
@@ -460,6 +462,6 @@ impl AnalyzerEngine {
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("invalid DocumentGraph wire bytes: {e}")))?;
         let doc = import(&graph, &self.codecs)
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("DocumentGraph import failed: {e}")))?;
-        extract_graph(&doc, graph_bytes.to_vec())
+        extract_graph(&doc, graph_bytes.to_vec(), Origin::Caller)
     }
 }

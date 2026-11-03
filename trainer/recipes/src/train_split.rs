@@ -22,6 +22,16 @@ use super::{Args, Opts, RESAMPLES, encoder_record, finish, options, saved_any};
 const MIN_TREE_FREQ: usize = 3;
 
 pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    if a.rest.iter().any(|x| x == "--cache") {
+        return turbo_trainer_recipes::fit_cache::command_with_task(
+            argv,
+            bank,
+            dir,
+            unrecorded,
+            Some(turbo_trainer_recipes::fit_cache::CacheTask::Split),
+            a,
+        );
+    }
     let bank = *TREEBANKS
         .iter()
         .find(|b| b.id == bank)
@@ -101,6 +111,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
         comparison: Some(bootstrap(Task::Tags, &test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

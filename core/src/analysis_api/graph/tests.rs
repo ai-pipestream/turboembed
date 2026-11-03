@@ -124,7 +124,7 @@ fn fixture() -> (Document, ViewId) {
 #[test]
 fn normalized_view_rows_keep_view_and_source_coordinates_separate() {
     let (doc, lower_view) = fixture();
-    let result = extract_graph(&doc, b"graph".to_vec()).unwrap();
+    let result = extract_graph(&doc, b"graph".to_vec(), Origin::Analyzed).unwrap();
     assert_eq!(result.graph, b"graph");
 
     let lower_tokens = rows(&result, TURBO_ANALYSIS_LAYER_TOKENS, "lower");
@@ -175,7 +175,7 @@ fn deleted_prefix_view_coordinates_project_to_the_source_word() {
     )
     .unwrap();
 
-    let result = extract_graph(&doc, Vec::new()).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
     let token_rows = rows(&result, TURBO_ANALYSIS_LAYER_TOKENS, "trimmed");
     assert_eq!(token_rows.len(), 1);
     assert_eq!(token_rows[0].view_id, trimmed_view.0 as u32);
@@ -187,7 +187,7 @@ fn deleted_prefix_view_coordinates_project_to_the_source_word() {
 #[test]
 fn aligned_layers_use_the_named_token_instance_they_were_made_on() {
     let (doc, lower_view) = fixture();
-    let result = extract_graph(&doc, Vec::new()).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
 
     let pos = rows(&result, TURBO_ANALYSIS_LAYER_POS, "lower");
     assert_eq!(pos.len(), 4);
@@ -211,7 +211,7 @@ fn aligned_layers_use_the_named_token_instance_they_were_made_on() {
 #[test]
 fn discontinuous_entities_and_pii_preserve_items_and_normalized_values() {
     let (doc, _) = fixture();
-    let result = extract_graph(&doc, Vec::new()).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
 
     let entities = rows(&result, TURBO_ANALYSIS_LAYER_ENTITIES, "lower");
     assert_eq!(entities.len(), 2, "one entity with two fragments");
@@ -234,4 +234,56 @@ fn discontinuous_entities_and_pii_preserve_items_and_normalized_values() {
     assert_ne!(pii[0].flags & TURBO_SPAN_VALUE, 0);
     assert_eq!(pii[0].flags & TURBO_SPAN_PROBABILITY, 0);
     assert_eq!(pii[0].classification, TURBO_PII_CONFIDENCE_FORMAT);
+}
+
+/// `doc` as graph bytes, the way a caller would hand them back.
+fn wire(doc: &Document) -> Vec<u8> {
+    let mut codecs = turbo_analysis::Codecs::new();
+    turbo_analysis_layers::export::register_codecs(&mut codecs);
+    turbo_analysis::export(doc, &codecs).unwrap().to_bytes().unwrap()
+}
+
+/// A document of two tokens whose second part-of-speech probability is
+/// `pos` and whose one entity scores `entity`: graph import takes either
+/// whatever its value, NaN aside for the score.
+fn scored(pos: f64, entity: f64) -> Document {
+    let mut doc = Document::new("Ann sings".to_owned());
+    doc.add(
+        &Key::<Tokens>::DEFAULT,
+        Tokens { spans: spans(ViewId::SOURCE, &[(0, 3), (4, 9)]), sentence: None },
+        Provenance::by("test:tokens"),
+    )
+    .unwrap();
+    let tagset = TagSet::new("test-pos", &["PROPN", "VERB"]);
+    let layer = PosTags { tagset, tags: vec![Tag(0), Tag(1)], prob: Some(vec![0.5, pos]) };
+    doc.add(&Key::<PosTags>::DEFAULT, layer, Provenance::by("test:pos")).unwrap();
+    let entities = Entities {
+        spans: spans(ViewId::SOURCE, &[(0, 3)]),
+        tokens: vec![IxRange::new(0, 1)],
+        kind: vec![Tag(0)],
+        kinds: TagSet::new("test-entities", &["PER"]),
+        score: vec![entity],
+    };
+    doc.add(&Key::<Entities>::DEFAULT, entities, Provenance::by("test:entities")).unwrap();
+    doc
+}
+
+#[test]
+fn a_caller_graph_holding_a_probability_outside_0_to_1_is_an_invalid_argument() {
+    use crate::analysis_api::{AnalyzerConfig, AnalyzerEngine};
+    use crate::status::{CAPACITY, INVALID_ARGUMENT};
+
+    let engine = AnalyzerEngine::from_desc(AnalyzerConfig::default()).unwrap();
+    let ok = engine.inspect_graph(&wire(&scored(0.5, 1.0))).unwrap();
+    assert_eq!(ok.spans.iter().filter(|r| r.layer_kind == TURBO_ANALYSIS_LAYER_POS).count(), 2);
+    for (pos, entity) in [(1.5, 0.5), (-0.25, 0.5), (f64::INFINITY, 0.5), (f64::NAN, 0.5), (0.5, 2.0), (0.5, -1.0)] {
+        let doc = scored(pos, entity);
+        let e = engine.inspect_graph(&wire(&doc)).err().unwrap_or_else(|| panic!("{pos} and {entity} decoded"));
+        assert_eq!(e.code, INVALID_ARGUMENT, "{pos} and {entity}: {}", e.message);
+        assert!(e.message.contains("outside 0..=1"), "{}", e.message);
+        // In the analyzer's own document the same row is the analyzer's
+        // fault, as the row builder refuses it.
+        let own = extract_graph(&doc, Vec::new(), Origin::Analyzed).err().unwrap();
+        assert_eq!(own.code, CAPACITY, "{pos} and {entity}: {}", own.message);
+    }
 }

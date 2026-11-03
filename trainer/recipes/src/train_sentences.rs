@@ -105,10 +105,12 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         open_span: None,
         comparison: Some(bootstrap_spans(&corpus.test, &predicted, &nl, RESAMPLES, c.seed)),
         uas: None,
+        against: None,
         rules: Some(BaselineEval {
             name: format!("sentdetect-rules-{}", corpus.language),
             baseline: evaluate_spans(&corpus.test, &rules),
             comparison: bootstrap_spans(&corpus.test, &predicted, &rules, RESAMPLES, c.seed),
+            files: Vec::new(),
         }),
     };
     let eval_s = t.elapsed().as_secs_f64();

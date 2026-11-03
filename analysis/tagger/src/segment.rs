@@ -262,14 +262,18 @@ pub(crate) fn split_with(
     features: &[Vec<f32>],
     forms: &[Vec<&str>],
 ) -> Result<Vec<Vec<Vec<String>>>, CoreError> {
-    let stride = splitter.spec().layer_mix.map_or(1, |m| m.layers as usize) * splitter.hidden();
+    let taps = splitter.taps();
+    let h = splitter.hidden();
     let (mut scores, mut labels, mut work) = (Vec::new(), Vec::new(), Work::default());
     let mut out = Vec::with_capacity(features.len());
     for (f, words) in features.iter().zip(forms) {
-        let n = f.len() / stride;
-        if words.len() != n {
-            return Err(refuse(format!("{} forms for {n} words", words.len())));
-        }
+        let n = words.len();
+        let word_stride = n.checked_mul(h).filter(|&s| s == 0 || f.len().is_multiple_of(s));
+        let Some(ws) = word_stride else {
+            return Err(refuse(format!("{} forms for {} feature values", words.len(), f.len())));
+        };
+        let have = f.len().checked_div(ws).unwrap_or(taps);
+        let f = if have > taps && ws > 0 { &f[(have - taps) * ws..] } else { f.as_slice() };
         let ids: Vec<u32> = (0..n as u32).collect();
         let reads = splitter.reads_forms().then_some(words.as_slice());
         splitter.scores(f, &ids, reads, &mut scores, &mut work)?;

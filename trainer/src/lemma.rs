@@ -108,6 +108,10 @@ impl<R: Real> Lemmatizer<R> {
         &self.spec
     }
 
+    pub fn hidden(&self) -> usize {
+        self.hidden
+    }
+
     pub fn names(&self) -> &[String] {
         &self.names
     }
@@ -186,6 +190,32 @@ impl<R: Real> Lemmatizer<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        self.loss_and_input(features, tags, gold, grads, w, None)
+    }
+
+    /// As [`loss`](Self::loss), and writes the gradient of the loss with
+    /// respect to `features` `[n, hidden]` into `dfeatures`.
+    pub fn loss_input(
+        &self,
+        features: &[R],
+        tags: &[u32],
+        gold: &[Option<u32>],
+        grads: &mut [Vec<R>],
+        w: &mut Work<R>,
+        dfeatures: &mut Vec<R>,
+    ) -> Result<f64> {
+        self.loss_and_input(features, tags, gold, grads, w, Some(dfeatures))
+    }
+
+    fn loss_and_input(
+        &self,
+        features: &[R],
+        tags: &[u32],
+        gold: &[Option<u32>],
+        grads: &mut [Vec<R>],
+        w: &mut Work<R>,
+        dfeatures: Option<&mut Vec<R>>,
+    ) -> Result<f64> {
         if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
             return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
         }
@@ -225,12 +255,19 @@ impl<R: Real> Lemmatizer<R> {
                 }
             }
         }
-        if shape.layers > 0 {
+        let input = dfeatures.is_some();
+        let dx0 = if shape.layers > 0 || input {
             let dx: Vec<R> = (0..n).flat_map(|i| djoined[i * joined_width..][..width].iter().copied()).collect();
-            adapter::backward(shape, &self.params, features, dx, &mut local, &w.adapter, false);
-        }
+            adapter::backward(shape, &self.params, features, dx, &mut local, &w.adapter, input)
+        } else {
+            Vec::new()
+        };
         if !total.is_finite() || !local.iter().flatten().all(|v| v.to_f64().is_finite()) {
             return Err(invalid("trainer: the lemmatizer's loss or a gradient is not finite"));
+        }
+        if let Some(d) = dfeatures {
+            d.clear();
+            d.extend_from_slice(&dx0);
         }
         for (g, l) in grads.iter_mut().zip(local) {
             for (a, b) in g.iter_mut().zip(l) {

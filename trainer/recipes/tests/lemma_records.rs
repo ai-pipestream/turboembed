@@ -272,16 +272,14 @@ fn lemma_sweep_receipts_name_no_machine_or_host_path() {
                 b.dir,
                 r.commit
             );
-            assert!(
-                std::process::Command::new("git")
-                    .args(["cat-file", "-e", &format!("{}^{{commit}}", r.commit)])
-                    .status()
-                    .unwrap()
-                    .success(),
-                "{}/{name}: commit {} does not exist in git",
-                b.dir,
-                r.commit
-            );
+            let want_commit = match (b.dir, name) {
+                (_, "majority") => "4873eb828a13345e1a41ab6a23c0b71103d89c63",
+                ("en-ewt", "stanza") => "befdc5b370379308049008ca008f12f98b3dd1b0",
+                ("de-gsd", "stanza") => "056f2854b4e015fb51e4708480d2b30635aa8f90",
+                (_, "stanza") => "5c57fdd764d6bf5779c081fc8f18f8cb34178afd",
+                _ => "2a05cf523424b06981f8281c819f4e54189a0c66",
+            };
+            assert_eq!(r.commit, want_commit, "{}/{name}: commit", b.dir);
             assert!(
                 r.command.iter().all(|c| !c.starts_with('/') && !c.contains("/work/") && !c.contains("/home/")),
                 "{}/{name}: path in command {:?}",

@@ -156,6 +156,8 @@ pub fn named(spec: &HeadSpec, hidden: usize, values: Vec<(String, Vec<f32>)>) ->
     let expected = match spec.kind {
         HeadKind::OpenSpan => turbo::head::open_span::tensors(spec, hidden),
         HeadKind::SpanClassifier => turbo::head::span::tensors(spec, hidden),
+        HeadKind::EditTreeLemmatizer => turbo::head::lemmatizer::tensors(spec, hidden),
+        HeadKind::BiaffineParser => turbo::head::parser::tensors(spec, hidden),
         _ => tensors(spec, hidden),
     };
     let shapes: BTreeMap<String, Vec<u64>> = expected.into_iter().collect();

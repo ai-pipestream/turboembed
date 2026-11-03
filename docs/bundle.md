@@ -357,9 +357,9 @@ so any number of heads fit one artifact.
 | `labels` | The labels in output order: 1 to 4096, unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
-| `layer_mix` | Optional: `{ "layers": K }` (`1` to `128`, at most the encoder's layers). A learned scalar mix of the encoder's last `K` layers, `gamma * sum_k softmax(weight)_k * tap_k`, before the adapter and output layer. |
+| `layer_mix` | Optional: `{ "layers": K }` (`1` to `128`, at most the encoder's layers) for a learned scalar mix of the encoder's last `K` layers (`gamma * sum_k softmax(weight)_k * tap_k`), or `{ "layers": K, "layer": k }` (`1 <= k < architecture.layers`, `K = architecture.layers - k + 1`) for a head trained on single 1-based encoder layer `k` (tap `0` of the encoder's last `K` layers, with no `mix` tensors), applied before the adapter and output layer. |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
-| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's or open-span head's: `DECODE_SPANS_NESTED` (every span whose best label is not `O` or exceeds the threshold) or `DECODE_SPANS_FLAT` (those spans from the highest margin down, each kept unless it overlaps one kept, ties to the earlier span). A coreference ranker's: `DECODE_ANTECEDENT` (each mention's highest-scoring antecedent when it scores above the dummy's 0, else none; a tie goes to none, then to the nearer mention). A relation classifier's: `DECODE_RELATIONS` (every label of an ordered pair of entities that scores above `none`, the pair's threshold). |
+| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's or open-span head's: `DECODE_SPANS_NESTED` (every span whose best label is not `O` or exceeds the threshold) or `DECODE_SPANS_FLAT` (those spans from the highest margin down, each kept unless it overlaps one kept, ties to the earlier span). A coreference ranker's: `DECODE_ANTECEDENT` (each mention's highest-scoring antecedent when it scores above the dummy's 0, else none; a tie goes to none, then to the nearer mention). A relation classifier's: `DECODE_RELATIONS` (every label of an ordered pair of entities that scores above `none`, the pair's threshold) or `DECODE_RELATION` (the single-label variant: a pair's best label, ties to the lower index, kept only when it scores above `none`). |
 | `hash_embed` | Optional, for the kinds that score words as a tagger does (`HEAD_TOKEN_TAGGER`, `HEAD_SENTENCE_BOUNDARY`, `HEAD_TOKEN_SPLIT`): `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
 | `seen` | Optional, for `HEAD_TOKEN_SPLIT` alone: `{ "min_count": K, "tokens": [{"token", "label"}] }`, the seen-token lookup (#1803). Each entry is a token whose every training occurrence split the same way over at least `min_count` occurrences, mapped to that split's label; the decode takes a looked-up token's label without reading the scorer's row for it, and the scorer decides every other token. `min_count` is at least 1, entries at most 65536, each token listed once, each label one of the head's, and each entry's split must fit its token, checked when the head loads. |
 | `biaffine` | A parser's MLP widths, `arc` and `rel`, each 1 to 4096; required for `HEAD_BIAFFINE_PARSER`, refused for any other kind. A parser's `scheme` is `SCHEME_TAGS` and its labels are the dependency relations. |
@@ -385,8 +385,8 @@ wide and `L` labels, in the order the loader reads them:
 | `out.bias` | `[L]` | always |
 | `crf.transitions` | `[L, L]` | `DECODE_CRF`; row is the label before, column the label after |
 | `crf.start`, `crf.end` | `[L]` | `DECODE_CRF` |
-| `mix.weight` | `[K]` | with `layer_mix` (`K` = `layer_mix.layers`), after any head's other tensors |
-| `mix.gamma` | `[1]` | with `layer_mix`, after `mix.weight` |
+| `mix.weight` | `[K]` | with `layer_mix` when `layer_mix.layer` is absent (`K` = `layer_mix.layers`), after any head's other tensors |
+| `mix.gamma` | `[1]` | with `layer_mix` when `layer_mix.layer` is absent, after `mix.weight` |
 
 LSTM gates are stacked in the order input, forget, cell, output, and a
 layer's output joins its forward and backward states in that order. A
@@ -557,8 +557,12 @@ as the parser's do, and a pair of entities `a != b` scores
 then `b`: `e` entities make `e * (e - 1)` pairs
 (`RelationClassifier::pair_count`). `none` is each pair's threshold
 (the adaptive threshold of Zhou et al. 2021, the trainer's loss), so a
-pair holds every label that scores above it. A kept relation carries
-its two entities, its label and its margin over `none`.
+pair holds every label that scores above it under `DECODE_RELATIONS`.
+`DECODE_RELATION` is the single-label variant, trained with a softmax
+cross-entropy over the labels and `none`: a pair holds at most its best
+label, and only when that label scores above `none`. The scores and
+tensors are the same under both. A kept relation carries its two
+entities, its label and its margin over `none`.
 
 A manifest whose heads break any rule above is refused at open with
 `BUNDLE_INVALID`, the field named; a missing or misshapen tensor is
