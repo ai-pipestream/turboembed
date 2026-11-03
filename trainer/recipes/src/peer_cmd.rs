@@ -222,6 +222,7 @@ fn peer_coref(
         open_span: None,
         comparison: Some(comparison),
         uas: None,
+        rules: None,
     };
     let receipt = Receipt {
         schema: SCHEMA.into(),

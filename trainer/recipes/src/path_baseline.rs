@@ -104,6 +104,7 @@ pub(super) fn dependency_path(
             open_span: None,
             comparison: None,
             uas: None,
+            rules: None,
         },
         timing_s: Timing { read, features: features_s, eval: eval_s, ..Timing::default() },
         outputs,
