@@ -46,15 +46,14 @@ android {
             assets.srcDir("src/main/assets")
         }
         getByName("androidTest") {
-            // Shared conformance suite plus host JNI bridge tests. Maven wrappers
-            // (Jni*ConformanceTest) and RuntimeConformance (host ProcessBuilder) stay out;
-            // Android* suites own Analyzer/Session on ART.
+            // Directory roots only (setSrcDirs does not accept individual .java files).
+            // Maven wrappers (Jni*ConformanceTest) and host-only RuntimeConformance /
+            // LoaderProbe are dropped on the AndroidTest JavaCompile tasks below, where
+            // PatternFilterable.exclude is valid. Android* suites own Analyzer/Session on ART.
             java.setSrcDirs(
                 listOf(
                     "../../../java-conformance/src/main/java",
-                    "../../src/test/java/ai/pipestream/turboembed/jni/TestPaths.java",
-                    "../../src/test/java/ai/pipestream/turboembed/jni/TurboJniTest.java",
-                    "../../src/test/java/ai/pipestream/turboembed/opennlp",
+                    "../../src/test/java",
                     "src/androidTest/java",
                 ),
             )
@@ -70,6 +69,19 @@ android {
     lint {
         abortOnError = true
         warningsAsErrors = false
+    }
+}
+
+// exclude() is valid on JavaCompile (PatternFilterable), not on AndroidSourceSet.
+tasks.withType<JavaCompile>().configureEach {
+    if (name.contains("AndroidTest", ignoreCase = true)) {
+        exclude(
+            "**/JniAnalyzerConformanceTest.java",
+            "**/JniSessionConformanceTest.java",
+            "**/JniRuntimeConformanceTest.java",
+            "**/RuntimeConformance.java",
+            "**/LoaderProbe.java",
+        )
     }
 }
 

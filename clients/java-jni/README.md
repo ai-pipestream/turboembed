@@ -95,6 +95,12 @@ ART results are recorded from that opt-in CI job (API 26 and API 35 on
 the job URL and the instrumented-test summary into the pull request that
 carried the harness change.
 
+The first labeled emulator run on this harness failed compiling
+`clients/java-api` against `android.jar`: `RuntimeLoader` called
+`Runtime.version()`, which that jar does not declare. Selection now reads
+`java.specification.version` instead so the shared source compiles on
+Android and on the host.
+
 ## Primary typed API
 
 Primary operations return `TurboAnalysisResult`, which owns one native
