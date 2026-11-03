@@ -91,8 +91,8 @@ fn summarize_groups_two_corpora_with_peer_rows() {
         "0.8853",
         "-0.0110 [-0.0147, -0.0073]",
         "0.2708",
-        "32 run / best 31",
-        "7 run / best 1",
+        "32 run / best 32",
+        "7 run / best 2",
         "head.safetensors",
     ] {
         assert!(text.contains(number), "{number} not in:\n{text}");
@@ -122,7 +122,13 @@ fn summarize_json_out_scrubs_host() {
     assert_eq!(round4(rows[0]["model"].as_f64().unwrap()), 0.9581);
     assert_eq!(round4(rows[0]["baseline"].as_f64().unwrap()), 0.8964);
     assert_eq!(rows[0]["epochs_run"].as_u64().unwrap(), 32);
-    assert_eq!(rows[0]["epochs_kept"].as_u64().unwrap(), 31);
+    assert_eq!(rows[0]["epochs_kept"].as_u64().unwrap(), 32);
+    // epochs_kept is the receipt's 1-based best_epoch (#1804), so it lies in
+    // 1..=epochs_run and the final epoch can be the kept one.
+    let staged: serde_json::Value = serde_json::from_slice(&fs::read(head.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(rows[0]["epochs_kept"], staged["training"]["best_epoch"]);
+    let (run, kept) = (rows[0]["epochs_run"].as_u64().unwrap(), rows[0]["epochs_kept"].as_u64().unwrap());
+    assert!((1..=run).contains(&kept), "kept {kept} outside 1..={run}");
     assert!(rows[1].get("model").is_none(), "the baseline row has no model score");
     let receipt = fs::read(head.join("receipt.json")).unwrap();
     assert_eq!(rows[0]["receipt_sha256"], serde_json::Value::String(sha256_hex(&receipt)));
