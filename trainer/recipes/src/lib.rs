@@ -24,6 +24,7 @@
 pub mod assemble;
 pub mod assemble_zoo;
 pub mod cache;
+pub mod cached_ud;
 pub mod cli;
 pub mod corpus;
 pub mod distill;
@@ -45,6 +46,7 @@ pub mod redocred_eval;
 pub mod run;
 pub mod safetensors;
 pub mod split_labels;
+pub mod sweep;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_banks_sa;

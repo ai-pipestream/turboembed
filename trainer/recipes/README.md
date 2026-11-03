@@ -71,15 +71,19 @@ turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bun
     [--crf] [--bilstm <hidden>x<layers>] [--seed N] [--epochs N] [--batch N] [--lr X]
     [--patience N] [--max-train N] [--commit <sha>]
 turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
-    --layers N [--device ..] [--precision ..] [--pooling first|mean] [--max-batch N]
-    [--splits train,dev,test] [--commit <sha>]
+    --layers N [--task tag|lemma|parse|split] [--device ..] [--precision ..] [--pooling first|mean]
+    [--max-batch N] [--splits train,dev,test] [--commit <sha>]
 turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
-    (--layer N | --mix [--from-layer N]) [--crf] [--bilstm ..] [--hash-embed ..] [training settings]
-turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+    (--layer N | --mix [--from-layer N]) [--task tag|lemma|parse|split] [--crf] [--bilstm ..]
+    [--hash-embed ..] [--min-tree-freq N] [--arc N] [--rel N] [training settings]
+turbo-train-head sweep    --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
+    [--task tag|lemma|parse|split] [--from-layer N] [--peer-receipt <receipt.json>]
+    [--bilstm ..] [--min-tree-freq N] [--arc N] [--rel N] [training settings]
+turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
-turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
-turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
 turbo-train-head train-open-span --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
     [--cache <cache dir>] [--layer N] [--max-words N] [--width-dim N]
@@ -127,17 +131,24 @@ every layer, so `--max-batch` is raised to N when lower. A cache is
 and its 249,980-sentence test split many times that, so `--splits`
 names the splits to read (all three by default).
 
-`fit-cache` trains a head on a cache's train split and scores it on its
-dev split, without the encoder: on one layer (`--layer N`; on the last
-layer it is the run `train` makes, epoch for epoch), or on a learned mix
-of the cached layers from `--from-layer` on (`--mix`: ELMo's scalar
-mix, `turbo_trainer::mix`, a softmax weight a layer and a gain, trained
-with the head). It writes `head.safetensors`, `head.json` and
-`fit.json` (`fit_cache::FitRecord`: the cache's record, the layers, the
-mix's weights and gain, the head, the settings, and the loss and dev
-score each epoch). Comparing the best single layer's dev score with the
-mix's is #1616's step 2; the winner is then scored on test through the
-encoder.
+`fit-cache` (and alias `train-cached`, `#1616`, `#1822`), or `--cache` on
+`train`, `train-lemma`, `train-parse`, and `train-split`, trains a head
+on a cache's train split and scores it on its dev split (and test split
+when `"test"` is cached), without the encoder: on one layer (`--layer N`;
+on the last layer it is the run `train` makes, epoch for epoch, and on a
+lower layer `k` it records `layer_mix: { layers: L - k + 1, layer: k }` in
+`head.json`), or on a learned mix of the cached layers from `--from-layer`
+on (`--mix`: ELMo's scalar mix, `turbo_trainer::mix`, `fit_lemmatizer_mix`,
+and `fit_parser_mix`, a softmax weight a layer and a gain, trained with
+the head). One syntactic-word cache (`cache --corpus ud-<lang>-<bank>`)
+feeds `upos`, `xpos`, `feats`, `lemma` and `parse`; `train-split` uses a
+surface-token cache (`cache --corpus ud-<lang>-<bank> --task split`). It
+writes `head.safetensors`, `head.json`, `fit.json` (`fit_cache::FitRecord`),
+and (when `"test"` is cached) `receipt.json`. `sweep` runs every layer
+from `--from-layer` to the top cached layer plus `--mix`, writes each
+run's `fit.json` and `receipt.json`, and writes `sweep.json` and
+`sweep.md` with paired bootstrap against the last layer and an optional
+`--peer-receipt`.
 
 `train-lemma` trains the edit-tree lemmatizer (`lemma` on
 `turboembed:lemmas`) over the trees that come up at least

@@ -36,12 +36,16 @@ pub const MAX_TYPE_DIM: u32 = 256;
 pub const MAX_MIX_LAYERS: u32 = 128;
 
 /// A learned scalar mix (ELMo, Peters et al. 2018) of the encoder's last
-/// `layers` layers: `gamma * sum_k softmax(weight)_k * tap_k`, with
-/// tensors `mix.weight` `[layers]` and `mix.gamma` `[1]`.
+/// `layers` layers (`gamma * sum_k softmax(weight)_k * tap_k`, with
+/// tensors `mix.weight` `[layers]` and `mix.gamma` `[1]`), or a single
+/// chosen 1-based encoder layer `layer` (`architecture.layers - layers + 1`)
+/// tapped directly without `mix.weight` or `mix.gamma`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LayerMix {
     pub layers: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer: Option<u32>,
 }
 
 /// How a coreference ranker scores a pair: each mention's vector is
@@ -261,6 +265,9 @@ impl HeadSpec {
             positive(&field, m.layers)?;
             if m.layers > MAX_MIX_LAYERS {
                 return Err(invalid(format!("manifest.json: {field}: {}, at most {MAX_MIX_LAYERS}", m.layers)));
+            }
+            if let Some(layer) = m.layer {
+                positive(&at("layer_mix.layer"), layer)?;
             }
         }
         Ok(())
