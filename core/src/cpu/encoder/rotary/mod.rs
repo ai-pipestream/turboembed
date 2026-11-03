@@ -112,7 +112,7 @@ impl Rotary {
         };
         go(pool, embed, chunks);
         let half = self.positions * self.pairs;
-        for l in 0..e.layers {
+        for l in 0..std::env::var("TURBO_DEBUG_LAYERS").ok().and_then(|v| v.parse::<usize>().ok()).map_or(e.layers, |k| k.min(e.layers)) {
             let pl = &packed.layers[l];
             let global = self.global(l);
             // SAFETY: the table holds both bases' cos and sin.
