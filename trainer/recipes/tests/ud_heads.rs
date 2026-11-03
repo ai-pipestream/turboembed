@@ -233,8 +233,32 @@ fn ud_commands_refuse_tag_only_settings_and_unknown_treebanks() {
     assert!(String::from_utf8_lossy(&o.stderr).contains("--crf"));
     assert!(!out.exists(), "a refused run leaves no directory");
     for bad in [
-        vec!["train-parse", "--corpus", "ud-en-ewt", "--dir", "x", "--bundle", "x", "--out", out.to_str().unwrap(), "--seen-lookup", "1"],
-        vec!["train-lemma", "--corpus", "ud-en-ewt", "--dir", "x", "--bundle", "x", "--out", out.to_str().unwrap(), "--seen-lookup", "0"],
+        vec![
+            "train-parse",
+            "--corpus",
+            "ud-en-ewt",
+            "--dir",
+            "x",
+            "--bundle",
+            "x",
+            "--out",
+            out.to_str().unwrap(),
+            "--seen-lookup",
+            "1",
+        ],
+        vec![
+            "train-lemma",
+            "--corpus",
+            "ud-en-ewt",
+            "--dir",
+            "x",
+            "--bundle",
+            "x",
+            "--out",
+            out.to_str().unwrap(),
+            "--seen-lookup",
+            "0",
+        ],
     ] {
         let o = run(&bad);
         assert!(!o.status.success());

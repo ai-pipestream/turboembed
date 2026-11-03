@@ -306,14 +306,8 @@ fn a_cased_fixture_lemmatizes_sentence_initial_capitals_with_eight_trees() {
 
 #[test]
 fn mine_seen_lookup_keeps_unambiguous_forms_and_tag_specific_entries() {
-    let pairs = [
-        ("walked", "walk"),
-        ("walked", "walk"),
-        ("went", "go"),
-        ("saw", "see"),
-        ("saw", "saw"),
-        ("dogs", "dog"),
-    ];
+    let pairs =
+        [("walked", "walk"), ("walked", "walk"), ("went", "go"), ("saw", "see"), ("saw", "saw"), ("dogs", "dog")];
     let k1 = mine_seen_lookup(pairs.iter().copied(), 1);
     assert_eq!(k1.min_freq, 1);
     assert_eq!(
