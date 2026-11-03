@@ -13,7 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * In-process model session over {@code libturbo} for dense embedding and cross-encoder reranking
  * using Java 22+ Panama FFM.
  */
-public final class TurboSession implements AutoCloseable {
+public final class TurboSession implements ai.pipestream.turboembed.TurboSession {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ReentrantLock invocationLock = new ReentrantLock(true);
     private final MemorySegment runtime;

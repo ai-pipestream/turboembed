@@ -12,7 +12,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * device (device 0), the bundle and one session over it, and releases them together on
  * {@link #close()}.
  */
-public final class TurboSession implements AutoCloseable {
+public final class TurboSession implements ai.pipestream.turboembed.TurboSession {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ReentrantLock invocationLock = new ReentrantLock(true);
     private final long handle;

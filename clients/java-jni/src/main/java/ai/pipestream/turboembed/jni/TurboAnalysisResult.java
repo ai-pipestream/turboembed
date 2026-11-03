@@ -1,5 +1,7 @@
 package ai.pipestream.turboembed.jni;
 
+import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboSpanData;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,7 +25,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * releases exactly the one native reference owned by this object. {@link #retain()} creates
  * another independent owner of the same native result.
  */
-public final class TurboAnalysisResult implements AutoCloseable {
+public final class TurboAnalysisResult implements ai.pipestream.turboembed.TurboAnalysisResult {
     private static final int ROW_INTS = TurboLibrary.TURBO_SPAN_INTS;
 
     private static final int LAYER_KIND = 0;

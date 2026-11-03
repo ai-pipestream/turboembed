@@ -8,6 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.pipestream.turboembed.TurboAnalyzer;
+import ai.pipestream.turboembed.TurboException;
+import ai.pipestream.turboembed.TurboRuntime;
+import ai.pipestream.turboembed.TurboSession;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,13 +67,13 @@ public abstract class AnalyzerConformance {
     static final double BOB_PROBABILITY = 0.23651067881995255;
 
     /** The binding under test. */
-    protected abstract Binding binding();
+    protected abstract TurboRuntime binding();
 
-    private Analyzer rules() {
+    private TurboAnalyzer rules() {
         return binding().openAnalyzer("en", null);
     }
 
-    private Analyzer heads() {
+    private TurboAnalyzer heads() {
         return binding().openAnalyzer("en", Testdata.headsBundle());
     }
 
@@ -77,8 +81,8 @@ public abstract class AnalyzerConformance {
     public void ruleSentencesAndTokensCarrySourceRangesWithoutLabelsOrProbabilities() {
         String text = "Hello 🚀 Café 東京! Dr. John Smith works.";
         byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
-        try (Analyzer analyzer = rules()) {
-            List<Row> sentences = analyzer.detectSentences(text);
+        try (TurboAnalyzer analyzer = rules()) {
+            List<Row> sentences = Row.copy(analyzer.detectSentences(text));
             assertEquals(2, sentences.size());
             for (Row sentence : sentences) {
                 assertEquals(SENTENCES, sentence.layerKind());
@@ -93,7 +97,7 @@ public abstract class AnalyzerConformance {
             }
             assertEquals("Hello 🚀 Café 東京!", sentences.get(0).coveredSourceText(text));
 
-            List<Row> tokens = analyzer.tokenize(text);
+            List<Row> tokens = Row.copy(analyzer.tokenize(text));
             assertFalse(tokens.isEmpty());
             List<String> surfaces = new ArrayList<>();
             for (int i = 0; i < tokens.size(); i++) {
@@ -123,8 +127,8 @@ public abstract class AnalyzerConformance {
 
     @Test
     public void morphologyRowsComeFromTheMorphologyHead() {
-        try (Analyzer analyzer = heads()) {
-            List<Row> rows = analyzer.morphology(TOKENS);
+        try (TurboAnalyzer analyzer = heads()) {
+            List<Row> rows = Row.copy(analyzer.morphology(TOKENS));
             assertEquals(TOKENS.length, rows.size());
             for (int i = 0; i < rows.size(); i++) {
                 Row row = rows.get(i);
@@ -140,8 +144,8 @@ public abstract class AnalyzerConformance {
 
     @Test
     public void posRowsComeFromThePartOfSpeechHeadWithProbabilities() {
-        try (Analyzer analyzer = heads()) {
-            List<Row> rows = analyzer.posTag(TOKENS);
+        try (TurboAnalyzer analyzer = heads()) {
+            List<Row> rows = Row.copy(analyzer.posTag(TOKENS));
             assertEquals(POS, labels(rows));
             for (int i = 0; i < rows.size(); i++) {
                 Row row = rows.get(i);
@@ -158,12 +162,12 @@ public abstract class AnalyzerConformance {
 
     @Test
     public void lemmaRowsComeFromTheLemmatizerHeadReadingTheGivenTags() {
-        try (Analyzer analyzer = heads()) {
-            List<Row> rows = analyzer.lemmatize(TOKENS, POS.toArray(new String[0]));
+        try (TurboAnalyzer analyzer = heads()) {
+            List<Row> rows = Row.copy(analyzer.lemmatize(TOKENS, POS.toArray(new String[0])));
             assertEquals(LEMMAS, labels(rows));
             assertTrue(rows.stream().allMatch(row -> row.probability() == null));
             RuntimeException failure = assertThrows(
-                    RuntimeException.class, () -> analyzer.lemmatize(new String[] {"Ann"}, new String[] {"XYZ"}));
+                    RuntimeException.class, () -> Row.copy(analyzer.lemmatize(new String[] {"Ann"}, new String[] {"XYZ"})));
             assertStatus(failure, INVALID_ARGUMENT, "TURBO_E_INVALID_ARGUMENT");
             assertTrue(failure.getMessage().contains("not a label of the tag head"), failure.getMessage());
         }
@@ -171,8 +175,8 @@ public abstract class AnalyzerConformance {
 
     @Test
     public void entityRowsAreFreshPerCallAndFoundInTextWithSourceRanges() {
-        try (Analyzer analyzer = heads()) {
-            List<Row> first = analyzer.findTokens(TOKENS);
+        try (TurboAnalyzer analyzer = heads()) {
+            List<Row> first = Row.copy(analyzer.findTokens(TOKENS));
             assertEquals(1, first.size());
             Row bob = first.get(0);
             assertEquals(ENTITIES, bob.layerKind());
@@ -182,11 +186,11 @@ public abstract class AnalyzerConformance {
             assertNull(bob.viewRange());
             assertNull(bob.sourceRange());
 
-            analyzer.findTokens(new String[] {"Bo", "gave", "Ann", "a", "map"});
-            assertEquals(first, analyzer.findTokens(TOKENS), "an intervening call must not change a later one");
+            Row.copy(analyzer.findTokens(new String[] {"Bo", "gave", "Ann", "a", "map"}));
+            assertEquals(first, Row.copy(analyzer.findTokens(TOKENS)), "an intervening call must not change a later one");
 
             String sentence = TEXT.substring(0, TEXT.indexOf(". ") + 1);
-            List<Row> inText = analyzer.findText(sentence);
+            List<Row> inText = Row.copy(analyzer.findText(sentence));
             assertEquals(1, inText.size());
             assertEquals("Bob", inText.get(0).coveredSourceText(sentence));
             assertEquals(new Row.Tokens(2, 3), inText.get(0).tokenRange());
@@ -196,8 +200,8 @@ public abstract class AnalyzerConformance {
 
     @Test
     public void theGraphCarriesEveryHeadLayerFromOneEncoderPass() {
-        try (Analyzer analyzer = heads()) {
-            Graph graph = analyzer.analyzeGraph(TEXT);
+        try (TurboAnalyzer analyzer = heads()) {
+            Graph graph = Graph.copy(analyzer.analyzeGraph(TEXT));
             assertTrue(graph.bytes().length > 4);
             assertEquals("TGRF", new String(graph.bytes(), 0, 4, StandardCharsets.US_ASCII));
             TreeSet<Integer> kinds = new TreeSet<>();
@@ -221,7 +225,7 @@ public abstract class AnalyzerConformance {
             assertEquals(tokens.size(), lemmas.size());
             assertEquals(tokens.size(), deps.size());
             assertEquals(POS, labels(pos.subList(0, TOKENS.length)));
-            assertEquals(labels(analyzer.morphology(TOKENS)), labels(morph.subList(0, TOKENS.length)));
+            assertEquals(labels(Row.copy(analyzer.morphology(TOKENS))), labels(morph.subList(0, TOKENS.length)));
             assertEquals(LEMMAS, labels(lemmas.subList(0, TOKENS.length)));
             for (int i = 0; i < tokens.size(); i++) {
                 assertEquals(tokens.get(i).sourceRange(), pos.get(i).sourceRange());
@@ -257,21 +261,21 @@ public abstract class AnalyzerConformance {
             assertEquals(List.of("Bob", "dog"), entities.stream().map(row -> row.coveredSourceText(TEXT)).toList());
             assertEquals(new Row.Tokens(20, 21), entities.get(1).tokenRange());
 
-            assertEquals(graph.rows(), analyzer.inspectGraph(graph.bytes()));
+            assertEquals(graph.rows(), Row.copy(analyzer.inspectGraph(graph.bytes())));
         }
     }
 
     @Test
     public void aBundleWithoutHeadsLeavesTheLearnedTasksUnsupportedByName() {
-        try (Analyzer analyzer = binding().openAnalyzer("en", Testdata.tinyBertBundle())) {
-            RuntimeException pos = assertThrows(RuntimeException.class, () -> analyzer.posTag(new String[] {"The"}));
+        try (TurboAnalyzer analyzer = binding().openAnalyzer("en", Testdata.tinyBertBundle())) {
+            RuntimeException pos = assertThrows(RuntimeException.class, () -> Row.copy(analyzer.posTag(new String[] {"The"})));
             assertStatus(pos, UNSUPPORTED_TASK, "TURBO_E_UNSUPPORTED_TASK");
             assertTrue(pos.getMessage().contains("no head writing pos"), pos.getMessage());
             RuntimeException morph =
-                    assertThrows(RuntimeException.class, () -> analyzer.morphology(new String[] {"The"}));
+                    assertThrows(RuntimeException.class, () -> Row.copy(analyzer.morphology(new String[] {"The"})));
             assertStatus(morph, UNSUPPORTED_TASK, "TURBO_E_UNSUPPORTED_TASK");
             assertTrue(morph.getMessage().contains("no head writing morphology"), morph.getMessage());
-            Graph graph = analyzer.analyzeGraph("The river.");
+            Graph graph = Graph.copy(analyzer.analyzeGraph("The river."));
             assertFalse(ofKind(graph.rows(), TOKENS_LAYER).isEmpty());
             assertTrue(ofKind(graph.rows(), POS_LAYER).isEmpty());
             assertTrue(ofKind(graph.rows(), MORPHOLOGY).isEmpty());
@@ -284,38 +288,38 @@ public abstract class AnalyzerConformance {
         RuntimeException failure = assertThrows(
                 RuntimeException.class, () -> binding().openAnalyzer("en", Testdata.missingBundle()).close());
         assertStatus(failure, BUNDLE_NOT_FOUND, "TURBO_E_BUNDLE_NOT_FOUND");
-        assertEquals(7, binding().statusField(failure), "the field number of bundle_path");
+        assertEquals(7, org.junit.jupiter.api.Assertions.assertInstanceOf(TurboException.class, failure).field(), "the field number of bundle_path");
         assertTrue(failure.getMessage().contains("does-not-exist"), failure.getMessage());
     }
 
     @Test
     public void unconfiguredLearnedTasksAreUnsupportedInsteadOfFallingBack() {
-        try (Analyzer analyzer = rules()) {
+        try (TurboAnalyzer analyzer = rules()) {
             assertStatus(
-                    assertThrows(RuntimeException.class, () -> analyzer.posTag(new String[] {"The", "rivers", "went"})),
+                    assertThrows(RuntimeException.class, () -> Row.copy(analyzer.posTag(new String[] {"The", "rivers", "went"}))),
                     UNSUPPORTED_TASK,
                     "TURBO_E_UNSUPPORTED_TASK");
             assertStatus(
                     assertThrows(
-                            RuntimeException.class, () -> analyzer.morphology(new String[] {"The", "rivers", "went"})),
-                    UNSUPPORTED_TASK,
-                    "TURBO_E_UNSUPPORTED_TASK");
-            assertStatus(
-                    assertThrows(
-                            RuntimeException.class,
-                            () -> analyzer.lemmatize(new String[] {"went"}, new String[] {"VERB"})),
+                            RuntimeException.class, () -> Row.copy(analyzer.morphology(new String[] {"The", "rivers", "went"}))),
                     UNSUPPORTED_TASK,
                     "TURBO_E_UNSUPPORTED_TASK");
             assertStatus(
                     assertThrows(
                             RuntimeException.class,
-                            () -> analyzer.findTokens(new String[] {"John", "Smith", "visited", "New", "York"})),
+                            () -> Row.copy(analyzer.lemmatize(new String[] {"went"}, new String[] {"VERB"}))),
                     UNSUPPORTED_TASK,
                     "TURBO_E_UNSUPPORTED_TASK");
             assertStatus(
                     assertThrows(
                             RuntimeException.class,
-                            () -> analyzer.findText("John Smith visited New York and emailed alice@example.com.")),
+                            () -> Row.copy(analyzer.findTokens(new String[] {"John", "Smith", "visited", "New", "York"}))),
+                    UNSUPPORTED_TASK,
+                    "TURBO_E_UNSUPPORTED_TASK");
+            assertStatus(
+                    assertThrows(
+                            RuntimeException.class,
+                            () -> Row.copy(analyzer.findText("John Smith visited New York and emailed alice@example.com."))),
                     UNSUPPORTED_TASK,
                     "TURBO_E_UNSUPPORTED_TASK");
         }
@@ -323,22 +327,22 @@ public abstract class AnalyzerConformance {
 
     @Test
     public void emptyInputsProduceEmptyResultsWithoutABundle() {
-        try (Analyzer analyzer = rules()) {
-            assertEquals(0, analyzer.detectSentences("").size());
-            assertEquals(0, analyzer.tokenize("").size());
-            assertEquals(0, analyzer.posTag(new String[0]).size());
-            assertEquals(0, analyzer.morphology(new String[0]).size());
-            assertEquals(0, analyzer.lemmatize(new String[0], new String[0]).size());
-            assertEquals(0, analyzer.findTokens(new String[0]).size());
-            assertEquals(0, analyzer.detectPii("").size());
+        try (TurboAnalyzer analyzer = rules()) {
+            assertEquals(0, Row.copy(analyzer.detectSentences("")).size());
+            assertEquals(0, Row.copy(analyzer.tokenize("")).size());
+            assertEquals(0, Row.copy(analyzer.posTag(new String[0])).size());
+            assertEquals(0, Row.copy(analyzer.morphology(new String[0])).size());
+            assertEquals(0, Row.copy(analyzer.lemmatize(new String[0], new String[0])).size());
+            assertEquals(0, Row.copy(analyzer.findTokens(new String[0])).size());
+            assertEquals(0, Row.copy(analyzer.detectPii("")).size());
         }
     }
 
     @Test
     public void piiIsASeparateTypedLayerWithANormalizedValue() {
         String text = "Email alice@example.com from 192.168.1.42.";
-        try (Analyzer analyzer = rules()) {
-            List<Row> rows = analyzer.detectPii(text);
+        try (TurboAnalyzer analyzer = rules()) {
+            List<Row> rows = Row.copy(analyzer.detectPii(text));
             assertFalse(rows.isEmpty());
             assertTrue(rows.stream().allMatch(row -> row.layerKind() == PII));
             Row email = rows.stream().filter(row -> "email".equals(row.label())).findFirst().orElseThrow();
@@ -353,8 +357,8 @@ public abstract class AnalyzerConformance {
     public void graphRoundTripUsesStoredSourceAndOnlyConfiguredLayers() {
         String text = "John Smith flew to São Paulo 🚀. Email: test@example.com.";
         Graph exported;
-        try (Analyzer analyzer = rules()) {
-            exported = analyzer.analyzeGraph(text);
+        try (TurboAnalyzer analyzer = rules()) {
+            exported = Graph.copy(analyzer.analyzeGraph(text));
         }
         assertTrue(exported.bytes().length > 32);
         assertEquals("TGRF", new String(exported.bytes(), 0, 4, StandardCharsets.US_ASCII));
@@ -368,10 +372,10 @@ public abstract class AnalyzerConformance {
                 kinds,
                 "unconfigured POS, lemma, and NER layers must be absent, not fabricated");
 
-        try (Analyzer other = rules()) {
-            assertEquals(exported.rows(), other.inspectGraph(exported.bytes()));
+        try (TurboAnalyzer other = rules()) {
+            assertEquals(exported.rows(), Row.copy(other.inspectGraph(exported.bytes())));
             RuntimeException failure =
-                    assertThrows(RuntimeException.class, () -> other.inspectGraph(new byte[] {1, 2, 3, 4, 5}));
+                    assertThrows(RuntimeException.class, () -> Row.copy(other.inspectGraph(new byte[] {1, 2, 3, 4, 5})));
             assertStatus(failure, INVALID_ARGUMENT, "TURBO_E_INVALID_ARGUMENT");
         }
     }
@@ -381,8 +385,8 @@ public abstract class AnalyzerConformance {
         // Characters outside the Basic Multilingual Plane, combining marks and a NUL: the rows
         // are addressed in bytes, UTF-16 units and scalars, and every binding must agree.
         String text = "A\u0000b 🚀🚀 é 東京 z.";
-        try (Analyzer analyzer = rules()) {
-            List<Row> tokens = analyzer.tokenize(text);
+        try (TurboAnalyzer analyzer = rules()) {
+            List<Row> tokens = Row.copy(analyzer.tokenize(text));
             assertFalse(tokens.isEmpty());
             Row last = tokens.get(tokens.size() - 1);
             Row.Range source = last.sourceRange();
@@ -390,14 +394,14 @@ public abstract class AnalyzerConformance {
             assertEquals(text.length(), source.utf16End());
             assertEquals(text.codePointCount(0, text.length()), source.codepointEnd());
             assertArrayEquals(
-                    tokens.toArray(), analyzer.tokenize(text).toArray(), "the same text gives the same rows again");
+                    tokens.toArray(), Row.copy(analyzer.tokenize(text)).toArray(), "the same text gives the same rows again");
         }
     }
 
     /** Asserts a failure is the binding's native exception with {@code code} and {@code name}. */
     protected void assertStatus(Throwable failure, int code, String name) {
-        assertEquals(code, binding().statusCode(failure), binding().name() + ": " + failure);
-        assertEquals(name, binding().statusName(failure), binding().name() + ": " + failure);
+        assertEquals(code, org.junit.jupiter.api.Assertions.assertInstanceOf(TurboException.class, failure).code(), binding().kind() + ": " + failure);
+        assertEquals(name, org.junit.jupiter.api.Assertions.assertInstanceOf(TurboException.class, failure).statusName(), binding().kind() + ": " + failure);
     }
 
     static List<String> labels(List<Row> rows) {

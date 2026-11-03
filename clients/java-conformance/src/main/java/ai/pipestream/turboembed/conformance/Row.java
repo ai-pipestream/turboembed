@@ -1,5 +1,8 @@
 package ai.pipestream.turboembed.conformance;
 
+import ai.pipestream.turboembed.TurboAnalysisResult;
+import ai.pipestream.turboembed.TurboSpanData;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -61,5 +64,40 @@ public record Row(
             throw new IllegalStateException("row has no source range");
         }
         return sourceRange.covered(text);
+    }
+    /** Copies and closes a result to compare it with the golden fixture rows. */
+    static List<Row> copy(TurboAnalysisResult result) {
+        try (result) { return rows(result.copySpans()); }
+    }
+
+    static List<Row> rows(List<TurboSpanData> spans) {
+        List<Row> out = new java.util.ArrayList<>(spans.size());
+        for (TurboSpanData span : spans) {
+            out.add(new Row(
+                    span.layerKind().nativeCode(),
+                    span.itemIndex(),
+                    span.fragmentIndex(),
+                    span.viewId(),
+                    span.classification(),
+                    span.viewRange().map(Row::range).orElse(null),
+                    span.sourceRange().map(Row::range).orElse(null),
+                    span.tokenRange().map(tokens -> new Row.Tokens(tokens.start(), tokens.end())).orElse(null),
+                    span.layer(),
+                    span.instance(),
+                    span.label().orElse(null),
+                    span.value().orElse(null),
+                    span.probability().isPresent() ? span.probability().getAsDouble() : null));
+        }
+        return out;
+    }
+
+    private static Row.Range range(TurboSpanData.CoordinateRange range) {
+        return new Row.Range(
+                range.byteStart(),
+                range.byteEnd(),
+                range.utf16Start(),
+                range.utf16End(),
+                range.codepointStart(),
+                range.codepointEnd());
     }
 }

@@ -120,6 +120,7 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ("analysis/train-components/README.md", "Legacy train-components crate slated for removal under #1530"),
     ("analysis/train-recipes/README.md", "Training recipes documentation owned by #1529"),
     ("analysis/eval/records/v1-172/metal/README.md", "Committed Metal chunker v1 evaluation record README (#172)"),
+    ("clients/java-api/README.md", "Shared Java adapter package and import migration (#1814); no model readers"),
     ("clients/java-panama/README.md", "Java Panama adapter package ai.pipestream.turboembed.opennlp README (#1470)"),
     ("clients/java-jni/README.md", "Java JNI adapter package ai.pipestream.turboembed.jni.opennlp README (#1800)"),
     ("trainer/recipes/records/masc-pos-1649/README.md", "Committed MASC Penn POS training record README (#1649)"),
@@ -206,6 +207,9 @@ fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
     let dir = crate::common::scratch("opennlp-mentions");
     std::fs::create_dir_all(dir.join("docs/receipts")).unwrap();
     std::fs::create_dir_all(dir.join("analysis/sample")).unwrap();
+    std::fs::create_dir_all(dir.join("clients/java-api/new")).unwrap();
+    std::fs::write(dir.join("clients/java-api/README.md"), "Shared opennlp adapter package migration.\n").unwrap();
+    std::fs::write(dir.join("clients/java-api/new/README.md"), "Unlisted OpenNLP claim.\n").unwrap();
     std::fs::write(dir.join("README.md"), "# Workspace\nClean root README.\n").unwrap();
     std::fs::write(dir.join("docs/licences.md"), "Apache OpenNLP attribution is allowlisted.\n").unwrap();
     std::fs::write(dir.join("docs/guide.md"), "Wire contract format `opennlp-dictionary-xml` is permitted.\n").unwrap();
@@ -218,11 +222,12 @@ fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
     .unwrap();
 
     let (seen, found) = violations(&dir);
-    assert_eq!(seen, 6);
+    assert_eq!(seen, 8);
     assert_eq!(
         found,
         vec![
             "analysis/sample/README.md".to_owned(),
+            "clients/java-api/new/README.md".to_owned(),
             "docs/current-api.txt".to_owned(),
             "docs/receipts/new-api.md".to_owned(),
         ]

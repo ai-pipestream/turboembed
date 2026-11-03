@@ -293,3 +293,206 @@ fn retired_model_paths_are_refused_by_field_and_the_earlier_size_names_no_bundle
         assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_ARGUMENT);
     }
 }
+
+#[repr(C)]
+struct LegacyAnalyzerDescV1 {
+    struct_size: u32,
+    flags: u32,
+    language: turbo_text,
+    sent_model_path: turbo_text,
+    tok_model_path: turbo_text,
+    pos_model_path: turbo_text,
+    lemma_model_path: turbo_text,
+    ner_model_path: turbo_text,
+}
+
+const _: () = assert!(size_of::<LegacyAnalyzerDescV1>() == TURBO_ANALYZER_DESC_SIZE_V1);
+const _: () = assert!(align_of::<LegacyAnalyzerDescV1>() == align_of::<turbo_analyzer_desc>());
+
+#[test]
+fn exact_legacy_sized_allocation_and_short_invalid_size_controls_work() {
+    use std::alloc::{Layout, alloc_zeroed, dealloc};
+
+    unsafe {
+        let mut err = new_err();
+        let layout = Layout::from_size_align(TURBO_ANALYZER_DESC_SIZE_V1, align_of::<turbo_analyzer_desc>()).unwrap();
+        let raw = alloc_zeroed(layout).cast::<LegacyAnalyzerDescV1>();
+        assert!(!raw.is_null());
+        (*raw).struct_size = TURBO_ANALYZER_DESC_SIZE_V1 as u32;
+        (*raw).language = t("en");
+
+        let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();
+        assert_eq!(turbo_analyzer_create(raw.cast::<turbo_analyzer_desc>(), &mut analyzer, &mut err), status::OK);
+        assert!(!analyzer.is_null());
+
+        let sample = "Dr. Smith arrived. She waved.";
+        let mut sent_res: *mut turbo_analysis_result = std::ptr::null_mut();
+        assert_eq!(turbo_analyzer_detect_sentences(analyzer, t(sample), &mut sent_res, &mut err), status::OK);
+        let (sent_spans, _) = read_spans(sent_res);
+        assert_eq!(sent_spans.len(), 2);
+        turbo_analysis_result_release(sent_res);
+
+        let mut tok_res: *mut turbo_analysis_result = std::ptr::null_mut();
+        assert_eq!(turbo_analyzer_tokenize(analyzer, t(sample), &mut tok_res, &mut err), status::OK);
+        let (tok_spans, _) = read_spans(tok_res);
+        assert_eq!(tok_spans.len(), 8);
+        turbo_analysis_result_release(tok_res);
+
+        let words = [t("Dr."), t("Smith")];
+        let mut pos_res: *mut turbo_analysis_result = std::ptr::dangling_mut();
+        assert_eq!(
+            turbo_analyzer_pos_tag(analyzer, words.as_ptr(), words.len() as u32, &mut pos_res, &mut err),
+            status::UNSUPPORTED_TASK
+        );
+        assert!(pos_res.is_null());
+        turbo_analyzer_release(analyzer);
+
+        // Retired model fields on an exact 104-byte allocation are still refused by field number.
+        (*raw).ner_model_path = t("en-ner.bin");
+        let mut rejected: *mut turbo_analyzer = std::ptr::dangling_mut();
+        assert_eq!(
+            turbo_analyzer_create(raw.cast::<turbo_analyzer_desc>(), &mut rejected, &mut err),
+            status::INVALID_ARGUMENT
+        );
+        assert!(rejected.is_null());
+        assert_eq!(err.field, 6);
+        dealloc(raw.cast::<u8>(), layout);
+
+        // A 4-byte allocation holding only an unsupported struct_size is refused
+        // before reading flags or any other field.
+        let short_layout = Layout::from_size_align(size_of::<u32>(), align_of::<turbo_analyzer_desc>()).unwrap();
+        let short = alloc_zeroed(short_layout).cast::<u32>();
+        for bad_size in [0u32, 4, 96, 112, 128] {
+            *short = bad_size;
+            let mut out: *mut turbo_analyzer = std::ptr::dangling_mut();
+            assert_eq!(
+                turbo_analyzer_create(short.cast::<turbo_analyzer_desc>(), &mut out, &mut err),
+                status::INVALID_STRUCT_SIZE
+            );
+            assert!(out.is_null());
+        }
+        dealloc(short.cast::<u8>(), short_layout);
+    }
+}
+
+#[cfg(not(miri))]
+const FROZEN_LEGACY_C_CALLER: &str = r#"
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#define TURBO_OK 0
+#define TURBO_E_INVALID_ARGUMENT 256
+#define TURBO_E_INVALID_STRUCT_SIZE 257
+#define TURBO_E_UNSUPPORTED_TASK 514
+#define TURBO_ERROR_MESSAGE_LEN 496
+#define TURBO_ANALYSIS_LAYER_SENTENCES 1
+#define TURBO_ANALYSIS_LAYER_TOKENS 2
+typedef struct turbo_analyzer turbo_analyzer;
+typedef struct turbo_analysis_result turbo_analysis_result;
+typedef struct turbo_text { const char *ptr; uint64_t len; } turbo_text;
+typedef struct turbo_error {
+    uint32_t struct_size; int32_t code; uint32_t field; char message[TURBO_ERROR_MESSAGE_LEN];
+} turbo_error;
+/* Frozen legacy turbo_analyzer_desc declaration from before bundle_path. */
+typedef struct turbo_analyzer_desc {
+    uint32_t struct_size, flags;
+    turbo_text language, sent_model_path, tok_model_path, pos_model_path, lemma_model_path, ner_model_path;
+} turbo_analyzer_desc;
+_Static_assert(sizeof(turbo_analyzer_desc) == 8 + 6 * sizeof(turbo_text), "frozen v1 descriptor size");
+_Static_assert(offsetof(turbo_analyzer_desc, ner_model_path) + sizeof(turbo_text) == sizeof(turbo_analyzer_desc), "v1 end");
+typedef struct turbo_span {
+    uint32_t layer_kind, flags, item_index, fragment_index, view_id, classification;
+    uint32_t view_byte_start, view_byte_end, view_utf16_start, view_utf16_end, view_codepoint_start, view_codepoint_end;
+    uint32_t source_byte_start, source_byte_end, source_utf16_start, source_utf16_end;
+    uint32_t source_codepoint_start, source_codepoint_end, token_start, token_end;
+    uint32_t layer_offset, layer_len, instance_offset, instance_len, label_offset, label_len, value_offset, value_len;
+    double prob;
+} turbo_span;
+int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **out, turbo_error *err);
+void turbo_analyzer_release(turbo_analyzer *a);
+int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text t, turbo_analysis_result **out, turbo_error *err);
+int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text t, turbo_analysis_result **out, turbo_error *err);
+int32_t turbo_analyzer_pos_tag(turbo_analyzer *a, const turbo_text *toks, uint32_t n, turbo_analysis_result **out, turbo_error *err);
+int32_t turbo_analysis_result_spans(const turbo_analysis_result *r, const turbo_span **spans, uint32_t *count, turbo_error *err);
+void turbo_analysis_result_release(turbo_analysis_result *r);
+static turbo_text T(const char *s) { turbo_text t = { s, (uint64_t)strlen(s) }; return t; }
+int main(void) {
+    turbo_error err = { sizeof(turbo_error), 0, 0, { 0 } };
+    turbo_analyzer_desc *desc = (turbo_analyzer_desc *)calloc(1, sizeof(turbo_analyzer_desc));
+    if (!desc) return 2;
+    desc->struct_size = (uint32_t)sizeof(turbo_analyzer_desc);
+    desc->language = T("en");
+    turbo_analyzer *a = NULL;
+    int32_t rc = turbo_analyzer_create(desc, &a, &err);
+    free(desc);
+    if (rc != TURBO_OK || !a) { printf("create failed: %d %s\n", rc, err.message); return 1; }
+    const char *sample = "Dr. Smith arrived. She waved.";
+    turbo_analysis_result *sent = NULL, *tok = NULL, *pos = NULL;
+    const turbo_span *spans = NULL;
+    uint32_t sent_count = 0, tok_count = 0;
+    if (turbo_analyzer_detect_sentences(a, T(sample), &sent, &err) != TURBO_OK) return 1;
+    if (turbo_analysis_result_spans(sent, &spans, &sent_count, &err) != TURBO_OK) return 1;
+    if (sent_count != 2 || spans[0].layer_kind != TURBO_ANALYSIS_LAYER_SENTENCES) return 1;
+    turbo_analysis_result_release(sent);
+    if (turbo_analyzer_tokenize(a, T(sample), &tok, &err) != TURBO_OK) return 1;
+    if (turbo_analysis_result_spans(tok, &spans, &tok_count, &err) != TURBO_OK) return 1;
+    if (tok_count != 8 || spans[0].layer_kind != TURBO_ANALYSIS_LAYER_TOKENS) return 1;
+    turbo_analysis_result_release(tok);
+    turbo_text word = T("Dr.");
+    if (turbo_analyzer_pos_tag(a, &word, 1, &pos, &err) != TURBO_E_UNSUPPORTED_TASK || pos != NULL) return 1;
+    turbo_analyzer_release(a);
+    turbo_analyzer_desc retired;
+    memset(&retired, 0, sizeof(retired));
+    retired.struct_size = (uint32_t)sizeof(turbo_analyzer_desc);
+    retired.lemma_model_path = T("en-lemma.bin");
+    if (turbo_analyzer_create(&retired, &a, &err) != TURBO_E_INVALID_ARGUMENT || err.field != 5) return 1;
+    _Alignas(turbo_analyzer_desc) uint32_t bad_size = 112;
+    if (turbo_analyzer_create((const turbo_analyzer_desc *)&bad_size, &a, &err) != TURBO_E_INVALID_STRUCT_SIZE) return 1;
+    printf("size=%zu sentences=%u tokens=%u\n", sizeof(turbo_analyzer_desc), sent_count, tok_count);
+    return 0;
+}
+"#;
+
+#[cfg(not(miri))]
+#[test]
+fn c_caller_compiled_with_frozen_legacy_descriptor_links_and_runs_rule_tasks() {
+    use std::path::Path;
+    use std::process::Command;
+
+    let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
+    let profile = match lib_dir.file_name().unwrap().to_str().unwrap() {
+        "debug" => "dev",
+        p => p,
+    };
+    let build = Command::new(env!("CARGO"))
+        .args(["build", "--lib", "--profile", profile, "--manifest-path"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(lib_dir.parent().unwrap())
+        .output()
+        .unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+
+    let scratch = std::env::temp_dir().join(format!("turbo-legacy-desc-c-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(&scratch).unwrap();
+    let (src, bin) = (scratch.join("legacy_caller.c"), scratch.join("legacy_caller"));
+    std::fs::write(&src, FROZEN_LEGACY_C_CALLER).unwrap();
+    let cc = Command::new("cc")
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-o"])
+        .args([&bin, &src])
+        .arg("-L")
+        .arg(&lib_dir)
+        .arg(format!("-Wl,-rpath,{}", lib_dir.display()))
+        .arg("-lturbo")
+        .output()
+        .unwrap();
+    assert!(cc.status.success(), "cc failed:\n{}", String::from_utf8_lossy(&cc.stderr));
+    let run = Command::new(&bin).output().unwrap();
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stdout));
+    let stdout = String::from_utf8(run.stdout).unwrap().replace("\r\n", "\n");
+    assert_eq!(stdout, format!("size={TURBO_ANALYZER_DESC_SIZE_V1} sentences=2 tokens=8\n"));
+    std::fs::remove_dir_all(&scratch).unwrap();
+}
