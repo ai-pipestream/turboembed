@@ -19,9 +19,9 @@ import opennlp.tools.util.Span;
 /**
  * The chunker's golden: the sentences, tokens and part-of-speech tags of the models in front of
  * it ({@link PosGolden}'s layers, the tags in the format the pipeline asks the tagger for), then
- * {@code opennlp:chunk-tags} aligned to the tokens, the chunk tag
+ * {@code turbo:chunk-tags} aligned to the tokens, the chunk tag
  * {@link ChunkerME#chunk(String[], String[])} gave each token of its sentence with the probability
- * {@link ChunkerME#probs()} reports for it, and {@code opennlp:chunks}, the phrases
+ * {@link ChunkerME#probs()} reports for it, and {@code turbo:phrase-chunks}, the phrases
  * {@link ChunkSample#phrasesAsSpanList} reads off those tags (what {@link ChunkerME#chunkAsSpans}
  * returns), each as a span of the text from its first token's start to its last token's end, its
  * token range in the input's tokens and its kind. The Rust port is run on the JVM's own tokens
@@ -239,17 +239,17 @@ final class ChunkGolden implements AnnotatorGolden {
       sentenceTokens.add(words);
       tokenStarts.add(starts);
     }
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:sentences", input.offsets(), sentences));
-    layers.addAll(SpanLayers.of("opennlp:tokens", input.offsets(), tokenSpans.toArray(new Span[0])));
-    layers.add(new Layer("opennlp:pos", "aligned:opennlp:tokens", new Column.Str("tag", tags.toArray(new String[0])),
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:sentences", input.offsets(), sentences));
+    layers.addAll(SpanLayers.of("turbo:tokens", input.offsets(), tokenSpans.toArray(new Span[0])));
+    layers.add(new Layer("turbo:pos", "aligned:turbo:tokens", new Column.Str("tag", tags.toArray(new String[0])),
         new Column.F64("prob", doubles(tagProbs))));
-    layers.add(new Layer("opennlp:chunk-tags", "aligned:opennlp:tokens",
+    layers.add(new Layer("turbo:chunk-tags", "aligned:turbo:tokens",
         new Column.Str("tag", chunkTags.toArray(new String[0])), new Column.F64("prob", doubles(probs))));
     // The phrase spans as a text layer, with the token range and kind columns added to the span
     // columns; when a phrase's token cuts a character, the UTF-16 layer follows as for tokens.
-    List<Layer> phraseLayers = SpanLayers.of("opennlp:chunks", input.offsets(), phraseSpans.toArray(new Span[0]));
+    List<Layer> phraseLayers = SpanLayers.of("turbo:phrase-chunks", input.offsets(), phraseSpans.toArray(new Span[0]));
     Layer spans = phraseLayers.get(0);
-    layers.add(new Layer("opennlp:chunks", "text", List.of(spans.columns().get(0), spans.columns().get(1),
+    layers.add(new Layer("turbo:phrase-chunks", "text", List.of(spans.columns().get(0), spans.columns().get(1),
         new Column.U32("token_start", longs(phraseTokenStarts)), new Column.U32("token_end", longs(phraseTokenEnds)),
         new Column.Str("kind", kinds.toArray(new String[0])))));
     layers.addAll(phraseLayers.subList(1, phraseLayers.size()));

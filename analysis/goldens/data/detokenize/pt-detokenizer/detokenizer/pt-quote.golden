@@ -7,7 +7,7 @@ input	detokenizer/pt-quote	36	36	8b903d2a32ecd827f7baf75332e5b25ec4c84f022f8098c
 model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	11	start:u32	end:u32
+layer	turbo:tokens	text	11	start:u32	end:u32
 0	1
 2	5
 6	9
@@ -19,8 +19,8 @@ layer	opennlp:tokens	text	11	start:u32	end:u32
 25	26
 27	33
 34	35
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	11	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	11	operation:str
 MERGE_TO_RIGHT
 NO_OPERATION
 NO_OPERATION

@@ -365,9 +365,19 @@ Peer: lingua 2.2.0 (`lingua-language-detector`, Apache-2.0), all
 75 languages in accurate mode as shipped, in the pinned container
 at `analysis/eval/reference/peers/lingua/`. Its Arabic code `ara`
 is written as gold `arb` (its Arabic is Modern Standard Arabic);
-every other code is written as lingua names it. Ours: the
+every other code is written as lingua names it. Peer: GlotLID v3
+(`cis-lmu/glotlid`, stable `model.bin` at revision
+`baa20d139151a26a71a20eddabf30d4de7329fc7`, SHA-256
+`a818b6bd42a628ab47d3dfc1578c7ea615c45381f3494c42535e31e8c4cafc9e`),
+run with fastText-turbo 0.1.0 in the pinned container at
+`analysis/eval/reference/peers/glotlid/`. The checkpoint is local-only
+by its training data: the build requires explicit acceptance, verifies
+the weights, and ships only predictions. Its script suffix is removed;
+the individual-language codes `cmn`, `pes`, `ekk`, `lvs`, `khk`, `zsm`,
+`swh`, `azj`, and `als` are written as gold `zho`, `fas`, `est`, `lav`,
+`mon`, `msa`, `swa`, `aze`, and `sqi`, respectively. Ours: the
 script-based fallback (`--script-fallback`), a closed-set baseline
-over the gold label set. Both are the rows #1525's language model
+over the gold label set. These are the rows #1525's language model
 gate compares against, with gold labels and the majority baseline;
 no legacy 1.5 or 2.5 model is a peer or a target here.
 
@@ -547,11 +557,16 @@ python3 analysis/eval/reference/peers/flores/convert_gold.py \
 docker build -t turbo-peer-lingua:2.2.0 analysis/eval/reference/peers/lingua
 docker run --rm --network none -v <out-dir>:/out \
   turbo-peer-lingua:2.2.0 /out/flores-plus-devtest-73.tsv /out/lingua.txt
+docker build --build-arg TURBO_ACCEPT_TERMS=cis-lmu/glotlid \
+  -t turbo-peer-glotlid:3 analysis/eval/reference/peers/glotlid
+docker run --rm --network none -v <out-dir>:/out \
+  turbo-peer-glotlid:3 /out/flores-plus-devtest-73.tsv /out/glotlid.txt
 turbo-eval analysis --lang-gold <out-dir>/flores-plus-devtest-73.tsv \
   --sha256 <digest printed by convert_gold.py> \
   --lang-pred lingua-2.2.0=<out-dir>/lingua.txt \
+  --lang-pred glotlid-3=<out-dir>/glotlid.txt \
   --script-fallback --out <new-record>.json
-# Short-text record: the same three commands on
+# Short-text record: the same four commands on
 # flores-plus-devtest-73-short.tsv with its printed digest.
 
 # Throughput receipt (20 runs of one system command; GLiNER shown)

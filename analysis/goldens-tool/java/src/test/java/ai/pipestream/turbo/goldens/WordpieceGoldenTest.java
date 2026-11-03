@@ -50,7 +50,7 @@ class WordpieceGoldenTest {
     List<Layer> layers = load(dir).layers(input("Café Unaffable!東"));
     assertEquals(1, layers.size());
     Layer l = layers.get(0);
-    assertEquals("opennlp:subwords", l.id());
+    assertEquals("turbo:subwords", l.id());
     assertEquals("text", l.anchor());
     assertArrayEquals(new long[] {0, 6, 8, 11, 15, 16}, u32(l, 0));
     assertArrayEquals(new long[] {5, 8, 11, 15, 16, 19}, u32(l, 1));

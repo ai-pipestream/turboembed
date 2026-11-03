@@ -106,7 +106,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             offsets: OffsetMode::Utf8 as i32,
             page_size: 8, // cuts inside "😀" (bytes 6..10), snapping down to byte 6
             page: 0,
-            filter_layers: vec!["opennlp:tokens".into(), "opennlp:subwords".into()],
+            filter_layers: vec!["turbo:tokens".into(), "turbo:subwords".into()],
             heatmap_buckets: 0,
             xray_target_view: None,
         })
@@ -120,7 +120,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             offsets: OffsetMode::Utf8 as i32,
             page_size: 8,
             page: 1,
-            filter_layers: vec!["opennlp:tokens".into(), "opennlp:subwords".into()],
+            filter_layers: vec!["turbo:tokens".into(), "turbo:subwords".into()],
             heatmap_buckets: 0,
             xray_target_view: None,
         })
@@ -135,7 +135,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
     let seen_tokens: std::collections::BTreeSet<u32> = win_p1
         .segments
         .iter()
-        .flat_map(|s| s.annotations.iter().filter(|a| a.layer == "opennlp:tokens").map(|a| a.item))
+        .flat_map(|s| s.annotations.iter().filter(|a| a.layer == "turbo:tokens").map(|a| a.item))
         .collect();
     assert!(seen_tokens.contains(&0) && seen_tokens.contains(&1) && seen_tokens.contains(&2));
 

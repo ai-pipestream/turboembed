@@ -3,35 +3,35 @@ use super::*;
 #[test]
 fn blocks_end_with_their_own_end_line() {
     // The wrong id.
-    let text = file("layer\topennlp:tokens\ttext\t1\tstart:u32\tend:u32\n0\t5\nend\topennlp:sentences\n");
+    let text = file("layer\tturbo:tokens\ttext\t1\tstart:u32\tend:u32\n0\t5\nend\tturbo:sentences\n");
     let e = refused(&text, 10);
     assert!(matches!(e, GoldenError::Record { .. }), "{e:?}");
-    says(&e, &["end\\topennlp:tokens", "after 1 rows", "end\\topennlp:sentences"]);
+    says(&e, &["end\\tturbo:tokens", "after 1 rows", "end\\tturbo:sentences"]);
     // No id, an id with a trailing space, a prefix of the id, an extra field.
     for end in [
         "end",
         "end\t",
-        "end\topennlp:tokens ",
+        "end\tturbo:tokens ",
         "end\topennlp:token",
-        "end\topennlp:tokens\tx",
-        "END\topennlp:tokens",
-        " end\topennlp:tokens",
+        "end\tturbo:tokens\tx",
+        "END\tturbo:tokens",
+        " end\tturbo:tokens",
     ] {
-        let text = file(&format!("layer\topennlp:tokens\ttext\t1\tstart:u32\tend:u32\n0\t5\n{end}\n"));
+        let text = file(&format!("layer\tturbo:tokens\ttext\t1\tstart:u32\tend:u32\n0\t5\n{end}\n"));
         let e = refused(&text, 10);
         assert!(matches!(e, GoldenError::Record { .. }), "{end:?}: {e:?}");
     }
     // More rows than declared: the extra row is where `end` should be.
-    let text = file("layer\topennlp:tokens\ttext\t1\tstart:u32\tend:u32\n0\t5\n6\t9\nend\topennlp:tokens\n");
+    let text = file("layer\tturbo:tokens\ttext\t1\tstart:u32\tend:u32\n0\t5\n6\t9\nend\tturbo:tokens\n");
     let e = refused(&text, 10);
     assert!(matches!(e, GoldenError::Record { .. }), "{e:?}");
     says(&e, &["after 1 rows"]);
     // Fewer rows than declared: the end line is where row 1 should be.
-    let text = file("layer\topennlp:tokens\ttext\t2\tstart:u32\tend:u32\n0\t5\nend\topennlp:tokens\n");
+    let text = file("layer\tturbo:tokens\ttext\t2\tstart:u32\tend:u32\n0\t5\nend\tturbo:tokens\n");
     let e = refused(&text, 10);
     assert!(matches!(e, GoldenError::Rows { declared: 2, found: 1, .. }), "{e:?}");
     // No rows declared but one present.
-    let text = file("layer\topennlp:tokens\ttext\t0\tstart:u32\tend:u32\n0\t5\nend\topennlp:tokens\n");
+    let text = file("layer\tturbo:tokens\ttext\t0\tstart:u32\tend:u32\n0\t5\nend\tturbo:tokens\n");
     refused(&text, 9);
     // No rows declared, none present: fine.
     let g = Golden::parse(&file(&tokens(&[]))).unwrap();
@@ -44,7 +44,7 @@ fn blank_lines_are_not_ignored() {
     let ok = file(&format!("{}{}", sentences(&["0\t5"]), tokens(&["0\t5"])));
     Golden::parse(&ok).unwrap();
     // Between blocks.
-    let text = ok.replacen("end\topennlp:sentences\n", "end\topennlp:sentences\n\n", 1);
+    let text = ok.replacen("end\tturbo:sentences\n", "end\tturbo:sentences\n\n", 1);
     let e = refused(&text, 11);
     says(&e, &["expected a layer record"]);
     // At the end of the file.
@@ -56,7 +56,7 @@ fn blank_lines_are_not_ignored() {
     refused(&text, 6);
     // Where a row should be: a one column layer's empty row is the empty
     // string, but a two column layer's is a field count error.
-    let text = file("layer\topennlp:tokens\ttext\t1\tstart:u32\tend:u32\n\nend\topennlp:tokens\n");
+    let text = file("layer\tturbo:tokens\ttext\t1\tstart:u32\tend:u32\n\nend\tturbo:tokens\n");
     let e = refused(&text, 9);
     assert!(matches!(e, GoldenError::Fields { found: 1, .. }), "{e:?}");
 }
@@ -69,15 +69,15 @@ fn a_file_that_ends_inside_a_block_names_the_missing_line() {
     let cut = lines[..8].join("\n") + "\n";
     let e = refused(&cut, 9);
     assert!(matches!(e, GoldenError::Eof { .. }), "{e:?}");
-    says(&e, &["row 0 of opennlp:sentences"]);
+    says(&e, &["row 0 of turbo:sentences"]);
     // After row 0: row 1 is missing.
     let cut = lines[..9].join("\n") + "\n";
-    says(&refused(&cut, 10), &["row 1 of opennlp:sentences"]);
+    says(&refused(&cut, 10), &["row 1 of turbo:sentences"]);
     // After the last row: the end line is missing.
     let cut = lines[..10].join("\n") + "\n";
     let e = refused(&cut, 11);
     assert!(matches!(e, GoldenError::Eof { .. }), "{e:?}");
-    says(&e, &["end\topennlp:sentences"]);
+    says(&e, &["end\tturbo:sentences"]);
     // After the first block: a good file.
     let cut = lines[..11].join("\n") + "\n";
     assert_eq!(Golden::parse(&cut).unwrap().layers.len(), 1);
@@ -172,7 +172,7 @@ fn u32_fields_in_rows_are_decimal_with_no_sign_or_padding() {
     // 0 and the largest u32 are fine in a column no span check reads.
     let rows = ["0\t0\t0\t4294967295\tperson\t3ff0000000000000 1.0"];
     let ents = block(
-        "opennlp:entities",
+        "turbo:entities",
         "text",
         &["start:u32", "end:u32", "token_start:u32", "token_end:u32", "kind:str", "prob:f64"],
         &rows,
@@ -189,7 +189,7 @@ fn spans_are_checked_against_the_input_and_each_other() {
     // end < start.
     let e = refused(&file(&sentences(&["0\t5", "10\t9"])), 10);
     assert!(matches!(e, GoldenError::Span { .. }), "{e:?}");
-    says(&e, &["opennlp:sentences", "the span 10..9 ends before it starts"]);
+    says(&e, &["turbo:sentences", "the span 10..9 ends before it starts"]);
     // end past the input (100 bytes): by one.
     let e = refused(&file(&sentences(&["0\t101"])), 9);
     says(&e, &["the span 0..101 ends past the input's 100 bytes"]);
@@ -214,7 +214,7 @@ fn spans_are_checked_against_the_input_and_each_other() {
     // The same check holds for the other text anchored layers.
     let ents = |rows: &[&str]| {
         block(
-            "opennlp:entities",
+            "turbo:entities",
             "text",
             &["start:u32", "end:u32", "token_start:u32", "token_end:u32", "kind:str", "prob:f64"],
             rows,
@@ -236,7 +236,7 @@ fn spans_of_aligned_layers_are_not_a_thing() {
     // Aligned and document layers have no start and end columns, so there is
     // nothing to check; the language layer's rows may be in any order.
     let lang = block(
-        "opennlp:language",
+        "turbo:language",
         "document",
         &["code:str", "confidence:f64"],
         &["eng\t3fe0000000000000 0.5", "deu\t3fe0000000000001 0.5", "eng\t3fe0000000000000 0.5"],
@@ -298,7 +298,7 @@ fn f64_fields_are_16_lowercase_hex_digits_a_space_and_a_decimal() {
 fn only_the_bits_are_read_from_an_f64_field() {
     let bits = |s: &str| {
         let g = Golden::parse(&conf_file(s)).unwrap();
-        g.layer("turbo:confidence<opennlp:sentences>").unwrap().f64s("value").unwrap()[0].to_bits()
+        g.layer("turbo:confidence<turbo:sentences>").unwrap().f64s("value").unwrap()[0].to_bits()
     };
     assert_eq!(bits("3fe0000000000000 0.5"), 0.5f64.to_bits());
     // What follows the space is for a person, so it can be anything,
@@ -364,8 +364,7 @@ fn bad_escapes_in_a_str_field_are_refused_on_their_line() {
     // The byte offset in the field is shown.
     says(&refused(&lemma_file("ab\\xc"), 12), &["at byte 2 of the field"]);
     // The same escapes are refused in a tag column with the column's name.
-    let pos =
-        block("opennlp:pos", "aligned:opennlp:tokens", &["tag:str", "prob:f64"], &["N\\qN\t3ff0000000000000 1.0"]);
+    let pos = block("turbo:pos", "aligned:turbo:tokens", &["tag:str", "prob:f64"], &["N\\qN\t3ff0000000000000 1.0"]);
     let e = refused(&file(&format!("{}{}", tokens(&["0\t5"]), pos)), 12);
     says(&e, &["tag: at byte 1"]);
 }
@@ -374,7 +373,7 @@ fn bad_escapes_in_a_str_field_are_refused_on_their_line() {
 fn good_escapes_and_characters_that_are_not_escaped() {
     let read = |field: &str| {
         let g = Golden::parse(&lemma_file(field)).unwrap();
-        g.layer("opennlp:lemmas").unwrap().strs("lemma").unwrap().get(0).to_string()
+        g.layer("turbo:lemmas").unwrap().strs("lemma").unwrap().get(0).to_string()
     };
     assert_eq!(read("a\\tb\\nc\\rd\\\\e"), "a\tb\nc\rd\\e");
     assert_eq!(read("\\u0000"), "\0");
@@ -413,7 +412,7 @@ fn good_escapes_and_characters_that_are_not_escaped() {
 /// an error, not by trying to allocate room for them.
 #[test]
 fn a_huge_declared_row_count_is_refused_without_allocating_for_it() {
-    let text = file("layer\topennlp:tokens\ttext\t4294967295\tstart:u32\tend:u32\n");
+    let text = file("layer\tturbo:tokens\ttext\t4294967295\tstart:u32\tend:u32\n");
     let e = Golden::parse(&text).unwrap_err();
     assert!(matches!(e, GoldenError::Eof { .. }), "{e:?}");
 }

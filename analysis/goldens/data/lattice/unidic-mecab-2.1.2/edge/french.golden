@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	69	start:u32	end:u32
+layer	turbo:tokens	text	69	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -76,8 +76,8 @@ layer	opennlp:tokens	text	69	start:u32	end:u32
 148	154
 155	162
 162	163
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	69	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	69	unknown:u32	features:str
 0	記号,文字,*,*,*,*,キュー,Ｑ,Q,キュー,Q,キュー,記号,*,*,*,*
 0	記号,文字,*,*,*,*,ユー,Ｕ,u,ユー,u,ユー,記号,*,*,*,*
 1	名詞,普通名詞,サ変可能,*,*,*

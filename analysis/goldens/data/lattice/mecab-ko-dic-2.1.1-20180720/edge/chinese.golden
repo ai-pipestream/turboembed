@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
 model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	21	start:u32	end:u32
+layer	turbo:tokens	text	21	start:u32	end:u32
 0	3
 3	6
 6	12
@@ -28,8 +28,8 @@ layer	opennlp:tokens	text	21	start:u32	end:u32
 60	63
 63	66
 66	69
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	21	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	21	unknown:u32	features:str
 0	NNG,*,F,아,*,*,*,*
 1	SH,*,*,*,*,*,*,*
 0	NNG,*,T,북경,*,*,*,*

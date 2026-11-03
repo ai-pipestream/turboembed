@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	65	start:u32	end:u32
+layer	turbo:tokens	text	65	start:u32	end:u32
 0	1
 1	2
 3	7
@@ -72,8 +72,8 @@ layer	opennlp:tokens	text	65	start:u32	end:u32
 135	136
 136	137
 137	138
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	65	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	65	unknown:u32	features:str
 0	記号,文字,*,*,*,*,エイチ,Ｈ,H,エッチ,H,エッチ,記号,*,*,*,*
 0	記号,文字,*,*,*,*,イー,Ｅ,e,イー,e,イー,記号,*,*,*,*
 1	名詞,普通名詞,一般,*,*,*

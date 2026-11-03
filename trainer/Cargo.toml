@@ -10,3 +10,10 @@ name = "turbo_trainer"
 
 [dependencies]
 turbo = { path = "../core" }
+
+[features]
+# The CUDA training kernels (trainer/cuda/train.cu) for the device,
+# through nvcc (docs/cuda.md); `cuda-shim` builds the same source as
+# plain C++ on the host, so they run and are tested on any machine.
+cuda = []
+cuda-shim = []

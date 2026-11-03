@@ -32,6 +32,14 @@ impl Args {
         Ok(Some(v))
     }
 
+    pub fn values(&mut self, name: &str) -> Result<Vec<String>> {
+        let mut out = Vec::new();
+        while let Some(v) = self.value(name)? {
+            out.push(v);
+        }
+        Ok(out)
+    }
+
     pub fn required(&mut self, name: &str) -> Result<String> {
         self.value(name)?.ok_or_else(|| Error(format!("{name} is required")))
     }

@@ -122,6 +122,7 @@ pub mod doc_export;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
+pub mod legal;
 pub mod masc;
 pub mod native;
 pub mod ner;
@@ -129,6 +130,7 @@ pub mod recipes;
 pub mod registry;
 pub mod sample;
 pub mod source;
+pub mod vocabulary;
 pub mod xml;
 
 use std::fmt;

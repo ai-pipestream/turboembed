@@ -106,9 +106,14 @@ if [[ -n "$SMOKE_ADDR" ]]; then
     -cp "$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
     -d "$JAVA_SMOKE_CLASSES" \
     "$ROOT/clients/java/src/test/java/ai/pipestream/turboembed/ClientSmoke.java" \
+    "$ROOT/clients/java/src/test/java/ai/pipestream/turboembed/DocumentSmoke.java" \
     "$ROOT/examples/docling/clients/java/DoclingClient.java"
   java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
     ai.pipestream.turboembed.ClientSmoke "$SMOKE_ADDR"
+  # One document's typed annotations through InspectDocumentGraph, every
+  # span checked in UTF-16 units against the Java string.
+  java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
+    ai.pipestream.turboembed.DocumentSmoke "$SMOKE_ADDR"
   # The docling example's Java client, held to the summary the Rust and
   # Python clients print (examples/docling, docs/integration.md).
   java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
@@ -133,6 +138,7 @@ for req in md.requires("turboembed-proto"):
         raise SystemExit(f"{name} resolved to {have}, not its declared floor {floor}")
 PY
   (cd "$WORK_DIR" && "$SMOKE_VENV_DIR/bin/python" "$ROOT/clients/python/smoke_test.py" "$SMOKE_ADDR")
+  (cd "$WORK_DIR" && "$SMOKE_VENV_DIR/bin/python" "$ROOT/clients/python/document_smoke.py" "$SMOKE_ADDR")
   (cd "$WORK_DIR" && "$SMOKE_VENV_DIR/bin/python" "$ROOT/examples/docling/clients/python/docling_client.py" \
     "$SMOKE_ADDR" "$DOCLING_DATA/report.seed.graph" "$DOCLING_DATA/report.server.expected.txt")
 fi

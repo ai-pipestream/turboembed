@@ -28,3 +28,6 @@ turbo-fuzz = { path = "../fuzz", optional = true }
 # Every file fetch-models fetches has a SHA-256 pin, which
 # turbo_goldens::published_model checks at load.
 turbo-pins = { path = "../pins" }
+
+# Native sentence span checks must not depend on retired golden files.
+turbo-sentdetect = { path = "../sentdetect" }

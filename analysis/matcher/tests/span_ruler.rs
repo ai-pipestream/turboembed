@@ -293,5 +293,5 @@ fn the_step_says_which_layer_a_pattern_lacks() {
     let mut docs = vec![doc];
     let results = analyzer.run(&mut docs);
     let err = results[0].as_ref().unwrap_err().to_string();
-    assert!(err.contains("opennlp:lemmas"), "{err}");
+    assert!(err.contains("turbo:lemmas"), "{err}");
 }

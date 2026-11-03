@@ -191,7 +191,7 @@ fn readings_follow_the_tokens_through_a_pipeline() {
     assert!(want.iter().any(|(s, r)| s.0 as usize >= second && !r.is_empty()));
     let p = doc.provenance(Key::<Readings>::DEFAULT.id()).unwrap();
     assert_eq!(p.annotator, "turbo-tokenize:lattice-readings");
-    assert_eq!(p.model.as_ref().unwrap().id, "opennlp:MecabDictionary");
+    assert_eq!(p.model.as_ref().unwrap().id, "turbo:MecabDictionary");
     assert_eq!(p.config, config);
 }
 

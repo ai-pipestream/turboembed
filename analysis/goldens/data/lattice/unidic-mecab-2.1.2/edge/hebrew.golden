@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/hebrew	86	48	fdec23581c55cd33b0c462c0d0922b3d8ef84447e18d5e7eb5c7cdb595d6159d
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	10	start:u32	end:u32
+layer	turbo:tokens	text	10	start:u32	end:u32
 0	8
 9	17
 17	18
@@ -17,8 +17,8 @@ layer	opennlp:tokens	text	10	start:u32	end:u32
 72	73
 74	80
 81	85
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	10	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	10	unknown:u32	features:str
 1	補助記号,一般,*,*,*,*
 1	補助記号,一般,*,*,*,*
 0	補助記号,句点,*,*,*,*,,．,.,,.,,記号,*,*,*,*

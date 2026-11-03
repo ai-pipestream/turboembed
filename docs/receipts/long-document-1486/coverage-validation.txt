@@ -1,0 +1,2 @@
+All 16 final records match the independently loaded coverage document/evidence query denominators.
+All 12 complete CPU2 probe records match the corresponding CPU8 full metrics exactly.

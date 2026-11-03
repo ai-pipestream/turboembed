@@ -40,8 +40,8 @@ pub enum Policy {
 /// matcher per [`Field`]: [`SpanRuler::add_phrase`] to the field the
 /// ruler was made with, [`SpanRuler::add_phrase_on`] to any, so one ruler
 /// can hold phrases by lowercase and phrases by lemma. As a step it reads
-/// a text view and its tokens, and whichever of `opennlp:pos`, `opennlp:lemmas`,
-/// `opennlp:entities`, `turbo:stopwords`, `turbo:numbers` and
+/// a text view and its tokens, and whichever of `turbo:pos`, `turbo:lemmas`,
+/// `turbo:entities`, `turbo:stopwords`, `turbo:numbers` and
 /// `turbo:stems` the document has, and writes [`Matches`]; bind it with
 /// [`SpanRuler::bound`] to write a named instance. A match's rule is the
 /// number [`SpanRuler::add_pattern`] or [`SpanRuler::add_phrase`]
@@ -210,7 +210,7 @@ impl SpanRuler {
     /// view the tokens are in.
     pub fn matches(&self, input: &Input<'_>, view: ViewId) -> Result<Matches, MatchError> {
         if input.view() != view {
-            return Err(MatchError::ViewMismatch { layer: "opennlp:tokens", expected: view, actual: input.view() });
+            return Err(MatchError::ViewMismatch { layer: "turbo:tokens", expected: view, actual: input.view() });
         }
         if let Some(numbers) = input.numbers()
             && numbers.spans.view() != view

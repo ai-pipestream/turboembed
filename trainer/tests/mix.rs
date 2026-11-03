@@ -3,11 +3,22 @@
 //! is the plain head, and a run learns to weight the layer that holds the
 //! labels.
 
-use turbo::manifest::{Adapter, Bilstm, Decode, HashEmbed, HeadKind, HeadSpec, Scheme, WordPooling};
+use turbo::head::edit_tree::EditTree;
+use turbo::head::lemmatizer::Work as CoreLemmaWork;
+use turbo::head::parser::Work as CoreParseWork;
+use turbo::head::tagger::Work as CoreWork;
+use turbo::manifest::{
+    Adapter, Biaffine, Bilstm, Decode, HashEmbed, HeadKind, HeadSpec, LayerMix, PosInput, Scheme, WordPooling,
+};
+use turbo_trainer::lemma::Work as LemmaWork;
 use turbo_trainer::mix::{MixExample, MixTagger, fit_mix};
+use turbo_trainer::parser::Work as ParseWork;
 use turbo_trainer::rng::Rng;
 use turbo_trainer::tagger::Work;
-use turbo_trainer::{Config, Example, Tagger, fit};
+use turbo_trainer::{
+    Config, Example, MixLemmaExample, MixLemmatizer, MixParseExample, MixParser, Tagger, fit, fit_lemmatizer_mix,
+    fit_parser_mix,
+};
 
 const EPS: f64 = 1e-6;
 
@@ -25,8 +36,12 @@ fn spec(scheme: Scheme, adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         biaffine: None,
         pos_input: None,
         hash_embed: hash.then_some(HashEmbed { dim: 2, rows: [5, 3, 4, 3] }),
+        seen: None,
+        layer_mix: None,
         license_class: None,
         span: None,
+        relation: None,
+        coref: None,
         artifact: "weights".into(),
         tensor_prefix: "t".into(),
     }
@@ -138,4 +153,183 @@ fn a_run_weights_the_layer_that_holds_the_labels() {
     // Two runs, one mix.
     let (again, _) = fit_mix(&s, hidden, layers, &train, &dev, &c, &mut |_, _, _| Ok(())).unwrap();
     assert_eq!(again.params(), m.params());
+
+    // The trained mix loads into the core's TokenTagger with layer_mix and scores identically.
+    assert_eq!(m.spec().layer_mix, Some(LayerMix { layers: layers as u32, layer: None }));
+    let core_mix = m.to_token_tagger().unwrap();
+    let core_plain = m.tagger().to_token_tagger().unwrap();
+    for e in &dev[..5] {
+        let words: Vec<u32> = (0..e.labels.len() as u32).collect();
+        let stacked: Vec<f32> = e.layers.iter().flatten().copied().collect();
+        let blended = m.mix(&e.layers).unwrap();
+        let (mut a, mut b, mut w) = (Vec::new(), Vec::new(), CoreWork::default());
+        core_mix.scores(&stacked, &words, &mut a, &mut w).unwrap();
+        core_plain.scores(&blended, &words, &mut b, &mut w).unwrap();
+        assert_eq!(a, b);
+    }
+}
+
+#[test]
+fn lemmatizer_and_parser_mix_gradients_and_core_equivalence() {
+    let (n, hidden, layers) = (3, 4, 2);
+    let mut rng = Rng::new(11);
+    let x: Vec<Vec<f64>> = (0..layers).map(|_| (0..n * hidden).map(|_| rng.uniform(1.0)).collect()).collect();
+
+    // 1. Lemmatizer with BiLSTM adapter and pos_input.
+    let tree_keep = EditTree::mine_cased("dogs", "dogs").label();
+    let tree_s = EditTree::mine_cased("dogs", "dog").label();
+    let lemma_spec = HeadSpec {
+        name: "lemma".into(),
+        layer: "turboembed:lemmas".into(),
+        kind: HeadKind::EditTreeLemmatizer,
+        labels: vec![tree_keep.clone(), tree_s.clone()],
+        scheme: Scheme::Tags,
+        word_pooling: WordPooling::First,
+        adapter: Some(Adapter { bilstm: Bilstm { hidden: 2, layers: 1 } }),
+        decode: Decode::EditTree,
+        biaffine: None,
+        pos_input: Some(PosInput { head: "upos".into(), labels: 3, dim: 2 }),
+        hash_embed: None,
+        seen: None,
+        layer_mix: None,
+        license_class: None,
+        span: None,
+        relation: None,
+        coref: None,
+        artifact: "weights".into(),
+        tensor_prefix: "lemma".into(),
+    };
+    let mut lm = MixLemmatizer::<f64>::new(&lemma_spec, hidden, layers, &mut rng).unwrap();
+    let mut lp = lm.params().to_vec();
+    let lk = lp.len() - 2;
+    lp[lk] = vec![0.4, -0.3];
+    lp[lk + 1] = vec![1.2];
+    lm.set_params(lp).unwrap();
+    let tags = [0u32, 1, 2];
+    let gold = [Some(0u32), Some(1), None];
+    let mut lgrads = lm.zero_grads();
+    lm.loss(&x, &tags, &gold, &mut lgrads, &mut LemmaWork::default()).unwrap();
+    for t in [lk, lk + 1, lk - 1] {
+        for i in 0..lm.params()[t].len() {
+            let at = |d: f64| {
+                let mut q = lm.clone();
+                let mut p = q.params().to_vec();
+                p[t][i] += d;
+                q.set_params(p).unwrap();
+                q.loss(&x, &tags, &gold, &mut q.zero_grads(), &mut LemmaWork::default()).unwrap()
+            };
+            let numeric = (at(EPS) - at(-EPS)) / (2.0 * EPS);
+            let tol = 1e-6 * (1.0 + numeric.abs().max(lgrads[t][i].abs()));
+            assert!((numeric - lgrads[t][i]).abs() <= tol, "lemma {t}[{i}]: {numeric} vs {}", lgrads[t][i]);
+        }
+    }
+
+    // 2. Biaffine parser with BiLSTM adapter.
+    let parse_spec = HeadSpec {
+        name: "deps".into(),
+        layer: "turboembed:dependencies".into(),
+        kind: HeadKind::BiaffineParser,
+        labels: vec!["root".into(), "obj".into()],
+        scheme: Scheme::Tags,
+        word_pooling: WordPooling::First,
+        adapter: Some(Adapter { bilstm: Bilstm { hidden: 2, layers: 1 } }),
+        decode: Decode::Mst,
+        biaffine: Some(Biaffine { arc: 3, rel: 2 }),
+        pos_input: None,
+        hash_embed: None,
+        seen: None,
+        layer_mix: None,
+        license_class: None,
+        span: None,
+        relation: None,
+        coref: None,
+        artifact: "weights".into(),
+        tensor_prefix: "deps".into(),
+    };
+    let mut pm = MixParser::<f64>::new(&parse_spec, hidden, layers, &mut rng).unwrap();
+    let mut pp = pm.params().to_vec();
+    let pk = pp.len() - 2;
+    pp[pk] = vec![-0.2, 0.5];
+    pp[pk + 1] = vec![0.9];
+    pm.set_params(pp).unwrap();
+    let heads = [0u32, 1, 2];
+    let rels = [0u32, 1, 1];
+    let mut pgrads = pm.zero_grads();
+    pm.loss(&x, &heads, &rels, &mut pgrads, &mut ParseWork::default()).unwrap();
+    for t in [pk, pk + 1, pk - 1] {
+        for i in 0..pm.params()[t].len() {
+            let at = |d: f64| {
+                let mut q = pm.clone();
+                let mut p = q.params().to_vec();
+                p[t][i] += d;
+                q.set_params(p).unwrap();
+                q.loss(&x, &heads, &rels, &mut q.zero_grads(), &mut ParseWork::default()).unwrap()
+            };
+            let numeric = (at(EPS) - at(-EPS)) / (2.0 * EPS);
+            let tol = 1e-6 * (1.0 + numeric.abs().max(pgrads[t][i].abs()));
+            assert!((numeric - pgrads[t][i]).abs() <= tol, "parse {t}[{i}]: {numeric} vs {}", pgrads[t][i]);
+        }
+    }
+
+    // 3. Fit lemmatizer, parser, and splitter mixes and check core equivalence.
+    let xf: Vec<Vec<f32>> = x.iter().map(|l| l.iter().map(|&v| v as f32).collect()).collect();
+    let c = Config { epochs: 4, batch: 2, lr: 0.02, patience: 0, threads: 1, ..Config::default() };
+    let l_ex = vec![MixLemmaExample {
+        layers: xf.clone(),
+        tags: tags.to_vec(),
+        forms: vec!["dogs".into(), "dogs".into(), "cat".into()],
+        lemmas: vec!["dogs".into(), "dog".into(), "cat".into()],
+    }];
+    let (l_fit, _) =
+        fit_lemmatizer_mix(&lemma_spec, hidden, layers, l_ex.clone(), l_ex.clone(), &c, &mut |_, _, _| Ok(())).unwrap();
+    let l_core = l_fit.to_core().unwrap();
+    let l_plain = l_fit.lemmatizer().to_core().unwrap();
+    let stacked: Vec<f32> = xf.iter().flatten().copied().collect();
+    let l_blend = l_fit.mix(&xf).unwrap();
+    let words: Vec<u32> = (0..n as u32).collect();
+    let (mut sa, mut sb, mut lw) = (Vec::new(), Vec::new(), CoreLemmaWork::default());
+    l_core.scores(&stacked, &words, Some(&tags), &mut sa, &mut lw).unwrap();
+    l_plain.scores(&l_blend, &words, Some(&tags), &mut sb, &mut lw).unwrap();
+    assert_eq!(sa, sb);
+
+    let p_ex = vec![MixParseExample { layers: xf.clone(), heads: heads.to_vec(), rels: rels.to_vec() }];
+    let (p_fit, _) = fit_parser_mix(&parse_spec, hidden, layers, &p_ex, &p_ex, &c, &mut |_, _, _| Ok(())).unwrap();
+    let p_core = p_fit.to_core().unwrap();
+    let p_plain = p_fit.parser().to_core().unwrap();
+    let p_blend = p_fit.mix(&xf).unwrap();
+    let (mut aa, mut ab, mut pw) = (Vec::new(), Vec::new(), CoreParseWork::default());
+    p_core.arcs(&stacked, &words, &mut aa, &mut pw).unwrap();
+    p_plain.arcs(&p_blend, &words, &mut ab, &mut pw).unwrap();
+    assert_eq!(aa, ab);
+
+    let split_label = format!("{} {}", EditTree::mine("dont", "do").label(), EditTree::mine("dont", "nt").label());
+    let split_spec = HeadSpec {
+        name: "words".into(),
+        layer: "turboembed:words".into(),
+        kind: HeadKind::TokenSplit,
+        labels: vec!["_".into(), split_label],
+        scheme: Scheme::Tags,
+        word_pooling: WordPooling::First,
+        adapter: None,
+        decode: Decode::EditTree,
+        biaffine: None,
+        pos_input: None,
+        hash_embed: None,
+        seen: None,
+        layer_mix: None,
+        license_class: None,
+        span: None,
+        relation: None,
+        coref: None,
+        artifact: "weights".into(),
+        tensor_prefix: "words".into(),
+    };
+    let s_ex = vec![MixExample {
+        layers: xf.clone(),
+        labels: vec![1, 0, 0],
+        forms: vec!["dont".into(), "go".into(), "now".into()],
+    }];
+    let (s_fit, _) = fit_mix(&split_spec, hidden, layers, &s_ex, &s_ex, &c, &mut |_, _, _| Ok(())).unwrap();
+    let s_core = s_fit.to_token_splitter().unwrap();
+    assert_eq!(s_core.taps(), layers);
 }

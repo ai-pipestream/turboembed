@@ -46,7 +46,7 @@ fn jvm_spans_scopes_word_types_to_tokens_and_rejects_mismatched_auxiliary_rows()
         header,
         layers: vec![
             GoldenLayer {
-                id: "opennlp:sentences".into(),
+                id: "turbo:sentences".into(),
                 anchor: GoldenAnchor::Text,
                 columns: vec![
                     Column { name: "start".into(), data: ColumnData::U32(vec![0, 3]) },
@@ -54,7 +54,7 @@ fn jvm_spans_scopes_word_types_to_tokens_and_rejects_mismatched_auxiliary_rows()
                 ],
             },
             GoldenLayer {
-                id: "opennlp:tokens".into(),
+                id: "turbo:tokens".into(),
                 anchor: GoldenAnchor::Text,
                 columns: vec![
                     Column { name: "start".into(), data: ColumnData::U32(vec![0, 3]) },
@@ -63,13 +63,13 @@ fn jvm_spans_scopes_word_types_to_tokens_and_rejects_mismatched_auxiliary_rows()
             },
             GoldenLayer {
                 id: "turbo:word-types".into(),
-                anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+                anchor: GoldenAnchor::Aligned("turbo:tokens".into()),
                 columns: vec![Column { name: "kind".into(), data: ColumnData::Str(kinds) }],
             },
         ],
     };
     // Sentences ignore turbo:word-types even when turbo:word-types has fewer rows.
-    let sents = jvm_spans(&golden, "ab cd", "opennlp:sentences").unwrap();
+    let sents = jvm_spans(&golden, "ab cd", "turbo:sentences").unwrap();
     assert_eq!(sents.len(), 2);
     assert!(sents.iter().all(|s| s.kind.is_none()));
     // Tokens reject mismatched turbo:word-types row counts instead of panicking.

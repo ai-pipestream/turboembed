@@ -186,6 +186,11 @@ impl Analyzer {
 
                 let written = self.steps[step_ix].writes();
                 self.steps[step_ix].store(out, docs, &mut status);
+                for doc in docs.iter_mut() {
+                    for &w in &written {
+                        doc.mark_pipeline_stored(w);
+                    }
+                }
 
                 let failure: Option<Error> = written.iter().find_map(|&k| {
                     docs.iter().find_map(|d| match d.status(k) {

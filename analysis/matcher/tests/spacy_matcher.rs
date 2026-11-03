@@ -585,7 +585,7 @@ fn matcher_extension_set_membership() {
 fn attr_pipeline_checks() {
     let plain = Doc::words(&["Test"]);
     let tagged = Doc::words(&["Test"]).with_tags(&["TAG"]).with_lemmas(&["LEMMA"]);
-    for (attr, layer) in [(Attr::Pos, "opennlp:pos"), (Attr::Lemma, "opennlp:lemmas")] {
+    for (attr, layer) in [(Attr::Pos, "turbo:pos"), (Attr::Lemma, "turbo:lemmas")] {
         let m = matcher(&[("TEST", vec![vec![Tok::attr(attr, "a")]])]);
         assert!(m.find(&tagged.input()).is_ok());
         assert_eq!(m.find(&plain.input()), Err(MatchError::Missing(layer)));

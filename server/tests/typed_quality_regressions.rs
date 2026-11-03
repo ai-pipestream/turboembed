@@ -4,10 +4,14 @@ mod common;
 
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Key, Layer, Provenance, Span, View, ViewBuilder, ViewId};
-use turbo_analysis_layers::{QualityFlags, QualityMetrics, SpanQuality, TextQuality};
+use turbo_analysis_layers::{
+    GrammarCategory, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS, QualityFlags, QualityMetrics,
+    SpanQuality, TextQuality,
+};
 use turbo_kserve::proto::result::{
-    AnchorKind, DocumentGraphRequest, InspectDocumentGraphRequest, LayerWireStatus, OffsetMode,
-    QualityMetricsAnnotation, SpanFragment, TypedDocumentResult, typed_annotation::Value,
+    AnchorKind, DocumentGraphRequest, GrammarDiagnosticAnnotation, InspectDocumentGraphRequest, LayerWireStatus,
+    OffsetMode, QualityMetricsAnnotation, SpanFragment, TypedDocumentResult, grammar_diagnostic_annotation,
+    typed_annotation::Value,
 };
 use turbo_kserve::results::document::codecs;
 
@@ -350,6 +354,78 @@ async fn quality_preserves_metric_endpoints_and_empty_projected_regions() {
                 assert_eq!(m.automated_readability_index.unwrap().to_bits(), (-0.0f32).to_bits());
                 assert_eq!(m.coleman_liau_index, Some(f32::MAX));
                 assert_eq!(m.flags, 0);
+            }
+        }
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn grammar_diagnostics_survive_views_offset_modes_and_refuse_malformed_payloads() {
+    let (server, mut client) = common::serve_no_admin().await;
+    let mut doc = fixture();
+    let mut g0 = GrammarDiagnostics::new(ViewId::SOURCE);
+    g0.push(GrammarDiagnostic::new(
+        Span::new(2, 8),
+        "SVA-001",
+        GrammarCategory::SubjectVerbAgreement,
+        "Subject disagrees with verb",
+        ["is"],
+        0.92,
+    ));
+    doc.add(&Key::<GrammarDiagnostics>::DEFAULT, g0, Provenance::by("quality:grammar")).unwrap();
+
+    let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+    let echoed_graph = client
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.into() })
+        .await
+        .unwrap()
+        .into_inner()
+        .graph;
+
+    for (view, expected_range) in [(0u32, (2usize, 8usize)), (1u32, (0usize, 6usize))] {
+        for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+            let typed = project(&mut client, &echoed_graph, mode, view).await;
+            let layer = typed.layers.iter().find(|l| l.id == GrammarDiagnostics::ID).unwrap();
+            assert_eq!(layer.status, LayerWireStatus::Ok as i32);
+            assert_eq!(layer.scope, AnchorKind::Text as i32);
+            assert_eq!(layer.annotations.len(), 1);
+            let ann = &layer.annotations[0];
+            assert_eq!(ann.spans, [wire_span(&typed.raw_text, mode, expected_range.0, expected_range.1)]);
+            assert_eq!(
+                ann.value,
+                Some(Value::GrammarDiagnostic(GrammarDiagnosticAnnotation {
+                    rule_id: "SVA-001".into(),
+                    category: Some(grammar_diagnostic_annotation::Category::SubjectVerbAgreement as i32),
+                    message: "Subject disagrees with verb".into(),
+                    replacements: vec!["is".into()],
+                    confidence: 0.92,
+                }))
+            );
+            assert_eq!(client.round_trip_typed_document(typed.clone()).await.unwrap().into_inner(), typed);
+
+            let layer_ix = typed.layers.iter().position(|l| l.id == GrammarDiagnostics::ID).unwrap();
+            let base_diag = match typed.layers[layer_ix].annotations[0].value.as_ref().unwrap() {
+                Value::GrammarDiagnostic(d) => d.clone(),
+                _ => unreachable!(),
+            };
+            for bad_diag in [
+                GrammarDiagnosticAnnotation { rule_id: String::new(), ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { category: None, ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { category: Some(99), ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { category: Some(-1), ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { message: "   ".into(), ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { replacements: vec![String::new()], ..base_diag.clone() },
+                GrammarDiagnosticAnnotation {
+                    replacements: vec!["is".into(); MAX_DIAGNOSTIC_REPLACEMENTS + 1],
+                    ..base_diag.clone()
+                },
+                GrammarDiagnosticAnnotation { confidence: 1.5, ..base_diag.clone() },
+                GrammarDiagnosticAnnotation { confidence: f32::NAN, ..base_diag },
+            ] {
+                let mut mutated = typed.clone();
+                mutated.layers[layer_ix].annotations[0].value = Some(Value::GrammarDiagnostic(bad_diag));
+                invalid(client.round_trip_typed_document(mutated).await.unwrap_err());
             }
         }
     }

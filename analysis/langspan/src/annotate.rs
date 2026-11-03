@@ -1,6 +1,6 @@
 //! The detector as an analysis step: it reads a text view and, when the
 //! document has them, its sentences and tokens, and writes
-//! `turbo:language-spans` and the document summary `opennlp:language`.
+//! `turbo:language-spans` and the document summary `turbo:language`.
 
 use std::cell::RefCell;
 

@@ -73,7 +73,7 @@ impl Default for SatOptions {
     }
 }
 
-/// Writes `opennlp:sentences` from a SaT model (Segment any Text,
+/// Writes `turbo:sentences` from a SaT model (Segment any Text,
 /// wtpsplit): a sentence boundary score for every token from one encoder
 /// pass per window, and the sentences wtpsplit's `split` cuts from them.
 ///

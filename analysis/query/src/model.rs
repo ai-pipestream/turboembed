@@ -16,7 +16,7 @@ use turbo_unicode::Script;
 pub struct FilterEvidence {
     /// Standard layer identifier (such as `"turbo:temporal"`, `"turbo:times"`,
     /// `"turbo:money"`, `"turbo:quantities"`, `"turbo:locations"`,
-    /// `"turbo:glossary-terms"`, `"opennlp:entities"`, `"turbo:language-spans"`).
+    /// `"turbo:glossary-terms"`, `"turbo:entities"`, `"turbo:language-spans"`).
     pub layer_id: &'static str,
     /// Optional layer instance name when produced by a named layer binding
     /// (for example `Some("grammar")` or `Some("es")`).
@@ -49,7 +49,8 @@ pub struct TemporalFilter {
     pub ambiguous: bool,
 }
 
-/// A monetary amount filter with exact decimal components and ISO 4217 currency.
+/// A monetary amount filter with exact decimal components, ISO 4217 currency,
+/// and optional rate denominator unit symbol.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoneyFilter {
     /// Formatted signed decimal string (for example `"1200000.0"` or `"0.50"`).
@@ -62,6 +63,40 @@ pub struct MoneyFilter {
     pub scale: i32,
     /// Three-letter ISO 4217 currency code.
     pub currency: Currency,
+    /// Optional rate denominator unit symbol (`Some("h")` for `$5 per hour`,
+    /// `Some("d")` for `$5 per day`, `None` for a plain amount `$5`).
+    pub per: Option<String>,
+}
+
+impl MoneyFilter {
+    /// Returns the rate denominator unit symbol (`"h"`, `"d"`, `"s"`), or `None` for a plain amount.
+    pub fn per_unit(&self) -> Option<&str> {
+        self.per.as_deref()
+    }
+
+    /// Returns `true` when this filter represents a currency rate (`per.is_some()`).
+    pub fn is_rate(&self) -> bool {
+        self.per.is_some()
+    }
+
+    /// Returns `true` when this filter's rate denominator matches `per` (`None` for plain amounts).
+    pub fn matches_per(&self, per: Option<&str>) -> bool {
+        self.per.as_deref() == per
+    }
+
+    /// Returns `true` when mention `ix` in `money` has the same currency, decimal value, and rate denominator.
+    pub fn matches_layer(
+        &self,
+        money: &turbo_analysis_layers::Money,
+        ix: turbo_analysis::Ix<turbo_analysis_layers::Money>,
+    ) -> bool {
+        let i = ix.get();
+        money.currency[i] == self.currency
+            && money.negative[i] == self.negative
+            && money.coefficient.get(i) == self.coefficient
+            && money.scale[i] == self.scale
+            && money.per(ix) == self.per.as_deref()
+    }
 }
 
 /// A measured quantity or percentage filter with exact decimal components and unit.
@@ -152,7 +187,7 @@ pub struct QueryFilter {
 /// One analyzed query token and its normalized/stemmed/indexed representations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueryTerm {
-    /// Zero-based token position in `opennlp:tokens`.
+    /// Zero-based token position in `turbo:tokens`.
     pub token_index: usize,
     /// UTF-8 byte span in the source query.
     pub span: Span,
@@ -191,7 +226,7 @@ pub struct LanguageSpanEvidence {
 /// Document-level and span-level language detection evidence for the query.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LanguageEvidence {
-    /// Best overall ISO 639-3 language code from `opennlp:language`.
+    /// Best overall ISO 639-3 language code from `turbo:language`.
     pub best_code: String,
     /// Letter-share score of `best_code` in `[0.0, 1.0]`.
     pub best_score: f64,
@@ -199,7 +234,7 @@ pub struct LanguageEvidence {
     pub rankings: Vec<(String, f64)>,
     /// Contiguous per-span language runs from `turbo:language-spans`.
     pub spans: Vec<LanguageSpanEvidence>,
-    /// Layer and annotator provenance for `opennlp:language`.
+    /// Layer and annotator provenance for `turbo:language`.
     pub evidence: FilterEvidence,
 }
 
@@ -210,7 +245,7 @@ pub struct QueryAnalysis {
     pub query: String,
     /// Detected language summary and per-clause/per-script language spans.
     pub language: Option<LanguageEvidence>,
-    /// Per-token linguistic and lexical analysis aligned to `opennlp:tokens`.
+    /// Per-token linguistic and lexical analysis aligned to `turbo:tokens`.
     pub terms: Vec<QueryTerm>,
     /// Indexed lexical terms in token order, identical to the document profile's
     /// indexed terms for the same text.
@@ -252,6 +287,15 @@ impl QueryAnalysis {
             FilterKind::Money(m) => Some((f, m)),
             _ => None,
         })
+    }
+
+    /// Iterates over [`MoneyFilter`]s whose rate denominator matches `per` (`None` for plain amounts,
+    /// `Some("h")` for hourly rates, `Some("d")` for daily rates).
+    pub fn money_filters_with_per<'a>(
+        &'a self,
+        per: Option<&'a str>,
+    ) -> impl Iterator<Item = (&'a QueryFilter, &'a MoneyFilter)> + 'a {
+        self.money_filters().filter(move |(_, m)| m.matches_per(per))
     }
 
     /// Iterates over all [`QuantityFilter`]s with their source [`Span`] and [`FilterEvidence`].
@@ -370,31 +414,63 @@ pub(crate) fn point_end_from_grain(start_seconds: i64, grain: TimeGrain) -> i64 
 }
 
 pub(crate) fn has_grammar_trigger(text: &str, tokens: &turbo_analysis_layers::Tokens) -> bool {
+    if text.as_bytes().contains(&b'/')
+        && text.chars().any(char::is_numeric)
+        && text.match_indices('/').any(|(i, _)| text[i + 1..].chars().next().is_some_and(char::is_alphabetic))
+    {
+        return true;
+    }
     let (starts, ends) = tokens.spans.columns();
     let mut article_hits = 0usize;
     let mut prev_rel = false;
+    let mut prev_article = false;
     for (&s, &e) in starts.iter().zip(ends) {
         if let Some(tok) = text.get(s as usize..e as usize) {
-            if tok.len() > 9 || !tok.bytes().any(|b| b.is_ascii_alphabetic()) {
+            if tok.len() > 9 || !tok.chars().any(char::is_alphabetic) {
                 prev_rel = false;
+                prev_article = false;
                 continue;
             }
             let triggered = crate::lang_model::with_lowercase(tok, |lower| {
+                if prev_article
+                    && matches!(
+                        lower,
+                        "second"
+                            | "sec"
+                            | "minute"
+                            | "min"
+                            | "hour"
+                            | "hr"
+                            | "day"
+                            | "week"
+                            | "wk"
+                            | "month"
+                            | "mo"
+                            | "year"
+                            | "yr"
+                    )
+                {
+                    return true;
+                }
                 let is_rel = matches!(lower, "last" | "next" | "this" | "past" | "previous" | "coming");
                 if crate::lang_model::is_grammar_trigger(lower) {
                     if lower == "quarter" && prev_rel {
                         prev_rel = false;
+                        prev_article = false;
                         return false;
                     }
                     prev_rel = is_rel;
                     if lower != "a" && lower != "an" {
+                        prev_article = false;
                         return true;
                     }
                     article_hits += 1;
+                    prev_article = true;
                     false
                 } else {
                     prev_rel = is_rel;
-                    lower.bytes().any(|b| b.is_ascii_digit()) && lower.bytes().any(|b| b.is_ascii_alphabetic())
+                    prev_article = false;
+                    lower.chars().any(char::is_numeric) && lower.chars().any(char::is_alphabetic)
                 }
             });
             if triggered {

@@ -127,7 +127,7 @@ pub(super) fn put_ref(w: &mut Writer, layer: &LayerRef) -> Result<(), ExportErro
 }
 
 pub(super) fn get_ref(r: &mut Reader<'_>) -> Result<LayerRef, ExportError> {
-    Ok(LayerRef { layer: r.string()?, instance: r.string()? })
+    r.layer_ref()
 }
 
 pub(super) fn want_target<Target: Layer>(named: &LayerRef, cx: &ImportCx) -> Result<(), ExportError> {

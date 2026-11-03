@@ -108,7 +108,7 @@ fn relations_and_edges_round_trip() {
 }
 
 fn splice(graph: &mut DocumentGraph, body: Vec<u8>, len: u32) {
-    let at = graph.layers.iter().position(|l| l.layer == "opennlp:relations").unwrap();
+    let at = graph.layers.iter().position(|l| l.layer == "turbo:relations").unwrap();
     graph.layers[at].body = Some(body);
     graph.layers[at].len = len;
 }

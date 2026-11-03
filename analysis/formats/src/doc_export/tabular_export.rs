@@ -12,7 +12,7 @@ use super::{
     sanitize_single_line,
 };
 
-const REQUIRED_LAYERS: &[&str] = &["opennlp:tokens"];
+const REQUIRED_LAYERS: &[&str] = &["turbo:tokens"];
 const HEADER_COLUMNS: [&str; 10] =
     ["sentence", "token", "start", "end", "text", "pos", "lemma", "stem", "entity", "stopword"];
 
@@ -159,7 +159,7 @@ fn write_csv_field(out: &mut String, field: &str) {
 }
 
 fn collect_token_rows(doc: &Document, offsets: ExportOffsetMode) -> Result<Vec<TokenRow>, FormatExportError> {
-    let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("opennlp:tokens"))?;
+    let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("turbo:tokens"))?;
     let tok_key = Key::<Tokens>::DEFAULT.id();
     let tok_view = tokens.spans.view();
     let source_text = doc.source();

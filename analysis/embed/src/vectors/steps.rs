@@ -132,7 +132,7 @@ macro_rules! vector_step {
     };
 }
 
-/// Writes `opennlp:embeddings<opennlp:sentences>`: a vector per sentence.
+/// Writes `turbo:embeddings<turbo:sentences>`: a vector per sentence.
 pub struct SentenceVectors<E: Embedder = VectorAnnotator>(pub Arc<E>);
 
 impl<E: Embedder> Clone for SentenceVectors<E> {
@@ -155,7 +155,7 @@ impl<E: Embedder> Annotator for SentenceVectors<E> {
     vector_step!(Which::Sentences, |o: Output| (o.sentences.expect("asked for"),));
 }
 
-/// Writes `opennlp:embeddings<turbo:chunks>`: a vector per chunk, at
+/// Writes `turbo:embeddings<turbo:chunks>`: a vector per chunk, at
 /// every level of the chunk hierarchy.
 pub struct ChunkVectors<E: Embedder = VectorAnnotator>(pub Arc<E>);
 
@@ -207,7 +207,7 @@ impl<E: Embedder> Annotator for SentenceChunkVectors<E> {
     );
 }
 
-/// Writes `opennlp:embeddings<opennlp:subwords>`: a contextual vector per
+/// Writes `turbo:embeddings<turbo:subwords>`: a contextual vector per
 /// subword piece, extracted from its most-interior window via `#263` and `#709`.
 #[derive(Clone)]
 pub struct SubwordVectors(pub Arc<VectorAnnotator>);

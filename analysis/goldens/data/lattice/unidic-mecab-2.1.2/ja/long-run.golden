@@ -6,7 +6,7 @@ unicode	15.0
 input	ja/long-run	825	297	04d3ea4e4501234d1960f1eb8a15ebc333c174f58dd43a8046403560dc30f5e4
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	184	start:u32	end:u32
+layer	turbo:tokens	text	184	start:u32	end:u32
 0	6
 6	9
 9	15
@@ -191,8 +191,8 @@ layer	opennlp:tokens	text	184	start:u32	end:u32
 812	815
 815	821
 821	824
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	184	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	184	unknown:u32	features:str
 0	名詞,普通名詞,副詞可能,*,*,*,キョウ,今日,今日,キョー,今日,キョー,和,*,*,*,*
 0	助詞,係助詞,*,*,*,*,ハ,は,は,ワ,は,ワ,和,*,*,*,*
 0	形容詞,非自立可能,*,*,形容詞,連体形-一般,ヨイ,良い,いい,イー,いい,イー,和,*,*,*,*

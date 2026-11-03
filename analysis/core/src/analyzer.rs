@@ -82,10 +82,11 @@ impl Analyzer {
     /// their outputs in order. Layers a step reads from a later stage
     /// (`backedge_reads`) are taken off the documents meanwhile.
     pub(super) fn run_steps(&self, steps: &[usize], docs: &mut [Document], status: &mut [Result<(), Error>]) {
-        let backedges: Vec<KeyId> = steps.iter().flat_map(|&i| self.backedge_reads[i].iter().copied()).collect();
-        let taken: Vec<_> = if backedges.is_empty() {
+        let has_backedges = steps.iter().any(|&i| !self.backedge_reads[i].is_empty());
+        let taken: Vec<_> = if !has_backedges {
             Vec::new()
         } else {
+            let backedges: Vec<KeyId> = steps.iter().flat_map(|&i| self.backedge_reads[i].iter().copied()).collect();
             docs.iter_mut().map(|d| d.take_entries(&backedges)).collect()
         };
         for (&i, out) in steps.iter().zip(self.compute_steps(steps, docs)) {
@@ -226,6 +227,14 @@ pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) ->
             }
         }
     }
+    // A step runs once everything it reads that anything
+    // writes exists; an optional input nothing writes is just absent.
+    // If two unscheduled steps form a cycle where one edge is optional
+    // (e.g. `TimeAnnotator` reading `Option<DocumentDate>` and
+    // `TimesDocumentDateSelector` reading `Times`), the cycle member
+    // whose required inputs are all ready runs first without its
+    // optional input, while steps outside the cycle wait for their
+    // optional producers.
     let mut level = vec![usize::MAX; steps.len()];
     let mut done: HashSet<KeyId> = given.iter().copied().collect();
     let mut stages = Vec::new();
@@ -391,6 +400,10 @@ mod tests {
 
     #[test]
     fn optional_cycle_schedules_only_cycle_member_and_waits_for_bystanders() {
+        // BystanderC is added first and only optionally reads LayerA;
+        // ProduceBFromA requires LayerA and ProduceA optionally reads LayerB.
+        // Only ProduceA is on the cycle, so ProduceA must run first and
+        // BystanderC must still receive LayerA.
         let analyzer = Analyzer::builder().add(BystanderC).add(ProduceBFromA).add(ProduceA).build().unwrap();
         let mut docs = vec![Document::new("hello")];
         for r in analyzer.run(&mut docs) {

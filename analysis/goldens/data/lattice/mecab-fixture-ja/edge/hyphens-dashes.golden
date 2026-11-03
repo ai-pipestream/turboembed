@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
 model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	53	start:u32	end:u32
+layer	turbo:tokens	text	53	start:u32	end:u32
 0	4
 4	5
 5	10
@@ -60,8 +60,8 @@ layer	opennlp:tokens	text	53	start:u32	end:u32
 157	160
 160	166
 166	167
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	53	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	53	unknown:u32	features:str
 1	名詞,固有名詞,*,*
 1	記号,一般,*,*
 1	名詞,固有名詞,*,*

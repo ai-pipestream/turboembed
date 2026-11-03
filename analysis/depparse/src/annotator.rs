@@ -15,7 +15,7 @@ impl<A: WordOrTokenAnchor> DependencyAnnotator<A> {
     }
 }
 impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
-    const ID: &'static str = "opennlp:dependency-parser";
+    const ID: &'static str = "turbo-depparse:parser";
     const VERSION: &'static str = "1";
     // Tokens is the surface layer needed to resolve expanded Words. For A =
     // Tokens, slots 2 and 3 must bind to the same token instance.

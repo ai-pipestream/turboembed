@@ -232,3 +232,103 @@ fn decoded_and_text_documents_of_one_text_are_refused() {
     let err = a.merge_with(&b, DuplicateLayerPolicy::Refuse).unwrap_err();
     assert!(err.to_string().contains("decoded from bytes"), "{err}");
 }
+
+struct WholeSentenceStep;
+
+impl Annotator for WholeSentenceStep {
+    const ID: &'static str = "t:whole-sentence";
+    type Reads = (View,);
+    type Writes = (Sentences,);
+
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        let mut spans = Spans::new(view.id());
+        if !view.text().is_empty() {
+            spans.push(Span::new(0, view.text().len() as u32));
+        }
+        Ok((Sentences { spans },))
+    }
+}
+
+struct IdentityViewStep;
+
+impl Annotator for IdentityViewStep {
+    const ID: &'static str = "t:identity-view";
+    type Reads = (View,);
+    type Writes = (View,);
+
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        let mut vb = ViewBuilder::new(view.text());
+        vb.keep(view.text().len());
+        let (out, align) = vb.finish();
+        Ok((View::derived(view, out, align),))
+    }
+}
+
+#[test]
+fn decoded_and_plain_identity_merge_preserves_donor_provenance_and_immutability() {
+    let analyzer =
+        Analyzer::builder().add(WholeSentenceStep).step(Bound::new(IdentityViewStep).write(0, "norm")).build().unwrap();
+    let sent_key = Key::<Sentences>::DEFAULT.id();
+    let norm_key = Key::<View>::named("norm").id();
+
+    let run_on = |mut doc: Document| -> Document {
+        for r in analyzer.run(std::slice::from_mut(&mut doc)) {
+            r.unwrap();
+        }
+        doc
+    };
+
+    let ref_decoded = run_on(Document::decoded(b"hello".as_slice(), "hello", Alignment::identity()).unwrap());
+    let ref_plain = run_on(Document::new("hello"));
+    assert_ne!(
+        ref_decoded.provenance_digest(sent_key),
+        ref_plain.provenance_digest(sent_key),
+        "decoded source_bytes must distinguish provenance digests"
+    );
+
+    // 1. Recipient-first digest access (decoded donor -> plain recipient under Refuse).
+    let donor_rf = run_on(Document::decoded(b"hello".as_slice(), "hello", Alignment::identity()).unwrap());
+    let mut recipient_rf = Document::new("hello");
+    recipient_rf.merge_with(&donor_rf, DuplicateLayerPolicy::Refuse).unwrap();
+
+    for key in [sent_key, norm_key] {
+        assert_eq!(recipient_rf.provenance_digest(key), ref_decoded.provenance_digest(key));
+        assert_eq!(recipient_rf.content_digest(key), ref_decoded.content_digest(key));
+        assert_eq!(recipient_rf.upstream_content_hash(key), ref_decoded.upstream_content_hash(key));
+        assert_eq!(donor_rf.provenance_digest(key), ref_decoded.provenance_digest(key));
+        assert_eq!(donor_rf.content_digest(key), ref_decoded.content_digest(key));
+        assert_eq!(donor_rf.upstream_content_hash(key), ref_decoded.upstream_content_hash(key));
+    }
+
+    // 2. Donor-first digest access (decoded donor -> plain recipient under Refuse).
+    let donor_df = run_on(Document::decoded(b"hello".as_slice(), "hello", Alignment::identity()).unwrap());
+    let mut recipient_df = Document::new("hello");
+    recipient_df.merge_with(&donor_df, DuplicateLayerPolicy::Refuse).unwrap();
+
+    for key in [sent_key, norm_key] {
+        assert_eq!(donor_df.provenance_digest(key), ref_decoded.provenance_digest(key));
+        assert_eq!(donor_df.content_digest(key), ref_decoded.content_digest(key));
+        assert_eq!(donor_df.upstream_content_hash(key), ref_decoded.upstream_content_hash(key));
+        assert_eq!(recipient_df.provenance_digest(key), ref_decoded.provenance_digest(key));
+        assert_eq!(recipient_df.content_digest(key), ref_decoded.content_digest(key));
+        assert_eq!(recipient_df.upstream_content_hash(key), ref_decoded.upstream_content_hash(key));
+    }
+
+    // 3. Reverse identity merge (plain donor -> decoded recipient, both access orders and KeepFirst).
+    for recipient_first in [true, false] {
+        let donor_plain = run_on(Document::new("hello"));
+        let mut recipient_dec = Document::decoded(b"hello".as_slice(), "hello", Alignment::identity()).unwrap();
+        recipient_dec.add(&Key::DEFAULT, tokens_on(ViewId::SOURCE, 1), Provenance::by("t:tokens")).unwrap();
+        recipient_dec.merge_with(&donor_plain, DuplicateLayerPolicy::KeepFirst).unwrap();
+
+        for key in [sent_key, norm_key] {
+            if recipient_first {
+                assert_eq!(recipient_dec.provenance_digest(key), ref_plain.provenance_digest(key));
+                assert_eq!(donor_plain.provenance_digest(key), ref_plain.provenance_digest(key));
+            } else {
+                assert_eq!(donor_plain.provenance_digest(key), ref_plain.provenance_digest(key));
+                assert_eq!(recipient_dec.provenance_digest(key), ref_plain.provenance_digest(key));
+            }
+        }
+    }
+}

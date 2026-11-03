@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/empty	0	0	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
 annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
-layer	opennlp:tokens	text	0	start:u32	end:u32
-end	opennlp:tokens
-layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	0	value:f64
-end	turbo:confidence<opennlp:tokens>
+layer	turbo:tokens	text	0	start:u32	end:u32
+end	turbo:tokens
+layer	turbo:confidence<turbo:tokens>	aligned:turbo:tokens	0	value:f64
+end	turbo:confidence<turbo:tokens>

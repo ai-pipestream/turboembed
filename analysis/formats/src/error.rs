@@ -14,11 +14,14 @@ use turbo_analysis::Span;
 use crate::ad::AdError;
 use crate::conllu::coref::CorefError;
 use crate::corpora::CorpusError;
+use crate::legal::LegalError;
 use crate::ner::NerError;
 
 /// A sample a reader cannot read, or a sample value that cannot be built.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormatError {
+    /// A legal corpus document that is malformed or incomplete.
+    Legal(LegalError),
     /// A `<START>` tag inside a name: `NameSample.parse` throws an
     /// `IOException`. `context` is the tag with up to two parts of the
     /// line before and after it, the tag marked with `###`.
@@ -160,6 +163,7 @@ impl FormatError {
             }
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
             Ner(e) => Some(e.java_class()),
+            Legal(_) => Some("java.io.IOException"),
             Ad(e) => Some(e.java_class()),
             Corpus(e) => e.java_class(),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
@@ -224,6 +228,7 @@ impl fmt::Display for FormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use FormatError::*;
         match self {
+            Legal(e) => e.fmt(f),
             Ner(e) => e.fmt(f),
             Ad(e) => e.fmt(f),
             Corpus(e) => e.fmt(f),

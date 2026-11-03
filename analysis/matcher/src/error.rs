@@ -38,13 +38,13 @@ impl std::error::Error for PatternError {}
 /// Why a document could not be matched.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MatchError {
-    /// A pattern reads a layer the input does not have: `opennlp:pos` for a
+    /// A pattern reads a layer the input does not have: `turbo:pos` for a
     /// part-of-speech test, `turbo:stopwords` for the stopword flag.
     Missing(&'static str),
     /// A layer given to the input that is not one item per token.
     Misaligned { layer: &'static str, len: usize, tokens: usize },
-    /// A span-bearing layer (`opennlp:entities`, `turbo:numbers`, or
-    /// `opennlp:tokens`) belongs to a different view than the tokens.
+    /// A span-bearing layer (`turbo:entities`, `turbo:numbers`, or
+    /// `turbo:tokens`) belongs to a different view than the tokens.
     ViewMismatch { layer: &'static str, expected: ViewId, actual: ViewId },
     /// A token span outside the text, or off a character boundary.
     Token { index: usize, start: u32, end: u32 },

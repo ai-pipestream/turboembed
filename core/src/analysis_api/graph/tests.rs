@@ -131,7 +131,7 @@ fn normalized_view_rows_keep_view_and_source_coordinates_separate() {
     assert_eq!(lower_tokens.len(), 4);
     let istanbul = lower_tokens[0];
     assert_eq!(istanbul.view_id, lower_view.0 as u32);
-    assert_eq!(pool(&result, istanbul.layer_offset, istanbul.layer_len), "opennlp:tokens");
+    assert_eq!(pool(&result, istanbul.layer_offset, istanbul.layer_len), "turbo:tokens");
     assert_eq!((istanbul.view_byte_start, istanbul.view_byte_end), (0, 10));
     assert_eq!((istanbul.view_utf16_start, istanbul.view_utf16_end), (0, 9));
     assert_eq!((istanbul.view_codepoint_start, istanbul.view_codepoint_end), (0, 9));

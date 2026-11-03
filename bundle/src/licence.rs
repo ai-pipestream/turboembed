@@ -85,6 +85,31 @@ fn store_error(path: &Path, e: impl std::fmt::Display) -> String {
     format!("{}: {e}", path.display())
 }
 
+/// Check or record `r` in the zoo's acceptance file when `consent.store`
+/// is present. Returns `Ok(true)` when `r` was already accepted or was
+/// just recorded under `consent.flag`.
+fn accept_or_check(r: &Requirement, consent: &Consent) -> Result<bool> {
+    let Some((path, user)) = &consent.store else {
+        return Ok(false);
+    };
+    let mut acceptances = Acceptances::load(path).map_err(|e| e.to_string())?;
+    if acceptances.has(user, r) {
+        println!("{user} accepted {r} ({}) before", path.display());
+        return Ok(true);
+    }
+    if !consent.flag {
+        return Ok(false);
+    }
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    acceptances.accept_terms(user, r, now).map_err(|e| e.to_string())?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| store_error(dir, e))?;
+    }
+    acceptances.save(path).map_err(|e| e.to_string())?;
+    println!("{user} accepts {r}, recorded in {}", path.display());
+    Ok(true)
+}
+
 /// Whether the model may be fetched: never under a refused licence, and
 /// under a class that needs acceptance (CC BY-NC, CC BY-SA, LGPL, GPL)
 /// only when `accept_terms` says the caller accepted the licence.
@@ -95,9 +120,7 @@ pub fn check_fetch(manifest: &Value, accept_terms: bool) -> Result<LicenseClass>
 /// [`check_fetch`] with the zoo's acceptance file: a licence the user
 /// accepted before passes without the flag, and the flag records the
 /// acceptance there, as `turbo-zoo accept --yes` does, so the server and
-/// the zoo see it too. A licence without one text of its own
-/// (`LicenseRef-RestrictedPublic`) has no single record; only the flag
-/// passes it, and nothing is recorded.
+/// the zoo see it too.
 pub fn check_fetch_with(manifest: &Value, consent: &Consent) -> Result<LicenseClass> {
     let class = manifest_class(manifest)?;
     let (licence, zoo_class) = of(manifest)?;
@@ -105,22 +128,10 @@ pub fn check_fetch_with(manifest: &Value, consent: &Consent) -> Result<LicenseCl
         return Ok(class);
     }
     let requirement = Requirement::of(licence);
-    if let (Some(r), Some((path, user))) = (&requirement, &consent.store) {
-        let mut acceptances = Acceptances::load(path).map_err(|e| e.to_string())?;
-        if acceptances.has(user, r) {
-            println!("{user} accepted {licence} ({}) before", path.display());
-            return Ok(class);
-        }
-        if consent.flag {
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-            acceptances.accept_terms(user, r, now).map_err(|e| e.to_string())?;
-            if let Some(dir) = path.parent() {
-                std::fs::create_dir_all(dir).map_err(|e| store_error(dir, e))?;
-            }
-            acceptances.save(path).map_err(|e| e.to_string())?;
-            println!("{user} accepts {licence}, recorded in {}", path.display());
-            return Ok(class);
-        }
+    if let Some(r) = &requirement
+        && accept_or_check(r, consent)?
+    {
+        return Ok(class);
     }
     if consent.flag {
         return Ok(class);
@@ -130,6 +141,51 @@ pub fn check_fetch_with(manifest: &Value, consent: &Consent) -> Result<LicenseCl
         "manifest.model.license: {licence} is {zoo_class}, which must be accepted before a fetch: \
          read {text}, then fetch with --accept-terms (or accept it once with turbo-zoo accept)"
     ))
+}
+
+/// The zoo [`Requirement`] for a recipe's `notice_terms` address, under
+/// [`Licence::RestrictedPublic`]. `notice_terms` without `notice`, or an
+/// address the zoo's URL rule rejects, is an error.
+pub fn notice_requirement(recipe: &crate::recipe::Recipe) -> Result<Option<Requirement>> {
+    let Some(raw) = &recipe.notice_terms else {
+        return Ok(None);
+    };
+    if recipe.notice.is_none() {
+        return Err("notice_terms requires notice".into());
+    }
+    let url: turbo_zoo::Url = raw.parse().map_err(|e| format!("notice_terms: {e}"))?;
+    Ok(Some(Requirement { licence: Licence::RestrictedPublic, text: url.as_str().to_owned() }))
+}
+
+/// Check a recipe's `notice` before a fetch. When `notice_terms` gives
+/// the notice's address, it is checked against and recorded in the
+/// zoo's acceptance file as a [`Licence::RestrictedPublic`]
+/// [`Requirement`], so an acceptance made on the page, with
+/// `turbo-zoo accept` or with `--accept-terms` satisfies later fetches
+/// without the flag. A notice with no `notice_terms` requires the flag
+/// on each fetch.
+pub fn check_notice_with(recipe: &crate::recipe::Recipe, consent: &Consent) -> Result<()> {
+    let requirement = notice_requirement(recipe)?;
+    let Some(n) = &recipe.notice else {
+        return Ok(());
+    };
+    println!("notice: {n}");
+    if let Some(r) = &requirement {
+        if accept_or_check(r, consent)? || consent.flag {
+            return Ok(());
+        }
+        return Err(format!(
+            "this model carries terms beyond its licence (the notice above): \
+             read {}, then fetch with --accept-terms (or accept it once with turbo-zoo accept)",
+            r.text
+        ));
+    }
+    if consent.flag {
+        return Ok(());
+    }
+    Err("this model carries terms beyond its licence (the notice above): \
+         fetch it with --accept-terms once you have read them"
+        .into())
 }
 
 #[cfg(test)]
@@ -209,6 +265,29 @@ mod tests {
         std::fs::write(&path, b"{}").unwrap();
         assert!(check_fetch_with(&with("CC-BY-NC-4.0"), &Consent { flag: true, ..consent }).is_err());
         assert_eq!(std::fs::read(&path).unwrap(), b"{}");
+        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn notice_terms_validate_and_share_the_zoo_acceptance_file() {
+        let mut r = crate::recipe::Recipe::load(Path::new("cross-encoder/ms-marco-MiniLM-L6-v2")).unwrap();
+        let req = notice_requirement(&r).unwrap().unwrap();
+        assert_eq!(
+            req,
+            Requirement { licence: Licence::RestrictedPublic, text: "https://microsoft.github.io/msmarco/".into() }
+        );
+        let (path, alice) = store("notice");
+        let alone = Consent { flag: false, store: Some((path.clone(), alice.clone())) };
+        let e = check_notice_with(&r, &alone).unwrap_err();
+        assert!(e.contains("https://microsoft.github.io/msmarco/") && e.contains("--accept-terms"), "{e}");
+        let flagged = Consent { flag: true, ..alone.clone() };
+        check_notice_with(&r, &flagged).unwrap();
+        assert!(Acceptances::load(&path).unwrap().has(&alice, &req));
+        check_notice_with(&r, &alone).unwrap();
+        r.notice_terms = Some("http://microsoft.github.io/msmarco/".into());
+        assert!(notice_requirement(&r).unwrap_err().contains("notice_terms:"));
+        r.notice = None;
+        assert_eq!(notice_requirement(&r).unwrap_err(), "notice_terms requires notice");
         std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).unwrap();
     }
 }

@@ -149,13 +149,13 @@ fn build_projection(
         require_default_binding::<Vectors<Sentences>, Sentences>(doc)?;
         let sentences = doc
             .get::<Sentences>()
-            .ok_or_else(|| bad("document has turbo:vectors<opennlp:sentences> without opennlp:sentences"))?;
+            .ok_or_else(|| bad("document has turbo:vectors<turbo:sentences> without turbo:sentences"))?;
         if sentences.spans.len() as u64 > MAX_CHUNKS {
             return Err(over("max_chunks", "sentences", sentences.spans.len() as u64));
         }
         if vecs.len() != sentences.spans.len() {
             return Err(bad(format!(
-                "turbo:vectors<opennlp:sentences> length {} does not match opennlp:sentences length {}",
+                "turbo:vectors<turbo:sentences> length {} does not match turbo:sentences length {}",
                 vecs.len(),
                 sentences.spans.len()
             )));
@@ -203,7 +203,7 @@ fn build_drift_curve(
         require_default_binding::<Vectors<Sentences>, Sentences>(doc)?;
         if vecs.len() != n {
             return Err(bad(format!(
-                "turbo:vectors<opennlp:sentences> length {} does not match opennlp:sentences length {n}",
+                "turbo:vectors<turbo:sentences> length {} does not match turbo:sentences length {n}",
                 vecs.len()
             )));
         }
@@ -217,7 +217,7 @@ fn build_drift_curve(
         require_default_binding::<Boundaries, Sentences>(doc)?;
         if bounds.cost.len() != n {
             return Err(bad(format!(
-                "turbo:boundaries length {} does not match opennlp:sentences length {n}",
+                "turbo:boundaries length {} does not match turbo:sentences length {n}",
                 bounds.cost.len()
             )));
         }

@@ -26,8 +26,23 @@ pub enum Column {
     /// Column 5, the language-specific tag (spaCy `tag_`, Penn for
     /// English).
     Xpos,
+    /// Column 6, the morphological features, as one tag (Stanza `feats`).
+    Feats,
+    /// Column 3, the lemma; read against a treebank's lemma labels.
+    Lemma,
+    /// Columns 7 and 8, head and relation, as one label (`ud_heads::deps_label`),
+    /// so its accuracy is LAS; read against a treebank's parse labels.
+    Deps,
     /// Two tab-separated fields: original token and BIO entity label.
     Bio,
+}
+
+impl Column {
+    /// Whether the column is scored on a treebank id (`ud-es-ancora`)
+    /// rather than on a tag corpus id.
+    pub fn treebank(self) -> bool {
+        matches!(self, Column::Lemma | Column::Deps)
+    }
 }
 
 impl std::str::FromStr for Column {
@@ -36,8 +51,11 @@ impl std::str::FromStr for Column {
         match s {
             "upos" => Ok(Column::Upos),
             "xpos" => Ok(Column::Xpos),
+            "feats" => Ok(Column::Feats),
+            "lemma" => Ok(Column::Lemma),
+            "deps" => Ok(Column::Deps),
             "bio" => Ok(Column::Bio),
-            _ => Err(Error(format!("column {s:?}: upos, xpos or bio"))),
+            _ => Err(Error(format!("column {s:?}: upos, xpos, feats, lemma, deps or bio"))),
         }
     }
 }
@@ -136,6 +154,9 @@ pub fn read(file: &str, bytes: &[u8], column: Column, gold: &[Sentence]) -> Resu
                 .map(|w| match column {
                     Column::Upos => w.upos.text.to_string(),
                     Column::Xpos => w.xpos.text.to_string(),
+                    Column::Feats => w.feats.text.to_string(),
+                    Column::Lemma => w.lemma.text.to_string(),
+                    Column::Deps => format!("{} {}", w.head.text, w.deprel.text),
                     Column::Bio => unreachable!("BIO is handled before CoNLL-U parsing"),
                 })
                 .collect(),

@@ -117,6 +117,13 @@ pub unsafe extern "C" fn turbo_embed_write_text(
             let s = &session(s)?.inner;
             let mut state = begin_write(s)?;
             let o = embed_options(s, opts)?;
+            if o.layers > 1 {
+                return Err(Error::field(
+                    INVALID_ARGUMENT,
+                    9,
+                    format!("layers {}: per-layer taps apply to range writes, not row writes", o.layers),
+                ));
+            }
             if count == 0 {
                 return Err(Error::new(INVALID_ARGUMENT, "count is 0: a run needs at least one row"));
             }

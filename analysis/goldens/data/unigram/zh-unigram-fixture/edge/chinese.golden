@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	22	start:u32	end:u32
+layer	turbo:tokens	text	22	start:u32	end:u32
 0	3
 3	6
 6	12
@@ -29,4 +29,4 @@ layer	opennlp:tokens	text	22	start:u32	end:u32
 60	63
 63	66
 66	69
-end	opennlp:tokens
+end	turbo:tokens

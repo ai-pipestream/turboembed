@@ -125,6 +125,17 @@ impl NgramModel {
         let buckets = read_u32(bytes, &mut at)?;
         let range = take(bytes, &mut at, 4)?;
         let ngram_range = (range[0], range[1]);
+        // Every count is checked against the bytes left before anything is
+        // allocated, so a forged header cannot ask for more memory than the
+        // file could hold.
+        let float_count = (buckets as usize)
+            .checked_add(1)
+            .and_then(|row| row.checked_mul(language_count))
+            .and_then(|count| count.checked_mul(4))
+            .ok_or_else(|| ModelError::Format("size overflow".into()))?;
+        if language_count.saturating_mul(4).saturating_add(float_count) > bytes.len() - at {
+            return Err(ModelError::Format("truncated model".into()));
+        }
         let mut languages = Vec::with_capacity(language_count);
         for _ in 0..language_count {
             let len = read_u32(bytes, &mut at)? as usize;
@@ -355,6 +366,25 @@ mod tests {
         assert_eq!(features.len(), 1);
         assert_eq!(features.values().copied().collect::<Vec<_>>(), [2.0]);
         assert_eq!(features, turbo_trainer::langid::features("éé", (1, 1), 16));
+    }
+
+    #[test]
+    fn forged_header_counts_are_refused_before_allocation() {
+        let model = model();
+        let mut header = b"TNL1".to_vec();
+        put_u32(&mut header, u32::MAX);
+        put_u32(&mut header, u32::MAX);
+        header.extend_from_slice(&[1, 3, 0, 0]);
+        let error = NgramModel::from_bytes(&header, model.model_ref.clone()).unwrap_err();
+        assert!(matches!(error, ModelError::Format(_)), "{error}");
+        let mut bytes = model.to_bytes();
+        bytes[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+        let error = NgramModel::from_bytes(&bytes, model.model_ref.clone()).unwrap_err();
+        assert!(matches!(error, ModelError::Format(_)), "{error}");
+        let mut bytes = model.to_bytes();
+        bytes.pop();
+        assert!(NgramModel::from_bytes(&bytes, model.model_ref.clone()).is_err());
+        assert!(NgramModel::from_bytes(&model.to_bytes(), model.model_ref.clone()).is_ok());
     }
 
     #[test]

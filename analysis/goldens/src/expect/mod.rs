@@ -30,8 +30,8 @@ use turbo_unicode::whitespace::is_whitespace;
 
 use crate::format::Golden;
 
-/// One span as the JVM returned it, read from a golden's `opennlp:tokens`
-/// (or `opennlp:sentences`) block with its `turbo:utf16<L>` block, its
+/// One span as the JVM returned it, read from a golden's `turbo:tokens`
+/// (or `turbo:sentences`) block with its `turbo:utf16<L>` block, its
 /// confidence and its word type when the golden has them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JvmSpan {
@@ -83,7 +83,7 @@ pub fn jvm_spans(golden: &Golden, text: &str, id: &str) -> Result<Vec<JvmSpan>, 
         }
         None => None,
     };
-    let kind = match (id == "opennlp:tokens").then(|| golden.layer("turbo:word-types")).flatten() {
+    let kind = match (id == "turbo:tokens").then(|| golden.layer("turbo:word-types")).flatten() {
         Some(wt) => {
             let k = wt.strs("kind").ok_or("a kind column")?;
             if k.len() != n {
@@ -111,9 +111,9 @@ pub fn jvm_spans(golden: &Golden, text: &str, id: &str) -> Result<Vec<JvmSpan>, 
         .collect()
 }
 
-/// The JVM's token spans (`opennlp:tokens`).
+/// The JVM's token spans (`turbo:tokens`).
 pub fn jvm_token_spans(golden: &Golden, text: &str) -> Result<Vec<JvmSpan>, String> {
-    jvm_spans(golden, text, "opennlp:tokens")
+    jvm_spans(golden, text, "turbo:tokens")
 }
 
 /// What the Rust maxent tokenizer produces for the spans the JVM wrote: a

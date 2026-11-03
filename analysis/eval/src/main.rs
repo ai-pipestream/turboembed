@@ -55,7 +55,7 @@ usage:
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
-conteb-squad, gutenqa, hicbench, qasper (docs/analysis.md, \"The sets\").
+conteb-squad, gutenqa, hicbench, qasper, cuad, contract-nli (docs/analysis.md, \"The sets\").
 
 run options:
   --bundle <dir>          the embedder's bundle; the reference embedder is
@@ -394,9 +394,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         dump_cuts,
     };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
-    if turbo_eval::source::source(&repo)? != source {
-        return Err("the working tree moved during the run; the records written name the commit it started at".into());
-    }
+    turbo_eval::source::check_unchanged(&repo, &source)?;
     for p in written {
         println!("{}", p.display());
     }

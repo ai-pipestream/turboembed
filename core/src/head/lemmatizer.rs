@@ -35,6 +35,7 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
     }
     out.push(("out.weight".into(), vec![labels, width]));
     out.push(("out.bias".into(), vec![labels]));
+    words::push_mix(spec, &mut out);
     out
 }
 
@@ -102,6 +103,11 @@ impl EditTreeLemmatizer {
     /// The encoder width the head reads.
     pub fn hidden(&self) -> usize {
         self.hidden
+    }
+
+    /// The number of encoder layers each word vector mixes.
+    pub fn taps(&self) -> usize {
+        self.reader.taps()
     }
 
     /// The tree scores [words, trees] of one sequence into `out`, from its

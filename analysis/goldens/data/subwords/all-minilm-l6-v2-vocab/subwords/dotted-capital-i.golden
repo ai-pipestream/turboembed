@@ -8,7 +8,7 @@ model	all-minilm-l6-v2-vocab.txt	f51f06aae7f580a88998f6f7f24b52495c8d3d289fdbdc2
 annotator	opennlp.tools.tokenize.WordpieceEncoder	encode
 config	lowerCase	true
 config	maxWordCodePoints	100
-layer	opennlp:subwords	text	7	start:u32	end:u32	id:u32
+layer	turbo:subwords	text	7	start:u32	end:u32	id:u32
 0	9	9960
 10	13	4487
 13	16	13380
@@ -16,4 +16,4 @@ layer	opennlp:subwords	text	7	start:u32	end:u32	id:u32
 18	21	23630
 22	24	1045
 25	28	2462
-end	opennlp:subwords
+end	turbo:subwords

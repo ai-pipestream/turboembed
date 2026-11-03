@@ -6,11 +6,11 @@ unicode	15.0
 input	edge/emoji-flags	50	32	b322415aacd6335bcb52b5f337296ec760bd4f0369a6af7b30317f0340b8a015
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	6	start:u32	end:u32
+layer	turbo:tokens	text	6	start:u32	end:u32
 0	5
 6	30
 31	34
 35	44
 45	49
 49	50
-end	opennlp:tokens
+end	turbo:tokens

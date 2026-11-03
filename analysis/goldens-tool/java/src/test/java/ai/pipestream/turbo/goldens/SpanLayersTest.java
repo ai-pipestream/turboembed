@@ -24,16 +24,16 @@ class SpanLayersTest {
       unicode\t15.0
       input\ttest/smile\t10\t8\tb7b55bcbe6c0c7d889485a656f2840a7d40808f36385d86e65d1ffb7798b82f4
       annotator\topennlp.tools.tokenize.SimpleTokenizer\ttokenizePos
-      layer\topennlp:tokens\ttext\t3\tstart:u32\tend:u32
+      layer\tturbo:tokens\ttext\t3\tstart:u32\tend:u32
       0\t5
       6\t10
       6\t10
-      end\topennlp:tokens
-      layer\tturbo:utf16<opennlp:tokens>\taligned:opennlp:tokens\t3\tstart16:u32\tend16:u32\tcut:u32
+      end\tturbo:tokens
+      layer\tturbo:utf16<turbo:tokens>\taligned:turbo:tokens\t3\tstart16:u32\tend16:u32\tcut:u32
       0\t5\t0
       6\t7\t1
       7\t8\t1
-      end\tturbo:utf16<opennlp:tokens>
+      end\tturbo:utf16<turbo:tokens>
       """;
 
   @Test
@@ -42,18 +42,18 @@ class SpanLayersTest {
     Header h = new Header("0123456789abcdef0123456789abcdef01234567", "3.0.0-PRE-SNAPSHOT",
         new Jdk("21.0.5", "21.0.5+11-LTS", "Eclipse Adoptium", "15.0"), "test/smile", bytes.length, SMILE.length(),
         Sha.sha256(bytes), List.of(), "opennlp.tools.tokenize.SimpleTokenizer", "tokenizePos");
-    List<Layer> layers = SpanLayers.of("opennlp:tokens", new Utf8Offsets("test/smile", SMILE),
+    List<Layer> layers = SpanLayers.of("turbo:tokens", new Utf8Offsets("test/smile", SMILE),
         new Span[] {new Span(0, 5), new Span(6, 7), new Span(7, 8)});
     assertEquals(SMILE_GOLDEN, new String(GoldenWriter.write(h, layers), StandardCharsets.UTF_8));
   }
 
   @Test
   void spansThatCutNoCharacterGiveOnlyTheByteLayer() {
-    List<Layer> layers = SpanLayers.of("opennlp:tokens", new Utf8Offsets("test/smile", SMILE),
+    List<Layer> layers = SpanLayers.of("turbo:tokens", new Utf8Offsets("test/smile", SMILE),
         new Span[] {new Span(0, 5), new Span(6, 8)});
     assertEquals(1, layers.size());
     Layer tokens = layers.get(0);
-    assertEquals("opennlp:tokens", tokens.id());
+    assertEquals("turbo:tokens", tokens.id());
     assertEquals("text", tokens.anchor());
     assertEquals(10L, ((Column.U32) tokens.columns().get(1)).values()[1]);
   }
@@ -61,12 +61,12 @@ class SpanLayersTest {
   @Test
   void aSentenceThatCutsACharacterGetsItsOwnUtf16Layer() {
     // "a😀b": a sentence ending after the high surrogate, another starting at the low one.
-    List<Layer> layers = SpanLayers.of("opennlp:sentences", new Utf8Offsets("t/s", "a😀b"),
+    List<Layer> layers = SpanLayers.of("turbo:sentences", new Utf8Offsets("t/s", "a😀b"),
         new Span[] {new Span(0, 2), new Span(2, 4)});
     assertEquals(2, layers.size());
     Layer utf16 = layers.get(1);
-    assertEquals("turbo:utf16<opennlp:sentences>", utf16.id());
-    assertEquals("aligned:opennlp:sentences", utf16.anchor());
+    assertEquals("turbo:utf16<turbo:sentences>", utf16.id());
+    assertEquals("aligned:turbo:sentences", utf16.anchor());
     assertEquals(List.of("start16", "end16", "cut"), utf16.columns().stream().map(Column::name).toList());
     assertEquals(List.of(0L, 5L), List.of(((Column.U32) layers.get(0).columns().get(0)).values()[0],
         ((Column.U32) layers.get(0).columns().get(1)).values()[0]));

@@ -8,10 +8,10 @@
 //!   recording the learned encoder, heads, and execution backend in
 //!   provenance.
 //! - **Subword BIO tagging**: scores each piece in [`Subwords`]
-//!   (`opennlp:subwords`) over its contextual subword vector
+//!   (`turbo:subwords`) over its contextual subword vector
 //!   (`Vectors<Subwords>`) using a 5-class BIO [`ScoringHead`]
 //!   ([`BIO_ASPECT_OPINION_LABELS`]: `["O", "B-ASP", "I-ASP", "B-OP", "I-OP"]`),
-//!   projects subword tag distributions back onto [`Tokens`] (`opennlp:tokens`)
+//!   projects subword tag distributions back onto [`Tokens`] (`turbo:tokens`)
 //!   via `Subwords` byte-span and token alignments, and decodes contiguous
 //!   aspect term (`B-ASP`/`I-ASP`) and opinion expression (`B-OP`/`I-OP`)
 //!   token ranges.

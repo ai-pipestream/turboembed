@@ -40,13 +40,35 @@ pub fn fit_cpu(data: &Prepared, bundle: &Path, config: &Config) -> Result<Run> {
     field(&mut settings, &serde_json::to_vec(&spec).map_err(invalid)?);
     // Exhaustive on purpose: adding a trainer setting must also update
     // this identity, so new optimizer or stopping controls cannot vanish.
-    let Config { seed, epochs, batch, lr, weight_decay, clip, warmup, patience, tolerance, threads, lanes, verbose } =
-        *config;
+    let Config {
+        seed,
+        epochs,
+        batch,
+        lr,
+        weight_decay,
+        clip,
+        warmup,
+        patience,
+        tolerance,
+        threads,
+        lanes,
+        loss_scale,
+        verbose,
+    } = *config;
     for n in [seed, epochs as u64, batch as u64, patience as u64, threads as u64, lanes as u64, u64::from(verbose)] {
         settings.extend_from_slice(&n.to_le_bytes());
     }
     for n in [lr, weight_decay, clip, warmup, tolerance] {
         settings.extend_from_slice(&n.to_bits().to_le_bytes());
+    }
+    // Loss scaling enters the identity only when on, so a run without it
+    // keeps the identity it had.
+    if let Some(s) = loss_scale {
+        settings.extend_from_slice(b":loss-scale");
+        for n in [s.initial, s.growth, s.backoff] {
+            settings.extend_from_slice(&n.to_bits().to_le_bytes());
+        }
+        settings.extend_from_slice(&s.interval.to_le_bytes());
     }
     let train = examples(&data.train, &mut encoder)?;
     let dev = examples(&data.dev, &mut encoder)?;

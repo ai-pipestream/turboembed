@@ -25,9 +25,7 @@
 //!   its bytes and `form` stays `None`. A word has one or the other, never
 //!   both.
 //!
-//! The ids are `turbo:` ones, as `analysis/layers/src/lib.rs` asks of a
-//! layer the OpenNLP gRPC standard does not have yet; they move to
-//! `opennlp:` when the standard adds syntactic words.
+//! The ids are `turbo:` ones, as every shared layer's is.
 //! - Every word maps to its token's span (`Words::token_span`), so UTF-16 and
 //!   code-point conversions at the edge (`Words::utf16_span`,
 //!   `Words::code_point_span`) never split a surface token between words.
@@ -368,8 +366,8 @@ mod anchor;
 pub use anchor::{MorphLemmas, MorphPosTags, WordOrTokenAnchor};
 
 /// One part-of-speech tag per syntactic [`Words`] item
-/// (`opennlp:pos<turbo:words>`). Coexists with token-anchored [`crate::PosTags`]
-/// (`opennlp:pos`) on the same document.
+/// (`turbo:pos<turbo:words>`). Coexists with token-anchored [`crate::PosTags`]
+/// (`turbo:pos`) on the same document.
 #[derive(Clone, Debug)]
 pub struct WordPosTags {
     pub tagset: Arc<TagSet>,
@@ -378,7 +376,7 @@ pub struct WordPosTags {
 }
 
 impl Layer for WordPosTags {
-    const ID: &'static str = "opennlp:pos";
+    const ID: &'static str = turbo_analysis::ids::POS;
     const OF: Option<&'static LayerName> = Some(Words::NAME);
 
     fn anchor() -> Anchor {
@@ -400,8 +398,8 @@ impl Layer for WordPosTags {
     }
 }
 
-/// One lemma per syntactic [`Words`] item (`opennlp:lemmas<turbo:words>`).
-/// Coexists with token-anchored [`crate::Lemmas`] (`opennlp:lemmas`) on the same
+/// One lemma per syntactic [`Words`] item (`turbo:lemmas<turbo:words>`).
+/// Coexists with token-anchored [`crate::Lemmas`] (`turbo:lemmas`) on the same
 /// document.
 #[derive(Clone, Debug, Default)]
 pub struct WordLemmas {
@@ -409,7 +407,7 @@ pub struct WordLemmas {
 }
 
 impl Layer for WordLemmas {
-    const ID: &'static str = "opennlp:lemmas";
+    const ID: &'static str = turbo_analysis::ids::LEMMAS;
     const OF: Option<&'static LayerName> = Some(Words::NAME);
 
     fn anchor() -> Anchor {

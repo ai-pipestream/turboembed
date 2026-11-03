@@ -16,10 +16,19 @@ against spaCy, Stanza and other current stacks on held-out data, never
 against Java output. Two standing assumptions govern this direction
 (#1509): JVM goldens are no longer the test oracle (no new code may load
 a classical `.bin` model, reproduce Java platform behaviour or use JVM
-output as an oracle), and English syntax models trained on Universal
-Dependencies English EWT (CC BY-SA 4.0) ship in the accept-first
-download tier because every English UD treebank carries a ShareAlike or
-non-commercial licence.
+output as an oracle), and the #1733 audit of all 16 Universal
+Dependencies `UD_English-*` repositories ([licences.md](licences.md))
+confirms that no English UD treebank with included text carries a
+permissive (`CC BY` or `CC0`) licence (ten are `CC BY-SA 3.0`/`4.0`,
+five are `CC BY-NC-SA 3.0`/`4.0`, and `UD_English-GUMReddit` sets
+`Includes text: no` over unhydrated Reddit text). Consequently, the
+English dependency parser and learned lemmatizer are accept-first only
+(`UD_English-EWT`, #1728), default English phrase chunks come from the
+pattern chunker (`PatternChunker` in `analysis/phrase-chunker` over MASC
+Penn POS), and the OEWN dictionary lemmatizer (`DictionaryLemmatizer` in
+`analysis/lemmatizer` and `MorphyLemmatizer` in `analysis/wordnet`,
+backed by Open English WordNet under CC BY 4.0) is the default English
+lemma tier.
 The crates are Rust only; the gRPC server serves analysis documents and
 layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)).
 
@@ -36,7 +45,7 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-abbrev` | `analysis/abbrev/` | Schwartz-Hearst abbreviation and acronym definition extraction (`turbo:abbreviations`), short-to-long-form edges, and Ab3P MED1250 evaluation |
 | `turbo-matcher` | `analysis/matcher/` | Automaton token-pattern matcher (`Matcher`), token-trie phrase matcher (`PhraseMatcher`), and `SpanRuler` writing named `turbo:matches` instances |
 | `turbo-analysis-embed` | `analysis/embed/` | Shared transformer encoder pass as analysis steps: subword tokenization, pooled sentence, chunk, and level vectors with optional Matryoshka `VectorOptions::output_dim` truncation, `VectorCodesStep<L>` writing `VectorCodes<L>` (`turbo:vector-codes<L>`) as `int8` or packed `ubinary` codes, and multi-task sequence/token classification heads (`BundleSequenceScorer`) |
-| `turbo-sat` | `analysis/sat/` | Sentence boundaries from a Segment Any Text (`SaT`) model (`SatAnnotator`, `SatOptions`, `SatProvider`, `Scored`, `Head`, `rule_detector_with_sat`, `rule_splitter_with_sat`) on the core's encoder: a score per token from the bundle's classifier over the encoder's final states, wtpsplit's windows and cuts, each cut moved to a grapheme cluster boundary, written as `Sentences` (`opennlp:sentences`, [neural-annotators.md](neural-annotators.md)) |
+| `turbo-sat` | `analysis/sat/` | Sentence boundaries from a Segment Any Text (`SaT`) model (`SatAnnotator`, `SatOptions`, `SatProvider`, `Scored`, `Head`, `rule_detector_with_sat`, `rule_splitter_with_sat`) on the core's encoder: a score per token from the bundle's classifier over the encoder's final states, wtpsplit's windows and cuts, each cut moved to a grapheme cluster boundary, written as `Sentences` (`turbo:sentences`, [neural-annotators.md](neural-annotators.md)) |
 | `turbo-sentdetect` | `analysis/sentdetect/` | `ParagraphDetector` (`paragraph_spans`, writing `Structure` / `turbo:structure`), `RuleSentenceDetector` (`RuleSplitter`, `UnpunctuatedSplitter`, `AbbreviationInventory`), `NewlineDetector` (`newline_spans`), and `SentenceDetector` (`SentenceModel`) ([segmentation.md](segmentation.md)) |
 | `turbo-tokenize` | `analysis/tokenize/` | `WhitespaceTokenizer`, `SimpleTokenizer`, `WordTokenizer`, `UntypedWordTokenizer`, `TokenizerMe` (`TokenizerModel`), Chinese `UnigramSegmenter` (`UnigramLexicon`, [unigram-chinese.md](unigram-chinese.md)), Japanese `LatticeTokenizer` (`LatticeAnalyzer`, `MecabDictionary`), Southeast Asian `ComplexSegmenter` (`DictionaryWordTokenizer`, `UntypedDictionaryWordTokenizer`), and `Detokenizer` (`DetokenizerDictionary`) ([segmentation.md](segmentation.md)) |
 | `turbo-normalize` | `analysis/normalize/` | Rewriting view normalizers (`Normalizer`, `NormalizeStep`, `Chain`, `UnicodeForm`, `CaseFold`, `AccentFold`, `StrokeLetters`, `GermanUmlauts`, `Quotes`, `Dashes`, `Ellipsis`, `Bullets`, `Digits`, `ConfusableSkeleton`, `Invisible`, `Whitespace`, `Shrink`, `Urls`, `BoundedUrls`, `SocialMedia`, `BoundedSocialMedia`, `Numbers`, `EmojiRemove`, `HtmlEntityDecodeNormalizer`, `HtmlTagStripNormalizer`, `Dehyphenate`, `Mojibake`, `EnglishContractions`, `EnglishContractionsWithPos`, `SymbolJoiner`, `SymbolWords`, `SpellCorrect`, `ContextSpellCorrector`, `AssetFold`) and diagnostic annotators (`ContextSpellAnnotator`, `EmojiAnnotate`, `AssetDetector`, `ArtifactDetector`, `NoiseScorer`, `TextQualityAnnotator`) ([normalizers.md](normalizers.md)) |
@@ -54,8 +63,8 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-coref` | `analysis/coref/` | Deterministic rule sieve (`Sieve`) and neural mention-pair/ranking coreference resolution (`CorefAnnotator`, `CorefModel`, `QuotationAnnotator`) writing `Mentions`, `Groups<Mentions>`, `Edges<Mentions, Mentions>`, and `Speakers` ([coref.md](coref.md)) |
 | `turbo-doccat` | `analysis/doccat/` | Document and span categorization (`DocumentCategorizerME`, `SpanCategorizer`, `SvmCategorizer`, `DocumentCategorizerDL`, `DlSpanCategorizer`, `MultiLabelSpanCategorizer`, `ZeroShotCategorizer`, [doccat.md](doccat.md)), plus sentiment, emotion, incivility, and pragmatic analysis (`SentimentMe`, `SentenceSentiment`, `LexiconSentiment`, `VaderLexicon`, `PragmaticsAnnotator`, `PragmaticsVectorScorer`, `RuleAspectSentiment`, `AspectCategoryScorer`, `EmotionAnnotator`, `EmotionVectorScorer`, `IncivilityAnnotator`, `IncivilityVectorScorer`, [sentiment.md](sentiment.md)) |
 | `turbo-keywords` | `analysis/keywords/` | Unsupervised YAKE, TextRank, and RAKE keyword and keyphrase extraction writing `Keywords` (`turbo:keywords`, [keywords.md](keywords.md)) |
-| `turbo-langdetect` | `analysis/langdetect/` | Document-level character $n$-gram language detection (`LanguageDetector`, `LanguageModel`, `ProbingContext`, `ProbingConfig`) writing `Language` ([langdetect.md](langdetect.md)) |
-| `turbo-langspan` | `analysis/langspan/` | Model-free Unicode script segmentation (`ScriptDetector`) with exact source spans writing `LanguageSpans` (`turbo:language-spans`) and `Language` (`und`, confidence `0.0`, [langdetect.md](langdetect.md)) |
+| `turbo-langdetect` | `analysis/langdetect/` | Native hashed character $n$-gram language classifier with script priors (`NgramModel`), trained by `turbo_trainer::langid` ([langdetect.md](langdetect.md)) |
+| `turbo-langspan` | `analysis/langspan/` | Language and script spans writing `LanguageSpans` (`turbo:language-spans`) and `Language`: `NgramDetector` over a trained `NgramModel`, or model-free Unicode script segmentation (`ScriptDetector`, `und`, confidence `0.0`) with exact source spans ([langdetect.md](langdetect.md)) |
 | `turbo-geo` | `analysis/geo/` | Gazetteers (`BundledGazetteer`, `GeoNamesGazetteer`, `OvertureGazetteer`, `InMemoryGazetteer`, `UserGazetteer`, `OverlayGazetteer`), toponym matching (`NameFinder`, `NameAnnotator`), and geocoding and spatial disambiguation (`GeocodeAnnotator`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `GeoEntityLinker`, `HierarchyAnnotator`, `DocumentRegionAnnotator`) writing `Locations` (`turbo:locations`), `EntityLocationLinks`, `Containment` (`turbo:containment`), and `Regions` (`turbo:regions`) |
 | `turbo-wordnet` | `analysis/wordnet/` | WNDB (`WndbReader`) and WN-LMF WordNet lexicon reader, `MorphyLemmatizer`, synset sense disambiguation (`WordNetAnnotator`), and lexical expansion (`LexicalExpander`) writing `WordNetSenses` (`turbo:wordnet-senses`) and `LexicalExpansions` (`turbo:lexical-expansions`) |
 | `turbo-stem` | `analysis/stem/` | `PorterStemmer`, 21 `SnowballStemmer` languages, `LightStemmer`, and `StemAnnotator` / `TermAnnotator` writing `Stems` (`turbo:stems`) and `Terms` (`turbo:terms`) |
@@ -278,18 +287,22 @@ the sequence of nodes. `NearDuplicates<L>` and `cross_duplicates` link
 the instance as they link word sketches, and the search engine indexes
 its band keys the same way (`analysis/group/tests/syntax.rs`).
 
+Every chunker record under `analysis/eval/records/` splits sentences with
+the rule detector (`turbo-sentdetect:rules`); the records the tables below
+read were taken on CPU at one commit, each directory holding its run log.
+
 Multi-level retrieval (`analysis/eval/records/turbo-chunker-254-200-level-*`,
 `all-MiniLM-L6-v2`, `--max 254 --target 200`, plain structure) nDCG@10:
 
 | Level, vectors | scifact | nfcorpus | arguana | qasper | gutenqa |
 | --- | --- | --- | --- | --- | --- |
-| chunk, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
-| chunk, local | 0.6504 | 0.3172 | 0.4918 | 0.2817 | 0.8637 |
-| chunk, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2750 | 0.8563 |
-| section, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2841 (10207) | 0.8570 (67572) |
-| section, local | 0.6504 | 0.3172 | 0.4918 | 0.2838 | 0.8569 |
-| section, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2771 | 0.8506 |
-| document, text | 0.6402 (5183) | 0.3097 (3633) | 0.5033 (8674) | 0.2519 (416) | 0.3161 (100) |
+| chunk, text | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2823 (10727) | 0.8464 (62843) |
+| chunk, local | 0.6499 | 0.3176 | 0.4917 | 0.2827 | 0.8461 |
+| chunk, contextual | 0.6600 | 0.3230 | 0.4925 | 0.2756 | 0.8438 |
+| section, text | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2842 (10339) | 0.8396 (61161) |
+| section, local | 0.6499 | 0.3176 | 0.4917 | 0.2848 | 0.8392 |
+| section, contextual | 0.6600 | 0.3230 | 0.4925 | 0.2774 | 0.8384 |
+| document, text | 0.6402 (5183) | 0.3094 (3633) | 0.5015 (8674) | 0.2519 (416) | 0.3161 (100) |
 | document, local | 0.6518 | 0.3167 | 0.4872 | 0.2328 | 0.6238 |
 
 ### Hybrid BM25 + dense retrieval, structure, and larger embedders
@@ -298,12 +311,12 @@ Hybrid fusion sweep across `scifact`, `nfcorpus`, `arguana`, and `qasper`:
 
 | Chunker | Fusion | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean | Gate vs stage-0 (3 baselines) | Gate vs `bm25-document` |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |
-| `turbo-chunker-254-200` | `weighted` `w = 0.35` (default) | `69.24` | `34.28` | `51.65` | `37.85` | `48.26` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.09`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.38` | `69.13` | `34.28` | `51.22` | `38.36` | `48.25` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.60`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.40` | `69.04` | `34.11` | `51.12` | `38.44` | `48.18` | PASS (4/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.68`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.45` | `68.79` | `33.96` | `50.86` | `39.11` | `48.18` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.35`) |
-| `turbo-chunker-254-200` | `weighted` `w = 0.50` (untuned 50/50) | `68.45` | `33.62` | `50.48` | `39.42` | `47.99` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.66`) |
-| `turbo-chunker-254-200` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `68.13` | `34.17` | `49.69` | `36.82` | `47.20` | PASS (2/4, 3/4, 4/4) | FAIL (3/4, `qasper` `-0.94`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.35` (default) | `69.07` | `34.22` | `51.49` | `37.64` | `48.10` | PASS (3/4, 4/4, 4/4) | PASS (3/4, `qasper` `-0.13`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.38` | `68.97` | `34.19` | `51.05` | `38.08` | `48.07` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.32`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.40` | `68.86` | `34.04` | `50.91` | `38.25` | `48.02` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.49`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.45` | `68.61` | `33.86` | `50.66` | `38.92` | `48.01` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.16`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.50` (untuned 50/50) | `68.09` | `33.50` | `50.35` | `39.35` | `47.82` | PASS (2/4, 2/4, 4/4) | PASS (3/4, `qasper` `+1.58`) |
+| `turbo-chunker-254-200` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `67.84` | `34.09` | `49.78` | `36.59` | `47.08` | PASS (2/4, 2/4, 4/4) | FAIL (3/4, `qasper` `-1.17`) |
 
 Held-out `bm25_weight` selection (`Hybrid::choose_bm25_weight_held_out`,
 `analysis/eval/tests/heldout_hybrid.rs`,
@@ -338,33 +351,33 @@ Structure ablation (`--structure none`, `plain`, and `markdown`) at `--max 254 -
 
 | Structure | scifact | nfcorpus | arguana | qasper | gutenqa |
 | --- | --- | --- | --- | --- | --- |
-| none | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2792 (9453) | 0.8631 (69197) |
-| plain | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
-| markdown | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2825 (10544) | 0.8634 (69228) |
+| none | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2763 (9378) | 0.8465 (62817) |
+| plain | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2823 (10727) | 0.8464 (62843) |
+| markdown | 0.6502 (9134) | 0.3179 (6826) | 0.4944 (11166) | 0.2826 (10686) | 0.8466 (62842) |
 
 Larger embedders with `turbo-chunker --max 254 --target 200`, nDCG@10:
 
 | Embedder | Retrieval | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
-| all-MiniLM-L6-v2 | dense | `65.06` | `31.76` | `49.55` | `28.17` | `43.63` |
-| bge-small-en-v1.5 | dense | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
-| bge-base-en-v1.5 | dense | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
-| all-MiniLM-L6-v2 | hybrid, `w = 0.35` | `69.24` | `34.28` | `51.65` | `37.85` | `48.25` |
-| bge-small-en-v1.5 | hybrid, `w = 0.35` | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
-| bge-base-en-v1.5 | hybrid, `w = 0.35` | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+| all-MiniLM-L6-v2 | dense | `65.02` | `31.79` | `49.44` | `28.23` | `43.62` |
+| bge-small-en-v1.5 | dense | `70.55` | `35.14` | `62.63` | `30.15` | `49.62` |
+| bge-base-en-v1.5 | dense | `73.75` | `36.57` | `64.17` | `30.19` | `51.17` |
+| all-MiniLM-L6-v2 | hybrid, `w = 0.35` | `69.07` | `34.22` | `51.49` | `37.64` | `48.10` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | `70.56` | `34.85` | `58.40` | `38.78` | `50.65` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | `72.25` | `36.04` | `60.18` | `38.86` | `51.83` |
 
 Query instruction ablation on `bge-small-en-v1.5` and `bge-base-en-v1.5`, nDCG@10:
 
 | Embedder | Retrieval | Query | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
 | :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
-| bge-small-en-v1.5 | dense | none | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
-| bge-small-en-v1.5 | dense | instruction | `70.21` | `35.15` | `61.39` | `31.28` | `49.51` |
-| bge-base-en-v1.5 | dense | none | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
-| bge-base-en-v1.5 | dense | instruction | `73.90` | `36.70` | `62.84` | `31.64` | `51.27` |
-| bge-small-en-v1.5 | hybrid, `w = 0.35` | none | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
-| bge-small-en-v1.5 | hybrid, `w = 0.35` | instruction | `70.44` | `35.16` | `57.66` | `38.63` | `50.47` |
-| bge-base-en-v1.5 | hybrid, `w = 0.35` | none | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
-| bge-base-en-v1.5 | hybrid, `w = 0.35` | instruction | `71.77` | `36.42` | `59.29` | `39.22` | `51.68` |
+| bge-small-en-v1.5 | dense | none | `70.55` | `35.14` | `62.63` | `30.15` | `49.62` |
+| bge-small-en-v1.5 | dense | instruction | `70.21` | `35.12` | `61.26` | `31.09` | `49.42` |
+| bge-base-en-v1.5 | dense | none | `73.75` | `36.57` | `64.17` | `30.19` | `51.17` |
+| bge-base-en-v1.5 | dense | instruction | `73.90` | `36.65` | `62.63` | `31.00` | `51.04` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | none | `70.56` | `34.85` | `58.40` | `38.78` | `50.65` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | instruction | `70.44` | `35.14` | `57.49` | `38.93` | `50.50` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | none | `72.25` | `36.04` | `60.18` | `38.86` | `51.83` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | instruction | `71.74` | `36.43` | `59.15` | `39.16` | `51.62` |
 
 ### Encoder audit and optional Granite download
 
@@ -431,6 +444,15 @@ GutenQA (100 documents, 339,809 level units, 50 queries):
 | Cascade C=5 | 0.5800 | 0.4105 | 968 |
 | Cascade C=64 | 0.6000 | 0.4268 | 11651 |
 
+- `analysis/embed/tests/sentence_vectors_native.rs` runs the native rule
+  sentence detector, subword annotator and sentence-vector step on the
+  generated local tiny-BERT fixture. It checks exact source byte spans,
+  empty and whitespace inputs, Unicode and CRLF handling, all 32 vector
+  components against the crate-local native snapshot within 2e-6, and
+  unit norms. No downloaded model, retired sentence model, or JVM output
+  is used. This is an integration regression test, not a trained-model
+  accuracy or external-peer parity result.
+
 ## Content-addressed incremental DAG execution
 
 `Analyzer` (`analysis/core/src/analyzer.rs`, `analysis/core/src/analyzer/incremental.rs`, `analysis/core/src/doc/digest.rs`) supports Bazel-like content-addressed incremental execution and provenance-skip caching across both in-memory `Document` instances and exported/imported `DocumentGraph` payloads:
@@ -451,3 +473,14 @@ GutenQA (100 documents, 339,809 level units, 50 queries):
    - `Analyzer::run_spliced(&self, base: &Document, new_text, alignment: &Alignment) -> Result<(Document, SpliceReport), Error>` runs the pipeline over an edited text. The alignment maps the base source text to the new text (edits made one after another compose with `Alignment::compose`) and is checked against both texts byte for byte (`Error::Source` on a mismatch). Document-wide steps run as in `run`. A partition-local step is spliced only when it is cacheable, every output it writes is complete on the base with a provenance that matches the step as it is now (annotator, version, configuration hash, model, inputs), every layer it reads other than the partition layer and the source text was itself spliced in this run, and the partition layer's producer on the base has the provenance the current pipeline gives it; otherwise it runs whole, and the steps that read its outputs run whole after it. A spliced step has its outputs copied from the base on every partition no edit touched (an insertion at an offset from a partition's start to its end touches it, and a touched partition dirties its neighbours) whose span maps to exactly one new partition and whose partition item, moved to the new text, has the new item's fingerprint (spans, nested items and payload, through `Layer::content_sha256`; a document-wide producer may change an untouched partition's payload because of an edit elsewhere, and such a partition is dirty), with spans moved by the partition's offset and indexes by the layers they point into, and computed again only on windows of the dirty partitions, each a document of the window's text seeded with the slices of the partition layer and of its producer's other outputs as computed on the new text, so a window never reads a base layer or re-runs the partition layer's producer. Every spliced layer goes through the checked `Document::add` with the step's provenance, so the result is what `run` makes on the new text, provenance digests included, and a following `analyze_incremental` skips every stage. The `SpliceReport` lists the windows per partition layer and, per step, whether it ran whole, was spliced, or had to run whole and why (a stale or absent base output, a step that is not cacheable, an input that was not spliced, no splicer for an output, an item or index that left its partition, a failed window).
    - A layer is spliceable when it implements `Splice` (`empty_like`, `append` through a `SpliceCx` that maps spans and indexes) and returns `Splicer::<Self>::boxed()` from `Layer::splicer`; `Sentences`, `Structure`, `Tokens`, `PosTags`, `Lemmas`, `Dependencies` and `Entities` do. A step whose output has no splicer is re-run whole and the report says so.
    - `analysis/core/tests/splice.rs` checks, through the `DocumentGraph` export, that the spliced document is identical to a from-scratch run for a replacement inside a sentence, an insertion at a sentence boundary, a deletion across one, a merge, a split, several edits at once and composed edits, that only the dirty windows ran, that a base made by another configuration of a step, or by a step that is not cacheable, is computed again (with an edit and with the unchanged text aligned to itself) along with everything that reads it, that a partition layer from another configuration of its producer is not trusted and a partition whose payload changed with an edit elsewhere is dirty (with a stable control), and that a declaration the pipeline cannot bear is downgraded at build time.
+
+The four-set long-document follow-up (#1486), its pinned contract adapters,
+recovered structural screen and grouped uncertainty protocol are documented
+in [eval-long-documents.md](eval-long-documents.md).
+
+The frozen four-set result is **FAIL**: Qasper and GutenQA pass the evidence
+gate; CUAD and ContractNLI do not. All four nDCG@10 floors pass under both
+raw and correctly grouped uncertainty. See the full result, query coverage,
+per-query oracle diagnostics and retained failures in
+[eval-long-documents.md](eval-long-documents.md). The old +2 document-ranking
+diagnostic remains separate; its three baseline comparisons all fail.

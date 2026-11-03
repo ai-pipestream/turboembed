@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
 model	jieba-dict-subset.txt	365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	128	start:u32	end:u32
+layer	turbo:tokens	text	128	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -135,4 +135,4 @@ layer	opennlp:tokens	text	128	start:u32	end:u32
 164	165
 165	166
 166	167
-end	opennlp:tokens
+end	turbo:tokens

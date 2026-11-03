@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/control-separators	14	14	4b8b0f0cf5b626b1f4d744c04f4396cb1a1b1d6684f1a13c3cae82102d1b807a
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	11	start:u32	end:u32
+layer	turbo:tokens	text	11	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -18,4 +18,4 @@ layer	opennlp:tokens	text	11	start:u32	end:u32
 8	9
 10	11
 12	13
-end	opennlp:tokens
+end	turbo:tokens

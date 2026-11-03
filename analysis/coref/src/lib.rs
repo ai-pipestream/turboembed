@@ -1,6 +1,6 @@
 //! Coreference resolution for `turbo-analysis` documents.
 //!
-//! - [`layer`]: the typed [`Mentions`] layer (`opennlp:mentions`), the
+//! - [`layer`]: the typed [`Mentions`] layer (`turbo:mentions`), the
 //!   optional [`Speakers`] input layer, and the codecs that carry them,
 //!   their chains (`Groups<Mentions>`) and their antecedent links
 //!   (`Edges<Mentions, Mentions>`) through the document graph.

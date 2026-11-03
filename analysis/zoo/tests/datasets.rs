@@ -226,6 +226,8 @@ fn civil_comments_training_heads_name_the_actual_wilds_source() {
         "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
         "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
         "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+        "turbo-en-civil-comments-modernbert-base-head-1",
+        "turbo-en-civil-comments-modernbert-base-context-head-1",
     ] {
         let head = index.get(id).unwrap();
         assert_eq!(head.trained_on[0].license_terms, data.license_terms);

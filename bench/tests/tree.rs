@@ -296,6 +296,7 @@ fn workspace_manifests_do_not_depend_on_regex() {
 #[test]
 fn obsolete_source_tree_is_absent() {
     assert!(!workspace().join("ai-slop-generated-shit").exists());
+    assert!(!workspace().join("analysis/jvm").exists());
 }
 
 #[test]
@@ -361,7 +362,9 @@ fn core_and_analysis_external_dependencies_are_allowlisted() {
             }
             let Some((name, value)) = line.split_once('=') else { continue };
             let name = name.trim();
-            if !value.contains("path =") && !ALLOWED.contains(&name) {
+            // #1490: approved maintained AEAD only in the evaluation adapter.
+            let artifact_aead = path == "analysis/eval/Cargo.toml" && name == "ring";
+            if !value.contains("path =") && !ALLOWED.contains(&name) && !artifact_aead {
                 found.push(format!("{path}: {name}"));
             }
             if matches!(path.as_str(), "core/Cargo.toml" | "analysis/calibration/Cargo.toml")

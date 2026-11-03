@@ -13,7 +13,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::doc::{Document, Status};
 use crate::error::Error;
-use crate::layer::{Anchor, Execution, Key, KeyId, Layer, ModelRef, Provenance};
+use crate::layer::{Anchor, Execution, KeyId, ModelRef, Provenance};
 use crate::splice::LayerSplicer;
 
 /// One input of an annotator: a layer it needs (`Tokens`), or a layer it
@@ -26,30 +26,6 @@ pub trait Slot: 'static {
     const DEFAULT_ID: KeyId;
     fn id(name: &'static str) -> KeyId;
     fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<Self::Ref<'d>, Error>;
-}
-
-impl<L: Layer> Slot for L {
-    type Ref<'d> = &'d L;
-    const REQUIRED: bool = true;
-    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
-    fn id(name: &'static str) -> KeyId {
-        Key::<L>::named(name).id()
-    }
-    fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<&'d L, Error> {
-        doc.require(&Key::<L>::named(name))
-    }
-}
-
-impl<L: Layer> Slot for Option<L> {
-    type Ref<'d> = Option<&'d L>;
-    const REQUIRED: bool = false;
-    const DEFAULT_ID: KeyId = Key::<L>::DEFAULT.id();
-    fn id(name: &'static str) -> KeyId {
-        Key::<L>::named(name).id()
-    }
-    fn fetch<'d>(doc: &'d Document, name: &'static str) -> Result<Option<&'d L>, Error> {
-        Ok(doc.get_key(&Key::<L>::named(name)))
-    }
 }
 
 /// The layers an annotator reads, as a tuple of slots. The analyzer hands
@@ -205,7 +181,7 @@ impl<A: Annotator> Bound<A> {
         self
     }
 
-    fn effective_reads(&self) -> (Vec<KeyId>, Vec<bool>) {
+    pub(super) fn effective_reads(&self) -> (Vec<KeyId>, Vec<bool>) {
         let mut ids = A::Reads::ids(&self.reads);
         let mut reqs = A::Reads::required();
         for &r in self.annotator.requires() {
@@ -217,7 +193,7 @@ impl<A: Annotator> Bound<A> {
         (ids, reqs)
     }
 
-    fn effective_writes(&self) -> Vec<KeyId> {
+    pub(super) fn effective_writes(&self) -> Vec<KeyId> {
         let mut ids = A::Writes::ids(&self.writes);
         for &w in self.annotator.produces() {
             if !ids.iter().any(|k| k.ty == w.ty && (k.name == w.name || w.name.is_empty())) {
@@ -229,10 +205,14 @@ impl<A: Annotator> Bound<A> {
 
     /// The provenance of this step's layers on one document: its optional
     /// inputs are listed only when the document had them.
-    fn provenance(&self, doc: &Document) -> Provenance {
-        let (ids, reqs) = self.effective_reads();
-        let reads =
-            ids.into_iter().zip(reqs).filter(|&(k, required)| required || doc.present(k)).map(|(k, _)| k).collect();
+    pub(super) fn provenance(&self, doc: &Document, ids: &[KeyId], reqs: &[bool]) -> Provenance {
+        let reads = ids
+            .iter()
+            .copied()
+            .zip(reqs.iter().copied())
+            .filter(|&(k, required)| required || doc.present(k))
+            .map(|(k, _)| k)
+            .collect();
         Provenance {
             annotator: A::ID,
             version: A::VERSION,
@@ -247,7 +227,7 @@ impl<A: Annotator> Bound<A> {
     /// Each aligned output hangs on an output of its anchor's type that the
     /// step writes before it, or else on the required input of that type.
     /// The document resolves the anchor in the same order.
-    fn anchors(&self) -> Vec<AnchorUse> {
+    pub(super) fn anchors(&self) -> Vec<AnchorUse> {
         let (read_ids, read_reqs) = self.effective_reads();
         let reads: Vec<KeyId> = read_ids.into_iter().zip(read_reqs).filter(|&(_, r)| r).map(|(k, _)| k).collect();
         let writes = A::Writes::ids(&self.writes);
@@ -272,9 +252,8 @@ impl<A: Annotator> Bound<A> {
 
     /// The first required input that was skipped or failed on this
     /// document, and why.
-    fn skipped_input(&self, doc: &Document) -> Option<String> {
-        let (ids, reqs) = self.effective_reads();
-        ids.into_iter().zip(reqs).filter(|&(_, r)| r).find_map(|(k, _)| match doc.status(k) {
+    pub(super) fn skipped_input(doc: &Document, ids: &[KeyId], reqs: &[bool]) -> Option<String> {
+        ids.iter().copied().zip(reqs.iter().copied()).filter(|&(_, r)| r).find_map(|(k, _)| match doc.status(k) {
             Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
             Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
             _ => None,
@@ -285,8 +264,7 @@ impl<A: Annotator> Bound<A> {
     /// layer it was made on: tags made on the gold tokens, beside the
     /// predicted ones. Reading that instance as well is fine (an
     /// evaluation compares the two).
-    fn unaligned(&self, doc: &Document) -> Option<Error> {
-        let (reads, _) = self.effective_reads();
+    pub(super) fn unaligned(doc: &Document, reads: &[KeyId]) -> Option<Error> {
         reads.iter().find_map(|&layer| {
             doc.made_on(layer).iter().filter(|on| !reads.contains(on)).find_map(|&on| {
                 let read = reads.iter().copied().find(|&r| r.ty == on.ty && doc.present(r))?;
@@ -300,7 +278,12 @@ impl<A: Annotator> Bound<A> {
     /// panics is run again one document at a time to find them. The
     /// annotator is assumed to hold nothing a panic could leave half
     /// changed.
-    fn run<'d>(&self, docs: &'d [Document], at: &[usize], inputs: Vec<Refs<'d, A>>) -> Vec<Placed<A::Writes>> {
+    pub(super) fn run<'d>(
+        &self,
+        docs: &'d [Document],
+        at: &[usize],
+        inputs: Vec<Refs<'d, A>>,
+    ) -> Vec<Placed<A::Writes>> {
         match catch_unwind(AssertUnwindSafe(|| self.annotator.annotate_batch_placed(inputs))) {
             Ok(out) if out.len() == at.len() => out,
             Ok(out) => {

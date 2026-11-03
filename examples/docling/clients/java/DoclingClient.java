@@ -54,7 +54,7 @@ public final class DoclingClient {
             "turbo:levels",
             "turbo:chunk-vectors");
     static final int HEAT_BUCKETS = 16;
-    static final String ENTITIES = "opennlp:entities";
+    static final String ENTITIES = "turbo:entities";
 
     private DoclingClient() {}
 

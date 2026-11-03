@@ -97,6 +97,19 @@ impl MascEntity {
     }
 }
 
+/// A sentence-local piece of an original named entity. Pieces with the same
+/// `id` belong to one entity in this document, never independent BIO spans.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MascEntityPiece {
+    /// Numeric suffix of the original `ne-n` identifier.
+    pub id: i32,
+    /// True when this sentence lacks any of the original entity's tokens.
+    /// This marks every piece, including the first and last.
+    pub continues: bool,
+    /// Membership in this sentence, including discontinuous membership.
+    pub entity: MascEntity,
+}
+
 /// Why an entity of the named entity file has no complete sentence sample
 /// ([`MascDocument::unplaced_entities`]).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -141,6 +154,7 @@ pub struct MascSentence {
     pub(super) token_places: HashMap<i32, usize>,
     names: Vec<MascName>,
     entities: Vec<MascEntity>,
+    entity_pieces: Vec<MascEntityPiece>,
     /// The noun and verb chunks, when they were read.
     pub(super) chunks: Vec<MascChunk>,
     /// The chunks of which the sentence has some tokens but not all.
@@ -159,6 +173,7 @@ impl MascSentence {
             token_places: HashMap::new(),
             names: Vec::new(),
             entities: Vec::new(),
+            entity_pieces: Vec::new(),
             chunks: Vec::new(),
             partial_chunks: Vec::new(),
         }
@@ -183,6 +198,12 @@ impl MascSentence {
     /// Original entity token memberships in file order; see [`MascEntity`].
     pub fn entities(&self) -> &[MascEntity] {
         &self.entities
+    }
+
+    /// Original entities including incomplete pieces, with stable document-local
+    /// identity. A sentence-only trainer must refuse `continues` pieces.
+    pub fn entity_pieces(&self) -> &[MascEntityPiece] {
+        &self.entity_pieces
     }
 
     /// The noun and verb chunks whose tokens are all tokens of this
@@ -277,6 +298,8 @@ pub struct MascDocument {
     index: TextIndex,
     quarks: Vec<Quark>,
     pub(super) sentences: Vec<MascSentence>,
+    document_tokens: Option<MascSentence>,
+    entity_count: usize,
     pub(super) has_penn_tags: bool,
     has_named_entities: bool,
     pub(super) has_chunks: bool,
@@ -313,6 +336,8 @@ impl MascDocument {
             index,
             quarks,
             sentences,
+            document_tokens: None,
+            entity_count: 0,
             has_penn_tags: false,
             has_named_entities: false,
             has_chunks: false,
@@ -327,6 +352,7 @@ impl MascDocument {
         }
         if let Some(ne) = files.named_entities {
             let ne = parse_named_entities(ne)?;
+            doc.entity_count = ne.entities.len();
             doc.warnings.extend(ne.warnings.iter().cloned());
             doc.add_named_entities_with(&ne);
             if let (true, Some(penn)) = (doc.has_named_entities, &penn) {
@@ -362,6 +388,20 @@ impl MascDocument {
         &self.sentences
     }
 
+    /// Number of original NE memberships, including those unresolved to tokens.
+    pub fn entity_count(&self) -> usize {
+        self.entity_count
+    }
+
+    /// All original Penn tokens and entities in source order, independent of
+    /// sentence regions. Cross-sentence entities are whole here. The region is
+    /// the entire original text; no joined or normalized text is constructed.
+    /// Consumers must still reject incomplete, overlapping or discontinuous
+    /// annotations that their model cannot express.
+    pub fn document_tokens(&self) -> Option<&MascSentence> {
+        self.document_tokens.as_ref()
+    }
+
     /// Whether the Penn tokens were added (`hasPennTags`).
     pub fn has_penn_tags(&self) -> bool {
         self.has_penn_tags
@@ -378,6 +418,28 @@ impl MascDocument {
     /// sentence when every one of its tokens is one of the sentence's tokens.
     pub fn unplaced_entities(&self) -> &[MascUnplacedEntity] {
         &self.unplaced
+    }
+
+    /// Refuse incomplete entity pieces before constructing sentence-local gold.
+    ///
+    /// # Errors
+    ///
+    /// [`MascError::CutEntity`] identifies the document, original entity and
+    /// exact UTF-16 offsets of the first incomplete piece.
+    pub fn require_complete_entities(&self) -> Result<(), MascError> {
+        for sentence in &self.sentences {
+            for piece in sentence.entity_pieces().iter().filter(|p| p.continues) {
+                if let Some(tokens) = sentence.tokens() {
+                    return Err(MascError::CutEntity {
+                        path: self.path.clone(),
+                        entity: piece.id,
+                        start: tokens[piece.entity.start as usize].start,
+                        end: tokens[piece.entity.end as usize - 1].end,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     /// What OpenNLP logged while reading the document.

@@ -81,7 +81,7 @@ pub type IncivilityEvidenceSpan = (IncivilityLabel, IxRange<Tokens>);
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
 pub enum IncivilityUnit {
-    /// Score each sentence in `opennlp:sentences` (`IncivilityTarget::Sentence`).
+    /// Score each sentence in `turbo:sentences` (`IncivilityTarget::Sentence`).
     #[default]
     Sentences = 0,
     /// Score each retrieval chunk in `turbo:chunks` (`IncivilityTarget::Chunk`).

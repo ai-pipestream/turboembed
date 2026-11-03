@@ -7,7 +7,7 @@ input	multi/ja	172	58	d3061ebd06c3c878e31d5458e694849ea9a81a9ef20ca024233c463666
 model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
 model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	39	start:u32	end:u32
+layer	turbo:tokens	text	39	start:u32	end:u32
 0	6
 6	9
 9	12
@@ -47,8 +47,8 @@ layer	opennlp:tokens	text	39	start:u32	end:u32
 156	162
 162	168
 168	171
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	39	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	39	unknown:u32	features:str
 0	名詞,副詞可能,*,*,*,*,今日,キョウ,キョー
 0	助詞,係助詞,*,*,*,*,は,ハ,ワ
 0	名詞,副詞可能,*,*,*,*,朝,アサ,アサ

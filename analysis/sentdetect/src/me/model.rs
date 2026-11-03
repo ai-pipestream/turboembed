@@ -86,7 +86,7 @@ impl SentenceModel {
         let limits =
             Limits { feature: maxent.predicates().map(<[u8]>::len).max().unwrap_or(0), abbreviation: longest_entry };
         let model_ref = ModelRef {
-            id: format!("opennlp:SentenceDetectorME:{}", file.language()),
+            id: format!("turbo:SentenceDetectorME:{}", file.language()),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
@@ -144,7 +144,7 @@ impl SentenceModel {
         self.limits
     }
 
-    /// What layers record as their model: `opennlp:SentenceDetectorME:`
+    /// What layers record as their model: `turbo:SentenceDetectorME:`
     /// and the language, the OpenNLP version that trained it, and the
     /// SHA-256 of the model file.
     pub fn model_ref(&self) -> &ModelRef {
@@ -178,7 +178,7 @@ impl SentenceModel {
             index: None,
             limits: Limits { feature: 16, abbreviation: 0 },
             model_ref: ModelRef {
-                id: "opennlp:SentenceDetectorME:en".into(),
+                id: "turbo:SentenceDetectorME:en".into(),
                 revision: "test".into(),
                 sha256: String::new(),
             },

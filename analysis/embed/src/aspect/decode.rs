@@ -183,7 +183,7 @@ pub(super) fn decode_bio_spans(
         }
     }
 
-    // If `PhraseChunks` (`opennlp:chunks`) is present, expand any single-token aspect inside an `NP`
+    // If `PhraseChunks` (`turbo:phrase-chunks`) is present, expand any single-token aspect inside an `NP`
     // chunk to include adjacent noun-compound tokens in that `NP` that are not tagged as opinions.
     if let Some(chunks) = phrase_chunks {
         let n_tokens = token_lower.len();

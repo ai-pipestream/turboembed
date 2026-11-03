@@ -5,7 +5,8 @@ use std::any::TypeId;
 
 use turbo_analysis::{Ix, KeyId, Layer};
 use turbo_analysis_layers::{
-    ColumnAlign, KeyValuePairs, LexicalExpansions, Pii, QualityMetrics, SpanQuality, Tables, TextQuality, WordNetSenses,
+    ColumnAlign, GrammarDiagnostics, KeyValuePairs, LexicalExpansions, Pii, QualityMetrics, SpanQuality, Tables,
+    TextQuality, WordNetSenses,
 };
 use turbo_encoding_layers::{EncodingEvidence, SourceEncoding};
 use turbo_normalize_layers::{
@@ -17,10 +18,10 @@ use turbo_schema_extract::Records;
 use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
-    EmbeddedAsset, EmojiAnnotation, KeyValuePairAnnotation, LexicalExpansionAnnotation, NoiseSpan, PiiMention,
-    PlaceholderAnnotation, ProtectedSpanAnnotation, QualityMetricsAnnotation, RecordValueAnnotation,
-    SourceEncodingAnnotation, SpellingCorrection, TableCellAnnotation, TextArtifact, TypedAnnotation, TypedLayer,
-    WordNetSenseAnnotation,
+    EmbeddedAsset, EmojiAnnotation, GrammarDiagnosticAnnotation, KeyValuePairAnnotation, LexicalExpansionAnnotation,
+    NoiseSpan, PiiMention, PlaceholderAnnotation, ProtectedSpanAnnotation, QualityMetricsAnnotation,
+    RecordValueAnnotation, SourceEncodingAnnotation, SpellingCorrection, TableCellAnnotation, TextArtifact,
+    TypedAnnotation, TypedLayer, WordNetSenseAnnotation,
 };
 
 fn placeholder_kind_name(k: PlaceholderKind) -> &'static str {
@@ -105,6 +106,27 @@ pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
                     probability: None,
                     model_ref: mref.map(ToOwned::to_owned),
                     value: Some(Value::SpanQuality(quality_metrics(metrics))),
+                })
+                .collect()
+        }));
+    }
+    if ty == TypeId::of::<GrammarDiagnostics>() {
+        return Some(build_layer::<GrammarDiagnostics>(cx, key, |cx, l, mref| {
+            let mref = mref.map(ToOwned::to_owned);
+            l.diagnostics
+                .iter()
+                .enumerate()
+                .map(|(i, d)| TypedAnnotation {
+                    spans: cx.project_spans(&l.spans, Ix::new(i as u32)),
+                    probability: Some(f64::from(d.confidence)),
+                    model_ref: mref.clone(),
+                    value: Some(Value::GrammarDiagnostic(GrammarDiagnosticAnnotation {
+                        rule_id: d.rule_id.to_string(),
+                        category: Some(i32::from(d.category.as_u8())),
+                        message: d.message.to_string(),
+                        replacements: d.replacements.iter().map(ToString::to_string).collect(),
+                        confidence: d.confidence,
+                    })),
                 })
                 .collect()
         }));

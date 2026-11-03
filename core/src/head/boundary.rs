@@ -63,6 +63,11 @@ impl SentenceBoundary {
         self.scorer.hidden()
     }
 
+    /// Encoder layers the head taps from the top of the encoder (1 when `layer_mix` is absent).
+    pub fn taps(&self) -> usize {
+        self.scorer.taps()
+    }
+
     /// Whether the head reads each word's text (a `hash_embed`).
     pub fn reads_forms(&self) -> bool {
         self.scorer.reads_forms()

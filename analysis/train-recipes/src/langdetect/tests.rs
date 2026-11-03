@@ -14,12 +14,12 @@ fn every_reference_code_is_in_one_pair_and_the_tatoeba_codes_are_unique() {
     };
     assert_eq!(tatoeba, sorted, "in Tatoeba code order");
     tatoeba.dedup();
-    assert_eq!(tatoeba.len(), 100);
+    assert_eq!(tatoeba.len(), 107);
     let mut reference: Vec<&str> = LANGUAGES.iter().flat_map(|p| p.reference.iter().copied()).collect();
     reference.sort_unstable();
     let all = reference.len();
     reference.dedup();
-    assert_eq!((all, reference.len()), (103, 103), "each of the reference's 103 codes once");
+    assert_eq!((all, reference.len()), (110, 110), "each of the reference's 110 codes once");
     for p in LANGUAGES {
         for code in std::iter::once(p.tatoeba).chain(p.reference.iter().copied()) {
             assert!(code.len() == 3 && code.bytes().all(|b| b.is_ascii_lowercase()), "{code}");

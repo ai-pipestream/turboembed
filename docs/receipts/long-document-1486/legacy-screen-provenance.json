@@ -1,0 +1,10 @@
+{
+  "description": "Replay of recovered private executable, not a newly source-verified build. Original source association is recorded in issue1486 comment6494792025. No retrieval scores. CUAD queries4182 in the legacy projection counts contract-template annotation pairs, not independent queries.",
+  "sha256": {
+    "executable": "d0a3625ac8a744622608c6bbd97a178d1366aff7df8683788b009be7354ae97f",
+    "source": "c37f60e0a51fb45cafc4a76ad89acb35a542233e52835c8300cfa8e65f3f42db",
+    "manifest": "7b956167208786b6f1b7c707550e44d19f1cf79bdefa4b2840a127daa16d041e",
+    "cuad_projection": "8a5aac85f1d22fa48eae1741f83c2cc856399875150e4cc4dd0df3fbe037ceb7",
+    "contract_nli_projection": "341e0c03add06e8cb60cf017139a513193e41fa675016cb95e0dd747bba9ddf8"
+  }
+}

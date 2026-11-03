@@ -13,6 +13,9 @@ name = "turbo-eval"
 path = "src/main.rs"
 
 [dependencies]
+# Narrow maintained AEAD exception approved for #1490.
+ring = "0.17.14"
+turbo-sha256 = { path = "../sha256" }
 turbo-calibration = { path = "../calibration" }
 # The record's provenance block reuses turbo-bench's types, which live in
 # the core's record module.
@@ -51,4 +54,6 @@ flate2 = "1"
 turbo-zstd = { path = "../zstd" }
 
 [dev-dependencies]
+# Reuse provider authentication in the explicit RustFS integration probe.
+turbo-zoo = { path = "../zoo" }
 turbo-pins = { path = "../pins" }

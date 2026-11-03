@@ -147,7 +147,7 @@ fn document_graph_round_trips_with_layer_listing() {
     assert_eq!(out.source_text, TEXT);
     let ids: Vec<(&str, LayerWireStatus)> =
         out.layers.iter().map(|l| (l.layer.as_str(), LayerWireStatus::try_from(l.status).unwrap())).collect();
-    for want in ["opennlp:sentences", "turbo:chunks", "turbo:levels", "opennlp:embeddings<turbo:chunks>"] {
+    for want in ["turbo:sentences", "turbo:chunks", "turbo:levels", "turbo:embeddings<turbo:chunks>"] {
         assert!(ids.contains(&(want, LayerWireStatus::Ok)), "{want} in {ids:?}");
     }
     let chunks = out.layers.iter().find(|l| l.layer == "turbo:chunks").unwrap();

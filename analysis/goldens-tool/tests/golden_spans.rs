@@ -179,8 +179,12 @@ fn tokens_over_emoji_and_supplementary_characters_hold_them_whole() {
 
 #[test]
 fn sentences_of_a_text_with_emoji_start_and_end_on_its_words() {
-    let sentences = texts("sentdetect", "en/emoji");
-    assert_eq!(sentences.first().map(String::as_str), Some("We won the match!"));
+    let text = input_text("en/emoji");
+    let detector = turbo_sentdetect::RuleSentenceDetector::new("en");
+    let mut spans = Vec::new();
+    detector.splitter.try_split(&text, &mut spans).unwrap();
+    let sentences: Vec<&str> = spans.iter().map(|span| &text[span.range()]).collect();
+    assert_eq!(sentences.first().copied(), Some("We won the match!"));
     assert!(sentences.iter().any(|s| s.ends_with("😀.")), "{sentences:?}");
 }
 
@@ -193,7 +197,7 @@ fn tokens_that_cut_an_emoji_hold_it_whole_and_keep_their_utf16_spans() {
     let spans = read_spans(&path);
     let text = input_text(&spans.input);
     let (layer, tokens) = &spans.layers[0];
-    let utf16 = spans.utf16_of(layer).expect("a turbo:utf16<opennlp:tokens> layer");
+    let utf16 = spans.utf16_of(layer).expect("a turbo:utf16<turbo:tokens> layer");
     assert_eq!(utf16.len(), tokens.len());
     let units: Vec<u16> = text.encode_utf16().collect();
     let mut cut = 0;

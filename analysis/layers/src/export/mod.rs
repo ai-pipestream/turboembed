@@ -108,6 +108,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Language>()
         .register::<crate::TextQuality>()
         .register::<crate::SpanQuality>()
+        .register::<crate::GrammarDiagnostics>()
         .register::<LanguageSpans>()
         .register::<Temporals>()
         .register::<DocumentDate>()

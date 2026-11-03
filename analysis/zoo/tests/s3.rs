@@ -1,7 +1,8 @@
 //! An S3 bucket as a source (#1613), against a small S3 stand-in started
 //! in-process: path-style addressing as RustFS serves it, the
 //! signature checked by the stand-in, unsigned reads of a public bucket,
-//! and the zoo's own checks on whatever the bucket serves.
+//! a holder's own keys (#1744), and the zoo's own checks on whatever the
+//! bucket serves.
 #![cfg(feature = "http")]
 
 use std::collections::HashMap;
@@ -12,7 +13,9 @@ use std::path::PathBuf;
 use std::thread::JoinHandle;
 
 use turbo_zoo::sigv4::{Credentials, EMPTY_SHA256, payload_sha256, sign};
-use turbo_zoo::{Acceptances, Blobs, Index, Policy, S3Bucket, Sha256, Sha512, Transport, Url, UserId, Zoo, ZooError};
+use turbo_zoo::{
+    Acceptances, Blobs, Index, Policy, S3Bucket, Sha256, Sha512, SignIn, Transport, Url, UserId, Zoo, ZooError,
+};
 
 const TEXT: &[u8] = b"hello hello hello\n";
 
@@ -240,4 +243,40 @@ impl Transport for Origin {
     fn get(&self, _url: &Url, _size: u64) -> Result<Vec<u8>, String> {
         Ok(self.0.clone())
     }
+}
+
+#[test]
+fn a_holders_own_keys_sign_its_reads() {
+    let objects = HashMap::from([(key("/models/zoo"), TEXT.to_vec())]);
+    let (endpoint, server) = stand_in(objects, Some(creds()), 1);
+    let sign_in = SignIn::S3Keys {
+        access_key_id: "AKIDEXAMPLE".into(),
+        secret_access_key: "a-secret".into(),
+        session_token: Some("a-session".into()),
+        region: None,
+        endpoint: Some(endpoint),
+    };
+    let bucket = S3Bucket::signed_in("s3://models/zoo", &sign_in).unwrap();
+    let cache = Dir::new("holder");
+    let zoo = Zoo::new(index(), cache.0.clone(), Policy::default(), &bucket);
+    let fetched = zoo.fetch("hello", &alice(), &Acceptances::default()).unwrap();
+    assert_eq!(fs::read(fetched.single().unwrap()).unwrap(), TEXT);
+    let (seen, _) = server.join().unwrap();
+    let authorization = &seen[0].headers["authorization"];
+    assert!(authorization.contains("Credential=AKIDEXAMPLE/") && authorization.contains("/us-east-1/s3/"));
+    assert_eq!(seen[0].headers["x-amz-security-token"], "a-session");
+    // In their region on AWS when no endpoint is named.
+    let keys = |region: &str| SignIn::S3Keys {
+        access_key_id: "k".into(),
+        secret_access_key: "s".into(),
+        session_token: None,
+        region: Some(region.into()),
+        endpoint: None,
+    };
+    let aws = S3Bucket::signed_in("s3://models/zoo", &keys("eu-west-1")).unwrap();
+    assert_eq!(aws.url_of("ab"), "https://models.s3.eu-west-1.amazonaws.com/zoo/blobs/sha256/ab");
+    let e = S3Bucket::signed_in("s3://models", &keys("EU")).err().unwrap();
+    assert!(e.contains("region"), "{e}");
+    let e = S3Bucket::signed_in("s3://models", &SignIn::ApiKey { key: "k".into() }).err().unwrap();
+    assert!(e.contains("its own S3 keys"), "{e}");
 }

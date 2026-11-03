@@ -11,6 +11,8 @@ fn zero() -> turbo_embed_options {
         output_dim: 0,
         quantization: 0,
         int8_ranges: std::ptr::null(),
+        layers: 0,
+        reserved: 0,
     }
 }
 
@@ -61,4 +63,35 @@ fn an_option_a_device_does_not_honor_is_refused_by_its_number() {
     honored(&o, CORE_HONORED | 0b110000, "x").unwrap();
     let o = turbo_embed_options { max_tokens: 3, ..zero() };
     assert_eq!(honored(&o, 0, "x").unwrap_err().field, 2);
+}
+
+#[test]
+fn a_layer_count_is_judged_against_the_model_before_the_device() {
+    use crate::backend::{TURBO_FAMILY_BERT, TURBO_FAMILY_NOMIC_BERT, TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC};
+    let enc = |family| Taps { layers: 2, family, span_head: false };
+    let code = |taps, model, read| taps_refusal(taps, model, read, "x").map_err(|e| (e.code, e.field));
+    for family in [TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA, TURBO_FAMILY_NOMIC_BERT] {
+        for read in [true, false] {
+            // 0 and over the model's layers: the request's fault on every device.
+            assert_eq!(code(0, enc(family), read), Err((INVALID_ARGUMENT, 9)), "family {family}, read {read}");
+            assert_eq!(code(3, enc(family), read), Err((INVALID_ARGUMENT, 9)), "family {family}, read {read}");
+            assert_eq!(code(1, enc(family), read), Ok(()), "the final layer alone, on any device");
+        }
+        // Within the model's layers: the device's, by its cell's bit.
+        assert_eq!(code(2, enc(family), true), Ok(()));
+        assert_eq!(code(2, enc(family), false), Err((UNSUPPORTED_OPTION, 9)));
+        // A span head on the device reads the final layer, after the count.
+        let headed = Taps { span_head: true, ..enc(family) };
+        assert_eq!(code(3, headed, true), Err((INVALID_ARGUMENT, 9)));
+        assert_eq!(code(2, headed, true), Err((UNSUPPORTED_OPTION, 9)));
+    }
+    // A static model has no encoder layers to count: above 1 is the family's.
+    let table = Taps { layers: 0, family: TURBO_FAMILY_STATIC, span_head: false };
+    for read in [true, false] {
+        assert_eq!(code(2, table, read), Err((UNSUPPORTED_OPTION, 9)));
+        assert_eq!(code(0, table, read), Err((INVALID_ARGUMENT, 9)));
+        assert_eq!(code(1, table, read), Ok(()));
+    }
+    let e = taps_refusal(3, enc(TURBO_FAMILY_BERT), false, "x").unwrap_err();
+    assert_eq!(e.message, "layers 3: the model has 1 to 2 to read");
 }

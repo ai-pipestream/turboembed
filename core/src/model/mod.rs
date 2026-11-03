@@ -41,10 +41,19 @@ fn enum_name(v: impl Serialize) -> String {
 
 /// Rule 6: the first artifact, in manifest order, that lists `backend`,
 /// was built for `arch` or for any device, is in one of `formats` (the
-/// backend's TURBO_FORMAT_BIT set, turbo_backend::formats), and is
-/// something this build hands a backend: raw weights, a HEF, or an
-/// OpenVINO IR. None is BUNDLE_NO_ARTIFACT, saying why each was skipped.
+/// backend's TURBO_FORMAT_BIT set, turbo_backend::formats), is something
+/// this build hands a backend: raw weights, a HEF, or an OpenVINO IR, and
+/// whose model the backend runs: an encoder for the family (runs_family)
+/// and attention for the band (runs_band). None is BUNDLE_NO_ARTIFACT,
+/// saying why each was skipped, before any file of an artifact is read.
 pub fn choose(m: &Manifest, backend: &str, formats: u32, arch: &str) -> Result<usize> {
+    // The family and the band are the manifest's, not an artifact's: the
+    // backend runs every artifact's model or none. A static model has
+    // neither, and a manifest without an architecture hands on no encoder.
+    let runs = match (&m.architecture, &m.static_embedding) {
+        (Some(a), None) => runs_family(backend, family(a)).and_then(|()| runs_band(backend, a.lookahead.unwrap_or(0))),
+        _ => Ok(()),
+    };
     let mut skipped = Vec::new();
     for (i, a) in m.artifacts.iter().enumerate() {
         let why = if !a.backends.iter().any(|b| b == backend) {
@@ -55,6 +64,8 @@ pub fn choose(m: &Manifest, backend: &str, formats: u32, arch: &str) -> Result<u
             format!("{} is not a format the {backend} backend loads", enum_name(a.format))
         } else if !matches!(a.format, Format::Safetensors | Format::Hef | Format::OpenvinoIr) {
             format!("{} is not a format this build hands a backend", enum_name(a.format))
+        } else if let Err(e) = &runs {
+            e.message.clone()
         } else {
             return Ok(i);
         };
@@ -106,7 +117,8 @@ pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
 
 /// Whether the backend named `backend` runs a model of limited lookahead
 /// `lookahead` (0 for none): only the CPU's attention takes a band, and any
-/// other would run the whole row and give wrong vectors.
+/// other would run the whole row and give wrong vectors. Rule 6 (choose)
+/// skips an artifact whose backend this refuses, giving this message.
 pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
     if lookahead == 0 || backend == "cpu" {
         return Ok(());
@@ -123,7 +135,8 @@ pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
 /// `family`: only the CPU, CUDA, Level Zero and Metal have a DeBERTa-v2
 /// encoder so far, and only the CPU, CUDA, Level Zero and Metal a
 /// ModernBERT or nomic-bert one; any other would refuse the family at
-/// model_load.
+/// model_load. Rule 6 (choose) skips an artifact whose backend this
+/// refuses, giving this message.
 pub fn runs_family(backend: &str, family: u32) -> Result<()> {
     // Only the CPU, CUDA, Level Zero and Metal have a rotary encoder so far (#1461).
     if matches!(family, TURBO_FAMILY_MODERNBERT | TURBO_FAMILY_NOMIC_BERT) {
@@ -133,7 +146,7 @@ pub fn runs_family(backend: &str, family: u32) -> Result<()> {
         let name = if family == TURBO_FAMILY_MODERNBERT { "FAMILY_MODERNBERT" } else { "FAMILY_NOMIC_BERT" };
         return Err(Error::new(
             UNSUPPORTED,
-            format!("{name}: the {backend} backend has no encoder for it yet; use cpu, cuda or metal"),
+            format!("{name}: the {backend} backend has no encoder for it yet; use cpu, cuda, levelzero or metal"),
         ));
     }
     if family != TURBO_FAMILY_DEBERTA_V2 || matches!(backend, "cpu" | "cuda" | "levelzero" | "metal") {

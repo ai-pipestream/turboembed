@@ -38,8 +38,8 @@ impl SinkReceiver {
 }
 
 /// Why `item` is not accepted after an item of sequence `last`, if it is
-/// not: a sequence not over the last, an item carrying nothing, or graph
-/// bytes that do not import.
+/// not: a sequence not over the last, an item carrying nothing, graph
+/// bytes that do not import, or a typed projection that is not valid.
 fn check(item: &DocumentSinkItem, last: Option<u64>) -> Result<(), String> {
     if last.is_some_and(|l| item.sequence <= l) {
         return Err(format!("sequence {} is not over the last, {}", item.sequence, last.unwrap_or(0)));
@@ -53,6 +53,9 @@ fn check(item: &DocumentSinkItem, last: Option<u64>) -> Result<(), String> {
         }
         let graph = DocumentGraph::from_bytes(&item.graph).map_err(|e| format!("document graph: {e}"))?;
         import(&graph, crate::results::document::codecs()).map_err(|e| format!("document graph import: {e}"))?;
+    }
+    if let Some(typed) = &item.typed {
+        super::document::check_typed(item, typed)?;
     }
     Ok(())
 }

@@ -6,7 +6,7 @@
 //! Dependencies relations; nothing of spaCy's runs here.
 //!
 //! [`derive`] works on columns; [`DependencyChunker`] reads the tokens,
-//! their tags and the parse and writes `opennlp:chunks` (`NP`, `VP`). It
+//! their tags and the parse and writes `turbo:phrase-chunks` (`NP`, `VP`). It
 //! reads UPOS tags (`NOUN`, `VERB`) or Penn tags (`NN`, `VBZ`), and the
 //! parse's relations are UD's (`nsubj`, `obj`, `aux`, ...).
 //!
@@ -162,7 +162,7 @@ pub fn derive(tags: &[&str], heads: &[Option<usize>], rels: &[&str], words: &[&s
     kept
 }
 
-/// Writes `opennlp:chunks` from the tokens, their tags and their parse.
+/// Writes `turbo:phrase-chunks` from the tokens, their tags and their parse.
 #[derive(Clone, Debug)]
 pub struct DependencyChunker {
     kinds: Arc<TagSet>,

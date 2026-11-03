@@ -1,22 +1,21 @@
-//! Reference models a recipe's model is gated against, either listed in the
-//! zoo's built-in index or recorded by size and SHA-256.
+//! Evaluation references: native gold-label baselines or remaining legacy
+//! model references scheduled for retirement.
 
 use turbo_zoo::{Index, Sha256};
 
 use crate::error::{Error, Result};
 
-/// The OpenNLP model a recipe's model is gated against.
+/// The reference policy a recipe uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reference {
+    /// Native predicted spans against gold labels and a newline baseline. No model file.
+    GoldSentences,
+    /// Retired model identity only: no file, digest, fetch or scoring.
+    Retired(&'static str),
     /// A model of the zoo's built-in index, by its id.
     Zoo(&'static str),
     /// A model the zoo does not list, recorded by the recipe.
     Recorded(RecordedReference),
-    /// An OpenNLP 2.5 model the recipe was gated against, kept by its id
-    /// alone: it is not fetched or pinned (#1509), so its file, digest and
-    /// check are errors ([`Error::RetiredReference`]) until #1532 removes
-    /// the recipe's gate.
-    Retired(&'static str),
 }
 
 /// A reference model the zoo does not list: its file as published, which
@@ -40,33 +39,36 @@ impl Reference {
     /// recorded one.
     pub fn id(&self) -> &'static str {
         match self {
+            Reference::GoldSentences => crate::sentence_gold::BASELINE_ID,
             Reference::Zoo(id) | Reference::Retired(id) => id,
             Reference::Recorded(r) => r.id,
         }
     }
 
-    /// The model's file name: the one the zoo's built-in index gives it,
-    /// or the recorded one.
+    /// The external model file name. Native gold-label evaluation has no file.
     ///
     /// # Errors
     ///
-    /// A zoo id the index does not list, or a retired reference.
+    /// A native gold-label baseline, a retired reference, or an unknown zoo id.
     pub fn file(&self) -> Result<String> {
         match self {
+            Reference::GoldSentences => {
+                Err(Error::Model("gold sentence evaluation has no reference model file".into()))
+            }
             Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].path.to_string()),
             Reference::Recorded(r) => Ok(r.file.to_owned()),
             Reference::Retired(id) => Err(Error::RetiredReference { id }),
         }
     }
 
-    /// The model file's SHA-256: the one the zoo's built-in index lists, or
-    /// the recorded one.
+    /// A model-file SHA-256, or the native baseline algorithm identity hash.
     ///
     /// # Errors
     ///
-    /// A zoo id the index does not list, or a retired reference.
+    /// An unknown zoo id or a retired reference.
     pub fn sha256(&self) -> Result<String> {
         match self {
+            Reference::GoldSentences => Ok(crate::sentence_gold::baseline().sha256),
             Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].sha256.to_string()),
             Reference::Recorded(r) => Ok(r.sha256.to_owned()),
             Reference::Retired(id) => Err(Error::RetiredReference { id }),
@@ -78,12 +80,15 @@ impl Reference {
     ///
     /// # Errors
     ///
-    /// [`Error::ReferenceDigest`] for other bytes, a zoo id the index
-    /// does not list, or a retired reference.
+    /// Native gold-label baselines reject all byte inputs. Model references
+    /// reject a wrong digest, an unknown zoo id, or a retired reference.
     pub fn check(&self, bytes: &[u8]) -> Result<()> {
+        if matches!(self, Self::GoldSentences) {
+            return Err(Error::Model("gold sentence evaluation accepts spans, not reference model bytes".into()));
+        }
         let expected = self.sha256()?;
         let size = match self {
-            Reference::Zoo(_) | Reference::Retired(_) => None,
+            Reference::GoldSentences | Reference::Zoo(_) | Reference::Retired(_) => None,
             Reference::Recorded(r) => Some(r.size),
         };
         let found = Sha256::of(bytes).to_string();

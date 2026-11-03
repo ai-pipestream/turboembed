@@ -185,7 +185,7 @@ impl<'a> CorefInput<'a> {
         let mut ends = HashMap::with_capacity(tokens.len());
         let mut sentence_of_token = Vec::with_capacity(tokens.len());
         if !tokens.is_empty() && sentences.is_empty() {
-            return Err("document needs a non-empty opennlp:sentences layer".into());
+            return Err("document needs a non-empty turbo:sentences layer".into());
         }
         let mut sentence = 0;
         for (t, &token) in tokens.iter().enumerate() {

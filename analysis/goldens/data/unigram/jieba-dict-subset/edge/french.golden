@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/french	164	149	6bab75cdbbd521fa95a0f838d9b38e836a5efc8c22c0cb655bc79bd66bdcc6eb
 model	jieba-dict-subset.txt	365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	120	start:u32	end:u32
+layer	turbo:tokens	text	120	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -127,4 +127,4 @@ layer	opennlp:tokens	text	120	start:u32	end:u32
 160	161
 161	162
 162	163
-end	opennlp:tokens
+end	turbo:tokens

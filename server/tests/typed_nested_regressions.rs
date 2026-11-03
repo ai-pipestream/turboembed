@@ -229,13 +229,13 @@ async fn consolidated_mentions_reject_ambiguous_targets_in_either_order() {
             let gold = layer
                 .indexes_layer
                 .iter()
-                .find(|bound| bound.layer == "opennlp:entities" && bound.instance == "gold")
+                .find(|bound| bound.layer == "turbo:entities" && bound.instance == "gold")
                 .unwrap()
                 .clone();
             let mut default = gold.clone();
             default.instance.clear();
             default.bound = 1;
-            layer.indexes_layer.retain(|bound| bound.layer != "opennlp:entities");
+            layer.indexes_layer.retain(|bound| bound.layer != "turbo:entities");
             if default_first {
                 layer.indexes_layer.extend([default, gold]);
             } else {
@@ -243,7 +243,7 @@ async fn consolidated_mentions_reject_ambiguous_targets_in_either_order() {
             }
             let error = client.round_trip_typed_document(bad).await.unwrap_err();
             assert_eq!(error.code(), tonic::Code::InvalidArgument, "{error}");
-            assert!(error.message().contains("ambiguous opennlp:entities index targets"), "{error}");
+            assert!(error.message().contains("ambiguous turbo:entities index targets"), "{error}");
         }
     }
     server.stop().await;

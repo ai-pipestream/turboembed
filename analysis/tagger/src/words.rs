@@ -30,7 +30,7 @@ use std::path::Path;
 
 use turbo::bundle::Bundle;
 use turbo::manifest::{PromptRole, Truncation, WordPooling};
-use turbo::status::{Error, INVALID_ARGUMENT, Result};
+use turbo::status::{Error, INVALID_ARGUMENT, Result, UNSUPPORTED_OPTION};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::turbo_token_range;
 use turbo_analysis::{Execution, Ix, Layer as _, View};
@@ -87,21 +87,26 @@ impl WordEncoder {
     /// rows can be read one word a token.
     pub fn open(dir: &Path, o: &EncoderOptions) -> Result<WordEncoder> {
         let bundle = Bundle::open(dir)?;
-        let tokenizer = Tokenizer::load(&bundle)?;
+        let max_layers = bundle.manifest.architecture.as_ref().map_or(0, |a| a.layers);
         let embed = bundle.manifest.embed();
-        let mut eo = o.clone();
-        eo.max_batch = if eo.max_batch == 0 { embed.max_batch } else { eo.max_batch };
-        eo.max_seq = if eo.max_seq == 0 { embed.max_seq } else { eo.max_seq };
-        eo.max_ranges = eo.max_batch.saturating_mul(eo.max_seq);
-        let encoder = Encoder::open(dir, &eo)?;
-        let (cls, sep) = tokenizer.template_ends();
-        let overhead = cls.len() + sep.len();
-        let info = encoder.info().clone();
-        if info.max_seq as usize <= overhead {
+        let max_batch = if o.max_batch == 0 { embed.max_batch } else { o.max_batch };
+        let max_seq = if o.max_seq == 0 { embed.max_seq } else { o.max_seq };
+        if o.layers > 1 && max_layers == 0 {
+            return Err(Error::new(UNSUPPORTED_OPTION, "static_embedding has no encoder layers"));
+        }
+        if o.layers > 1 && (o.layers > max_layers || o.layers > max_batch) {
             return Err(Error::new(
                 INVALID_ARGUMENT,
-                format!("max_seq {} leaves no room beside {overhead} special tokens", info.max_seq),
+                format!("{} layers: 1 to {}", o.layers, max_layers.min(max_batch)),
             ));
+        }
+        let (taps, tokenizer, max_ranges) =
+            (o.layers.max(1) as usize, Tokenizer::load(&bundle)?, max_batch.saturating_mul(max_seq));
+        let encoder = Encoder::open(dir, &EncoderOptions { max_batch, max_seq, max_ranges, layers: 0, ..o.clone() })?;
+        let (cls, sep) = tokenizer.template_ends();
+        let (overhead, info) = (cls.len() + sep.len(), encoder.info().clone());
+        if info.max_seq as usize <= overhead {
+            return Err(Error::new(INVALID_ARGUMENT, format!("max_seq {} <= {overhead} special tokens", info.max_seq)));
         }
         Ok(WordEncoder {
             width: info.max_seq as usize - overhead,
@@ -115,7 +120,7 @@ impl WordEncoder {
             manifest: bundle.manifest_sha256.clone(),
             tokenized: 0,
             rows: 0,
-            taps: 1,
+            taps,
         })
     }
 
@@ -123,9 +128,7 @@ impl WordEncoder {
     pub fn tokenized(&self) -> u64 {
         self.tokenized
     }
-
-    /// Rows read by the encoder so far: one a window, however many
-    /// poolings are taken from it.
+    /// Rows read by the encoder so far: one a window, whatever the poolings.
     pub fn rows(&self) -> u64 {
         self.rows
     }
@@ -213,7 +216,7 @@ impl WordEncoder {
             }
             pieces.push(words);
         }
-        self.features_of(&pieces, poolings).map_err(|e| e.to_string())
+        self.features_of(&pieces, poolings).map(|raw| self.pack(raw, poolings.len())).map_err(|e| e.to_string())
     }
 
     /// A word's pieces as a row holds them: the unknown piece for none,
@@ -230,12 +233,14 @@ impl WordEncoder {
     pub fn hidden(&self) -> usize {
         self.hidden
     }
-
+    /// Encoder layers each word read returns (`1` unless `EncoderOptions::layers` > 1).
+    pub fn taps(&self) -> usize {
+        self.taps
+    }
     /// Pieces a row holds beside its special tokens.
     pub fn width(&self) -> usize {
         self.width
     }
-
     pub fn execution(&self) -> &Execution {
         &self.encoder.info().execution
     }
@@ -248,8 +253,9 @@ impl WordEncoder {
         Ok(self.bounded(ids))
     }
 
-    /// Each sequence's word features [words, hidden], `sequences[s]` its
-    /// words' text, pooled by `pooling`.
+    /// Each sequence's word features [words, hidden] (or [taps, words,
+    /// hidden] when `taps > 1`), `sequences[s]` its words' text, pooled by
+    /// `pooling`.
     pub fn features(&mut self, sequences: &[Vec<&str>], pooling: WordPooling) -> Result<Vec<Vec<f32>>> {
         Ok(self.features_pooled(sequences, &[pooling])?.pop().expect("one pooling"))
     }
@@ -260,7 +266,18 @@ impl WordEncoder {
     pub fn features_pooled(&mut self, sequences: &[Vec<&str>], poolings: &[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>> {
         let pieces: Vec<Vec<Vec<i32>>> =
             sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
-        self.features_of(&pieces, poolings)
+        self.features_of(&pieces, poolings).map(|raw| self.pack(raw, poolings.len()))
+    }
+
+    fn pack(&self, raw: Vec<Vec<Vec<f32>>>, poolings: usize) -> Vec<Vec<Vec<f32>>> {
+        if self.taps == 1 {
+            return raw;
+        }
+        let seqs = raw.first().map_or(0, Vec::len);
+        let join = |p: usize, s: usize| -> Vec<f32> {
+            (0..self.taps).flat_map(|t| raw[t * poolings + p][s].iter().copied()).collect()
+        };
+        (0..poolings).map(|p| (0..seqs).map(|s| join(p, s)).collect()).collect()
     }
 
     /// Each sequence's word features at each of the encoder's last
@@ -268,9 +285,9 @@ impl WordEncoder {
     /// `model layers - layers + 1 + l` (counted from 1), so the last is
     /// what [`features`](Self::features) gives, and each is what the
     /// encoder cut after that layer would give. The CPU backend reads
-    /// layers of BERT, RoBERTa, ModernBERT and nomic encoders; a run holds
-    /// a window's words at every layer, so `max_batch` must be at least
-    /// `layers`.
+    /// layers of BERT, RoBERTa, ModernBERT, DeBERTa-v2 and nomic encoders;
+    /// a run holds a window's words at every layer, so `max_batch` must be
+    /// at least `layers`.
     pub fn layer_features(
         &mut self,
         sequences: &[Vec<&str>],
@@ -285,9 +302,9 @@ impl WordEncoder {
         }
         let pieces: Vec<Vec<Vec<i32>>> =
             sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
-        self.taps = layers as usize;
+        let saved = std::mem::replace(&mut self.taps, layers as usize);
         let out = self.features_of(&pieces, &[pooling]);
-        self.taps = 1;
+        self.taps = saved;
         out
     }
 
@@ -424,51 +441,4 @@ impl WordEncoder {
     }
 }
 
-/// The windows of a sequence whose words have `lens` pieces each (every
-/// one at least 1 and at most `width`), as words `a..b`, and the window
-/// each word's features come from. See the module comment.
-pub fn plan(lens: &[usize], width: usize) -> (Vec<(usize, usize)>, Vec<usize>) {
-    let n = lens.len();
-    let mut spans: Vec<(usize, usize)> = Vec::new();
-    let mut a = 0;
-    while a < n {
-        let (mut b, mut used) = (a, 0);
-        while b < n && used + lens[b] <= width {
-            used += lens[b];
-            b += 1;
-        }
-        spans.push((a, b));
-        if b == n {
-            break;
-        }
-        // The next window starts at the first word of the second half.
-        let (mut next, mut seen) = (a, 0);
-        while next < b && seen < used / 2 {
-            seen += lens[next];
-            next += 1;
-        }
-        a = next.max(a + 1);
-    }
-    // A word's context in a window: the pieces on its nearer side, a
-    // sequence's own ends counting as all the context there is.
-    let context = |&(a, b): &(usize, usize), w: usize| -> usize {
-        let before = if a == 0 { usize::MAX } else { lens[a..w].iter().sum() };
-        let after = if b == n { usize::MAX } else { lens[w + 1..b].iter().sum() };
-        before.min(after)
-    };
-    let owner = (0..n)
-        .map(|w| {
-            let mut best: Option<(usize, usize)> = None;
-            for (i, span) in spans.iter().enumerate() {
-                if span.0 <= w && w < span.1 {
-                    let c = context(span, w);
-                    if best.is_none_or(|(_, bc)| c > bc) {
-                        best = Some((i, c));
-                    }
-                }
-            }
-            best.map_or(0, |(i, _)| i)
-        })
-        .collect();
-    (spans, owner)
-}
+pub use turbo::head::run::plan;

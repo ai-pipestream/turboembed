@@ -1,5 +1,5 @@
 //! ChunkLevelsResult: `turbo:chunks`, `turbo:levels` and
-//! `opennlp:embeddings` over the chunks, in one message over one
+//! `turbo:embeddings` over the chunks, in one message over one
 //! view's text, with every span offset counted in the message's
 //! `OffsetMode`. Decoding converts the offsets to UTF-8 bytes
 //! through the text's checkpoint table, rebuilds the three

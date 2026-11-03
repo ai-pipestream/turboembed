@@ -6,15 +6,15 @@ unicode	15.0
 input	edge/tabs-spaces	20	20	3b5bbb6da02856fe989d454a7c27dfb71dd7d0382625f327eb7eaa6945dadb84
 model	mecab-fixture-ko	527e0f80d5ed85fbda9aedadfedc64ab4f17bc4a9d4869cdf4b1cb274e34e5742211e7e91124dbb80a5fea50839546073e0f1cbd0695a15fb81fd0f5abbea44e
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	6	start:u32	end:u32
+layer	turbo:tokens	text	6	start:u32	end:u32
 0	1
 2	3
 5	6
 9	10
 14	15
 18	19
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	6	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	6	unknown:u32	features:str
 1	SL,*,*,*,*,*,*,*
 1	SL,*,*,*,*,*,*,*
 1	SL,*,*,*,*,*,*,*

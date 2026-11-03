@@ -1950,12 +1950,9 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-geo",
  "turbo-goldens",
- "turbo-lemmatizer",
- "turbo-maxent",
  "turbo-pii",
  "turbo-pins",
  "turbo-sentdetect",
- "turbo-sequence",
  "turbo-sha256",
  "turbo-tokenize",
  "turbo-unicode",
@@ -1994,7 +1991,9 @@ dependencies = [
  "turbo-goldens",
  "turbo-normalize",
  "turbo-pins",
+ "turbo-sentdetect",
  "turbo-tokenize",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-zoo",
@@ -2171,6 +2170,7 @@ name = "turbo-eval"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "ring",
  "serde",
  "serde_json",
  "turbo",
@@ -2184,11 +2184,13 @@ dependencies = [
  "turbo-pins",
  "turbo-sat",
  "turbo-sentdetect",
+ "turbo-sha256",
  "turbo-stem",
  "turbo-structure",
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
+ "turbo-zoo",
  "turbo-zstd",
  "ureq",
 ]
@@ -2220,9 +2222,12 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-glossary",
  "turbo-goldens",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-stem",
+ "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",
@@ -2325,6 +2330,7 @@ dependencies = [
  "turbo-fuzz",
  "turbo-goldens",
  "turbo-pins",
+ "turbo-sentdetect",
 ]
 
 [[package]]
@@ -2357,13 +2363,6 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-pins",
  "turbo-stem-layers",
- "turbo-unicode",
-]
-
-[[package]]
-name = "turbo-jvm"
-version = "0.1.0"
-dependencies = [
  "turbo-unicode",
 ]
 
@@ -2427,6 +2426,7 @@ dependencies = [
  "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-structure",
+ "turbo-tagger",
  "turbo-tokenize",
  "turbo-tokenize-layers",
  "turbo-vector-index",
@@ -2802,7 +2802,11 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-morfologik",
+ "turbo-pins",
+ "turbo-relation",
+ "turbo-unicode",
  "turbo-wordnet",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2904,8 +2908,11 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo",
+ "turbo-analysis",
  "turbo-analysis-embed",
+ "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-sentdetect",
  "turbo-tagger",
  "turbo-train-recipes",
  "turbo-trainer",

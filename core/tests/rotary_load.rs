@@ -1,7 +1,8 @@
 //! A ModernBERT or nomic-bert bundle through the loader (#1461): its
 //! tensors found in the family's order and checked against the
 //! architecture, its rotary fields and cos/sin table in the description a
-//! backend is handed, and only the CPU running it.
+//! backend is handed, and its artifact skipped on a backend with no
+//! rotary encoder.
 
 #![cfg(feature = "cpu")]
 
@@ -13,7 +14,7 @@ use rotary::{HEADS, HIDDEN, LAYERS};
 use turbo::backend::*;
 use turbo::bundle::Bundle;
 use turbo::model::{Weights, choose};
-use turbo::status::{BUNDLE_INVALID, UNSUPPORTED};
+use turbo::status::{BUNDLE_INVALID, BUNDLE_NO_ARTIFACT, BUNDLE_NOT_FOUND, UNSUPPORTED};
 
 fn weights(f: &common::Fixture) -> Weights {
     let bundle = Bundle::open(f.write()).unwrap();
@@ -85,12 +86,33 @@ fn a_modernbert_file_with_a_first_attention_norm_is_refused() {
     assert!(e.is(BUNDLE_INVALID, "first layer has no attention norm"), "{e:?}");
 }
 
-/// The CPU, CUDA, Level Zero and Metal run both families (#1461); every
-/// other backend refuses them before model_load.
+/// The CPU, CUDA, Level Zero and Metal run both families (#1461); on every
+/// other backend rule 6 skips the artifact, before any file of it is read.
 #[test]
 fn only_the_cpu_cuda_levelzero_and_metal_run_a_rotary_family() {
     for f in [rotary::modernbert("rotary-cpu-mb"), rotary::nomic("rotary-cpu-nb")] {
         assert!(f.load().is_ok());
+    }
+    // This build links no backend without a rotary encoder, so the artifact
+    // is offered to two by name. The weights are left out: the CPU opens
+    // them and finds none, and choose never reaches them.
+    for (mut f, name) in [
+        (rotary::modernbert("rotary-skip-mb"), "FAMILY_MODERNBERT"),
+        (rotary::nomic("rotary-skip-nb"), "FAMILY_NOMIC_BERT"),
+    ] {
+        f.manifest["artifacts"][0]["backends"] = serde_json::json!(["npu", "hailo", "cpu"]);
+        std::fs::remove_file(f.dir.join("weights/model.safetensors")).unwrap();
+        let e = f.load().err().unwrap();
+        assert!(e.is(BUNDLE_NOT_FOUND, "weights/model.safetensors"), "{e:?}");
+        let bundle = Bundle::open(f.write()).unwrap();
+        for b in ["npu", "hailo"] {
+            let e = choose(&bundle.manifest, b, format_bit(TURBO_FORMAT_SAFETENSORS), "").unwrap_err();
+            let why = format!(
+                "weights-f32: {name}: the {b} backend has no encoder for it yet; use cpu, cuda, levelzero or metal"
+            );
+            assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
+            assert!(e.message.contains(&why), "{}", e.message);
+        }
     }
     for (family, name) in
         [(TURBO_FAMILY_MODERNBERT, "FAMILY_MODERNBERT"), (TURBO_FAMILY_NOMIC_BERT, "FAMILY_NOMIC_BERT")]
@@ -102,7 +124,8 @@ fn only_the_cpu_cuda_levelzero_and_metal_run_a_rotary_family() {
         for b in ["npu", "hailo"] {
             let e = turbo::model::runs_family(b, family).err().unwrap();
             assert_eq!(e.code, UNSUPPORTED);
-            assert!(e.message.contains(&format!("{name}: the {b} backend has no encoder for it yet")), "{}", e.message);
+            let why = format!("{name}: the {b} backend has no encoder for it yet; use cpu, cuda, levelzero or metal");
+            assert!(e.message.contains(&why), "{}", e.message);
         }
     }
 }

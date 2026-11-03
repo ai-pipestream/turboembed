@@ -8,7 +8,7 @@ use crate::compare::Mismatch;
 use crate::hex::to_hex;
 
 /// Why a golden layer was not loaded. Each names the layer, as the
-/// document names it (`opennlp:pos@golden`), or the golden block.
+/// document names it (`turbo:pos@golden`), or the golden block.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LoadError {
     /// The text is not the golden's input.

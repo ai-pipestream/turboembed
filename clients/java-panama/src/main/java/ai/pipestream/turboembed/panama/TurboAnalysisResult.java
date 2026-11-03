@@ -1,5 +1,7 @@
 package ai.pipestream.turboembed.panama;
 
+import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboSpanData;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
@@ -27,7 +29,7 @@ import java.util.function.Function;
  * graph-segment callbacks, then releases exactly the one native reference owned by this object.
  * {@link #retain()} creates another independent owner of the same native result.
  */
-public final class TurboAnalysisResult implements AutoCloseable {
+public final class TurboAnalysisResult implements ai.pipestream.turboembed.TurboAnalysisResult {
     private static final long SPAN_STRIDE = TurboLibrary.TURBO_SPAN_LAYOUT.byteSize();
 
     private static final long LAYER_KIND_OFFSET = offset("layer_kind");

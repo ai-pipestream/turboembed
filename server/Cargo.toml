@@ -39,6 +39,8 @@ turbo-relation = { path = "../analysis/relation" }
 turbo-schema-extract = { path = "../analysis/schema-extract" }
 turbo-stopword-layers = { path = "../analysis/stopword-layers" }
 turbo-structure = { path = "../analysis/structure" }
+# The bundle head annotators behind the turbo-tagger:* progressive steps.
+turbo-tagger = { path = "../analysis/tagger" }
 turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
 turbo-vector-index = { path = "../analysis/vector-index", features = ["turboquant"] }
 turbo-query = { path = "../analysis/query" }

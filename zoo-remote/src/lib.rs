@@ -11,21 +11,32 @@
 //!   prefix, on AWS or an S3-compatible store such as RustFS, holding
 //!   files in the same `blobs/sha256/<hex>` layout, read with one
 //!   SigV4-signed GET each.
+//! - [`GoogleDrive`] (the `gdrive` feature, turbo-zoo's own): a Google
+//!   Drive folder in the same layout, read through the Drive API v3.
 //! - [`sources`]: `file:///dir` (a content-addressed store),
 //!   `grpc://host:port` and `grpcs://host:port` (a zoo server),
-//!   `s3://bucket/prefix` and `origin` (the index's own addresses), tried
-//!   in the order given. The first `file://` store also keeps what the
-//!   sources after it serve.
+//!   `s3://bucket/prefix`, `gdrive://<folder-id>` and `origin` (the
+//!   index's own addresses), tried in the order given. The first
+//!   `file://` store also keeps what the sources after it serve.
+//! - [`Registry`] (#1744): the kinds of source by scheme, built in and
+//!   added by an application ([`Kind`]); `sources` parses through it,
+//!   and [`Registry::sources`] opens a user's registered [`Holders`]
+//!   (a Drive among them, signed in with a stored Google grant).
 //!
 //! The licence check stays the local zoo's: no source is asked for an
 //! artifact whose terms the user has not accepted, and a zoo server makes
 //! its own check before it sends a byte.
 
+mod registry;
 mod server;
 mod spec;
 
+pub use registry::{DriveKind, FileKind, Kind, Opened, Registry, S3Kind, Store, ZooServerKind};
 pub use server::ZooServer;
 pub use spec::{ENV_SOURCE, sources};
+#[cfg(feature = "gdrive")]
+pub use turbo_zoo::{DriveAuth, GoogleDrive, GoogleOAuth, Grant, Pkce, Renewing};
+pub use turbo_zoo::{Holder, Holders, SignIn};
 #[cfg(feature = "s3")]
 pub use turbo_zoo::{S3Bucket, sigv4};
 

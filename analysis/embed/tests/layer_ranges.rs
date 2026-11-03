@@ -13,7 +13,7 @@ fn testdata() -> PathBuf {
 
 #[test]
 fn the_last_block_is_the_plain_range_run() {
-    for (bundle, layers) in [("tiny-bert-bundle", 2u32), ("tiny-modernbert-bundle", 3)] {
+    for (bundle, layers) in [("tiny-bert-bundle", 2u32), ("tiny-modernbert-bundle", 3), ("tiny-deberta-bundle", 2)] {
         let o = EncoderOptions { max_batch: 2, max_seq: 16, max_ranges: 12, ..EncoderOptions::default() };
         let mut enc = Encoder::open(&testdata().join(bundle), &o).unwrap();
         let mut rows = Rows::new(16, 0);
@@ -21,9 +21,16 @@ fn the_last_block_is_the_plain_range_run() {
         let b = rows.push(&[&[11, 4, 8]]);
         let r = |row, start, end| turbo_token_range { row, start, end };
         let ranges = [r(a, 0, 6), r(a, 2, 3), r(b, 0, 3), r(b, 1, 2)];
-        let (mut plain, mut tapped) = (Vec::new(), Vec::new());
+        let (mut plain, mut tapped, mut via_opts) = (Vec::new(), Vec::new(), Vec::new());
         enc.run_ranges(&rows, &ranges, &mut plain).unwrap();
         enc.run_layer_ranges(&rows, &ranges, layers, &mut tapped).unwrap();
+        let mut enc_opts = Encoder::open(&testdata().join(bundle), &EncoderOptions { layers, ..o }).unwrap();
+        enc_opts.run_ranges(&rows, &ranges, &mut via_opts).unwrap();
+        assert_eq!(
+            via_opts.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            tapped.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            "{bundle}: EncoderOptions.layers"
+        );
         assert_eq!(tapped.len(), layers as usize * plain.len(), "{bundle}");
         let last = &tapped[(layers as usize - 1) * plain.len()..];
         assert_eq!(

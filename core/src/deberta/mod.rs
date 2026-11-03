@@ -103,10 +103,40 @@ impl Encoder {
         mask: &[bool],
         out: &mut [f32],
     ) -> Result<()> {
+        self.encode_taps_into(pool, run, (ids, mask), 1, out, |_, _| {})
+    }
+
+    /// As `encode_into`, calling `on_tap(k, out)` with `[ids.len(), hidden]`
+    /// in `out` after each of the last `taps` encoder layers (`k = 0..taps`,
+    /// from layer `layers - taps` up to the final layer) in one forward pass,
+    /// without allocating.
+    pub(crate) fn encode_taps_into(
+        &self,
+        pool: &mut Pool,
+        run: &mut Workspace,
+        (ids, mask): (&[u32], &[bool]),
+        taps: usize,
+        out: &mut [f32],
+        mut on_tap: impl FnMut(usize, &[f32]),
+    ) -> Result<()> {
         self.check(ids, mask)?;
         run.reuse(&self.config, mask);
-        self.forward(run, ids, None, Some(pool))?;
-        scatter_into(run, self.config.hidden, out);
+        let (c, h) = (&self.config, self.config.hidden);
+        for (row, &p) in run.x.chunks_exact_mut(h).zip(&run.at) {
+            let id = ids[p] as usize;
+            row.copy_from_slice(&self.weights.embedding[id * h..(id + 1) * h]);
+        }
+        let visible = run.at.len() * h;
+        self.weights.embedding_norm.apply(&mut run.x[..visible], c.layer_norm_eps)?;
+        let total = self.weights.layers.len();
+        let first = total.saturating_sub(taps.max(1));
+        for (i, layer) in self.weights.layers.iter().enumerate() {
+            run.layer(c, layer, &self.weights.relative, Some(pool))?;
+            if i >= first {
+                scatter_into(run, h, out);
+                on_tap(i - first, out);
+            }
+        }
         Ok(())
     }
 

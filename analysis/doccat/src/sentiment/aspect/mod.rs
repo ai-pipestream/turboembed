@@ -22,9 +22,9 @@
 //!     noun targets (`conj`, `appos`) within the same polarity clause.
 //!   - **R4 (`O -> O'`)**: Opinion words propagate to conjoined predicates and
 //!     adjectives (`conj`), inverting polarity across adversative conjunctions.
-//! - **Clause-aware noun-phrase and lexical fallback**: When `opennlp:dependencies`
+//! - **Clause-aware noun-phrase and lexical fallback**: When `turbo:dependencies`
 //!   is absent (or alongside sparse trees), `RuleAspectSentiment` uses
-//!   `opennlp:chunks` (`PhraseChunks` `NP` spans), `opennlp:pos` (`PosTags`),
+//!   `turbo:phrase-chunks` (`PhraseChunks` `NP` spans), `turbo:pos` (`PosTags`),
 //!   and compound aspect phrase tables, segmented at clause boundaries (`but`,
 //!   `however`, `yet`, `although`, `though`, `whereas`, `while`, `;`, `,`) so
 //!   contrastive sentences such as *"battery life is great but the screen
@@ -68,9 +68,9 @@ use tables::{
 /// Rule-based aspect and opinion extractor (`turbo-doccat:aspect-sentiment-rule`,
 /// `#322`).
 ///
-/// Runs Qiu et al. (2011) double propagation over `opennlp:dependencies` when
-/// present, combined with clause-aware noun-phrase (`opennlp:chunks`), POS
-/// (`opennlp:pos`), and compound aspect lexicon extraction, and writes
+/// Runs Qiu et al. (2011) double propagation over `turbo:dependencies` when
+/// present, combined with clause-aware noun-phrase (`turbo:phrase-chunks`), POS
+/// (`turbo:pos`), and compound aspect lexicon extraction, and writes
 /// `(Opinions, Aspects)`.
 #[derive(Clone)]
 pub struct RuleAspectSentiment {

@@ -60,7 +60,7 @@ impl Sentencer {
                 RuleSentenceDetector::VERSION,
                 d.config_hash()
             ),
-            Sentencer::Newline => "opennlp:sentences newline".into(),
+            Sentencer::Newline => "turbo:sentences newline".into(),
             Sentencer::Sat { annotator } => {
                 let model = annotator.model();
                 let execution = annotator.execution();
@@ -132,7 +132,7 @@ impl Analysis {
             Some(Syntax::Plain) => out.push("turbo:structure plain".into()),
             None => {}
         }
-        out.push("opennlp:subwords".into());
+        out.push("turbo:subwords".into());
         out
     }
 
@@ -185,7 +185,7 @@ mod tests {
         );
         assert_ne!(names[0], Sentencer::rules("de").name());
         assert_eq!(names[0], Sentencer::rules("en").name());
-        assert_eq!(names[1..], ["turbo:structure plain", "opennlp:subwords"]);
+        assert_eq!(names[1..], ["turbo:structure plain", "turbo:subwords"]);
     }
 
     #[test]
