@@ -31,7 +31,7 @@ public final class TurboLibrary {
     public static final int TURBO_E_INVALID_UTF8 = 258;
     /** Status code for invalid handle. */
     public static final int TURBO_E_INVALID_HANDLE = 259;
-    /** Status code for a task whose required model is not configured. */
+    /** Status code for a task the bundle, model or device does not offer. */
     public static final int TURBO_E_UNSUPPORTED_TASK = 514;
     /** Status code for bundle not found. */
     public static final int TURBO_E_BUNDLE_NOT_FOUND = 1280;

@@ -820,16 +820,21 @@ void    turbo_result_release(turbo_result *r);
  * dependency and entity layers, each from the one head of the bundle whose
  * layer it is, in one encoder pass a sentence on the cpu backend. Without a
  * bundle, or with a bundle lacking a layer's head, that layer's tasks fail
- * with TURBO_E_UNSUPPORTED_TASK naming what is missing. The rule sentence
- * and tokenizer paths report no probability.
+ * with TURBO_E_UNSUPPORTED_TASK naming what is missing, except on no
+ * input: a task given empty text or a token count of 0 returns TURBO_OK
+ * and a result of no rows, whatever the bundle. The rule sentence and
+ * tokenizer paths report no probability.
  *
- * The five model path fields are retired: they keep their place so a
- * program built against an earlier header still runs, and a non-empty
- * value fails with TURBO_E_INVALID_ARGUMENT naming its field. Fields are
- * numbered from 1 for turbo_error.field. */
+ * Fields are numbered from 1 for turbo_error.field. flags must be 0;
+ * another value is TURBO_E_INVALID_ARGUMENT naming no field. A bundle_path
+ * turbo_analyzer_create cannot open fails it with the status of what is
+ * wrong (TURBO_E_BUNDLE_NOT_FOUND, say) naming field 7. The five model path
+ * fields are retired: they keep their place so a program built against an
+ * earlier header still runs, and a non-empty value fails with
+ * TURBO_E_INVALID_ARGUMENT naming its field. */
 typedef struct turbo_analyzer_desc {
     uint32_t   struct_size;
-    uint32_t   flags;
+    uint32_t   flags;             /* must be 0 */
     turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
     turbo_text sent_model_path;   /*2: retired; must be empty */
     turbo_text tok_model_path;    /*3: retired; must be empty */
@@ -852,7 +857,14 @@ typedef struct turbo_analyzer_desc {
  * MorphFeatures layer writes it. classification is layer-specific:
  * TURBO_PII_CONFIDENCE_* for PII; for a dependency row, whose label is the
  * relation, the head token's index plus one, 0 under the root; otherwise
- * zero. */
+ * zero.
+ *
+ * A task that would write more rows, or more string pool bytes, than a
+ * uint32_t counts fails with TURBO_E_CAPACITY, and so does one whose row
+ * would break these rules: a span outside its text, a token range that
+ * ends before it starts, or a probability outside 0..=1. Such a row in a
+ * caller's graph is turbo_analyzer_inspect_graph's
+ * TURBO_E_INVALID_ARGUMENT instead. */
 typedef struct turbo_span {
     uint32_t layer_kind;
     uint32_t flags;
@@ -888,7 +900,10 @@ typedef struct turbo_span {
 /* Create, retain or release an analyzer handle. Both turbo_analyzer and
  * turbo_analysis_result are thread-safe (Send + Sync): an analyzer may be
  * called concurrently from multiple threads, and a result may be read or
- * retained/released across threads while at least one reference remains. */
+ * retained/released across threads while at least one reference remains.
+ * Unless its turbo_error's struct_size is refused, an analyzer call sets
+ * *out to NULL before anything else, so a call that fails leaves it NULL.
+ * Retain returns its argument, and NULL for NULL. */
 int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **out, turbo_error *err);
 turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *a);
 void    turbo_analyzer_release(turbo_analyzer *a);
@@ -903,34 +918,44 @@ int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text text,
 int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
                                 turbo_analysis_result **out, turbo_error *err);
 
-/* Tag one independent, pre-tokenized sequence with the configured model.
- * Rows are token-only: a label and probability are present only when the
- * model finds a sequence. Without a POS model this is unsupported. */
+/* Tag one independent, pre-tokenized sequence with the bundle's
+ * part-of-speech head. Rows are token-only: one row per token, with the
+ * tag as the label and its probability. Without a part-of-speech head this
+ * is unsupported. */
 int32_t turbo_analyzer_pos_tag(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
                                turbo_analysis_result **out, turbo_error *err);
 
 /* Tag one independent, pre-tokenized sequence with the bundle's morphology
  * head. Rows are token-only: one row per token, with the feature string as
- * the label. Without a morphology head this is unsupported. */
+ * the label and no probability. Without a morphology head this is
+ * unsupported. */
 int32_t turbo_analyzer_morphology(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
                                   turbo_analysis_result **out, turbo_error *err);
 
-/* Lemmatize count (token, pos_tag) pairs with the configured dictionary or
- * model. A dictionary miss has no label and no probability; it is never
- * replaced by a lowercased form. Without a lemma path this is unsupported. */
+/* Lemmatize count (token, tag) pairs with the bundle's lemma head. A head
+ * that reads tags reads these, which must be labels of its tag head:
+ * another is TURBO_E_INVALID_ARGUMENT. A head that reads none ignores
+ * them, though tags still holds count texts. Rows are token-only: one row
+ * per token, with the lemma as the label and no probability. Without a
+ * lemma head this is unsupported. */
 int32_t turbo_analyzer_lemmatize(turbo_analyzer *a, const turbo_text *tokens,
                                  const turbo_text *tags, uint32_t count,
                                  turbo_analysis_result **out, turbo_error *err);
 
-/* Find named entities over one independent pre-tokenized sequence with the
- * configured TokenNameFinder model only. No dictionary, regex or other
- * recognizer is merged in. Each call starts with fresh model context; no
- * adaptive data is retained between calls. */
+/* Find named entities over one independent, pre-tokenized sequence with
+ * the bundle's entity head only. No dictionary, pattern or other
+ * recognizer is merged in, and nothing is kept between calls. Rows are
+ * token-only: one row per entity, with its token range, its kind as the
+ * label, and the mean of its tokens' probabilities. Without an entity head
+ * this is unsupported. */
 int32_t turbo_analyzer_find_tokens(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
                                    turbo_analysis_result **out, turbo_error *err);
 
-/* Find named entities directly in UTF-8 text with the configured model,
- * after tokenizing it with this analyzer's selected tokenizer. */
+/* Find named entities directly in UTF-8 text with the bundle's entity
+ * head, over the rule tokenizer's tokens a sentence at a time. Rows are as
+ * turbo_analyzer_find_tokens writes them, with the entity's view and
+ * source ranges, and a token range into the tokens of the whole text.
+ * Without an entity head this is unsupported. */
 int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
                                  turbo_analysis_result **out, turbo_error *err);
 
@@ -940,16 +965,22 @@ int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
 int32_t turbo_analyzer_detect_pii(turbo_analyzer *a, turbo_text text,
                                   turbo_analysis_result **out, turbo_error *err);
 
-/* Run the configured analysis layers over UTF-8 text, serialize the binary
- * DocumentGraph ("TGRF" wire format) into the result's graph buffer, and
- * expose every supported layer instance as typed rows. A layer whose model
- * is not configured is absent, never replaced by a fallback layer. */
+/* Run the rule sentence splitter and tokenizer, every head of the bundle
+ * (one encoder pass a sentence) and the PII task over UTF-8 text,
+ * serialize the binary DocumentGraph ("TGRF" wire format) into the
+ * result's graph buffer, and expose every supported layer instance as
+ * typed rows. A layer whose head the bundle lacks is absent, never
+ * replaced by a fallback layer: with no bundle the graph holds the
+ * sentence, token and PII layers alone. */
 int32_t turbo_analyzer_analyze_graph(turbo_analyzer *a, turbo_text text,
                                      turbo_analysis_result **out, turbo_error *err);
 
 /* Validate a binary DocumentGraph ("TGRF") buffer using the source text
  * stored in the graph itself, and decode every supported layer instance.
- * View coordinates and their checked source projections are both reported. */
+ * View coordinates and their checked source projections are both reported.
+ * No bundle is needed. A NULL graph_bytes or a graph_len of 0 is
+ * TURBO_E_INVALID_ARGUMENT, and so is a graph that does not decode or
+ * import, or that holds a row turbo_span does not allow. */
 int32_t turbo_analyzer_inspect_graph(turbo_analyzer *a,
                                      const uint8_t *graph_bytes, uint64_t graph_len,
                                      turbo_analysis_result **out, turbo_error *err);
@@ -967,7 +998,9 @@ int32_t turbo_analysis_result_strings(const turbo_analysis_result *r,
                                       turbo_error *err);
 
 /* Borrow the result's serialized DocumentGraph ("TGRF") wire buffer (*data
- * may be NULL when *bytes is 0). */
+ * may be NULL when *bytes is 0): the graph turbo_analyzer_analyze_graph
+ * wrote, or the one turbo_analyzer_inspect_graph read. Other results have
+ * none. */
 int32_t turbo_analysis_result_graph(const turbo_analysis_result *r,
                                     const uint8_t **data, uint64_t *bytes,
                                     turbo_error *err);
