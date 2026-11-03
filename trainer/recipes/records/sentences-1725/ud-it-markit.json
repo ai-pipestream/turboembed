@@ -23,7 +23,6 @@
     "out-it-markit"
   ],
   "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
-  "host": "rtx-4080-machine",
   "unix_time": 1793425711,
   "corpus": {
     "id": "ud-it-markit-sentences",
@@ -144,7 +143,7 @@
       0.9995928338762216,
       0.9995928338762216
     ],
-    "best_epoch": 8,
+    "best_epoch": 9,
     "epoch_seconds": [
       0.066330287,
       0.054464004,
