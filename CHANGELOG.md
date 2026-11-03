@@ -139,6 +139,13 @@ for the release after it goes above it.
   field reads after validating `struct_size`, without forming a
   reference to the 120-byte struct over a legacy 104-byte allocation
   from before `bundle_path` was appended (#1833).
+- `turbo_model_load` skips an artifact whose backend has no encoder for
+  the manifest's family or no attention for its `lookahead` (loader rule
+  6), so a bundle with no other is `TURBO_E_BUNDLE_NO_ARTIFACT`, saying
+  why each was skipped, before any artifact's file is hashed; it was
+  `TURBO_E_UNSUPPORTED` after the weights were verified. The rotary
+  families' reason names levelzero among the backends that run them,
+  and `bundle/recipes/sat-3l.json` lists `cpu` alone (#1855).
 
 ### Breaking
 

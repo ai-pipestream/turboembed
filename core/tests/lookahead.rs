@@ -2,7 +2,8 @@
 //! CPU encoder of a banded model gives the f64 encoder whose every query
 //! sees the keys before it and at most `lookahead` keys after it, over
 //! rows of mixed length in one batch; a band as long as the row is the
-//! whole-row encoder; and a band of 0 is refused at load.
+//! whole-row encoder; a band of 0 is refused at load; and rule 6 skips the
+//! artifact, unread, on a backend whose attention takes no band.
 
 mod common;
 
@@ -178,4 +179,36 @@ fn a_band_of_no_keys_is_refused_at_load() {
     f.manifest["architecture"]["lookahead"] = json!(0);
     let e = f.load().err().unwrap();
     assert!(e.is(BUNDLE_INVALID, "architecture.lookahead: 0 is not a band of 1 key or more"), "{e:?}");
+}
+
+/// Every device's backend but the CPU's runs whole rows, so rule 6 skips
+/// the banded artifact there before any file of it is read. The weights
+/// are left out of the bundle: the CPU, which runs the band, opens them
+/// and finds none, and every other backend refuses with the reason.
+#[test]
+fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
+    let mut f = Fixture::model("lookahead-skipped");
+    f.manifest["architecture"]["lookahead"] = json!(4);
+    std::fs::remove_file(f.dir.join("weights/model.safetensors")).unwrap();
+    let e = f.load().err().unwrap();
+    assert!(e.is(BUNDLE_NOT_FOUND, "weights/model.safetensors"), "{e:?}");
+
+    let bundle = turbo::bundle::Bundle::open(f.write()).unwrap();
+    let raw = backend::format_bit(backend::TURBO_FORMAT_SAFETENSORS);
+    for b in ["cuda", "metal", "levelzero"] {
+        let e = turbo::model::choose(&bundle.manifest, b, raw, "").unwrap_err();
+        let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
+        assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
+        assert!(e.message.contains(&why), "{}", e.message);
+    }
+
+    // The same through turbo_model_load on each such device this machine has.
+    let mut rt = std::ptr::null_mut();
+    assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
+    let present: Vec<&str> = ["cuda", "metal", "levelzero"].into_iter().filter(|b| first_of(rt, b).is_some()).collect();
+    unsafe { turbo_runtime_release(rt) };
+    for b in present {
+        let e = f.load_on(|rt| first_of(rt, b).unwrap()).err().unwrap();
+        assert!(e.is(BUNDLE_NO_ARTIFACT, &format!("the {b} backend has no limited-lookahead attention")), "{e:?}");
+    }
 }

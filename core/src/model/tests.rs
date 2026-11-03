@@ -35,7 +35,8 @@ fn only_the_cpu_cuda_levelzero_and_metal_run_a_rotary_model() {
             let e = runs_family(b, family).err().unwrap();
             assert_eq!(e.code, UNSUPPORTED);
             assert!(
-                e.message.contains(&format!("the {b} backend has no encoder for it yet; use cpu, cuda or metal")),
+                e.message
+                    .contains(&format!("the {b} backend has no encoder for it yet; use cpu, cuda, levelzero or metal")),
                 "{}",
                 e.message
             );
@@ -54,6 +55,50 @@ fn only_the_cpu_cuda_levelzero_and_metal_run_a_deberta_model() {
         assert_eq!(e.code, UNSUPPORTED);
         assert!(e.message.contains(&format!("the {b} backend has no DeBERTa-v2 encoder")), "{}", e.message);
     }
+}
+
+/// Rule 6 skips an artifact whose backend has no attention for the band
+/// or no encoder for the family, with the reason runs_band or runs_family
+/// gives, rather than choosing it for a load that refuses it after hashing.
+#[test]
+fn choose_skips_an_artifact_whose_backend_cannot_run_the_band_or_the_family() {
+    use crate::manifest::{Family, PositionEmbedding};
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
+    let mut bundle = Bundle::open(&dir).expect("tiny-bert-bundle opens");
+    let safetensors = format_bit(crate::backend::TURBO_FORMAT_SAFETENSORS);
+    let m = &mut bundle.manifest;
+    assert_eq!(m.artifacts[0].backends, ["cuda", "metal", "levelzero", "cpu"]);
+    for b in ["cpu", "cuda", "metal", "levelzero"] {
+        assert_eq!(choose(m, b, safetensors, "").unwrap(), 0, "{b}");
+    }
+
+    m.architecture.as_mut().unwrap().lookahead = Some(4);
+    assert_eq!(choose(m, "cpu", safetensors, "").unwrap(), 0);
+    for b in ["cuda", "metal", "levelzero"] {
+        let e = choose(m, b, safetensors, "").unwrap_err();
+        assert_eq!(e.code, BUNDLE_NO_ARTIFACT);
+        let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
+        assert!(e.message.contains(&why), "{}", e.message);
+    }
+
+    let a = m.architecture.as_mut().unwrap();
+    a.lookahead = None;
+    (a.family, a.position_embedding) = (Family::DebertaV2, PositionEmbedding::Relative);
+    m.artifacts[0].backends.push("npu".into());
+    for b in ["cpu", "cuda", "metal", "levelzero"] {
+        assert_eq!(choose(m, b, safetensors, "").unwrap(), 0, "{b}");
+    }
+    let e = choose(m, "npu", safetensors, "").unwrap_err();
+    assert_eq!(e.code, BUNDLE_NO_ARTIFACT);
+    let why = "weights-f32: FAMILY_DEBERTA_V2: the npu backend has no DeBERTa-v2 encoder yet";
+    assert!(e.message.contains(why), "{}", e.message);
+    // A reason that comes first is the one given: npu loads no raw weights.
+    let e = choose(m, "npu", 0, "").unwrap_err();
+    assert!(
+        e.message.contains("weights-f32: FORMAT_SAFETENSORS is not a format the npu backend loads"),
+        "{}",
+        e.message
+    );
 }
 
 /// A backend keys on the digest the manifest recorded, so it must be
