@@ -37,7 +37,7 @@ pub mod window;
 pub use aspect::{BIO_ASPECT_OPINION_LABELS, LabeledAbsaDoc, LearnedAspectSentiment, bio_aspect_opinion_tagset};
 pub use calibrate::{Calibration, CalibrationOptions, Dispatch, Side};
 pub use centroids::{CentroidNorm, LabelCentroids, add_categories, category_sentence_centroids, centroid};
-pub use encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
+pub use encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, forwarded_rows, normalize};
 pub use heads::{
     AspectSpanHead, ChunkSpanHead, ClassifierHead, DenseLayer, HeadMode, HiddenActivation, IncivilityHeadAnnotator,
     OpinionSpanHead, PragmaticsHeadAnnotator, ScoringHead, SentenceSpanHead, VectorHeadAnnotator,
