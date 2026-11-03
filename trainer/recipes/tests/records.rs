@@ -61,21 +61,96 @@ fn the_1825_rows_are_receipts_of_the_recorded_releases() {
         serde_json::from_slice(&std::fs::read(dir.join(name)).unwrap()).unwrap_or_else(|e| panic!("{name}: {e}"))
     };
     let ewt = [
-        ("ewt-spacy-trf-upos.json", "ud-en-ewt-upos", 0.9326, "a49403f2c17cdc3d3ee8d3d5f5e5f1d40d43f4e31c5c6a8893b6341605ba6905"),
-        ("ewt-spacy-trf-xpos.json", "ud-en-ewt-xpos", 0.9532, "a49403f2c17cdc3d3ee8d3d5f5e5f1d40d43f4e31c5c6a8893b6341605ba6905"),
-        ("ewt-spacy-trf-feats.json", "ud-en-ewt-feats", 0.6766, "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a"),
-        ("ewt-spacy-trf-lemma.json", "ud-en-ewt-lemma", 0.9531, "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a"),
-        ("ewt-spacy-trf-deps.json", "ud-en-ewt-deps", 0.3795, "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a"),
-        ("ewt-stanza-upos.json", "ud-en-ewt-upos", 0.9677, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
-        ("ewt-stanza-xpos.json", "ud-en-ewt-xpos", 0.9624, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
-        ("ewt-stanza-feats.json", "ud-en-ewt-feats", 0.9622, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
-        ("ewt-stanza-lemma.json", "ud-en-ewt-lemma", 0.9683, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
-        ("ewt-stanza-deps.json", "ud-en-ewt-deps", 0.8835, "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18"),
-        ("ewt-trankit-upos.json", "ud-en-ewt-upos", 0.9649, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
-        ("ewt-trankit-xpos.json", "ud-en-ewt-xpos", 0.9700, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
-        ("ewt-trankit-feats.json", "ud-en-ewt-feats", 0.8534, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
-        ("ewt-trankit-lemma.json", "ud-en-ewt-lemma", 0.9138, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
-        ("ewt-trankit-deps.json", "ud-en-ewt-deps", 0.8578, "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6"),
+        (
+            "ewt-spacy-trf-upos.json",
+            "ud-en-ewt-upos",
+            0.9326,
+            "a49403f2c17cdc3d3ee8d3d5f5e5f1d40d43f4e31c5c6a8893b6341605ba6905",
+        ),
+        (
+            "ewt-spacy-trf-xpos.json",
+            "ud-en-ewt-xpos",
+            0.9532,
+            "a49403f2c17cdc3d3ee8d3d5f5e5f1d40d43f4e31c5c6a8893b6341605ba6905",
+        ),
+        (
+            "ewt-spacy-trf-feats.json",
+            "ud-en-ewt-feats",
+            0.6766,
+            "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a",
+        ),
+        (
+            "ewt-spacy-trf-lemma.json",
+            "ud-en-ewt-lemma",
+            0.9531,
+            "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a",
+        ),
+        (
+            "ewt-spacy-trf-deps.json",
+            "ud-en-ewt-deps",
+            0.3795,
+            "83de81b75d12bd8ed9ccc62739309e94398a13c93061393546bfbbfdc2e7bc2a",
+        ),
+        (
+            "ewt-stanza-upos.json",
+            "ud-en-ewt-upos",
+            0.9677,
+            "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18",
+        ),
+        (
+            "ewt-stanza-xpos.json",
+            "ud-en-ewt-xpos",
+            0.9624,
+            "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18",
+        ),
+        (
+            "ewt-stanza-feats.json",
+            "ud-en-ewt-feats",
+            0.9622,
+            "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18",
+        ),
+        (
+            "ewt-stanza-lemma.json",
+            "ud-en-ewt-lemma",
+            0.9683,
+            "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18",
+        ),
+        (
+            "ewt-stanza-deps.json",
+            "ud-en-ewt-deps",
+            0.8835,
+            "53963d47819b1121cc523dcc7b95068e306a20f23c52df72f240e7a295276b18",
+        ),
+        (
+            "ewt-trankit-upos.json",
+            "ud-en-ewt-upos",
+            0.9649,
+            "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6",
+        ),
+        (
+            "ewt-trankit-xpos.json",
+            "ud-en-ewt-xpos",
+            0.9700,
+            "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6",
+        ),
+        (
+            "ewt-trankit-feats.json",
+            "ud-en-ewt-feats",
+            0.8534,
+            "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6",
+        ),
+        (
+            "ewt-trankit-lemma.json",
+            "ud-en-ewt-lemma",
+            0.9138,
+            "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6",
+        ),
+        (
+            "ewt-trankit-deps.json",
+            "ud-en-ewt-deps",
+            0.8578,
+            "8a6567908b6547475f30d802ed6fc1fc930218e40d50655ca6546a87a2a829d6",
+        ),
     ];
     for (file, corpus, score, sha) in ewt {
         let r = read(file);
