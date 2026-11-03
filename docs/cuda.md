@@ -443,7 +443,8 @@ older than the runtime, it lists none and the runtime's log says why.
   is `a100`, `NVIDIA GeForce RTX 4070 Ti SUPER` is `rtx4070tisuper`,
   `NVIDIA RTX 6000 Ada Generation` is `rtx6000ada`.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
-  every field of `turbo_embed_options`. MODEL and EXACT compute in F32
+  every field of `turbo_embed_options` but `layers` (field 9), which it
+  takes as 0 or 1 alone (its bit is clear). MODEL and EXACT compute in F32
   with F32 FMAs. `TURBO_CUDA_TF32=1`, read when a session is made, puts
   MODEL's GEMMs on the tensor cores of sm_80 and newer instead: they
   round their F32 operands to TF32 and accumulate in F32

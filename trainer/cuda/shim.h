@@ -30,8 +30,9 @@ struct dim3 {
     dim3(unsigned x_ = 1, unsigned y_ = 1, unsigned z_ = 1) : x(x_), y(y_), z(z_) {}
 };
 
-/* The running launch's indices, set by shim_launch for each thread. */
-inline dim3 gridDim, blockDim, blockIdx, threadIdx;
+/* Launch indices belong to the calling host thread. Independent encoders
+ * may execute the host kernels concurrently without sharing CUDA indices. */
+inline thread_local dim3 gridDim, blockDim, blockIdx, threadIdx;
 
 typedef int cudaError_t;
 enum : int { cudaSuccess = 0, cudaErrorMemoryAllocation = 2, cudaErrorInvalidValue = 1 };

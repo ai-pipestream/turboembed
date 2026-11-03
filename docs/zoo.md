@@ -445,8 +445,11 @@ another way overrides it (#1613).
   tools are: `AWS_ENDPOINT_URL_S3` or `AWS_ENDPOINT_URL` for a store
   other than AWS (addressed path-style), `AWS_REGION` or
   `AWS_DEFAULT_REGION` (else `us-east-1`), and `AWS_ACCESS_KEY_ID`,
-  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. Redirects are not
-  followed, so a signed request is not replayed elsewhere.
+  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`.
+  `S3Bucket::signed_in(address, &sign_in)` opens a holder's bucket: from
+  that environment for `SignIn::Environment`, or with the holder's own
+  `SignIn::S3Keys`, which read nothing from the environment. Redirects
+  are not followed, so a signed request is not replayed elsewhere.
   `analysis/zoo/tests/s3.rs` runs it against an in-process stand-in that checks each
   signature; `analysis/zoo/src/fetch/sigv4.rs` checks HMAC-SHA-256 against RFC 4231
   and the signatures against the S3 documentation's GET and PUT Object
@@ -498,7 +501,13 @@ user), a source address, and how it signs in (`SignIn`):
   does, or not at all for a source that needs none;
 - `google_oauth`: a Google grant, kept as the OAuth client id (and
   secret, for a client type that has one) and the grant's refresh token;
-- `api_key`: a key, for a Drive folder shared by link.
+- `api_key`: a key, for a Drive folder shared by link;
+- `s3_keys`: an S3 access key pair (`access_key_id`,
+  `secret_access_key`, and `session_token` for temporary keys) that an
+  `s3://` holder signs its requests with in place of the process
+  `AWS_*` environment, with the bucket's `region` (else `us-east-1`)
+  and, for an S3-compatible store, its `endpoint` (`http://host:port`
+  or `https://host`, addressed path-style).
 
 `Holders` keeps every user's holders, in the order they are tried, in
 one strict JSON file (`Home::holders()`, `holders.json` beside the
@@ -555,8 +564,10 @@ user's list, in order, then the index's own addresses; the first store in it kee
 sources after it serve, as the first `file://` store of
 `TURBO_ZOO_SOURCE` does. `TURBO_ZOO_SOURCE` itself is parsed through
 the same registry (`Registry::spec`), each entry a holder that signs in
-from the environment. A `file`, `grpc` or `s3` holder signs in from the
-environment only for now; a `gdrive` holder takes any of the three.
+from the environment. A `file` or `grpc` holder signs in from the
+environment only; an `s3` holder from the environment or with its own
+`s3_keys`; a `gdrive` holder from the environment, with an API key or
+with a Google grant.
 
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.

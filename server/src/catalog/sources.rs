@@ -5,11 +5,12 @@
 //! user tries their sources in order before the catalog's own transport.
 //!
 //! Under the admin flag every kind the server reads is taken: `file://`,
-//! `s3://` (the server's `AWS_*` environment) and `gdrive://`. In zoo mode
-//! alone, where the user a request names is the caller's own word, only a
-//! `gdrive://` source signed in with the user's grant or an API key is: a
-//! caller may not point the server at its own disk or reuse its
-//! credentials.
+//! `s3://` (the server's `AWS_*` environment, or the source's own keys at
+//! any endpoint) and `gdrive://`. In zoo mode alone, where the user a
+//! request names is the caller's own word, only a `gdrive://` source signed
+//! in with the user's grant or an API key, and an `s3://` source on AWS
+//! signed in with its own keys, are: a caller may not point the server at
+//! its own disk or network, or reuse its credentials.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -23,7 +24,7 @@ use turbo_zoo::{Holder, Holders, SignIn, Transport, UserId, ZooError};
 
 use super::{Catalog, invalid, plain, zoo_status};
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED};
-use crate::proto::training::{ListModelSourcesResponse, ModelSource, SourceSignIn};
+use crate::proto::training::{ListModelSourcesResponse, ModelSource, S3Keys, SourceSignIn};
 
 /// How long a started sign-in may take.
 pub const SIGN_IN_SECONDS: u64 = 600;
@@ -132,6 +133,7 @@ fn shown(h: &Holder) -> ModelSource {
         SignIn::Environment => SourceSignIn::Environment,
         SignIn::GoogleOauth { .. } => SourceSignIn::Google,
         SignIn::ApiKey { .. } => SourceSignIn::ApiKey,
+        SignIn::S3Keys { .. } => SourceSignIn::S3Keys,
     };
     ModelSource { name: h.name.clone(), address: h.address.clone(), sign_in: sign_in as i32 }
 }
@@ -161,9 +163,7 @@ fn refused(m: String) -> Status {
 fn admissible(holder: &Holder, operator: bool) -> Result<(), Status> {
     let a = &holder.address;
     match holder.scheme() {
-        "file" | "s3" if !operator => {
-            Err(refused(format!("{a}: zoo mode takes gdrive:// sources only; file:// and s3:// need --admin")))
-        }
+        "file" if !operator => Err(refused(format!("{a}: zoo mode takes no file:// source; it needs --admin"))),
         "file" => {
             let dir = a.strip_prefix("file://").unwrap_or_default();
             if !holder.sign_in.is_environment() || !(dir.starts_with('/') || Path::new(dir).is_absolute()) {
@@ -171,13 +171,7 @@ fn admissible(holder: &Holder, operator: bool) -> Result<(), Status> {
             }
             Ok(())
         }
-        "s3" if !holder.sign_in.is_environment() => {
-            Err(invalid(3, format!("{a}: an s3:// source signs in from the server's environment")))
-        }
-        "s3" if !cfg!(feature = "catalog-http") => {
-            Err(refused(format!("{a}: this server was built without catalog-http")))
-        }
-        "s3" => Ok(()),
+        "s3" => s3_admissible(holder, operator),
         "gdrive" if !cfg!(feature = "catalog-http") => {
             Err(refused(format!("{a}: this server was built without catalog-http")))
         }
@@ -187,6 +181,40 @@ fn admissible(holder: &Holder, operator: bool) -> Result<(), Status> {
         "gdrive" => drive_address(a),
         _ => Err(invalid(3, format!("{a}: a source is file://, s3:// or gdrive://"))),
     }
+}
+
+/// An `s3://` source: with the admin flag, signed in from the server's
+/// environment or with its own keys; in zoo mode alone, only with its own
+/// keys and on AWS, so a caller reaches no other host through the server.
+fn s3_admissible(holder: &Holder, operator: bool) -> Result<(), Status> {
+    let a = &holder.address;
+    match &holder.sign_in {
+        SignIn::Environment if !operator => Err(refused(format!(
+            "{a}: in zoo mode an s3:// source signs in with its own keys; the server's environment needs --admin"
+        ))),
+        SignIn::S3Keys { endpoint: Some(e), .. } if !operator => {
+            Err(refused(format!("{a}: in zoo mode an s3:// source is read on AWS; the endpoint {e} needs --admin")))
+        }
+        SignIn::Environment | SignIn::S3Keys { .. } => s3_address(holder),
+        _ => Err(invalid(3, format!("{a}: an s3:// source signs in from the server's environment or with S3 keys"))),
+    }
+}
+
+/// The bucket's address (field 3), then the keys' endpoint (field 5),
+/// checked as the bucket is opened, before anything is written; refused
+/// by a server built without catalog-http.
+#[cfg(feature = "catalog-http")]
+fn s3_address(holder: &Holder) -> Result<(), Status> {
+    turbo_zoo::S3Bucket::with(&holder.address, None, "us-east-1", None).map_err(|e| invalid(3, e))?;
+    if let SignIn::S3Keys { .. } = holder.sign_in {
+        turbo_zoo::S3Bucket::signed_in(&holder.address, &holder.sign_in).map_err(|e| invalid(5, e))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "catalog-http"))]
+fn s3_address(holder: &Holder) -> Result<(), Status> {
+    Err(refused(format!("{}: this server was built without catalog-http", holder.address)))
 }
 
 #[cfg(feature = "catalog-http")]
@@ -213,19 +241,53 @@ fn put(catalog: &Catalog, s: &Sources, who: &UserId, h: Holder) -> Result<ModelS
     Ok(out)
 }
 
+/// How a RegisterModelSource request asks its source to sign in: an
+/// `api_key` (field 4), `s3_keys` (field 5), or neither for the server's
+/// environment.
+pub(super) struct SignInAsked<'a> {
+    pub(super) api_key: &'a str,
+    pub(super) s3_keys: Option<&'a S3Keys>,
+}
+
+impl SignInAsked<'_> {
+    /// The sign-in, checked, and the request field it came from.
+    fn sign_in(&self) -> Result<(SignIn, u32), Status> {
+        let some = |v: &str| (!v.is_empty()).then(|| v.to_owned());
+        let (sign_in, field) = match (self.api_key, self.s3_keys) {
+            ("", None) => return Ok((SignIn::Environment, 0)),
+            (key, None) => (SignIn::ApiKey { key: key.to_owned() }, 4),
+            ("", Some(k)) => {
+                let keys = SignIn::S3Keys {
+                    access_key_id: k.access_key_id.clone(),
+                    secret_access_key: k.secret_access_key.clone(),
+                    session_token: some(&k.session_token),
+                    region: some(&k.region),
+                    endpoint: some(&k.endpoint),
+                };
+                (keys, 5)
+            }
+            (_, Some(_)) => return Err(invalid(5, "a source signs in with an API key or with S3 keys, not both")),
+        };
+        sign_in.validate().map_err(|e| invalid(field, e.to_string()))?;
+        Ok((sign_in, field))
+    }
+}
+
 pub(super) fn register(
     catalog: &Catalog,
     s: &Sources,
     who: &UserId,
     name: &str,
     address: &str,
-    api_key: &str,
+    asked: SignInAsked<'_>,
     operator: bool,
 ) -> Result<ModelSource, Status> {
-    let sign_in = if api_key.is_empty() { SignIn::Environment } else { SignIn::ApiKey { key: api_key.to_owned() } };
+    let (sign_in, field) = asked.sign_in()?;
     let h = holder(name, address, sign_in)?;
-    if !api_key.is_empty() && h.scheme() != "gdrive" {
-        return Err(invalid(4, "an API key is for a gdrive:// source"));
+    match (field, h.scheme()) {
+        (4, scheme) if scheme != "gdrive" => return Err(invalid(4, "an API key is for a gdrive:// source")),
+        (5, scheme) if scheme != "s3" => return Err(invalid(5, "S3 keys are for an s3:// source")),
+        _ => {}
     }
     admissible(&h, operator)?;
     put(catalog, s, who, h)
@@ -391,7 +453,7 @@ impl Transport for Unopened {
 fn open(s: &Sources, h: &Holder) -> Result<Box<dyn Transport + Send + Sync>, String> {
     use turbo_zoo::{DriveAuth, GoogleDrive, Renewing, S3Bucket};
     match (h.scheme(), &h.sign_in) {
-        ("s3", _) => Ok(Box::new(S3Bucket::new(&h.address)?)),
+        ("s3", sign_in) => Ok(Box::new(S3Bucket::signed_in(&h.address, sign_in)?)),
         ("gdrive", sign_in) => {
             let d = s.drive.as_ref();
             let auth = match sign_in {
@@ -404,6 +466,7 @@ fn open(s: &Sources, h: &Holder) -> Result<Box<dyn Transport + Send + Sync>, Str
                         turbo_zoo::GoogleOAuth::with_endpoints(client_id, secret, &d.auth_endpoint, &d.token_endpoint)?;
                     DriveAuth::Refresh(Arc::new(Renewing::new(o, refresh_token)?))
                 }
+                SignIn::S3Keys { .. } => return Err("S3 keys are for an s3:// source".into()),
             };
             let endpoint = d.and_then(|d| d.drive_endpoint.as_deref());
             Ok(Box::new(GoogleDrive::with(&h.address, endpoint, auth)?))

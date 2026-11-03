@@ -9,7 +9,11 @@ use super::sigv4::{Credentials, EMPTY_SHA256, amz_date, sign};
 use super::sources::Keep;
 use super::transport::Transport;
 use crate::digest::Sha256;
+use crate::holders::SignIn;
 use crate::index::{Artifact, File, Url};
+
+/// The region a bucket is in when nothing names one.
+const DEFAULT_REGION: &str = "us-east-1";
 
 /// An S3 bucket, or a prefix in one, on AWS or any S3-compatible store
 /// (RustFS). The bucket holds files the way [`turbo_zoo::Blobs`]
@@ -39,13 +43,35 @@ impl S3Bucket {
     pub fn new(address: &str) -> Result<S3Bucket, String> {
         let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
         let endpoint = var("AWS_ENDPOINT_URL_S3").or_else(|| var("AWS_ENDPOINT_URL"));
-        let region = var("AWS_REGION").or_else(|| var("AWS_DEFAULT_REGION")).unwrap_or_else(|| "us-east-1".into());
+        let region = var("AWS_REGION").or_else(|| var("AWS_DEFAULT_REGION")).unwrap_or_else(|| DEFAULT_REGION.into());
         let creds = match (var("AWS_ACCESS_KEY_ID"), var("AWS_SECRET_ACCESS_KEY")) {
             (Some(key), Some(secret)) => Some(Credentials { key, secret, token: var("AWS_SESSION_TOKEN") }),
             (None, None) => None,
             _ => return Err(format!("{address}: set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or neither")),
         };
         S3Bucket::with(address, endpoint.as_deref(), &region, creds)
+    }
+
+    /// The bucket a holder names, signed in as it says (#1744): from the
+    /// environment as [`S3Bucket::new`] reads it, or with the holder's own
+    /// [`SignIn::S3Keys`], which read nothing from the environment: AWS in
+    /// their region (else `us-east-1`), or the store at their endpoint. Any
+    /// other sign-in is refused.
+    pub fn signed_in(address: &str, sign_in: &SignIn) -> Result<S3Bucket, String> {
+        match sign_in {
+            SignIn::Environment => S3Bucket::new(address),
+            SignIn::S3Keys { access_key_id, secret_access_key, session_token, region, endpoint } => {
+                sign_in.validate().map_err(|e| format!("{address}: {e}"))?;
+                let creds = Credentials {
+                    key: access_key_id.clone(),
+                    secret: secret_access_key.clone(),
+                    token: session_token.clone(),
+                };
+                let region = region.as_deref().unwrap_or(DEFAULT_REGION);
+                S3Bucket::with(address, endpoint.as_deref(), region, Some(creds))
+            }
+            _ => Err(format!("{address}: an s3:// source signs in from the environment or with its own S3 keys")),
+        }
     }
 
     /// The bucket at `endpoint` (`http://host:port` or `https://host`,

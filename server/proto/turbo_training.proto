@@ -65,6 +65,8 @@ enum SourceSignIn {
   SOURCE_SIGN_IN_GOOGLE = 2;
   // An API key, for a Drive folder shared by link.
   SOURCE_SIGN_IN_API_KEY = 3;
+  // The source's own S3 access key pair.
+  SOURCE_SIGN_IN_S3_KEYS = 4;
 }
 
 // One registered source, without its secrets.
@@ -97,6 +99,23 @@ message RegisterModelSourceRequest {
   // For a gdrive:// source shared by link; empty signs in from the
   // server's environment.
   string api_key = 4;
+  // For an s3:// source that signs in with its own keys; unset signs in
+  // from the server's environment.
+  S3Keys s3_keys = 5;
+}
+
+// An S3 access key pair an s3:// source signs its requests with, in place
+// of the server's AWS_* environment. Never returned by any call.
+message S3Keys {
+  string access_key_id = 1;
+  string secret_access_key = 2;
+  // For temporary keys; empty for none.
+  string session_token = 3;
+  // The bucket's AWS region; empty is us-east-1.
+  string region = 4;
+  // An S3-compatible store, http://host:port or https://host; empty is
+  // AWS.
+  string endpoint = 5;
 }
 
 message RegisterModelSourceResponse {
