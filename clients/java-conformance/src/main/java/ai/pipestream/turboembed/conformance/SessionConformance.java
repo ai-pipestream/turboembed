@@ -5,6 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.pipestream.turboembed.TurboAnalyzer;
+import ai.pipestream.turboembed.TurboException;
+import ai.pipestream.turboembed.TurboRuntime;
+import ai.pipestream.turboembed.TurboSession;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -20,11 +24,11 @@ public abstract class SessionConformance {
     protected static final int UNSUPPORTED_TASK = 514;
 
     /** The binding under test. */
-    protected abstract Binding binding();
+    protected abstract TurboRuntime binding();
 
     @Test
     public void embedsTheSmallBertBundleAndRefusesRerankWithTheNativeStatus() {
-        try (Session session = binding().openSession(Testdata.tinyBertBundle())) {
+        try (TurboSession session = binding().openSession(Testdata.tinyBertBundle())) {
             float[][] vectors = session.embed(List.of("hello world", "foreign function memory"));
             assertEquals(2, vectors.length);
             assertTrue(vectors[0].length > 0);
@@ -37,15 +41,15 @@ public abstract class SessionConformance {
 
             RuntimeException failure =
                     assertThrows(RuntimeException.class, () -> session.rerank("query", List.of("passage one")));
-            assertEquals(UNSUPPORTED_TASK, binding().statusCode(failure), binding().name() + ": " + failure);
-            assertEquals("TURBO_E_UNSUPPORTED_TASK", binding().statusName(failure));
+            assertEquals(UNSUPPORTED_TASK, org.junit.jupiter.api.Assertions.assertInstanceOf(TurboException.class, failure).code(), binding().kind() + ": " + failure);
+            assertEquals("TURBO_E_UNSUPPORTED_TASK", org.junit.jupiter.api.Assertions.assertInstanceOf(TurboException.class, failure).statusName());
         }
     }
 
     @Test
     public void theSameTextsEmbedToTheSameVectors() {
         List<String> texts = List.of("same input", "Café 🚀 東京");
-        try (Session session = binding().openSession(Testdata.tinyBertBundle())) {
+        try (TurboSession session = binding().openSession(Testdata.tinyBertBundle())) {
             float[][] first = session.embed(texts);
             float[][] second = session.embed(texts);
             assertEquals(first.length, second.length);

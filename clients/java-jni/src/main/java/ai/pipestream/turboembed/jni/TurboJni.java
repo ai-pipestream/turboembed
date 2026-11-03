@@ -1,5 +1,7 @@
 package ai.pipestream.turboembed.jni;
 
+import ai.pipestream.turboembed.TurboException;
+
 /**
  * The {@code native} methods {@code libturbo} exports for this binding, under the names the Java
  * Native Interface derives from this class. Text crosses as UTF-8 bytes; several texts cross
