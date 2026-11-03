@@ -3,12 +3,10 @@
 //! own layers live in a small schema crate beside it, so another add-on
 //! reads them without depending on the code that makes them.
 //!
-//! A layer the OpenNLP gRPC standard defines (the layer ids in
-//! opennlp_document.proto) has the standard's id, so Java, Rust and the
-//! wire call it one thing. A layer the standard lacks is "turbo:" until
-//! the standard adds it. `Chunks` is one of those: the standard's
-//! "opennlp:chunks" are phrase chunks (noun and verb groups), not
-//! retrieval chunks, so `Chunks` is "turbo:chunks".
+//! Every shared layer's id is in the `turbo:` namespace, from the one
+//! table in `turbo_analysis::ids`, so Java, Rust and the wire call it one
+//! thing. Phrase chunks (noun and verb groups) are
+//! "turbo:phrase-chunks"; retrieval chunks are `Chunks`, "turbo:chunks".
 
 use turbo_analysis::Ix;
 pub use turbo_analysis::{
@@ -33,6 +31,7 @@ pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Eve
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use heatmap::{DocumentHeatmap, HeatmapLane, HeatmapLaneKind, HeatmapSegment};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
+pub use layout::{LayoutBox, LayoutBoxes, PageBoundingBox};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
 pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
@@ -41,8 +40,9 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quality::{
-    QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, lexical_quality_gate,
-    lexical_quality_gate_on, quality_gate, quality_gate_on,
+    GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
+    MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
+    lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on,
 };
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
@@ -57,19 +57,21 @@ pub use sentiment::{
 };
 pub use sparse::SparseTerms;
 pub use syntax::{
-    ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
+    ChunkTags, Dependencies, DependencyGraph, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms,
+    WordDependencies,
 };
 pub use tables::{
     ChunkTableContext, ChunkTableHeaders, ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables,
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use vector_codes::{CodeKind, VectorCodes};
 pub use wordnet::{
     ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
 };
 pub use words::{
-    MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
-    WordPosTags, Words,
+    MorphFeatures, MorphLemmas, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas,
+    WordOrTokenAnchor, WordPosTags, Words,
 };
 
 /// Strings by column: one buffer and an end offset per item, never a
@@ -101,6 +103,15 @@ impl Strs {
 
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         (0..self.len()).map(|i| self.get(i))
+    }
+
+    pub fn content_hash(&self) -> u64 {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.usize(self.end.len());
+        for s in self.iter() {
+            h.str(s);
+        }
+        h.finish()
     }
 }
 
@@ -143,12 +154,14 @@ pub mod export;
 mod generic;
 mod heatmap;
 mod language_spans;
+mod layout;
 mod levels;
 mod matches;
 pub mod modality;
 mod money;
 mod numbers;
 mod ordinals;
+mod payload_hash;
 mod pii;
 mod predicate;
 mod project;
@@ -159,10 +172,12 @@ pub mod rhetoric;
 mod segmentation;
 mod sentiment;
 mod sparse;
+mod splice;
 mod syntax;
 pub mod tables;
 mod temporal;
 mod times;
 pub mod unit;
+mod vector_codes;
 mod wordnet;
 mod words;

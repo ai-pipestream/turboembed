@@ -1,24 +1,24 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-21T10:00:46Z",
+  "recorded_at": "2026-11-01T16:29:38Z",
   "provenance": {
-    "commit": "93d04f19f6e7d1c4d663f7cabdfbf73afe85ff09",
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
     "pushed_to": [
-      "origin/fable/332-bm25-baseline"
+      "origin/main"
     ],
     "machine": {
-      "arch": "rtx4080super",
-      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
       "os": "linux"
     },
     "device": {
-      "backend": "cuda",
-      "kind": "DEVICE_GPU",
-      "name": "NVIDIA GeForce RTX 4080 SUPER",
-      "vendor": "NVIDIA",
-      "driver_version": "615.71.09, CUDA 13.4",
-      "runtime_version": "12.4",
-      "memory_total": 16802250752
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
     },
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
@@ -34,9 +34,9 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
-      "opennlp:subwords"
+      "turbo:subwords"
     ],
     "chunker": {
       "name": "document",
@@ -1367,10 +1367,10 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 134.008841,
-      "chunking_ms": 1.883937,
+      "analysis_ms": 132.680064,
+      "chunking_ms": 1.373481,
       "embedding_ms": 0.0,
-      "retrieval_ms": 357.07250400000004
+      "retrieval_ms": 195.371407
     },
     "tokens_embedded": 0,
     "chunks": 3633,

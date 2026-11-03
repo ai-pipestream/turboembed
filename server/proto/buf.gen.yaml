@@ -1,0 +1,13 @@
+# TypeScript message schemas and service descriptors for the demo page's
+# Connect-ES clients (docs/demo.md). Run by scripts/generate-web-stubs.sh
+# from the repository root, with buf and protoc-gen-es from
+# demo/web/package-lock.json; the output is committed.
+version: v2
+clean: true
+plugins:
+  - local: protoc-gen-es
+    out: demo/web/src/gen
+    include_imports: true
+    opt:
+      - target=ts
+      - import_extension=js

@@ -1,0 +1,15 @@
+MASKED	𐐨𐐩 ****@*******.*** after Deseret letters, ***.*.*.* after.
+
+MASK_ALL	𐐨𐐩 ################ after Deseret letters, ######### after.
+
+REWRITE	pseudonymize	OK	𐐨𐐩 EMAIL-1 after Deseret letters, IPV4-1 after.
+
+LABEL	pseudonymize	9	25	9	16	EMAIL-1
+LABEL	pseudonymize	49	58	40	46	IPV4-1
+REWRITE	hmac	OK	𐐨𐐩 EMAIL-8afbd74c31f47786 after Deseret letters, IPV4-e0e75e9e942c4572 after.
+
+LABEL	hmac	9	25	9	31	EMAIL-8afbd74c31f47786
+LABEL	hmac	49	58	55	76	IPV4-e0e75e9e942c4572
+AUDIT	email	1	1	EMAIL-8afbd74c31f47786
+AUDIT	ipv4	1	1	IPV4-e0e75e9e942c4572
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-8afbd74c31f47786]\nipv4: 1 mentions, 1 distinct [IPV4-e0e75e9e942c4572]

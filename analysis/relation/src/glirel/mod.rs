@@ -16,6 +16,7 @@
 //! logit. As a scorer, a mention whose span does not start and end on word
 //! boundaries scores 0.
 
+mod annotate;
 pub mod heads;
 pub mod prompt;
 pub mod words;
@@ -24,26 +25,26 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
-use turbo::deberta::Encoder;
 use turbo::deberta::package::{PackageManifest, digest};
 use turbo::safetensors::File;
 use turbo::sentencepiece::SentencePiece;
 use turbo_analysis::{ModelRef, Span};
 
+use crate::encoder::{DebertaEncoder, EncoderStates};
 use crate::zeroshot::{Mention, RelationError, RelationScorer};
 use heads::Heads;
 use prompt::{Prompt, Specials};
 use words::Word;
 
 /// One encoder pass and the heads that do not depend on the entities.
-pub struct Pass {
-    prompt: Prompt,
+pub struct Pass<'a> {
+    prompt: Prompt<'a>,
     lstm: Vec<f32>,
     types: Vec<f32>,
 }
 
-impl Pass {
-    pub fn prompt(&self) -> &Prompt {
+impl<'a> Pass<'a> {
+    pub fn prompt(&self) -> &Prompt<'a> {
         &self.prompt
     }
 
@@ -70,12 +71,13 @@ pub struct Extracted {
 
 /// A GLiREL package on the native encoder.
 pub struct GlirelRelations {
-    encoder: Encoder,
+    encoder: DebertaEncoder,
     heads: Heads,
     tokenizer: SentencePiece,
     specials: Specials,
     model: ModelRef,
     max_words: usize,
+    pub(super) config: crate::neural::Config,
 }
 
 fn bad(what: impl std::fmt::Display) -> RelationError {
@@ -86,6 +88,14 @@ impl GlirelRelations {
     /// The model from a package `turbo-bundle glirel-convert` wrote and the
     /// tokenizer it was written with.
     pub fn load(package: &Path, spm: &Path) -> Result<Self, String> {
+        let (_, encoder) = PackageManifest::load(&package.join("encoder")).map_err(|e| e.message)?;
+        Self::load_with(encoder.into(), package, spm)
+    }
+
+    /// As [`load`](Self::load), on an encoder already opened: the CPU
+    /// encoder, or a core bundle of the package's encoder on a device
+    /// ([`DebertaEncoder::open`]).
+    pub fn load_with(encoder: DebertaEncoder, package: &Path, spm: &Path) -> Result<Self, String> {
         let read = |p: &Path| fs::read(p).map_err(|e| format!("{}: {e}", p.display()));
         let meta: Value = serde_json::from_slice(&read(&package.join("glirel.json"))?).map_err(|e| e.to_string())?;
         let field = |k: &str| meta.get(k).ok_or_else(|| format!("glirel.json: no {k}"));
@@ -99,7 +109,6 @@ impl GlirelRelations {
         if digest(&heads_bytes) != text("heads_sha256")? {
             return Err("GLiREL heads do not match their recorded digest".into());
         }
-        let (_, encoder) = PackageManifest::load(&package.join("encoder")).map_err(|e| e.message)?;
         let heads =
             Heads::load(&File::parse("GLiREL heads", &heads_bytes).map_err(|e| e.message)?, encoder.config().hidden)?;
         let tokenizer = SentencePiece::parse(&read(spm)?).map_err(|e| e.message)?;
@@ -115,13 +124,14 @@ impl GlirelRelations {
     /// The model from its parts; the special tokens must be inside the
     /// encoder's vocabulary and the heads must read its width.
     pub fn new(
-        encoder: Encoder,
+        encoder: impl Into<DebertaEncoder>,
         heads: Heads,
         tokenizer: SentencePiece,
         specials: Specials,
         model: ModelRef,
         max_words: usize,
     ) -> Result<Self, String> {
+        let encoder = encoder.into();
         let v = encoder.config().vocabulary as u32;
         if [specials.cls, specials.sep, specials.rel].iter().any(|&t| t >= v) {
             return Err("a GLiREL special token outside the encoder vocabulary".into());
@@ -129,15 +139,28 @@ impl GlirelRelations {
         if heads.encoder_width != encoder.config().hidden {
             return Err("GLiREL heads and encoder widths differ".into());
         }
-        Ok(GlirelRelations { encoder, heads, tokenizer, specials, model, max_words })
+        Ok(GlirelRelations {
+            encoder,
+            heads,
+            tokenizer,
+            specials,
+            model,
+            max_words,
+            config: crate::neural::Config::default(),
+        })
     }
 
     pub fn model(&self) -> &ModelRef {
         &self.model
     }
 
+    /// Where the encoder runs: None for the CPU encoder itself.
+    pub fn execution(&self) -> Option<&turbo_analysis::Execution> {
+        self.encoder.execution()
+    }
+
     /// The input for `labels` over `text`, without running the model.
-    pub fn prompt(&self, text: &str, labels: &[&str]) -> Result<Prompt, RelationError> {
+    pub fn prompt<'a>(&self, text: &'a str, labels: &[&str]) -> Result<Prompt<'a>, RelationError> {
         let p = prompt::build(&self.tokenizer, &self.specials, text, labels)
             .ok_or_else(|| bad("a label with no subwords"))?;
         if p.words.len() > self.max_words {
@@ -147,7 +170,7 @@ impl GlirelRelations {
     }
 
     /// One encoder pass and the entity-free heads over `text` and `labels`.
-    pub fn pass(&self, text: &str, labels: &[&str]) -> Result<Pass, RelationError> {
+    pub fn pass<'a>(&self, text: &'a str, labels: &[&str]) -> Result<Pass<'a>, RelationError> {
         if labels.is_empty() {
             return Err(RelationError::NoLabels);
         }
@@ -155,6 +178,25 @@ impl GlirelRelations {
             return Err(RelationError::OverLimit { limit: "max_labels", max: MAX_LABELS, got: labels.len() });
         }
         run(&self.encoder, &self.heads, self.prompt(text, labels)?)
+    }
+
+    pub fn pass_words<'a>(&self, words: Vec<Word<'a>>, labels: &[&str]) -> Result<Pass<'a>, RelationError> {
+        if labels.is_empty() {
+            return Err(RelationError::NoLabels);
+        }
+        if labels.len() > MAX_LABELS {
+            return Err(RelationError::OverLimit { limit: "max_labels", max: MAX_LABELS, got: labels.len() });
+        }
+        let prompt = prompt::build_words(&self.tokenizer, &self.specials, labels, words)
+            .ok_or_else(|| bad("a label with no subwords"))?;
+        if prompt.words.len() > self.max_words {
+            return Err(RelationError::OverLimit {
+                limit: "GLiREL max_len",
+                max: self.max_words,
+                got: prompt.words.len(),
+            });
+        }
+        run(&self.encoder, &self.heads, prompt)
     }
 
     /// Each pair's logit for each label, `[pairs][labels]`, for entities
@@ -233,7 +275,7 @@ use turbo::head::sigmoid;
 
 /// The encoder and the entity-free heads over a built input. The parity
 /// tests give inputs whose token ids are not a tokenizer's.
-pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, RelationError> {
+pub fn run<'a>(encoder: &impl EncoderStates, heads: &Heads, prompt: Prompt<'a>) -> Result<Pass<'a>, RelationError> {
     let c = encoder.config();
     let t = prompt.ids.len();
     if t > c.max_sequence {
@@ -244,18 +286,24 @@ pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, Rel
     {
         return Err(bad("a word or label position past the input"));
     }
-    let hidden = encoder.encode(&prompt.ids, &vec![true; t]).map_err(|e| RelationError::Scorer(e.message))?;
-    let (data, e) = (hidden.data(), hidden.width());
-    // A word with no subwords reads a zero row, as the reference fills it.
+    // The rows the heads read: each word's first subword (a word with no
+    // subwords reads a zero row, as the reference fills it), then each
+    // label's two markers.
+    let at: Vec<usize> =
+        prompt.word_first.iter().flatten().copied().chain(prompt.labels.iter().flatten().copied()).collect();
+    let mut data = Vec::new();
+    encoder.states(&prompt.ids, &at, &mut data).map_err(RelationError::Scorer)?;
+    let e = c.hidden;
+    let mut next = data.chunks_exact(e);
     let zero = vec![0.0; e];
-    let row = |p: Option<usize>| p.map_or(&zero[..], |p| &data[p * e..(p + 1) * e]);
-    let rows: Vec<f32> = prompt
-        .word_first
-        .iter()
-        .map(|&p| row(p))
-        .chain(prompt.labels.iter().flat_map(|&[r, l]| [row(Some(r)), row(Some(l))]))
-        .flat_map(|r| r.iter().copied())
-        .collect();
+    let mut rows = Vec::with_capacity((prompt.word_first.len() + 2 * prompt.labels.len()) * e);
+    for p in prompt.word_first.iter().map(Some).chain(prompt.labels.iter().flatten().map(|_| None)) {
+        let r = match p {
+            Some(None) => &zero[..],
+            _ => next.next().ok_or_else(|| bad("the encoder returned fewer rows than asked"))?,
+        };
+        rows.extend_from_slice(r);
+    }
     let (n, m, h) = (prompt.words.len(), prompt.labels.len(), heads.width);
     let mut scratch = crate::Scratch::default();
     let (mut projected, mut lstm, mut types) = (Vec::new(), Vec::new(), Vec::new());

@@ -62,6 +62,25 @@ bit. The ranges are split into tasks of several ranges each on the
 session's threads; each range is summed whole by one task, so the
 vectors are the same bits on any number of threads.
 
+`turbo_embed_options.layers` (on `turbo_embed_write_ranges`, and
+`turbo_embed_write_layer_ranges`) pools the same ranges from each of the
+last L layers in one pass (#1616): after each of those layers but the
+last, its states are pooled as the final ones are into the run's next
+block of vectors, and the last block is the plain range write's, bit for
+bit. A ModernBERT's final_norm is applied to each earlier layer's states
+in the normalized-rows buffer first, as it is to the last, so every block
+is on the final states' scale; a DeBERTa-v2's layer output is already
+post-norm, and a BERT, RoBERTa or nomic-bert layer's states are pooled
+where the layer leaves them. Block k is the same bits a model cut after
+layer L - layers + k + 1 writes for the ranges
+(`core/src/cpu/encoder/taps_tests.rs`). Static models read only their
+table. The embed cell sets field 9's bit in
+`turbo_capability.options_honored` (bit 8, so the cpu's cells read
+0b111111111); the other backends leave it clear. A count of 0, or over
+an encoder's layers, is `TURBO_E_INVALID_ARGUMENT` naming field 9 on
+every device, checked before whether the device reads the earlier
+layers, so a request gets the same code wherever it runs.
+
 For a static model, a range's vector is the mean of the table rows of
 its live tokens, times their weights where the model has them: the sum
 a row's mean pooling makes, over the range's tokens alone, rounded and
@@ -78,11 +97,37 @@ The instruction set is chosen once per model, when its first session is
 made: AVX-512 (F and VL) where the processor has it, else AVX2 with FMA,
 else portable Rust. The AVX-512 and AVX2 kernels give the same bits.
 Everything is computed in F32; F16 and BF16 weights are widened once.
+The exponential behind GELU, SiLU and the softmax, and behind the
+sigmoid and tanh of the heads' LSTM adapters and poolers, is the
+backend's own (`core/src/cpu/kernels/rowwise.rs`), never the C
+library's, whose bits differ between its versions: a bundle gives the
+same bits on every machine.
 
 The linear layers' weight matrices are copied once per model into the
 panel layout the matrix kernel reads: for all-MiniLM-L6-v2, 42.5 MB
 beside its 90.9 MB weights file. Sessions share it, and it goes with the
 model.
+
+## ModernBERT and nomic-bert
+
+The rotary families (#1461, `FAMILY_MODERNBERT` and `FAMILY_NOMIC_BERT`)
+run on the BERT encoder's rows, packing, pooling and kernels, with their
+own layer loop (`core/src/cpu/encoder/rotary/`). At packing time each
+head's Q and K rows are reordered so that the two columns a rotation
+pairs (c and c + d/2, rotate_half) are neighbours, and so are a gated
+MLP's gate row j and up row j (`core/src/cpu/kernels/pairs.rs`). The QKV
+product's epilogue then rotates each pair by the token's position, with
+the core's cos/sin table, and the MLP product's epilogue writes
+act(gate) * up (GELU by erf for ModernBERT, SiLU for nomic) from one
+product of twice the width. There is no second pass for either.
+ModernBERT's sliding-window layers compute only the band of keys each
+block of queries can read, rounded out to whole 16-key lane blocks. That
+gives the bits of full-row attention with the band set to minus infinity,
+so vectors are still the same bits on any number of threads. Projections
+and norms without a bias add a zero vector, which leaves every bit as it
+was. The sealed bundles `testdata/tiny-modernbert-bundle` and
+`testdata/tiny-nomic-bundle` hold the encoder to upstream PyTorch
+(docs/conformance.md).
 
 ## Benchmark records
 
@@ -114,3 +159,24 @@ SUPPORTED for EXACT and MODEL on that processor, with `speed_ratio`
 rows are mostly padding, which the library does not compute (each mixed
 record computes only its live tokens), and their ratios are lower than
 the dense records' 0.39 to 0.64.
+
+`benchmarks/records/aarch64-749c9420.cpu.*` are the M2's (Apple M2,
+macOS, the NEON kernels), made at library commit `fb5c4217a199` with
+`turbo-bench record --bundle <bundle> --device cpu --precision
+<exact|model> --rows <mixed|dense> --no-tei` from a release build, 20
+untimed and 200 timed runs, 32 rows of 256 tokens, TEI not run. Their
+bundle is all-minilm-l6-v2 sealed as manifest `3c305237`, not the
+`0f17adc4` seal of the x86_64 and Arm Linux records, so the M2's figures
+are not comparable with theirs. The M2 is a desktop and was in use: at
+the batch's checks just before it started, the 5-minute load average
+read 2.8 to 3.6, with the desktop's apps running, and the records do not
+carry that load. min / mean / p50 / p99 in ms:
+
+| Rows | EXACT | MODEL |
+|---|---|---|
+| mixed | 187.4 / 211.5 / 207.4 / 275.5 | 196.0 / 220.7 / 216.1 / 272.2 |
+| dense | 1311.2 / 1392.3 / 1382.6 / 1522.8 | 1279.5 / 1387.5 / 1379.8 / 1572.5 |
+
+The slowest MODEL mixed run took 416.6 ms, twice its median. The
+library's lowest cosine is 0.9999999999982 on every record. With no
+reference measured they back no cell.

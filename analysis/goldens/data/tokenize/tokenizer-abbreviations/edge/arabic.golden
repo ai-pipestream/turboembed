@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
 model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
 annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
-layer	opennlp:tokens	text	12	start:u32	end:u32
+layer	turbo:tokens	text	12	start:u32	end:u32
 0	10
 11	25
 25	26
@@ -19,8 +19,8 @@ layer	opennlp:tokens	text	12	start:u32	end:u32
 62	63
 64	70
 71	81
-end	opennlp:tokens
-layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	12	value:f64
+end	turbo:tokens
+layer	turbo:confidence<turbo:tokens>	aligned:turbo:tokens	12	value:f64
 3fe8784a1fdcc394 0.764683782797976
 3fe0e9869e23b248 0.5285065735493584
 3ff0000000000000 1.0
@@ -33,4 +33,4 @@ layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	12	value:f64
 3ff0000000000000 1.0
 3feb383bb675410d 0.850614410746887
 3fdc09e78da93572 0.4381045230300834
-end	turbo:confidence<opennlp:tokens>
+end	turbo:confidence<turbo:tokens>

@@ -90,21 +90,21 @@ impl MentionKind {
     }
 }
 
-macro_rules! java_names {
+macro_rules! names {
     ($t:ident { $($v:ident => $s:literal),+ $(,)? }) => {
         impl $t {
-            /// The Java enum constant's name, as OpenNLP's features print it.
-            pub fn java_name(self) -> &'static str {
+            /// The value's name in feature strings and speaker groups.
+            pub fn name(self) -> &'static str {
                 match self { $($t::$v => $s),+ }
             }
         }
     };
 }
 
-java_names!(Number { Singular => "SINGULAR", Plural => "PLURAL", Unknown => "UNKNOWN" });
-java_names!(Gender { Male => "MALE", Female => "FEMALE", Neutral => "NEUTRAL", Unknown => "UNKNOWN" });
-java_names!(Animacy { Animate => "ANIMATE", Inanimate => "INANIMATE", Unknown => "UNKNOWN" });
-java_names!(Person { First => "FIRST", Second => "SECOND", Third => "THIRD", Unknown => "UNKNOWN" });
+names!(Number { Singular => "SINGULAR", Plural => "PLURAL", Unknown => "UNKNOWN" });
+names!(Gender { Male => "MALE", Female => "FEMALE", Neutral => "NEUTRAL", Unknown => "UNKNOWN" });
+names!(Animacy { Animate => "ANIMATE", Inanimate => "INANIMATE", Unknown => "UNKNOWN" });
+names!(Person { First => "FIRST", Second => "SECOND", Third => "THIRD", Unknown => "UNKNOWN" });
 
 const NUMBERS: [Number; 3] = [Number::Singular, Number::Plural, Number::Unknown];
 const GENDERS: [Gender; 4] = [Gender::Male, Gender::Female, Gender::Neutral, Gender::Unknown];

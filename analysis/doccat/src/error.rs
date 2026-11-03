@@ -3,6 +3,7 @@
 
 use std::fmt;
 
+#[cfg(feature = "classical")]
 use turbo_maxent::JavaString;
 
 /// Why a document categorizer model or feature generator could not be
@@ -20,11 +21,14 @@ pub enum DoccatError {
     /// `min_gram > max_gram`.
     InvalidNGramRange { min_gram: usize, max_gram: usize },
     /// Reading `doccat.model` failed.
+    #[cfg(feature = "classical")]
     Maxent(turbo_maxent::Error),
     /// An outcome in `doccat.model` contains lone UTF-16 surrogates and is
     /// not valid UTF-8 text.
+    #[cfg(feature = "classical")]
     OutcomeNotText(JavaString),
     /// Indexing training events failed, or a training parameter is invalid.
+    #[cfg(feature = "classical")]
     Train(turbo_train::Error),
 }
 
@@ -46,10 +50,13 @@ impl fmt::Display for DoccatError {
                     "invalid NGramFeatureGenerator range: min_gram ({min_gram}) must be >= 1 and <= max_gram ({max_gram})"
                 )
             }
+            #[cfg(feature = "classical")]
             DoccatError::Maxent(e) => write!(f, "{e}"),
+            #[cfg(feature = "classical")]
             DoccatError::OutcomeNotText(o) => {
                 write!(f, "category outcome {o} is not valid UTF-8 text")
             }
+            #[cfg(feature = "classical")]
             DoccatError::Train(e) => write!(f, "{e}"),
         }
     }
@@ -58,19 +65,23 @@ impl fmt::Display for DoccatError {
 impl std::error::Error for DoccatError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            #[cfg(feature = "classical")]
             DoccatError::Maxent(e) => Some(e),
+            #[cfg(feature = "classical")]
             DoccatError::Train(e) => Some(e),
             _ => None,
         }
     }
 }
 
+#[cfg(feature = "classical")]
 impl From<turbo_maxent::Error> for DoccatError {
     fn from(e: turbo_maxent::Error) -> Self {
         DoccatError::Maxent(e)
     }
 }
 
+#[cfg(feature = "classical")]
 impl From<turbo_train::Error> for DoccatError {
     fn from(e: turbo_train::Error) -> Self {
         DoccatError::Train(e)

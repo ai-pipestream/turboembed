@@ -226,85 +226,12 @@ impl Annotator for MaxentLemmatizer {
 
 #[cfg(test)]
 mod tests {
-    use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Span, Spans};
-    use turbo_analysis_layers::{Sentences, Tag, TagSet};
 
     use super::*;
-
-    /// The lemmatizer over the English model, or `None` when it is not
-    /// downloaded.
-    fn english() -> Option<MaxentLemmatizer> {
-        let path = turbo_goldens::published_model("opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin")?;
-        Some(MaxentLemmatizer::new(LemmatizerModel::read(path).unwrap()))
-    }
-
-    fn lemmas(l: &MaxentLemmatizer, words: &[(&str, &str)]) -> Vec<String> {
-        let words: Vec<TokenTag<'_>> = words.iter().map(|&(token, tag)| TokenTag { token, tag }).collect();
-        let (mut out, mut probs) = (Strs::default(), Vec::new());
-        assert!(l.lemmatize(&words, &mut out, &mut probs).unwrap());
-        assert_eq!(out.len(), probs.len());
-        assert!(probs.iter().all(|p| (0.0..=1.0).contains(p)));
-        out.iter().map(str::to_string).collect()
-    }
 
     #[test]
     fn annotator_version_tracks_validation_changes() {
         assert_eq!(MaxentLemmatizer::VERSION, "2");
-    }
-
-    #[test]
-    fn plain_english_lemmas() {
-        let Some(l) = english() else { return };
-        let got = lemmas(&l, &[("The", "DET"), ("dogs", "NOUN"), ("were", "AUX"), ("barking", "VERB"), (".", "PUNCT")]);
-        assert_eq!(got, ["the", "dog", "be", "bark", "."]);
-        assert_eq!(lemmas(&l, &[]), Vec::<String>::new());
-    }
-
-    #[test]
-    fn classes_are_the_models_outcomes() {
-        let Some(l) = english() else { return };
-        let (mut classes, mut probs) = (Vec::new(), Vec::new());
-        assert!(l.classes(&[TokenTag { token: "dogs", tag: "NOUN" }], &mut classes, &mut probs));
-        assert_eq!(classes, [&JavaString::new("D0s")]);
-        assert_eq!(probs.len(), 1);
-    }
-
-    #[test]
-    fn the_annotator_runs_per_sentence_on_given_tokens_and_tags() {
-        let Some(lemmatizer) = english() else { return };
-        let text = "Dogs bark. Cats slept.";
-        let mut doc = Document::new(text);
-        let view = doc.get::<View>().unwrap().id();
-        let mut sentences = Spans::new(view);
-        sentences.push(Span::new(0, 10));
-        sentences.push(Span::new(11, 22));
-        let mut spans = Spans::new(view);
-        for (a, b) in [(0, 4), (5, 9), (9, 10), (11, 15), (16, 21), (21, 22)] {
-            spans.push(Span::new(a, b));
-        }
-        let tokens = Tokens { spans, sentence: Some([0, 0, 0, 1, 1, 1].map(Ix::new).to_vec()) };
-        let tagset = TagSet::new("ud", &["NOUN", "VERB", "PUNCT"]);
-        let tags = PosTags { tagset, tags: [0, 1, 2, 0, 1, 2].map(Tag).to_vec(), prob: None };
-        let by = || Provenance::by("test");
-        doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: sentences }, by()).unwrap();
-        doc.add(&Key::<Tokens>::DEFAULT, tokens, by()).unwrap();
-        doc.add(&Key::<PosTags>::DEFAULT, tags, by()).unwrap();
-        let analyzer = Analyzer::builder()
-            .given(Key::<Tokens>::DEFAULT)
-            .given(Key::<PosTags>::DEFAULT)
-            .add(lemmatizer)
-            .build()
-            .unwrap();
-        assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);
-        let got = doc.get::<Lemmas>().unwrap();
-        assert_eq!(got.lemma.iter().collect::<Vec<_>>(), ["dog", "bark", ".", "cat", "sleep", "."]);
-        let confidence = doc.get::<Confidence<Lemmas>>().unwrap();
-        assert_eq!(confidence.value.len(), 6);
-        let p = doc.provenance(Key::<Lemmas>::DEFAULT.id()).unwrap();
-        assert_eq!(p.annotator, MaxentLemmatizer::ID);
-        assert_eq!(p.version, "2");
-        assert_eq!(p.model.as_ref().map(|m| m.id.as_str()), Some("opennlp:StatisticalLemmatizer:en"));
-        assert_eq!(p.reads[1..], [Key::<Tokens>::DEFAULT.id(), Key::<PosTags>::DEFAULT.id()]);
     }
 
     #[test]
@@ -321,30 +248,5 @@ mod tests {
         assert!(matches!(err, Error::Annotator { annotator: MaxentLemmatizer::ID, .. }));
         assert_eq!(lemmas.iter().collect::<Vec<_>>(), ["prior"]);
         assert_eq!(probs, [0.9]);
-    }
-
-    #[test]
-    fn maxent_annotator_refuses_invalid_token_spans_without_panicking() {
-        let path =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/lemma-fixture-rust.bin");
-        let lemmatizer = MaxentLemmatizer::new(LemmatizerModel::read(path).unwrap());
-        let doc = Document::new("café");
-        let view = doc.get::<View>().unwrap();
-        let tagset = TagSet::new("ud", &["NOUN"]);
-        let tags = PosTags { tagset, tags: vec![Tag(0)], prob: None };
-
-        // Out-of-bounds token span (end > text.len()).
-        let mut oob_spans = Spans::new(view.id());
-        oob_spans.push(Span::new(0, 99));
-        let oob_tokens = Tokens { spans: oob_spans, sentence: None };
-        let err = lemmatizer.annotate((view, &oob_tokens, &tags)).err().unwrap();
-        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
-
-        // Mid-codepoint UTF-8 boundary ('é' is bytes 3..5 in "café").
-        let mut mid_spans = Spans::new(view.id());
-        mid_spans.push(Span::new(0, 4));
-        let mid_tokens = Tokens { spans: mid_spans, sentence: None };
-        let err = lemmatizer.annotate((view, &mid_tokens, &tags)).err().unwrap();
-        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
     }
 }

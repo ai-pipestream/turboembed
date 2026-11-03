@@ -79,14 +79,96 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
-      # through ureq, whose build script needs an aarch64 C compiler. The
-      # server is checked without catalog-http, its one way to ureq.
+      # through ureq or rustls, whose build script needs an aarch64 C
+      # compiler the runner does not have. The server is checked without
+      # catalog-http, its one way to ureq, and the zoo client without
+      # tls or s3; the docling example's server client depends on the server
+      # with default features. turbo-trainer-recipes reaches ureq through
+      # turbo-train-recipes and turbo-eval.
       - name: check (aarch64)
         run: |
           cargo check --workspace --target aarch64-unknown-linux-gnu \
             --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval --exclude turbo-kserve \
-            --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
+            --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes \
+            --exclude turbo-kserve-demo --exclude turbo-example-docling --exclude turbo-trainer-recipes \
+            --exclude turbo-zoo-remote
           cargo check -p turbo-kserve --no-default-features --target aarch64-unknown-linux-gnu
+          cargo check -p turbo-zoo-remote --no-default-features --target aarch64-unknown-linux-gnu
+
+  # Lints the versioned turbo.*.v1 proto contracts, checks pull requests
+  # that touch server/proto/ for wire or file-level breaking changes against
+  # main (issue #1296), and verifies that the published Java Maven and Python
+  # wheel client stubs call Capabilities and AnalyzeStream against a running
+  # server (issue #1297, docs/grpc.md, docs/release.md).
+  proto:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.70.0
+          # Authenticated, so the version lookup is not rate limited.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: buf lint
+        run: buf lint server/proto
+      - name: buf breaking against main
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        run: |
+          if git diff --quiet origin/main...HEAD -- server/proto; then
+            echo "server/proto unchanged from origin/main"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive origin/main server/proto | tar -x -C "$RUNNER_TEMP/base"
+          if [ ! -f "$RUNNER_TEMP/base/server/proto/buf.yaml" ]; then
+            cp server/proto/buf.yaml "$RUNNER_TEMP/base/server/proto/buf.yaml"
+            sed -i \
+              -e 's/^package turbo\.\([a-z_]*\);$/package turbo.\1.v1;/' \
+              -e 's/turbo\.result\.\([A-Z]\)/turbo.result.v1.\1/g' \
+              "$RUNNER_TEMP"/base/server/proto/turbo_*.proto
+          fi
+          buf breaking server/proto --against "$RUNNER_TEMP/base/server/proto"
+      # The demo page's Connect-ES code (docs/demo.md) is committed; it must
+      # be what the protos generate with the pins in demo/web/package-lock.json.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.16.0"
+      - name: generated TypeScript matches server/proto
+        run: bash scripts/generate-web-stubs.sh --check
+      # The page's bundle (demo/static/app.js) is committed too; it must be
+      # what demo/web/src builds, after the type check and unit tests.
+      - name: demo page builds and matches demo/static/app.js
+        run: bash scripts/build-web.sh --check
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: proto-stubs
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      # uv provides the build Python and the oldest one the wheel declares.
+      - uses: astral-sh/setup-uv@v7
+      - name: package proto archive and verify Java and Python client stubs against turbo-kserve
+        run: |
+          cargo build --locked -p turbo-kserve
+          target/debug/turbo-kserve --listen 127.0.0.1:18089 \
+            --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do
+            if target/debug/turbo-kserve health --addr 127.0.0.1:18089 >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.2
+          done
+          target/debug/turbo-kserve health --addr 127.0.0.1:18089
+          bash scripts/package-proto-stubs.sh v0.1.0 "$RUNNER_TEMP/proto-stubs-dist" 127.0.0.1:18089
+          ls -la "$RUNNER_TEMP/proto-stubs-dist"
 
   # turbo-bench's throughput CLI across Cargo profile settings. A job of
   # its own, not steps in lint: its record test pins counts over the
@@ -135,16 +217,6 @@ jobs:
         with:
           key: shard-${{ matrix.shard }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      # The OpenNLP models the JVM goldens were made with, downloaded from
-      # downloads.apache.org and checked against their published SHA-512
-      # (analysis/goldens-tool/src/recipe/models.rs). With them present, the
-      # tests over them compare instead of skipping.
-      - uses: actions/cache@v4
-        with:
-          path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
-      - name: fetch the OpenNLP models
-        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: the shard's crates
         run: |
           set -euo pipefail
@@ -161,8 +233,6 @@ jobs:
       # test runs them one after another; it does not run doctests, so
       # those run after it.
       - name: test
-        env:
-          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: |
           cargo nextest run --no-tests=warn $PACKAGES
           cargo test --doc $PACKAGES
@@ -182,15 +252,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: actions/cache@v4
-        with:
-          path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
-      - name: fetch the OpenNLP models
-        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: test
         env:
-          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           CARGO_TARGET_DIR: target/fuzz
           CARGO_PROFILE_DEV_OPT_LEVEL: "2"
           CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
@@ -205,12 +268,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: actions/cache@v4
-        with:
-          path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
-      - name: fetch the OpenNLP models
-        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
@@ -218,9 +275,12 @@ jobs:
       - name: test (turboquant)
         run: cargo test -p turbo-vector-index --features turboquant
       - name: test (fuzz command)
-        env:
-          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: cargo test -p turbo-goldens-tool --features fuzz
+      # The encoder trainer's CUDA kernels as plain C++ on the host
+      # (trainer/cuda/shim.h), against the CPU encoder. A green step is
+      # not a device run: docs/cuda.md, "The trainer's kernels".
+      - name: test (trainer cuda-shim)
+        run: cargo test -p turbo-trainer --features cuda-shim --test encoder_cuda
       # The core's own tests build it with its `internals` feature, and
       # the core is a cdylib as well, so its rlib has no hash in its name:
       # one run building both the core's tests and the crates that use the
@@ -252,6 +312,42 @@ jobs:
           TURBO_BENCH_REQUIRE_RECORD: "1"
         run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
 
+  # Both Java bridges consume the same pure API and conformance modules.
+  # JNI runs on Java 21, then Panama on Java 25, against the same native library.
+  java-jni:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: java-jni
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: libturbo exports the Java entry points
+        run: |
+          cargo build --locked -p turbo
+          nm -D --defined-only target/debug/libturbo.so | grep -c " Java_ai_pipestream_turboembed_jni_TurboJni_"
+      - name: shared API, conformance and JNI tests on Java 21
+        run: mvn -B -f clients/pom.xml -pl java-jni -am test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: shared API, conformance and Panama tests on Java 25
+        run: mvn -B -f clients/pom.xml -pl java-panama -am test
+      - name: the Android targets compile
+        run: |
+          rustup target add aarch64-linux-android x86_64-linux-android
+          cargo check --locked -p turbo --target aarch64-linux-android
+          cargo check --locked -p turbo --target x86_64-linux-android
+
   parity:
     # Skipped on pushes to main, as the shards are.
     if: github.event_name != 'push'
@@ -262,67 +358,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: actions/cache@v4
-        with:
-          path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
-      - name: fetch the OpenNLP models
-        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      # The published UD sentence detector, tokenizer, part-of-speech and
-      # lemmatizer models are trained on CC BY-SA treebanks and not checked
-      # in either; the tests over them skip without them and fail here.
-      # turbo-maxent evaluates the es and fr token models, and
-      # turbo-sequence's beam and tag-format tests the en pos model.
-      # turbo-zoo checks their bytes against its index, turbo-eval's
-      # default sentence model is the English one, and turbo-train-recipes
-      # gates its models against the English sentence and token models (its
-      # tagger's reference, OpenNLP 1.5's en-pos-maxent, is local-only).
-      # LibreOffice's Hunspell dictionaries are not checked in either
-      # (de_DE_frami is GPL, hu_HU MPL or LGPL; en_US, under SCOWL's
-      # permissive terms, is downloaded with them); turbo-hunspell's
-      # goldens over them run here. The SMS Spam Collection (CC BY 4.0) is
-      # not checked in either: fetch-models downloads it into
-      # .opennlp-models/corpora by the URL and SHA-512 in the recipe, so the
-      # cache above, keyed by the recipe, keeps it until its digest changes.
-      # turbo-train-components trains the maxent document categorizer on it
-      # here and compares the models with the JVM's byte for byte.
-      - name: parity against the JVM with the published models, models required
-        env:
-          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
-          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
-        # nextest runs the test binaries side by side, where cargo test runs
-        # them one after another; the doctests run after it.
-        run: |
-          PACKAGES="-p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer -p turbo-hunspell"
-          cargo nextest run $PACKAGES
-          cargo test --doc $PACKAGES
-          cargo nextest run -p turbo-zoo --test builtin
-          cargo nextest run -p turbo-eval --lib
-          cargo nextest run -p turbo-train-recipes --test recipes
-          cargo nextest run -p turbo-train-components --test doccat_goldens
-      # The sentence detectors against the conformance suites (Pragmatic
-      # Segmenter, pySBD, UAX #29) and the rule splitter's agreement with
-      # the maxent detector, with the de, en and pt sentence models. The
-      # step above runs these tests too; this one names them, so that a
-      # change in a pass count or an agreement number shows as its own
-      # failing step. docs/segmentation.md, "RuleSentenceDetector".
-      - name: sentence conformance and agreement, models required
-        env:
-          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
-          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
-        run: cargo test -p turbo-sentdetect --test conformance --test agreement -- --nocapture
-      # fetch-models also unpacks the MeCab dictionaries into the same
-      # directory (IPADIC with its UTF-8 copy). The lattice tokenizer's
-      # IPADIC and mecab-ko-dic golden tests, and the readings tests over
-      # the same goldens, are ignored by default; here they run, and a
-      # missing dictionary fails them.
-      - name: lattice tokenizer parity against the JVM, dictionaries required
-        env:
-          TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
-        run: cargo nextest run -p turbo-tokenize --test lattice_golden --test lattice_readings --run-ignored only
+      # Model-free sentence conformance remains required. OpenNLP model
+      # downloads and JVM comparison steps were retired under #1511.
+      - name: sentence conformance
+        run: cargo test -p turbo-sentdetect --test conformance -- --nocapture
 
   # A static bundle against Model2Vec's own ids and vectors
   # (core/tests/static_parity.rs, docs/static.md). potion-base-2M, the
@@ -376,7 +418,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, bench-throughput, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04
@@ -391,8 +433,8 @@ jobs:
 
   # Windows, the host the Intel NPU machines run (#1011). The CPU backend
   # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
-  # backends need toolchains this runner does not have, and the JVM
-  # parity steps above need the OpenNLP models, so their tests skip here.
+  # backends need toolchains this runner does not have. Classical OpenNLP
+  # model downloads and JVM comparisons are disabled under #1511.
   # The lanes mirror the Linux ones: lint, the workspace tests in four
   # shards, turbo-fuzz optimized, and the core with its C ABI tests.
   # Skipped in the shards: two docker runner tests (unix exit status

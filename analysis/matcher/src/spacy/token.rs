@@ -51,6 +51,7 @@ fn attr(key: &str) -> Option<Attr> {
         "POS" => Attr::Pos,
         "TAG" => Attr::Tag,
         "MORPH" => Attr::Morph,
+        "DEP" => Attr::Dep,
         "SHAPE" => Attr::Shape,
         "PREFIX" => Attr::Prefix,
         "SUFFIX" => Attr::Suffix,

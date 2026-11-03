@@ -1,9 +1,11 @@
 # liblinear trainer
 
-`turbo_train::liblinear` (`analysis/train/src/liblinear/mod.rs`) is the
-liblinear trainer of the OpenNLP addons, `liblinear-addon` on their
-`main` branch (`LiblinearTrainer`, `LiblinearModel`,
-`LiblinearModelSerializer`), with the solvers it uses from liblinear-java
+This is documentation of the remaining classical training implementation,
+scheduled for removal in #1532. Classical archive loading is disabled by #1511.
+
+`turbo_train::liblinear` (`analysis/train/src/liblinear/mod.rs`) implements the
+LIBLINEAR trainer (`LiblinearTrainer`, `LiblinearModel`,
+`LiblinearModelSerializer`), with the solvers from `liblinear-java`
 2.44 (`de.bwaldvogel:liblinear`, a Java port of LIBLINEAR's
 `linear.cpp`) ported into the crate. A model trained here has the JVM's
 header, outcome labels and predicate map, and weights and probabilities
@@ -17,7 +19,7 @@ reproduce.
 
 ## Use
 
-| Item | OpenNLP add-on |
+| Item | Behaviour |
 |---|---|
 | `liblinear::train_events(events, params)` | `new LiblinearTrainer(params)`, `init(params, ...)`, `train(events)`: the checksum, the indexer (sorting on, the default cutoff when none is given), then training |
 | `liblinear::train(index, params)` | `AbstractEventTrainer.train(DataIndexer)` with the add-on's `doTrain` |
@@ -69,8 +71,8 @@ name that is no `SolverType` is refused with the add-on's message.
   The writer here does the same; it matched the JVM on 199,972 random
   doubles, on every double whose bits are 1 to 300,000, on 100,000 more
   subnormals and on the powers of two and their neighbours.
-- The serialized predicate map in `HashMap<String, Integer>` iteration
-  order (`turbo_jvm::hash_map`).
+- The serialized predicate map in stored predicate vector order
+  (`format::serialize` writes `model.predicates` in slice order).
 
 ## Add-on quirks
 
@@ -101,76 +103,28 @@ the text model's records in `saveModel`'s order with single spaces, the
 weight count of each line, no bytes after the predicate map, no predicate
 twice, ids from zero, and only logistic regression models.
 
-## Math functions and tolerances
+## Math functions and historical tolerances
 
-liblinear-java calls `Math.exp` and `Math.log`. The port does not try
-to reproduce HotSpot's last bits: it uses fdlibm's logarithm
-(`turbo_jvm::strict_math::log`, the same result on every platform) and
-`f64::exp`. HotSpot's `Math.exp` is not correctly rounded and differs
-from `f64::exp` in the last bit on 472 of 199,972 arguments sampled; its
-`Math.log` differs from fdlibm's on some arguments too. A last bit
-difference can grow through the solver's iterations, so the weights are
-compared to a tolerance, and the best outcome must be the JVM's.
+liblinear-java calls `Math.exp` and `Math.log`. The active port uses
+`f64::ln` and `f64::exp`.
 
-The logarithm was chosen for speed. A correctly rounded logarithm
-(`turbo_jvm::math::log`) matched HotSpot's `Math.log` on every argument
-sampled and made a few more models byte-identical to the JVM's, but it
-costs about 0.8 microseconds a call, some 60 times fdlibm's, and the dual
-solver takes one at every step of its inner Newton method. On the goldens
-below, in a release build (training and checking all 285, the median of
-three runs):
+During the historical JVM parity comparison (retired under #1511 and #1531),
+HotSpot's `Math.exp` and `Math.log` were compared against fdlibm's
+logarithm, platform `f64::ln`, and a correctly rounded logarithm. On the
+historical goldens in a release build (training and checking all 285, the
+median of three runs):
 
-| Logarithm | Time | Text models identical (of 133) | Weights identical (of 112,188) |
+| Logarithm (historical) | Time | Text models identical (of 133) | Weights identical (of 112,188) |
 |---|---|---|---|
-| fdlibm (`strict_math::log`, used) | 0.30 s | 83 | 83,020 |
-| platform `f64::ln` (glibc) | 0.33 s | 124 | 95,752 |
-| correctly rounded (`math::log`) | 0.56 s | 128 | 95,788 |
+| fdlibm logarithm | 0.30 s | 83 | 83,020 |
+| platform `f64::ln` (glibc, active) | 0.33 s | 124 | 95,752 |
+| correctly rounded logarithm | 0.56 s | 128 | 95,788 |
 
-All three pass the same tolerances. fdlibm is as fast as the platform's
-`ln` and, unlike it, gives the same model on every platform.
+## Historical comparison status
 
-## Goldens
-
-`LiblinearTrainGolden.java` in `analysis/goldens-tool` writes
-`train-liblinear/<run>/<set>/<id>.golden`: the events given to the
-trainer, then the exception it threw, or the text model, the SHA-256 and
-length of the serialized model, and `eval` and `getBestOutcome` on the
-contexts of the first 40 events, as given and reversed. The image builds
-the add-on's three classes from the addons commit `analysis/goldens-tool/src/recipe/mod.rs` names into
-a jar of their own, since a class in the default package cannot be
-imported. The runs:
-
-| Run | Events | Solver, `c`, `eps`, `bias` |
-|---|---|---|
-| `sentdetect-sample` | sentence detector, sorted | `L1R_LR`, 1, 0.001, 0 (the add-on's sample file, `p` 0.1) |
-| `postag-l2` | part-of-speech shaped, sorted | `L2R_LR`, 1, 0.01, 1 |
-| `postag-dual` | the same, `OnePass`, cutoff 0 | `L2R_LR_DUAL`, 0.5, 0.1, -1 |
-| `sentdetect-dual-newton` | sentence detector, sorted, on `train` | `L2R_LR_DUAL`, 10000, 1e-10, 1: the dual solver stops at 300 iterations and the Newton method continues |
-| `realvalue-l1` | real valued, sorted | `L1R_LR`, 2, 0.01, 1 |
-| `sentdetect-l2` | sentence detector, sorted, cutoff 2 | `L2R_LR`, 0.1, 0.001, -1 |
-| `sentdetect-raw` | sentence detector as the stream makes them | `L2R_LR`, 1, 0.01, 0: refused, the predicates do not ascend |
-
-`analysis/train/tests/liblinear_goldens.rs` trains every golden's events
-with its run's parameters and checks the refusals' messages, the text
-model's header exactly and every weight within 1e-9. It rebuilds the
-JVM's model from its text with the index's labels and predicate map and
-checks that the bytes written from it have the JVM's SHA-256, that its
-probabilities are within 1e-12 of the JVM's with the same best outcome,
-and that the model trained here scores within 1e-9. It prints how many
-weights and probabilities are the same to the bit and the largest
-differences. Without the goldens it says so and passes; they are written
-with `cargo run -p turbo-goldens-tool -- generate`.
-
-On goldens of these runs made outside the image (the same generator and
-add-on commit on an Ubuntu build of JDK 21.0.12, x86-64), the test gave:
-285 goldens, 152 refusals with the JVM's messages, 133 models of which
-83 have the JVM's text model exactly; 83,020 of 112,188 weights the same
-to the bit, the largest difference 3.7e-14; the JVM's model scored here
-34,652 of 34,772 probabilities the same to the bit, the largest
-difference 1.1e-16, with every one of the 4,736 best outcomes the JVM's;
-the model trained here 27,160 of 34,772, the largest difference 3.8e-15,
-with the same best outcomes.
-
-The fuzz differential does not cover the trainer (`train-liblinear` is in
-its not covered list in `analysis/fuzz/src/runs/catalog.rs`): its goldens
-are model files and scores, not layers of a text.
+The JVM golden comparison test was removed under #1511. The previous solver
+counts and timing table above describe historical runs, not current acceptance
+coverage (`analysis/train/src/liblinear/tests.rs` exercises the unit tests).
+Classical archive readers are disabled; no JVM output or downloaded model is
+required to validate this change. Removal of the remaining classical training
+stack is tracked in #1532.

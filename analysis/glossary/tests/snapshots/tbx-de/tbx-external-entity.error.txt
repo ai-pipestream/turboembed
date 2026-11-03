@@ -1,0 +1,1 @@
+ExternalEntity { line: 3, name: "ext" }

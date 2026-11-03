@@ -18,16 +18,17 @@ parts:
   `DUTCH`, [below](#dutch)). `ENGLISH_TIMES`, `SPANISH_TIMES` and
   `DUTCH_TIMES` hold the same number rules and add the time rules;
   `ENGLISH_UNITS` adds the rules for amounts in units and money
-  (`docs/grammar-units.md`).
+  (`docs/grammar-units.md`). `SPANISH_UNITS` adds Spanish quantities and
+  currencies over `SPANISH`, and is used by `GrammarAnnotator::spanish()`.
 
 `GrammarAnnotator` runs a grammar over a text view and writes layers
-([below](#layers)). It is separate from `turbo-numeric`, which ports
-OpenNLP's number scan ([numbers.md](numbers.md)) and keeps its behaviour
-and goldens; the two write different layer instances.
+([below](#layers)). It is separate from `turbo-numeric`, which runs the
+cursor number scanner ([numbers.md](numbers.md)); the two write
+different layer instances.
 
 ## Lexer
 
-The grammar reads the view's text, not `opennlp:tokens`: a mention
+The grammar reads the view's text, not the `Tokens` layer: a mention
 starts and ends on character boundaries a tokenizer may not cut at
 (`10k`, `twenty-one`, `4/5`). One pass cuts the text into lexemes:
 
@@ -671,3 +672,7 @@ Issue #927 stays open for full server/layer representation of standalone
 zones and upstream span/alternative parity. Contextual `tussen 9-6 PT`
 ranges are covered; a bare `9-6 pt` has insufficient clock context. The
 generic-zone standard-time policy is intentional.
+
+Dutch quantities and money use `DUTCH_UNITS` or `GrammarAnnotator::dutch()`.
+See [Dutch units and currencies](grammar-units.md#dutch-units-and-currencies)
+for the full upstream corpus counts and explicit policy differences.

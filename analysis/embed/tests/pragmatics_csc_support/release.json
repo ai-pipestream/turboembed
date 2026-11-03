@@ -1,0 +1,85 @@
+{
+  "config": {
+    "combined_path": "PragmaticsAnnotator rule signals plus this embedding head",
+    "combined_threshold": 0.35000000000000003,
+    "dataset": "CoPsyN/CSC@f11c92b8d54686f64cf1d92766cef07201efb986",
+    "dataset_notice": "Trained on the Conversational Sarcasm Corpus by Hyewon Jang, Bettina Braun, and Diego Frassinelli. MIT License, Copyright (c) 2024 CoPsyN.",
+    "encoder": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "evaluation": {
+      "all_literal": {
+        "accuracy": 0.5432793807178043,
+        "f1": 0.0,
+        "fn": 649,
+        "fp": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "tn": 772,
+        "tp": 0
+      },
+      "all_sarcastic": {
+        "accuracy": 0.45672061928219565,
+        "f1": 0.6270531400966184,
+        "fn": 0,
+        "fp": 772,
+        "precision": 0.45672061928219565,
+        "recall": 1.0,
+        "tn": 0,
+        "tp": 649
+      },
+      "combined": {
+        "accuracy": 0.5235749472202674,
+        "f1": 0.6504904491481672,
+        "fn": 19,
+        "fp": 658,
+        "precision": 0.4891304347826087,
+        "recall": 0.9707241910631741,
+        "tn": 114,
+        "tp": 630
+      },
+      "head": {
+        "accuracy": 0.5235749472202674,
+        "f1": 0.6501291989664083,
+        "fn": 20,
+        "fp": 657,
+        "precision": 0.4891135303265941,
+        "recall": 0.9691833590138675,
+        "tn": 115,
+        "tp": 629
+      },
+      "rules": {
+        "accuracy": 0.5432793807178043,
+        "f1": 0.05805515239477504,
+        "fn": 629,
+        "fp": 20,
+        "precision": 0.5,
+        "recall": 0.030816640986132512,
+        "tn": 752,
+        "tp": 20
+      }
+    },
+    "format": "turbo-pragmatics-1",
+    "head": "pragmatics-1.thead",
+    "head_threshold": 0.35000000000000003,
+    "rule_threshold": 0.5,
+    "training": {
+      "epochs": 200,
+      "l2_reg": 0.001,
+      "learning_rate": 0.1,
+      "split": "scenario groups (context word Jaccard >= 0.4), smallest context id modulo 5, repeated and encoder-equal (uncased, accent-stripped) responses in one partition"
+    }
+  },
+  "head_sha256": "a0cc253cdcf8bdd6f28bc13f17a1d7012740bcfe2deb384ca212dbf9e3aef5de",
+  "model": {
+    "id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "trace-1110a243",
+    "sha256": "aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27"
+  },
+  "population": {
+    "dev": 1295,
+    "test": 1421,
+    "test_positive": 649,
+    "total": 6926,
+    "train": 4210
+  },
+  "source_sha256": "fd8ca7531887823a315e91f5d0edbcc9ec685a557c333c37f485a15a9e55ad7a"
+}

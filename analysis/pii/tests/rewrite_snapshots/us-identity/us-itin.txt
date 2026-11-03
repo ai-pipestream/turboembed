@@ -1,0 +1,14 @@
+MASKED	ITIN ***-**-**** recorded; ***-**-**** too.
+
+MASK_ALL	ITIN ########### recorded; ########### too.
+
+REWRITE	pseudonymize	OK	ITIN US-ITIN-1 recorded; US-ITIN-2 too.
+
+LABEL	pseudonymize	5	16	5	14	US-ITIN-1
+LABEL	pseudonymize	27	38	25	34	US-ITIN-2
+REWRITE	hmac	OK	ITIN US-ITIN-eef36e278cbc6043 recorded; US-ITIN-68a7e36711f0c8f3 too.
+
+LABEL	hmac	5	16	5	29	US-ITIN-eef36e278cbc6043
+LABEL	hmac	27	38	40	64	US-ITIN-68a7e36711f0c8f3
+AUDIT	us-itin	2	2	US-ITIN-eef36e278cbc6043, US-ITIN-68a7e36711f0c8f3
+AUDIT_REPORT	us-itin: 2 mentions, 2 distinct [US-ITIN-eef36e278cbc6043, US-ITIN-68a7e36711f0c8f3]

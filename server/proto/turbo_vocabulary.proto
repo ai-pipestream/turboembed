@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 syntax = "proto3";
-package turbo.vocabulary;
+package turbo.vocabulary.v1;
 
 // The vocabulary store. Listing, describing and downloading are served
 // to every client; ImportDictionary, LearnVocabulary and

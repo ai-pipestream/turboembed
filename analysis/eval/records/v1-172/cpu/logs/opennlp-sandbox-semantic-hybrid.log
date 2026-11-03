@@ -1,0 +1,10 @@
+== opennlp-sandbox-semantic-hybrid 2026-10-28T08:15:36Z 0d58e8629e85345b5c585c4beffa39b66a63c248 load 64.01 67.06 58.99
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --retrieval hybrid --out <records>/cpu/opennlp-sandbox-semantic-hybrid --chunker opennlp-sandbox-semantic
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/cpu/opennlp-sandbox-semantic-hybrid/scifact.json
+<records>/cpu/opennlp-sandbox-semantic-hybrid/nfcorpus.json
+<records>/cpu/opennlp-sandbox-semantic-hybrid/arguana.json
+<records>/cpu/opennlp-sandbox-semantic-hybrid/qasper.json
+wall 391.69 s maxrss 750460 KB
+exit 0 load 60.70 63.42 60.04

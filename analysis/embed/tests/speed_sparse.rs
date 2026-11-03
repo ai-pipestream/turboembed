@@ -29,7 +29,7 @@ fn bert() -> PathBuf {
 /// sparse bundle the step opens.
 fn bundle() -> PathBuf {
     if let Some(p) = std::env::var_os("TURBO_SPARSE_BUNDLE") {
-        return PathBuf::from(p);
+        return turbo_pins::require(PathBuf::from(p));
     }
     let dir = std::env::temp_dir().join(format!("turbo-embed-sparse-speed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);

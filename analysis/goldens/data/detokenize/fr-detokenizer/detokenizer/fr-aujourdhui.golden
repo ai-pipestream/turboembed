@@ -7,7 +7,7 @@ input	detokenizer/fr-aujourdhui	42	41	2d9d75794ef98fceebb26d0982d1213fbea73ffebf
 model	fr-detokenizer.xml	9c6c9165060e7ff2801b9cb5e6c778e1e93bc68fc4c3fcd4d44b23dbb3254f048e7c9f4d036e1d1bacac6f337f105105990956baf3775f41bc0d97045a25346d
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	9	start:u32	end:u32
+layer	turbo:tokens	text	9	start:u32	end:u32
 0	8
 9	12
 13	14
@@ -17,8 +17,8 @@ layer	opennlp:tokens	text	9	start:u32	end:u32
 25	28
 29	39
 40	41
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	9	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	9	operation:str
 MERGE_TO_RIGHT
 NO_OPERATION
 MERGE_TO_LEFT

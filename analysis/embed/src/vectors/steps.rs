@@ -132,7 +132,7 @@ macro_rules! vector_step {
     };
 }
 
-/// Writes `opennlp:embeddings<opennlp:sentences>`: a vector per sentence.
+/// Writes `turbo:embeddings<turbo:sentences>`: a vector per sentence.
 pub struct SentenceVectors<E: Embedder = VectorAnnotator>(pub Arc<E>);
 
 impl<E: Embedder> Clone for SentenceVectors<E> {
@@ -155,7 +155,7 @@ impl<E: Embedder> Annotator for SentenceVectors<E> {
     vector_step!(Which::Sentences, |o: Output| (o.sentences.expect("asked for"),));
 }
 
-/// Writes `opennlp:embeddings<turbo:chunks>`: a vector per chunk, at
+/// Writes `turbo:embeddings<turbo:chunks>`: a vector per chunk, at
 /// every level of the chunk hierarchy.
 pub struct ChunkVectors<E: Embedder = VectorAnnotator>(pub Arc<E>);
 
@@ -207,7 +207,7 @@ impl<E: Embedder> Annotator for SentenceChunkVectors<E> {
     );
 }
 
-/// Writes `opennlp:embeddings<opennlp:subwords>`: a contextual vector per
+/// Writes `turbo:embeddings<turbo:subwords>`: a contextual vector per
 /// subword piece, extracted from its most-interior window via `#263` and `#709`.
 #[derive(Clone)]
 pub struct SubwordVectors(pub Arc<VectorAnnotator>);
@@ -257,7 +257,9 @@ impl Annotator for SubwordVectors {
 /// - `precision`: `model` (the default), `fastest` or `exact`;
 /// - `prompt`: `document` (the default), `query` or `none`;
 /// - `stride`: sliding-window stride in subword pieces for `subwords` (`0`
-///   by default, selecting half the window width).
+///   by default, selecting half the window width);
+/// - `output_dim`: the width sentence, chunk and level vectors are cut
+///   to, one the bundle declares (`0`, the default, for the model's dim).
 pub struct VectorsProvider;
 
 fn parse_options(spec: &Spec) -> Result<VectorOptions, String> {
@@ -285,7 +287,11 @@ fn parse_options(spec: &Spec) -> Result<VectorOptions, String> {
         Ok(s) => s,
         Err(_) => return Err(format!("stride {:?}: expected a non-negative integer", spec.option("stride", "0"))),
     };
-    Ok(VectorOptions { encoder: EncoderOptions { device, precision, ..EncoderOptions::default() }, prompt, stride })
+    let Ok(output_dim) = spec.option("output_dim", "0").parse::<u32>() else {
+        return Err(format!("output_dim {:?}: expected a non-negative integer", spec.option("output_dim", "0")));
+    };
+    let encoder = EncoderOptions { device, precision, ..EncoderOptions::default() };
+    Ok(VectorOptions { encoder, prompt, stride, output_dim })
 }
 
 impl Provider<dyn Step> for VectorsProvider {

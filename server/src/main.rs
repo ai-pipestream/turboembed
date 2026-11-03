@@ -35,15 +35,15 @@ async fn stop_signal() -> &'static str {
     }
 }
 
-/// The catalog in `dir`, fetching over HTTPS.
+/// The catalog in `dir`, fetching over HTTPS, through `store` when given.
 #[cfg(feature = "catalog-http")]
-fn catalog(dir: &str, index: Option<&str>) -> Result<Catalog, String> {
-    Catalog::http(std::path::PathBuf::from(dir), index.map(std::path::Path::new))
+fn catalog(dir: &str, index: Option<&str>, store: Option<&str>) -> Result<Catalog, String> {
+    Catalog::http(std::path::PathBuf::from(dir), index.map(std::path::Path::new), store)
 }
 
 /// A server built without `catalog-http` has no way to fetch a model.
 #[cfg(not(feature = "catalog-http"))]
-fn catalog(_dir: &str, _index: Option<&str>) -> Result<Catalog, String> {
+fn catalog(_dir: &str, _index: Option<&str>, _store: Option<&str>) -> Result<Catalog, String> {
     Err("this turbo-kserve was built without the catalog-http feature, so it cannot fetch models".into())
 }
 
@@ -87,7 +87,7 @@ async fn main() -> ExitCode {
         }
     };
     let catalog = match &args.catalog_dir {
-        Some(dir) => match catalog(dir, args.catalog_index.as_deref()) {
+        Some(dir) => match catalog(dir, args.catalog_index.as_deref(), args.catalog_store.as_deref()) {
             Ok(c) => Some(c),
             Err(e) => {
                 eprintln!("turbo-kserve: catalog: {e}");
@@ -96,12 +96,25 @@ async fn main() -> ExitCode {
         },
         None => None,
     };
+    let drive = match turbo_kserve::catalog::DriveSignIn::from_vars(|k| std::env::var(k).ok()) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("turbo-kserve: {e}");
+            return ExitCode::from(2);
+        }
+    };
     let serve = Serve {
         admin: args.admin,
+        drive,
+        zoo: args.zoo,
+        prefetch: args.catalog_prefetch,
         vocabulary: args.vocabulary_dir.map(PathBuf::from),
         catalog,
         training: args.training_dir.map(PathBuf::from),
         sink: args.sink,
+        max_stream_bytes: Some(args.max_stream_bytes),
+        tls: args.tls,
+        metrics_listen: args.metrics_listen,
         ..Serve::default()
     };
     let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {
@@ -112,6 +125,9 @@ async fn main() -> ExitCode {
         }
     };
     eprintln!("turbo-kserve: listening on {}", server.local_addr());
+    if let Some(m_addr) = server.metrics_addr() {
+        eprintln!("turbo-kserve: metrics on {m_addr}");
+    }
     // A stop signal during load stops the server once the load returns:
     // the library has no way to stop a load part way.
     let stop = tokio::spawn(stop_signal());

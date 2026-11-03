@@ -335,6 +335,15 @@ impl KnowledgeBase {
         self.alias_map.get(folded_key).map(Vec::as_slice)
     }
 
+    /// Deterministic fuzzy-index work for `query_folded` at `threshold`.
+    ///
+    /// Runs the same candidate walk as [`Self::fuzzy_match_entities`] without
+    /// scoring aliases, so scaling tests can assert on work units instead of
+    /// wall-clock time.
+    pub fn fuzzy_lookup_work(&self, query_folded: &str, threshold: f64) -> crate::fuzzy_index::FuzzyLookupWork {
+        self.fuzzy_index.for_each_candidate(query_folded, threshold, |_, _| {})
+    }
+
     pub(crate) fn fuzzy_match_entities(
         &self,
         query_folded: &str,
@@ -347,7 +356,7 @@ impl KnowledgeBase {
         }
         let mut best_fuzzy: HashMap<u32, (f64, f64, String)> = HashMap::new();
         let mut sims_buf: Vec<f64> = Vec::new();
-        self.fuzzy_index.for_each_candidate(query_folded, threshold, |k_idx, running_cutoff| {
+        let _work = self.fuzzy_index.for_each_candidate(query_folded, threshold, |k_idx, running_cutoff| {
             let key = &self.folded_keys[k_idx as usize];
             if key == query_folded {
                 return;

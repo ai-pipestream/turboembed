@@ -60,6 +60,12 @@ pub struct ProvenanceRecord {
     pub execution: Option<Execution>,
     pub reads: Vec<LayerRef>,
     pub on: Vec<LayerRef>,
+    /// Optional 256-bit SHA-256 chained provenance digest recorded when a
+    /// pipeline step produced this entry.
+    pub provenance_digest: Option<crate::doc::ProvenanceDigest>,
+    /// Optional 256-bit SHA-256 snapshot of upstream input content digests
+    /// observed when a pipeline step produced this entry.
+    pub input_snapshot: Option<crate::doc::InputSnapshotDigest>,
 }
 
 /// What became of a layer, as a record: [`Status`] with a failed

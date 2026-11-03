@@ -174,7 +174,8 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   filed under, is from the PCI device id: `b70` for 0xe223, and
   `intel-<id>` for a device not named yet.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
-  every field of `turbo_embed_options`. MODEL and EXACT compute in F32;
+  every field of `turbo_embed_options` but `layers` (field 9), which it
+  takes as 0 or 1 alone (its bit is clear). MODEL and EXACT compute in F32;
   FASTEST in F16 on the matrix engines (XMX), for a model whose hidden and
   intermediate widths are multiples of 32, and in F32 otherwise, which
   `turbo_session_get_info` says. A
@@ -354,6 +355,154 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   time a context runs a bin of tokens (oneDNN for the linear layers,
   above).
 
+### DeBERTa-v2
+
+A `FAMILY_DEBERTA_V2` model (docs/bundle.md) runs in F32 at MODEL and
+EXACT; a session at FASTEST is refused (`TURBO_E_UNSUPPORTED_OPTION`,
+field 3, naming the precision and the family), never run in F32 in its
+place. The CPU encoder (`core/src/deberta`) is the reference. The first
+session makes, beside the fused projections, the relative table
+LayerNormed and each layer's query, key and value projection of it
+(shared keys), once for the model. A session holds the bucket of every
+distance a row of its `max_seq` tokens spans, made when it is made. The
+lookup is the word row LayerNormed, zero at a masked position, with no
+position or type rows. A visible query's score of a visible key is
+`(q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 head_dim)`,
+`b` the bucket of `i - j`, over visible keys alone; a masked query attends
+evenly to its row's every position, as upstream's mask leaves it. For
+head widths 32, 64 and 128 attention is tiled
+(`deberta_attention_32`, `_64`, `_128`): a work-item per query, 128, 64
+or 32 queries of a row and head a group, an online softmax in registers,
+and the row's keys and values streamed through local memory 32 at a time
+(16 at width 128) with the relative rows the block's distances reach,
+whose count the kernel holds as the group's queries plus the block's
+keys less one. Past the log buckets' midpoint a distance may skip a row,
+so a model whose buckets climb steeply reaches more rows than that: the
+session, from its bucket table, finds the most rows any query tile and
+key block of its `max_seq` reach, and takes the tiled kernel only where
+they fit (GLiNER-small's 256 buckets over 512 positions reach 95 of the
+95 at width 64), the general one otherwise. For any other width it is
+`deberta_attention`, a group per query, head and
+row, reading every key and relative row from global memory. The linear
+layers, LayerNorms and pooling are the BERT encoder's in F32, with
+oneDNN's linear layers where they run.
+
+`core/tests/levelzero_deberta.rs` holds the device to the CPU on the same
+bundle at MODEL, within 1e-4 of every value, on the kernel a session
+picks and on the general kernel forced (`use_general_attention`, with
+`internals`): the tiny model of `core/tests/deberta_load.rs`, generated
+ones of head width 32 and 128, and one at GLiNER-small's size (hidden
+768, 12 heads, 6 layers, 256 buckets), over mixed lengths with padding on
+either side and masked holes, a row of one token and one of 512, mean,
+CLS and last-token pooling, and token ranges.
+
+On the B70 (2026-10-26, `TURBO_SPEED_RUNS=7`, the GLiNER-small-sized
+model at MODEL, the CPU, an AMD Ryzen 9 9950X on all its threads,
+interleaved with the device on the tiled and the general attention;
+milliseconds a pass, min / median / max):
+
+| Batch x tokens | CPU | levelzero, tiled | levelzero, general |
+| --- | ---: | ---: | ---: |
+| 32 x 128 | 1176.3 / 1308.3 / 1326.0 | 92.6 / 96.3 / 133.2 | 116.1 / 167.5 / 174.7 |
+| 8 x 512 | 864.0 / 968.3 / 1326.7 | 183.4 / 225.0 / 245.3 | 302.8 / 400.6 / 499.0 |
+
+The GPU clock's median was 2800 MHz (2200 at the lowest), the package at
+most 67 C and memory 66 C, with no throttling; another client held the
+render engine about half busy, and none other the compute engines. With
+the tiled attention a pass is 1.7 times as fast as with the general at 32
+x 128, and 1.8 times at 8 x 512.
+
+### ModernBERT and nomic-bert
+
+A `FAMILY_MODERNBERT` or `FAMILY_NOMIC_BERT` model (docs/bundle.md,
+#1461) runs in F32 at MODEL and EXACT. At FASTEST, where the hidden and
+intermediate widths are multiples of 32, its linear layers run on the
+matrix engines (the `linear_dpas` kernels) from activations narrowed to
+F16 and the layers' weights transposed to F16 once for the model, with
+F32 sums and F32 everywhere between them. The narrowing saturates at
+F16's largest finite value, as cuda and metal do: an activation past
+65504 (a gated middle product of 90000) becomes +/-65504, not infinity,
+and NaN stays NaN. With other widths FASTEST
+computes in F32, as the BERT path does, and the session's compute dtype
+says which. The CPU encoder (`core/src/cpu/encoder/rotary`) is the
+reference. Loading copies the core's cos/sin table to the device beside
+the weights; the first session copies a nomic-bert's gate (fc12) and up
+(fc11) side by side into one feed-forward input, as ModernBERT's `Wi`
+already is. That copy is kept beside the original tensors for the
+model's life, as BERT's fused Q, K and V are: 2 x intermediate x hidden
+F32 values a layer, about 226 MB for nomic-embed-text-v1.5. The layer loop (`core/src/levelzero/encoder/rotary.rs`) runs
+the linear layers without biases on `linear_sg` (`linear` where a width
+is not a multiple of 16) or, at FASTEST, `linear_dpas`, and these kernels
+of encoder.cl between them: `rotary_embed` (the word row, plus the type
+row for nomic-bert, LayerNormed with or without a bias), `rotary_rope` (Q
+and K turned in place, column c of a head with column c + head/2, by the
+token's column in its row), the attention (on a sliding-window layer
+query i reads only the keys within `attention_window / 2` of it, and a
+masked key is skipped, never weighed by zero), `rotary_gated` (GELU by erf or SiLU of the gate times up),
+`rotary_norm` (a LayerNorm into a second buffer, for ModernBERT's
+pre-norm layers), `rotary_add` (the residual) and `rotary_narrow`. RoPE
+and the gated MLP fused into the products' epilogues, as the CPU does
+them, are not done yet.
+
+At heads 32, 64 or 128 wide (both bundles' 64) the attention is
+`rotary_attention_<width>`, the tiled kernels' shape: a work-item per
+query, 256 queries a group, the row's keys and values streamed through
+local memory 64 at a time under an online softmax, so each key and value
+is read once per group rather than once per query; a windowed layer's
+group walks only the keys some query of its own reaches. Other widths
+take `rotary_attention`, the general kernel's shape, a group per query
+whose lanes each sum the context over every key of the row. On the B70
+(2026-10-31, TURBO_LEVELZERO_PROFILE, modernbert-base at MODEL) the
+longest attention launch of a pass went from 16.9 to 0.43 ms on one row
+of 1,022 tokens, from 43.5 to 1.13 ms on Re-DocRED's eight longest
+documents (511 to 469 words), and from 133 to 2.3 ms at 8 x 1,022; the
+whole pass from 8.2 to 5.9 ms on a row of 126 tokens and from 542 to 126
+ms on those eight documents.
+
+On the B70 (2026-10-31, `rotary_speed` in core/tests/levelzero_rotary.rs,
+ignored by default: `TURBO_SPEED_BUNDLE` a real bundle, MODEL and FASTEST
+interleaved, `TURBO_SPEED_RUNS=7`, three rounds, each round timing the
+general attention kernel then the tiled one; milliseconds a pass, the
+best of 21 / the median of the three rounds' medians, general -> tiled):
+
+| Bundle, batch x tokens | MODEL | FASTEST |
+| --- | ---: | ---: |
+| modernbert-base, 8 x 128 | 46.4 / 92.0 -> 24.5 / 29.0 | 29.4 / 78.7 -> 9.1 / 9.8 |
+| modernbert-base, 8 x 512 | 716.5 / 755.3 -> 95.9 / 175.5 | 575.3 / 741.0 -> 37.8 / 81.5 |
+| nomic-embed-text-v1.5, 8 x 128 | 36.7 / 82.3 -> 21.8 / 26.0 | 22.7 / 31.3 -> 7.9 / 8.0 |
+| nomic-embed-text-v1.5, 8 x 512 | 831.8 / 923.0 -> 137.2 / 173.3 | 734.6 / 829.3 -> 32.3 / 38.1 |
+
+CI jobs and a training run shared the host (one-minute load average 10
+to 14) and other clients the device, so the medians spread and the best
+passes are the comparable figures.
+
+Before the tiled kernel, with the host's one-minute load average at 20
+to 88, most of a pass at 8 x 512 was attention, which FASTEST leaves in
+F32; nomic-embed-text-v1.5 at MODEL, the one fused [2 *
+intermediate, hidden] feed-forward input against main's two [intermediate,
+hidden] products, six interleaved rounds of 10 a side: best 51.0 ms
+against 50.7 at 8 x 128, and 1137.5 against 1194.6 at 8 x 512 (medians
+117 to 153 and 1410 to 1597 on both).
+
+## The LSTM for the taggers
+
+`turbo::device::lstm::Lstm` on `Device::LevelZero(n)` is the batched
+LSTM of `turbo::cpu::lstm` on an Intel GPU, for the analysis crates'
+sequence taggers (#860). It is a Rust surface, not part of the backend
+table. core/src/levelzero/lstm.rs holds one context per listed device,
+shared by every LSTM on it, and runs the kernels `lstm_project` and `lstm_step` of
+core/levelzero/encoder.cl. The weights and a gathered run's table are
+copied to the device once, and the copy is waited for. A run stages its
+rows (or its table row ids), lengths and starts in pinned memory, then
+appends to the context's in-order queue, under its lock: the copies,
+one product for every row's input projections, one launch per step over
+the sequences still running (every direction at once), and the copy of
+the states back. It then waits once. A non-finite gate or state is
+refused at the end of the run with INVALID_ARGUMENT, as the CPU form
+refuses it. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
+with `TURBO_TEST_REQUIRE_LEVELZERO=1` (or `TURBO_TEST_DEVICE=levelzero`),
+and fails when the LSTM cannot be made there.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
@@ -381,6 +530,11 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=levelzero \
     cargo test --release -p turbo --features levelzero --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test --release -p turbo --features levelzero --test levelzero -- --include-ignored --nocapture
+
+# DeBERTa-v2 against the CPU, and its speed (DeBERTa-v2, above):
+TURBO_TEST_DEVICE=levelzero cargo test --release -p turbo --features levelzero --test levelzero_deberta -- --nocapture
+TURBO_TEST_DEVICE=levelzero TURBO_SPEED_RUNS=7 \
+    cargo test --release -p turbo --features levelzero --test levelzero_deberta deberta_speed -- --ignored --nocapture
 ```
 
 `TURBO_TEST_DEVICE=levelzero` picks the first device the levelzero
@@ -389,3 +543,30 @@ tests in `core/tests/levelzero.rs` also check the listing against the
 Intel GPUs the kernel drives, from `/sys/class/drm`, and read device
 memory from the caller's side through the loader, so they need no other
 tool.
+
+### A lost device (0x70000001)
+
+A call that fails with `0x70000001 (device lost)` can indicate a device hang,
+reset, removal, or driver update, as defined by the
+[Level Zero API](https://github.com/oneapi-src/level-zero/blob/master/include/ze_api.h).
+The status alone does not identify the cause. Stop using any affected
+context, release its resources and the context, and create a new one only
+once the device is available again. Device removal or an ongoing driver
+problem may prevent recreation; it is not a guaranteed recovery.
+
+On the Arc Pro B70 under `xe`, each one seen
+(#1433) was a compute job that had not finished within the engine's job
+timeout (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
+5000 ms), and the kernel log says so: `Timedout job ... in <process>`,
+then `Engine reset: engine_class=ccs`. These logs identify a timeout/reset
+for those observations, not for every possible device-loss error.
+
+On that machine all nine such resets on 2026-10-26, six of them in
+`levelzero_loads`, fell within the four days a desktop client (snap-store)
+was running; one sample, minutes before it stopped, had it at 61% of the
+render engine, and render and compute share the card's execution units.
+After it stopped, 1,400 runs of the loads at once passed
+(`docs/receipts/levelzero-1433/`). That client is the likely cause, not a
+reproduced one: no load was recorded at the reset times and no run was made
+with it up. Check the kernel log and the other clients on the card before
+reading a lost device as a defect here.

@@ -1,0 +1,429 @@
+//! DeBERTa-v2 on CUDA against the CPU backend on the same bundle, as
+//! tests/levelzero_deberta.rs holds Level Zero:
+//! the tiny model of tests/deberta_load.rs and one at GLiNER-small's size,
+//! each value within 1e-4 of the CPU's at MODEL; and FASTEST refused.
+//!
+//! Built with the `cuda` feature only. TURBO_TEST_DEVICE=cuda runs the
+//! tests on the first cuda device; without it they say they were skipped,
+//! as the other device tests do. With TURBO_TEST_REQUIRE_CUDA=1 a test
+//! that finds no cuda device, or is not told to use one, fails instead.
+
+#![cfg(feature = "cuda")]
+
+mod common;
+#[path = "common/deberta.rs"]
+mod deberta_common;
+
+use std::ptr;
+use std::sync::{Mutex, MutexGuard};
+use std::time::Instant;
+
+use common::*;
+use deberta_common::{HEADS_32, HEADS_128, SMALL, STEEP_200, STEEP_300, Shape, TINY, fixture};
+use turbo::*;
+
+/// The largest difference allowed from the CPU: the F32 device bound.
+const BOUND: f32 = 1e-4;
+
+/// The tests take turns on the one device.
+static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+fn turn() -> MutexGuard<'static, ()> {
+    ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+fn required() -> bool {
+    std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+/// The cuda device TURBO_TEST_DEVICE asks for, or None after saying the
+/// test is skipped.
+fn device(test: &str) -> Option<u32> {
+    match std::env::var("TURBO_TEST_DEVICE").as_deref() {
+        Ok("cuda") => {}
+        Ok(d) => panic!("{test}: TURBO_TEST_DEVICE={d}: this test runs on cuda alone"),
+        Err(_) => {
+            assert!(!required(), "{test}: TURBO_TEST_REQUIRE_CUDA=1 and TURBO_TEST_DEVICE is not cuda");
+            println!("{test}: skipped: TURBO_TEST_DEVICE is not set");
+            return None;
+        }
+    }
+    let mut rt = ptr::null_mut();
+    assert_eq!(unsafe { turbo_runtime_create(ptr::null(), &mut rt, &mut new_error()) }, 0);
+    let d = first_of(rt, "cuda");
+    unsafe { turbo_runtime_release(rt) };
+    if d.is_none() {
+        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_CUDA=1 and the cuda backend lists no device");
+        println!("{test}: skipped: the cuda backend lists no device");
+    }
+    d
+}
+
+/// The bundle on the cuda device, checked to be one.
+fn on_gpu(f: &Fixture) -> Loaded {
+    let l = f.load_on(|rt| first_of(rt, "cuda").expect("a cuda device")).unwrap_or_else(|e| panic!("{e:?}"));
+    let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_device_info>() as u32;
+    let at = first_of(l.rt, "cuda").unwrap();
+    assert_eq!(unsafe { turbo_runtime_device_info(l.rt, at, &mut info, ptr::null_mut()) }, 0);
+    assert_eq!(field(&info.backend), "cuda", "the session runs on the cuda backend");
+    l
+}
+
+/// Token ids from the place, inside the vocabulary and clear of the
+/// special tokens.
+fn ids(row: usize, len: usize) -> Vec<i32> {
+    (0..len).map(|p| 1000 + ((row * 7919 + p * 104_729) % 28_000) as i32).collect()
+}
+
+/// Rows of the given lengths, right padded to the longest; `left` rows
+/// are padded on the left instead, and `holes` are (row, column) masked
+/// inside a row.
+fn rows(lens: &[usize], left: &[usize], holes: &[(usize, usize)]) -> Tokens {
+    let seq = *lens.iter().max().unwrap();
+    let mut t = Tokens::new(&vec![vec![0; seq]; lens.len()], 0);
+    t.mask.fill(0);
+    for (r, &len) in lens.iter().enumerate() {
+        let start = if left.contains(&r) { seq - len } else { 0 };
+        for (p, id) in ids(r, len).into_iter().enumerate() {
+            t.ids[r * seq + start + p] = id;
+            t.mask[r * seq + start + p] = 1;
+        }
+    }
+    for &(r, c) in holes {
+        t.mask[r * seq + c] = 0;
+    }
+    t
+}
+
+fn options(pooling: u32, normalize: u32) -> turbo_embed_options {
+    turbo_embed_options { pooling, normalize, ..embed_options() }
+}
+
+/// The largest difference between two runs' vectors, which must agree in
+/// count and width; infinite where either is NaN.
+fn worst(a: &[Vec<f32>], b: &[Vec<f32>]) -> f32 {
+    assert_eq!(a.len(), b.len());
+    a.iter()
+        .zip(b)
+        .flat_map(|(x, y)| {
+            assert_eq!(x.len(), y.len());
+            // A NaN on either side is no match at all.
+            x.iter().zip(y).map(|(p, q)| if p.is_nan() || q.is_nan() { f32::INFINITY } else { (p - q).abs() })
+        })
+        .fold(0f32, f32::max)
+}
+
+/// Each case of `s`'s bundle on the device and the CPU at MODEL, every
+/// value within BOUND, on the attention kernel the session picks (the
+/// tiled one for head widths 32, 64 and 128) and on the general one
+/// forced; the largest difference of each case printed. Sessions of 512
+/// tokens and of 500, not a multiple of a key block, whose last tile and
+/// block reach the table's +-span clamp; masked queries at 70, 150 and
+/// 200 sit in groups past the first at widths 32, 64 and 128. A masked
+/// query's own state reaches no output (a range or a pool reads live
+/// tokens only), so that case holds the live queries of its group, which
+/// a slip on its path would spoil.
+fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
+    let _t = turn();
+    let Some(ordinal) = device(test) else { return };
+    let f = fixture(name, s);
+    let (g, c) = (on_gpu(&f), f.load().unwrap());
+    for seq in [512usize, 500] {
+        let desc = session_desc(8, seq as u32, TURBO_PRECISION_MODEL);
+        let cs = Session::create(c.m, Some(&desc)).unwrap();
+        let hd = (s.hidden / s.heads) as u32;
+        let rows_reached = turbo::cuda::tiled_rows(s.buckets as u32, s.max_relative_positions as u32, seq as u32, hd);
+        // The tiled kernel also needs its shared memory: a device that gives a
+        // block less (under 68 KB at width 64) takes the general one.
+        let (need, give) = turbo::cuda::tiled_shared_memory(hd, ordinal).unwrap();
+        let fits = rows_reached.is_some_and(|(reach, room)| reach <= room);
+        let tiled = fits && need <= give;
+        let picked = match rows_reached {
+            Some(_) if fits && need > give => {
+                format!("general, the tiled kernel's {need} bytes past the device's {give}")
+            }
+            Some((reach, room)) if reach <= room => format!("tiled, {reach} of {room} rows"),
+            Some((reach, room)) => format!("general, the tiled kernel reaching {reach} rows of {room}"),
+            None => "general, no tiled kernel at its width".into(),
+        };
+        println!("{test}: {seq} tokens: picked: {picked}");
+        for (kernel, general) in [("picked", false), ("general", true)] {
+            turbo::cuda::use_general_attention(general);
+            let gs = Session::create(g.m, Some(&desc));
+            turbo::cuda::use_general_attention(false);
+            let gs = gs.unwrap();
+            assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32);
+            let want = if tiled && !general { "tiled" } else { "general" };
+            assert_eq!(turbo::cuda::last_attention(), Some(want), "{kernel}: the kernel the session picked");
+            let mixed = rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]);
+            let cases: [(&str, Tokens, turbo_embed_options); 9] = [
+                ("mixed lengths, padded, mean and L2", rows(&[17, 5, 40, 9, 1], &[], &[]), embed_options()),
+                ("left padding and masked holes, mean and L2", rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]), {
+                    options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_L2)
+                }),
+                ("left padding and masked holes, CLS", mixed, options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE)),
+                ("one token, CLS and L2", rows(&[1], &[], &[]), options(TURBO_POOLING_CLS, TURBO_NORMALIZE_L2)),
+                ("a row of max_seq tokens", rows(&[seq, 3], &[], &[]), embed_options()),
+                ("a row of max_seq - 1 tokens", rows(&[seq - 1, 2], &[], &[]), embed_options()),
+                ("masked queries past the first group", rows(&[300, 9], &[], &[(0, 70), (0, 150), (0, 200)]), {
+                    options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE)
+                }),
+                ("a row of 129 tokens", rows(&[129, 7], &[], &[]), embed_options()),
+                ("the last token", rows(&[33, 2, 12], &[], &[(0, 31)]), {
+                    options(TURBO_POOLING_LAST, TURBO_NORMALIZE_NONE)
+                }),
+            ];
+            for (what, t, o) in &cases {
+                gs.write_tokens(&t.batch(), Some(o)).unwrap();
+                let got = gs.run().unwrap().rows();
+                cs.write_tokens(&t.batch(), Some(o)).unwrap();
+                let want = cs.run().unwrap().rows();
+                let d = worst(&got, &want);
+                println!("{test}: {seq} tokens: {kernel}: {what}: largest difference {d:e}");
+                assert!(d < BOUND, "{seq} tokens: {kernel}: {what}: {d:e}");
+            }
+            // Token ranges: whole rows, pieces, a masked hole inside one, and
+            // the end of the 512-token row, pooled by the mean.
+            let t = rows(&[40, 12, seq], &[], &[(0, 20)]);
+            let ranges = [
+                range(0, 0, 40),
+                range(0, 1, 21),
+                range(1, 3, 9),
+                range(1, 11, 12),
+                range(2, 100, seq as u32),
+                range(2, seq as u32 - 12, seq as u32),
+            ];
+            let o = options(0, TURBO_NORMALIZE_L2);
+            gs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
+            let got = gs.run().unwrap().rows();
+            cs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
+            let d = worst(&got, &cs.run().unwrap().rows());
+            println!("{test}: {seq} tokens: {kernel}: token ranges: largest difference {d:e}");
+            assert!(d < BOUND, "{seq} tokens: {kernel}: token ranges: {d:e}");
+        }
+    }
+}
+
+#[test]
+fn the_tiny_deberta_matches_the_cpu() {
+    matches_the_cpu("the_tiny_deberta_matches_the_cpu", "cu-deberta-tiny", &TINY);
+}
+
+#[test]
+fn a_gliner_small_sized_deberta_matches_the_cpu() {
+    matches_the_cpu("a_gliner_small_sized_deberta_matches_the_cpu", "cu-deberta-small", &SMALL);
+}
+
+#[test]
+fn a_deberta_of_head_width_32_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_head_width_32_matches_the_cpu", "cu-deberta-32", &HEADS_32);
+}
+
+#[test]
+fn a_deberta_of_steep_buckets_300_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_steep_buckets_300_matches_the_cpu", "cu-deberta-300", &STEEP_300);
+}
+
+#[test]
+fn a_deberta_of_steep_buckets_200_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_steep_buckets_200_matches_the_cpu", "cu-deberta-200", &STEEP_200);
+}
+
+#[test]
+fn a_deberta_of_head_width_128_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_head_width_128_matches_the_cpu", "cu-deberta-128", &HEADS_128);
+}
+
+/// The relative rows each shape's tiled kernel reaches at most, and holds,
+/// in rows of 512 tokens: no device needed.
+#[test]
+fn the_tiled_kernel_s_rows_are_bounded_per_shape() {
+    let rows = |s: &Shape| {
+        turbo::cuda::tiled_rows(s.buckets as u32, s.max_relative_positions as u32, 512, (s.hidden / s.heads) as u32)
+    };
+    assert_eq!(rows(&STEEP_300), Some((97, 95)), "the review's 256 buckets over 300 at width 64");
+    assert_eq!(rows(&STEEP_200), Some((148, 95)));
+    assert_eq!(rows(&SMALL), Some((95, 95)));
+    assert_eq!(rows(&HEADS_32), Some((56, 159)));
+    assert_eq!(rows(&HEADS_128), Some((47, 47)));
+    assert_eq!(rows(&TINY), None, "no tiled kernel at width 4");
+}
+
+/// A session of 512 tokens, then one of 64 on the same model, then a run of
+/// the first, all on the general kernel and held to the CPU. The general
+/// kernel's shared memory grows with max_seq, but within the 4096-position
+/// cap it stays under the 48 KB every block has without the attribute, so
+/// this cannot catch a session's attribute taken away by a later one: it
+/// holds the sessions to the CPU in that order, not the attribute.
+#[test]
+fn a_smaller_session_leaves_a_larger_one_running() {
+    let _t = turn();
+    let Some(_) = device("a_smaller_session_leaves_a_larger_one_running") else { return };
+    let f = fixture("cu-deberta-sessions", &SMALL);
+    let (g, c) = (on_gpu(&f), f.load().unwrap());
+    turbo::cuda::use_general_attention(true);
+    let large = Session::create(g.m, Some(&session_desc(2, 512, TURBO_PRECISION_MODEL)));
+    let small = Session::create(g.m, Some(&session_desc(2, 64, TURBO_PRECISION_MODEL)));
+    turbo::cuda::use_general_attention(false);
+    let (large, small) = (large.unwrap(), small.unwrap());
+    let cs = Session::create(c.m, Some(&session_desc(2, 512, TURBO_PRECISION_MODEL))).unwrap();
+    for (s, t) in
+        [(&large, rows(&[500, 300], &[], &[])), (&small, rows(&[60, 9], &[], &[])), (&large, rows(&[512, 1], &[], &[]))]
+    {
+        s.write_tokens(&t.batch(), None).unwrap();
+        let got = s.run().unwrap().rows();
+        cs.write_tokens(&t.batch(), None).unwrap();
+        let d = worst(&got, &cs.run().unwrap().rows());
+        println!("a_smaller_session_leaves_a_larger_one_running: {} tokens: largest difference {d:e}", t.seq);
+        assert!(d < BOUND, "{} tokens: {d:e}", t.seq);
+    }
+}
+
+/// tiled_rows at the review's shapes, no device needed: 256 buckets over
+/// 300 at width 64 reach two rows past the 95 held, so take the general
+/// kernel; 256 over 512 fit at every tiled width, at 512 tokens and at
+/// 500; 256 over 200 reach 148.
+#[test]
+fn tiled_rows_at_the_review_s_shapes() {
+    assert_eq!(turbo::cuda::tiled_rows(256, 300, 512, 64), Some((97, 95)));
+    for hd in [32, 64, 128] {
+        let (reach, room) = turbo::cuda::tiled_rows(256, 512, 512, hd).unwrap();
+        assert!(reach <= room, "width {hd}: {reach} rows of {room}");
+    }
+    assert_eq!(turbo::cuda::tiled_rows(256, 200, 512, 64), Some((148, 95)));
+    // At 500 tokens, not a multiple of a key block, the last tile and block
+    // reach past the table's ends; clamped there, 256 over 512 still fit.
+    for (hd, rows) in [(32, (159, 159)), (64, (95, 95)), (128, (47, 47))] {
+        assert_eq!(turbo::cuda::tiled_rows(256, 512, 500, hd), Some(rows), "width {hd} at 500 tokens");
+    }
+}
+
+/// Sessions of 512, 64, 300 and 129 tokens made at once from four threads
+/// on the general kernel, each then run and held to the CPU: concurrent
+/// session creation, not a check of the shared-memory attribute's lock.
+/// It could not fail without the lock: the four share one context, whose
+/// lock already serializes their plans, and under the 4096-position cap
+/// the general kernel stays below the 48 KB a block has without the
+/// attribute, so a lowered value breaks no launch. The lock in
+/// deberta_plan was checked by reading it.
+#[test]
+fn sessions_made_at_once_all_run() {
+    let _t = turn();
+    let Some(_) = device("sessions_made_at_once_all_run") else { return };
+    let f = fixture("cu-deberta-at-once", &SMALL);
+    let (g, c) = (on_gpu(&f), f.load().unwrap());
+    let seqs = [512u32, 64, 300, 129];
+    turbo::cuda::use_general_attention(true);
+    // The handles cross the threads as addresses: the API's objects are
+    // safe to share, the raw pointers are not Send.
+    let m = g.m as usize;
+    let made: Vec<Session> = std::thread::scope(|scope| {
+        let handles: Vec<_> = seqs
+            .iter()
+            .map(|&q| {
+                scope.spawn(move || {
+                    let desc = session_desc(2, q, TURBO_PRECISION_MODEL);
+                    let s = Session::create(m as *mut turbo_model, Some(&desc)).unwrap();
+                    let at = s.0 as usize;
+                    std::mem::forget(s);
+                    at
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| Session(h.join().unwrap() as *mut turbo_session)).collect()
+    });
+    turbo::cuda::use_general_attention(false);
+    for (s, &q) in made.iter().zip(&seqs) {
+        let t = rows(&[q as usize, 5], &[], &[]);
+        let cs = Session::create(c.m, Some(&session_desc(2, q, TURBO_PRECISION_MODEL))).unwrap();
+        s.write_tokens(&t.batch(), None).unwrap();
+        let got = s.run().unwrap().rows();
+        cs.write_tokens(&t.batch(), None).unwrap();
+        let d = worst(&got, &cs.run().unwrap().rows());
+        println!("sessions_made_at_once_all_run: {q} tokens: largest difference {d:e}");
+        assert!(d < BOUND, "{q} tokens: {d:e}");
+    }
+}
+
+/// A session whose geometry the tiled kernel cannot hold takes the general
+/// one and says why in a debug line of its runtime's log.
+#[test]
+fn a_fallback_to_the_general_kernel_is_logged() {
+    let _t = turn();
+    let Some(_) = device("a_fallback_to_the_general_kernel_is_logged") else { return };
+    let f = fixture("cu-deberta-logged", &STEEP_300);
+    let g = deberta_common::load_logged(&f, |rt| first_of(rt, "cuda").expect("a cuda device"));
+    let _s = Session::create(g.m, Some(&session_desc(2, 512, TURBO_PRECISION_MODEL))).unwrap();
+    let logged = deberta_common::LOGGED.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    let line = logged.iter().find(|l| l.contains("DeBERTa-v2 attention is the general kernel"));
+    let line = line.unwrap_or_else(|| panic!("no fallback line in {logged:?}"));
+    assert!(line.contains("reach 97 relative rows") && line.contains("stages 95"), "{line}");
+    println!("a_fallback_to_the_general_kernel_is_logged: {line}");
+}
+
+/// FASTEST is refused, naming the precision and the family, and so is TF32
+/// at MODEL; neither runs in F32 in its place.
+#[test]
+fn fastest_is_refused_on_a_deberta_model() {
+    let _t = turn();
+    let Some(_) = device("fastest_is_refused_on_a_deberta_model") else { return };
+    let f = fixture("cu-deberta-fastest", &TINY);
+    let g = on_gpu(&f);
+    let e = Session::create(g.m, Some(&session_desc(4, 64, TURBO_PRECISION_FASTEST))).err().unwrap();
+    assert!(e.is(status::UNSUPPORTED_OPTION, "FASTEST on FAMILY_DEBERTA_V2"), "{e:?}");
+    turbo::cuda::use_tf32(Some(true));
+    let e = Session::create(g.m, Some(&session_desc(4, 64, TURBO_PRECISION_MODEL)));
+    turbo::cuda::use_tf32(None);
+    let e = e.err().unwrap();
+    assert!(e.is(status::UNSUPPORTED_OPTION, "TF32 on FAMILY_DEBERTA_V2"), "{e:?}");
+    let exact = Session::create(g.m, Some(&session_desc(4, 64, TURBO_PRECISION_EXACT))).unwrap();
+    assert_eq!(exact.info().compute_dtype, TURBO_DTYPE_F32);
+}
+
+/// Milliseconds a pass at the GLiNER-small size, the CPU at MODEL and
+/// cuda at MODEL with the tiled and the general attention
+/// interleaved, TURBO_SPEED_RUNS runs a side (default
+/// 5) after one untimed, at batch 32 of 128 tokens and batch 8 of 512.
+/// Ignored, since it measures rather than checks.
+#[test]
+#[ignore]
+fn deberta_speed() {
+    let _t = turn();
+    let Some(_) = device("deberta_speed") else { return };
+    let runs: usize = std::env::var("TURBO_SPEED_RUNS").ok().and_then(|r| r.parse().ok()).unwrap_or(5);
+    let f = fixture("cu-deberta-speed", &SMALL);
+    let (g, c) = (on_gpu(&f), f.load().unwrap());
+    for (batch, seq) in [(32usize, 128usize), (8, 512)] {
+        let desc = session_desc(batch as u32, seq as u32, TURBO_PRECISION_MODEL);
+        turbo::cuda::use_general_attention(true);
+        let general = Session::create(g.m, Some(&desc));
+        turbo::cuda::use_general_attention(false);
+        let sides = [
+            ("cpu", Session::create(c.m, Some(&desc)).unwrap()),
+            ("cuda tiled", Session::create(g.m, Some(&desc)).unwrap()),
+            ("cuda general", general.unwrap()),
+        ];
+        let t = rows(&vec![seq; batch], &[], &[]);
+        let mut times = [Vec::new(), Vec::new(), Vec::new()];
+        for run in 0..=runs {
+            for (i, (_, s)) in sides.iter().enumerate() {
+                let start = Instant::now();
+                s.write_tokens(&t.batch(), None).unwrap();
+                let _ = s.run().unwrap().rows();
+                if run > 0 {
+                    times[i].push(start.elapsed().as_secs_f64() * 1e3);
+                }
+            }
+        }
+        for ((name, _), mut ms) in sides.iter().zip(times) {
+            ms.sort_by(f64::total_cmp);
+            println!(
+                "deberta_speed: {name} batch {batch} seq {seq}: ms a pass min {:.2} median {:.2} max {:.2} over {runs}",
+                ms[0],
+                ms[ms.len() / 2],
+                ms[ms.len() - 1]
+            );
+        }
+    }
+}

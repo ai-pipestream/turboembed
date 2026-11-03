@@ -1,0 +1,12 @@
+===OUT===
+Introduction to the system. Also email and EuroPean words, TCPIP, ab and 3-
+4 numbers.
+Trailing hyphen at end -
+
+===EDITS===
+5	8	
+26	29	
+40	43	
+56	59	
+74	77	
+82	85	

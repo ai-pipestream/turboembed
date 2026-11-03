@@ -1,5 +1,5 @@
-//! Port of OpenNLP's `CorefAnnotatorTest`: sieve decisions on names,
-//! types and pronouns, untyped entities, and input validation.
+//! Sieve decisions on names, types and pronouns, untyped entities, input
+//! validation, and the Unicode semantics of case and blank text.
 
 mod common;
 
@@ -307,4 +307,40 @@ fn rejects_misaligned_tags_and_layers_in_another_view() {
     let mut input = built.input();
     input.view = turbo_analysis::ViewId(3);
     assert!(rules().resolve(&input).unwrap_err().contains("view"));
+}
+
+/// Names compare in Unicode lower case, final sigma included, so a
+/// capitalised and an upper case Greek name are one name.
+#[test]
+fn names_match_in_unicode_lower_case() {
+    let f = Fixture::new()
+        .sentence(&["Οδυσσέας/PROPN", "sailed/VERB", "./PUNCT"])
+        .sentence(&["ΟΔΥΣΣΈΑΣ/PROPN", "returned/VERB", "./PUNCT"])
+        .entity("Οδυσσέας", "person")
+        .entity("ΟΔΥΣΣΈΑΣ", "person");
+    assert_eq!(chain_ids(&f, &rules()), [0, 0]);
+}
+
+/// Blank means Unicode `White_Space`: a no-break space (U+00A0) or a
+/// figure space (U+2007), which Java did not count, is blank.
+#[test]
+fn unicode_white_space_is_blank() {
+    for space in ["\u{a0}", "\u{2007}", "\u{202f}"] {
+        let mut f = Fixture::new().sentence(&["Ada/NNP", "./."]).entity("Ada", "person");
+        f.entities[0].1 = space.into();
+        assert!(refusal(&f.build()).contains("non-blank type"), "{space:?}");
+        assert!(CorefAnnotator::rules(&[space], &["organization"]).is_err(), "{space:?}");
+    }
+}
+
+/// A word with no letter (L) or decimal digit (Nd) carries no name
+/// content; a digit of any script does.
+#[test]
+fn stop_words_read_unicode_categories() {
+    use turbo_coref::lexicon::stop_word;
+    assert!(!stop_word("\u{0663}"), "ARABIC-INDIC DIGIT THREE is Nd");
+    assert!(!stop_word("\u{00e9}t\u{00e9}"));
+    assert!(stop_word("\u{216b}"), "ROMAN NUMERAL TWELVE is Nl, not Nd");
+    assert!(stop_word("\u{2014}"));
+    assert!(stop_word("the"));
 }

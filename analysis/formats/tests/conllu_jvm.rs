@@ -18,7 +18,6 @@ use std::path::PathBuf;
 use turbo_formats::FormatError;
 use turbo_formats::conllu::{ConlluCorefReader, ConlluDependencyReader, Tagset};
 use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
-use turbo_unicode::WhitespaceMode;
 
 const U32: ColumnType = ColumnType::U32;
 const STR: ColumnType = ColumnType::Str;
@@ -119,7 +118,6 @@ fn tagset(run: &str) -> Tagset {
 /// `well_formed` says the input's multiword token and empty node ids
 /// keep the UD rules, which Java does not check.
 fn dependencies(run: &str, input: &str, well_formed: bool) -> Rebuilt {
-    let mode = if run.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
     let mut out = Rebuilt::default();
     out.layers(&[
         "turbo:samples",
@@ -130,7 +128,7 @@ fn dependencies(run: &str, input: &str, well_formed: bool) -> Rebuilt {
         "turbo:sample-relations",
     ]);
     let mut samples = Vec::new();
-    let mut reader = ConlluDependencyReader::new(input, tagset(run), mode).unwrap();
+    let mut reader = ConlluDependencyReader::new(input, tagset(run)).unwrap();
     for item in reader.by_ref() {
         match item {
             Ok(s) => samples.push(s),
@@ -234,12 +232,9 @@ fn every_conllu_golden_matches() {
     let shapes = shapes();
     let all = goldens();
     let runs: std::collections::BTreeSet<&str> = all.iter().map(|(r, _)| r.as_str()).collect();
-    assert_eq!(
-        runs.into_iter().collect::<Vec<_>>(),
-        ["corefud-u", "corefud-x", "dependency-u", "dependency-u+legacy", "dependency-x"]
-    );
-    // Three dependency runs over two inputs and two CorefUD runs over three.
-    assert_eq!(all.len(), 12, "conllu goldens");
+    assert_eq!(runs.into_iter().collect::<Vec<_>>(), ["corefud-u", "corefud-x", "dependency-u", "dependency-x"]);
+    // Two dependency runs over two inputs and two CorefUD runs over three.
+    assert_eq!(all.len(), 10, "conllu goldens");
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();
         let input = golden.input_text(&data).unwrap();

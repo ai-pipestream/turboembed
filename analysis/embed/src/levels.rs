@@ -98,7 +98,7 @@ pub(crate) fn plan(
     Ok(())
 }
 
-/// Writes the two `opennlp:embeddings<turbo:levels>` instances, `local`
+/// Writes the two `turbo:embeddings<turbo:levels>` instances, `local`
 /// and `contextual` (`VectorKind::key`), from one set of encoder runs.
 /// Add it to a pipeline with `bound`, which names the two outputs; with
 /// both under the default name the pipeline is refused.

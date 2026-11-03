@@ -104,10 +104,10 @@ pub(crate) fn project_entity_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
                             entity_index: l.entity_of(ix).map(|e| e.get() as u32),
                             kind: mention_kind_name(l.kind[i]).to_owned(),
                             origin: l.origin[i].as_str().to_owned(),
-                            number: agr.number().java_name().to_owned(),
-                            gender: agr.gender().java_name().to_owned(),
-                            animacy: agr.animacy().java_name().to_owned(),
-                            person: agr.person().java_name().to_owned(),
+                            number: agr.number().name().to_owned(),
+                            gender: agr.gender().name().to_owned(),
+                            animacy: agr.animacy().name().to_owned(),
+                            person: agr.person().name().to_owned(),
                         })),
                     }
                 })

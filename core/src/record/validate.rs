@@ -177,6 +177,24 @@ impl Record {
                 (None, Some(why)) if !why.is_empty() => {}
                 _ => return Err(format!("reference {}: exactly one of measured and not_run", r.name)),
             }
+            if let Some(k) = &r.kernel_time {
+                let fine = r.measured.is_some()
+                    && k.requests > 0
+                    && k.kernels_p50 > 0
+                    && !k.profiler.is_empty()
+                    && positive(k.p50_ms)
+                    && k.p99_ms.is_finite()
+                    && k.p50_ms <= k.p99_ms
+                    && k.copy_p50_ms.is_finite()
+                    && k.copy_p50_ms >= 0.0;
+                if !fine {
+                    return Err(format!(
+                        "reference {}: kernel_time goes with a measurement, and has its profiler, requests and \
+                         kernels above 0, and figures finite with 0 < p50 <= p99 and copies not negative",
+                        r.name
+                    ));
+                }
+            }
             // A program disabled before an image was named has none.
             if (r.measured.is_some() || !r.pinned.is_empty()) && pinned(&r.pinned).is_none() {
                 return Err(format!("reference {}: {:?} is not name@sha256:<64 hex>", r.name, r.pinned));

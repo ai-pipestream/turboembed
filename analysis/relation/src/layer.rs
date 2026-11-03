@@ -10,7 +10,7 @@ use std::sync::Arc;
 use turbo_analysis::{Anchor, Ix, Key, KeyId, Layer, Overlap, Spans, Tag, TagSet, TextSpans};
 use turbo_analysis_layers::Entities;
 
-/// Typed relations between entities: `opennlp:relations`. Rows
+/// Typed relations between entities: `turbo:relations`. Rows
 /// are not sorted or deduplicated; `kinds` holds the pattern
 /// types in registration order.
 #[derive(Clone, Debug)]
@@ -34,7 +34,7 @@ impl Relations {
 }
 
 impl Layer for Relations {
-    const ID: &'static str = "opennlp:relations";
+    const ID: &'static str = turbo_analysis::ids::RELATIONS;
     const OVERLAP: Overlap = Overlap::Any;
 
     fn anchor() -> Anchor {

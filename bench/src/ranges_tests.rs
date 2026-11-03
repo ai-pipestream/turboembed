@@ -62,7 +62,7 @@ fn the_three_ways_run_on_the_small_bert() {
     let arch = r.machine.arch.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "-");
     assert_eq!(
         file_name(&r),
-        format!("{arch}.cpu.ranges.model.all-minilm-l6-v2-{}.aaaaaaaaaaaa.json", &r.bundle.manifest_sha256[..8])
+        format!("{arch}.cpu.ranges.model.tiny-bert-{}.aaaaaaaaaaaa.json", &r.bundle.manifest_sha256[..8])
     );
     // The record passes its own check; a home directory, a ratio that is
     // not the p50s' quotient, or an unpushed commit does not.

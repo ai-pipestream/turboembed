@@ -117,7 +117,7 @@ pub async fn serve_no_admin() -> (Server, Analysis) {
 }
 
 pub fn model_ref() -> ModelRef {
-    ModelRef { id: "sentence-transformers/all-MiniLM-L6-v2".into(), revision: "1".into(), sha256: String::new() }
+    ModelRef { id: "turboembed/tiny-bert".into(), revision: "1".into(), sha256: String::new() }
 }
 
 /// The gRPC code and turbo-code of a refusal.
@@ -202,6 +202,7 @@ pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> Load
         max_batch: 0,
         max_seq: 0,
         select_device: false,
+        user: String::new(),
     }
 }
 

@@ -1,0 +1,16 @@
+MASKED	Hosts ***.*.*.*, ***.**.***.* and ***.*.***.*** answered.
+
+MASK_ALL	Hosts #########, ############ and ############# answered.
+
+REWRITE	pseudonymize	OK	Hosts IPV4-1, IPV4-2 and IPV4-3 answered.
+
+LABEL	pseudonymize	6	15	6	12	IPV4-1
+LABEL	pseudonymize	17	29	14	20	IPV4-2
+LABEL	pseudonymize	34	47	25	31	IPV4-3
+REWRITE	hmac	OK	Hosts IPV4-e0e75e9e942c4572, IPV4-0d7ae2ca452c386e and IPV4-b1a6089bde94074b answered.
+
+LABEL	hmac	6	15	6	27	IPV4-e0e75e9e942c4572
+LABEL	hmac	17	29	29	50	IPV4-0d7ae2ca452c386e
+LABEL	hmac	34	47	55	76	IPV4-b1a6089bde94074b
+AUDIT	ipv4	3	3	IPV4-e0e75e9e942c4572, IPV4-0d7ae2ca452c386e, IPV4-b1a6089bde94074b
+AUDIT_REPORT	ipv4: 3 mentions, 3 distinct [IPV4-e0e75e9e942c4572, IPV4-0d7ae2ca452c386e, IPV4-b1a6089bde94074b]

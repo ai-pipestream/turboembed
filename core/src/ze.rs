@@ -9,6 +9,7 @@ pub type Handle = *mut c_void;
 pub type Status = i32;
 
 pub const RESULT_ERROR_UNINITIALIZED: Status = 0x7800_0001;
+pub const RESULT_ERROR_DEVICE_LOST: Status = 0x7000_0001;
 pub const RESULT_ERROR_OUT_OF_HOST_MEMORY: Status = 0x7000_0002;
 pub const RESULT_ERROR_OUT_OF_DEVICE_MEMORY: Status = 0x7000_0003;
 

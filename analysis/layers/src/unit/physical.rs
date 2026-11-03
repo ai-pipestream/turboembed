@@ -69,6 +69,8 @@ impl Length {
 pub enum Area {
     Square(Length),
     Acre,
+    /// Modern mainland Chinese mu: exactly one fifteenth hectare.
+    Mu,
 }
 
 /// A volume. `Gallon`, `Quart`, `Pint` and `FluidOunce` are the US
@@ -188,6 +190,10 @@ pub enum Weight {
     ShortTon,
     Stone,
     Dram,
+    /// Modern mainland Chinese jin: 500 grams.
+    Jin,
+    /// Modern mainland Chinese liang: 50 grams.
+    Liang,
 }
 
 impl Weight {
@@ -206,6 +212,8 @@ impl Weight {
             Weight::ShortTon => "Short ton (US)",
             Weight::Stone => "Stone",
             Weight::Dram => "Dram",
+            Weight::Jin => "Jin",
+            Weight::Liang => "Liang",
         }
     }
 
@@ -224,6 +232,8 @@ impl Weight {
             Weight::ShortTon => "sh tn",
             Weight::Stone => "st",
             Weight::Dram => "dr",
+            Weight::Jin => "jin",
+            Weight::Liang => "liang",
         }
     }
 }
@@ -253,7 +263,8 @@ pub enum Rate {
 }
 
 impl Per {
-    pub(super) fn name(self) -> &'static str {
+    /// The canonical lowercase English name of the rate denominator (`"hour"`).
+    pub fn name(self) -> &'static str {
         match self {
             Per::Millisecond => "millisecond",
             Per::Second => "second",
@@ -266,7 +277,8 @@ impl Per {
         }
     }
 
-    pub(super) fn symbol(self) -> &'static str {
+    /// The canonical symbol of the rate denominator (`"h"`, `"d"`, `"s"`).
+    pub fn symbol(self) -> &'static str {
         match self {
             Per::Millisecond => "ms",
             Per::Second => "s",

@@ -45,11 +45,20 @@ pub struct EncodedQuery {
 /// Complete encoded corpus and query set ready for indexing and evaluation.
 pub struct EncodedCorpus {
     pub set_name: String,
+    /// Width of the per-token late-interaction vectors (`token_vecs`).
     pub dim: usize,
+    /// Width of the static dense vectors (`static_vec`); equal to `dim`
+    /// for the synthetic encoder, the static model's own width for a
+    /// trained one (#913).
+    pub static_dim: usize,
     pub vocab_size: usize,
     pub model: ModelRef,
     /// Row-major `[vocab_size, dim]` unit basis vectors for the vocabulary.
     pub vocab_basis: Vec<f32>,
+    /// A trained SPLATE adapter for Arm 4 (#913); `None` derives the
+    /// adapter from `vocab_basis` with the config's scale and bias, as
+    /// the synthetic study (#711) does.
+    pub adapter: Option<super::posting::SplateAdapter>,
     pub docs: Vec<EncodedDoc>,
     pub queries: Vec<EncodedQuery>,
 }
@@ -94,7 +103,7 @@ fn is_stopword(w: &str) -> bool {
     STOPS.binary_search(&w).is_ok()
 }
 
-fn tokenize_bm25(text: &str) -> Result<(Vocabulary, IndexedTerms, TermStats<View>)> {
+pub(crate) fn tokenize_bm25(text: &str) -> Result<(Vocabulary, IndexedTerms, TermStats<View>)> {
     let folded = text.to_ascii_lowercase();
     let doc = Document::new(folded);
     let view = doc.get::<View>().ok_or_else(|| "missing source view".to_owned())?;
@@ -104,7 +113,7 @@ fn tokenize_bm25(text: &str) -> Result<(Vocabulary, IndexedTerms, TermStats<View
     Ok((vocab, indexed, stats))
 }
 
-fn extract_query_terms(text: &str) -> Result<Vec<String>> {
+pub(crate) fn extract_query_terms(text: &str) -> Result<Vec<String>> {
     let folded = text.to_ascii_lowercase();
     let doc = Document::new(folded);
     let view = doc.get::<View>().ok_or_else(|| "missing source view".to_owned())?;
@@ -306,7 +315,17 @@ pub fn encode_loaded_set(
         revision: "v1".into(),
         sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
     };
-    Ok(EncodedCorpus { set_name: set.name.clone(), dim, vocab_size, model, vocab_basis, docs, queries })
+    Ok(EncodedCorpus {
+        set_name: set.name.clone(),
+        dim,
+        static_dim: dim,
+        vocab_size,
+        model,
+        vocab_basis,
+        adapter: None,
+        docs,
+        queries,
+    })
 }
 
 type TopicSpec = (&'static str, &'static [(&'static str, &'static str)], &'static [&'static str]);

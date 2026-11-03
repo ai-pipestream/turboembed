@@ -1,0 +1,14 @@
+===OUT===
+The word café-
+teria is in decornposed forrn, and the Hindi कিत𑧑बी-
+क𑧑 word ends in a vowel sign.
+Plain café-
+teria joins as before.
+
+===EDITS===
+33	34	rn
+43	44	rn
+63	66	ি
+69	72	𑧑
+83	86	𑧑
+123	125	é

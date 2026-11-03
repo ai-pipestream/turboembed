@@ -9,9 +9,8 @@
 //! draws it from `j..active`; the Java draw is kept, as it decides the
 //! order of the updates and so the weights.
 
-use turbo_jvm::random::JavaRandom;
-
 use super::problem::{Rows, axpy, java_max, java_min};
+use super::rng::Lcg;
 use super::{exp, log};
 
 const MAX_NEWTON_ITER: usize = 100;
@@ -32,7 +31,7 @@ pub(crate) fn solve(
     cn: f64,
     eps: f64,
     max_iter: usize,
-    random: &mut JavaRandom,
+    random: &mut Lcg,
 ) {
     let l = y.len();
     let w_size = columns.len();

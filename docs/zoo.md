@@ -40,6 +40,37 @@ Local-only sits above them because nothing in it ever leaves the user's
 machine, which also covers what the share-alike term of CC BY-NC-SA
 asks, and a refused licence anywhere still wins over everything.
 
+### Granite requires an explicit download decision
+
+Kristian clarified #1451: users may download
+`ibm-granite/granite-embedding-30m-english` at
+`9b5b096411652ec1189c68fcfb90d0a82c5b45af` after accepting the notice.
+TurboEmbed must not include the weights or generated bundles in releases
+or download them automatically. The distribution rules above still apply.
+
+The project inventory assigns `CLASS_SHARE_ALIKE` due to CC BY-SA training
+inputs. IBM licenses the weights under Apache-2.0. The recipe notice
+also identifies web-scraped and IBM-internal text with no auditable grant.
+The exception permits this named local download after user acceptance;
+it grants no rights to training text and approves no other model.
+
+`turbo-bundle fetch` and `make` require acceptance of the notice, even for
+cached inputs. `turbo-fetch.json` saves the notice and acceptance. For a
+model whose licence itself needs acceptance or whose recipe carries
+`notice_terms` (Granite's model card README, MS MARCO's terms page), the
+tool reads and writes the zoo's acceptance file
+(`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`): `notice_terms` is
+recorded under `LicenseRef-RestrictedPublic` with that address as
+`license_text`, so a requirement the user accepted before, with the tool,
+`turbo-zoo accept` or the catalog service on the page, needs no
+`--accept-terms` flag, and `--accept-terms` records the acceptance there. A
+recipe notice with no single `notice_terms` address stays a per-run
+`--accept-terms` decision. API clients
+must set `accept_terms=true` only after an explicit user decision through
+configuration or a prompt. The manifest identifies the weight licence;
+the notice adds the project download restriction. The existing handling
+of `deepset/roberta-base-squad2` is unchanged.
+
 ### Restricted but public data
 
 `CLASS_LOCAL_ONLY` holds two kinds of data: restricted but public data,
@@ -80,13 +111,13 @@ data mixed into a local-only artifact keeps it refused.
 
 Data under CC BY-NC or CC BY-NC-SA, such as English GUM in Universal
 Dependencies (CC BY-NC-SA 4.0), is `CLASS_LOCAL_ONLY` as well. The rule
-is Kristian's, from 2026-10-14, and follows what OpenNLP does with data
-it cannot distribute. It is this project's policy, stricter than the
+is Kristian's, from 2026-10-14, for data the project cannot distribute.
+It is this project's policy, stricter than the
 licences, which allow sharing the data and adapted material for
 non-commercial purposes:
 
 - Our code reads such data when the user supplies the files. A format
-  reader needs no acceptance, as OpenNLP's need none.
+  reader needs no acceptance.
 - The zoo requests it only at addresses under its original source
   (`origin`, checked as for restricted data), after the user accepts the
   licence, under every policy.
@@ -149,30 +180,29 @@ is in that form and a test keeps it there.
   "zoo_version": 1,
   "artifacts": [
     {
-      "id": "opennlp-en-ud-ewt-sentence-1.3-2.5.4",
-      "kind": "KIND_MODEL",
-      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "id": "symspell-frequency-dictionary-en-82-765",
+      "kind": "KIND_LEXICON",
       "language": "en",
-      "format": "FORMAT_OPENNLP_MODEL",
-      "version": "1.3-2.5.4",
-      "license": "Apache-2.0",
-      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
       "trained_on": [
         {
-          "name": "UD_English-EWT r2.16",
-          "license": "CC-BY-SA-4.0",
-          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+          "name": "Google Books Ngram data",
+          "license": "CC-BY-3.0",
+          "license_terms": "https://storage.googleapis.com/books/ngrams/books/datasetsv2.html"
         }
       ],
-      "class": "CLASS_SHARE_ALIKE",
-      "attribution": "Apache OpenNLP 1.3 UD model (Apache-2.0, The Apache Software Foundation), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "SymSpell frequency lists by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE), compiled as the intersection of Google Books Ngram data (CC-BY-3.0, https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) with SCOWL (http://wordlist.aspell.net/).",
       "files": [
         {
-          "path": "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "size": 20061,
-          "sha256": "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
-          "sha512": "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191"
+          "path": "frequency_dictionary_en_82_765.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell/frequency_dictionary_en_82_765.txt",
+          "size": 1332881,
+          "sha256": "c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b",
+          "sha512": "c89ad6785ba97e6179049e7033dc2b9c1f7d000982b24c12bfb66841c7b5344a96b7b2d6bbfa8c679bf081ffdb1da9a41fa50c2a9bf7d7aef6a02181d48c04e7"
         }
       ]
     }
@@ -185,9 +215,9 @@ is in that form and a test keeps it there.
 | `zoo_version` | uint32 | yes | 1. Anything else is rejected. |
 | `artifacts[].id` | string | yes | Unique. Lowercase ASCII letters, digits, `.`, `_`, `-`, starting with a letter or digit, at most 128 bytes. It names the artifact's cache directory. For a published file it is the file name without its extension. |
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
-| `.component` | enum | no | The component a model serves. `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_POS_GENERIC`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER` and `COMPONENT_PARSER` are OpenNLP's `ModelType` constants; `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA` and `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder) have no `ModelType`. A tokenizer fetched beside a model by id has none. |
+| `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_COREFERENCE_RESOLVER` (mentions grouped into chains by an antecedent-ranking head), `COMPONENT_DENSE_ENCODER` (one pooled vector per text, the BGE v1.5 encoders), `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
-| `.format` | enum | yes | `FORMAT_OPENNLP_MODEL` (an OpenNLP `.bin` archive), `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`). |
+| `.format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`), or a packaged `.bin` archive. |
 | `.version` | string | yes | The publisher's version. Not empty. |
 | `.license` | SPDX string | yes | The artifact's own licence. |
 | `.license_terms` | https URL | yes | Where the artifact's publisher states that licence. |
@@ -203,7 +233,7 @@ is in that form and a test keeps it there.
 | `.files[].url` | https URL | yes | Where it is fetched from. The address must serve the same bytes for as long as the entry exists: a release archive (`archive.apache.org/dist`, not the mirror network, which drops old releases), a repository path at a commit, or an asset of a release of this repository (the models the recipes train, `analysis/train-recipes`). A release asset can be deleted or replaced by the repository's maintainers, so the models releases are made once and their assets are never replaced; a replaced file fails the digests below. |
 | `.files[].size` | uint64 | yes | Bytes. |
 | `.files[].sha256` | 64 lowercase hex | yes | Checked as the bundle tool checks files. |
-| `.files[].sha512` | 128 lowercase hex | yes | Checked as OpenNLP's `DownloadUtil` checks files. |
+| `.files[].sha512` | 128 lowercase hex | yes | Checked against the published 512-bit digest. |
 | `.files[].download` | message | for a file served compressed | The file as the `url` serves it. `size`, `sha256` and `sha512` above stay the unpacked file's, which is what the cache holds. |
 | `.files[].download.compression` | `gzip` or `zstd` | yes | `gzip` is one RFC 1952 member, whose trailer CRC-32 and length must match; `zstd` is one or more RFC 8878 frames. |
 | `.files[].download.download_bytes` | uint64 | yes | The compressed bytes' size. |
@@ -243,13 +273,16 @@ Which user accepted which licence, in the zoo's home directory as
 
 | Field | Type | Meaning |
 |---|---|---|
-| `acceptances_version` | uint32 | 1. |
+| `acceptances_version` | uint32 | 1, or 2 when an acceptance holds `artifact` or `license_text_sha256`. The file is written at the lowest version that holds it, so a reader of version 1 reads every file made without a page. Both versions read. |
 | `accepted[].user` | string | Who accepted: 1 to 256 bytes, no control characters, no leading or trailing whitespace. |
 | `accepted[].license` | SPDX string | A licence of `CLASS_LGPL`, `CLASS_SHARE_ALIKE`, `CLASS_GPL` or `CLASS_LOCAL_ONLY`. A permissive licence needs no acceptance and a refused one cannot be accepted; either rejects the file. |
 | `accepted[].license_text` | https URL | The text the user was shown. For a licence with one text, the zoo's address for it; for `LicenseRef-RestrictedPublic`, the host's terms page as the index gives it (`license_terms`), so each host's terms are accepted on their own. |
 | `accepted[].accepted_at` | uint64 | Seconds since the Unix epoch, UTC. |
+| `accepted[].artifact` | artifact id | Version 2, optional: the artifact whose page showed the terms (the demo's Models tab, through `RecordLicenceAcceptance`). For audit only; the acceptance covers every artifact under the same terms. |
+| `accepted[].license_text_sha256` | SHA-256 | Version 2, optional: the SHA-256 of `license_text` as the page displayed it. A digest of other text rejects the file. |
 
-Every field is required. One user accepts one licence and text at most
+Every field of version 1 is required; a version 1 file with a version 2
+field is rejected. One user accepts one licence and text at most
 once. An absent file means nothing has been accepted. The zoo never
 writes the file on its own: only the user's explicit action adds an
 entry. `turbo-zoo accept <licence>` (or `turbo-zoo accept
@@ -318,6 +351,51 @@ For `fetch(id, user)`:
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.
 
+`Zoo::ensure` (and `Zoo::ensure_with`) wraps `Zoo::fetch_with` for
+redistributable models and heads (#1726): it enforces `Acceptances` for
+`CLASS_LGPL`, `CLASS_SHARE_ALIKE`, and `CLASS_GPL` and refuses
+`CLASS_LOCAL_ONLY` with `ZooError::LocalOnly` before touching the
+transport. `Index::find(language, component)` orders matching entries
+from least to most restrictive licence class (`CLASS_PERMISSIVE` first,
+in index order within a class) so callers default to a permissive model
+or head when several serve the same language and component. Beside
+`Blobs` and `Http`, `Directory` serves verified bundle files from a
+local directory root (`<root>/<id>/<path>` or `<root>/<path>`).
+
+## Self-hosted mirrors
+
+An artifact file's `url` is any `https://` address that serves the
+recorded bytes for as long as the entry exists; the fetch checks in step
+4 above make the transport untrusted. A self-hosted store needs no zoo
+changes when it serves plain HTTPS GETs: an S3 bucket with public-read
+objects (or presigned URLs) works as is, with object keys named so they
+never change bytes (`<artifact>@<commit>/<path>`, or the file's SHA-256
+in the key; never a mutable `latest`).
+
+Two knobs in `turbo_zoo` cover the cases plain HTTPS does not:
+
+- A mirror served with a publicly trusted certificate (a wildcard
+  certificate for the organization's domain, for example) needs no zoo
+  knob at all: the default transport's public roots already trust it.
+  Certificates and private keys live on the host only and are never
+  committed; the tree test refuses a committed private key block.
+- `Http::with_root_ca_bundle_pem` builds an HTTPS transport trusting
+  only the PEM-encoded CA bundle it is given, for a mirror served with a
+  private CA. Every `-----BEGIN CERTIFICATE-----` block in the bundle
+  must parse. The public roots are not in the set; a deployment that
+  fetches both mirrored and public artifacts keeps `Http::new()` for the
+  public ones and the custom transport for the mirror.
+- `Mirror::new(base, inner)` rewrites every fetch to
+  `<base>/<original host>/<original path>`, so one mirror of several
+  origins keeps them apart. The base cannot include a query or fragment.
+  Digest checks run unchanged on what the mirror serves.
+
+An OCI registry also works: blobs are served by digest over HTTPS
+(`/v2/<name>/blobs/sha256:<digest>`), so the address is self-pinning and
+cross-checks the index's `sha256`. Bundles go up as OCI artifacts (ORAS)
+when containers and models should share one pipeline; otherwise the S3
+bucket is the simpler host.
+
 `Zoo::cache_status(id)` reads and checks the cached files as step 4
 does, and reports `Cached`, `Missing` (the first absent file) or
 `Corrupt` (the first file that fails, and why), with no fetch, no write
@@ -328,30 +406,188 @@ command uses (`$TURBO_ZOO_HOME`, else `$XDG_DATA_HOME/turbo-zoo`, else
 acceptance file at `Home::acceptances`; `UserId::from_env` reads `$USER`,
 else `$USERNAME`.
 
-## Reading the index from OpenNLP
+### Other sources: a content-addressed store and a list of sources
 
-OpenNLP's `DownloadUtil` (3.x) finds models by scraping the HTML index
-of the Apache mirror for `.bin` links, maps each to a language by a
-substring of its name and to a `ModelType` by another, and checks a
-`.sha512` file fetched beside it. It knows nothing of licences: it
-fetches the UD models trained on non-commercial treebanks as readily as
-the others, and from the mirror network, which carries only current
-releases.
+The zoo asks its transport for each file with `Transport::get_file`,
+which gets the artifact and the index's record of the file. By default
+it fetches the file's address, as before; a transport that finds files
+another way overrides it (#1613).
 
-The index is meant to replace that page for OpenNLP 3.1 too:
+- `Blobs::new(root)` is a content-addressed store on disk: each file,
+  unpacked, at `<root>/blobs/sha256/<hex>` of its SHA-256. The same
+  layout serves a zoo server's store, a library's local copy and an S3
+  bucket, so any one can seed another, and a key always names the bytes
+  the index pins. `Blobs::put(bytes)` keeps bytes under their own
+  SHA-256, written whole through a temporary name. As a transport it
+  serves a file by its SHA-256 alone, never by address, and refuses a
+  symlink or anything but a plain file.
+- `Sources::new().then(name, source)...` tries its sources in order for
+  each file and keeps the first answer that verifies by size, SHA-256
+  and SHA-512 (after the wire check, for a file served compressed); a
+  source that lacks the file, fails or serves other bytes passes the
+  request on. When none has it, the error names what each said. A
+  typical list is the local store, then a zoo server, then `Http`
+  for the index's own address.
+- `Sources::then_keep(name, store)` adds a store (anything that is a
+  `Transport` and a `Keep`: `Blobs` or `S3Bucket`) that also keeps every
+  file a later source serves, once it verifies, so the next read is
+  local. A file it cannot keep is still handed over. The keeping store
+  neither serves nor keeps an artifact whose class may not be
+  redistributed (`CLASS_LOCAL_ONLY`, refused): such a file comes only
+  from the sources after it, and no copy of it is made, on a server's
+  store or on a user's own machine.
+- `S3Bucket` (the `http` feature) is an S3 bucket or prefix, on AWS or
+  an S3-compatible store such as RustFS, in the same
+  `<prefix>/blobs/sha256/<hex>` layout: a file is read with one GET and
+  kept with one PUT, each signed with AWS Signature Version 4 (computed
+  over `sha2`, no AWS SDK), or unsigned for a public bucket.
+  `S3Bucket::new("s3://bucket/prefix")` is configured the way the AWS
+  tools are: `AWS_ENDPOINT_URL_S3` or `AWS_ENDPOINT_URL` for a store
+  other than AWS (addressed path-style), `AWS_REGION` or
+  `AWS_DEFAULT_REGION` (else `us-east-1`), and `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`.
+  `S3Bucket::signed_in(address, &sign_in)` opens a holder's bucket: from
+  that environment for `SignIn::Environment`, or with the holder's own
+  `SignIn::S3Keys`, which read nothing from the environment. Redirects
+  are not followed, so a signed request is not replayed elsewhere.
+  `analysis/zoo/tests/s3.rs` runs it against an in-process stand-in that checks each
+  signature; `analysis/zoo/src/fetch/sigv4.rs` checks HMAC-SHA-256 against RFC 4231
+  and the signatures against the S3 documentation's GET and PUT Object
+  examples.
+
+- `GoogleDrive` (the `http` feature) is a Google Drive folder, read
+  through the Drive API v3 over the same HTTPS stack (no SDK), shared
+  drives included. `GoogleDrive::new("gdrive://<folder-id>[/name/...]")`
+  names the folder by its Drive id (`root` is My Drive), and the names
+  after the id walk down from it. A file is looked for at
+  `blobs/sha256/<hex>`, the layout the other stores share, and when it
+  is not there at `<artifact-id>/<path>`, the zoo cache's own layout,
+  so a store or a cache copied to Drive serves as is. Each folder on the
+  way is found with one `files.list` query and remembered; the file is
+  the first of its name whose size is the index's (read page by page),
+  so a file of another size is never downloaded, and is read with one
+  `files.get?alt=media`, at most its size and one byte more. Sign-in comes from `GOOGLE_OAUTH_ACCESS_TOKEN`, sent as a bearer
+  token (one from `gcloud auth print-access-token`, or any OAuth flow
+  the caller runs), or else `GOOGLE_API_KEY`, enough for a folder
+  shared with anyone who has the link (sent as `X-Goog-Api-Key`); one
+  of them is required. Neither ever travels in a URL, and a redirect is
+  followed over HTTPS only and unsigned. `GoogleDrive::with` takes
+  another endpoint; a plain `http://` one sends the token in clear text
+  and is only for a stand-in on loopback in tests. It
+  reads and does not keep: a library puts its own `file://` store first
+  to keep what Drive serves. `analysis/zoo/tests/drive.rs` runs it
+  against an in-process stand-in that answers the Drive API calls.
+
+A zoo server keeps its files in such a store with
+`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
+(docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
+its first read, so a library pointed at it with `grpc(s)://` needs no
+separate install step. docs/zoo-container.md packs that server, the
+page and a RustFS store into one `docker compose`. `turbo-zoo-remote`
+(top-level `zoo-remote/`) adds the library's remote sources: a zoo
+server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, a
+Google Drive folder over `gdrive://` (the `gdrive` feature), and the
+`TURBO_ZOO_SOURCE` list that names them.
+
+### Holders: sources a user registers
+
+An application that lets each user bring a store keeps the user's
+sources as holders (#1744) rather than in one process-wide
+`TURBO_ZOO_SOURCE`. A holder (`turbo_zoo::Holder`) is a name the user
+picks (1 to 64 characters, no comma or control character, unique per
+user), a source address, and how it signs in (`SignIn`):
+
+- `environment`: from the process environment, as `TURBO_ZOO_SOURCE`
+  does, or not at all for a source that needs none;
+- `google_oauth`: a Google grant, kept as the OAuth client id (and
+  secret, for a client type that has one) and the grant's refresh token;
+- `api_key`: a key, for a Drive folder shared by link;
+- `s3_keys`: an S3 access key pair (`access_key_id`,
+  `secret_access_key`, and `session_token` for temporary keys) that an
+  `s3://` holder signs its requests with in place of the process
+  `AWS_*` environment, with the bucket's `region` (else `us-east-1`)
+  and, for an S3-compatible store, its `endpoint` (`http://host:port`
+  or `https://host`, addressed path-style).
+
+`Holders` keeps every user's holders, in the order they are tried, in
+one strict JSON file (`Home::holders()`, `holders.json` beside the
+acceptance file), one canonical form, unknown fields refused:
+
+```json
+{
+  "holders_version": 1,
+  "users": [
+    {
+      "user": "alice",
+      "holders": [
+        { "name": "laptop", "address": "file:///srv/zoo" },
+        {
+          "name": "team drive",
+          "address": "gdrive://<folder-id>",
+          "sign_in": { "kind": "google_oauth", "client_id": "...", "refresh_token": "..." }
+        }
+      ]
+    }
+  ]
+}
+```
+
+The file holds sign-in secrets, so it is written through a temporary
+name readable and writable by its owner alone on Unix. `register` adds a
+holder last or replaces the one of the same name where it was; `remove`
+and `move_to` change the list.
+
+Signing a user in to Drive is `turbo_zoo::GoogleOAuth` (the `http`
+feature): OAuth 2.0 authorization code with PKCE (RFC 7636, S256), scope
+`drive.readonly`, offline so the grant carries a refresh token, over the
+zoo's HTTPS stack. A web application sends the user to
+`authorize_url(redirect, &pkce)` and calls `exchange(code, redirect,
+&pkce)` from its redirect, after checking the `state` it got back; a
+command line or desktop calls `sign_in_loopback`, which listens once on
+`127.0.0.1`, hands the consent page's address to a callback that opens
+a browser, and checks the `state` itself. Only the refresh token is
+kept. `DriveAuth::Refresh(Renewing)` gets an access token from it on
+first use, again a minute before each runs out, and once more when Drive
+answers 401. `analysis/zoo/tests/oauth.rs` runs all of it against an
+in-process server that answers both the token endpoint and the Drive
+API.
+
+Holders open into sources through `turbo_zoo_remote::Registry`, the
+kinds of source by scheme. `Registry::builtin()` has `file`, `grpc` and
+`grpcs`, `s3` and `gdrive` (a scheme whose feature the build leaves out
+is still known, and refused when opened); an application adds a kind of
+its own by implementing `Kind` (the schemes it claims, and how it opens
+a holder into a transport or a keeping store) and calling `register`,
+which also lets it take a built-in scheme over.
+`Registry::sources(holders.list(&user), &user, Some(origin))` is the
+user's list, in order, then the index's own addresses; the first store in it keeps what the
+sources after it serve, as the first `file://` store of
+`TURBO_ZOO_SOURCE` does. `TURBO_ZOO_SOURCE` itself is parsed through
+the same registry (`Registry::spec`), each entry a holder that signs in
+from the environment. A `file` or `grpc` holder signs in from the
+environment only; an `s3` holder from the environment or with its own
+`s3_keys`; a `gdrive` holder from the environment, with an API key or
+with a Google grant.
+
+Whatever the source, the licence check runs first: no source is asked
+for an artifact whose terms the user has not accepted.
+
+## Reading the index from external clients
+
+The index is structured so external tools can query it without scraping HTML
+directories:
 
 - The JSON uses only objects, arrays, strings and non-negative
   integers: no floats, no booleans, no nulls, no maps keyed by data.
   Any JSON reader, or a small hand-written one, reads it.
-- `component` names `ModelType` constants with a `COMPONENT_` prefix,
-  and `language` is the code `DownloadUtil` keys its map by, so
-  `(language, component)` gives the same lookup `downloadModel(language,
-  modelType, type)` does. `Index::find` is that lookup here;
-  `Index::find_within` keeps the models of a class or less restrictive
-  ones, the least restrictive first.
-- `sha512` is the digest `DownloadUtil.verifyChecksum` compares, in the
-  form the published `.sha512` files hold, so OpenNLP checks a file
-  against the index without fetching a checksum file.
+- `component` names component constants with a `COMPONENT_` prefix,
+  and `language` is the ISO code the index keys its map by, so
+  `(language, component)` resolves the matching models directly. `Index::find`
+  is that lookup here; `Index::find_within` keeps the models of a class or less
+  restrictive ones, the least restrictive first.
+- `sha512` is the digest in the form the published `.sha512` files hold, so a
+  client checks a file against the index without fetching a separate checksum
+  file.
 - `class` is written out, so a reader that does not map licences itself
   can still refuse `CLASS_REFUSED`, keep `CLASS_LOCAL_ONLY` to the
   user's machine, and ask before the other non-permissive classes.
@@ -378,8 +614,8 @@ The index is meant to replace that page for OpenNLP 3.1 too:
   terms put a licence there, which decides what the user accepts and is
   told.
 - Both digests are required. SHA-256 is what the bundle tool and the
-  repository's model READMEs use; SHA-512 is what OpenNLP and the Apache
-  distribution publish.
+  repository's model READMEs use; SHA-512 is what upstream Apache
+  distributions publish.
 - The HTTP transport is a cargo feature (`http`, on by default). Without
   it the library still parses, checks licences and verifies files a
   caller's own transport fetched; `Offline` serves the cache alone.
@@ -390,4 +626,6 @@ The index is meant to replace that page for OpenNLP 3.1 too:
 - Encoder bundles. They have their own recipes and catalogue
   (docs/bundle.md); their `model.license` maps to a class by the same
   table when the bundle tool learns to check it.
-- Mirrors and fallbacks. One address per file.
+- Fallback mirrors. One address per file; a whole-index mirror rewrites
+  every address to one host with `Mirror` ("Self-hosted mirrors",
+  above).

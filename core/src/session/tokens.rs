@@ -19,6 +19,13 @@ pub unsafe extern "C" fn turbo_embed_write_tokens(
             let tb = token_batch(batch)?;
             let o = embed_options(s, opts)?;
             no_text_options(&o)?;
+            if o.layers > 1 {
+                return Err(Error::field(
+                    INVALID_ARGUMENT,
+                    9,
+                    format!("layers {}: per-layer taps apply to range writes, not row writes", o.layers),
+                ));
+            }
             check_tokens(s, &tb, o.max_tokens)?;
             write_rows(s, &mut state, caller_rows(&o, &tb), &o, false)
         })
@@ -37,59 +44,181 @@ pub unsafe extern "C" fn turbo_embed_write_ranges(
     opts: *const turbo_embed_options,
     err: *mut turbo_error,
 ) -> i32 {
+    unsafe { call(err, || write_ranges(s, batch, ranges, count, None, opts)) }
+}
+
+/// # Safety
+/// As turbo_embed_write_ranges.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_embed_write_layer_ranges(
+    s: *mut turbo_session,
+    batch: *const turbo_token_batch,
+    ranges: *const turbo_token_range,
+    count: u32,
+    layers: u32,
+    opts: *const turbo_embed_options,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe { call(err, || write_ranges(s, batch, ranges, count, Some(layers), opts)) }
+}
+
+/// A range write pooling each range from each of the last `taps` layers
+/// (turbo.h, turbo_embed_write_ranges and turbo_embed_write_layer_ranges).
+unsafe fn write_ranges(
+    s: *mut turbo_session,
+    batch: *const turbo_token_batch,
+    ranges: *const turbo_token_range,
+    count: u32,
+    layers: Option<u32>,
+    opts: *const turbo_embed_options,
+) -> Result<()> {
     unsafe {
-        call(err, || {
-            let s = &session(s)?.inner;
-            let mut state = begin_write(s)?;
-            let tb = token_batch(batch)?;
-            let o = embed_options(s, opts)?;
-            if o.pooling_given != TURBO_POOLING_MODEL && o.pooling_given != TURBO_POOLING_MEAN {
-                return Err(Error::field(
-                    UNSUPPORTED_OPTION,
-                    5,
+        let s = &session(s)?.inner;
+        let mut state = begin_write(s)?;
+        let tb = token_batch(batch)?;
+        let o = embed_options(s, opts)?;
+        let taps = match layers {
+            Some(l) => {
+                if o.layers > 1 && o.layers != l {
+                    return Err(Error::field(
+                        INVALID_ARGUMENT,
+                        9,
+                        format!("turbo_embed_options.layers {} does not match layers {l}", o.layers),
+                    ));
+                }
+                l
+            }
+            None => o.layers.max(1),
+        };
+        if o.pooling_given != TURBO_POOLING_MODEL && o.pooling_given != TURBO_POOLING_MEAN {
+            return Err(Error::field(
+                UNSUPPORTED_OPTION,
+                5,
+                format!(
+                    "pooling {}: a range is pooled by the mean alone, so pooling is 0 or TURBO_POOLING_MEAN",
+                    o.pooling_given
+                ),
+            ));
+        }
+        no_text_options(&o)?;
+        check_tokens(s, &tb, o.max_tokens)?;
+        if ranges.is_null() && count > 0 {
+            return Err(Error::new(INVALID_ARGUMENT, format!("ranges is NULL and count is {count}")));
+        }
+        if count == 0 {
+            return Err(Error::new(INVALID_ARGUMENT, "count is 0: a run needs at least one range"));
+        }
+        check_taps(s, taps)?;
+        if count as u64 * taps as u64 > s.max_ranges as u64 {
+            return Err(Error::new(
+                CAPACITY,
+                if taps == 1 {
+                    format!("{count} ranges is over the session's max_ranges {}", s.max_ranges)
+                } else {
                     format!(
-                        "pooling {}: a range is pooled by the mean alone, so pooling is 0 or TURBO_POOLING_MEAN",
-                        o.pooling_given
-                    ),
-                ));
-            }
-            no_text_options(&o)?;
-            check_tokens(s, &tb, o.max_tokens)?;
-            if ranges.is_null() && count > 0 {
-                return Err(Error::new(INVALID_ARGUMENT, format!("ranges is NULL and count is {count}")));
-            }
-            if count == 0 {
-                return Err(Error::new(INVALID_ARGUMENT, "count is 0: a run needs at least one range"));
-            }
-            if count > s.max_ranges {
-                return Err(Error::new(
-                    CAPACITY,
-                    format!("{count} ranges is over the session's max_ranges {}", s.max_ranges),
-                ));
-            }
-            let len = array_len::<turbo_token_range>(count as u64, "ranges")?;
-            let ranges = std::slice::from_raw_parts(ranges, len);
-            check_ranges(&tb, ranges)?;
-            // turbo.h: a range is pooled by the mean whatever the bundle says.
-            let mut rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
-            if let Some(h) = &s.model.span_head {
-                span_head_options(&o, s.model.info.dim)?;
-                let output_dim = h.classifier.out_dim as u32;
-                rows = turbo_backend_embed_rows { head: 1, output_dim, normalize: TURBO_NORMALIZE_NONE, ..rows };
-            }
-            let b = s.backend;
-            let write = backend::offered!(b, embed_write_ranges)?;
-            backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
-            state.written = Some(Written { batch: count, output_dim: rows.output_dim, tokenized: false });
-            Ok(())
-        })
+                        "{count} ranges from {taps} layers is {} vectors, over the session's max_ranges {}",
+                        count as u64 * taps as u64,
+                        s.max_ranges
+                    )
+                },
+            ));
+        }
+        let len = array_len::<turbo_token_range>(count as u64, "ranges")?;
+        let ranges = std::slice::from_raw_parts(ranges, len);
+        // turbo.h: only the cpu backend's BERT and RoBERTa encoders
+        // compute mask-0 columns for a range holding no live token.
+        let masked_columns = s.backend.name() == "cpu"
+            && matches!(
+                s.model.weights.family(),
+                crate::backend::TURBO_FAMILY_BERT | crate::backend::TURBO_FAMILY_ROBERTA
+            );
+        check_ranges(&tb, ranges, masked_columns, s.backend.name())?;
+        // turbo.h: a range is pooled by the mean whatever the bundle says.
+        let mut rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
+        if let Some(h) = &s.model.span_head {
+            span_head_options(&o, s.model.info.dim)?;
+            let output_dim = h.classifier.out_dim as u32;
+            rows = turbo_backend_embed_rows { head: 1, output_dim, normalize: TURBO_NORMALIZE_NONE, ..rows };
+        }
+        rows.taps = taps;
+        let b = s.backend;
+        let write = backend::offered!(b, embed_write_ranges)?;
+        backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
+        record(&mut state, &o, count * taps, rows.output_dim, false);
+        Ok(())
     }
+}
+
+/// turbo.h: 1 to the model's layers, and above 1 only where the device's
+/// cell honors field 9 (the cpu backend), on its BERT, RoBERTa,
+/// ModernBERT, nomic-bert and DeBERTa-v2 encoders, with no span head on
+/// the device.
+fn check_taps(s: &SessionInner, taps: u32) -> Result<()> {
+    let w = &s.model.weights;
+    let model = Taps { layers: w.layers(), family: w.family(), span_head: s.model.span_head.is_some() };
+    taps_refusal(taps, model, s.honored & 1 << 8 != 0, s.backend.name())
+}
+
+/// What check_taps reads of the model.
+#[derive(Clone, Copy)]
+pub(super) struct Taps {
+    pub(super) layers: u32,
+    pub(super) family: u32,
+    pub(super) span_head: bool,
+}
+
+/// check_taps on what it reads, `read` saying whether the device's cell
+/// honors field 9. A count of 0, or over an encoder's layers, is wrong for
+/// the model on any device, so it is refused before what the device reads
+/// is asked: the same request gets the same code everywhere.
+pub(super) fn taps_refusal(taps: u32, model: Taps, read: bool, backend: &str) -> Result<()> {
+    use crate::backend::{
+        TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT,
+        TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC,
+    };
+    if taps == 1 {
+        return Ok(());
+    }
+    if taps == 0 {
+        return Err(Error::field(INVALID_ARGUMENT, 9, "layers 0: a range write needs at least 1 layer"));
+    }
+    // A static model has no encoder layers to count: its table is read
+    // as the final layer, and nothing before it.
+    if model.family == TURBO_FAMILY_STATIC {
+        return Err(Error::field(UNSUPPORTED_OPTION, 9, format!("layers {taps}: a static model has its table alone")));
+    }
+    let layers = model.layers;
+    if taps > layers {
+        return Err(Error::field(INVALID_ARGUMENT, 9, format!("layers {taps}: the model has 1 to {layers} to read")));
+    }
+    let encoder = matches!(
+        model.family,
+        TURBO_FAMILY_BERT
+            | TURBO_FAMILY_ROBERTA
+            | TURBO_FAMILY_MODERNBERT
+            | TURBO_FAMILY_NOMIC_BERT
+            | TURBO_FAMILY_DEBERTA_V2
+    );
+    if !read || !encoder {
+        return Err(Error::field(
+            UNSUPPORTED_OPTION,
+            9,
+            format!("layers {taps}: the {backend} backend reads only the final layer of this model"),
+        ));
+    }
+    if model.span_head {
+        return Err(Error::field(UNSUPPORTED_OPTION, 9, format!("layers {taps}: the span head reads the final layer")));
+    }
+    Ok(())
 }
 
 /// turbo.h: the span head reads a range's whole vector, so a range write
 /// to a model whose device applies it takes no normalization and no
-/// narrower output_dim.
+/// narrower output_dim, and its logits are not quantized.
 fn span_head_options(o: &EmbedOptions, dim: u32) -> Result<()> {
+    if o.quantization != Quantization::F32 {
+        return Err(Error::field(UNSUPPORTED_OPTION, 7, "quantization: the span head's rows are logits, not vectors"));
+    }
     if o.normalize != TURBO_NORMALIZE_NONE {
         return Err(Error::field(UNSUPPORTED_OPTION, 4, "normalize: the span head's logits are not normalized"));
     }
@@ -133,11 +262,19 @@ pub(super) fn caller_rows(o: &EmbedOptions, tb: &turbo_token_batch) -> turbo_bac
     r
 }
 
-/// Every range names a row of the batch, a column span within seq that is
-/// not empty, and at least one token of that row whose mask is 1. The
-/// mask is read in place through the row stride; check_tokens has already
-/// checked the batch's shape and that mask is not NULL.
-pub(super) unsafe fn check_ranges(tb: &turbo_token_batch, ranges: &[turbo_token_range]) -> Result<()> {
+/// Every range names a row of the batch and a column span within seq
+/// that is not empty. A range holding no token whose mask is 1 is
+/// pooled over all its columns where `masked_columns` says the backend
+/// computes mask-0 columns, and refused as unsupported naming the
+/// backend where it does not. The mask is read in place through the
+/// row stride; check_tokens has already checked the batch's shape and
+/// that mask is not NULL.
+pub(super) unsafe fn check_ranges(
+    tb: &turbo_token_batch,
+    ranges: &[turbo_token_range],
+    masked_columns: bool,
+    backend: &str,
+) -> Result<()> {
     let stride = if tb.row_stride == 0 { tb.seq } else { tb.row_stride } as usize;
     for (i, g) in ranges.iter().enumerate() {
         let bad = |rule: String| Err(Error::new(INVALID_ARGUMENT, format!("ranges[{i}]: {rule}")));
@@ -152,10 +289,14 @@ pub(super) unsafe fn check_ranges(tb: &turbo_token_batch, ranges: &[turbo_token_
         }
         let at = g.row as usize * stride + g.start as usize;
         let mask = unsafe { std::slice::from_raw_parts(tb.mask.add(at), (g.end - g.start) as usize) };
-        if !mask.contains(&1) {
-            return bad(format!(
-                "columns {} to {} of row {} hold no token whose mask is 1: a range needs a token",
-                g.start, g.end, g.row
+        if !mask.contains(&1) && !masked_columns {
+            return Err(Error::new(
+                UNSUPPORTED_OPTION,
+                format!(
+                    "ranges[{i}]: columns {} to {} of row {} hold no token whose mask is 1, and the {backend} \
+                     backend does not compute mask-0 columns for this family",
+                    g.start, g.end, g.row
+                ),
             ));
         }
     }
@@ -186,7 +327,8 @@ pub(super) unsafe fn check_tokens(s: &SessionInner, b: &turbo_token_batch, max_t
     if b.ids.is_null() || b.mask.is_null() {
         return Err(Error::new(INVALID_ARGUMENT, "ids and mask may not be NULL"));
     }
-    let (vocab, types) = (s.model.weights.vocab_size(), s.model.weights.token_types());
+    // A family without token types (DeBERTa-v2) takes type 0 only.
+    let (vocab, types) = (s.model.weights.vocab_size(), s.model.weights.token_types().max(1));
     let (n, seq) = (b.batch as usize, b.seq as usize);
     let span = array_len::<i32>((b.batch as u64 - 1) * stride as u64 + b.seq as u64, "token batch")?;
     let (ids, mask) = unsafe { (std::slice::from_raw_parts(b.ids, span), std::slice::from_raw_parts(b.mask, span)) };

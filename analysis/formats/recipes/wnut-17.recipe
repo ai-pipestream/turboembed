@@ -1,0 +1,14 @@
+# WNUT-17 emerging entities (leondz/emerging_entities_17): the training
+# file at the pinned commit, downloaded and hashed on 2026-10-28 (493,781
+# bytes). The README at the same commit states the data is distributed
+# under the CC-BY 4.0 license and was read on 2026-10-28 (SHA-256
+# 7dba67f5d6f7789af3b36af9cbea54b73705f86df100002ae202a9c2f5750157).
+name: wnut-17
+tier: eval-only
+url: https://raw.githubusercontent.com/leondz/emerging_entities_17/e52a2d2a71ac1a051ca2d532eef28653c5c02603/wnut17train.conll
+sha256: 731820e13f71af324c6b55a1575ec2ce59fbaa2a0806f8f0400b98d56cd6a7a5
+license-url: https://raw.githubusercontent.com/leondz/emerging_entities_17/e52a2d2a71ac1a051ca2d532eef28653c5c02603/README.md
+license: CC BY 4.0
+note: Blocker, from docs/licences.md: the text comes from YouTube comments, Stack Overflow responses, Twitter and Reddit, and platform terms need a look before the corpus is used, so this recipe stays eval-only and no default-tier recipe is checked in.
+note: The CC BY 4.0 statement covers the annotations and the collection as the publisher states them; it does not settle the platform terms of the source text, which remain unresolved.
+note: Attribution: Derczynski, Nichols, van Erp and Limsopatham, Results of the WNUT2017 Shared Task on Novel and Emerging Entity Recognition, EMNLP 2017 workshop.

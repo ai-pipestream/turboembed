@@ -10,6 +10,8 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-coref = { path = "../coref" }
 turbo-geo = { path = "../geo" }
 turbo-glossary-layers = { path = "../glossary-layers" }
+# The fuzzy match policy gating typo and phonetic recovery.
+turbo-matcher = { path = "../matcher" }
 turbo-normalize = { path = "../normalize" }
 turbo-unicode = { path = "../unicode" }
 turbo-vector-index = { path = "../vector-index" }

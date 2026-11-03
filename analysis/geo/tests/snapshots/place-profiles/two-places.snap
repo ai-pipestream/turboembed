@@ -1,0 +1,25 @@
+# turbo:profiles-load
+1		
+# turbo:profiles-metrics
+a
+b
+# turbo:profiles-neighbors
+0	1	0	1	bfeffffffffffffe
+0	2	0	1	bfeffffffffffffe
+0	2	0	1	bfeffffffffffffe
+1	1	0	0	bfeffffffffffffe
+1	2	0	0	bfeffffffffffffe
+1	2	0	0	bfeffffffffffffe
+# turbo:profiles-places
+first
+second
+# turbo:profiles-similarity
+0	0	3feffffffffffffe
+0	1	bfeffffffffffffe
+1	0	bfeffffffffffffe
+1	1	3feffffffffffffe
+# turbo:profiles-values
+0	0	bff0000000000000
+0	1	3ff0000000000000
+1	0	3ff0000000000000
+1	1	bff0000000000000

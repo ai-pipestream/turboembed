@@ -18,12 +18,16 @@ turbo = { path = "../../core" }
 # Typed top-k retrieval hits consumed by the reranking adapter.
 turbo-vector-index = { path = "../vector-index" }
 # DocumentCategorizerDL trait and scoring types (#208), plus the lexicon
-# sentiment baseline (#320) compared in tests/heads.rs.
+# sentiment baseline (#320) compared in tests/heads_sentiment.rs.
 turbo-doccat = { path = "../doccat" }
 # Coreference contextual TokenVectors trait (#960).
 turbo-coref = { path = "../coref" }
+turbo-trainer = { path = "../../trainer" }
 
 [dev-dependencies]
+turbo-pins = { path = "../pins" }
+# Native sentence boundaries for the mandatory sentence-vector snapshot.
+turbo-sentdetect = { path = "../sentdetect" }
 # The tests build the levels with the chunker crate's builder.
 turbo-chunker = { path = "../chunker" }
 # The JVM's WordPiece goldens, which the pieces are compared with.
@@ -40,3 +44,4 @@ serde_json = "1"
 # The upstream tokenizer, which the WordPiece pieces and spans are
 # compared with.
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
+turbo-zoo = { path = "../zoo", default-features = false }

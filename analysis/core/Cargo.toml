@@ -8,6 +8,9 @@ publish = false
 [lib]
 name = "turbo_analysis"
 
+[dependencies]
+turbo-sha256 = { path = "../sha256" }
+
 [dev-dependencies]
 # The pipeline tests run toy annotators over the shared layers.
 turbo-analysis-layers = { path = "../layers" }

@@ -7,17 +7,13 @@ mod prediction;
 pub use metadata::DecisionMetadata;
 mod transform;
 pub use prediction::{Abstention, Policy, Prediction, Predictor};
-use sha2::{Digest, Sha256};
 pub use transform::{PreparedTransform, Transform};
+use turbo_sha256::sha256;
 
 pub type Result<T> = std::result::Result<T, String>;
 
 pub fn digest(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    Sha256::digest(bytes)
-        .iter()
-        .flat_map(|b| [HEX[(b >> 4) as usize] as char, HEX[(b & 15) as usize] as char])
-        .collect()
+    sha256(bytes).to_hex()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

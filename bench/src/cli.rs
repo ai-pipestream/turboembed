@@ -109,10 +109,21 @@ record options:
   --tei-bin <path>             TEI's router built natively, run in place of
                                an image (metal, which no container reaches)
   --tei-model <dir>            the model in the upstream layout
+  --tei-nsys <dir>             Nsight Systems' target-linux-x64 directory,
+                               mounted into TEI's container to trace its
+                               requests' GPU kernels (cuda)
+  --tei-nsys-libs <dir>        libraries that nsys needs and the image lacks,
+                               built for the image's glibc
+  --nsys-importer <path>       the host's QdstrmImporter, where the nsys in
+                               the container leaves only its raw stream
   --hailort-bin <path>        native hailortcli (Hailo-8: 4.x; Hailo-10H: 5.x),
                                batch 32 and the HEF fixed sequence length
   --no-hailort                record that HailoRT was not run
   --no-tei                     record that TEI was not run
+  --mlx-model <dir>            MLX on the machine's Python (metal): the model
+                               in the upstream layout, config.json and the
+                               loaded artifact as model.safetensors
+  --no-mlx                     record that MLX was not run
   --tensorrt-image <name@sha256:..>
                                NVIDIA's TensorRT container, pinned (cuda)
   --tensorrt-bin <path>        trtexec installed on the machine, run in place
@@ -145,7 +156,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 5] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-peers"];
+const FLAGS: [&str; 6] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-mlx", "--no-peers"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {

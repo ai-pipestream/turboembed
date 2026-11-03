@@ -2,11 +2,11 @@
 //! view is in, for documents that change language part way (a German
 //! e-mail quoting English, code-switched chat, a bilingual notice).
 //!
-//! `opennlp:language` ([`Language`](crate::Language)) stays what it is in
+//! `turbo:language` ([`Language`](crate::Language)) stays what it is in
 //! OpenNLP, one ranking for the whole document, so a pipeline written
 //! against OpenNLP reads the layer it expects. The spans are a layer of
 //! their own, `turbo:language-spans`, because a document-anchored layer
-//! has no spans to carry: changing the anchor of `opennlp:language`
+//! has no spans to carry: changing the anchor of `turbo:language`
 //! would change what every reader of it gets. A step that writes both
 //! derives the document ranking from the spans, so the two agree.
 
@@ -26,10 +26,8 @@ pub const UNDETERMINED: &str = "und";
 ///
 /// The confidence ranks spans of one detector against each other; it is
 /// not a calibrated probability, and readers should not threshold on it.
-/// For `turbo-langspan` over OpenNLP's `langdetect-183.bin` it is the
-/// model's probability of the span's language over the languages of its
-/// script, and that model's probabilities are flat: a clear French
-/// sentence gets about 0.07 among 65 Latin-script languages.
+/// For `turbo-langspan` it is the native model's probability of the span's
+/// language over the languages of its script.
 pub struct LanguageSpans {
     pub spans: Spans<LanguageSpans>,
     pub language: Vec<Tag>,
@@ -85,6 +83,14 @@ impl LanguageSpans {
 impl Layer for LanguageSpans {
     const ID: &'static str = "turbo:language-spans";
     positional!(LanguageSpans);
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(self.languages.content_hash()).usize(self.language.len());
+        for i in 0..self.language.len() {
+            h.u16(self.language[i].0).str(self.script[i].name()).f64(self.confidence[i]);
+        }
+        Some(h.finish())
+    }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.language.len() != n || self.script.len() != n || self.confidence.len() != n {

@@ -337,33 +337,33 @@ mod tests {
         assert!(e.contains("without a golden"), "{e}");
         fs::remove_file(root.join("tokenize/m/en/b.dump")).unwrap();
 
-        put("normalize/dash/norm/a.golden", "golden 1\nannotator\ta.B\trun\n");
+        put("detokenize/rule/en/a.golden", "golden 1\nannotator\ta.B\trun\n");
         assert_eq!(check_dumps(&root).unwrap(), 1);
-        put("normalize/dash/norm/a.dump", &dump_text("norm/a"));
+        put("detokenize/rule/en/a.dump", &dump_text("en/a"));
         let e = check_dumps(&root).unwrap_err();
         assert!(e.contains("without a model"), "{e}");
-        fs::remove_file(root.join("normalize/dash/norm/a.dump")).unwrap();
+        fs::remove_dir_all(root.join("detokenize")).unwrap();
 
         // Non-dumped annotators still validate golden framing and path layout.
-        put("numbers/m/en/x.golden", "");
+        put("detokenize/m/en/x.golden", "");
         assert!(check_dumps(&root).unwrap_err().contains("does not start with `golden 1`"));
-        put("numbers/m/en/x.golden", "golden 1\n");
+        put("detokenize/m/en/x.golden", "golden 1\n");
         assert!(check_dumps(&root).unwrap_err().contains("has no `annotator` header record"));
-        fs::remove_dir_all(root.join("numbers")).unwrap();
+        fs::remove_dir_all(root.join("detokenize")).unwrap();
 
-        put("numbers/x.golden", "golden 1\nannotator\ta.B\trun\n");
+        put("detokenize/x.golden", "golden 1\nannotator\ta.B\trun\n");
         assert!(check_dumps(&root).unwrap_err().contains("not at <model>/<set>/<id>.golden"));
-        fs::remove_dir_all(root.join("numbers")).unwrap();
+        fs::remove_dir_all(root.join("detokenize")).unwrap();
 
         #[cfg(unix)]
         {
             use std::ffi::OsStr;
             use std::os::unix::ffi::OsStrExt;
-            let bad_dir = root.join("numbers").join("m").join(OsStr::from_bytes(b"bad\xffset"));
+            let bad_dir = root.join("detokenize").join("m").join(OsStr::from_bytes(b"bad\xffset"));
             fs::create_dir_all(&bad_dir).unwrap();
             fs::write(bad_dir.join("x.golden"), "golden 1\nannotator\ta.B\trun\n").unwrap();
             assert!(check_dumps(&root).unwrap_err().contains("non-UTF-8 path component"));
-            fs::remove_dir_all(root.join("numbers")).unwrap();
+            fs::remove_dir_all(root.join("detokenize")).unwrap();
         }
 
         fs::remove_dir_all(&root).unwrap();

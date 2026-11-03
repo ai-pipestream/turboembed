@@ -2,13 +2,10 @@
 //! (`opennlp.tools.languagemodel.LanguageModel` and
 //! `opennlp.tools.languagemodel.NGramLanguageModel`).
 //!
-//! Probabilities are accumulated in log space with `StrictMath.log` and
-//! exponentiated with `StrictMath.exp` from [`turbo_jvm::strict_math`] so that
-//! floating-point scores match the JVM bit for bit.
+//! Probabilities are accumulated in log space with `f64::ln` and
+//! exponentiated with `f64::exp`.
 
 use std::ops::{Deref, DerefMut};
-
-use turbo_jvm::strict_math::{exp, log};
 
 use crate::error::{Error, Result};
 use crate::model::NGramModel;
@@ -148,13 +145,13 @@ impl LanguageModel for NGramLanguageModel {
             let mut score = 0.0_f64;
             for ngram in NGramUtils::get_ngrams(tokens, self.n) {
                 let score_for_ngram = self.stupid_backoff(ngram);
-                score += log(score_for_ngram);
+                score += score_for_ngram.ln();
                 if score.is_nan() {
                     score = 0.0;
                     break;
                 }
             }
-            exp(score)
+            score.exp()
         } else {
             0.0
         }

@@ -1,0 +1,16 @@
+load_error	
+unsupported	0
+words	13
+word	word	word	st:word
+words	word	word	st:word fl:S
+aword	word	word	a st:word fl:A
+awords	word	word	fl:A st:word fl:S
+baword	word	word	b a st:word fl:A
+bawords	word	word	fl:B fl:A st:word fl:S
+bword	bword	bword	
+abword	abword	abword	
+other	other	other	st:other
+bother	other	other	b st:other fl:B
+bothers	other	other	fl:B st:other fl:S
+others	other	other	st:other fl:S
+aother	aother	aother	

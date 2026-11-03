@@ -16,8 +16,9 @@
 //! validation set by sweeping candidate cut points and maximizing each
 //! label's F_beta (beta configurable, default 1.0), optionally under a
 //! minimum-precision floor. The calibrated thresholds serialize inside
-//! the model package ([`package`], [`open_package`]) and round-trip with
-//! the rest of the model.
+//! the model entry (and inside the classical model package when the
+//! `classical` feature is enabled) and round-trip with the rest of the
+//! model.
 
 pub mod bytes;
 pub mod calibrate;
@@ -26,9 +27,13 @@ pub mod error;
 pub mod head;
 pub mod metrics;
 pub mod model;
+#[cfg(feature = "classical")]
 pub mod package;
 pub mod train;
 pub mod validate;
+
+/// The `Component-Name` of a multi-label model package.
+pub const COMPONENT_NAME: &str = "MultiLabelDoccat";
 
 pub use calibrate::{ThresholdCalibrator, f_beta, macro_f1, precision_recall};
 pub use categorizer::{MultiLabelCategorizer, MultiLabelSpanCategorizer};
@@ -36,5 +41,6 @@ pub use error::MultiLabelError;
 pub use head::LinearHead;
 pub use metrics::{MultiLabelReport, Prf, evaluate};
 pub use model::{FORMAT_VERSION, FORMAT_VERSION_V1, MODEL_ENTRY, MODEL_TYPE, MultiLabelDoccatModel, TAGSET_NAME};
-pub use package::{COMPONENT_NAME, open_package, package_multilabel_model};
+#[cfg(feature = "classical")]
+pub use package::{open_package, package_multilabel_model};
 pub use train::{MultiLabelSample, MultiLabelTrainingParameters, train_multilabel};

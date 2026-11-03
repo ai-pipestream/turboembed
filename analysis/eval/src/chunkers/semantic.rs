@@ -246,4 +246,65 @@ mod tests {
         let s = Semantic::from_config(0.0, 0, 0, 0).unwrap().chunk(&one, &mut e).unwrap();
         assert_eq!(texts("cat alone", &s), ["cat alone"]);
     }
+
+    // Golden parity with the Java reference's own test suite
+    // (SemanticChunkerTest in the OpenNLP sandbox fork, #955). Its stub
+    // provider maps a sentence starting with "A" to (1, 0, 0) and any
+    // other to (0, 1, 0), so neighbour cosines are exactly 1 or 0 and
+    // each case reduces to the decision rule in `starts`. The expected
+    // groups below are the Java tests' asserted sentence indices.
+    #[test]
+    fn the_sandbox_java_test_cases_hold() {
+        let groups = |sims: &[f32], similarity: f32, min: i32, max: i32| {
+            let c = Semantic::from_config(similarity, 0, min, max).unwrap();
+            let n = sims.len() + 1;
+            let starts = starts(sims, c.resolve(sims), c.min_sentences, c.max_sentences, n);
+            starts
+                .iter()
+                .enumerate()
+                .map(|(k, &s)| (s..starts.get(k + 1).copied().unwrap_or(n)).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        };
+        // splitsWhenAdjacentSentenceSimilarityIsLow: "Aa.Ab.Bc.", 0.9.
+        assert_eq!(groups(&[1.0, 0.0], 0.9, 0, 0), [vec![0, 1], vec![2]]);
+        // mergesUndersizedTrailingChunkIntoPrecedingChunk: same, min 2.
+        assert_eq!(groups(&[1.0, 0.0], 0.9, 2, 0), [vec![0, 1, 2]]);
+        // mergesUndersizedLeadingChunkWithFollowingChunk: "Ba.Ab.Ac.".
+        assert_eq!(groups(&[0.0, 1.0], 0.9, 2, 0), [vec![0, 1, 2]]);
+        // splitsChunksLargerThanMaxChunkSentences: four A sentences, max 2.
+        assert_eq!(groups(&[1.0, 1.0, 1.0], 0.9, 0, 2), [vec![0, 1], vec![2, 3]]);
+        // cosineSimilarityIsOneForIdenticalVectors.
+        assert_eq!(cosine(&[1.0, 0.0, 0.0], &[1.0, 0.0, 0.0]), 1.0);
+    }
+
+    // The Java suite has no percentile case, so these ranks are derived
+    // from the reference's own formula (nearest rank over the sorted
+    // cosines: index ceil(p / 100 * len) - 1, clamped), not transcribed.
+    #[test]
+    fn the_sandbox_percentile_is_the_javas_rank() {
+        let at = |sims: &[f32], p: i32| Semantic::from_config(0.0, p, 0, 0).unwrap().resolve(sims);
+        assert_eq!(at(&[0.1, 0.5, 0.9], 10), 0.1);
+        assert_eq!(at(&[0.1, 0.5, 0.9], 50), 0.5);
+        assert_eq!(at(&[0.1, 0.5, 0.9], 99), 0.9);
+        assert_eq!(at(&[0.2, 0.4, 0.6, 0.8], 25), 0.2);
+        assert_eq!(at(&[0.2, 0.4, 0.6, 0.8], 50), 0.4);
+        assert_eq!(at(&[0.2, 0.4, 0.6, 0.8], 75), 0.6);
+        // Sorting is the implementation's, so input order does not matter.
+        assert_eq!(at(&[0.9, 0.1, 0.5], 50), 0.5);
+    }
+
+    // The first Java case end to end, spans included: two topic-A
+    // sentences and one topic-B sentence at threshold 0.9 give chunks
+    // [0, 1] and [2]; with a minimum of 2 the trailing chunk is
+    // absorbed, exactly as the Java merge does.
+    #[test]
+    fn the_first_sandbox_java_case_end_to_end() {
+        let text = "alpha one\nalpha two\nbeta three\n";
+        let mut e = Stub::new(&["alpha", "beta"]);
+        let doc = analyzed(text, &e, None);
+        let cut = Semantic::from_config(0.9, 0, 0, 0).unwrap().chunk(&doc, &mut e).unwrap();
+        assert_eq!(texts(text, &cut), ["alpha one\nalpha two", "beta three"]);
+        let merged = Semantic::from_config(0.9, 0, 2, 0).unwrap().chunk(&doc, &mut e).unwrap();
+        assert_eq!(texts(text, &merged), [text.trim_end()]);
+    }
 }

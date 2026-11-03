@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/ja	172	58	d3061ebd06c3c878e31d5458e694849ea9a81a9ef20ca024233c46366645e824
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	39	start:u32	end:u32
+layer	turbo:tokens	text	39	start:u32	end:u32
 0	6
 6	9
 9	12
@@ -46,8 +46,8 @@ layer	opennlp:tokens	text	39	start:u32	end:u32
 156	162
 162	168
 168	171
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	39	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	39	unknown:u32	features:str
 0	名詞,普通名詞,副詞可能,*,*,*,キョウ,今日,今日,キョー,今日,キョー,和,*,*,*,*
 0	助詞,係助詞,*,*,*,*,ハ,は,は,ワ,は,ワ,和,*,*,*,*
 0	名詞,普通名詞,副詞可能,*,*,*,アサ,朝,朝,アサ,朝,アサ,和,*,*,*,*

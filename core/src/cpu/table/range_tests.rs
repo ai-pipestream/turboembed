@@ -79,6 +79,8 @@ fn rows(ids: &[i32], mask: &[i32], batch: usize, seq: usize, normalize: u32, od:
         normalize,
         output_dim: od as u32,
         head: 0,
+        taps: 0,
+        reserved: 0,
     }
 }
 

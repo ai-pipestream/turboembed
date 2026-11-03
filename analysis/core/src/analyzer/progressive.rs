@@ -91,12 +91,10 @@ impl Analyzer {
 
         let mut stage_of = vec![0usize; n];
         let mut topo_steps = Vec::with_capacity(n);
-        let mut canonical_keys = Vec::new();
         for (stage_idx, stage) in self.stages.iter().enumerate() {
             for &step_ix in stage {
                 stage_of[step_ix] = stage_idx;
                 topo_steps.push(step_ix);
-                canonical_keys.extend(self.steps[step_ix].writes());
             }
         }
 
@@ -188,6 +186,11 @@ impl Analyzer {
 
                 let written = self.steps[step_ix].writes();
                 self.steps[step_ix].store(out, docs, &mut status);
+                for doc in docs.iter_mut() {
+                    for &w in &written {
+                        doc.mark_pipeline_stored(w);
+                    }
+                }
 
                 let failure: Option<Error> = written.iter().find_map(|&k| {
                     docs.iter().find_map(|d| match d.status(k) {
@@ -251,10 +254,8 @@ impl Analyzer {
 
         if !cancel.load(Ordering::Relaxed) {
             debug_assert!(step_state.iter().all(|&s| s == 2), "all steps must complete when not cancelled");
-            let order_map: HashMap<KeyId, usize> =
-                canonical_keys.iter().copied().enumerate().map(|(pos, k)| (k, pos)).collect();
             for doc in docs.iter_mut() {
-                doc.entries.sort_by_key(|e| order_map.get(&e.key).copied().map_or((0, 0), |pos| (1, pos)));
+                doc.entries.sort_by_key(|e| self.order_map.get(&e.key).copied().map_or((0, 0), |pos| (1, pos)));
             }
         }
 

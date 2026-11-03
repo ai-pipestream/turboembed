@@ -213,6 +213,6 @@ mod tests {
     fn the_vector_kinds_are_named_instances() {
         assert_eq!(VectorKind::Local.key().name, "local");
         assert_eq!(VectorKind::Contextual.key().name, "contextual");
-        assert_eq!(Vectors::<Levels>::NAME.to_string(), "opennlp:embeddings<turbo:levels>");
+        assert_eq!(Vectors::<Levels>::NAME.to_string(), "turbo:embeddings<turbo:levels>");
     }
 }

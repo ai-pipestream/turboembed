@@ -1,0 +1,12 @@
+MASKED	Bitte überweisen Sie an **** **** **** **** **30 00 und schreiben Sie an büro@example.de oder info@example.de.
+
+MASK_ALL	Bitte überweisen Sie an ########################### und schreiben Sie an büro@example.de oder info@example.de.
+
+REWRITE	pseudonymize	OK	Bitte überweisen Sie an IBAN-1 und schreiben Sie an büro@example.de oder info@example.de.
+
+LABEL	pseudonymize	25	52	25	31	IBAN-1
+REWRITE	hmac	OK	Bitte überweisen Sie an IBAN-12d2a2b8c32b1193 und schreiben Sie an büro@example.de oder info@example.de.
+
+LABEL	hmac	25	52	25	46	IBAN-12d2a2b8c32b1193
+AUDIT	iban	1	1	IBAN-12d2a2b8c32b1193
+AUDIT_REPORT	iban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]

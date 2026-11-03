@@ -286,16 +286,32 @@ impl SplateAdapter {
             return Ok(Vec::new());
         }
         let mut pool = MaxLogPool::new(self.vocab);
-        let mut logits = vec![0.0f32; self.vocab];
-        for tok in tokens.chunks_exact(self.dim) {
+        // Token-blocked like the MLM decoder: the weight matrix streams
+        // once per block of tokens, not once per token (a 4096x128
+        // adapter otherwise re-reads its 2 MB for every token row).
+        // Dots sum bias-first in dimension order and each token's row
+        // is observed in order, so results and the first non-finite
+        // term named are as they were token by token.
+        const BLOCK: usize = 48;
+        let total = tokens.len() / self.dim;
+        let mut logits = vec![0.0f32; BLOCK.min(total) * self.vocab];
+        let mut done = 0;
+        while done < total {
+            let n = (total - done).min(BLOCK);
+            let xb = &tokens[done * self.dim..(done + n) * self.dim];
             for (v, (row, &b)) in self.weights.chunks_exact(self.dim).zip(&self.bias).enumerate() {
-                let mut dot = b;
-                for (&w, &x) in row.iter().zip(tok) {
-                    dot += w * x;
+                for t in 0..n {
+                    let mut dot = b;
+                    for (&w, &x) in row.iter().zip(&xb[t * self.dim..][..self.dim]) {
+                        dot += w * x;
+                    }
+                    logits[t * self.vocab + v] = dot;
                 }
-                logits[v] = dot;
             }
-            pool.observe(&logits).map_err(|e| e.to_string())?;
+            for row in logits[..n * self.vocab].chunks_exact(self.vocab) {
+                pool.observe(row).map_err(|e| e.to_string())?;
+            }
+            done += n;
         }
         pool.terms(cut).map_err(|e| e.to_string())
     }

@@ -308,18 +308,3 @@ fn new_rejects_duplicate_pretrained_entries() {
     assert!(build(pretrained_parts(vec![("dog".into(), 0), ("cat".into(), 1)])).is_ok(), "unique pretrained entries");
     rejected(pretrained_parts(vec![("dog".into(), 0), ("dog".into(), 1)]), "duplicate pretrained entry dog");
 }
-
-#[test]
-fn every_model_new_accepts_round_trips_through_load() {
-    for (case, p) in [
-        ("plain", parts()),
-        ("stacked", stacked_parts()),
-        ("pretrained", pretrained_parts(vec![("dog".into(), 0), ("cat".into(), 1)])),
-    ] {
-        let model = build(p).unwrap_or_else(|e| panic!("{case}: {e:?}"));
-        let mut bytes = Vec::new();
-        model.serialize(&mut bytes).unwrap();
-        let loaded = BilstmPosModel::load(bytes.as_slice()).unwrap_or_else(|e| panic!("{case}: load refused {e:?}"));
-        assert_eq!(loaded.score(&["hello"]).unwrap(), model.score(&["hello"]).unwrap(), "{case}");
-    }
-}

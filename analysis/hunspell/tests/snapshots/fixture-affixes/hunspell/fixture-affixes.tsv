@@ -1,0 +1,76 @@
+load_error	
+unsupported	0
+words	73
+walk	walk	walk	st:walk po:verb
+walked	walk	walk	st:walk po:verb is:past
+walks	walks	walks	
+Walks	Walks	Walks	
+rewalk	rewalk	rewalk	sp:re st:walk po:verb
+unwalk	walk	walk	un st:walk po:verb
+rewalked	rewalk	rewalk	sp:re st:walk po:verb is:past
+walk's	walk	walk	st:walk po:verb is:poss
+walk’s	walk	walk	st:walk po:verb is:poss
+ponies	pony	pony	st:pony po:noun is:pl
+pony	pony	pony	st:pony po:noun
+pony's	pony	pony	st:pony po:noun is:poss
+plays	play	play	st:play po:verb is:plst:play po:noun is:pl
+played	played	played	
+playing	playing	playing	st:play po:verb ds:ing
+replay	replay	replay	sp:re st:play po:verb
+replays	replay	replay	sp:re st:play po:verb is:pl
+makings	making	making	st:make ds:ing is:pl
+making	making	making	st:make ds:ing
+make	make	make	st:make
+flies	fly	fly	st:fly is:pl
+happily	happily	happily	st:happy ds:ly
+happilies	happily	happily	st:happy ds:ly is:pl
+eBook	eBook	eBook	st:eBook
+eBooks	eBook	eBook	st:eBook is:pl
+EBOOKS	Ebook	Ebook	st:Ebook is:pl
+EBOOK	Ebook	Ebook	st:Ebook
+Ebook	Ebook	Ebook	
+ACME	ACME	ACMEAcme	st:ACMEst:Acme
+ACMES	Acme	Acme	st:Acme is:pl
+ACME'S	Acme	Acme	st:Acme is:poss
+Acmes	Acmes	Acmes	
+NASA	NASA	NASA	st:NASA
+NASAS	NASAS	NASAS	
+Paris	Paris	Paris	st:Paris
+PARIS	PARIS	PARIS	
+paris	paris	paris	
+lach	lach	lach	st:lach
+gelacht	lach	lach	fl:P st:lach fl:T
+gelach	gelach	gelach	
+lacht	lacht	lacht	
+bake	bake	bake	st:bake
+baker	baker	baker	
+bakers	bakers	bakers	
+virt	virt	virt	
+virts	virt	virt	st:virt is:pl
+forbid	forbid	forbid	
+forbids	forbids	forbids	
+walks.	walks.	walks.	
+abc	abc	abc	st:abc
+xyz	abc	abc	st:abc fl:F
+Dr.	Dr.	Dr.	st:Dr.
+Dr	Dr	Dr	
+dr.	dr.	dr.	
+co-op	co-op	co-op	st:co-op
+ice cream	ice cream	ice cream	st:ice cream
+ice creams	ice cream	ice cream	st:ice cream is:pl
+warn	warn	warn	
+warns	warns	warns	
+crowd	crowd	crowd	st:crowdst:crowd ph:krowdst:crowd is:same
+crowded	crowd	crowd	st:crowd ph:krowd is:past
+pass	pass	pass	st:pass
+passes	pass	pass	st:pass is:pl
+passed	pass	pass	st:pass is:past
+wa­lk	walk	walk	st:walk po:verb
+ﬁ	ﬁ	ﬁ	
+walk.	walk	walk	st:walk po:verb
+WALK	walk	walk	st:walk po:verb
+Walk	walk	walk	st:walk po:verb
+WaLk	WaLk	WaLk	
+reuse	reuse	reuse	
+un	un	un	
+re	re	re	

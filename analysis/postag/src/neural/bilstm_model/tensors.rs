@@ -1,5 +1,5 @@
 //! The model as named tensors and vocabularies, the form a bundle stores
-//! (`turbo-bundle postag-convert`). The LSTM gate rows stay in the
+//! (`turbo_bundle::postag::export`). The LSTM gate rows stay in the
 //! `(i, f, g, o)` order the layers use.
 
 use super::BilstmPosModel;

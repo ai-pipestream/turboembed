@@ -30,6 +30,7 @@
 //! requests: te_batch_next_size, less the empty polls te_batch_next_tokens
 //! shows.
 
+pub mod kernels;
 mod metrics;
 mod runner;
 
@@ -54,7 +55,7 @@ pub const NAME: &str = "text-embeddings-inference";
 /// TEI's default --max-batch-tokens, kept when the rows need fewer.
 const DEFAULT_BATCH_TOKENS: u64 = 16384;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Tei {
     /// `name@sha256:<64 hex>`.
     pub image: String,
@@ -66,6 +67,8 @@ pub struct Tei {
     /// TEI's router built natively (`--tei-bin`), run in place of an
     /// image; `image` is then empty.
     pub binary: Option<PathBuf>,
+    /// Nsight Systems for its kernel time on a GPU (`--tei-nsys`).
+    pub nsys: Option<kernels::Nsys>,
 }
 
 /// The native router, as a recorded command names it.

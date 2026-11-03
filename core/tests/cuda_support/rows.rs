@@ -6,7 +6,7 @@ use serde_json::json;
 use turbo::*;
 
 /// Rows with padding on either side, a masked token inside a row and token
-/// types, as tests/sessions.rs writes them for the CPU.
+/// types, as tests/sessions/plain.rs writes them for the CPU.
 pub fn awkward_rows(dir: &std::path::Path) -> Tokens {
     let tok = Tok::create(dir).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
@@ -238,5 +238,9 @@ pub fn small_model(name: &str) -> (Fixture, Loaded) {
 /// tests/conformance.rs reads it.
 pub fn named_bundle() -> Option<std::path::PathBuf> {
     let p = std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
-    Some(if p.is_absolute() { p } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+    Some(turbo_pins::require(if p.is_absolute() {
+        p
+    } else {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p)
+    }))
 }

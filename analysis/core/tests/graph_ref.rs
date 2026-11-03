@@ -62,7 +62,7 @@ fn directory_refuses_bad_payloads() {
 fn selective_import_restores_only_the_asked_layers() {
     let dir = DocumentGraphRef::parse(FIXTURE).unwrap();
     let abbrev = dir.layers().iter().find(|e| e.layer.contains("abbreviations")).expect("fixture abbreviations");
-    let selected = [(abbrev.layer, abbrev.instance)];
+    let selected = [(abbrev.layer.as_ref(), abbrev.instance)];
     let graph = dir.selected_graph(&selected).unwrap();
     assert_eq!(graph.layers.len(), 1);
     assert_eq!(graph.views.len(), dir.views().len());
@@ -91,6 +91,8 @@ fn provenance(annotator: &str, config: u64) -> ProvenanceRecord {
         execution: None,
         reads: vec![],
         on: vec![],
+        provenance_digest: None,
+        input_snapshot: None,
     }
 }
 

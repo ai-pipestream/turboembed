@@ -26,8 +26,14 @@ impl IncivilityAnnotator {
         unit_vec: Option<&[f32]>,
         context_vec: Option<&[f32]>,
     ) -> Result<(IncivilityScores, Vec<IncivilityEvidenceSpan>), String> {
-        if !self.threshold.is_finite() || !(0.05..=0.99).contains(&self.threshold) {
+        let valid_threshold = |t: f64| t.is_finite() && (0.05..=0.99).contains(&t);
+        if !valid_threshold(self.threshold)
+            || self.thresholds.as_ref().is_some_and(|ts| ts.iter().any(|&t| !valid_threshold(t)))
+        {
             return Err("incivility threshold must be finite and in 0.05..=0.99".into());
+        }
+        if !self.fusion_gate.is_finite() || !(0.0..=1.0).contains(&self.fusion_gate) {
+            return Err("incivility fusion gate must be finite and in 0.0..=1.0".into());
         }
         let valid_range =
             |start: usize, end: usize| start <= end && end <= token_lower.len() && end < u32::MAX as usize;
@@ -82,8 +88,9 @@ impl IncivilityAnnotator {
             }
             for (lbl, h_val) in head_scores.iter() {
                 let l_val = scores.get(lbl);
-                // If both lexicon and head fire, combine probabilistically; otherwise take the stronger signal.
-                let merged = if l_val >= 0.25 && h_val >= 0.25 {
+                // If both lexicon and head fire at or above `self.fusion_gate`, combine probabilistically;
+                // otherwise take the stronger signal (`#963`).
+                let merged = if l_val >= self.fusion_gate && h_val >= self.fusion_gate {
                     (1.0 - (1.0 - l_val) * (1.0 - h_val)).clamp(0.0, 1.0)
                 } else {
                     l_val.max(h_val).clamp(0.0, 1.0)
@@ -96,9 +103,24 @@ impl IncivilityAnnotator {
         // Insult, Profanity, IdentityAttack, or Intolerance at >= threshold,
         // elevate SevereToxicity and merge their evidence spans.
         // The learned stage reports the head's scores as they are.
-        let max_other = scores.insult.max(scores.profanity).max(scores.identity_attack).max(scores.intolerance);
-        if lexicon && scores.threat >= self.threshold && max_other >= self.threshold {
-            let sev = (0.55 * scores.threat + 0.45 * max_other).clamp(self.threshold, 0.99);
+        let other_labels = [
+            IncivilityLabel::Insult,
+            IncivilityLabel::Profanity,
+            IncivilityLabel::IdentityAttack,
+            IncivilityLabel::Intolerance,
+        ];
+        let max_positive_other = other_labels
+            .into_iter()
+            .filter(|&l| scores.get(l) >= self.threshold_for(l))
+            .map(|l| scores.get(l))
+            .fold(0.0, f64::max);
+        if lexicon
+            && self.use_severe_toxicity_rule
+            && scores.threat >= self.threshold_for(IncivilityLabel::Threat)
+            && max_positive_other > 0.0
+        {
+            let sev_thresh = self.threshold_for(IncivilityLabel::SevereToxicity);
+            let sev = (0.55 * scores.threat + 0.45 * max_positive_other).clamp(sev_thresh, 0.99);
             if sev > scores.severe_toxicity {
                 scores.severe_toxicity = sev;
             }
@@ -121,12 +143,12 @@ impl IncivilityAnnotator {
             }
         }
 
-        // 5. Guarantee that every positive label (`score >= self.threshold`) has at least
+        // 5. Guarantee that every positive label (`score >= self.threshold_for(lbl)`) has at least
         // one non-empty `IxRange<Tokens>` evidence span inside `tok_start..tok_end`.
         if tok_start < tok_end {
             let fallback_span = select_salient_token_span(token_lower, tok_start, tok_end);
             for (lbl, val) in scores.iter() {
-                if val >= self.threshold && !evidence.iter().any(|(l, _)| *l == lbl) {
+                if val >= self.threshold_for(lbl) && !evidence.iter().any(|(l, _)| *l == lbl) {
                     evidence.push((lbl, fallback_span));
                 }
             }

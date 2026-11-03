@@ -56,7 +56,7 @@ pub(crate) fn input(input: &CorefInput<'_>) -> Result<(), String> {
     let tokens = input.tokens.spans.len();
     let sentences = input.sentences.spans.len();
     if input.tags.tags.len() != tokens {
-        return Err("document needs aligned opennlp:tokens and opennlp:pos layers".into());
+        return Err("document needs aligned turbo:tokens and turbo:pos layers".into());
     }
     if let Some(of) = &input.tokens.sentence
         && let Some((t, s)) = of.iter().enumerate().find(|(_, s)| s.get() >= sentences)

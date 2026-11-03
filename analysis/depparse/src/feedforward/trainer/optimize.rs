@@ -1,7 +1,6 @@
 use super::*;
 use crate::feedforward::slots::SlotTable;
 use std::collections::BTreeMap;
-use turbo_jvm::random::JavaRandom;
 
 pub(super) fn optimize(
     model: &mut FeedforwardDependencyModel,
@@ -16,7 +15,7 @@ pub(super) fn optimize(
     let mut accum = [vec![0.0; w.hidden_weights.len()], vec![0.0; h], vec![0.0; w.output_weights.len()], vec![0.0; o]];
     let mut embedding_accum = vec![0.0; w.embeddings.len()];
     let mut gradients = accum.clone();
-    let mut random = JavaRandom::new(settings.seed);
+    let mut random = DeterministicRng::new(settings.seed);
     let mut order: Vec<_> = (0..examples.len()).collect();
     if order.len() > i32::MAX as usize {
         return Err(error("too many training examples"));

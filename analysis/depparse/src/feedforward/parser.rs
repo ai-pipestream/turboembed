@@ -5,7 +5,7 @@ use std::sync::Arc;
 use turbo_analysis::ModelRef;
 use turbo_analysis_layers::WordOrTokenAnchor;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FeedforwardDependencyParser {
     model: Arc<FeedforwardDependencyModel>,
     beam_size: usize,
@@ -51,7 +51,7 @@ impl FeedforwardDependencyParser {
                 let best = best.ok_or_else(|| error("no applicable neural transition"))?;
                 state.apply(&self.model.transitions[best])?;
             }
-            return state.to_graph();
+            return state.to_graph()?.deprojectivize_with(self.model.label_encoding);
         }
         let mut beam = vec![(ArcStandardState::<A>::new(words.len())?, 0.0)];
         while !beam.iter().all(|(s, _)| s.is_terminal()) {
@@ -71,7 +71,7 @@ impl FeedforwardDependencyParser {
                     }
                 }
             }
-            // Stable order preserves the Java beam/outcome tie break.
+            // Stable order preserves deterministic beam/outcome tie break.
             candidates.sort_by(|a, b| b.0.total_cmp(&a.0));
             candidates.truncate(self.beam_size);
             if candidates.is_empty() {
@@ -87,7 +87,7 @@ impl FeedforwardDependencyParser {
             }
             beam = next;
         }
-        beam[0].0.to_graph()
+        beam[0].0.to_graph()?.deprojectivize_with(self.model.label_encoding)
     }
 }
 impl<A: WordOrTokenAnchor> DependencyParser<A> for FeedforwardDependencyParser {

@@ -1,0 +1,8 @@
+===OUT===
+mail josé@example.com or 用户@例子.广告 or éa@b.co today.
+plain ascii@example.org is the same in both.
+
+===EDITS===
+0	1	m
+5	6	j
+66	67	p

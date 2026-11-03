@@ -1,0 +1,16 @@
+# UD Finnish FTB r2.16: the training file at the UniversalDependencies
+# release tag, the digest analysis/train-recipes/src/treebank/catalog.rs
+# records, re-verified from a download on 2026-10-28 (10,505,459 bytes).
+# LICENSE.txt at the tag states FTB1U is Copyright 2014 FIN-CLARIN and is
+# offered under LGPLv3 or later or, at the user's option, CC BY 4.0; the
+# recipes take CC BY 4.0. LICENSE.txt SHA-256
+# 492fc0da8e9e5beecf59f5740e90482a256c8b59da6a46766aa778475969c507,
+# re-verified the same day.
+name: ud-finnish-ftb
+tier: default
+url: https://raw.githubusercontent.com/UniversalDependencies/UD_Finnish-FTB/r2.16/fi_ftb-ud-train.conllu
+sha256: 0cc04932f18613c4491ace06f597b7b8caed36e557168b9b6ef154da7ae2d71b
+license-url: https://raw.githubusercontent.com/UniversalDependencies/UD_Finnish-FTB/r2.16/LICENSE.txt
+license: CC BY 4.0
+note: The CC BY 4.0 grant is one of two options; the attribution keeps the copyright notice FTB1U is Copyright 2014 FIN-CLARIN, as the catalog records.
+note: The text is grammar examples adapted from VISK with a space between every two tokens, so the corpus has no sentence or token recipe, only POS and lemma, as docs/licences.md records.

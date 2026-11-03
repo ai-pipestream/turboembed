@@ -52,7 +52,9 @@ constexpr cublasStatus_t CUBLAS_STATUS_SUCCESS = 0;
 #include <vector>
 
 #include "autotune.h"
+#include "deberta.h"
 #include "kernels.h"
+#include "rotary.h"
 
 /* TURBO_CUDA_ARCHS: the architectures build.rs compiled for, as
  * TURBO_CUDA_ARCH gave them. */
@@ -756,6 +758,83 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
     });
 }
 
+/* int8 or ubinary codes of the first rows * dim F32 values of buf, into
+ * the leading bytes of the same buffer, matching core/src/quantize.rs.
+ * A temporary device allocation holds the codes so the write never races
+ * the read of the floats. When run is not NULL the allocations made
+ * here and the int8 ranges sent to the device are added to it. */
+int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
+                        turbo_backend_run *run, turbo_error *err) {
+    const uint64_t host0 = host_here, device0 = device_here;
+    uint64_t sent = 0;
+    const int32_t status = guarded(err, [&]() -> int32_t {
+        Buffer *b = static_cast<Buffer *>(buf);
+        if (rows == 0 || dim == 0) return TURBO_OK;
+        if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "quantization %u is not TURBO_QUANTIZE_INT8 or UBINARY",
+                          quantization);
+        if (quantization == TURBO_QUANTIZE_INT8 && !int8_ranges)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "int8_ranges is NULL");
+        const uint64_t floats = (uint64_t)rows * (uint64_t)dim;
+        const uint64_t code_bytes =
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (uint64_t)rows * (((uint64_t)dim + 7) / 8);
+        if (b->bytes < floats * 4)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT,
+                          "buffer of %llu bytes is under the %llu F32 values to quantize",
+                          (unsigned long long)b->bytes, (unsigned long long)floats);
+        if (b->bytes < code_bytes)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "buffer of %llu bytes is under the %llu code bytes",
+                          (unsigned long long)b->bytes, (unsigned long long)code_bytes);
+        ON_DEVICE(b->ctx->ordinal);
+        std::lock_guard<std::mutex> g(b->ctx->lock);
+        cudaStream_t s = b->ctx->stream;
+        void *codes = nullptr;
+        TRY_CUDA(device_malloc(&codes, code_bytes), "codes for buffer_quantize");
+        float *ranges_dev = nullptr;
+        int32_t rc = TURBO_OK;
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            const uint64_t rb = (uint64_t)dim * 2 * 4;
+            const cudaError_t ae = device_malloc(reinterpret_cast<void **>(&ranges_dev), rb);
+            if (ae != cudaSuccess) {
+                cudaFree(codes);
+                return cuda_failed(err, ae, "int8_ranges for buffer_quantize");
+            }
+            const cudaError_t ce =
+                cudaMemcpyAsync(ranges_dev, int8_ranges, rb, cudaMemcpyHostToDevice, s);
+            if (ce != cudaSuccess) {
+                cudaFree(ranges_dev);
+                cudaFree(codes);
+                return cuda_failed(err, ce, "copying int8_ranges to the device");
+            }
+            sent = rb;
+            const cudaError_t qe = quantize_int8(s, static_cast<const float *>(b->ptr), ranges_dev, (int)rows,
+                                                 (int)dim, static_cast<int8_t *>(codes));
+            if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_int8");
+        } else {
+            const cudaError_t qe =
+                quantize_ubinary(s, static_cast<const float *>(b->ptr), (int)rows, (int)dim, static_cast<uint8_t *>(codes));
+            if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_ubinary");
+        }
+        if (rc == TURBO_OK) {
+            const cudaError_t ce = cudaMemcpyAsync(b->ptr, codes, code_bytes, cudaMemcpyDeviceToDevice, s);
+            const cudaError_t done = cudaStreamSynchronize(s);
+            if (ce != cudaSuccess) rc = cuda_failed(err, ce, "copying codes into the output buffer");
+            else if (done != cudaSuccess) rc = cuda_failed(err, done, "copying codes into the output buffer");
+        } else {
+            (void)cudaStreamSynchronize(s);
+        }
+        if (ranges_dev) cudaFree(ranges_dev);
+        cudaFree(codes);
+        return rc;
+    });
+    if (run) {
+        run->host_allocs += host_here - host0;
+        run->device_allocs += device_here - device0;
+        if (status == TURBO_OK) run->h2d_bytes += sent;
+    }
+    return status;
+}
+
 // ---- Models --------------------------------------------------------------------
 //
 // Loading copies each tensor, in the dtype it is stored in, into one
@@ -801,7 +880,27 @@ struct Model {
      * the device; NULL with head_out 0 for a model without one. */
     float *head = nullptr;
     uint32_t head_out = 0;
+    /* A DeBERTa-v2 model's relative table LayerNormed, then each layer's
+     * relative rows through its fused projection, [2 * position_buckets,
+     * 3 * hidden] (deberta.h), made by the first session; empty for any
+     * other family. */
+    std::mutex relative_lock;
+    void *relative = nullptr;
+    std::vector<const float *> relative_rows;
+    /* A rotary family's (rotary.h): its tensors are in BERT's slots, and
+     * the core's cos/sin table, [2 (global, local)][2 (cos, sin)]
+     * [max_positions][rope_pairs] F32, is on the device; NULL for any
+     * other family. */
+    bool rotary = false;
+    float *rope = nullptr;
 };
+
+bool is_deberta(const turbo_backend_model &d) { return d.family == TURBO_FAMILY_DEBERTA_V2; }
+
+/* The tensors before the first layer's, by family. */
+size_t layer_base(const turbo_backend_model &d) {
+    return is_deberta(d) ? TURBO_DEBERTA_EMBEDDING_TENSORS : TURBO_BERT_EMBEDDING_TENSORS;
+}
 
 void release_model(Model *m) {
     DeviceScope scope(m->ctx->ordinal);
@@ -809,6 +908,8 @@ void release_model(Model *m) {
     if (m->widened) cudaFree(m->widened);
     if (m->narrowed) cudaFree(m->narrowed);
     if (m->head) cudaFree(m->head);
+    if (m->relative) cudaFree(m->relative);
+    if (m->rope) cudaFree(m->rope);
     delete m;
 }
 
@@ -837,7 +938,8 @@ bool every_tensor(size_t) { return true; }
  * their biases, so one GEMM of [3 * hidden, hidden] makes the three
  * projections and their biases are one [3 * hidden] vector. Every copy
  * of the weights is laid out so. */
-size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(size_t), std::vector<size_t> &at) {
+size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(size_t), std::vector<size_t> &at,
+               size_t base = TURBO_BERT_EMBEDDING_TENSORS) {
     static const int order[TURBO_BERT_LAYER_TENSORS] = {
         TURBO_BERT_Q_WEIGHT,        TURBO_BERT_K_WEIGHT,       TURBO_BERT_V_WEIGHT,       TURBO_BERT_Q_BIAS,
         TURBO_BERT_K_BIAS,          TURBO_BERT_V_BIAS,         TURBO_BERT_ATTN_OUT_WEIGHT, TURBO_BERT_ATTN_OUT_BIAS,
@@ -852,8 +954,8 @@ size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(si
         total += counts[i] * elem;
         if (!next_follows) total = round_up(total, DEVICE_ALIGN);
     };
-    for (size_t i = 0; i < counts.size() && i < TURBO_BERT_EMBEDDING_TENSORS; i++) place(i, false);
-    for (size_t l0 = TURBO_BERT_EMBEDDING_TENSORS; l0 < counts.size(); l0 += TURBO_BERT_LAYER_TENSORS)
+    for (size_t i = 0; i < counts.size() && i < base; i++) place(i, false);
+    for (size_t l0 = base; l0 < counts.size(); l0 += TURBO_BERT_LAYER_TENSORS)
         for (int k = 0; k < TURBO_BERT_LAYER_TENSORS; k++) {
             const int r = order[k];
             place(l0 + r, r == TURBO_BERT_Q_WEIGHT || r == TURBO_BERT_K_WEIGHT || r == TURBO_BERT_Q_BIAS ||
@@ -862,15 +964,69 @@ size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(si
     return total;
 }
 
+/* What model_load checks of a DeBERTa-v2 description, as the CPU's does:
+ * the struct reaches max_relative_positions, the table holds the
+ * embeddings and each layer's tensors, and the shape is one the CPU
+ * encoder takes (core/src/deberta/config.rs). */
+int32_t check_deberta(const turbo_backend_model *d, turbo_error *err) {
+    const size_t need = offsetof(turbo_backend_model, max_relative_positions) + sizeof(uint32_t);
+    if (d->struct_size < need)
+        return refuse(err, TURBO_E_INVALID_STRUCT_SIZE, "turbo_backend_model of %u bytes: a DeBERTa-v2 model needs %zu",
+                      d->struct_size, need);
+    const uint64_t expected = TURBO_DEBERTA_EMBEDDING_TENSORS + (uint64_t)d->layers * TURBO_BERT_LAYER_TENSORS;
+    if (d->tensor_count != expected || !d->tensors)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "tensor_count %u: a DeBERTa-v2 of %u layers has %llu",
+                      d->tensor_count, d->layers, (unsigned long long)expected);
+    const struct {
+        const char *name;
+        uint32_t value, limit;
+    } limits[] = {{"hidden", d->hidden, 4096},          {"intermediate", d->intermediate, 16384},
+                  {"heads", d->heads, 128},             {"layers", d->layers, 128},
+                  {"vocabulary", d->vocab_size, 1000000}, {"max_sequence", d->max_positions, 4096},
+                  {"position_buckets", d->position_buckets, 4096},
+                  {"max_relative_positions", d->max_relative_positions, 65536}};
+    for (const auto &l : limits)
+        if (l.value == 0 || l.value > l.limit)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta %s limit: 1..=%u", l.name, l.limit);
+    if (d->hidden % d->heads != 0) return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta hidden must divide by heads");
+    if (d->position_buckets < 4 || d->position_buckets % 2 != 0 ||
+        d->max_relative_positions <= d->position_buckets / 2 + 1)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta invalid relative position bucket geometry");
+    if (!std::isfinite(d->layer_norm_eps) || d->layer_norm_eps <= 0.0 || d->layer_norm_eps > 1.0)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta layer_norm_eps must be finite in (0,1]");
+    return TURBO_OK;
+}
+
 int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Context *c = static_cast<Context *>(ctx);
-        if (desc->family != TURBO_FAMILY_BERT && desc->family != TURBO_FAMILY_ROBERTA)
-            return refuse(err, TURBO_E_UNSUPPORTED, "family %u: the cuda backend holds BERT encoders", desc->family);
+        const bool deberta = is_deberta(*desc);
+        const bool rotary = is_rotary_family(desc->family);
+        // A rotary family's tensors in BERT's slots (rotary.h), in place of
+        // its own for the rest of the load.
+        std::vector<turbo_backend_tensor> slots;
+        std::vector<std::vector<float>> reordered;
+        turbo_backend_model as_bert{};
+        if (deberta) {
+            TRY(check_deberta(desc, err));
+        } else if (rotary) {
+            char why[TURBO_ERROR_MESSAGE_LEN];
+            int32_t code = TURBO_OK;
+            if (*rotary_check(*desc, &code, why, sizeof why)) return refuse(err, code, "%s", why);
+        } else if (desc->family != TURBO_FAMILY_BERT && desc->family != TURBO_FAMILY_ROBERTA) {
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "family %u: the cuda backend holds BERT, DeBERTa-v2, ModernBERT and nomic-bert encoders",
+                          desc->family);
+        }
         if (desc->heads == 0 || desc->hidden % desc->heads != 0)
             return refuse(err, TURBO_E_UNSUPPORTED, "hidden %u is not a multiple of heads %u", desc->hidden,
                           desc->heads);
-        if (desc->hidden / desc->heads > (uint32_t)ATTENTION_MAX_HEAD_DIM)
+        // DeBERTa-v2's attention is its own kernels' (deberta.h), which take
+        // any head width up to 128.
+        if (deberta && desc->hidden / desc->heads > 128)
+            return refuse(err, TURBO_E_UNSUPPORTED, "heads %u wide: the cuda backend's DeBERTa-v2 attention takes up "
+                          "to 128", desc->hidden / desc->heads);
+        if (!deberta && desc->hidden / desc->heads > (uint32_t)ATTENTION_MAX_HEAD_DIM)
             return refuse(err, TURBO_E_UNSUPPORTED, "heads %u wide: the cuda backend's attention takes up to %d",
                           desc->hidden / desc->heads, ATTENTION_MAX_HEAD_DIM);
         if (desc->hidden > (uint32_t)MAX_HIDDEN || desc->hidden % 8 != 0 || desc->intermediate % 8 != 0)
@@ -885,14 +1041,24 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
                          desc->head[1].bytes != (uint64_t)desc->head_out * 4))
             return refuse(err, TURBO_E_INTERNAL, "a token head of %u outputs whose tensors are not F32 [%u, %u] and [%u]",
                           desc->head_out, desc->head_out, desc->hidden, desc->head_out);
+        const turbo_backend_model *const original = desc;
+        if (rotary) {
+            rotary_slots(*desc, slots, reordered);
+            as_bert = *desc;
+            as_bert.tensors = slots.data();
+            as_bert.tensor_count = (uint32_t)slots.size();
+            desc = &as_bert;
+        }
         const size_t elem = desc->dtype == TURBO_DTYPE_F32 ? 4 : 2;
         Model *m = make<Model>();
         m->ctx = c;
         m->desc = *desc;
         m->desc.tensors = nullptr;
         m->desc.head = nullptr;
+        m->desc.rope_table = nullptr;
+        m->rotary = rotary;
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
-        const size_t total = lay_out(m->counts, elem, every_tensor, m->offsets);
+        const size_t total = lay_out(m->counts, elem, every_tensor, m->offsets, layer_base(*desc));
         const int32_t rc = [&]() -> int32_t {
             ON_DEVICE(c->ordinal);
             TRY_CUDA(device_malloc(&m->stored, total), "device memory for the weights");
@@ -900,8 +1066,16 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
             char *base = static_cast<char *>(m->stored);
             for (uint32_t i = 0; i < desc->tensor_count; i++) {
                 const turbo_backend_tensor &t = desc->tensors[i];
+                if (t.bytes == 0) continue;
                 TRY_CUDA(cudaMemcpyAsync(base + m->offsets[i], t.data, t.bytes, cudaMemcpyHostToDevice, c->stream),
                          t.name);
+            }
+            if (rotary) {
+                const size_t table = (size_t)4 * desc->max_positions * desc->rope_pairs * sizeof(float);
+                TRY_CUDA(device_malloc(reinterpret_cast<void **>(&m->rope), table),
+                         "device memory for the rotary table");
+                TRY_CUDA(cudaMemcpyAsync(m->rope, original->rope_table, table, cudaMemcpyHostToDevice, c->stream),
+                         "the rotary table");
             }
             if (has_head) {
                 const size_t w = desc->head[0].bytes, b = desc->head[1].bytes;
@@ -923,8 +1097,12 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
             release_model(m);
             return rc;
         }
-        c->say(LOG_DEBUG, "cuda device %d: a BERT of %u layers, %zu bytes of %s weights", c->ordinal, desc->layers,
-               total, dtype_name(desc->dtype));
+        c->say(LOG_DEBUG, "cuda device %d: a %s of %u layers, %zu bytes of %s weights", c->ordinal,
+               deberta                                      ? "DeBERTa-v2"
+               : desc->family == TURBO_FAMILY_MODERNBERT    ? "ModernBERT"
+               : desc->family == TURBO_FAMILY_NOMIC_BERT    ? "nomic-bert"
+                                                            : "BERT",
+               desc->layers, total, dtype_name(desc->dtype));
         *out = m;
         return TURBO_OK;
     });
@@ -943,7 +1121,7 @@ int32_t f32_weights(Model *m, turbo_error *err) {
     if (!m->f32.empty()) return TURBO_OK;
     Context *c = m->ctx;
     std::vector<size_t> at;
-    const size_t total = lay_out(m->counts, 4, every_tensor, at);
+    const size_t total = lay_out(m->counts, 4, every_tensor, at, layer_base(m->desc));
     ON_DEVICE(c->ordinal);
     void *wide = nullptr;
     TRY_CUDA(device_malloc(&wide, total), "device memory for the weights in F32");
@@ -1028,6 +1206,49 @@ int32_t f16_weights(Model *m, turbo_error *err) {
     m->f16.assign(n, nullptr);
     for (size_t i = 0; i < n; i++)
         if (gemm_weight(i)) m->f16[i] = reinterpret_cast<const uint16_t *>(dst + at[i]);
+    return TURBO_OK;
+}
+
+/* A DeBERTa-v2 model's relative rows, made on first need from its F32
+ * weights (deberta.h): the table LayerNormed, then each layer's fused
+ * Q|K|V projection of it. */
+int32_t relative_rows(Model *m, turbo_error *err) {
+    std::lock_guard<std::mutex> g(m->relative_lock);
+    if (!m->relative_rows.empty()) return TURBO_OK;
+    Context *c = m->ctx;
+    const turbo_backend_model &d = m->desc;
+    const size_t h = d.hidden, rows = 2 * (size_t)d.position_buckets;
+    const size_t table = round_up(rows * h * 4, DEVICE_ALIGN), per = round_up(rows * 3 * h * 4, DEVICE_ALIGN);
+    ON_DEVICE(c->ordinal);
+    void *rel = nullptr;
+    TRY_CUDA(device_malloc(&rel, table + d.layers * per), "device memory for the relative rows");
+    float *norm = static_cast<float *>(rel);
+    const int32_t rc = [&]() -> int32_t {
+        std::lock_guard<std::mutex> cg(c->lock);
+        TRY_CUDA(cudaMemcpyAsync(norm, m->f32[TURBO_DEBERTA_RELATIVE_EMBEDDINGS], rows * h * 4,
+                                 cudaMemcpyDeviceToDevice, c->stream),
+                 "the relative table");
+        TRY_CUDA(deberta_layer_norm_rows(c->stream, norm, m->f32[TURBO_DEBERTA_RELATIVE_LN_WEIGHT],
+                                         m->f32[TURBO_DEBERTA_RELATIVE_LN_BIAS], (float)d.layer_norm_eps, (int)rows,
+                                         (int)h),
+                 "the relative table's LayerNorm");
+        for (uint32_t l = 0; l < d.layers; l++) {
+            const size_t q = TURBO_DEBERTA_EMBEDDING_TENSORS + (size_t)l * TURBO_BERT_LAYER_TENSORS;
+            float *out = reinterpret_cast<float *>(static_cast<char *>(rel) + table + l * per);
+            TRY_CUDA(deberta_relative(c->stream, norm, m->f32[q + TURBO_BERT_Q_WEIGHT], m->f32[q + TURBO_BERT_Q_BIAS],
+                                      (int)rows, (int)(3 * h), (int)h, out),
+                     "the relative projections");
+        }
+        TRY_CUDA(cudaStreamSynchronize(c->stream), "the relative projections");
+        return TURBO_OK;
+    }();
+    if (rc != TURBO_OK) {
+        cudaFree(rel);
+        return rc;
+    }
+    m->relative = rel;
+    for (uint32_t l = 0; l < d.layers; l++)
+        m->relative_rows.push_back(reinterpret_cast<const float *>(static_cast<char *>(rel) + table + l * per));
     return TURBO_OK;
 }
 
@@ -1137,6 +1358,13 @@ enum : unsigned { CUBLAS_QKV = 1, CUBLAS_OUT = 2, CUBLAS_FFN1 = 4, CUBLAS_FFN2 =
 std::atomic<int> cublas_override{-1};
 std::atomic<int> tile_override{-1};
 std::atomic<int> split_attention_override{-1};
+std::atomic<int> narrow_tiles_override{-1};
+/* A test's choice of DeBERTa-v2's general attention kernel in place of the
+ * tiled one (turbo_cuda_use_general_attention): 1 general, 0 the default. */
+std::atomic<int> deberta_general_override{0};
+/* The attention kernel the last DeBERTa-v2 session picked, for the tests:
+ * 2 tiled, 1 general, 0 before any. */
+std::atomic<int> deberta_last_pick{0};
 std::atomic<int> wide_attention_override{-1};
 std::atomic<int> exact_attention_override{-1};
 std::atomic<int> fa32_attention_override{-1};
@@ -1188,6 +1416,20 @@ bool split_attention_named(bool *forced) {
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     *forced = *forced || v;
     return v && !strcasecmp(v, "split");
+}
+
+/* TURBO_CUDA_ATTENTION=tiled32: the FMA attention of register tiles at
+ * 32 queries to a block in place of 64, for measuring against the
+ * default. */
+bool narrow_tiles_named(bool *forced) {
+    const int o = overridden(narrow_tiles_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
+    return v && !strcasecmp(v, "tiled32");
 }
 
 /* On an RTX 4080 SUPER at 32 x 256 full rows the kernel of 128 takes 324
@@ -1412,17 +1654,37 @@ bool mma_attention(const Shape &base) {
     return base.half && base.tensor_cores && (d == 32 || d == 64);
 }
 
+/* The most keys a row of a session may have for the tensor cores'
+ * attention to sum its output in F16. The F16 sums' error grows with the
+ * keys: nomic-embed-text-v1.5 at FASTEST on an RTX 4080 SUPER, 4 rows of
+ * synthetic tokens against the CPU, 1 - lowest cosine 5.1e-6 at 512
+ * tokens, 1.5e-4 at 4096 and 9.8e-4 at 8192 (8 rows: 1.41e-3, over
+ * FASTEST's bound of 1e-3); with F32 sums 1.1e-6 to 2.7e-6 at each
+ * (docs/receipts/cuda-1461/, core/tests/cuda_variants.rs
+ * attention_sums_by_row_length_of_a_real_bundle). */
+constexpr int ACC16_ATTENTION_MAX_KEYS = 4096;
+
 /* The backend's own choices for a session of the shape, in every bin: the
  * default tile and stream-K for each GEMM, the tensor cores' attention of
- * 128 queries where it applies and else the FMA kernel of register tiles,
- * the LayerNorm as a kernel of its own, and pooling by groups. */
+ * 128 queries where it applies (with F32 sums past
+ * ACC16_ATTENTION_MAX_KEYS) and else the FMA kernel of register tiles, 32
+ * queries to a block in the le256 bin and 64 above it, the LayerNorm as a
+ * kernel of its own, and pooling by groups. */
 Choices defaults(const Shape &base) {
     Choices c;
     c.bins = bins_for(base.tcap);
     for (int i = 0; i < BIN_COUNT; i++) {
         BinChoices &b = c.bin[i];
         b = BinChoices{};
-        b.attention = mma_attention(base) ? ATT_MMA_128 : ATT_FMA_TILED;
+        // The FMA attention: a run of 256 tokens or fewer leaves the
+        // device room, and blocks of 32 queries put twice as many of a
+        // row's queries in flight; from the le1k bin up the 64-query
+        // blocks, which load a row's keys and values half as often, are
+        // faster, and a short row in such a run is still computed as a
+        // 32-query tile.
+        b.attention = !mma_attention(base)                      ? (i == 0 ? ATT_FMA_TILED_32 : ATT_FMA_TILED)
+                      : base.seq_cap > ACC16_ATTENTION_MAX_KEYS ? ATT_MMA_128_ACC32
+                                                                : ATT_MMA_128;
         // F16 on the tensor cores: whole tiles for QKV and the first
         // feed-forward GEMM from the le4k bin up. On the whole-k F16 sums
         // a split tile's partial products cost more than the idle SMs of
@@ -1482,6 +1744,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
     const bool sk_forced = sk_named(&sk);
     bool attn_forced = false;
     const bool split = split_attention_named(&attn_forced), wide = wide_attention_named(&attn_forced);
+    const bool narrow = narrow_tiles_named(&attn_forced);
     const bool exact = exact_attention_named(&attn_forced), fa32 = fa32_attention_named(&attn_forced);
     const bool acc32 = acc32_attention_named(&attn_forced);
     bool ln_forced = false, pool_forced = false;
@@ -1513,7 +1776,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
                                : acc32 ? ATT_MMA_128_ACC32
                                        : ATT_MMA_128;
             else
-                bc.attention = split ? ATT_FMA_SPLIT : ATT_FMA_TILED;
+                bc.attention = split ? ATT_FMA_SPLIT : narrow ? ATT_FMA_TILED_32 : ATT_FMA_TILED;
             bc.forced |= KNOB_ATTN;
         }
         if (ln_forced) {
@@ -1553,6 +1816,7 @@ Shape shape_for(const Shape &base, const Choices &c, int bin) {
     const BinChoices &bc = c.bin[bin];
     for (int g = 0; g < GEMM_COUNT; g++) sh.gemm[g] = bc.gemm[g];
     sh.split_attention = bc.attention == ATT_FMA_SPLIT;
+    sh.narrow_tiles = bc.attention == ATT_FMA_TILED_32;
     sh.wide_attention = bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT ||
                         bc.attention == ATT_MMA_128_FA32 || bc.attention == ATT_MMA_128_ACC32;
     sh.exact_exp2 = bc.attention == ATT_MMA_128_EXACT;
@@ -1653,6 +1917,15 @@ struct Session {
      * cuBLAS or a second graph needs them, else 0. */
     uint32_t tokens = 0;
     uint64_t h2d = 0;
+    /* A DeBERTa-v2 model's: the bucket of each distance a row of max_seq
+     * tokens spans, [2 * max_seq - 1], and attention's launch (deberta.h);
+     * NULL for any other family. */
+    int32_t *buckets = nullptr;
+    DebertaPlan deberta{};
+    /* A ModernBERT's normalized rows in F32, [tokens, hidden], which its
+     * QKV and first feed-forward GEMMs read (an F16 session keeps them in
+     * x16); NULL for any other model. */
+    float *xn = nullptr;
 };
 
 void release_session(Session *s) {
@@ -1694,7 +1967,10 @@ int min_steps(const GemmChoice &c) { return c.sk == SK_TILES ? SK_WHOLE_TILES : 
 /* The encoder with one bin's kernels, queued on the context's stream:
  * captured into the bin's graph, or run as it is queued when cuBLAS
  * computes a GEMM. */
+int32_t encode_rotary(Session &s, int bin, turbo_error *err);
+
 int32_t encode(Session &s, int bin, turbo_error *err) {
+    if (s.model->rotary) return encode_rotary(s, bin, err);
     const Model &mo = *s.model;
     const turbo_backend_model &d = mo.desc;
     const std::vector<const float *> &w = mo.f32;
@@ -1706,7 +1982,8 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     const bool half = s.half;
     cudaStream_t st = s.ctx->stream;
     cublasHandle_t blas = s.ctx->blas;
-    auto at = [](uint32_t l, int r) { return (size_t)TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r; };
+    const size_t base = layer_base(d);
+    auto at = [base](uint32_t l, int r) { return base + l * TURBO_BERT_LAYER_TENSORS + r; };
     auto layer = [&](uint32_t l, int r) { return w[at(l, r)]; };
     // A GEMM's weight in the session's dtype.
     auto weight = [&](uint32_t l, int r) -> const void * {
@@ -1728,9 +2005,14 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     // and the pooling reads the F16 copy. The fused epilogues read and
     // keep the F32 stream.
     const bool stream16 = sh.residual16 && !plan.fused_ln;
-    TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
-                              h, (int)d.position_offset, stream16 ? nullptr : s.x, s.x16, plan),
-             "the embedding lookup");
+    if (s.buckets)
+        TRY_CUDA(deberta_embed(st, s.rows, w[TURBO_DEBERTA_WORD_EMBEDDINGS], w[TURBO_DEBERTA_EMBEDDINGS_LN_WEIGHT],
+                               w[TURBO_DEBERTA_EMBEDDINGS_LN_BIAS], eps, s.pk, h, s.x, plan.rows_grid),
+                 "the embedding lookup");
+    else
+        TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
+                                  h, (int)d.position_offset, stream16 ? nullptr : s.x, s.x16, plan),
+                 "the embedding lookup");
     GemmArgs g{};
     g.info = info;
     g.heads = heads;
@@ -1776,7 +2058,14 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
         } else {
             TRY_CUDA(gemm_as(GEMM_QKV, EPI_QKV, g), "the query, key and value projections");
         }
-        TRY_CUDA(attention(st, aa, sh, plan), "attention");
+        if (s.buckets) {
+            const DebertaArgs da{static_cast<const float *>(s.qkv), static_cast<float *>(s.att), s.pk, heads, hd, h,
+                                 tcap, (int)s.max_batch, (int)s.max_seq, mo.relative_rows[l], s.buckets,
+                                 (int)s.max_seq - 1, (float)(1.0 / std::sqrt(3.0 * hd))};
+            TRY_CUDA(deberta_attention(st, da, s.deberta), "attention");
+        } else {
+            TRY_CUDA(attention(st, aa, sh, plan), "attention");
+        }
 
         g.a = s.att;
         g.w = weight(l, TURBO_BERT_ATTN_OUT_WEIGHT);
@@ -1845,6 +2134,148 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
         }
     }
     TRY_CUDA(pool(st, s.x, stream16 ? s.x16 : nullptr, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan),
+             "pooling");
+    if (s.model->head)
+        TRY_CUDA(span_head(st, static_cast<const float *>(s.output.ptr), s.model->head, (int)s.model->head_out, h,
+                           s.pk.info, static_cast<float *>(s.head_output.ptr), plan),
+                 "the token head");
+    return TURBO_OK;
+}
+
+/* A rotary family's encoder (rotary.h) with one bin's kernels, queued on
+ * the context's stream, as encode's. The tensors are in BERT's slots. */
+int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
+    const Model &mo = *s.model;
+    const turbo_backend_model &d = mo.desc;
+    const std::vector<const float *> &w = mo.f32;
+    const Plan &plan = s.plan[bin];
+    const Shape &sh = s.shape[bin];
+    const int h = (int)d.hidden, inter = (int)d.intermediate, heads = (int)d.heads, hd = h / heads;
+    const float eps = (float)d.layer_norm_eps;
+    const bool half = s.half, modern = d.family == TURBO_FAMILY_MODERNBERT;
+    cudaStream_t st = s.ctx->stream;
+    auto at = [](uint32_t l, int r) { return TURBO_BERT_EMBEDDING_TENSORS + (size_t)l * TURBO_BERT_LAYER_TENSORS + r; };
+    auto layer = [&](uint32_t l, int r) { return w[at(l, r)]; };
+    auto weight = [&](uint32_t l, int r) -> const void * {
+        return half ? static_cast<const void *>(mo.f16[at(l, r)]) : static_cast<const void *>(layer(l, r));
+    };
+    const Info *info = s.pk.info;
+    auto gemm_as = [&](Gemm which, Epilogue e, GemmArgs &g) {
+        g.min_steps = min_steps(sh.gemm[which]);
+        return gemm(st, e, half, gemm_mma(sh, which), sh.gemm[which].tile, g, plan.gemm_grid[which]);
+    };
+
+    s.pack.queries = plan.attn_queries;
+    TRY_CUDA(fetch_rows(st, s.fetch, plan), "fetching the rows");
+    TRY_CUDA(pack_rows(st, s.pack, plan), "packing the rows");
+    // nomic-bert's F16 residual stream, as BERT's; ModernBERT keeps its
+    // residual in F32 (x) and its normalized rows in x16 or xn.
+    const bool res16 = !modern && sh.residual16;
+    const bool prod16 = sh.product16;
+    const uint16_t *part16 = reinterpret_cast<const uint16_t *>(s.part);
+    const float *zero = w[TURBO_BERT_EMBEDDINGS_LN_BIAS];
+    TRY_CUDA(rotary_embed(st, s.rows, w[TURBO_BERT_WORD_EMBEDDINGS],
+                          modern ? nullptr : w[TURBO_BERT_TOKEN_TYPE_EMBEDDINGS], w[TURBO_BERT_EMBEDDINGS_LN_WEIGHT],
+                          w[TURBO_BERT_EMBEDDINGS_LN_BIAS], eps, s.pk, h, res16 ? nullptr : s.x, s.x16, plan),
+             "the embedding lookup");
+    GemmArgs g{};
+    g.info = info;
+    g.heads = heads;
+    g.head_dim = hd;
+    g.hidden = h;
+    g.tcap = sh.tcap;
+    g.ws = s.ws;
+    g.flags = s.flags;
+    g.fault = s.fault_dev;
+    g.rows_done = s.rows_done;
+    g.eps = eps;
+    g.x16 = s.x16;
+    g.rope_pairs = (int)d.rope_pairs;
+    g.tok_row = s.pk.tok_row;
+    g.row_start = s.pk.start;
+    const size_t table = (size_t)d.max_positions * d.rope_pairs;
+    AttnArgs aa{};
+    aa.qkv = s.qkv;
+    aa.ctx = s.att;
+    aa.p = s.pk;
+    aa.heads = heads;
+    aa.head_dim = hd;
+    aa.hidden = h;
+    aa.tcap = sh.tcap;
+    aa.chunk = plan.attn_chunk;
+    aa.queries = plan.attn_queries;
+    aa.scale = 1.0f / sqrtf((float)hd);
+    // What the QKV and first feed-forward GEMMs read: the F16 rows in an
+    // F16 session; else ModernBERT's normalized rows (but layer 0's
+    // attention reads x), nomic-bert's hidden states.
+    auto input = [&](bool first) -> const void * {
+        if (half) return s.x16;
+        return modern && !first ? static_cast<const void *>(s.xn) : static_cast<const void *>(s.x);
+    };
+    for (uint32_t l = 0; l < d.layers; l++) {
+        const bool global = d.global_every == 0 || l % d.global_every == 0;
+        g.rope_cos = mo.rope + (global ? 0 : 2 * table);
+        g.rope_sin = g.rope_cos + table;
+        g.a = input(l == 0);
+        g.w = weight(l, TURBO_BERT_Q_WEIGHT);
+        g.bias = layer(l, TURBO_BERT_Q_BIAS);
+        g.out = s.qkv;
+        g.n = 3 * h;
+        g.k = h;
+        TRY_CUDA(gemm_as(GEMM_QKV, layer_epilogue(GEMM_QKV, false, sh), g), "the rotated query, key and value");
+        aa.window = global ? -1 : (int)(d.attention_window / 2);
+        TRY_CUDA(attention(st, aa, sh, plan), "attention");
+
+        g.a = s.att;
+        g.w = weight(l, TURBO_BERT_ATTN_OUT_WEIGHT);
+        g.n = h;
+        g.bias = prod16 ? layer(l, TURBO_BERT_ATTN_OUT_BIAS) : nullptr;
+        g.out = s.part;
+        TRY_CUDA(gemm_as(GEMM_OUT, prod16 ? EPI_BIAS : EPI_PLAIN, g), "the attention output projection");
+        if (modern)
+            TRY_CUDA(add_norm_into(st, s.x, s.part, prod16 ? part16 : nullptr, layer(l, TURBO_BERT_FFN_LN_WEIGHT),
+                                   zero, eps, info, h, half ? nullptr : s.xn, half ? s.x16 : nullptr, plan),
+                     "the attention residual and the MLP norm");
+        else
+            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, prod16 ? part16 : nullptr,
+                                    layer(l, TURBO_BERT_ATTN_OUT_BIAS), layer(l, TURBO_BERT_ATTN_LN_WEIGHT),
+                                    layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info, h, s.x16, res16, plan),
+                     "the attention LayerNorm");
+
+        g.a = input(false);
+        g.w = weight(l, TURBO_BERT_FFN_IN_WEIGHT);
+        g.bias = layer(l, TURBO_BERT_FFN_IN_BIAS);
+        g.out = s.ffn;
+        g.n = 2 * inter;
+        g.k = h;
+        TRY_CUDA(gemm_as(GEMM_FFN1, layer_epilogue(GEMM_FFN1, false, sh), g), "the gated MLP's input");
+
+        g.a = s.ffn;
+        g.w = weight(l, TURBO_BERT_FFN_OUT_WEIGHT);
+        g.n = h;
+        g.k = inter;
+        // The F32 product (layer_epilogue), whatever product16 says, from a
+        // tile summing in F32 (canonical_tile) (#1632): the middle product
+        // reaches F16's 65504 at its clamp, and a sum of such terms can pass it.
+        g.bias = nullptr;
+        g.out = s.part;
+        TRY_CUDA(gemm_as(GEMM_FFN2, layer_epilogue(GEMM_FFN2, false, sh), g), "the MLP's output");
+        if (modern && l + 1 < d.layers)
+            TRY_CUDA(add_norm_into(st, s.x, s.part, nullptr,
+                                   layer(l + 1, TURBO_BERT_ATTN_LN_WEIGHT), zero, eps, info, h,
+                                   half ? nullptr : s.xn, half ? s.x16 : nullptr, plan),
+                     "the MLP residual and the next attention norm");
+        else if (modern)
+            TRY_CUDA(add_layer_norm(st, s.x, s.part, nullptr, zero, w[ROTARY_FINAL_NORM], zero, eps,
+                                    info, h, nullptr, false, plan),
+                     "the MLP residual and the final norm");
+        else
+            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, nullptr,
+                                    layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
+                                    layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
+                     "the MLP LayerNorm");
+    }
+    TRY_CUDA(pool(st, s.x, res16 ? s.x16 : nullptr, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan),
              "pooling");
     if (s.model->head)
         TRY_CUDA(span_head(st, static_cast<const float *>(s.output.ptr), s.model->head, (int)s.model->head_out, h,
@@ -1974,7 +2405,7 @@ void find_candidates(Context &c, const Shape &base, const Choices &ch, const Pla
             const BinChoices &bc = ch.bin[b];
             std::vector<Candidate> &list = t->cand[b][g];
             if (bc.gemm_forced[g] & KNOB_TILE) continue;
-            const Epilogue ep = gemm_epilogue((Gemm)g, plan[b].fused_ln, base.gelu, base.product16);
+            const Epilogue ep = layer_epilogue((Gemm)g, plan[b].fused_ln, base);
             list.push_back(Candidate{bc.gemm[g], plan[b].gemm_grid[g]});
             for (int i = 0; i < nv; i++) {
                 if (!vs[i].candidate) continue;
@@ -2074,7 +2505,8 @@ void stage_rows(Session &s, int m) {
 GemmArgs layer_gemm(const Session &s, int bin, Gemm which, Epilogue ep) {
     const Model &mo = *s.model;
     const turbo_backend_model &d = mo.desc;
-    auto at = [](int r) { return (size_t)TURBO_BERT_EMBEDDING_TENSORS + r; };
+    const size_t base = layer_base(d);
+    auto at = [base](int r) { return base + r; };
     auto weight = [&](int r) -> const void * {
         return s.half ? static_cast<const void *>(mo.f16[at(r)]) : static_cast<const void *>(mo.f32[at(r)]);
     };
@@ -2092,6 +2524,13 @@ GemmArgs layer_gemm(const Session &s, int bin, Gemm which, Epilogue ep) {
     g.rows_done = s.rows_done;
     g.eps = (float)d.layer_norm_eps;
     g.x16 = s.x16;
+    if (mo.rope) {
+        g.rope_cos = mo.rope;
+        g.rope_sin = mo.rope + (size_t)d.max_positions * d.rope_pairs;
+        g.rope_pairs = (int)d.rope_pairs;
+        g.tok_row = s.pk.tok_row;
+        g.row_start = s.pk.start;
+    }
     const void *xin = s.half ? static_cast<const void *>(s.x16) : s.x;
     const bool ln = ep == EPI_ADD_LN;
     switch (which) {
@@ -2120,7 +2559,7 @@ GemmArgs layer_gemm(const Session &s, int bin, Gemm which, Epilogue ep) {
         g.w = weight(TURBO_BERT_FFN_IN_WEIGHT);
         g.bias = layer(TURBO_BERT_FFN_IN_BIAS);
         g.out = s.ffn;
-        g.n = (int)d.intermediate;
+        g.n = gemm_n(s.shape[bin], GEMM_FFN1);
         g.k = h;
         break;
     default:
@@ -2258,7 +2697,7 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
         for (int g = 0; g < GEMM_COUNT; g++) {
             const std::vector<Candidate> &list = t.cand[b][g];
             if (list.empty()) continue;
-            const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln, s.shape[b].gelu, s.shape[b].product16);
+            const Epilogue ep = layer_epilogue((Gemm)g, plan.fused_ln, s.shape[b]);
             GemmArgs ga = layer_gemm(s, b, (Gemm)g, ep);
             int best = -1;
             float incumbent = 0, fastest = 0;
@@ -2385,12 +2824,19 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1,
                                 "max_batch %u: the cuda backend runs at most 65535 rows", max_batch);
         const size_t tokens = (size_t)max_batch * max_seq;
-        // The widest GEMM output: the feed-forward input's, or the three
-        // projections' side by side.
-        if (tokens > (size_t)INT32_MAX / (d.intermediate > 3 * d.hidden ? d.intermediate : 3 * d.hidden))
+        // The widest GEMM output: the feed-forward input's (twice as wide
+        // for a gated MLP), or the three projections' side by side.
+        const size_t ffn_in = (size_t)d.intermediate * (m->rotary ? 2 : 1);
+        if (tokens > (size_t)INT32_MAX / (ffn_in > 3 * (size_t)d.hidden ? ffn_in : 3 * (size_t)d.hidden))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1, "%u rows of %u tokens is more than one GEMM takes",
                                 max_batch, max_seq);
+        const bool deberta = is_deberta(d);
+        if (deberta && precision == TURBO_PRECISION_FASTEST)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision: FASTEST on FAMILY_DEBERTA_V2: the cuda backend runs a DeBERTa-v2 encoder "
+                                "in F32 alone; ask for MODEL or EXACT");
         TRY(f32_weights(m, err));
+        if (deberta) TRY(relative_rows(m, err));
         bool half = false;
         if (precision == TURBO_PRECISION_FASTEST) {
             TRY(f16_weights(m, err));
@@ -2399,7 +2845,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         // The QKV GEMM reads Q, K and V's weights and biases as one: every
         // copy of the weights is laid out so (lay_out).
         for (uint32_t l = 0; l < d.layers; l++) {
-            const size_t q = TURBO_BERT_EMBEDDING_TENSORS + (size_t)l * TURBO_BERT_LAYER_TENSORS;
+            const size_t q = layer_base(d) + (size_t)l * TURBO_BERT_LAYER_TENSORS;
             const size_t hh = (size_t)d.hidden * d.hidden;
             const bool bias = m->f32[q + TURBO_BERT_K_BIAS] == m->f32[q + TURBO_BERT_Q_BIAS] + d.hidden &&
                               m->f32[q + TURBO_BERT_V_BIAS] == m->f32[q + TURBO_BERT_Q_BIAS] + 2 * d.hidden;
@@ -2424,6 +2870,11 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         base.half = half;
         base.gelu = half ? gelu_named() : GELU_ERF;
         base.residual16 = half && residual16_named();
+        // The rotary families: the QKV GEMM rotates, the MLP is gated.
+        const bool rotary = m->rotary;
+        const bool modern = d.family == TURBO_FAMILY_MODERNBERT;
+        base.rope = rotary;
+        base.gated = !rotary ? GATED_NONE : d.activation == TURBO_ACTIVATION_SILU ? GATED_SILU : GATED_GELU;
         int major = 0, sms = 0, optin = 0;
         TRY_CUDA(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, c->ordinal), "the device's sm");
         TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, c->ordinal), "the device's SMs");
@@ -2441,6 +2892,11 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         Choices ch = defaults(base);
         bool tf32 = false, f16_accumulate = false;
         forced_from_environment(base, precision, tuned, &ch, &tf32, &f16_accumulate);
+        if (deberta && tf32)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision %s: TF32 on FAMILY_DEBERTA_V2: the cuda backend runs a DeBERTa-v2 encoder "
+                                "in F32 FMAs alone",
+                                precision_name(precision));
         char why[TURBO_ERROR_MESSAGE_LEN];
         uint32_t absent = 0;
         if (!choices_named(&ch, &absent, why, sizeof why)) return refuse(err, TURBO_E_INVALID_ARGUMENT, "%s", why);
@@ -2450,6 +2906,9 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                        "cuda device %d: TURBO_CUDA_CHOICES names %s, a token bin a session of %u x %u does not have",
                        c->ordinal, BIN_NAME[b], max_batch, max_seq);
         whole_rows(base, &ch);
+        // A rotary model's LayerNorms are kernels of their own (rotary.h).
+        if (rotary)
+            for (BinChoices &bc : ch.bin) bc.ln = LN_SEPARATE;
         canonicalize(base, &ch);
         // The classes the precision allows, as the environment's
         // experiments widen them; the F32 kernels are FASTEST's too, for a
@@ -2476,6 +2935,10 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         // and a cached line would name kernels they do not run: such a
         // session takes neither.
         const unsigned cublas = cublas_gemms();
+        if (rotary && cublas)
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "TURBO_CUDA_CUBLAS: the cuda backend's rotary encoders run on its own GEMMs, whose epilogues "
+                          "rotate and gate");
 #ifndef TURBO_CUDA_CUBLAS
         if (cublas)
             return refuse(err, TURBO_E_UNSUPPORTED,
@@ -2503,6 +2966,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 }
                 cc.pool_forced = 0;
                 whole_rows(base, &cc);
+                if (rotary)
+                    for (BinChoices &bc : cc.bin) bc.ln = LN_SEPARATE;
                 canonicalize(base, &cc);
                 ok = !outside(base, cc, tier, named, sizeof named, &numeric);
                 if (!ok) snprintf(no, sizeof no, "%s computes in %s", named, numeric);
@@ -2592,9 +3057,11 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         const size_t head_output = round_up((size_t)max_ranges * m->head_out * 4, DEVICE_ALIGN);
         Tuned found;
         uint32_t tune_ms = 0;
+        const size_t spans = deberta ? round_up((2 * (size_t)max_seq - 1) * 4, DEVICE_ALIGN) : 0;
+        const size_t xn = modern && !half ? x : 0;
         const size_t total =
             5 * ints + ranges + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output +
-            head_output;
+            head_output + spans + xn;
         // The staging: the three planes, the ranges, then the fault word.
         const size_t staged_ints = 3 * tokens + range_ints;
         const int32_t rc = [&]() -> int32_t {
@@ -2637,6 +3104,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             s->head_output.placement = TURBO_PLACE_DEVICE;
             s->head_output.bytes = (uint64_t)max_ranges * m->head_out * 4;
             s->head_output.owned = false;
+            if (deberta) s->buckets = reinterpret_cast<int32_t *>(take(spans));
+            if (xn) s->xn = reinterpret_cast<float *>(take(xn));
             s->pack.rows = s->rows;
             s->pack.heads = (int32_t)d.heads;
             s->pack.queries = s->plan[0].attn_queries;
@@ -2654,6 +3123,31 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             // once, they hold finite values whatever reads them.
             TRY_CUDA(cudaMemsetAsync(s->scratch, 0, total, c->stream), "clearing the session's memory");
             TRY_CUDA(cudaStreamSynchronize(c->stream), "clearing the session's memory");
+            // A DeBERTa-v2 session's attention launch, and its buckets, sent
+            // again after each clearing of the scratch.
+            std::vector<int32_t> table(deberta ? 2 * (size_t)max_seq - 1 : 0);
+            for (size_t k = 0; k < table.size(); k++)
+                table[k] = (int32_t)deberta_bucket((long long)k - ((long long)max_seq - 1), d.position_buckets,
+                                                   d.max_relative_positions);
+            auto send_buckets = [&]() -> int32_t {
+                if (!deberta) return TURBO_OK;
+                TRY_CUDA(cudaMemcpyAsync(s->buckets, table.data(), table.size() * 4, cudaMemcpyHostToDevice, c->stream),
+                         "the relative buckets");
+                TRY_CUDA(cudaStreamSynchronize(c->stream), "the relative buckets");
+                return TURBO_OK;
+            };
+            if (deberta)
+                TRY_CUDA(deberta_plan((int)(d.hidden / d.heads), (int)max_batch, (int)max_seq, (int)d.heads, sms,
+                                      (size_t)optin, overridden(deberta_general_override) == 1, table.data(),
+                                      &s->deberta),
+                         "planning DeBERTa-v2 attention");
+            if (deberta) {
+                deberta_last_pick.store(s->deberta.tiled ? 2 : 1, std::memory_order_relaxed);
+                if (!s->deberta.tiled && !s->deberta.why.empty())
+                    c->say(LOG_DEBUG, "cuda device %d: DeBERTa-v2 attention is the general kernel: %s", c->ordinal,
+                           s->deberta.why.c_str());
+            }
+            TRY(send_buckets());
             if (measure) {
                 const Clock::time_point tune_start = Clock::now();
                 TRY(tune(*s, tn, tuning->budget_ms, &found, err));
@@ -2663,6 +3157,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 *s->fault = 0;
                 TRY_CUDA(cudaMemsetAsync(s->scratch, 0, total, c->stream), "clearing the session's memory");
                 TRY_CUDA(cudaStreamSynchronize(c->stream), "clearing the session's memory");
+                TRY(send_buckets());
                 s->fetch.n = 0;
                 s->tokens = 0;
                 s->run = RunArgs{};
@@ -3164,10 +3659,68 @@ const turbo_backend turbo_cuda_backend = {
     embed_write_ranges,
     1,
     0,
+    buffer_quantize,
 };
 
 /* Every allocation this backend has made in the process, host and device,
  * for the tests that hold a warm run to none. */
+
+/* Host F32 rows quantized on the device, codes back on the host: for the
+ * tests that hold the kernels to core/src/quantize.rs. quantization is
+ * TURBO_QUANTIZE_INT8 or UBINARY; ranges is host [2, dim] for INT8. */
+int32_t turbo_cuda_quantize(uint32_t ordinal, uint32_t quantization, const float *x, const float *ranges, int32_t rows,
+                            int32_t dim, uint8_t *out) {
+    try {
+        if (rows <= 0 || dim <= 0) return TURBO_OK;
+        if (quantization != TURBO_QUANTIZE_INT8 && quantization != TURBO_QUANTIZE_UBINARY)
+            return TURBO_E_INVALID_ARGUMENT;
+        if (quantization == TURBO_QUANTIZE_INT8 && !ranges) return TURBO_E_INVALID_ARGUMENT;
+        DeviceScope scope_((int)ordinal);
+        if (scope_.status() != cudaSuccess) {
+            (void)cudaGetLastError();
+            return TURBO_E_RUNTIME;
+        }
+        const size_t floats = (size_t)rows * (size_t)dim;
+        const size_t code_bytes =
+            quantization == TURBO_QUANTIZE_INT8 ? floats : (size_t)rows * (((size_t)dim + 7) / 8);
+        float *dx = nullptr;
+        float *dr = nullptr;
+        void *dc = nullptr;
+        cudaError_t e = device_malloc(reinterpret_cast<void **>(&dx), floats * 4);
+        if (e != cudaSuccess) return TURBO_E_OUT_OF_MEMORY;
+        e = device_malloc(&dc, code_bytes);
+        if (e != cudaSuccess) {
+            cudaFree(dx);
+            return TURBO_E_OUT_OF_MEMORY;
+        }
+        if (quantization == TURBO_QUANTIZE_INT8) {
+            e = device_malloc(reinterpret_cast<void **>(&dr), (size_t)dim * 2 * 4);
+            if (e != cudaSuccess) {
+                cudaFree(dx);
+                cudaFree(dc);
+                return TURBO_E_OUT_OF_MEMORY;
+            }
+        }
+        e = cudaMemcpy(dx, x, floats * 4, cudaMemcpyHostToDevice);
+        if (e == cudaSuccess && dr)
+            e = cudaMemcpy(dr, ranges, (size_t)dim * 2 * 4, cudaMemcpyHostToDevice);
+        if (e == cudaSuccess) {
+            if (quantization == TURBO_QUANTIZE_INT8)
+                e = quantize_int8(nullptr, dx, dr, rows, dim, static_cast<int8_t *>(dc));
+            else
+                e = quantize_ubinary(nullptr, dx, rows, dim, static_cast<uint8_t *>(dc));
+        }
+        if (e == cudaSuccess) e = cudaDeviceSynchronize();
+        if (e == cudaSuccess) e = cudaMemcpy(out, dc, code_bytes, cudaMemcpyDeviceToHost);
+        if (dr) cudaFree(dr);
+        cudaFree(dc);
+        cudaFree(dx);
+        return e == cudaSuccess ? TURBO_OK : TURBO_E_RUNTIME;
+    } catch (...) {
+        return TURBO_E_INTERNAL;
+    }
+}
+
 void turbo_cuda_allocations(uint64_t *host, uint64_t *device) {
     *host = host_total.load(std::memory_order_relaxed);
     *device = device_total.load(std::memory_order_relaxed);
@@ -3293,12 +3846,50 @@ void turbo_cuda_fail_variant(const char *name) {
 
 void turbo_cuda_use_sk_steps(int32_t steps) { sk_override.store(steps, std::memory_order_relaxed); }
 
+/* DeBERTa-v2 sessions made from now on run the general attention kernel
+ * when general is 1, the tiled one for their head width at 0. */
+void turbo_cuda_use_general_attention(int32_t general) {
+    deberta_general_override.store(general, std::memory_order_relaxed);
+}
+
+/* deberta_tiled_rows for a model of buckets and maximum at head_dim, in
+ * sessions of seq_cap tokens: 1 with *reach and *room set, 0 for a width
+ * with no tiled kernel. */
+int32_t turbo_cuda_deberta_tiled_rows(uint32_t buckets, uint32_t maximum, int32_t seq_cap, int32_t head_dim,
+                                      int32_t *reach, int32_t *room) {
+    std::vector<int32_t> table(2 * (size_t)seq_cap - 1);
+    for (size_t k = 0; k < table.size(); k++)
+        table[k] = (int32_t)deberta_bucket((long long)k - (seq_cap - 1), buckets, maximum);
+    return deberta_tiled_rows(head_dim, seq_cap, table.data(), reach, room) ? 1 : 0;
+}
+
+/* The shared memory the tiled DeBERTa-v2 attention at head_dim takes, in
+ * *need (0 for a width with none), and what the device at ordinal gives a
+ * block, in *give: the tiled kernel runs only where the first fits the
+ * second. 0 on success. */
+int32_t turbo_cuda_deberta_tiled_smem(int32_t head_dim, int32_t ordinal, uint64_t *need, uint64_t *give) {
+    int optin = 0;
+    if (cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, ordinal) != cudaSuccess) return -1;
+    *need = deberta_tiled_smem(head_dim);
+    *give = (uint64_t)optin;
+    return 0;
+}
+
+/* The attention kernel the last DeBERTa-v2 session made picked: 2 tiled,
+ * 1 general, 0 before any. */
+int32_t turbo_cuda_last_deberta_attention(void) { return deberta_last_pick.load(std::memory_order_relaxed); }
+
 /* The FMA attention of sessions made from now on: 1 the key-split kernel
  * (TURBO_CUDA_ATTENTION=split), 0 the default, -1 to read the variable
  * again. */
 void turbo_cuda_use_split_attention(int32_t split) {
     split_attention_override.store(split, std::memory_order_relaxed);
 }
+
+/* The FMA attention of register tiles in sessions made from now on: 1 at
+ * 32 queries to a block (TURBO_CUDA_ATTENTION=tiled32), 0 the default's
+ * 64, -1 to read the variable again. */
+void turbo_cuda_use_narrow_tiles(int32_t narrow) { narrow_tiles_override.store(narrow, std::memory_order_relaxed); }
 
 /* FASTEST's attention on the tensor cores in sessions made from now on:
  * 1 the kernel of 128 queries to a block, the default, 0 the kernel of

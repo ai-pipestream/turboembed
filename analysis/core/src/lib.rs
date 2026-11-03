@@ -18,6 +18,7 @@ pub mod evidence;
 pub mod export;
 pub mod graph;
 pub mod hash;
+pub mod ids;
 pub mod layer;
 pub mod markup;
 pub mod math;
@@ -28,15 +29,22 @@ pub mod project;
 pub mod registry;
 pub mod shape;
 pub mod span;
+pub mod splice;
 pub mod text;
 pub mod topk;
 pub mod xray;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
-pub use analyzer::{Analyzer, ExecutionReport, LayerExecution, StepEvent, StepExecution, StepTiming};
-pub use annotate::{Annotator, Bound, Placed, Refs};
+pub use analyzer::{
+    Analyzer, ExecutionReport, IncrementalReport, LayerExecution, SpliceReport, StageCacheStatus,
+    StageIncrementalReport, StepEvent, StepExecution, StepRun, StepTiming,
+};
+pub use annotate::{Annotator, Bound, Locality, Placed, Refs, Step};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
-pub use doc::{Document, LayerStatus, Status, View};
+pub use doc::{
+    ContentDigest, Document, DuplicateLayerPolicy, InputSnapshotDigest, LayerStatus, ProvenanceDigest,
+    SourceBytesDigest, Status, View, ViewTextDigest,
+};
 pub use error::Error;
 pub use evidence::{Evidence, EvidenceError, EvidenceStep, Evidenced, Producer, Support};
 pub use export::{
@@ -62,6 +70,7 @@ pub use span::{
     ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
     filter_spans,
 };
+pub use splice::{LayerSplicer, Splice, SpliceCx, Splicer};
 pub use text::{Alignment, AlignmentCursor, Edit, Side, ViewBuilder, ViewId};
 pub use topk::TopK;
 pub use xray::{NormalizationXray, ViewStepSummary, XrayProjection, XrayRun, XrayRunKind};

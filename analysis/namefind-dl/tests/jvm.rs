@@ -19,7 +19,7 @@ const TOLERANCE: f64 = 1e-5;
 #[test]
 #[ignore = "needs TURBO_NER_BUNDLE naming a dslim/bert-base-NER bundle (bundle/recipes/dslim-bert-base-ner.json)"]
 fn finds_what_opennlp_finds() {
-    let dir = PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE"));
+    let dir = turbo_pins::require(PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE")));
     let options = NameFinderDlOptions { decoding: Decoding::Piece, ..NameFinderDlOptions::default() };
     let finder = NameFinderDl::open(&dir, &options).unwrap();
     let golden: serde_json::Value = serde_json::from_str(include_str!("data/jvm-golden.json")).unwrap();

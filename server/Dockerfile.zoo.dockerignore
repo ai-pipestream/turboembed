@@ -1,0 +1,12 @@
+# The context of server/Dockerfile.zoo is the repository root; it needs
+# the workspace's crates, the headers, benchmarks/records (embedded by
+# core/build.rs) and the demo's committed page, and none of the test data,
+# the page's node modules, the history or a build.
+.git
+.github
+**/target
+target
+testdata
+analysis/goldens/data
+ai-slop-generated-shit
+demo/web/node_modules

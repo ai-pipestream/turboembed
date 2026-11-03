@@ -18,14 +18,13 @@ use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use turbo_jvm::chars::utf16_len;
 use turbo_maxent::{Dictionary, ModelFile};
 
 use crate::beam::ContextGenerator;
 use crate::error::{Error, Result};
 use crate::featuregen::{BoxedGenerator, descriptor};
 use crate::features::Features;
-use crate::java::parse_int;
+use crate::java::{parse_int, utf16_len};
 use crate::pattern::PatternMode;
 
 pub mod dictionary;
@@ -207,7 +206,9 @@ impl PosContext {
     /// model's `ngram.dictionary` if it has one; otherwise the model's
     /// descriptor, or the default descriptor.
     pub fn for_model(model: &ModelFile, cache_size: usize, mode: PatternMode) -> Result<PosContext> {
-        if is_before_1_8(model.opennlp_version())? {
+        if let Some(version) = model.manifest().get("OpenNLP-Version")
+            && is_before_1_8(version)?
+        {
             let dictionary = model.dictionary(NGRAM_DICTIONARY_ENTRY_NAME)?.map(Arc::new);
             return Ok(PosContext::Default(DefaultPosContext::new(dictionary)));
         }

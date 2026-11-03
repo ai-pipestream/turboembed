@@ -1,5 +1,5 @@
 //! Rule-driven POS-tag pattern chunker (`PatternChunker`) and composition with
-//! trained `ChunkerME` models (`PatternChunkComposer`, `ComposeMode`).
+//! trained `ChunkerME` models or base [`PhraseChunks`] (`PatternChunkComposer`, `ComposeMode`).
 
 use std::sync::Arc;
 
@@ -250,19 +250,19 @@ impl Annotator for PatternChunker {
     }
 }
 
-/// Strategy for combining [`PatternChunker`] rule matches with trained `ChunkerME` [`PhraseChunks`].
+/// Strategy for combining [`PatternChunker`] rule matches with a base [`PhraseChunks`] layer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComposeMode {
-    /// Retains all trained `ChunkerME` chunks and adds non-overlapping [`PatternChunker`]
-    /// matches over tokens not covered by any trained chunk.
+    /// Retains all base [`PhraseChunks`] and adds non-overlapping [`PatternChunker`]
+    /// matches over tokens not covered by any base chunk.
     Fallback,
-    /// Applies [`PatternChunker`] rules first and retains only trained `ChunkerME` chunks
+    /// Applies [`PatternChunker`] rules first and retains only base [`PhraseChunks`]
     /// whose token ranges do not overlap any rule match.
     Override,
 }
 
-/// Composes [`PatternChunker`] rules with trained [`PhraseChunker`] (`ChunkerME`) output
-/// in either [`ComposeMode::Fallback`] or [`ComposeMode::Override`] mode.
+/// Composes [`PatternChunker`] rules with a base [`PhraseChunks`] layer (or an attached
+/// [`PhraseChunker`]) in either [`ComposeMode::Fallback`] or [`ComposeMode::Override`] mode.
 #[derive(Clone, Debug)]
 pub struct PatternChunkComposer {
     pattern_chunker: PatternChunker,
@@ -291,7 +291,7 @@ impl PatternChunkComposer {
         &self.pattern_chunker
     }
 
-    /// Merges an existing `base` [`PhraseChunks`] layer (such as from `ChunkerME`) with
+    /// Merges an existing `base` [`PhraseChunks`] layer with
     /// [`PatternChunker`] matches over `(view, tokens, tags)` according to [`Self::mode`].
     pub fn compose(
         &self,

@@ -9,6 +9,7 @@ publish = false
 name = "turbo_goldens"
 
 [dependencies]
+turbo-pins = { path = "../pins" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 # `JavaString`, an outcome label as the model holds it.

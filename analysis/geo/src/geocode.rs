@@ -11,7 +11,6 @@ use std::cmp::Ordering;
 use std::fmt;
 
 use turbo_analysis::Span;
-use turbo_jvm::chars::compare_to;
 
 use crate::entry::{GazetteerEntry, GeoPoint};
 use crate::gazetteer::Gazetteer;
@@ -124,13 +123,13 @@ impl GeoResolution {
 
 /// Compares two [`Entry`] views by `CandidateRanking.BY_PRIOR`: population
 /// descending, feature class rank (`CITY` < `ADMIN` < `POI` < other), source
-/// in UTF-16 order, and record id in UTF-16 order.
+/// in code point order, and record id in code point order.
 pub fn by_prior_view(a: &Entry<'_>, b: &Entry<'_>) -> Ordering {
     b.population()
         .cmp(&a.population())
         .then_with(|| feature_rank(a.feature_class()).cmp(&feature_rank(b.feature_class())))
-        .then_with(|| compare_to(a.source(), b.source()).cmp(&0))
-        .then_with(|| compare_to(a.record_id(), b.record_id()).cmp(&0))
+        .then_with(|| a.source().cmp(b.source()))
+        .then_with(|| a.record_id().cmp(b.record_id()))
 }
 
 /// Compares two owned [`GazetteerEntry`] records by `CandidateRanking.BY_PRIOR`.
@@ -138,8 +137,8 @@ pub fn by_prior_entry(a: &GazetteerEntry, b: &GazetteerEntry) -> Ordering {
     b.population()
         .cmp(&a.population())
         .then_with(|| feature_rank(a.feature_class()).cmp(&feature_rank(b.feature_class())))
-        .then_with(|| compare_to(a.source(), b.source()).cmp(&0))
-        .then_with(|| compare_to(a.record_id(), b.record_id()).cmp(&0))
+        .then_with(|| a.source().cmp(b.source()))
+        .then_with(|| a.record_id().cmp(b.record_id()))
 }
 
 fn validate_mentions(text: &str, location_mentions: &[Span]) -> Result<(), GeocodeError> {

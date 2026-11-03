@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use tonic::Status;
-use turbo_zoo::{Artifact, Policy, UserId};
+use turbo_zoo::{Acceptances, Artifact, Policy, UserId};
 
 use super::{Catalog, terms, zoo_status};
 use crate::proto::training::{CatalogEntry, CatalogFile, InstalledModel, TrainingSource};
@@ -31,42 +31,48 @@ pub(super) fn list(
         if !language.is_empty() && a.language.as_ref().is_none_or(|l| l.as_str() != language) {
             continue;
         }
-        let needed = a.licences_to_accept(Policy::default());
-        let missing = match (user, &acceptances) {
-            (Some(u), Some(acc)) => needed.iter().filter(|r| !acc.has(u, r)).map(terms).collect(),
-            _ => Vec::new(),
-        };
-        out.push(CatalogEntry {
-            id: a.id.to_string(),
-            kind: a.kind.to_string(),
-            component: a.component.map(|c| c.to_string()).unwrap_or_default(),
-            language: a.language.as_ref().map(|l| l.to_string()).unwrap_or_default(),
-            format: a.format.to_string(),
-            version: a.version.clone(),
-            licence: a.license.to_string(),
-            licence_terms: a.license_terms.to_string(),
-            licence_class: a.class.to_string(),
-            attribution: a.attribution.clone().unwrap_or_default(),
-            trained_on: a
-                .trained_on
-                .iter()
-                .map(|t| TrainingSource {
-                    name: t.name.clone(),
-                    licence: t.license.to_string(),
-                    licence_terms: t.license_terms.to_string(),
-                })
-                .collect(),
-            files: a.files.iter().map(file).collect(),
-            total_bytes: a.files.iter().map(|f| f.size).sum(),
-            terms: needed.iter().map(terms).collect(),
-            missing_terms: missing,
-            installed: installed(&cache, a).is_some(),
-        });
+        out.push(entry(a, user.zip(acceptances.as_ref()), &cache));
     }
     Ok(out)
 }
 
-fn file(f: &turbo_zoo::File) -> CatalogFile {
+/// The artifact as a catalog entry. With a user and the acceptances, its
+/// missing terms are the ones that user has not accepted.
+pub(super) fn entry(a: &Artifact, who: Option<(&UserId, &Acceptances)>, cache: &Path) -> CatalogEntry {
+    let needed = a.licences_to_accept(Policy::default());
+    let missing = match who {
+        Some((u, acc)) => needed.iter().filter(|r| !acc.has(u, r)).map(terms).collect(),
+        None => Vec::new(),
+    };
+    CatalogEntry {
+        id: a.id.to_string(),
+        kind: a.kind.to_string(),
+        component: a.component.map(|c| c.to_string()).unwrap_or_default(),
+        language: a.language.as_ref().map(|l| l.to_string()).unwrap_or_default(),
+        format: a.format.to_string(),
+        version: a.version.clone(),
+        licence: a.license.to_string(),
+        licence_terms: a.license_terms.to_string(),
+        licence_class: a.class.to_string(),
+        attribution: a.attribution.clone().unwrap_or_default(),
+        trained_on: a
+            .trained_on
+            .iter()
+            .map(|t| TrainingSource {
+                name: t.name.clone(),
+                licence: t.license.to_string(),
+                licence_terms: t.license_terms.to_string(),
+            })
+            .collect(),
+        files: a.files.iter().map(file).collect(),
+        total_bytes: a.files.iter().map(|f| f.size).sum(),
+        terms: needed.iter().map(terms).collect(),
+        missing_terms: missing,
+        installed: installed(cache, a).is_some(),
+    }
+}
+
+pub(super) fn file(f: &turbo_zoo::File) -> CatalogFile {
     let d = f.download.as_ref();
     CatalogFile {
         path: f.path.as_str().to_owned(),

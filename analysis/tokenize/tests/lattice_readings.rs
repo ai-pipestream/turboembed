@@ -18,7 +18,7 @@ use common::{fixtures_dir, run};
 use turbo_analysis::{Analyzer, Annotator, Document, Error, Key, Layer, Refs, Span, Spans, View};
 use turbo_analysis_layers::{PosTags, Sentences, Strs, Tokens};
 use turbo_tokenize::lattice::{DictionaryFormat, FormatError, UnidicLayout};
-use turbo_tokenize::{LatticeAnalyzer, LatticeTokenizer, MecabDictionary, Readings, WhitespaceMode};
+use turbo_tokenize::{LatticeAnalyzer, LatticeTokenizer, MecabDictionary, Readings};
 
 fn dictionaries_dir() -> PathBuf {
     match std::env::var_os("TURBO_MECAB_DICTIONARIES") {
@@ -28,9 +28,8 @@ fn dictionaries_dir() -> PathBuf {
 }
 
 fn analyzer(dir: &Path, format: DictionaryFormat) -> LatticeAnalyzer {
-    let dictionary =
-        MecabDictionary::load(dir, WhitespaceMode::Unicode).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
-    LatticeAnalyzer::new(LatticeTokenizer::new(dictionary, WhitespaceMode::Unicode), format).unwrap()
+    let dictionary = MecabDictionary::load(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    LatticeAnalyzer::new(LatticeTokenizer::new(dictionary), format).unwrap()
 }
 
 /// How many tokens were compared, and how many had each column.
@@ -56,9 +55,7 @@ fn matches(run_name: &str, analyzer: LatticeAnalyzer) -> Counts {
     let dictionary =
         MecabDictionary::from_prebuilt(turbo_tokenize::lattice::PrebuiltImage::copy_from(&bytes), Default::default())
             .unwrap();
-    let compiled =
-        LatticeAnalyzer::new(LatticeTokenizer::new(dictionary, analyzer.tokenizer().whitespace()), analyzer.format())
-            .unwrap();
+    let compiled = LatticeAnalyzer::new(LatticeTokenizer::new(dictionary), analyzer.format()).unwrap();
     let source = matches_loaded(run_name, analyzer);
     assert_eq!(matches_loaded(run_name, compiled), source);
     source
@@ -118,8 +115,8 @@ fn korean_fixture() {
 #[test]
 fn the_japanese_fixture_is_no_published_format() {
     let dir = fixtures_dir().join("mecab-fixture-ja");
-    let d = MecabDictionary::load(&dir, WhitespaceMode::Unicode).unwrap();
-    let t = LatticeTokenizer::new(d, WhitespaceMode::Unicode);
+    let d = MecabDictionary::load(&dir).unwrap();
+    let t = LatticeTokenizer::new(d);
     let formats = [
         DictionaryFormat::Ipadic,
         DictionaryFormat::MecabKoDic,
@@ -194,7 +191,7 @@ fn readings_follow_the_tokens_through_a_pipeline() {
     assert!(want.iter().any(|(s, r)| s.0 as usize >= second && !r.is_empty()));
     let p = doc.provenance(Key::<Readings>::DEFAULT.id()).unwrap();
     assert_eq!(p.annotator, "turbo-tokenize:lattice-readings");
-    assert_eq!(p.model.as_ref().unwrap().id, "opennlp:MecabDictionary");
+    assert_eq!(p.model.as_ref().unwrap().id, "turbo:MecabDictionary");
     assert_eq!(p.config, config);
 }
 

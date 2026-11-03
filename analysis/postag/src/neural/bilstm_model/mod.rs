@@ -25,11 +25,11 @@ use validate::validate_tensors;
 /// Unknown word and character symbol, always stored at row `0`.
 pub const UNKNOWN: &str = "*UNK*";
 
-pub(super) const MAGIC_V1: &str = "ONLP-BLPT-1";
-pub(super) const MAGIC_V2: &str = "ONLP-BLPT-2";
-pub(super) const MAGIC_V3: &str = "ONLP-BLPT-3";
-pub(super) const MAGIC_V4: &str = "ONLP-BLPT-4";
-pub(super) const MAGIC_V5: &str = "ONLP-BLPT-5";
+pub(super) const MAGIC_V1: &str = "TURBO-BLPT-1";
+pub(super) const MAGIC_V2: &str = "TURBO-BLPT-2";
+pub(super) const MAGIC_V3: &str = "TURBO-BLPT-3";
+pub(super) const MAGIC_V4: &str = "TURBO-BLPT-4";
+pub(super) const MAGIC_V5: &str = "TURBO-BLPT-5";
 
 /// Immutable parameters, vocabularies, and inference logic of a BiLSTM(-CRF) POS tagger.
 #[derive(Clone, Debug)]
@@ -200,7 +200,7 @@ impl BilstmPosModel {
             }
         };
         self.model_ref = ModelRef {
-            id: "opennlp:BilstmPOSModel".into(),
+            id: "turbo:BilstmPOSModel".into(),
             revision: revision.into(),
             sha256: turbo_maxent::sha256(&bytes).to_hex(),
         };

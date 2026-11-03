@@ -37,14 +37,7 @@
 //!   shuffle differs from the C code's (see `l1`).
 //! - `Math.max` and `Math.min` with Java's NaN and signed zero rules.
 //!
-//! liblinear-java calls `Math.exp` and `Math.log`, which HotSpot computes
-//! with its own routines. `log` here is fdlibm's (`turbo_jvm::strict_math`),
-//! which differs from HotSpot's in the last bit on some arguments; `exp` is
-//! the platform's `f64::exp`, which HotSpot's `Math.exp` (not correctly
-//! rounded, and not portable here) differs from in the last bit on a few
-//! arguments in a thousand. A difference in the last bit can grow through
-//! the iterations, so the weights agree with the JVM's to a tolerance,
-//! not always to the bit; `docs/liblinear.md` has the measured numbers.
+//! `exp` and `log` use the platform's `f64::exp` and `f64::ln`.
 //!
 //! Quirks of the add-on, kept:
 //!
@@ -61,7 +54,7 @@
 //! - The bias feature is trained but not scored: `eval` does not add it.
 //! - `eval` returns the probabilities in liblinear's class order, which
 //!   the add-on reads as outcome order ([`LiblinearModel::eval`]).
-//! - The serialized predicate map is in `HashMap` order ([`format`]).
+//! - The serialized predicate map is in predicate index order ([`format`]).
 
 mod dual;
 pub mod error;
@@ -71,6 +64,7 @@ mod linear;
 mod model;
 mod newton;
 mod problem;
+mod rng;
 #[cfg(test)]
 mod tests;
 
@@ -104,15 +98,10 @@ pub(crate) fn exp(x: f64) -> f64 {
     x.exp()
 }
 
-/// `Math.log` as liblinear-java calls it, through fdlibm's logarithm
-/// (`StrictMath.log`), which differs from HotSpot's `Math.log` in the
-/// last bit on some arguments but gives the same result on every
-/// platform. The correctly rounded `turbo_jvm::math::log` matches HotSpot
-/// more often but is some 60 times slower, and the dual solver takes a
-/// logarithm at every inner step.
+/// Natural logarithm used by the logistic regression solvers.
 #[inline]
 pub(crate) fn log(x: f64) -> f64 {
-    turbo_jvm::strict_math::log(x)
+    x.ln()
 }
 
 /// liblinear-java's `SolverType`, by its constant names.

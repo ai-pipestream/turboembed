@@ -3,8 +3,8 @@
 //! `reference/build_fixture.py` writes: the count queries across three and
 //! four fields (the relation scorer only ever has two), for one and three
 //! instances, and the classifier's logits. The encoder and span heads are
-//! the relation scorer's reduced fixture; the classifier is sliced to the
-//! same width 32.
+//! the relation scorer's reduced fixture; the classifier is seeded random at
+//! the same width 32.
 
 use serde_json::Value;
 use turbo::deberta::{Config, Encoder};

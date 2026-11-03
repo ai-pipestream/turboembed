@@ -40,7 +40,7 @@ a stack machine that runs no code: it accepts 23 opcodes and three
 globals (`collections.OrderedDict`, `torch.FloatStorage` and
 `torch._utils._rebuild_tensor_v2`), and it builds only a dict of
 contiguous F32 tensors from them. What it copies through the pickle's memo is charged against a budget of 65,536 values, and values nest at most 32 deep, so a pickle that doubles a tuple at every level is refused before it grows. Every offset the archive gives is checked before it is added to or read at. Anything else is refused by name: the
-legacy format, another global or opcode, another dtype, or a tensor
+non-zip format, another global or opcode, another dtype, or a tensor
 outside its storage. `turbo-bundle torch-convert` writes the same
 tensors as one safetensors file. On the real checkpoint, all 420 tensors
 equal what `torch.load(weights_only=True)` gives.
@@ -77,6 +77,45 @@ As a scorer, a mention scores 0 if its span does not start where a word
 starts and end where a word ends. The text is limited to GLiREL's
 `max_len` (512 words) and to the encoder's `max_sequence` (512 subwords),
 and fails with the limit named.
+
+## On a device
+
+The encoder can also be a `FAMILY_DEBERTA_V2` core bundle on the device
+`EncoderOptions` names (cpu, cuda, levelzero, metal), through the backend table
+(#920): open it with `turbo_relation::encoder::DebertaEncoder::open` and
+pass it to `GlirelRelations::load_with`. Only the rows the heads read come back from the
+device, as one-token ranges of the range write: each word's first
+subword and the label markers. The heads stay on the host. `execution()`
+names where the encoder ran. `analysis/relation/tests/device.rs` holds a device to the CPU encoder
+over `testdata/tiny-deberta-bundle`, with every count equal and every
+logit within 1e-4. On Metal (Apple M2) these tests and the real
+checkpoint's pass at `model` and `exact`; the figures are in
+docs/receipts/gliner2-metal-920.
+
+The real checkpoint is CC BY-NC-SA 4.0, and the zoo fetches it only after
+that licence is accepted. Its encoder is sealed as a core bundle the same
+way GLiNER2's is (docs/gliner2-relations.md), by
+`bundle/recipes/glirel-large-v0-encoder.json` (pinned to revision
+`40a523e12a8432d6da364cf2a195a28755ff04d3`): `bundle/reference/gliner_encoder.py`
+with the default prefix and the added-tokens argument `glirel`, GLiREL's
+five added pieces (`[MASK]`, `[FLERT]`, `[REL]`, `[E]` and `[/E]` at
+128000 to 128004). With `Z` the zoo's artifacts directory and `W` an
+empty one:
+
+```
+docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD/bundle/reference:/scripts:ro -v $Z/jackboyla-glirel-large-v0:/ckpt:ro \
+    -v $Z/microsoft-deberta-v3-large-tokenizer:/base:ro -v $W:/w --entrypoint python \
+    turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+    /scripts/gliner_encoder.py /base/config.json /base/spm.model /ckpt/pytorch_model.bin /w/out \
+    token_rep_layer.bert_layer.model. glirel
+cargo run --release --locked -p turbo-bundle -- reference bundle/recipes/glirel-large-v0-encoder.json $W/out $W/bundle
+```
+
+The bundle is made locally and is not shipped. `analysis/relation/tests/device_real.rs`
+(ignored; `GLIREL_BUNDLE`, `GLIREL_PACKAGE`, `GLIREL_SPM`,
+`TURBO_TEST_DEVICE`) holds the device to the CPU encoder of the package's
+`encoder/` DeBERTa package, to which the bundle is bound, and times both.
 
 ## Parity
 

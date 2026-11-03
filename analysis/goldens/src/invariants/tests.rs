@@ -33,18 +33,18 @@ fn a_layer_out_of_its_contract_is_reported() {
     let mut s = Spans::new(ViewId::SOURCE);
     s.push(Span::new(3, 5));
     s.push(Span::new(0, 2));
-    let v = check_contract(&Sentences { spans: s }, "opennlp:sentences");
+    let v = check_contract(&Sentences { spans: s }, "turbo:sentences");
     assert_eq!(v.len(), 1);
     assert_eq!(
         v[0].to_string(),
-        "opennlp:sentences item 0 at 0..0 in view 0: the layer's contract: sentences in text order, not overlapping"
+        "turbo:sentences item 0 at 0..0 in view 0: the layer's contract: sentences in text order, not overlapping"
     );
     let mut t = tokens(ViewId::SOURCE, &[(0, 1), (2, 3)]);
     t.sentence = Some(vec![turbo_analysis::Ix::new(1), turbo_analysis::Ix::new(0)]);
-    let v = check_contract(&t, "opennlp:tokens");
+    let v = check_contract(&t, "turbo:tokens");
     assert_eq!(v.len(), 1);
     assert!(v[0].what.ends_with("tokens in sentence order"), "{}", v[0]);
-    assert!(check_contract(&tokens(ViewId::SOURCE, &[(0, 1), (2, 3)]), "opennlp:tokens").is_empty());
+    assert!(check_contract(&tokens(ViewId::SOURCE, &[(0, 1), (2, 3)]), "turbo:tokens").is_empty());
     // A document refuses such a layer, so the check on a document's
     // layers is a second line.
     let mut doc = Document::new("ab cd");
@@ -57,12 +57,12 @@ fn a_layer_out_of_its_contract_is_reported() {
 #[test]
 fn a_span_cutting_a_character_or_leaving_the_text_is_reported() {
     let doc = Document::new("é😀");
-    let v = check_spans(&doc, "opennlp:tokens", ViewId::SOURCE, &[1, 0, 3], &[2, 7, 2]);
+    let v = check_spans(&doc, "turbo:tokens", ViewId::SOURCE, &[1, 0, 3], &[2, 7, 2]);
     assert_eq!(v.len(), 3);
     assert!(v[0].what.contains("cuts a character"), "{}", v[0]);
     assert!(v[1].what.contains("not inside"), "{}", v[1]);
     assert!(v[2].what.contains("ends before"), "{}", v[2]);
-    assert_eq!(v[0].to_string(), "opennlp:tokens item 0 at 1..2 in view 0: cuts a character");
+    assert_eq!(v[0].to_string(), "turbo:tokens item 0 at 1..2 in view 0: cuts a character");
 }
 
 #[test]

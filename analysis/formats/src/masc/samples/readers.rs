@@ -68,14 +68,9 @@ impl<'c> Iterator for MascNameReader<'c> {
     }
 }
 
-/// `MascSentenceSampleStream`: samples of `per_sample` sentences each,
-/// from every document, Penn tags or not.
-///
-/// A sample's text is its sentences' regions with a space after each,
-/// and a line feed where a document ends, all but the last character of
-/// that: so a sample that starts in a new document starts with the line
-/// feed, and the sentence before a document's end keeps its space. A
-/// document's end does not count as a sentence.
+/// Samples of up to `per_sample` sentences from every MASC document.
+/// Joined text has no leading or trailing separator, and each sentence keeps
+/// its relative and original source spans.
 #[derive(Clone, Debug)]
 pub struct MascSentenceReader<'c> {
     cursor: Cursor<'c>,
@@ -90,46 +85,40 @@ impl<'c> MascSentenceReader<'c> {
         MascSentenceReader { cursor, per_sample, done: false }
     }
 
-    /// `read`.
+    /// Reads up to `per_sample` sentences, stopping cleanly at the corpus end.
+    /// Sentences are separated by one space, and documents by one line feed.
     ///
     /// # Errors
     ///
-    /// What `read` throws: a region outside the text, or a read after the
-    /// end, which follows the last sample unless it was full, and is the
-    /// first read of an empty corpus.
+    /// Returns an error for an invalid source region or oversized joined text.
     pub fn read(&mut self) -> Result<Option<MascSentenceSample<'c>>, MascError> {
         let mut text = String::new();
         let mut spans = Vec::new();
         let mut sources = Vec::new();
         let mut documents = Vec::new();
-        let mut i = 0;
-        while i < self.per_sample {
-            let d = self.cursor.buffer.ok_or(MascError::NullDocument)?;
+        let mut previous_document = None;
+        while documents.len() < self.per_sample {
+            let Some(d) = self.cursor.buffer else { break };
             match self.cursor.read_sentence(d) {
                 Some(s) => {
                     let doc = self.cursor.doc(d);
                     let source = doc.sentence_text(&doc.sentences()[s])?;
+                    if !text.is_empty() {
+                        text.push(if previous_document == Some(d) { ' ' } else { '\n' });
+                    }
                     let start = text.len();
                     text.push_str(&doc.text()[source.range()]);
                     spans.push(Span::new(start as u32, text.len() as u32));
-                    text.push(' ');
                     sources.push(source);
                     documents.push(d);
-                    i += 1;
+                    previous_document = Some(d);
                 }
-                None => {
-                    self.cursor.buffer = self.cursor.read_document();
-                    if self.cursor.buffer.is_none() {
-                        break;
-                    }
-                    text.push('\n');
-                }
+                None => self.cursor.buffer = self.cursor.read_document(),
             }
         }
         if text.is_empty() {
             return Ok(None);
         }
-        text.pop();
         if u32::try_from(text.len()).is_err() {
             return Err(MascError::TooLong { len: text.len() });
         }

@@ -25,6 +25,15 @@ unsafe extern "C" {
     fn turbo_metal_use_choices(line: *const std::ffi::c_char);
     fn turbo_metal_track_peaks(on: i32);
     fn turbo_metal_peaks(out: *mut f32);
+    fn turbo_metal_quantize(
+        ordinal: u32,
+        quantization: u32,
+        x: *const f32,
+        ranges: *const f32,
+        rows: i32,
+        dim: i32,
+        out: *mut u8,
+    ) -> i32;
 }
 
 /// The F16 tensors a FASTEST run stores between kernels, in the order
@@ -86,4 +95,24 @@ pub(crate) unsafe fn in_place(model: *mut std::ffi::c_void) -> bool {
 pub(crate) unsafe fn widened(model: *mut std::ffi::c_void) -> Option<*const std::ffi::c_void> {
     let p = unsafe { turbo_metal_widened(model) };
     (!p.is_null()).then_some(p)
+}
+
+/// int8 or ubinary codes of host F32 rows on device `ordinal`, bit for bit
+/// with [`crate::quantize`]. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn quantize(
+    ordinal: u32,
+    quantization: u32,
+    x: &[f32],
+    ranges: &[f32],
+    rows: i32,
+    dim: i32,
+    out: &mut [u8],
+) -> Result<(), i32> {
+    crate::quantize::check_device_call(quantization, x.len(), ranges.len(), rows, dim, out.len())
+        .map_err(|_| crate::status::INVALID_ARGUMENT)?;
+    let ranges_ptr = if quantization == crate::TURBO_QUANTIZE_INT8 { ranges.as_ptr() } else { std::ptr::null() };
+    let rc =
+        unsafe { turbo_metal_quantize(ordinal, quantization, x.as_ptr(), ranges_ptr, rows, dim, out.as_mut_ptr()) };
+    if rc == 0 { Ok(()) } else { Err(rc) }
 }

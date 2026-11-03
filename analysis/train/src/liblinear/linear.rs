@@ -1,9 +1,8 @@
 //! `Linear.train` and `train_one` for the logistic regression solvers,
 //! and the trained model as liblinear-java's `Model` holds it.
 
-use turbo_jvm::random::JavaRandom;
-
 use super::problem::{Rows, group_classes};
+use super::rng::Lcg;
 use super::{SolverType, dual, l1, newton};
 
 /// `Parameter.max_iters`, the default the add-on keeps: the Newton
@@ -82,7 +81,7 @@ pub(crate) fn train(x: &Rows, y: &[u32], n: usize, bias: f64, solver: SolverType
     let nr_feature = if bias >= 0.0 { n - 1 } else { n };
     // Parameter.random: each Parameter has its own generator, seeded with
     // zero, which every class's training draws from in turn.
-    let mut random = JavaRandom::new(0);
+    let mut random = Lcg::new(0);
 
     // The instances grouped by class: sub_prob.x.
     let mut sub = Rows::with_capacity(x.len(), 0);
@@ -96,7 +95,7 @@ pub(crate) fn train(x: &Rows, y: &[u32], n: usize, bias: f64, solver: SolverType
     let columns = (solver == SolverType::L1rLr).then(|| sub.transpose(n));
     let l = sub.len();
     let mut sub_y = vec![0.0; l];
-    let one = |sub_y: &[f64], w: &mut [f64], cp: f64, cn: f64, random: &mut JavaRandom| {
+    let one = |sub_y: &[f64], w: &mut [f64], cp: f64, cn: f64, random: &mut Lcg| {
         train_one(&sub, columns.as_ref(), sub_y, w, solver, cp, cn, eps, random);
     };
 
@@ -138,7 +137,7 @@ fn train_one(
     cp: f64,
     cn: f64,
     eps: f64,
-    random: &mut JavaRandom,
+    random: &mut Lcg,
 ) {
     let l = y.len();
     let mut c = vec![0.0; l];

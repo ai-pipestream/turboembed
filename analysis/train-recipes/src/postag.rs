@@ -1,14 +1,11 @@
 //! The English part-of-speech tagger trained on MASC's Penn tags, and its
-//! gate against OpenNLP's English Penn tagger, `en-pos-maxent.bin`.
+//! gate. It has no OpenNLP reference model (#1509).
 //!
 //! The recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults (the default feature generator descriptor,
 //! no tag dictionary) and the released MASC parameters: GIS, 300
 //! iterations, cutoff 5, 4 partitions. Training uses no randomness, so the recipe has
-//! no seed. The reference was trained otherwise: its manifest records
-//! OpenNLP 1.5.0, 100 iterations and cutoff 5, and it holds a tag
-//! dictionary (`tags.tagdict`) and no feature generator descriptor, so
-//! the gate compares the two models' data and settings together.
+//! no seed.
 //!
 //! The samples are what OpenNLP's `MascPOSSampleStream` reads, one per
 //! sentence, its Penn tokens and their `msd` tags, with one change: a
@@ -23,10 +20,12 @@
 //! read, so a held-out document whose tags are missing cannot drop out of
 //! the gate.
 //!
-//! The reference is OpenNLP's English maxent tagger from the 1.5 models
-//! ([`EN_POS_MAXENT`]). OpenNLP's only English taggers trained on Penn
-//! tags are that one and the 1.5 perceptron tagger, and the maxent one is
-//! trained with the algorithm the recipe uses. The reference is asked for
+//! The recipe has no reference model. It was once gated against
+//! OpenNLP 1.5's English maxent tagger, which is no longer fetched, scored
+//! or run anywhere (#1509): MASC gates compare with the gold tags, majority
+//! baselines and spaCy or Stanza only. What follows describes how a
+//! reference's Penn tags are scored, kept until the classical recipes are
+//! deleted (#1532). The reference was asked for
 //! Penn tags, which are its own outcomes and come out unconverted, and the
 //! trained model gives its outcomes as they are ([`CANDIDATE_FORMAT`]),
 //! MASC's tags. The trained model's tag is compared with the held-out tag
@@ -49,12 +48,6 @@
 //! from its references directory, checks it against the recorded size
 //! and SHA-256, and only scores it. It is never shipped or bundled, and
 //! the trained model is trained on MASC alone.
-//!
-//! The English UD tagger, `opennlp-en-ud-ewt-pos-1.3-2.5.4`, is not the
-//! reference: it was trained on UD tags, and asked for Penn tags
-//! `POSTagFormatMapper` converts each of its outcomes to one Penn tag
-//! (`VERB` to `VB`, `NOUN` to `NN`, `PUNCT` to `.`), so it can never give
-//! `VBD`, `NNS`, `,` or `TO`, and a gate against it would pass any tagger.
 //!
 //! Both models are scored on the same held-out samples, one unit per
 //! sentence: OpenNLP's `POSEvaluator` reads each sentence's tags, and the
@@ -81,7 +74,7 @@ use turbo_zoo::Sha256;
 use crate::card::{HeldOutCard, TagCount, TokenCoverage};
 use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
-use crate::{GateRun, Limit, MAX_TOKENS_LEFT_OUT, RecordedReference, Reference, Trained, check_skipped, spans};
+use crate::{GateRun, Limit, MAX_TOKENS_LEFT_OUT, Reference, Trained, check_skipped, spans};
 
 pub(crate) use self::scoring::most_frequent;
 pub use self::scoring::{HeldOutTags, ReferenceTags};
@@ -90,16 +83,6 @@ use self::scoring::{open, score_with};
 /// The format the trained model's tags are scored in: its outcomes as
 /// they are, MASC's Penn tags.
 pub const CANDIDATE_FORMAT: PosTagFormat = PosTagFormat::Custom;
-
-/// OpenNLP's English maxent tagger of the 1.5 models, trained on Penn
-/// tags, as published.
-pub const EN_POS_MAXENT: RecordedReference = RecordedReference {
-    id: "opennlp-en-pos-maxent-1.5",
-    file: "en-pos-maxent.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin",
-    size: 5_696_197,
-    sha256: "645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d",
-};
 
 /// A held-out tag for which the reference's tag is another: a convention
 /// in which MASC 3.0.0 and the reference differ. Only the reference's
@@ -113,7 +96,7 @@ pub struct ReferenceMapping {
 }
 
 /// The reference's tags counted right for another held-out tag
-/// ([`EN_POS_MAXENT`] against MASC 3.0.0). Counted with the recipe's
+/// (OpenNLP 1.5's maxent tagger against MASC 3.0.0, before #1509). Counted with the recipe's
 /// reader over the 390 documents the split reads from the recorded
 /// release, the Twitter genre left out (corpus digest
 /// `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`):
@@ -198,7 +181,9 @@ pub const MISMATCHES_LISTED: usize = 10;
 pub struct PosRecipe {
     /// The trained model's zoo id, also its file name without `.bin`.
     pub model_id: &'static str,
-    pub reference: Reference,
+    /// The model it is gated against: none, as no OpenNLP 1.5 model is
+    /// fetched or scored (#1509).
+    pub reference: Option<Reference>,
     /// The format the reference's tags are asked for.
     pub reference_format: PosTagFormat,
     /// The reference's tags counted right for another held-out tag.
@@ -210,7 +195,7 @@ pub struct PosRecipe {
 
 pub const POS: PosRecipe = PosRecipe {
     model_id: "turbo-en-masc-3.0.0-pos-1",
-    reference: Reference::Recorded(EN_POS_MAXENT),
+    reference: None,
     reference_format: PosTagFormat::Penn,
     reference_mappings: &REFERENCE_MAPPINGS,
     max_left_out: MAX_TOKENS_LEFT_OUT,

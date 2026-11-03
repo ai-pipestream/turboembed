@@ -1,0 +1,10 @@
+===OUT===
+Flags 🇩🇪 🇺🇸 🇯🇵 and a lone indicator 🇩 then text.
+Keycaps  ️⃣  ️⃣ #️⃣ *️⃣  ️⃣ and  ⃣ without the selector.
+Subdivision flag 🏴󠁧󠁢󠁥󠁮󠁧󠁿 is a tag sequence.
+
+===EDITS===
+78	79	 
+86	87	 
+110	111	 
+122	123	 

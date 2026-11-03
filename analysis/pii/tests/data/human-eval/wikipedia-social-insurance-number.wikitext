@@ -1,0 +1,90 @@
+{{Short description|9-digit number issued to Canadian residents}}
+{{About|the Canadian SIN|other uses|Social insurance|and|National identification number}}
+{{more citations needed|date=February 2011}}
+{{Use Canadian English|date=March 2026}}
+[[Image:SIN card.jpg|thumb|A social insurance number card. Note the date of expiration, which implies that the holder is neither a permanent resident nor a Canadian citizen.]]
+
+A '''social insurance number (SIN)''' ({{langx|fr|numéro d'assurance sociale}} (NAS)) is a number issued in Canada to administer various government programs. The SIN was created in 1964 to serve as a client account number in the administration of the [[Canada Pension Plan]] and Canada's varied employment insurance programs. In 1967, Revenue Canada (now the [[Canada Revenue Agency]]) started using the SIN for tax reporting purposes. SINs are issued by [[Employment and Social Development Canada]] (previously [[Human Resources Development Canada]]).
+
+The SIN is formatted as three groups of three digits (e.g., 123-456-789).
+
+The top of the card has changed over the years as the departments that are responsible for the card have changed:
+
+* Manpower and Immigration
+* Employment and Immigration Canada
+* Human Resources Development Canada
+* [[Government of Canada]]
+
+The [[2012 Canadian federal budget]] contained provisions to phase out the Social Insurance Number cards because they lacked modern security features and could be used for [[identity theft]].<ref>{{cite news |url=https://www.theglobeandmail.com/news/politics/ottawa-notebook/your-wallet-just-got-a-bit-lighter-ottawa-nixes-sin-cards/article4178723/ |title=Your wallet just got a bit lighter: Ottawa nixes SIN cards |last=Curry |first=Bill |newspaper=[[The Globe and Mail]] |date=15 May 2012 |accessdate=12 February 2020}}</ref> As of March 31, 2014, [[Service Canada]] no longer issues plastic SIN cards. Instead, an individual will receive a paper "Confirmation of SIN" letter.<ref>{{cite web |title=Social Insurance Number – Overview |url=https://www.canada.ca/en/employment-social-development/services/sin.html |website=Canada.ca |publisher=Employment and Social Development |accessdate=12 February 2020 |date=28 June 2019}}</ref>
+
+==Functionality==
+Through [[functionality creep]], the SIN has become a [[national identification number]], in much the same way that the [[Social Security number]] has in the United States. However, unlike in the US, in Canada there are specific legislated purposes for which a SIN can be requested. It is not an [[identity document]].<ref>{{cite web|url=http://www.servicecanada.gc.ca/eng/sin/employers/responsibilities.shtml|title=Information for Employers|publisher=[[Service Canada]]|date=3 December 2006}}</ref>
+
+Unless an organization can demonstrate that the reason it is requesting an individual's SIN is specifically permitted by law, or that no alternative identifiers would suffice to complete the transaction, it cannot deny or refuse a product or service on the grounds of a refusal to provide a SIN. Examples of organizations that legitimately require a SIN include employers, financial institutions that provide interest on deposits, and federal government agencies. Giving a SIN when applying for consumer credit, such as buying a car or electronics, or allowing it to be used as a general purpose identification number, such as by a cable company, is strongly discouraged.<ref>{{cite web |url=http://www.servicecanada.gc.ca/eng/sin/protect/provide.shtml |title=Protecting your SIN: Who can ask for my SIN |date=12 November 2020 |publisher=User guidance document from Service Canada website}}</ref>
+
+The Canadian military used the SIN as a form of unique identifier from the 1960s until the 1980s, when service numbers were reintroduced. Military identification, including ID cards and [[dogtag|identity discs]] were marked with the SIN during this period.
+
+==Temporary SINs==
+Social Insurance Numbers that begin with the number "9" are issued to [[Temporary residency in Canada|temporary residents who are not Canadian citizens]] or [[Permanent residency in Canada|Canadian permanent residents]] (e.g., foreign students, individuals on work [[visa (document)|visas]]). Often, these individuals must have an employment authorization in order to work in Canada. SINs beginning with a "9" are different from SINs assigned to citizens and permanent residents, because they have an expiry date (which usually coincides with the expiration of the holder's work permit). These SINs are invalid unless there is an expiry date listed on the card and the date has not passed.
+
+== Permanent resident SINs ==
+* Issued by the federal government to each Canadian citizen or permanent resident
+* The SIN is unique and assigned to only one citizen
+
+==Validation==
+{{Unreferenced section|date=August 2025}}
+
+Social Insurance Numbers can be validated through a simple check digit process called the [[Luhn algorithm]].
+
+ 046 454 286 <--- A fictitious, but valid, SIN.
+ 121 212 121 <--- Multiply every second digit by 2.
+
+The result of the multiplication is:
+
+ 0 8 6 8 5 8 2 16 6
+
+Then, add all of the digits together (note that 16 is summed as the individual digits 1+6):
+
+ 0 + 8 + 6 + 8 + 5 + 8 + 2 + 1+6 + 6 = 50
+
+If the SIN is valid, this number will be evenly divisible by 10.
+
+==Geography==
+
+The first digit of a SIN usually identifies the province in which it was registered, as listed below. However, the government has found it necessary in the past to supply certain regions with SINs assigned to other regions.{{Citation needed|reason=No Reliable Source|date=June 2014}}
+
+:1: [[Nova Scotia]], [[New Brunswick]], [[Prince Edward Island]], and [[Newfoundland and Labrador]]; new Ontario SINs are now being issued with the 1 series
+:2–3: [[Quebec]]
+:4–5: [[Ontario]] (excluding [[Northwestern Ontario]]), and overseas forces
+:6: [[Northwestern Ontario]], [[Manitoba]], [[Saskatchewan]], [[Alberta]], [[Northwest Territories]], and [[Nunavut]]
+:7: [[British Columbia]], [[Yukon]], and new business numbers.
+:8: Used exclusively for the BN (business number) assigned to business owners and corporations. Due to the limited number of BNs available, new BNs can start with a 7.
+:9: Temporary resident<ref>{{Cite web|last=Canada|first=Employment and Social Development|date=2016-06-13|title=Social Insurance Number that begins with a "9"|url=https://www.canada.ca/en/employment-social-development/programs/sin/temporary.html|access-date=2020-09-25|website=Canada.ca}}</ref>
+:0: CRA-assigned individual tax numbers, temporary tax numbers or adoption tax numbers
+
+==See also==
+* [[National Insurance number]] (NINO) – British equivalent
+* [[Death Master File]], a database of deaths maintained by the Social Security Administration in the US
+* [[Service number#Canada|Canada service numbers]], military identification numbers for the Canadian Armed Forces introduced in the 1990s
+
+==References==
+{{Reflist}}
+
+==External links==
+*[https://www.canada.ca/en/employment-social-development/services/sin/apply.html Social Insurance Number – Overview] at the [[Government of Canada]]
+*[https://www.canada.ca/en/employment-social-development/services/sin/reports/code-of-practice.html  The Social Insurance Number (SIN) Code of Practice] at the Government of Canada
+*[https://www.tbs-sct.canada.ca/pol/doc-eng.aspx?id=13342 Directive on Social Insurance Number] at the Government of Canada
+*[https://laws.justice.gc.ca/eng/regulations/SOR-2013-82/FullText.html Social Insurance Number Regulations] at [[Department of Justice (Canada)|Department of Justice]]
+*[https://www.priv.gc.ca/en/privacy-topics/sins-and-drivers-licences/social-insurance-numbers/02_05_d_21/ Best Practices for the use of Social Insurance Numbers in the private sector] at the office of the [[Privacy Commissioner of Canada]]
+*[https://www.canada.ca/en/employment-social-development/services/sin/protection.html Protecting your SIN] at the Government of Canada
+*[https://www.priv.gc.ca/en/privacy-topics/sins-and-drivers-licences/social-insurance-numbers/protecting-your-social-insurance-number/ Protecting your Social Insurance Number] at the office of the Privacy Commissioner of Canada
+*[https://web.archive.org/web/20050828173446/http://www.privcom.gc.ca/fs-fi/02_05_d_02_e.asp Fact Sheet: Social Insurance Numbers (SIN)] (archived) at the office of the Privacy Commissioner of Canada
+
+{{National identification numbers}}
+{{Canadian Identity Documents}}
+
+[[Category:1964 introductions]]
+[[Category:Government of Canada]]
+[[Category:National identification numbers]]
+[[Category:Social security in Canada]]
+[[Category:Employment and Social Development Canada]]

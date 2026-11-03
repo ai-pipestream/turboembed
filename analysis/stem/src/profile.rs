@@ -1,12 +1,12 @@
 //! Per-language normalization profiles (`NormalizationProfile`,
 //! `NormalizationProfiles`) and [`TermAnnotator`], the pipeline step that
-//! writes [`Terms`] (`turbo:terms`) aligned to `opennlp:tokens`.
+//! writes [`Terms`] (`turbo:terms`) aligned to `turbo:tokens`.
 
 use std::sync::{Arc, OnceLock};
 
 use turbo_analysis::{Annotator, Error, Layer, Refs, View};
 use turbo_analysis_layers::{Language, Lemmas, PosTags, Strs, Terms, Tokens};
-use turbo_langdetect::LanguageDetector;
+use turbo_langdetect::NgramModel;
 use turbo_normalize::{AccentFold, GermanUmlauts};
 use turbo_unicode::java::code_point::is_whitespace as is_java_whitespace;
 use turbo_unicode::java::to_lowercase;
@@ -194,11 +194,9 @@ impl NormalizationProfiles {
 
     /// Detects the best language of `text` with `detector` and returns its
     /// [`NormalizationProfile`], or `None` if the detected language has no
-    /// Snowball stemmer (`NormalizationProfiles.detect(CharSequence, LanguageDetector)`).
-    pub fn detect(text: &str, detector: &LanguageDetector) -> Option<NormalizationProfile> {
-        let mut scratch = turbo_langdetect::Scratch::default();
-        let prediction = detector.predict_language(text, &mut scratch);
-        Self::for_language(prediction.code)
+    /// Snowball stemmer.
+    pub fn detect(text: &str, detector: &NgramModel) -> Option<NormalizationProfile> {
+        Self::for_language(detector.predict(text)?)
     }
 
     /// Returns the 22 ISO 639-3 language codes of the supported profiles
@@ -213,7 +211,7 @@ impl NormalizationProfiles {
 enum AnalyzerChoice {
     /// Uses a fixed [`TermAnalyzer`].
     Fixed(TermAnalyzer),
-    /// Uses the `opennlp:language` layer's best language profile when present,
+    /// Uses the `turbo:language` layer's best language profile when present,
     /// falling back to `fallback` (or `NFC` + `CASE_FOLD` when the language has
     /// no Snowball profile).
     ByLanguage { fallback: Option<String>, analyzers: Arc<ProfileAnalyzers> },
@@ -228,9 +226,9 @@ struct ProfileAnalyzers {
     default: OnceLock<TermAnalyzer>,
 }
 
-/// Pipeline step that reads `opennlp:tokens` (and optionally `opennlp:language`,
-/// `opennlp:pos`, and `opennlp:lemmas`) and writes [`Terms`] (`turbo:terms`),
-/// aligned to `opennlp:tokens`.
+/// Pipeline step that reads `turbo:tokens` (and optionally `turbo:language`,
+/// `turbo:pos`, and `turbo:lemmas`) and writes [`Terms`] (`turbo:terms`),
+/// aligned to `turbo:tokens`.
 #[derive(Clone, Debug)]
 pub struct TermAnnotator {
     choice: AnalyzerChoice,
@@ -255,9 +253,9 @@ impl TermAnnotator {
         Some(TermAnnotator::new(profile.matching_analyzer()))
     }
 
-    /// Selects a [`NormalizationProfile`] from the document's `opennlp:language`
+    /// Selects a [`NormalizationProfile`] from the document's `turbo:language`
     /// layer at run time, with an optional `fallback` language code when the
-    /// document has no `opennlp:language` layer or its best language is not in
+    /// document has no `turbo:language` layer or its best language is not in
     /// [`NormalizationProfiles`].
     pub fn by_language(fallback: Option<String>) -> TermAnnotator {
         TermAnnotator { choice: AnalyzerChoice::ByLanguage { fallback, analyzers: Arc::default() } }

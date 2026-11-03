@@ -192,6 +192,10 @@ fn run_ranges_on_slot(
         normalize: TURBO_NORMALIZE_NONE,
         pooling: TURBO_POOLING_MEAN,
         output_dim: 0,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
+        layers: 0,
+        reserved: 0,
     };
     slot.session.write_ranges(&rows.batch(), ranges, &opts).map_err(|f| {
         if f.code == TURBO_E_UNSUPPORTED && f.message.contains("does not offer embed_write_ranges") {
@@ -201,8 +205,11 @@ fn run_ranges_on_slot(
             f
         }
     })?;
+    check_alive(dead)?;
+    shared.metrics.record_batch_size(rows.len() as usize);
     shared.runs.fetch_add(1, Ordering::Relaxed);
     let result = slot.session.run()?;
+    check_alive(dead)?;
     let info = result.info()?;
     if info.dtype != TURBO_DTYPE_F32 {
         return Err(Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, "range result is not f32"));

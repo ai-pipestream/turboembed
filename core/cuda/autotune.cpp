@@ -24,16 +24,36 @@ const char *tile_name(Tile t) {
     return "?";
 }
 
-constexpr const char *ATTN_NAME[] = {"fma-tiled",    "fma-split",   "mma64",       "mma128",
-                                     "mma128-exact", "mma128-fa32", "mma128-acc32"};
+constexpr const char *ATTN_NAME[] = {"fma-tiled",    "fma-split",   "mma64",        "mma128",
+                                     "mma128-exact", "mma128-fa32", "mma128-acc32", "fma-tiled32"};
 constexpr const char *LN_NAME[] = {"separate", "fused"};
 constexpr const char *POOL_NAME[] = {"groups", "columns"};
 
 bool mma_of(const Shape &base, const GemmChoice &g) { return base.tensor_cores && (base.half || g.tf32); }
 
+/* The tile of the same schedule with F32 sums in place of F16 ones; any
+ * other tile as it is. */
+Tile f32_sums_of(Tile t) {
+    switch (t) {
+    case TILE_DEFAULT:
+    case TILE_CT_K: return TILE_CT;
+    case TILE_EIGHT_WARPS_F16_ACCUMULATE: return TILE_EIGHT_WARPS;
+    case TILE_SWIZZLED_8W_F16_ACCUMULATE:
+    case TILE_F16_WHOLE_K:
+    case TILE_F16_WHOLE_K_3:
+    case TILE_F16_WHOLE_K_256:
+    case TILE_F16_WHOLE_K_ROWS: return TILE_SWIZZLED_8W;
+    default: return t;
+    }
+}
+
 /* The tile a GEMM of the kernel family runs, by the name it would take. */
 Tile canonical_tile(Gemm which, const Shape &base, bool mma, Tile t) {
     const bool narrow = which == GEMM_OUT || which == GEMM_FFN2;
+    // A gated MLP's second GEMM sums in F32 at FASTEST (#1632): its inputs
+    // reach F16's 65504 (the middle product's clamp) and F16 sums of them
+    // overflow to infinity.
+    if (mma && base.half && which == GEMM_FFN2 && base.gated != GATED_NONE) t = f32_sums_of(t);
     if (!mma) {
         // The FMA kernel: F32 operands, or F16 without the tensor cores.
         switch (t) {
@@ -197,7 +217,7 @@ void canonicalize(const Shape &base, Choices *c) {
         }
         // attention_kernel_for: the tensor cores' kernel wherever it
         // applies, 128 queries only when asked; else the FMA kernel,
-        // split only when asked.
+        // split or 32 queries to a block only when asked.
         if (mma_attention && bc.attention == ATT_MMA_128_FA32 && d != 32)
             bc.attention = ATT_MMA_128;
         else if (mma_attention)
@@ -206,7 +226,8 @@ void canonicalize(const Shape &base, Choices *c) {
                                ? bc.attention
                                : ATT_MMA_64;
         else
-            bc.attention = bc.attention == ATT_FMA_SPLIT ? ATT_FMA_SPLIT : ATT_FMA_TILED;
+            bc.attention = bc.attention == ATT_FMA_SPLIT || bc.attention == ATT_FMA_TILED_32 ? bc.attention
+                                                                                            : ATT_FMA_TILED;
         if (base.hidden > LN_FUSED_MAX_HIDDEN) bc.ln = LN_SEPARATE;
     }
 }

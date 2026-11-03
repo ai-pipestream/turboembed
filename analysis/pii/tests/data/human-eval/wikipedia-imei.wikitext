@@ -1,0 +1,193 @@
+{{short description|Cellphone identification code}}
+[[File:IMEI number of Nokia 6030 20110805.png|thumb|An example of an IMEI number]]
+
+The '''International Mobile Equipment Identity''' ('''IMEI''')<ref name=3gppspec>{{cite web | url = http://www.3gpp.org/ftp/Specs/archive/22_series/22.016/22016-900.zip | title = 3GPP TS 22.016: International Mobile Equipment Identities (IMEI) | access-date = 2009-12-03 | date = 2009-10-01 | format = ZIP/DOC; 36 KB }}</ref> is a numeric [[identifier]], usually [[Unique identifier|unique]],<ref name=bbcnews>{{cite news | title = Phone firms defend security record | publisher = BBC News | date = January 8, 2002 | url = https://news.bbc.co.uk/2/hi/uk_news/1749215.stm | access-date = August 25, 2011 }}</ref><ref>GSM Europe, {{cite web|url=https://docs.google.com/viewer?a=v&q=cache:0mXtXE_yM3EJ:www.gsmeurope.org/documents/positions/gsme_proposals_mobile_thefts_imei_security.pdf+imei+standard&hl=en&gl=au&pid=bl&srcid=ADGEESgutC2Wv66x8SweH6Tb3AIpZ_e0FtPSpsHeFrswQiPqnm5TgPV440ooDWS_ElQc8aPkeimqNLbd969ngHkpbIbtCcVHQzi_PyYDa0LTFY1m7Pf0Fuh40RUMIpUq4Hf0cAl8ZND4&sig=AHIEtbStnM1cqejWPnMi2PpVLCDSSfJgJQ|title="GSME proposals regarding mobile theft and IMEI security"}}, 2003-06 <!-- accessed 2010-04-17 --></ref> for [[3GPP]] and [[iDEN]] [[mobile phone]]s, as well as some [[satellite phone]]s. It can usually be found printed on the handset. On [[Feature phone|feature phones]], and [[Smartphone|smartphones]] with removable backs, it is usually printed inside the battery compartment. On [[Smartphone|smartphones]] without removable backs it is generally printed on the back of the handset, on the SIM tray, or inside the charging port. It can also be displayed on-screen on most phones by entering the [[Unstructured Supplementary Service Data#Man-Machine Interface|MMI Supplementary Service code]] <code>*#06#</code> on the dialpad, or alongside other system information in the settings menu on [[Mobile operating system|smartphone operating systems]].
+
+[[GSM]] networks use the IMEI number to identify valid devices, and can stop a phone from accessing the network. For example, if a [[mobile phone]] is stolen, the owner can have their network provider use the IMEI number to blocklist the phone. This renders the phone useless on that network and sometimes other networks, even if the thief changes the phone's [[subscriber identity module|SIM]] card.
+
+Devices without a SIM card slot or [[eSIM]] capability usually do not have an IMEI, except for certain early [[Sprint Corporation|Sprint]] [[LTE (telecommunication)|LTE]] devices such as the [[Samsung Galaxy|Samsung]] [[Galaxy Nexus]] and [[Samsung Galaxy S III|S III]] which emulated a SIM-free [[CDMA2000|CDMA]] activation experience and lacked roaming capabilities in [[3GPP]]-only countries.<ref>{{cite web | url = https://www.sygic.com/it/developers/professional-navigation-sdk/android/faq/how-to-activate-license-when-no-imei-available | title = How to activate license when no IMEI available | archive-url = https://archive.today/20190719100548/https://www.sygic.com/it/developers/professional-navigation-sdk/android/faq/how-to-activate-license-when-no-imei-available | archive-date = 19 July 2019 | url-status = live | access-date = 19 July 2019 }}</ref> However, the IMEI only identifies the device and has no particular relationship to the subscriber. The phone identifies the subscriber by transmitting the [[International mobile subscriber identity]] (IMSI) number, which is stored on a SIM card that can, in theory, be transferred to any handset. However, the network's ability to know a subscriber's current, individual device enables many network and security features.{{Citation needed|date=November 2022}}
+
+[[Dual SIM]] enabled phones will normally have two IMEI numbers, except for devices such as the [[Pixel 3]] (which has an eSIM and one physical SIM) which only allow one SIM card to be active at once.
+
+==IMEI and the law==
+Many countries have acknowledged the use of the IMEI in reducing the effect of mobile phone thefts. For example, in the [[United Kingdom]], under the Mobile Telephones (Re-programming) Act, changing the IMEI of a phone, or possessing equipment that can change it, is considered an offence under some circumstances.<ref>{{cite web|url=http://www.legislation.gov.uk/ukpga/2002/31/contents|title=Mobile Telephones (Re-programming) Act 2002|website=Legislation.gov.uk|access-date=2013-09-18}}</ref><ref>{{cite web|url=http://www.vvc.gov.lv/export/sites/default/docs/LRTA/Likumi/The_Criminal_Law.doc|title=The Criminal Law|website=VVC.gov.lv|publisher=[[Latvian State Language Center]]|access-date=2012-10-08|archive-date=2012-03-14|archive-url=https://web.archive.org/web/20120314063903/http://www.vvc.gov.lv/export/sites/default/docs/LRTA/Likumi/The_Criminal_Law.doc|url-status=dead}}</ref>
+A bill was introduced in the United States by Senator [[Chuck Schumer]] in 2012 that would have made the changing of an IMEI unlawful, but the bill was not enacted.<ref>{{cite web|url=https://www.congress.gov/bill/112th-congress/senate-bill/3186/text/is|title=S.3186 - Mobile Device Theft Deterrence Act of 2012|website=Congress.gov|date=15 May 2012 |publisher=[[Library of Congress]]}}</ref>
+
+IMEI blocking is not the only way to fight phone theft. Instead, mobile operators are encouraged to take measures such as immediate suspension of service and replacement of SIM cards in case of loss or theft.<ref>{{cite web|url=https://techpayout.com/imei-number?alias=imei-number|title=What is an IMEI number? - Where Can You Find It? - Activation|website=TechPayout.com|access-date=16 September 2016}}</ref>
+
+The existence of a formally allocated IMEI number range for a GSM terminal does not mean that the terminal is approved or complies with regulatory requirements. The linkage between regulatory approval and IMEI allocation was removed in April 2000, with the introduction of the European R&TTE Directive.<ref>{{cite web|url=http://www.rtte.org/|title=The Radio and Telecommunications Terminal Equipment Directive|access-date=16 September 2016|archive-date=28 May 2023|archive-url=https://web.archive.org/web/20230528020117/https://rtte.org/|url-status=dead}}</ref> Since that date, IMEIs have been allocated by [[British Approvals Board for Telecommunications|BABT]] (or one of several other regional administrators acting on behalf of the [[GSM Association]]) to legitimate GSM terminal manufacturers without the need to provide evidence of approval.
+
+=== Blocklists of stolen devices ===
+When someone has their mobile equipment stolen or lost, they can ask their service provider to block the phone from their network, and the operator may do so, especially if required by law. If the local operator maintains an Equipment Identity Register (EIR), it adds the device IMEI to it. Optionally, it also adds the IMEI to shared registries, such as the [[Central Equipment Identity Register]] (CEIR), which blocklists the device with other operators that use the CEIR. This blocklisting makes the device unusable on any operator that uses the CEIR, which makes mobile equipment theft pointless, except for parts.
+
+To make blocklisting effective, the IMEI number is supposed to be difficult to change. However, a phone's IMEI may be easy to change with special tools.<ref>{{cite web | url = http://www.imeichanger.net/ | title = How To Change IMEI, Device ID of Any Android Device | date = 2 December 2016 | archive-url = https://archive.today/20190719110818/https://www.gadgetcouncil.com/free-android-device-id-and-imei-number-changer/ | archive-date = 19 July 2019 | url-status = live | access-date = 12 August 2019 }}</ref>{{Better source needed|reason=The tool used to change the IMEI that is referenced in this source is given as link to a web search for "Device-id-changer-download".|date=June 2023}} In addition, IMEI is an un-authenticated mobile identifier (as opposed to IMSI, which is routinely authenticated by home and serving mobile networks.) Using a spoofed IMEI can thwart some efforts to track handsets, or target handsets for lawful intercept.{{Citation needed|reason=extraordinary claim|date=June 2013}}
+
+Australia was the first nation to implement IMEI blocking across all GSM networks, in 2003.<ref>{{cite web|url=http://www.amta.org.au/default.asp?id=210|title=FAQs on mobile security|website=AMTA.org.au|access-date=2013-09-18|archive-url=https://web.archive.org/web/20130522211614/http://www.amta.org.au/pages/amta/FAQs.on.mobile.security|archive-date=2013-05-22}}</ref> In Australia the Electronic Information Exchange (EIE) Administration Node provides a blocked IMEI lookup service for Australian customers.<ref>{{Cite web|url=https://prod.eie.net.au/portal/template/MYMIMEIInquiry.vm|title=Check the status of your Handset|website=prod.EIE.net.au}}</ref>
+
+In the UK, a voluntary charter operated by the mobile networks ensures that any operator's blocklisting of a handset is communicated to the CEIR and subsequently to all other networks. This ensures that the handset is quickly unusable for calls, at most within 48 hours.
+
+Some UK Police forces, including the [[Metropolitan Police Service]], actively check IMEI numbers of phones found involved in crime.<ref>{{Cite web |date=2025 |title=National Mobile Property Register Searches of Mobile Handsets Completed in Custody Policy (Surrey and Sussex) |url=https://www.sussex.police.uk/SysSiteAssets/foi-media/sussex/policies/nmpr-searches-of-mobile-handsets-completed-in-custody-policy-surrey-and-sussex-1188.pdf |url-status=live}}</ref>
+
+In New Zealand, the NZ Telecommunications Forum Inc<ref>{{cite web|url=http://www.tcf.org.nz|title=TCF – NZ Telecommunications Forum|access-date=16 September 2016}}</ref> provides a blocked IMEI lookup service for New Zealand consumers. The service allows up to three lookups per day<ref>{{cite web|url=http://www.tcf.org.nz/content/cfa46b54-509c-44aa-91da-3bfe14d20f8f.html|title=Check whether your mobile handset has been blocked - TCF|access-date=16 September 2016|archive-date=27 September 2016|archive-url=https://web.archive.org/web/20160927180911/http://www.tcf.org.nz/content/cfa46b54-509c-44aa-91da-3bfe14d20f8f.html|url-status=dead}}</ref> and checks against a database that is updated daily by the three major mobile network operators. A blocked IMEI cannot be connected to any of these three operators.
+
+In Latvia the SIA "Datorikas institūts DIVI"<ref>{{cite web|url=http://www.numuri.lv|title=Numuri.lv|access-date=6 August 2017}}</ref> provides a blocked IMEI lookup service for checks against a database that is updated by all major mobile network operators in Latvia.
+
+In some countries, such blocklisting is not customary. In 2012, major network companies in the United States, under government pressure, committed to introducing a blocklisting service, but it's not clear whether it will interoperate with the CEIR.<ref>[http://www.washingtoncitypaper.com/blogs/citydesk/2012/04/10/lanier-fcc-and-wireless-carriers-to-allow-customers-to-brick-stolen-phones/ Carriers to allow Customers to Brick Stolen Phones]  by Shani Hilton, Apr. 10, 2012, Washington City Paper</ref><ref>[https://www.washingtonpost.com/2012/04/10/gIQAZG9L7S_story.html Wireless carriers partner with FCC, police on database of stolen cellphones]. The Washington Post (2011-02-28). Retrieved on 2013-09-18.</ref> GSM carriers AT&T and T-Mobile began blocking newly reported IMEIs in November 2012.<ref>[http://www.checkmend.com/us/latest_news Checkmend.com] Accessed: 2012-12-26. [https://web.archive.org/web/20121228232400/http://www.checkmend.com/us/latest_news (Archived by WebCite Webcitation.org]</ref>  Thefts reported prior to November 2012 were not added to the database. The [[CTIA (organization)|CTIA]] refers users to websites at [https://www.stolenphonechecker.org www.stolenphonechecker.org]<ref name="CTIAundated"/> and [https://www.gsma.com/solutions-and-impact/industry-services/device-services/gsma-device-check the GSMA]<ref name="CTIAundated"/> where consumers can check whether a smartphone has been reported as lost or stolen to its member carriers.  The relationship between the former and any national or international [[Central Equipment Identity Register|IMEI blocklists]] is unclear.<ref name="CTIAundated">{{cite press release|url=https://www.ctia.org/news/us-wireless-industry-combats-smartphone-theft|title=U.S. Wireless Industry Launches Free Consumer Tool To Combat Smartphone Theft|publisher=[[CTIA (organization)|CTIA]]|date=May 11, 2017|access-date=2018-08-20|archive-url=https://archive.today/20180820060011/https://www.ctia.org/news/us-wireless-industry-combats-smartphone-theft|archive-date=2018-08-20|url-status=live|df=dmy-all}}</ref>
+
+It is unclear whether local barring of IMEI has any positive effect, as it may result in international smuggling of stolen phones.<ref>{{cite web|url=http://www.huffingtonpost.com/2013/07/13/smartphone-black-market_n_3510341.html|website=[[The Huffington Post]]|access-date=2013-10-13|date=2013-07-13|title=Inside The Massive Global Black Market For Smartphones|first=Gerry|last=Smith|archive-url=https://web.archive.org/web/20130917004648/http://www.huffingtonpost.com/2013/07/13/smartphone-black-market_n_3510341.html|archive-date=2013-09-17|url-status=live}}</ref>
+
+=== Blocklists of incompatible devices ===
+As of the 3G [[cellular network]] shutdown in Australia, all [[4G]] and [[5G]] devices not approved for use in Australia by the carriers ([[Telstra]], Optus, Vodafone) are IMEI and/or TAC blocked. Users can not request the carriers to remove their device from blocklist, even if they can prove that it is compatible.<ref>{{Cite web|title=Frequently Asked Questions {{!}} Is this Phone Blocked? - 4G/5G Device Blocking Checker|url=https://isthisphoneblocked.net.au/faq|website=isthisphoneblocked.net.au|access-date=2025-12-02|language=en}}</ref><ref>{{Cite web|title=About {{!}} Is this Phone Blocked? - 4G/5G Device Blocking Checker|url=https://isthisphoneblocked.net.au/about|website=isthisphoneblocked.net.au|access-date=2025-12-02|language=en}}</ref>
+
+===Limitations===
+IMEIs can sometimes be removed from a blocklist, depending on local arrangements. This would typically include quoting a password chosen at the time of blocklisting.{{Citation needed|date=October 2016}}
+
+===Law enforcement and intelligence use===
+Law enforcement and intelligence services can use an IMEI number as input for tracking devices that are able to locate a cell phone with an accuracy of a few meters. Saudi Arabian government agencies have reportedly used IMEI numbers retrieved from cell phone packaging to locate and detain women who fled Saudi Arabia's patriarchal society in other countries.<ref>{{cite news |last1=Bostock |first1=Bill |date=12 June 2019 |title=The Saudi government is hunting down women who flee the country by tracking the IMEI number on their cellphones |work=Business Insider |url=https://www.businessinsider.com/saudi-arabia-imei-track-runaways-2019-5 |access-date=13 June 2019}}</ref>
+
+An IMEI number retrieved from the remnants of a [[Nokia 5110]] was used to trace and identify the perpetrators behind the [[2002 Bali bombings]].<ref>{{cite news | url=https://www.abc.net.au/news/2023-06-04/bali-bombers-caught-with-australian-intelligence-involvement/102362158 | title=How spies used a shard of an exploded Nokia phone to expose the Bali bombers | newspaper=ABC News | date=3 June 2023 }}</ref>
+
+===Allowlists===
+Some countries use allowlists instead of blocklists for IMEI numbers, so that any mobile phone needs to be legally registered in the country in order to be able to access mobile networks of the country, with possible exceptions for international roaming and during the grace period for registering.<ref>{{cite web|url=https://greenash.net.au/thoughts/2017/12/mobile-phone-imei-whitelisting-in-chile-and-elsewhere/|access-date=2021-05-27|date=2017-12-11|title=Mobile phone IMEI whitelisting in Chile and elsewhere|first=Jeremy|last=Epstein|archive-url=https://web.archive.org/web/20210325035928/https://greenash.net.au/thoughts/2017/12/mobile-phone-imei-whitelisting-in-chile-and-elsewhere/|archive-date=2021-03-25|url-status=live}}</ref> These include Chile,<ref>{{cite web|url=https://www.subtel.gob.cl/homologacion-y-recepcion-de-alertas-de-emergencia-seran-obligatorias-en-telefonos-celulares-a-contar-del-23-de-septiembre/|access-date=2021-05-27|date=2017-09-06|title=Homologación y recepción de alertas de emergencia serán obligatorias en teléfonos celulares a contar del 23 de septiembre|archive-url=https://web.archive.org/web/20180727061648/http://www.subtel.gob.cl/homologacion-y-recepcion-de-alertas-de-emergencia-seran-obligatorias-en-telefonos-celulares-a-contar-del-23-de-septiembre/|archive-date=2018-07-27|url-status=live}}</ref> Turkey,<ref>{{cite web|url=https://adventuresinankara.com/2015/03/16/mission-accomplished-how-to-register-a-foreign-mobile-phone-in-turkey/|access-date=2021-05-27|date=2015-03-16|title=Mission Accomplished! How to Register a Foreign Mobile Phone in Turkey|archive-url=https://web.archive.org/web/20210505214352/https://adventuresinankara.com/2015/03/16/mission-accomplished-how-to-register-a-foreign-mobile-phone-in-turkey/|archive-date=2021-05-05|url-status=live}}</ref> Tunisia,<ref>{{cite web |title=Sajalni |url=https://enregistrement.sajalni.tn/}}</ref><ref>{{cite web |title=Sajalni Procedures |url=https://www.cert.tn/fr/publication/show/avis-au-public}}</ref> Azerbaijan,<ref>{{cite web|url=http://www.rabita.az/en/c-projects/mdrsen|access-date=2019-04-03|title=Mobile Devices Registration System
+|archive-url=https://web.archive.org/web/20190403100242/http://www.rabita.az/en/c-projects/mdrsen|archive-date=2019-04-03|url-status=dead}}</ref> Colombia,<ref>{{cite web|url=https://thebogotapost.com/register-mobile-phone/17409/|access-date=2021-05-27|date=2016-08-10|title=Register your mobile phone|archive-url=https://web.archive.org/web/20160817030136/http://thebogotapost.com/2016/08/10/register-mobile-phone/|archive-date=2016-08-17|url-status=live}}</ref> Nepal<ref>{{cite web|url=https://www.deltadigit.com/everything-ntas-imei-number-registration-program/|access-date=2021-05-27|date=2016-05-06|title=Everything about NTA's IMEI number registration program|first=Abhishek|last=Chand|archive-url=https://web.archive.org/web/20210123120749/https://www.deltadigit.com/everything-ntas-imei-number-registration-program/|archive-date=2021-01-23|url-status=live}}</ref> and Egypt.<ref>{{cite web|url=https://www.egypttoday.com/Article/1/137416/Egypt-launches-app-to-register-mobile-phones-from-abroad-with|access-date=2025-11-05|date=2025-01-01|title=Egypt launches app to register mobile phones from abroad with grace period for customs payment|first=Amr|last=Mohamed Kandil|archive-url=https://web.archive.org/web/20250105181245/https://www.egypttoday.com/Article/1/137416/Egypt-launches-app-to-register-mobile-phones-from-abroad-with|archive-date=2025-01-05|url-status=live}}</ref><ref>{{cite web|url=https://english.ahram.org.eg/News/538141.aspx|access-date=2025-11-05|date=2025-01-11|title=Explainer: How Egypt new electronic system regulating mobile phones' imports works|first=Ahmed|last=Mostafa|archive-url=https://web.archive.org/web/20250115000457/https://english.ahram.org.eg/News/538141.aspx|archive-date=2025-01-15|url-status=live}}</ref> Other countries that have adopted some form of mandatory IMEI registration include India, Pakistan, Indonesia, Cambodia, Thailand, Iran, Nigeria, Ecuador, Ukraine, Lebanon,<ref>{{cite web|url=https://techpoint.africa/2021/05/21/ncc-imei-policy/|access-date=2021-05-27|date=2021-05-21|title=Does the Nigerian government want safety or surveillance with its new IMEI policy?
+|first=Chimgozirim|last=Nwokoma|archive-url=https://web.archive.org/web/20210524113923/https://techpoint.africa/2021/05/21/ncc-imei-policy/|archive-date=2021-05-24|url-status=live}}</ref> and Kenya.<ref>Kenya Revenue Authority, {{cite web|url=https://kra.go.ke/news-center/public-notices/2150-declaration-of-mobile-devices-incorporating-imei-numbers-at-importation|access-date=2024-11-08|date=2024-11-05|title=Declaration of Mobile Devices Incorporating IMEI Numbers at Importation}}</ref>
+
+Prior to their merger with [[T-Mobile US|T-Mobile]], [[Sprint Corporation|Sprint]] in the United States used an allowlist of devices where a user had to register their IMEI and SIM card before a [[LTE (telecommunication)|LTE]]-capable device could be used, despite no [[United States|US]] law mandating it.<ref>{{cite web|url=https://www.wikihow.com/Activate-a-Sprint-Phone|access-date=2023-12-14|date=2022-09-01|title=How to Activate a Sprint Phone|first=Jack|last=Lloyd}}</ref> If a user changed their device, they had to register their new IMEI and SIM card. This isn't the case with other CDMA carriers such as [[Verizon (mobile network)|Verizon]] which only used allowlists for 3G (which was a requirement for CDMA). T-Mobile does not use an allowlist but instead a blocklist, including for former Sprint customers and select Sprint-sold devices compatible with the current T-Mobile network.
+
+[[AT&T]]<ref>{{cite web|url=https://www.att.com/scmsassets/support/wireless/devices-working-on-att-network.pdf|access-date=2024-04-10|date=2024-02-06|title=These phones are tested and approved for the AT&T network}}</ref> and [[Telus Communications|Telus]]<ref>{{cite web|url=
+https://www.telus.com/en/support/article/how-to-use-volte|access-date=2024-04-10|date=2024-02-06|title=Telus VoLTE (Voice over LTE)}}</ref> also use an allowlist for [[Voice over LTE|VoLTE]] access, but does not require IMEI registration by customers. Instead, phone manufacturers are required to register their devices into AT&T's or Telus' databases, and customers are able to freely swap SIM cards or eSIMs into any allowlisted device. This has the problem that imported phones and some non-imported phones such as older [[OnePlus]] models or select LTE devices with [[CDMA2000|CDMA]] support (including models sold on [[Verizon (mobile network)|Verizon]] or [[Sprint Corporation|Sprint]]) will not work for voice calls even if they have the cellular bands for AT&T and Telus, and support VoLTE on other networks or via VoLTE roaming.
+
+=== Public IMEI lookup services  ===
+Besides regulatory blocklists and allowlists maintained by network operators, consumers can verify the status of their own devices using publicly accessible IMEI lookup services.  By entering the 15‑digit IMEI number (obtained via the *#06# code) into these tools, users can retrieve information about a device’s warranty period, original carrier, SIM‑lock status, and whether it has been reported lost or stolen.  Many of these services decode the Type Allocation Code (the first eight digits of the IMEI) to identify the device model and provide details such as blacklisting due to theft or unpaid bills. These tools help consumers avoid purchasing blacklisted devices and confirm that a phone has not been reported lost or stolen before reselling it.<ref>{{Cite web |title=IMEI blacklist check - IMEI.info |url=https://www.imei.info/phone-blacklist-check/ |access-date=2025-07-28 |website=www.imei.info |language=en}}</ref>
+
+==Structure of the IMEI and IMEISV (IMEI software version)==
+The IMEI (15 decimal digits: 14 digits plus a check digit) or IMEISV (16 decimal digits: 14 digits plus two software version digits) includes information on the origin, model, and serial number of the device. The structure of the IMEI/SV is specified in [http://www.3gpp.org/ftp/Specs/html-info/23003.htm 3GPP TS 23.003]. The model and origin comprise the initial 8-digit portion of the IMEI/SV, known as the [[Type Allocation Code]] (TAC). The remainder of the IMEI is manufacturer-defined, with a [[Luhn algorithm|Luhn check digit]] at the end. For the IMEI format prior to 2003, the GSMA guideline was to have this Check Digit always transmitted to the network as zero. This guideline seems to have disappeared for the format valid from 2003 onwards.<ref>GSM Association, [http://www.gsma.com/documents/ts-06-6-0-imei-allocation-and-approval-guidelines/20164/ IMEI Allocation and Approval Guidelines] {{Webarchive|url=https://archive.today/20120908040850/http://www.gsma.com/documents/ts-06-6-0-imei-allocation-and-approval-guidelines/20164/ |date=2012-09-08 }}, Version 5.0, 2010-09-01, chapter 2.1.5 vs. D.1.6</ref>
+
+{{As of|2004}}, the format of the IMEI is ''AA-BBBBBB-CCCCCC-D'', although it may not always be displayed this way. The IMEISV does not have the Luhn check digit but instead has two digits for the Software Version Number (SVN), making the format ''AA-BBBBBB-CCCCCC-EE''
+{| class="wikitable" style="margin:auto;"
+!
+! AA
+! -
+! BB
+! BB
+! BB
+! -
+! CC
+! CC
+! CC
+! D or EE
+|-
+| Old IMEI
+| style="text-align:center;" colspan="4"| TAC
+| style="text-align:center;"| FAC
+| style="text-align:center;" colspan="4" rowspan="4"| Serial number
+| style="text-align:center;" rowspan="2"| D = Check Digit (CD) (Optional)
+|-
+| New IMEI
+| style="text-align:center;" colspan="5"| TAC
+|-
+| Old IMEISV
+| style="text-align:center;" colspan="4"| TAC
+| style="text-align:center;"| FAC
+| style="text-align:center;" rowspan="2"| EE = Software Version Number (SVN)
+|-
+| New IMEISV
+| style="text-align:center;" colspan="5"| TAC
+|}
+Prior to 2002, the TAC was six digits and followed by a two-digit [[Final Assembly Code]] (FAC), which was a manufacturer-specific code indicating the location of the device's construction.
+From January 1, 2003 until April 1, 2004, the [[Final Assembly Code|FAC]] for all phones was 00.
+After April 1, 2004, the Final Assembly Code ceased to exist and the Type Allocation Code increased to eight digits in length.
+
+In any of the above cases, the first two digits of the TAC are the [[Reporting Body Identifier]], which identifies the GSMA-approved group that allocated the TAC.  The RBI numbers are allocated by the Global Decimal Administrator. IMEI numbers being decimal helps distinguish them from an [[MEID]], which is [[hexadecimal]] and always has 0xA0 or larger as the first two hexadecimal digits.
+
+For example, the old style IMEI code 35-209900-176148-1 or IMEISV code 35-209900-176148-23 tells us the following:
+<blockquote>
+'''[[Type Allocation Code|TAC]]''': 35-2099  - issued by the [[British Approvals Board for Telecommunications|BABT]] (code 35) with the allocation number 2099<br />
+'''FAC''': 00 - indicating the phone was made during the transition period when FACs were being removed.<br />
+'''SNR''': 176148 - uniquely identifying a unit of this model<br />
+'''CD''': 1 so it is a GSM Phase 2 or higher<br />
+'''SVN''': 23 - The "software version number" identifying the revision of the software installed on the phone. 99 is reserved.
+</blockquote>
+
+By contrast, the new style IMEI code 49-015420-323751-8 has an 8-digit TAC of 49-015420.
+
+The CDMA [[MEID A0000119B2F5F3|Mobile Equipment Identifier]] uses the same basic format as the IMEI but gives more flexibility in allocation sizes and usage.
+
+=== Check digit computation ===
+{{see also|Luhn algorithm}}
+The last number of the IMEI is a [[check digit]], calculated using the [[Luhn algorithm]], as defined in the [https://web.archive.org/web/20170911150130/https://www.gsma.com/newsroom/wp-content/uploads/2012/06/ts0660tacallocationprocessapproved.pdf IMEI Allocation and Approval Guidelines]:
+<blockquote>
+The Check Digit shall be calculated according to [[Luhn algorithm|Luhn formula]] (ISO/IEC 7812). (See GSM 02.16 / 3GPP 22.016). The Check Digit is a function of all other digits in the IMEI. The Software Version Number (SVN) of a mobile is not included in the calculation.
+
+The purpose of the Check Digit is to help guard against the possibility of incorrect entries to the CEIR and EIR equipment.
+
+The presentation of the Check Digit both electronically and in printed form on the label and packaging is very important. Logistics (using bar-code reader) and EIR/CEIR administration cannot use the Check Digit unless it is printed outside of the packaging, and on the ME IMEI/Type Accreditation label.
+
+The check digit is not transmitted over the radio interface, nor is it stored in the EIR database at any point. Therefore, all references to the last three or six digits of an IMEI refer to the actual IMEI number, to which the check digit does not belong.
+</blockquote>
+
+The check digit is validated in three steps:
+# Starting from the right, double every other digit (e.g., 7 → 14).
+# Sum the digits (e.g., 14 → 1 + 4).
+# Check if the sum is divisible by 10.
+Conversely, one can calculate the IMEI by choosing the check digit that would give a sum divisible by 10. For the example IMEI 49015420323751''?'',
+{| class="wikitable" style="text-align:center"
+|-
+! IMEI
+| style="width:1.5em" |4
+| style="width:1.5em" |9
+| style="width:1.5em" |0
+| style="width:1.5em" |1
+| style="width:1.5em" |5
+| style="width:1.5em" |4
+| style="width:1.5em" |2
+| style="width:1.5em" |0
+| style="width:1.5em" |3
+| style="width:1.5em" |2
+| style="width:1.5em" |3
+| style="width:1.5em" |7
+| style="width:1.5em" |5
+| style="width:1.5em" |1
+| style="width:1.5em" | {{math|x}}
+|-
+! Double every other
+|4
+| style="background: #FFA;" |18
+| 0
+| style="background: #FFA;" |2
+| 5
+| style="background: #FFA;" |8
+|2
+| style="background: #FFA;" |0
+| 3
+| style="background: #FFA;" |4
+| 3
+| style="background: #FFA;" |14
+|5
+| style="background: #FFA;" |2
+| {{math|x}}
+|-
+! Sum digits
+| colspan="15" style="white-space: nowrap" | 4 + (1 + 8) + 0 + 2 + 5 + 8 + 2 + 0 + 3 + 4 + 3 + (1 + 4) + 5 + 2 + {{math|x}} = 52 + {{math|x}}
+|}
+To make the sum divisible by 10, we set {{math|x}} = 8, so the complete IMEI becomes 49015420323751'''8'''.
+
+==Usage on satellite phone networks==
+The [[Broadband Global Area Network]] (BGAN), [[Iridium Communications|Iridium]] and [[Thuraya]] [[satellite phone]] networks all use IMEI numbers on their transceiver units as well as SIM cards in much the same way as GSM phones do. The Iridium 9601 modem relies solely on its IMEI number for identification and uses no SIM card; however, Iridium is a proprietary network and the device is incompatible with terrestrial GSM networks.
+
+==See also==
+* [[International mobile subscriber identity]] (IMSI)
+* [[Mobile equipment identifier]]
+* [[Mobile phone]]
+* [[SIM lock]]
+* [[MAC address]]
+* [[Type Allocation Code]] (TAC)
+
+==References==
+
+{{reflist|2}}
+
+[[Category:Mobile telecommunications]]
+[[Category:Checksum algorithms]]
+[[Category:Mobile telecommunications standards]]
+[[Category:Unique identifiers]]

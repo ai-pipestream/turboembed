@@ -65,16 +65,15 @@ pub enum EntryError {
 
 impl fmt::Display for EntryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use turbo_jvm::text::double_to_string as d;
         match self {
-            EntryError::Latitude(v) => write!(f, "latitude must be in [-90, 90], got: {}", d(*v)),
-            EntryError::Longitude(v) => write!(f, "longitude must be in [-180, 180], got: {}", d(*v)),
-            EntryError::BoxWest(v) => write!(f, "west must be in [-180, 180], got: {}", d(*v)),
-            EntryError::BoxEast(v) => write!(f, "east must be in [-180, 180], got: {}", d(*v)),
-            EntryError::BoxSouth(v) => write!(f, "south must be in [-90, 90], got: {}", d(*v)),
-            EntryError::BoxNorth(v) => write!(f, "north must be in [-90, 90], got: {}", d(*v)),
+            EntryError::Latitude(v) => write!(f, "latitude must be in [-90, 90], got: {v:?}"),
+            EntryError::Longitude(v) => write!(f, "longitude must be in [-180, 180], got: {v:?}"),
+            EntryError::BoxWest(v) => write!(f, "west must be in [-180, 180], got: {v:?}"),
+            EntryError::BoxEast(v) => write!(f, "east must be in [-180, 180], got: {v:?}"),
+            EntryError::BoxSouth(v) => write!(f, "south must be in [-90, 90], got: {v:?}"),
+            EntryError::BoxNorth(v) => write!(f, "north must be in [-90, 90], got: {v:?}"),
             EntryError::BoxInverted { south, north } => {
-                write!(f, "south must not be greater than north, got: {} > {}", d(*south), d(*north))
+                write!(f, "south must not be greater than north, got: {south:?} > {north:?}")
             }
             EntryError::Blank(what) => write!(f, "{what} must not be null or blank"),
             EntryError::BlankElement(what, list) => {

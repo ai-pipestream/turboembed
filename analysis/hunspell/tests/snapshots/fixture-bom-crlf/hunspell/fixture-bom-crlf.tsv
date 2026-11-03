@@ -1,0 +1,10 @@
+load_error	
+unsupported	0
+words	7
+cat	cat	cat	st:cat po:noun
+cats	cat	cat	st:cat po:noun is:pl
+dog	dog	dog	st:dog
+dogs	dogs	dogs	
+\u0023	\u0023	\u0023	
+cat#	cat#	cat#	
+b	b	b	

@@ -15,7 +15,7 @@ fn from_files(
     unk_def: &[u8],
 ) -> Result<MecabDictionary, DictionaryError> {
     let files = DictionaryFiles { matrix, lexicons, char_def, unk_def };
-    MecabDictionary::from_files(files, WhitespaceMode::Unicode, DictionaryLimits::default())
+    MecabDictionary::from_files(files, DictionaryLimits::default())
 }
 
 fn fixture() -> MecabDictionary {
@@ -24,7 +24,7 @@ fn fixture() -> MecabDictionary {
 
 #[test]
 fn a_directory_and_its_bytes_load_the_same_dictionary() {
-    let dir = MecabDictionary::load(FIXTURE, WhitespaceMode::Unicode).unwrap();
+    let dir = MecabDictionary::load(FIXTURE).unwrap();
     let mem = fixture();
     assert_eq!(dir.sha256(), mem.sha256());
     assert_eq!(dir.lexicon_len(), mem.lexicon_len());
@@ -38,7 +38,7 @@ fn missing_files_are_named_in_load_order() {
     let tmp = std::env::temp_dir().join(format!("turbo-lattice-missing-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(&tmp).unwrap();
-    let load = || MecabDictionary::load(&tmp, WhitespaceMode::Unicode).unwrap_err();
+    let load = || MecabDictionary::load(&tmp).unwrap_err();
     assert!(matches!(load(), DictionaryError::Missing(DictionaryFile::Matrix)));
     std::fs::write(tmp.join("matrix.def"), MATRIX).unwrap();
     assert!(matches!(load(), DictionaryError::NoLexiconEntries));
@@ -53,7 +53,7 @@ fn missing_files_are_named_in_load_order() {
     std::fs::write(tmp.join("unk.def"), UNK_DEF).unwrap();
     // A file named like a lexicon but not ending in .csv is not read.
     std::fs::write(tmp.join("z.csv.bak"), b"not, a lexicon").unwrap();
-    assert!(MecabDictionary::load(&tmp, WhitespaceMode::Unicode).is_ok());
+    assert!(MecabDictionary::load(&tmp).is_ok());
     std::fs::remove_dir_all(&tmp).unwrap();
 }
 
@@ -117,9 +117,9 @@ fn the_entry_limit_counts_the_lexicon_and_unk_def_apart() {
     // The fixture's A-nouns.csv has 20 entries and its unk.def 13.
     let files = DictionaryFiles { matrix: MATRIX, lexicons: &[("a.csv", NOUNS)], char_def: CHAR_DEF, unk_def: UNK_DEF };
     let limits = |max_entries| DictionaryLimits { max_entries, ..DictionaryLimits::default() };
-    let err = MecabDictionary::from_files(files, WhitespaceMode::Unicode, limits(19)).unwrap_err();
+    let err = MecabDictionary::from_files(files, limits(19)).unwrap_err();
     assert!(matches!(err, DictionaryError::TooManyEntries { limit: 19 }));
-    assert!(MecabDictionary::from_files(files, WhitespaceMode::Unicode, limits(20)).is_ok());
+    assert!(MecabDictionary::from_files(files, limits(20)).is_ok());
 }
 
 /// Mutated fixture files load or fail with an error; whatever loads
@@ -155,10 +155,10 @@ fn mutated_files_never_panic() {
         }
         let lexicons = [("A-nouns.csv", &files[1][..]), ("b-others.csv", &files[2][..])];
         let d = DictionaryFiles { matrix: &files[0], lexicons: &lexicons, char_def: &files[3], unk_def: &files[4] };
-        match MecabDictionary::from_files(d, WhitespaceMode::Unicode, limits) {
+        match MecabDictionary::from_files(d, limits) {
             Ok(d) => {
                 loaded += 1;
-                let t = LatticeTokenizer::new(d, WhitespaceMode::Unicode);
+                let t = LatticeTokenizer::new(d);
                 let mut out = Vec::new();
                 for text in texts {
                     let _ = t.analyze(text, &mut out);

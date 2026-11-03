@@ -64,7 +64,7 @@ impl Annotator for IncivilityAnnotator {
         let mut token_lower: Vec<String> = Vec::with_capacity(n_tokens);
         for t in 0..n_tokens {
             let slice = text.get(tok_starts[t] as usize..tok_ends[t] as usize).unwrap_or("");
-            token_lower.push(crate::sentiment::token_key::token_key_word(slice, false));
+            token_lower.push(incivility_token_key(slice));
         }
 
         // The lexicon stage reads no vectors, so it checks no encoder.
@@ -272,6 +272,17 @@ impl Annotator for IncivilityAnnotator {
             .u64(self.unit as u64)
             .f64(self.threshold)
             .bool(self.use_reply_context);
+        if let Some(ts) = &self.thresholds {
+            for &t in ts {
+                h.f64(t);
+            }
+        }
+        if self.fusion_gate.to_bits() != DEFAULT_INCIVILITY_FUSION_GATE.to_bits() {
+            h.f64(self.fusion_gate);
+        }
+        if !self.use_severe_toxicity_rule {
+            h.bool(self.use_severe_toxicity_rule);
+        }
         if let Some(s) = self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon) {
             h.u64(s.config_hash());
         }

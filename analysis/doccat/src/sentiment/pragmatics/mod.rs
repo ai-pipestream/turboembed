@@ -30,7 +30,6 @@
 //! spans (`Some(Incongruity { positive, negative })`) when explicit contrast
 //! was found, or `None` when scored by the embedding head alone.
 
-use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -40,6 +39,8 @@ use turbo_analysis_layers::{
 };
 use turbo_normalize::emoji::opennlp_annotation;
 use turbo_normalize_layers::Emoji;
+
+pub use crate::scorers::PragmaticsVectorScorer;
 
 use super::lexicon::VaderLexicon;
 
@@ -52,23 +53,6 @@ pub const DEFAULT_MIN_NEGATIVE_POLARITY: f64 = 0.4;
 /// Default classification threshold (`0.5`) above which a sentence is
 /// considered sarcastic or ironic.
 pub const DEFAULT_PRAGMATICS_THRESHOLD: f64 = 0.5;
-
-/// Sentence-vector scorer used by [`PragmaticsAnnotator`] to score
-/// `Vectors<Sentences>` rows in `0.0..=1.0` when a sentence has no explicit
-/// surface contrast (or to reinforce explicit contrast).
-pub trait PragmaticsVectorScorer: Send + Sync + fmt::Debug {
-    /// Scores one sentence embedding row `vec`, returning a sarcasm/irony
-    /// probability in `0.0..=1.0`.
-    fn score_sentence_vector(&self, vec: &[f32]) -> Result<f64, String>;
-
-    /// Deterministic configuration and weight digest for provenance.
-    fn config_hash(&self) -> u64;
-
-    /// Optional model reference recorded in provenance.
-    fn model_ref(&self) -> Option<ModelRef> {
-        None
-    }
-}
 
 mod candidates;
 mod contrast;

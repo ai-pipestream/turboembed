@@ -1,7 +1,7 @@
 //! Dependency-path relation extraction: declarative
 //! [`RelationPattern`] rules matched against the shortest
 //! dependency path between entity head words, writing typed
-//! relation mentions (`opennlp:relations`) and the same triples
+//! relation mentions (`turbo:relations`) and the same triples
 //! as entity-to-entity edges.
 //!
 //! A pattern is a path like `<nsubj >obj` (up steps from the
@@ -23,6 +23,7 @@ pub mod annotator;
 pub mod defaults;
 pub mod discover;
 mod dot;
+pub mod encoder;
 pub mod events;
 mod evidence;
 pub mod explore;
@@ -33,6 +34,7 @@ mod projection;
 pub use projection::Scratch;
 pub mod layer;
 pub mod modality;
+mod neural;
 pub mod paths;
 pub mod pattern;
 mod prepare;

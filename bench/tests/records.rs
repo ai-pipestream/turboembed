@@ -70,7 +70,7 @@ fn a_record_holds_what_was_measured() {
     assert_eq!(r.rows.live_tokens, reference.ids.iter().cycle().take(32).map(|r| r.len() as u64).sum::<u64>());
     assert_eq!(r.timing.computed_tokens, Some(r.rows.live_tokens), "packed: no padding before a row's last live token");
     assert_eq!(r.bundle.manifest_sha256, bundle.manifest_sha256);
-    assert_eq!(r.bundle.model_id, "sentence-transformers/all-MiniLM-L6-v2");
+    assert_eq!(r.bundle.model_id, "turboembed/tiny-bert");
     assert_eq!((r.speed_ratio, r.speed_reference.as_deref()), (None, None));
 }
 
@@ -197,7 +197,7 @@ fn a_record_is_named_from_its_contents_within_96_bytes() {
     let cpu = &turbo::bundle::sha256_hex(r.device.name.as_bytes())[..8];
     let arch = std::env::consts::ARCH.replace('_', "-");
     let want = format!(
-        "{arch}-{cpu}.cpu.embed.model.all-minilm-l6-v2-{}.{}.json",
+        "{arch}-{cpu}.cpu.embed.model.tiny-bert-{}.{}.json",
         &r.bundle.manifest_sha256[..8],
         &r.library.commit[..12]
     );
@@ -209,7 +209,7 @@ fn a_record_is_named_from_its_contents_within_96_bytes() {
     g.device.backend = "cuda".into();
     g.machine.arch = "rtx4080".into();
     g.precision = "PRECISION_EXACT".into();
-    assert!(record::file_name(&g).unwrap().starts_with("rtx4080.cuda.embed.exact.all-minilm-l6-v2-"));
+    assert!(record::file_name(&g).unwrap().starts_with("rtx4080.cuda.embed.exact.tiny-bert-"));
     g.machine.arch = "a".repeat(31);
     g.device.backend = "b".repeat(31);
     assert!(record::file_name(&g).unwrap_err().contains("over 95"));

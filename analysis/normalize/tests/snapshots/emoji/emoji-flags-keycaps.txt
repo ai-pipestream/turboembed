@@ -1,0 +1,11 @@
+===OUT===
+Flags       and a lone indicator   then text.
+Keycaps 1️⃣ 2️⃣ #️⃣ *️⃣ 0️⃣ and 7⃣ without the selector.
+Subdivision flag   is a tag sequence.
+
+===EDITS===
+6	14	 
+15	23	 
+24	32	 
+54	58	 
+166	194	 

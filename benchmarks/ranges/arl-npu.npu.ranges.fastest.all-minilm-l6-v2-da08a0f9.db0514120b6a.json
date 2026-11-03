@@ -1,0 +1,87 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-27T05:36:39Z",
+  "machine": {
+    "arch": "arl-npu",
+    "host_cpu": "Intel(R) Core(TM) Ultra 7 265T",
+    "os": "windows"
+  },
+  "device": {
+    "backend": "npu",
+    "kind": "DEVICE_NPU",
+    "name": "Intel(R) AI Boost",
+    "vendor": "Intel",
+    "driver_version": "0.15.21738",
+    "runtime_version": "1.28.2",
+    "memory_total": 0
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 npu cpu",
+    "commit": "db0514120b6a25de369c9151be99de72081102e6",
+    "pushed_to": [
+      "origin/cursor/941-npu-native-blob"
+    ],
+    "settings": [
+      "TURBO_NPU_GRAPH_FORMAT=NATIVE"
+    ]
+  },
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_F16",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "2",
+    "manifest_sha256": "da08a0f9f04985288e22252d16dd05ad277570913d03456527b93669603b07ec",
+    "artifact_sha256": "112c32a4a0f65bd43d2b88daeb3c4748cbead511fff7e7065f9f58bdc429499d",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "shape": {
+    "batch": 1,
+    "seq": 128,
+    "chunk": 64,
+    "chunks_per_row": 2,
+    "chunk_batch": 2,
+    "chunk_frames": 1,
+    "cases": [
+      8
+    ],
+    "sha256": "3b36106754ce1f97b0bec829da206a73625810750620b0a07ff12647faa47bde"
+  },
+  "rows": {
+    "vectors": 1,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 3.9274,
+    "p99_ms": 4.1512,
+    "mean_ms": 3.9017754999999994,
+    "min_ms": 3.5981,
+    "max_ms": 4.5201,
+    "vectors_per_second": 256.2935771163667
+  },
+  "ranges": {
+    "vectors": 2,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 3.9183000000000003,
+    "p99_ms": 4.0932,
+    "mean_ms": 3.896239499999999,
+    "min_ms": 3.6664000000000003,
+    "max_ms": 4.7632,
+    "vectors_per_second": 513.315467388491
+  },
+  "chunk_rows": {
+    "vectors": 2,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 7.7742,
+    "p99_ms": 8.073500000000001,
+    "mean_ms": 7.766815999999998,
+    "min_ms": 7.3306,
+    "max_ms": 9.167399999999999,
+    "vectors_per_second": 257.50577842966806
+  },
+  "whole_row_max_abs_diff": 0.0,
+  "chunk_min_cosine": 0.7907032643494427,
+  "ranges_over_rows": 0.997682945460101,
+  "chunk_rows_over_ranges": 1.9840747262843579
+}

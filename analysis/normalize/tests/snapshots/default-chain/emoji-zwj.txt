@@ -1,0 +1,9 @@
+===OUT===
+family 👨‍👩‍👧‍👦 and couple 👩‍❤️‍👨 at work. professions 👩‍💻 👨‍🍳 and 🏳️‍🌈 👁️‍🗨️ stay sequences. a lone joiner ‍ between words and a broken 👨‍ is not a sequence.
+===EDITS===
+0	1	f
+73	74	 
+74	75	p
+162	163	 
+163	164	a
+234	235	

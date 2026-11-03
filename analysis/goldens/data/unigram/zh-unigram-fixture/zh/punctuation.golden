@@ -6,7 +6,7 @@ unicode	15.0
 input	zh/punctuation	285	100	fc607ddbc0604c33de4f694906027486082f553c66d34a3c63ea1899b745b9e3
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	95	start:u32	end:u32
+layer	turbo:tokens	text	95	start:u32	end:u32
 0	3
 3	6
 6	9
@@ -102,4 +102,4 @@ layer	opennlp:tokens	text	95	start:u32	end:u32
 276	278
 278	281
 281	284
-end	opennlp:tokens
+end	turbo:tokens

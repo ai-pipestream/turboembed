@@ -6,7 +6,7 @@ unicode	15.0
 input	ko/basic	74	30	3f650c34dae13da481a29fff4a5453b6c2d27dee59df138adb5ac4c55237dab3
 model	mecab-fixture-ko	527e0f80d5ed85fbda9aedadfedc64ab4f17bc4a9d4869cdf4b1cb274e34e5742211e7e91124dbb80a5fea50839546073e0f1cbd0695a15fb81fd0f5abbea44e
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	13	start:u32	end:u32
+layer	turbo:tokens	text	13	start:u32	end:u32
 0	6
 6	9
 10	19
@@ -20,8 +20,8 @@ layer	opennlp:tokens	text	13	start:u32	end:u32
 57	63
 63	72
 72	73
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	13	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	13	unknown:u32	features:str
 0	NNG,장소,F,학교,*,*,*,*
 0	JKB,*,F,에,*,*,*,*
 0	VV+EF,*,F,갑니다,Inflect,VV,EF,가/VV/*+ㅂ니다/EF/*

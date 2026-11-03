@@ -1,8 +1,9 @@
 # Code-point lowercase
 
-`turbo_unicode::java::to_lowercase_code_points(text, out)` appends OpenNLP
-`StringUtil.toLowerCase` to an existing string. It applies the simple lowercase
-mapping once per code point. `lowercase_code_points` allocates the result;
+`turbo_unicode::java::to_lowercase_code_points(text, out)` appends the simple
+per-code-point lowercase mapping (`Character.toLowerCase`) to an existing
+string. It applies the simple lowercase mapping once per code point.
+`lowercase_code_points` allocates the result;
 `lowercase_code_points_changes` detects whether that mapping changes the text;
 `eq_lowercase_code_points` compares the mapped first argument with the second
 argument as supplied, without allocating.

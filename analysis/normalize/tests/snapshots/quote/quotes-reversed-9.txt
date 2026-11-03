@@ -1,0 +1,8 @@
+===OUT===
+Das Wort "Wort" und "Wort" stehen nebeneinander.
+
+===EDITS===
+9	12	"
+16	19	"
+24	27	"
+31	34	"

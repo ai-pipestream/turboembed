@@ -1,0 +1,53 @@
+load_error	
+unsupported	0
+words	50
+.	.	.	
+...	...	...	
+a	a	a	st:a
+A	A	Aa	st:Ast:a
+'	'	'	
+-	-	-	
+--	--	--	
+---	---	---	
+-a	a	a	st:a
+a-	a	a	st:a
+a--b	a	ab	pa:a st:a pa:-b st:bpa:a- st:a pa:b st:b
+a-b-c-d-e-f-g-h	a	abcdefgh	pa:a st:a pa:b st:b pa:c st:c pa:d st:d pa:e st:e pa:f st:f pa:g st:g pa:h st:h
+word.	word	word	st:word
+word..	word	word	st:word
+WORD	word	word	st:word
+Word	word	word	st:word
+wOrD	wOrD	wOrD	
+x\ty	x\ty	x\ty	
+x\u0000y	x\u0000y	x\u0000y	
+\uD83D\uDE00	\uD83D\uDE00	\uD83D\uDE00	
+\uD83D\uDE00s	\uD83D\uDE00s	\uD83D\uDE00s	
+­	­	­	
+a­b	a­b	a­b	
+’	’	’	
+it’s	it	it	st:it fl:M
+ﬁne	ﬁne	ﬁne	
+STRASSE	STRASSE	STRASSE	
+Straße	Straße	Straße	
+STRAẞE	STRAẞE	STRAẞE	
+SSSS	SSSS	SSSS	
+MASSSTAB	MASSSTAB	MASSSTAB	
+İSTANBUL	Istanbul	Istanbul	st:Istanbul
+İstanbul	İstanbul	İstanbul	
+ISTANBUL	Istanbul	Istanbul	st:Istanbul
+L'HOMME	L'HOMME	L'HOMME	
+D'ARTAGNAN	D'ARTAGNAN	D'ARTAGNAN	
+'S	'S	'S	
+1	1	1	st:1
+1st	1st	1st	st:1st
+2nd	2nd	2nd	st:2nd
+11th	1	11th	pa:1 st:1 pa:1th
+123rd	1	123rd	pa:1 st:1 pa:2 st:2 pa:3rd
+1000000	1000000	1000000	
+ǅungla	ǅungla	ǅungla	
+ǄUNGLA	ǄUNGLA	ǄUNGLA	
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	
+ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab	ab	ab	pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab
+été	été	été	
+ΑΘΗΝΑ	ΑΘΗΝΑ	ΑΘΗΝΑ	
+москва	москва	москва	

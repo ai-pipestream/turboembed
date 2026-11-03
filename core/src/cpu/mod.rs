@@ -5,18 +5,22 @@
 //! encoder in encoder/, or for a static model the table in table/.
 
 mod buffers;
+mod deberta;
 mod encoder;
 mod host;
 mod kernels;
 pub mod lstm;
 mod model;
 pub(crate) mod pool;
+mod rotary;
 mod run;
 mod session;
 mod table;
 
 #[cfg(test)]
 mod boundary_tests;
+#[cfg(test)]
+mod deberta_tests;
 
 use std::ffi::c_char;
 
@@ -33,7 +37,7 @@ use run::*;
 use session::*;
 
 pub use kernels::{Matrix, Mode};
-pub(crate) use kernels::{gelu, softmax};
+pub(crate) use kernels::{exp, gelu, softmax};
 pub(crate) use session::{MAX_THREADS, threads};
 
 pub static BACKEND: turbo_backend = turbo_backend {
@@ -65,6 +69,7 @@ pub static BACKEND: turbo_backend = turbo_backend {
     embed_write_ranges: Some(embed_write_ranges),
     token_head: 0,
     reserved3: 0,
+    buffer_quantize: None,
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {
@@ -100,8 +105,11 @@ unsafe extern "C" fn device_info(ordinal: u32, out: *mut turbo_device_info, err:
 }
 
 /// Bits of turbo_embed_options the run honors: normalize (4), pooling (5)
-/// and output_dim (6), every value of each.
-const EMBED_HONORED: u32 = 0b111000;
+/// and output_dim (6), every value of each, and layers (9): the BERT,
+/// RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders read each of
+/// their layers on a range write (turbo.h, turbo_embed_write_layer_ranges).
+/// A static model has its table alone, so above 1 it is refused there.
+const EMBED_HONORED: u32 = 0b1_0011_1000;
 
 /// Embed runs at every precision, in F32: the one dtype the encoder
 /// computes in. FASTEST is F32 too, and says so. A model whose weights are

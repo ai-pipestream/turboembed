@@ -14,8 +14,8 @@ use super::context::{ABSENT, FeedforwardPosContext, PRETRAINED_SLOTS, SLOTS, Sen
 mod io;
 mod score;
 
-const MAGIC_V1: &str = "ONLP-FFPT-1";
-const MAGIC_V2: &str = "ONLP-FFPT-2";
+const MAGIC_V1: &str = "TURBO-FFPT-1";
+const MAGIC_V2: &str = "TURBO-FFPT-2";
 pub(super) const CACHE_ENTRY_LIMIT: isize = 32768;
 const INITIAL_CAPACITY: usize = 4096;
 const MAX_LENGTH: i32 = 1 << 30;
@@ -265,7 +265,7 @@ impl FeedforwardPosModel {
         self.serialize(&mut bytes).expect("serializing an in-memory FeedforwardPosModel to Vec<u8> cannot fail");
         let revision = if self.pretrained_size > 0 { MAGIC_V2 } else { MAGIC_V1 };
         ModelRef {
-            id: "opennlp:FeedforwardPOSModel".into(),
+            id: "turbo:FeedforwardPOSModel".into(),
             revision: revision.into(),
             sha256: turbo_maxent::sha256(&bytes).to_hex(),
         }

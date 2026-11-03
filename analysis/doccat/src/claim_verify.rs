@@ -8,9 +8,10 @@
 //! mention), when their `Vectors` cosine lies in `[min_similarity,
 //! max_similarity]`, or when their content words overlap by at least
 //! `min_word_overlap` (Jaccard). Candidates are ranked by shared
-//! entities, then similarity, then overlap, and the first `max_pairs`
-//! are scored in both directions in one `score_pairs` batch; a pair
-//! whose longer direction exceeds the scorer's pair budget is skipped.
+//! entities, then similarity, then overlap. A pair whose two units
+//! exceed the scorer's pair budget is dropped first, so it never takes
+//! a slot; the first `max_pairs` of the rest are scored in both
+//! directions in one `score_pairs` batch.
 //!
 //! Each direction's logits are softmaxed. Both directions entailing at
 //! `entail_threshold` is `Redundant`, one direction is `Entails` from
@@ -26,7 +27,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::marker::PhantomData;
 
 use turbo_analysis::{Annotator, Edge, Edges, Error, Execution, Fnv1a, Ix, ModelRef, Refs, Span, View};
-use turbo_analysis_layers::{ClaimRelationKind, Entities, Vectors};
+use turbo_analysis_layers::{ClaimRelationKind, Entities, Terms, Tokens, Vectors};
 
 use crate::layer::SpanCategorizable;
 use crate::zeroshot::NliScorer;
@@ -85,25 +86,48 @@ const STOP: [&str; 24] = [
     "with", "that", "this", "at", "as", "will",
 ];
 
-fn words(text: &str) -> HashSet<String> {
-    text.split(|c: char| !c.is_alphanumeric())
-        .map(str::to_lowercase)
-        .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
-        .collect()
+/// The unit's content words: the text split on non-alphanumerics. With
+/// `Terms`, each token's folded form is split the same way, so
+/// punctuation tokens add nothing. Folding, and tokens that split inside
+/// an alphanumeric run (Penn's `do|n't`), can then give a different bag
+/// than the text; `Tokens` without `Terms` add nothing over the text, so
+/// the bag is the text's.
+fn words(text: &str, unit: Span, terms: Option<(&Tokens, &Terms)>) -> HashSet<String> {
+    let content = |form: &str| -> Vec<String> {
+        form.split(|c: char| !c.is_alphanumeric())
+            .map(str::to_lowercase)
+            .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
+            .collect()
+    };
+    match terms {
+        Some((tokens, terms)) => tokens
+            .spans
+            .iter()
+            .filter(|(_, span)| unit.start <= span.start && span.end <= unit.end)
+            .flat_map(|(i, _)| content(terms.get(i).folded))
+            .collect(),
+        None => content(&text[unit.range()]).into_iter().collect(),
+    }
 }
 
 fn cosine(a: &[f32], b: &[f32]) -> Option<f32> {
-    let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
-    let na = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-    let nb = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    (na > 0.0 && nb > 0.0).then(|| dot / (na * nb))
+    let na = turbo_analysis::math::sum_sq_f64(a).sqrt();
+    let nb = turbo_analysis::math::sum_sq_f64(b).sqrt();
+    (na > 0.0 && nb > 0.0).then(|| (turbo_analysis::math::dot_f64(a, b) / (na * nb)) as f32)
 }
 
-fn softmax(logits: &[f32]) -> Vec<f32> {
-    let max = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    let exp: Vec<f32> = logits.iter().map(|l| (l - max).exp()).collect();
-    let sum: f32 = exp.iter().sum();
-    exp.iter().map(|e| e / sum).collect()
+/// A non-finite row falls back to the plain formula, so NaN or `+inf`
+/// gives NaN probabilities and no edge, and `-inf` gives probability 0,
+/// as before `turbo::head::softmax` was used here.
+fn softmax(logits: &[f32]) -> Vec<f64> {
+    let mut out = vec![0.0; logits.len()];
+    if turbo::head::softmax(logits, &mut out).is_err() {
+        let max = logits.iter().map(|&l| f64::from(l)).fold(f64::NEG_INFINITY, f64::max);
+        let exp: Vec<f64> = logits.iter().map(|&l| (f64::from(l) - max).exp()).collect();
+        let sum: f64 = exp.iter().sum();
+        out = exp.iter().map(|e| e / sum).collect();
+    }
+    out
 }
 
 /// A scored candidate pair `a < b`, ranked by `(shared, similarity,
@@ -131,10 +155,10 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
     fn candidates(
         &self,
         spans: &[Span],
-        texts: &[&str],
         entities: Option<&Entities>,
         vectors: Option<&Vectors<L>>,
         text: &str,
+        terms: Option<(&Tokens, &Terms)>,
     ) -> Vec<Candidate> {
         let n = spans.len();
         let names: Vec<HashSet<String>> = spans
@@ -149,7 +173,7 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
                 None => HashSet::new(),
             })
             .collect();
-        let bags: Vec<HashSet<String>> = texts.iter().map(|t| words(t)).collect();
+        let bags: Vec<HashSet<String>> = spans.iter().map(|&unit| words(text, unit, terms)).collect();
         let c = &self.config;
         let mut out = Vec::new();
         for a in 0..n {
@@ -176,7 +200,6 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
         out.sort_by(|p, q| {
             q.rank.0.cmp(&p.rank.0).then(q.rank.1.total_cmp(&p.rank.1)).then(q.rank.2.total_cmp(&p.rank.2))
         });
-        out.truncate(c.max_pairs);
         out
     }
 }
@@ -184,24 +207,39 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
 impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for ClaimVerificationAnnotator<S, L> {
     const ID: &'static str = "turbo:claim-verifier";
     const VERSION: &'static str = CLAIM_VERSION;
-    type Reads = (View, L, Option<Entities>, Option<Vectors<L>>);
+    type Reads = (View, L, Option<Entities>, Option<Vectors<L>>, Option<Tokens>, Option<Terms>);
     type Writes = (Edges<L, L>,);
 
-    fn annotate(&self, (view, units, entities, vectors): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, (view, units, entities, vectors, tokens, terms): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let (entail, contradict) = self.outcomes()?;
         let text = view.text();
         let spans: Vec<Span> = (0..units.len()).map(|i| units.span_at(i)).collect();
         if spans.iter().any(|s| s.end as usize > text.len()) {
             return Err(Self::fail("a unit outside the view text".into()));
         }
+        if let (Some(tokens), Some(terms)) = (tokens, terms) {
+            if tokens.spans.view() != view.id()
+                || tokens.spans.iter().any(|(_, s)| {
+                    s.end as usize > text.len()
+                        || !text.is_char_boundary(s.start as usize)
+                        || !text.is_char_boundary(s.end as usize)
+                })
+            {
+                return Err(Self::fail("the tokens are not in the units' view text".into()));
+            }
+            if terms.folded.len() != tokens.spans.len() {
+                return Err(Self::fail("the terms do not have one entry per token".into()));
+            }
+        }
         let texts: Vec<&str> = spans.iter().map(|s| &text[s.start as usize..s.end as usize]).collect();
         let budget = self.scorer.max_pair_tokens() as usize;
         let specials = self.scorer.pair_special_tokens();
         let counts: Vec<usize> = texts.iter().map(|t| self.scorer.count_tokens(t)).collect();
         let pairs: Vec<Candidate> = self
-            .candidates(&spans, &texts, entities, vectors, text)
+            .candidates(&spans, entities, vectors, text, tokens.zip(terms))
             .into_iter()
             .filter(|p| counts[p.a] + counts[p.b] + specials <= budget)
+            .take(self.config.max_pairs)
             .collect();
         let mut batch: Vec<(&str, &str)> = Vec::with_capacity(pairs.len() * 2);
         for p in &pairs {
@@ -221,7 +259,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
         for (k, p) in pairs.iter().enumerate() {
             let fwd = softmax(&logits[2 * k]);
             let back = softmax(&logits[2 * k + 1]);
-            let (ef, eb) = (fwd[entail], back[entail]);
+            let (ef, eb) = (fwd[entail] as f32, back[entail] as f32);
             if ef >= c.entail_threshold && eb >= c.entail_threshold {
                 rows.insert((p.a, p.b, ClaimRelationKind::Redundant), f64::from(ef.min(eb)));
             } else {
@@ -233,7 +271,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
                 }
             }
             if let Some(ci) = contradict {
-                let cmax = fwd[ci].max(back[ci]);
+                let cmax = fwd[ci].max(back[ci]) as f32;
                 if cmax >= c.contradict_threshold {
                     rows.insert((p.a, p.b, ClaimRelationKind::Contradicts), f64::from(cmax));
                 }
@@ -259,7 +297,9 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
     }
 }
 
-const CLAIM_VERSION: &str = "1";
+/// "2": the `max_pairs` cap counts only pairs within the scorer's token
+/// budget (#1285), so the same inputs can score pairs "1" did not.
+const CLAIM_VERSION: &str = "2";
 
 fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
     let mut h = Fnv1a::new();
@@ -272,20 +312,62 @@ fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
 }
 
 #[cfg(test)]
+mod bag_tests {
+    use super::*;
+    use turbo_analysis::{Spans, ViewId};
+    use turbo_analysis_layers::Strs;
+
+    fn bag(words: HashSet<String>) -> Vec<String> {
+        let mut out: Vec<String> = words.into_iter().collect();
+        out.sort();
+        out
+    }
+
+    /// Penn-style tokens split inside alphanumeric runs; without `Terms`
+    /// the bag is still the text's, as before #1322.
+    #[test]
+    fn tokens_without_terms_keep_the_text_bag() {
+        let text = "I don't know, I cannot go, we're gonna win.";
+        let unit = Span::new(0, text.len() as u32);
+        let want = ["cannot", "don", "go", "gonna", "i", "know", "re", "t", "we", "win"];
+        assert_eq!(bag(words(text, unit, None)), want);
+        let mut spans = Spans::new(ViewId(0));
+        let mut forms = Strs::default();
+        let pieces =
+            ["I", "do", "n't", "know", ",", "I", "can", "not", "go", ",", "we", "'re", "gon", "na", "win", "."];
+        let mut at = 0;
+        for piece in pieces {
+            at += text[at..].find(piece).unwrap();
+            spans.push(Span::new(at as u32, (at + piece.len()) as u32));
+            forms.push(&piece.to_lowercase());
+            at += piece.len();
+        }
+        let tokens = Tokens { spans, sentence: None };
+        let terms = Terms { surface: forms.clone(), folded: forms, stem: None, lemma: None };
+        let folded = ["can", "do", "go", "gon", "i", "know", "n", "na", "not", "re", "t", "we", "win"];
+        assert_eq!(bag(words(text, unit, Some((&tokens, &terms)))), folded, "Terms forms are the tokens' own");
+    }
+}
+
+#[cfg(test)]
 mod hash_compat {
     use super::*;
 
-    #[test]
-    fn merged_claim_hash_values_are_preserved() {
-        let cases = [
+    fn cases() -> [ClaimVerifyConfig; 6] {
+        [
             ClaimVerifyConfig::default(),
             ClaimVerifyConfig { min_word_overlap: None, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { min_similarity: -0.0, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { min_similarity: 0.0, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { max_pairs: u32::MAX as usize, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { max_pairs: usize::MAX, ..ClaimVerifyConfig::default() },
-        ];
-        let values = cases.map(|c| configuration_hash(&c, CLAIM_VERSION));
+        ]
+    }
+
+    /// The hashes version "1" recorded stay what they were.
+    #[test]
+    fn merged_claim_hash_values_are_preserved() {
+        let values = cases().map(|c| configuration_hash(&c, "1"));
         let widest = if usize::BITS == 64 { 17671229628621543886 } else { 3314949245565464178 };
         assert_eq!(
             values,
@@ -298,5 +380,15 @@ mod hash_compat {
                 widest,
             ]
         );
+    }
+
+    /// Version "2" scores pairs "1" did not, so no configuration keeps
+    /// its old identity.
+    #[test]
+    fn the_budget_fix_changes_every_configuration_identity() {
+        assert_eq!(CLAIM_VERSION, "2");
+        for c in cases() {
+            assert_ne!(configuration_hash(&c, CLAIM_VERSION), configuration_hash(&c, "1"), "{c:?}");
+        }
     }
 }

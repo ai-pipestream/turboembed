@@ -31,15 +31,15 @@ pub enum Attr {
     /// A normalized form per token the caller supplies
     /// ([`crate::Input::with_norms`]): spaCy's `NORM`.
     Norm,
-    /// The lemma, from `opennlp:lemmas`.
+    /// The lemma, from `turbo:lemmas`.
     Lemma,
     /// The stem, from `turbo:stems`.
     Stem,
-    /// The part-of-speech tag, from `opennlp:pos`: spaCy's `TAG` and `POS`
+    /// The part-of-speech tag, from `turbo:pos`: spaCy's `TAG` and `POS`
     /// (one tag set per layer here).
     Pos,
     /// The kind of the entity that covers the token, from
-    /// `opennlp:entities`, or the empty string where none does: spaCy's
+    /// `turbo:entities`, or the empty string where none does: spaCy's
     /// `ENT_TYPE`. When entities overlap, the first one in the layer that
     /// covers the token gives it.
     Entity,
@@ -47,10 +47,12 @@ pub enum Attr {
     Morph,
     /// Fine-grained tags supplied separately from `Pos`.
     Tag,
+    /// Dependency relation supplied with `Input::with_dependencies`: spaCy `DEP`.
+    Dep,
 }
 
 impl Attr {
-    pub(crate) const ALL: [Attr; 12] = [
+    pub(crate) const ALL: [Attr; 13] = [
         Attr::Text,
         Attr::Lower,
         Attr::Prefix,
@@ -63,6 +65,7 @@ impl Attr {
         Attr::Entity,
         Attr::Morph,
         Attr::Tag,
+        Attr::Dep,
     ];
 
     /// The attribute's value for a string standing for a token, when the

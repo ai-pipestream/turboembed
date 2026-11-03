@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	113	start:u32	end:u32
+layer	turbo:tokens	text	113	start:u32	end:u32
 0	5
 6	11
 11	12
@@ -120,8 +120,8 @@ layer	opennlp:tokens	text	113	start:u32	end:u32
 185	186
 186	187
 187	188
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	113	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	113	unknown:u32	features:str
 1	名詞,普通名詞,一般,*,*,*
 1	名詞,普通名詞,一般,*,*,*
 0	補助記号,一般,*,*,*,*,,：,:,,:,,記号,*,*,*,*

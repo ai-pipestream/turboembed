@@ -1,0 +1,53 @@
+load_error	
+unsupported	0
+words	50
+.	.	.	
+...	...	...	
+a	a	a	st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-sst:a po:det_def al:a-vá al:a-val al:a- al:A-s
+A	A	Aa	st:A po:noun_prs ts:NOM al:A-ré al:A-rel al:A-es al:A-st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-sst:a po:det_def al:a-vá al:a-val al:a- al:A-s
+'	'	'	st:' po:punct
+-	-	-	st:- po:suffixst:- po:punct
+--	-	-	st:- po:suffixst:- po:punct
+---	-	-	pa:- st:- po:suffix pa:- st:- po:suffixpa:- st:- po:suffix pa:- st:- po:punctpa:- st:- po:punct pa:- st:- po:suffixpa:- st:- po:punct pa:- st:- po:punctst:- po:suffixst:- po:punct
+-a	a	a	st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-sst:a po:det_def al:a-vá al:a-val al:a- al:A-s
+a-	a	a	st:a po:noun ts:NOM
+a--b	a	ab	pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:-b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-spa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:-b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-spa:a- st:a po:noun ts:NOM pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s
+a-b-c-d-e-f-g-h	a	abcdefgh	pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c st:c po:noun ts:NOM al:c-vé al:c-vel al:c- al:C-s pa:d st:d po:noun ts:NOM al:d-vé al:d-vel al:d- al:D-s pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:ACC pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:NOM pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-pa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c st:c po:noun ts:NOM al:c-vé al:c-vel al:c- al:C-s pa:d st:d po:noun ts:NOM al:d-vé al:d-vel al:d- al:D-s pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-pa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:ACC pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-pa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:NOM pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-
+word.	word.	word.	
+word..	word..	word..	
+WORD	Word	Word	st:Word po:noun_prs ts:NOM
+Word	Word	Word	st:Word po:noun_prs ts:NOM
+wOrD	wOrD	wOrD	
+x\ty	x\ty	x\ty	
+x\u0000y	x\u0000y	x\u0000y	
+\uD83D\uDE00	\uD83D\uDE00	\uD83D\uDE00	
+\uD83D\uDE00s	\uD83D\uDE00s	\uD83D\uDE00s	
+­	­	­	
+a­b	a­b	a­b	
+’	’	’	
+it’s	it’s	it’s	
+ﬁne	ﬁne	ﬁne	
+STRASSE	STRASSE	STRASSE	
+Straße	Straße	Straße	
+STRAẞE	STRAẞE	STRAẞE	
+SSSS	SSSS	SSSS	
+MASSSTAB	MASSSTAB	MASSSTAB	
+İSTANBUL	İSTANBUL	İSTANBUL	
+İstanbul	İstanbul	İstanbul	
+ISTANBUL	ISTANBUL	ISTANBUL	
+L'HOMME	L'HOMME	L'HOMME	
+D'ARTAGNAN	D'ARTAGNAN	D'ARTAGNAN	
+'S	'S	'S	
+1	1	1	st:1 po:adj_num ts:NOM al:1-ji al:1-ji al:1-jei al:1-je al:1-i al:1-gyé al:1-gyel al:1-es al:1-en al:1-ed al:1- al:1-
+1st	1st	1st	
+2nd	2nd	2nd	
+11th	11th	11th	
+123rd	123rd	123rd	
+1000000	1	10000101001000	pa:1 st:1 po:adj_num ts:NOM al:1-ji al:1-ji al:1-jei al:1-je al:1-i al:1-gyé al:1-gyel al:1-es al:1-en al:1-ed al:1- al:1- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-pa:1 st:1 po:adj_num ts:NOM al:1-ji al:1-ji al:1-jei al:1-je al:1-i al:1-gyé al:1-gyel al:1-es al:1-en al:1-ed al:1- al:1- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00-pa:10 st:10 po:adj_num ts:NOM al:10-zé al:10-zel al:10-i al:10-i al:10-es al:10-en al:10-ed al:10-e al:10- al:10- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-pa:10 st:10 po:adj_num ts:NOM al:10-zé al:10-zel al:10-i al:10-i al:10-es al:10-en al:10-ed al:10-e al:10- al:10- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00-pa:100 st:100 po:adj_num ts:NOM al:100-zá al:100-zal al:100-at al:100-as al:100- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-pa:100 st:100 po:adj_num ts:NOM al:100-zá al:100-zal al:100-at al:100-as al:100- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00-pa:1000 st:1000 po:adj_num ts:NOM al:1000-ré al:1000-rel al:1000-es al:1000- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-
+ǅungla	ǅungla	ǅungla	
+ǄUNGLA	ǄUNGLA	ǄUNGLA	
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	
+ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab	ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab	ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab	
+été	été	été	
+ΑΘΗΝΑ	ΑΘΗΝΑ	ΑΘΗΝΑ	
+москва	москва	москва	

@@ -80,7 +80,7 @@ impl LearnedAspectSentiment {
         }
 
         // 3. Map subword BIO predictions back to `Tokens` through `Subwords` alignments/offsets.
-        let tok_tags = decode::project_subword_bio_to_tokens(tokens, subwords, &piece_probs);
+        let tok_tags = decode::project_subword_bio_to_tokens(tokens, subwords, &piece_probs, self.bio_threshold);
 
         struct PendingAspect {
             target: AspectTarget,

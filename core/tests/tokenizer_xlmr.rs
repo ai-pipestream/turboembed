@@ -172,7 +172,6 @@ fn spans_match_upstream_offsets() {
 }
 
 fn spans_match(f: &Fixture, file: &Path) {
-    use unicode_segmentation::UnicodeSegmentation;
     f.write();
     let tok = turbo::tokenizer::Tokenizer::load(&turbo::bundle::Bundle::open(&f.dir).unwrap()).unwrap();
     let mut up = upstream_at(file);
@@ -182,7 +181,7 @@ fn spans_match(f: &Fixture, file: &Path) {
         tok.encode_spans(&text, whole(), &mut ids, &mut spans).unwrap();
         let e = up.encode(text.as_str(), true).unwrap();
         assert_eq!(ids.iter().map(|&i| i as u32).collect::<Vec<_>>(), e.get_ids(), "{text:?}");
-        let bounds: Vec<usize> = text.grapheme_indices(true).map(|(i, _)| i).chain([text.len()]).collect();
+        let bounds: Vec<usize> = turbo_unicode::grapheme_boundaries(&text).collect();
         for (&ours, &(a, b)) in spans.iter().zip(e.get_offsets()) {
             let theirs = trimmed(&text, [a as u32, b as u32]);
             if ours != theirs {

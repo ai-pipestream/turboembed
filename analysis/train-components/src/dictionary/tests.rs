@@ -107,11 +107,7 @@ fn text_is_escaped_as_the_serializer_escapes_it() {
 }
 
 #[test]
-fn entries_come_out_in_hash_set_order() {
-    // The fixture en-abbrev.bin's dictionary, read in the order its
-    // training program put the entries, serializes in the order the
-    // fixture holds them (tests/fixtures.rs checks the bytes against
-    // the file).
+fn entries_come_out_in_insertion_order() {
     let d = AbbreviationDictionary::new(
         false,
         [
@@ -136,7 +132,7 @@ fn entries_come_out_in_hash_set_order() {
     let order: Vec<String> = d.java_order().unwrap().iter().map(|e| e.join(" ")).collect();
     assert_eq!(
         order,
-        ["Dr.", "Inc.", "U.S.", "a.m.", "Mr.", "Prof.", "St.", "p.m.", "Mrs.", "etc.", "et al.", "e.g.", "i.e."]
+        ["Mr.", "Mrs.", "Dr.", "Prof.", "St.", "Inc.", "U.S.", "e.g.", "i.e.", "etc.", "a.m.", "p.m.", "et al."]
     );
 }
 
@@ -158,19 +154,19 @@ fn parse_one_entry_per_line_matches_jvm_dictionary_builder_tool() {
     let expected = concat!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\">\n",
         "    <entry>\n",
-        "        <token>Los</token>\n",
-        "        <token>Angeles</token>\n",
+        "        <token>New</token>\n",
+        "        <token>York</token>\n",
         "    </entry>\n",
         "    <entry>\n",
-        "        <token>San</token>\n",
-        "        <token>Francisco</token>\n",
+        "        <token>Los</token>\n",
+        "        <token>Angeles</token>\n",
         "    </entry>\n",
         "    <entry>\n",
         "        <token>St.\tLouis</token>\n",
         "    </entry>\n",
         "    <entry>\n",
-        "        <token>New</token>\n",
-        "        <token>York</token>\n",
+        "        <token>San</token>\n",
+        "        <token>Francisco</token>\n",
         "    </entry>\n",
         "</dictionary>\n",
     );
@@ -199,19 +195,19 @@ fn from_census_names_matches_jvm_census_dictionary_creator_tool() {
     let expected = concat!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"true\">\n",
         "    <entry>\n",
-        "        <token>McDonald</token>\n",
+        "        <token>Smith</token>\n",
         "    </entry>\n",
         "    <entry>\n",
-        "        <token>Smith</token>\n",
+        "        <token>Johnson</token>\n",
+        "    </entry>\n",
+        "    <entry>\n",
+        "        <token>McDonald</token>\n",
         "    </entry>\n",
         "    <entry>\n",
         "        <token>Mc</token>\n",
         "    </entry>\n",
         "    <entry>\n",
         "        <token>\u{00C9}lan</token>\n",
-        "    </entry>\n",
-        "    <entry>\n",
-        "        <token>Johnson</token>\n",
         "    </entry>\n",
         "</dictionary>\n",
     );

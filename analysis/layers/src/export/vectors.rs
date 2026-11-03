@@ -49,6 +49,56 @@ impl<L: Layer> LayerCodec for Vectors<L> {
     }
 }
 
+impl<L: Layer> LayerCodec for VectorCodes<L> {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        w.u8(match self.kind {
+            CodeKind::Int8 => 0,
+            CodeKind::UBinary => 1,
+        });
+        w.u32(self.dim);
+        w.bytes(&self.data)?;
+        w.usize(self.empty.len())?;
+        for e in &self.empty {
+            w.u32(e.get() as u32);
+        }
+        put_model(&mut w, &self.model)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let kind = match r.u8()? {
+            0 => CodeKind::Int8,
+            1 => CodeKind::UBinary,
+            k => return Err(malformed(format!("vector code kind {k}"))),
+        };
+        let dim = r.u32()?;
+        if dim == 0 {
+            return Err(malformed("a vector dimension of zero"));
+        }
+        let data = r.bytes()?.to_vec();
+        let width = kind.row_bytes(dim);
+        if !data.len().is_multiple_of(width) {
+            return Err(malformed(format!("{} code bytes for rows of {width}", data.len())));
+        }
+        let rows = data.len() / width;
+        let mut empty = Vec::new();
+        for _ in 0..r.usize()? {
+            let e = r.u32()?;
+            if e as usize >= rows {
+                return Err(malformed(format!("an empty row {e} outside {rows} rows")));
+            }
+            if empty.last().is_some_and(|&last: &Ix<L>| last.get() as u32 >= e) {
+                return Err(malformed("empty rows out of order or repeated"));
+            }
+            empty.push(Ix::new(e));
+        }
+        let model = get_model(&mut r)?;
+        done(&r, "vector codes")?;
+        Ok(VectorCodes::new(kind, dim, data, empty, model))
+    }
+}
+
 impl<L: Layer> LayerCodec for Confidence<L> {
     fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();

@@ -3,6 +3,7 @@
 
 use super::Panels;
 use super::micro::{ACC, Micro};
+use super::pairs::{Act, Rope, gated};
 use super::rowwise::gelu;
 
 /// What is done with each output of a product once its sum is complete.
@@ -17,6 +18,13 @@ pub(in crate::cpu) enum Epilogue {
     /// a time, each row's tokens one after another from its own slot, as
     /// attention reads it.
     Split { lo: usize, hi: usize, t_out: *mut f32, stride: usize, slot: *const u32 },
+    /// The rotary QKV product over pair-adjacent weights: Q and K rotated
+    /// by their tokens' positions, K transposed as Split puts it
+    /// (pairs.rs).
+    Rope(Rope),
+    /// y[t, c / 2] = act(sum_c + b_c) * (sum_c+1 + b_c+1) over the pairs of
+    /// a gated MLP's packed product: y is half as wide (pairs.rs).
+    Gated(Act),
 }
 
 /// y[t, o] = epilogue(sum_i x[t, i] w[o, i], b[o]) for t under rows, split
@@ -73,6 +81,11 @@ impl Gemm<'_> {
                 unsafe { M::tile(rows, self.x.add(r * self.ldx), self.ldx, p, self.w.k, &mut acc) };
                 let b = &self.bias[col..][..cols];
                 match self.epilogue {
+                    // SAFETY: a panel's columns start even and hold whole
+                    // pairs, since NR and the product's width are even;
+                    // the rest as this function's contract.
+                    Epilogue::Rope(rope) => unsafe { rope.tile(&acc, M::NR, r, rows, col, cols, b, self.y, self.ldy) },
+                    Epilogue::Gated(act) => unsafe { gated(act, &acc, M::NR, r, rows, col, cols, b, self.y, self.ldy) },
                     Epilogue::Split { lo, hi, t_out, stride, slot } if col < hi && col + cols > lo => {
                         // A column at a time, so each column's tokens go
                         // to consecutive slots.
@@ -111,6 +124,7 @@ impl Gemm<'_> {
                                         y[j] += a[j] + b[j];
                                     }
                                 }
+                                Epilogue::Rope(_) | Epilogue::Gated(_) => unreachable!(),
                                 // The columns of a panel outside lo..hi.
                                 Epilogue::Split { .. } => {
                                     for j in 0..cols {
@@ -129,7 +143,7 @@ impl Gemm<'_> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::super::{Isa, isas, values};
     use super::*;
 
@@ -182,6 +196,7 @@ mod tests {
                                     (s, kt[(o - lo) * stride + t + 1])
                                 }
                                 Epilogue::Split { .. } => (s, y[t * n_out + o]),
+                                Epilogue::Rope(_) | Epilogue::Gated(_) => unreachable!("pairs_tests.rs"),
                             };
                             let got = got as f64;
                             let tol = 1e-4 * (1.0 + want.abs()) + if epilogue == Epilogue::Gelu { 1e-4 } else { 0.0 };
@@ -197,7 +212,7 @@ mod tests {
         }
     }
 
-    unsafe fn run_task(isa: Isa, g: &Gemm, t: usize) {
+    pub(in crate::cpu::kernels) unsafe fn run_task(isa: Isa, g: &Gemm, t: usize) {
         unsafe {
             match isa {
                 Isa::Portable => g.task::<super::super::Portable>(t),

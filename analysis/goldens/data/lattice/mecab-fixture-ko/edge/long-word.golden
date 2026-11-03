@@ -6,9 +6,9 @@ unicode	15.0
 input	edge/long-word	301	301	16c71221108fb1f1660472af2242b80ca0565891ad284bc8d0f24df7e548fc9e
 model	mecab-fixture-ko	527e0f80d5ed85fbda9aedadfedc64ab4f17bc4a9d4869cdf4b1cb274e34e5742211e7e91124dbb80a5fea50839546073e0f1cbd0695a15fb81fd0f5abbea44e
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	1	start:u32	end:u32
+layer	turbo:tokens	text	1	start:u32	end:u32
 0	300
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	1	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	1	unknown:u32	features:str
 1	SL,*,*,*,*,*,*,*
 end	turbo:morphemes

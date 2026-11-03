@@ -1,0 +1,10 @@
+# The one engine-load sample taken before the runs, at about 22:25:50 UTC on
+# 2026-10-26, with the same fdinfo sampler as card-load.log (busy share of
+# each engine by client over 1 s). Copied from the terminal: it was not
+# written to a file at the time. snap-store's scope stopped at 22:32:21 UTC.
+snap-store rcs: 61.3%
+gnome-shell rcs: 1.9%
+systemd-logind rcs: 1.8%
+systemd rcs: 1.8%
+chrome rcs: 1.1%
+ChatGPT rcs: 0.0%

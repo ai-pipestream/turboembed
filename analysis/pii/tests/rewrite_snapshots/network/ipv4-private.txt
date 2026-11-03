@@ -1,0 +1,14 @@
+MASKED	Gateway ***.***.*.**, peer **.*.*.*:8080.
+
+MASK_ALL	Gateway ############, peer ########:8080.
+
+REWRITE	pseudonymize	OK	Gateway IPV4-1, peer IPV4-2:8080.
+
+LABEL	pseudonymize	8	20	8	14	IPV4-1
+LABEL	pseudonymize	27	35	21	27	IPV4-2
+REWRITE	hmac	OK	Gateway IPV4-f76efdf5531281cc, peer IPV4-b4a6bc0e5b13f442:8080.
+
+LABEL	hmac	8	20	8	29	IPV4-f76efdf5531281cc
+LABEL	hmac	27	35	36	57	IPV4-b4a6bc0e5b13f442
+AUDIT	ipv4	2	2	IPV4-f76efdf5531281cc, IPV4-b4a6bc0e5b13f442
+AUDIT_REPORT	ipv4: 2 mentions, 2 distinct [IPV4-f76efdf5531281cc, IPV4-b4a6bc0e5b13f442]

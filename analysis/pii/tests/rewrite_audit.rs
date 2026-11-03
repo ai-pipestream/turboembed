@@ -3,6 +3,7 @@
 
 mod support;
 
+use std::path::PathBuf;
 use support::*;
 use turbo_analysis::Layer;
 use turbo_pii::rewrite::{HmacTokenizer, PiiAuditReport, Pseudonymizer, TokenizerError};
@@ -211,7 +212,7 @@ fn rewrites_on_every_thread() {
 /// Every text of the `pii` input set, which holds sample values of every
 /// kind the packs find.
 fn sample_texts() -> Vec<(String, String)> {
-    let dir = turbo_goldens::data_dir().join("inputs/pii");
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/inputs");
     let mut texts: Vec<(String, String)> = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
         .map(|e| {

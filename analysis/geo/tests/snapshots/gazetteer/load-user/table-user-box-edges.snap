@@ -1,0 +1,3 @@
+# turbo:gazetteer-load
+0	opennlp.tools.util.InvalidFormatException	line 1 is not a gazetteer row: a bounding box must read west,south,east,north, got: 1,2,3
+# turbo:gazetteer-suppressions

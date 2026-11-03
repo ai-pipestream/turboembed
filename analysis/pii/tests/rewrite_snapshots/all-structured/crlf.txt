@@ -1,0 +1,19 @@
+MASKED	email: *@*******.***
+ip: ***.**.***.*
+
+MASK_ALL	email: #############
+ip: ############
+
+REWRITE	pseudonymize	OK	email: EMAIL-1
+ip: IPV4-1
+
+LABEL	pseudonymize	7	20	7	14	EMAIL-1
+LABEL	pseudonymize	26	38	20	26	IPV4-1
+REWRITE	hmac	OK	email: EMAIL-e65203dbd067c437
+ip: IPV4-6783a13eef00a2b4
+
+LABEL	hmac	7	20	7	29	EMAIL-e65203dbd067c437
+LABEL	hmac	26	38	35	56	IPV4-6783a13eef00a2b4
+AUDIT	email	1	1	EMAIL-e65203dbd067c437
+AUDIT	ipv4	1	1	IPV4-6783a13eef00a2b4
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-e65203dbd067c437]\nipv4: 1 mentions, 1 distinct [IPV4-6783a13eef00a2b4]

@@ -17,7 +17,6 @@ use turbo_formats::doc_export::{
 };
 use turbo_formats::ner::brat::{AnnotationValue, BratDocument};
 use turbo_stopword_layers::{StopwordLanguage, Stopwords};
-use turbo_unicode::WhitespaceMode;
 
 #[test]
 fn registry_standard_orders_and_validates_format_ids() {
@@ -200,8 +199,7 @@ fn brat_preserves_continuous_and_discontinuous_entities_and_relations_across_off
         if mode == ExportOffsetMode::Utf16 {
             assert!(ann_str.contains("T1\tLOC 8 16\tNew York\n"));
             assert!(ann_str.contains("T2\tLOC 8 11;21 27\tNew Jersey\n"));
-            let direct_brat =
-                BratDocument::parse("brat-doc", text.as_bytes(), ann_str.as_bytes(), WhitespaceMode::Unicode).unwrap();
+            let direct_brat = BratDocument::parse("brat-doc", text.as_bytes(), ann_str.as_bytes()).unwrap();
             let direct_ents = direct_brat.to_entities(doc.get::<Tokens>().unwrap()).unwrap();
             assert_eq!(direct_ents.spans.len(), 2);
         } else if mode == ExportOffsetMode::Utf8 {
@@ -411,8 +409,8 @@ fn tsv_csv_markdown_jsonld_and_warc_handle_special_chars_and_child_view_projecti
         let jsonld = JsonLdFormatter.format_to_string("doc-special", &doc, mode).unwrap();
         assert!(jsonld.contains("\"@context\": \"https://turboembed.ai/ns/jsonld/v1\""));
         assert!(jsonld.contains(&format!("\"offsetMode\": \"{}\"", mode.as_str())));
-        assert!(jsonld.contains("\"opennlp:tokens\": ["));
-        assert!(jsonld.contains("\"opennlp:entities\": ["));
+        assert!(jsonld.contains("\"turbo:tokens\": ["));
+        assert!(jsonld.contains("\"turbo:entities\": ["));
         assert!(jsonld.contains("\"turbo:pii\": ["));
     }
 

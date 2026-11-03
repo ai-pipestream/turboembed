@@ -1,6 +1,6 @@
 # The model catalog over gRPC
 
-`turbo-kserve` serves `turbo.training.TurboCatalogService` on its port
+`turbo-kserve` serves `turbo.training.v1.TurboCatalogService` on its port
 when started with `--catalog-dir`: the turbo-zoo index (docs/zoo.md) as
 a catalog, the artifacts its cache holds, the licence acceptances a user
 records, and installs that stream their progress.
@@ -13,21 +13,79 @@ keeps it: the cache under `artifacts/<id>/` and the acceptance file
 the same cache and the same acceptances. `--catalog-index FILE` serves
 that index instead of the built-in one.
 
+`--catalog-store URL` puts a content-addressed store in front of the
+index's own addresses: `file:///dir` (a directory) or
+`s3://bucket/prefix` (an S3 bucket on AWS, or on RustFS or
+another S3-compatible store named by `AWS_ENDPOINT_URL`), both in the
+`blobs/sha256/<hex>` layout docs/zoo.md describes. An install reads each
+file from the store first and fetches it from its address only when the
+store lacks it, and the store then keeps it once it verifies. So
+servers that share one bucket fetch each file from its origin once, and
+a store seeded ahead (`aws s3 sync`) serves installs with no outside
+fetch. The bucket's credentials are the `AWS_*` variables the AWS tools
+read. A file the store cannot keep is still installed. A
+`CLASS_LOCAL_ONLY` artifact never goes through the store: it is fetched
+from its publisher on each install and never kept there, since the class
+allows no copy beyond the cache it is installed into.
+
 ## The service
 
 | RPC | Admin | Answer |
 |---|---|---|
 | `ListModelCatalog` | no | Every artifact the index lists, in its order, with its licences, files and the terms it needs accepted. |
 | `ListInstalledModels` | no | The artifacts whose files are all in the cache. |
-| `RecordLicenceAcceptance` | yes | Records that a user accepted a licence's terms. |
-| `InstallModel` | yes | Fetches and verifies an artifact into the cache, streaming its progress. |
+| `RecordLicenceAcceptance` | yes, or zoo mode | Records that a user accepted a licence's terms. |
+| `InstallModel` | yes, or zoo mode | Fetches and verifies an artifact into the cache, streaming its progress. |
+| `DescribeModel` | no | One artifact's entry, as the listing gives it. |
+| `ResolveModel` | no | The artifact and file the index pins at a SHA-256. |
+| `ReadModelFile` | no | An installed file's bytes, for a user who accepted its terms; in zoo mode a file not yet installed is fetched first. |
+| `RevokeLicenceAcceptance` | yes, or zoo mode | Withdraws a user's acceptance of a licence's terms. |
+| `ListLicenceAcceptances` | no | The terms a user accepted, and whether the admin calls are served. |
 
 The admin calls are served only when the server is started with
-`--admin`; without it they refuse with `UNIMPLEMENTED` and touch no
-file. Without `--catalog-dir` every call refuses with `UNIMPLEMENTED`.
+`--admin` or `--zoo`; without either they refuse with `UNIMPLEMENTED`
+and touch no file. Without `--catalog-dir` every call refuses with `UNIMPLEMENTED`.
 Fetching needs the server's `catalog-http` feature, which is on by
 default; a server built with `--no-default-features` has no TLS stack
 and exits at start when given `--catalog-dir`.
+
+## Zoo mode
+
+`--zoo` (or `TURBO_KSERVE_ZOO`) runs the server as a model zoo for its
+users. It needs `--catalog-dir`, and the server may start with no
+`--model`, serving only its catalog. In zoo mode:
+
+- Any caller records an acceptance and starts an install, without
+  `--admin`. The user a request names is the caller's own word, which
+  suits a personal or LAN zoo; a shared zoo turns on mutual TLS
+  (`--tls-client-ca`) so only holders of a client certificate reach it.
+  `--admin` keeps its meaning for every other service.
+- A `ReadModelFile` of an artifact the user is permitted, whose file is
+  not installed yet, installs the whole artifact first, with the same
+  licence check, free disk check and verified fetch `InstallModel`
+  makes: through the reading user's model sources first, then
+  `--catalog-store` when one is set and the index's addresses. The first reader
+  waits for the fetch; readers of the same artifact that arrive while it
+  runs wait for it too and fetch nothing. A read the licence check, the
+  path or the pin refuses fetches nothing.
+
+Without `--zoo` a read of a file not installed is refused, and an
+install is an admin's step.
+
+The turbo-zoo image runs the server this way, with the demo page in
+front of it and, through `docker-compose.zoo.yml`, RustFS as its store
+(docs/zoo-container.md).
+
+## Prefetch
+
+`--catalog-prefetch permissive` (or `TURBO_KSERVE_CATALOG_PREFETCH`)
+installs every permissive artifact the index lists, in the background
+from the start, one after another, through `--catalog-store` when one
+is set. Each install takes the same free disk check and verified fetch
+as `InstallModel` and holds the artifact's read-through gate, so a read
+that arrives meanwhile waits for it. A failure is logged and the next
+artifact is tried. Artifacts that need an acceptance are never
+prefetched. It needs `--catalog-dir`.
 
 ## Listing
 
@@ -55,11 +113,43 @@ terms and when they were accepted. Accepting again keeps the first
 time. A client calls it only after showing the user the text at that
 address.
 
+A page that shows the terms also sends `artifact_id`, the artifact
+whose page it was, and `text_sha256`, the SHA-256 of the
+`LicenceTerms.text` it displayed, as 64 lowercase hex digits. The
+server checks the digest against the text it serves for those terms, so
+the acceptance names that exact text, and records both in the
+acceptance file (version 2, docs/zoo.md). The artifact is for audit
+only: one acceptance still covers every artifact under the same terms.
+Both fields are optional; without them the record is the same as the
+command line's.
+
 | Request | Refusal |
 |---|---|
 | A user name that is empty, over 256 bytes, has control characters, or leading or trailing whitespace | `INVALID_ARGUMENT`, field 1 |
 | A licence the zoo does not know, a refused one, or a permissive one, which has nothing to accept | `INVALID_ARGUMENT`, field 2 |
 | A terms address for a licence with its own text, or none for one without | `INVALID_ARGUMENT`, field 3 |
+| An `artifact_id` the index does not list, or whose terms do not include these | `INVALID_ARGUMENT`, field 4 |
+| A `text_sha256` that is not 64 lowercase hex digits, or not the SHA-256 of the served text | `INVALID_ARGUMENT`, field 5 |
+
+`RevokeLicenceAcceptance` takes the same `user`, `licence` and `terms`
+and removes that acceptance from the file, as `turbo-zoo revoke` does,
+with the same refusals for fields 1 to 3. `was_accepted` says whether
+there was one. Files already installed stay in the cache, but neither
+`ReadModelFile` nor the zoo hands any of them to that user again until
+the terms are accepted again.
+
+`ListLicenceAcceptances` takes a `user` and answers with that user's
+acceptances in the order made: the terms, when, and the artifact and
+digest when a page recorded them. `admin` says whether the server
+serves the admin calls (`--admin` or `--zoo`), so a page can show its controls or say it is
+read-only. An empty `user` lists nothing. Acceptances made with
+`turbo-zoo accept` or `turbo-bundle` are in the same file and are
+listed alike.
+
+The analysis service's `LoadBundle` reads the same file on a server
+started with a catalog: a bundle whose `model.license` needs acceptance
+loads only for the request's `user` (field 12) when that user accepted
+it (docs/grpc-analysis.md, Capabilities).
 
 ## Installing
 
@@ -109,3 +199,112 @@ expects, and the bytes asked for unencoded (`Accept-Encoding:
 identity`). A file served compressed reaches the wire check as sent;
 if a server encodes it anyway and the transport decodes that, the bytes
 that arrive are the file itself, kept when they verify as it.
+
+## Model sources
+
+A user may name stores of their own for installs to read before the
+catalog's: a directory, an S3 bucket or a Google Drive folder, kept as
+holders in `holders.json` beside the catalog's cache (docs/zoo.md,
+Holders). The calls that change them are admin calls, refused
+`UNIMPLEMENTED` (`TURBO_E_UNSUPPORTED`) without `--admin` or `--zoo`;
+`ListModelSources` is served to every client.
+
+| Call | What it does |
+|---|---|
+| `ListModelSources` | The user's sources in the order installs try them: name, address and how each signs in. No key, token or secret is ever returned. `admin` says whether this server takes changes, `drive_sign_in` whether it can sign a user in to Google. |
+| `RegisterModelSource` | Adds a source, or replaces the user's source of the same name: a `name`, an `address`, for a `gdrive://` source an optional `api_key` (field 4), and for an `s3://` source optional `s3_keys` (field 5): the access key id, the secret, a session token for temporary keys, the bucket's region (empty is `us-east-1`) and the endpoint of an S3-compatible store (empty is AWS). Either is refused on any other scheme, and the two together are refused, field 5. |
+| `RemoveModelSource` | Removes the user's source `name`; `was_registered` says whether there was one. |
+| `StartDriveSignIn` | Starts signing the user in to Google for a Drive source `name` at a `gdrive://` address: the consent page to send the user to, the `state` Google sends back, and how many seconds it waits (600). |
+| `FinishDriveSignIn` | Takes the `state` and `code` Google sent back, exchanges the code and registers the source with the refresh token it got. |
+
+What a source may be depends on how the server runs:
+
+- With `--admin` the operator runs the server for its users: a source
+  is a `file://` absolute directory, an `s3://` bucket signing in from
+  the server's environment or with its own keys at any endpoint, or a
+  `gdrive://` folder signing in from the environment, with an API key or
+  with Google.
+- In zoo mode without `--admin` any caller names a user, so a source
+  must bring its own credentials and may reach only its service's own
+  hosts: a `gdrive://` folder signing in with an API key or with Google,
+  or an `s3://` bucket on AWS signing in with its own keys. A `file://`
+  source, an `s3://` source signing in from the server's environment or
+  naming an endpoint, and a Drive source that would use the server's
+  own credentials are refused `UNIMPLEMENTED` (`TURBO_E_UNSUPPORTED`)
+  naming field 3.
+- Any other scheme, a relative directory, a malformed bucket or Drive
+  address is `INVALID_ARGUMENT` naming field 3; a bad name, field 2; a
+  bad API key, field 4; S3 keys with an empty or spaced secret, a bad
+  region or an endpoint that is not `http://host:port` or
+  `https://host`, field 5.
+
+Google sign-in is served when the server starts with a registered OAuth
+client:
+
+| Variable | What it holds |
+|---|---|
+| `TURBO_KSERVE_DRIVE_CLIENT_ID` | The OAuth client id. |
+| `TURBO_KSERVE_DRIVE_CLIENT_SECRET` | Its secret, for a client type that has one. Optional. |
+| `TURBO_KSERVE_DRIVE_REDIRECT` | Where Google sends the user back: an `https://` address, or `http://127.0.0.1:` for a page on the same machine. |
+
+A client id without a redirect, or a redirect of another kind, stops
+the server at startup. Without them both sign-in calls are refused
+`UNIMPLEMENTED` (`TURBO_E_UNSUPPORTED`). The sign-in asks for read-only
+Drive access with PKCE. A `state` is used once, belongs to the user who
+started it (another user's finish is `INVALID_ARGUMENT`, field 2, as
+is one that ran out), and at most 256 sign-ins wait at a time, the
+oldest dropped first. The refresh token is stored; the client secret
+is not, so the server renews the token with its own client while its
+client id matches the holder's.
+
+`InstallModel` reads the user's sources in order, then the catalog's
+own transport; the first `file://` source keeps what the later ones
+serve. A source that cannot be opened is skipped with its reason in
+the error if nothing else serves the file, and each file is verified
+as any other. The read-through of zoo mode reads the same way: the
+reading user's sources in order, then the catalog's own.
+
+## Describing, resolving and reading
+
+These are the calls a client that loads models from this server makes
+(#1613). None is an admin call.
+
+`DescribeModel` takes an `artifact_id` and an optional `user` and
+answers with the artifact's `CatalogEntry`, the one `ListModelCatalog`
+gives, `missing_terms` included when a user is named. An id the index
+does not list is `NOT_FOUND` (`TURBO_E_BUNDLE_NOT_FOUND`); a refused one
+is `FAILED_PRECONDITION`.
+
+`ResolveModel` takes a file's `sha256` (64 lowercase hexadecimal
+digits; anything else is `INVALID_ARGUMENT`, field 1) and answers with
+the first artifact in index order that has a file pinned at it, and that
+file's `path`. With an `artifact_id`, only that artifact's files are
+searched. A hash the index pins nowhere is `NOT_FOUND`.
+
+`ReadModelFile` takes a `user`, an `artifact_id`, a `path` and,
+optionally, the `sha256` the caller's own index pins for that file. It
+checks, in order, before its first message:
+
+1. The user name is valid, the id and path are not empty, and the
+   `sha256`, when given, is well formed: `INVALID_ARGUMENT`, field 1,
+   2, 3 or 4, otherwise.
+2. The user accepted every term the artifact's class needs:
+   `FAILED_PRECONDITION` (`TURBO_E_INVALID_STATE`) otherwise, naming
+   the missing terms, as `InstallModel` refuses. An unknown id is
+   `NOT_FOUND`.
+3. The artifact has a file at `path`: `NOT_FOUND` otherwise.
+4. The server's index pins that file at the request's `sha256`, when
+   one is given: `FAILED_PRECONDITION`, field 4, naming both, otherwise.
+   A client and a server whose indexes disagree never exchange bytes.
+5. The file is installed, a plain file in the cache at the size the
+   index records: `FAILED_PRECONDITION` otherwise. In zoo mode the
+   artifact is installed first instead (Zoo mode, above), and a fetch
+   that fails answers as `InstallModel` would.
+
+It then streams the file's `CatalogFile`, then its bytes in frames of
+at most 64 KiB, read from the cache as they are sent, never held whole.
+The bytes are hashed on the way; when they are not the size and SHA-256
+the index records (the cache was changed since the install), the stream
+ends with `DATA_LOSS` (`TURBO_E_BUNDLE_INTEGRITY`) instead of ending
+cleanly. A client verifies every file by size, SHA-256 and SHA-512 all
+the same, as it verifies a download from anywhere else.

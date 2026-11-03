@@ -376,6 +376,58 @@ impl<L: Layer> Layer for Evidence<L> {
     fn len(&self) -> usize {
         self.records()
     }
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = crate::hash::Fnv1a::new();
+        h.usize(self.producers.len());
+        for p in self.producers.iter() {
+            h.str(&p.annotator);
+            match &p.model {
+                None => {
+                    h.u8(0);
+                }
+                Some(m) => {
+                    h.u8(1).str(&m.id).str(&m.revision).str(&m.sha256);
+                }
+            }
+        }
+        h.usize(self.producer.len());
+        for &p in &self.producer {
+            h.u32(p);
+        }
+        h.usize(self.span_row.len());
+        for &r in &self.span_row {
+            h.u32(r);
+        }
+        h.usize(self.spans.len());
+        for s in &self.spans {
+            h.u32(s.start).u32(s.end);
+        }
+        h.usize(self.raw.len());
+        for &(r, v) in &self.raw {
+            h.u32(r).f64(v);
+        }
+        h.usize(self.calibrated.len());
+        for &(r, v) in &self.calibrated {
+            h.u32(r).f64(v);
+        }
+        h.usize(self.abstention.len());
+        for (r, s) in &self.abstention {
+            h.u32(*r).str(s);
+        }
+        h.usize(self.layers.len());
+        for l in self.layers.iter() {
+            h.str(&l.layer).str(&l.instance);
+        }
+        h.usize(self.support_row.len());
+        for &r in &self.support_row {
+            h.u32(r);
+        }
+        h.usize(self.support.len());
+        for s in &self.support {
+            h.u32(s.layer).u32(s.start).u32(s.end);
+        }
+        Some(h.finish())
+    }
     fn check(&self) -> Result<(), String> {
         if self.built {
             return self.check_built();

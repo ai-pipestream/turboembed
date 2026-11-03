@@ -1,0 +1,15 @@
+# UD Italian MarkIT r2.16: the training file at the UniversalDependencies
+# release tag, the digest analysis/train-recipes/src/treebank/catalog.rs
+# records, re-verified from a download on 2026-10-28 (1,266,080 bytes).
+# LICENSE.txt at the tag states CC BY 4.0 (SHA-256
+# 5cbfe2d4d12938f9961bf5a0028390f4b6b60749b075e228a5740848afcb4a9b,
+# re-verified the same day).
+name: ud-italian-markit
+tier: default
+url: https://raw.githubusercontent.com/UniversalDependencies/UD_Italian-MarkIT/r2.16/it_markit-ud-train.conllu
+sha256: 4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6
+license-url: https://raw.githubusercontent.com/UniversalDependencies/UD_Italian-MarkIT/r2.16/LICENSE.txt
+license: CC BY 4.0
+note: The recipes train POS and lemma models on this treebank, gated against OpenNLP's Italian UD models, which are local-only and only scored; the data itself is permissive.
+note: The text has a space between almost every two tokens (9 SpaceAfter=No in the whole treebank), so it has no sentence or token recipe, as docs/licences.md records.
+note: Attribution: Paccosi, Palmero Aprosio and Tonelli, It is MarkIT That is New, CLIC-it 2021.

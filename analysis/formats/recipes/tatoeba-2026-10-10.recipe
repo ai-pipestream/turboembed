@@ -1,0 +1,15 @@
+# Tatoeba's weekly export of 2026-10-10, kept unchanged as release
+# data-tatoeba-2026-10-10 of this repository, whose notes carry the CC BY
+# 2.0 FR and CC0 1.0 notices. This archive's SHA-256 was re-verified from
+# a download on 2026-10-28 (303,565,606 bytes) and matches
+# analysis/train-recipes/tatoeba-export.txt.
+name: tatoeba-2026-10-10
+tier: default
+url: https://github.com/ai-pipestream/turboembed/releases/download/data-tatoeba-2026-10-10/sentences_detailed.tar.bz2
+sha256: 776e298918d984b0e6ea3c8c48eb32ca6f79df624827025d463ce16e019a749f
+license-url: https://github.com/Tatoeba/tatoeba2/blob/0fbb4506ce071827f85375bd4c8c8f9c7cf23d41/src/Lib/Licenses.php
+license: CC BY 2.0 FR
+note: The licence rules were read at the pinned tatoeba2 commit on 2026-10-28 (file SHA-256 29293aff34abdc7decb8af8cf7c5e866fae950a19951cdf7800ae893b88b7d03): a sentence is CC BY 2.0 FR or CC0 1.0, and this archive holds the CC BY 2.0 FR ones.
+note: The companion CC0 1.0 archive sentences_CC0.tar.bz2 of the same release (SHA-256 74a1577f35d9f11134b281be3125cf17e5531b8a29054f68b3e858418387e17f) is pinned with this one in analysis/train-recipes/tatoeba-export.txt.
+note: CC BY 2.0 FR asks for the authors to be credited; the models the recipes train ship the ids of the sentences used, each at tatoeba.org, and reading an export re-checks that the two sentence licences are the only ones.
+note: Tatoeba replaces its weekly export at the same addresses, so the pinned copy is the repository release, not downloads.tatoeba.org.

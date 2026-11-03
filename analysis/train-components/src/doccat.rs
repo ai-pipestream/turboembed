@@ -36,7 +36,7 @@ impl TrainedDoccatModel {
     /// an n-gram generator with other than the default window, or an
     /// all-letter bag of words, is restored from `factory`.
     pub fn doccat_model(&self, factory: &DoccatFactory) -> std::result::Result<DoccatModel, DoccatError> {
-        let file = ModelFile::open(self.package.to_bytes())?;
+        let file = ModelFile::from_trained_archive(self.package.to_bytes())?;
         Ok(DoccatModel::open(file)?.with_context_generator(factory.context_generator().clone()))
     }
 }

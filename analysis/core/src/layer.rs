@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::span::{Overlap, TextSpans};
+use crate::splice::LayerSplicer;
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
 /// relations, edge kinds), interned: a layer stores a u16 per item,
@@ -50,6 +51,21 @@ impl TagSet {
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
     }
+
+    /// The ordered label definitions in this tag set (`Tag(i)` maps to `labels()[i]`).
+    pub fn labels(&self) -> &[Box<str>] {
+        &self.names
+    }
+
+    /// Deterministic fingerprint of this tag set's name and ordered label definitions.
+    pub fn content_hash(&self) -> u64 {
+        let mut h = crate::hash::Fnv1a::new();
+        h.str("turbo:tagset:v1").str(&self.name).usize(self.names.len());
+        for label in &self.names {
+            h.str(label);
+        }
+        h.finish()
+    }
 }
 
 /// A layer: one typed, columnar result over a document. Each layer is its
@@ -59,8 +75,8 @@ impl TagSet {
 /// crates; the container never enumerates them.
 pub trait Layer: Any + Send + Sync + Sized {
     /// The stable, namespaced id the wire and provenance use. A shared
-    /// layer the OpenNLP gRPC standard defines has the standard's id
-    /// ("opennlp:tokens", "opennlp:pos"); an add-on's own layers are in
+    /// layer's id is in the `turbo:` namespace, from [`crate::ids`]
+    /// ("turbo:tokens", "turbo:pos"); an add-on's own layers are in
     /// its own namespace ("acme:invoice-fields").
     const ID: &'static str;
     /// Bumped when what the layer's fields mean changes.
@@ -70,11 +86,11 @@ pub trait Layer: Any + Send + Sync + Sized {
     /// two (`Edges<From, To>`), the first one's, so distinct instantiations
     /// have distinct names. It is the inner layer's full name, so nested
     /// generic layers stay distinct too: `Groups<Edges<Entities, Tokens>>`
-    /// is `turbo:groups<turbo:edges<opennlp:entities, opennlp:tokens>>`.
+    /// is `turbo:groups<turbo:edges<turbo:entities, turbo:tokens>>`.
     const OF: Option<&'static LayerName> = None;
     /// For a layer generic over two layers (`Edges<From, To>`), the second
     /// one's name, so `Edges<Entities, Tokens>` is
-    /// `turbo:edges<opennlp:entities, opennlp:tokens>`. Set only with `OF`.
+    /// `turbo:edges<turbo:entities, turbo:tokens>`. Set only with `OF`.
     const TO: Option<&'static LayerName> = None;
     /// The static name a `KeyId` points at.
     const NAME: &'static LayerName = &LayerName { id: Self::ID, of: Self::OF, to: Self::TO };
@@ -125,6 +141,41 @@ pub trait Layer: Any + Send + Sync + Sized {
     fn check_document(&self, _doc: &crate::Document, _on: &[KeyId]) -> Result<(), String> {
         Ok(())
     }
+
+    /// Deterministic fingerprint for payload fields not covered by `len()`,
+    /// `text_spans()`, and `indexes()`.
+    ///
+    /// Returning `Some(hash)` certifies that `hash` covers all semantically
+    /// significant payload columns of `Self`, enabling upstream content-cutoff
+    /// caching when a producer re-runs and yields an identical layer value.
+    /// Returning `None` (the default) marks the layer as having no complete
+    /// payload fingerprint, so downstream steps reading `Self` never skip on
+    /// structural-only equality.
+    fn content_hash(&self) -> Option<u64> {
+        None
+    }
+
+    /// How [`Analyzer::run_spliced`](crate::Analyzer::run_spliced) carries
+    /// the layer's items across an edit: `Some(Splicer::<Self>::boxed())`
+    /// for a layer that implements [`Splice`](crate::splice::Splice). With
+    /// `None` (the default) a step writing the layer is re-run whole.
+    fn splicer() -> Option<Box<dyn LayerSplicer>> {
+        None
+    }
+
+    /// Feeds all semantically significant payload columns directly into a
+    /// 256-bit [`turbo_sha256::Sha256`] hasher for [`Document::content_digest`](crate::Document::content_digest),
+    /// returning `true` when this layer provides a complete payload fingerprint.
+    /// Defaults to folding [`Self::content_hash`] when present.
+    fn content_sha256(&self, hasher: &mut turbo_sha256::Sha256) -> bool {
+        match self.content_hash() {
+            Some(hash) => {
+                hasher.u64(hash);
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 /// What a layer's items hang on.
@@ -161,7 +212,7 @@ impl<L: Layer> Key<L> {
         Key { name, _l: PhantomData }
     }
 
-    pub fn id(&self) -> KeyId {
+    pub const fn id(&self) -> KeyId {
         KeyId { ty: TypeId::of::<L>(), layer: L::NAME, name: self.name }
     }
 }
@@ -190,6 +241,17 @@ pub struct LayerName {
     pub id: &'static str,
     pub of: Option<&'static LayerName>,
     pub to: Option<&'static LayerName>,
+}
+
+impl LayerName {
+    /// Returns this layer name as a borrowed `'static` string when it has no
+    /// generic type parameters, or formats its full parameterized name.
+    pub fn as_cow(&self) -> std::borrow::Cow<'static, str> {
+        match (self.of, self.to) {
+            (None, None) => std::borrow::Cow::Borrowed(self.id),
+            _ => std::borrow::Cow::Owned(self.to_string()),
+        }
+    }
 }
 
 impl fmt::Display for LayerName {
@@ -295,6 +357,12 @@ impl Provenance {
             reads: Vec::new(),
             on: Vec::new(),
         }
+    }
+
+    /// Computes the deterministic 256-bit SHA-256 chained provenance digest
+    /// for this provenance record against `doc`.
+    pub fn chained_digest(&self, doc: &crate::Document) -> crate::doc::ProvenanceDigest {
+        doc.compute_provenance_digest(self)
     }
 }
 

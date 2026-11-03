@@ -9,7 +9,7 @@
 //!   `f32` (`numTimesEventsSeen * value` as a `float` product), and the
 //!   correction constant of real valued events is an `f32` sum of the
 //!   event's values, compared and kept as a `double`.
-//! - `StrictMath.log` and `StrictMath.exp` (`turbo_jvm::strict_math`) for
+//! - `f64::ln` and `f64::exp` for
 //!   the prior, the probabilities, the log likelihood and the update.
 //! - The order of every sum: the expectations accumulate event by event
 //!   in index order, with the event's count multiplied last
@@ -39,7 +39,6 @@ use crate::monitor::{
     TrainingMeasure,
 };
 use crate::params::{DEFAULT_CUTOFF, DEFAULT_ITERATIONS, Key, TrainerType, TrainingParameters};
-use turbo_jvm::strict_math;
 
 /// `GISTrainer`'s smoothing: none (the default), the simple kind that
 /// gives every predicate every outcome with `SmoothingObservation` as the
@@ -328,7 +327,7 @@ impl<'i> Trainer<'i> {
             pattern_starts,
             outcomes,
             observed,
-            log_prior: strict_math::log(1.0 / num_outcomes as f64),
+            log_prior: (1.0 / num_outcomes as f64).ln(),
         }
     }
 
@@ -386,7 +385,7 @@ impl<'i> Trainer<'i> {
             }
             let mut normal = 0.0;
             for d in dist.iter_mut() {
-                *d = strict_math::exp(*d);
+                *d = d.exp();
                 normal += *d;
             }
             for d in dist.iter_mut() {
@@ -405,7 +404,7 @@ impl<'i> Trainer<'i> {
                 }
             }
             let outcome = index.outcome(ei) as usize;
-            out.log_likelihood += strict_math::log(dist[outcome]) * seen_f;
+            out.log_likelihood += dist[outcome].ln() * seen_f;
             out.events += seen as i32;
             // ArrayMath.argmax: the first of the largest.
             let mut max = 0;
@@ -450,10 +449,7 @@ impl<'i> Trainer<'i> {
                 Smoothing::Gaussian { sigma } => self.gaussian_update(i, sigma),
                 // OpenNLP logs "Model expects == 0" when the model expectation
                 // is zero and divides anyway.
-                _ => {
-                    (strict_math::log(self.observed[i]) - strict_math::log(self.expects[0][i]))
-                        / self.correction_constant
-                }
+                _ => (self.observed[i].ln() - self.expects[0][i].ln()) / self.correction_constant,
             };
             self.params[i] += update;
             for expects in &mut self.expects {
@@ -472,7 +468,7 @@ impl<'i> Trainer<'i> {
         let observed_value = self.observed[i];
         let mut x0 = 0.0;
         for _ in 0..50 {
-            let tmp = model_value * strict_math::exp(self.correction_constant * x0);
+            let tmp = model_value * (self.correction_constant * x0).exp();
             let f = tmp + (param + x0) / sigma - observed_value;
             let fp = tmp * self.correction_constant + 1.0 / sigma;
             if fp == 0.0 {

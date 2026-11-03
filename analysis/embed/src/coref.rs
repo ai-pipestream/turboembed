@@ -156,6 +156,17 @@ impl TokenVectors for BundleTokenVectors {
         self.try_vectors(sentence).unwrap_or_default()
     }
 
+    fn vectors_spans(
+        &self,
+        _view: ViewId,
+        tokens: &Tokens,
+        subwords: Option<&Subwords>,
+        sentences: &Sentences,
+    ) -> Option<Result<Vec<Vec<f32>>, String>> {
+        let subwords = subwords?;
+        Some(self.embed_document_tokens(tokens, subwords, Some(&sentences.spans)).map_err(|e| e.to_string()))
+    }
+
     fn config_hash(&self) -> u64 {
         let mut h = turbo_analysis::Fnv1a::new();
         for s in

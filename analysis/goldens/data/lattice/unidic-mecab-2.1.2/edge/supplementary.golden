@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/supplementary	98	76	ccf9ecafa95f1e9d3891e47badd0ef6b83a8a2b02d79d24db46daf0bfa5b387e
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	30	start:u32	end:u32
+layer	turbo:tokens	text	30	start:u32	end:u32
 0	5
 6	7
 7	8
@@ -37,8 +37,8 @@ layer	opennlp:tokens	text	30	start:u32	end:u32
 94	95
 95	96
 96	97
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	30	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	30	unknown:u32	features:str
 1	名詞,普通名詞,一般,*,*,*
 0	記号,文字,*,*,*,*,アイ,Ｉ,i,アイ,i,アイ,記号,*,*,*,*
 0	記号,文字,*,*,*,*,エヌ,Ｎ,n,エヌ,n,エヌ,記号,*,*,*,*

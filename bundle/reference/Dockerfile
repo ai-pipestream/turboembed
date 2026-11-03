@@ -17,6 +17,6 @@
 FROM python:3.12-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /requirements.txt
-COPY reference.py rerank.py qa_reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py /
+COPY reference.py cut.py rerank.py qa_reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py /
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HOME=/tmp
 ENTRYPOINT ["python", "/reference.py"]

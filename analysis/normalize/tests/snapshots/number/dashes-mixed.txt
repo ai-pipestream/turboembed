@@ -1,0 +1,16 @@
+===OUT===
+Pages  – , a long—dash—sentence, and a minus −  next to a hyphen-minus - .
+U+  ‐ U+  non‑breaking U+  figure‒  U+  bar ― U+  −.
+A double hyphen -- and a triple --- stay as they are, ⸺ and ﹘ too.
+
+===EDITS===
+6	8	 
+11	13	 
+56	57	 
+82	83	 
+87	91	 
+98	102	 
+120	124	 
+134	135	 
+138	142	 
+153	157	 

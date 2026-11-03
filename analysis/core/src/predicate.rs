@@ -335,6 +335,34 @@ impl Step for ConditionalAnnotator {
         ConditionalAnnotator::config_hash(self)
     }
 
+    fn is_cacheable(&self) -> bool {
+        !self.predicate_name.is_empty()
+            && self.predicate_name != "default"
+            && self.when_true.is_cacheable()
+            && self.when_false.as_ref().is_none_or(|wf| wf.is_cacheable())
+    }
+
+    fn expected_provenance(&self, doc: &Document) -> Provenance {
+        let branch = match catch_unwind(AssertUnwindSafe(|| (self.predicate)(doc))) {
+            Ok(true) => Some(self.when_true.as_ref()),
+            Ok(false) => self.when_false.as_deref(),
+            Err(_) => None,
+        };
+        match branch {
+            Some(step) => {
+                let mut p = step.expected_provenance(doc);
+                p.config = self.config_hash();
+                for r in self.present_reads(doc) {
+                    if !p.reads.contains(&r) {
+                        p.reads.push(r);
+                    }
+                }
+                p
+            }
+            None => self.base_provenance(doc),
+        }
+    }
+
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
         let mut true_indices = Vec::new();
         let mut true_docs = Vec::new();
@@ -434,14 +462,20 @@ impl Step for ConditionalAnnotator {
                 }
                 DocNonBranch::Failed(e) => Some(e),
             };
-            let Some(e) = failure else { continue };
-            for &k in &self.writes {
-                if !docs[i].has(k) {
-                    let _ = docs[i].fail(k, e.clone(), p_base.clone());
+            if let Some(e) = failure {
+                for &k in &self.writes {
+                    if !docs[i].has(k) {
+                        let _ = docs[i].fail(k, e.clone(), p_base.clone());
+                    }
+                }
+                if status[i].is_ok() {
+                    status[i] = Err(e);
                 }
             }
-            if status[i].is_ok() {
-                status[i] = Err(e);
+        }
+        for doc in docs.iter_mut() {
+            for &k in &self.writes {
+                doc.mark_pipeline_stored(k);
             }
         }
     }

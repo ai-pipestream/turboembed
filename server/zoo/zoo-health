@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# The zoo image's health check (server/Dockerfile.zoo): the server answers
+# SERVING (turbo-kserve health), and the page answers on the port
+# TURBO_DEMO_LISTEN names, over HTTPS when TURBO_DEMO_TLS_CERT is set.
+# This is a liveness check on loopback: the page's certificate names the
+# zoo's own host, not 127.0.0.1, so its name and issuer are not checked
+# here; a browser checks them.
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/zoo-env"
+
+turbo-kserve health
+listen=${TURBO_DEMO_LISTEN:-127.0.0.1:8080}
+port=${listen##*:}
+if [[ -n "${TURBO_DEMO_TLS_CERT:-}" ]]; then
+    curl --noproxy '*' --fail --silent --show-error --insecure --output /dev/null "https://127.0.0.1:$port/"
+else
+    curl --noproxy '*' --fail --silent --show-error --output /dev/null "http://127.0.0.1:$port/"
+fi

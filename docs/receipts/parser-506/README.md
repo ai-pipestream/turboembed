@@ -9,7 +9,7 @@ this API accepts the model's modified UTF-8 keys directly. Public string context
 and training events use the same feature emission order. Dictionary keys are
 prepared once for lookup without temporary strings. The default chunk beam path
 reads its five slots directly from `TokenTag`, without collecting sentence arrays.
-The optional legacy chunk cache retains its string API and key behavior.
+The optional string chunk cache retains its string API and key behavior.
 
 Candidate probabilities are checked before copying a result tree. Chunking check
 features receive the candidate's first label directly, removing the temporary
@@ -69,7 +69,7 @@ frontier selection with the existing path traversal for all three-valued head
 patterns through depth six, and check equal-probability punctuation precedence.
 
 These allocation counts cover feature population after capacity growth. Parser
-state, output trees, and the optional legacy cache still allocate. Timing measurements for the training-path follow-up are recorded below.
+state, output trees, and the optional string cache still allocate. Timing measurements for the training-path follow-up are recorded below.
 
 ## Logs
 
@@ -88,16 +88,10 @@ per output feature to avoid growth on each formatted piece. This trades some spa
 string capacity for fewer reallocations. At that revision, the buffered inference sink retained direct
 formatting and zero allocations after warm-up.
 
-The reproducible harness is
-`analysis/train-components/examples/parser_context_bench.rs`:
-
-```sh
-CARGO_TARGET_DIR=target cargo build --release -p turbo-train-components --example parser_context_bench
-taskset -c 8 target/release/examples/parser_context_bench
-```
-
-The same harness was built on main `a7cf38a8`, the prior PR head `c02a4a41`,
-and the corrected sources in this commit. Each executable uses the same checked-in
+The historical benchmark harness was `parser_context_bench` (retired alongside
+the classical model fixtures in `#1511` / `#1557`), built on main `a7cf38a8`,
+the prior PR head `c02a4a41`, and the corrected sources in that commit. Each
+executable used the same checked-in
 JVM model fixture under `analysis/goldens/data/parse/model-{chunking,treeinsert}`
 and the 50 trees in `inputs/parse-treebank/{treebank,held-out}.txt`. Inference
 uses beam 20, advance percentage 0.95, and k=1 or k=5. Event streams use the gold

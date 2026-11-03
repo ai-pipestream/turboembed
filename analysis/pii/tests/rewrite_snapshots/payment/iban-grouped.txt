@@ -1,0 +1,12 @@
+MASKED	IBAN **** **** **** **** **30 00 received.
+
+MASK_ALL	IBAN ########################### received.
+
+REWRITE	pseudonymize	OK	IBAN IBAN-1 received.
+
+LABEL	pseudonymize	5	32	5	11	IBAN-1
+REWRITE	hmac	OK	IBAN IBAN-12d2a2b8c32b1193 received.
+
+LABEL	hmac	5	32	5	26	IBAN-12d2a2b8c32b1193
+AUDIT	iban	1	1	IBAN-12d2a2b8c32b1193
+AUDIT_REPORT	iban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]

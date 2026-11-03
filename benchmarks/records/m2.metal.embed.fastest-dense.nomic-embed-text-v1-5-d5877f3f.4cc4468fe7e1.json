@@ -1,0 +1,97 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-28T06:07:33Z",
+  "machine": {
+    "arch": "m2",
+    "host_cpu": "Apple M2",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "metal",
+    "kind": "DEVICE_IGPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "macOS 27.0.1 (26A434)",
+    "runtime_version": "Metal, macOS SDK 27.0",
+    "memory_total": 19069665280
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 metal cpu",
+    "commit": "4cc4468fe7e1734e7880fb9d67a3abe7b8b6ce23",
+    "pushed_to": [
+      "origin/claude/1461-metal-fastest"
+    ],
+    "settings": [
+      "TURBO_METAL_TUNED=default",
+      "TURBO_METAL_CHOICES=linear=auto;attn=auto;forced="
+    ]
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_F16",
+  "bundle": {
+    "model_id": "nomic-ai/nomic-embed-text-v1.5",
+    "revision": "1",
+    "manifest_sha256": "d5877f3f1087c39095e3363927a37df73679b6e5fcd685008f36ffe4ee591ab6",
+    "artifact_sha256": "9e7d262b1fe5ea350782829496efa831901b77486bbde1cea54a4c822d010d5c",
+    "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 8,
+    "seq": 512,
+    "live_tokens": 4096,
+    "cases": [
+      10,
+      11,
+      10,
+      11,
+      10,
+      11,
+      10,
+      11
+    ],
+    "sha256": "4a836c25101c3d04794b8b1a21ef5f3f19a252e4ddce79dc1f1c98b870aba636"
+  },
+  "timing": {
+    "warmup": 5,
+    "iterations": 20,
+    "p50_ms": 800.131791,
+    "p99_ms": 1254.4682090000001,
+    "mean_ms": 829.7292875999999,
+    "min_ms": 570.736875,
+    "max_ms": 1254.4682090000001,
+    "rows_per_second": 9.64169253493253,
+    "computed_tokens": 4096
+  },
+  "conformance": {
+    "rows": 10,
+    "min_cosine": 0.9999994412523119,
+    "max_abs_diff": 0.0028676390647888184
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "",
+      "version": "",
+      "commands": [],
+      "procedure": "",
+      "measured": null,
+      "not_run": "disabled on the command line (--no-tei)"
+    },
+    {
+      "name": "mlx",
+      "role": "kernel",
+      "pinned": "",
+      "version": "",
+      "commands": [],
+      "procedure": "",
+      "measured": null,
+      "not_run": "disabled on the command line (--no-mlx)"
+    }
+  ],
+  "speed_ratio": null,
+  "speed_reference": null
+}

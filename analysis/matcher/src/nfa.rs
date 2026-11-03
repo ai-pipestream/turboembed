@@ -39,7 +39,7 @@ pub(crate) struct TokTests {
 impl TokTests {
     /// Whether token `abs` (at `rel` in the columns) passes.
     #[inline]
-    fn passes(&self, cols: &Columns, input: &Input<'_>, rel: usize, abs: usize) -> bool {
+    pub(crate) fn passes(&self, cols: &Columns, input: &Input<'_>, rel: usize, abs: usize) -> bool {
         let all = self.tests.iter().all(|t| match t {
             Compiled::Is(a, id) => cols.values[*a as usize][rel] == *id,
             Compiled::In(a, ids) => ids.binary_search(&cols.values[*a as usize][rel]).is_ok(),
@@ -48,6 +48,9 @@ impl TokTests {
             Compiled::Iob(i) => cols.iob[rel] == *i,
             Compiled::Length(c, n) => c.holds(cols.chars[rel], *n),
             Compiled::Text(f) => f(input.token(abs)),
+            // A set test reads the FEATS string as written: its features
+            // are those of the canonical form, without building it.
+            Compiled::Value(Attr::Morph, t @ crate::ValueTest::Morph { .. }) => t.holds(input.feats(abs)),
             Compiled::Value(a, t) => t.holds(input.value(*a, abs, &mut String::new())),
         });
         all != self.negated
@@ -64,7 +67,7 @@ fn ids(values: &[Box<str>], vocab: &mut Vocab) -> Box<[u32]> {
     v.into()
 }
 
-fn compile_tests(tok: &Tok, vocab: &mut Vocab, needs: &mut Needs) -> TokTests {
+pub(crate) fn compile_tests(tok: &Tok, vocab: &mut Vocab, needs: &mut Needs) -> TokTests {
     let tests = tok
         .tests
         .iter()
@@ -95,7 +98,11 @@ fn compile_tests(tok: &Tok, vocab: &mut Vocab, needs: &mut Needs) -> TokTests {
             }
             Test::Text(f) => Compiled::Text(f.clone()),
             Test::Value(a, t) => {
-                needs.attr(*a);
+                if let (Attr::Morph, crate::ValueTest::Morph { .. }) = (a, t) {
+                    needs.feats = true;
+                } else {
+                    needs.attr(*a);
+                }
                 Compiled::Value(*a, t.clone())
             }
         })

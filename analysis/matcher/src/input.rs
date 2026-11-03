@@ -4,7 +4,7 @@
 use std::ops::Range;
 
 use turbo_analysis::{Ix, IxRange, Span, ViewId};
-use turbo_analysis_layers::{Entities, Numbers, PosTags, Sentences, Strs, Tokens};
+use turbo_analysis_layers::{Dependencies, Entities, Numbers, PosTags, Sentences, Strs, Tokens};
 
 use crate::attr::{Attr, Flag, Iob, text_flags};
 use crate::error::MatchError;
@@ -30,6 +30,7 @@ pub struct Input<'a> {
     numbers: Option<&'a Numbers>,
     morph: Option<&'a Strs>,
     tags: Option<&'a Strs>,
+    pub(crate) dependencies: Option<&'a Dependencies>,
 }
 
 impl<'a> Input<'a> {
@@ -66,6 +67,7 @@ impl<'a> Input<'a> {
             numbers: None,
             morph: None,
             tags: None,
+            dependencies: None,
         })
     }
 
@@ -84,14 +86,14 @@ impl<'a> Input<'a> {
 
     /// Part-of-speech tags, one per token.
     pub fn with_pos(mut self, pos: &'a PosTags) -> Result<Self, MatchError> {
-        self.aligned("opennlp:pos", pos.tags.len())?;
+        self.aligned("turbo:pos", pos.tags.len())?;
         self.pos = Some(pos);
         Ok(self)
     }
 
     /// Lemmas, one per token.
     pub fn with_lemmas(mut self, lemmas: &'a Strs) -> Result<Self, MatchError> {
-        self.aligned("opennlp:lemmas", lemmas.len())?;
+        self.aligned("turbo:lemmas", lemmas.len())?;
         self.lemmas = Some(lemmas);
         Ok(self)
     }
@@ -125,24 +127,39 @@ impl<'a> Input<'a> {
         Ok(self)
     }
 
+    /// A checked dependency forest, borrowed without copying its columns.
+    pub fn with_dependencies(mut self, dependencies: &'a Dependencies) -> Result<Self, MatchError> {
+        self.aligned("turbo:dependencies", dependencies.head.len())?;
+        dependencies.check_forest().map_err(MatchError::Dependencies)?;
+        if let Some(sentences) = self.sentence {
+            for (i, head) in dependencies.head.iter().enumerate() {
+                if head.is_some_and(|h| sentences[i] != sentences[h.get()]) {
+                    return Err(MatchError::Dependencies("head crosses a sentence boundary".into()));
+                }
+            }
+        }
+        self.dependencies = Some(dependencies);
+        Ok(self)
+    }
+
     /// Entities over these tokens.
     pub fn with_entities(mut self, entities: &'a Entities) -> Result<Self, MatchError> {
         if entities.spans.view() != self.view {
             return Err(MatchError::ViewMismatch {
-                layer: "opennlp:entities",
+                layer: "turbo:entities",
                 expected: self.view,
                 actual: entities.spans.view(),
             });
         }
         let past = entities.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0);
         if past > self.len() || entities.tokens.iter().any(|r| r.start > r.end) {
-            return Err(MatchError::Misaligned { layer: "opennlp:entities", len: past, tokens: self.len() });
+            return Err(MatchError::Misaligned { layer: "turbo:entities", len: past, tokens: self.len() });
         }
         if entities.spans.len() != entities.tokens.len() || entities.kind.len() != entities.tokens.len() {
             let bad =
                 if entities.spans.len() != entities.tokens.len() { entities.spans.len() } else { entities.kind.len() };
             return Err(MatchError::Misaligned {
-                layer: "opennlp:entities",
+                layer: "turbo:entities",
                 len: if bad == self.len() { entities.tokens.len() } else { bad },
                 tokens: self.len(),
             });
@@ -210,13 +227,18 @@ impl<'a> Input<'a> {
     fn strings(&self, attr: Attr) -> Result<&'a Strs, MatchError> {
         let (column, layer) = match attr {
             Attr::Norm => (self.norms, "norms"),
-            Attr::Lemma => (self.lemmas, "opennlp:lemmas"),
+            Attr::Lemma => (self.lemmas, "turbo:lemmas"),
             Attr::Stem => (self.stems, "turbo:stems"),
             Attr::Morph => (self.morph, "turbo:feats"),
             Attr::Tag => (self.tags, "tags"),
             _ => unreachable!("a string column"),
         };
         column.ok_or(MatchError::Missing(layer))
+    }
+
+    /// Token `i`'s FEATS string as written.
+    pub(crate) fn feats(&self, i: usize) -> &'a str {
+        self.strings(Attr::Morph).expect("validated column").get(i)
     }
 
     pub(crate) fn value<'b>(&'b self, attr: Attr, i: usize, scratch: &'b mut String) -> &'b str {
@@ -229,6 +251,10 @@ impl<'a> Input<'a> {
             Attr::Pos => {
                 let pos = self.pos.expect("validated column");
                 pos.tagset.label(pos.tags[i])
+            }
+            Attr::Dep => {
+                let dep = self.dependencies.expect("validated column");
+                dep.relations.label(dep.relation[i])
             }
             Attr::Entity => {
                 let of = self.entity_of(&(i..i + 1)).expect("validated column")[0];
@@ -246,10 +272,10 @@ impl<'a> Input<'a> {
     /// The first entity covering each token of `range`, as an index into
     /// the entities, or `u32::MAX` where none does.
     fn entity_of(&self, range: &Range<usize>) -> Result<Vec<u32>, MatchError> {
-        let entities = self.entities.ok_or(MatchError::Missing("opennlp:entities"))?;
+        let entities = self.entities.ok_or(MatchError::Missing("turbo:entities"))?;
         if entities.spans.view() != self.view {
             return Err(MatchError::ViewMismatch {
-                layer: "opennlp:entities",
+                layer: "turbo:entities",
                 expected: self.view,
                 actual: entities.spans.view(),
             });
@@ -285,6 +311,9 @@ pub(crate) struct Needs {
     pub(crate) flags: u32,
     pub(crate) iob: bool,
     pub(crate) length: bool,
+    /// Whether a morphology set test reads the FEATS strings as written,
+    /// which needs the layer but no column.
+    pub(crate) feats: bool,
 }
 
 impl Needs {
@@ -303,7 +332,7 @@ impl Needs {
 /// Index `i` is token `range.start + i`.
 #[derive(Default)]
 pub(crate) struct Columns {
-    pub(crate) values: [Vec<u32>; 12],
+    pub(crate) values: [Vec<u32>; 13],
     pub(crate) flags: Vec<u32>,
     pub(crate) iob: Vec<Iob>,
     pub(crate) chars: Vec<u32>,
@@ -327,6 +356,9 @@ impl Columns {
         }
         let mut c = Columns::default();
         let mut scratch = String::new();
+        if needs.feats {
+            input.strings(Attr::Morph)?;
+        }
         let entity_of = if needs.has(Attr::Entity) || needs.iob { Some(input.entity_of(range)?) } else { None };
         for attr in Attr::ALL {
             if !needs.has(attr) {
@@ -345,11 +377,15 @@ impl Columns {
                     range.clone().map(|i| vocab.get(&crate::predicates::morph(strs.get(i)))).collect()
                 }
                 Attr::Pos => {
-                    let pos = input.pos.ok_or(MatchError::Missing("opennlp:pos"))?;
+                    let pos = input.pos.ok_or(MatchError::Missing("turbo:pos"))?;
                     let ids: Vec<u32> = (0..pos.tagset.len())
                         .map(|t| vocab.get(pos.tagset.label(turbo_analysis::Tag(t as u16))))
                         .collect();
                     pos.tags[range.clone()].iter().map(|t| ids[t.0 as usize]).collect()
+                }
+                Attr::Dep => {
+                    let dep = input.dependencies.ok_or(MatchError::Missing("turbo:dependencies"))?;
+                    range.clone().map(|i| vocab.get(dep.relations.label(dep.relation[i]))).collect()
                 }
                 Attr::Entity => {
                     let entities = input.entities.expect("checked by entity_of");
@@ -403,7 +439,7 @@ fn flag_column(input: &Input<'_>, range: &Range<usize>, wanted: u32) -> Result<V
         }
     }
     if wanted & Flag::SentStart.bit() != 0 {
-        let sentence = input.sentence.ok_or(MatchError::Missing("opennlp:sentences"))?;
+        let sentence = input.sentence.ok_or(MatchError::Missing("turbo:sentences"))?;
         for (b, i) in bits.iter_mut().zip(range.clone()) {
             if i == 0 || sentence[i] != sentence[i - 1] {
                 *b |= Flag::SentStart.bit();

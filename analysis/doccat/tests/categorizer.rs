@@ -3,6 +3,8 @@
 //! cases of OpenNLP's `DocumentCategorizerSVMTest` and
 //! `DocumentCategorizerSVMEdgeCaseTest` that do not train.
 
+#![cfg(feature = "classical")]
+
 use turbo_analysis::{Analyzer, Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Categories, Tokens};
 use turbo_doccat::svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
@@ -237,11 +239,11 @@ fn a_model_the_categorizer_cannot_run_is_refused() {
 fn the_model_reference_hashes_both_files() {
     let a = model(MODEL, SIDECAR);
     let b = model(MODEL, &SIDECAR.replace("1.3862943611198906", "1.0"));
-    assert_eq!(a.model_ref().id, "opennlp:SvmDoccatModel:eng");
+    assert_eq!(a.model_ref().id, "turbo:SvmDoccatModel:eng");
     assert_eq!(a.model_ref().sha256.len(), 64);
     assert_ne!(a.model_ref().sha256, b.model_ref().sha256);
     let und = model(MODEL, &SIDECAR.replace("language\teng\n", ""));
-    assert_eq!(und.model_ref().id, "opennlp:SvmDoccatModel:und");
+    assert_eq!(und.model_ref().id, "turbo:SvmDoccatModel:und");
 }
 
 /// Tokens at the spaces of `text`.

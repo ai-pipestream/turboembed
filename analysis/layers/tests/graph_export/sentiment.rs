@@ -85,11 +85,12 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     doc.add(
         &Key::DEFAULT,
         Money {
-            spans: spans(&[(0, 5)]),
-            negative: vec![false],
-            coefficient: strs(&["500"]),
-            scale: vec![2],
-            currency: vec![Currency::parse("USD").unwrap()],
+            spans: spans(&[(0, 5), (6, 11)]),
+            negative: vec![false, false],
+            coefficient: strs(&["500", "5"]),
+            scale: vec![2, 0],
+            currency: vec![Currency::parse("USD").unwrap(), Currency::parse("USD").unwrap()],
+            per: strs(&["", "h"]),
         },
         by.clone(),
     )
@@ -201,6 +202,13 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
         by.clone(),
     )
     .unwrap();
+    let m = ModelRef { id: "m".into(), revision: "r".into(), sha256: "s".into() };
+    doc.add(
+        &Key::DEFAULT,
+        VectorCodes::<Sentences>::new(CodeKind::UBinary, 10, vec![0xA0, 0x40, 0, 0], vec![Ix::new(1)], m),
+        by.clone(),
+    )
+    .unwrap();
     doc.add(&Key::DEFAULT, Confidence::<Tokens>::new(vec![0.5; 6]), by.clone()).unwrap();
     doc.add(
         &Key::DEFAULT,
@@ -232,6 +240,8 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     assert_eq!(back.get::<Incivility>().unwrap().target[0], IncivilityTarget::Sentence(Ix::new(0)));
     assert_eq!(back.get::<Numbers>().unwrap().coefficient.get(0), "42");
     assert_eq!(back.get::<Money>().unwrap().currency[0].as_str(), "USD");
+    assert_eq!(back.get::<Money>().unwrap().per(Ix::new(0)), None);
+    assert_eq!(back.get::<Money>().unwrap().per(Ix::new(1)), Some("h"));
     assert_eq!(back.get::<Ordinals>().unwrap().offset, [-2]);
     assert_eq!(back.get::<Quantities>().unwrap().unit.get(0), "%");
     assert_eq!(back.get::<Times>().unwrap().timex.get(0), "2027-01-15");
@@ -244,6 +254,9 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     let vectors = back.get::<Vectors<Sentences>>().unwrap();
     assert_eq!(vectors.row(Ix::new(0)), [1.0, 2.0, 3.0]);
     assert!(vectors.is_empty(Ix::new(1)));
+    let codes = back.get::<VectorCodes<Sentences>>().unwrap();
+    assert_eq!((codes.kind, codes.dim, codes.row(Ix::new(0))), (CodeKind::UBinary, 10, &[0xA0, 0x40][..]));
+    assert!(codes.is_empty(Ix::new(1)));
     assert_eq!(back.get::<Confidence<Tokens>>().unwrap().value, [0.5; 6]);
     assert_eq!(back.get::<Utf16Spans<Tokens>>().unwrap().cut, [false, true, false, false, false, false]);
     assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());

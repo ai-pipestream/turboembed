@@ -1,0 +1,14 @@
+MASKED	Write to *******@*******.*** or *****@*******.*** before Friday.
+
+MASK_ALL	Write to ################### or ################# before Friday.
+
+REWRITE	pseudonymize	OK	Write to EMAIL-1 or EMAIL-2 before Friday.
+
+LABEL	pseudonymize	9	28	9	16	EMAIL-1
+LABEL	pseudonymize	32	49	20	27	EMAIL-2
+REWRITE	hmac	OK	Write to EMAIL-b5d08c9892fd5775 or EMAIL-1d6ee1efa78de87c before Friday.
+
+LABEL	hmac	9	28	9	31	EMAIL-b5d08c9892fd5775
+LABEL	hmac	32	49	35	57	EMAIL-1d6ee1efa78de87c
+AUDIT	email	2	2	EMAIL-b5d08c9892fd5775, EMAIL-1d6ee1efa78de87c
+AUDIT_REPORT	email: 2 mentions, 2 distinct [EMAIL-b5d08c9892fd5775, EMAIL-1d6ee1efa78de87c]

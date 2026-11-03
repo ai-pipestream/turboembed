@@ -5,8 +5,8 @@ from one document with zero external model dependencies: YAKE from five
 statistical features, TextRank from co-occurrence graph centrality. One
 document, no model, no corpus, no download, any language with a stop
 word list. Both read the layers every pipeline already has
-(`opennlp:sentences`, `opennlp:tokens`, `turbo:terms`, and for TextRank
-`opennlp:pos`) and write one shared layer, `turbo:keywords`.
+(`Sentences`, `Tokens`, `turbo:terms`, and for TextRank
+`PosTags`) and write one shared layer, `turbo:keywords`.
 
 The algorithms follow the papers. YAKE is Campos et al., "YAKE! Keyword
 extraction from single documents using multiple local features",
@@ -106,7 +106,7 @@ Five passes, no regex, following the paper:
    `top_n`; normalize the raw scores into the layer's salience.
 
 The stopword filter is configuration, not a layer:
-`Stopwords::bundled(StopwordLanguage::English)` is one of OpenNLP's
+`Stopwords::bundled(StopwordLanguage::English)` is one of the crate's
 eleven bundled lists, `Stopwords::custom(&["..."])` the caller's own
 folded forms. Defaults: window 3, n-grams 1..=3, top 30, no score cut,
 token-overlap dedup at 0.8.

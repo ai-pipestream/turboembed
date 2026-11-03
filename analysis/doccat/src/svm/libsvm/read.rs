@@ -13,11 +13,9 @@
 //! (the kernels merge two sorted vectors), and the parameters a kernel
 //! reads must be given rather than left at zero.
 
-use turbo_jvm::text::{parse_double, parse_int};
-
 use super::model::{Kernel, LibsvmModel, PairwiseSigmoid, SparseRows, SvmType};
 use crate::svm::error::{File, LineError, ModelError};
-use crate::svm::text::lines;
+use crate::svm::text::{lines, parse_double, parse_int};
 
 /// The number of `prob_density_marks` LIBSVM writes.
 const DENSITY_MARKS: usize = 10;

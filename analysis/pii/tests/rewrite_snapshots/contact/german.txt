@@ -1,0 +1,15 @@
+MASKED	Bitte überweisen Sie an DE89 3704 0044 **** **** ** und schreiben Sie an büro@example.de oder ****@*******.**.
+
+MASK_ALL	Bitte überweisen Sie an DE89 3704 0044 ############ und schreiben Sie an büro@example.de oder ###############.
+
+REWRITE	pseudonymize	OK	Bitte überweisen Sie an DE89 3704 0044 PHONE-1 und schreiben Sie an büro@example.de oder EMAIL-1.
+
+LABEL	pseudonymize	40	52	40	47	PHONE-1
+LABEL	pseudonymize	96	111	91	98	EMAIL-1
+REWRITE	hmac	OK	Bitte überweisen Sie an DE89 3704 0044 PHONE-d93b376c99f48a80 und schreiben Sie an büro@example.de oder EMAIL-d0d506bf4ae9f414.
+
+LABEL	hmac	40	52	40	62	PHONE-d93b376c99f48a80
+LABEL	hmac	96	111	106	128	EMAIL-d0d506bf4ae9f414
+AUDIT	email	1	1	EMAIL-d0d506bf4ae9f414
+AUDIT	phone	1	1	PHONE-d93b376c99f48a80
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-d0d506bf4ae9f414]\nphone: 1 mentions, 1 distinct [PHONE-d93b376c99f48a80]

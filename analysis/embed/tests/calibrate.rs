@@ -312,7 +312,8 @@ fn on_the_device_turbo_test_device_names() {
         println!("skipped: TURBO_TEST_VECTORS_BUNDLE and TURBO_TEST_DEVICE are not both set");
         return;
     };
-    let bundle = Path::new(&bundle);
+    let bundle = turbo_pins::require(&bundle);
+    let bundle = bundle.as_path();
     let device = match want.parse() {
         Ok(i) => Device::Index(i),
         Err(_) => Device::Backend(want),

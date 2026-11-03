@@ -1,15 +1,10 @@
 //! Integration and adversarial tests for `TagPatternRule`, `PatternChunker`,
 //! and `PatternChunkComposer` (Issue #749).
 
-mod common;
-
-use std::path::Path;
-
-use turbo_analysis::{Analyzer, Annotator, Document, Ix, IxRange, Key, Provenance, Span, Spans, View, ViewId};
+use turbo_analysis::{Annotator, Document, Ix, IxRange, Key, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{PhraseChunks, PosTags, Sentences, Tag, TagSet, Tokens};
 use turbo_phrase_chunker::{
-    ChunkerModel, ComposeMode, PatternChunkComposer, PatternChunker, PatternError, PhraseChunker, TagPatternRule,
-    TokenMatcher, TokenTag,
+    ComposeMode, PatternChunkComposer, PatternChunker, PatternError, TagPatternRule, TokenMatcher, TokenTag,
 };
 
 fn build_doc_with_tags(text: &str, tagset_name: &str, word_tags: &[(&str, &str, u32)]) -> Document {
@@ -36,8 +31,15 @@ fn build_doc_with_tags(text: &str, tagset_name: &str, word_tags: &[(&str, &str, 
     let tags: Vec<Tag> = word_tags.iter().map(|&(_, t, _)| tagset.tag(t).unwrap()).collect();
 
     let mut sent_spans = Spans::new(v0);
-    if !text.is_empty() {
-        sent_spans.push(Span::new(0, text.len() as u32));
+    let max_sent = word_tags.iter().map(|&(_, _, s)| s).max().unwrap_or(0);
+    let (starts, ends) = tok_spans.columns();
+    for s in 0..=max_sent {
+        if let Some(first) = word_tags.iter().position(|&(_, _, si)| si == s) {
+            let last = word_tags.iter().rposition(|&(_, _, si)| si == s).unwrap();
+            sent_spans.push(Span::new(starts[first], ends[last]));
+        } else if !text.is_empty() {
+            sent_spans.push(Span::new(0, text.len() as u32));
+        }
     }
     doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: sent_spans }, Provenance::by("test")).unwrap();
     doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: Some(sent_col) }, Provenance::by("test"))
@@ -234,70 +236,6 @@ fn quantifiers_word_literals_negation_and_priority_resolution() {
 }
 
 #[test]
-fn composition_combines_chunker_me_and_pattern_chunker_in_fallback_and_override_modes() {
-    let model_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin");
-    let me = PhraseChunker::new(ChunkerModel::read(model_path).unwrap());
-
-    let text = "The cat sat on the mat .";
-    let words = [
-        ("The", "DT", 0),
-        ("cat", "NN", 0),
-        ("sat", "VBD", 0),
-        ("on", "IN", 0),
-        ("the", "DT", 0),
-        ("mat", "NN", 0),
-        (".", ".", 0),
-    ];
-    let mut doc = build_doc_with_tags(text, "penn", &words);
-
-    // 1. Override mode: a pattern rule for full prepositional phrases ("on the mat" -> PP_FULL)
-    // overrides ChunkerME's separate ("on", PP) and ("the mat", NP), while preserving ("The cat", NP) and ("sat", VP).
-    let override_patterns = PatternChunker::from_patterns([("PP_FULL", "<IN><DT><NN>")]).unwrap();
-    let override_composer =
-        PatternChunkComposer::new(override_patterns, ComposeMode::Override).with_me(PhraseChunker::new(
-            ChunkerModel::read(
-                Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin"),
-            )
-            .unwrap(),
-        ));
-
-    let analyzer = Analyzer::builder()
-        .given(Key::<Tokens>::DEFAULT)
-        .given(Key::<PosTags>::DEFAULT)
-        .add(override_composer.clone())
-        .build()
-        .unwrap();
-    assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);
-
-    let chunks = doc.get::<PhraseChunks>().unwrap();
-    assert_eq!(
-        summarize_chunks(text, chunks),
-        vec![("The cat", "NP", (0, 2)), ("sat", "VP", (2, 3)), ("on the mat", "PP_FULL", (3, 6))]
-    );
-
-    // 2. Fallback mode: ChunkerME's chunks are all preserved, and a pattern rule matching "." ("PUNCT_CHUNK")
-    // fills in the unclaimed final token (6..7) without overriding "on" + "the mat".
-    let fallback_patterns =
-        PatternChunker::from_patterns([("PP_FULL", "<IN><DT><NN>"), ("PUNCT_CHUNK", "<\\.>")]).unwrap();
-    let fallback_composer = PatternChunkComposer::new(fallback_patterns, ComposeMode::Fallback).with_me(me);
-    let view = doc.get::<View>().unwrap();
-    let toks = doc.get::<Tokens>().unwrap();
-    let pos = doc.get::<PosTags>().unwrap();
-    let (fb_chunks,) = fallback_composer.annotate((view, toks, pos)).unwrap();
-    assert_eq!(
-        summarize_chunks(text, &fb_chunks),
-        vec![
-            ("The cat", "NP", (0, 2)),
-            ("sat", "VP", (2, 3)),
-            ("on", "PP", (3, 4)),
-            ("the mat", "NP", (4, 6)),
-            (".", "PUNCT_CHUNK", (6, 7)),
-        ]
-    );
-    assert_ne!(override_composer.config_hash(), fallback_composer.config_hash());
-}
-
-#[test]
 fn invalid_patterns_and_malformed_inputs_are_rejected() {
     assert_eq!(TagPatternRule::compile("  ", "<NN>").unwrap_err(), PatternError::EmptyKind);
     assert_eq!(TagPatternRule::compile("NP", "   ").unwrap_err(), PatternError::EmptyPattern);
@@ -427,29 +365,71 @@ fn regex_style_tag_conditions_match_and_refuse_like_the_shared_reader() {
 }
 
 #[test]
-fn regex_style_tag_conditions_agree_on_chunk_goldens() {
-    // Issue #854 acceptance: over the real Penn Treebank tagged
-    // sentences of the chunk goldens, the class/optional spelling
-    // chunks identically to the alternation spelling.
-    use turbo_analysis::View;
-    use turbo_goldens::{golden_key, load_document};
+fn regex_style_tag_conditions_agree_across_penn_sentences_and_compose_modes() {
+    let text = "The quicker brownest foxes jumped over the older dogs . Most larger cats slept quietly .";
+    let tokens = [
+        ("The", "DT", 0),
+        ("quicker", "JJR", 0),
+        ("brownest", "JJS", 0),
+        ("foxes", "NNS", 0),
+        ("jumped", "VBD", 0),
+        ("over", "IN", 0),
+        ("the", "DT", 0),
+        ("older", "JJR", 0),
+        ("dogs", "NNS", 0),
+        (".", ".", 0),
+        ("Most", "JJS", 1),
+        ("larger", "JJR", 1),
+        ("cats", "NNS", 1),
+        ("slept", "VBD", 1),
+        ("quietly", "RB", 1),
+        (".", ".", 1),
+    ];
+    let doc = build_doc_with_tags(text, "penn", &tokens);
+    let view = doc.get::<View>().unwrap();
+    let toks = doc.get::<Tokens>().unwrap();
+    let pos = doc.get::<PosTags>().unwrap();
     let by_class = PatternChunker::from_patterns([("NP", "<DT>?<JJ[RS]?>*<NNS?>+")]).unwrap();
     let by_alts = PatternChunker::from_patterns([("NP", "<DT>?<JJ|JJR|JJS>*<NN|NNS>+")]).unwrap();
-    let mut seen = 0usize;
-    for case in common::run("chunker-fixture") {
-        if case.golden.layer("turbo:utf16<opennlp:tokens>").is_some() {
-            continue;
-        }
-        let doc = load_document(&case.golden, &case.text).unwrap();
-        let view = doc.get::<View>().unwrap();
-        let toks = doc.get_key(&golden_key::<Tokens>()).unwrap();
-        let pos = doc.get_key(&golden_key::<PosTags>()).unwrap();
-        let (a,) = by_class.annotate((view, toks, pos)).unwrap();
-        let (b,) = by_alts.annotate((view, toks, pos)).unwrap();
-        assert_eq!(summarize_chunks(&case.text, &a), summarize_chunks(&case.text, &b), "{}", case.path.display());
-        seen += 1;
-    }
-    assert!(seen > 0, "chunk goldens loaded");
+    let (a,) = by_class.annotate((view, toks, pos)).unwrap();
+    let (b,) = by_alts.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks(text, &a), summarize_chunks(text, &b));
+    assert_eq!(
+        summarize_chunks(text, &a),
+        vec![
+            ("The quicker brownest foxes", "NP", (0, 4)),
+            ("the older dogs", "NP", (6, 9)),
+            ("Most larger cats", "NP", (10, 13)),
+        ]
+    );
+
+    // Model-free composition in Fallback and Override modes over base PhraseChunks
+    let vp_rule = PatternChunker::from_patterns([("VP", "<VBD><RB>?"), ("NP_HEAD", "<NNS>")]).unwrap();
+    let fallback = PatternChunkComposer::new(vp_rule.clone(), ComposeMode::Fallback);
+    let composed_fb = fallback.compose(view, toks, pos, &a).unwrap();
+    assert_eq!(
+        summarize_chunks(text, &composed_fb),
+        vec![
+            ("The quicker brownest foxes", "NP", (0, 4)),
+            ("jumped", "VP", (4, 5)),
+            ("the older dogs", "NP", (6, 9)),
+            ("Most larger cats", "NP", (10, 13)),
+            ("slept quietly", "VP", (13, 15)),
+        ]
+    );
+
+    let override_comp = PatternChunkComposer::new(vp_rule, ComposeMode::Override);
+    let composed_ov = override_comp.compose(view, toks, pos, &a).unwrap();
+    assert_eq!(
+        summarize_chunks(text, &composed_ov),
+        vec![
+            ("foxes", "NP_HEAD", (3, 4)),
+            ("jumped", "VP", (4, 5)),
+            ("dogs", "NP_HEAD", (8, 9)),
+            ("cats", "NP_HEAD", (12, 13)),
+            ("slept quietly", "VP", (13, 15)),
+        ]
+    );
 }
 
 #[test]

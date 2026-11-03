@@ -143,6 +143,21 @@ pub enum TensorRole {
     FfnOutBias,
     FfnLnWeight,
     FfnLnBias,
+    /// A fused Q, K and V projection, `[3 * hidden, hidden]`: Q's rows,
+    /// then K's, then V's.
+    QkvWeight,
+    /// FAMILY_MODERNBERT's norm after the last layer, `[hidden]`.
+    FinalNormWeight,
+    /// A gated MLP's gate (the activated half) and up (the linear half)
+    /// projections, each `[intermediate, hidden]`, where the family keeps
+    /// them apart: nomic-bert's fc12 and fc11.
+    FfnGateWeight,
+    FfnUpWeight,
+    /// FAMILY_DEBERTA_V2's relative table, `[2 * position_buckets, hidden]`,
+    /// and its LayerNorm, `[hidden]`.
+    RelativeEmbeddings,
+    RelativeLnWeight,
+    RelativeLnBias,
     /// A static model's table, `[rows, dim]`.
     StaticEmbeddings,
     /// A static model's weight per token, `[vocab_size]`; optional.
@@ -191,6 +206,10 @@ impl TensorRole {
                 | TensorRole::TokenTypeEmbeddings
                 | TensorRole::EmbeddingsLnWeight
                 | TensorRole::EmbeddingsLnBias
+                | TensorRole::RelativeEmbeddings
+                | TensorRole::RelativeLnWeight
+                | TensorRole::RelativeLnBias
+                | TensorRole::FinalNormWeight
                 | TensorRole::StaticEmbeddings
                 | TensorRole::StaticWeights
                 | TensorRole::StaticMapping

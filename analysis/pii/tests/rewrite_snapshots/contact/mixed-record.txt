@@ -1,0 +1,37 @@
+MASKED	Customer record
+email: ********.***@*******.***
+phone: +** ** **** ****
+card: 4111-1111-1111-1111
+iban: GB82 WEST 1234 **** **** **
+ip: 203.0.113.9
+
+MASK_ALL	Customer record
+email: ########################
+phone: ################
+card: 4111-1111-1111-1111
+iban: GB82 WEST 1234 ############
+ip: 203.0.113.9
+
+REWRITE	pseudonymize	OK	Customer record
+email: EMAIL-1
+phone: PHONE-1
+card: 4111-1111-1111-1111
+iban: GB82 WEST 1234 PHONE-2
+ip: 203.0.113.9
+
+LABEL	pseudonymize	23	47	23	30	EMAIL-1
+LABEL	pseudonymize	55	71	38	45	PHONE-1
+LABEL	pseudonymize	119	131	93	100	PHONE-2
+REWRITE	hmac	OK	Customer record
+email: EMAIL-d3e16aedafe95883
+phone: PHONE-76a7c210ec139369
+card: 4111-1111-1111-1111
+iban: GB82 WEST 1234 PHONE-166e908f4e3a1a6f
+ip: 203.0.113.9
+
+LABEL	hmac	23	47	23	45	EMAIL-d3e16aedafe95883
+LABEL	hmac	55	71	53	75	PHONE-76a7c210ec139369
+LABEL	hmac	119	131	123	145	PHONE-166e908f4e3a1a6f
+AUDIT	email	1	1	EMAIL-d3e16aedafe95883
+AUDIT	phone	2	2	PHONE-76a7c210ec139369, PHONE-166e908f4e3a1a6f
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-d3e16aedafe95883]\nphone: 2 mentions, 2 distinct [PHONE-76a7c210ec139369, PHONE-166e908f4e3a1a6f]

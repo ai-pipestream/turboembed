@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	49	start:u32	end:u32
+layer	turbo:tokens	text	49	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -56,4 +56,4 @@ layer	opennlp:tokens	text	49	start:u32	end:u32
 63	64
 64	65
 65	66
-end	opennlp:tokens
+end	turbo:tokens

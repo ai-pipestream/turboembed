@@ -1,14 +1,25 @@
-//! Opt-in calibrated outputs for maxent and probabilistic SVM categorizers.
+//! Opt-in calibrated outputs for document categorizers.
+use crate::dl::{DlSequenceScorer, DocumentCategorizerDL};
+#[cfg(feature = "classical")]
 use crate::{DocumentCategorizerME, SvmCategorizer};
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
-use turbo_analysis_layers::{Calibrated, Categories, Tokens};
+use turbo_analysis::{Annotator, Error, ModelRef, Refs};
+use turbo_analysis_layers::{Calibrated, Categories};
 use turbo_calibration::{Calibration, Identity, Policy, Predictor, Task};
 
-pub trait CalibratableCategorizer: Annotator<Reads = (View, Tokens), Writes = (Categories,)> {
+pub trait CalibratableCategorizer: Annotator<Writes = (Categories,)> {
     fn calibration_labels(&self) -> Vec<String>;
     /// Stable inference configuration; refuse unidentifiable custom features.
-    fn calibration_config_hash(&self) -> Result<u64, String>;
+    fn calibration_config_hash(&self) -> Result<u64, String> {
+        Ok(self.config_hash())
+    }
 }
+
+impl<S: DlSequenceScorer + 'static> CalibratableCategorizer for DocumentCategorizerDL<S> {
+    fn calibration_labels(&self) -> Vec<String> {
+        self.scorer().categories().to_vec()
+    }
+}
+#[cfg(feature = "classical")]
 impl CalibratableCategorizer for DocumentCategorizerME {
     fn calibration_config_hash(&self) -> Result<u64, String> {
         if !self.model().context_generator().custom().is_empty() {
@@ -41,6 +52,7 @@ impl CalibratableCategorizer for DocumentCategorizerME {
             .collect()
     }
 }
+#[cfg(feature = "classical")]
 impl CalibratableCategorizer for SvmCategorizer {
     fn calibration_config_hash(&self) -> Result<u64, String> {
         Ok(self.config_hash())
@@ -82,7 +94,7 @@ impl<C: CalibratableCategorizer> CalibratedCategorizer<C> {
 impl<C: CalibratableCategorizer> Annotator for CalibratedCategorizer<C> {
     const ID: &'static str = "turbo-doccat:calibrated";
     const VERSION: &'static str = "1";
-    type Reads = (View, Tokens);
+    type Reads = C::Reads;
     type Writes = (Categories, Calibrated<Categories>);
     fn annotate(&self, inputs: Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let (raw,) = self.categorizer.annotate(inputs)?;

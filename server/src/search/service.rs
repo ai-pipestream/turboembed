@@ -271,6 +271,7 @@ impl TurboSearchService for SearchService {
                         graph: d.graph,
                         chunks,
                         attributes: d.attributes.into_iter().collect(),
+                        layout_boxes: Vec::new(),
                     };
                     staged.push(stage_document(&dst, &state, doc_req)?);
                 }

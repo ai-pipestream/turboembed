@@ -27,7 +27,7 @@ fn the_web_languages_are_the_recipe_s_in_its_order() {
 #[test]
 fn documents_are_shared_among_sources() {
     let wants = WEB.wants();
-    assert_eq!(wants.len(), 2 * 102);
+    assert_eq!(wants.len(), 2 * 109);
     let srp: Vec<usize> =
         wants.iter().filter(|w| WEB_LANGUAGES[w.language].tatoeba == "srp").map(|w| w.documents).collect();
     assert_eq!(srp, [500, 500, 250, 250]);
@@ -155,6 +155,6 @@ fn the_committed_lists_are_read() {
     let ranges = parse_ranges(RANGES_NAME, RANGES).unwrap();
     // The files are exactly the ones the recipe reads, and each has
     // its three ranges.
-    assert_eq!((files.len(), ranges.len()), (204, 612));
+    assert_eq!((files.len(), ranges.len()), (218, 654));
     files_of(&WEB.wants(), &files).unwrap();
 }

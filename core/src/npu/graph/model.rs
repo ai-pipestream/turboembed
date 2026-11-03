@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use super::accept::*;
 use super::args::*;
+use super::blob::{self, Loader, Source};
 use super::*;
 use crate::backend::{
     TURBO_FORMAT_OPENVINO_IR, TURBO_INPUT_EMBEDDINGS, TURBO_INPUT_TOKEN_IDS, TURBO_OUTPUT_HIDDEN_STATES,
@@ -144,7 +145,8 @@ pub(super) fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
     }
     let xml = unsafe { std::slice::from_raw_parts(desc.artifact as *const u8, desc.artifact_bytes as usize) };
     let bin = unsafe { std::slice::from_raw_parts(desc.artifact2 as *const u8, desc.artifact2_bytes as usize) };
-    let io = ir::interface(xml).map_err(|e| fail(RUNTIME, e))?;
+    blob::begin();
+    let io = blob::timed("ir", || ir::interface(xml)).map_err(|e| fail(RUNTIME, e))?;
     if ctx.max_opset != 0 && io.max_opset > ctx.max_opset {
         return Err(fail(
             UNSUPPORTED,
@@ -156,40 +158,113 @@ pub(super) fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
         ));
     }
     let flags = ir::build_flags(&io).map_err(|e| fail(RUNTIME, e))?;
-    let container = ir::container((maj, min), xml, bin);
     let cflags = CString::new(flags.clone()).map_err(|_| fail(RUNTIME, "npu: a NUL in the build flags"))?;
-    let mut graph = create_graph(
-        ctx,
-        ze::GRAPH_FORMAT_NGRAPH_LITE,
-        &container,
-        cflags.as_ptr(),
-        "the driver's compiler refused the IR",
-    )?;
-    ctx.say(LOG_DEBUG, &format!("npu device {}: the IR is compiled ({flags})", ctx.ordinal));
 
-    // The graph that runs, when the device lists it, is the blob that
-    // compile just produced. The NGRAPH_LITE graph is destroyed once
-    // the copy exists. A refusal here does not keep that graph.
-    if ctx.formats_supported & ze::GRAPH_FORMAT_NATIVE != 0 {
-        graph = native_graph(ctx, graph)?;
+    // NATIVE, when the extension exports the
+    // compiled blob, whatever graphFormatsSupported says: the driver
+    // clears bit 0x1 whenever its compiler loads and takes a NATIVE
+    // create either way (blob.rs). The key is the manifest's digests; a
+    // caller that passed none loads NGRAPH_LITE rather than hash here.
+    let native = if blob::native_wanted() && native::exportable(&ctx.ext) {
+        let key = blob::timed("key", || {
+            digests(desc).map(|(x, b)| blob::Key::new(x, b, &flags, (maj, min), ctx.driver_version, ctx.arch))
+        });
+        if key.is_none() {
+            ctx.say(LOG_DEBUG, &format!("npu device {}: no manifest digest for the IR; NGRAPH_LITE", ctx.ordinal));
+        }
+        key
     } else {
+        None
+    };
+    let mut steps = OnDevice { ctx, desc, xml, bin, compiler: (maj, min), flags: &cflags, embeddings };
+    let (model, source) = blob::select(&mut steps, native.as_ref(), &blob::CACHE)?;
+    blob::record(source);
+    ctx.say(
+        LOG_DEBUG,
+        &format!(
+            "npu device {}: the graph is {} ({}): {}",
+            ctx.ordinal,
+            source.format(),
+            source.name(),
+            blob::phases()
+        ),
+    );
+    Ok(model)
+}
+
+/// The manifest's SHA-256 of the IR's two files, when the caller's
+/// description reaches that far and carries them.
+pub(super) fn digests(desc: &turbo_backend_model) -> Option<([u8; 32], [u8; 32])> {
+    let end = std::mem::offset_of!(turbo_backend_model, artifact2_sha256) + 32;
+    if (desc.struct_size as usize) < end {
+        return None;
+    }
+    let (x, b) = (desc.artifact_sha256, desc.artifact2_sha256);
+    (x != [0; 32] && b != [0; 32]).then_some((x, b))
+}
+
+/// A load's steps on the device, for `blob::select`.
+struct OnDevice<'a> {
+    ctx: &'a Context,
+    desc: &'a turbo_backend_model,
+    xml: &'a [u8],
+    bin: &'a [u8],
+    compiler: (u16, u16),
+    flags: &'a CString,
+    embeddings: Option<(*const f32, u32)>,
+}
+
+impl Loader for OnDevice<'_> {
+    type Graph = Handle;
+    type Out = Model;
+
+    /// The container copies the weights, so it is built here: a load
+    /// from a kept blob never makes one.
+    fn compile(&mut self) -> Res<Handle> {
+        let ctx = self.ctx;
+        let container = blob::timed("container", || ir::container(self.compiler, self.xml, self.bin));
+        let g = blob::timed("compile", || {
+            create_graph(
+                ctx,
+                ze::GRAPH_FORMAT_NGRAPH_LITE,
+                &container,
+                self.flags.as_ptr(),
+                "the driver's compiler refused the IR",
+            )
+        })?;
         ctx.say(
             LOG_DEBUG,
-            &format!(
-                "npu device {}: the graph is NGRAPH_LITE; ZE_GRAPH_FORMAT_NATIVE is not among the device's graph \
-                 formats (0x{:x})",
-                ctx.ordinal, ctx.formats_supported
-            ),
+            &format!("npu device {}: the IR is compiled ({})", ctx.ordinal, self.flags.to_string_lossy()),
         );
+        Ok(g)
     }
 
-    let model = describe(ctx, desc, graph, embeddings);
-    if model.is_err()
-        && let Some(destroy) = ctx.ext.destroy()
-    {
-        unsafe { destroy(graph) };
+    fn export(&mut self, lite: &Handle) -> Res<Vec<u8>> {
+        blob::timed("export", || native::copy(&self.ctx.ext, *lite)).map_err(blob_fail)
     }
-    model
+
+    /// The blob is read in place; the driver copies what it keeps.
+    fn create_native(&mut self, blob: &[u8]) -> Res<Handle> {
+        blob::timed("create", || {
+            create_graph(self.ctx, ze::GRAPH_FORMAT_NATIVE, blob, c"".as_ptr(), "the driver refused the native blob")
+        })
+    }
+
+    fn finish(&mut self, graph: Handle, source: Source) -> Res<Model> {
+        let model = describe(self.ctx, self.desc, graph, self.embeddings, source.format());
+        if model.is_err() {
+            destroy_graph(self.ctx, graph);
+        }
+        model
+    }
+
+    fn destroy(&mut self, graph: Handle) {
+        destroy_graph(self.ctx, graph);
+    }
+
+    fn note(&mut self, message: &str) {
+        self.ctx.say(LOG_DEBUG, &format!("npu device {}: {message}", self.ctx.ordinal));
+    }
 }
 
 pub(super) fn destroy_graph(ctx: &Context, graph: Handle) {
@@ -242,32 +317,6 @@ pub(super) fn create_graph(
     Ok(graph)
 }
 
-/// The native graph for a compiled IR graph. `lite` is destroyed
-/// whether the blob loads or the driver refuses it.
-pub(super) fn native_graph(ctx: &Context, lite: Handle) -> Res<Handle> {
-    let blob = match native::copy(&ctx.ext, lite) {
-        Ok(blob) => blob,
-        Err(e) => {
-            destroy_graph(ctx, lite);
-            return Err(blob_fail(e));
-        }
-    };
-    match create_graph(ctx, ze::GRAPH_FORMAT_NATIVE, &blob, c"".as_ptr(), "the driver refused the native blob") {
-        Ok(native) => {
-            destroy_graph(ctx, lite);
-            ctx.say(
-                LOG_DEBUG,
-                &format!("npu device {}: the graph is the native blob, {} bytes", ctx.ordinal, blob.len()),
-            );
-            Ok(native)
-        }
-        Err(e) => {
-            destroy_graph(ctx, lite);
-            Err(e)
-        }
-    }
-}
-
 pub(super) fn blob_fail(e: BlobError) -> Fail {
     match e {
         BlobError::Unsupported(m) => fail(UNSUPPORTED, m),
@@ -282,6 +331,7 @@ pub(super) fn describe(
     desc: &turbo_backend_model,
     graph: Handle,
     embeddings: Option<(*const f32, u32)>,
+    graph_format: &'static str,
 ) -> Res<Model> {
     let get_props = ctx.ext.get_properties2().ok_or_else(|| {
         fail(UNSUPPORTED, "npu: the driver's graph extension predates 1.8; pfnGetProperties2 is needed")
@@ -342,12 +392,19 @@ pub(super) fn describe(
     };
 
     // Initialize now: the weights' move to the device is the load.
-    match props.init_stage_required {
+    blob::timed("initialize", || initialize(ctx, graph, props.init_stage_required))?;
+
+    let compute_dtype = session_dtype(desc.compute_dtype, output.precision)?;
+    Ok(Model { ctx, graph, run: Mutex::new(()), inputs, output, frame_batch, seq, hidden, compute_dtype, graph_format })
+}
+
+fn initialize(ctx: &Context, graph: Handle, stage: u32) -> Res<()> {
+    match stage {
         ze::GRAPH_STAGE_INITIALIZE => {
             let init = ctx.ext.graph_initialize().ok_or_else(|| {
                 fail(RUNTIME, "npu: the graph asks for pfnGraphInitialize and the driver's table has none")
             })?;
-            ze_res("pfnGraphInitialize", unsafe { init(graph) })?;
+            ze_res("pfnGraphInitialize", unsafe { init(graph) })
         }
         ze::GRAPH_STAGE_COMMAND_LIST_INITIALIZE => {
             let init = ctx.ext.append_graph_initialize().ok_or_else(|| {
@@ -358,19 +415,10 @@ pub(super) fn describe(
                     init(list, graph, std::ptr::null_mut(), 0, std::ptr::null_mut())
                 })?;
                 wait_for_device(ctx.api, list, ctx.ordinal, "pfnAppendGraphInitialize")
-            })?;
+            })
         }
-        s => {
-            return Err(fail(
-                RUNTIME,
-                format!("npu: the graph asks for init stage {s}, which this backend does not know"),
-            ));
-        }
+        s => Err(fail(RUNTIME, format!("npu: the graph asks for init stage {s}, which this backend does not know"))),
     }
-
-    let compute_dtype = session_dtype(desc.compute_dtype, output.precision)?;
-    let graph_format = crate::npu::format_name(ctx.formats_supported);
-    Ok(Model { ctx, graph, run: Mutex::new(()), inputs, output, frame_batch, seq, hidden, compute_dtype, graph_format })
 }
 
 /// # Safety

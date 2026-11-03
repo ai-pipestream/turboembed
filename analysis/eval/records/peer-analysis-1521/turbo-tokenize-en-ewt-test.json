@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "gold_file": "en_ewt-ud-test.conllu",
+  "gold_sha256": "fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a",
+  "sentences": 2077,
+  "tokens": 25094,
+  "resamples": 1000,
+  "seed": 42,
+  "conditioning": [
+    "sentences: within-document boundary F1 (a document's final sentence end is never a boundary) on form-aligned tokens for CoNLL-U predictions; in per-document space-joined # text coordinates for sentence tiers",
+    "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted",
+    "uas/las: punctuation included",
+    "bootstrap: per-document pooled resampling for token-aligned metrics",
+    "tokens (tokenizer tiers): UAX #29 segments of the per-document space-joined # text with whitespace-only segments dropped, or Unicode White_Space runs for the whitespace baseline; no gold segmentation reaches a tier"
+  ],
+  "systems": [
+    {
+      "system": "turbo-uax29",
+      "sentences": null,
+      "tokens": {
+        "correct": 22894,
+        "selected": 26445,
+        "target": 25094,
+        "score": 88.8414598653447,
+        "low": 86.22389118490365,
+        "high": 90.9429431222533
+      },
+      "upos": null,
+      "xpos": null,
+      "feats": null,
+      "lemma": null,
+      "uas": null,
+      "las": null,
+      "entities": null,
+      "language": null,
+      "not_run": [
+        "sentences/fields: a tokenizer tier writes no sentence or field predictions"
+      ],
+      "token_mismatch_sentences": 691,
+      "throughput_sentences_per_second": 553642.2570051606
+    },
+    {
+      "system": "turbo-whitespace",
+      "sentences": null,
+      "tokens": {
+        "correct": 18084,
+        "selected": 21533,
+        "target": 25094,
+        "score": 77.5687906148798,
+        "low": 76.17676690122673,
+        "high": 78.76641423320034
+      },
+      "upos": null,
+      "xpos": null,
+      "feats": null,
+      "lemma": null,
+      "uas": null,
+      "las": null,
+      "entities": null,
+      "language": null,
+      "not_run": [
+        "sentences/fields: a tokenizer tier writes no sentence or field predictions"
+      ],
+      "token_mismatch_sentences": 1691,
+      "throughput_sentences_per_second": 1857004.4024504947
+    }
+  ]
+}

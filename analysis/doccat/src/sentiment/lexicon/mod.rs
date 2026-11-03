@@ -10,10 +10,10 @@
 //!   and reproduces Python `vaderSentiment`'s `SentimentIntensityAnalyzer`
 //!   scores (`neg`, `neu`, `pos`, `compound`) across its reference suite.
 //! - [`LexiconSentiment::score_sentence`] and the [`Annotator`] implementation
-//!   (`turbo-doccat:lexicon-sentiment`) read `opennlp:sentences` and
-//!   `opennlp:tokens`, plus optional `opennlp:dependencies` and `turbo:emoji`,
+//!   (`turbo-doccat:lexicon-sentiment`) read `turbo:sentences` and
+//!   `turbo:tokens`, plus optional `turbo:dependencies` and `turbo:emoji`,
 //!   and write `turbo:opinions` ([`Opinions`], with exact token evidence spans)
-//!   and sentence-level polarity in `turbo:categories<opennlp:sentences>`
+//!   and sentence-level polarity in `turbo:categories<turbo:sentences>`
 //!   ([`Categories<Sentences>`]).
 //! - Emoji scoring uses OpenNLP's own Apache-2.0 `emoji-annotations.txt`
 //!   ([`turbo_normalize::emoji::opennlp_annotation`]) rather than any external
@@ -25,9 +25,9 @@ use std::sync::{Arc, OnceLock};
 
 use turbo_analysis::{Annotator, Bound, Error, Ix, IxRange, Key, Layer, ModelRef, Refs, Span, Tag, TagSet, View};
 use turbo_analysis_layers::{Categories, Dependencies, Opinion, Opinions, Polarity, Sentences, Tokens};
-use turbo_maxent::sha256;
 use turbo_normalize::emoji::opennlp_annotation;
 use turbo_normalize_layers::Emoji;
+use turbo_sha256::sha256;
 
 /// Empirically derived mean sentiment intensity rating increase for booster words.
 pub const B_INCR: f64 = 0.293;
@@ -74,7 +74,7 @@ pub use vocabulary::VaderLexicon;
 /// How negation scope is determined when scoring tokenized sentences.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum NegationMode {
-    /// Use the `opennlp:dependencies` layer when present on the document,
+    /// Use the `turbo:dependencies` layer when present on the document,
     /// falling back to VADER's three-token preceding window when absent.
     #[default]
     Auto,

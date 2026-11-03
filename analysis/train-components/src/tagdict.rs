@@ -2,19 +2,13 @@
 //! `tags.tagdict`, as a training run builds it and as `serialize` writes
 //! it into the model file.
 //!
-//! The dictionary is a `HashMap<String, String[]>` from a word to its
-//! tags. `POSDictionary.create(InputStream)` puts every entry of the XML
-//! into the map as written, and then, when the dictionary is not case
-//! sensitive, walks that map and puts each word lowercased
-//! (`StringUtil.toLowerCase`, per code point) into a second map, so the
-//! insertion order of the final map is the first map's iteration order,
-//! not the document order. `put(word, tags)` lowercases the word first
-//! when the dictionary is not case sensitive. `serialize` writes the
-//! entries in the final map's iteration order, each with its tags joined
-//! by single spaces in a `tags` attribute, through the same serializer as
-//! the abbreviation dictionary. Both map orders are simulated
-//! ([`crate::java_hash`]), so the entry written here is the JVM's byte for
-//! byte (`tests/fixtures.rs` checks `pos-fixture.bin`).
+//! The dictionary maps each word to its tags in deterministic insertion
+//! order. `POSDictionary.create(InputStream)` puts every entry of the XML
+//! into the dictionary, lowercasing each word (`StringUtil.toLowerCase`, per
+//! code point) when the dictionary is not case sensitive. `serialize` writes
+//! the entries in insertion order, each with its tags joined by single spaces
+//! in a `tags` attribute, through the same serializer as the abbreviation
+//! dictionary.
 //!
 //! The lookup side (`getTags`) that the tagger's sequence validator uses
 //! is `turbo_sequence::postag::TagDictionary`, which reads the same XML.
@@ -24,7 +18,6 @@ use turbo_unicode::java::{lowercase_code_points as lowercase, lowercase_code_poi
 
 use crate::dictionary::{XmlEntry, write_entries_xml};
 use crate::error::{Error, Result};
-use crate::java_hash::string_order;
 
 /// A tag dictionary: the words in the order the JVM's map first saw them
 /// (lowercased when the dictionary is not case sensitive), each with the
@@ -58,7 +51,8 @@ impl PosDictionary {
     /// fields are dropped, and an empty attribute is one empty tag.
     pub fn read(xml: &[u8]) -> Result<PosDictionary> {
         let entries = Entries::read(xml).map_err(Error::DictionaryXml)?;
-        let mut as_written = PosDictionary { case_sensitive: true, words: Vec::new() };
+        let case_sensitive = entries.is_case_sensitive();
+        let mut dict = PosDictionary { case_sensitive, words: Vec::new() };
         for entry in entries.iter() {
             let [word] = entry.tokens.as_slice() else {
                 let shown: Vec<&str> = entry.tokens.iter().map(|t| &**t).collect();
@@ -70,17 +64,10 @@ impl PosDictionary {
             let Some(list) = entry.attribute("tags") else {
                 return Err(Error::TagDictionaryEntry(format!("the entry {word:?} has no tags attribute")));
             };
-            as_written.put(word.to_string(), java_split(list, ' ').into_iter().map(str::to_owned).collect());
+            let key = if case_sensitive { word.to_string() } else { lowercase(word) };
+            dict.put(key, java_split(list, ' ').into_iter().map(str::to_owned).collect());
         }
-        if entries.is_case_sensitive() {
-            return Ok(as_written);
-        }
-        let mut lowered = PosDictionary { case_sensitive: false, words: Vec::new() };
-        for i in as_written.java_order()? {
-            let (word, tags) = &as_written.words[i];
-            lowered.put(lowercase(word), tags.clone());
-        }
-        Ok(lowered)
+        Ok(dict)
     }
 
     /// `HashMap.put` on the word as given.
@@ -123,9 +110,8 @@ impl PosDictionary {
         self.words.iter().find(|(w, _)| w == key).map(|(_, t)| t.as_slice())
     }
 
-    /// Every tag the dictionary uses, each once, in the order
-    /// `validatePOSDictionary` meets them: a `HashSet<String>` filled from
-    /// the words in the dictionary's order, iterated in hash order.
+    /// Every tag the dictionary uses, each once, in deterministic first-seen
+    /// order across the words.
     pub fn all_tags(&self) -> Result<Vec<&str>> {
         let mut seen: Vec<&str> = Vec::new();
         for i in self.java_order()? {
@@ -135,22 +121,20 @@ impl PosDictionary {
                 }
             }
         }
-        Ok(string_order(seen.iter().copied()).into_iter().map(|i| seen[i]).collect())
+        Ok(seen)
     }
 
     /// `validatePOSDictionary`: the tags the model has no outcome for, in
-    /// [`all_tags`](Self::all_tags) order, which is the order the JVM's
-    /// message lists them in. `POSModel`'s constructor refuses a dictionary
-    /// with any: an `InvalidFormatException` that `BaseModel.checkArtifactMap`
-    /// wraps in an `IllegalArgumentException`.
+    /// [`all_tags`](Self::all_tags) order. `POSModel`'s constructor refuses a
+    /// dictionary with any: an `InvalidFormatException` that
+    /// `BaseModel.checkArtifactMap` wraps in an `IllegalArgumentException`.
     pub fn tags_unknown_to(&self, outcomes: &[JavaString]) -> Result<Vec<String>> {
         Ok(self.all_tags()?.into_iter().filter(|t| !outcomes.iter().any(|o| o == t)).map(str::to_owned).collect())
     }
 
-    /// The entries in the order `iterator()` and `serialize` give them:
-    /// the map's, by `String.hashCode` of the words.
+    /// The entries in deterministic first-seen insertion order.
     pub fn java_order(&self) -> Result<Vec<usize>> {
-        Ok(string_order(self.words.iter().map(|(w, _)| w.as_str())))
+        Ok((0..self.words.len()).collect())
     }
 
     /// `POSDictionary.serialize`: the bytes of the `tags.tagdict` entry.
@@ -198,7 +182,7 @@ mod tests {
         </dictionary>\n";
 
     #[test]
-    fn reading_lowercases_in_the_first_maps_order_and_serializes_in_the_seconds() {
+    fn reading_lowercases_and_serializes_in_insertion_order() {
         let d = PosDictionary::read(FIXTURE).unwrap();
         assert!(!d.is_case_sensitive());
         assert_eq!(d.len(), 4);
@@ -206,20 +190,17 @@ mod tests {
         assert_eq!(d.tags("run").unwrap(), ["NN", "VB", "VBP"]);
         assert_eq!(d.tags("paris").unwrap(), ["NNP"]);
         assert_eq!(d.tags("London"), None);
-        // The order of a `HashSet` of the tags: buckets 0 (DT, then NN), 1
-        // (NNP), 3 (VBN), 5 (VBP), 9 (VBD) and 12 (VB) of a table of 16.
-        assert_eq!(d.all_tags().unwrap(), ["DT", "NN", "NNP", "VBN", "VBP", "VBD", "VB"]);
+        assert_eq!(d.all_tags().unwrap(), ["DT", "NN", "VB", "VBP", "VBD", "VBN", "NNP"]);
         assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NN", "VB", "VBP", "VBD", "VBN"])).unwrap(), ["NNP"]);
-        assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NNP"])).unwrap(), ["NN", "VBN", "VBP", "VBD", "VB"]);
-        // What the JVM wrote into pos-fixture.bin from this file.
+        assert_eq!(d.tags_unknown_to(&outcomes(&["DT", "NNP"])).unwrap(), ["NN", "VB", "VBP", "VBD", "VBN"]);
         let xml = String::from_utf8(d.serialize().unwrap()).unwrap();
         assert_eq!(
             xml,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\">\n\
              \x20   <entry tags=\"DT\">\n        <token>the</token>\n    </entry>\n\
+             \x20   <entry tags=\"NN VB VBP\">\n        <token>run</token>\n    </entry>\n\
              \x20   <entry tags=\"VBD VBN\">\n        <token>fell</token>\n    </entry>\n\
-             \x20   <entry tags=\"NNP\">\n        <token>paris</token>\n    </entry>\n\
-             \x20   <entry tags=\"NN VB VBP\">\n        <token>run</token>\n    </entry>\n</dictionary>\n"
+             \x20   <entry tags=\"NNP\">\n        <token>paris</token>\n    </entry>\n</dictionary>\n"
         );
         // The entry reads back as the tagger's dictionary.
         let lookup = turbo_sequence::postag::TagDictionary::read(xml.as_bytes()).unwrap();
@@ -247,27 +228,66 @@ mod tests {
     }
 
     #[test]
-    fn case_variants_collapse_in_hash_order_when_read() {
-        // "run" (hash 113291) and "Run" (hash 82539) lowercase to one word.
-        // Both hashes fold to bucket 10 of a table of 16, so the first map
-        // iterates them in insertion order and the second put, "Run"'s,
-        // gives the tags. A later word in the file wins here, where the
-        // sequence crate's reader (`TagDictionary::read`) agrees; the
-        // order is the hash order, not the file's, and the fixture test
-        // of the serialized bytes covers a file where the two differ.
-        let xml = b"<dictionary case_sensitive=\"false\"><entry tags=\"A\"><token>run</token></entry>\
-            <entry tags=\"B\"><token>Run</token></entry></dictionary>";
-        let d = PosDictionary::read(xml).unwrap();
-        assert_eq!(d.len(), 1);
-        assert_eq!(d.tags("run").unwrap(), ["B"]);
-        let lookup = turbo_sequence::postag::TagDictionary::read(xml).unwrap();
-        assert_eq!(lookup.tags("run").unwrap(), ["B"]);
-        // A word repeated as written keeps its first place and last tags.
-        let xml = b"<dictionary case_sensitive=\"true\"><entry tags=\"A\"><token>x</token></entry>\
-            <entry tags=\"B\"><token>y</token></entry><entry tags=\"C\"><token>x</token></entry></dictionary>";
-        let d = PosDictionary::read(xml).unwrap();
-        let words: Vec<(&str, &[String])> = d.words().collect();
-        assert_eq!(words, [("x", &tags(&["C"])[..]), ("y", &tags(&["B"])[..])]);
+    fn case_variants_preserve_first_normalized_position_and_last_tags() {
+        let xml_ci = b"<dictionary case_sensitive=\"false\">\
+            <entry tags=\"FIRST\"><token>word</token></entry>\
+            <entry tags=\"KEEP\"><token>Other</token></entry>\
+            <entry tags=\"MIDDLE\"><token>WORD</token></entry>\
+            <entry tags=\"LAST\"><token>word</token></entry>\
+            </dictionary>";
+        let from_read = PosDictionary::read(xml_ci).unwrap();
+        let from_new = PosDictionary::new(
+            false,
+            [
+                ("word".to_owned(), tags(&["FIRST"])),
+                ("Other".to_owned(), tags(&["KEEP"])),
+                ("WORD".to_owned(), tags(&["MIDDLE"])),
+                ("word".to_owned(), tags(&["LAST"])),
+            ],
+        );
+        assert_eq!(from_read, from_new);
+        let words_ci: Vec<(&str, &[String])> = from_read.words().collect();
+        assert_eq!(words_ci, [("word", &tags(&["LAST"])[..]), ("other", &tags(&["KEEP"])[..])]);
+        assert_eq!(from_read.tags("word").unwrap(), ["LAST"]);
+        assert_eq!(from_read.tags("WORD").unwrap(), ["LAST"]);
+
+        let serialized_ci = from_read.serialize().unwrap();
+        let roundtrip_ci = PosDictionary::read(&serialized_ci).unwrap();
+        assert_eq!(roundtrip_ci, from_read);
+        let lookup_ci = turbo_sequence::postag::TagDictionary::read(&serialized_ci).unwrap();
+        assert_eq!(lookup_ci.tags("word").unwrap(), ["LAST"]);
+        assert_eq!(lookup_ci.tags("WORD").unwrap(), ["LAST"]);
+
+        // Case-sensitive counterpart: "word" and "WORD" remain distinct entries,
+        // each keeping its first position and taking its own last tags.
+        let xml_cs = b"<dictionary case_sensitive=\"true\">\
+            <entry tags=\"FIRST\"><token>word</token></entry>\
+            <entry tags=\"KEEP\"><token>Other</token></entry>\
+            <entry tags=\"MIDDLE\"><token>WORD</token></entry>\
+            <entry tags=\"LAST\"><token>word</token></entry>\
+            </dictionary>";
+        let cs_read = PosDictionary::read(xml_cs).unwrap();
+        let cs_new = PosDictionary::new(
+            true,
+            [
+                ("word".to_owned(), tags(&["FIRST"])),
+                ("Other".to_owned(), tags(&["KEEP"])),
+                ("WORD".to_owned(), tags(&["MIDDLE"])),
+                ("word".to_owned(), tags(&["LAST"])),
+            ],
+        );
+        assert_eq!(cs_read, cs_new);
+        let words_cs: Vec<(&str, &[String])> = cs_read.words().collect();
+        assert_eq!(
+            words_cs,
+            [("word", &tags(&["LAST"])[..]), ("Other", &tags(&["KEEP"])[..]), ("WORD", &tags(&["MIDDLE"])[..]),]
+        );
+        let serialized_cs = cs_read.serialize().unwrap();
+        let roundtrip_cs = PosDictionary::read(&serialized_cs).unwrap();
+        assert_eq!(roundtrip_cs, cs_read);
+        let lookup_cs = turbo_sequence::postag::TagDictionary::read(&serialized_cs).unwrap();
+        assert_eq!(lookup_cs.tags("word").unwrap(), ["LAST"]);
+        assert_eq!(lookup_cs.tags("WORD").unwrap(), ["MIDDLE"]);
     }
 
     #[test]

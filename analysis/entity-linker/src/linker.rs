@@ -181,6 +181,9 @@ impl Annotator for EntityLinker {
             mix(&mut h, p.provider_id().as_bytes());
             mix(&mut h, &p.fingerprint().to_le_bytes());
         }
+        if self.config.fuzzy_policy.is_enabled() {
+            mix(&mut h, &self.config.fuzzy_policy.fingerprint().to_le_bytes());
+        }
         h.finish()
     }
 
@@ -231,11 +234,12 @@ impl Annotator for EntityLinker {
 
             let mut cands = Vec::new();
             for p in &self.providers {
-                let mut pc = p.generate_candidates(
+                let mut pc = p.generate_candidates_with_policy(
                     &mention_texts[i],
                     qvec,
                     self.config.max_candidates_per_provider,
                     self.config.fuzzy_threshold,
+                    self.config.fuzzy_policy,
                 );
                 cands.append(&mut pc);
             }

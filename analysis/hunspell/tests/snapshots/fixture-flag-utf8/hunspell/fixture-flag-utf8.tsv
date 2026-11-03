@@ -1,0 +1,11 @@
+load_error	
+unsupported	0
+words	8
+Haus	Haus	Haus	st:Haus
+Hauss	Haus	Haus	st:Haus fl:é
+überHaus	Haus	Haus	über st:Haus fl:★
+überHauss	Haus	Haus	fl:★ st:Haus fl:é
+smile	smile	smile	st:smile
+smile\uD83D\uDE00	smile	smile	st:smile fl:\uD83D\uDE00
+\uD835\uDC00bc	\uD835\uDC00bc	\uD835\uDC00bc	st:\uD835\uDC00bc
+\uD835\uDC00bcs	\uD835\uDC00bc	\uD835\uDC00bc	st:\uD835\uDC00bc fl:é

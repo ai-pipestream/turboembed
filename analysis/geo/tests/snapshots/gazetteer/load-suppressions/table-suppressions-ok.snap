@@ -1,0 +1,8 @@
+# turbo:gazetteer-load
+1		
+# turbo:gazetteer-suppressions
+Paris	1	FR	1	CITY
+London	0		0	
+Sao Paulo	1	BR	0	
+Springfield	0		1	city
+Tiny	0		0	

@@ -114,7 +114,7 @@ copy of the recipe.
 
 | Command | What it does |
 |---|---|
-| `turbo-bundle fetch <recipe> <upstream-dir>` | Fetch only. A file already there is kept when its hash matches the pin. Writes `turbo-fetch.json`, where the files came from and their hashes. A model with terms beyond its licence needs `--accept-terms`, here and in `make`. |
+| `turbo-bundle fetch <recipe> <upstream-dir>` | Fetch only. A file already there is kept when its hash matches the pin. Writes `turbo-fetch.json`, where the files came from and their hashes. A model with terms beyond its licence needs `--accept-terms`, here and in `make`; a licence the user (`$USER`) already accepted in the zoo's acceptance file (`$TURBO_ZOO_HOME`, docs/zoo.md) needs no flag, and the flag records it there. |
 | `turbo-bundle catalogue` | The models `make` and `fetch` take by name instead of a recipe path, with their licences. |
 | `turbo-bundle reference <recipe> <upstream-dir> <bundle-dir>` | Everything `make` does after the fetch: the offline path, for an upstream directory filled another way. |
 | `turbo-bundle seal <recipe> <upstream-dir> <bundle-dir>` | Stage and seal with no container, from a reference and conversion reports a container already wrote into the bundle directory (see [../../bundle/README.md](../../bundle/README.md)). |
@@ -132,6 +132,17 @@ copy of the recipe.
 | `bge-large-en-v1.5.json` | BAAI/bge-large-en-v1.5 | 512 | `onnx-f16`, `openvino-f16` (NPU) |
 | `bge-m3.json` | BAAI/bge-m3 | 512 | `onnx-f16`; the weights are converted from the PyTorch checkpoint |
 | `bge-m3-8192.json` | BAAI/bge-m3 | 8192 | the same, at `max_batch` 8 |
+| `modernbert-base.json` | answerdotai/ModernBERT-base | 8192 | none (`weights-f32` only, the upstream F32 safetensors); the masked-language-model checkpoint, served as mean pooling of `final_norm`'s output: a conformance target and a base for heads, not a trained embedding |
+| `nomic-embed-text-v1.5.json` | nomic-ai/nomic-embed-text-v1.5 | 8192 | none (`weights-f32` only); trained to 2048 tokens and served to 8192 with the unscaled rotary table, as upstream's `n_positions` gives and text-embeddings-inference serves it (the model card's long-context example instead loads it with `rotary_scaling_factor=2`, an NTK-scaled table this bundle does not build, so vectors past 2048 tokens follow the unscaled model); prefixes `search_query: ` and `search_document: `; not normalized, as its `modules.json` has no Normalize module (ask for L2 at run time) |
+
+The two rotary recipes (#1461) are made by path. The CPU, CUDA, Level
+Zero and Metal backends run both families (docs/cpu.md, docs/cuda.md,
+docs/levelzero.md, docs/metal.md), and the bundles' reference vectors are their conformance
+target: on CUDA both pass at MODEL and FASTEST (docs/receipts/cuda-1461/).
+Their references carry cases of 6827 and 7051 tokens and one cut at
+8192, and a case that meets ModernBERT's added tokens. nomic's recipe
+carries a notice for its fine-tuning data (MS MARCO), so `fetch` and
+`make` need `--accept-terms` (docs/licences.md).
 
 The ONNX files are for the reference programs and the converters; the
 library never executes them.

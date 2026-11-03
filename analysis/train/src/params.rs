@@ -22,7 +22,7 @@ use std::cmp::Ordering;
 use std::fmt;
 
 use crate::error::{Error, Result};
-use turbo_jvm::text;
+use crate::text;
 use turbo_maxent::Properties;
 use turbo_unicode::java::{to_lower_char, to_upper_char};
 
@@ -407,15 +407,13 @@ impl TrainingParameters {
         self.entries.is_empty()
     }
 
-    /// `serialize(OutputStream)`: `Properties.store(out, null)` as JDK 21
-    /// writes it, in ISO-8859-1 with `\uXXXX` escapes. The first line is
-    /// `#` and `date`, where the JDK writes `new Date().toString()`; the
-    /// entries follow sorted by `String.compareTo` of the key, each
-    /// `key=value` with the escapes of `saveConvert`. Every value must be a
-    /// string: the JDK casts, and OpenNLP's method throws otherwise.
+    /// `serialize(OutputStream)`: `Properties.store(out, null)` in ISO-8859-1
+    /// with `\uXXXX` escapes. The first line is `#` and `date`; the entries
+    /// follow sorted by the code-point order of the key, each `key=value` with
+    /// the escapes of `saveConvert`. Every value must be a string.
     pub fn store(&self, date: &str) -> Result<String> {
         let mut keys: Vec<&(String, Value)> = self.entries.iter().collect();
-        keys.sort_by(|a, b| turbo_jvm::chars::compare(&a.0, &b.0));
+        keys.sort_by(|a, b| a.0.cmp(&b.0));
         let mut out = String::new();
         out.push('#');
         out.push_str(date);

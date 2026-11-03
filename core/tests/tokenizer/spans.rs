@@ -184,9 +184,8 @@ fn spans_are_into_the_text_without_the_prefix() {
 /// character map replaced as a whole: the core's span covers the cluster.
 /// The number of such spans.
 pub fn spans_near_upstream(text: &str, ours: &[(i32, [u32; 2])], theirs: &[(i32, [u32; 2])]) -> usize {
-    use unicode_segmentation::UnicodeSegmentation;
     assert_eq!(ours.len(), theirs.len(), "{text:?}");
-    let bounds: Vec<usize> = text.grapheme_indices(true).map(|(i, _)| i).chain([text.len()]).collect();
+    let bounds: Vec<usize> = turbo_unicode::grapheme_boundaries(text).collect();
     let inside = |x: u32| !bounds.contains(&(x as usize));
     let mut widened = 0;
     for (o, t) in ours.iter().zip(theirs) {

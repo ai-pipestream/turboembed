@@ -1,0 +1,67 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-28T00:16:27Z",
+  "machine": {
+    "arch": "b70",
+    "host_cpu": "",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "levelzero",
+    "kind": "DEVICE_GPU",
+    "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+    "vendor": "Intel",
+    "driver_version": "1.3.39122",
+    "runtime_version": "1.32.0",
+    "memory_total": 32530182144
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 levelzero cpu",
+    "commit": "e6a9693f203a8307578c7278afedf56087a5c005",
+    "pushed_to": [
+      "origin/argon/888-963-890-incivility-civil-comments",
+      "origin/argon/922-depparse-ud-models",
+      "origin/codex/1438-device-lost-diagnostic",
+      "origin/codex/922-swap-and-evaluation",
+      "origin/codex/929-chinese-units",
+      "origin/codex/929-japanese-units",
+      "origin/cursor/1301-server-examples",
+      "origin/cursor/1361-connect-workbench",
+      "origin/cursor/1361-workbench-part2",
+      "origin/cursor/1377-put-uploads",
+      "origin/cursor/941-npu-native-blob",
+      "origin/cursor/windows-ci-fix",
+      "origin/fable/812-aligned",
+      "origin/fable/812-e2e-correctness",
+      "origin/fable/812-h64n32",
+      "origin/fable/920-timings-idle",
+      "origin/fable/978-unprofiled-e2e",
+      "origin/fable/cuda-support-dupes",
+      "origin/fable/metal-runs-imports",
+      "origin/fix/bughunt-2026-10-26",
+      "origin/main",
+      "origin/muse/879-cascade",
+      "origin/muse/913-colbert-protocol",
+      "origin/muse/968-pii-prose",
+      "origin/muse/permissive-encoder"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_EXACT",
+  "model_id": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "revision": "1",
+  "manifest_sha256": "bb57a12c1646762a831dac4e7d7f52ab8ab4ab2edfd0dfa826d7f8d486a650ea",
+  "questions_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "requests": 64,
+  "passages": 16,
+  "turbo": {
+    "warmup": 2,
+    "iterations": 10,
+    "p50_ms": 352.144767,
+    "min_ms": 347.43013099999996,
+    "max_ms": 359.367281,
+    "pairs_per_second": 2907.894979453152
+  },
+  "tei": null
+}

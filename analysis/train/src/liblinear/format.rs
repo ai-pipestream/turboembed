@@ -1,31 +1,11 @@
-//! The bytes `LiblinearModel.serialize` writes and its `InputStream`
-//! constructor reads, through `DataOutputStream`:
+//! Liblinear text serialization and the retired OpenNLP binary envelope writer.
 //!
-//! 1. an `int`, the length of the liblinear text model, then the text, in
-//!    UTF-8, as `Linear.saveModel` writes it;
-//! 2. an `int`, the number of outcome labels, then each with `writeUTF`;
-//! 3. an `int`, the size of the predicate map, then each entry's predicate
-//!    with `writeUTF` and its id as an `int`, in the order the
-//!    `HashMap<String, Integer>` iterates them.
-//!
-//! The text model is a header (`solver_type`, `nr_class`, `label`,
-//! `nr_feature`, `bias`), then `w` and one line per feature with its
-//! weights, each followed by a space. `saveModel` formats the bias and
-//! every nonzero weight with `%.17g` in `Locale.ENGLISH`, and a zero weight
-//! as `0`. Java's `%g` takes the digits of the shortest decimal that reads
-//! back to the double and pads them with zeros to 17 significant digits,
-//! so every value reads back to its bits; the writer here does the same.
-//!
-//! The reader accepts what `saveModel` and `serialize` write and nothing
-//! else: the header records in that order, single spaces, one line per
-//! feature with the right number of weights, no bytes after the map, no
-//! predicate twice, and only models the add-on can score.
+//! The binary envelope reader returns a typed disabled error before decoding.
+//! The independent liblinear text parser remains available until the training
+//! stack migration in #1532. Text round trips are checked against native numeric
+//! values, without a JVM oracle.
 
 use std::fmt::Write as _;
-
-use turbo_jvm::hash_map::{Utf16String, put_order};
-use turbo_jvm::text::{parse_double, parse_int};
-use turbo_maxent::java_data::JavaData;
 
 use super::SolverType;
 use super::error::ModelError;
@@ -33,6 +13,7 @@ use super::linear::LinearModel;
 use super::model::LiblinearModel;
 use crate::error::{Error, Result};
 use crate::java_string::JavaString;
+use crate::text::{parse_double, parse_int};
 
 /// The most bytes `DataOutputStream.writeUTF` writes.
 const MAX_UTF_BYTES: usize = 65535;
@@ -50,12 +31,7 @@ pub fn write(model: &LiblinearModel) -> Result<Vec<u8>> {
         write_utf(&mut out, o, "outcome label")?;
     }
     write_int(&mut out, model.predicates.len());
-    let keys = model.predicates.iter().map(|(p, _)| Utf16String(p.utf16_units().collect()));
-    // String keys are ordered by compareTo in a tree bin, so the order is
-    // the JVM's whatever the hashes.
-    let (order, _) = put_order(keys);
-    for i in order {
-        let (p, id) = &model.predicates[i];
+    for (p, id) in &model.predicates {
         write_utf(&mut out, p, "predicate")?;
         out.extend_from_slice(&id.to_be_bytes());
     }
@@ -215,41 +191,10 @@ fn java_digits(x: f64) -> (String, i32) {
     (other_digits, other_exponent)
 }
 
-/// `new LiblinearModel(InputStream)`, strictly (see the module
-/// documentation).
-pub fn read(bytes: &[u8]) -> std::result::Result<LiblinearModel, ModelError> {
-    let mut data = JavaData::new(bytes);
-    let text_len = count(&mut data, "the text model's length")?;
-    if text_len > data.remaining() {
-        return Err(ModelError::Data(format!("the text model's length {text_len} runs past the end")));
-    }
-    let start = data.position();
-    let text = &bytes[start..start + text_len];
-    let mut data = JavaData::new(&bytes[start + text_len..]);
-    let text = std::str::from_utf8(text).map_err(|e| ModelError::Data(format!("the text model is not UTF-8: {e}")))?;
-    let linear = load_model(text)?;
-
-    let outcome_count = count(&mut data, "the outcome count")?;
-    let mut outcomes = Vec::with_capacity(outcome_count.min(data.remaining() / 2));
-    for _ in 0..outcome_count {
-        outcomes.push(JavaString::from_modified_utf8(data.read_utf()?).expect("read_utf checks the encoding"));
-    }
-    let predicate_count = count(&mut data, "the predicate count")?;
-    let mut predicates = Vec::with_capacity(predicate_count.min(data.remaining() / 6));
-    for _ in 0..predicate_count {
-        let p = JavaString::from_modified_utf8(data.read_utf()?).expect("read_utf checks the encoding");
-        predicates.push((p, data.read_int()?));
-    }
-    if data.remaining() > 0 {
-        return Err(ModelError::Trailing(data.remaining()));
-    }
-    LiblinearModel::from_parts(linear, outcomes, predicates)
-}
-
-/// A `readInt` that must not be negative.
-fn count(data: &mut JavaData<'_>, what: &'static str) -> std::result::Result<usize, ModelError> {
-    let n = data.read_int()?;
-    usize::try_from(n).map_err(|_| ModelError::Count { what, value: n })
+/// OpenNLP binary-envelope loading is disabled under #1511.
+/// No input bytes are decoded, including otherwise valid serialized models.
+pub fn read(_bytes: &[u8]) -> std::result::Result<LiblinearModel, ModelError> {
+    Err(ModelError::Disabled)
 }
 
 fn line_error(line: usize, detail: impl Into<String>) -> ModelError {
@@ -364,27 +309,26 @@ mod tests {
     }
 
     #[test]
-    fn g17_pads_the_shortest_digits_as_java_does() {
-        // Values from String.format(Locale.ENGLISH, "%.17g", x) on JDK 21.
-        assert_eq!(g17(0.0), "0.0000000000000000");
-        assert_eq!(g17(1.0), "1.0000000000000000");
-        assert_eq!(g17(-1.0), "-1.0000000000000000");
-        assert_eq!(g17(0.1), "0.10000000000000000");
-        assert_eq!(g17(0.0001), "0.00010000000000000000");
-        assert_eq!(g17(0.00001), "1.0000000000000000e-05");
-        assert_eq!(g17(1e16), "10000000000000000");
-        assert_eq!(g17(1e17), "1.0000000000000000e+17");
-        assert_eq!(g17(123.456), "123.45600000000000");
-        assert_eq!(g17(-2.5e-300), "-2.5000000000000000e-300");
-        assert_eq!(g17(-0.0), "-0.0000000000000000");
-        assert_eq!(g17(0.002), "0.0020000000000000000");
-        assert_eq!(g17(9.99999999999999e-4), "0.00099999999999999900");
-        assert_eq!(g17(f64::MAX), "1.7976931348623157e+308");
-        assert_eq!(g17(5e-324), "4.9000000000000000e-324");
-        assert_eq!(g17(f64::from_bits(14)), "6.9000000000000000e-323");
-        assert_eq!(g17(f64::from_bits(4)), "2.0000000000000000e-323");
-        // Halfway between ...062 and ...063, but ...062 reads back to the
-        // double below.
-        assert_eq!(g17(5.960464477539063e-8), "5.9604644775390630e-08");
+    fn text_numbers_preserve_finite_native_values() {
+        for value in [
+            0.0_f64,
+            -0.0,
+            1.0,
+            -1.0,
+            0.1,
+            1e-5,
+            1e17,
+            123.456,
+            -2.5e-300,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+            5.960464477539063e-8,
+        ] {
+            assert_eq!(g17(value).parse::<f64>().unwrap().to_bits(), value.to_bits());
+        }
+        for bits in 1..=300_000 {
+            let value = f64::from_bits(bits);
+            assert_eq!(g17(value).parse::<f64>().unwrap().to_bits(), bits);
+        }
     }
 }

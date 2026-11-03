@@ -3,10 +3,9 @@ use turbo_analysis::Span as Bytes;
 use turbo_formats::native::NameReader;
 use turbo_formats::{Field, Name};
 use turbo_train::Value;
-use turbo_unicode::WhitespaceMode;
 
 fn samples(text: &str) -> Vec<NameSample<'_>> {
-    NameReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect()
+    NameReader::new(text).unwrap().map(|s| s.unwrap()).collect()
 }
 
 fn strings(e: &Event) -> Vec<String> {
@@ -114,25 +113,6 @@ fn the_defaults_go_in_only_where_absent_whatever_the_case_of_the_key() {
     assert_eq!(beam_size(&p).unwrap(), 3);
     given.put(BEAM_SIZE_KEY, 5);
     assert_eq!(beam_size(&given).unwrap(), 5);
-}
-
-#[test]
-fn a_trained_model_is_packaged_in_the_jvms_entry_order() {
-    let s = samples("<START:person> Ann <END> met <START:person> Bo <END> .\nIt rained .\n");
-    let mut p = TrainingParameters::new();
-    p.put(Key::ITERATIONS, 10);
-    let ours = train_name_model(&s, &bio(), None, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap();
-    assert_eq!(ours.package.entry_names(), ["manifest.properties", "nameFinder.model", "generator.featuregen"]);
-    let file = turbo_maxent::ModelFile::open(ours.package.to_bytes()).unwrap();
-    let m = file.manifest();
-    assert_eq!(m.get("Component-Name"), Some("NameFinderME"));
-    assert_eq!(m.get("BeamSize"), Some("3"));
-    assert_eq!(m.get("factory"), Some(FACTORY));
-    assert_eq!(m.get("sequenceCodecImplName"), Some("opennlp.tools.namefind.BioCodec"));
-    assert_eq!(m.get("TrainerType"), Some("Event"));
-    assert_eq!(&*file.entry(DESCRIPTOR_ENTRY).unwrap(), DEFAULT_DESCRIPTOR.as_bytes());
-    assert_eq!(ours.model.algorithm(), Algorithm::Maxent);
-    assert_eq!(ours.params.get_int(Key::CUTOFF).unwrap(), Some(0));
 }
 
 #[test]

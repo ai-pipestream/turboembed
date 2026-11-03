@@ -8,6 +8,7 @@
 //! queue itself, as it sends it, so what waits is the queue's and counted
 //! there, and the sequence follows the order the items are sent in.
 
+mod document;
 mod receiver;
 
 use std::pin::Pin;
@@ -21,11 +22,15 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_stream::Stream;
 use tonic::transport::Endpoint;
+use turbo_analysis::Document;
 
+pub use document::SinkTyped;
+pub(crate) use document::no_sink;
 pub use receiver::{MAX_SUMMARY_ERRORS, SinkReceiver};
 
-use crate::proto::result::AnalyzeStreamResponse;
+use crate::api::Failure;
 use crate::proto::result::analyze_stream_response::Outcome;
+use crate::proto::result::{AnalyzeStreamResponse, DocumentGraphResponse};
 use crate::proto::sink::turbo_sink_service_client::TurboSinkServiceClient;
 use crate::proto::sink::{DocumentSinkItem, DocumentSinkSummary};
 
@@ -44,6 +49,12 @@ pub struct SinkConfig {
     pub endpoint: String,
     pub max_queue_items: usize,
     pub max_queue_bytes: u64,
+    /// Whether every AnalyzeDocumentProgressive call that ends with its
+    /// complete graph forwards that graph too.
+    pub documents: bool,
+    /// The typed projection every item carrying a graph also carries;
+    /// `None` sends none, and items are as they were without it.
+    pub typed: Option<SinkTyped>,
 }
 
 /// What the forwarder did so far.
@@ -56,6 +67,10 @@ pub struct SinkStats {
     pub forwarded: u64,
     /// Refused by a full queue.
     pub dropped: u64,
+    /// Document graphs refused before the queue: a graph that does not
+    /// import, or one without the typed projection's view. The latest
+    /// reason is `last_error`.
+    pub refused: u64,
     /// Left in the queue when close stopped a drain at its deadline.
     pub abandoned: u64,
     /// Items in the queue now, and their encoded bytes.
@@ -74,6 +89,7 @@ struct Counters {
     offered: AtomicU64,
     forwarded: AtomicU64,
     dropped: AtomicU64,
+    refused: AtomicU64,
     abandoned: AtomicU64,
     queued: AtomicU64,
     queued_bytes: AtomicU64,
@@ -89,8 +105,14 @@ pub(crate) struct SinkForwarder {
     tx: Mutex<Option<mpsc::Sender<Queued>>>,
     rx: Arc<Mutex<mpsc::Receiver<Queued>>>,
     max_bytes: u64,
+    documents: bool,
+    typed: Option<SinkTyped>,
     counters: Arc<Counters>,
     task: Mutex<Option<JoinHandle<()>>>,
+    /// Test-only: one-shot hook taken under the sender lock after offered++
+    /// and before try_send, so a close racing that offer can be proven to wait.
+    #[cfg(test)]
+    enqueue_gap: Mutex<Option<Box<dyn FnOnce() + Send>>>,
 }
 
 impl SinkForwarder {
@@ -102,6 +124,9 @@ impl SinkForwarder {
         if config.max_queue_items == 0 || config.max_queue_bytes == 0 {
             return Err("the sink queue's item and byte bounds must be over 0".into());
         }
+        if let Some(t) = &config.typed {
+            t.check()?;
+        }
         let (tx, rx) = mpsc::channel(config.max_queue_items);
         let rx = Arc::new(Mutex::new(rx));
         let counters = Arc::new(Counters::default());
@@ -110,8 +135,12 @@ impl SinkForwarder {
             tx: Mutex::new(Some(tx)),
             rx,
             max_bytes: config.max_queue_bytes,
+            documents: config.documents,
+            typed: config.typed,
             counters,
             task: Mutex::new(Some(task)),
+            #[cfg(test)]
+            enqueue_gap: Mutex::new(None),
         }))
     }
 
@@ -121,25 +150,67 @@ impl SinkForwarder {
         if matches!(answer.outcome, None | Some(Outcome::Failure(_))) {
             return;
         }
+        let item = DocumentSinkItem { doc_id: answer.id.clone(), analyzed: Some(answer.clone()), ..Default::default() };
+        self.enqueue(item);
+    }
+
+    /// Offers one document graph without waiting, with the typed
+    /// projection when configured. A graph that does not import, or a
+    /// projection the graph cannot give, is refused and not offered.
+    /// Answers whether the queue took it. Imports the graph: call it off
+    /// the async runtime.
+    pub(crate) fn offer_graph(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, Failure> {
+        self.offer_item(doc_id, document::graph_item(doc_id, graph, self.typed))
+    }
+
+    /// Offers the graph this server exported from `doc` as `exported`,
+    /// as `offer_graph` does, without importing it again. Builds the typed
+    /// projection when configured: call it off the async runtime.
+    pub(crate) fn offer_exported(
+        &self,
+        doc_id: &str,
+        exported: DocumentGraphResponse,
+        doc: &Document,
+    ) -> Result<bool, Failure> {
+        self.offer_item(doc_id, document::exported_item(doc_id, exported, doc, self.typed))
+    }
+
+    /// Queues `item`, or counts the refusal that built it.
+    fn offer_item(&self, doc_id: &str, item: Result<DocumentSinkItem, Failure>) -> Result<bool, Failure> {
+        match item {
+            Ok(item) => Ok(self.enqueue(item)),
+            Err(f) => {
+                let c = &self.counters;
+                c.refused.fetch_add(1, Ordering::Relaxed);
+                c.last.lock().unwrap_or_else(|p| p.into_inner()).0 = Some(format!("document {doc_id}: {}", f.message));
+                Err(f)
+            }
+        }
+    }
+
+    /// Whether AnalyzeDocumentProgressive graphs are forwarded.
+    pub(crate) fn documents(&self) -> bool {
+        self.documents
+    }
+
+    /// Queues `item`, or drops and counts it when the queue is full.
+    fn enqueue(&self, mut item: DocumentSinkItem) -> bool {
         let c = &self.counters;
-        c.offered.fetch_add(1, Ordering::Relaxed);
         // The sequence is set as the item is sent; measured at its widest
         // here, so the queue's byte count is never under what it sends.
-        let item = DocumentSinkItem {
-            sequence: u64::MAX,
-            doc_id: answer.id.clone(),
-            analyzed: Some(answer.clone()),
-            ..Default::default()
-        };
+        item.sequence = u64::MAX;
         let bytes = item.encoded_len() as u64;
         let fits = reserve(&c.queued_bytes, bytes, self.max_bytes);
-        let sent = fits
-            && self
-                .tx
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .as_ref()
-                .is_some_and(|tx| tx.try_send((item, bytes)).is_ok());
+        // Hold the sender across the offered count and the send so close
+        // cannot take it between them: settle-then-close would otherwise
+        // see offered and drop an item that never reached the queue.
+        let guard = self.tx.lock().unwrap_or_else(|p| p.into_inner());
+        c.offered.fetch_add(1, Ordering::Relaxed);
+        #[cfg(test)]
+        if let Some(hook) = self.enqueue_gap.lock().unwrap_or_else(|p| p.into_inner()).take() {
+            hook();
+        }
+        let sent = fits && guard.as_ref().is_some_and(|tx| tx.try_send((item, bytes)).is_ok());
         if sent {
             c.queued.fetch_add(1, Ordering::Relaxed);
         } else {
@@ -148,6 +219,7 @@ impl SinkForwarder {
             }
             c.dropped.fetch_add(1, Ordering::Relaxed);
         }
+        sent
     }
 
     pub(crate) fn stats(&self) -> SinkStats {
@@ -157,6 +229,7 @@ impl SinkForwarder {
             offered: c.offered.load(Ordering::Relaxed),
             forwarded: c.forwarded.load(Ordering::Relaxed),
             dropped: c.dropped.load(Ordering::Relaxed),
+            refused: c.refused.load(Ordering::Relaxed),
             abandoned: c.abandoned.load(Ordering::Relaxed),
             queued: c.queued.load(Ordering::Relaxed),
             queued_bytes: c.queued_bytes.load(Ordering::Relaxed),
@@ -266,6 +339,8 @@ async fn drain(endpoint: Endpoint, rx: Arc<Mutex<mpsc::Receiver<Queued>>>, c: Ar
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
+
     use crate::proto::result::{AnalyzeFailure, AnalyzeVectors};
 
     fn answer(id: &str, failed: bool) -> AnalyzeStreamResponse {
@@ -276,15 +351,20 @@ mod tests {
         AnalyzeStreamResponse { id: id.into(), outcome: Some(outcome) }
     }
 
+    fn config(items: usize, bytes: u64) -> SinkConfig {
+        SinkConfig {
+            endpoint: "http://127.0.0.1:1".into(),
+            max_queue_items: items,
+            max_queue_bytes: bytes,
+            documents: false,
+            typed: None,
+        }
+    }
+
     // On one thread the draining task cannot run between offers, so the
     // queue holds what its bounds let in and the rest is dropped.
     #[tokio::test(flavor = "current_thread")]
     async fn a_full_queue_drops_and_counts_without_waiting() {
-        let config = |items, bytes| SinkConfig {
-            endpoint: "http://127.0.0.1:1".into(),
-            max_queue_items: items,
-            max_queue_bytes: bytes,
-        };
         let f = SinkForwarder::start(&config(2, 1 << 20)).unwrap();
         for i in 0..5 {
             f.offer(&answer(&i.to_string(), false));
@@ -299,5 +379,104 @@ mod tests {
         assert_eq!((s.offered, s.dropped, s.queued, s.queued_bytes), (1, 1, 0, 0), "{s:?}");
         assert!(SinkForwarder::start(&config(0, 8)).is_err());
         assert!(SinkForwarder::start(&SinkConfig { endpoint: "not a uri".into(), ..config(1, 1) }).is_err());
+        let typed = SinkTyped { view: 1 << 16, offsets: crate::proto::result::OffsetMode::Utf8 };
+        assert!(SinkForwarder::start(&SinkConfig { typed: Some(typed), ..config(1, 1) }).is_err());
+    }
+
+    /// close takes the sender under the same lock as enqueue's offered count
+    /// and send. Pausing an offer after it has counted offered, then starting
+    /// close, must still let that offer into the queue: close blocks on the
+    /// lock, the send finishes, and the item is not counted dropped.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn close_waits_out_an_in_flight_offer_instead_of_dropping_it() {
+        let f = SinkForwarder::start(&config(8, 1 << 20)).unwrap();
+        let entered = Arc::new(Barrier::new(2));
+        let finish = Arc::new(Barrier::new(2));
+        {
+            let entered = entered.clone();
+            let finish = finish.clone();
+            *f.enqueue_gap.lock().unwrap_or_else(|p| p.into_inner()) = Some(Box::new(move || {
+                entered.wait();
+                finish.wait();
+            }));
+        }
+        let offer = {
+            let f = f.clone();
+            std::thread::spawn(move || f.offer(&answer("in-flight", false)))
+        };
+        entered.wait();
+        assert_eq!(f.stats().offered, 1, "the offer counted before the send");
+        let close = {
+            let f = f.clone();
+            tokio::spawn(async move { f.close(Duration::from_millis(400)).await })
+        };
+        // close is blocked on the sender lock held by the offer; release the
+        // offer so it can send, then close takes the sender and drains.
+        finish.wait();
+        offer.join().unwrap();
+        close.await.unwrap();
+        let s = f.stats();
+        assert_eq!(s.offered, 1, "{s:?}");
+        assert_eq!(s.dropped, 0, "an in-flight offer must not be dropped by close: {s:?}");
+        assert_eq!(s.forwarded + s.abandoned + s.queued, 1, "{s:?}");
+    }
+
+    /// Offers that finished before close took the sender stay in the queue
+    /// for close to drain or abandon; they are not counted dropped.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn offers_finished_before_close_are_not_dropped() {
+        let f = SinkForwarder::start(&config(64, 1 << 20)).unwrap();
+        let start = Arc::new(Barrier::new(8));
+        let mut offers = Vec::new();
+        for i in 0..8 {
+            let f = f.clone();
+            let start = start.clone();
+            offers.push(std::thread::spawn(move || {
+                start.wait();
+                f.offer(&answer(&i.to_string(), false));
+            }));
+        }
+        for o in offers {
+            o.join().unwrap();
+        }
+        assert_eq!(f.stats().queued, 8);
+        f.close(Duration::from_millis(400)).await;
+        let s = f.stats();
+        assert_eq!((s.offered, s.dropped, s.abandoned, s.queued), (8, 0, 8, 0), "{s:?}");
+    }
+
+    /// The enqueue gap hook lives on the forwarder, so a barrier parked on
+    /// one instance cannot stall offers on another running in parallel.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn enqueue_gap_on_one_forwarder_does_not_stall_another() {
+        let parked = SinkForwarder::start(&config(8, 1 << 20)).unwrap();
+        let free = SinkForwarder::start(&config(8, 1 << 20)).unwrap();
+        let entered = Arc::new(Barrier::new(2));
+        let finish = Arc::new(Barrier::new(2));
+        {
+            let entered = entered.clone();
+            let finish = finish.clone();
+            *parked.enqueue_gap.lock().unwrap_or_else(|p| p.into_inner()) = Some(Box::new(move || {
+                entered.wait();
+                finish.wait();
+            }));
+        }
+        let offer_parked = {
+            let f = parked.clone();
+            std::thread::spawn(move || f.offer(&answer("parked", false)))
+        };
+        entered.wait();
+        assert_eq!(parked.stats().offered, 1);
+        for i in 0..5 {
+            free.offer(&answer(&i.to_string(), false));
+        }
+        assert_eq!(free.stats().offered, 5, "{:?}", free.stats());
+        assert_eq!(free.stats().dropped, 0, "{:?}", free.stats());
+        finish.wait();
+        offer_parked.join().unwrap();
+        parked.close(Duration::from_millis(400)).await;
+        free.close(Duration::from_millis(400)).await;
+        assert_eq!(parked.stats().dropped, 0, "{:?}", parked.stats());
+        assert_eq!(free.stats().dropped, 0, "{:?}", free.stats());
     }
 }

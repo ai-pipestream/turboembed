@@ -1,0 +1,480 @@
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 1; 2026-10-27T05:06:05Z; load { 6.93 10.92 10.08 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.84s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 2; 2026-10-27T05:08:53Z; load { 28.45 19.14 13.66 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 3; 2026-10-27T05:08:54Z; load { 28.45 19.14 13.66 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 4; 2026-10-27T05:08:54Z; load { 28.45 19.14 13.66 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 5; 2026-10-27T05:08:55Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 6; 2026-10-27T05:08:56Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 7; 2026-10-27T05:08:56Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 8; 2026-10-27T05:08:57Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 9; 2026-10-27T05:08:57Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 10; 2026-10-27T05:08:58Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 11; 2026-10-27T05:08:58Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 12; 2026-10-27T05:08:59Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 13; 2026-10-27T05:09:00Z; load { 26.49 18.88 13.60 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 14; 2026-10-27T05:09:01Z; load { 25.09 18.72 13.57 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 15; 2026-10-27T05:09:02Z; load { 25.09 18.72 13.57 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 16; 2026-10-27T05:09:03Z; load { 25.09 18.72 13.57 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 17; 2026-10-27T05:09:04Z; load { 25.09 18.72 13.57 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 18; 2026-10-27T05:09:05Z; load { 25.09 18.72 13.57 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 19; 2026-10-27T05:09:05Z; load { 23.72 18.54 13.54 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 20; 2026-10-27T05:09:06Z; load { 23.72 18.54 13.54 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (model)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 1; 2026-10-27T05:09:07Z; load { 23.72 18.54 13.54 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 2; 2026-10-27T05:09:08Z; load { 23.72 18.54 13.54 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 3; 2026-10-27T05:09:10Z; load { 22.38 18.35 13.50 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 4; 2026-10-27T05:09:11Z; load { 22.38 18.35 13.50 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 5; 2026-10-27T05:09:12Z; load { 22.38 18.35 13.50 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 6; 2026-10-27T05:09:13Z; load { 22.38 18.35 13.50 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 7; 2026-10-27T05:09:14Z; load { 22.38 18.35 13.50 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 8; 2026-10-27T05:09:14Z; load { 22.38 18.35 13.50 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 9; 2026-10-27T05:09:15Z; load { 20.99 18.13 13.45 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 10; 2026-10-27T05:09:16Z; load { 20.99 18.13 13.45 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 11; 2026-10-27T05:09:17Z; load { 20.99 18.13 13.45 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 12; 2026-10-27T05:09:18Z; load { 20.99 18.13 13.45 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 13; 2026-10-27T05:09:19Z; load { 20.99 18.13 13.45 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 14; 2026-10-27T05:09:20Z; load { 19.95 17.96 13.42 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 15; 2026-10-27T05:09:21Z; load { 19.95 17.96 13.42 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 16; 2026-10-27T05:09:22Z; load { 19.95 17.96 13.42 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 17; 2026-10-27T05:09:23Z; load { 19.95 17.96 13.42 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 18; 2026-10-27T05:09:24Z; load { 19.95 17.96 13.42 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.12s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 19; 2026-10-27T05:09:26Z; load { 21.07 18.23 13.54 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s
+### commit f6303b12db0866d92cfec22c45ce1f1c0325e1e2; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test sequence_device -- --nocapture; run 20; 2026-10-27T05:09:27Z; load { 21.07 18.23 13.54 }
+running 1 test
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on metal Apple M2 (f32 (exact)): logits 5.7220458984375e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s

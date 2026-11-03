@@ -6,7 +6,6 @@ use super::libsvm::PredictScratch;
 use super::sidecar::Sidecar;
 use super::weighting::{Scaling, scale};
 use crate::features::for_each_feature;
-use crate::java::is_not_zero;
 
 /// Buffers for one document, kept between calls so a categorizer run on
 /// many documents allocates only while they grow.
@@ -66,14 +65,14 @@ pub(crate) fn vectorize(sidecar: &Sidecar, tokens: &[&str], s: &mut Scratch) {
     for &i in touched.iter() {
         let tf = std::mem::take(&mut counts[i as usize]);
         let mut value = sidecar.weighting.weight(tf, vocabulary.idf(i));
-        if !is_not_zero(value) {
+        if value == 0.0 {
             continue;
         }
         if let Scaling::Range { lower, upper } = sidecar.scaling {
             let (min, max) = vocabulary.range(i);
             value = scale(value, min, max, lower, upper);
         }
-        if is_not_zero(value) {
+        if value != 0.0 {
             s.index.push(i as i32);
             s.value.push(value);
         }

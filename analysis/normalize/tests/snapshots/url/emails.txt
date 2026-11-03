@@ -1,0 +1,13 @@
+===OUT===
+Write to   or  , or ( ).
+Not an address: user@, @example.com and   Ends with  
+Two in a row:  , 
+
+===EDITS===
+9	26	 
+30	60	 
+66	87	 
+130	134	 
+145	162	 
+177	193	 
+194	212	 

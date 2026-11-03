@@ -11,7 +11,6 @@
 use std::fmt;
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use crate::error::FormatError;
 use crate::source::Field;
@@ -57,8 +56,7 @@ pub enum TreeError {
     HeadOutOfRange { word: u32, head: u32 },
     /// A word that is its own head.
     SelfHead { word: u32 },
-    /// A relation that is empty or all whitespace in the whitespace mode
-    /// (`StringUtil.isBlank`).
+    /// A relation that is empty or all Unicode whitespace.
     BlankRelation { word: u32 },
     /// Not exactly one root.
     Roots { count: usize },
@@ -95,10 +93,10 @@ pub struct DependencyTree<'a> {
 
 impl<'a> DependencyTree<'a> {
     /// `DependencyTree.of(heads, relations)`, with blank relations tested
-    /// in `mode`. The words are checked in order, each for its head and
+    /// for Unicode whitespace. The words are checked in order, each for its head and
     /// then its relation, then the number of roots, then cycles, so the
     /// error is the one Java throws.
-    pub fn new(heads: Vec<Head>, relations: Vec<Field<'a>>, mode: WhitespaceMode) -> Result<Self, TreeError> {
+    pub fn new(heads: Vec<Head>, relations: Vec<Field<'a>>) -> Result<Self, TreeError> {
         if heads.is_empty() {
             return Err(TreeError::Empty);
         }
@@ -118,7 +116,7 @@ impl<'a> DependencyTree<'a> {
                 Head::Word(h) if h == word => return Err(TreeError::SelfHead { word }),
                 Head::Word(_) => {}
             }
-            if relation.as_str().chars().all(|c| mode.is_whitespace(c as u32)) {
+            if turbo_unicode::whitespace::is_blank(relation.as_str()) {
                 return Err(TreeError::BlankRelation { word });
             }
         }
@@ -284,7 +282,7 @@ mod tests {
     }
 
     fn tree(heads: &[Head], rels: &[&'static str]) -> Result<DependencyTree<'static>, TreeError> {
-        DependencyTree::new(heads.to_vec(), rels.iter().map(|r| rel(r)).collect(), WhitespaceMode::Unicode)
+        DependencyTree::new(heads.to_vec(), rels.iter().map(|r| rel(r)).collect())
     }
 
     use Head::{Root, Word};
@@ -315,14 +313,12 @@ mod tests {
     }
 
     #[test]
-    fn blank_follows_the_whitespace_mode() {
-        // U+0085 is whitespace in the Unicode mode only, U+001C in the
-        // legacy mode only.
+    fn blank_is_unicode_whitespace() {
+        // U+0085 is whitespace, so a relation of it is blank; U+001C is not.
         let heads = vec![Root];
-        let unicode = DependencyTree::new(heads.clone(), vec![rel("\u{85}")], WhitespaceMode::Unicode);
+        let unicode = DependencyTree::new(heads.clone(), vec![rel("\u{85}")]);
         assert_eq!(unicode, Err(TreeError::BlankRelation { word: 0 }));
-        assert!(DependencyTree::new(heads.clone(), vec![rel("\u{85}")], WhitespaceMode::Legacy).is_ok());
-        assert!(DependencyTree::new(heads, vec![rel("\u{1c}")], WhitespaceMode::Legacy).is_err());
+        assert!(DependencyTree::new(heads, vec![rel("\u{1c}")]).is_ok());
     }
 
     #[test]
@@ -330,7 +326,7 @@ mod tests {
         let n = 100_000u32;
         let heads: Vec<Head> = (0..n).map(|i| if i == n - 1 { Root } else { Word(i + 1) }).collect();
         let rels = (0..n).map(|_| rel("dep")).collect();
-        let t = DependencyTree::new(heads, rels, WhitespaceMode::Unicode).unwrap();
+        let t = DependencyTree::new(heads, rels).unwrap();
         assert_eq!(t.root(), n - 1);
     }
 

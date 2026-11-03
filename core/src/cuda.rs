@@ -17,6 +17,11 @@ pub fn backend() -> &'static turbo_backend {
 }
 
 #[cfg(feature = "internals")]
+mod deberta;
+#[cfg(feature = "internals")]
+pub use deberta::{last_attention, tiled_rows, tiled_shared_memory, use_general_attention};
+
+#[cfg(feature = "internals")]
 unsafe extern "C" {
     fn turbo_cuda_allocations(host: *mut u64, device: *mut u64);
     fn turbo_cuda_arch_label(name: *const std::ffi::c_char, out: *mut std::ffi::c_char, len: usize);
@@ -36,6 +41,15 @@ unsafe extern "C" {
         max_diff: *mut f64,
         max_ref: *mut f64,
     ) -> i32;
+    fn turbo_cuda_quantize(
+        ordinal: u32,
+        quantization: u32,
+        x: *const f32,
+        ranges: *const f32,
+        rows: i32,
+        dim: i32,
+        out: *mut u8,
+    ) -> i32;
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_has_cublas() -> i32;
     fn turbo_cuda_use_tile(tile: i32);
@@ -44,6 +58,7 @@ unsafe extern "C" {
     fn turbo_cuda_fail_variant(name: *const std::ffi::c_char);
     fn turbo_cuda_variants(ordinal: u32, precision: u32, out: *mut std::ffi::c_char, len: usize) -> i32;
     fn turbo_cuda_use_split_attention(split: i32);
+    fn turbo_cuda_use_narrow_tiles(narrow: i32);
     fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_exact_attention(exact: i32);
     fn turbo_cuda_use_fa32_attention(fa32: i32);
@@ -157,6 +172,27 @@ pub enum Tile {
     /// 16 at two stages over eight warps of 32 x 64; the FMA kernel's
     /// 128 x 64 for F16 operands.
     Kt = 21,
+}
+
+/// int8 or ubinary codes of host F32 rows on device `ordinal`, bit for bit
+/// with [`crate::quantize`]. `quantization` is `TURBO_QUANTIZE_INT8` or
+/// `TURBO_QUANTIZE_UBINARY`; `ranges` is `[2, dim]` for int8. Built only
+/// with `internals`.
+#[cfg(feature = "internals")]
+pub fn quantize(
+    ordinal: u32,
+    quantization: u32,
+    x: &[f32],
+    ranges: &[f32],
+    rows: i32,
+    dim: i32,
+    out: &mut [u8],
+) -> Result<(), i32> {
+    crate::quantize::check_device_call(quantization, x.len(), ranges.len(), rows, dim, out.len())
+        .map_err(|_| crate::status::INVALID_ARGUMENT)?;
+    let ranges_ptr = if quantization == crate::TURBO_QUANTIZE_INT8 { ranges.as_ptr() } else { std::ptr::null() };
+    let rc = unsafe { turbo_cuda_quantize(ordinal, quantization, x.as_ptr(), ranges_ptr, rows, dim, out.as_mut_ptr()) };
+    if rc == 0 { Ok(()) } else { Err(rc) }
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
@@ -303,12 +339,18 @@ pub fn use_split_attention(split: Option<bool>) {
     unsafe { turbo_cuda_use_split_attention(split.map_or(-1, i32::from)) };
 }
 
+/// The FMA attention of register tiles from now on: `Some(true)` 32 queries
+/// to a block (TURBO_CUDA_ATTENTION=tiled32), `Some(false)` the default's 64.
+#[cfg(feature = "internals")]
+pub fn use_narrow_tiles(narrow: Option<bool>) {
+    unsafe { turbo_cuda_use_narrow_tiles(narrow.map_or(-1, i32::from)) };
+}
+
 /// FASTEST's attention on the tensor cores in sessions made from now on:
 /// `Some(true)` the kernel of 128 queries to a block, keys and values
 /// through cp.async 64 at a time, the default, `Some(false)` the kernel
 /// of 64 that TURBO_CUDA_ATTENTION=64 picks, `None` to read the variable
-/// again.
-/// Built only with `internals`.
+/// again. Built only with `internals`.
 #[cfg(feature = "internals")]
 pub fn use_wide_attention(wide: Option<bool>) {
     unsafe { turbo_cuda_use_wide_attention(wide.map_or(-1, i32::from)) };

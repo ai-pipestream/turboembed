@@ -9,8 +9,8 @@ import opennlp.tools.util.Span;
 
 /**
  * The golden of OpenNLP's UAX #29 word tokenizer with its default maximum token length:
- * {@code opennlp:tokens} from {@link WordTokenizer#tokenizeTyped(CharSequence)}, then
- * {@code turbo:utf16<opennlp:tokens>} when a token cuts a surrogate pair ({@link SpanLayers}),
+ * {@code turbo:tokens} from {@link WordTokenizer#tokenizeTyped(CharSequence)}, then
+ * {@code turbo:utf16<turbo:tokens>} when a token cuts a surrogate pair ({@link SpanLayers}),
  * then {@code turbo:word-types}, aligned to the tokens, with the name of each token's
  * {@code WordType} in its {@code kind} column. It has no model, so its directory is
  * {@code uax29}.
@@ -63,8 +63,8 @@ final class WordTokenGolden implements AnnotatorGolden {
       spans[i] = tokens.get(i).span();
       kinds[i] = tokens.get(i).type().name();
     }
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
-    layers.add(new Layer("turbo:word-types", "aligned:opennlp:tokens", new Column.Str("kind", kinds)));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:tokens", input.offsets(), spans));
+    layers.add(new Layer("turbo:word-types", "aligned:turbo:tokens", new Column.Str("kind", kinds)));
     return layers;
   }
 }

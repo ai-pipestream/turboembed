@@ -18,7 +18,7 @@ pub struct File {
     pub url: Url,
     pub size: u64,
     pub sha256: Sha256,
-    /// The digest OpenNLP's `DownloadUtil` checks.
+    /// The SHA-512 digest of the artifact bytes.
     pub sha512: Sha512,
     /// For a file served compressed: the compression and the compressed
     /// bytes' own size and SHA-256. `size` and the digests above are the

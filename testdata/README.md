@@ -44,6 +44,21 @@
   `d4c7c9dcccc43c4ba18dc80435cc5c2560f01d63746263547d89a1fd599e6b90`. The
   core is compared with upstream on it with Llama-3's pattern, and with
   Qwen2's pattern and NFC normalizer written into it.
+- `tiny-bpe-added/tokenizer.json`: the BPE of `tiny-bpe/` in
+  ModernBERT's form, as upstream `tokenizers` 0.23.2 writes it
+  (`tiny_bpe_added` in `core/tests/tokenizer/added.rs`, which
+  `make_tiny_bpe_added` writes and `the_file_is_what_upstream_writes`
+  checks): its first five pieces renamed `|||IP_ADDRESS|||`,
+  `<|padding|>`, `<|endoftext|>` and runs of four and two spaces, an NFC
+  normalizer, ModernBERT's kinds of added tokens added in its order
+  (those, a run of three spaces, `|||EMAIL_ADDRESS|||`, `[UNK]`, `[CLS]`,
+  `[SEP]`, `[PAD]`, `[MASK]` taking the whitespace before it, and
+  `[unused0]` to `[unused11]`), so upstream gives the pieces their ids
+  and the others ids from 1200 on, and `[CLS] $A [SEP]` around the
+  text. 31586 bytes, SHA-256
+  `37d1d146237c943c766cad555db3e0f21741b270eb7dac7ec447efb95bb6f7f1`.
+  The core's added-token matching is compared with upstream on it, and
+  on the same with the flags ModernBERT's file does not set.
 - `tiny-bpe/corpus.jsonl`: the 232 texts that tokenizer was trained on
   (`bpe::corpus` in `core/tests/tokenizer.rs`, the texts the tests
   encode, twice over), one JSON string per line, written by
@@ -64,12 +79,15 @@
   upstream pipeline for that model, not of MiniLM; the bundle tool's
   tests use it to check sealing and verification.
 - `tiny-bert-bundle/`: the bundle `turbo-bundle` sealed and verified
-  from that model: its manifest, its tokenizer file, the weights
+  from that model. Its manifest names the generated fixture
+  `turboembed/tiny-bert`, whose source is this repository at
+  `af146a9213260f30554ba972a9c79d6053b84ad0`, not the published MiniLM
+  model. It carries the manifest, its tokenizer file, the weights
   `tiny_bert.py` wrote (`weights/model.safetensors`, 4049552 bytes,
   SHA-256 `c258bffc3c37afc5a8b12324c0d29b81d31738fbf72183ade9c52c0d68e06180`)
   and the reference file above. The core's tests check numerics against
   it: `core/tests/conformance.rs` compares every reference case with the
-  upstream vectors (docs/conformance.md), and `core/tests/sessions.rs`
+  upstream vectors (docs/conformance.md), and `core/tests/sessions/plain.rs`
   compares the encoder's options with the same arithmetic written
   plainly in f64.
   Its `tokenizer.json` is not the upstream file above byte for byte: it
@@ -80,6 +98,24 @@
   `truncation.direction` is present, as `"Right"`. Like the upstream
   file it is under Apache-2.0, the licence of
   sentence-transformers/all-MiniLM-L6-v2.
+- `tiny-bert-heads-bundle/`: `tiny-bert-bundle/` with five heads of
+  seeded weights appended to its weights file (`manifest.heads`,
+  docs/bundle.md "Heads"): the part-of-speech tagger `pos` (five tags,
+  argmax), the entity tagger `ner` (BIO over PER and LOC, a BiLSTM
+  adapter, CRF decoding), the biaffine dependency parser `deps` (six
+  relations, MST decoding), the edit-tree lemmatizer `lemma`, which
+  reads the tags of `pos`, and the morphology tagger `feats` (four
+  feature strings, argmax). They are the heads
+  `analysis/tagger/tests/common/mod.rs` builds for the tagger tests plus
+  `feats`, written once and sealed, so the in-process analyzer
+  (`core/tests/analysis_bundle.rs`, `analysis/tagger/tests/analyzer.rs`)
+  and the Java bindings (`clients/java-panama`, `clients/java-jni`) load a
+  checked-in bundle with heads. The encoder's weights, the tokenizer file
+  and the reference file are the tiny bundle's unchanged; the model id is
+  `turboembed/tiny-bert-heads`; the weights file is 4062472 bytes,
+  SHA-256 `237700d9aee15f087c4f005309a1a086afa649515c93d6bae51ebb0c50dc13d5`.
+  The heads are untrained: their outputs are deterministic, not
+  meaningful.
 
 - `tiny-sat-recipe/`: the recipe of a small SaT model (wtpsplit's
   `SubwordXLMForTokenClassification`, XLM-R with two layers of width 32,
@@ -98,6 +134,31 @@
   each case). `analysis/sat/README.md` says how both were made and
   checked; `analysis/sat/tests` compare the SaT step with wtpsplit on
   it. Under MIT, the licence of wtpsplit and of BAAI/bge-m3's tokenizer.
+
+- `tiny-deberta-recipe/` and `tiny-deberta-bundle/`: a small DeBERTa-v2
+  (DeBERTa-v3's shared-key profile, two layers, hidden 32, four heads, 8
+  relative buckets over 512 positions) with random weights, seed 0, which
+  `bundle/reference/tiny_deberta.py` writes over the MiniLM tokenizer, in
+  the pinned reference container; and the bundle `turbo-bundle reference`
+  sealed and verified from it: the weights (`weights/model.safetensors`,
+  3981800 bytes, SHA-256 `cffdba9450814a52a5ebd32b7f75df5f0ffda23ca580df81f7291578b3c3f695`), the tokenizer file of `tiny-bert-bundle/`
+  (the same bytes), and the reference the container wrote for the MiniLM
+  recipe's cases (mean pooled, L2 normalized, at 128 tokens).
+  `core/tests/conformance.rs` holds every backend to it
+  (`TURBO_TEST_BUNDLE`), and `analysis/gliner/tests/device.rs` runs GLiNER
+  on it. To make them again, from the repository root, with `W` an empty
+  directory and the recipe's image loaded:
+
+  ```
+  cp testdata/all-minilm-l6-v2/tokenizer.json $W/
+  docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+      -v $PWD/bundle/reference:/scripts:ro -v $W:/w --entrypoint python \
+      turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+      /scripts/tiny_deberta.py /w/tokenizer.json /w/out
+  cargo run --release -p turbo-bundle -- reference testdata/tiny-deberta-recipe/recipe.json $W/out $W/bundle
+  ```
+
+  Under Apache-2.0, the licence of the MiniLM tokenizer.
 
 - `tiny-static-recipe/`: the recipe `turbo-bundle distill` made the
   next bundle from: a 16-wide static model distilled from
@@ -155,7 +216,56 @@
     the library gives on every text, one line per text as the
     docstring of `goldens.py` writes it. `core/tests/sentencepiece.rs`
     makes the same edits.
+- `quantize/sentence-transformers-145ef47d.txt`: int8 and ubinary codes
+  for synthetic f32 rows (widths 1, 7, 8, 9 and 64, six rows each, with
+  rows below every minimum, above every maximum, on a bucket edge and of
+  +0 and -0, and a dimension whose minimum is its maximum), with explicit
+  ranges, as the expressions of sentence-transformers' `quantize_embeddings`
+  (`sentence_transformers/util/quantization.py` at
+  `145ef47d5a4bcb9c88ab5e0684e14a4222ef408f`, Apache-2.0) give them under
+  numpy 2.5.3. Each line is the width, then hex of the row's
+  little-endian f32 values, of the `[2, dim]` ranges, of the int8 codes
+  and of the ubinary codes. `quantize/regenerate.py` writes it
+  (`python3 -I regenerate.py`); `core/src/quantize/tests.rs` holds the
+  core's codes to it.
 
-Everything here is about 9.8 MB, 4 MB of it the tiny
-BERT bundle's weights, 2 MB the SentencePiece models and goldens,
-1.8 MB the static bundle and 1.1 MB the cut-down BGE-M3 tokenizer.
+- `tiny-modernbert-reference/` and `tiny-nomic-reference/`: a small
+  ModernBERT (three layers, hidden 32, one global and two local layers
+  with a window of 8) and a small nomic-bert (two layers, hidden 32,
+  RoPE theta 1000), random weights, seed 0, which
+  `bundle/reference/tiny_modernbert.py` and `tiny_nomic.py` write over
+  `tiny-bpe/tokenizer.json` and the MiniLM tokenizer in the pinned
+  reference container, with the reference ids and vectors `reference.py`
+  wrote for them (#1461). Not bundles: the model directory, the cases
+  and the reference file, from which the Rust side writes the manifest.
+  Each directory's README gives the geometry, the tensor names and
+  shapes, the hashes and the commands that make it again. Made for this
+  repository; the nomic one's tokenizer is under Apache-2.0, the licence
+  of the MiniLM tokenizer.
+
+- `tiny-modernbert-bundle/` and `tiny-nomic-bundle/`: those two models
+  as bundles, which `turbo-bundle seal` made from the `recipe.json` in
+  each reference directory, the model directory as the upstream files,
+  and the reference file already written (it does not run the
+  container): the weights and tokenizer file of the model directory,
+  unchanged, and `reference.safetensors` of the reference directory,
+  with its `produced_by.json` and the image above as the report. The
+  manifests take mean pooling with no normalization, `max_seq` 64 and
+  `max_batch` 8, as the container ran; nomic's reference cases are the
+  query and document cases with its prefixes. `core/tests/conformance.rs`
+  holds the CPU encoder to both (`the_rotary_bundles_match_upstream`).
+  To make them again, from the repository root, for `m` each of
+  `modernbert` and `nomic`:
+
+  ```
+  mkdir -p testdata/tiny-$m-bundle/reference
+  cp testdata/tiny-$m-reference/reference.safetensors testdata/tiny-$m-bundle/reference/
+  # reference/report.json: produced_by.json with "container" set to the image above
+  cargo run --release -p turbo-bundle -- seal testdata/tiny-$m-reference/recipe.json \
+      testdata/tiny-$m-reference/model testdata/tiny-$m-bundle
+  ```
+
+Everything here is about 25 MB, 4 MB each of it the weights of the
+tiny BERT, DeBERTa, SaT and nomic models, 2 MB the SentencePiece models
+and goldens, 1.8 MB the static bundle and 1.1 MB each the cut-down
+BGE-M3 tokenizer and its copy in the SaT bundle.

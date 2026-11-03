@@ -1,5 +1,6 @@
-//! The layers [`crate::SpanCategorizer`] categorizes item by item. The
-//! layer it writes, `Categories<L>` (`turbo:categories<L>`), is the shared
+//! The layers [`crate::DlSpanCategorizer`] and
+//! [`crate::MultiLabelSpanCategorizer`] categorize item by item. The
+//! layer they write, `Categories<L>` (`turbo:categories<L>`), is the shared
 //! [`turbo_analysis_layers::Categories`].
 
 use turbo_analysis::{Error, Ix, Span, Spans};
@@ -64,8 +65,8 @@ pub(crate) fn extract_tokens<'a>(
 }
 
 /// A layer of spans (`Sentences`, `Structure`, `Chunks`) that
-/// [`crate::SpanCategorizer`] categorizes span by span, writing
-/// `Categories<Self>`.
+/// [`crate::DlSpanCategorizer`] and [`crate::MultiLabelSpanCategorizer`]
+/// categorize span by span, writing `Categories<Self>`.
 pub trait SpanCategorizable: CategoryScope {
     /// The spans of this layer.
     fn layer_spans(&self) -> &Spans<Self>;

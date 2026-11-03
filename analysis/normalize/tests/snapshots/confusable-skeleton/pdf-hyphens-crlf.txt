@@ -1,0 +1,17 @@
+===OUT===
+lntro-
+duction to the sys-
+tern. Also e-
+rnail and Euro-
+Pean words, TCP-
+lP, a-
+b and 3-
+4 nurnbers.
+Trailing hyphen at end -
+
+===EDITS===
+0	1	l
+31	32	rn
+43	44	rn
+77	78	l
+99	100	rn

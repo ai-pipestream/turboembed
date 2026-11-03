@@ -1,0 +1,260 @@
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 1; 2026-10-27T04:49:37Z; load { 5.32 6.96 5.84 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 2; 2026-10-27T04:49:50Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 3; 2026-10-27T04:49:50Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 4; 2026-10-27T04:49:51Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test refusals_match_the_cpu ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 5; 2026-10-27T04:49:51Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 6; 2026-10-27T04:49:52Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test refusals_match_the_cpu ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 7; 2026-10-27T04:49:52Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 8; 2026-10-27T04:49:52Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 9; 2026-10-27T04:49:53Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 10; 2026-10-27T04:49:53Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test refusals_match_the_cpu ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 11; 2026-10-27T04:49:53Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test refusals_match_the_cpu ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 12; 2026-10-27T04:49:53Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 13; 2026-10-27T04:49:54Z; load { 6.01 7.02 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test refusals_match_the_cpu ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 14; 2026-10-27T04:49:54Z; load { 5.93 6.99 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 15; 2026-10-27T04:49:55Z; load { 5.93 6.99 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 16; 2026-10-27T04:49:55Z; load { 5.93 6.99 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 17; 2026-10-27T04:49:55Z; load { 5.93 6.99 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test refusals_match_the_cpu ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 18; 2026-10-27T04:49:56Z; load { 5.93 6.99 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 19; 2026-10-27T04:49:56Z; load { 5.93 6.99 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test refusals_match_the_cpu ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test device_lstm -- --nocapture; run 20; 2026-10-27T04:49:56Z; load { 5.93 6.99 5.88 }
+running 9 tests
+test a_device_not_built_in_is_refused ... ok
+test the_f16_range_check_is_exact_at_its_edges ... ok
+test fastest_holds_f16_weights_and_stays_near_the_cpu ... ok
+test fastest_refuses_a_weight_past_f16 ... ok
+test a_table_of_another_width_is_refused_as_the_cpu_refuses_it ... ok
+test refusals_match_the_cpu ... ok
+Metal(0): the worst difference from the CPU is 5.066395e-7
+test runs_match_the_cpu ... ok
+test gathered_runs_match_the_cpu ... ok
+test a_new_table_is_whole_for_the_first_run ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s

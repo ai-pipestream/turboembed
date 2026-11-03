@@ -1,0 +1,16 @@
+===OUT===
+in 2024 there were 1,234,567 visitors, 3.14159 ratio, 12:30 time, 1/2 cup, -5 degrees, +7 points.
+phone 555-1234 or +1 (800) 555-0199. price $19.99, 20% off, 5e10 and 0x1f, 1,5 in german style.
+version 2.0.1, 10th, 21st, 3rd place, h2o, b12, 4k, 24/7, 100m.
+
+===EDITS===
+0	1	i
+98	99	p
+135	136	p
+170	171	f
+180	181	g
+194	195	v
+232	233	h
+234	235	o
+237	238	b
+243	244	k

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Sourced by both zoo-start and Docker's independent zoo-health process.
+# Listener keys never become client keys. Explicit shared loopback client
+# settings are defaults only; each binary may have its own credentials.
+zoo_env() {
+    local name value prefix suffix source target cert key ca scheme=http
+    local listen=${TURBO_KSERVE_LISTEN:-0.0.0.0:8081}
+    for prefix in TURBO_ZOO_TLS TURBO_DEMO_SERVER_TLS TURBO_KSERVE_HEALTH_TLS TURBO_KSERVE_TLS; do
+        for suffix in CA CERT KEY NAME CLIENT_CA; do
+            name=${prefix}_${suffix}
+            value=${!name:-}
+            if [[ -n "$value" && -z "${value//[[:space:]]/}" ]]; then
+                echo "zoo-env: $name must not be blank" >&2; return 1
+            fi
+        done
+    done
+    cert=${TURBO_KSERVE_TLS_CERT:-}
+    key=${TURBO_KSERVE_TLS_KEY:-}
+    if [[ -n "$cert$key${TURBO_KSERVE_TLS_CLIENT_CA:-}" ]]; then
+        if [[ -z "$cert" || -z "$key" ]]; then
+            echo 'zoo-env: TURBO_KSERVE_TLS_CERT and TURBO_KSERVE_TLS_KEY are required together' >&2; return 1
+        fi
+        scheme=https
+    fi
+    # Map wildcard binds to the matching loopback family, just like Probe.
+    case "$listen" in
+        0.0.0.0:*) listen="127.0.0.1:${listen##*:}" ;;
+        '[::]:'*) listen="[::1]:${listen##*:}" ;;
+    esac
+    export TURBO_KSERVE_LISTEN=${TURBO_KSERVE_LISTEN:-0.0.0.0:8081}
+    export TURBO_DEMO_SERVER=${TURBO_DEMO_SERVER:-$scheme://$listen}
+    if [[ "$TURBO_DEMO_SERVER" != "$scheme://"* ]]; then
+        echo 'zoo-env: TURBO_DEMO_SERVER must use the server listener TLS scheme' >&2; return 1
+    fi
+    for prefix in TURBO_DEMO_SERVER_TLS TURBO_KSERVE_HEALTH_TLS; do
+        for suffix in CA CERT KEY NAME; do
+            source=TURBO_ZOO_TLS_${suffix}
+            target=${prefix}_${suffix}
+            if [[ -z "${!target:-}" && -n "${!source:-}" ]]; then
+                printf -v "$target" '%s' "${!source}"
+                export "$target"
+            fi
+        done
+        target=${prefix}_CA; ca=${!target:-}
+        target=${prefix}_CERT; cert=${!target:-}
+        target=${prefix}_KEY; key=${!target:-}
+        target=${prefix}_NAME; name=${!target:-}
+        if [[ "$scheme" == http && -n "$ca$cert$key$name" ]]; then
+            echo 'zoo-env: client TLS settings require server listener TLS' >&2; return 1
+        fi
+        if [[ "$scheme" == https && -z "$ca" ]]; then
+            echo "zoo-env: $prefix needs a CA (or TURBO_ZOO_TLS_CA)" >&2; return 1
+        fi
+        if [[ -n "$cert$key" && ( -z "$cert" || -z "$key" ) ]]; then
+            echo "zoo-env: $prefix client certificate and key are required together" >&2; return 1
+        fi
+        if [[ -n "${TURBO_KSERVE_TLS_CLIENT_CA:-}" && -z "$cert" ]]; then
+            echo "zoo-env: mutual TLS requires a client identity for $prefix" >&2; return 1
+        fi
+    done
+}
+zoo_env
+unset -f zoo_env

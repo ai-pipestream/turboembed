@@ -154,7 +154,7 @@ pub(super) fn score_with(
         probs.clear();
         let found = tagger.tag(&words, &mut tags, &mut probs).map_err(|e| Error::Model(e.to_string()))?;
         if !found {
-            return Err(Error::Model(format!("no tag sequence scored above the minimum for: {sample}")));
+            return Err(Error::Model(format!("no tag sequence scored above the minimum for: {}", render(sample))));
         }
         labels.clear();
         labels.extend(tags.iter().map(|&t| tagset.label(t)));
@@ -180,6 +180,18 @@ pub(super) fn score_with(
         units.push(Counts::accuracy(right, scored));
     }
     Ok(Scores { units, mismatches: most_frequent(mismatches) })
+}
+
+/// The sample as the stripped native word-and-tag format wrote it:
+/// `token_tag` pairs separated by single spaces.
+fn render(sample: &PosSample<'_>) -> String {
+    sample
+        .tokens()
+        .iter()
+        .zip(sample.tags())
+        .map(|(token, tag)| format!("{}_{}", token.as_str(), tag.as_str()))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// The [`MISMATCHES_LISTED`] most frequent mismatches, most frequent

@@ -1,0 +1,9 @@
+MASKED	Not addresses: user@localhost, a@b, user@@example.com, user@example.invalidtld, @example.com, .user@example.com
+
+MASK_ALL	Not addresses: user@localhost, a@b, user@@example.com, user@example.invalidtld, @example.com, .user@example.com
+
+REWRITE	pseudonymize	OK	Not addresses: user@localhost, a@b, user@@example.com, user@example.invalidtld, @example.com, .user@example.com
+
+REWRITE	hmac	OK	Not addresses: user@localhost, a@b, user@@example.com, user@example.invalidtld, @example.com, .user@example.com
+
+AUDIT_REPORT	no pii found

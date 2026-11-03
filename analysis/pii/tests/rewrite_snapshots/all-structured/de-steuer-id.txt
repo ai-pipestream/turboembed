@@ -1,0 +1,12 @@
+MASKED	IdNr *********** recorded; 65929970488 is wrong.
+
+MASK_ALL	IdNr ########### recorded; 65929970488 is wrong.
+
+REWRITE	pseudonymize	OK	IdNr DE-STEUER-ID-1 recorded; 65929970488 is wrong.
+
+LABEL	pseudonymize	5	16	5	19	DE-STEUER-ID-1
+REWRITE	hmac	OK	IdNr DE-STEUER-ID-ed4c9c6df2d734e3 recorded; 65929970488 is wrong.
+
+LABEL	hmac	5	16	5	34	DE-STEUER-ID-ed4c9c6df2d734e3
+AUDIT	de-steuer-id	1	1	DE-STEUER-ID-ed4c9c6df2d734e3
+AUDIT_REPORT	de-steuer-id: 1 mentions, 1 distinct [DE-STEUER-ID-ed4c9c6df2d734e3]

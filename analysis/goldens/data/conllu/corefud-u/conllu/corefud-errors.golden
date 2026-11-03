@@ -25,9 +25,9 @@ layer	turbo:read-errors	document	24	after:u32	class:str	message:str
 2	opennlp.tools.util.InvalidFormatException	entity e1(e2 is closed but not open
 2	opennlp.tools.util.InvalidFormatException	entity e1 crosses a sentence boundary
 2	opennlp.tools.util.InvalidFormatException	entity e1 is never closed
-2	opennlp.tools.util.InvalidFormatException	entity zz is never closed
+2	opennlp.tools.util.InvalidFormatException	entity BB is never closed
 2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
-2	opennlp.tools.util.InvalidFormatException	entity e80 is never closed
+2	opennlp.tools.util.InvalidFormatException	entity e3 is never closed
 2	opennlp.tools.util.InvalidFormatException	entity e3 is never closed
 2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
 2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open

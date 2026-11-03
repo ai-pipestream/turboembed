@@ -4,6 +4,9 @@
 //! streams [`AnalyzeProgressiveEvent`] messages with strictly increasing 1-based
 //! sequence numbers as each branch completes.
 
+mod normalize;
+pub mod profiles;
+pub mod seed;
 mod steps;
 
 use std::collections::HashSet;
@@ -22,19 +25,27 @@ use turbo_analysis::{Analyzer, Document};
 use crate::api::{
     Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC,
 };
+use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
+use crate::metrics::{DocGuard, StreamGuard};
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
     AnalysisLayerBatch, AnalysisStarted, AnalysisStepFailure, AnalyzeFailure, AnalyzePipelineRequest,
-    AnalyzeProgressiveEvent,
+    AnalyzeProgressiveEvent, DocumentGraphResponse,
 };
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
+use crate::sink::SinkForwarder;
+use crate::state::State;
 use crate::status::to_status;
 
-pub use steps::compile_analyzer;
-use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS};
+pub use profiles::{
+    ANNOTATE_V1, ANNOTATE_V2, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile,
+    profile_capabilities,
+};
+use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state};
+pub use steps::{compile_analyzer, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
 /// drop guard that sets the cooperative cancellation flag as soon as the stream
@@ -42,6 +53,8 @@ use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS};
 pub struct ProgressiveStream {
     inner: ReceiverStream<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     cancel: Arc<AtomicBool>,
+    _stream_guard: Option<StreamGuard>,
+    _doc_guard: Option<DocGuard>,
 }
 
 impl Drop for ProgressiveStream {
@@ -85,35 +98,67 @@ fn step_error_code(err: &turbo_analysis::Error) -> i32 {
 }
 
 /// Validates `req`, builds the [`Analyzer`] DAG, and starts the progressive
-/// execution task feeding the returned [`ProgressiveStream`].
-pub async fn start_progressive(req: Request<AnalyzePipelineRequest>) -> Reply<ProgressiveStream> {
+/// execution task feeding the returned [`ProgressiveStream`]. With `sink`,
+/// the complete graph the client was handed is then forwarded to it, after
+/// the reply has ended: a full queue drops and counts it.
+pub(crate) async fn start_progressive(
+    state: &State,
+    req: Request<AnalyzePipelineRequest>,
+    sink: Option<Arc<SinkForwarder>>,
+) -> Reply<ProgressiveStream> {
+    let deadline = Deadline::from_request(&req)?;
+    deadline.check()?;
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
-    if !req.model.trim().is_empty() {
-        return Err(plain(bad(format!(
-            "unknown model bundle {:?} for built-in progressive pipeline; leave model empty",
-            req.model
-        ))));
-    }
 
-    let doc = build_initial_document(&req)?;
-    let analyzer = build_pipeline(&req, &doc)?;
+    let doc = build_initial_document(&req, offsets)?;
+    let analyzer = build_pipeline(state, &req, &doc)?;
 
-    let cancel = Arc::new(AtomicBool::new(false));
+    let cancel = Arc::clone(deadline.cancel_flag());
     let task_cancel = Arc::clone(&cancel);
+    let task_deadline = deadline.clone();
     let (tx, rx) = mpsc::channel::<std::result::Result<AnalyzeProgressiveEvent, Status>>(32);
 
     let doc_id = req.doc_id.clone();
     let proto_offsets = offsets.to_proto();
+    let (stream_guard, doc_guard) = (Some(state.metrics.track_stream()), Some(state.metrics.track_docs(1, None)));
 
+    let sink_doc_id = doc_id.clone();
     tokio::task::spawn_blocking(move || {
-        run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, tx);
+        // The task owns the stream's one sender, so the reply has ended
+        // when it returns.
+        let delivered = run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, task_deadline, tx);
+        if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
+            // A refusal is counted in the forwarder's stats.
+            let _ = sink.offer_exported(&sink_doc_id, exported, &doc);
+        }
     });
 
-    Ok(Response::new(ProgressiveStream { inner: ReceiverStream::new(rx), cancel }))
+    Ok(Response::new(ProgressiveStream {
+        inner: ReceiverStream::new(rx),
+        cancel,
+        _stream_guard: stream_guard,
+        _doc_guard: doc_guard,
+    }))
 }
 
-fn build_initial_document(req: &AnalyzePipelineRequest) -> Result<Document, Status> {
+fn build_initial_document(req: &AnalyzePipelineRequest, offsets: OffsetMode) -> Result<Document, Status> {
+    if let Some(seed) = &req.structure_seed {
+        if !req.initial_graph.is_empty() || !req.source_bytes.is_empty() || !req.text.is_empty() {
+            return Err(plain(bad(
+                "structure_seed carries the text: leave text, source_bytes and initial_graph empty",
+            )));
+        }
+        if seed.text.len() as u64 > MAX_GRAPH_BYTES {
+            return Err(plain(Failure::new(
+                TURBO_E_CAPACITY,
+                0,
+                format!("structure_seed text length {} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})", seed.text.len()),
+            )));
+        }
+        return seed::seed_document(seed, offsets).map_err(plain);
+    }
+
     if !req.initial_graph.is_empty() {
         if req.initial_graph.len() as u64 > MAX_GRAPH_BYTES {
             return Err(plain(Failure::new(
@@ -150,23 +195,26 @@ fn build_initial_document(req: &AnalyzePipelineRequest) -> Result<Document, Stat
     Ok(Document::new(req.text.as_str()))
 }
 
-fn build_pipeline(req: &AnalyzePipelineRequest, initial_doc: &Document) -> Result<Analyzer, Status> {
-    let step_names: Vec<&str> = if !req.steps.is_empty() {
-        req.steps.iter().map(String::as_str).collect()
+fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Document) -> Result<Analyzer, Status> {
+    let (step_names, profile_name, required_bundles): (Vec<&str>, &str, &[&str]) = if !req.steps.is_empty() {
+        (req.steps.iter().map(String::as_str).collect(), req.profile.as_str(), &[])
+    } else if let Some(p) = find_profile(req.profile.as_str()) {
+        (p.steps.to_vec(), p.name, p.required_bundles)
     } else {
         match req.profile.as_str() {
-            "" | "default" | "standard" => DEFAULT_STEPS.to_vec(),
-            "minimal" => MINIMAL_STEPS.to_vec(),
-            "chunking" => CHUNKING_STEPS.to_vec(),
+            "" | "default" | "standard" => (DEFAULT_STEPS.to_vec(), req.profile.as_str(), &[]),
+            "minimal" => (MINIMAL_STEPS.to_vec(), req.profile.as_str(), &[]),
+            "chunking" => (CHUNKING_STEPS.to_vec(), req.profile.as_str(), &[]),
             other => {
                 return Err(plain(bad(format!(
-                    "unknown pipeline profile '{other}': expected 'default', 'minimal', or 'chunking'"
+                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'annotate-v1', 'annotate-v2', 'default', 'minimal', or 'chunking'"
                 ))));
             }
         }
     };
 
-    compile_analyzer(initial_doc, &step_names).map_err(plain)
+    compile_analyzer_with_state(initial_doc, &step_names, Some(state), &req.model, profile_name, required_bundles)
+        .map_err(plain)
 }
 
 fn run_progressive_task(
@@ -175,8 +223,13 @@ fn run_progressive_task(
     mut doc: Document,
     analyzer: Analyzer,
     cancel: Arc<AtomicBool>,
+    deadline: Deadline,
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
-) {
+) -> Option<(DocumentGraphResponse, Document)> {
+    if deadline.is_expired() {
+        let _ = tx.blocking_send(Err(deadline_status()));
+        return None;
+    }
     let mut seq = 1u64;
     let c = codecs();
     let initial_export = match export(&doc, c) {
@@ -187,7 +240,7 @@ fn run_progressive_task(
                 0,
                 format!("initial document export failed: {e}"),
             ))));
-            return;
+            return None;
         }
     };
 
@@ -202,7 +255,7 @@ fn run_progressive_task(
     };
     if tx.blocking_send(Ok(started)).is_err() {
         cancel.store(true, Ordering::Relaxed);
-        return;
+        return None;
     }
 
     let mut docs = vec![doc];
@@ -304,19 +357,32 @@ fn run_progressive_task(
         }
     });
 
+    if deadline.is_expired() {
+        let _ = tx.blocking_send(Err(deadline_status()));
+        return None;
+    }
     if cancel.load(Ordering::Relaxed) {
-        return;
+        return None;
     }
 
     doc = docs.pop().expect("single document");
     match export_document_response(&doc) {
         Ok(complete) => {
             seq += 1;
-            let _ =
-                tx.blocking_send(Ok(AnalyzeProgressiveEvent { sequence: seq, event: Some(Event::Complete(complete)) }));
+            // What the sink is offered: the bytes, layers and views the
+            // client is handed, and the document they were exported from.
+            let exported = DocumentGraphResponse {
+                graph: complete.graph.clone(),
+                layers: complete.layers.clone(),
+                views: complete.views.clone(),
+                source_text: String::new(),
+            };
+            let event = AnalyzeProgressiveEvent { sequence: seq, event: Some(Event::Complete(complete)) };
+            tx.blocking_send(Ok(event)).is_ok().then_some((exported, doc))
         }
         Err(f) => {
             let _ = tx.blocking_send(Err(plain(f)));
+            None
         }
     }
 }

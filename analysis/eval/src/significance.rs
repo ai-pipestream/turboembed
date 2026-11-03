@@ -1,14 +1,14 @@
 //! Paired significance tests over per query score differences.
 //!
-//! Both tests draw from turbo-jvm's [`JavaRandom`] (`java.util.Random`)
-//! with a fixed seed, so the same differences give the same result to the
-//! bit on every machine, and a JVM program drawing the same values in the
-//! same order would agree. Each test makes its own generator from the
-//! seed, so one result does not depend on whether the other was computed
+//! Both tests draw from [`JavaRandom`](crate::random::JavaRandom), the
+//! historical seeded sequence reproduced in [`crate::random`], with a
+//! fixed seed, so the same differences give the same result to the bit
+//! on every machine. Each test makes its own generator from the seed,
+//! so one result does not depend on whether the other was computed
 //! first.
 
+use crate::random::JavaRandom;
 use serde::{Deserialize, Serialize};
-use turbo_jvm::random::JavaRandom;
 
 use crate::Result;
 use crate::metrics::mean;

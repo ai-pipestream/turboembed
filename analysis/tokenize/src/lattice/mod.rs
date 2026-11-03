@@ -44,10 +44,9 @@ pub use tokenizer::{LatticeTokenizer, Morpheme, Scratch};
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{PosTags, Sentences, Strs, Tokens};
 use turbo_tokenize_layers::Readings;
-use turbo_unicode::WhitespaceMode;
 
-use crate::fnv1a;
 use crate::unit::tokenize_units_with;
+use crate::{WHITESPACE_DEFINITION, fnv1a};
 
 /// The OpenNLP class the dictionary reader ports, the id of the model.
 pub const DICTIONARY_NAME: &str = "MecabDictionary";
@@ -94,18 +93,16 @@ impl LatticeTokenizer {
 
     fn model_ref(&self) -> ModelRef {
         ModelRef {
-            id: format!("opennlp:{DICTIONARY_NAME}"),
+            id: format!("turbo:{DICTIONARY_NAME}"),
             revision: String::new(),
             sha256: self.dictionary.sha256().to_hex(),
         }
     }
 
+    /// The whitespace definition, once for the text and once for the
+    /// dictionary's lines, as the configuration hashes fold it in.
     fn whitespace_hash(&self) -> [u8; 2] {
-        let mode = |m: WhitespaceMode| match m {
-            WhitespaceMode::Legacy => 0,
-            WhitespaceMode::Unicode => 1,
-        };
-        [mode(self.whitespace), mode(self.dictionary.whitespace())]
+        [WHITESPACE_DEFINITION, WHITESPACE_DEFINITION]
     }
 }
 
@@ -120,15 +117,14 @@ impl Annotator for LatticeTokenizer {
         Ok((tokens, self.pos_tags(tags)))
     }
 
-    /// The dictionary: `opennlp:MecabDictionary` as the id, no revision (a
+    /// The dictionary: `turbo:MecabDictionary` as the id, no revision (a
     /// dictionary directory carries none), and the SHA-256 of the manifest
     /// of its files ([`MecabDictionary::sha256`]).
     fn model(&self) -> Option<ModelRef> {
         Some(self.model_ref())
     }
 
-    /// The whitespace mode of the text and the one the dictionary's lines
-    /// were split in.
+    /// The whitespace definition of the text and of the dictionary's lines.
     fn config_hash(&self) -> u64 {
         fnv1a(&self.whitespace_hash())
     }
@@ -193,8 +189,8 @@ impl Annotator for LatticeAnalyzer {
         Some(self.tokenizer.model_ref())
     }
 
-    /// The whitespace modes, as [`LatticeTokenizer`] hashes them, and the
-    /// format.
+    /// The whitespace definition, as [`LatticeTokenizer`] hashes it, and
+    /// the format.
     fn config_hash(&self) -> u64 {
         let [a, b] = self.tokenizer.whitespace_hash();
         let format = match self.format {

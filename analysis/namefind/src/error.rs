@@ -1,101 +1,24 @@
-//! Why a pattern or a finder was refused.
+//! Why a dictionary, a pattern or a finder was refused.
 
 use std::fmt;
 
-/// A Java regular expression feature this port does not translate. A
-/// pattern that uses one is refused when it is compiled, so it never
-/// matches differently from `java.util.regex` without saying so.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Feature {
-    /// `(?=X)` and `(?!X)`.
-    Lookahead,
-    /// `(?<=X)` and `(?<!X)`.
-    Lookbehind,
-    /// `(?>X)`.
-    AtomicGroup,
-    /// `\1` to `\9` and `\k<name>`.
-    Backreference,
-    /// `X*+`, `X++`, `X?+` and `X{n,m}+`.
-    PossessiveQuantifier,
-    /// A quantifier on a group that can match the empty string, such as
-    /// `(a*)*` or `(a|)+`: backtracking engines end such loops by rules of
-    /// their own, which this port does not reproduce.
-    EmptyLoop,
-    /// A quantifier on `^`, `$`, `\b` or another assertion.
-    QuantifiedAssertion,
-    /// A class inside a class, `[a[b]]`.
-    NestedClass,
-    /// `&&` inside a class.
-    ClassIntersection,
-    /// A surrogate code point written as an escape, such as `\uD800`.
-    Surrogate,
-    /// `\p{..}` and `\P{..}`: Java's property names and its Unicode version
-    /// are not supported by this port.
-    Property,
-    /// `\G`, `\R`, `\X`, `\N{..}` and `\b{g}`.
-    Escape(char),
-    /// An inline flag other than `i` and `s`: `m`, `x`, `u`, `U`, `d` and
-    /// `c`.
-    Flag(char),
-}
-
-impl fmt::Display for Feature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Feature::Lookahead => f.write_str("lookahead"),
-            Feature::Lookbehind => f.write_str("lookbehind"),
-            Feature::AtomicGroup => f.write_str("an atomic group"),
-            Feature::Backreference => f.write_str("a backreference"),
-            Feature::PossessiveQuantifier => f.write_str("a possessive quantifier"),
-            Feature::EmptyLoop => f.write_str("a quantifier on a group that can match nothing"),
-            Feature::QuantifiedAssertion => f.write_str("a quantifier on an assertion"),
-            Feature::NestedClass => f.write_str("a class inside a class"),
-            Feature::ClassIntersection => f.write_str("a class intersection"),
-            Feature::Surrogate => f.write_str("a surrogate code point"),
-            Feature::Property => f.write_str("a Unicode property class"),
-            Feature::Escape(c) => write!(f, "the escape \\{c}"),
-            Feature::Flag(c) => write!(f, "the flag {c}"),
-        }
-    }
-}
-
-/// A text on which a compiled pattern would match differently from Java.
-/// Each is refused for the patterns that use the construct concerned; the
-/// same pattern runs on other texts.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum TextLimit {
-    /// A pattern that can start a match on the second half of a surrogate
-    /// pair in Java, on a text with a character outside the Basic
-    /// Multilingual Plane: one with `\B`, with a class that holds a
-    /// surrogate but not every character outside the BMP, or that can
-    /// match the empty string and uses `\b`, `^` or `\A`.
-    Supplementary,
-}
-
-impl fmt::Display for TextLimit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            TextLimit::Supplementary => "a match that Java can start inside a character outside the BMP",
-        })
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
-    /// A pattern `java.util.regex.Pattern.compile` refuses. `at` is the
-    /// offset in characters where the parse stopped.
-    Syntax { pattern: Box<str>, at: usize, message: &'static str },
-    /// A pattern Java accepts that uses a feature this port does not
-    /// translate.
-    Unsupported { pattern: Box<str>, at: usize, feature: Feature },
-    /// A pattern too large for this port: its compiled program exceeds the
-    /// instruction limit, or its groups nest too deeply.
-    Compile { pattern: Box<str>, message: String },
-    /// A text this pattern cannot match as Java would.
-    Text { pattern: Box<str>, limit: TextLimit },
+    /// A token pattern the matcher cannot take. `Tok` lists a pattern is
+    /// built from refuse through this variant.
+    Pattern(turbo_matcher::PatternError),
+    /// Matching a document failed: a `Tok` tests an attribute the token
+    /// layer does not carry, such as `Attr::Pos` over bare tokens.
+    Match(turbo_matcher::MatchError),
+    /// A dictionary line the line format refuses. `at` is the 0-based
+    /// line number.
+    Dictionary { at: usize, message: &'static str },
+    /// `DictionaryNameFinder::new` over a dictionary with no entries:
+    /// there is no type a name could carry.
+    EmptyDictionary,
     /// `RegexNameFinder(Pattern[], String)` with no patterns.
     NoPatterns,
-    /// The same entity type twice in what stands for a Java `Map`.
+    /// The same entity type twice in what stands for a map.
     DuplicateType(Box<str>),
     /// More entity types than a `TagSet` holds.
     TooManyTypes,
@@ -104,14 +27,10 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Syntax { pattern, at, message } => write!(f, "pattern {pattern:?} at {at}: {message}"),
-            Error::Unsupported { pattern, at, feature } => {
-                write!(f, "pattern {pattern:?} at {at} uses {feature}, which is not supported")
-            }
-            Error::Compile { pattern, message } => write!(f, "pattern {pattern:?}: {message}"),
-            Error::Text { pattern, limit } => {
-                write!(f, "pattern {pattern:?} cannot match this text as Java would: {limit}")
-            }
+            Error::Pattern(e) => write!(f, "token pattern: {e}"),
+            Error::Match(e) => write!(f, "token pattern match: {e}"),
+            Error::Dictionary { at, message } => write!(f, "dictionary line {at}: {message}"),
+            Error::EmptyDictionary => f.write_str("a dictionary finder needs at least one entry"),
             Error::NoPatterns => f.write_str("patterns must not be empty"),
             Error::DuplicateType(t) => write!(f, "the entity type {t:?} is given twice"),
             Error::TooManyTypes => f.write_str("more than 65536 entity types"),
@@ -120,3 +39,9 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+impl From<turbo_matcher::PatternError> for Error {
+    fn from(e: turbo_matcher::PatternError) -> Error {
+        Error::Pattern(e)
+    }
+}

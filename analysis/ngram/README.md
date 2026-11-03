@@ -26,4 +26,4 @@ and Stupid Backoff language modeling for `turboembed`, porting Apache OpenNLP's
 - **`LanguageModel` and `NGramLanguageModel` (`opennlp.tools.languagemodel`)**:
   - Scores token sequences (`calculate_probability`) and predicts continuation
     n-grams (`predict_next_tokens`) using Stupid Backoff (`0.4` backoff weight)
-    with `turbo_jvm::strict_math::{log, exp}` for bit-for-bit JVM parity.
+    in log space (`f64::ln` and `f64::exp`).

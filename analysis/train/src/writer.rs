@@ -1,43 +1,29 @@
-//! The bytes of a trained model: `GenericModelWriter` over a `GISModel`, a
-//! `QNModel` or a `PerceptronModel`, which is `BinaryGISModelWriter` with
-//! `GISModelWriter.persist`, `BinaryQNModelWriter` with
-//! `QNModelWriter.persist` or `BinaryPerceptronModelWriter` with
-//! `PerceptronModelWriter.persist`, writing through `DataOutputStream` and
-//! `ModelParameterChunker`.
+//! Native binary model writer for [`GisModel`], [`QnModel`],
+//! [`PerceptronModel`], and [`NaiveBayesModel`].
 //!
-//! The layout, read back by `turbo-maxent` and by OpenNLP's
-//! `GISModelReader`, `QNModelReader` and `PerceptronModelReader`:
+//! Layout read back by `turbo-maxent`'s [`MaxentModel::from_trained_bytes`]:
 //!
-//! 1. `writeUTF("GIS")`, `writeInt(1)` and `writeDouble(1)`: the model type
-//!    and the correction constant and parameter, which nothing reads; or
-//!    `writeUTF("QN")` or `writeUTF("Perceptron")` alone.
-//! 2. The outcome labels: their count, then each with `writeUTF`.
-//! 3. The outcome patterns: the predicates are sorted by their pattern
-//!    (the outcome ids a predicate has parameters for, compared
-//!    lexicographically, then by length; a stable sort, so predicates with
-//!    one pattern keep their index order) and consecutive equal patterns
-//!    are grouped. The count of groups, then each group as the text
-//!    `"<size> <o1> <o2> ..."`.
-//! 4. The predicate labels in the sorted order, their count first.
+//! 1. The model type header string (`"TURBO-GIS-1"`, `"TURBO-QN-1"`,
+//!    `"TURBO-PERCEPTRON-1"`, or `"TURBO-NAIVE-BAYES-1"`).
+//! 2. The outcome labels: their `i32` little-endian count, then each label.
+//! 3. The outcome patterns: predicates are stably sorted by their outcome
+//!    pattern (compared lexicographically, then by length) and consecutive
+//!    equal patterns are grouped. The `i32` little-endian group count, then
+//!    each group formatted as `"<size> <o1> <o2> ..."`.
+//! 4. The predicate labels in the sorted order, their `i32` little-endian
+//!    count first.
 //! 5. The parameters: for every predicate in the sorted order, one
-//!    `writeDouble` per entry of its pattern.
+//!    little-endian `f64` per entry of its pattern.
 //!
-//! The perceptron writer first drops every parameter that is zero from
-//! its predicate's pattern, and every predicate left with none; a model
-//! with no parameter left cannot be written ([`Error::NoParameters`]).
+//! The perceptron writer drops every zero parameter from its predicate's
+//! pattern, and every predicate left with none; a model with no parameter
+//! left cannot be written ([`Error::NoParameters`]).
 //!
-//! Every string goes through `ModelParameterChunker.writeUTF`: a string of
-//! at most 65535 bytes of modified UTF-8 is written as `writeUTF` writes
-//! it; a longer one is written as `"CHUNKED-MODEL-PARAMS:<n>"` and then
-//! `n` chunks, each a `writeUTF` of a run of the string that
-//! `CharsetEncoder` for UTF-8 fit into 65535 bytes. Two consequences of
-//! measuring the chunks in standard UTF-8 are kept, as they are what the
-//! JVM writes: a chunk full of characters outside the BMP can exceed
-//! 65535 bytes of modified UTF-8, which `writeUTF` then refuses
-//! ([`Error::StringTooLong`] here, `UTFDataFormatException` there), and
-//! the encoder stops at a lone surrogate, so a chunked string is cut
-//! there and the rest of it is lost. U+0000 counts one byte in a chunk
-//! and takes two when written, so a chunk of them can overflow as well.
+//! All strings on the wire are length-prefixed (`u16` little-endian byte
+//! length) standard UTF-8. In-memory [`JavaString`] labels are transcoded to
+//! standard UTF-8 at the wire boundary; unpaired surrogates are refused with
+//! [`Error::UnpairedSurrogate`] and strings exceeding [`MAX_UTF_BYTES`] bytes
+//! of standard UTF-8 are refused with [`Error::StringTooLong`].
 
 use crate::error::{Error, Result};
 use crate::gis::GisModel;
@@ -46,18 +32,16 @@ use crate::naive_bayes::NaiveBayesModel;
 use crate::perceptron::PerceptronModel;
 use crate::qn::QnModel;
 
-/// The type string `GISModelWriter.persist` starts with.
-pub const GIS_TYPE: &str = "GIS";
-/// The type string `QNModelWriter.persist` starts with.
-pub const QN_TYPE: &str = "QN";
-/// The type string `PerceptronModelWriter.persist` starts with.
-pub const PERCEPTRON_TYPE: &str = "Perceptron";
-/// The type string `NaiveBayesModelWriter.persist` starts with.
-pub const NAIVE_BAYES_TYPE: &str = "NaiveBayes";
-/// `ModelParameterChunker.SIGNATURE_CHUNKED_PARAMS`.
-pub const CHUNKED_SIGNATURE: &str = "CHUNKED-MODEL-PARAMS:";
-/// `writeUTF`'s limit on a string's modified UTF-8 bytes.
-pub const MAX_UTF_BYTES: usize = 65535;
+/// The type string `write_gis` starts with.
+pub const GIS_TYPE: &str = "TURBO-GIS-1";
+/// The type string `write_qn` starts with.
+pub const QN_TYPE: &str = "TURBO-QN-1";
+/// The type string `write_perceptron` starts with.
+pub const PERCEPTRON_TYPE: &str = "TURBO-PERCEPTRON-1";
+/// The type string `write_naive_bayes` starts with.
+pub const NAIVE_BAYES_TYPE: &str = "TURBO-NAIVE-BAYES-1";
+/// Maximum standard UTF-8 byte length of a single wire string.
+pub const MAX_UTF_BYTES: usize = u16::MAX as usize;
 
 /// What a model writer reads from a model: `AbstractModel.getDataStructures`
 /// as `GISModelWriter`'s constructor takes it apart, the predicates in
@@ -161,9 +145,7 @@ pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
 /// trainer assembles from its own weights.
 pub fn write_gis_writable(model: &dyn WritableModel) -> Result<Vec<u8>> {
     let mut out = ModelOutput { bytes: Vec::new() };
-    out.write_utf(&JavaString::new(GIS_TYPE))?;
-    out.write_int(1);
-    out.write_double(1.0);
+    out.write_str(GIS_TYPE)?;
     write_body(&mut out, model)?;
     Ok(out.bytes)
 }
@@ -180,7 +162,7 @@ pub fn write_qn(model: &QnModel) -> Result<Vec<u8>> {
 /// trainer assembles from its own weights.
 pub fn write_qn_writable(model: &dyn WritableModel) -> Result<Vec<u8>> {
     let mut out = ModelOutput { bytes: Vec::new() };
-    out.write_utf(&JavaString::new(QN_TYPE))?;
+    out.write_str(QN_TYPE)?;
     write_body(&mut out, model)?;
     Ok(out.bytes)
 }
@@ -194,7 +176,7 @@ pub fn write_perceptron(model: &PerceptronModel) -> Result<Vec<u8>> {
         return Err(Error::NoParameters);
     }
     let mut out = ModelOutput { bytes: Vec::new() };
-    out.write_utf(&JavaString::new(PERCEPTRON_TYPE))?;
+    out.write_str(PERCEPTRON_TYPE)?;
     write_body(&mut out, &pruned)?;
     Ok(out.bytes)
 }
@@ -203,7 +185,7 @@ pub fn write_perceptron(model: &PerceptronModel) -> Result<Vec<u8>> {
 /// Bayes model: the bytes of the `.model` entry (`NaiveBayesModelWriter.persist`).
 pub fn write_naive_bayes(model: &NaiveBayesModel) -> Result<Vec<u8>> {
     let mut out = ModelOutput { bytes: Vec::new() };
-    out.write_utf(&JavaString::new(NAIVE_BAYES_TYPE))?;
+    out.write_str(NAIVE_BAYES_TYPE)?;
     write_body(&mut out, model)?;
     Ok(out.bytes)
 }
@@ -282,7 +264,7 @@ fn write_body(out: &mut ModelOutput, model: &dyn WritableModel) -> Result<()> {
             text.push(' ');
             text.push_str(&oid.to_string());
         }
-        out.write_utf(&JavaString::new(&text))?;
+        out.write_str(&text)?;
     }
     out.write_int(to_java_int(model.num_predicates()));
     for &p in &sorted {
@@ -322,104 +304,33 @@ fn to_java_int(n: usize) -> i32 {
     i32::try_from(n).expect("a model has fewer than 2^31 labels")
 }
 
-/// A `DataOutputStream` into memory.
+/// Little-endian native binary model output buffer.
 struct ModelOutput {
     bytes: Vec<u8>,
 }
 
 impl ModelOutput {
     fn write_int(&mut self, i: i32) {
-        self.bytes.extend_from_slice(&i.to_be_bytes());
+        self.bytes.extend_from_slice(&i.to_le_bytes());
     }
 
     fn write_double(&mut self, d: f64) {
-        self.bytes.extend_from_slice(&d.to_bits().to_be_bytes());
+        self.bytes.extend_from_slice(&d.to_bits().to_le_bytes());
     }
 
-    /// `ModelParameterChunker.writeUTF`.
     fn write_utf(&mut self, s: &JavaString) -> Result<()> {
-        if s.len() <= MAX_UTF_BYTES {
-            self.write_utf_plain(s.as_bytes());
-            return Ok(());
-        }
-        let chunks = split_by_utf8_length(s);
-        self.write_utf_plain(format!("{CHUNKED_SIGNATURE}{}", chunks.len()).as_bytes());
-        for chunk in chunks {
-            if chunk.len() > MAX_UTF_BYTES {
-                return Err(Error::StringTooLong { what: "chunk of a model parameter", bytes: chunk.len() });
-            }
-            self.write_utf_plain(chunk);
-        }
-        Ok(())
+        let utf8 = s.to_str().ok_or(Error::UnpairedSurrogate)?;
+        self.write_str(&utf8)
     }
 
-    /// `DataOutputStream.writeUTF` of bytes known to fit.
-    fn write_utf_plain(&mut self, bytes: &[u8]) {
-        self.bytes.extend_from_slice(&(bytes.len() as u16).to_be_bytes());
+    fn write_str(&mut self, s: &str) -> Result<()> {
+        let bytes = s.as_bytes();
+        if bytes.len() > MAX_UTF_BYTES {
+            return Err(Error::StringTooLong { what: "model parameter", bytes: bytes.len() });
+        }
+        self.bytes.extend_from_slice(&(bytes.len() as u16).to_le_bytes());
         self.bytes.extend_from_slice(bytes);
-    }
-}
-
-/// `ModelParameterChunker.splitByByteLength`: the string cut into runs
-/// whose standard UTF-8 encoding fits 65535 bytes, each as the run's
-/// modified UTF-8 bytes. The UTF-8 encoder stops at a lone surrogate, so
-/// the run before it is the last chunk and the rest is dropped.
-fn split_by_utf8_length(s: &JavaString) -> Vec<&[u8]> {
-    let bytes = s.as_bytes();
-    let mut chunks = Vec::new();
-    let mut chunk_start = 0;
-    let mut chunk_utf8 = 0;
-    let mut pos = 0;
-    while pos < bytes.len() {
-        let (modified_len, utf8_len) = match next_char(bytes, pos) {
-            Some(lens) => lens,
-            None => {
-                // A lone surrogate: malformed input ends the encoding.
-                chunks.push(&bytes[chunk_start..pos]);
-                return chunks;
-            }
-        };
-        if chunk_utf8 + utf8_len > MAX_UTF_BYTES {
-            chunks.push(&bytes[chunk_start..pos]);
-            chunk_start = pos;
-            chunk_utf8 = 0;
-        }
-        chunk_utf8 += utf8_len;
-        pos += modified_len;
-    }
-    chunks.push(&bytes[chunk_start..]);
-    chunks
-}
-
-/// The character at `pos` of canonical modified UTF-8: its length there
-/// and in standard UTF-8, or `None` for a lone surrogate or truncated
-/// multi-byte sequence.
-fn next_char(bytes: &[u8], pos: usize) -> Option<(usize, usize)> {
-    match *bytes.get(pos)? {
-        0x00..=0x7F => return Some((1, 1)),
-        // U+0000, which canonical modified UTF-8 writes as C0 80 and
-        // standard UTF-8 as one zero byte.
-        0xC0 => return (pos + 2 <= bytes.len()).then_some((2, 1)),
-        0xC1..=0xDF => return (pos + 2 <= bytes.len()).then_some((2, 2)),
-        _ => {}
-    }
-    if pos + 3 > bytes.len() {
-        return None;
-    }
-    let unit = (u32::from(bytes[pos] & 0x0F) << 12)
-        | (u32::from(bytes[pos + 1] & 0x3F) << 6)
-        | u32::from(bytes[pos + 2] & 0x3F);
-    match unit {
-        0xD800..=0xDBFF => {
-            let next = pos + 3;
-            if next + 3 <= bytes.len() && bytes[next] == 0xED && (0xB0..=0xBF).contains(&bytes[next + 1]) {
-                Some((6, 4))
-            } else {
-                None
-            }
-        }
-        0xDC00..=0xDFFF => None,
-        _ => Some((3, 3)),
+        Ok(())
     }
 }
 

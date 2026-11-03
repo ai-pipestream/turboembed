@@ -76,26 +76,41 @@ fn wide_document(n: u32) -> Document {
     d
 }
 
+/// Best wall time of `rounds` runs per input, taken round-robin after one
+/// warm-up pass. A burst of load on a shared runner then lands on every
+/// size alike, and the minimum reflects the code rather than the neighbours.
+fn interleaved_best<T>(inputs: &[T], rounds: usize, mut run: impl FnMut(&T)) -> Vec<f64> {
+    inputs.iter().for_each(&mut run);
+    let mut best = vec![f64::INFINITY; inputs.len()];
+    for _ in 0..rounds {
+        for (input, best) in inputs.iter().zip(&mut best) {
+            let at = Instant::now();
+            run(input);
+            *best = best.min(at.elapsed().as_secs_f64());
+        }
+    }
+    best
+}
+
 #[test]
 fn term_stacks_scale_with_the_document_not_its_square() {
-    // Two sizes four times apart, best of three each. Linear work grows
-    // about fourfold; the old per-chunk token and per-sentence chunk scans
-    // grew sixteenfold. The bound leaves room for a loaded runner.
-    let time = |n| {
-        let req = {
+    // Two sizes eight times apart: linear work grows about eightfold, the
+    // old per-chunk token and per-sentence chunk scans grew 64-fold. The
+    // bound of 24 sits near the geometric middle, so neither runner load
+    // (best of five, interleaved) nor cache effects on the large run cross
+    // it. The old sizes were four apart with a 10x bound over 4x, and a
+    // loaded runner measured 10.8x.
+    let reqs: Vec<_> = [4_000, 32_000]
+        .map(|n| {
             let mut r = project(graph(&wide_document(n)));
             r.include_drift_curve = true;
             r
-        };
-        (0..3)
-            .map(|_| {
-                let at = Instant::now();
-                project_chunks(&req).unwrap();
-                at.elapsed().as_secs_f64()
-            })
-            .fold(f64::INFINITY, f64::min)
-    };
-    let (small, large) = (time(8_000), time(32_000));
-    eprintln!("8k tokens {small:.4}s, 32k tokens {large:.4}s");
-    assert!(large < small * 10.0, "8k tokens {small:.4}s, 32k tokens {large:.4}s");
+        })
+        .into();
+    let best = interleaved_best(&reqs, 5, |req| {
+        project_chunks(req).unwrap();
+    });
+    let (small, large) = (best[0], best[1]);
+    eprintln!("4k tokens {small:.4}s, 32k tokens {large:.4}s");
+    assert!(large < small * 24.0, "4k tokens {small:.4}s, 32k tokens {large:.4}s");
 }

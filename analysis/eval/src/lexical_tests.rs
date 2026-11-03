@@ -37,6 +37,7 @@ fn pipeline(lexical: Lexical) -> Pipeline {
         hybrid: None,
         cascade: None,
         static_embedder: None,
+        dump_cuts: None,
     }
 }
 

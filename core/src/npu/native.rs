@@ -29,6 +29,13 @@ pub fn descriptor(blob: &[u8], build_flags: *const c_char) -> ze::GraphDesc2 {
     }
 }
 
+/// Whether the extension exports a compiled graph's blob, which is what
+/// a NATIVE load needs. The device's graphFormatsSupported is not part
+/// of it: Intel's driver clears bit 0x1 whenever its compiler loads.
+pub fn exportable(ext: &GraphExt) -> bool {
+    ext.get_native_binary2().is_some() || ext.get_native_binary().is_some()
+}
+
 /// A copy of the graph's native blob. The view from
 /// `pfnGetNativeBinary2` is not kept: it dies with the graph.
 pub fn copy(ext: &GraphExt, graph: Handle) -> Result<Vec<u8>, BlobError> {
@@ -43,7 +50,7 @@ pub fn copy(ext: &GraphExt, graph: Handle) -> Result<Vec<u8>, BlobError> {
     }
     let Some(get) = ext.get_native_binary() else {
         return Err(BlobError::Unsupported(
-            "npu: the device lists ZE_GRAPH_FORMAT_NATIVE and the graph extension has no pfnGetNativeBinary".into(),
+            "npu: the graph extension has no pfnGetNativeBinary2 or pfnGetNativeBinary".into(),
         ));
     };
     let mut size = 0usize;
@@ -100,5 +107,28 @@ mod tests {
         assert!(!d.build_flags.is_null());
         assert_eq!(unsafe { std::ffi::CStr::from_ptr(d.build_flags) }, flags);
         assert_eq!(d.flags, 0);
+    }
+
+    /// Either export makes a NATIVE load possible; neither leaves the
+    /// compiled IR. The slots are never called here, only read.
+    #[test]
+    fn a_native_load_needs_an_export() {
+        let table = |slot: Option<usize>| {
+            let mut words = vec![0u64; size_of::<ze::GraphDdi>().div_ceil(8)];
+            if let Some(at) = slot {
+                words[at / 8] = 0xABAB_ABAB_ABAB_ABAB;
+            }
+            words
+        };
+        let one = std::mem::offset_of!(ze::GraphDdi, pfn_get_native_binary);
+        let two = std::mem::offset_of!(ze::GraphDdi, pfn_get_native_binary2);
+        let at = |words: &Vec<u64>, v| unsafe { GraphExt::new(words.as_ptr() as *const ze::GraphDdi, v) };
+        let none = table(None);
+        assert!(!exportable(&at(&none, ze::version(1, 20))));
+        let first = table(Some(one));
+        assert!(exportable(&at(&first, ze::version(1, 0))));
+        let second = table(Some(two));
+        assert!(exportable(&at(&second, ze::version(1, 7))));
+        assert!(!exportable(&at(&second, ze::version(1, 6))), "1.7's slot is past a 1.6 table");
     }
 }

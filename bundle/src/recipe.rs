@@ -17,6 +17,10 @@ pub struct Recipe {
     /// its files are fetched.
     #[serde(default)]
     pub notice: Option<String>,
+    /// The `https://` address of the `notice` terms, recorded in the
+    /// zoo's acceptance file under `LicenseRef-RestrictedPublic`.
+    #[serde(default)]
+    pub notice_terms: Option<String>,
     /// Files fetched from `model.source` at its commit.
     pub upstream: Vec<Upstream>,
     /// Files that come with the recipe rather than from upstream: a
@@ -99,6 +103,7 @@ impl Recipe {
         }
         // Every path the manifest names, and every conversion, before
         // anything is fetched.
+        crate::licence::notice_requirement(&r)?;
         crate::seal::named_paths(&r.manifest)?;
         crate::convert::conversions(&r)?;
         for l in &r.local {

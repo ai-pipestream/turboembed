@@ -30,6 +30,7 @@ pub(super) unsafe extern "C" fn embed_write(
         Work::Encoder(e) => e.write(r, ids, mask, types),
         // A static model has one token type, so the core passes only 0s.
         Work::Static(t) => t.write(r, ids, mask),
+        Work::Deberta(d) => d.write(r, ids, mask),
     }
     s.written = true;
     0
@@ -52,6 +53,7 @@ pub(super) unsafe extern "C" fn embed_write_ranges(
     match &mut s.work {
         Work::Encoder(e) => e.write_ranges(r, ids, mask, types, ranges),
         Work::Static(t) => t.write_ranges(r, ids, mask, ranges),
+        Work::Deberta(d) => d.write_ranges(r, ids, mask, ranges),
     }
     s.written = true;
     0
@@ -88,17 +90,23 @@ pub(super) unsafe extern "C" fn session_run(
             t.run(&mut s.pool, floats);
             t.normalize()
         }
+        Work::Deberta(d) => {
+            if !d.run(&mut s.pool, floats) {
+                return unsafe { refuse(err, INVALID_STATE, "the deberta encoder refused a row the core passed") };
+            }
+            d.normalize()
+        }
     };
-    let encoded = matches!(s.work, Work::Encoder(_));
+    let encoded = !matches!(s.work, Work::Static(_));
     out.placement = TURBO_PLACE_HOST;
     out.output = &*s.output as *const Buffer as *mut c_void;
     out.host = s.output.ptr as *mut c_void;
     out.h2d_bytes = 0;
     out.d2h_bytes = 0;
-    // Nothing on this path allocates, on this thread or the pool's: the
-    // encoder computes in the memory session_create gave it, on the
-    // threads it started. tests/allocations.rs holds this to a counting
-    // allocator.
+    // Nothing allocates, on this thread or the pool's: every encoder,
+    // DeBERTa-v2's included, computes in the memory session_create gave
+    // it, on the threads it started. tests/allocations.rs holds this to a
+    // counting allocator.
     out.host_allocs = 0;
     out.device_allocs = 0;
     let st = &mut out.stage;

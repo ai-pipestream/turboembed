@@ -81,7 +81,7 @@ hashes, configuration hashes, counts and all retrieval cutoffs.
 
 All 416 test papers and 1,451 questions were used, without parameter tuning.
 There are 76,342 detected sentences, 1,506,101 word tokens and 5,663 reference
-section boundaries. A pinned English OpenNLP sentence model runs separately
+section boundaries. A pinned English sentence detector runs separately
 on each paragraph or heading. Abstracts are separate reference segments.
 These section starts are a **silver boundary reference**, not independently
 annotated topic changes. There were 2,713 sentence-initial marker matches.

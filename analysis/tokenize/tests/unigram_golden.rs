@@ -8,20 +8,20 @@ mod common;
 
 use common::{Case, compare_layers, fixtures_dir, run};
 use turbo_analysis::{Annotator, Document, View};
-use turbo_jvm::{math, strict_math};
-use turbo_tokenize::{UnigramLexicon, UnigramSegmenter, WhitespaceMode};
+use turbo_tokenize::{UnigramLexicon, UnigramSegmenter};
 use turbo_unicode::utf16::byte_to_utf16;
 
 const CLASS: &str = "opennlp.tools.tokenize.lattice.UnigramSegmenter";
 
 /// The run's goldens, checked to be the segmenter's with `lexicon` in
-/// `mode`, without an error and without a span that cuts a character.
-fn cases(run_name: &str, lexicon: &str, mode: WhitespaceMode) -> Vec<Case> {
+/// Unicode whitespace, without an error and without a span that cuts a
+/// character.
+fn cases(run_name: &str, lexicon: &str) -> Vec<Case> {
     let cases = run("unigram", run_name);
     for c in &cases {
         c.assert_annotator(CLASS, "tokenizePos");
         c.assert_models(&[fixtures_dir().join(lexicon)]);
-        assert_eq!(c.whitespace(), mode, "{}", c.path.display());
+        c.assert_unicode_whitespace();
         assert_eq!(c.golden.header.error, None, "{}", c.path.display());
         assert!(!c.has_cut(), "{}", c.path.display());
     }
@@ -30,10 +30,10 @@ fn cases(run_name: &str, lexicon: &str, mode: WhitespaceMode) -> Vec<Case> {
 
 /// Segments every input of the run and compares with the JVM; returns the
 /// number of goldens and of tokens.
-fn matches(run_name: &str, lexicon: &str, mode: WhitespaceMode) -> (usize, usize) {
-    let lex = UnigramLexicon::read(fixtures_dir().join(lexicon), mode).unwrap();
-    let segmenter = UnigramSegmenter::new(lex, mode).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp);
-    let cases = cases(run_name, lexicon, mode);
+fn matches(run_name: &str, lexicon: &str) -> (usize, usize) {
+    let lex = UnigramLexicon::read(fixtures_dir().join(lexicon)).unwrap();
+    let segmenter = UnigramSegmenter::new(lex).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp);
+    let cases = cases(run_name, lexicon);
     let mut tokens = 0;
     for case in &cases {
         let text = &case.text;
@@ -61,46 +61,28 @@ fn matches(run_name: &str, lexicon: &str, mode: WhitespaceMode) -> (usize, usize
 
 #[test]
 fn fixture_lexicon() {
-    assert_eq!(matches("zh-unigram-fixture", "zh-unigram-fixture.txt", WhitespaceMode::Unicode), (63, 4741));
-}
-
-#[test]
-fn fixture_lexicon_legacy() {
-    assert_eq!(matches("zh-unigram-fixture+legacy", "zh-unigram-fixture.txt", WhitespaceMode::Legacy), (63, 4738));
+    assert_eq!(matches("zh-unigram-fixture", "zh-unigram-fixture.txt"), (63, 4741));
 }
 
 #[test]
 fn modes_lexicon() {
-    assert_eq!(matches("zh-unigram-modes", "zh-unigram-modes.txt", WhitespaceMode::Unicode), (12, 952));
+    assert_eq!(matches("zh-unigram-modes", "zh-unigram-modes.txt"), (12, 952));
 }
 
+/// The lexicon of information separators and next lines: U+001C is part
+/// of a word, and U+0085 ends one.
 #[test]
-fn modes_lexicon_legacy() {
-    assert_eq!(matches("zh-unigram-modes+legacy", "zh-unigram-modes.txt", WhitespaceMode::Legacy), (12, 951));
-}
-
-/// The lexicon whose words depend on the whitespace mode reads as the
-/// Java read it in each mode: U+001C ends a word in legacy mode only, and
-/// U+0085 in Unicode mode only.
-#[test]
-fn the_modes_lexicon_has_other_words_in_each_mode() {
+fn the_modes_lexicon_splits_at_unicode_whitespace() {
     let path = fixtures_dir().join("zh-unigram-modes.txt");
-    let unicode = UnigramLexicon::read(&path, WhitespaceMode::Unicode).unwrap();
+    let unicode = UnigramLexicon::read(&path).unwrap();
     assert_eq!((unicode.len(), unicode.total()), (4, 13));
     assert!(unicode.log_probability("\u{1c}5").is_some() && unicode.log_probability("x").is_some());
-    let legacy = UnigramLexicon::read(&path, WhitespaceMode::Legacy).unwrap();
-    assert_eq!((legacy.len(), legacy.total()), (4, 12));
-    assert!(legacy.log_probability("x\u{85}5").is_some());
+    assert!(unicode.log_probability("x\u{85}5").is_none());
 }
 
 #[test]
 fn jieba_subset() {
-    assert_eq!(matches("jieba-dict-subset", "jieba-dict-subset.txt", WhitespaceMode::Unicode), (57, 4427));
-}
-
-#[test]
-fn jieba_subset_legacy() {
-    assert_eq!(matches("jieba-dict-subset+legacy", "jieba-dict-subset.txt", WhitespaceMode::Legacy), (57, 4424));
+    assert_eq!(matches("jieba-dict-subset", "jieba-dict-subset.txt"), (57, 4427));
 }
 
 /// The fixture lexicon has pairs of paths whose counts multiply to the
@@ -119,14 +101,13 @@ fn jieba_subset_legacy() {
 #[test]
 fn near_ties_follow_the_rounding_of_the_logarithm() {
     let path = fixtures_dir().join("zh-unigram-fixture.txt");
-    let lexicon = UnigramLexicon::read(&path, WhitespaceMode::Unicode).unwrap();
+    let lexicon = UnigramLexicon::read(&path).unwrap();
     let p = |w: &str| lexicon.log_probability(w).unwrap();
     assert_eq!(p("研究生") + p("命"), p("研究") + p("生命"));
     assert!(p("研究生") + p("物") > p("研究") + p("生物"));
     assert!(p("人民大") + p("会") > p("人民") + p("大会"));
     let total = lexicon.total() as f64;
-    let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode)
-        .with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp);
+    let s = UnigramSegmenter::new(lexicon).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp);
     let words = |text: &str| {
         let mut out = Vec::new();
         s.segment(text, &mut out);
@@ -136,11 +117,7 @@ fn near_ties_follow_the_rounding_of_the_logarithm() {
     assert_eq!(words("研究生物"), ["研究生", "物"]);
     assert_eq!(words("人民大会"), ["人民大", "会"]);
 
-    // The last comparison with the scores computed by each logarithm.
-    let later_wins = |log: fn(f64) -> f64| {
-        let score = |c: f64| log(c) - log(total);
-        (score(2.0) + score(74.0)) > (score(1.0) + score(148.0))
-    };
-    assert!(later_wins(math::log));
-    assert!(!later_wins(strict_math::log));
+    // The last comparison with the scores computed by `f64::ln`.
+    let score = |c: f64| c.ln() - total.ln();
+    assert!((score(2.0) + score(74.0)) > (score(1.0) + score(148.0)));
 }

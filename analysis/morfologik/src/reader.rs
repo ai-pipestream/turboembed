@@ -6,7 +6,6 @@ use std::path::Path;
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tokens};
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java::to_lowercase;
 
 use crate::charset::DictionaryCharset;
@@ -186,7 +185,7 @@ impl MorfologikDictionaryReader {
             entries.entries,
             MorfologikInputConversion::default(),
             &[dictionary, &[separator], encoding.as_str().as_bytes(), charset.canonical_name().as_bytes()],
-            "opennlp:MorfologikDictionaryReader",
+            "turbo:MorfologikDictionaryReader",
         ))
     }
 
@@ -199,7 +198,7 @@ impl MorfologikDictionaryReader {
             entries.entries,
             meta.input_conversion,
             &[dictionary, info],
-            "opennlp:MorfologikDictionaryReader",
+            "turbo:MorfologikDictionaryReader",
         ))
     }
 
@@ -217,7 +216,7 @@ impl MorfologikDictionaryReader {
             entries.entries,
             meta.input_conversion,
             &[&dict_bytes, &info_bytes],
-            "opennlp:MorfologikDictionaryReader",
+            "turbo:MorfologikDictionaryReader",
         ))
     }
 
@@ -292,7 +291,7 @@ impl PoliMorfDictionaryReader {
         let mut entries = LemmatizerEntries::default();
         for (idx, line) in java_lines(&text).enumerate() {
             let line_number = idx + 1;
-            if line.chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)) {
+            if turbo_unicode::whitespace::is_blank(line) {
                 continue;
             }
             let Some(first_tab) = line.find('\t') else {
@@ -319,7 +318,7 @@ impl PoliMorfDictionaryReader {
             entries.entries,
             MorfologikInputConversion::default(),
             &[dictionary, charset.canonical_name().as_bytes()],
-            "opennlp:PoliMorfDictionaryReader",
+            "turbo:PoliMorfDictionaryReader",
         ))
     }
 }

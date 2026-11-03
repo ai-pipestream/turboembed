@@ -34,6 +34,25 @@ fn a_model() {
 }
 
 #[test]
+fn the_stream_ceiling_comes_from_its_flag_or_its_variable() {
+    let a = args("--listen 127.0.0.1:0 --admin").unwrap();
+    assert_eq!(a.max_stream_bytes, 2 << 30);
+    let a = args("--listen 127.0.0.1:0 --admin --max-message-bytes 1024 --max-stream-bytes 4096").unwrap();
+    assert_eq!(a.max_stream_bytes, 4096);
+    let env = |k: &str| (k == ENV_MAX_STREAM_BYTES).then(|| "8589934592".to_string());
+    let a = Args::parse_with("--listen 127.0.0.1:0 --admin".split(' ').map(String::from), env).unwrap();
+    assert_eq!(a.max_stream_bytes, 8 << 30);
+    let e = args("--listen 127.0.0.1:0 --admin --max-stream-bytes 1024").unwrap_err();
+    assert!(e.contains("under max message bytes"), "{e}");
+    let e = args("--listen 127.0.0.1:0 --admin --max-stream-bytes 2GiB").unwrap_err();
+    assert!(e.contains("not a byte count"), "{e}");
+    let e = args("--listen 127.0.0.1:0 --admin --max-stream-bytes 4096 --max-stream-bytes 4096").unwrap_err();
+    assert!(e.contains("twice"), "{e}");
+    assert_eq!(max_reply_bytes(64 << 20), 256 << 20);
+    assert_eq!(max_reply_bytes(512 << 20), 512 << 20);
+}
+
+#[test]
 fn one_bundle_under_two_names() {
     let a = args(
         "--listen 127.0.0.1:0 --model bundle=/b/tiny,device=0,sessions=1 \
@@ -110,6 +129,60 @@ fn the_sink_comes_from_its_flags_or_their_variables() {
     assert!(args(&format!("{base} --sink-queue-items 8")).is_err(), "bounds need an endpoint");
     assert!(args(&format!("{base} --sink-endpoint http://a:1 --sink-queue-bytes 0")).is_err());
     assert!(args(&format!("{base} --sink-endpoint http://a:1 --sink-endpoint http://b:1")).is_err());
+    assert!(!s.documents && s.typed.is_none(), "nothing new without the flags");
+}
+
+#[test]
+fn the_sink_documents_and_typed_projection_come_from_their_flags_or_variables() {
+    use crate::proto::result::OffsetMode;
+    use crate::sink::SinkTyped;
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1 --sink-endpoint http://s:1";
+    let sink = |s: &str| args(&format!("{base} {s}")).map(|a| a.sink.unwrap());
+    let s = sink("--sink-documents --sink-typed-offsets utf16").unwrap();
+    assert!(s.documents);
+    assert_eq!(s.typed, Some(SinkTyped { view: 0, offsets: OffsetMode::Utf16 }));
+    let s = sink("--sink-typed-offsets=code-point --sink-typed-view=3").unwrap();
+    assert!(!s.documents);
+    assert_eq!(s.typed, Some(SinkTyped { view: 3, offsets: OffsetMode::CodePoint }));
+    assert_eq!(sink("--sink-typed-offsets utf8").unwrap().typed.unwrap().offsets, OffsetMode::Utf8);
+    for bad in [
+        "--sink-typed-offsets utf32",
+        "--sink-typed-offsets UTF16",
+        "--sink-typed-offsets utf8 --sink-typed-view 65536",
+        "--sink-typed-offsets utf8 --sink-typed-view -1",
+        "--sink-typed-view 1",
+        "--sink-documents --sink-documents",
+        "--sink-documents=yes",
+        "--sink-typed-offsets utf8 --sink-typed-offsets utf16",
+    ] {
+        assert!(sink(bad).is_err(), "{bad}");
+    }
+    let alone = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    for needs_endpoint in ["--sink-documents", "--sink-typed-offsets utf8", "--sink-typed-view 0"] {
+        let e = args(&format!("{alone} {needs_endpoint}")).unwrap_err();
+        assert!(e.contains("need --sink-endpoint"), "{needs_endpoint}: {e}");
+    }
+    let env = |k: &str| match k {
+        ENV_SINK_ENDPOINT => Some("http://env:9".to_string()),
+        ENV_SINK_DOCUMENTS => Some("true".to_string()),
+        ENV_SINK_TYPED_OFFSETS => Some("utf16".to_string()),
+        ENV_SINK_TYPED_VIEW => Some("2".to_string()),
+        _ => None,
+    };
+    let s = Args::parse_with(alone.split_whitespace().map(String::from), env).unwrap().sink.unwrap();
+    assert!(s.documents);
+    assert_eq!(s.typed, Some(SinkTyped { view: 2, offsets: OffsetMode::Utf16 }));
+    let flags = format!("{alone} --sink-typed-offsets utf8 --sink-typed-view 0");
+    let s = Args::parse_with(flags.split_whitespace().map(String::from), env).unwrap().sink.unwrap();
+    assert_eq!(s.typed, Some(SinkTyped { view: 0, offsets: OffsetMode::Utf8 }), "a flag replaces its variable");
+    let off = |k: &str| match k {
+        ENV_SINK_ENDPOINT => Some("http://env:9".to_string()),
+        ENV_SINK_DOCUMENTS => Some("0".to_string()),
+        _ => None,
+    };
+    assert!(!Args::parse_with(alone.split_whitespace().map(String::from), off).unwrap().sink.unwrap().documents);
+    let junk = |k: &str| (k == ENV_SINK_DOCUMENTS).then(|| "maybe".to_string());
+    assert!(Args::parse_with(alone.split_whitespace().map(String::from), junk).is_err());
 }
 
 #[test]
@@ -139,6 +212,50 @@ fn the_catalog_comes_from_its_flags_or_their_variables() {
     assert!(args(&format!("{base} --catalog-dir /z --catalog-dir /y")).is_err());
     assert!(args(&format!("{base} --catalog-dir=")).is_err());
     assert_eq!(args(&format!("{base} --catalog-index /i")).unwrap_err(), "--catalog-index needs --catalog-dir");
+    let a = args(&format!("{base} --catalog-dir /z --catalog-store s3://models/zoo")).unwrap();
+    assert_eq!(a.catalog_store.as_deref(), Some("s3://models/zoo"));
+    let env = |k: &str| (k == ENV_CATALOG_STORE).then(|| "file:///store".to_string());
+    let parsed = Args::parse_with(format!("{base} --catalog-dir /z").split_whitespace().map(String::from), env);
+    assert_eq!(parsed.unwrap().catalog_store.as_deref(), Some("file:///store"));
+    assert!(args(&format!("{base} --catalog-dir /z --catalog-store /a --catalog-store /b")).is_err());
+    let e = args(&format!("{base} --catalog-store file:///s")).unwrap_err();
+    assert_eq!(e, "--catalog-store needs --catalog-dir");
+}
+
+#[test]
+fn zoo_mode_comes_from_its_flag_or_variable_needs_a_catalog_and_allows_no_model() {
+    let a = args("--listen 127.0.0.1:0 --catalog-dir /z --zoo").unwrap();
+    assert!(a.zoo && !a.admin && a.models.is_empty());
+    assert!(!args("--listen 127.0.0.1:0 --admin").unwrap().zoo);
+    assert_eq!(args("--listen 127.0.0.1:0 --zoo").unwrap_err(), "--zoo needs --catalog-dir");
+    assert!(args("--listen 127.0.0.1:0 --catalog-dir /z --zoo --zoo").is_err());
+    assert!(args("--listen 127.0.0.1:0 --catalog-dir /z --zoo=1").is_err());
+    assert_eq!(args("--listen 127.0.0.1:0 --catalog-dir /z").unwrap_err(), "at least one --model is required");
+    let parsed = |v: &'static str| {
+        let env = move |k: &str| (k == ENV_ZOO).then(|| v.to_string());
+        Args::parse_with("--listen 127.0.0.1:0 --catalog-dir /z".split_whitespace().map(String::from), env)
+    };
+    assert!(parsed("true").unwrap().zoo);
+    assert_eq!(parsed("0").unwrap_err(), "at least one --model is required");
+    assert_eq!(parsed("maybe").unwrap_err(), "TURBO_KSERVE_ZOO=maybe: not one of 1, true, yes, 0, false, no");
+}
+
+#[test]
+fn prefetch_is_permissive_from_its_flag_or_variable_and_needs_a_catalog() {
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    assert!(!args(base).unwrap().catalog_prefetch);
+    assert!(args(&format!("{base} --catalog-dir /z --catalog-prefetch permissive")).unwrap().catalog_prefetch);
+    assert_eq!(
+        args(&format!("{base} --catalog-dir /z --catalog-prefetch all")).unwrap_err(),
+        "--catalog-prefetch all: the one mode is permissive"
+    );
+    assert_eq!(
+        args(&format!("{base} --catalog-prefetch=permissive")).unwrap_err(),
+        "--catalog-prefetch needs --catalog-dir"
+    );
+    let env = |k: &str| (k == ENV_CATALOG_PREFETCH).then(|| "permissive".to_string());
+    let parsed = Args::parse_with(format!("{base} --catalog-dir /z").split_whitespace().map(String::from), env);
+    assert!(parsed.unwrap().catalog_prefetch);
 }
 
 #[test]
@@ -224,4 +341,59 @@ fn admin_allows_empty_models_and_bundle_dir_discovers_manifests() {
     assert_eq!(a.models[0].sessions, 4);
     assert_eq!(a.models[1].sessions, 1);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn tls_and_metrics_come_from_flags_or_environment() {
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    let a = args(base).unwrap();
+    assert_eq!(a.tls, None);
+    assert_eq!(a.metrics_listen, None);
+
+    let a = args(&format!(
+        "{base} --tls-cert /c/srv.crt --tls-key /c/srv.key --tls-client-ca=/c/ca.crt --metrics-listen 127.0.0.1:9090"
+    ))
+    .unwrap();
+    assert_eq!(
+        a.tls,
+        Some(TlsConfig {
+            cert: PathBuf::from("/c/srv.crt"),
+            key: PathBuf::from("/c/srv.key"),
+            client_ca: Some(PathBuf::from("/c/ca.crt")),
+        })
+    );
+    assert_eq!(a.metrics_listen, Some("127.0.0.1:9090".parse().unwrap()));
+
+    let env = |k: &str| match k {
+        ENV_TLS_CERT => Some("/e/srv.crt".to_string()),
+        ENV_TLS_KEY => Some("/e/srv.key".to_string()),
+        ENV_TLS_CLIENT_CA => Some("/e/ca.crt".to_string()),
+        ENV_METRICS_LISTEN => Some("127.0.0.1:9100".to_string()),
+        _ => None,
+    };
+    let parsed = Args::parse_with(base.split_whitespace().map(String::from), env).unwrap();
+    assert_eq!(
+        parsed.tls,
+        Some(TlsConfig {
+            cert: PathBuf::from("/e/srv.crt"),
+            key: PathBuf::from("/e/srv.key"),
+            client_ca: Some(PathBuf::from("/e/ca.crt")),
+        })
+    );
+    assert_eq!(parsed.metrics_listen, Some("127.0.0.1:9100".parse().unwrap()));
+
+    assert_eq!(
+        args(&format!("{base} --tls-cert /c/srv.crt")).unwrap_err(),
+        "--tls-cert and --tls-key must be given together"
+    );
+    assert_eq!(
+        args(&format!("{base} --tls-key /c/srv.key")).unwrap_err(),
+        "--tls-cert and --tls-key must be given together"
+    );
+    assert_eq!(
+        args(&format!("{base} --tls-client-ca /c/ca.crt")).unwrap_err(),
+        "--tls-client-ca needs --tls-cert and --tls-key"
+    );
+    assert!(args(&format!("{base} --metrics-listen nowhere")).is_err());
+    assert!(args(&format!("{base} --metrics-listen 127.0.0.1:1 --metrics-listen 127.0.0.1:2")).is_err());
 }

@@ -1,0 +1,9 @@
+MASKED	IMEI: *************** recorded; imei **-******-******-* too.
+
+MASK_ALL	IMEI: ############### recorded; imei ################## too.
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	card	2	2	CARD-562fad218fa2f0bb, CARD-af09deeae5378ead
+AUDIT	imei	2	2	IMEI-d112aac93d89d69e, IMEI-b4ca9cadc42ce43f
+AUDIT_REPORT	card: 2 mentions, 2 distinct [CARD-562fad218fa2f0bb, CARD-af09deeae5378ead]\nimei: 2 mentions, 2 distinct [IMEI-d112aac93d89d69e, IMEI-b4ca9cadc42ce43f]

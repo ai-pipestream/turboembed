@@ -13,7 +13,6 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use turbo_eval::model_gate::ModelGateRecord;
-use turbo_train_components::ud as published;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::Trained;
@@ -129,9 +128,9 @@ impl UdModelCard {
         let t = &recipe.treebank;
         let trained_on = vec![t.training_data()];
         let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|d| d.license)));
-        let segmentation = matches!(recipe.component, published::Component::Sentence | published::Component::Tokens);
+        let segmentation = matches!(recipe.component, crate::ud::Component::Sentence | crate::ud::Component::Tokens);
         let (candidate_tag_format, reference_tag_format) = match recipe.component {
-            published::Component::Pos => (TagFormat::of(CANDIDATE_FORMAT), TagFormat::of(TAG_FORMAT)),
+            crate::ud::Component::Pos => (TagFormat::of(CANDIDATE_FORMAT), TagFormat::of(TAG_FORMAT)),
             _ => (None, None),
         };
         UdModelCard {
@@ -155,13 +154,13 @@ impl UdModelCard {
             training: TrainingCard {
                 parameters: ParametersCard {
                     algorithm: "MAXENT".to_owned(),
-                    iterations: published::ITERATIONS,
-                    cutoff: published::CUTOFF,
+                    iterations: crate::ud::ITERATIONS,
+                    cutoff: crate::ud::CUTOFF,
                     threads: crate::ud::THREADS,
                 },
-                sentences_per_sample: (recipe.component == published::Component::Sentence)
+                sentences_per_sample: (recipe.component == crate::ud::Component::Sentence)
                     .then_some(SENTENCES_PER_SAMPLE),
-                whitespace: segmentation.then(|| "legacy".to_owned()),
+                whitespace: segmentation.then(|| crate::card::WHITESPACE.to_owned()),
                 timestamp_ms: TIMESTAMP_MS,
                 seed: None,
                 samples: trained.samples,
@@ -205,7 +204,8 @@ impl UdModelCard {
         if let TextRights::NotSettled { .. } = recipe.treebank.text_rights {
             return Err(not("the rights to its treebank's text are not settled"));
         }
-        if self.gate.reference != recipe.reference.id() || self.gate.reference_sha256 != recipe.reference.sha256()? {
+        let reference = recipe.reference.ok_or(not("its recipe has no reference to gate against"))?;
+        if self.gate.reference != reference.id() || self.gate.reference_sha256 != reference.sha256()? {
             return Err(not("it was not gated against its recipe's reference"));
         }
         if !self.gate.pass {

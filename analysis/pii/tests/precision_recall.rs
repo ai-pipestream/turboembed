@@ -16,11 +16,8 @@
 
 mod support;
 
-use std::collections::BTreeMap;
-
-use support::{layer, rows, wide};
+use support::{Counts, Labelled, layer, load_labelled, measure, ratio, ratio_text, wide};
 use turbo_analysis::Layer as _;
-use turbo_goldens::{escape::unescape, hex::to_hex, sha256};
 use turbo_pii::PiiKind;
 use turbo_pii::checksum::{base58, keccak, luhn, mod97};
 
@@ -51,12 +48,6 @@ impl Rng {
     fn chars(&mut self, alphabet: &[u8], n: usize) -> String {
         (0..n).map(|_| char::from(alphabet[self.below(alphabet.len() as u64) as usize])).collect()
     }
-}
-
-/// One labelled text: the text and its labels as (start, end, kind).
-struct Labelled {
-    text: String,
-    labels: Vec<(u32, u32, &'static str)>,
 }
 
 const BEFORE: [&str; 6] = ["Please use ", "ref: ", "(", "The value ", "\u{2022} ", "Wert: "];
@@ -230,44 +221,6 @@ fn corpora() -> Vec<Labelled> {
     out
 }
 
-#[derive(Default, Debug)]
-struct Counts {
-    tp: usize,
-    fp: usize,
-    fn_: usize,
-}
-
-fn ratio(a: usize, b: usize) -> f64 {
-    if b == 0 { 1.0 } else { a as f64 / b as f64 }
-}
-
-fn measure(set: &[Labelled]) -> BTreeMap<&'static str, Counts> {
-    let d = wide();
-    // PII_SHOW_FALSE=1 lists each false mention.
-    let show_false = std::env::var("PII_SHOW_FALSE").is_ok_and(|v| v == "1");
-    let mut by_kind: BTreeMap<&'static str, Counts> = BTreeMap::new();
-    for l in set {
-        let found: Vec<(u32, u32, &'static str)> = rows(&d, &l.text).into_iter().map(|r| (r.0, r.1, r.2)).collect();
-        for f in &found {
-            let c = by_kind.entry(f.2).or_default();
-            if l.labels.contains(f) {
-                c.tp += 1
-            } else {
-                c.fp += 1;
-                if show_false {
-                    eprintln!("false {f:?} in {:?}", l.text);
-                }
-            }
-        }
-        for label in &l.labels {
-            if !found.contains(label) {
-                by_kind.entry(label.2).or_default().fn_ += 1;
-            }
-        }
-    }
-    by_kind
-}
-
 #[test]
 fn precision_and_recall_on_the_synthetic_set() {
     let mut set = synthetic(225, 40);
@@ -278,12 +231,12 @@ fn precision_and_recall_on_the_synthetic_set() {
     eprintln!("{:<16} {:>5} {:>5} {:>5} {:>9} {:>7}", "kind", "tp", "fp", "fn", "precision", "recall");
     for (kind, c) in &by_kind {
         eprintln!(
-            "{kind:<16} {:>5} {:>5} {:>5} {:>9.3} {:>7.3}",
+            "{kind:<16} {:>5} {:>5} {:>5} {:>9} {:>7}",
             c.tp,
             c.fp,
             c.fn_,
-            ratio(c.tp, c.tp + c.fp),
-            ratio(c.tp, c.tp + c.fn_)
+            ratio_text(c.tp, c.tp + c.fp),
+            ratio_text(c.tp, c.tp + c.fn_)
         );
         total.tp += c.tp;
         total.fp += c.fp;
@@ -335,28 +288,7 @@ const HUMAN_DOCS: [(&str, bool, &str, &str); 8] = [
 ];
 
 fn human_written_set() -> Vec<Labelled> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/human-eval");
-    let mut docs: Vec<(&'static str, Labelled)> = Vec::with_capacity(HUMAN_DOCS.len());
-    for &(id, escaped, file, expected_sha) in &HUMAN_DOCS {
-        let raw = std::fs::read_to_string(dir.join(file)).expect("human-eval document on disk");
-        let text = if escaped { unescape(raw.trim_end_matches('\n')).expect("valid escaped text") } else { raw };
-        assert_eq!(to_hex(&sha256(text.as_bytes())), expected_sha, "{id} SHA-256");
-        docs.push((id, Labelled { text, labels: Vec::new() }));
-    }
-    let labels_raw = std::fs::read_to_string(dir.join("labels.tsv")).expect("human-eval labels.tsv");
-    for line in labels_raw.lines().filter(|l| !l.trim().is_empty() && !l.starts_with('#')) {
-        let f: Vec<&str> = line.splitn(5, '\t').collect();
-        assert_eq!(f.len(), 5, "five columns in labels.tsv: {line:?}");
-        let start: u32 = f[1].parse().expect("start offset");
-        let end: u32 = f[2].parse().expect("end offset");
-        let kind = PiiKind::parse(f[3]).expect("a built-in kind").name();
-        let (_, doc) = docs.iter_mut().find(|(id, _)| *id == f[0]).expect("known document id");
-        assert_eq!(&doc.text[start as usize..end as usize], f[4], "{} {start}..{end}", f[0]);
-        let label = (start, end, kind);
-        assert!(!doc.labels.contains(&label), "duplicate label {label:?} in {}", f[0]);
-        doc.labels.push(label);
-    }
-    docs.into_iter().map(|(_, d)| d).collect()
+    load_labelled(&HUMAN_DOCS, "labels.tsv", false)
 }
 
 #[test]
@@ -379,12 +311,12 @@ fn precision_and_recall_on_human_written_text() {
         let c = by_kind.get(name).expect("every built-in kind is represented in the human-written set");
         assert!(c.tp > 0, "{name} has no true positive in the human-written set");
         eprintln!(
-            "{name:<16} {:>5} {:>5} {:>5} {:>9.3} {:>7.3}",
+            "{name:<16} {:>5} {:>5} {:>5} {:>9} {:>7}",
             c.tp,
             c.fp,
             c.fn_,
-            ratio(c.tp, c.tp + c.fp),
-            ratio(c.tp, c.tp + c.fn_)
+            ratio_text(c.tp, c.tp + c.fp),
+            ratio_text(c.tp, c.tp + c.fn_)
         );
         total.tp += c.tp;
         total.fp += c.fp;

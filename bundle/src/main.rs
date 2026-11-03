@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
+use turbo_bundle::licence::Consent;
 use turbo_bundle::recipe::Recipe;
 use turbo_bundle::{Result, catalogue, distill, fetch, seal};
 
@@ -19,11 +20,9 @@ usage:
   turbo-bundle glirel-convert <pytorch_model.bin> <base-config.json> <spm.model> <repo> <revision> <license> <new-dir>
       write a GLiREL checkpoint as the native scorer's package: the encoder,
       the heads and glirel.json
-  turbo-bundle postag-convert <model.bin> <license> <new-dir>
-      write a BiLSTM(-CRF) part-of-speech model (ONLP-BLPT-1 to -5) as a
-      bundle: F32 and F16 safetensors, vocabularies and a manifest
-  turbo-bundle postag-verify <directory> [<model.bin>]
-      check a part-of-speech bundle's digests, and that it came from model.bin
+  turbo-bundle postag-verify <directory>
+      check a native part-of-speech bundle's provenance and digests
+      (archive conversion is retired; native exporters use postag::export)
   turbo-bundle torch-convert <checkpoint.bin> <new.safetensors>
       write a torch.save checkpoint's F32 tensors as safetensors, reading
       its pickle as data without running it
@@ -33,7 +32,9 @@ usage:
       fetch the upstream files at the recipe's commit. A model with terms
       beyond its licence, or under a licence the zoo fetches only once it
       is accepted (CC BY-NC, CC BY-SA, LGPL, GPL), is fetched only with
-      --accept-terms. A licence the zoo refuses is never fetched
+      --accept-terms, or for a licence $USER accepted before in the zoo's
+      acceptance file ($TURBO_ZOO_HOME, docs/zoo.md), which the flag
+      writes. A licence the zoo refuses is never fetched
   turbo-bundle catalogue
       the models a model-id names, with their licences (docs/static.md)
   turbo-bundle reference <recipe.json> <upstream-dir> <bundle-dir>
@@ -75,14 +76,12 @@ fn run(args: &[&str]) -> Result<()> {
             (repo, revision, license),
             Path::new(out),
         ),
-        ["postag-convert", bin, license, out] => {
-            let bytes = std::fs::read(bin).map_err(|e| format!("{bin}: {e}"))?;
-            turbo_bundle::postag::convert(&bytes, license, Path::new(out))
+        ["postag-convert", ..] => {
+            Err("postag-convert is retired under #1511; use postag::export with native parameters".into())
         }
-        ["postag-verify", dir] => turbo_bundle::postag::verify(Path::new(dir), None).map(|_| ()),
-        ["postag-verify", dir, bin] => {
-            let bytes = std::fs::read(bin).map_err(|e| format!("{bin}: {e}"))?;
-            turbo_bundle::postag::verify(Path::new(dir), Some(&bytes)).map(|_| ())
+        ["postag-verify", dir] => turbo_bundle::postag::verify(Path::new(dir)).map(|_| ()),
+        ["postag-verify", _, ..] => {
+            Err("postag-verify archive comparison is retired under #1511; pass only a native bundle directory".into())
         }
         ["gliner-verify", dir] => turbo_gliner::package::Manifest::load(Path::new(dir)).map(|_| ()),
         ["deberta-convert", config, weights, prefix, repo, revision, license, out] => {
@@ -120,10 +119,12 @@ fn run(args: &[&str]) -> Result<()> {
         }
         ["make", recipe, upstream, bundle] => {
             let r = Recipe::load(Path::new(recipe))?;
-            fetch::fetch(&r, Path::new(upstream), accept)?;
+            fetch::fetch_with(&r, Path::new(upstream), &Consent::from_env(accept))?;
             turbo_bundle::make(&r, Path::new(upstream), Path::new(bundle))
         }
-        ["fetch", recipe, upstream] => fetch::fetch(&Recipe::load(Path::new(recipe))?, Path::new(upstream), accept),
+        ["fetch", recipe, upstream] => {
+            fetch::fetch_with(&Recipe::load(Path::new(recipe))?, Path::new(upstream), &Consent::from_env(accept))
+        }
         ["reference", recipe, upstream, bundle] => {
             turbo_bundle::make(&Recipe::load(Path::new(recipe))?, Path::new(upstream), Path::new(bundle))
         }

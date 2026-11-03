@@ -1,0 +1,18 @@
+MASKED	Cards: **** **** **** 1111, ****-****-****-4444, ***********0005 and ************1117.
+
+MASK_ALL	Cards: ###################, ###################, ############### and ################.
+
+REWRITE	pseudonymize	OK	Cards: CARD-1, CARD-2, CARD-3 and CARD-4.
+
+LABEL	pseudonymize	7	26	7	13	CARD-1
+LABEL	pseudonymize	28	47	15	21	CARD-2
+LABEL	pseudonymize	49	64	23	29	CARD-3
+LABEL	pseudonymize	69	85	34	40	CARD-4
+REWRITE	hmac	OK	Cards: CARD-f04eb250c58c67b2, CARD-06f98dbe42f54fe8, CARD-424d00cbff9beb2f and CARD-28af364a3edfe281.
+
+LABEL	hmac	7	26	7	28	CARD-f04eb250c58c67b2
+LABEL	hmac	28	47	30	51	CARD-06f98dbe42f54fe8
+LABEL	hmac	49	64	53	74	CARD-424d00cbff9beb2f
+LABEL	hmac	69	85	79	100	CARD-28af364a3edfe281
+AUDIT	card	4	4	CARD-f04eb250c58c67b2, CARD-06f98dbe42f54fe8, CARD-424d00cbff9beb2f
+AUDIT_REPORT	card: 4 mentions, 4 distinct [CARD-f04eb250c58c67b2, CARD-06f98dbe42f54fe8, CARD-424d00cbff9beb2f]

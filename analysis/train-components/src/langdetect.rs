@@ -29,7 +29,6 @@
 //! reports them for a training run.
 
 use turbo_formats::LanguageSample;
-use turbo_langdetect::ContextGenerator;
 use turbo_train::{
     DataIndex, Event, IndexParams, JavaString, Key, ModelPackage, TrainedModel, TrainingConfiguration,
     TrainingParameters, TrainingReport, trainer,
@@ -38,15 +37,25 @@ use turbo_train::{
 use crate::error::Result;
 use crate::package::{FACTORY_KEY, Stamp, add_artifacts};
 
+pub mod context;
 pub mod cross_validate;
+pub mod detector;
+pub mod error;
+pub mod model;
+pub mod probing;
+
+pub use context::ContextGenerator;
 pub use cross_validate::{LanguageCrossValidation, LanguageDetectorCrossValidator, LanguageFold};
+pub use detector::{LanguageDetector, Scratch};
+pub use error::ModelError;
+pub use model::LanguageModel;
 
 /// `LanguageDetectorModel.COMPONENT_NAME`.
-pub const COMPONENT_NAME: &str = turbo_langdetect::model::COMPONENT;
+pub const COMPONENT_NAME: &str = model::COMPONENT;
 /// `LanguageDetectorModel.LANGDETECT_MODEL_ENTRY_NAME`.
-pub const MODEL_ENTRY: &str = turbo_langdetect::model::MODEL_ENTRY;
+pub const MODEL_ENTRY: &str = model::MODEL_ENTRY;
 /// The factory class the manifest names.
-pub const FACTORY: &str = turbo_langdetect::model::FACTORY;
+pub const FACTORY: &str = model::FACTORY;
 /// The language `LanguageDetectorModel` records for every model.
 pub const LANGUAGE: &str = "und";
 /// `AbstractEventTrainer.DATA_INDEXER_ONE_PASS_VALUE`, the indexer
@@ -246,15 +255,14 @@ mod tests {
     }
 
     #[test]
-    fn one_event_per_sample_with_the_first_map_s_order() {
+    fn one_event_per_sample_with_first_seen_order() {
         let f = LanguageDetectorFactory::new();
         let s = samples("eng\tabab\nfra\t\nnone\ndeu\t123\n");
         let (events, inexact) = language_events(&s, &f);
         assert_eq!(inexact, 0);
         assert_eq!(events.len(), 3);
         assert_eq!(*events[0].outcome(), "eng");
-        // The order of the turbo-langdetect test of `getContext` for "abab".
-        assert_eq!(strings(&events[0]), ["a", "ab", "b", "ba", "bab", "aba"]);
+        assert_eq!(strings(&events[0]), ["a", "b", "ab", "ba", "aba", "bab"]);
         // An empty text gives an event with no predicates.
         assert_eq!(*events[1].outcome(), "fra");
         assert!(events[1].context().is_empty());

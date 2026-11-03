@@ -1,0 +1,9 @@
+MASKED	IBAN **** **** **** **** **** ** received.
+
+MASK_ALL	IBAN ########################### received.
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	iban	1	1	IBAN-12d2a2b8c32b1193
+AUDIT	phone	1	1	PHONE-d93b376c99f48a80
+AUDIT_REPORT	iban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]\nphone: 1 mentions, 1 distinct [PHONE-d93b376c99f48a80]

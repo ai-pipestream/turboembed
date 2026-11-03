@@ -80,50 +80,62 @@ fn models_validate_vocabulary_transitions_dimensions_and_finite_parameters() {
     }
     assert!(m.score(&[0]).is_err());
     assert!(m.score(&vec![usize::MAX; m.layout().feature_count()]).is_err());
-    assert!(m.to_java_bytes().is_err());
+    let bytes = m.to_bytes().unwrap();
+    let roundtrip = FeedforwardDependencyModel::from_bytes(&bytes).unwrap();
+    assert_eq!(roundtrip.vocabulary(), m.vocabulary());
+    assert_eq!(roundtrip.transitions(), m.transitions());
+    assert_eq!(roundtrip.weights(), m.weights());
 }
+
 #[test]
-fn raw_model_rejects_every_truncation_and_absurd_counts_without_allocating() {
-    let bytes = include_bytes!("data/plain.bin");
-    for end in 0..bytes.len() {
-        assert!(FeedforwardDependencyModel::from_java_bytes(&bytes[..end]).is_err(), "offset {end}");
-    }
-    let mut bytes = bytes.to_vec();
-    bytes.push(0);
-    assert!(FeedforwardDependencyModel::from_java_bytes(&bytes).is_err());
-    let mut bytes = include_bytes!("data/plain.bin").to_vec();
-    for n in [i32::MAX, -1, 2_000_001] {
-        bytes[13..17].copy_from_slice(&n.to_be_bytes());
-        assert!(FeedforwardDependencyModel::from_java_bytes(&bytes).is_err());
-    }
+fn wire_decoders_reject_truncated_payloads_with_oversized_counts() {
+    let mut bad_lin = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\n"[..]);
+    bad_lin.push(1); // EscapedV1
+    bad_lin.extend_from_slice(&2u32.to_le_bytes());
+    bad_lin.extend_from_slice(b"en");
+    bad_lin.push(0); // Maxent
+    bad_lin.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized n_outcomes
+    let err = DependencyModel::from_bytes(&bad_lin).unwrap_err();
+    assert!(err.to_string().contains("outcome count"), "{err}");
+
+    let mut bad_preds = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\n"[..]);
+    bad_preds.push(1);
+    bad_preds.extend_from_slice(&2u32.to_le_bytes());
+    bad_preds.extend_from_slice(b"en");
+    bad_preds.push(0);
+    bad_preds.extend_from_slice(&1u32.to_le_bytes());
+    bad_preds.extend_from_slice(&5u32.to_le_bytes());
+    bad_preds.extend_from_slice(b"SHIFT");
+    bad_preds.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized n_preds
+    let err = DependencyModel::from_bytes(&bad_preds).unwrap_err();
+    assert!(err.to_string().contains("predicate count"), "{err}");
+
+    let mut bad_pat = Vec::from(&b"TURBO-DEPPARSE-LIN-V1\n"[..]);
+    bad_pat.push(1);
+    bad_pat.extend_from_slice(&2u32.to_le_bytes());
+    bad_pat.extend_from_slice(b"en");
+    bad_pat.push(0);
+    bad_pat.extend_from_slice(&1u32.to_le_bytes());
+    bad_pat.extend_from_slice(&5u32.to_le_bytes());
+    bad_pat.extend_from_slice(b"SHIFT");
+    bad_pat.extend_from_slice(&1u32.to_le_bytes());
+    bad_pat.extend_from_slice(&2u32.to_le_bytes());
+    bad_pat.extend_from_slice(b"p0");
+    bad_pat.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized pat_len
+    let err = DependencyModel::from_bytes(&bad_pat).unwrap_err();
+    assert!(err.to_string().contains("pattern length"), "{err}");
+
+    let mut bad_ff = Vec::from(&b"TURBO-DEPPARSE-FF-V1\n"[..]);
+    bad_ff.extend_from_slice(&[0, 0, 1]); // layout, activation, label_encoding
+    bad_ff.extend_from_slice(&4u32.to_le_bytes()); // default_beam_size
+    bad_ff.extend_from_slice(&0u32.to_le_bytes()); // words
+    bad_ff.extend_from_slice(&0u32.to_le_bytes()); // pos
+    bad_ff.extend_from_slice(&0u32.to_le_bytes()); // labels
+    bad_ff.extend_from_slice(&u32::MAX.to_le_bytes()); // oversized n_transitions
+    let err = FeedforwardDependencyModel::from_bytes(&bad_ff).unwrap_err();
+    assert!(err.to_string().contains("transition count"), "{err}");
 }
-#[test]
-fn zip_roundtrip_and_invalid_configuration() {
-    use turbo_maxent::zip::Zip;
-    use turbo_train::package::{Manifest, ModelPackage};
-    for layout in [FeatureLayout::OpenNlp14, FeatureLayout::ChenManning18] {
-        let model = minimal(layout);
-        let bytes = model.to_bytes().unwrap();
-        let zip = Zip::new(&bytes).unwrap();
-        let decoded = FeedforwardDependencyModel::from_bytes(&bytes).unwrap();
-        assert_eq!(decoded.to_bytes().unwrap(), bytes);
-        for config in ["layout=ChenManning18\nactivation=cube\nactivation=cube\n", "layout=bad\nactivation=cube\n", ""]
-        {
-            let mut package = ModelPackage::new(Manifest::new("FeedforwardDependencyParser", "und", 0));
-            for name in ["format_version", "config.properties", "vocab.bin", "weights.bin"] {
-                package.add_entry(
-                    name,
-                    if name == "config.properties" {
-                        config.as_bytes().to_vec()
-                    } else {
-                        zip.entry(name).unwrap().into_owned()
-                    },
-                );
-            }
-            assert!(FeedforwardDependencyModel::from_bytes(&package.to_bytes()).is_err());
-        }
-    }
-}
+
 #[test]
 fn learned_expanded_relu_and_cube_models_produce_checked_trees() {
     for activation in [Activation::Cube, Activation::Relu] {
@@ -137,6 +149,8 @@ fn learned_expanded_relu_and_cube_models_produce_checked_trees() {
             ..settings(false)
         };
         let model = FeedforwardDependencyTrainer::train(&samples(), &settings).unwrap();
+        let bytes = model.to_bytes().unwrap();
+        let model = FeedforwardDependencyModel::from_bytes(&bytes).unwrap();
         for beam in [1, 4] {
             let p = FeedforwardDependencyParser::new(model.clone(), beam).unwrap();
             for s in samples() {
@@ -167,15 +181,4 @@ fn invalid_settings_and_parser_inputs_fail() {
     let p = FeedforwardDependencyParser::new(minimal(FeatureLayout::OpenNlp14), 4).unwrap();
     assert!(p.parse::<Tokens>(&[], &[]).is_err());
     assert!(p.parse::<Tokens>(&["a"], &[]).is_err());
-}
-
-#[test]
-fn a_model_read_from_bytes_caches_its_pos_label_and_special_slots() {
-    let java = FeedforwardDependencyModel::from_java_bytes(include_bytes!("data/plain.bin")).unwrap();
-    let (n, h) = (java.layout().positions(), java.weights().hidden_bias.len());
-    let v = java.vocabulary();
-    let expected = (n * 3 + n * v.pos.len() + (n - 6) * v.labels.len()) * h;
-    assert_eq!(java.cached_slot_values(), expected);
-    let rebuilt = FeedforwardDependencyModel::from_bytes(&java.to_bytes().unwrap()).unwrap();
-    assert_eq!(rebuilt.cached_slot_values(), expected);
 }

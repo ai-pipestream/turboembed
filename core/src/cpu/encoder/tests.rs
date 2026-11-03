@@ -4,9 +4,9 @@ use crate::{TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN};
 
 /// A small BERT with synthetic weights: 2 layers, hidden 96 in 3
 /// heads of 32, intermediate 192.
-struct Model {
-    desc: turbo_backend_model,
-    tensors: Vec<Vec<f32>>,
+pub(super) struct Model {
+    pub(super) desc: turbo_backend_model,
+    pub(super) tensors: Vec<Vec<f32>>,
 }
 
 impl Model {
@@ -14,7 +14,7 @@ impl Model {
         Model::shaped(2, 96, 3, 192, 128)
     }
 
-    fn shaped(layers: usize, h: usize, heads: u32, i: usize, positions: usize) -> Model {
+    pub(super) fn shaped(layers: usize, h: usize, heads: u32, i: usize, positions: usize) -> Model {
         let vocab = 500usize;
         let mut shapes = vec![vocab * h, positions * h, 2 * h, h, h];
         for _ in 0..layers {
@@ -50,15 +50,28 @@ impl Model {
             head: std::ptr::null(),
             head_out: 0,
             lookahead: 0,
+            position_buckets: 0,
+            max_relative_positions: 0,
+            artifact_sha256: [0; 32],
+            artifact2_sha256: [0; 32],
+            rope_global_theta: 0.0,
+            rope_local_theta: 0.0,
+            rope_table: std::ptr::null(),
+            rope_pairs: 0,
+            mlp: 0,
+            activation: 0,
+            norm: 0,
+            attention_window: 0,
+            global_every: 0,
         };
         Model { desc, tensors }
     }
 
-    fn slices(&self) -> Vec<&[f32]> {
+    pub(super) fn slices(&self) -> Vec<&[f32]> {
         self.tensors.iter().map(Vec::as_slice).collect()
     }
 
-    fn packed(&self, isa: Isa) -> Packed {
+    pub(super) fn packed(&self, isa: Isa) -> Packed {
         let t = self.slices();
         let layer = |l: usize, r: usize| t[5 + l * 16 + r];
         Packed::new(&self.desc, layer, isa).unwrap()
@@ -98,6 +111,8 @@ impl Model {
             normalize: TURBO_NORMALIZE_L2,
             output_dim: self.desc.hidden,
             head: 0,
+            taps: 0,
+            reserved: 0,
         };
         let mut out = vec![f32::NAN; batch * self.desc.hidden as usize];
         // More than once, to see later runs on the same session agree.
@@ -197,6 +212,8 @@ fn ranged(
         normalize,
         output_dim: output_dim as u32,
         head: 0,
+        taps: 0,
+        reserved: 0,
     };
     let mut out = vec![f32::NAN; ranges.len() * output_dim];
     e.write_ranges(&rows, ids, mask, None, ranges);
@@ -332,6 +349,8 @@ fn a_write_of_rows_after_ranges_pools_rows() {
         normalize: TURBO_NORMALIZE_L2,
         output_dim: h as u32,
         head: 0,
+        taps: 0,
+        reserved: 0,
     };
     let mut out = vec![f32::NAN; b * h];
     e.write_ranges(&rows, &ids, &mask, None, &[range(0, 0, 5), range(1, 0, 1), range(2, 0, 3)]);
@@ -340,6 +359,47 @@ fn a_write_of_rows_after_ranges_pools_rows() {
     e.write(&rows, &ids, &mask, None);
     e.run(&mut pool, &mut out);
     assert!(bits(&out) == bits(&want));
+}
+
+/// A range over mask-0 columns past the last live token (ColBERT's
+/// query augmentation) pools those columns' own states: they are
+/// packed and computed, the live tokens' vectors are the ones the
+/// row without the masked tail gives, and making the tail live
+/// instead changes every vector, so the mask really excludes it.
+#[test]
+fn a_range_over_masked_columns_pools_their_own_states() {
+    let m = Model::new();
+    let h = m.desc.hidden as usize;
+    let ids: Vec<i32> = (0..6).map(|p| 40 + p * 37).collect();
+    let mask: Vec<i32> = vec![1, 1, 1, 0, 0, 0];
+    let ranges: Vec<_> = (0..6).map(|p| range(0, p, p + 1)).collect();
+    let got = ranged(&m, 2, (&ids, &mask, 1, 6), &ranges, TURBO_NORMALIZE_NONE, h);
+    assert_eq!(got.rows[0], (0, 6), "the masked tail a range names is packed");
+    for p in 0..6 {
+        assert!(bits(&got.out[p * h..][..h]) == bits(&got.x[p * h..][..h]), "column {p} pools its own state");
+        assert!(got.out[p * h..][..h].iter().all(|v| v.is_finite() && *v != 0.0), "column {p} is computed");
+    }
+    for p in 3..5 {
+        assert!(
+            bits(&got.out[p * h..][..h]) != bits(&got.out[(p + 1) * h..][..h]),
+            "masked columns {p} and {} differ",
+            p + 1
+        );
+    }
+    let short = ranged(&m, 2, (&ids[..3], &mask[..3], 1, 3), &ranges[..3], TURBO_NORMALIZE_NONE, h);
+    for p in 0..3 {
+        let drift = got.out[p * h..][..h]
+            .iter()
+            .zip(&short.out[p * h..][..h])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(drift < 1e-6, "live column {p} moved by {drift} when the masked tail was packed");
+    }
+    let live: Vec<i32> = vec![1; 6];
+    let attended = ranged(&m, 2, (&ids, &live, 1, 6), &ranges, TURBO_NORMALIZE_NONE, h);
+    for p in 0..6 {
+        assert!(bits(&got.out[p * h..][..h]) != bits(&attended.out[p * h..][..h]), "column {p} ignores its mask");
+    }
 }
 
 /// How the run's time goes with threads and kernels, on a batch of

@@ -1,59 +1,36 @@
-//! Reading OpenNLP's binary model format into a [`MaxentModel`].
-//!
-//! The layout, as `GISModelWriter`, `QNModelWriter`,
-//! `PerceptronModelWriter` and `NaiveBayesModelWriter` write it through
-//! `DataOutputStream`, with every string read by
-//! `ModelParameterChunker.readUTF`:
-//!
-//! 1. The type string: `GIS`, `QN`, `Perceptron` or `NaiveBayes`.
-//! 2. GIS only: an int and a double that the reader ignores (the writer
-//!    always writes 1 and 1.0; they were the correction constant and
-//!    parameter of older versions).
-//! 3. The outcome count, then each outcome name.
-//! 4. The outcome pattern count, then each pattern as a string of
-//!    space-separated integers: how many consecutive predicates share the
-//!    pattern, then the outcomes those predicates have parameters for.
-//! 5. The predicate count, then each predicate name, sorted so that
-//!    predicates sharing a pattern are consecutive.
-//! 6. For each pattern, for each of its predicates, one double per
-//!    outcome in the pattern.
+//! Reading binary maxent, QN, Perceptron, and NaiveBayes models trained by
+//! `turbo-train` into a [`MaxentModel`], while keeping external legacy
+//! [`MaxentModel::read`] disabled under `#1511`.
 
 use std::collections::HashMap;
 
-use turbo_jvm::strict_math;
-
 use crate::error::{Error, Result};
-use crate::java_data::{JavaData, canonical_modified_utf8, decode_modified_utf8};
 use crate::java_string::JavaString;
 use crate::model::{MaxentModel, ModelKind, outcome_texts};
 
-/// `ResourceLimits.MAX_ENTRIES`: OpenNLP refuses outcome, pattern and
-/// predicate counts above this.
+/// Maximum outcome, pattern and predicate count accepted by the reader.
 const MAX_ENTRIES: i32 = 10_000_000;
 
 impl MaxentModel {
-    /// Reads a model from the bytes of a `.model` entry (or a standalone
-    /// binary model file). Bytes after the parameters are ignored, as the
-    /// Java reader ignores them.
-    ///
-    /// Where the Java reader would load a model that fails later, this one
-    /// refuses it now: a model with no outcomes, and an outcome pattern
-    /// naming an outcome the model does not have. Any unknown type string
-    /// is refused with the type in the error.
-    pub fn read(bytes: &[u8]) -> Result<MaxentModel> {
-        let mut r = JavaData::new(bytes);
-        let type_string = r.read_chunked_utf()?;
-        let kind = match &*type_string {
-            b"GIS" => ModelKind::Gis,
-            b"QN" => ModelKind::Qn,
-            b"Perceptron" => ModelKind::Perceptron,
-            b"NaiveBayes" => ModelKind::NaiveBayes,
-            other => return Err(Error::ModelType(decode_modified_utf8(other).into())),
+    /// Returns the retirement error without decoding external legacy model bytes.
+    /// Use [`MaxentModel::from_trained_bytes`] to decode models trained by `turbo-train`.
+    pub fn read(_bytes: &[u8]) -> Result<Self> {
+        Err(Error::Disabled)
+    }
+
+    /// Decodes a [`MaxentModel`] from the native binary bytes emitted by `turbo-train`'s
+    /// GIS, L-BFGS (`QN`), Perceptron, or NaiveBayes writers (or a `ModelFile`
+    /// archive entry).
+    pub fn from_trained_bytes(bytes: &[u8]) -> Result<MaxentModel> {
+        let mut r = NativeReader::new(bytes);
+        let type_string = r.read_utf()?;
+        let kind = match type_string {
+            "TURBO-GIS-1" => ModelKind::Gis,
+            "TURBO-QN-1" => ModelKind::Qn,
+            "TURBO-PERCEPTRON-1" => ModelKind::Perceptron,
+            "TURBO-NAIVE-BAYES-1" => ModelKind::NaiveBayes,
+            other => return Err(Error::ModelType(other.into())),
         };
-        if kind == ModelKind::Gis {
-            r.read_int()?;
-            r.read_double()?;
-        }
 
         let outcome_count = read_count(&mut r, "outcome")?;
         if outcome_count == 0 {
@@ -61,13 +38,13 @@ impl MaxentModel {
         }
         let mut outcomes: Vec<JavaString> = Vec::with_capacity(capacity(&r, outcome_count));
         for _ in 0..outcome_count {
-            outcomes.push(JavaString::from_checked(&r.read_chunked_utf()?));
+            outcomes.push(JavaString::new(r.read_utf()?));
         }
 
         let pattern_count = read_count(&mut r, "outcome pattern")?;
         let mut patterns: Vec<Pattern> = Vec::with_capacity(capacity(&r, pattern_count));
         for index in 0..pattern_count {
-            patterns.push(Pattern::parse(&r.read_chunked_utf()?, index, outcome_count)?);
+            patterns.push(Pattern::parse(r.read_utf()?.as_bytes(), index, outcome_count)?);
         }
 
         let predicate_count = read_count(&mut r, "predicate")?;
@@ -77,13 +54,10 @@ impl MaxentModel {
         }
         let mut predicates = HashMap::with_capacity_and_hasher(capacity(&r, predicate_count), Default::default());
         for index in 0..predicate_count {
-            let name = r.read_chunked_utf()?;
-            predicates.insert(Box::from(&*canonical_modified_utf8(&name)), index);
+            let name = JavaString::new(r.read_utf()?);
+            predicates.insert(Box::from(name.as_bytes()), index);
         }
 
-        // Predicates beyond those the patterns describe have no parameters:
-        // the Java reader leaves their Context null, which contributes
-        // nothing to a sum, the same as an empty range here.
         let parameters: usize = patterns
             .iter()
             .fold(0usize, |acc, p| acc.saturating_add((p.predicates as usize).saturating_mul(p.outcomes.len())));
@@ -107,8 +81,7 @@ impl MaxentModel {
         pred_start.resize(predicate_count as usize + 1, last);
 
         let start = match kind {
-            // UniformPrior.setLabels: StrictMath.log(1.0 / numOutcomes).
-            ModelKind::Gis => strict_math::log(1.0 / f64::from(outcome_count)),
+            ModelKind::Gis => (1.0 / f64::from(outcome_count)).ln(),
             ModelKind::Qn | ModelKind::Perceptron | ModelKind::NaiveBayes => 0.0,
         };
         let (outcome_totals, vocabulary) = if kind == ModelKind::NaiveBayes {
@@ -136,8 +109,54 @@ impl MaxentModel {
     }
 }
 
-/// Reads a count and checks it as `AbstractModelReader` does.
-fn read_count(r: &mut JavaData<'_>, what: &'static str) -> Result<u32> {
+struct NativeReader<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> NativeReader<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, pos: 0 }
+    }
+
+    fn position(&self) -> usize {
+        self.pos
+    }
+
+    fn remaining(&self) -> usize {
+        self.bytes.len() - self.pos
+    }
+
+    fn take(&mut self, len: usize) -> Result<&'a [u8]> {
+        if self.remaining() < len {
+            return Err(Error::Data { offset: self.pos, message: "unexpected end of data" });
+        }
+        let slice = &self.bytes[self.pos..self.pos + len];
+        self.pos += len;
+        Ok(slice)
+    }
+
+    fn read_int(&mut self) -> Result<i32> {
+        Ok(i32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    fn read_u16(&mut self) -> Result<u16> {
+        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
+    }
+
+    fn read_double(&mut self) -> Result<f64> {
+        Ok(f64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+    }
+
+    fn read_utf(&mut self) -> Result<&'a str> {
+        let len = self.read_u16()? as usize;
+        let offset = self.pos;
+        let slice = self.take(len)?;
+        std::str::from_utf8(slice).map_err(|_| Error::Data { offset, message: "invalid UTF-8 string" })
+    }
+}
+
+fn read_count(r: &mut NativeReader<'_>, what: &'static str) -> Result<u32> {
     let offset = r.position();
     let value = r.read_int()?;
     if !(0..=MAX_ENTRIES).contains(&value) {
@@ -146,25 +165,16 @@ fn read_count(r: &mut JavaData<'_>, what: &'static str) -> Result<u32> {
     Ok(value as u32)
 }
 
-/// A capacity to reserve for `count` strings: each takes at least the two
-/// bytes of its length, so a count the remaining data cannot hold does
-/// not reserve memory for it.
-fn capacity(r: &JavaData<'_>, count: u32) -> usize {
+fn capacity(r: &NativeReader<'_>, count: u32) -> usize {
     (count as usize).min(r.remaining() / 2)
 }
 
-/// One outcome pattern.
 struct Pattern {
-    /// How many consecutive predicates share the pattern. A negative count
-    /// in the file is zero here: the Java loop over it runs no times.
     predicates: u32,
     outcomes: Vec<u32>,
 }
 
 impl Pattern {
-    /// Parses a pattern string as `getOutcomePatterns` does: tokens
-    /// separated by spaces (a `StringTokenizer` on `" "`, so runs of spaces
-    /// are one separator), each an `Integer.parseInt`.
     fn parse(text: &[u8], index: u32, outcome_count: u32) -> Result<Pattern> {
         let error = |message| Error::OutcomePattern { pattern: index, message };
         let mut tokens = text.split(|&b| b == b' ').filter(|t| !t.is_empty());
@@ -182,8 +192,6 @@ impl Pattern {
     }
 }
 
-/// `Integer.parseInt` for ASCII input: an optional sign, then decimal
-/// digits, in range for an `i32`.
 fn parse_int(token: &[u8]) -> Option<i32> {
     let (negative, digits) = match token.split_first()? {
         (b'-', rest) => (true, rest),
@@ -207,31 +215,28 @@ fn parse_int(token: &[u8]) -> Option<i32> {
 mod tests {
     use super::*;
 
-    /// Writes model data as `DataOutputStream` would.
     #[derive(Default)]
     struct Writer(Vec<u8>);
 
     impl Writer {
         fn utf(&mut self, s: &str) -> &mut Self {
-            self.0.extend_from_slice(&(s.len() as u16).to_be_bytes());
+            self.0.extend_from_slice(&(s.len() as u16).to_le_bytes());
             self.0.extend_from_slice(s.as_bytes());
             self
         }
         fn int(&mut self, v: i32) -> &mut Self {
-            self.0.extend_from_slice(&v.to_be_bytes());
+            self.0.extend_from_slice(&v.to_le_bytes());
             self
         }
         fn double(&mut self, v: f64) -> &mut Self {
-            self.0.extend_from_slice(&v.to_be_bytes());
+            self.0.extend_from_slice(&v.to_le_bytes());
             self
         }
     }
 
-    /// A GIS model with outcomes x, y; pattern "2 0 1" for predicates a, b
-    /// and pattern "1 1" for predicate c.
     fn gis() -> Writer {
         let mut w = Writer::default();
-        w.utf("GIS").int(1).double(1.0);
+        w.utf("TURBO-GIS-1");
         w.int(2).utf("x").utf("y");
         w.int(2).utf("2 0 1").utf("1 1");
         w.int(3).utf("a").utf("b").utf("c");
@@ -241,7 +246,7 @@ mod tests {
 
     #[test]
     fn a_gis_model_is_read_into_columns() {
-        let m = MaxentModel::read(&gis().0).unwrap();
+        let m = MaxentModel::from_trained_bytes(&gis().0).unwrap();
         assert_eq!(m.kind(), ModelKind::Gis);
         assert_eq!(m.outcomes().collect::<Vec<_>>(), [&JavaString::new("x"), &JavaString::new("y")]);
         assert_eq!(m.pred_start, [0, 2, 4, 5]);
@@ -253,12 +258,14 @@ mod tests {
 
     #[test]
     fn qn_perceptron_and_naive_bayes_have_no_gis_header() {
-        for (name, kind) in
-            [("QN", ModelKind::Qn), ("Perceptron", ModelKind::Perceptron), ("NaiveBayes", ModelKind::NaiveBayes)]
-        {
+        for (name, kind) in [
+            ("TURBO-QN-1", ModelKind::Qn),
+            ("TURBO-PERCEPTRON-1", ModelKind::Perceptron),
+            ("TURBO-NAIVE-BAYES-1", ModelKind::NaiveBayes),
+        ] {
             let mut w = Writer::default();
             w.utf(name).int(1).utf("only").int(1).utf("1 0").int(1).utf("p").double(3.0);
-            let m = MaxentModel::read(&w.0).unwrap();
+            let m = MaxentModel::from_trained_bytes(&w.0).unwrap();
             assert_eq!(m.kind(), kind);
             assert_eq!(m.pred_param, [3.0]);
             assert_eq!(m.start, 0.0);
@@ -273,14 +280,17 @@ mod tests {
     fn unknown_model_types_are_named() {
         let mut w = Writer::default();
         w.utf("Mystery");
-        assert!(matches!(MaxentModel::read(&w.0), Err(Error::ModelType(t)) if &*t == "Mystery"));
+        assert!(matches!(MaxentModel::from_trained_bytes(&w.0), Err(Error::ModelType(t)) if &*t == "Mystery"));
+        let mut legacy = Writer::default();
+        legacy.utf("GIS");
+        assert!(matches!(MaxentModel::from_trained_bytes(&legacy.0), Err(Error::ModelType(t)) if &*t == "GIS"));
     }
 
     #[test]
     fn a_repeated_predicate_name_maps_to_its_last_listing() {
         let mut w = Writer::default();
-        w.utf("QN").int(1).utf("o").int(1).utf("2 0").int(2).utf("p").utf("p").double(1.0).double(2.0);
-        let m = MaxentModel::read(&w.0).unwrap();
+        w.utf("TURBO-QN-1").int(1).utf("o").int(1).utf("2 0").int(2).utf("p").utf("p").double(1.0).double(2.0);
+        let m = MaxentModel::from_trained_bytes(&w.0).unwrap();
         assert_eq!(m.num_predicates(), 1);
         assert_eq!(m.pred_param, [1.0, 2.0]);
         assert_eq!(m.predicates[&b"p"[..]], 1);
@@ -289,50 +299,66 @@ mod tests {
     #[test]
     fn predicates_the_patterns_do_not_describe_have_no_parameters() {
         let mut w = Writer::default();
-        w.utf("QN").int(2).utf("o").utf("q").int(1).utf("1 0 1").int(2).utf("p").utf("r").double(1.0).double(2.0);
-        let m = MaxentModel::read(&w.0).unwrap();
+        w.utf("TURBO-QN-1")
+            .int(2)
+            .utf("o")
+            .utf("q")
+            .int(1)
+            .utf("1 0 1")
+            .int(2)
+            .utf("p")
+            .utf("r")
+            .double(1.0)
+            .double(2.0);
+        let m = MaxentModel::from_trained_bytes(&w.0).unwrap();
         assert_eq!(m.pred_start, [0, 2, 2]);
     }
 
     #[test]
     fn malformed_models_are_refused_with_the_reason() {
         let mut w = Writer::default();
-        w.utf("QN").int(-1);
-        assert!(matches!(MaxentModel::read(&w.0), Err(Error::Count { what: "outcome", value: -1, offset: 4 })));
-
-        let mut w = Writer::default();
-        w.utf("QN").int(0);
-        assert!(matches!(MaxentModel::read(&w.0), Err(Error::Count { what: "outcome", value: 0, .. })));
-
-        let mut w = Writer::default();
-        w.utf("QN").int(1).utf("o").int(1).utf("1 1");
+        w.utf("TURBO-QN-1").int(-1);
         assert!(matches!(
-            MaxentModel::read(&w.0),
+            MaxentModel::from_trained_bytes(&w.0),
+            Err(Error::Count { what: "outcome", value: -1, offset: 12 })
+        ));
+
+        let mut w = Writer::default();
+        w.utf("TURBO-QN-1").int(0);
+        assert!(matches!(MaxentModel::from_trained_bytes(&w.0), Err(Error::Count { what: "outcome", value: 0, .. })));
+
+        let mut w = Writer::default();
+        w.utf("TURBO-QN-1").int(1).utf("o").int(1).utf("1 1");
+        assert!(matches!(
+            MaxentModel::from_trained_bytes(&w.0),
             Err(Error::OutcomePattern { pattern: 0, message: "an outcome index is outside the model's outcomes" })
         ));
 
         let mut w = Writer::default();
-        w.utf("QN").int(1).utf("o").int(2).utf("1 0").utf("  ");
+        w.utf("TURBO-QN-1").int(1).utf("o").int(2).utf("1 0").utf("  ");
         assert!(matches!(
-            MaxentModel::read(&w.0),
+            MaxentModel::from_trained_bytes(&w.0),
             Err(Error::OutcomePattern { pattern: 1, message: "the pattern is empty" })
         ));
 
         let mut w = Writer::default();
-        w.utf("QN").int(1).utf("o").int(1).utf("x 0");
-        assert!(matches!(MaxentModel::read(&w.0), Err(Error::OutcomePattern { pattern: 0, .. })));
+        w.utf("TURBO-QN-1").int(1).utf("o").int(1).utf("x 0");
+        assert!(matches!(MaxentModel::from_trained_bytes(&w.0), Err(Error::OutcomePattern { pattern: 0, .. })));
 
         let mut w = Writer::default();
-        w.utf("QN").int(1).utf("o").int(1).utf("3 0").int(2).utf("p").utf("q");
-        assert!(matches!(MaxentModel::read(&w.0), Err(Error::PatternPredicates { described: 3, listed: 2 })));
+        w.utf("TURBO-QN-1").int(1).utf("o").int(1).utf("3 0").int(2).utf("p").utf("q");
+        assert!(matches!(
+            MaxentModel::from_trained_bytes(&w.0),
+            Err(Error::PatternPredicates { described: 3, listed: 2 })
+        ));
 
         let mut truncated = gis().0;
         truncated.truncate(truncated.len() - 3);
-        assert!(matches!(MaxentModel::read(&truncated), Err(Error::Data { .. })));
+        assert!(matches!(MaxentModel::from_trained_bytes(&truncated), Err(Error::Data { .. })));
 
         let mut w = Writer::default();
-        w.utf("QN").int(1).utf("o").int(20_000_000);
-        assert!(matches!(MaxentModel::read(&w.0), Err(Error::Count { what: "outcome pattern", .. })));
+        w.utf("TURBO-QN-1").int(1).utf("o").int(20_000_000);
+        assert!(matches!(MaxentModel::from_trained_bytes(&w.0), Err(Error::Count { what: "outcome pattern", .. })));
     }
 
     #[test]
@@ -351,5 +377,28 @@ mod tests {
         let p = Pattern::parse(b"-3 0", 0, 1).unwrap();
         assert_eq!(p.predicates, 0);
         assert_eq!(p.outcomes, [0]);
+    }
+
+    #[test]
+    fn standard_utf8_strings_round_trip_and_modified_utf8_is_refused() {
+        let mut w = Writer::default();
+        w.utf("TURBO-QN-1").int(1).utf("o\0😀").int(1).utf("1 0").int(1).utf("p\0😀").double(1.5);
+        let m = MaxentModel::from_trained_bytes(&w.0).unwrap();
+        assert_eq!(m.outcome_str(0), Some("o\0😀"));
+        assert!(m.has_predicate("p\0😀"));
+
+        // Overlong modified UTF-8 NUL (0xC0 0x80) and CESU-8 surrogates (0xED 0xA0 0xBD) are refused.
+        for bad in [&b"o\xC0\x80"[..], &b"o\xED\xA0\xBD"[..]] {
+            let mut raw = Vec::new();
+            raw.extend_from_slice(&(10u16).to_le_bytes());
+            raw.extend_from_slice(b"TURBO-QN-1");
+            raw.extend_from_slice(&1i32.to_le_bytes());
+            raw.extend_from_slice(&(bad.len() as u16).to_le_bytes());
+            raw.extend_from_slice(bad);
+            assert!(matches!(
+                MaxentModel::from_trained_bytes(&raw),
+                Err(Error::Data { message: "invalid UTF-8 string", .. })
+            ));
+        }
     }
 }

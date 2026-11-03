@@ -6,6 +6,8 @@ use std::path::PathBuf;
 /// manifest line or the model type.
 #[derive(Debug)]
 pub enum Error {
+    /// OpenNLP model loading was removed under #1511.
+    Disabled,
     /// The file could not be read from disk.
     Io { path: PathBuf, error: std::io::Error },
     /// A deflate stream is malformed. The message says how; the zip
@@ -54,6 +56,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::Disabled => f.write_str("OpenNLP model loading is disabled; use the shared-encoder heads in #1509"),
             Error::Io { path, error } => write!(f, "{}: {error}", path.display()),
             Error::Inflate(message) => write!(f, "inflate: {message}"),
             Error::Zip { offset, message } => write!(f, "zip at byte {offset}: {message}"),

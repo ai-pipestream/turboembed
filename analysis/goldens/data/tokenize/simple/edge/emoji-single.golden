@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/emoji-single	43	31	0f0e6ac72c443230d882bc1f0284daf265454349b1625c3151cf8b971e92cee6
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
-layer	opennlp:tokens	text	13	start:u32	end:u32
+layer	turbo:tokens	text	13	start:u32	end:u32
 0	5
 6	10
 6	10
@@ -19,8 +19,8 @@ layer	opennlp:tokens	text	13	start:u32	end:u32
 31	34
 35	38
 39	42
-end	opennlp:tokens
-layer	turbo:utf16<opennlp:tokens>	aligned:opennlp:tokens	13	start16:u32	end16:u32	cut:u32
+end	turbo:tokens
+layer	turbo:utf16<turbo:tokens>	aligned:turbo:tokens	13	start16:u32	end16:u32	cut:u32
 0	5	0
 6	7	1
 7	8	1
@@ -34,4 +34,4 @@ layer	turbo:utf16<opennlp:tokens>	aligned:opennlp:tokens	13	start16:u32	end16:u3
 23	24	0
 25	26	0
 27	30	0
-end	turbo:utf16<opennlp:tokens>
+end	turbo:utf16<turbo:tokens>

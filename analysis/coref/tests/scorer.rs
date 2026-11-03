@@ -1,10 +1,9 @@
-//! Port of OpenNLP's `CorefScorerTest`: the worked example of Pradhan et
-//! al. (ACL 2014), section 4, corpus accumulation and refusals.
+//! The coreference scores on the worked example of Pradhan et al. (ACL
+//! 2014), section 4, corpus accumulation and refusals.
 
 use std::collections::HashSet;
 
 use turbo_coref::scorer::{CorefScorer, CorefScores, Score, maximum_assignment};
-use turbo_jvm::random::JavaRandom;
 
 const TOLERANCE: f64 = 1e-9;
 
@@ -130,11 +129,18 @@ fn best_by_permutation(similarity: &[Vec<f64>], used: &mut [bool], row: usize) -
 
 #[test]
 fn assignment_matches_exhaustive_search() {
-    let mut random = JavaRandom::new(17);
+    // SplitMix64, seeded: the same 200 matrices on every run.
+    let mut state = 17u64;
+    let mut below = |bound: u64| {
+        state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        (z ^ (z >> 31)) % bound
+    };
     for _ in 0..200 {
-        let n = 1 + random.next_int_bounded(6) as usize;
-        let similarity: Vec<Vec<f64>> =
-            (0..n).map(|_| (0..n).map(|_| random.next_int_bounded(5) as f64 / 4.0).collect()).collect();
+        let n = 1 + below(6) as usize;
+        let similarity: Vec<Vec<f64>> = (0..n).map(|_| (0..n).map(|_| below(5) as f64 / 4.0).collect()).collect();
         let exhaustive = best_by_permutation(&similarity, &mut vec![false; n], 0);
         close(maximum_assignment(&similarity), exhaustive, TOLERANCE);
     }

@@ -14,6 +14,8 @@
 //! word; a word with no subwords takes the position the next element
 //! starts at.
 
+use std::borrow::Cow;
+
 use turbo::sentencepiece::{Scratch, SentencePiece};
 
 use super::words::{Word, split};
@@ -29,30 +31,41 @@ pub struct Specials {
 
 /// One relation request as the encoder sees it.
 #[derive(Debug)]
-pub struct Prompt {
+pub struct Prompt<'a> {
     pub ids: Vec<u32>,
     /// The normalized text, which the word offsets index.
-    pub text: String,
-    pub words: Vec<Word>,
+    pub text: Cow<'a, str>,
+    pub words: Vec<Word<'a>>,
     /// Each word's first subword position in `ids`.
     pub word_first: Vec<usize>,
     /// Each relation's `[P]`, head `[R]` and tail `[R]` positions.
     pub markers: Vec<[usize; 3]>,
 }
 
-/// `text` as the reference normalizes it before splitting.
-pub fn normalize(text: &str) -> String {
+/// `text` as the reference normalizes it before splitting. Borrows the
+/// text when nothing changes; copies only when a `.` must be appended.
+pub fn normalize(text: &str) -> Cow<'_, str> {
     if text.is_empty() {
-        ".".to_owned()
+        Cow::Borrowed(".")
     } else if text.ends_with(['.', '!', '?']) {
-        text.to_owned()
+        Cow::Borrowed(text)
     } else {
-        format!("{text}.")
+        Cow::Owned(format!("{text}."))
     }
 }
 
 /// Builds the input for `labels` over `text`.
-pub fn build(sp: &SentencePiece, specials: &Specials, text: &str, labels: &[&str]) -> Prompt {
+pub fn build<'a>(sp: &SentencePiece, specials: &Specials, text: &'a str, labels: &[&str]) -> Prompt<'a> {
+    build_words(sp, specials, text, labels, split(text))
+}
+
+pub fn build_words<'a>(
+    sp: &SentencePiece,
+    specials: &Specials,
+    text: &'a str,
+    labels: &[&str],
+    mut words: Vec<Word<'a>>,
+) -> Prompt<'a> {
     let mut scratch = Scratch::default();
     let mut ids = Vec::new();
     let mut piece = |s: &str, ids: &mut Vec<u32>| sp.encode_ids(s, &mut scratch, ids);
@@ -77,12 +90,28 @@ pub fn build(sp: &SentencePiece, specials: &Specials, text: &str, labels: &[&str
         markers.push([p, head, tail]);
     }
     ids.push(specials.sep_text);
-    let text = normalize(text);
-    let words = split(&text);
+    let normalized = normalize(text);
+    super::words::append_period(text, &mut words);
     let mut word_first = Vec::with_capacity(words.len());
-    for w in &words {
+    for w in &mut words {
         word_first.push(ids.len());
+        let at = ids.len();
         piece(&w.text, &mut ids);
+        w.subword_len = ids.len() - at;
     }
-    Prompt { ids, text, words, word_first, markers }
+    Prompt { ids, text: normalized, words, word_first, markers }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_borrows_when_nothing_changes() {
+        assert!(matches!(normalize("ends here."), Cow::Borrowed(_)));
+        assert!(matches!(normalize(""), Cow::Borrowed(_)));
+        assert!(matches!(normalize("no period"), Cow::Owned(_)));
+        assert_eq!(normalize("no period").as_ref(), "no period.");
+        assert_eq!(normalize("ends!").as_ref(), "ends!");
+    }
 }

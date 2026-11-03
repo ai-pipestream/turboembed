@@ -1,7 +1,7 @@
 //! OpenNLP's stemmers: `PorterStemmer`, the Snowball stemmers of
 //! `opennlp.tools.stemmer.snowball`, the light and minimal stemmers of
 //! `opennlp.tools.stemmer.light`, `CachingStemmer`, and `StemmerAnnotator`
-//! (here [`StemAnnotator`]) as an analysis step that reads `opennlp:tokens`
+//! (here [`StemAnnotator`]) as an analysis step that reads `turbo:tokens`
 //! and writes `turbo:stems`.
 //!
 //! The behaviour follows OpenNLP at commit

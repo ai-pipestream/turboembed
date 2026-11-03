@@ -73,6 +73,8 @@ impl From<crate::Error> for Error {
 /// all; each variant names what was wrong.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModelError {
+    /// The OpenNLP binary-envelope reader is retired.
+    Disabled,
     /// The binary framing (`DataInputStream`): a length, a count or a
     /// string that runs past the end, or malformed modified UTF-8. The
     /// message is the reader's.
@@ -97,6 +99,7 @@ pub enum ModelError {
 impl fmt::Display for ModelError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            ModelError::Disabled => f.write_str("OpenNLP binary model loading is disabled; see #1509"),
             ModelError::Data(m) => write!(f, "liblinear model: {m}"),
             ModelError::Count { what, value } => write!(f, "liblinear model: {what} is {value}"),
             ModelError::Trailing(n) => write!(f, "liblinear model: {n} bytes after the predicate map"),

@@ -1,0 +1,19 @@
+===OUT===
+ⅰⅱⅲ ⅼⅽ, ℓ ℴ ᴀ ı ȷ, ᴄᴏᴍ, ｐａｙｐａｌ.
+math: 𝐀𝐁𝐂 𝐚𝐛𝐜 and 𝔸𝔹. hebrew ו vs ascii |, ן vs l.
+armenian օ ս and cherokee Ꭺ Ꭱ Ꮪ look like latin letters.
+
+===EDITS===
+0	3	ⅰ
+3	6	ⅱ
+6	9	ⅲ
+68	69	m
+114	115	h
+127	128	a
+128	129	s
+129	130	c
+130	131	i
+131	132	i
+145	146	a
+164	165	c
+195	196	l

@@ -11,7 +11,7 @@
 
 use std::num::NonZeroU32;
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View};
+use turbo_analysis::{Annotator, Error, Key, Locality, Refs, Span, View};
 use turbo_analysis_layers::{Sentences, Tokens};
 use turbo_tokenize_layers::{WordType, WordTypes};
 
@@ -134,6 +134,10 @@ impl Annotator for WordTokenizer {
     fn config_hash(&self) -> u64 {
         self.hash()
     }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
+    }
 }
 
 /// The UAX #29 word tokenizer writing the tokens alone, for a pipeline
@@ -154,6 +158,10 @@ impl Annotator for UntypedWordTokenizer {
 
     fn config_hash(&self) -> u64 {
         self.0.hash()
+    }
+
+    fn locality(&self) -> Locality {
+        Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
 }
 

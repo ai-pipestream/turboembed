@@ -4,7 +4,7 @@
 //!   documents indexed with [`QueryAnalysisProfile::document_analyzer`] (or
 //!   [`QueryAnalysisProfile::document_terms`]),
 //! - per-span [`LanguageEvidence`] and [`LanguageSpanEvidence`] (`turbo:language-spans`
-//!   and `opennlp:language`) for single-language and mixed-language queries,
+//!   and `turbo:language`) for single-language and mixed-language queries,
 //! - structured [`QueryFilter`]s ([`TemporalFilter`], [`MoneyFilter`], [`QuantityFilter`],
 //!   [`PlaceFilter`], [`GlossaryFilter`], [`EntityFilter`]), each tied to an
 //!   exact UTF-8 source byte [`turbo_analysis::Span`] and [`FilterEvidence`]
@@ -66,7 +66,7 @@ impl QueryTermAnnotator {
 }
 
 impl turbo_analysis::Annotator for QueryTermAnnotator {
-    const ID: &'static str = turbo_langspan::SpanDetector::ID;
+    const ID: &'static str = turbo_langspan::ScriptDetector::ID;
     type Reads = (turbo_analysis::View,);
     type Writes = (
         turbo_analysis_layers::Sentences,
@@ -81,8 +81,7 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
 
     fn annotate(&self, (view,): turbo_analysis::Refs<'_, Self>) -> Result<Self::Writes, turbo_analysis::Error> {
         let text = view.text();
-        let edge_ws =
-            |c: Option<char>| c.is_some_and(|c| turbo_unicode::WhitespaceMode::Unicode.is_whitespace(c as u32));
+        let edge_ws = |c: Option<char>| c.is_some_and(|c| turbo_unicode::whitespace::is_whitespace(c as u32));
         let sentences = if !text.is_empty()
             && !edge_ws(text.chars().next())
             && !edge_ws(text.chars().next_back())
@@ -96,7 +95,7 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
         };
         let (tokens, _) = self.tok.annotate((view, Some(&sentences)))?;
         let (lang_spans, lang) = self.span_detector.annotate((view, Some(&sentences), Some(&tokens)))?;
-        let language = (!lang.code.is_empty()).then_some(&lang);
+        let language = lang.best().filter(|(code, _)| *code != "und").map(|_| &lang);
         let terms = if text.is_ascii() && text.len() <= 512 && tokens.spans.view() == view.id() {
             let stemmer = match language.and_then(turbo_analysis_layers::Language::best) {
                 Some(("eng", _)) => {
@@ -370,10 +369,10 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                 m_cnt = sm.spans.len();
                 for (ix, sp) in sm.spans.iter() {
                     let m = sm.get(ix);
-                    money.push(turbo_analysis_layers::MoneyMention {
-                        span: Span::new(sp.start + off, sp.end + off),
-                        ..m
-                    });
+                    money.push_with_per(
+                        turbo_analysis_layers::MoneyMention { span: Span::new(sp.start + off, sp.end + off), ..m },
+                        sm.per.get(ix.get()),
+                    );
                 }
             }
             if qty_cue && m_cnt < d_cnt {

@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	namefind/sentences	1655	1610	6fb3bcff3af1a33f50a70f18776a3a7b7fee90d15a6d5e0d77c3ab25ff383eb9
 annotator	opennlp.tools.namefind.RegexNameFinder	find
-layer	turbo:sentences	document	24510	sentence:str	token:str
+layer	turbo:sentence-tokens	document	24510	sentence:str	token:str
 f0	&
 f0	2
 f0	4’|+_3d72.|e
@@ -24516,4 +24516,4 @@ d999	Who
 d999	f
 d999	b
 d999	😀
-end	turbo:sentences
+end	turbo:sentence-tokens

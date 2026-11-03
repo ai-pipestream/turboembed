@@ -215,6 +215,16 @@ impl Annotator for PiiDetector {
         Ok((self.layer(text, view.id()),))
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<View>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Pii>::DEFAULT.id()];
+        PRODUCES
+    }
+
     /// FNV-1a over each scanner's extractor and kind bits, fixed so that
     /// stored provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {

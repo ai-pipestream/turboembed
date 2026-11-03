@@ -2,8 +2,8 @@
 //! hand as upstream's regular expressions match them: GPT-2's, and the
 //! Split pattern Llama-3 and Qwen2 put before their ByteLevel step.
 
+use crate::classes::{LETTERS, NUMBERS};
 use crate::manifest::BpePattern;
-use crate::tokenizer::{LETTER, NUMBER, category};
 
 /// Llama-3's Split pattern, as its tokenizer file writes it.
 pub const LLAMA3: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
@@ -42,11 +42,24 @@ pub(super) fn class(c: char) -> Class {
             _ => Class::Other,
         };
     }
+    let within = |runs: &[(u32, u32)]| {
+        let u = c as u32;
+        runs.binary_search_by(|&(a, b)| {
+            if b < u {
+                std::cmp::Ordering::Less
+            } else if a > u {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+    };
     if c.is_whitespace() {
         Class::Space
-    } else if category(c, LETTER) {
+    } else if within(LETTERS) {
         Class::Letter
-    } else if category(c, NUMBER) {
+    } else if within(NUMBERS) {
         Class::Number
     } else {
         Class::Other

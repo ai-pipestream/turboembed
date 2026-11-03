@@ -112,7 +112,6 @@ fn a_chunk_file_with_another_label_or_ids_is_refused() {
     let refused = |nc: &str| {
         let err = document(&["a b"], Some(nc), None).unwrap_err();
         assert!(matches!(err, MascError::Annotation { file: AnnotationFile::NounChunks, .. }), "{err:?}");
-        assert_eq!(err.java_class(), None);
         assert_eq!(err.to_string(), "Could not parse the noun chunk annotation file");
         assert!(err.skips_document());
     };
@@ -171,7 +170,6 @@ fn a_document_without_penn_tokens_or_chunk_files_has_no_chunks() {
     let doc = document(&["a b"], None, None).unwrap();
     assert!(!doc.has_chunks());
     assert!(matches!(MascChunkReader::new(&MascCorpus::from_documents(vec![doc])), Err(MascError::NoChunks)));
-    assert_eq!(MascError::NoChunks.java_class(), None);
 }
 
 /// The chunk tags of each sentence the reader reads, or why it

@@ -211,14 +211,14 @@ pub(crate) fn build_arm1(corpus: &EncodedCorpus) -> Result<BuiltArm1> {
 
 pub(crate) fn build_arm2<'a>(corpus: &EncodedCorpus, scorer: &'a dyn CrossEncoderScorer) -> Result<BuiltArm2<'a>> {
     let t0 = Instant::now();
-    let space = Space::new(corpus.model.clone(), corpus.dim as u32, Normalization::Unit);
+    let space = Space::new(corpus.model.clone(), corpus.static_dim as u32, Normalization::Unit);
     let mut builder = IndexBuilder::new(space.clone(), Metric::Cosine).map_err(|e| e.to_string())?;
     for (i, d) in corpus.docs.iter().enumerate() {
         builder.push(&d.static_vec, i as u32).map_err(|e| e.to_string())?;
     }
     let static_index = builder.build();
     let build_ms = t0.elapsed().as_secs_f64() * 1000.0;
-    let bpr_bytes = corpus.dim.div_ceil(16) * 64;
+    let bpr_bytes = corpus.static_dim.div_ceil(16) * 64;
     let vec_bytes = corpus.docs.len() * (bpr_bytes + std::mem::size_of::<u32>());
     let token_payload_bytes: usize = corpus.docs.iter().map(|d| d.token_vecs.len() * std::mem::size_of::<f32>()).sum();
     let index_bytes = vec_bytes + token_payload_bytes + scorer.byte_size();
@@ -245,13 +245,16 @@ pub(crate) fn build_arm3(corpus: &EncodedCorpus) -> Result<BuiltArm3> {
 
 pub(crate) fn build_arm4(corpus: &EncodedCorpus, config: &SplateConfig) -> Result<BuiltArm4> {
     let space = Space::new(corpus.model.clone(), corpus.dim as u32, Normalization::Unit);
-    let adapter = SplateAdapter::from_basis(
-        &corpus.vocab_basis,
-        corpus.vocab_size,
-        corpus.dim,
-        config.splate_scale,
-        config.splate_bias,
-    )?;
+    let adapter = match &corpus.adapter {
+        Some(trained) => trained.clone(),
+        None => SplateAdapter::from_basis(
+            &corpus.vocab_basis,
+            corpus.vocab_size,
+            corpus.dim,
+            config.splate_scale,
+            config.splate_bias,
+        )?,
+    };
     let mut doc_terms = Vec::with_capacity(corpus.docs.len());
     for d in &corpus.docs {
         doc_terms.push(adapter.encode_tokens(&d.token_vecs, &config.splate_doc_cut)?);

@@ -12,13 +12,16 @@ use turbo_analysis::export::export;
 use turbo_analysis::{Document, Edges, Ix, Key, Layer, Provenance, Span, Spans, TagSet, View, ViewId};
 use turbo_analysis_embed::{Answers, Reranked};
 use turbo_analysis_layers::{
-    Abbreviations, Chunks, Entities, Sentences, Subwords, TokenVectorWindows, Tokens, Vectors,
+    Abbreviations, Chunks, Cut, Entities, LayoutBoxes, Levels, Sentences, Subwords, TokenVectorWindows, Tokens, Unit,
+    Vectors,
 };
+use turbo_chunker::{ChunkCitations, chunk_citations};
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::*;
 use turbo_kserve::results::Wire;
 use turbo_kserve::results::{
-    document::codecs, extraction::Extraction, rerank::RerankScores, sparse::SparseTermsWire, tokens::TokenVectors,
+    document::codecs, extraction::Extraction, layers::ChunkLevels, rerank::RerankScores, sparse::SparseTermsWire,
+    tokens::TokenVectors,
 };
 
 use common::*;
@@ -437,7 +440,50 @@ async fn round_trip_document_graph_supports_all_registered_workspace_crates() {
         p(),
     )
     .unwrap();
-    let _ = Chunks::ID;
+    let mut layout = LayoutBoxes::new(ViewId::SOURCE);
+    layout.push(Span::new(0, 5), 1, 10.0, 20.0, 50.0, 40.0);
+    layout.push(Span::new(6, 11), 2, 10.0, 50.0, 60.0, 70.0);
+    doc.add(&Key::<LayoutBoxes>::DEFAULT, layout.clone(), p()).unwrap();
+
+    let make_chunks = || {
+        let mut chunk_spans = Spans::new(ViewId::SOURCE);
+        chunk_spans.push(Span::new(0, 11));
+        Chunks {
+            spans: chunk_spans,
+            sentences: vec![turbo_analysis::IxRange::new(0, 1)],
+            level: vec![0],
+            parent: vec![None],
+            cut: vec![Cut::DocumentStart],
+            cost: vec![0],
+            model_tokens: vec![2],
+            over_budget: vec![false],
+            prompt_overhead: 0,
+        }
+    };
+    let chunks = make_chunks();
+    let citations = chunk_citations(&chunks, Some(&layout)).unwrap();
+    doc.add(&Key::<Chunks>::DEFAULT, chunks, p()).unwrap();
+    doc.add(&Key::<ChunkCitations>::DEFAULT, citations.clone(), p()).unwrap();
+
+    let mut level_spans = Spans::new(ViewId::SOURCE);
+    level_spans.push(Span::new(0, 11));
+    level_spans.push(Span::new(0, 11));
+    let cl = ChunkLevels {
+        text: "Hello world".into(),
+        view: ViewId::SOURCE,
+        offsets: OffsetMode::Utf8,
+        chunks: make_chunks(),
+        levels: Levels {
+            spans: level_spans,
+            unit: vec![Unit::Document, Unit::Chunk(Ix::new(0))],
+            parent: vec![None, Some(Ix::new(0))],
+        },
+        vectors: Vectors::<Chunks>::new(2, vec![1.0, 0.0], Vec::new(), model_ref()),
+    };
+    let chunk_wire = cl.to_msg_with_citations(&citations);
+    let chunk_back = c.round_trip_chunk_levels(chunk_wire.clone()).await.unwrap().into_inner();
+    assert_eq!(chunk_back, chunk_wire);
+    assert_eq!(ChunkLevels::citations_from_msg(&chunk_back).unwrap().unwrap(), citations);
 
     let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let resp = c
@@ -448,5 +494,5 @@ async fn round_trip_document_graph_supports_all_registered_workspace_crates() {
     assert_eq!(resp.graph, graph_bytes, "re-exported DocumentGraph bytes are byte-identical");
     assert_eq!(resp.source_text, "Hello world");
     assert!(resp.layers.iter().all(|l| l.status == LayerWireStatus::Ok as i32));
-    assert!(resp.layers.len() >= 18);
+    assert!(resp.layers.len() >= 20);
 }

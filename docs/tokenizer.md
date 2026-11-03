@@ -109,7 +109,8 @@ from, however the text was normalized on the way.
   its bytes' sources to the last.
 - Whitespace at either end of a span is left out, unless the token is
   whitespace alone; then its span is that whitespace.
-- A special token written in the text is where it is written. A special
+- A special or added token written in the text is where it is written,
+  without the whitespace `lstrip` or `rstrip` takes beside it. A special
   token the template adds, a token of the prompt's prefix, and padding
   are `[0, 0]`; spans are into the text as the caller passed it, without
   the prefix.

@@ -94,7 +94,7 @@ impl MorfologikDictionary {
         let metadata = MorfologikMetadata::parse(info_bytes)?;
         let fsa = FsaReader::from_bytes(dict_bytes)?;
         let model_ref = ModelRef {
-            id: "opennlp:MorfologikDictionary".to_owned(),
+            id: "turbo:MorfologikDictionary".to_owned(),
             revision: String::new(),
             sha256: crate::identity::digest(&[dict_bytes, info_bytes]),
         };

@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
 model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	11	start:u32	end:u32
+layer	turbo:tokens	text	11	start:u32	end:u32
 0	10
 11	25
 25	26
@@ -18,8 +18,8 @@ layer	opennlp:tokens	text	11	start:u32	end:u32
 62	63
 64	70
 71	81
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	11	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	11	unknown:u32	features:str
 1	SY,*,*,*,*,*,*,*
 1	SY,*,*,*,*,*,*,*
 0	SF,*,*,*,*,*,*,*

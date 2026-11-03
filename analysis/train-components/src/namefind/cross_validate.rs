@@ -98,6 +98,7 @@ pub struct TokenNameFinderCrossValidator<'f> {
     factory: &'f TokenNameFinderFactory,
     kind: Option<String>,
     params: TrainingParameters,
+    clear_each_sentence: bool,
 }
 
 impl<'f> TokenNameFinderCrossValidator<'f> {
@@ -106,7 +107,18 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
         kind: Option<&str>,
         params: TrainingParameters,
     ) -> TokenNameFinderCrossValidator<'f> {
-        TokenNameFinderCrossValidator { factory, kind: kind.map(str::to_owned), params }
+        TokenNameFinderCrossValidator { factory, kind: kind.map(str::to_owned), params, clear_each_sentence: false }
+    }
+
+    /// Clears adaptive features before every training and test sentence.
+    ///
+    /// Original sample flags still define whole-document partitions. Do not
+    /// replace those flags before evaluation: that would partition sentences
+    /// instead of documents and could put one document on both sides. The
+    /// default remains the JVM policy: clear only where the sample requests it.
+    pub fn with_sentence_clearing(mut self) -> Self {
+        self.clear_each_sentence = true;
+        self
     }
 
     /// `evaluate(samples, nFolds)`. Training runs under `config`; each
@@ -134,10 +146,13 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
             let mut stream = NameEventStream::new(self.factory, self.kind.as_deref())?;
             let mut events = Vec::new();
             for &i in &training {
+                if self.clear_each_sentence {
+                    stream.clear_adaptive_data();
+                }
                 stream.events(&samples[i], &mut events)?;
             }
             let trained = train_name_model_from_events(&events, self.factory, &self.params, config, stamp)?;
-            let file = ModelFile::open(trained.package.to_bytes()).map_err(crate::Error::Model)?;
+            let file = ModelFile::from_trained_archive(trained.package.to_bytes()).map_err(crate::Error::Model)?;
             let maxent = file.maxent(MODEL_ENTRY).map_err(crate::Error::Model)?;
             let mut finder = NameFinder::new(&file, &maxent, PatternMode::Utf16Units)?;
             let mut evaluator = NameFinderEvaluator::default();
@@ -145,7 +160,7 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
             let mut correct_samples = 0;
             for &i in &test {
                 let reference = &samples[i];
-                if reference.clear_adaptive_data() {
+                if self.clear_each_sentence || reference.clear_adaptive_data() {
                     finder.clear_adaptive_data();
                 }
                 let tokens: Vec<&str> = reference.tokens().iter().map(|t| t.as_str()).collect();
@@ -191,12 +206,11 @@ fn flatten(docs: &[Range<usize>], documents: &[usize]) -> Vec<usize> {
 mod tests {
     use super::*;
     use turbo_formats::native::NameReader;
-    use turbo_unicode::WhitespaceMode;
 
     #[test]
     fn documents_start_at_the_first_sample_and_at_each_clear() {
         let text = "<START:person> A <END> b .\nc d .\n\n<START:person> E <END> f .\n\ng .\nh .\n";
-        let samples: Vec<_> = NameReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+        let samples: Vec<_> = NameReader::new(text).unwrap().map(|s| s.unwrap()).collect();
         assert_eq!(documents(&samples), vec![0..2, 2..3, 3..5]);
         assert!(documents(&[]).is_empty());
     }

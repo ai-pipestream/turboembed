@@ -77,7 +77,7 @@ pub(super) type Piece = (u32, [u32; 2]);
 
 /// The golden's pieces.
 fn jvm_pieces(golden: &Golden) -> Option<Vec<Piece>> {
-    let l = golden.layer("opennlp:subwords")?;
+    let l = golden.layer("turbo:subwords")?;
     let (start, end, id) = (l.u32s("start")?, l.u32s("end")?, l.u32s("id")?);
     Some((0..l.len()).map(|i| (id[i], [start[i], end[i]])).collect())
 }

@@ -1,17 +1,18 @@
 """Reference outputs for native schema-driven extraction.
 
-Usage: build_fixture.py <gliner2-base-v1 checkout> <relation reduced.safetensors> <output directory>
+Usage: build_fixture.py <relation reduced.safetensors> <output directory> [<gliner2-base-v1 checkout>]
 
-The checkout is fastino/gliner2-base-v1 at REVISION (Apache-2.0). Two
-fixtures are written:
+Two fixtures are written:
 
-- extra.safetensors and reduced.json: the classification head sliced to
-  width 32 to go with the relation scorer's reduced fixture (the encoder
-  and heads sliced to width 32), the first 800 word embedding rows at that
-  width for the offline tests, and the outputs of
-  GLiNER2's own layer classes: count queries across three and four
-  fields, and classifier logits.
-- real.json: what the full checkpoint gives through GLiNER2's own
+- extra.safetensors and reduced.json: seeded random weights for the
+  classification head at width 32, to go with the relation scorer's
+  reduced fixture (seeded random too), and 800 word embedding rows at that
+  width for the offline tests, and the outputs of GLiNER2's own layer
+  classes: count queries across three and four fields, and classifier
+  logits. No value comes from a checkpoint (GLiNER2 is accept-first since
+  2026-10-28, docs/licences.md).
+- real.json, only when the checkout is given (fastino/gliner2-base-v1 at
+  REVISION): what the full checkpoint gives through GLiNER2's own
   `extract` on fixed texts and schemas (entities, classifications and
   structures together): the input ids, each span task's instance count,
   each classification's probabilities, and the decoded results with
@@ -34,24 +35,26 @@ from gliner2.layers import CountLSTMv2, create_mlp
 
 REVISION = 'f9634218e53580c56edf0de97ca1a7d3f1c2354e'
 GLINER2 = 'ca4f68235b50fe4c3ecf3876851d748fe4b15c6c'
-SRC, REDUCED, OUT = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+SEED = 20261029
+REDUCED, OUT = Path(sys.argv[1]), Path(sys.argv[2])
+SRC = Path(sys.argv[3]) if len(sys.argv) > 3 else None
 OUT.mkdir(parents=True, exist_ok=True)
 torch.set_num_threads(1)
-full = load_file(str(SRC / 'model.safetensors'))
 D = 32
+rng = np.random.default_rng(SEED)
+fan_in = lambda rows, cols: (rng.standard_normal((rows, cols)) / cols ** 0.5).astype(np.float32)
 
 # ---- reduced: the relation fixture plus the classifier at width 32 ----
 tensors = load_file(str(REDUCED))
-tensors['classifier.0.weight'] = np.ascontiguousarray(full['classifier.0.weight'][:2 * D, :D])
-tensors['classifier.0.bias'] = np.ascontiguousarray(full['classifier.0.bias'][:2 * D])
-tensors['classifier.2.weight'] = np.ascontiguousarray(full['classifier.2.weight'][:, :2 * D])
-tensors['classifier.2.bias'] = np.ascontiguousarray(full['classifier.2.bias'])
+tensors['classifier.0.weight'] = fan_in(2 * D, D)
+tensors['classifier.0.bias'] = (0.02 * rng.standard_normal(2 * D)).astype(np.float32)
+tensors['classifier.2.weight'] = fan_in(1, 2 * D)
+tensors['classifier.2.bias'] = (0.02 * rng.standard_normal(1)).astype(np.float32)
 # Only the classifier is written, with the first 800 rows of the word
 # embeddings at width 32 for the offline tests, which tokenize text with an
 # 800-piece SentencePiece model; the rest is the relation fixture's.
 extra = {k: v for k, v in tensors.items() if k.startswith('classifier.')}
-extra['encoder.embeddings.word_embeddings.weight'] = np.ascontiguousarray(
-    full['encoder.embeddings.word_embeddings.weight'][:800, :D])
+extra['encoder.embeddings.word_embeddings.weight'] = (0.1 * rng.standard_normal((800, D))).astype(np.float32)
 save_file({k: torch.from_numpy(v) for k, v in extra.items()}, OUT / 'extra.safetensors')
 
 config = DebertaV2Config(vocab_size=16, hidden_size=D, intermediate_size=48,
@@ -80,10 +83,13 @@ for ids, fields, rows in [
         logits = classifier(h[rows]).squeeze(-1).tolist()
     cases.append(dict(ids=ids, fields=fields, queries=queries, rows=rows, logits=logits))
 (OUT / 'reduced.json').write_text(json.dumps(dict(
-    source=f'fastino/gliner2-base-v1@{REVISION}', license='Apache-2.0', gliner2=GLINER2,
+    weights='seeded random', seed=SEED, gliner2=GLINER2,
     torch=torch.__version__, cases=cases), separators=(',', ':')) + '\n')
 
 # ---- the full checkpoint through GLiNER2 itself ----
+if SRC is None:
+    print('fixtures complete (reduced only)', OUT)
+    sys.exit(0)
 model = GLiNER2.from_pretrained(str(SRC))
 model.eval()
 seen = {}

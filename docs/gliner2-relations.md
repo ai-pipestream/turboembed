@@ -9,7 +9,9 @@ extracts relations on its own, as the reference does.
 The checkpoint is `fastino/gliner2-base-v1` at
 `f9634218e53580c56edf0de97ca1a7d3f1c2354e` (Apache-2.0). The zoo lists it
 as `fastino-gliner2-base-v1` and fetches it by digest; it is the
-default. GLiREL's checkpoints and code are CC BY-NC-SA 4.0
+default relation scorer, but local-only by its training data (unreleased,
+GPT-4o labelled; docs/licences.md, decision 2026-10-28): fetched from its
+publisher only after the user accepts its card's terms, never bundled. GLiREL's checkpoints and code are CC BY-NC-SA 4.0
 (docs/licences.md). The zoo lists `jackboyla/glirel-large-v0` as the
 local-only `jackboyla-glirel-large-v0`, fetched only after the user runs
 `turbo-zoo accept CC-BY-NC-SA-4.0`, and docs/glirel-relations.md runs it.
@@ -54,14 +56,57 @@ is computed from `model.safetensors` and recorded as the relations'
 provenance. Only `counting_layer: count_lstm_v2` and `token_pooling:
 first` are read; any other configuration is refused by name.
 
+## On a device
+
+The encoder can also be a `FAMILY_DEBERTA_V2` core bundle on the device
+`EncoderOptions` names (cpu, cuda, levelzero, metal), through the backend table
+(#920): open it with `turbo_relation::encoder::DebertaEncoder::open` and
+pass it to `Gliner2Relations::load_with`. Only the rows the heads read come back from the
+device, as one-token ranges of the range write: each word's first
+subword and the label markers. The heads stay on the host. `execution()`
+names where the encoder ran. `analysis/relation/tests/device.rs` holds a device to the CPU encoder
+over `testdata/tiny-deberta-bundle`, with every count equal and every
+logit within 1e-4. On Metal (Apple M2) these tests and the real
+checkpoint's pass at `model` and `exact`; the figures are in
+docs/receipts/gliner2-metal-920.
+
+The real checkpoint's encoder is sealed as that core bundle by
+`bundle/recipes/gliner2-base-v1-encoder.json`. The shared
+`bundle/reference/gliner_encoder.py`, in the pinned reference container,
+writes its upstream directory from the zoo's `fastino-gliner2-base-v1`
+files: the `encoder.` tensors as a `DebertaV2Model` of the checkpoint's
+encoder config, with 128011 rows, and `spm.model` converted
+to `tokenizer.json`, with the eleven tokens of `added_tokens.json` as
+pieces at their ids. With `Z` the zoo home's `artifacts` directory and
+`W` an empty one:
+
+```
+docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD/bundle/reference:/scripts:ro -v $Z/fastino-gliner2-base-v1:/ckpt:ro -v $W:/w --entrypoint python \
+    turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+    /scripts/gliner_encoder.py /ckpt/encoder_config/config.json /ckpt/spm.model /ckpt/model.safetensors /w/out \
+    encoder. /ckpt/added_tokens.json
+cargo run --release -p turbo-bundle -- reference bundle/recipes/gliner2-base-v1-encoder.json $W/out $W/bundle
+```
+
+`DebertaEncoder::open_bound` takes the bundle with the DeBERTa package
+that `turbo-bundle deberta-convert` writes from the same checkpoint. The
+bundle's weights must be the package's, tensor for tensor.
+`analysis/relation/tests/device_real.rs` and
+`analysis/schema-extract/tests/device_real.rs` (ignored; `GLINER2_BUNDLE`,
+`GLINER2_PACKAGE`, `GLINER2_CHECKPOINT`, `TURBO_TEST_DEVICE`) hold the
+device to the package's CPU encoder on the texts of each `real.json`
+fixture and time the passes on both, interleaved.
+
 ## Parity
 
 `analysis/relation/reference/gliner2/build_fixture.py` (pinned in its
 `requirements.txt`) writes both fixtures; only fixture production uses
 Python.
 
-- `analysis/relation/tests/gliner2_reduced.rs`: the encoder and heads sliced to width 32,
-  as the encoder fixture slices it, on fixed token sequences, against
+- `analysis/relation/tests/gliner2_reduced.rs`: seeded random weights in the
+  checkpoint's shapes, the encoder core/tests/fixtures/deberta's and the heads
+  at width 32 (no checkpoint value), on fixed token sequences, against
   GLiNER2's own layer classes: count logits, counts, queries and span
   logits within 2e-5. It runs in every test run.
 - `analysis/relation/tests/gliner2_real.rs`: the full checkpoint, fetched through the zoo

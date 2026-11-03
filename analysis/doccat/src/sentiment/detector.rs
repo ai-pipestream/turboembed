@@ -9,7 +9,6 @@ use turbo_analysis_layers::{Categories, Tokens};
 use turbo_maxent::best_outcome;
 
 use super::model::SentimentModel;
-use crate::java::double_compare;
 
 /// The instance of `turbo:categories` [`SentimentMe::bound`] writes, so
 /// that sentiment sits beside a topic categorizer's default instance.
@@ -68,12 +67,12 @@ impl SentimentMe {
         self.model.label(i)
     }
 
-    /// The outcomes best first: by probability as `Double.compare` orders,
+    /// The outcomes best first: by probability in descending total order,
     /// ties in outcome order, so the first is `getBestSentiment`'s.
     pub fn rank(&self, probabilities: &[f64], order: &mut Vec<usize>) {
         order.clear();
         order.extend(0..probabilities.len());
-        order.sort_by(|&a, &b| double_compare(probabilities[b], probabilities[a]));
+        order.sort_by(|&a, &b| probabilities[b].total_cmp(&probabilities[a]));
     }
 
     /// The `turbo:categories` layer of `tokens`: the best outcome

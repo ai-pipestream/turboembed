@@ -1,0 +1,12 @@
+MASKED	Mixed **** ****-**** 1111 and 4111..1111..1111..1111 and 4111 - 1111 - 1111 - 1111.
+
+MASK_ALL	Mixed ################### and 4111..1111..1111..1111 and 4111 - 1111 - 1111 - 1111.
+
+REWRITE	pseudonymize	OK	Mixed CARD-1 and 4111..1111..1111..1111 and 4111 - 1111 - 1111 - 1111.
+
+LABEL	pseudonymize	6	25	6	12	CARD-1
+REWRITE	hmac	OK	Mixed CARD-f04eb250c58c67b2 and 4111..1111..1111..1111 and 4111 - 1111 - 1111 - 1111.
+
+LABEL	hmac	6	25	6	27	CARD-f04eb250c58c67b2
+AUDIT	card	1	1	CARD-f04eb250c58c67b2
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]

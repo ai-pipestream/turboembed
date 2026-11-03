@@ -88,10 +88,6 @@
         "iterations": 300,
         "threads": 1
       },
-      "published": {
-        "id": "opennlp-en-ner-person-1.5",
-        "sha256": "687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4"
-      },
       "samples_sha256": "d3c5777d7e9fa0c048c66d99646211f491784f04eb15fe4619aa40aba76bfe91",
       "scores": {
         "crf": {
@@ -109,14 +105,6 @@
           "selected": 596,
           "target": 1363,
           "true_positives": 542
-        },
-        "published": {
-          "f1": 0.6081651806663538,
-          "precision": 0.84375,
-          "recall": 0.47542186353631694,
-          "selected": 768,
-          "target": 1363,
-          "true_positives": 648
         }
       },
       "train_names": {
@@ -244,10 +232,6 @@
         "iterations": 300,
         "threads": 1
       },
-      "published": {
-        "id": "opennlp-en-ner-location-1.5",
-        "sha256": "8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b"
-      },
       "samples_sha256": "2ca5f06b5e94f8c9f2e3f10a2fb43c7b65fc41637d8ea635259eeb2d51f8ce38",
       "scores": {
         "crf": {
@@ -265,14 +249,6 @@
           "selected": 206,
           "target": 436,
           "true_positives": 181
-        },
-        "published": {
-          "f1": 0.6410256410256411,
-          "precision": 0.7267441860465116,
-          "recall": 0.573394495412844,
-          "selected": 344,
-          "target": 436,
-          "true_positives": 250
         }
       },
       "train_names": {
@@ -400,10 +376,6 @@
         "iterations": 300,
         "threads": 1
       },
-      "published": {
-        "id": "opennlp-en-ner-organization-1.5",
-        "sha256": "0136c12afe1ac357142260c39bb879b7c9d121e41024114db5a6455b4fd5ba00"
-      },
       "samples_sha256": "65f882d0dfff46dd98cd4e29d07f2e645ddf76da990c0aef5f475e9e3fed2e3c",
       "scores": {
         "crf": {
@@ -421,14 +393,6 @@
           "selected": 143,
           "target": 321,
           "true_positives": 104
-        },
-        "published": {
-          "f1": 0.4253968253968254,
-          "precision": 0.4336569579288026,
-          "recall": 0.4174454828660436,
-          "selected": 309,
-          "target": 321,
-          "true_positives": 134
         }
       },
       "train_names": {
@@ -556,10 +520,6 @@
         "iterations": 300,
         "threads": 1
       },
-      "published": {
-        "id": "opennlp-en-ner-date-1.5",
-        "sha256": "1207030923852e1c244919d8f15d9e78c217323728fcf909029abd1703967855"
-      },
       "samples_sha256": "344f12b7ee2b2468988902b9a141e314bd4a3b8b7fdcccea7e62f5a430310591",
       "scores": {
         "crf": {
@@ -577,14 +537,6 @@
           "selected": 135,
           "target": 358,
           "true_positives": 93
-        },
-        "published": {
-          "f1": 0.4244482173174873,
-          "precision": 0.5411255411255411,
-          "recall": 0.34916201117318435,
-          "selected": 231,
-          "target": 358,
-          "true_positives": 125
         }
       },
       "train_names": {
@@ -653,58 +605,6 @@
       },
       "unit_count": 6384,
       "record_sha256": "98497f74b41349478b2b4e01f41896d8ba1d692d9cbd4db356044782d472577b"
-    },
-    "person/gate-published": {
-      "record_version": 3,
-      "task": "name_finder",
-      "measure": "f_measure",
-      "set": {
-        "name": "MASC 3.0.0 standard held-out split, person",
-        "corpus_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
-        "samples_sha256": "d3c5777d7e9fa0c048c66d99646211f491784f04eb15fe4619aa40aba76bfe91",
-        "skipped_sentences": 1,
-        "scoring": {
-          "typed_spans": {
-            "types": [
-              "person"
-            ],
-            "renamed": [],
-            "reference_inputs": [],
-            "spans": 1363,
-            "left_out": 1115
-          }
-        }
-      },
-      "candidate": {
-        "id": "turbo-en-masc-3.0.0-crf-person-1",
-        "sha256": "24afaafd7fc7eb9fbe583a08284d7e250189c2a2a9b2622fcd00065bf4960121"
-      },
-      "reference": {
-        "id": "opennlp-en-ner-person-1.5",
-        "sha256": "687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4"
-      },
-      "resamples": 10000,
-      "seed": 154,
-      "result": {
-        "candidate": {
-          "score": 35.30073074761101,
-          "low": 31.962335023122286,
-          "high": 38.69526370179337
-        },
-        "reference": {
-          "score": 60.816518066635375,
-          "low": 58.05534586844494,
-          "high": 63.460654444565336
-        },
-        "difference": {
-          "mean": -25.515787319024362,
-          "low": -29.29969031483877,
-          "high": -21.730863469122873
-        },
-        "pass": false
-      },
-      "unit_count": 6384,
-      "record_sha256": "6e39dce7f000c236bf3da973949a442b00b99dfaf73d4e15696e41c90cd6be30"
     },
     "person/crf-vs-dl": {
       "record_version": 3,
@@ -861,58 +761,6 @@
       },
       "unit_count": 6384,
       "record_sha256": "38d6da0f5f59f00d338310ed74508a0ad2b6c64af4280a8799d78052b113249a"
-    },
-    "location/gate-published": {
-      "record_version": 3,
-      "task": "name_finder",
-      "measure": "f_measure",
-      "set": {
-        "name": "MASC 3.0.0 standard held-out split, location",
-        "corpus_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
-        "samples_sha256": "2ca5f06b5e94f8c9f2e3f10a2fb43c7b65fc41637d8ea635259eeb2d51f8ce38",
-        "skipped_sentences": 1,
-        "scoring": {
-          "typed_spans": {
-            "types": [
-              "location"
-            ],
-            "renamed": [],
-            "reference_inputs": [],
-            "spans": 436,
-            "left_out": 2042
-          }
-        }
-      },
-      "candidate": {
-        "id": "turbo-en-masc-3.0.0-crf-location-1",
-        "sha256": "748ab945a1ac4ee996fdf92f73af82b543d3b120d477e2172edbba59559fde55"
-      },
-      "reference": {
-        "id": "opennlp-en-ner-location-1.5",
-        "sha256": "8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b"
-      },
-      "resamples": 10000,
-      "seed": 154,
-      "result": {
-        "candidate": {
-          "score": 64.74622770919066,
-          "low": 60.08708272859216,
-          "high": 69.2513753150163
-        },
-        "reference": {
-          "score": 64.1025641025641,
-          "low": 59.62721200046876,
-          "high": 68.34733893557421
-        },
-        "difference": {
-          "mean": 0.6436636066265606,
-          "low": -3.4962228894013263,
-          "high": 4.794405469173326
-        },
-        "pass": false
-      },
-      "unit_count": 6384,
-      "record_sha256": "659a3eaf0a11b019a78c5950427e882b410360469c6d7ebf6de7d5a55c0da75d"
     },
     "location/crf-vs-dl": {
       "record_version": 3,
@@ -1074,63 +922,6 @@
       },
       "unit_count": 6384,
       "record_sha256": "ed23b148c2bcf673a8cd12a71d3ff9567acd4ef27ed7ca99ba68529e040a464a"
-    },
-    "organization/gate-published": {
-      "record_version": 3,
-      "task": "name_finder",
-      "measure": "f_measure",
-      "set": {
-        "name": "MASC 3.0.0 standard held-out split, organization",
-        "corpus_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
-        "samples_sha256": "65f882d0dfff46dd98cd4e29d07f2e645ddf76da990c0aef5f475e9e3fed2e3c",
-        "skipped_sentences": 1,
-        "scoring": {
-          "typed_spans": {
-            "types": [
-              "organization"
-            ],
-            "renamed": [
-              {
-                "held_out": "org",
-                "scored": "organization"
-              }
-            ],
-            "reference_inputs": [],
-            "spans": 321,
-            "left_out": 2157
-          }
-        }
-      },
-      "candidate": {
-        "id": "turbo-en-masc-3.0.0-crf-organization-1",
-        "sha256": "2fefb205efe0711cdf7f920283cd2b775da00c8c956346e6aac9b1a2b192977b"
-      },
-      "reference": {
-        "id": "opennlp-en-ner-organization-1.5",
-        "sha256": "0136c12afe1ac357142260c39bb879b7c9d121e41024114db5a6455b4fd5ba00"
-      },
-      "resamples": 10000,
-      "seed": 154,
-      "result": {
-        "candidate": {
-          "score": 46.21848739495798,
-          "low": 39.90823027310074,
-          "high": 52.39005736137668
-        },
-        "reference": {
-          "score": 42.539682539682545,
-          "low": 37.11305436275447,
-          "high": 48.0
-        },
-        "difference": {
-          "mean": 3.6788048552754375,
-          "low": -3.3063460026942697,
-          "high": 10.494853486737936
-        },
-        "pass": false
-      },
-      "unit_count": 6384,
-      "record_sha256": "baf228ca75d55e1e304432c8f7504cb269feaab04a12fd05b65bebff4ec30845"
     },
     "organization/crf-vs-dl": {
       "record_version": 3,
@@ -1298,58 +1089,6 @@
       "unit_count": 6384,
       "record_sha256": "f413c225d7b34a53f4a00c1706ff9eaf4bc3010810e8f569805839ec8d12a341"
     },
-    "date/gate-published": {
-      "record_version": 3,
-      "task": "name_finder",
-      "measure": "f_measure",
-      "set": {
-        "name": "MASC 3.0.0 standard held-out split, date",
-        "corpus_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
-        "samples_sha256": "344f12b7ee2b2468988902b9a141e314bd4a3b8b7fdcccea7e62f5a430310591",
-        "skipped_sentences": 1,
-        "scoring": {
-          "typed_spans": {
-            "types": [
-              "date"
-            ],
-            "renamed": [],
-            "reference_inputs": [],
-            "spans": 358,
-            "left_out": 2120
-          }
-        }
-      },
-      "candidate": {
-        "id": "turbo-en-masc-3.0.0-crf-date-1",
-        "sha256": "55e512c51c47b564f29c60cc487ea3eca90aa543494703d204f72d22c416bcf4"
-      },
-      "reference": {
-        "id": "opennlp-en-ner-date-1.5",
-        "sha256": "1207030923852e1c244919d8f15d9e78c217323728fcf909029abd1703967855"
-      },
-      "resamples": 10000,
-      "seed": 154,
-      "result": {
-        "candidate": {
-          "score": 46.99453551912568,
-          "low": 41.52989851678376,
-          "high": 52.34663096939888
-        },
-        "reference": {
-          "score": 42.444821731748725,
-          "low": 37.04837490551776,
-          "high": 47.668544402940114
-        },
-        "difference": {
-          "mean": 4.549713787376952,
-          "low": -2.3182398263776696,
-          "high": 11.493037818383263
-        },
-        "pass": false
-      },
-      "unit_count": 6384,
-      "record_sha256": "e13b9170b26b326502cab7ddb89822cc36665dcf3eb869c7165fe1f51b85c686"
-    },
     "overall-maxent": {
       "record_version": 3,
       "task": "name_finder",
@@ -1409,66 +1148,6 @@
       },
       "unit_count": 6384,
       "record_sha256": "6f5b2aaba9010b436d9290ce338aaea10e667b8615bef11445a54501aa479b7b"
-    },
-    "overall-published": {
-      "record_version": 3,
-      "task": "name_finder",
-      "measure": "f_measure",
-      "set": {
-        "name": "MASC 3.0.0 standard held-out split, all entity types",
-        "corpus_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
-        "samples_sha256": "b5af9ebbef99ec5ed9335846c5bf4d3b5602f2781c3bb0d3c6abedcfa17ec546",
-        "skipped_sentences": 1,
-        "scoring": {
-          "typed_spans": {
-            "types": [
-              "person",
-              "location",
-              "organization",
-              "date"
-            ],
-            "renamed": [
-              {
-                "held_out": "org",
-                "scored": "organization"
-              }
-            ],
-            "reference_inputs": [],
-            "spans": 2478,
-            "left_out": 0
-          }
-        }
-      },
-      "candidate": {
-        "id": "masc-crf-collection",
-        "sha256": "2a517198e7182450694cf1059f88a3a5fb4c1431e7976793368ab001a948c00c"
-      },
-      "reference": {
-        "id": "masc-published-collection",
-        "sha256": "3b425f7ce49dc9608a1fe63b8042b71ca59dd873469cf6a924f37267b9cae427"
-      },
-      "resamples": 10000,
-      "seed": 154,
-      "result": {
-        "candidate": {
-          "score": 44.66459099915086,
-          "low": 42.29099081976938,
-          "high": 47.03571305880717
-        },
-        "reference": {
-          "score": 56.029055690072624,
-          "low": 53.906822136098675,
-          "high": 58.08969329714088
-        },
-        "difference": {
-          "mean": -11.364464690921764,
-          "low": -14.077677103667895,
-          "high": -8.731035769860975
-        },
-        "pass": false
-      },
-      "unit_count": 6384,
-      "record_sha256": "ffeb17d89c23cc1fc053c1573641326bfa3b9a9e29363c1be0de47775a0067c4"
     },
     "shared-crf-vs-dl": {
       "record_version": 3,
@@ -1650,14 +1329,7 @@
       "precision": 0.8518518518518519,
       "recall": 0.37126715092816787,
       "f1": 0.5171444631815627
-    },
-    "published": {
-      "true_positives": 1157,
-      "selected": 1652,
-      "target": 2478,
-      "precision": 0.700363196125908,
-      "recall": 0.466908797417272,
-      "f1": 0.5602905569007264
     }
-  }
+  },
+  "removed": "OpenNLP 1.5 reference entries and their gates removed under #1509 (2026-10-28)"
 }

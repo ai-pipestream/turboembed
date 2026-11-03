@@ -1,0 +1,10 @@
+MASKED	IBAN **** **** **** **** **** ** holds a phone; NHS *** *** **** is one too.
+
+MASK_ALL	IBAN ########################### holds a phone; NHS ############ is one too.
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	iban	1	1	IBAN-12d2a2b8c32b1193
+AUDIT	phone	2	2	PHONE-d93b376c99f48a80, PHONE-258496d3f67ec84f
+AUDIT	uk-nhs	1	1	UK-NHS-8ab298778f89ab6b
+AUDIT_REPORT	iban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]\nphone: 2 mentions, 2 distinct [PHONE-d93b376c99f48a80, PHONE-258496d3f67ec84f]\nuk-nhs: 1 mentions, 1 distinct [UK-NHS-8ab298778f89ab6b]

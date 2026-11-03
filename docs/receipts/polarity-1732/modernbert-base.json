@@ -1,0 +1,418 @@
+{
+  "baselines": {
+    "lexicon_vader": {
+      "accuracy": 0.9157894736842105,
+      "correct": 87,
+      "macro_f1": 0.8092369477911646,
+      "negative": {
+        "f1": 0.6666666666666666,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 16
+      },
+      "positive": {
+        "f1": 0.9518072289156626,
+        "precision": 0.9080459770114943,
+        "recall": 1.0,
+        "support": 79
+      },
+      "total": 95
+    },
+    "majority": {
+      "metrics": {
+        "accuracy": 0.8315789473684211,
+        "correct": 79,
+        "macro_f1": 0.4540229885057472,
+        "negative": {
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 16
+        },
+        "positive": {
+          "f1": 0.9080459770114944,
+          "precision": 0.8315789473684211,
+          "recall": 1.0,
+          "support": 79
+        },
+        "total": 95
+      },
+      "predicted_class": "positive"
+    }
+  },
+  "corpus": {
+    "license": "CC-BY-3.0-US",
+    "name": "MASC 3.0.0 MPQA subjective polarity spans",
+    "test_spans": 95,
+    "train_spans": 376
+  },
+  "encoder": {
+    "dim": 768,
+    "id": "answerdotai/ModernBERT-base",
+    "manifest_sha256": "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8",
+    "revision": "1"
+  },
+  "legacy_all_minilm_l6_v2": {
+    "centroids": {
+      "accuracy": 0.8526315789473684,
+      "correct": 81,
+      "macro_f1": 0.7783333333333333,
+      "negative": {
+        "f1": 0.65,
+        "precision": 0.5416666666666666,
+        "recall": 0.8125,
+        "support": 16
+      },
+      "positive": {
+        "f1": 0.9066666666666667,
+        "precision": 0.9577464788732394,
+        "recall": 0.8607594936708861,
+        "support": 79
+      },
+      "total": 95
+    },
+    "classifier_head": {
+      "accuracy": 0.8842105263157894,
+      "correct": 84,
+      "macro_f1": 0.8225505179147563,
+      "negative": {
+        "f1": 0.717948717948718,
+        "precision": 0.6086956521739131,
+        "recall": 0.875,
+        "support": 16
+      },
+      "positive": {
+        "f1": 0.9271523178807947,
+        "precision": 0.9722222222222222,
+        "recall": 0.8860759493670886,
+        "support": 79
+      },
+      "total": 95
+    },
+    "encoder": {
+      "dim": 384,
+      "id": "sentence-transformers/all-MiniLM-L6-v2",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+      "revision": "1"
+    },
+    "polarity_hybrid": {
+      "head_weight": 0.9500000000000001,
+      "metrics": {
+        "accuracy": 0.9157894736842105,
+        "correct": 87,
+        "macro_f1": 0.8496835443037974,
+        "negative": {
+          "f1": 0.75,
+          "precision": 0.75,
+          "recall": 0.75,
+          "support": 16
+        },
+        "positive": {
+          "f1": 0.9493670886075949,
+          "precision": 0.9493670886075949,
+          "recall": 0.9493670886075949,
+          "support": 79
+        },
+        "total": 95
+      }
+    },
+    "polarity_vector_head_learned": {
+      "accuracy": 0.9157894736842105,
+      "correct": 87,
+      "macro_f1": 0.8496835443037974,
+      "negative": {
+        "f1": 0.75,
+        "precision": 0.75,
+        "recall": 0.75,
+        "support": 16
+      },
+      "positive": {
+        "f1": 0.9493670886075949,
+        "precision": 0.9493670886075949,
+        "recall": 0.9493670886075949,
+        "support": 79
+      },
+      "total": 95
+    }
+  },
+  "modernbert_base": {
+    "centroids": {
+      "accuracy": 0.6421052631578947,
+      "correct": 61,
+      "macro_f1": 0.5781086729362592,
+      "negative": {
+        "f1": 0.4137931034482759,
+        "precision": 0.2857142857142857,
+        "recall": 0.75,
+        "support": 16
+      },
+      "positive": {
+        "f1": 0.7424242424242424,
+        "precision": 0.9245283018867925,
+        "recall": 0.620253164556962,
+        "support": 79
+      },
+      "total": 95
+    },
+    "classifier_head": {
+      "accuracy": 0.7368421052631579,
+      "correct": 70,
+      "macro_f1": 0.646629965778902,
+      "negative": {
+        "f1": 0.4680851063829787,
+        "precision": 0.3548387096774194,
+        "recall": 0.6875,
+        "support": 16
+      },
+      "positive": {
+        "f1": 0.8251748251748252,
+        "precision": 0.921875,
+        "recall": 0.7468354430379747,
+        "support": 79
+      },
+      "total": 95
+    },
+    "polarity_hybrid": {
+      "head_weight": 0.05,
+      "metrics": {
+        "accuracy": 0.8842105263157894,
+        "correct": 84,
+        "macro_f1": 0.8154036389330506,
+        "negative": {
+          "f1": 0.7027027027027026,
+          "precision": 0.6190476190476191,
+          "recall": 0.8125,
+          "support": 16
+        },
+        "positive": {
+          "f1": 0.9281045751633986,
+          "precision": 0.9594594594594594,
+          "recall": 0.8987341772151899,
+          "support": 79
+        },
+        "total": 95
+      }
+    },
+    "polarity_vector_head_learned": {
+      "accuracy": 0.7684210526315789,
+      "correct": 73,
+      "macro_f1": 0.6844806763285025,
+      "negative": {
+        "f1": 0.5217391304347827,
+        "precision": 0.4,
+        "recall": 0.75,
+        "support": 16
+      },
+      "positive": {
+        "f1": 0.8472222222222223,
+        "precision": 0.9384615384615385,
+        "recall": 0.7721518987341772,
+        "support": 79
+      },
+      "total": 95
+    }
+  },
+  "paired_bootstrap": {
+    "modernbert_classifier_head_vs_majority": {
+      "accuracy": {
+        "baseline": 0.8315789473684211,
+        "candidate": 0.7368421052631579,
+        "ci95": [
+          -0.21052631578947367,
+          0.021052631578947323
+        ],
+        "diff": -0.09473684210526323,
+        "p_value_one_sided": 0.9594
+      },
+      "macro_f1": {
+        "baseline": 0.4540229885057472,
+        "candidate": 0.646629965778902,
+        "ci95": [
+          0.06588775074690567,
+          0.30676159352629945
+        ],
+        "diff": 0.1926069772731548,
+        "p_value_one_sided": 0.0009
+      },
+      "resamples": 10000
+    },
+    "modernbert_classifier_head_vs_minilm_classifier_head": {
+      "accuracy": {
+        "baseline": 0.8842105263157894,
+        "candidate": 0.7368421052631579,
+        "ci95": [
+          -0.2421052631578947,
+          -0.06315789473684208
+        ],
+        "diff": -0.1473684210526316,
+        "p_value_one_sided": 0.9998
+      },
+      "macro_f1": {
+        "baseline": 0.8225505179147563,
+        "candidate": 0.646629965778902,
+        "ci95": [
+          -0.28333776360092155,
+          -0.07431801549448602
+        ],
+        "diff": -0.17592055213585434,
+        "p_value_one_sided": 0.9999
+      },
+      "resamples": 10000
+    },
+    "modernbert_hybrid_vs_lexicon": {
+      "accuracy": {
+        "baseline": 0.9157894736842105,
+        "candidate": 0.8842105263157894,
+        "ci95": [
+          -0.10526315789473684,
+          0.04210526315789476
+        ],
+        "diff": -0.03157894736842104,
+        "p_value_one_sided": 0.8379
+      },
+      "macro_f1": {
+        "baseline": 0.8092369477911646,
+        "candidate": 0.8154036389330506,
+        "ci95": [
+          -0.12801634896837288,
+          0.1508378718056137
+        ],
+        "diff": 0.006166691141885949,
+        "p_value_one_sided": 0.4583
+      },
+      "resamples": 10000
+    },
+    "modernbert_hybrid_vs_majority": {
+      "accuracy": {
+        "baseline": 0.8315789473684211,
+        "candidate": 0.8842105263157894,
+        "ci95": [
+          -0.04210526315789476,
+          0.1473684210526316
+        ],
+        "diff": 0.05263157894736836,
+        "p_value_one_sided": 0.1632
+      },
+      "macro_f1": {
+        "baseline": 0.4540229885057472,
+        "candidate": 0.8154036389330506,
+        "ci95": [
+          0.23765523358959195,
+          0.46078680920866566
+        ],
+        "diff": 0.3613806504273034,
+        "p_value_one_sided": 0.0
+      },
+      "resamples": 10000
+    },
+    "modernbert_hybrid_vs_minilm_hybrid": {
+      "accuracy": {
+        "baseline": 0.9157894736842105,
+        "candidate": 0.8842105263157894,
+        "ci95": [
+          -0.10526315789473684,
+          0.03157894736842104
+        ],
+        "diff": -0.03157894736842104,
+        "p_value_one_sided": 0.8607
+      },
+      "macro_f1": {
+        "baseline": 0.8496835443037974,
+        "candidate": 0.8154036389330506,
+        "ci95": [
+          -0.1530433947772658,
+          0.0837709415661565
+        ],
+        "diff": -0.03427990537074688,
+        "p_value_one_sided": 0.7231
+      },
+      "resamples": 10000
+    },
+    "modernbert_polarity_head_vs_lexicon": {
+      "accuracy": {
+        "baseline": 0.9157894736842105,
+        "candidate": 0.7684210526315789,
+        "ci95": [
+          -0.2421052631578947,
+          -0.052631578947368474
+        ],
+        "diff": -0.1473684210526316,
+        "p_value_one_sided": 0.9993
+      },
+      "macro_f1": {
+        "baseline": 0.8092369477911646,
+        "candidate": 0.6844806763285025,
+        "ci95": [
+          -0.2775049473255339,
+          0.03480167810831436
+        ],
+        "diff": -0.1247562714626621,
+        "p_value_one_sided": 0.9394
+      },
+      "resamples": 10000
+    },
+    "modernbert_polarity_head_vs_majority": {
+      "accuracy": {
+        "baseline": 0.8315789473684211,
+        "candidate": 0.7684210526315789,
+        "ci95": [
+          -0.17894736842105263,
+          0.05263157894736836
+        ],
+        "diff": -0.06315789473684219,
+        "p_value_one_sided": 0.8894
+      },
+      "macro_f1": {
+        "baseline": 0.4540229885057472,
+        "candidate": 0.6844806763285025,
+        "ci95": [
+          0.10392396916483304,
+          0.34261255711278815
+        ],
+        "diff": 0.23045768782275533,
+        "p_value_one_sided": 0.0001
+      },
+      "resamples": 10000
+    },
+    "modernbert_polarity_head_vs_minilm_polarity_head": {
+      "accuracy": {
+        "baseline": 0.9157894736842105,
+        "candidate": 0.7684210526315789,
+        "ci95": [
+          -0.2421052631578947,
+          -0.06315789473684208
+        ],
+        "diff": -0.1473684210526316,
+        "p_value_one_sided": 0.9997
+      },
+      "macro_f1": {
+        "baseline": 0.8496835443037974,
+        "candidate": 0.6844806763285025,
+        "ci95": [
+          -0.29603871082700395,
+          -0.03423333157552433
+        ],
+        "diff": -0.16520286797529493,
+        "p_value_one_sided": 0.994
+      },
+      "resamples": 10000
+    }
+  },
+  "polarity_vector_head_artifact": {
+    "fit_config": {
+      "batch_size": 32,
+      "clip_norm": 5.0,
+      "epochs": 14,
+      "learning_rate": 0.01,
+      "seed": 5786927889631499353,
+      "warmup_steps": 2,
+      "weight_decay": 0.05
+    },
+    "format": "TPVH v1",
+    "id": "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1",
+    "sha256": "5fb54814d92530072e90fa9d0e701792a4cbb7487353ae1a3ddb4cb60b196909",
+    "sha512": "b6b8a45249342ecfe14ab9bbc19444eb8d655a4c0b2f74911457bd0dc5d8d5c18629c7a45c63f7387c7a217ea443975ef64700c208c4f99eb90a06304d54973e",
+    "size_bytes": 9349,
+    "trainer": "turbo-trainer (AdamW, linear::forward, linear::backward, xent::loss, Rng)"
+  }
+}

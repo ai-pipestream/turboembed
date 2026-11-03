@@ -32,29 +32,40 @@ impl ValueTest {
                 }) != *exclude
             }
             Self::Morph { values, relation } => {
-                let fields = features(text);
+                let has = |key: &str, value: &str| values.iter().any(|x| is_field(x, key, value));
                 match relation {
-                    SetRelation::Subset => fields.iter().all(|v| values.iter().any(|x| **x == *v)),
-                    SetRelation::Superset => values.iter().all(|v| fields.iter().any(|x| *x == **v)),
-                    SetRelation::Intersects => fields.iter().any(|v| values.iter().any(|x| **x == *v)),
+                    SetRelation::Subset => fields(text).all(|(k, v)| has(k, v)),
+                    SetRelation::Superset => values.iter().all(|x| fields(text).any(|(k, v)| is_field(x, k, v))),
+                    SetRelation::Intersects => fields(text).any(|(k, v)| has(k, v)),
                 }
             }
         }
     }
 }
 
+/// The individual features of a FEATS string, as key and value, in
+/// written order and with any repeats: `Number=Sing,Plur|Case=Nom` gives
+/// `Number=Sing`, `Number=Plur` and `Case=Nom`. A field without `=` is
+/// skipped, and `_` has none. The set is the same for a string and its
+/// canonical form ([`morph`]), so a set test can read either without
+/// allocating.
+fn fields(text: &str) -> impl Iterator<Item = (&str, &str)> {
+    let text = if text == "_" { "" } else { text };
+    text.split('|')
+        .filter_map(|field| field.split_once('='))
+        .flat_map(|(key, values)| values.split(',').map(move |value| (key, value)))
+}
+
+/// Whether `field` is `key=value`.
+fn is_field(field: &str, key: &str, value: &str) -> bool {
+    field.len() == key.len() + 1 + value.len()
+        && field.starts_with(key)
+        && field.as_bytes()[key.len()] == b'='
+        && field.ends_with(value)
+}
+
 fn features(text: &str) -> Vec<String> {
-    if text.is_empty() || text == "_" {
-        return Vec::new();
-    }
-    let mut result = Vec::new();
-    for field in text.split('|') {
-        if let Some((key, values)) = field.split_once('=') {
-            for value in values.split(',') {
-                result.push(format!("{key}={value}"));
-            }
-        }
-    }
+    let mut result: Vec<String> = fields(text).map(|(key, value)| format!("{key}={value}")).collect();
     result.sort_unstable();
     result.dedup();
     result
@@ -64,10 +75,11 @@ fn features(text: &str) -> Vec<String> {
 pub(crate) fn morph(text: &str) -> String {
     let fields = features(text);
     let mut out = String::new();
-    let mut last = "";
+    // `None` before the first field, so an empty key starts a field too.
+    let mut last = None;
     for field in &fields {
         let (key, value) = field.split_once('=').expect("constructed above");
-        if key == last {
+        if last == Some(key) {
             out.push(',');
             out.push_str(value);
         } else {
@@ -76,7 +88,7 @@ pub(crate) fn morph(text: &str) -> String {
             }
             out.push_str(field);
         }
-        last = key;
+        last = Some(key);
     }
     out
 }
@@ -109,4 +121,54 @@ fn within(text: &str, pattern: &str, max: usize) -> bool {
         std::mem::swap(&mut row, &mut prev);
     }
     prev[p.len()] <= max
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The set test as it was: on the features of the canonical string.
+    fn on_canonical(values: &[Box<str>], relation: SetRelation, text: &str) -> bool {
+        let fields = features(&morph(text));
+        match relation {
+            SetRelation::Subset => fields.iter().all(|v| values.iter().any(|x| **x == *v)),
+            SetRelation::Superset => values.iter().all(|v| fields.iter().any(|x| *x == **v)),
+            SetRelation::Intersects => fields.iter().any(|v| values.iter().any(|x| **x == *v)),
+        }
+    }
+
+    #[test]
+    fn set_tests_on_written_feats_match_the_canonical_form() {
+        // Every string of up to six symbols from an alphabet with the
+        // separators, `_`, empty values and repeated keys.
+        let alphabet = ["N=S", "N=P", "C=a", "|", ",", "=", "_", "S", "C", "a"];
+        let sets: [&[&str]; 5] = [&[], &["N=S"], &["N=S", "C=a"], &["N=P", "C="], &["C=a=S", "_"]];
+        let mut texts = vec![String::new()];
+        let mut frontier = vec![String::new()];
+        for _ in 0..4 {
+            let mut next = Vec::new();
+            for t in &frontier {
+                for a in alphabet {
+                    next.push(format!("{t}{a}"));
+                }
+            }
+            texts.extend(next.iter().cloned());
+            frontier = next;
+        }
+        // An empty key starts its own field in the canonical form.
+        assert_eq!(morph("=a|N=S"), "=a|N=S");
+        for set in sets {
+            let values: Box<[Box<str>]> = set.iter().map(|&v| v.into()).collect();
+            for relation in [SetRelation::Subset, SetRelation::Superset, SetRelation::Intersects] {
+                let test = ValueTest::Morph { values: values.clone(), relation };
+                for text in &texts {
+                    assert_eq!(
+                        test.holds(text),
+                        on_canonical(&values, relation, text),
+                        "{set:?} {relation:?} {text:?}"
+                    );
+                }
+            }
+        }
+    }
 }

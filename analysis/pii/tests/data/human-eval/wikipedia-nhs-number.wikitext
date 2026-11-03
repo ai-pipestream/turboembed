@@ -1,0 +1,79 @@
+{{Short description|Identification number for NHS users}}
+{{Use dmy dates|date=January 2015}}
+{{Use British English|date=January 2015}}
+'''NHS numbers''' are the unique numbers allocated in a shared numbering scheme to registered users of the three public health services in England, Wales and the Isle of Man. It is the key to the identification of patients, especially in delivering safe care across provider organisations, and is required in all new software deployed within these [[National Health Service]]s (NHS).<ref name=":0" />
+
+== History ==
+"New NHS numbers" were allocated to every newborn from July 1995,<ref name="NHS-wide-networking" /> generally introduced in 1996, and became mandatory on 1 April 1997.<ref name="cds-change" /> This replaced the previous system founded on wartime [[National Registration Act 1939|identity card]] numbers, which in [[England and Wales]] used letters and digits (e.g. JRDAN 269); Scotland used numbers based on households with individuals further identified within the household (e.g. STUV123:3), and this meant that it was hard to validate a specific number.<ref name="NHS-wide-networking" /> The numerical part of ID/NHS numbers allocated to people born after the [[World War II|Second World War]] in England and Wales matched the birth register entry number (i.e. a person whose birth was entry number xy would have an ID/NHS number in the format LLLLxy). Between 1969 and July 1995, the old-style NHS number was used on a baby's [[birth certificate]] as the reference number for the certificate.
+
+== Issue ==
+A person gets an NHS number at birth or when they first make contact with the NHS by registering with a [[General practitioner|GP]]. It comes from a record being made on the Personal Demographics Service, a national patient database.<ref name="staff guide" /> NHS Numbers are re-issued if a patient is adopted or undergoes gender re-assignment.
+
+==Format, number ranges, and check characters==
+The current system uses a ten-digit number in '3 3 4' format with the final digit being an error-detecting [[checksum]]. Examples given include <code>987 654 4321</code>.<ref name="number" />
+
+Currently issued numbers for England, Wales and the Isle of Man are from <code>400 000 000</code> to <code>499 999 999</code>, and <code>600 000 000</code> to <code>799 999 999</code>.<ref name="staff guide"/><ref name="number2"/> Current numbers in England also include <code>3xx xxx xxxx</code>.<ref>{{Cite web |date=17 January 2023 |title=Response to Freedom of Information request on the format of NHS numbers |url=https://webarchive.nationalarchives.gov.uk/ukgwa/20231221081503/https://digital.nhs.uk/about-nhs-digital/contact-us/freedom-of-information/freedom-of-information-disclosure-log/december-2022/nic-690159-k8h4z |access-date=2024-05-22 |via=[[The National Archives (United Kingdom)|The National Archives]] |publisher=[[NHS Digital]] }}</ref> Unavailable number ranges include <code>320 000 001</code> to <code>399 999 999</code> (allocated to the Northern Irish system)<ref>{{Cite web |title=Health and Care Number |url=https://www.datadictionary.nhs.uk/attributes/health_and_care_number.html |access-date=2022-04-28 |website=www.datadictionary.nhs.uk |language=en}}</ref> and <code>010 100 0000</code> to <code>311 299 9999</code> (used for CHI numbers in Scotland).<ref>{{cite web |title=Patient Identification and Demographic Information: Community Health Index (CHI) Number |publisher=[[Information Services Division|ISD Scotland]] |url=https://www.ndc.scot.nhs.uk/Data-Dictionary/SMR-Datasets//Patient-Identification-and-Demographic-Information/Community-Health-Index-Number/ |access-date=20 June 2021 }}</ref> [[NHS England]] reserves the numbers <code>999 000 0000</code> to <code>999 999 9999</code> for test purposes; these numbers are valid but are never going to be issued.<ref>{{cite web |title=Synthetic data in live environments |url=https://digital.nhs.uk/services/e-referral-service/document-library/synthetic-data-in-live-environments |access-date=14 July 2022 |publisher=[[NHS Digital]] }}</ref>
+
+The checksum is calculated by multiplying each of the first nine digits by 11 minus its position. Using the number <code>943 476 5919</code> as an example:
+* The first digit is 9. This is multiplied by 10.
+* The second digit is 4. This is multiplied by 9.
+* And so on until the ninth digit (1) is multiplied by 2.
+* The result of this calculation is summed. In this example: (9×10) + (4×9) + (3×8) + (4×7) + (7×6) + (6×5) + (5×4) + (9×3) + (1×2) = 299.
+* The remainder when dividing this number by 11 is calculated, yielding a number in the range 0–10, which would be 2 in this case.
+* Finally, this number is subtracted from 11 to give the checksum in the range 1–11, in this case 9, which becomes the last digit of the NHS number.
+* A checksum of 11 is represented by 0 in the final NHS number. If the checksum is 10 then the number is not valid.<ref name=":0">{{Cite web |url=https://www.closer.ac.uk/wp-content/uploads/CLOSER-NHS-ID-Resource-Report-Apr2018.pdf |title=NHS Number and the systems used to manage them: an overview for research users |last=Boyd |first=Andy |last2=Thomas |first2=Richard |date=April 2018 |publisher=[[University of Bristol]] |access-date=11 September 2019 |last3=Macleod |first3=John }}</ref>
+
+==Coordination with Scotland and Northern Ireland==
+Scotland's equivalent is called a [[Community Health Index (Scotland)|CHI number]]. A similar system is used in Northern Ireland. The three systems use the same format but with non-overlapping number blocks, as above, preventing the issue of the same number by more than one system.
+
+==See also==
+*[[NHS Connecting for Health]]
+*[[National Insurance number]]
+
+==References==
+{{reflist|colwidth=33em|refs=
+<ref name="number">{{Cite web
+  | url        = http://systems.digital.nhs.uk/nhsnumber/staff/history
+  | archive-url = http://webarchive.nationalarchives.gov.uk/20160921150847/http://systems.digital.nhs.uk/nhsnumber/staff/history
+  | url-status = dead
+  | archive-date = 2016-09-21
+  | title      = About the NHS number 
+  | accessdate = 2018-04-09
+  | publisher  = NHS Digital
+}}</ref>
+<ref name="number2">{{Cite web
+  | url        = https://digital.nhs.uk/article/301/NHS-Number
+  | title      = Systems: NHS Number
+  | accessdate = 8 December 2016
+  | publisher  = [[Health and Social Care Information Centre]]
+}}</ref>
+<ref name="staff guide">{{Cite web
+  | url        = http://www.connectingforhealth.nhs.uk/systemsandservices/nhsnumber/staff/guidance/factsheet.pdf
+  | title      = NHS Number: Your Unique Patient Identifier Fact Sheet for NHS Staff
+  | accessdate = 2012-11-27
+  | publisher  = NHS Connecting for Health
+  | archiveurl=http://webarchive.nationalarchives.gov.uk/20130502102046/http://www.connectingforhealth.nhs.uk/systemsandservices/nhsnumber/staff/guidance/factsheet.pdf
+  | archivedate=2 May 2013
+}}</ref>
+<ref name="NHS-wide-networking">{{cite web
+  | url        = http://www.bris.ac.uk/Depts/ObsGyn/it_med/nhsnet.htm
+  | title      = Application of Information Technology to Medicine: NHS-wide networking
+  | author     = Julian M. Jenkins
+  | year       = 1996
+  | publisher  = Department of [[Obstetrics & Gynaecology]], [[University of Bristol]]
+  | location   = [[St Michael's Hospital, Bristol|St. Michael's Hospital, Bristol]]
+  | accessdate = 2013-08-11
+}}</ref>
+<ref name="cds-change">{{cite web
+  | url        = http://www.bris.ac.uk/Depts/ObsGyn/it_med/nhsnet.htm
+  | title      = 08/2000 - Commissioning Data Sets (CDSs) i) Enhancement to functionality: HRGs and other changes ii) alignment with CMDSs
+  | format     = PDF
+  | date       = October 2000
+  | publisher  = Information Standards Board for Health and Social Care
+  | accessdate = 2013-08-11
+}}</ref>
+
+}}
+
+[[Category:National Health Service]]
+[[Category:National identification numbers]]

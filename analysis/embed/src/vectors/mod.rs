@@ -31,11 +31,18 @@ pub struct VectorOptions {
     /// inputs for per-token contextual vectors (`#709`). `0` selects the
     /// default half-window stride `(width / 2).max(1)`.
     pub stride: u32,
+    /// The width of the sentence, chunk and level vectors: `0` for the
+    /// model's dim, else a width the bundle declares in
+    /// `embed.output_dims` (Matryoshka). A vector is pooled at the model's
+    /// dim, cut to its first `output_dim` values, then normalized as the
+    /// bundle says, as the core's `turbo_embed_options.output_dim` does.
+    /// Per-token vectors (`SubwordVectors`) are never cut.
+    pub output_dim: u32,
 }
 
 impl Default for VectorOptions {
     fn default() -> Self {
-        VectorOptions { encoder: EncoderOptions::default(), prompt: PromptRole::Document, stride: 0 }
+        VectorOptions { encoder: EncoderOptions::default(), prompt: PromptRole::Document, stride: 0, output_dim: 0 }
     }
 }
 
@@ -86,6 +93,10 @@ pub struct VectorAnnotator {
     projection: Option<ProjectionHead>,
     model: ModelRef,
     execution: Execution,
+    /// The encoder's hidden width, which every pooling works at.
+    hidden: u32,
+    /// The width of the vectors written: `hidden`, or the declared
+    /// `output_dim` they are cut to.
     dim: u32,
     l2: bool,
     /// The template's leading special tokens, then the prompt's prefix.
@@ -185,6 +196,8 @@ impl VectorAnnotator {
             return Err(CoreError::new(INVALID_ARGUMENT, format!("stride {} exceeds window width {width}", o.stride)));
         }
         let stride = if o.stride == 0 { default_token_stride(width) } else { o.stride };
+        let declared = bundle.manifest.embed.as_ref().map_or(&[][..], |e| &e.output_dims[..]);
+        let out = output_dim(o.output_dim, info.dim, declared)?;
         let fill_id = tokenizer.fill_id();
         let state = State {
             plan: Plan::new(width),
@@ -208,7 +221,8 @@ impl VectorAnnotator {
             projection,
             model: crate::model_ref(&bundle),
             execution: info.execution,
-            dim: info.dim,
+            hidden: info.dim,
+            dim: out,
             l2: info.l2,
             head,
             tail,
@@ -223,10 +237,10 @@ impl VectorAnnotator {
     /// contextual vectors (`#709`).
     pub fn with_projection(mut self, projection: ProjectionHead) -> Result<Self, CoreError> {
         projection.validate()?;
-        if projection.hidden != self.dim as usize {
+        if projection.hidden != self.hidden as usize {
             return Err(CoreError::new(
                 INVALID_SHAPE,
-                format!("projection input width {} does not match encoder width {}", projection.hidden, self.dim),
+                format!("projection input width {} does not match encoder width {}", projection.hidden, self.hidden),
             ));
         }
         self.projection = Some(projection);
@@ -254,7 +268,12 @@ impl VectorAnnotator {
             Which::Chunks => 1,
             Which::Levels(_) => 2,
         };
-        config_hash(&[self.settings[0], self.settings[1], layout])
+        // A full-width vector keeps the hash it had before output_dim.
+        if self.dim == self.hidden {
+            config_hash(&[self.settings[0], self.settings[1], layout])
+        } else {
+            config_hash(&[self.settings[0], self.settings[1], layout, self.dim])
+        }
     }
 
     /// The configuration hash of per-token contextual vectors (`SubwordVectors`).
@@ -286,14 +305,21 @@ impl VectorAnnotator {
         &self.execution
     }
 
+    /// The width of the sentence, chunk and level vectors it writes: the
+    /// model's dim, or the `output_dim` it was opened with.
     pub fn dim(&self) -> u32 {
         self.dim
     }
 
+    /// The encoder's hidden width, before any cut.
+    pub fn hidden_dim(&self) -> u32 {
+        self.hidden
+    }
+
     /// Output width of per-token contextual vectors (`projection.dim` when
-    /// a projection head is present, else `self.dim()`).
+    /// a projection head is present, else `hidden_dim()`).
     pub fn token_dim(&self) -> u32 {
-        self.projection.as_ref().map_or(self.dim, |p| p.dim as u32)
+        self.projection.as_ref().map_or(self.hidden, |p| p.dim as u32)
     }
 
     /// Sliding-window stride (in subword pieces) for per-token contextual
@@ -339,6 +365,37 @@ impl VectorAnnotator {
     }
 }
 
+/// The width `asked` resolves to for a model of width `dim` declaring
+/// `declared`, refused as the core refuses `turbo_embed_options` field 6.
+fn output_dim(asked: u32, dim: u32, declared: &[u32]) -> Result<u32, CoreError> {
+    match asked {
+        0 => Ok(dim),
+        d if d > dim => Err(CoreError::new(INVALID_ARGUMENT, format!("output_dim {d} is over the model's dim {dim}"))),
+        d if d == dim || declared.contains(&d) => Ok(d),
+        d => Err(CoreError::new(
+            UNSUPPORTED_OPTION,
+            format!("output_dim {d}: the model was trained to be cut to {declared:?} besides its dim {dim}"),
+        )),
+    }
+}
+
+/// Rows of `dim` values in `data`, cut in place to their first `out`
+/// values, then normalized when `l2`.
+fn cut_and_normalize(data: &mut Vec<f32>, dim: usize, out: usize, l2: bool) {
+    if out < dim {
+        let rows = data.len() / dim;
+        for r in 1..rows {
+            data.copy_within(r * dim..r * dim + out, r * out);
+        }
+        data.truncate(rows * out);
+    }
+    if l2 {
+        for v in data.chunks_exact_mut(out) {
+            normalize(v);
+        }
+    }
+}
+
 /// The vector of item `t` in a document's output.
 fn row_of(o: &mut Output, t: Target, dim: usize) -> &mut [f32] {
     let data = match t.which {
@@ -368,9 +425,11 @@ fn config_hash(values: &[u32]) -> u64 {
     h.finish()
 }
 
+mod codes;
 mod execute;
 mod steps;
 mod tokens;
+pub use codes::{VectorCodesProvider, VectorCodesStep};
 pub use execute::{Planned, Shape};
 pub use steps::{ChunkVectors, Embedder, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
 pub use tokens::ContextualTokens;

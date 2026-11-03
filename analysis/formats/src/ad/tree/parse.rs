@@ -4,7 +4,7 @@ use super::{
     BIZARRE_TAG_SEPARATOR, BRACKET_CLOSE, BRACKET_OPEN, Element, GROUP_OPEN, LEVEL_MARK, Leaf, Scan, TAG_SEPARATOR,
     Tag, is_quote,
 };
-use crate::source::Piece;
+use crate::source::{Piece, utf16_len};
 
 /// The element of one tree line and its level, or `None` for a line that
 /// is no element (`SentenceParser.getElement`).
@@ -45,7 +45,7 @@ pub(crate) fn parse_line(line: Piece<'_>) -> Option<(u32, Element<'_>)> {
             return None;
         }
         // Java's level is the index after the last `=`, in UTF-16 units.
-        let level = turbo_jvm::chars::utf16_len(&text[..last]) as u32 + 2;
+        let level = utf16_len(&text[..last]) as u32 + 2;
         return Some((level, Element::Leaf(empty_tagged(lexeme, line))));
     }
     // "Couldn't parse leaf": the whole line is the lexeme.

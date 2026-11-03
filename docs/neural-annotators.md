@@ -1,9 +1,9 @@
 # Neural annotators on the embedder's runtime
 
 Two neural annotators were asked for in #391: zero-shot named entities
-with GLiNER, written as `opennlp:entities`, and sentence boundaries with
-SaT (Segment any Text, the `wtpsplit` package), written as
-`opennlp:sentences`. Both are encoders with a small head, and the
+with GLiNER, written to the `Entities` layer, and sentence boundaries with
+SaT (Segment any Text, the `wtpsplit` package), written to the
+`Sentences` layer. Both are encoders with a small head, and the
 question is whether they can run on turboembed's own runtime, with no
 ONNX Runtime and no new dependency, and whether they can share the
 embedding pass.
@@ -66,8 +66,10 @@ Face hub):
   keys ahead a layer), and a bundle carries that per-layer value as
   `architecture.lookahead` (docs/bundle.md); `turbo-bundle` seal holds a
   recipe's value to the upstream `config.json`. The CPU backend runs the
-  band; the other backends refuse such a model at load with
-  `TURBO_E_UNSUPPORTED`, naming the backend. They are trained on mC4
+  band; on the other backends the loader skips the artifact, so a load
+  there is `TURBO_E_BUNDLE_NO_ARTIFACT`, naming the backend, before any
+  weights are read, and `bundle/recipes/sat-3l.json` lists `cpu` alone.
+  They are trained on mC4
   alone, so they are permissive; `sat-3l` at
   `a3b7ba6b61881d619989757aea971cde7d3d6a98` is in the zoo index
   (`segment-any-text-sat-3l`, its PyTorch checkpoint and `config.json`).
@@ -86,7 +88,7 @@ Face hub):
 
 ### The step
 
-`SatAnnotator` reads a view and writes `opennlp:sentences`:
+`SatAnnotator` reads a view and writes `Sentences`:
 
 1. The view is tokenized whole with the bundle's tokenizer
    (`encode_spans`, no special tokens), keeping each token's span.
@@ -176,6 +178,18 @@ operands, the result depends on the backend:
 A failure at `fastest` is over the 1e-3 the test allows, which is left
 as it is; the parity holds at `model` and `exact` on every backend.
 
+`analysis/sat/tests/device.rs` holds the device to the CPU with the
+same bundle rather than to wtpsplit: every token's probability within
+1e-4 of the CPU's at f32 and 1e-2 at f16, runs packed to capacity
+read as each document alone, and (ignored except with `--ignored` on
+a Hailo host) a Hailo session refused with the range-pooling error.
+`TURBO_TEST_REQUIRE_CUDA=1`, `TURBO_TEST_REQUIRE_LEVELZERO=1` or
+`TURBO_TEST_REQUIRE_METAL=1` makes it fail when no device is named. It
+passes at every tier on CUDA, Level Zero and Metal, each with `sat-1l-sm`
+too; docs/receipts/sat-884.md has the figures and, for each of the
+three, the speed against the CPU. No device loads a model of limited
+lookahead, which the lookahead parity test checks there.
+
 On a released checkpoint, `sat-1l-sm` at revision
 `00a783439c201b20ee91ee1624dc817f1bf0e578` (one layer, width 768, the
 whole XLM-R vocabulary), the same checks pass. The bundle is sealed from
@@ -192,11 +206,11 @@ this is wtpsplit as it ships, read through `PreTrainedTokenizerFast`
 `TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
 the fixtures. On the 90 texts:
 
-| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | Characters near the threshold |
-|---|---|---|---|
-| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 0 |
-| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
-| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 0 |
+| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | On Level Zero (`model`) | Characters near the threshold |
+|---|---|---|---|---|
+| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 1.6e-4 | 0 |
+| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 4.2e-4 | 0 |
+| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 3.7e-4 | 0 |
 
 The fixtures' SHA-256s (kept outside the repository with the bundle):
 `t0.25-s64-b510.jsonl` `00e3acafbda76810e2cf496457082202f2ceddf095d963c0daa5bef338246f99`,
@@ -322,9 +336,9 @@ different machine from the 4-core rows above.
   must be established before this decision can change; local licence
   acceptance is insufficient. No entry or download receipt is created.
   `sat-12l-sm` and the other sizes have not been run here.
-- Limited lookahead on a device: every backend but the CPU refuses a
-  bundle with `architecture.lookahead` (`turbo::model::runs_band`), so
-  `sat-3l` runs on the CPU only.
+- Limited lookahead on a device: the loader skips the artifact of a
+  bundle with `architecture.lookahead` on every backend but the CPU
+  (`turbo::model::runs_band`), so `sat-3l` runs on the CPU only.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.
@@ -369,9 +383,10 @@ whole row through a DeBERTa-v3 encoder, and then:
   when the bundle is sealed.
 - **Words.** GLiNER splits the text into words with its own regular
   expression and scores word spans; the step would map them to
-  `opennlp:tokens` or keep its own word layer, with byte offsets.
+  `Tokens` or keep its own word layer, with byte offsets.
 
-No permissive GLiNER checkpoint avoids DeBERTa: `gliner_small-v2.1`
+No GLiNER checkpoint avoids DeBERTa (none is permissive since
+2026-10-28, docs/licences.md): `gliner_small-v2.1`
 uses `deberta-v3-small`, `gliner_multi-v2.1` `mdeberta-v3-base`,
 `gliner_small-v2.5` `deberta-v3-small`, and NuNER Zero
 `deberta-v3-large`. The bi-encoder `gliner-bi-small-v1.0` encodes the
@@ -391,8 +406,8 @@ DeBERTa.
 ## BiLSTM-CRF part-of-speech tagger
 
 `turbo-postag`'s BiLSTM-CRF tagger (`neural::BilstmPosTagger`, from
-`opennlp:tokens` to `opennlp:pos`) runs its LSTMs on the CPU backend's
-packed f32 GEMM (`turbo::cpu::Matrix`) by default, with the JVM's f64
+`Tokens` to `PosTags`) runs its LSTMs on the CPU backend's
+packed f32 GEMM (`turbo::cpu::Matrix`) by default, with f64
 numerics kept for the golden tests. Its goldens, accuracy and throughput
 are in `analysis/postag/README.md`, "BiLSTM-CRF on the CPU backend". It
 has only run on the CPU.

@@ -21,7 +21,6 @@
 
 use turbo_formats::TokenSample;
 use turbo_maxent::Dictionary;
-use turbo_tokenize::WhitespaceMode;
 use turbo_tokenize::me::alnum::{AlphaNumeric, language_pattern};
 use turbo_tokenize::me::{Features, UnitFacts, WhitespaceUnits, token_context};
 use turbo_train::{
@@ -126,7 +125,6 @@ pub struct TokSpanEventStream<'f> {
     alpha_numeric: &'f AlphaNumeric,
     skip_alpha_numerics: bool,
     dictionary: Option<&'f Dictionary>,
-    whitespace: WhitespaceMode,
     features: Features,
     scratch: String,
 }
@@ -134,15 +132,14 @@ pub struct TokSpanEventStream<'f> {
 impl<'f> TokSpanEventStream<'f> {
     /// The stream of `factory.isUseAlphaNumericOptimization()`,
     /// `factory.getAlphaNumericPattern()` and `factory.getContextGenerator()`,
-    /// with `whitespace` where the Java calls `StringUtil.isWhitespace`
-    /// (the whitespace tokenizer that cuts the units, and the `_ws`
-    /// feature).
-    pub fn new(factory: &'f TokenizerFactory, whitespace: WhitespaceMode) -> TokSpanEventStream<'f> {
+    /// with Unicode `White_Space` where the Java calls
+    /// `StringUtil.isWhitespace` (the whitespace tokenizer that cuts the
+    /// units, and the `_ws` feature).
+    pub fn new(factory: &'f TokenizerFactory) -> TokSpanEventStream<'f> {
         TokSpanEventStream {
             alpha_numeric: &factory.alpha_numeric,
             skip_alpha_numerics: factory.use_alpha_numeric_optimization,
             dictionary: factory.abbreviations().map(AbbreviationDictionary::lookup),
-            whitespace,
             features: Features::new(),
             scratch: String::new(),
         }
@@ -179,7 +176,7 @@ impl<'f> TokSpanEventStream<'f> {
         let start = first.start as usize;
         let sent = &text[start..last.end as usize];
         let mut last_training_token: Option<usize> = None;
-        for (unit_start, unit_end) in WhitespaceUnits::new(sent, self.whitespace, false) {
+        for (unit_start, unit_end) in WhitespaceUnits::new(sent, false) {
             let ctok = &sent[unit_start..unit_end];
             // The candidate's span in the text.
             let (c_start, c_end) = (unit_start + start, unit_end + start);
@@ -215,7 +212,7 @@ impl<'f> TokSpanEventStream<'f> {
                 // its character's first byte, and `t_end` is a character
                 // boundary.
                 while at.byte_offset() < t_end {
-                    token_context(&at, facts, self.whitespace, &mut self.features);
+                    token_context(&at, facts, &mut self.features);
                     out.push(Event::new(NO_SPLIT, java_strings(&self.features)));
                     at.step_forward();
                 }
@@ -225,7 +222,7 @@ impl<'f> TokSpanEventStream<'f> {
                     if at.byte_offset() != t_end || !at.char_start() {
                         at.seek_byte(t_end);
                     }
-                    token_context(&at, facts, self.whitespace, &mut self.features);
+                    token_context(&at, facts, &mut self.features);
                     out.push(Event::new(SPLIT, java_strings(&self.features)));
                 }
             }
@@ -249,12 +246,11 @@ fn java_strings(features: &Features) -> Vec<JavaString> {
 pub fn tok_events<'a, 's>(
     samples: impl IntoIterator<Item = &'s TokenSample<'a>>,
     factory: &TokenizerFactory,
-    whitespace: WhitespaceMode,
 ) -> Result<Vec<Event>>
 where
     'a: 's,
 {
-    let mut stream = TokSpanEventStream::new(factory, whitespace);
+    let mut stream = TokSpanEventStream::new(factory);
     let mut out = Vec::new();
     for sample in samples {
         stream.events(sample, &mut out)?;
@@ -305,13 +301,12 @@ pub fn train_tokenizer_model<'a, 's>(
     factory: &TokenizerFactory,
     params: &TrainingParameters,
     config: &mut TrainingConfiguration,
-    whitespace: WhitespaceMode,
     stamp: Stamp<'_>,
 ) -> Result<TrainedTokenizerModel>
 where
     'a: 's,
 {
-    let events = tok_events(samples, factory, whitespace)?;
+    let events = tok_events(samples, factory)?;
     train_tokenizer_model_from_events(&events, factory, params, config, stamp)
 }
 
@@ -335,7 +330,7 @@ mod tests {
     use turbo_formats::native::TokenReader;
 
     fn samples(text: &str) -> Vec<TokenSample<'_>> {
-        TokenReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect()
+        TokenReader::new(text).unwrap().map(|s| s.unwrap()).collect()
     }
 
     fn outcomes(events: &[Event]) -> String {
@@ -346,7 +341,7 @@ mod tests {
     fn positions_inside_tokens_do_not_split_and_token_ends_inside_a_unit_do() {
         let f = TokenizerFactory::new("en", None, false, None).unwrap();
         let s = samples("Hi<SPLIT>, you<SPLIT>.\n");
-        let events = tok_events(&s, &f, WhitespaceMode::Unicode).unwrap();
+        let events = tok_events(&s, &f).unwrap();
         // "Hi," gives F (inside Hi) and T (after Hi); "," at the unit's
         // end gives nothing. "you." gives F F T.
         assert_eq!(outcomes(&events), "FTFFT");
@@ -360,13 +355,13 @@ mod tests {
         let optimized = TokenizerFactory::new("en", None, true, None).unwrap();
         let s = samples("a bcd ef<SPLIT>1\n");
         // "a" is one code unit; "bcd" is inside one token; "ef1" splits.
-        assert_eq!(outcomes(&tok_events(&s, &plain, WhitespaceMode::Unicode).unwrap()), "FFFT");
+        assert_eq!(outcomes(&tok_events(&s, &plain).unwrap()), "FFFT");
         // With the optimization "ef1" is alphanumeric and is skipped too.
-        assert_eq!(outcomes(&tok_events(&s, &optimized, WhitespaceMode::Unicode).unwrap()), "");
+        assert_eq!(outcomes(&tok_events(&s, &optimized).unwrap()), "");
         // A single character outside the BMP is two code units: an event
         // between its halves.
         let s = samples("\u{1F600}\n");
-        let events = tok_events(&s, &plain, WhitespaceMode::Unicode).unwrap();
+        let events = tok_events(&s, &plain).unwrap();
         assert_eq!(outcomes(&events), "F");
         assert_eq!(events[0].context()[0].as_bytes(), b"p=\xED\xA0\xBD");
     }
@@ -376,7 +371,7 @@ mod tests {
         let d = AbbreviationDictionary::new(false, vec![vec!["Dr.".to_string()]]).unwrap();
         let f = TokenizerFactory::new("en", Some(d), false, None).unwrap();
         let s = samples("Dr<SPLIT>. Who\n");
-        let events = tok_events(&s, &f, WhitespaceMode::Unicode).unwrap();
+        let events = tok_events(&s, &f).unwrap();
         // "Dr.": F inside Dr, T after it; "Who": two F.
         assert_eq!(outcomes(&events), "FTFF");
         assert!(events[1].context().iter().any(|c| c.as_bytes() == b"pabb"));
@@ -409,7 +404,7 @@ mod tests {
         )
         .unwrap();
         let f = TokenizerFactory::new("en", None, false, None).unwrap();
-        let events = tok_events([&s], &f, WhitespaceMode::Unicode).unwrap();
+        let events = tok_events([&s], &f).unwrap();
         // "ab" is one token in one unit: one F. "c" and "d" find no token.
         assert_eq!(outcomes(&events), "F");
     }
@@ -432,7 +427,7 @@ mod tests {
         let s = TokenSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, turbo_analysis_span(0, 3))
             .unwrap();
         let f = TokenizerFactory::new("en", None, false, None).unwrap();
-        let events = tok_events([&s], &f, WhitespaceMode::Unicode).unwrap();
+        let events = tok_events([&s], &f).unwrap();
         assert_eq!(outcomes(&events), "TFTT");
         assert_eq!(events[0].context()[2].to_string_lossy(), "p1=bok");
         assert_eq!(events[3].context()[0].to_string_lossy(), "p=xy");
@@ -461,20 +456,14 @@ mod tests {
             let spans: Vec<_> = spans.iter().map(|&(a, b)| turbo_analysis_span(a, b)).collect();
             let all = turbo_analysis_span(0, text.len() as u32);
             let s = TokenSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, all).unwrap();
-            assert!(
-                matches!(
-                    tok_events([&s], &f, WhitespaceMode::Unicode),
-                    Err(crate::Error::TokensOutOfOrder { token: 1 })
-                ),
-                "{text}"
-            );
+            assert!(matches!(tok_events([&s], &f), Err(crate::Error::TokensOutOfOrder { token: 1 })), "{text}");
         }
         // In text order, the tokens of the same units give their events.
         let spans = vec![turbo_analysis_span(0, 2), turbo_analysis_span(3, 5), turbo_analysis_span(5, 7)];
         let all = turbo_analysis_span(0, 7);
         let s = TokenSample::new(std::borrow::Cow::Borrowed("xy abcd"), spans.clone(), spans, all).unwrap();
         // "xy": F; "abcd": F inside "ab", T after it, F inside "cd".
-        assert_eq!(outcomes(&tok_events([&s], &f, WhitespaceMode::Unicode).unwrap()), "FFTF");
+        assert_eq!(outcomes(&tok_events([&s], &f).unwrap()), "FFTF");
     }
 
     fn turbo_analysis_span(start: u32, end: u32) -> turbo_analysis::Span {

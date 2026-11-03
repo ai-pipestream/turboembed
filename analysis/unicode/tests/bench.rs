@@ -55,3 +55,42 @@ fn normalize_one_megabyte_of_mixed_text() {
     normalize(Form::Nfc, black_box(&ascii), &mut out);
     println!("Nfc, ASCII only: {:.3} ms per MB", start.elapsed().as_secs_f64() * 1000.0);
 }
+
+#[test]
+#[ignore]
+fn lowercase_ten_thousand_sigma_word_scales_linearly() {
+    use turbo_unicode::java::{lowercase_cow, to_lowercase};
+
+    let measure = |sigmas: usize| -> (f64, f64) {
+        let word = format!("\u{391}{}", "\u{345}\u{3A3}".repeat(sigmas));
+        let mut out = String::with_capacity(word.len());
+        let rounds = 50;
+        let start = Instant::now();
+        for _ in 0..rounds {
+            out.clear();
+            to_lowercase(black_box(&word), &mut out);
+            black_box(&out);
+        }
+        let to_lower_us = start.elapsed().as_secs_f64() * 1e6 / f64::from(rounds);
+
+        let start = Instant::now();
+        for _ in 0..rounds {
+            let cow = lowercase_cow(black_box(&word));
+            black_box(&cow);
+        }
+        let cow_us = start.elapsed().as_secs_f64() * 1e6 / f64::from(rounds);
+        (to_lower_us, cow_us)
+    };
+
+    let (t1k, c1k) = measure(1_000);
+    let (t10k, c10k) = measure(10_000);
+    let ratio_to_lower = t10k / t1k.max(1.0);
+    let ratio_cow = c10k / c1k.max(1.0);
+    println!(
+        "final-sigma word scaling: 1k sigmas = ({t1k:.1} us to_lowercase, {c1k:.1} us lowercase_cow), \
+         10k sigmas = ({t10k:.1} us to_lowercase, {c10k:.1} us lowercase_cow), \
+         10k/1k ratio = ({ratio_to_lower:.2}x, {ratio_cow:.2}x)"
+    );
+    assert!(ratio_to_lower < 25.0, "expected linear 10k/1k ratio for to_lowercase, got {ratio_to_lower:.2}x");
+    assert!(ratio_cow < 25.0, "expected linear 10k/1k ratio for lowercase_cow, got {ratio_cow:.2}x");
+}

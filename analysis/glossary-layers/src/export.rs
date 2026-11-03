@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::export::{
-    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, put_spans,
+    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, NodeRef, Reader, Writer, get_spans, put_spans,
 };
 use turbo_analysis::{Document, IxRange, Key, Layer};
 use turbo_analysis_layers::Tokens;
@@ -51,7 +51,7 @@ impl LayerCodec for GlossaryTerms {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
 
-        let target = LayerRef { layer: r.string()?, instance: r.string()? };
+        let target = r.layer_ref()?;
         // No key is stored for the tokens, so the document binds the
         // ranges through the default key and its provenance. The
         // payload must name exactly that instance, the empty name

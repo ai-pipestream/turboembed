@@ -9,7 +9,8 @@ mod fixture;
 
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Ix, IxRange, Key, Provenance, Span, Spans, Tag, ViewId};
-use turbo_analysis_layers::{Chunks, Cut, Entities, PosTags, Sentences, Tokens};
+use turbo_analysis_layers::{Chunks, Cut, Entities, LayoutBoxes, PosTags, Sentences, Tokens};
+use turbo_chunker::chunk_citations;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{
@@ -44,7 +45,7 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
             assert_eq!(layer.status, LayerWireStatus::Ok as i32, "layer {} status", layer.id);
         }
 
-        let ent_layer = typed.layers.iter().find(|l| l.id == "opennlp:entities").unwrap();
+        let ent_layer = typed.layers.iter().find(|l| l.id == "turbo:entities").unwrap();
         assert_eq!(ent_layer.annotations.len(), 2);
 
         let struct_layer = typed.layers.iter().find(|l| l.id == "turbo:structure").unwrap();
@@ -136,23 +137,36 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         },
         on_tok,
     );
+    let mut layout = LayoutBoxes::new(ViewId::SOURCE);
+    layout.push(cafe, 1, 10.0, 20.0, 80.0, 40.0);
+    layout.push(beijing, 2, 15.0, 30.0, 90.0, 50.0);
+    layout.push(price, 2, 15.0, 55.0, 100.0, 75.0);
+    add(&mut export_doc, layout.clone(), Provenance::by("test:layout"));
+
     let mut chunk_spans = Spans::<Chunks>::new(ViewId::SOURCE);
     chunk_spans.try_push_fragments(&[cafe]).unwrap();
     chunk_spans.try_push_fragments(&[beijing, price]).unwrap();
+    let chunks_layer = Chunks {
+        spans: chunk_spans,
+        level: vec![0, 0],
+        parent: vec![None, None],
+        sentences: vec![IxRange::new(0, 1), IxRange::new(0, 1)],
+        cut: vec![Cut::DocumentStart, Cut::Sentence],
+        cost: vec![0, 3],
+        model_tokens: vec![1, 2],
+        over_budget: vec![false, false],
+        prompt_overhead: 0,
+    };
+    let citations = chunk_citations(&chunks_layer, Some(&layout)).unwrap();
     add(
         &mut export_doc,
-        Chunks {
-            spans: chunk_spans,
-            level: vec![0, 0],
-            parent: vec![None, None],
-            sentences: vec![IxRange::new(0, 1), IxRange::new(0, 1)],
-            cut: vec![Cut::DocumentStart, Cut::Sentence],
-            cost: vec![0, 3],
-            model_tokens: vec![1, 2],
-            over_budget: vec![false, false],
-            prompt_overhead: 0,
-        },
+        chunks_layer,
         Provenance { reads: vec![Key::<Sentences>::DEFAULT.id()], ..Provenance::by("test:chunks") },
+    );
+    add(
+        &mut export_doc,
+        citations,
+        Provenance { on: vec![Key::<Chunks>::DEFAULT.id()], ..Provenance::by("test:citations") },
     );
     let graph_bytes = export(&export_doc, codecs()).unwrap().to_bytes().unwrap();
 
@@ -167,32 +181,41 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         .unwrap()
         .into_inner();
     assert_eq!(inspected.raw_text, TEXT);
-    assert!(inspected.layers.iter().any(|l| l.id == "opennlp:entities"));
+    assert!(inspected.layers.iter().any(|l| l.id == "turbo:entities"));
     assert!(inspected.layers.iter().any(|l| l.id == "turbo:chunks"));
+    assert!(inspected.layers.iter().any(|l| l.id == "turbo:layout-boxes"));
+    assert!(inspected.layers.iter().any(|l| l.id == "turbo:chunk-citations"));
+    let chunk_layer = inspected.layers.iter().find(|l| l.id == "turbo:chunks").unwrap();
+    let Some(Value::Chunk(c1)) = &chunk_layer.annotations[1].value else {
+        panic!("expected Chunk value");
+    };
+    assert_eq!((c1.page_start, c1.page_end), (Some(2), Some(2)));
+    assert_eq!(c1.page_boxes.len(), 1);
+    assert_eq!((c1.page_boxes[0].page, c1.page_boxes[0].x0, c1.page_boxes[0].y1), (2, 15.0, 75.0));
 
     let echoed = client.round_trip_typed_document(inspected.clone()).await.unwrap().into_inner();
     assert_eq!(echoed, inspected);
 
     let mut bad_surrogate = inspected.clone();
-    let tok_layer = bad_surrogate.layers.iter_mut().find(|l| l.id == "opennlp:tokens").unwrap();
+    let tok_layer = bad_surrogate.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap();
     tok_layer.annotations[0].spans[0].start = java_utf16(byte_span("\u{1f600}").start) + 1;
     let err = client.round_trip_typed_document(bad_surrogate).await.unwrap_err();
     assert_eq!(err.code(), tonic::Code::InvalidArgument, "{err}");
 
     let mut bad_inverted = inspected.clone();
-    let tok_layer = bad_inverted.layers.iter_mut().find(|l| l.id == "opennlp:tokens").unwrap();
+    let tok_layer = bad_inverted.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap();
     tok_layer.annotations[0].spans[0] = SpanFragment { start: 4, end: 2 };
     let err = round_trip_typed_document(&bad_inverted).unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
 
     let mut bad_prob = inspected.clone();
-    let pos_layer = bad_prob.layers.iter_mut().find(|l| l.id == "opennlp:pos").unwrap();
+    let pos_layer = bad_prob.layers.iter_mut().find(|l| l.id == "turbo:pos").unwrap();
     pos_layer.annotations[0].probability = Some(1.5);
     let err = round_trip_typed_document(&bad_prob).unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
 
     let mut bad_ix = inspected.clone();
-    let ent_layer = bad_ix.layers.iter_mut().find(|l| l.id == "opennlp:entities").unwrap();
+    let ent_layer = bad_ix.layers.iter_mut().find(|l| l.id == "turbo:entities").unwrap();
     if let Some(Value::Entity(ref mut e)) = ent_layer.annotations[0].value {
         e.token_end = 99;
     }
@@ -221,7 +244,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
 
     // Out-of-bounds indexes_layer bound must be refused.
     let mut bad_bound = inspected.clone();
-    let ent_layer = bad_bound.layers.iter_mut().find(|l| l.id == "opennlp:entities").unwrap();
+    let ent_layer = bad_bound.layers.iter_mut().find(|l| l.id == "turbo:entities").unwrap();
     ent_layer.indexes_layer[0].bound = 999;
     let err = client.round_trip_typed_document(bad_bound).await.unwrap_err();
     assert_eq!(err.code(), tonic::Code::InvalidArgument, "{err}");
@@ -335,7 +358,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         assert_eq!(m.epistemic, "hedged");
         assert_eq!(m.deontic, "prohibition");
 
-        let gold_ent = typed.layers.iter().find(|l| l.id == "opennlp:entities" && l.instance == "gold").unwrap();
+        let gold_ent = typed.layers.iter().find(|l| l.id == "turbo:entities" && l.instance == "gold").unwrap();
         let Some(Value::Entity(ge)) = &gold_ent.annotations[0].value else {
             panic!("expected Entity value");
         };
@@ -356,19 +379,19 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
 
     // Missing default index target is not replaced by named instance ("gold").
     let mut missing_default_tok = base.clone();
-    missing_default_tok.layers.retain(|l| !(l.id == "opennlp:tokens" && l.instance.is_empty()));
+    missing_default_tok.layers.retain(|l| !(l.id == "turbo:tokens" && l.instance.is_empty()));
     assert!(round_trip_typed_document(&missing_default_tok).is_err());
 
-    // Missing aligned anchor (opennlp:tokens@absent) is refused.
+    // Missing aligned anchor (turbo:tokens@absent) is refused.
     let mut missing_anchor = base.clone();
     missing_anchor.layers.push(TypedLayer {
-        id: "opennlp:pos".into(),
+        id: "turbo:pos".into(),
         instance: String::new(),
         status: LayerWireStatus::Ok as i32,
         status_detail: String::new(),
         scope: AnchorKind::Aligned as i32,
         model_refs: Vec::new(),
-        anchor_layer: Some("opennlp:tokens@absent".into()),
+        anchor_layer: Some("turbo:tokens@absent".into()),
         annotations: Vec::new(),
         indexes_layer: Vec::new(),
     });
@@ -377,13 +400,13 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
     // Aligned POS annotation with out-of-range target_index (99) is refused.
     let mut bad_aligned_idx = base;
     bad_aligned_idx.layers.push(TypedLayer {
-        id: "opennlp:pos".into(),
+        id: "turbo:pos".into(),
         instance: "gold".into(),
         status: LayerWireStatus::Ok as i32,
         status_detail: String::new(),
         scope: AnchorKind::Aligned as i32,
         model_refs: Vec::new(),
-        anchor_layer: Some("opennlp:tokens@gold".into()),
+        anchor_layer: Some("turbo:tokens@gold".into()),
         annotations: (0..3)
             .map(|i| TypedAnnotation {
                 spans: vec![SpanFragment { start: i * 2, end: i * 2 + 1 }],

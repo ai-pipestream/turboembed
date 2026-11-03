@@ -1,0 +1,6 @@
+23	47	email	format	customer.one@example.com
+55	71	phone	format	+442079460000
+78	97	card	checksum	4111111111111111
+104	131	iban	checksum	GB82WEST12345698765432
+119	131	phone	format	5698765432
+136	147	ipv4	format	203.0.113.9

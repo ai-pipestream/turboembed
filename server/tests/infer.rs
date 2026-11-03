@@ -118,12 +118,19 @@ async fn sequential_calls_do_not_wait_for_delayed_acks() {
     for _ in 0..5 {
         embed(&mut c, texts(&["warm up"])).await;
     }
-    let start = std::time::Instant::now();
+    // The median call, not the total: a delayed ACK puts about 40 ms on
+    // every call, while load on a shared runner stretches a few calls. A
+    // 3 s total let a handful of preempted calls fail a healthy server.
+    let mut calls = Vec::with_capacity(100);
     for _ in 0..100 {
+        let start = std::time::Instant::now();
         assert_eq!(embed(&mut c, texts(&["hello world"])).await.len(), 1);
+        calls.push(start.elapsed());
     }
-    let took = start.elapsed();
-    assert!(took < std::time::Duration::from_secs(3), "100 sequential ModelInfer calls took {took:?}");
+    calls.sort_unstable();
+    let median = calls[calls.len() / 2];
+    eprintln!("median ModelInfer call {median:?}, slowest {:?}", calls[calls.len() - 1]);
+    assert!(median < std::time::Duration::from_millis(25), "median ModelInfer call took {median:?}");
     s.stop().await;
 }
 

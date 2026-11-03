@@ -1,0 +1,14 @@
+MASKED	Pay ******************5432 and ***********************2606.
+
+MASK_ALL	Pay ###################### and ###########################.
+
+REWRITE	pseudonymize	OK	Pay IBAN-1 and IBAN-2.
+
+LABEL	pseudonymize	4	26	4	10	IBAN-1
+LABEL	pseudonymize	31	58	15	21	IBAN-2
+REWRITE	hmac	OK	Pay IBAN-dabbf6affb27d778 and IBAN-043bb8a7bce20495.
+
+LABEL	hmac	4	26	4	25	IBAN-dabbf6affb27d778
+LABEL	hmac	31	58	30	51	IBAN-043bb8a7bce20495
+AUDIT	iban	2	2	IBAN-dabbf6affb27d778, IBAN-043bb8a7bce20495
+AUDIT_REPORT	iban: 2 mentions, 2 distinct [IBAN-dabbf6affb27d778, IBAN-043bb8a7bce20495]

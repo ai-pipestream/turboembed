@@ -118,8 +118,6 @@ fn overlay(base: &[u8], over: &[u8]) -> Vec<u8> {
 /// outputs mean nothing; it runs every path the checkpoint runs.
 #[allow(dead_code)]
 pub fn offline(limits: Limits) -> Gliner2Extractor {
-    let extra = std::fs::read(format!("{FIXTURES}/extra.safetensors")).unwrap();
-    let bytes = overlay(&std::fs::read(RELATION).unwrap(), &extra);
     let config = Config {
         hidden: 32,
         intermediate: 48,
@@ -131,8 +129,21 @@ pub fn offline(limits: Limits) -> Gliner2Extractor {
         max_relative_positions: 32,
         layer_norm_eps: 1e-7,
     };
-    let canonical = turbo_bundle::deberta::convert(&config, &bytes, "encoder.").unwrap();
-    let encoder = Encoder::from_safetensors(config, &canonical).unwrap();
+    let canonical = turbo_bundle::deberta::convert(&config, &reduced(), "encoder.").unwrap();
+    on(Encoder::from_safetensors(config, &canonical).unwrap(), limits)
+}
+
+/// The reduced checkpoint with the classifier laid over it.
+fn reduced() -> Vec<u8> {
+    let extra = std::fs::read(format!("{FIXTURES}/extra.safetensors")).unwrap();
+    overlay(&std::fs::read(RELATION).unwrap(), &extra)
+}
+
+/// The reduced model's heads, classifier and tokenizer over another
+/// encoder of width 32 (tests/device.rs), its special tokens 790 to 796.
+#[allow(dead_code)]
+pub fn on(encoder: impl Into<turbo_relation::encoder::DebertaEncoder>, limits: Limits) -> Gliner2Extractor {
+    let bytes = reduced();
     let file = File::parse("reduced", &bytes).unwrap();
     let heads = Heads::load(&file, 32, 8).unwrap();
     let classifier = Classifier::load(&file, 32).unwrap();
@@ -140,4 +151,52 @@ pub fn offline(limits: Limits) -> Gliner2Extractor {
     let specials = Specials { sep_struct: 790, sep_text: 791, p: 792, c: 793, e: 794, l: 795, description: 796 };
     let model = ModelRef { id: "reduced".into(), revision: "sliced".into(), sha256: "none".into() };
     Gliner2Extractor::new(encoder, heads, classifier, tokenizer, specials, model, limits).unwrap()
+}
+
+/// Each pass's decisions: every span query's best span and every
+/// classification's best label, one row each.
+#[allow(dead_code)]
+pub fn rows(p: &turbo_schema_extract::model::Pass) -> Vec<Vec<f32>> {
+    let size = p.prompt().token_first.len() * p.width();
+    p.scores()
+        .iter()
+        .flat_map(|s| match s {
+            turbo_schema_extract::model::Scores::Labels(v) => vec![v.clone()],
+            turbo_schema_extract::model::Scores::Spans { logits, .. } => {
+                logits.chunks(size.max(1)).map(<[f32]>::to_vec).collect()
+            }
+        })
+        .collect()
+}
+
+/// An extraction's decisions, without its scores: each entity type's spans,
+/// each classification's labels and each record's field values.
+#[allow(dead_code)]
+pub fn picked(e: &turbo_schema_extract::Extraction) -> String {
+    use turbo_schema_extract::decode::FieldValue;
+    let spans: Vec<Vec<(usize, usize)>> =
+        e.entities.iter().map(|v| v.iter().map(|s| (s.start, s.end)).collect()).collect();
+    let labels: Vec<(usize, Vec<usize>)> =
+        e.classifications.iter().map(|c| (c.task, c.labels.iter().map(|l| l.0).collect())).collect();
+    type Fields = Vec<Vec<(usize, usize)>>;
+    let records: Vec<(usize, usize, Fields)> = e
+        .records
+        .iter()
+        .map(|r| {
+            let f = r
+                .fields
+                .iter()
+                .map(|vs| {
+                    vs.iter()
+                        .map(|v| match v {
+                            FieldValue::Span(s) => (s.start, s.end),
+                            FieldValue::Choice { choice, .. } => (usize::MAX, *choice),
+                        })
+                        .collect()
+                })
+                .collect();
+            (r.structure, r.instance, f)
+        })
+        .collect();
+    format!("{spans:?} {labels:?} {records:?}")
 }

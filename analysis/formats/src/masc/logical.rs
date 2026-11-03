@@ -18,13 +18,13 @@
 
 use std::collections::HashMap;
 
+use crate::xml::{Attribute, Handler};
 use turbo_analysis::{Ix, Layer, Spans, ViewId};
 use turbo_analysis_layers::{Block, Structure};
-use turbo_maxent::xml::{Attribute, Handler};
 
 use super::document::{MascDocument, attr, bad, parse_id, read_xml, valid_span};
 use super::error::{AnnotationFile, MascError};
-use super::java::{parse_int, split_on_spaces};
+use super::text::{parse_int, split_on_spaces};
 
 /// One labelled stretch of the logical markup: a node's region, in
 /// UTF-16 units of the text, with the node's id and its label as the
@@ -69,7 +69,7 @@ struct LogicalFile {
 }
 
 impl Handler for LogicalFile {
-    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> turbo_maxent::Result<()> {
+    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         match name {
             "region" => {
                 let id = attr(a, "xml:id").ok_or(bad(at, "a region has no id"))?;
@@ -132,7 +132,7 @@ impl Handler for LogicalFile {
         Ok(())
     }
 
-    fn end_element(&mut self, name: &str, _: usize) -> turbo_maxent::Result<()> {
+    fn end_element(&mut self, name: &str, _: usize) -> crate::xml::Result<()> {
         if name == "node" {
             self.open.pop();
         }

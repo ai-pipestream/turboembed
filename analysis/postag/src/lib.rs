@@ -7,16 +7,15 @@
 //! the beam-sized cache), the tag dictionary as the sequence validator,
 //! the beam size from the manifest and the tag format mapper.
 //! [`PosTagger`] runs the beam search over the tokens of each sentence
-//! and is the annotator that reads `opennlp:tokens` and writes
-//! `opennlp:pos`: a tag and its probability per token, with the tag set
+//! and is the annotator that reads `turbo:tokens` and writes
+//! `turbo:pos`: a tag and its probability per token, with the tag set
 //! the tags are in. The beam search, the feature generators, the tag
 //! dictionary and the Penn Treebank and Universal Dependencies mapping are
 //! `turbo-sequence`'s, whose documentation lists the OpenNLP behaviour
 //! they reproduce that is surprising.
 //!
-//! The tags are the JVM's and the probabilities are the JVM's doubles,
-//! bit for bit; the tests compare both with files the JVM wrote
-//! (`analysis/goldens/data/postag`, see `README.md` here).
+//! The classical maxent tagger's golden files are retired under #1646
+//! (see `README.md` here).
 //!
 //! # Where OpenNLP's behaviour is surprising
 //!

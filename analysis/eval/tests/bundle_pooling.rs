@@ -53,6 +53,6 @@ fn the_harness_embeds_as_the_bundle_s_reference_does() {
         return;
     };
     for d in dirs.split(',').filter(|d| !d.is_empty()) {
-        check(Path::new(d));
+        check(&turbo_pins::require(d));
     }
 }

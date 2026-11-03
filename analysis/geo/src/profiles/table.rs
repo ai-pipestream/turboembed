@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use super::error::ProfileError;
-use crate::text::{BYTE_ORDER_MARK, Lines, trim};
+use crate::text::{BYTE_ORDER_MARK, Lines, parse_decimal, trim};
 
 /// A byte range of the text a table keeps its names in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -272,18 +272,13 @@ pub(crate) fn read(bytes: &[u8]) -> Result<RawTable, ProfileError> {
     Ok(RawTable { names, metrics, rows, values })
 }
 
-/// `PlaceProfiles.metricValue`: a finite double. The value is already
-/// trimmed of Unicode `White_Space`. A last character `f`, `F`, `d` or `D`
-/// or an `x` or `X` anywhere is refused before parsing; what remains is
-/// read by `Double.parseDouble`, which trims the characters up to U+0020
-/// itself. So a suffix followed by a control character such as U+0001 is
-/// accepted, as it is by OpenNLP.
+/// A metric value: a finite decimal number ([`parse_decimal`]). The value
+/// is already trimmed of Unicode `White_Space`; anything else around the
+/// number, a type suffix, `NaN`, `Infinity` or a hexadecimal literal is
+/// malformed, and a decimal past the range of an `f64` is non-finite.
 fn metric_value(value: &str, line: usize) -> Result<f64, ProfileError> {
     let malformed = || ProfileError::MalformedValue { line, value: value.to_owned() };
-    if value.ends_with(['f', 'F', 'd', 'D']) || value.contains(['x', 'X']) {
-        return Err(malformed());
-    }
-    let parsed = turbo_jvm::text::parse_double(value).map_err(|_| malformed())?;
+    let parsed = parse_decimal(value).ok_or_else(malformed)?;
     if !parsed.is_finite() {
         return Err(ProfileError::NonFiniteValue { line, value: value.to_owned() });
     }
@@ -333,14 +328,17 @@ mod tests {
         assert_eq!(error(b"id\tm\na\t0x10\n"), "malformed value in row 2: 0x10");
         assert_eq!(error(b"id\tm\na\t1.5f\n"), "malformed value in row 2: 1.5f");
         assert_eq!(error(b"id\tm\na\t1,5\n"), "malformed value in row 2: 1,5");
-        assert_eq!(error(b"id\tm\na\tNaN\n"), "non-finite value in row 2: NaN");
+        assert_eq!(error(b"id\tm\na\tNaN\n"), "malformed value in row 2: NaN");
+        assert_eq!(error(b"id\tm\na\t-Infinity\n"), "malformed value in row 2: -Infinity");
         assert_eq!(error(b"id\tm\na\t1e400\n"), "non-finite value in row 2: 1e400");
     }
 
     #[test]
-    fn a_suffix_before_a_control_character_is_read() {
-        let t = read("id\tm\na\t1.5d\u{1}\nb\t\u{1F}+.5e1\n".as_bytes()).unwrap();
-        assert_eq!(t.values, [1.5, 5.0]);
+    fn a_value_is_a_decimal_and_nothing_else() {
+        let t = read("id\tm\na\t+.5e1\nb\t-2.\n".as_bytes()).unwrap();
+        assert_eq!(t.values, [5.0, -2.0]);
+        assert_eq!(error("id\tm\na\t1.5d\u{1}\n".as_bytes()), "malformed value in row 2: 1.5d\u{1}");
+        assert_eq!(error("id\tm\na\t\u{1F}1\n".as_bytes()), "malformed value in row 2: \u{1F}1");
     }
 
     #[test]

@@ -66,7 +66,7 @@ pub(crate) fn pack_windows(
     if starts.is_empty() {
         return Ok(Vec::new());
     }
-    let ec = model.encoder.config();
+    let ec = model.encoder_config();
     let mut packer = Packer::new(&model.tokenizer);
     let prefix = packer.prefix(model.config(), ec.max_sequence, schema)?;
     let mut current = prefix.clone();

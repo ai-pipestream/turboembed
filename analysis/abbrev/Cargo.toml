@@ -17,4 +17,4 @@ turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 # SHA-256, to check the MED1250 gold file the evaluation example reads.
-turbo-goldens = { path = "../goldens" }
+turbo-sha256 = { path = "../sha256" }

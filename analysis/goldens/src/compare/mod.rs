@@ -133,7 +133,7 @@ pub struct Shape {
 }
 
 /// The golden shape of `L`. The id is the layer's own name as
-/// `turbo_analysis::LayerName` prints it (`turbo:confidence<opennlp:tokens>`
+/// `turbo_analysis::LayerName` prints it (`turbo:confidence<turbo:tokens>`
 /// for a generic layer), and so is an aligned anchor's.
 pub fn shape_of<L: GoldenCompare>() -> Shape {
     Shape { id: L::NAME.to_string(), anchor: L::golden_anchor(), columns: L::COLUMNS }
@@ -349,27 +349,27 @@ mod tests {
     fn shapes_use_the_layers_own_names() {
         use turbo_analysis_layers::{Confidence, PosTags, Tokens};
         let c = shape_of::<Confidence<Tokens>>();
-        assert_eq!(c.id, "turbo:confidence<opennlp:tokens>");
-        assert_eq!(c.anchor, GoldenAnchor::Aligned("opennlp:tokens".into()));
-        assert_eq!(shape_of::<PosTags>().anchor, GoldenAnchor::Aligned("opennlp:tokens".into()));
+        assert_eq!(c.id, "turbo:confidence<turbo:tokens>");
+        assert_eq!(c.anchor, GoldenAnchor::Aligned("turbo:tokens".into()));
+        assert_eq!(shape_of::<PosTags>().anchor, GoldenAnchor::Aligned("turbo:tokens".into()));
         let ids: Vec<String> = known_shapes().into_iter().map(|s| s.id).collect();
         assert_eq!(
             ids,
             [
-                "opennlp:sentences",
-                "turbo:confidence<opennlp:sentences>",
-                "turbo:utf16<opennlp:sentences>",
-                "opennlp:tokens",
-                "turbo:confidence<opennlp:tokens>",
-                "turbo:utf16<opennlp:tokens>",
-                "opennlp:pos",
-                "opennlp:lemmas",
-                "turbo:confidence<opennlp:lemmas>",
-                "opennlp:entities",
-                "opennlp:chunk-tags",
-                "opennlp:chunks",
-                "turbo:utf16<opennlp:chunks>",
-                "opennlp:language",
+                "turbo:sentences",
+                "turbo:confidence<turbo:sentences>",
+                "turbo:utf16<turbo:sentences>",
+                "turbo:tokens",
+                "turbo:confidence<turbo:tokens>",
+                "turbo:utf16<turbo:tokens>",
+                "turbo:pos",
+                "turbo:lemmas",
+                "turbo:confidence<turbo:lemmas>",
+                "turbo:entities",
+                "turbo:chunk-tags",
+                "turbo:phrase-chunks",
+                "turbo:utf16<turbo:phrase-chunks>",
+                "turbo:language",
                 "turbo:categories",
                 "turbo:numbers",
                 "turbo:money",
@@ -381,7 +381,7 @@ mod tests {
                 "turbo:aspects",
                 "turbo:incivility",
                 "turbo:pragmatics",
-                "opennlp:subwords",
+                "turbo:subwords",
                 "turbo:view"
             ]
         );

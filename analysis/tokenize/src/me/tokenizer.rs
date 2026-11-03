@@ -84,7 +84,7 @@ impl TokenizerMe {
     pub fn tokenize_with(&self, text: &str, scratch: &mut Scratch, out: &mut Vec<(Span, f64)>) {
         let maxent = self.model.maxent();
         scratch.probs.resize(maxent.num_outcomes(), 0.0);
-        let units = WhitespaceUnits::new(text, self.options.whitespace, self.options.keep_newlines);
+        let units = WhitespaceUnits::new(text, self.options.keep_newlines);
         for (start, end) in units {
             let unit = &text[start..end];
             if fewer_than_two_units(unit) || self.model.alphanumeric().is_some_and(|a| a.test(unit)) {
@@ -110,7 +110,7 @@ impl TokenizerMe {
         let mut at = Utf16Cursor::new(unit);
         at.step_forward();
         while !at.at_end() {
-            token_context(&at, facts, self.options.whitespace, features);
+            token_context(&at, facts, features);
             maxent.eval_features(features.iter(), probs);
             let outcome = self.model.outcome(best_outcome(probs));
             prob *= probs[outcome.index];
@@ -169,21 +169,6 @@ fn span(start: usize, end: usize) -> Span {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::me::context::AffixLimits;
-    use turbo_unicode::WhitespaceMode;
-
-    /// The tokenizer over the published English model, or `None` when it
-    /// is not downloaded.
-    fn english() -> Option<TokenizerMe> {
-        let path = turbo_goldens::published_model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin")?;
-        Some(TokenizerMe::new(TokenizerModel::read(path).unwrap(), TokenizerOptions::default()))
-    }
-
-    fn tokens(t: &TokenizerMe, text: &str) -> Vec<(String, f64)> {
-        let mut out = Vec::new();
-        t.tokenize(text, &mut out);
-        out.iter().map(|(s, p)| (text[s.range()].to_string(), *p)).collect()
-    }
 
     #[test]
     fn short_units() {
@@ -193,156 +178,5 @@ mod tests {
         assert!(!fewer_than_two_units("\u{1f600}"), "a pair is two code units");
         assert!(!fewer_than_two_units("ab"));
         assert!(!fewer_than_two_units("a\u{e9}"));
-    }
-
-    #[test]
-    fn splits_and_probabilities() {
-        // What TokenizerME.tokenizePos and probs() returned on the JVM for
-        // this text with the English model (the same values
-        // tests/me_pipeline.rs checks per sentence).
-        let Some(t) = english() else { return };
-        let text = "The cat sat. It's 5 o'clock, isn't it?";
-        let mut got = Vec::new();
-        t.tokenize(text, &mut got);
-        let got: Vec<((u32, u32), f64)> = got.iter().map(|(s, p)| ((s.start, s.end), *p)).collect();
-        assert_eq!(
-            got,
-            [
-                ((0, 3), 0.9999123302765786),
-                ((4, 7), 0.9998775446210091),
-                ((8, 11), 0.9764420535542908),
-                ((11, 12), 1.0),
-                ((13, 17), 0.998677134411433),
-                ((18, 19), 1.0),
-                ((20, 27), 0.9895741126332173),
-                ((27, 28), 1.0),
-                ((29, 34), 0.9964921186776551),
-                ((35, 37), 0.993784172275783),
-                ((37, 38), 1.0),
-            ]
-        );
-    }
-
-    #[test]
-    fn an_abbreviation_jump_does_not_start_a_token_inside_a_pair() {
-        // Java gives (0,5) and (4,5) in UTF-16 offsets: the unit, then the
-        // low half after the jump. Here the low half has no token, and `at`
-        // stays synchronized with `start` at the end of the supplementary char.
-        let unit = "\u{1f600}.\u{1f600}";
-        let unit_with_suffix = "\u{1f600}.\u{1f600}a";
-        let xml = format!(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"><entry><token>{unit}</token></entry><entry><token>{unit_with_suffix}</token></entry></dictionary>"
-        );
-        let dictionary = turbo_maxent::Dictionary::read(xml.as_bytes()).unwrap();
-        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../goldens/data/fixtures/tokenizer-abbreviations.bin");
-        let base_model = TokenizerModel::read(&fixture).unwrap();
-        let without_dict = TokenizerMe::new(base_model.clone().with_abbreviations(None), TokenizerOptions::default());
-        assert!(tokens(&without_dict, unit).len() > 1);
-        let t = TokenizerMe::new(base_model.with_abbreviations(Some(dictionary)), TokenizerOptions::default());
-        let got = tokens(&t, unit);
-        assert_eq!(got.len(), 1);
-        assert_eq!(got[0].0, unit);
-
-        // When a suffix follows the supplementary char that the abbreviation
-        // jump lands inside, the cursor resumes at `start` (byte 9) without
-        // multiplying in the low-surrogate decision before byte 9.
-        let mut spans = Vec::new();
-        t.tokenize(unit_with_suffix, &mut spans);
-        assert_eq!(spans.len(), 2);
-        assert_eq!(spans[0].0, Span::new(0, 10));
-        assert_eq!(spans[1].0, Span::new(9, 10));
-        assert_eq!(spans[1].1.to_bits(), 0.9018922705167963_f64.to_bits());
-    }
-
-    /// A unit with no whitespace in it, 6000 bytes long, that the model
-    /// splits in many places.
-    fn long_unit() -> String {
-        "Mr.Smith's(cat)\u{e9}t\u{e9},3.5%\u{1f600}isn't-it?\"x\"".repeat(150)
-    }
-
-    #[test]
-    fn affix_limits_change_no_token_and_no_probability() {
-        let Some(t) = english() else { return };
-        let unlimited =
-            TokenizerMe::new(t.model.clone().with_affix_limits(AffixLimits::UNLIMITED), TokenizerOptions::default());
-        let text = format!("{} and {}", long_unit(), long_unit());
-        let mut got = Vec::new();
-        t.tokenize(&text, &mut got);
-        let mut want = Vec::new();
-        unlimited.tokenize(&text, &mut want);
-        assert!(want.len() > 1000);
-        assert_eq!(got.len(), want.len());
-        for (&(s, p), &(w, q)) in got.iter().zip(&want) {
-            assert_eq!(s, w);
-            assert_eq!(p.to_bits(), q.to_bits(), "at {}..{}", s.start, s.end);
-        }
-    }
-
-    #[test]
-    fn a_long_unit_builds_features_in_linear_space() {
-        // The bytes of features built over every position of the unit:
-        // without limits the prefix and suffix make that the unit's length
-        // squared, with the model's limits a bounded amount per position.
-        let Some(t) = english() else { return };
-        let limits = t.model.affix_limits();
-        let unit = long_unit();
-        let built = |affixes: AffixLimits| {
-            let facts = UnitFacts::of(&unit, false).with_affix_limits(affixes);
-            let mut features = Features::new();
-            let mut at = Utf16Cursor::new(&unit);
-            at.step_forward();
-            let (mut positions, mut bytes) = (0, 0);
-            while !at.at_end() {
-                token_context(&at, facts, WhitespaceMode::Unicode, &mut features);
-                bytes += features.iter().map(<[u8]>::len).sum::<usize>();
-                positions += 1;
-                at.step_forward();
-            }
-            (positions, bytes)
-        };
-        let (positions, unlimited) = built(AffixLimits::UNLIMITED);
-        let (_, limited) = built(limits);
-        assert!(unlimited > positions * unit.len() / 2);
-        // Twelve other features of at most ten bytes each.
-        assert!(limited <= positions * (limits.prefix + limits.suffix + 120), "{limited} bytes");
-    }
-
-    #[test]
-    fn options_change_the_units() {
-        let Some(t) = english() else { return };
-        let model = t.model;
-        let legacy = TokenizerMe::new(
-            model.clone(),
-            TokenizerOptions { whitespace: WhitespaceMode::Legacy, ..Default::default() },
-        );
-        let unicode = TokenizerMe::new(model.clone(), TokenizerOptions::default());
-        // U+001F separates only in the legacy mode.
-        assert_eq!(tokens(&legacy, "a\u{1f}b").len(), 2);
-        assert_eq!(tokens(&unicode, "a\u{1f}b").len(), 1);
-        let keep = TokenizerMe::new(model, TokenizerOptions { keep_newlines: true, ..Default::default() });
-        assert_eq!(tokens(&keep, "a\nb"), [("a".into(), 1.0), ("\n".into(), 1.0), ("b".into(), 1.0)]);
-        assert_ne!(TokenizerOptions::default().config_hash(), keep.options().config_hash());
-    }
-
-    #[test]
-    fn the_alphanumeric_optimization_skips_the_model() {
-        // With the optimization on, "ab12" is a token of probability 1
-        // without consulting the model; with it off the model decides.
-        let Some(t) = english() else { return };
-        let off = tokens(&t, "ab12");
-        assert_eq!(off.len(), 1);
-        assert!(off[0].1 < 1.0);
-        let on = TokenizerMe::new(
-            t.model.clone().with_alphanumeric_optimization(Some("^[a-z0-9]+$")).unwrap(),
-            TokenizerOptions::default(),
-        );
-        assert_eq!(tokens(&on, "ab12"), [("ab12".into(), 1.0)]);
-        // A unit outside the pattern still goes to the model, which splits
-        // it as it does without the optimization.
-        assert_eq!(tokens(&on, "Ab12"), tokens(&t, "Ab12"));
-        assert!(tokens(&on, "Ab12").iter().all(|&(_, p)| p < 1.0));
-        let off_again = on.model.clone().with_alphanumeric_optimization(None).unwrap();
-        assert!(off_again.alphanumeric().is_none());
     }
 }

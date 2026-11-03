@@ -14,7 +14,7 @@ use super::{
 };
 use crate::error::FormatError;
 
-const REQUIRED_LAYERS: &[&str] = &["opennlp:tokens"];
+const REQUIRED_LAYERS: &[&str] = &["turbo:tokens"];
 
 /// Universal Dependencies v2 10-column CoNLL-U exporter.
 ///
@@ -50,7 +50,7 @@ impl DocumentFormatter for ConlluFormatter {
         offsets: ExportOffsetMode,
         out: &mut dyn Write,
     ) -> Result<(), FormatExportError> {
-        let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("opennlp:tokens"))?;
+        let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("turbo:tokens"))?;
         let tok_key = Key::<Tokens>::DEFAULT.id();
         let tok_len = tokens.spans.len();
         let explicit_words = get_bound_layer::<Words>(doc, tok_key, None)?;

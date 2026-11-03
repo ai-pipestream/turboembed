@@ -1,0 +1,173 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-26T19:13:04Z",
+  "machine": {
+    "arch": "m2",
+    "host_cpu": "Apple M2",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "metal",
+    "kind": "DEVICE_IGPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "macOS 27.0.1 (26A434)",
+    "runtime_version": "Metal, macOS SDK 27.0",
+    "memory_total": 19069665280
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 metal cpu",
+    "commit": "3484a9d48f34fb719f1760a91cccd44389093efc",
+    "pushed_to": [
+      "origin/fable/978-mlx-metal-reference"
+    ],
+    "settings": [
+      "TURBO_METAL_TUNED=default",
+      "TURBO_METAL_CHOICES=linear=auto;attn=auto;forced="
+    ]
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_F16",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "3c305237a79d0b4bcae9513683b2373c84190d8a2d96941aacb25e035c30b9ea",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 32,
+    "seq": 256,
+    "live_tokens": 8192,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "0c85ff407a58448a04661fa81fda7ae4e5ff72e378e19e3bbcafe070f9fdfcc3"
+  },
+  "timing": {
+    "warmup": 5,
+    "iterations": 50,
+    "p50_ms": 98.739667,
+    "p99_ms": 101.56991599999999,
+    "mean_ms": 98.9564192,
+    "min_ms": 97.59120899999999,
+    "max_ms": 101.56991599999999,
+    "rows_per_second": 323.3739244928625,
+    "computed_tokens": 8192
+  },
+  "conformance": {
+    "rows": 41,
+    "min_cosine": 0.9999995917466737,
+    "max_abs_diff": 0.0001329481601715088
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "text-embeddings-router@sha256:dd35cccb8a3c34a69e822498a30f24e166d83190fc3983537a6aaf070aa4e2c4",
+      "version": "1.8.3 (float16)",
+      "commands": [
+        [
+          "<tei-bin>",
+          "--model-id",
+          "<tei-model>",
+          "--hostname",
+          "127.0.0.1",
+          "--port",
+          "58486",
+          "--dtype",
+          "float16",
+          "--pooling",
+          "mean",
+          "--max-client-batch-size",
+          "32",
+          "--max-batch-tokens",
+          "16384"
+        ]
+      ],
+      "procedure": "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the batch's 32 rows as token ids, 5 untimed then 50 timed, each timed from sending the request to reading the whole response, the p50 and p99 of TEI's x-total-time, x-tokenization-time, x-queue-time, x-inference-time headers beside it, and TEI's /metrics read before and after the timed requests for its te_batch_next_size and te_batch_next_tokens histograms; min_cosine is against the bundle's reference vectors; TEI's router built natively and run on this machine, not in a container; round trip (measured) p50 1109.852 ms, p99 1202.664 ms; TEI's own headers, whole ms, over the same requests: x-total-time p50 1108 p99 1199, x-tokenization-time p50 2 p99 16, x-queue-time p50 208 p99 327, x-inference-time p50 697 p99 1153; TEI's /metrics over the timed requests: 1600 inputs in 50 requests, 146 backend batches (te_batch_next_size's 260 samples less the 114 empty polls te_batch_next_tokens shows), 2.92 batches per request, mean batch size 10.96 inputs (batches by size, 1: 23, 2: 16, 3 to 4: 18, 5 to 8: 24, 9 to 16: 18, 17 to 32: 47); the tool ran unpinned; TEI ran unpinned with the image's thread settings: OMP_NUM_THREADS=unset, MKL_NUM_THREADS=unset, RAYON_NUM_THREADS=unset",
+      "measured": {
+        "iterations": 50,
+        "p50_ms": 1109.851583,
+        "p99_ms": 1202.6643749999998,
+        "rows_per_second": 28.79195925479743,
+        "min_cosine": 0.9999971501776729,
+        "computed_tokens": 8192
+      },
+      "not_run": null
+    },
+    {
+      "name": "mlx",
+      "role": "kernel",
+      "pinned": "mlx@sha256:2ea1232407a42823ff3b562514e07a4c551cedbae195d7d0db3dc07ee1890b32",
+      "version": "0.29.3",
+      "commands": [
+        [
+          "python3",
+          "-E",
+          "<mlx-reference>",
+          "--model",
+          "<mlx-model>",
+          "--dtype",
+          "float16",
+          "--rows",
+          "<work>/rows.json",
+          "--warmup",
+          "5",
+          "--iterations",
+          "50",
+          "--version",
+          "0.29.3",
+          "--out",
+          "<work>/receipt.json"
+        ]
+      ],
+      "procedure": "MLX 0.29.3 on the machine's Python, the BERT encoder of bench/reference/mlx_reference.py with every weight cast to float16, mx.compile, mean pooling and L2 in F32, on the same token rows as a padded batch; untimed runs, then 50 timed as host wall time, each waited for with mx.eval, the rows already on the device and the vectors not read back: min 102.9470 ms, mean 104.8950 ms. min_cosine is against each row's expected vector. Host load averages before the runs 2.95 3.35 4.87. SHA-256 of lib/libmlx.dylib (the pin) 2ea1232407a42823ff3b562514e07a4c551cedbae195d7d0db3dc07ee1890b32, lib/mlx.metallib 516d89e779bd310bcf289d5ae6611577fa267e5a953d6aa2845ba3a4136c3913, mlx.core fa640ea6383907b9a464436036e3ae9b5206a75a848443a8fa0e10a800beb01f; runner 083669b6ab9dc360e95d55824de9a9fedf37392eb27a7d0ea5ce82ce05b840ba",
+      "measured": {
+        "iterations": 50,
+        "p50_ms": 104.84183300000005,
+        "p99_ms": 107.64679199999993,
+        "rows_per_second": 305.2216761605073,
+        "min_cosine": 0.9999991311877711,
+        "computed_tokens": 8192
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 0.9417964582896977,
+  "speed_reference": "mlx"
+}

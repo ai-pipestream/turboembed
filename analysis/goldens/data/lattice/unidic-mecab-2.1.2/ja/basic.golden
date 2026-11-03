@@ -6,7 +6,7 @@ unicode	15.0
 input	ja/basic	86	30	4a7338584cf0f898f2ec8847e6cbdcd4786c838e09c801fcd8b27af87fe32929
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	18	start:u32	end:u32
+layer	turbo:tokens	text	18	start:u32	end:u32
 0	6
 6	9
 9	12
@@ -25,8 +25,8 @@ layer	opennlp:tokens	text	18	start:u32	end:u32
 70	76
 76	82
 82	85
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	18	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	18	unknown:u32	features:str
 0	名詞,固有名詞,地名,一般,*,*,トウキョウ,トウキョウ,東京,トーキョー,東京,トーキョー,固,*,*,*,*
 0	名詞,普通名詞,一般,*,*,*,ト,都,都,ト,都,ト,漢,*,*,*,*
 0	助詞,格助詞,*,*,*,*,ニ,に,に,ニ,に,ニ,和,*,*,*,*

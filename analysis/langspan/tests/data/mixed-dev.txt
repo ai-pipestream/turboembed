@@ -3,8 +3,8 @@
 #
 # Format: a line "## <id>" starts a document; its text is the following
 # lines up to the next "## " line or the end, with the last line break
-# dropped. "[xxx]" starts a span of language xxx (ISO 639-3, the codes
-# of langdetect-183.bin) at that point; the marker is not part of the
+# dropped. "[xxx]" starts a span of language xxx (ISO 639-3) at that
+# point; the marker is not part of the
 # text. Every document starts with a marker. Lines starting with "#"
 # and one space are comments.
 

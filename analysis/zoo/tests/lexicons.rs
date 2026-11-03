@@ -1,4 +1,4 @@
-//! The frequency lexicons in the built-in index, and the misspelling set
+//! The frequency lexicons in the built-in index, and the misspelling sets
 //! spell correction is measured on (#935).
 
 use turbo_zoo::{Format, Index, Kind, Licence, LicenceClass, Policy};
@@ -59,4 +59,26 @@ fn the_symspell_noisy_queries_are_pinned_and_permissive() {
     );
     assert!(a.attribution.as_deref().unwrap().contains(revision));
     assert!(a.licences_to_accept(Policy::default()).is_empty());
+}
+
+#[test]
+fn the_codespell_misspellings_are_pinned_and_share_alike() {
+    let index = Index::builtin();
+    let a = index.get("codespell-dictionary-en").unwrap();
+    assert_eq!(
+        (a.kind, a.format, a.license, a.class),
+        (Kind::Dataset, Format::Text, Licence::CcBySa30, LicenceClass::ShareAlike)
+    );
+    let revision = "f185580744421e1d44e30ce795bc27f9f0ad5584";
+    assert_eq!(a.version, revision);
+    assert_eq!(
+        a.files[0].url.as_str(),
+        format!(
+            "https://raw.githubusercontent.com/codespell-project/codespell/{revision}/codespell_lib/data/dictionary.txt"
+        )
+    );
+    let notice = a.attribution.as_deref().unwrap();
+    assert!(notice.contains(revision) && notice.contains("Wikipedia") && notice.contains("CC BY-SA 3.0"));
+    // Fetched only after the user accepts CC BY-SA 3.0.
+    assert_eq!(a.licences_to_accept(Policy::default()), [turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap()]);
 }

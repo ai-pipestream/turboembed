@@ -19,6 +19,7 @@
  */
 
 #include "kernels.h"
+#include "rotary.h"
 
 #include <turbo/turbo.h>
 
@@ -505,6 +506,8 @@ __global__ void __launch_bounds__(ROW_BLOCK)
         layer_norm_regs(v, hidden, ln_w, ln_b, eps, row, row16);
     }
 }
+
+#include "rotary.cuh"
 
 /* A thread per column of the pooled vector, a block per row. */
 constexpr int POOL_BLOCK = 384;
@@ -1139,25 +1142,50 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
 #pragma unroll
         for (int j = 0; j < 8; j++) {
             const int c = n0 + tx + TX * j;
-            col[j] = EPI == EPI_QKV && c < N ? qkv_column(g, c) : 0;
+            col[j] = qkv_epilogue_of(EPI) && c < N ? qkv_column(g, c) : 0;
         }
+        if constexpr (EPI == EPI_QKV_ROPE || gated_epilogue_of(EPI)) {
+            // A pair's columns are lanes tx and tx ^ 1 of one row (TX is
+            // even): each lane takes its partner's sum by a shuffle, which
+            // every lane runs before any is left out.
 #pragma unroll
-        for (int i = 0; i < TM; i++) {
-            const int t = m0 + ty + TY * i;
-            if (t >= M) continue;
+            for (int i = 0; i < TM; i++) {
+                const int t = m0 + ty + TY * i;
 #pragma unroll
-            for (int j = 0; j < 8; j++) {
-                const int c = n0 + tx + TX * j;
-                if (c >= N) continue;
-                if constexpr (EPI == EPI_QKV)
-                    put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, acc[i][j] + g.bias[c]);
-                else if constexpr (gelu_epilogue_of(EPI))
-                    put(out_at<TOut>(g, t, c), gelu_for<EPI, TOut>(acc[i][j] + g.bias[c]));
-                else if constexpr (EPI == EPI_ADD_LN) {
-                    float *o = out_at<float>(g, t, c);
-                    *o = *o + (acc[i][j] + g.bias[c]);
-                } else
-                    put(out_at<TOut>(g, t, c), acc[i][j]);
+                for (int j = 0; j < 8; j++) {
+                    const int c = n0 + tx + TX * j;
+                    const float v = acc[i][j] + (c < N ? g.bias[c] : 0.0f);
+                    const float other = __shfl_xor_sync(0xffffffffu, v, 1);
+                    if (t >= M || c >= N) continue;
+                    const bool even = (c & 1) == 0;
+                    if constexpr (EPI == EPI_QKV_ROPE) {
+                        float x1 = even ? v : other, x2 = even ? other : v;
+                        rope_pair(g, t, c & ~1, x1, x2);
+                        put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, even ? x1 : x2);
+                    } else if (even) {
+                        put(static_cast<TOut *>(g.out) + (size_t)t * (N / 2) + c / 2, gated_of<EPI, TOut>(v, other));
+                    }
+                }
+            }
+        } else {
+#pragma unroll
+            for (int i = 0; i < TM; i++) {
+                const int t = m0 + ty + TY * i;
+                if (t >= M) continue;
+#pragma unroll
+                for (int j = 0; j < 8; j++) {
+                    const int c = n0 + tx + TX * j;
+                    if (c >= N) continue;
+                    if constexpr (EPI == EPI_QKV)
+                        put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, acc[i][j] + g.bias[c]);
+                    else if constexpr (gelu_epilogue_of(EPI))
+                        put(out_at<TOut>(g, t, c), gelu_for<EPI, TOut>(acc[i][j] + g.bias[c]));
+                    else if constexpr (EPI == EPI_ADD_LN) {
+                        float *o = out_at<float>(g, t, c);
+                        *o = *o + (acc[i][j] + g.bias[c]);
+                    } else
+                        put(out_at<TOut>(g, t, c), acc[i][j]);
+                }
             }
         }
         if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
@@ -1332,7 +1360,7 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
         // stored 16 bytes at a time where the run is whole and its four
         // outputs are contiguous (N, or for QKV the head width, a multiple
         // of four), else one at a time.
-        const bool wide = EPI == EPI_QKV ? g.head_dim % 4 == 0 : N % 4 == 0;
+        const bool wide = qkv_epilogue_of(EPI) ? g.head_dim % 4 == 0 : N % 4 == 0;
 #pragma unroll
         for (int h = 0; h < 2; h++) {
             const int c = n0 + bn + 32 * h;
@@ -1342,7 +1370,7 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
             if constexpr (EPI != EPI_PLAIN)
 #pragma unroll
                 for (int u = 0; u < 4; u++) bias[u] = c + u < N ? g.bias[c + u] : 0.0f;
-            const size_t qcol = EPI == EPI_QKV ? qkv_column(g, c) : 0;
+            const size_t qcol = qkv_epilogue_of(EPI) ? qkv_column(g, c) : 0;
 #pragma unroll
             for (int i = 0; i < 8; i++) {
                 const int t = m0 + am + (i & 3) + 16 * (i >> 2);
@@ -1356,9 +1384,20 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
                 if constexpr (EPI == EPI_PLAIN)
 #pragma unroll
                     for (int u = 0; u < 4; u++) v[u] = acc[i][4 * h + u];
+                // c is a multiple of four: two whole pairs (N is even).
+                if constexpr (EPI == EPI_QKV_ROPE) {
+                    rope_pair(g, t, c, v[0], v[1]);
+                    if (c + 2 < N) rope_pair(g, t, c + 2, v[2], v[3]);
+                }
+                if constexpr (gated_epilogue_of(EPI)) {
+                    TOut *o = static_cast<TOut *>(g.out) + (size_t)t * (N / 2) + c / 2;
+                    put(o, gated_of<EPI, TOut>(v[0], v[1]));
+                    if (c + 2 < N) put(o + 1, gated_of<EPI, TOut>(v[2], v[3]));
+                    continue;
+                }
                 if (whole) {
-                    float *o = EPI == EPI_QKV ? reinterpret_cast<float *>(g.out) + qcol + (size_t)t * g.head_dim
-                                              : reinterpret_cast<float *>(g.out) + (size_t)t * N + c;
+                    float *o = qkv_epilogue_of(EPI) ? reinterpret_cast<float *>(g.out) + qcol + (size_t)t * g.head_dim
+                                                    : reinterpret_cast<float *>(g.out) + (size_t)t * N + c;
                     float4 q = make_float4(v[0], v[1], v[2], v[3]);
                     if constexpr (EPI == EPI_ADD_LN) {
                         const float4 r = *reinterpret_cast<const float4 *>(o);
@@ -1370,7 +1409,7 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
 #pragma unroll
                 for (int u = 0; u < 4; u++) {
                     if (c + u >= N) break;
-                    if constexpr (EPI == EPI_QKV)
+                    if constexpr (qkv_epilogue_of(EPI))
                         put(static_cast<TOut *>(g.out) + qkv_column(g, c + u) + (size_t)t * g.head_dim, v[u]);
                     else if constexpr (EPI == EPI_ADD_LN) {
                         float *o = out_at<float>(g, t, c + u);
@@ -1620,29 +1659,47 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
                         v0 = gelu_for<EPI, TOut>(v0);
                         v1 = gelu_for<EPI, TOut>(v1);
                     }
-                    put2(Cs + r * OLD + c, v0, v1);
+                    if constexpr (EPI == EPI_QKV_ROPE)
+                        if (m0 + r < M && n0 + c < N) rope_pair(g, m0 + r, n0 + c, v0, v1);
+                    // A gated product's pair is one output, in a tile
+                    // half as wide.
+                    if constexpr (gated_epilogue_of(EPI))
+                        put(Cs + r * OLD + c / 2, gated_of<EPI, TOut>(v0, v1));
+                    else
+                        put2(Cs + r * OLD + c, v0, v1);
                 }
         }
         __syncthreads();
-        // Out, 16 bytes at a time.
-        for (int i = threadIdx.x; i < BM * (BN / E); i += NT) {
-            const int r = i / (BN / E), cc = (i % (BN / E)) * E, t = m0 + r, c = n0 + cc;
-            if (t >= M || c >= N) continue;
-            const uint4 v = *reinterpret_cast<const uint4 *>(Cs + r * OLD + cc);
-            if constexpr (EPI == EPI_QKV) {
-                TOut *o = static_cast<TOut *>(g.out) + (size_t)t * g.head_dim;
-                if (g.head_dim % E == 0) {
-                    *reinterpret_cast<uint4 *>(o + qkv_column(g, c)) = v;
+        if constexpr (gated_epilogue_of(EPI)) {
+            constexpr int HB = BN / 2;
+            const int hn = N / 2;
+            for (int i = threadIdx.x; i < BM * (HB / E); i += NT) {
+                const int r = i / (HB / E), cc = (i % (HB / E)) * E, t = m0 + r, c = n0 / 2 + cc;
+                if (t >= M || c >= hn) continue;
+                *reinterpret_cast<uint4 *>(static_cast<TOut *>(g.out) + (size_t)t * hn + c) =
+                    *reinterpret_cast<const uint4 *>(Cs + r * OLD + cc);
+            }
+        } else {
+            // Out, 16 bytes at a time.
+            for (int i = threadIdx.x; i < BM * (BN / E); i += NT) {
+                const int r = i / (BN / E), cc = (i % (BN / E)) * E, t = m0 + r, c = n0 + cc;
+                if (t >= M || c >= N) continue;
+                const uint4 v = *reinterpret_cast<const uint4 *>(Cs + r * OLD + cc);
+                if constexpr (qkv_epilogue_of(EPI)) {
+                    TOut *o = static_cast<TOut *>(g.out) + (size_t)t * g.head_dim;
+                    if (g.head_dim % E == 0) {
+                        *reinterpret_cast<uint4 *>(o + qkv_column(g, c)) = v;
+                    } else {
+                        const TOut *e = reinterpret_cast<const TOut *>(&v);
+                        for (int u = 0; u < E; u++) o[qkv_column(g, c + u)] = e[u];
+                    }
+                } else if constexpr (EPI == EPI_ADD_LN) {
+                    float4 *o = reinterpret_cast<float4 *>(out_at<float>(g, t, c));
+                    const float4 p = *reinterpret_cast<const float4 *>(&v), r = *o;
+                    *o = make_float4(r.x + p.x, r.y + p.y, r.z + p.z, r.w + p.w);
                 } else {
-                    const TOut *e = reinterpret_cast<const TOut *>(&v);
-                    for (int u = 0; u < E; u++) o[qkv_column(g, c + u)] = e[u];
+                    *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = v;
                 }
-            } else if constexpr (EPI == EPI_ADD_LN) {
-                float4 *o = reinterpret_cast<float4 *>(out_at<float>(g, t, c));
-                const float4 p = *reinterpret_cast<const float4 *>(&v), r = *o;
-                *o = make_float4(r.x + p.x, r.y + p.y, r.z + p.z, r.w + p.w);
-            } else {
-                *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = v;
             }
         }
         __syncthreads();
@@ -2916,6 +2973,11 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
     // F32 operands on CUTLASS's SIMT mainloop (sm_80's cp.async).
     if constexpr (std::is_same_v<TIn, float>) {
+        // The rotary families' epilogues are the FMA, transposed and
+        // tensor-core kernels' alone: CUTLASS's SIMT tile takes the
+        // transposed one.
+        if constexpr (rotary_epilogue(EPI))
+            if (t == TILE_CS) t = TILE_KT;
         if (t == TILE_CS) return cs_kernel<256, 64, 3, 1, EPI, TOut>();
         // F32 operands transposed in shared memory.
         if (t == TILE_KT) return kt_kernel<EPI, TOut>();
@@ -2939,13 +3001,20 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
  * four stages. An F32 output tile of 256 x 128 does not fit shared
  * memory, so such a GEMM takes 128 x 128 over four warps instead. */
 template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
-    constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || gelu_epilogue_of(EPI);
+    constexpr bool f16 = sizeof(TIn) == 2, wide = qkv_epilogue_of(EPI) || gelu_epilogue_of(EPI) ||
+                                                gated_epilogue_of(EPI);
+    // The rotary families' epilogues are gemm_mma_kernel's alone: the
+    // swizzled and CUTLASS tiles take its default.
+    if constexpr (rotary_epilogue(EPI)) {
+        if (t == TILE_SWIZZLED_8W_F16_ACCUMULATE) t = TILE_EIGHT_WARPS_F16_ACCUMULATE;
+        if (t >= TILE_SWIZZLED && t <= TILE_CT_K && t != TILE_EIGHT_WARPS_F16_ACCUMULATE) t = TILE_DEFAULT;
+    }
     if constexpr (f16) {
         if (t == TILE_EIGHT_WARPS_F16_ACCUMULATE) {
             if (wide) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn, true>();
             return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn, true>();
         }
-        switch (t) {
+        if constexpr (!rotary_epilogue(EPI)) switch (t) {
         case TILE_SWIZZLED:
         case TILE_SWIZZLED_8W:
         case TILE_SWIZZLED_256x128:
@@ -2979,6 +3048,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     if (tc && half) {
         switch (e) {
         case EPI_QKV: return mma_for<__half, EPI_QKV, __half>(t);
+        case EPI_QKV_ROPE: return mma_for<__half, EPI_QKV_ROPE, __half>(t);
+        case EPI_GATED_ERF: return mma_for<__half, EPI_GATED_ERF, __half>(t);
+        case EPI_GATED_TANH: return mma_for<__half, EPI_GATED_TANH, __half>(t);
+        case EPI_GATED_SILU: return mma_for<__half, EPI_GATED_SILU, __half>(t);
         case EPI_GELU: return mma_for<__half, EPI_GELU, __half>(t);
         case EPI_GELU_ERF: return mma_for<__half, EPI_GELU_ERF, __half>(t);
         case EPI_GELU_TANH: return mma_for<__half, EPI_GELU_TANH, __half>(t);
@@ -2992,6 +3065,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     if (tc) {
         switch (e) {
         case EPI_QKV: return mma_for<float, EPI_QKV, float>(t);
+        case EPI_QKV_ROPE: return mma_for<float, EPI_QKV_ROPE, float>(t);
+        case EPI_GATED_ERF:
+        case EPI_GATED_TANH: return mma_for<float, EPI_GATED_ERF, float>(t);
+        case EPI_GATED_SILU: return mma_for<float, EPI_GATED_SILU, float>(t);
         case EPI_GELU:
         case EPI_GELU_ERF:
         case EPI_GELU_TANH: return mma_for<float, EPI_GELU, float>(t);
@@ -3002,6 +3079,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     if (half) {
         switch (e) {
         case EPI_QKV: return simt_for<__half, __half, EPI_QKV>(t);
+        case EPI_QKV_ROPE: return simt_for<__half, __half, EPI_QKV_ROPE>(t);
+        case EPI_GATED_ERF: return simt_for<__half, __half, EPI_GATED_ERF>(t);
+        case EPI_GATED_TANH: return simt_for<__half, __half, EPI_GATED_TANH>(t);
+        case EPI_GATED_SILU: return simt_for<__half, __half, EPI_GATED_SILU>(t);
         case EPI_GELU: return simt_for<__half, __half, EPI_GELU>(t);
         case EPI_GELU_ERF: return simt_for<__half, __half, EPI_GELU_ERF>(t);
         case EPI_GELU_TANH: return simt_for<__half, __half, EPI_GELU_TANH>(t);
@@ -3011,6 +3092,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     }
     switch (e) {
     case EPI_QKV: return simt_for<float, float, EPI_QKV>(t);
+    case EPI_QKV_ROPE: return simt_for<float, float, EPI_QKV_ROPE>(t);
+    case EPI_GATED_ERF:
+    case EPI_GATED_TANH: return simt_for<float, float, EPI_GATED_ERF>(t);
+    case EPI_GATED_SILU: return simt_for<float, float, EPI_GATED_SILU>(t);
     case EPI_GELU:
     case EPI_GELU_ERF:
     case EPI_GELU_TANH: return simt_for<float, float, EPI_GELU>(t);
@@ -3044,6 +3129,13 @@ __global__ void __launch_bounds__(256) gelu_epilogue_kernel(const float *raw, Ge
 }
 
 // ---- Attention ---------------------------------------------------------------------
+//
+// A query whose keys are all masked (a pad at the start of a left-padded
+// row, on a sliding-window layer, sees no live key in its band) reads
+// nothing: its context is 0, as the CPU's (attend.rs), not the mean of
+// the masked values. Its largest score is then a masked key's, at or
+// below MASKED_SCORE; a live key's never is.
+constexpr float MASKED_SCORE = -1e29f;
 //
 // Work items are (row, head, query tile), rows longest first as the
 // packing ordered them; a block loops over items. Keys and values of the
@@ -3188,8 +3280,12 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
 #pragma unroll
         for (int c = 0; c < HD; c++) o[c] = 0.0f;
         float m = -INFINITY, l = 0.0f;
-        for (int c0 = 0; c0 < it.n; c0 += chunk) {
-            const int cn = min(chunk, it.n - c0);
+        // A sliding window's keys: those some query of the block reads.
+        const int w = a.window;
+        const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+        const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + SIMT_ATT_QUERIES + w);
+        for (int c0 = k_lo; c0 < k_hi; c0 += chunk) {
+            const int cn = min(chunk, k_hi - c0);
             __syncthreads();
             load_rows<T, HD>(Ks, Kg + (size_t)c0 * d, cn, d);
             load_rows<T, HD>(Vs, Vg + (size_t)c0 * d, cn, d);
@@ -3204,7 +3300,8 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
 #pragma unroll
                 for (int u = 0; u < G; u++) {
                     const int j = j0 + u;
-                    s[u] = j < khi ? dot_row<HD>(qr, Ks + (size_t)j * HD) * a.scale + (it.holes ? kbs[j] : 0.0f)
+                    s[u] = j < khi ? dot_row<HD>(qr, Ks + (size_t)j * HD) * a.scale + (it.holes ? kbs[j] : 0.0f) +
+                                         (w >= 0 && abs(q - (c0 + j)) > w ? -1e30f : 0.0f)
                                    : -INFINITY;
                 }
                 float mx = m;
@@ -3256,7 +3353,7 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
 #pragma unroll
                 for (int c = 0; c < HD; c++) o[c] += r[(2 + c) * 32 + lane] * w;
             }
-            const float inv = 1.0f / L;
+            const float inv = mm <= MASKED_SCORE ? 0.0f : 1.0f / L;
             T *dst = static_cast<T *>(a.ctx) + (size_t)(it.base + q) * a.hidden + it.head * d;
 #pragma unroll
             for (int c = 0; c < HD; c++)
@@ -3270,23 +3367,33 @@ constexpr int MMA_QUERIES = 64;
 
 // -- FMA attention as two small GEMMs: EXACT and MODEL -------------------------------
 //
-// A block of 128 threads takes 32 queries of one head of one row and the
-// row's keys 64 at a time. S = Q K^T for the chunk is a register tile,
-// each thread 4 queries by 4 keys, summed over the head's values in
-// order from Q and K held transposed in shared memory (a warp's reads
-// are two broadcast rows of Q and 16 consecutive 16-byte pieces of K).
-// The 16 threads of a query row agree on its running largest score and
-// the chunk's sum by four shuffles; the probabilities replace K in shared
-// memory, and O += P V is a second register tile, each thread the same 4
-// queries by HD / 16 values, summed over the chunk's keys in position
-// order. Keys and chunks go in position order, so every sum's order is
-// fixed.
+// A block of 128 threads takes a tile of queries of one head of one row
+// and the row's keys 64 at a time. The tile is 64 queries (fma-tiled) or
+// 32 (fma-tiled32), and a 64-query block takes a tile whose live queries
+// fit in 32 as a 32-query one, so a short row never computes 64. S = Q
+// K^T for the chunk is a register tile, each thread 8 queries (or 4) by 4
+// keys, summed over the head's values in order from Q and K coalesced
+// into 4 x 4 register tiles and stored transposed and XOR-swizzled in
+// shared memory (a half warp's reads are two broadcast 16-byte pieces of
+// Q and 16 conflict-free 16-byte pieces of K). The 16 threads of a query
+// row agree on its running largest score and the chunk's sum by four
+// shuffles; the probabilities replace K in shared memory, XOR-swizzled,
+// and O += P V is a second register tile, each thread the same queries
+// by HD / 16 values, summed over the chunk's keys in position order. A
+// chunk whose 64 keys are all in the row and inside the sliding window,
+// with no masked key, takes a path without per-key bounds or mask tests.
+// Keys and chunks go in position order, so every sum's order is fixed,
+// and a query's sums are the same at either width.
+//
+// A 32-query block covers a row of n queries in twice the blocks of a
+// 64-query one, each loading the row's keys and values again: more
+// blocks in flight when the device has room (a few short rows), twice
+// the K and V traffic per query when it has not (long rows, big batches).
 
 constexpr int TILED_THREADS = 128;
-constexpr int TILED_QUERIES = 32;
+constexpr int TILED_QUERIES = 64; // the wide tile, and shared memory's stride
+constexpr int TILED_NARROW = 32;  // the narrow tile
 constexpr int TILED_CHUNK = 64;
-constexpr int TILED_LDQ = TILED_QUERIES + 4; // Q^T's row, and P's
-constexpr int TILED_LDK = TILED_CHUNK + 4;   // K^T's row
 
 /* W consecutive floats from shared memory in one load: 1, 2 or 4. */
 template <int W> __device__ inline void lds_vec(const float *p, float (&v)[W]) {
@@ -3306,173 +3413,278 @@ template <int W> __device__ inline void lds_vec(const float *p, float (&v)[W]) {
 }
 
 template <int HD> __host__ __device__ constexpr size_t tiled_region() {
-    const size_t k = (size_t)HD * TILED_LDK, p = (size_t)TILED_CHUNK * TILED_LDQ;
+    const size_t k = (size_t)HD * TILED_CHUNK, p = (size_t)TILED_CHUNK * TILED_QUERIES;
     return k > p ? k : p;
 }
 
 template <int HD> constexpr size_t tiled_smem_floats() {
-    return (size_t)HD * TILED_LDQ + tiled_region<HD>() + (size_t)TILED_CHUNK * HD + TILED_CHUNK;
+    return (size_t)HD * TILED_QUERIES + tiled_region<HD>() + (size_t)TILED_CHUNK * HD;
 }
 
 template <typename T, int HD> size_t tiled_smem(int) { return tiled_smem_floats<HD>() * sizeof(float); }
 
-template <typename T, int HD>
-__global__ void __launch_bounds__(TILED_THREADS, HD == 64 ? 2 : 4) attention_tiled_kernel(AttnArgs a) {
-    constexpr int W = HD / 16; // values of the context per thread and query
-    extern __shared__ __align__(16) unsigned char att_sm[];
-    float *Qt = reinterpret_cast<float *>(att_sm); // [HD][LDQ]
-    float *Kt = Qt + HD * TILED_LDQ;                // [HD][LDK], then P [CHUNK][LDQ]
+/* O += P V for key k of the chunk: thread (tx, ty)'s QT / 8 queries by
+ * its HD / 16 values. */
+template <int HD, int QT>
+__device__ __forceinline__ void tiled_pv(const float *Ps, const float *Vs, int k, int tx, int ty,
+                                         float (&o)[QT / 8][HD / 16]) {
+    constexpr int W = HD / 16, QPT = QT / 8, G = QT / 32;
+    const int row = k * TILED_QUERIES, k4 = k >> 2;
+    float pa[QPT];
+#pragma unroll
+    for (int u = 0; u < G; u++) {
+        const float4 pv = *reinterpret_cast<const float4 *>(Ps + row + 4 * ((G * ty + u) ^ k4));
+        pa[4 * u] = pv.x;
+        pa[4 * u + 1] = pv.y;
+        pa[4 * u + 2] = pv.z;
+        pa[4 * u + 3] = pv.w;
+    }
+    float v[W];
+    lds_vec<W>(Vs + k * HD + W * tx, v);
+#pragma unroll
+    for (int i = 0; i < QPT; i++)
+#pragma unroll
+        for (int w = 0; w < W; w++) o[i][w] = fmaf(pa[i], v[w], o[i][w]);
+}
+
+/* One item of attention_tiled_kernel as a tile of QT queries (64 or 32),
+ * the block's nq live ones from it.q0: thread (tx, ty) takes queries
+ * QT / 8 * ty + i and keys 4 tx + j of each chunk. Qt, Kt (P in its
+ * place) and Vs are the block's shared memory, Qt and P at
+ * TILED_QUERIES to a row whatever QT is; a 32-query tile leaves their
+ * upper half alone. */
+template <typename T, int HD, int QT>
+__device__ __forceinline__ void tiled_item(const AttnArgs &a, const Item &it, int nq, float *Qt, float *Kt, float *Vs,
+                                           int tx, int ty) {
+    constexpr int W = HD / 16, C4 = HD / 4; // values of the context per thread and query
+    constexpr int QPT = QT / 8, G = QT / 32; // queries per thread, in G groups of 4
     float *Ps = Kt;
-    float *Vs = Kt + tiled_region<HD>(); // [CHUNK][HD]
-    float *kbs = Vs + TILED_CHUNK * HD;  // [CHUNK]
-    const int items = a.p.info->items, batch = a.p.info->batch;
-    const int tx = threadIdx.x & 15, ty = threadIdx.x >> 4;
     const int d = a.head_dim;
     const T *qkv = static_cast<const T *>(a.qkv);
     const size_t hs = (size_t)a.tcap * d;
-
-    for (int item = blockIdx.x; item < items; item += gridDim.x) {
-        const Item it = decode(a, item, batch);
-        const T *Qg = qkv + (size_t)it.head * hs + (size_t)it.base * d;
-        const T *Kg = qkv + (size_t)(a.heads + it.head) * hs + (size_t)it.base * d;
-        const T *Vg = qkv + (size_t)(2 * a.heads + it.head) * hs + (size_t)it.base * d;
-        const int nq = min(TILED_QUERIES, it.n - it.q0);
-        __syncthreads();
-        for (int i = threadIdx.x; i < TILED_QUERIES * HD; i += TILED_THREADS) {
+    const T *Qg = qkv + (size_t)it.head * hs + (size_t)it.base * d;
+    const T *Kg = qkv + (size_t)(a.heads + it.head) * hs + (size_t)it.base * d;
+    const T *Vg = qkv + (size_t)(2 * a.heads + it.head) * hs + (size_t)it.base * d;
+    __syncthreads();
+    if (d == HD) {
+#pragma unroll
+        for (int i = threadIdx.x; i < (QT / 4) * C4; i += TILED_THREADS) {
+            const int c4 = i % C4, q4 = i / C4, c = 4 * c4, q = 4 * q4;
+            float r[4][4];
+#pragma unroll
+            for (int u = 0; u < 4; u++) {
+                if (q + u < nq) {
+                    load4(Qg + (size_t)(it.q0 + q + u) * HD + c, r[u]);
+                } else {
+#pragma unroll
+                    for (int v = 0; v < 4; v++) r[u][v] = 0.0f;
+                }
+            }
+#pragma unroll
+            for (int v = 0; v < 4; v++)
+                *reinterpret_cast<float4 *>(Qt + (c + v) * TILED_QUERIES + 4 * (q4 ^ c4)) =
+                    make_float4(r[0][v], r[1][v], r[2][v], r[3][v]);
+        }
+    } else {
+        for (int i = threadIdx.x; i < QT * HD; i += TILED_THREADS) {
             const int q = i / HD, c = i - q * HD;
-            Qt[c * TILED_LDQ + q] = q < nq && c < d ? to_float(Qg[(size_t)(it.q0 + q) * d + c]) : 0.0f;
+            Qt[c * TILED_QUERIES + 4 * ((q >> 2) ^ (c >> 2)) + (q & 3)] =
+                q < nq && c < d ? to_float(Qg[(size_t)(it.q0 + q) * d + c]) : 0.0f;
         }
-        float o[4][W], m[4], l[4];
+    }
+    float o[QPT][W], m[QPT], l[QPT];
 #pragma unroll
-        for (int i = 0; i < 4; i++) {
-            m[i] = -INFINITY;
-            l[i] = 0.0f;
+    for (int i = 0; i < QPT; i++) {
+        m[i] = -INFINITY;
+        l[i] = 0.0f;
 #pragma unroll
-            for (int w = 0; w < W; w++) o[i][w] = 0.0f;
-        }
-        for (int c0 = 0; c0 < it.n; c0 += TILED_CHUNK) {
-            const int cn = min(TILED_CHUNK, it.n - c0);
-            __syncthreads();
-            if (d == HD) {
-                // K^T four keys by four values a thread, transposed in its
-                // registers, so each store is 16 bytes and a quarter warp's
-                // stores are 8 consecutive ones; V as it is.
-                for (int i = threadIdx.x; i < (TILED_CHUNK / 4) * (HD / 4); i += TILED_THREADS) {
-                    const int k = 4 * (i % (TILED_CHUNK / 4)), c = 4 * (i / (TILED_CHUNK / 4));
-                    float r[4][4];
+        for (int w = 0; w < W; w++) o[i][w] = 0.0f;
+    }
+    const int w = a.window;
+    const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+    const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + nq + w);
+    for (int c0 = k_lo; c0 < k_hi; c0 += TILED_CHUNK) {
+        const int cn = min(TILED_CHUNK, k_hi - c0);
+        const bool whole = d == HD && cn == TILED_CHUNK && !it.holes &&
+                           (w < 0 || (c0 >= it.q0 + nq - 1 - w && c0 + TILED_CHUNK - 1 <= it.q0 + w));
+        __syncthreads();
+        if (whole) {
 #pragma unroll
-                    for (int u = 0; u < 4; u++) {
-                        if (k + u < cn) {
-                            load4(Kg + (size_t)(c0 + k + u) * HD + c, r[u]);
-                        } else {
+            for (int i = threadIdx.x; i < (TILED_CHUNK / 4) * C4; i += TILED_THREADS) {
+                const int c4 = i % C4, k4 = i / C4, c = 4 * c4, k = 4 * k4;
+                float r[4][4];
 #pragma unroll
-                            for (int v = 0; v < 4; v++) r[u][v] = 0.0f;
-                        }
+                for (int u = 0; u < 4; u++) load4(Kg + (size_t)(c0 + k + u) * HD + c, r[u]);
+#pragma unroll
+                for (int v = 0; v < 4; v++)
+                    *reinterpret_cast<float4 *>(Kt + (c + v) * TILED_CHUNK + 4 * (k4 ^ c4)) =
+                        make_float4(r[0][v], r[1][v], r[2][v], r[3][v]);
+            }
+#pragma unroll
+            for (int i = threadIdx.x; i < TILED_CHUNK * C4; i += TILED_THREADS) {
+                const int k = i / C4, c = 4 * (i % C4);
+                float r[4];
+                load4(Vg + (size_t)(c0 + k) * HD + c, r);
+                *reinterpret_cast<float4 *>(Vs + k * HD + c) = make_float4(r[0], r[1], r[2], r[3]);
+            }
+        } else if (d == HD) {
+            for (int i = threadIdx.x; i < (TILED_CHUNK / 4) * C4; i += TILED_THREADS) {
+                const int c4 = i % C4, k4 = i / C4, c = 4 * c4, k = 4 * k4;
+                float r[4][4];
+#pragma unroll
+                for (int u = 0; u < 4; u++) {
+                    if (k + u < cn) {
+                        load4(Kg + (size_t)(c0 + k + u) * HD + c, r[u]);
+                    } else {
+#pragma unroll
+                        for (int v = 0; v < 4; v++) r[u][v] = 0.0f;
                     }
+                }
 #pragma unroll
-                    for (int v = 0; v < 4; v++)
-                        *reinterpret_cast<float4 *>(Kt + (c + v) * TILED_LDK + k) =
-                            make_float4(r[0][v], r[1][v], r[2][v], r[3][v]);
-                }
-                for (int i = threadIdx.x; i < cn * (HD / 4); i += TILED_THREADS) {
-                    const int k = i / (HD / 4), c = 4 * (i % (HD / 4));
-                    float r[4];
-                    load4(Vg + (size_t)(c0 + k) * HD + c, r);
-                    *reinterpret_cast<float4 *>(Vs + k * HD + c) = make_float4(r[0], r[1], r[2], r[3]);
-                }
-            } else {
-                for (int i = threadIdx.x; i < cn * HD; i += TILED_THREADS) {
-                    const int k = i / HD, c = i - k * HD;
-                    const bool in = c < d;
-                    const size_t at = (size_t)(c0 + k) * d + c;
-                    Kt[c * TILED_LDK + k] = in ? to_float(Kg[at]) : 0.0f;
-                    Vs[k * HD + c] = in ? to_float(Vg[at]) : 0.0f;
-                }
+                for (int v = 0; v < 4; v++)
+                    *reinterpret_cast<float4 *>(Kt + (c + v) * TILED_CHUNK + 4 * (k4 ^ c4)) =
+                        make_float4(r[0][v], r[1][v], r[2][v], r[3][v]);
             }
-            if (it.holes)
-                for (int j = threadIdx.x; j < cn; j += TILED_THREADS) kbs[j] = a.p.key_bias[it.base + c0 + j];
-            __syncthreads();
+            for (int i = threadIdx.x; i < cn * C4; i += TILED_THREADS) {
+                const int k = i / C4, c = 4 * (i % C4);
+                float r[4];
+                load4(Vg + (size_t)(c0 + k) * HD + c, r);
+                *reinterpret_cast<float4 *>(Vs + k * HD + c) = make_float4(r[0], r[1], r[2], r[3]);
+            }
+        } else {
+            for (int i = threadIdx.x; i < cn * HD; i += TILED_THREADS) {
+                const int k = i / HD, c = i - k * HD;
+                const bool in = c < d;
+                const size_t at = (size_t)(c0 + k) * d + c;
+                Kt[c * TILED_CHUNK + 4 * ((k >> 2) ^ (c >> 2)) + (k & 3)] = in ? to_float(Kg[at]) : 0.0f;
+                Vs[k * HD + c] = in ? to_float(Vg[at]) : 0.0f;
+            }
+        }
+        __syncthreads();
 
-            // S = Q K^T, this thread's queries 4 ty + i and keys 4 tx + j.
-            float s[4][4];
+        // S = Q K^T, this thread's queries QPT ty + i and keys 4 tx + j.
+        float s[QPT][4];
 #pragma unroll
-            for (int i = 0; i < 4; i++)
+        for (int i = 0; i < QPT; i++)
 #pragma unroll
-                for (int j = 0; j < 4; j++) s[i][j] = 0.0f;
+            for (int j = 0; j < 4; j++) s[i][j] = 0.0f;
 #pragma unroll 8
-            for (int c = 0; c < HD; c++) {
-                const float4 qv = *reinterpret_cast<const float4 *>(Qt + c * TILED_LDQ + 4 * ty);
-                const float4 kv = *reinterpret_cast<const float4 *>(Kt + c * TILED_LDK + 4 * tx);
-                const float qa[4] = {qv.x, qv.y, qv.z, qv.w}, ka[4] = {kv.x, kv.y, kv.z, kv.w};
+        for (int c = 0; c < HD; c++) {
+            const int c4 = c >> 2;
+            float qa[QPT];
 #pragma unroll
-                for (int i = 0; i < 4; i++)
-#pragma unroll
-                    for (int j = 0; j < 4; j++) s[i][j] = fmaf(qa[i], ka[j], s[i][j]);
+            for (int u = 0; u < G; u++) {
+                const float4 qv = *reinterpret_cast<const float4 *>(Qt + c * TILED_QUERIES + 4 * ((G * ty + u) ^ c4));
+                qa[4 * u] = qv.x;
+                qa[4 * u + 1] = qv.y;
+                qa[4 * u + 2] = qv.z;
+                qa[4 * u + 3] = qv.w;
             }
-            // The online softmax, a query row's 16 threads agreeing by
-            // shuffles within their half warp.
-            float corr[4];
+            const float4 kv = *reinterpret_cast<const float4 *>(Kt + c * TILED_CHUNK + 4 * (tx ^ c4));
+            const float ka[4] = {kv.x, kv.y, kv.z, kv.w};
 #pragma unroll
-            for (int i = 0; i < 4; i++) {
-                float mx = -INFINITY;
+            for (int i = 0; i < QPT; i++)
 #pragma unroll
-                for (int j = 0; j < 4; j++) {
+                for (int j = 0; j < 4; j++) s[i][j] = fmaf(qa[i], ka[j], s[i][j]);
+        }
+        // The online softmax, a query row's 16 threads agreeing by
+        // shuffles within their half warp.
+        float kbs[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        if (!whole && it.holes) {
+#pragma unroll
+            for (int j = 0; j < 4; j++) {
+                const int k = 4 * tx + j;
+                if (k < cn) kbs[j] = a.p.key_bias[it.base + c0 + k];
+            }
+        }
+#pragma unroll
+        for (int i = 0; i < QPT; i++) {
+            float mx = -INFINITY;
+#pragma unroll
+            for (int j = 0; j < 4; j++) {
+                if (whole) {
+                    s[i][j] *= a.scale;
+                } else {
                     const int k = 4 * tx + j;
-                    s[i][j] = k < cn ? s[i][j] * a.scale + (it.holes ? kbs[k] : 0.0f) : -INFINITY;
-                    mx = fmaxf(mx, s[i][j]);
+                    s[i][j] = k < cn ? s[i][j] * a.scale + kbs[j] +
+                                           (w >= 0 && abs(it.q0 + QPT * ty + i - (c0 + k)) > w ? -1e30f : 0.0f)
+                                     : -INFINITY;
                 }
-#pragma unroll
-                for (int off = 8; off > 0; off >>= 1) mx = fmaxf(mx, __shfl_xor_sync(FULL, mx, off));
-                const float mn = fmaxf(m[i], mx);
-                corr[i] = expf(m[i] - mn);
-                float sum = 0.0f;
-#pragma unroll
-                for (int j = 0; j < 4; j++) {
-                    s[i][j] = expf(s[i][j] - mn);
-                    sum += s[i][j];
-                }
-#pragma unroll
-                for (int off = 8; off > 0; off >>= 1) sum += __shfl_xor_sync(FULL, sum, off);
-                l[i] = l[i] * corr[i] + sum;
-                m[i] = mn;
-#pragma unroll
-                for (int w = 0; w < W; w++) o[i][w] *= corr[i];
+                mx = fmaxf(mx, s[i][j]);
             }
-            // P over K^T, once every thread is done with K.
-            __syncthreads();
 #pragma unroll
-            for (int j = 0; j < 4; j++)
-                *reinterpret_cast<float4 *>(Ps + (4 * tx + j) * TILED_LDQ + 4 * ty) =
-                    make_float4(s[0][j], s[1][j], s[2][j], s[3][j]);
-            __syncthreads();
+            for (int off = 8; off > 0; off >>= 1) mx = fmaxf(mx, __shfl_xor_sync(FULL, mx, off));
+            const float mn = fmaxf(m[i], mx);
+            const float corr = expf(m[i] - mn);
+            float sum = 0.0f;
+#pragma unroll
+            for (int j = 0; j < 4; j++) {
+                s[i][j] = expf(s[i][j] - mn);
+                sum += s[i][j];
+            }
+#pragma unroll
+            for (int off = 8; off > 0; off >>= 1) sum += __shfl_xor_sync(FULL, sum, off);
+            l[i] = l[i] * corr + sum;
+            m[i] = mn;
+#pragma unroll
+            for (int w = 0; w < W; w++) o[i][w] *= corr;
+        }
 
-            // O += P V over the chunk's keys in position order.
+        // P over K^T, once every thread is done with K.
+        __syncthreads();
+#pragma unroll
+        for (int j = 0; j < 4; j++) {
+            const int row = (4 * tx + j) * TILED_QUERIES;
+#pragma unroll
+            for (int u = 0; u < G; u++)
+                *reinterpret_cast<float4 *>(Ps + row + 4 * ((G * ty + u) ^ tx)) =
+                    make_float4(s[4 * u][j], s[4 * u + 1][j], s[4 * u + 2][j], s[4 * u + 3][j]);
+        }
+        __syncthreads();
+
+        // O += P V over the chunk's keys in position order.
+        if (whole) {
+#pragma unroll 8
+            for (int k = 0; k < TILED_CHUNK; k++) tiled_pv<HD, QT>(Ps, Vs, k, tx, ty, o);
+        } else {
 #pragma unroll 4
-            for (int k = 0; k < cn; k++) {
-                const float4 pv = *reinterpret_cast<const float4 *>(Ps + k * TILED_LDQ + 4 * ty);
-                const float pa[4] = {pv.x, pv.y, pv.z, pv.w};
-                float v[W];
-                lds_vec<W>(Vs + k * HD + W * tx, v);
-#pragma unroll
-                for (int i = 0; i < 4; i++)
-#pragma unroll
-                    for (int w = 0; w < W; w++) o[i][w] = fmaf(pa[i], v[w], o[i][w]);
-            }
+            for (int k = 0; k < cn; k++) tiled_pv<HD, QT>(Ps, Vs, k, tx, ty, o);
         }
-        T *ctx = static_cast<T *>(a.ctx);
+    }
+    T *ctx = static_cast<T *>(a.ctx);
 #pragma unroll
-        for (int i = 0; i < 4; i++) {
-            const int q = 4 * ty + i;
-            if (q >= nq) continue;
-            const float inv = 1.0f / l[i];
-            T *dst = ctx + (size_t)(it.base + it.q0 + q) * a.hidden + it.head * d;
+    for (int i = 0; i < QPT; i++) {
+        const int q = QPT * ty + i;
+        if (q >= nq) continue;
+        const float inv = m[i] <= MASKED_SCORE ? 0.0f : 1.0f / l[i];
+        T *dst = ctx + (size_t)(it.base + it.q0 + q) * a.hidden + it.head * d;
 #pragma unroll
-            for (int w = 0; w < W; w++)
-                if (W * tx + w < d) put(dst + W * tx + w, o[i][w] * inv);
-        }
+        for (int w = 0; w < W; w++)
+            if (W * tx + w < d) put(dst + W * tx + w, o[i][w] * inv);
     }
 }
 
+/* QT queries of one head of one row to a block: 64 (fma-tiled), or 32
+ * (fma-tiled32). A 64-query block whose item has 32 live queries or
+ * fewer takes it as a 32-query tile. */
+template <typename T, int HD, int QT>
+__global__ void __launch_bounds__(TILED_THREADS, HD == 64 ? 2 : 4) attention_tiled_kernel(AttnArgs a) {
+    extern __shared__ __align__(16) unsigned char att_sm[];
+    float *Qt = reinterpret_cast<float *>(att_sm); // [HD][QUERIES]
+    float *Kt = Qt + HD * TILED_QUERIES;           // [HD][CHUNK], then P [CHUNK][QUERIES]
+    float *Vs = Kt + tiled_region<HD>();           // [CHUNK][HD]
+    const int items = a.p.info->items, batch = a.p.info->batch;
+    const int tx = threadIdx.x & 15, ty = threadIdx.x >> 4;
+
+    for (int item = blockIdx.x; item < items; item += gridDim.x) {
+        const Item it = decode(a, item, batch);
+        const int nq = min(QT, it.n - it.q0);
+        if (QT > TILED_NARROW && nq <= TILED_NARROW)
+            tiled_item<T, HD, TILED_NARROW>(a, it, nq, Qt, Kt, Vs, tx, ty);
+        else
+            tiled_item<T, HD, QT>(a, it, nq, Qt, Kt, Vs, tx, ty);
+    }
+}
 // -- Tensor core attention: FASTEST, heads of 32 or 64 --------------------------------
 //
 // Four warps, 16 queries each, as flash attention 2 lays them out: S =
@@ -3523,9 +3735,12 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
             for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
         float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
 
-        for (int c0 = 0; c0 < it.n; c0 += chunk) {
-            const int cn = min(chunk, it.n - c0), padded = (cn + 63) & ~63;
-            if (c0 > 0) __syncthreads();
+        const int w = a.window;
+        const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+        const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + MMA_QUERIES + w);
+        for (int c0 = k_lo; c0 < k_hi; c0 += chunk) {
+            const int cn = min(chunk, k_hi - c0), padded = (cn + 63) & ~63;
+            if (c0 > k_lo) __syncthreads();
 #pragma unroll 4
             for (int i = threadIdx.x; i < padded * (D / 8); i += MMA_ATT_THREADS) {
                 const int r = i / (D / 8), c = (i % (D / 8)) * 8;
@@ -3538,7 +3753,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
             if (it.holes)
                 for (int j = threadIdx.x; j < cn; j += MMA_ATT_THREADS) kbs[j] = a.p.key_bias[it.base + c0 + j];
             __syncthreads();
-            if (c0 == 0)
+            if (c0 == k_lo)
 #pragma unroll
                 for (int k = 0; k < DK; k++)
                     ldsm_x4(qf[k], Qs + (warp * 16 + (lane & 15)) * LD + k * 16 + (lane >> 4) * 8);
@@ -3571,6 +3786,9 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
                             v = -INFINITY;
                         else if (it.holes)
                             v += kbs[key];
+                        if (w >= 0 && key < cn &&
+                            abs(it.q0 + warp * 16 + (lane >> 2) + (e >> 1) * 8 - (c0 + key)) > w)
+                            v += -1e30f;
                         s[j][e] = v;
                         mx[e >> 1] = fmaxf(mx[e >> 1], v);
                     }
@@ -3623,7 +3841,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
             l[h] += __shfl_xor_sync(FULL, l[h], 1);
             l[h] += __shfl_xor_sync(FULL, l[h], 2);
         }
-        const float inv[2] = {1.0f / l[0], 1.0f / l[1]};
+        const float inv[2] = {m[0] <= MASKED_SCORE ? 0.0f : 1.0f / l[0], m[1] <= MASKED_SCORE ? 0.0f : 1.0f / l[1]};
         __half *ctx = static_cast<__half *>(a.ctx);
 #pragma unroll
         for (int h = 0; h < 2; h++) {
@@ -3702,49 +3920,53 @@ __device__ inline float ex2_approx(float x) {
 // positive), and each p is ex2.approx of one fused multiply-add, s sl2 -
 // m sl2. EXACT (TURBO_CUDA_ATTENTION=exact): the scores are scaled first
 // and the key bias added, and each p is exp2f of the scaled score less
-// m, the arithmetic before either. WHOLE: the chunk's 64 keys are all
-// the row's and none is masked, so no score is tested; the sums are the
+// m, the arithmetic before either. WHOLE: the chunk's keys are all the
+// row's and none is masked, so no score is tested; the sums are the
 // same either way, and a query's are the same at any MT. ACC16: the
 // scores and the output are summed in F16 on the tensor cores (F16 sums
 // within a chunk, the class the acc16 and ctk tiles compute in): each
 // score's F16 sum of D products is widened to F32 for the softmax, and
 // the output's F16 sums are rescaled in F16 and widened once at the end;
-// the running maximum and the row's sum stay F32. Without it both are
-// F32 sums.
+// the running maximum and the row's sum stay F32. Without ACC16, under
+// !EXACT (mma128-acc32), each chunk's D score products and KEYS output
+// products are summed in F16 on the tensor cores (full rate on GeForce)
+// and widened to F32 after the chunk, so the running output o is rescaled
+// and accumulated across chunks in F32; under EXACT both use F32
+// tensor-core accumulators throughout.
 template <int D, int MT, bool WHOLE, bool EXACT, bool ACC16, int KEYS, typename OT, int OW>
 __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT (&o)[MT][D / 8][OW],
                                          float (&m)[MT][2], float (&l)[MT][2], const __half *Ks, const __half *Vs,
-                                         const float *kb, int cn, int holes, float sl2, int lane) {
+                                         const float *kb, int cn, int holes, float sl2, int lane, int q0,
+                                         int k0, int w) {
     constexpr int LD = D + 8, DK = D / 16, DN = D / 8, NJ = KEYS / 8, NK = KEYS / 16;
     float s[MT][NJ][4];
-    if constexpr (ACC16) {
-        uint32_t s16[MT][NJ][2];
+    if constexpr (!EXACT) {
 #pragma unroll
-        for (int t = 0; t < MT; t++)
+        for (int j = 0; j < NK; j++) {
+            uint32_t s16[MT][2][2];
 #pragma unroll
-            for (int j = 0; j < NJ; j++) s16[t][j][0] = s16[t][j][1] = 0u;
+            for (int t = 0; t < MT; t++) s16[t][0][0] = s16[t][0][1] = s16[t][1][0] = s16[t][1][1] = 0u;
 #pragma unroll
-        for (int k = 0; k < DK; k++)
-#pragma unroll
-            for (int j = 0; j < NK; j++) {
+            for (int k = 0; k < DK; k++) {
                 uint32_t r[4];
                 ldsm_x4(r, Ks + (j * 16 + (lane >> 4) * 8 + (lane & 7)) * LD + k * 16 + ((lane >> 3) & 1) * 8);
 #pragma unroll
                 for (int t = 0; t < MT; t++) {
-                    mma16816_f16(s16[t][2 * j], qf[t][k], r[0], r[1]);
-                    mma16816_f16(s16[t][2 * j + 1], qf[t][k], r[2], r[3]);
+                    mma16816_f16(s16[t][0], qf[t][k], r[0], r[1]);
+                    mma16816_f16(s16[t][1], qf[t][k], r[2], r[3]);
                 }
             }
 #pragma unroll
-        for (int t = 0; t < MT; t++)
+            for (int t = 0; t < MT; t++)
 #pragma unroll
-            for (int j = 0; j < NJ; j++) {
-                const float2 lo = unpack_half2(s16[t][j][0]), hi = unpack_half2(s16[t][j][1]);
-                s[t][j][0] = lo.x;
-                s[t][j][1] = lo.y;
-                s[t][j][2] = hi.x;
-                s[t][j][3] = hi.y;
-            }
+                for (int u = 0; u < 2; u++) {
+                    const float2 lo = unpack_half2(s16[t][u][0]), hi = unpack_half2(s16[t][u][1]);
+                    s[t][2 * j + u][0] = lo.x;
+                    s[t][2 * j + u][1] = lo.y;
+                    s[t][2 * j + u][2] = hi.x;
+                    s[t][2 * j + u][3] = hi.y;
+                }
+        }
     } else {
 #pragma unroll
         for (int t = 0; t < MT; t++)
@@ -3775,13 +3997,18 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT
             for (int e = 0; e < 4; e++) {
                 float v = EXACT ? s[t][j][e] * sl2 : s[t][j][e];
                 if constexpr (!WHOLE) {
+                    // A key outside a sliding window's band (w >= 0) is
+                    // masked as a masked key is.
                     const int key = j * 8 + (lane & 3) * 2 + (e & 1);
-                    if (key >= cn)
+                    const bool out = w >= 0 && abs(q0 + t * 16 + (lane >> 2) + (e >> 1) * 8 - (k0 + key)) > w;
+                    if (key >= cn) {
                         v = -INFINITY;
-                    else if (EXACT && holes)
-                        v += kb[key];
-                    else if (!EXACT && holes && kb[key] != 0.0f)
+                    } else if (EXACT) {
+                        if (holes) v += kb[key];
+                        if (out) v += -1e30f;
+                    } else if ((holes && kb[key] != 0.0f) || out) {
                         v = FA_MASKED;
+                    }
                 }
                 s[t][j][e] = v;
                 mx[e >> 1] = fmaxf(mx[e >> 1], v);
@@ -3818,7 +4045,7 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT
                 o[t][j][0] = mul_half2(o[t][j][0], c0);
                 o[t][j][1] = mul_half2(o[t][j][1], c1);
             }
-        } else {
+        } else if constexpr (EXACT) {
 #pragma unroll
             for (int j = 0; j < DN; j++) {
                 o[t][j][0] *= corr[t][0];
@@ -3828,28 +4055,67 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT
             }
         }
     }
+    if constexpr (!ACC16 && !EXACT) {
+        uint32_t pa[MT][NK][4];
 #pragma unroll
-    for (int kk = 0; kk < NK; kk++) {
-        uint32_t pa[MT][4];
+        for (int t = 0; t < MT; t++)
 #pragma unroll
-        for (int t = 0; t < MT; t++) {
-            pa[t][0] = pack_half2(s[t][2 * kk][0], s[t][2 * kk][1]);
-            pa[t][1] = pack_half2(s[t][2 * kk][2], s[t][2 * kk][3]);
-            pa[t][2] = pack_half2(s[t][2 * kk + 1][0], s[t][2 * kk + 1][1]);
-            pa[t][3] = pack_half2(s[t][2 * kk + 1][2], s[t][2 * kk + 1][3]);
-        }
+            for (int kk = 0; kk < NK; kk++) {
+                pa[t][kk][0] = pack_half2(s[t][2 * kk][0], s[t][2 * kk][1]);
+                pa[t][kk][1] = pack_half2(s[t][2 * kk][2], s[t][2 * kk][3]);
+                pa[t][kk][2] = pack_half2(s[t][2 * kk + 1][0], s[t][2 * kk + 1][1]);
+                pa[t][kk][3] = pack_half2(s[t][2 * kk + 1][2], s[t][2 * kk + 1][3]);
+            }
 #pragma unroll
         for (int j = 0; j < D / 16; j++) {
-            uint32_t r[4];
-            ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 + (lane >> 4) * 8);
+            uint32_t oc[MT][2][2];
+#pragma unroll
+            for (int t = 0; t < MT; t++) oc[t][0][0] = oc[t][0][1] = oc[t][1][0] = oc[t][1][1] = 0u;
+#pragma unroll
+            for (int kk = 0; kk < NK; kk++) {
+                uint32_t r[4];
+                ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 + (lane >> 4) * 8);
+#pragma unroll
+                for (int t = 0; t < MT; t++) {
+                    mma16816_f16(oc[t][0], pa[t][kk], r[0], r[1]);
+                    mma16816_f16(oc[t][1], pa[t][kk], r[2], r[3]);
+                }
+            }
+#pragma unroll
+            for (int t = 0; t < MT; t++)
+#pragma unroll
+                for (int u = 0; u < 2; u++) {
+                    const float2 lo = unpack_half2(oc[t][u][0]), hi = unpack_half2(oc[t][u][1]);
+                    o[t][2 * j + u][0] = fmaf(o[t][2 * j + u][0], corr[t][0], lo.x);
+                    o[t][2 * j + u][1] = fmaf(o[t][2 * j + u][1], corr[t][0], lo.y);
+                    o[t][2 * j + u][2] = fmaf(o[t][2 * j + u][2], corr[t][1], hi.x);
+                    o[t][2 * j + u][3] = fmaf(o[t][2 * j + u][3], corr[t][1], hi.y);
+                }
+        }
+    } else {
+#pragma unroll
+        for (int kk = 0; kk < NK; kk++) {
+            uint32_t pa[MT][4];
 #pragma unroll
             for (int t = 0; t < MT; t++) {
-                if constexpr (ACC16) {
-                    mma16816_f16(o[t][2 * j], pa[t], r[0], r[1]);
-                    mma16816_f16(o[t][2 * j + 1], pa[t], r[2], r[3]);
-                } else {
-                    mma16816(o[t][2 * j], pa[t], r[0], r[1]);
-                    mma16816(o[t][2 * j + 1], pa[t], r[2], r[3]);
+                pa[t][0] = pack_half2(s[t][2 * kk][0], s[t][2 * kk][1]);
+                pa[t][1] = pack_half2(s[t][2 * kk][2], s[t][2 * kk][3]);
+                pa[t][2] = pack_half2(s[t][2 * kk + 1][0], s[t][2 * kk + 1][1]);
+                pa[t][3] = pack_half2(s[t][2 * kk + 1][2], s[t][2 * kk + 1][3]);
+            }
+#pragma unroll
+            for (int j = 0; j < D / 16; j++) {
+                uint32_t r[4];
+                ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 + (lane >> 4) * 8);
+#pragma unroll
+                for (int t = 0; t < MT; t++) {
+                    if constexpr (ACC16) {
+                        mma16816_f16(o[t][2 * j], pa[t], r[0], r[1]);
+                        mma16816_f16(o[t][2 * j + 1], pa[t], r[2], r[3]);
+                    } else {
+                        mma16816(o[t][2 * j], pa[t], r[0], r[1]);
+                        mma16816(o[t][2 * j + 1], pa[t], r[2], r[3]);
+                    }
                 }
             }
         }
@@ -3910,18 +4176,26 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
     // queries and first chunk here, and its second; then one at the top
     // of each chunk, but two at the top of an item's last, the next
     // item's queries and first chunk, and its second.
+    // An item's keys: the row's, or a sliding window's (w >= 0) band
+    // about the block's queries, from a whole chunk; [first, end).
+    const int w = a.window;
+    auto first_key = [&](const Item &x) { return w < 0 ? 0 : max(0, x.q0 - w) / KEYS * KEYS; };
+    auto end_key = [&](const Item &x) { return w < 0 ? x.n : min(x.n, x.q0 + FA_QUERIES + w); };
+    auto chunks_of = [&](const Item &x) { return (end_key(x) - first_key(x) + KEYS - 1) / KEYS; };
     Item it = decode(a, item, batch);
     load_q(it);
-    load_chunk(it, 0, 0);
+    load_chunk(it, 0, first_key(it));
     cp_async_commit();
-    if (it.n > KEYS) load_chunk(it, 1, KEYS);
+    if (chunks_of(it) > 1) load_chunk(it, 1, first_key(it) + KEYS);
     cp_async_commit();
     for (int b = 0;;) {
         const int next = item + gridDim.x;
         const bool more = next < items;
         const Item nx = more ? decode(a, next, batch) : it;
         const bool live = it.q0 + warp * WQ < it.n;
-        const int chunks = (it.n + KEYS - 1) / KEYS;
+        const int chunks = chunks_of(it), k_lo = first_key(it), k_end = end_key(it);
+        // The warp's queries, for the band.
+        const int wq0 = it.q0 + warp * WQ, wq1 = wq0 + WQ - 1;
 
         uint32_t qf[MT][DK][4];
         OT o[MT][DN][OW];
@@ -3937,7 +4211,7 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
         }
 
         for (int c = 0; c < chunks; c++, b = b == 2 ? 0 : b + 1) {
-            const int c0 = c * KEYS, cn = min(KEYS, it.n - c0);
+            const int c0 = k_lo + c * KEYS, cn = min(KEYS, k_end - c0);
             cp_async_wait<1>();
             // Chunk c is in, and every warp is done with chunk c - 1, so
             // its buffer takes chunk c + 2.
@@ -3956,18 +4230,24 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
                 // barrier above past chunk 0, after one more at it.
                 if (chunks == 1) __syncthreads();
                 load_q(nx);
-                load_chunk(nx, b1, 0);
+                load_chunk(nx, b1, first_key(nx));
                 cp_async_commit();
-                if (nx.n > KEYS) load_chunk(nx, b2, KEYS);
+                if (chunks_of(nx) > 1) load_chunk(nx, b2, first_key(nx) + KEYS);
             }
             cp_async_commit();
-            if (live) {
+            // In a window, a chunk wholly outside the warp's band is not
+            // read, and one wholly inside it is as a chunk of no window.
+            const bool beyond = w >= 0 && (c0 > wq1 + w || c0 + cn - 1 < wq0 - w);
+            const bool inside = w < 0 || (c0 >= wq1 - w && c0 + cn - 1 <= wq0 + w);
+            if (live && !beyond) {
                 const __half *Ks = KV + (size_t)(2 * b) * KEYS * LD, *Vs = Ks + KEYS * LD;
                 const float *kb = kbs + b * KEYS;
-                if (cn == KEYS && !it.holes)
-                    fa_chunk<D, MT, true, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                if (cn == KEYS && !it.holes && inside)
+                    fa_chunk<D, MT, true, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane, wq0,
+                                                              c0, -1);
                 else
-                    fa_chunk<D, MT, false, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                    fa_chunk<D, MT, false, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane, wq0,
+                                                               c0, inside ? -1 : w);
             }
         }
         if (live) {
@@ -3979,7 +4259,9 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
                     l[t][h] += __shfl_xor_sync(FULL, l[t][h], 1);
                     l[t][h] += __shfl_xor_sync(FULL, l[t][h], 2);
                 }
-                const float inv[2] = {1.0f / l[t][0], 1.0f / l[t][1]};
+                // m is unscaled but for EXACT: FA_MASKED, or -1e30 scaled.
+                const float inv[2] = {m[t][0] <= MASKED_SCORE ? 0.0f : 1.0f / l[t][0],
+                                      m[t][1] <= MASKED_SCORE ? 0.0f : 1.0f / l[t][1]};
 #pragma unroll
                 for (int h = 0; h < 2; h++) {
                     const int q = it.q0 + warp * WQ + t * 16 + (lane >> 2) + h * 8;
@@ -4079,7 +4361,10 @@ AttnKernel attention_kernel_for(const Shape &s) {
 #define SIMT_ATT(T, HD)                                                                                                \
     (s.split_attention                                                                                                 \
          ? AttnKernel{attention_simt_kernel<T, HD>, SIMT_ATT_THREADS, simt_smem<T, HD>, SIMT_ATT_QUERIES, SIMT_CHUNK}  \
-         : AttnKernel{attention_tiled_kernel<T, HD>, TILED_THREADS, tiled_smem<T, HD>, TILED_QUERIES, TILED_CHUNK})
+     : s.narrow_tiles ? AttnKernel{attention_tiled_kernel<T, HD, TILED_NARROW>, TILED_THREADS, tiled_smem<T, HD>,      \
+                                   TILED_NARROW, TILED_CHUNK}                                                          \
+                      : AttnKernel{attention_tiled_kernel<T, HD, TILED_QUERIES>, TILED_THREADS, tiled_smem<T, HD>,     \
+                                   TILED_QUERIES, TILED_CHUNK})
     if (s.half) {
         if (d <= 16) return SIMT_ATT(__half, 16);
         if (d <= 32) return SIMT_ATT(__half, 32);
@@ -4172,7 +4457,7 @@ cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int m
 int gemm_n(const Shape &s, Gemm g) {
     switch (g) {
     case GEMM_QKV: return 3 * s.hidden;
-    case GEMM_FFN1: return s.inter;
+    case GEMM_FFN1: return s.gated != GATED_NONE ? 2 * s.inter : s.inter;
     default: return s.hidden;
     }
 }
@@ -4222,7 +4507,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     cudaError_t e = cudaSuccess;
     for (int i = 0; i < GEMM_COUNT && e == cudaSuccess; i++) {
         const Gemm g = (Gemm)i;
-        const Epilogue ep = gemm_epilogue(g, p->fused_ln, s.gelu, s.product16);
+        const Epilogue ep = layer_epilogue(g, p->fused_ln, s);
         const bool mma = gemm_mma(s, g);
         size_t ws = 0;
         e = gemm_prepare(ep, s.half, mma, s.gemm[g].tile);
@@ -4252,7 +4537,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     if (e != cudaSuccess) return e;
 
     // The row kernels too, for this width.
-    const void *rows[10] = {reinterpret_cast<const void *>(pack_rows_kernel),
+    const void *rows[13] = {reinterpret_cast<const void *>(pack_rows_kernel),
                             reinterpret_cast<const void *>(pool_kernel<float>),
                             nullptr,
                             nullptr,
@@ -4261,7 +4546,10 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
                             nullptr,
                             nullptr,
                             reinterpret_cast<const void *>(pool_kernel<__half>),
-                            reinterpret_cast<const void *>(pool_split_kernel<__half>)};
+                            reinterpret_cast<const void *>(pool_split_kernel<__half>),
+                            nullptr,
+                            nullptr,
+                            nullptr};
     with_row_width(s.hidden, [&](auto v) {
         constexpr int V = decltype(v)::value;
         rows[2] = reinterpret_cast<const void *>(embed_layer_norm_kernel<V>);
@@ -4269,6 +4557,9 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
         rows[5] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, true, false>);
         rows[6] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, false, true>);
         rows[7] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, true, true>);
+        rows[10] = reinterpret_cast<const void *>(rotary_embed_kernel<V>);
+        rows[11] = reinterpret_cast<const void *>(add_norm_into_kernel<V, false>);
+        rows[12] = reinterpret_cast<const void *>(add_norm_into_kernel<V, true>);
         return cudaSuccess;
     });
     for (const void *fn : rows)
@@ -4342,6 +4633,32 @@ cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint1
     });
 }
 
+cudaError_t rotary_embed(cudaStream_t s, const int32_t *rows, const float *word, const float *type,
+                         const float *ln_w, const float *ln_b, float eps, const Packing &p, int hidden, float *x,
+                         uint16_t *x16, const Plan &plan) {
+    return with_row_width(hidden, [&](auto v) {
+        rotary_embed_kernel<decltype(v)::value>
+            <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(rows, word, type, ln_w, ln_b, eps, p, hidden, x, as_half(x16));
+        return cudaGetLastError();
+    });
+}
+
+cudaError_t add_norm_into(cudaStream_t s, float *x, const float *y, const uint16_t *y16, const float *ln_w,
+                          const float *ln_b, float eps, const Info *info, int hidden, float *xn, uint16_t *xn16,
+                          const Plan &plan) {
+    return with_row_width(hidden, [&](auto v) {
+        constexpr int V = decltype(v)::value;
+        const __half *p16 = reinterpret_cast<const __half *>(y16);
+        if (y16)
+            add_norm_into_kernel<V, true>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, ln_w, ln_b, eps, info, hidden, xn, as_half(xn16));
+        else
+            add_norm_into_kernel<V, false>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, ln_w, ln_b, eps, info, hidden, xn, as_half(xn16));
+        return cudaGetLastError();
+    });
+}
+
 cudaError_t pool(cudaStream_t s, const float *x, const uint16_t *x16, const int32_t *rows, const Packing &p,
                  int hidden, float *out, const Plan &plan) {
     const __half *h = reinterpret_cast<const __half *>(x16);
@@ -4381,6 +4698,65 @@ cudaError_t widen_bf16(cudaStream_t s, const uint16_t *src, size_t n, float *dst
 
 cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst, int32_t *overflow) {
     narrow_f16_kernel<<<elementwise_blocks(n), 256, 0, s>>>(src, n, dst, overflow);
+    return cudaGetLastError();
+}
+
+
+/* int8 and ubinary codes, bit for bit with core/src/quantize.rs: every
+ * step in F32, floor then clamp to [0, 255], then subtract 128 as i8; a
+ * zero-width range uses step 1; NaN floors and clamps to NaN and casts to
+ * the bottom bucket (0 after the cast). ubinary packs bit (x > 0), eight
+ * to a byte, the first dimension in the top bit, a short last byte padded
+ * with 0. */
+
+__global__ void quantize_int8_kernel(const float *x, const float *ranges, int rows, int dim, int8_t *out) {
+    const size_t n = (size_t)rows * (size_t)dim;
+    for (size_t i = (size_t)blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x) {
+        const int d = (int)(i % (size_t)dim);
+        const float lo = ranges[d];
+        const float hi = ranges[(size_t)dim + (size_t)d];
+        float step = (hi - lo) / 255.0f;
+        if (step == 0.0f) step = 1.0f;
+        float q = floorf((x[i] - lo) / step);
+        q = fminf(fmaxf(q, 0.0f), 255.0f);
+        const int qi = isnan(q) ? 0 : (int)q;
+        out[i] = (int8_t)(qi - 128);
+    }
+}
+
+__global__ void quantize_ubinary_kernel(const float *x, int rows, int dim, uint8_t *out) {
+    const int row_bytes = (dim + 7) / 8;
+    const size_t n = (size_t)rows * (size_t)row_bytes;
+    for (size_t bi = (size_t)blockIdx.x * blockDim.x + threadIdx.x; bi < n; bi += (size_t)gridDim.x * blockDim.x) {
+        const int r = (int)(bi / (size_t)row_bytes);
+        const int b = (int)(bi % (size_t)row_bytes);
+        const float *row = x + (size_t)r * (size_t)dim;
+        const int base = b * 8;
+        uint8_t byte = 0;
+        for (int i = 0; i < 8; i++) {
+            const int d = base + i;
+            if (d < dim && row[d] > 0.0f) byte = (uint8_t)(byte | (0x80u >> i));
+        }
+        out[bi] = byte;
+    }
+}
+
+cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out) {
+    if (rows <= 0 || dim <= 0) return cudaSuccess;
+    const size_t n = (size_t)rows * (size_t)dim;
+    const int threads = 256;
+    const int blocks = (int)((n + (size_t)threads - 1) / (size_t)threads);
+    quantize_int8_kernel<<<blocks, threads, 0, s>>>(x, ranges, rows, dim, out);
+    return cudaGetLastError();
+}
+
+cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out) {
+    if (rows <= 0 || dim <= 0) return cudaSuccess;
+    const int row_bytes = (dim + 7) / 8;
+    const size_t n = (size_t)rows * (size_t)row_bytes;
+    const int threads = 256;
+    const int blocks = (int)((n + (size_t)threads - 1) / (size_t)threads);
+    quantize_ubinary_kernel<<<blocks, threads, 0, s>>>(x, rows, dim, out);
     return cudaGetLastError();
 }
 

@@ -35,7 +35,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let digest: String = turbo_goldens::sha256(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+    let digest: String = turbo_sha256::sha256(&bytes).to_hex();
     if digest != SHA256 {
         eprintln!("{path}: SHA-256 {digest}, expected {SHA256}");
         return ExitCode::from(2);

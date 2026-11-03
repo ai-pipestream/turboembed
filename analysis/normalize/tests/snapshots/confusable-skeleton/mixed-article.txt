@@ -1,0 +1,37 @@
+===OUT===
+''The re-
+sults,'' wrote Dr. Müllerーa well-known expertー''were surprising...''
+See https://exarnple.corn/paper.pdf. Cost: £l9.99 (≈ Ꞓ23). Contact: rn.rnueller@exarnple.org
+· itern one with ideographic space
+· itern two   with  extra   spaces
+lt's lOO°/₀ done :) 😀 #win
+
+===EDITS===
+0	3	''
+17	20	''
+32	34	ü
+38	41	ー
+47	50	-
+62	65	ー
+65	68	''
+83	86	...
+86	89	''
+105	106	rn
+112	113	rn
+133	134	l
+144	147	Ꞓ
+161	162	rn
+163	164	rn
+174	175	rn
+183	186	·
+190	191	rn
+195	198	 
+221	224	·
+228	229	rn
+229	231	 
+259	260	l
+261	264	'
+266	267	l
+267	268	O
+268	269	O
+269	270	°/₀

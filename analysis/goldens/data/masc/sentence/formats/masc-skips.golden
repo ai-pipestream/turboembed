@@ -1,5 +1,5 @@
 golden 1
-generator	turbo-goldens-java	1
+generator	turbo-formats	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
@@ -15,12 +15,12 @@ end	turbo:read-errors
 layer	turbo:open-errors	document	0	class:str	message:str
 end	turbo:open-errors
 layer	turbo:sample-texts	document	2	text:str
-Fine text. \nFine text.
-Fine text. \nFine text.
+Fine text.\nFine text.
+Fine text.\nFine text.
 end	turbo:sample-texts
 layer	turbo:sample-spans	document	4	sample:u32	start:u32	end:u32
 0	0	10
-0	12	22
+0	11	21
 1	0	10
-1	12	22
+1	11	21
 end	turbo:sample-spans

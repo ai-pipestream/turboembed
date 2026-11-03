@@ -1,0 +1,17 @@
+load_error	
+unsupported	0
+words	14
+cat	cat	cat	st:cat po:noun is:sg
+cats	cat	cat	st:cat po:noun is:sg is:pl
+jump	jump	jump	st:jump po:verb
+jumps	jump	jump	st:jump po:verb is:pl
+jumped	jump	jump	st:jump po:verb fl:Bb
+do	do	do	st:do
+redo	do	do	re st:do fl:Cc
+work	work	work	st:work po:verb
+rework	work	work	re st:work po:verb
+working	work	work	st:work po:verb fl:Dd
+workings	work	work	st:work po:verb fl:Dd is:pl
+reworking	work	work	fl:Cc st:work po:verb fl:Dd
+reworkings	work	work	fl:Cc st:work po:verb fl:Dd is:pl
+reworked	reworked	reworked	

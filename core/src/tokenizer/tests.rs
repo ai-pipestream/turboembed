@@ -4,7 +4,7 @@ use super::*;
 fn steps(n: &Normalizer, text: &str) -> String {
     let mut s: String = if n.clean_text {
         text.chars()
-            .filter(|&c| !(c == '\0' || c == '\u{fffd}' || (!matches!(c, '\t' | '\n' | '\r') && c.is_other())))
+            .filter(|&c| !(c == '\0' || c == '\u{fffd}' || (!matches!(c, '\t' | '\n' | '\r') && category(c, OTHER))))
             .map(|c| if is_whitespace(c) { ' ' } else { c })
             .collect()
     } else {
@@ -24,7 +24,7 @@ fn steps(n: &Normalizer, text: &str) -> String {
         s = t;
     }
     if n.strip_accents {
-        s = s.nfd().map(|(c, _)| c).filter(|c| !c.is_mark_nonspacing()).collect();
+        s = aligned_chars(Form::Nfd, s.chars()).map(|(c, _)| c).filter(|&c| !category(c, MARK_NONSPACING)).collect();
     }
     if n.lowercase {
         s = s.chars().flat_map(char::to_lowercase).collect();
@@ -128,14 +128,13 @@ fn appended_rows_are_the_rows_alone() {
     }
 }
 
-/// The table gives each character's categories as unicode_categories
-/// does.
+/// The cached table gives each character's frozen upstream categories.
 #[test]
-fn the_category_table_is_the_unicode_categories() {
-    for c in (0..=0x10ffffu32).filter(|&u| u < 0x10000 || u % 7 == 0).filter_map(char::from_u32) {
-        assert_eq!(category(c, OTHER), c.is_other(), "{c:?}");
-        assert_eq!(category(c, MARK_NONSPACING), c.is_mark_nonspacing(), "{c:?}");
-        assert_eq!(category(c, PUNCTUATION), c.is_punctuation(), "{c:?}");
+fn the_category_table_is_hf_compatible() {
+    for c in (0..=0x10ffffu32).filter_map(char::from_u32) {
+        assert_eq!(category(c, OTHER), turbo_unicode::hf::is_other(c), "{c:?}");
+        assert_eq!(category(c, MARK_NONSPACING), turbo_unicode::hf::is_mark_nonspacing(c), "{c:?}");
+        assert_eq!(category(c, PUNCTUATION), turbo_unicode::hf::is_punctuation(c), "{c:?}");
     }
 }
 
@@ -269,4 +268,110 @@ fn pre_words_part_punctuation_and_ideographs() {
     let t = "(Paris) Merkel's\u{3000}\u{6771}\u{4eac}x \u{ff0c}y";
     let got: Vec<&str> = pre_words(t).into_iter().map(|(a, b)| &t[a..b]).collect();
     assert_eq!(got, ["(", "Paris", ")", "Merkel", "'", "s", "\u{6771}", "\u{4eac}", "x", "\u{ff0c}", "y"]);
+}
+
+#[test]
+fn added_token_word_classes_match_upstream_on_every_scalar() {
+    let upstream = crate::classes::tests::upstream(r"^\w$");
+    for c in (0..=0x10ffff).filter_map(char::from_u32) {
+        assert_eq!(normalize::is_word(c), upstream(c), "U+{:04X}", c as u32);
+    }
+}
+
+/// A text that is one run of combining marks of alternating classes,
+/// under a megabyte: the normalizer's NFD put them in canonical order
+/// by insertion, quadratic in the run, and a request of a few hundred
+/// kilobytes held a thread for seconds. Encoding stays close to linear,
+/// and strip_accents drops every mark: the row is the template alone.
+#[test]
+fn a_long_run_of_combining_marks_encodes_in_linear_time() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
+    let tok = Tokenizer::unchecked(&Bundle::open(&dir).unwrap()).unwrap();
+    let marks = |n: usize| -> String { (0..n).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect() };
+    let opts =
+        Encode { add_special_tokens: true, truncation: Truncation::Right, max_tokens: 64, prompt: PromptRole::None };
+    let texts = [marks(50_000), marks(400_000)];
+    let encode = |text: &str| {
+        let ids = tok.encode(text, opts).unwrap();
+        assert_eq!(ids.len(), tok.specials_per_sequence() as usize);
+        let (mut spanned, mut spans) = (Vec::new(), Vec::new());
+        tok.encode_spans(text, opts, &mut spanned, &mut spans).unwrap();
+        assert_eq!(spanned, ids);
+        assert!(spans.iter().all(|&s| s == NOWHERE));
+    };
+    // Runs eight times apart, best of three rounds each, alternated after a
+    // warm-up so load on a shared runner hits both lengths alike. Linear
+    // work grows about eightfold and insertion sort 64-fold; 24 sits
+    // between. The old 3 s ceiling on one run timed the runner as well.
+    texts.iter().for_each(|t| encode(t));
+    let mut best = [std::time::Duration::MAX; 2];
+    for _ in 0..3 {
+        for (text, best) in texts.iter().zip(&mut best) {
+            let start = std::time::Instant::now();
+            encode(text);
+            *best = (*best).min(start.elapsed());
+        }
+    }
+    let [short, long] = best;
+    eprintln!("50k marks {short:?}, 400k marks {long:?}");
+    assert!(long < short * 24, "50k marks {short:?}, 400k marks {long:?}");
+}
+
+/// What clean_text deletes parts no words: the words either side are
+/// one, as WordPiece reads them after normalizing, and a word ends after
+/// its last kept character.
+#[test]
+fn pre_words_join_across_what_the_normalizer_deletes() {
+    let t = "una\u{85}ffable x\u{0}y \u{fffd} ab\u{7}";
+    let got: Vec<&str> = pre_words(t).into_iter().map(|(a, b)| &t[a..b]).collect();
+    assert_eq!(got, ["una\u{85}ffable", "x\u{0}y", "ab"]);
+}
+
+/// words_under gives, in the source text, the words BertPreTokenizer
+/// cuts the normalized text into, for every normalizer setting: what
+/// the normalizer deletes, the CJK spacing it does or does not add, and
+/// whitespace and punctuation. Texts with a lone combining mark are left
+/// out under strip_accents, which deletes the mark; a word there starts
+/// or ends on the mark in the source, which only makes reuse stricter.
+#[test]
+fn words_under_each_normalizer_are_the_pre_tokenized_words() {
+    let pool: Vec<char> = "aZ09 .,!\t\n\r\x00\x01\x0b\x1f\x7f\u{85}\u{a0}\u{3000}\u{fffd}\u{200b}\
+         \u{301}éÅİΣß東京한국ＡＢ１😀\u{e000}\u{feff}"
+        .chars()
+        .collect();
+    let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut texts = vec!["una\u{85}ffable 東京 x\u{0}y".to_string()];
+    for _ in 0..3000 {
+        let len = (x >> 60) as usize + 1;
+        let mut t = String::new();
+        for _ in 0..len {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            t.push(pool[(x % pool.len() as u64) as usize]);
+        }
+        texts.push(t);
+    }
+    for bits in 0..16u8 {
+        let n = Normalizer {
+            clean_text: bits & 1 != 0,
+            split_cjk: bits & 2 != 0,
+            strip_accents: bits & 4 != 0,
+            lowercase: bits & 8 != 0,
+            unicode_form: crate::manifest::UnicodeForm::None,
+        };
+        let (mut s, mut sources) = (String::new(), Vec::new());
+        for t in &texts {
+            if n.strip_accents && t.chars().any(|c| category(c, MARK_NONSPACING)) {
+                continue;
+            }
+            normalize_aligned(&n, &ascii_map(&n), t, 0, &mut s, &mut sources);
+            let mut want = Vec::new();
+            pre_tokenize(&s, |w| {
+                let at = w.as_ptr() as usize - s.as_ptr() as usize;
+                want.push((sources[at][0] as usize, sources[at + w.len() - 1][1] as usize));
+            });
+            assert_eq!(normalize::words_under(t, n.clean_text, n.split_cjk), want, "{t:?} with {n:?}");
+        }
+    }
 }

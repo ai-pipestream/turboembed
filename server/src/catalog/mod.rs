@@ -1,18 +1,29 @@
 //! The TurboCatalogService rpcs (proto/turbo_training.proto,
 //! docs/grpc-catalog.md): the zoo index the server was started with, the
-//! artifacts in its cache, licence acceptances, and installs. Recording an
-//! acceptance and installing are admin calls, served only with the admin
-//! flag. Without a catalog every call refuses UNIMPLEMENTED.
+//! artifacts in its cache, licence acceptances, and installs. Recording
+//! and revoking an acceptance and installing are served only with the
+//! admin flag or in zoo mode. Listing acceptances and describing,
+//! resolving and reading a model are not; in zoo mode a read of a
+//! permitted artifact not yet cached fetches it first. Without a catalog
+//! every call refuses UNIMPLEMENTED.
 
+mod accept;
 mod disk;
 mod entry;
+mod gate;
 mod install;
+mod read;
+mod sources;
+mod through;
+
+pub(crate) use gate::check_load;
+pub use read::READ_CHUNK_BYTES;
+pub use sources::{DriveSignIn, ENV_DRIVE_CLIENT_ID, ENV_DRIVE_CLIENT_SECRET, ENV_DRIVE_REDIRECT, SIGN_IN_SECONDS};
 
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use tonic::{Request, Response, Status};
 use turbo_zoo::{Acceptances, Index, Licence, LicenceClass, Requirement, Transport, UserId, ZooError};
@@ -24,8 +35,13 @@ use crate::api::{
 use crate::kserve::Reply;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogService;
 use crate::proto::training::{
+    DescribeModelRequest, DescribeModelResponse, FinishDriveSignInRequest, FinishDriveSignInResponse,
     InstallModelRequest, LicenceTerms, ListInstalledModelsRequest, ListInstalledModelsResponse,
-    ListModelCatalogRequest, ListModelCatalogResponse, RecordLicenceAcceptanceRequest, RecordLicenceAcceptanceResponse,
+    ListLicenceAcceptancesRequest, ListLicenceAcceptancesResponse, ListModelCatalogRequest, ListModelCatalogResponse,
+    ListModelSourcesRequest, ListModelSourcesResponse, ReadModelFileRequest, RecordLicenceAcceptanceRequest,
+    RecordLicenceAcceptanceResponse, RegisterModelSourceRequest, RegisterModelSourceResponse, RemoveModelSourceRequest,
+    RemoveModelSourceResponse, ResolveModelRequest, ResolveModelResponse, RevokeLicenceAcceptanceRequest,
+    RevokeLicenceAcceptanceResponse, StartDriveSignInRequest, StartDriveSignInResponse,
 };
 use crate::status::to_status;
 
@@ -47,8 +63,12 @@ impl fmt::Debug for Catalog {
 
 impl Catalog {
     /// The catalog over HTTPS: the index at `index`, or the built-in one.
+    /// With `store` (`file:///dir` or `s3://bucket/prefix`, docs/zoo.md),
+    /// each file is read from the store first, and the store keeps every
+    /// file fetched from its index address, so a store several servers
+    /// share, or one seeded ahead, saves the fetch.
     #[cfg(feature = "catalog-http")]
-    pub fn http(home: PathBuf, index: Option<&std::path::Path>) -> Result<Catalog, String> {
+    pub fn http(home: PathBuf, index: Option<&std::path::Path>, store: Option<&str>) -> Result<Catalog, String> {
         let index = match index {
             Some(p) => {
                 let bytes = std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -56,7 +76,12 @@ impl Catalog {
             }
             None => Index::builtin(),
         };
-        Ok(Catalog { home, index: Arc::new(index), transport: Arc::new(turbo_zoo::Http) })
+        let origin = turbo_zoo::Http::new();
+        let transport: Arc<dyn Transport + Send + Sync> = match store {
+            None => Arc::new(origin),
+            Some(store) => Arc::new(store_first(store, origin)?),
+        };
+        Ok(Catalog { home, index: Arc::new(index), transport })
     }
 
     fn cache(&self) -> PathBuf {
@@ -68,28 +93,67 @@ impl Catalog {
     }
 
     /// The acceptance file, empty when there is none yet.
-    fn acceptances(&self) -> Result<Acceptances, ZooError> {
+    pub(crate) fn acceptances(&self) -> Result<Acceptances, ZooError> {
         let p = self.acceptances_path();
         if p.exists() { Acceptances::load(&p) } else { Ok(Acceptances::default()) }
     }
 }
 
+/// `store`, which keeps what it lacks, then the index's own addresses.
+#[cfg(feature = "catalog-http")]
+fn store_first(store: &str, origin: turbo_zoo::Http) -> Result<turbo_zoo::Sources, String> {
+    let list = turbo_zoo::Sources::new();
+    let list = if let Some(dir) = store.strip_prefix("file://") {
+        if !dir.starts_with('/') {
+            return Err(format!("{store}: a file:// store names an absolute directory"));
+        }
+        list.then_keep(store, turbo_zoo::Blobs::new(dir))
+    } else if store.starts_with("s3://") {
+        list.then_keep(store, turbo_zoo::S3Bucket::new(store)?)
+    } else {
+        return Err(format!("{store}: a catalog store is file:///dir or s3://bucket/prefix"));
+    };
+    Ok(list.then("origin", origin))
+}
+
 pub(crate) struct CatalogService {
     catalog: Option<Catalog>,
     admin: bool,
+    /// The read-through gates and sources in zoo mode; `None` refuses a
+    /// read of a file not yet cached.
+    through: Option<through::ReadThrough>,
     /// Held by the one install that may run.
     installing: Arc<AtomicBool>,
     /// Held across each read, change and write of the acceptance file.
     accepting: Arc<Mutex<()>>,
+    /// Users' registered sources and the Google sign-ins waiting.
+    sources: Arc<sources::Sources>,
 }
 
 impl CatalogService {
-    pub(crate) fn new(catalog: Option<Catalog>, admin: bool) -> CatalogService {
+    /// With `prefetch`, every permissive artifact is installed in the
+    /// background from now on (through.rs).
+    pub(crate) fn new(
+        catalog: Option<Catalog>,
+        admin: bool,
+        zoo: bool,
+        prefetch: bool,
+        drive: Option<DriveSignIn>,
+    ) -> CatalogService {
+        let sources = sources::Sources::new(drive);
+        let through =
+            zoo.then(|| through::ReadThrough { gates: through::Fetching::default(), sources: sources.clone() });
+        if prefetch && let Some(c) = &catalog {
+            let (c, gates) = (c.clone(), through.as_ref().map(|t| t.gates.clone()).unwrap_or_default());
+            tokio::task::spawn_blocking(move || through::prefetch(&c, &gates));
+        }
         CatalogService {
             catalog,
             admin,
+            through,
             installing: Arc::new(AtomicBool::new(false)),
             accepting: Arc::new(Mutex::new(())),
+            sources,
         }
     }
 
@@ -99,14 +163,16 @@ impl CatalogService {
         })
     }
 
+    /// Admits an acceptance or an install: with the admin flag, or in zoo
+    /// mode, where the user a request names is the caller's own word.
     fn admin(&self, what: &str) -> Result<(), Status> {
-        if self.admin {
+        if self.admin || self.through.is_some() {
             return Ok(());
         }
         Err(plain(Failure::new(
             TURBO_E_UNSUPPORTED,
             0,
-            format!("{what} is admin-only: start the server with --admin to serve it"),
+            format!("{what} is admin-only: start the server with --admin or --zoo to serve it"),
         )))
     }
 }
@@ -124,9 +190,12 @@ pub(crate) fn zoo_status(e: ZooError) -> Status {
     let code = match &e {
         ZooError::NotFound(_) => TURBO_E_BUNDLE_NOT_FOUND,
         ZooError::Integrity { .. } => TURBO_E_BUNDLE_INTEGRITY,
-        ZooError::Index(_) | ZooError::Acceptances(_) | ZooError::Refused { .. } | ZooError::NotAccepted { .. } => {
-            TURBO_E_INVALID_STATE
-        }
+        ZooError::Index(_)
+        | ZooError::Acceptances(_)
+        | ZooError::Holders(_)
+        | ZooError::Refused { .. }
+        | ZooError::NotAccepted { .. }
+        | ZooError::LocalOnly { .. } => TURBO_E_INVALID_STATE,
         ZooError::Transport { .. } | ZooError::Io { .. } => TURBO_E_RUNTIME,
     };
     plain(Failure::new(code, 0, e.to_string()))
@@ -168,6 +237,7 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Status> + Sen
 #[tonic::async_trait]
 impl TurboCatalogService for CatalogService {
     type InstallModelStream = install::UpdateStream;
+    type ReadModelFileStream = read::ChunkStream;
 
     async fn list_model_catalog(&self, req: Request<ListModelCatalogRequest>) -> Reply<ListModelCatalogResponse> {
         let catalog = self.catalog()?;
@@ -198,25 +268,41 @@ impl TurboCatalogService for CatalogService {
         let req = req.into_inner();
         let who = user(1, &req.user)?;
         let r = requirement(&req.licence, &req.terms)?;
+        let shown = accept::shown(&catalog, &r, &req.artifact_id, &req.text_sha256)?;
         let lock = self.accepting.clone();
         blocking(move || {
             let _held = lock.lock().unwrap_or_else(|p| p.into_inner());
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-            let mut acceptances = catalog.acceptances().map_err(zoo_status)?;
-            acceptances.accept_terms(&who, &r, now).map_err(zoo_status)?;
-            std::fs::create_dir_all(&catalog.home)
-                .map_err(|e| zoo_status(ZooError::Io { path: catalog.home.clone(), message: e.to_string() }))?;
-            acceptances.save(&catalog.acceptances_path()).map_err(zoo_status)?;
-            // Accepting again keeps the first time.
-            let first =
-                acceptances.iter().find(|a| a.user == who && a.license == r.licence && a.license_text == r.text);
-            Ok(Response::new(RecordLicenceAcceptanceResponse {
-                user: who.to_string(),
-                accepted: Some(terms(&r)),
-                accepted_at: first.map_or(now, |a| a.accepted_at),
-            }))
+            accept::record(&catalog, &who, &r, &shown).map(Response::new)
         })
         .await
+    }
+
+    async fn revoke_licence_acceptance(
+        &self,
+        req: Request<RevokeLicenceAcceptanceRequest>,
+    ) -> Reply<RevokeLicenceAcceptanceResponse> {
+        self.admin("RevokeLicenceAcceptance")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let r = requirement(&req.licence, &req.terms)?;
+        let lock = self.accepting.clone();
+        blocking(move || {
+            let _held = lock.lock().unwrap_or_else(|p| p.into_inner());
+            accept::revoke(&catalog, &who, &r).map(Response::new)
+        })
+        .await
+    }
+
+    async fn list_licence_acceptances(
+        &self,
+        req: Request<ListLicenceAcceptancesRequest>,
+    ) -> Reply<ListLicenceAcceptancesResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
+        let admin = self.admin || self.through.is_some();
+        blocking(move || accept::list(&catalog, who.as_ref(), admin).map(Response::new)).await
     }
 
     async fn install_model(&self, req: Request<InstallModelRequest>) -> Reply<Self::InstallModelStream> {
@@ -224,7 +310,94 @@ impl TurboCatalogService for CatalogService {
         let catalog = self.catalog()?;
         let req = req.into_inner();
         let who = user(1, &req.user)?;
-        let stream = install::start(catalog, who, req.artifact_id, self.installing.clone()).await?;
+        let stream =
+            install::start(catalog, who, req.artifact_id, self.installing.clone(), self.sources.clone()).await?;
         Ok(Response::new(stream))
+    }
+
+    async fn describe_model(&self, req: Request<DescribeModelRequest>) -> Reply<DescribeModelResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
+        let entry = blocking(move || read::describe(&catalog, who.as_ref(), &req.artifact_id)).await?;
+        Ok(Response::new(DescribeModelResponse { entry: Some(entry) }))
+    }
+
+    async fn resolve_model(&self, req: Request<ResolveModelRequest>) -> Reply<ResolveModelResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(3, &req.user)?) };
+        let (entry, path) =
+            blocking(move || read::resolve(&catalog, who.as_ref(), &req.sha256, &req.artifact_id)).await?;
+        Ok(Response::new(ResolveModelResponse { entry: Some(entry), path }))
+    }
+
+    async fn read_model_file(&self, req: Request<ReadModelFileRequest>) -> Reply<Self::ReadModelFileStream> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let through = self.through.clone();
+        let stream = read::start(catalog, who, req.artifact_id, req.path, req.sha256, through).await?;
+        Ok(Response::new(stream))
+    }
+
+    async fn list_model_sources(&self, req: Request<ListModelSourcesRequest>) -> Reply<ListModelSourcesResponse> {
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = if req.user.is_empty() { None } else { Some(user(1, &req.user)?) };
+        let (s, admin) = (self.sources.clone(), self.admin || self.through.is_some());
+        blocking(move || sources::list(&catalog, &s, who.as_ref(), admin).map(Response::new)).await
+    }
+
+    async fn register_model_source(
+        &self,
+        req: Request<RegisterModelSourceRequest>,
+    ) -> Reply<RegisterModelSourceResponse> {
+        self.admin("RegisterModelSource")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let (s, operator) = (self.sources.clone(), self.admin);
+        blocking(move || {
+            let sign_in = sources::SignInAsked { api_key: &req.api_key, s3_keys: req.s3_keys.as_ref() };
+            let source = sources::register(&catalog, &s, &who, &req.name, &req.address, sign_in, operator)?;
+            Ok(Response::new(RegisterModelSourceResponse { user: who.to_string(), source: Some(source) }))
+        })
+        .await
+    }
+
+    async fn remove_model_source(&self, req: Request<RemoveModelSourceRequest>) -> Reply<RemoveModelSourceResponse> {
+        self.admin("RemoveModelSource")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let s = self.sources.clone();
+        blocking(move || {
+            let was_registered = sources::remove(&catalog, &s, &who, &req.name)?;
+            Ok(Response::new(RemoveModelSourceResponse { user: who.to_string(), was_registered }))
+        })
+        .await
+    }
+
+    async fn start_drive_sign_in(&self, req: Request<StartDriveSignInRequest>) -> Reply<StartDriveSignInResponse> {
+        self.admin("StartDriveSignIn")?;
+        self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let (authorize_url, state) = sources::start(&self.sources, &who, &req.name, &req.address)?;
+        Ok(Response::new(StartDriveSignInResponse { authorize_url, state, expires_in: SIGN_IN_SECONDS as u32 }))
+    }
+
+    async fn finish_drive_sign_in(&self, req: Request<FinishDriveSignInRequest>) -> Reply<FinishDriveSignInResponse> {
+        self.admin("FinishDriveSignIn")?;
+        let catalog = self.catalog()?;
+        let req = req.into_inner();
+        let who = user(1, &req.user)?;
+        let s = self.sources.clone();
+        blocking(move || {
+            let source = sources::finish(&catalog, &s, &who, &req.state, &req.code)?;
+            Ok(Response::new(FinishDriveSignInResponse { user: who.to_string(), source: Some(source) }))
+        })
+        .await
     }
 }

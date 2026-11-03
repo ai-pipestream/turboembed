@@ -85,7 +85,7 @@ pub(super) fn normalize_run(n: &Normalizer, text: &str, out: &mut String) {
         [cjk.then_some(' '), Some(c), cjk.then_some(' ')].into_iter().flatten()
     });
     if n.strip_accents {
-        lowercased(n, split.nfd().map(|(c, _)| c).filter(|&c| !category(c, MARK_NONSPACING)), out);
+        lowercased(n, aligned_chars(Form::Nfd, split).map(|(c, _)| c).filter(|&c| !category(c, MARK_NONSPACING)), out);
     } else {
         lowercased(n, split, out);
     }
@@ -171,7 +171,7 @@ pub(super) fn normalize_run_aligned(n: &Normalizer, text: &str, base: usize, s: 
         let mut stripped = Vec::with_capacity(chars.len());
         let mut next = 0;
         let mut last = chars.first().map_or([base as u32; 2], |c| c.1);
-        for (c, change) in chars.iter().map(|&(c, _)| c).nfd() {
+        for (c, change) in aligned_chars(Form::Nfd, chars.iter().map(|&(c, _)| c)) {
             if change <= 0
                 && let Some(&(_, at)) = chars.get(next)
             {
@@ -220,38 +220,43 @@ pub(super) fn pre_tokenize<'a>(s: &'a str, mut word: impl FnMut(&'a str)) {
 /// The words a BERT tokenizer cuts `text` into before WordPiece, as byte
 /// ranges: `BertPreTokenizer`'s, whitespace parting them and each
 /// punctuation character a word of its own, with each CJK ideograph one
-/// too, as `BertNormalizer`'s handle_chinese_chars spaces it. No piece of
-/// such a tokenizer crosses one.
+/// too, as `BertNormalizer`'s handle_chinese_chars spaces it. A character
+/// its clean_text deletes (NUL, U+FFFD, a control) parts nothing, so the
+/// words either side of it are one, as WordPiece reads them; a word ends
+/// after its last kept character. No piece of such a tokenizer crosses
+/// one.
 pub fn pre_words(text: &str) -> Vec<(usize, usize)> {
+    words_under(text, true, true)
+}
+
+/// [`pre_words`] under a normalizer that deletes what clean_text deletes
+/// only when `clean`, and spaces CJK ideographs only when `split_cjk`.
+pub(super) fn words_under(text: &str, clean: bool, split_cjk: bool) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
-    let mut start = None;
+    let mut word: Option<(usize, usize)> = None;
     for (i, c) in text.char_indices() {
-        let alone = c.is_ascii_punctuation() || (!c.is_ascii() && category(c, PUNCTUATION)) || is_cjk(c);
+        if clean && (c == '\0' || c == '\u{fffd}' || is_control(c)) {
+            continue;
+        }
+        let alone = c.is_ascii_punctuation() || (!c.is_ascii() && category(c, PUNCTUATION)) || (split_cjk && is_cjk(c));
         if is_whitespace(c) || alone {
-            if let Some(s) = start.take() {
-                out.push((s, i));
-            }
+            out.extend(word.take());
             if alone {
                 out.push((i, i + c.len_utf8()));
             }
-        } else if start.is_none() {
-            start = Some(i);
+        } else {
+            let end = i + c.len_utf8();
+            word = Some(word.map_or((i, end), |(s, _)| (s, end)));
         }
     }
-    if let Some(s) = start {
-        out.push((s, text.len()));
-    }
+    out.extend(word);
     out
 }
 
 /// A character of regex's Unicode \\w, which upstream's single_word
 /// reads: alphabetic, a mark, a decimal digit, a connector, or a joiner.
 pub(super) fn is_word(c: char) -> bool {
-    c.is_alphabetic()
-        || c.is_mark()
-        || c.is_number_decimal_digit()
-        || c.is_punctuation_connector()
-        || matches!(c, '\u{200c}' | '\u{200d}')
+    crate::classes::is_word(c)
 }
 
 pub(super) fn is_whitespace(c: char) -> bool {
@@ -265,8 +270,6 @@ pub(super) fn is_control(c: char) -> bool {
 pub(super) const OTHER: u8 = 1;
 pub(super) const MARK_NONSPACING: u8 = 2;
 pub(super) const PUNCTUATION: u8 = 4;
-pub(crate) const LETTER: u8 = 8;
-pub(crate) const NUMBER: u8 = 16;
 
 /// Whether `c` is in the categories `bits` names (Unicode's C, Mn, P, L
 /// and N): from a table of the Basic Multilingual Plane, made once,
@@ -287,9 +290,7 @@ pub(crate) fn category(c: char, bits: u8) -> bool {
     table[at as usize] & bits != 0
 }
 
-/// `c`'s bits: C, Mn and P from the tables upstream's BertNormalizer
-/// reads, L and N from those of the regular expressions its
-/// pre-tokenizers run (classes.rs).
+/// `c`'s bits: frozen C, Mn and P, plus upstream's split L and N tables.
 pub(super) fn categories(c: char) -> u8 {
     let within = |runs: &[(u32, u32)]| {
         let u = c as u32;
@@ -304,9 +305,9 @@ pub(super) fn categories(c: char) -> u8 {
         })
         .is_ok()
     };
-    (c.is_other() as u8)
-        | ((c.is_mark_nonspacing() as u8) << 1)
-        | ((c.is_punctuation() as u8) << 2)
+    (turbo_unicode::hf::is_other(c) as u8)
+        | ((turbo_unicode::hf::is_mark_nonspacing(c) as u8) << 1)
+        | ((turbo_unicode::hf::is_punctuation(c) as u8) << 2)
         | ((within(crate::classes::LETTERS) as u8) << 3)
         | ((within(crate::classes::NUMBERS) as u8) << 4)
 }

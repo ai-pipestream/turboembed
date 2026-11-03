@@ -8,7 +8,6 @@
 //! is one unknown token, as upstream fuses them.
 
 use serde_json::Value;
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::manifest;
 use crate::status::{Result, invalid};
@@ -52,6 +51,16 @@ mod trie;
 use base64::base64;
 use charsmap::Charsmap;
 pub(crate) use trie::Trie;
+
+pub(crate) fn graphemes(text: &str) -> impl Iterator<Item = (usize, &str)> {
+    let mut start = 0;
+    turbo_unicode::grapheme_boundaries(text).skip(1).map(move |end| {
+        let range = (start, &text[start..end]);
+        start = end;
+        range
+    })
+}
+
 impl Unigram {
     pub fn vocab_size(&self) -> u32 {
         self.scores.len() as u32

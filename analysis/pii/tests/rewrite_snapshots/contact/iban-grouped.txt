@@ -1,0 +1,12 @@
+MASKED	IBAN DE89 3704 0044 **** **** ** received.
+
+MASK_ALL	IBAN DE89 3704 0044 ############ received.
+
+REWRITE	pseudonymize	OK	IBAN DE89 3704 0044 PHONE-1 received.
+
+LABEL	pseudonymize	20	32	20	27	PHONE-1
+REWRITE	hmac	OK	IBAN DE89 3704 0044 PHONE-d93b376c99f48a80 received.
+
+LABEL	hmac	20	32	20	42	PHONE-d93b376c99f48a80
+AUDIT	phone	1	1	PHONE-d93b376c99f48a80
+AUDIT_REPORT	phone: 1 mentions, 1 distinct [PHONE-d93b376c99f48a80]

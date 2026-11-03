@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
 model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	177	start:u32	end:u32
+layer	turbo:tokens	text	177	start:u32	end:u32
 0	1
 1	2
 2	3
@@ -184,4 +184,4 @@ layer	opennlp:tokens	text	177	start:u32	end:u32
 185	186
 186	187
 187	188
-end	opennlp:tokens
+end	turbo:tokens

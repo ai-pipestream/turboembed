@@ -215,6 +215,7 @@ pub fn build_rich_document() -> Document {
             coefficient: strs(&["4250"]),
             scale: vec![2],
             currency: vec![Currency::parse("USD").unwrap()],
+            per: strs(&[""]),
         },
         Provenance::by("test:money"),
     );

@@ -5,6 +5,6 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
 annotator	opennlp.tools.sentdetect.NewlineSentenceDetector	sentPosDetect
-layer	opennlp:sentences	text	1	start:u32	end:u32
+layer	turbo:sentences	text	1	start:u32	end:u32
 0	190
-end	opennlp:sentences
+end	turbo:sentences

@@ -1,0 +1,45 @@
+load_error	
+unsupported	0
+words	42
+football	foot	football	pa:foot st:foot pa:ball
+footballs	foot	football	pa:foot st:foot pa:balls st:ball fl:S
+ballfoot	ball	ballfoot	pa:ball st:ball pa:foot
+sunflower	sunflower	sunflower	
+sunflowers	sun	sunflower	pa:sun st:sun pa:flowers st:flower fl:S
+sunroomflower	sun	sunroomflower	pa:sun st:sun pa:room st:room pa:flower
+sunroomroomflower	sunroomroomflower	sunroomroomflower	
+flowersun	flowersun	flowersun	
+badfoot	badfoot	badfoot	
+footbad	foot	footbad	pa:foot st:foot pa:bad
+seesea	see	seesea	pa:see st:see pa:sea
+seasea	seasea	seasea	
+seaseasea	seaseasea	seaseasea	
+footfoot	footfoot	footfoot	
+manfoot	man	manfoot	pa:man st:man pa:foot
+footman	footman	footman	
+Footman	foot	footman	pa:foot st:foot pa:man
+FOOTMAN	FOOTMAN	FOOTMAN	
+handfoot	hand	handfoot	pa:hand st:hand pa:foot
+handhandfoot	handhandfoot	handhandfoot	
+footlink	footlink	footlink	
+linkfoot	linkfoot	linkfoot	
+footlinkball	footlinkball	footlinkball	
+footballsball	footballsball	footballsball	
+footsball	foot	football	pa:foots st:foot fl:S pa:ball
+refootball	refootball	refootball	
+footreball	footreball	footreball	
+radiobob	radiobob	radiobob	
+radiouxa	radiouxa	radiouxa	
+uxaradio	uxa	uxaradio	pa:uxa st:uxa pa:radio
+boatsz	boatsz	boatsz	
+boats	boat	boat	st:boat fl:S
+boatsball	boat	boatball	pa:boats st:boat fl:S pa:ball
+foot-ball	foot	football	pa:foot st:foot pa:ball st:ball
+-football	foot	football	pa:foot st:foot pa:ball
+football-	football-	football-	
+foot--	foot	foot	st:foot
+footBall	footBall	footBall	
+FootBall	FootBall	FootBall	
+FOOTBALL	FOOTBALL	FOOTBALL	
+sun flower	sun flower	sun flower	st:sun flower
+sunflowerroom	sunflowerroom	sunflowerroom	

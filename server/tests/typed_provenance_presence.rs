@@ -72,7 +72,7 @@ async fn optional_model_and_execution_records_retain_presence() {
             let msg = project(&mut client, &doc, mode).await;
             let mut refs = std::collections::HashSet::new();
             for (name, bundle, execution) in cases {
-                let layer = msg.layers.iter().find(|l| l.id == "opennlp:tokens" && l.instance == name).unwrap();
+                let layer = msg.layers.iter().find(|l| l.id == "turbo:tokens" && l.instance == name).unwrap();
                 let p = msg.models.iter().find(|p| p.model_ref == layer.model_refs[0]).unwrap();
                 assert_eq!(
                     (p.bundle.is_some(), p.execution.is_some()),

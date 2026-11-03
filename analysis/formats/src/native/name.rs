@@ -29,7 +29,6 @@
 //!   names are sorted longer first.
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use crate::error::FormatError;
 use crate::sample::name::{DEFAULT_NAME_TYPE, Name, NameSample};
@@ -41,14 +40,13 @@ const END_TAG: &str = "<END>";
 #[derive(Clone, Debug)]
 pub struct NameReader<'a> {
     lines: Lines<'a>,
-    mode: WhitespaceMode,
     default_type: &'a str,
 }
 
 impl<'a> NameReader<'a> {
-    /// A reader of `source`, splitting lines on whitespace in `mode`.
-    pub fn new(source: &'a str, mode: WhitespaceMode) -> Result<NameReader<'a>, FormatError> {
-        Ok(NameReader { lines: Lines::new(source)?, mode, default_type: DEFAULT_NAME_TYPE })
+    /// A reader of `source`, splitting lines at Unicode whitespace.
+    pub fn new(source: &'a str) -> Result<NameReader<'a>, FormatError> {
+        Ok(NameReader { lines: Lines::new(source)?, default_type: DEFAULT_NAME_TYPE })
     }
 
     /// The type of a name whose start tag has none, before any typed tag
@@ -70,7 +68,7 @@ impl<'a> Iterator for NameReader<'a> {
                 clear = true;
                 continue;
             }
-            return Some(parse_line(line, clear, self.mode, self.default_type));
+            return Some(parse_line(line, clear, self.default_type));
         }
     }
 }
@@ -79,10 +77,9 @@ impl<'a> Iterator for NameReader<'a> {
 pub fn parse_line<'a>(
     line: Line<'a>,
     clear_adaptive_data: bool,
-    mode: WhitespaceMode,
     default_type: &'a str,
 ) -> Result<NameSample<'a>, FormatError> {
-    let parts: Vec<Piece<'a>> = whitespace_tokens(line.piece, mode).collect();
+    let parts: Vec<Piece<'a>> = whitespace_tokens(line.piece).collect();
     let mut tokens = Vec::with_capacity(parts.len());
     let mut names = Vec::new();
     let mut name_type = default_type;
@@ -160,7 +157,7 @@ mod tests {
     use super::*;
 
     fn read(s: &str) -> Vec<Result<NameSample<'_>, FormatError>> {
-        NameReader::new(s, WhitespaceMode::Unicode).unwrap().collect()
+        NameReader::new(s).unwrap().collect()
     }
 
     fn names<'a>(s: &NameSample<'a>) -> Vec<(u32, u32, Option<&'a str>)> {

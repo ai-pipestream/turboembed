@@ -5,7 +5,7 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
 annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
-layer	opennlp:tokens	text	19	start:u32	end:u32
+layer	turbo:tokens	text	19	start:u32	end:u32
 0	16
 17	27
 29	31
@@ -25,8 +25,8 @@ layer	opennlp:tokens	text	19	start:u32	end:u32
 160	176
 177	180
 181	189
-end	opennlp:tokens
-layer	turbo:word-types	aligned:opennlp:tokens	19	kind:str
+end	turbo:tokens
+layer	turbo:word-types	aligned:turbo:tokens	19	kind:str
 ALPHANUMERIC
 ALPHANUMERIC
 ALPHANUMERIC

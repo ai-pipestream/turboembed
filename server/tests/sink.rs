@@ -47,8 +47,13 @@ async fn sink_server() -> (Server, Got) {
 #[tokio::test]
 async fn completed_stream_documents_reach_the_sink_in_order() {
     let (sink, got) = sink_server().await;
-    let config =
-        SinkConfig { endpoint: format!("http://{}", sink.local_addr()), max_queue_items: 16, max_queue_bytes: 1 << 20 };
+    let config = SinkConfig {
+        endpoint: format!("http://{}", sink.local_addr()),
+        max_queue_items: 16,
+        max_queue_bytes: 1 << 20,
+        documents: false,
+        typed: None,
+    };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
     s.load().await.unwrap();
@@ -78,7 +83,13 @@ async fn completed_stream_documents_reach_the_sink_in_order() {
 }
 
 fn answer(id: &str) -> AnalyzeStreamResponse {
-    let vectors = AnalyzeVectors { model: "m".into(), version: "1".into(), dim: 1, data: vec![0, 0, 128, 63].into() };
+    let vectors = AnalyzeVectors {
+        model: "m".into(),
+        version: "1".into(),
+        dim: 1,
+        data: vec![0, 0, 128, 63].into(),
+        quantization: 0,
+    };
     AnalyzeStreamResponse { id: id.into(), outcome: Some(Outcome::Vectors(vectors)) }
 }
 
@@ -131,7 +142,7 @@ async fn a_server_without_a_receiver_does_not_serve_the_sink() {
 
 /// A server teeing to `endpoint`, its model loaded.
 async fn teeing(endpoint: String, max_queue_items: usize) -> Server {
-    let config = SinkConfig { endpoint, max_queue_items, max_queue_bytes: 64 << 20 };
+    let config = SinkConfig { endpoint, max_queue_items, max_queue_bytes: 64 << 20, documents: false, typed: None };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
     s.load().await.unwrap();
@@ -307,11 +318,41 @@ async fn a_refused_start_leaves_no_drain_calling_the_sink() {
     // A file where the vocabulary store wants a directory refuses the start.
     let file = std::env::temp_dir().join(format!("turbo-sink-refused-{}", std::process::id()));
     std::fs::write(&file, b"not a directory").unwrap();
-    let config = SinkConfig { endpoint: format!("http://{addr}"), max_queue_items: 4, max_queue_bytes: 1 << 20 };
+    let config = SinkConfig {
+        endpoint: format!("http://{addr}"),
+        max_queue_items: 4,
+        max_queue_bytes: 1 << 20,
+        documents: false,
+        typed: None,
+    };
     let serve = Serve { sink: Some(config), vocabulary: Some(file.clone()), ..Serve::default() };
     let refused = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await;
     std::fs::remove_file(&file).unwrap();
     assert!(refused.err().is_some_and(|e| e.contains("vocabulary store")));
     tokio::time::sleep(Duration::from_millis(1500)).await;
     assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 0, "a drain outlived the refused start");
+}
+
+/// A sink that pauses on each item still receives everything close waits
+/// for: close must drain the queue within its deadline, not drop what was
+/// already offered.
+#[tokio::test]
+async fn close_drains_what_a_slow_sink_has_not_taken_yet() {
+    let got: Got = Arc::default();
+    let keep = got.clone();
+    let receiver = SinkReceiver::new(move |item| {
+        std::thread::sleep(Duration::from_millis(80));
+        keep.lock().unwrap().push(item);
+    });
+    let serve = Serve { sink_receiver: Some(receiver), ..Serve::default() };
+    let sink = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
+    let s = teeing(format!("http://{}", sink.local_addr()), 16).await;
+    analyze(&s, "slow", 4).await;
+    // Close at once: some items are still in the queue or in the slow
+    // sink callback. Ten seconds is enough for four 80ms pauses.
+    let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+    assert_eq!((stats.offered, stats.forwarded, stats.dropped, stats.abandoned), (4, 4, 0, 0), "{stats:?}");
+    assert_eq!(got.lock().unwrap().len(), 4);
+    s.stop().await;
+    sink.stop().await;
 }

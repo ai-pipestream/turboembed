@@ -6,7 +6,7 @@ unicode	15.0
 input	ja/punctuation	64	22	5b7ae985b55419f6ac83560a4fc13f58584bd6e862e4ae0a2455b3cb4663be01
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	18	start:u32	end:u32
+layer	turbo:tokens	text	18	start:u32	end:u32
 0	3
 3	9
 9	12
@@ -25,8 +25,8 @@ layer	opennlp:tokens	text	18	start:u32	end:u32
 54	57
 57	60
 60	63
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	18	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	18	unknown:u32	features:str
 0	補助記号,括弧開,*,*,*,*,,「,「,,「,,記号,*,*,*,*
 0	名詞,固有名詞,地名,一般,*,*,トウキョウ,トウキョウ,東京,トーキョー,東京,トーキョー,固,*,*,*,*
 0	補助記号,括弧閉,*,*,*,*,,」,」,,」,,記号,*,*,*,*

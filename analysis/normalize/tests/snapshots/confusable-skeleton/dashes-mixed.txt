@@ -1,0 +1,32 @@
+===OUT===
+Pages lO-l4, a longーdashーsentence, and a rninus -3 next to a hyphen-rninus -3.
+U+2OlO - U+2Oll non-breaking U+2Ol2 figure-2 U+2Ol5 bar ー U+22l2 -.
+A double hyphen -- and a triple --- stay as they are, ⸺ and - too.
+
+===EDITS===
+6	7	l
+7	8	O
+8	11	-
+11	12	l
+21	24	ー
+28	31	ー
+47	48	rn
+53	56	-
+75	76	rn
+88	89	O
+89	90	l
+90	91	O
+92	95	-
+99	100	O
+100	101	l
+101	102	l
+106	109	-
+121	122	O
+122	123	l
+131	134	-
+139	140	O
+140	141	l
+147	150	ー
+155	156	l
+158	161	-
+225	228	-

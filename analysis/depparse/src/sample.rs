@@ -1,16 +1,14 @@
-use crate::{
-    ArcStandardOracle, ArcStandardState, DependencyContextGenerator, DependencyGraph, ParserInput, Result, error,
-};
+use crate::{ArcStandardState, DependencyContextGenerator, DependencyGraph, ParserInput, Result, error};
 use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::{Dependencies, Tokens, WordOrTokenAnchor};
 use turbo_formats::conllu::ConlluDependencySample;
 use turbo_formats::sample::dependency::{DependencySample as FormatSample, DependencyTree, Head};
 use turbo_formats::source::Field;
 use turbo_train::Event;
-use turbo_unicode::WhitespaceMode;
 
 /// Sentence data and its tree. Optional CoNLL-U metadata survives a graph/layer
 /// round trip through this carrier; a bare dependency layer has no text offsets.
+#[derive(Debug)]
 pub struct DependencySample<A: WordOrTokenAnchor = Tokens> {
     tokens: Vec<String>,
     tags: Vec<String>,
@@ -47,6 +45,24 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
     }
     pub fn graph(&self) -> &DependencyGraph<A> {
         &self.graph
+    }
+    pub fn from_format(sample: &FormatSample<'_>) -> Result<Self> {
+        let heads = sample
+            .tree()
+            .heads()
+            .iter()
+            .map(|h| match h {
+                Head::Root => None,
+                Head::Word(i) => Some(Ix::new(*i)),
+            })
+            .collect();
+        let relations = sample.tree().relations().iter().map(|r| r.as_str().to_owned()).collect();
+        let graph = DependencyGraph::new(heads, relations)?;
+        Self::new(
+            sample.tokens().iter().map(|f| f.as_str().to_owned()).collect(),
+            sample.tags().iter().map(|f| f.as_str().to_owned()).collect(),
+            graph,
+        )
     }
     pub fn from_conllu(sample: ConlluDependencySample) -> Result<Self> {
         sample.check().map_err(error)?;
@@ -93,7 +109,7 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
                 )
             })
             .collect();
-        let tree = DependencyTree::new(heads, relations, WhitespaceMode::Unicode).map_err(error)?;
+        let tree = DependencyTree::new(heads, relations).map_err(error)?;
         out.sample =
             FormatSample::new(out.sample.tokens().to_vec(), out.sample.tags().to_vec(), tree, out.sample.source())
                 .map_err(error)?;
@@ -101,21 +117,31 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
     }
 }
 /// Oracle events in sentence/transition order. Non-projective samples are
-/// skipped before any events are emitted, matching the Java event stream.
+/// pseudo-projectivized before extracting arc-standard oracle transitions.
 #[derive(Default)]
 pub struct DependencyEventStream {
     pub events: Vec<Event>,
     pub skipped_nonprojective: usize,
+    /// Number of source trees with crossing dependencies retained in the events.
+    pub included_nonprojective: usize,
 }
 impl DependencyEventStream {
     pub fn generate<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
+        Self::generate_with_mode(samples, crate::training::TrainingMode::PseudoProjective)
+    }
+    /// Generate native SWAP events, retaining ordinary source relation labels.
+    pub fn generate_swap<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
+        Self::generate_with_mode(samples, crate::training::TrainingMode::Swap)
+    }
+    pub(crate) fn generate_with_mode<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        mode: crate::training::TrainingMode,
+    ) -> Result<Self> {
         let mut out = Self::default();
         for sample in samples {
-            if !sample.graph.is_projective() {
-                out.skipped_nonprojective += 1;
-                continue;
-            }
-            let steps = ArcStandardOracle::transitions(&sample.graph)?;
+            let graph = mode.graph(sample.graph())?;
+            out.included_nonprojective += usize::from(!sample.graph().is_projective());
+            let steps = mode.transitions(&graph)?;
             let mut state = ArcStandardState::<A>::new(sample.tokens.len())?;
             let tokens: Vec<_> = sample.tokens.iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags.iter().map(String::as_str).collect();

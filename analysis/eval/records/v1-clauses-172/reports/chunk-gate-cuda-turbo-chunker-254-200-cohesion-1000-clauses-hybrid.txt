@@ -1,0 +1,10 @@
+evidence conteb-squad (reported, mostly short documents): recall@10 +0.48 (+0.13..+0.85), contained@10 +0.63 (+0.24..+1.06), split 0.0% vs 0.2%, short documents 98%
+evidence gutenqa: recall@10 +11.39 (+9.70..+13.04), contained@10 +12.95 (+11.15..+14.75), split 5.4% vs 9.0%, short documents 0%  pass
+evidence qasper: recall@10 +5.36 (+4.11..+6.67), contained@10 +14.21 (+12.48..+16.00), split 6.5% vs 51.0%, short documents 0%  pass
+floor arguana against fixed-tokens: nDCG@10 -0.62 (-1.19..-0.07)
+floor conteb-squad against opennlp-sandbox-semantic: nDCG@10 -0.57 (-1.37..+0.21)
+floor gutenqa against fixed-tokens: nDCG@10 +0.24 (-0.21..+0.68)
+floor nfcorpus against sentence-windows: nDCG@10 +0.19 (-0.43..+0.80)
+floor qasper against opennlp-sandbox-semantic: nDCG@10 -1.13 (-2.42..+0.15)
+floor scifact against sentence-windows: nDCG@10 -1.20 (-2.54..+0.07)
+PASS: 2 of 2 gated evidence sets pass; 6 of 6 sets above the nDCG@10 floor -0.5

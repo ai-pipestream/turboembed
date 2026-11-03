@@ -45,7 +45,7 @@ const TEXT: [&str; 8] = ["the", "cat", "sat", "on", "a", "mat", "and", "slept"];
 fn score_packed_timing() {
     let root = std::env::var("GLINER_PACKAGE").expect("GLINER_PACKAGE");
     let reps: usize = std::env::var("GLINER_REPS").ok().and_then(|v| v.parse().ok()).unwrap_or(5);
-    let model = Manifest::load(std::path::Path::new(&root)).unwrap();
+    let model = Manifest::load(&turbo_pins::require(&root)).unwrap();
     for words in [64, 128, 384] {
         for labels in [4, 32] {
             let schema =

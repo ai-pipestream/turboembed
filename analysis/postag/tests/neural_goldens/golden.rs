@@ -253,6 +253,14 @@ pub(crate) struct Totals {
     pub(crate) packed_tags: usize,
     pub(crate) packed_emissions: Count,
     pub(crate) packed_probabilities: Count,
+    /// The packed numerics on TURBO_TEST_DEVICE's GPU.
+    pub(crate) device_tags: usize,
+    pub(crate) device_emissions: Count,
+    pub(crate) device_probabilities: Count,
+    /// The tagger at FASTEST on the device: tags, and those equal to the
+    /// JVM's.
+    pub(crate) fastest_tags: usize,
+    pub(crate) fastest_equal: usize,
 }
 
 impl std::ops::AddAssign for Totals {
@@ -271,5 +279,10 @@ impl std::ops::AddAssign for Totals {
         self.packed_tags += other.packed_tags;
         self.packed_emissions += other.packed_emissions;
         self.packed_probabilities += other.packed_probabilities;
+        self.device_tags += other.device_tags;
+        self.device_emissions += other.device_emissions;
+        self.device_probabilities += other.device_probabilities;
+        self.fastest_tags += other.fastest_tags;
+        self.fastest_equal += other.fastest_equal;
     }
 }

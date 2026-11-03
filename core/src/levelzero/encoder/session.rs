@@ -6,7 +6,7 @@ use super::kernels::*;
 use super::model::*;
 use super::tune::*;
 use super::*;
-use crate::backend::{turbo_backend_session_desc, turbo_backend_tuning};
+use crate::backend::{TURBO_FAMILY_DEBERTA_V2, turbo_backend_session_desc, turbo_backend_tuning};
 use crate::levelzero::gpu::{Buffer, Context, Res, fail, fail_field, guarded, quietly};
 use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED_OPTION, UNSUPPORTED_TASK};
 use crate::{
@@ -48,6 +48,17 @@ pub(super) struct Session {
     pub(super) att: u64,
     pub(super) tmp: u64,
     pub(super) ffn: u64,
+    /// For a rotary model (rotary.rs): each packed token's position in
+    /// its row, [tokens] int32; ModernBERT's normalized rows, [tokens,
+    /// hidden]; and the gated MLP's output, [tokens, intermediate]. 0 for
+    /// any other family.
+    pub(super) positions: u64,
+    pub(super) xn: u64,
+    pub(super) mid: u64,
+    /// For a DeBERTa-v2 model, the bucket of each distance a row of
+    /// max_seq tokens spans, [2 * max_seq - 1] int32 (deberta.rs); 0 for
+    /// any other family.
+    pub(super) buckets: u64,
     /// [max(max_batch, max_ranges), hidden] F32 on the device, handed out
     /// as the output: a row's vectors after embed_write, a range's after
     /// embed_write_ranges, each output_dim values, packed.
@@ -173,6 +184,11 @@ pub(super) unsafe fn create(
             if task != TURBO_TASK_EMBED {
                 return Err(fail(UNSUPPORTED_TASK, format!("task {task}: the levelzero backend runs embed")));
             }
+            let is_deberta = d.family == TURBO_FAMILY_DEBERTA_V2;
+            let is_rotary = super::rotary::is(d.family);
+            if is_deberta {
+                deberta::check_precision(precision)?;
+            }
             if precision == TURBO_PRECISION_MODEL && d.dtype != TURBO_DTYPE_F32 {
                 return Err(fail_field(
                     UNSUPPORTED_OPTION,
@@ -201,11 +217,40 @@ pub(super) unsafe fn create(
             // 2D reads take whole steps of DPAS_K terms and tiles of
             // DPAS_TN outputs, from F16 activations: the attention kernels
             // write an F16 context.
-            let xmx = precision == TURBO_PRECISION_FASTEST
-                && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
-                && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
-            let kernels = Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx)?;
-            if let Attention::General(k) = &kernels.attention {
+            let xmx = precision == TURBO_PRECISION_FASTEST && is_rotary && super::rotary::xmx(d)
+                || precision == TURBO_PRECISION_FASTEST
+                    && !is_rotary
+                    && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
+                    && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
+            let mut kernels =
+                Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta.then_some((d, max_seq)))?;
+            if is_rotary {
+                let rk = super::rotary::RotaryKernels::new(c, head_dim)?;
+                let local = rk.attention_local(max_seq, head_dim);
+                let room = (c.max_local as u64).saturating_sub(rk.attention_local_bytes()? as u64);
+                if local > room {
+                    return Err(fail_field(
+                        UNSUPPORTED_OPTION,
+                        2,
+                        format!(
+                            "max_seq {max_seq}: attention needs {local} bytes of local memory per work-group, and \
+                             device {} gives it {room}",
+                            c.ordinal
+                        ),
+                    ));
+                }
+                kernels.rotary = Some(rk);
+            }
+            if let Some(dk) = &kernels.deberta {
+                deberta::picked(dk.tiled.is_some());
+            }
+            let general = match (&kernels.deberta, &kernels.attention) {
+                _ if is_rotary => None,
+                (Some(dk), _) => dk.tiled.is_none().then_some(&dk.general),
+                (None, Attention::General(k)) => Some(k),
+                _ => None,
+            };
+            if let Some(k) = general {
                 // The driver keeps some of a work-group's local memory for
                 // the kernel's own use (its reductions); the scores get the
                 // rest.
@@ -224,7 +269,9 @@ pub(super) unsafe fn create(
                 }
             }
             let tokens = max_batch as usize * max_seq as usize;
-            if tokens > i32::MAX as usize / (3 * d.hidden).max(d.intermediate) as usize {
+            // A rotary model's feed-forward input is twice the intermediate width.
+            let ffn_width = if is_rotary { 2 * d.intermediate } else { d.intermediate };
+            if tokens > i32::MAX as usize / (3 * d.hidden).max(ffn_width) as usize {
                 return Err(fail_field(
                     UNSUPPORTED_OPTION,
                     1,
@@ -233,13 +280,23 @@ pub(super) unsafe fn create(
             }
             let weights = m.f32_weights()?;
             let half = if xmx { Some(m.f16_weights(&weights)?) } else { None };
-            let sgemm = !xmx && d.hidden.is_multiple_of(SGEMM_TN) && d.intermediate.is_multiple_of(SGEMM_TN);
+            let sgemm =
+                !xmx && !is_rotary && d.hidden.is_multiple_of(SGEMM_TN) && d.intermediate.is_multiple_of(SGEMM_TN);
             let f32t = if sgemm { Some(m.f32_transposed(&weights)?) } else { None };
             let ints = round_up(tokens * 4, DEVICE_ALIGN);
             let table = round_up(max_batch as usize * 8, DEVICE_ALIGN);
             let wide = round_up(tokens * d.hidden as usize * 4, DEVICE_ALIGN);
-            let narrow = if xmx { round_up(tokens * d.hidden as usize * 2, DEVICE_ALIGN) } else { 0 };
-            let ffn = round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN);
+            // A rotary model narrows each linear layer's input, up to the
+            // intermediate width, into xh.
+            let narrow_width = if is_rotary { d.hidden.max(d.intermediate) } else { d.hidden };
+            let narrow = if xmx { round_up(tokens * narrow_width as usize * 2, DEVICE_ALIGN) } else { 0 };
+            let ffn = round_up(tokens * ffn_width as usize * 4, DEVICE_ALIGN);
+            let rotary = if is_rotary {
+                ints + if d.family == crate::backend::TURBO_FAMILY_MODERNBERT { wide } else { 0 }
+                    + round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN)
+            } else {
+                0
+            };
             // The row path and the range path write their vectors to this
             // one buffer, so it holds the larger of the two counts.
             let vectors = max_batch.max(max_ranges) as usize;
@@ -247,7 +304,8 @@ pub(super) unsafe fn create(
             // FASTEST's sums are one part, where they are not taken by the
             // LayerNorm-fused kernels.
             let parts = if xmx { 1 } else { SPLITS as usize };
-            let scratch = c.alloc_device(ints + table + (5 + parts) * wide + narrow + ffn + output)?;
+            let spans = if is_deberta { round_up((2 * max_seq.max(1) as usize - 1) * 4, DEVICE_ALIGN) } else { 0 };
+            let scratch = c.alloc_device(ints + table + (5 + parts) * wide + narrow + ffn + output + spans + rotary)?;
             let mut s = Box::new(Session {
                 model: m,
                 ctx: c,
@@ -268,6 +326,10 @@ pub(super) unsafe fn create(
                 att: 0,
                 tmp: 0,
                 ffn: 0,
+                positions: 0,
+                xn: 0,
+                mid: 0,
+                buckets: 0,
                 output: Box::new(Buffer::session_output(c, std::ptr::null_mut(), 0)),
                 staging: std::ptr::null_mut(),
                 written: false,
@@ -299,6 +361,23 @@ pub(super) unsafe fn create(
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
             s.output = Box::new(Buffer::session_output(c, out_ptr, vectors as u64 * d.hidden as u64 * 4));
+            if is_rotary {
+                s.positions = take(ints);
+                if d.family == crate::backend::TURBO_FAMILY_MODERNBERT {
+                    s.xn = take(wide);
+                }
+                s.mid = take(round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN));
+            }
+            if is_deberta {
+                s.buckets = take(spans);
+                let table = deberta::buckets(d, max_seq.max(1));
+                let mut q = c.lock_queue()?;
+                let dst = s.buckets as usize as *mut c_void;
+                let copied = c.copy(&mut q, dst, table.as_ptr() as *const c_void, table.len() * 4);
+                let synced = c.sync(&mut q);
+                copied?;
+                synced?;
+            }
             s.linear = match forced_linear()? {
                 Some(l) if l == Linear::Onednn && !onednn_runs(c, s.half.as_ref()) => {
                     return Err(fail(

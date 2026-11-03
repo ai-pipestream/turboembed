@@ -36,7 +36,9 @@ fn retired() -> u32 {
 }
 
 fn bundle() -> std::path::PathBuf {
-    std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"))
+    turbo_pins::require(std::path::PathBuf::from(
+        std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"),
+    ))
 }
 
 /// A session made with the frame timeout set to `ms`, or its refusal.

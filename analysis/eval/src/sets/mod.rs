@@ -10,6 +10,8 @@
 pub mod arguana;
 pub mod conteb_covid_qa;
 pub mod conteb_squad;
+pub mod contract_nli;
+pub mod cuad;
 pub mod gutenqa;
 pub mod hicbench;
 pub mod legalbench_rag_mini;
@@ -25,7 +27,7 @@ use crate::read::SetDir;
 use crate::set::LoadedSet;
 
 /// Every set, in the order a full run takes them.
-pub const ALL: [&Set; 9] = [
+pub const ALL: [&Set; 11] = [
     &scifact::SET,
     &nfcorpus::SET,
     &arguana::SET,
@@ -35,6 +37,8 @@ pub const ALL: [&Set; 9] = [
     &gutenqa::SET,
     &hicbench::SET,
     &qasper::SET,
+    &cuad::SET,
+    &contract_nli::SET,
 ];
 
 /// The set called `name`.

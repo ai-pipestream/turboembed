@@ -22,8 +22,9 @@ use crate::{
 /// Queries whose scores are held at once.
 const QUERY_BLOCK: usize = 64;
 
-/// One run's workspace, allocated once and reused by every layer and head.
-pub(super) struct Run {
+/// One run's workspace, allocated once and reused by every layer and head,
+/// and by later runs of no more positions (`reuse`).
+pub(crate) struct Run {
     /// The visible positions, ascending.
     pub at: Vec<usize>,
     /// The sequence length, masked positions included.
@@ -83,7 +84,7 @@ unsafe impl Sync for Heads<'_> {}
 impl Run {
     /// `mask` has at least one visible position. Heads run on up to
     /// `threads` threads.
-    pub fn new(c: &Config, mask: &[bool], cached: bool, threads: usize) -> Result<Run> {
+    pub(super) fn new(c: &Config, mask: &[bool], cached: bool, threads: usize) -> Result<Run> {
         let at: Vec<usize> = mask.iter().enumerate().filter_map(|(i, &m)| m.then_some(i)).collect();
         let nv = at.len();
         let pad = nv < mask.len();
@@ -124,14 +125,70 @@ impl Run {
         })
     }
 
-    pub fn rows(&self) -> usize {
+    /// The workspace for a run of `mask`, in this one's memory: no
+    /// allocation when the run has no more positions than the mask this
+    /// was made for, and its pool no more threads. Every buffer starts at
+    /// zero, as `new` gives it.
+    pub(super) fn reuse(&mut self, c: &Config, mask: &[bool]) {
+        self.at.clear();
+        self.at.extend(mask.iter().enumerate().filter_map(|(i, &m)| m.then_some(i)));
+        let nv = self.at.len();
+        self.n = mask.len();
+        self.pad = nv < mask.len();
+        let rows = nv + usize::from(self.pad);
+        self.span = self.at[nv - 1] - self.at[0];
+        let span = self.span;
+        let b = |d: isize| bucket(d, c.position_buckets, c.max_relative_positions);
+        self.r0 = b(-(span as isize));
+        self.rr = b(span as isize) + 1 - self.r0;
+        let r0 = self.r0;
+        self.rt.clear();
+        self.rt.extend((0..=2 * span).map(|i| (b(i as isize - span as isize) - r0) as u32));
+        let (h, qb, rr) = (c.hidden, nv.min(QUERY_BLOCK), self.rr);
+        let zero = |v: &mut Vec<f32>, n: usize| {
+            v.clear();
+            v.resize(n, 0.0);
+        };
+        zero(&mut self.x, rows * h);
+        zero(&mut self.a, rows * h);
+        zero(&mut self.ctx, rows * h);
+        zero(&mut self.qkv, rows * 3 * h);
+        zero(&mut self.mid, rows * c.intermediate);
+        // Empty when the layers hold their relative projections.
+        if self.pos.capacity() > 0 {
+            zero(&mut self.pos, rr * 3 * h);
+        }
+        for w in &mut self.heads {
+            zero(&mut w.s, qb * nv);
+            zero(&mut w.c2p, qb * rr);
+            zero(&mut w.p2c, nv * rr);
+        }
+    }
+
+    /// Grow each head's packed matrices to this run's sizes now, so that
+    /// a later run of no more positions packs them without allocating.
+    pub(super) fn presize(&mut self, c: &Config) -> Result<()> {
+        let (h, d, nv, rr) = (c.hidden, c.hidden / c.heads, self.at.len(), self.rr);
+        let w3 = 3 * h;
+        let rel = zeros(rr * w3)?;
+        let full = |_| invalid("deberta attention workspace allocation failed");
+        for w in &mut self.heads {
+            w.mk.pack_rows(&self.qkv, w3, nv, d).map_err(full)?;
+            w.mv.pack_cols(&self.qkv, w3, d, nv).map_err(full)?;
+            w.mpk.pack_rows(&rel, w3, rr, d).map_err(full)?;
+            w.mpq.pack_rows(&rel, w3, rr, d).map_err(full)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn rows(&self) -> usize {
         self.at.len() + usize::from(self.pad)
     }
 
     /// Attention, residual and LayerNorm, feed-forward, residual and
     /// LayerNorm, over the visible rows and the shared masked row; the
     /// products and the heads across `pool`'s threads when there is one.
-    pub fn layer(&mut self, c: &Config, l: &Layer, relative: &[f32], mut pool: Option<&mut Pool>) -> Result<()> {
+    pub(super) fn layer(&mut self, c: &Config, l: &Layer, relative: &[f32], mut pool: Option<&mut Pool>) -> Result<()> {
         let (h, rows) = (c.hidden, self.rows());
         self.attention(c, l, relative, pool.as_deref_mut())?;
         self.a.copy_from_slice(&self.x);

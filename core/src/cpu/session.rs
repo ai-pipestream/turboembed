@@ -13,7 +13,10 @@
 use std::alloc::Layout;
 use std::ffi::c_void;
 
-use crate::backend::{TURBO_FAMILY_STATIC, refuse, refuse_field, turbo_backend_session_desc, turbo_backend_tuning};
+use crate::backend::{
+    TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_STATIC, refuse, refuse_field, turbo_backend_session_desc,
+    turbo_backend_tuning,
+};
 use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, OUT_OF_MEMORY, UNSUPPORTED_OPTION, UNSUPPORTED_TASK};
 use crate::{
     TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_TASK_EMBED,
@@ -164,6 +167,24 @@ pub(super) unsafe fn open(
         return unsafe { refuse_field(err, UNSUPPORTED_OPTION, 2, &msg) };
     }
     let tensors = m.f32_tensors();
+    if m.desc.family == TURBO_FAMILY_DEBERTA_V2 {
+        let encoder = match m.deberta(&tensors) {
+            Ok(e) => e,
+            Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
+        };
+        let pool = pool::Pool::new(threads);
+        let rows = super::deberta::Rows::new(encoder, hidden, max_batch as usize, max_seq as usize, max_ranges, &pool);
+        let work = match rows {
+            Ok(r) => Work::Deberta(Box::new(r)),
+            Err(msg) => return unsafe { refuse(err, OUT_OF_MEMORY, &msg) },
+        };
+        let s = Session { work, pool, output: Box::new(output), max_ranges, written: false };
+        unsafe {
+            *compute_dtype = TURBO_DTYPE_F32;
+            *out = Box::into_raw(Box::new(s)) as *mut c_void;
+        }
+        return 0;
+    }
     let packed = match m.packed(&tensors) {
         Ok(p) => p,
         Err(bytes) => {
@@ -192,6 +213,7 @@ pub(super) unsafe fn open(
 pub(super) enum Work {
     Encoder(Box<encoder::Encoder>),
     Static(table::Static),
+    Deberta(Box<super::deberta::Rows>),
 }
 
 /// A static model's session: no weights to convert or pack, since the

@@ -51,6 +51,11 @@ pub fn cases(recipe: &Recipe) -> Result<Value> {
         out.push(json!({ "text": text, "prefix": prefix(role)? }));
     }
     let mut spec = json!({ "max_seq": max_seq, "max_batch": max_batch, "cases": out });
+    // The layers the bundle runs: fewer than the upstream model has cuts
+    // it there, and the container computes the reference the same way.
+    if let Some(l) = m["architecture"]["layers"].as_u64() {
+        spec["layers"] = json!(l);
+    }
     if let Some(c) = m.get("classifier").filter(|v| !v.is_null()) {
         spec["classifier"] = c.clone();
     }

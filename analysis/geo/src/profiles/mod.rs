@@ -181,8 +181,8 @@ impl PlaceProfiles {
     }
 
     /// The `count` places most similar to `query`, the query left out: by
-    /// similarity descending, then by id in Java's `String.compareTo`
-    /// order, which decides ties at the limit too.
+    /// similarity descending, then by id in code point order, which decides
+    /// ties at the limit too.
     pub fn most_similar(&self, query: Place, count: NonZeroUsize) -> Vec<Neighbor> {
         let profile = self.profile(query);
         let mut neighbors: Vec<Neighbor> = self
@@ -193,10 +193,7 @@ impl PlaceProfiles {
         let order = |a: &Neighbor, b: &Neighbor| -> Ordering {
             // Double.compare on values that are never NaN: total_cmp, which
             // also puts -0.0 below 0.0.
-            b.similarity
-                .0
-                .total_cmp(&a.similarity.0)
-                .then_with(|| turbo_jvm::chars::compare(self.id(a.place), self.id(b.place)))
+            b.similarity.0.total_cmp(&a.similarity.0).then_with(|| self.id(a.place).cmp(self.id(b.place)))
         };
         let count = count.get();
         if count < neighbors.len() {
@@ -258,15 +255,15 @@ mod tests {
     }
 
     #[test]
-    fn ties_break_by_java_string_order() {
-        // U+FF21 sorts after U+1F600 by code point but before it by UTF-16
-        // unit, which is Java's order.
+    fn ties_break_by_code_point_order() {
+        // U+FF21 sorts before U+1F600 by code point (UTF-16 units would put
+        // it after).
         let p = profiles("id\tm\nq\t1\n\u{1F600}\t5\n\u{FF21}\t5\nb\t5\n");
         let q = p.place("q").unwrap();
         let ids: Vec<&str> = p.most_similar(q, nz(3)).iter().map(|n| p.id(n.place)).collect();
-        assert_eq!(ids, ["b", "\u{1F600}", "\u{FF21}"]);
+        assert_eq!(ids, ["b", "\u{FF21}", "\u{1F600}"]);
         let first_two: Vec<&str> = p.most_similar(q, nz(2)).iter().map(|n| p.id(n.place)).collect();
-        assert_eq!(first_two, ["b", "\u{1F600}"]);
+        assert_eq!(first_two, ["b", "\u{FF21}"]);
     }
 
     #[test]

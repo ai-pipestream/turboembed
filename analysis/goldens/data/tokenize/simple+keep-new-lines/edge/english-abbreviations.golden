@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/english-abbreviations	100	100	a1ae6c3cea011ea2aa2fa0957c75784f28e53270a0ed62574eb35e06b08fb03b
 annotator	opennlp.tools.tokenize.SimpleTokenizer	tokenizePos
 config	keepNewLines	true
-layer	opennlp:tokens	text	35	start:u32	end:u32
+layer	turbo:tokens	text	35	start:u32	end:u32
 0	2
 2	3
 4	9
@@ -42,4 +42,4 @@ layer	opennlp:tokens	text	35	start:u32	end:u32
 93	98
 98	99
 99	100
-end	opennlp:tokens
+end	turbo:tokens

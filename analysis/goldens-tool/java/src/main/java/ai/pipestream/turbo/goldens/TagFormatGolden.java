@@ -1,6 +1,7 @@
 package ai.pipestream.turbo.goldens;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -54,11 +55,9 @@ final class TagFormatGolden implements AnnotatorGolden {
   }
 
   static List<TagFormatGolden> all(Path models, Path fixtures) throws IOException {
+    Objects.requireNonNull(models, "models"); // published POS models retired (#1653)
     List<TagFormatGolden> out = new ArrayList<>();
     out.add(new TagFormatGolden(ModelFile.read(fixtures.resolve(Runs.POS_FIXTURE))));
-    for (String name : List.of(Runs.POS_MODEL_EN, Runs.POS_MODEL_EN_15_MAXENT, Runs.POS_MODEL_EN_15_PERCEPTRON)) {
-      out.add(new TagFormatGolden(ModelFile.read(models.resolve(name))));
-    }
     out.add(new TagFormatGolden(null));
     return out;
   }

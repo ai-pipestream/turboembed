@@ -44,7 +44,7 @@ pub const THREADS: i32 = 4;
 
 /// The original MASC parameters, independent of the published UD models.
 pub(crate) fn training_parameters() -> TrainingParameters {
-    let mut params = turbo_train_components::ud::training_parameters();
+    let mut params = crate::ud::training_parameters();
     params.put_str(Key::THREADS, &THREADS.to_string());
     params
 }
@@ -184,7 +184,8 @@ pub fn fetch_release(release: Release, home: &Path, user: &UserId) -> Result<Pat
         let artifact = dataset(release)?;
         Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?
     };
-    let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &Http);
+    let http = Http::new();
+    let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &http);
     let fetched = zoo.fetch_with(DATASET_ID, user, || Ok(Acceptances::default()))?;
     Ok(fetched.single().expect("one file in the release").to_path_buf())
 }

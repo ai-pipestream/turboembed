@@ -35,6 +35,10 @@ pub struct Manifest {
     pub classifier: Option<Classifier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projection: Option<Projection>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heads: Vec<HeadSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub head_provenance: Vec<HeadProvenance>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
@@ -58,7 +62,8 @@ pub struct Model {
 /// A model licence's class, as the zoo names it: what may be shipped,
 /// and what is fetched only after the user accepts the licence. A bundle
 /// is never made under a refused licence, so there is no refused class.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// The order is the zoo's, least to most restrictive (docs/zoo.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum LicenseClass {
     #[serde(rename = "CLASS_PERMISSIVE")]
     Permissive,
@@ -136,7 +141,15 @@ pub enum Normalize {
 
 mod architecture;
 mod artifact;
+mod heads;
+mod heads_kinds;
 mod helpers;
+pub use heads::*;
+pub use heads_kinds::{
+    BOUNDARY_LABELS, COREF_LABELS, CorefShape, KEEP_TOKEN, LayerMix, MAX_ANTECEDENTS, MAX_MENTION_DIM, MAX_MIX_LAYERS,
+    MAX_SEEN_TOKENS, MAX_SPAN_WIDTH_DIM, MAX_SPAN_WORDS, MAX_TYPE_DIM, NO_RELATION, RelationShape, SeenLookup,
+    SeenToken, SpanShape,
+};
 mod provenance;
 mod qa;
 pub use qa::Qa;
@@ -144,6 +157,8 @@ mod tokenizer;
 mod validate;
 mod validate_architecture;
 mod validate_artifacts;
+mod validate_positions;
+mod validate_rotary;
 mod validate_tokenizer;
 pub use architecture::*;
 pub use artifact::*;

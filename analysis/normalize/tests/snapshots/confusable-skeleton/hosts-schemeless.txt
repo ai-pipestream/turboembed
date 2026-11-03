@@ -1,0 +1,23 @@
+===OUT===
+Visit www.exarnple.corn, exarnple.org/path/file.txt or sub.dornain.exarnple.net:8O8O/x?y=z for details.
+ftp://files.exarnple.corn/pub/readrne.txt and rnailto:sorneone@exarnple.corn are other schernes.
+A version like l.2.3 and a narne like e.g. or i.e. or U.S.A. are not hosts. Neither is file.txt.
+
+===EDITS===
+13	14	rn
+20	21	rn
+26	27	rn
+58	59	rn
+66	67	rn
+76	77	O
+78	79	O
+114	115	rn
+121	122	rn
+131	132	rn
+142	143	rn
+151	152	rn
+160	161	rn
+167	168	rn
+183	184	rn
+203	204	l
+217	218	rn

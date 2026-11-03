@@ -1,0 +1,163 @@
+[
+  {
+    "attempt": "contract-nli-fixed",
+    "raw_log_sha256": "6c389757a7ea9fbf0e60292dbfd684e8769fb919869f575b29348b6297f4629b",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:18.25",
+      "Maximum resident set size (kbytes): 410764",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "contract-nli-semantic",
+    "raw_log_sha256": "160355101e7cf623483dd97b956a2ca2f5cfb9dcf75358d4275360a206e48d66",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:31.23",
+      "Maximum resident set size (kbytes): 415080",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "contract-nli-v1",
+    "raw_log_sha256": "f2da60f308bca97df72fa7d27b8f14c394d0505f57e2a7d0f25a8a0caf0fc89c",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.28",
+      "Maximum resident set size (kbytes): 410904",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "contract-nli-windows",
+    "raw_log_sha256": "c80bd67f56f32d4f625854c7f72272ccf5fe799bc77da71b9bc54a4343929eae",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:16.72",
+      "Maximum resident set size (kbytes): 410936",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "cuad-fixed",
+    "raw_log_sha256": "e7662984d90850aaa31c97b5d593e46d59c0ef0ba7543654b690aaf2428d27f4",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:57.53",
+      "Maximum resident set size (kbytes): 435736",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "cuad-semantic",
+    "raw_log_sha256": "88a27c878de8293f32688736763cf78beb21915d1b94dec916a6d31c0e3f5164",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 1:43.54",
+      "Maximum resident set size (kbytes): 472356",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "cuad-v1",
+    "raw_log_sha256": "ec81f009bf4ef1bceed6f2b336c8a5af4f2114f40a09f9cc0090952a29cff9b1",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 1:04.23",
+      "Maximum resident set size (kbytes): 436332",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "cuad-windows",
+    "raw_log_sha256": "4cee3d172ff49676bff3f5bd908ea7d7c99b8d04fb0ede5f46be56c6ac8010fc",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:52.89",
+      "Maximum resident set size (kbytes): 436428",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "current-screen",
+    "raw_log_sha256": "8d5b4d18a865b4a2a14edf9672adbbf0e2c849248241759308e8acef9a079b93",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:06.57",
+      "Maximum resident set size (kbytes): 582928",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "gutenqa-v1",
+    "raw_log_sha256": "2d3a9d26811487d889b07af5da3c9c003d4400433a43221fe57b330adf3f5ac8",
+    "reader_warnings": [
+      "set gutenqa: 112 judgements could not be placed in their document and are left out"
+    ],
+    "resources": [
+      "Command terminated by signal 15",
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 1:16.15",
+      "Maximum resident set size (kbytes): 803196",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "legacy-screen-replay",
+    "raw_log_sha256": "2b56ee0fe132f658e7f7778a1f16f284960eb65b74c54ad224905f45281be911",
+    "reader_warnings": [],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 1:10.04",
+      "Maximum resident set size (kbytes): 587232",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "qasper-fixed",
+    "raw_log_sha256": "3388958e8ad25cb9c1a0ab0b3054cd5fcbea9b4e7007a735b02181a79347d66c",
+    "reader_warnings": [
+      "set qasper: 21 judgements could not be placed in their document and are left out"
+    ],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 2:13.74",
+      "Maximum resident set size (kbytes): 512864",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "qasper-semantic",
+    "raw_log_sha256": "384bd0242aa9129e339b9f92fa64858dd5efa4e678166f1240aee88de3bf98fd",
+    "reader_warnings": [
+      "set qasper: 21 judgements could not be placed in their document and are left out"
+    ],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 4:20.03",
+      "Maximum resident set size (kbytes): 637680",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "qasper-v1",
+    "raw_log_sha256": "1e27209fdef0db6ea3f5fa3fb11f3becb0376d1818e1e4b77c85fe327136b42a",
+    "reader_warnings": [
+      "set qasper: 21 judgements could not be placed in their document and are left out"
+    ],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 2:15.64",
+      "Maximum resident set size (kbytes): 510972",
+      "Exit status: 0"
+    ]
+  },
+  {
+    "attempt": "qasper-windows",
+    "raw_log_sha256": "6508f0fd9aa7a4b9ee85ce96d633066d00c4d1d6087fadd21141de63ccd7831a",
+    "reader_warnings": [
+      "set qasper: 21 judgements could not be placed in their document and are left out"
+    ],
+    "resources": [
+      "Elapsed (wall clock) time (h:mm:ss or m:ss): 2:14.96",
+      "Maximum resident set size (kbytes): 524684",
+      "Exit status: 0"
+    ]
+  }
+]

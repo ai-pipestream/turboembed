@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/hyphens-dashes	168	152	526fcc38bf7570639c441e13ec8c185653b19dbfd9a5747df5b9408625d4b323
 model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
 annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
-layer	opennlp:tokens	text	30	start:u32	end:u32
+layer	turbo:tokens	text	30	start:u32	end:u32
 0	10
 11	27
 28	30
@@ -37,8 +37,8 @@ layer	opennlp:tokens	text	30	start:u32	end:u32
 143	146
 146	166
 166	167
-end	opennlp:tokens
-layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	30	value:f64
+end	turbo:tokens
+layer	turbo:confidence<turbo:tokens>	aligned:turbo:tokens	30	value:f64
 3fe0c6a609e065d4 0.5242490952397767
 3fce3f959575bcd9 0.23631543920371348
 3fe08761ebb56a60 0.5165261844334275
@@ -69,4 +69,4 @@ layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	30	value:f64
 3fe13f2b4577b804 0.538961063078887
 3fcd89cbccea5631 0.23076770311006237
 3ff0000000000000 1.0
-end	turbo:confidence<opennlp:tokens>
+end	turbo:confidence<turbo:tokens>

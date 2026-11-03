@@ -1,0 +1,182 @@
+{
+  "manifest": {
+    "bundle_version": 1,
+    "model": {
+      "id": "colbert-ir/colbertv2.0",
+      "revision": "1",
+      "source": {
+        "repository": "https://huggingface.co/colbert-ir/colbertv2.0",
+        "commit": "c1e84128e85ef755c096a95bdb06b47793b13acf"
+      },
+      "license": "MIT"
+    },
+    "task": "TASK_EMBED",
+    "embed": {
+      "dim": 768,
+      "pooling": "POOLING_MEAN",
+      "normalize": "NORMALIZE_NONE",
+      "max_seq": 512,
+      "max_batch": 64
+    },
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "normalizer": {
+        "clean_text": true,
+        "lowercase": true,
+        "strip_accents": true,
+        "split_cjk": true,
+        "unicode_form": "UNICODE_NONE"
+      },
+      "wordpiece": {
+        "continuing_prefix": "##",
+        "max_chars_per_word": 100
+      },
+      "special_tokens": [
+        {
+          "role": "SPECIAL_PAD",
+          "content": "[PAD]",
+          "id": 0
+        },
+        {
+          "role": "SPECIAL_UNK",
+          "content": "[UNK]",
+          "id": 100
+        },
+        {
+          "role": "SPECIAL_BOS",
+          "content": "[CLS]",
+          "id": 101
+        },
+        {
+          "role": "SPECIAL_EOS",
+          "content": "[SEP]",
+          "id": 102
+        },
+        {
+          "role": "SPECIAL_MASK",
+          "content": "[MASK]",
+          "id": 103
+        }
+      ],
+      "template": [
+        "[CLS]",
+        "$TEXT",
+        "[SEP]"
+      ],
+      "truncation": "TRUNCATE_RIGHT"
+    },
+    "architecture": {
+      "family": "FAMILY_BERT",
+      "layers": 12,
+      "hidden": 768,
+      "heads": 12,
+      "intermediate": 3072,
+      "activation": "ACTIVATION_GELU_ERF",
+      "layer_norm_eps": 1e-12,
+      "position_embedding": "POSITION_ABSOLUTE",
+      "max_positions": 512,
+      "token_types": 2,
+      "vocab_size": 30522
+    },
+    "artifacts": [
+      {
+        "name": "weights-f32",
+        "format": "FORMAT_SAFETENSORS",
+        "files": [
+          "weights/model.safetensors"
+        ],
+        "backends": [
+          "cuda",
+          "metal",
+          "levelzero",
+          "cpu"
+        ],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "tensor_names": {
+          "word_embeddings": "bert.embeddings.word_embeddings.weight",
+          "position_embeddings": "bert.embeddings.position_embeddings.weight",
+          "token_type_embeddings": "bert.embeddings.token_type_embeddings.weight",
+          "embeddings_ln_weight": "bert.embeddings.LayerNorm.weight",
+          "embeddings_ln_bias": "bert.embeddings.LayerNorm.bias",
+          "q_weight": "bert.encoder.layer.{layer}.attention.self.query.weight",
+          "q_bias": "bert.encoder.layer.{layer}.attention.self.query.bias",
+          "k_weight": "bert.encoder.layer.{layer}.attention.self.key.weight",
+          "k_bias": "bert.encoder.layer.{layer}.attention.self.key.bias",
+          "v_weight": "bert.encoder.layer.{layer}.attention.self.value.weight",
+          "v_bias": "bert.encoder.layer.{layer}.attention.self.value.bias",
+          "attn_out_weight": "bert.encoder.layer.{layer}.attention.output.dense.weight",
+          "attn_out_bias": "bert.encoder.layer.{layer}.attention.output.dense.bias",
+          "attn_ln_weight": "bert.encoder.layer.{layer}.attention.output.LayerNorm.weight",
+          "attn_ln_bias": "bert.encoder.layer.{layer}.attention.output.LayerNorm.bias",
+          "ffn_in_weight": "bert.encoder.layer.{layer}.intermediate.dense.weight",
+          "ffn_in_bias": "bert.encoder.layer.{layer}.intermediate.dense.bias",
+          "ffn_out_weight": "bert.encoder.layer.{layer}.output.dense.weight",
+          "ffn_out_bias": "bert.encoder.layer.{layer}.output.dense.bias",
+          "ffn_ln_weight": "bert.encoder.layer.{layer}.output.LayerNorm.weight",
+          "ffn_ln_bias": "bert.encoder.layer.{layer}.output.LayerNorm.bias",
+          "projection_weight": "linear.weight"
+        }
+      }
+    ],
+    "reference": {
+      "file": "reference/reference.safetensors",
+      "cases": [
+        {
+          "text": "",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "The quick brown fox jumps over the lazy dog.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Caf\u00e9 na\u00efve R\u00c9SUM\u00c9",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "\u4e1c\u4eac\u662f\u65e5\u672c\u7684\u9996\u90fd\u3002",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "emoji \ud83d\ude42 and tabs\tand\nnewlines",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "A bundle is a directory that carries one model, so that the same program gives the same answer on every machine. The manifest names every file with its size and hash, says exactly how to tokenize for the model, what it computes, and which artifact each backend runs. It also carries a small reference: token ids and vectors produced by the upstream pipeline in full precision on a CPU. Every machine that loads the bundle encodes the reference texts again and compares the ids exactly, so a tokenizer that drifts is caught before a single vector is computed.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware. Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware. Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware.",
+          "prompt_role": "PROMPT_NONE"
+        }
+      ],
+      "produced_by": {
+        "container": "turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4"
+      }
+    },
+    "projection": {
+      "dim": 128
+    }
+  },
+  "upstream": [
+    {
+      "path": "tokenizer.json",
+      "sha256": "5fd1c882abbd30517dced455a2c9768945ec726b96727927e4959348d9de550b",
+      "to": "tokenizer.json"
+    },
+    {
+      "path": "model.safetensors",
+      "sha256": "3f58890b1dfdfec066ef12ba431fa9d56992da9e30a53489242c4156e37e9017",
+      "to": "weights/model.safetensors"
+    },
+    {
+      "path": "config.json",
+      "sha256": "cbdcc01dc7772fd0e5e1d85d5de695faf8c4935ae3c7ea3fdb6c24397b284f3c"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "a16a31c8d474339d7a46afe7eb8583b24f8b74806af6e25294506523f9d0acfb"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+MASKED	IBAN DE89 3704 0044 **** **** ** holds a phone; NHS *** *** **** is one too.
+
+MASK_ALL	IBAN DE89 3704 0044 ############ holds a phone; NHS ############ is one too.
+
+REWRITE	pseudonymize	OK	IBAN DE89 3704 0044 PHONE-1 holds a phone; NHS PHONE-2 is one too.
+
+LABEL	pseudonymize	20	32	20	27	PHONE-1
+LABEL	pseudonymize	52	64	47	54	PHONE-2
+REWRITE	hmac	OK	IBAN DE89 3704 0044 PHONE-d93b376c99f48a80 holds a phone; NHS PHONE-258496d3f67ec84f is one too.
+
+LABEL	hmac	20	32	20	42	PHONE-d93b376c99f48a80
+LABEL	hmac	52	64	62	84	PHONE-258496d3f67ec84f
+AUDIT	phone	2	2	PHONE-d93b376c99f48a80, PHONE-258496d3f67ec84f
+AUDIT_REPORT	phone: 2 mentions, 2 distinct [PHONE-d93b376c99f48a80, PHONE-258496d3f67ec84f]

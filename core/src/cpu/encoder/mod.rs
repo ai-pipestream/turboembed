@@ -11,13 +11,17 @@
 //! Rows written with ranges (`write_ranges`) are pooled by range instead:
 //! each range's vector is the mean over its columns' live tokens of the
 //! final hidden states, read where the encoder left them, with the same
-//! sum, cut and normalization as a row's mean.
+//! sum, cut and normalization as a row's mean. A range holding no live
+//! token is the mean over all its columns: mask-0 columns a range names
+//! are computed as queries attending only to the row's live tokens, as
+//! ColBERT's query augmentation reads them.
 //!
 //! The rows of a batch are packed: row r's positions up to its last live
-//! token sit one after another with the other rows', so padding past that
-//! token is never computed. No output depends on it: attention skips
-//! masked keys, and no pooling reads past the last live token. Positions
-//! are the row's own column indices, as upstream numbers them.
+//! token (or through the furthest column a range of it names, when that
+//! is further) sit one after another with the other rows', so padding
+//! past that is never computed. No other output depends on it: attention
+//! skips masked keys, and no row pooling reads past the last live token.
+//! Positions are the row's own column indices, as upstream numbers them.
 //!
 //! A run is a sequence of steps, each split into tasks that the session's
 //! threads take (pool.rs): the embeddings and each LayerNorm by chunks of
@@ -40,6 +44,9 @@ use super::kernels::{Attend, Epilogue, Gemm, LANES, Packed, zeroed};
 use super::pool::Pool;
 
 mod job;
+mod rotary;
+#[cfg(test)]
+mod taps_tests;
 #[cfg(test)]
 mod tests;
 
@@ -119,6 +126,10 @@ pub(super) struct Encoder {
     /// capacity the session's max_ranges. Empty after `write`: the run
     /// then pools each row.
     ranges: Vec<turbo_token_range>,
+    /// The last layers each range is pooled from, 1 for the final alone:
+    /// the output is [taps, ranges, output_dim], the last block the
+    /// final layer's (turbo_backend.h, `taps`).
+    taps: usize,
 
     /// Each row's first packed token and its length through its last
     /// live token.
@@ -149,6 +160,9 @@ pub(super) struct Encoder {
     /// Each thread's attention scratch, `per_thread` floats apiece.
     scratch: Vec<f32>,
     per_thread: usize,
+    /// A ModernBERT's or nomic-bert's own parts (rotary/); None for a
+    /// BERT.
+    rotary: Option<rotary::Rotary>,
 }
 
 impl Encoder {
@@ -163,7 +177,11 @@ impl Encoder {
         size: Size,
     ) -> Result<Encoder, usize> {
         let Size { threads, max_batch, max_seq, max_ranges } = size;
-        debug_assert_eq!(tensors.len(), (TURBO_BERT_EMBEDDING_TENSORS + d.layers * TURBO_BERT_LAYER_TENSORS) as usize);
+        let rotary = rotary::Rotary::new(d, max_batch.checked_mul(max_seq).ok_or(usize::MAX)?)?;
+        debug_assert!(
+            rotary.is_some()
+                || tensors.len() == (TURBO_BERT_EMBEDDING_TENSORS + d.layers * TURBO_BERT_LAYER_TENSORS) as usize
+        );
         debug_assert_eq!(packed.layers.len(), d.layers as usize);
         let (h, i) = (d.hidden as usize, d.intermediate as usize);
         let tokens = max_batch.checked_mul(max_seq).ok_or(usize::MAX)?;
@@ -192,6 +210,7 @@ impl Encoder {
             normalize: 0,
             output_dim: 0,
             ranges,
+            taps: 1,
             rows: zeroed(max_batch)?,
             at: zeroed(tokens)?,
             padded: zeroed(max_batch)?,
@@ -206,6 +225,7 @@ impl Encoder {
             ffn: zeroed(wide(i)?)?,
             scratch: zeroed(threads.checked_mul(per_thread).ok_or(usize::MAX)?)?,
             per_thread,
+            rotary,
         })
     }
 
@@ -265,11 +285,20 @@ impl Encoder {
         self.pooling = r.pooling;
         self.normalize = r.normalize;
         self.output_dim = r.output_dim as usize;
+        self.taps = (r.taps as usize).max(1);
+    }
+
+    /// The block of the output layer `l`'s states are pooled into when it
+    /// is a tap before the last layer: None for the last layer, whose
+    /// states the run pools at its end, and for any layer untapped.
+    fn tap(&self, l: usize) -> Option<usize> {
+        let first = self.layers - self.taps;
+        (!self.ranges.is_empty() && l >= first && l + 1 < self.layers).then(|| l - first)
     }
 
     /// Run the written rows into `out`, [batch, output_dim] packed, or
-    /// [ranges, output_dim] after `write_ranges`, on `pool`, which has at
-    /// most the threads the encoder was made for.
+    /// [taps, ranges, output_dim] after `write_ranges`, on `pool`, which
+    /// has at most the threads the encoder was made for.
     pub(super) fn run(&mut self, pool: &mut Pool, out: &mut [f32]) {
         debug_assert!(pool.threads() * self.per_thread <= self.scratch.len());
         let tokens = self.pack();
@@ -280,6 +309,7 @@ impl Encoder {
             ctx: self.ctx.as_mut_ptr(),
             ffn: self.ffn.as_mut_ptr(),
             scratch: self.scratch.as_mut_ptr(),
+            xn: self.rotary.as_mut().map_or(std::ptr::null_mut(), |r| r.xn.as_mut_ptr()),
         };
         let e = &*self;
         // SAFETY: the model's, which outlives the session.
@@ -296,37 +326,68 @@ impl Encoder {
         };
         let linear = |pool: &mut Pool, g: Gemm| go(pool, Step::Linear(g), g.tasks());
         let chunks = tokens.div_ceil(TOKENS);
-        go(pool, Step::Lookup, chunks);
-        for l in 0..e.layers {
+        let (count, od, at) = (e.ranges.len(), e.output_dim, out.as_mut_ptr());
+        debug_assert!(count == 0 || out.len() >= e.taps * count * od);
+        // Each range pooled from the states at `src` into block k of out.
+        let pool_ranges = |pool: &mut Pool, src: *const f32, k: usize| {
+            let per_task = count.div_ceil(pool.threads() * RANGE_TASKS_PER_THREAD);
+            // SAFETY: k is below taps, and out holds taps blocks of count
+            // vectors.
+            let out = unsafe { at.add(k * count * od) };
+            go(pool, Step::PoolRanges { src, out, per_task }, count.div_ceil(per_task));
+        };
+        let tapped = |pool: &mut Pool, l: usize, src: *const f32| {
+            if let Some(k) = e.tap(l) {
+                pool_ranges(pool, src, k);
+            }
+        };
+        if let Some(r) = &e.rotary {
+            r.layers(e, packed, bufs, tokens, pool, &go, &tapped);
+        } else {
+            go(pool, Step::Lookup, chunks);
+        }
+        for l in (0..e.layers).filter(|_| e.rotary.is_none()) {
             let (pl, w) = (&packed.layers[l], |r| e.layer(l, r));
             let gemm = |x, ldx, w, bias, y, ldy, epilogue| Gemm { x, ldx, rows: tokens, w, bias, y, ldy, epilogue };
             let split = Epilogue::Split { lo: h, hi: 2 * h, t_out: bufs.kt, stride: e.stride, slot: e.slot.as_ptr() };
             linear(pool, gemm(bufs.x, h, &pl.qkv, &pl.qkv_bias, bufs.qv, 3 * h, split));
-            go(pool, Step::Attention, e.heads * e.blocks[e.batch]);
+            go(pool, Step::Attention { window: usize::MAX }, e.heads * e.blocks[e.batch]);
             linear(pool, gemm(bufs.ctx, h, &pl.out, w(O_B), bufs.x, h, Epilogue::Residual));
             go(pool, Step::Norm(w(ATTN_LN_W), w(ATTN_LN_B)), chunks);
             linear(pool, gemm(bufs.x, h, &pl.ffn_in, w(FFN_IN_B), bufs.ffn, n_i, Epilogue::Gelu));
             linear(pool, gemm(bufs.ffn, n_i, &pl.ffn_out, w(FFN_OUT_B), bufs.x, h, Epilogue::Residual));
             go(pool, Step::Norm(w(FFN_LN_W), w(FFN_LN_B)), chunks);
+            tapped(pool, l, bufs.x);
         }
-        if e.ranges.is_empty() {
+        if count == 0 {
             self.pool(out);
             return;
         }
-        let count = e.ranges.len();
-        debug_assert!(out.len() >= count * e.output_dim);
-        let per_task = count.div_ceil(pool.threads() * RANGE_TASKS_PER_THREAD);
-        go(pool, Step::PoolRanges { out: out.as_mut_ptr(), per_task }, count.div_ceil(per_task));
+        pool_ranges(pool, bufs.x, e.taps - 1);
     }
 
     /// Each row's place among the packed tokens, each token's place in
     /// the rows, and the order attention takes the rows in. Returns the
     /// packed tokens.
     fn pack(&mut self) -> usize {
+        // A row is packed through the furthest column a range of it
+        // names when that passes its last live token, so mask-0 columns
+        // a range pools are computed; rows[r].1 holds that end first.
+        if !self.ranges.is_empty() {
+            for row in &mut self.rows[..self.batch] {
+                row.1 = 0;
+            }
+            for i in 0..self.ranges.len() {
+                let g = self.ranges[i];
+                let end = &mut self.rows[g.row as usize].1;
+                *end = (*end).max(g.end as usize);
+            }
+        }
         let (mut t, mut slot) = (0, 0);
         for r in 0..self.batch {
             let m = &self.mask[r * self.seq..(r + 1) * self.seq];
-            let len = m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1);
+            let live = m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1);
+            let len = if self.ranges.is_empty() { live } else { live.max(self.rows[r].1) };
             self.rows[r] = (t, len);
             self.padded[r] = slot;
             for p in 0..len {
@@ -376,21 +437,23 @@ impl Encoder {
     /// or before the row's packed length, from the hidden states `x`,
     /// into `dst`: output_dim values. As upstream's mean pooling divides
     /// the masked sum by the mask's sum: summed in F32 in column order,
-    /// then scaled by one over the count. At least one token is live.
+    /// then scaled by one over the count. Columns holding no live token
+    /// (a range over mask-0 columns alone) mean over every column.
     #[inline(always)]
     fn mean(&self, x: &[f32], r: usize, cols: std::ops::Range<usize>, dst: &mut [f32]) {
         let (h, od) = (self.hidden, dst.len());
         let start = self.rows[r].0;
         dst.fill(0.0);
         let mask = &self.mask[r * self.seq..][..cols.end];
+        let live_only = cols.clone().any(|p| mask[p] != 0);
         let mut n = 0u32;
-        for p in cols.filter(|&p| mask[p] != 0) {
+        for p in cols.filter(|&p| !live_only || mask[p] != 0) {
             for (d, &x) in dst.iter_mut().zip(&x[(start + p) * h..][..od]) {
                 *d += x;
             }
             n += 1;
         }
-        debug_assert!(n > 0, "row {r}: no live token to pool");
+        debug_assert!(n > 0, "row {r}: no column to pool");
         let inv = 1.0 / n as f32;
         for d in dst.iter_mut() {
             *d *= inv;
@@ -412,8 +475,9 @@ impl Encoder {
     }
 
     /// The final hidden states of the last run, [packed tokens, hidden],
-    /// and where each row's tokens start among them and how many there
-    /// are through its last live token.
+    /// and where each row's tokens start among them and how many were
+    /// packed (through its last live token, or a range's furthest
+    /// column past it).
     #[cfg(test)]
     fn hidden_states(&self) -> (&[f32], &[(usize, usize)]) {
         (&self.x, &self.rows[..self.batch])

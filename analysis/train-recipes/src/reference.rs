@@ -1,13 +1,17 @@
-//! Reference models a recipe's model is gated against, either listed in the
-//! zoo's built-in index or recorded by size and SHA-256.
+//! Evaluation references: native gold-label baselines or remaining legacy
+//! model references scheduled for retirement.
 
 use turbo_zoo::{Index, Sha256};
 
 use crate::error::{Error, Result};
 
-/// The OpenNLP model a recipe's model is gated against.
+/// The reference policy a recipe uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reference {
+    /// Native predicted spans against gold labels and a newline baseline. No model file.
+    GoldSentences,
+    /// Retired model identity only: no file, digest, fetch or scoring.
+    Retired(&'static str),
     /// A model of the zoo's built-in index, by its id.
     Zoo(&'static str),
     /// A model the zoo does not list, recorded by the recipe.
@@ -35,34 +39,39 @@ impl Reference {
     /// recorded one.
     pub fn id(&self) -> &'static str {
         match self {
-            Reference::Zoo(id) => id,
+            Reference::GoldSentences => crate::sentence_gold::BASELINE_ID,
+            Reference::Zoo(id) | Reference::Retired(id) => id,
             Reference::Recorded(r) => r.id,
         }
     }
 
-    /// The model's file name: the one the zoo's built-in index gives it,
-    /// or the recorded one.
+    /// The external model file name. Native gold-label evaluation has no file.
     ///
     /// # Errors
     ///
-    /// A zoo id the index does not list.
+    /// A native gold-label baseline, a retired reference, or an unknown zoo id.
     pub fn file(&self) -> Result<String> {
         match self {
+            Reference::GoldSentences => {
+                Err(Error::Model("gold sentence evaluation has no reference model file".into()))
+            }
             Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].path.to_string()),
             Reference::Recorded(r) => Ok(r.file.to_owned()),
+            Reference::Retired(id) => Err(Error::RetiredReference { id }),
         }
     }
 
-    /// The model file's SHA-256: the one the zoo's built-in index lists, or
-    /// the recorded one.
+    /// A model-file SHA-256, or the native baseline algorithm identity hash.
     ///
     /// # Errors
     ///
-    /// A zoo id the index does not list.
+    /// An unknown zoo id or a retired reference.
     pub fn sha256(&self) -> Result<String> {
         match self {
+            Reference::GoldSentences => Ok(crate::sentence_gold::baseline().sha256),
             Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].sha256.to_string()),
             Reference::Recorded(r) => Ok(r.sha256.to_owned()),
+            Reference::Retired(id) => Err(Error::RetiredReference { id }),
         }
     }
 
@@ -71,12 +80,15 @@ impl Reference {
     ///
     /// # Errors
     ///
-    /// [`Error::ReferenceDigest`] for other bytes, or a zoo id the index
-    /// does not list.
+    /// Native gold-label baselines reject all byte inputs. Model references
+    /// reject a wrong digest, an unknown zoo id, or a retired reference.
     pub fn check(&self, bytes: &[u8]) -> Result<()> {
+        if matches!(self, Self::GoldSentences) {
+            return Err(Error::Model("gold sentence evaluation accepts spans, not reference model bytes".into()));
+        }
         let expected = self.sha256()?;
         let size = match self {
-            Reference::Zoo(_) => None,
+            Reference::GoldSentences | Reference::Zoo(_) | Reference::Retired(_) => None,
             Reference::Recorded(r) => Some(r.size),
         };
         let found = Sha256::of(bytes).to_string();
@@ -90,77 +102,19 @@ impl Reference {
 
 #[cfg(test)]
 mod tests {
-    use turbo_eval::model_gate::Task;
 
     use super::*;
-    use crate::card::ParametersCard;
-    use crate::{LeftOut, Limit, RECIPES, Recipe, check_skipped, chunk, postag};
+
+    use crate::{LeftOut, Limit, check_skipped};
 
     #[test]
-    fn every_recipe_names_a_reference_and_a_valid_model_id() {
-        let ids: Vec<&str> = RECIPES.iter().map(Recipe::model_id).collect();
-        assert_eq!(
-            ids,
-            [
-                "turbo-en-masc-3.0.0-sentence-1",
-                "turbo-en-masc-3.0.0-tokens-1",
-                "turbo-en-masc-3.0.0-pos-1",
-                "turbo-en-masc-3.0.0-chunks-1",
-                "turbo-en-masc-3.0.0-ner-person-1",
-                "turbo-en-masc-3.0.0-ner-location-1",
-                "turbo-en-masc-3.0.0-ner-organization-1",
-                "turbo-en-masc-3.0.0-ner-date-1",
-            ]
-        );
-        for r in RECIPES {
-            assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
-            let id: turbo_zoo::ArtifactId = r.model_id().parse().unwrap();
-            assert_eq!(id.as_str(), r.model_id());
-            match r.reference() {
-                // The reference is a model of the component the trained
-                // one is, under its zoo file name.
-                Reference::Zoo(id) => {
-                    assert_eq!(r.reference_file().unwrap(), format!("{id}.bin"));
-                    assert_eq!(Index::builtin().get(id).unwrap().component, Some(r.component()));
-                }
-                // A recorded reference is one the zoo does not list, so it
-                // can never be fetched or shipped through it.
-                Reference::Recorded(rec) => {
-                    assert_eq!(r.reference_file().unwrap(), rec.file);
-                    assert!(Index::builtin().get(rec.id).is_err());
-                }
-            }
-        }
-        assert_eq!(RECIPES[2].task(), Task::PartOfSpeechTagger);
-        assert_eq!(RECIPES[2].component(), turbo_zoo::Component::Pos);
-        assert_eq!(RECIPES[2].reference_id(), "opennlp-en-pos-maxent-1.5");
-        assert_eq!(RECIPES[2].reference().sha256().unwrap(), postag::EN_POS_MAXENT.sha256);
-        for r in &RECIPES[4..] {
-            assert_eq!(r.task(), Task::NameFinder);
-            assert_eq!(r.component(), turbo_zoo::Component::NameFinder);
-            assert_eq!(
-                r.parameters(),
-                ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 0, threads: 1 }
-            );
-        }
-        assert_eq!(
-            RECIPES[0].parameters(),
-            ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 4 }
-        );
-        for r in RECIPES {
-            assert_eq!(Recipe::trains(r.model_id()), Some(r));
-        }
-        assert_eq!(RECIPES[3].task(), Task::Chunker);
-        assert_eq!(RECIPES[3].component(), turbo_zoo::Component::Chunker);
-        assert_eq!(RECIPES[3].reference_id(), "opennlp-en-chunker-1.5");
-        assert_eq!(RECIPES[3].reference().sha256().unwrap(), chunk::EN_CHUNKER.sha256);
-        let p = RECIPES[3].parameters();
-        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 100, 5, 1));
-        let p = RECIPES[2].parameters();
-        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 300, 5, 4));
-        assert!(RECIPES[3].reads_chunks() && !RECIPES[2].reads_chunks());
-        assert_eq!(Recipe::trains("turbo-en-masc-3.0.0-unknown-1"), None);
-        assert!(Reference::Zoo("not-in-the-zoo").file().is_err());
+    fn a_retired_reference_has_an_id_but_no_file_digest_or_check() {
+        let r = Reference::Retired("opennlp-langdetect-183");
+        assert_eq!(r.id(), "opennlp-langdetect-183");
+        assert!(matches!(r.file(), Err(Error::RetiredReference { id: "opennlp-langdetect-183" })));
+        assert!(matches!(r.sha256(), Err(Error::RetiredReference { .. })));
+        let err = r.check(b"abc").unwrap_err();
+        assert!(err.to_string().contains("#1532"), "{err}");
     }
 
     #[test]

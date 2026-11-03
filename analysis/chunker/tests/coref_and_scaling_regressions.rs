@@ -190,39 +190,48 @@ fn scorer_must_reject_text_from_another_view() {
     assert!(scorer.annotate((&s, &b, None, None, None, None, Some(&t), d.get::<View>(), None)).is_err());
 }
 
+/// A single sentence of `n` one-byte tokens where each token's head is the
+/// one before it.
+fn chain(n: usize, rel_name: &str) -> (Sentences, Tokens, Dependencies<Tokens>) {
+    let mut s_spans = Spans::new(ViewId::SOURCE);
+    s_spans.push(Span::new(0, (n * 2) as u32));
+    let mut t_spans = Spans::new(ViewId::SOURCE);
+    for i in 0..n {
+        t_spans.push(Span::new((i * 2) as u32, (i * 2 + 1) as u32));
+    }
+    let deps = Dependencies::<Tokens> {
+        head: (0..n).map(|i| if i == 0 { None } else { Some(Ix::new((i - 1) as u32)) }).collect(),
+        relation: vec![Tag(0); n],
+        relations: TagSet::new("dep", &[rel_name]),
+    };
+    (Sentences { spans: s_spans }, Tokens { spans: t_spans, sentence: None }, deps)
+}
+
 #[test]
 fn long_dependency_chain_scales_linearly() {
+    // Two chains eight times apart, best of five rounds each, measured
+    // round-robin after a warm-up so load on a shared runner hits both sizes
+    // alike. Linear work grows about eightfold and a quadratic walk 64-fold;
+    // 24 sits between. The old version timed one run per size against a
+    // 100 ms ceiling and a 16x ratio over 4x the input, and a loaded runner
+    // measured 343 us then 5.6 ms (16.3x) on a single sample.
     for rel_name in ["dep", "conj"] {
-        let mut times = Vec::new();
-        for n in [400usize, 800, 1600] {
-            let mut s_spans = Spans::new(ViewId::SOURCE);
-            s_spans.push(Span::new(0, (n * 2) as u32));
-            let s = Sentences { spans: s_spans };
-
-            let mut t_spans = Spans::new(ViewId::SOURCE);
-            for i in 0..n {
-                t_spans.push(Span::new((i * 2) as u32, (i * 2 + 1) as u32));
+        let inputs = [400usize, 3_200].map(|n| chain(n, rel_name));
+        let cut = |(s, tokens, deps): &(Sentences, Tokens, Dependencies<Tokens>)| {
+            let cuts = clause_cuts(s, tokens, Some(deps), None, None, None, None, ClauseCosts::default());
+            assert_eq!(cuts.sentences[0].tokens.len(), tokens.spans.len());
+        };
+        inputs.iter().for_each(cut);
+        let mut best = [std::time::Duration::MAX; 2];
+        for _ in 0..5 {
+            for (input, best) in inputs.iter().zip(&mut best) {
+                let start = std::time::Instant::now();
+                cut(input);
+                *best = (*best).min(start.elapsed());
             }
-            let tokens = Tokens { spans: t_spans, sentence: None };
-            let deps = Dependencies::<Tokens> {
-                head: (0..n).map(|i| if i == 0 { None } else { Some(Ix::new((i - 1) as u32)) }).collect(),
-                relation: vec![Tag(0); n],
-                relations: TagSet::new("dep", &[rel_name]),
-            };
-            let start = std::time::Instant::now();
-            let cuts = clause_cuts(&s, &tokens, Some(&deps), None, None, None, None, ClauseCosts::default());
-            let elapsed = start.elapsed();
-            assert_eq!(cuts.sentences[0].tokens.len(), n);
-            assert!(elapsed.as_millis() < 100, "rel={rel_name} n={n} took {elapsed:?}");
-            times.push(elapsed.as_nanos().max(1));
         }
-        // 4x the input (1600 vs 400) is O(n) and stays well under 8x even with noisy timers.
-        assert!(
-            times[2] < times[0].saturating_mul(16).max(5_000_000),
-            "rel={rel_name} timings (ns): 400={}, 800={}, 1600={}",
-            times[0],
-            times[1],
-            times[2]
-        );
+        let [small, large] = best.map(|d| d.as_nanos().max(1));
+        eprintln!("rel={rel_name} best timings (ns): 400={small}, 3200={large}");
+        assert!(small.saturating_mul(24) > large, "rel={rel_name} best timings (ns): 400={small}, 3200={large}");
     }
 }

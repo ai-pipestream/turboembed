@@ -1,0 +1,8 @@
+===OUT===
+«Bonjour», dit-il. „Guten Tag“, sagte sie. ‚Ja‘ und ‹nein›.
+Prime marks:  ′  ″ and an apostrophe ʼnʼ here. Backtick `quote´ pair.
+CJK: 「こんにちは」 and 『本』.
+
+===EDITS===
+87	88	 
+92	94	 

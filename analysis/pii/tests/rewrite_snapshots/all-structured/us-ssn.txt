@@ -1,0 +1,14 @@
+MASKED	SSN ***-**-**** recorded; *** ** **** as well.
+
+MASK_ALL	SSN ########### recorded; ########### as well.
+
+REWRITE	pseudonymize	OK	SSN US-SSN-1 recorded; US-SSN-1 as well.
+
+LABEL	pseudonymize	4	15	4	12	US-SSN-1
+LABEL	pseudonymize	26	37	23	31	US-SSN-1
+REWRITE	hmac	OK	SSN US-SSN-d88b22bb6995770f recorded; US-SSN-d88b22bb6995770f as well.
+
+LABEL	hmac	4	15	4	27	US-SSN-d88b22bb6995770f
+LABEL	hmac	26	37	38	61	US-SSN-d88b22bb6995770f
+AUDIT	us-ssn	2	1	US-SSN-d88b22bb6995770f
+AUDIT_REPORT	us-ssn: 2 mentions, 1 distinct [US-SSN-d88b22bb6995770f]

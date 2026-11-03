@@ -1,0 +1,12 @@
+MASKED	Not NHS: *** *** ****.
+
+MASK_ALL	Not NHS: ############.
+
+REWRITE	pseudonymize	OK	Not NHS: PHONE-1.
+
+LABEL	pseudonymize	9	21	9	16	PHONE-1
+REWRITE	hmac	OK	Not NHS: PHONE-4d58ceb9acf8b646.
+
+LABEL	hmac	9	21	9	31	PHONE-4d58ceb9acf8b646
+AUDIT	phone	1	1	PHONE-4d58ceb9acf8b646
+AUDIT_REPORT	phone: 1 mentions, 1 distinct [PHONE-4d58ceb9acf8b646]

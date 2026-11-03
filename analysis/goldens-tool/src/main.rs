@@ -11,7 +11,7 @@ usage: turbo-goldens <command>
 
   image                          build the generator's container image and print its id
   fetch-models <dir> [--local]   download the models into <dir> and check their SHA-512; --local also
-                                 downloads the OpenNLP 1.5 models, which CI does not fetch
+                                 downloads the export the pooled sentence vector model is made from
   generate [--out <dir>] [--models <dir>]
                                  run the generator in the container; write the goldens and their decision
                                  point dumps into analysis/goldens/data or <dir>
@@ -116,8 +116,9 @@ impl Options {
 
 /// Fetches the models, checks the fixtures and the inputs and runs the
 /// container into a fresh scratch directory, which the caller installs or
-/// compares.
+/// compares. Refused until #1532 (see [`models::GENERATOR_RETIRED`]).
 fn generate(models_dir: &Path) -> Result<output::RunDir, String> {
+    models::generator_runs()?;
     models::fetch(models_dir, models::Models::WithLocal)?;
     models::check_fixtures(&paths::fixtures_dir())?;
     check_input_sets(&paths::inputs_dir())?;

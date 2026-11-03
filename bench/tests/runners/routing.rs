@@ -11,7 +11,7 @@ fn each_backend_gets_its_reference_programs() {
         [TEI, openvino::NAME],
         "OpenVINO on the NPU, and TEI's CPU image as the end-to-end baseline"
     );
-    assert_eq!(applies("metal"), [TEI], "TEI's router built natively with Metal");
+    assert_eq!(applies("metal"), [TEI, "mlx"], "TEI's router built natively with Metal, and MLX");
     for backend in ["cuda", "cpu", "levelzero", "npu", "metal", "hailo"] {
         for name in applies(backend) {
             assert!(turbo::record::REFERENCES.iter().any(|r| r.0 == *name), "{name}");
@@ -30,7 +30,9 @@ fn each_backend_gets_its_reference_programs() {
     assert!(e.is_ok());
     let e = wanted("cuda", |_| true).unwrap_err();
     assert_eq!(e, "cuda: OpenVINO is not a reference for this backend");
-    wanted("metal", |n| n == TEI).unwrap();
+    wanted("metal", |n| n == TEI || n == "mlx").unwrap();
+    let e = wanted("metal", |n| n == TEI).unwrap_err();
+    assert_eq!(e, "metal: MLX is a reference here: give --mlx-model, or --no-mlx");
     let e = wanted("metal", |_| false).unwrap_err();
     assert_eq!(e, "metal: TEI is a reference here: give --tei-image (or --tei-bin) and --tei-model, or --no-tei");
     assert_eq!(wanted("metal", |_| true).unwrap_err(), "metal: TensorRT is not a reference for this backend");

@@ -14,6 +14,28 @@ up to three hours never holds a runner the ci lanes are waiting for:
 Deleting a variable sends its jobs back to the hosted runner. The Windows
 lanes and the publishing jobs are hosted whatever they say.
 
+## Model training runs
+
+The models, models-ud, models-tatoeba and models-fineweb workflows train
+and gate models for up to three hours each. They are an opt-in
+integration test on pull requests, off by default:
+
+- A pull request that changes their paths trains only while it carries
+  the label `ci:models`. Adding the label starts a run; each push after
+  that runs again and cancels the run on the older head. Adding any
+  other label starts nothing.
+- A push to main that changes their paths always trains and checks. The
+  run going on main is never cancelled; only the newest push waits
+  behind it.
+- Running a workflow by hand (Actions, the workflow, "Run workflow", or
+  `gh workflow run models-ud.yml --ref <branch>`) trains any branch.
+  Only a run by hand on main publishes.
+
+They are not in the merge queue: the required check `check` comes from
+ci.yml (lint, the test shards, parity and the other fast lanes), runs on
+every pull request and merge group, and does not wait on the training
+workflows, so a pull request without the label merges as before.
+
 ## What keeps outside code off these runners
 
 The `runs-on` expressions send unchanged pull requests from forks to the

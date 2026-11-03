@@ -1,0 +1,12 @@
+MASKED	Token **************************************** leaked.
+
+MASK_ALL	Token ######################################## leaked.
+
+REWRITE	pseudonymize	OK	Token GITHUB-TOKEN-1 leaked.
+
+LABEL	pseudonymize	6	46	6	20	GITHUB-TOKEN-1
+REWRITE	hmac	OK	Token GITHUB-TOKEN-da1e8699bee7a66a leaked.
+
+LABEL	hmac	6	46	6	35	GITHUB-TOKEN-da1e8699bee7a66a
+AUDIT	github-token	1	1	GITHUB-TOKEN-da1e8699bee7a66a
+AUDIT_REPORT	github-token: 1 mentions, 1 distinct [GITHUB-TOKEN-da1e8699bee7a66a]

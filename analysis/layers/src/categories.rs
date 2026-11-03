@@ -13,7 +13,7 @@ use crate::{Aspects, Chunks, Opinions, Sentences, Structure};
 /// document: the layer is `turbo:categories`, anchored to the document,
 /// with one item. Any other scope is a layer whose items are categorized
 /// one by one: `Categories<Sentences>` is
-/// `turbo:categories<opennlp:sentences>`, aligned to the sentences.
+/// `turbo:categories<turbo:sentences>`, aligned to the sentences.
 ///
 /// A crate with its own layer of units to categorize implements this for
 /// that layer, as this crate does for `Sentences`, `Structure` and
@@ -381,6 +381,27 @@ impl<L: CategoryScope> Layer for Categories<L> {
 
     fn len(&self) -> usize {
         self.category.len()
+    }
+
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(self.categories.content_hash()).usize(self.category.len());
+        for &c in &self.category {
+            h.u16(c.0);
+        }
+        h.usize(self.selected.len());
+        for &s in &self.selected {
+            h.u16(s.0);
+        }
+        h.usize(self.selected_end.len());
+        for &e in &self.selected_end {
+            h.u32(e);
+        }
+        h.usize(self.scores.len());
+        for &sc in &self.scores {
+            h.f64(sc);
+        }
+        Some(h.finish())
     }
 
     fn check(&self) -> Result<(), String> {

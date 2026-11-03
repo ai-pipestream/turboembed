@@ -1,0 +1,16 @@
+MASKED	Adapters **-**-**-**-**-**, **:**:**:**:**:** and ****.****.**** are up.
+
+MASK_ALL	Adapters #################, ################# and ############## are up.
+
+REWRITE	pseudonymize	OK	Adapters MAC-1, MAC-2 and MAC-3 are up.
+
+LABEL	pseudonymize	9	26	9	14	MAC-1
+LABEL	pseudonymize	28	45	16	21	MAC-2
+LABEL	pseudonymize	50	64	26	31	MAC-3
+REWRITE	hmac	OK	Adapters MAC-60457e2238f7a289, MAC-1272dea8a057954d and MAC-9ace9d665c38a59c are up.
+
+LABEL	hmac	9	26	9	29	MAC-60457e2238f7a289
+LABEL	hmac	28	45	31	51	MAC-1272dea8a057954d
+LABEL	hmac	50	64	56	76	MAC-9ace9d665c38a59c
+AUDIT	mac	3	3	MAC-60457e2238f7a289, MAC-1272dea8a057954d, MAC-9ace9d665c38a59c
+AUDIT_REPORT	mac: 3 mentions, 3 distinct [MAC-60457e2238f7a289, MAC-1272dea8a057954d, MAC-9ace9d665c38a59c]

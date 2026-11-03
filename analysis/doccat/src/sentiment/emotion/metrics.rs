@@ -44,11 +44,25 @@ pub fn evaluate_emotion_corpus(
     predicted: &EmotionLayer,
     threshold: f64,
 ) -> Result<EmotionMetrics, String> {
+    if !threshold.is_finite() {
+        return Err(format!("threshold {threshold}"));
+    }
+    evaluate_emotion_corpus_with_thresholds(gold, predicted, &[threshold; EMOTION_DIMENSIONS])
+}
+
+/// Scores `predicted` against `gold`, one unit each, each label `d` active
+/// at or above `thresholds[d.index()]`. An empty label has precision and
+/// recall 1.
+pub fn evaluate_emotion_corpus_with_thresholds(
+    gold: &[GoldEmotionUnit],
+    predicted: &EmotionLayer,
+    thresholds: &[f64; EMOTION_DIMENSIONS],
+) -> Result<EmotionMetrics, String> {
     if gold.len() != predicted.target.len() {
         return Err(format!("{} gold units, {} predicted", gold.len(), predicted.target.len()));
     }
-    if !threshold.is_finite() {
-        return Err(format!("threshold {threshold}"));
+    if let Some(&t) = thresholds.iter().find(|t| !t.is_finite()) {
+        return Err(format!("threshold {t}"));
     }
     let mut per_label = EmotionDimension::ALL.map(|d| (d, LabelMetrics::default()));
     let (mut active, mut active_with_evidence) = (0usize, 0usize);
@@ -56,6 +70,7 @@ pub fn evaluate_emotion_corpus(
         let ix = Ix::<EmotionLayer>::new(i as u32);
         let scores = predicted.scores_of(ix);
         for (d, m) in per_label.iter_mut() {
+            let threshold = thresholds[d.index()];
             let (want, got) = (g.labels.contains(d), scores.get(*d) >= threshold);
             if got && *d != EmotionDimension::Neutral {
                 active += 1;

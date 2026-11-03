@@ -1,0 +1,69 @@
+{
+  "library_commit": "cee65da41953c054a1d142a1da63afe9daeb0c07",
+  "sets": [
+    {
+      "absent_document_judgements": 0,
+      "document_score_groups": 416,
+      "documents": 416,
+      "evidence_score_groups": 408,
+      "loaded_queries": 1451,
+      "placed_span_judgements": 3395,
+      "positive_document_query_pairs": 1451,
+      "queries_without_placed_evidence": 141,
+      "queries_without_positive_document_judgement": 0,
+      "scored_document_queries": 1451,
+      "scored_evidence_queries": 1310,
+      "set": "qasper",
+      "sha256": "22c5552ba336e17de36f13864bb0670ef7d2605e8baa828924094378c9d3eb37",
+      "unplaced_judgements": 21
+    },
+    {
+      "absent_document_judgements": 0,
+      "document_score_groups": 100,
+      "documents": 100,
+      "evidence_score_groups": 100,
+      "loaded_queries": 3000,
+      "placed_span_judgements": 2888,
+      "positive_document_query_pairs": 3000,
+      "queries_without_placed_evidence": 112,
+      "queries_without_positive_document_judgement": 0,
+      "scored_document_queries": 3000,
+      "scored_evidence_queries": 2888,
+      "set": "gutenqa",
+      "sha256": "d6cc80f9837268ca041390bfc6b0b2ef33c45f5cacbc4244b7dc863702e81654",
+      "unplaced_judgements": 112
+    },
+    {
+      "absent_document_judgements": 0,
+      "document_score_groups": 40,
+      "documents": 102,
+      "evidence_score_groups": 40,
+      "loaded_queries": 41,
+      "placed_span_judgements": 2643,
+      "positive_document_query_pairs": 1244,
+      "queries_without_placed_evidence": 1,
+      "queries_without_positive_document_judgement": 1,
+      "scored_document_queries": 40,
+      "scored_evidence_queries": 40,
+      "set": "cuad",
+      "sha256": "834c186d02553f989434c69d2bbebae6f7db79f20adb5211a5b31a379aadcf33",
+      "unplaced_judgements": 0
+    },
+    {
+      "absent_document_judgements": 0,
+      "document_score_groups": 17,
+      "documents": 123,
+      "evidence_score_groups": 17,
+      "loaded_queries": 17,
+      "placed_span_judgements": 2404,
+      "positive_document_query_pairs": 1188,
+      "queries_without_placed_evidence": 0,
+      "queries_without_positive_document_judgement": 0,
+      "scored_document_queries": 17,
+      "scored_evidence_queries": 17,
+      "set": "contract-nli",
+      "sha256": "4709f5fc3ec80601d0656c009e15eb72ffd06e145cb5cd6576e50a936c41a7cd",
+      "unplaced_judgements": 0
+    }
+  ]
+}

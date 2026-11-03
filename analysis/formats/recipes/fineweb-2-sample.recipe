@@ -1,0 +1,15 @@
+# FineWeb-2 sample: one full training shard of the Chechen (che_Cyrl)
+# split of HuggingFaceFW/fineweb-2 at the revision af9c1333 that
+# analysis/train-recipes/fineweb-files.txt records. The size and SHA-256
+# there are the hub API's at the revision, and both were re-verified from
+# a download of the file on 2026-10-28 (39,088,503 bytes). The shard is
+# one of the files the web language detector recipe reads; the other
+# shards it reads are pinned in fineweb-files.txt.
+name: fineweb-2-sample
+tier: default
+url: https://huggingface.co/datasets/HuggingFaceFW/fineweb-2/resolve/af9c13333eb981300149d5ca60a8e9d659b276b9/data/che_Cyrl/train/000_00000.parquet
+sha256: dd8e76878f1e541f4370ff9983dbc8d2fce6c6abc58d31fc19aa8e48056ca790
+license-url: https://huggingface.co/datasets/HuggingFaceFW/fineweb-2/blob/af9c13333eb981300149d5ca60a8e9d659b276b9/README.md
+license: ODC-By 1.0
+note: The card at the pinned revision was read on 2026-10-28 (SHA-256 08d38a7e5cb7aae4b6fcc284fec4dd636ea653e4e5e74ef66a60d9616005b090); it states ODC-By 1.0 and that use is also subject to Common Crawl's terms of use.
+note: Attribution: FineWeb-2 by Hugging Face FW, built on Common Crawl; the card names the FineWeb-2 paper and the reproducibility pipeline.

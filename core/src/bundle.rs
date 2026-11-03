@@ -6,8 +6,6 @@ use std::fs;
 use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 
-use sha2::{Digest, Sha256};
-
 use crate::manifest::Manifest;
 use crate::status::{BUNDLE_INTEGRITY, BUNDLE_NOT_FOUND, Error, OUT_OF_MEMORY, Result, invalid};
 
@@ -245,10 +243,5 @@ impl std::ops::DerefMut for AlignedBytes {
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    let digest = Sha256::digest(bytes);
-    let mut s = String::with_capacity(64);
-    for b in digest {
-        s.push_str(&format!("{b:02x}"));
-    }
-    s
+    turbo_sha256::sha256(bytes).to_hex()
 }

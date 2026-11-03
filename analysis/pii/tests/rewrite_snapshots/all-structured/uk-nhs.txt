@@ -1,0 +1,9 @@
+MASKED	NHS *** *** **** recorded; ********** and ***-***-**** too.
+
+MASK_ALL	NHS ############ recorded; ########## and ############ too.
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	phone	2	1	PHONE-258496d3f67ec84f
+AUDIT	uk-nhs	3	1	UK-NHS-8ab298778f89ab6b
+AUDIT_REPORT	phone: 2 mentions, 1 distinct [PHONE-258496d3f67ec84f]\nuk-nhs: 3 mentions, 1 distinct [UK-NHS-8ab298778f89ab6b]

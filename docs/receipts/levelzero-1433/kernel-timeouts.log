@@ -1,0 +1,18 @@
+2026-10-26T05:13:09.710857-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T05:13:09.711219-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967174, lrc_seqno=4294967174, guc_id=55, flags=0x20 in device-ff9aba34 [3655172]
+2026-10-26T05:15:10.564956-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T05:15:10.565290-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967186, lrc_seqno=4294967186, guc_id=55, flags=0x20 in device-133c3c3b [3743525]
+2026-10-26T05:16:05.913752-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T05:16:05.914086-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967175, lrc_seqno=4294967175, guc_id=55, flags=0x20 in device-133c3c3b [3794051]
+2026-10-26T10:13:17.130849-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T10:13:17.137251-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967169, lrc_seqno=4294967169, guc_id=55, flags=0x20 in levelzero_loads [3392168]
+2026-10-26T10:15:44.706213-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T10:15:44.706637-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967171, lrc_seqno=4294967171, guc_id=55, flags=0x20 in levelzero_loads [3440951]
+2026-10-26T10:16:20.467899-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T10:16:20.468199-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967170, lrc_seqno=4294967170, guc_id=55, flags=0x20 in levelzero_loads [3472791]
+2026-10-26T10:19:43.103419-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T10:19:43.103717-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967170, lrc_seqno=4294967170, guc_id=55, flags=0x20 in levelzero_loads [3538685]
+2026-10-26T10:21:07.305971-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T10:21:07.306463-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967173, lrc_seqno=4294967173, guc_id=55, flags=0x20 in levelzero_loads [3633923]
+2026-10-26T10:22:03.535185-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Engine reset: engine_class=ccs, logical_mask: 0x1, guc_id=55, state=0x29
+2026-10-26T10:22:03.535569-04:00 kernel: xe 0000:03:00.0: [drm] Tile0: GT0: Timedout job: seqno=4294967169, lrc_seqno=4294967169, guc_id=55, flags=0x20 in levelzero_loads [3674636]

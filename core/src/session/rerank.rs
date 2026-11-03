@@ -101,7 +101,8 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
                 batch.mask[at].fill(1);
             }
             state.rerank = Some(batch);
-            state.written = Some(Written { batch: count, output_dim: 1, tokenized: true });
+            state.written =
+                Some(Written { batch: count, output_dim: 1, tokenized: true, quantization: Quantization::F32 });
             Ok(())
         })
     }
@@ -135,6 +136,8 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             normalize: TURBO_NORMALIZE_NONE,
             output_dim: head.hidden as u32,
             head: 0,
+            taps: 0,
+            reserved: 0,
         };
         backend::check(s.backend, "rerank encode write", |err| unsafe { write(s.raw, &rows, err) })?;
         result.struct_size = size_of::<turbo_backend_run>() as u32;

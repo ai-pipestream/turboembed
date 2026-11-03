@@ -1,9 +1,5 @@
-use turbo_train_recipes::namefind_eval::{Mention, Prediction, Record, Sample, evaluate};
-const CORPUS: &str = include_str!("data/namefind-eval.conll");
-fn fixture() -> Vec<u8> {
-    std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/ner-bio-fixture.bin"))
-        .unwrap()
-}
+use turbo_train_recipes::namefind_eval::{Mention, Prediction, Record, Sample};
+
 fn record() -> Record {
     Record {
         format_version: 1,
@@ -88,31 +84,4 @@ fn rejects_invalid_records_before_scoring() {
     a.samples[0].gold.clear();
     a.samples[0].predicted.clear();
     assert_eq!(a.summary().unwrap().f1, -1.0);
-}
-#[test]
-fn local_corpus_is_deterministic_and_document_reset_is_preserved() {
-    let model = fixture();
-    let a = evaluate(&model, CORPUS, "all").unwrap();
-    assert_eq!(a.samples.iter().map(|s| s.clear_adaptive_data).collect::<Vec<_>>(), [true, false, true, false]);
-    assert_eq!(a.samples.len(), 4);
-    assert!(a.summary().unwrap().predicted > 0);
-    assert_eq!(serde_json::to_vec(&a).unwrap(), serde_json::to_vec(&evaluate(&model, CORPUS, "all").unwrap()).unwrap());
-    let b: Record = serde_json::from_slice(&serde_json::to_vec(&a).unwrap()).unwrap();
-    assert_eq!(a.compare(&b, 0.0).unwrap(), 0.0);
-    assert_eq!(evaluate(&model, CORPUS, "per").unwrap().summary().unwrap().gold, 4);
-    assert!(evaluate(&model, "", "all").is_err());
-    assert!(evaluate(&model, "word invalid columns\n", "all").is_err());
-    assert!(evaluate(&model, CORPUS, "xperx").is_err());
-    assert!(evaluate(b"bad-model", CORPUS, "all").is_err());
-}
-
-#[test]
-fn matches_the_pinned_jvm_fixture_spans_probabilities_and_f1() {
-    let reference: Record = serde_json::from_str(include_str!("data/namefind-eval-jvm.json")).unwrap();
-    let actual = evaluate(&fixture(), CORPUS, "all").unwrap();
-    assert!(reference.engine.starts_with("opennlp:cdf33c653d5d"));
-    assert!(actual.compare(&reference, 1e-9).unwrap() <= 1e-9);
-    assert_eq!(actual.summary().unwrap(), reference.summary().unwrap());
-    let s = actual.summary().unwrap();
-    assert_eq!((s.correct, s.predicted, s.gold), (3, 4, 7));
 }

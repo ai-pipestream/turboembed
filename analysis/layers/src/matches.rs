@@ -53,6 +53,18 @@ impl Layer for Matches {
         vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
     }
 
+    fn content_hash(&self) -> Option<u64> {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(self.labels.content_hash()).usize(self.tokens.len());
+        for i in 0..self.tokens.len() {
+            h.u32(self.tokens[i].start.get() as u32)
+                .u32(self.tokens[i].end.get() as u32)
+                .u16(self.label[i].0)
+                .u32(self.rule[i]);
+        }
+        Some(h.finish())
+    }
+
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.tokens.len() != n || self.label.len() != n || self.rule.len() != n {

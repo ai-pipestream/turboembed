@@ -1,0 +1,7107 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-11-01T17:03:35Z",
+  "provenance": {
+    "commit": "42886cee3b3f07fcb1ff74708af0bac3e25ab3ca",
+    "pushed_to": [
+      "origin/claude/project-thread-2zw2ao",
+      "origin/claude/project-thread-3kv94e",
+      "origin/claude/project-thread-on98lt",
+      "origin/main"
+    ],
+    "machine": {
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "os": "linux"
+    },
+    "device": {
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 130171314176
+    },
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+      "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+      "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    }
+  },
+  "set": {
+    "name": "legalbench-rag-mini",
+    "sha256": "45e6bdabdb9d62c2f343cf31f761a1219b83bc42b20ead309a93728d0066680d"
+  },
+  "pipeline": {
+    "analyzer": [
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
+      "turbo:structure plain",
+      "turbo:subwords"
+    ],
+    "chunker": {
+      "name": "fixed-tokens",
+      "config": [
+        {
+          "name": "tokens",
+          "value": "200"
+        },
+        {
+          "name": "overlap",
+          "value": "0"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "queries": 776,
+    "ndcg_at_10": 0.8316045350081115,
+    "recall": {
+      "at_1": 0.7216494845360825,
+      "at_5": 0.8917525773195877,
+      "at_10": 0.9497422680412371,
+      "at_100": 1.0
+    },
+    "span": {
+      "queries": 776,
+      "mean": {
+        "at_1": {
+          "precision": 0.054033352024642343,
+          "recall": 0.09100648027911985,
+          "contained": 0.05377086401570939
+        },
+        "at_5": {
+          "precision": 0.0362703919551215,
+          "recall": 0.2710430597913235,
+          "contained": 0.16741838487972505
+        },
+        "at_10": {
+          "precision": 0.02507363704333788,
+          "recall": 0.34914996107603236,
+          "contained": 0.2095054000981836
+        },
+        "at_100": {
+          "precision": 0.00502358714867452,
+          "recall": 0.6585906467850723,
+          "contained": 0.3882916053019147
+        }
+      },
+      "integrity": {
+        "split": 0.4055087987758225,
+        "short_documents": 0.0
+      },
+      "per_query": [
+        {
+          "query": "contractnli/114",
+          "recall": 0.9986468200270636,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/115",
+          "recall": 0.9888888888888889,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/116",
+          "recall": 0.7315068493150685,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/117",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/118",
+          "recall": 0.9986468200270636,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/119",
+          "recall": 0.5545454545454546,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/120",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/121",
+          "recall": 0.9972677595628415,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/132",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/133",
+          "recall": 0.9978448275862069,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/134",
+          "recall": 0.22821576763485477,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/135",
+          "recall": 0.3535253227408143,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/136",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/137",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/138",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/139",
+          "recall": 0.13029661016949154,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/140",
+          "recall": 0.9991079393398751,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/141",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/142",
+          "recall": 0.9965870307167235,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/143",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/144",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/145",
+          "recall": 0.9952830188679245,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/146",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/147",
+          "recall": 0.5795090715048026,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "contractnli/148",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/149",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/150",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/151",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/152",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/153",
+          "recall": 0.08173076923076923,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/154",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/155",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/156",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/157",
+          "recall": 0.11533742331288344,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/184",
+          "recall": 0.5582608695652174,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/185",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/186",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/187",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/188",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/189",
+          "recall": 0.5057034220532319,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/190",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/191",
+          "recall": 0.3172103487064117,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/192",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/193",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/194",
+          "recall": 0.3172103487064117,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/195",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/230",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/231",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/232",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/233",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/234",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/235",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/236",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/237",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/238",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/239",
+          "recall": 0.5886889460154242,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/240",
+          "recall": 0.5826210826210826,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/241",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/242",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/243",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/294",
+          "recall": 0.29110512129380056,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/295",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/296",
+          "recall": 0.9736842105263158,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/297",
+          "recall": 0.9736842105263158,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/298",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/299",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/300",
+          "recall": 0.7297297297297297,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/301",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/302",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/433",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/434",
+          "recall": 0.25360230547550433,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/435",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/436",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/437",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/438",
+          "recall": 0.5403225806451613,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/439",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/440",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/469",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/470",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/471",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/472",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/575",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/576",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/577",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/578",
+          "recall": 0.6152362584378014,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/579",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/580",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/581",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/582",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/583",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/584",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/585",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/586",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/587",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/588",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/66",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/67",
+          "recall": 0.7237512742099899,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/68",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/69",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/696",
+          "recall": 0.9985185185185185,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/697",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/698",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/699",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/70",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/700",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/701",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/702",
+          "recall": 0.9985185185185185,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/703",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/704",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/705",
+          "recall": 0.4579831932773109,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/706",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/707",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/708",
+          "recall": 0.9961089494163424,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/71",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/72",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/73",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/74",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/75",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/76",
+          "recall": 0.6645962732919255,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/77",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/78",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/79",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/80",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/807",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/808",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/809",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/81",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/810",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/811",
+          "recall": 0.3793103448275862,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/812",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/813",
+          "recall": 0.30956848030018763,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/814",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/815",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/816",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/82",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/83",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/84",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/85",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/86",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/87",
+          "recall": 0.6816479400749064,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/876",
+          "recall": 0.9982046678635548,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/877",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/878",
+          "recall": 0.8859223300970874,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/879",
+          "recall": 0.6412614980289093,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/88",
+          "recall": 0.731629392971246,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "contractnli/880",
+          "recall": 0.46875,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/881",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/882",
+          "recall": 0.5282224094355518,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "contractnli/883",
+          "recall": 0.17561683599419448,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/884",
+          "recall": 0.6068259385665529,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/885",
+          "recall": 0.38137755102040816,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/886",
+          "recall": 0.5524193548387096,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/89",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/90",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/907",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/908",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/909",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/91",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/910",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/911",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/912",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/913",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/914",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/915",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/916",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/917",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/918",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/919",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/92",
+          "recall": 0.9977426636568849,
+          "contained": 0.5
+        },
+        {
+          "query": "contractnli/93",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/933",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/934",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/935",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/936",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/937",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/938",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/939",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/94",
+          "recall": 0.31861804222648754,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/940",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/941",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/95",
+          "recall": 0.31861804222648754,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/96",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/968",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/969",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/97",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/970",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/971",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/972",
+          "recall": 0.27994227994227994,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "contractnli/973",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/974",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/975",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/976",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "contractnli/98",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "contractnli/99",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1026",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/1027",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/1028",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1538",
+          "recall": 0.9974424552429667,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1550",
+          "recall": 0.09554140127388536,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1551",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/1552",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1553",
+          "recall": 0.6801152737752162,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1554",
+          "recall": 0.6801152737752162,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1555",
+          "recall": 0.034623217922606926,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1556",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1557",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1558",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1559",
+          "recall": 0.9986486486486487,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1560",
+          "recall": 0.34634551495016613,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/1561",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/1562",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1563",
+          "recall": 0.13161290322580646,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1564",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/1565",
+          "recall": 0.9985734664764622,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1566",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1769",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1770",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1771",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1772",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1773",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1774",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1866",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1867",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1868",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1869",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1870",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1885",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1886",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/1887",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1888",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1889",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1890",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1891",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1897",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/1898",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1899",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/1900",
+          "recall": 0.3826086956521739,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2019",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2020",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2021",
+          "recall": 0.4850187265917603,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2022",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2023",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2272",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2273",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2274",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2275",
+          "recall": 0.8340306834030683,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2276",
+          "recall": 0.4426229508196721,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2277",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2278",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2292",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2293",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2294",
+          "recall": 1.0,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2295",
+          "recall": 0.34466588511137164,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2296",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2297",
+          "recall": 0.6739130434782609,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2298",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2299",
+          "recall": 0.49411764705882355,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2300",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2301",
+          "recall": 0.6727688787185355,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2302",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2303",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2304",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2373",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2374",
+          "recall": 0.07562136435748282,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2375",
+          "recall": 0.5318877551020408,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2376",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2377",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2467",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2468",
+          "recall": 0.004545454545454545,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2469",
+          "recall": 0.18333333333333332,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "cuad/2470",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2471",
+          "recall": 0.5234521575984991,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2472",
+          "recall": 0.09535864978902954,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2473",
+          "recall": 1.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2474",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2475",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2476",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2477",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2478",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2479",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2480",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2481",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2482",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2483",
+          "recall": 0.5592654424040067,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2484",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2485",
+          "recall": 0.89568345323741,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2497",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2498",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2499",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2500",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2501",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2502",
+          "recall": 0.773301970008821,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2503",
+          "recall": 0.5522388059701493,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2504",
+          "recall": 0.390646492434663,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2505",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2506",
+          "recall": 0.4939919893190921,
+          "contained": 0.42857142857142855
+        },
+        {
+          "query": "cuad/2507",
+          "recall": 0.07303974221267455,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2508",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2509",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/251",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2510",
+          "recall": 0.13400335008375208,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2511",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2512",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/252",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2532",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2533",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2534",
+          "recall": 0.024193548387096774,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2535",
+          "recall": 0.27328431372549017,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2566",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2567",
+          "recall": 0.9988095238095238,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2644",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2645",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2678",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2679",
+          "recall": 0.3856088560885609,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2680",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2681",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2755",
+          "recall": 0.28336755646817247,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2756",
+          "recall": 0.28336755646817247,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2757",
+          "recall": 1.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2758",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2759",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/2760",
+          "recall": 0.22533022533022534,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2761",
+          "recall": 0.259656652360515,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2762",
+          "recall": 0.5,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/2763",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2764",
+          "recall": 0.18762886597938144,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2765",
+          "recall": 0.23878116343490305,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "cuad/2766",
+          "recall": 0.9989281886387996,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2767",
+          "recall": 0.9989281886387996,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2768",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2769",
+          "recall": 0.44543828264758495,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2770",
+          "recall": 0.44623655913978494,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2771",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2772",
+          "recall": 0.7327188940092166,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2899",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2900",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2901",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2902",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/2903",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/3007",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/3008",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3009",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3010",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3011",
+          "recall": 0.4987714987714988,
+          "contained": 0.5
+        },
+        {
+          "query": "cuad/3305",
+          "recall": 0.32608695652173914,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3306",
+          "recall": 0.8950276243093923,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3307",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3308",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3309",
+          "recall": 0.9842342342342343,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3310",
+          "recall": 0.9842342342342343,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3311",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3613",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/3614",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3615",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3616",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3617",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/3767",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/3768",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3769",
+          "recall": 0.9718076285240465,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/3770",
+          "recall": 0.9718076285240465,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/51",
+          "recall": 0.8958333333333334,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/52",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/53",
+          "recall": 0.9981060606060606,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/54",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/55",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/56",
+          "recall": 0.5208545269582909,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/605",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/606",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/607",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/608",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/609",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/610",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/611",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/612",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/613",
+          "recall": 0.06768558951965066,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/614",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/682",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/683",
+          "recall": 0.9987357774968394,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/780",
+          "recall": 0.7584650112866818,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/781",
+          "recall": 0.7584650112866818,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/782",
+          "recall": 0.7584650112866818,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/783",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/784",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "cuad/785",
+          "recall": 0.1553398058252427,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/786",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/787",
+          "recall": 0.6927835051546392,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/788",
+          "recall": 0.691358024691358,
+          "contained": 0.0
+        },
+        {
+          "query": "cuad/789",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1035",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1036",
+          "recall": 0.3374865735767991,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1037",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1038",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1039",
+          "recall": 0.5307612095933264,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1040",
+          "recall": 0.9991452991452991,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1041",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1042",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1043",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1044",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/11",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1107",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1108",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1109",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1110",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1111",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1112",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1113",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1114",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1115",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1157",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1158",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1159",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1160",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1161",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1162",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1163",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1164",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1165",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1166",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1175",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1176",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1177",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1178",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1179",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/118",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1180",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1181",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1182",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1183",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1184",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/119",
+          "recall": 0.4863481228668942,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/12",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/120",
+          "recall": 0.14306410720753351,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1201",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1202",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1203",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1204",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1205",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1206",
+          "recall": 0.3356913183279743,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1207",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1208",
+          "recall": 0.19459253617669459,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1209",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/121",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1210",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1211",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1212",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1213",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1214",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/122",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/123",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/124",
+          "recall": 0.5140280561122245,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/125",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/126",
+          "recall": 0.6746987951807228,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/127",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/128",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/129",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/13",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "maud/130",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/131",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/14",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1444",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1445",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1446",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1447",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1448",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1449",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1450",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1451",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1452",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1453",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/1454",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/15",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/16",
+          "recall": 0.5167037861915368,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/17",
+          "recall": 0.5100401606425703,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/18",
+          "recall": 0.7858963466440102,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/19",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/20",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/21",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/22",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/23",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "maud/238",
+          "recall": 0.7269938650306749,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/239",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/24",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/240",
+          "recall": 0.29069432440218956,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/241",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/242",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/243",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/244",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/245",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/246",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/247",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/248",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "maud/25",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/26",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/27",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/299",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/300",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/301",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/302",
+          "recall": 0.18436213991769548,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/303",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/304",
+          "recall": 0.37246531483457845,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/305",
+          "recall": 0.7058823529411765,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/306",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/307",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/308",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/309",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/310",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/311",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/441",
+          "recall": 0.32148760330578513,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/442",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/443",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/444",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/445",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/446",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/447",
+          "recall": 0.4860215053763441,
+          "contained": 0.5
+        },
+        {
+          "query": "maud/448",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/449",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/450",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/451",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/525",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/526",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/527",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/528",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/529",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/530",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "maud/531",
+          "recall": 0.6849840255591054,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/532",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/533",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/534",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/535",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/560",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/561",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/562",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/563",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/564",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/565",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/566",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/567",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/568",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/569",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/674",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/675",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/676",
+          "recall": 0.184577522559475,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/677",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/678",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/679",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/680",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/681",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/682",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/683",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/684",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/685",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/814",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/815",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/816",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/817",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/818",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/819",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/820",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/821",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/822",
+          "recall": 0.23784592370979807,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/823",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/881",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/882",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/883",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/884",
+          "recall": 0.7716049382716049,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/885",
+          "recall": 0.27512254901960786,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/886",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/887",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/888",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/889",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/890",
+          "recall": 0.9672619047619048,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/964",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/965",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/966",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/967",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/968",
+          "recall": 0.47921425308359983,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/969",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/970",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/971",
+          "recall": 0.6051437216338881,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/972",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/973",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "maud/974",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/0",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/1",
+          "recall": 0.9970845481049563,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/10",
+          "recall": 0.5189504373177842,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/100",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/101",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/102",
+          "recall": 1.0,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/103",
+          "recall": 1.0,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/104",
+          "recall": 0.899264705882353,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/105",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/106",
+          "recall": 0.4155844155844156,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/107",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/108",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/109",
+          "recall": 0.9982578397212544,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/11",
+          "recall": 0.6280487804878049,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/110",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/111",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/112",
+          "recall": 1.0,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/113",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/114",
+          "recall": 0.09251101321585903,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/115",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/116",
+          "recall": 1.0,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/117",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/118",
+          "recall": 0.9989909182643795,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/119",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/12",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/120",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/121",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/122",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/123",
+          "recall": 0.990909090909091,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/124",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/125",
+          "recall": 0.990909090909091,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/126",
+          "recall": 0.7181818181818181,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/127",
+          "recall": 0.9989909182643795,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/128",
+          "recall": 0.990909090909091,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/129",
+          "recall": 0.990909090909091,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/13",
+          "recall": 0.27919911012235815,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/130",
+          "recall": 0.9987228607918263,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/131",
+          "recall": 0.990909090909091,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/132",
+          "recall": 0.990909090909091,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/133",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/134",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/135",
+          "recall": 0.9987228607918263,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/136",
+          "recall": 0.990909090909091,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/137",
+          "recall": 0.9990521327014218,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "privacy_qa/138",
+          "recall": 0.1250814332247557,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/139",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/14",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/140",
+          "recall": 0.5024067388688327,
+          "contained": 0.16666666666666666
+        },
+        {
+          "query": "privacy_qa/141",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/142",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/143",
+          "recall": 0.7428053478359393,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/144",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/145",
+          "recall": 0.7658767772511849,
+          "contained": 0.4
+        },
+        {
+          "query": "privacy_qa/146",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/147",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/148",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/149",
+          "recall": 0.3908887052991856,
+          "contained": 0.07142857142857142
+        },
+        {
+          "query": "privacy_qa/15",
+          "recall": 0.8803350618268847,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/150",
+          "recall": 0.7802236198462613,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/151",
+          "recall": 0.9368770764119602,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/152",
+          "recall": 0.9368770764119602,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/153",
+          "recall": 0.9368770764119602,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/154",
+          "recall": 0.23840698308783415,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/155",
+          "recall": 0.6588205517590483,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/156",
+          "recall": 0.47852553263442676,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/157",
+          "recall": 1.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/158",
+          "recall": 0.4429678848283499,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/159",
+          "recall": 0.4429678848283499,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/16",
+          "recall": 0.6053691275167785,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/160",
+          "recall": 0.9368770764119602,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/161",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/162",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/163",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/164",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/165",
+          "recall": 0.24149108589951376,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/166",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/167",
+          "recall": 0.36658195679796696,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/168",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/169",
+          "recall": 0.06556016597510374,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/17",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/170",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/171",
+          "recall": 0.6459948320413437,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "privacy_qa/172",
+          "recall": 0.8432494279176201,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/173",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/174",
+          "recall": 1.0,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "privacy_qa/175",
+          "recall": 1.0,
+          "contained": 0.75
+        },
+        {
+          "query": "privacy_qa/176",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/177",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/178",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/179",
+          "recall": 0.26886145404663925,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/18",
+          "recall": 0.16721311475409836,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "privacy_qa/180",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/181",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/182",
+          "recall": 0.5207547169811321,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/183",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/184",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/185",
+          "recall": 0.23430592396109637,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/186",
+          "recall": 0.26886145404663925,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/187",
+          "recall": 0.7822349570200573,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/188",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/189",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/19",
+          "recall": 0.3020527859237537,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/190",
+          "recall": 0.9990875912408759,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/191",
+          "recall": 0.07438551099611902,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/192",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/193",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/2",
+          "recall": 0.9983974358974359,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/20",
+          "recall": 0.6534372785258682,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/21",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/22",
+          "recall": 0.14206896551724138,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/23",
+          "recall": 0.7157417893544734,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/24",
+          "recall": 0.7157417893544734,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/25",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/26",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/27",
+          "recall": 0.3020527859237537,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/28",
+          "recall": 0.48148148148148145,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/29",
+          "recall": 0.3090909090909091,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/3",
+          "recall": 0.998997995991984,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/30",
+          "recall": 0.4621928166351607,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/31",
+          "recall": 0.880781089414183,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "privacy_qa/32",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/33",
+          "recall": 0.984375,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/34",
+          "recall": 0.3885135135135135,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/35",
+          "recall": 0.7860187553282183,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/36",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/37",
+          "recall": 0.4544311753614079,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/38",
+          "recall": 0.7157417893544734,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/39",
+          "recall": 0.7774822695035462,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/4",
+          "recall": 0.9983164983164983,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/40",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/41",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/42",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/43",
+          "recall": 0.7157417893544734,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/44",
+          "recall": 0.3885135135135135,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/45",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/46",
+          "recall": 0.7157417893544734,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/47",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/48",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/49",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/5",
+          "recall": 0.8628884826325411,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/50",
+          "recall": 0.7157417893544734,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/51",
+          "recall": 0.6499032882011605,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "privacy_qa/52",
+          "recall": 0.7467204843592331,
+          "contained": 0.6666666666666666
+        },
+        {
+          "query": "privacy_qa/53",
+          "recall": 0.9310344827586207,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/54",
+          "recall": 0.3885135135135135,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/55",
+          "recall": 0.9916512059369202,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/56",
+          "recall": 0.9257884972170687,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/57",
+          "recall": 0.07235621521335807,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/58",
+          "recall": 0.5163240628778718,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/59",
+          "recall": 0.35096020038964654,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/6",
+          "recall": 0.9983974358974359,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/60",
+          "recall": 0.7329360780065005,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/61",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/62",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/63",
+          "recall": 0.4979568009340339,
+          "contained": 0.3333333333333333
+        },
+        {
+          "query": "privacy_qa/64",
+          "recall": 0.2903001908728093,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/65",
+          "recall": 0.41887905604719766,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/66",
+          "recall": 0.9257884972170687,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/67",
+          "recall": 0.6463306808134395,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/68",
+          "recall": 1.0,
+          "contained": 1.0
+        },
+        {
+          "query": "privacy_qa/69",
+          "recall": 0.27044025157232704,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/7",
+          "recall": 0.2835671342685371,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/70",
+          "recall": 0.6535087719298246,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/71",
+          "recall": 0.3062953995157385,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/72",
+          "recall": 0.30554882481221224,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/73",
+          "recall": 0.8719590268886044,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/74",
+          "recall": 0.43621399176954734,
+          "contained": 0.2
+        },
+        {
+          "query": "privacy_qa/75",
+          "recall": 0.41887905604719766,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/76",
+          "recall": 0.9986595174262735,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/77",
+          "recall": 0.1918869644484959,
+          "contained": 0.14285714285714285
+        },
+        {
+          "query": "privacy_qa/78",
+          "recall": 0.8719590268886044,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/79",
+          "recall": 0.33088428234059303,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/8",
+          "recall": 0.5100931677018633,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/80",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/81",
+          "recall": 0.41887905604719766,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/82",
+          "recall": 0.9991228070175439,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/83",
+          "recall": 0.249529544599172,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/84",
+          "recall": 0.6463306808134395,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/85",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/86",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/87",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/88",
+          "recall": 0.4126126126126126,
+          "contained": 0.25
+        },
+        {
+          "query": "privacy_qa/89",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/9",
+          "recall": 0.6053691275167785,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/90",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/91",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/92",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/93",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/94",
+          "recall": 0.6171113934773401,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/95",
+          "recall": 1.0,
+          "contained": 0.5
+        },
+        {
+          "query": "privacy_qa/96",
+          "recall": 0.6171113934773401,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/97",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/98",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "privacy_qa/99",
+          "recall": 0.4155844155844156,
+          "contained": 0.5
+        }
+      ]
+    },
+    "per_query": [
+      {
+        "query": "contractnli/114",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/115",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/116",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/117",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/118",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/119",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/120",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/121",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/132",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/133",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/134",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/135",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/136",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/137",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/138",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/139",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/140",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/141",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/142",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/143",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/144",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/145",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/146",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/147",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/148",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/149",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/150",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/151",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/152",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/153",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/154",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/155",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/156",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/157",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/184",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/185",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "contractnli/186",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/187",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/188",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/189",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/190",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/191",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/192",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "contractnli/193",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/194",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/195",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/230",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/231",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/232",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "contractnli/233",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/234",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/235",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/236",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/237",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/238",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/239",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/240",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/241",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/242",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/243",
+        "ndcg_at_10": 0.31546487678572877
+      },
+      {
+        "query": "contractnli/294",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/295",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/296",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/297",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/298",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/299",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/300",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/301",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/302",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/433",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/434",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/435",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/436",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/437",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/438",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/439",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/440",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/469",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/470",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/471",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "contractnli/472",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/575",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/576",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/577",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/578",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/579",
+        "ndcg_at_10": 0.31546487678572877
+      },
+      {
+        "query": "contractnli/580",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/581",
+        "ndcg_at_10": 0.2890648263178879
+      },
+      {
+        "query": "contractnli/582",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/583",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/584",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/585",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/586",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/587",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "contractnli/588",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/66",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/67",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/68",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "contractnli/69",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/696",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/697",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/698",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/699",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/70",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/700",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/701",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/702",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/703",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/704",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/705",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/706",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/707",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/708",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/71",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/72",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/73",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/74",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/75",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/76",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/77",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/78",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/79",
+        "ndcg_at_10": 0.2890648263178879
+      },
+      {
+        "query": "contractnli/80",
+        "ndcg_at_10": 0.31546487678572877
+      },
+      {
+        "query": "contractnli/807",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/808",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/809",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/81",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "contractnli/810",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/811",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "contractnli/812",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/813",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/814",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/815",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/816",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/82",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/83",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "contractnli/84",
+        "ndcg_at_10": 0.31546487678572877
+      },
+      {
+        "query": "contractnli/85",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/86",
+        "ndcg_at_10": 0.31546487678572877
+      },
+      {
+        "query": "contractnli/87",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "contractnli/876",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/877",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/878",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/879",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/88",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/880",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "contractnli/881",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/882",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/883",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/884",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/885",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/886",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/89",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "contractnli/90",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "contractnli/907",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "contractnli/908",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/909",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/91",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/910",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/911",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/912",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "contractnli/913",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/914",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/915",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/916",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/917",
+        "ndcg_at_10": 0.31546487678572877
+      },
+      {
+        "query": "contractnli/918",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/919",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/92",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/93",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/933",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/934",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/935",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/936",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/937",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/938",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/939",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/94",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/940",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/941",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/95",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/96",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/968",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/969",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/97",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/970",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "contractnli/971",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "contractnli/972",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/973",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/974",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "contractnli/975",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/976",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/98",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "contractnli/99",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1026",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1027",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1028",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1538",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1550",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1551",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1552",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1553",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1554",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1555",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1556",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1557",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1558",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1559",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1560",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1561",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1562",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1563",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1564",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1565",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1566",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1769",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1770",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1771",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1772",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1773",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1774",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1866",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1867",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1868",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1869",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1870",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1885",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1886",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1887",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1888",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1889",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1890",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1891",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1897",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1898",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1899",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/1900",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2019",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2020",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2021",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2022",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2023",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2272",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2273",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2274",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2275",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2276",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2277",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2278",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2292",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2293",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2294",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2295",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2296",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2297",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2298",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2299",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2300",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2301",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2302",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2303",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2304",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2373",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2374",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2375",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2376",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2377",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2467",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2468",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2469",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2470",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2471",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2472",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2473",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2474",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2475",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2476",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2477",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2478",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2479",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2480",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2481",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2482",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2483",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2484",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2485",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2497",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2498",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2499",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2500",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2501",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2502",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2503",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2504",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2505",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2506",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2507",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2508",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2509",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/251",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2510",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2511",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2512",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/252",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2532",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2533",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2534",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2535",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2566",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2567",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2644",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "cuad/2645",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2678",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2679",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2680",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2681",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2755",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2756",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2757",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "cuad/2758",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2759",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2760",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2761",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2762",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2763",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2764",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2765",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2766",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2767",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2768",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2769",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2770",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2771",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "cuad/2772",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2899",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2900",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2901",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2902",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/2903",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3007",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3008",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3009",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3010",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3011",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3305",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3306",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3307",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3308",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3309",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3310",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3311",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3613",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3614",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3615",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3616",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3617",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3767",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3768",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3769",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/3770",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/51",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/52",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/53",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/54",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/55",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/56",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/605",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/606",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/607",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "cuad/608",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/609",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/610",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/611",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/612",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/613",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/614",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/682",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/683",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/780",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/781",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/782",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/783",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/784",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/785",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/786",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/787",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/788",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "cuad/789",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1035",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1036",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "maud/1037",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1038",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1039",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "maud/1040",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/1041",
+        "ndcg_at_10": 0.2890648263178879
+      },
+      {
+        "query": "maud/1042",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1043",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1044",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/11",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1107",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1108",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1109",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1110",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1111",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "maud/1112",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/1113",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1114",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1115",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1157",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1158",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1159",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1160",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1161",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1162",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1163",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1164",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1165",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1166",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1175",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1176",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1177",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "maud/1178",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1179",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/118",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1180",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1181",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "maud/1182",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1183",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1184",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/119",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/12",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/120",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1201",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1202",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1203",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1204",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "maud/1205",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "maud/1206",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1207",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1208",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "maud/1209",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "maud/121",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/1210",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/1211",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "maud/1212",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1213",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1214",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/122",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/123",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "maud/124",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/125",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/126",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/127",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/128",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/129",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/13",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/130",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/131",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/14",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1444",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1445",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1446",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1447",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1448",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1449",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1450",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1451",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1452",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1453",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/1454",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/15",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/16",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/17",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/18",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/19",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/20",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/21",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/22",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/23",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/238",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/239",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/24",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/240",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/241",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/242",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/243",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/244",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/245",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/246",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/247",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/248",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/25",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "maud/26",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/27",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/299",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/300",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/301",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "maud/302",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/303",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/304",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/305",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "maud/306",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/307",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "maud/308",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/309",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/310",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/311",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/441",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/442",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/443",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/444",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/445",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/446",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/447",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "maud/448",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/449",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/450",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/451",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/525",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/526",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/527",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/528",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/529",
+        "ndcg_at_10": 0.3010299956639812
+      },
+      {
+        "query": "maud/530",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/531",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/532",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/533",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/534",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/535",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/560",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/561",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/562",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/563",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/564",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/565",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/566",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/567",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/568",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/569",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/674",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/675",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/676",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "maud/677",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/678",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/679",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/680",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/681",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/682",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/683",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/684",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/685",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/814",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/815",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/816",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "maud/817",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "maud/818",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "maud/819",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "maud/820",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "maud/821",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/822",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/823",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "maud/881",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/882",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/883",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/884",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/885",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/886",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/887",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/888",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/889",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/890",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/964",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/965",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/966",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/967",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/968",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/969",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/970",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/971",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "maud/972",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/973",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "maud/974",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/0",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "privacy_qa/1",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/10",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/100",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "privacy_qa/101",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/102",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/103",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/104",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/105",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "privacy_qa/106",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/107",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/108",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/109",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/11",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/110",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/111",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "privacy_qa/112",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/113",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "privacy_qa/114",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/115",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "privacy_qa/116",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/117",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/118",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/119",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/12",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/120",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/121",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/122",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/123",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/124",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/125",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/126",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/127",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/128",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/129",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/13",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/130",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/131",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/132",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/133",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/134",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/135",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/136",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/137",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/138",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/139",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/14",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/140",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/141",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/142",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/143",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/144",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/145",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/146",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/147",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/148",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/149",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/15",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/150",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/151",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/152",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/153",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/154",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/155",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/156",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/157",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/158",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/159",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/16",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/160",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/161",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/162",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/163",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/164",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/165",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/166",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/167",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/168",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/169",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/17",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/170",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/171",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/172",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/173",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/174",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/175",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/176",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/177",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/178",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/179",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/18",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/180",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/181",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/182",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/183",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/184",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/185",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/186",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/187",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/188",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/189",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/19",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/190",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/191",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/192",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/193",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/2",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/20",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/21",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/22",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/23",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/24",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/25",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/26",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/27",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/28",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/29",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/3",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/30",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/31",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/32",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/33",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/34",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/35",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/36",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/37",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/38",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/39",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/4",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/40",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/41",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/42",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/43",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/44",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/45",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/46",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/47",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/48",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/49",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/5",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/50",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/51",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/52",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/53",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/54",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/55",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/56",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/57",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/58",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/59",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/6",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/60",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/61",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/62",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/63",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/64",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/65",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/66",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/67",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/68",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/69",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/7",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/70",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/71",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/72",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/73",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/74",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/75",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/76",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/77",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/78",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/79",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/8",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/80",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/81",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/82",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/83",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/84",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/85",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/86",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/87",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/88",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/89",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "privacy_qa/9",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "privacy_qa/90",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "privacy_qa/91",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/92",
+        "ndcg_at_10": 0.43067655807339306
+      },
+      {
+        "query": "privacy_qa/93",
+        "ndcg_at_10": 0.3562071871080222
+      },
+      {
+        "query": "privacy_qa/94",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/95",
+        "ndcg_at_10": 0.5
+      },
+      {
+        "query": "privacy_qa/96",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "privacy_qa/97",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "privacy_qa/98",
+        "ndcg_at_10": 0.3333333333333333
+      },
+      {
+        "query": "privacy_qa/99",
+        "ndcg_at_10": 0.5
+      }
+    ]
+  },
+  "cost": {
+    "wall": {
+      "analysis_ms": 288.232253,
+      "chunking_ms": 1.947814,
+      "embedding_ms": 30894.020739,
+      "retrieval_ms": 53.541466
+    },
+    "tokens_embedded": 1822166,
+    "chunks": 8928,
+    "chunk_bytes": {
+      "min": 1,
+      "p50": 987,
+      "p90": 1081,
+      "max": 2129
+    },
+    "chunk_tokens": {
+      "min": 3,
+      "p50": 202,
+      "p90": 202,
+      "max": 204
+    }
+  }
+}

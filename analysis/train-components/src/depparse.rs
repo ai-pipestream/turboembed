@@ -2,11 +2,10 @@
 use turbo_analysis::ViewId;
 use turbo_depparse::{DependencySample, FeedforwardDependencyModel, FeedforwardDependencyTrainer, FeedforwardSettings};
 use turbo_formats::conllu::{ConlluDependencySample, Tagset};
-use turbo_unicode::WhitespaceMode;
 
 /// Reads separate CoNLL-U sentences, preserving the checked MWT/offset carrier
-/// until training derives oracle events. Non-projective trees are skipped by
-/// the trainer. Malformed input returns an error with its sentence number.
+/// until training derives oracle events. Non-projective trees are pseudo-projectivized
+/// by the trainer. Malformed input returns an error with its sentence number.
 pub fn train_feedforward_conllu(
     sentences: &[&str],
     tagset: Tagset,
@@ -16,7 +15,7 @@ pub fn train_feedforward_conllu(
         .iter()
         .enumerate()
         .map(|(i, source)| {
-            let sample = ConlluDependencySample::read_sentence(source, tagset, WhitespaceMode::Unicode, ViewId::SOURCE)
+            let sample = ConlluDependencySample::read_sentence(source, tagset, ViewId::SOURCE)
                 .map_err(|e| format!("sentence {}: {e}", i + 1))?;
             DependencySample::<turbo_analysis_layers::Words>::from_conllu(sample)
                 .map_err(|e| format!("sentence {}: {e}", i + 1))

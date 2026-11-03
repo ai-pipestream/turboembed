@@ -1,14 +1,17 @@
 //! The span detector: script runs first, then the language of each word
-//! from OpenNLP's n-gram model, then the best labelling of the words with
+//! from the native n-gram model, then the best labelling of the words with
 //! a cost for every switch, then the spans.
 
+mod ngram;
 mod snap;
+
+pub use ngram::NgramDetector;
 
 use std::sync::Arc;
 
 use turbo_analysis::{Span, TagSet};
 use turbo_analysis_layers::UNDETERMINED;
-use turbo_langdetect::{LanguageDetector, Scratch};
+use turbo_langdetect::NgramModel;
 use turbo_unicode::Script;
 
 use self::snap::{dominant_script, gap, snap_end, snap_start};
@@ -37,8 +40,6 @@ pub struct Settings {
 }
 
 impl Default for Settings {
-    /// The settings chosen on `tests/data/mixed-dev.txt` with
-    /// `langdetect-183.bin` (docs/langdetect.md, "Language by span").
     fn default() -> Settings {
         Settings {
             switch: SwitchCost { space: 0.20, punctuation: 0.10, sentence: 0.05 },
@@ -76,7 +77,7 @@ pub struct Run {
 /// Buffers for [`SpanDetector::detect`], kept between calls.
 #[derive(Debug, Default)]
 pub struct SpanScratch {
-    detect: Scratch,
+    probs: Vec<f64>,
     units: Vec<Unit>,
     gaps: Vec<Gap>,
     emission: Vec<f64>,
@@ -96,10 +97,10 @@ impl SpanScratch {
     }
 }
 
-/// Language by span over an OpenNLP language detector model.
-#[derive(Debug)]
+/// Language by span over a native [`NgramModel`].
+#[derive(Debug, Clone)]
 pub struct SpanDetector {
-    detector: LanguageDetector,
+    model: NgramModel,
     settings: Settings,
     pub(crate) candidates: Candidates,
     languages: Arc<TagSet>,
@@ -107,16 +108,15 @@ pub struct SpanDetector {
 }
 
 impl SpanDetector {
-    pub fn new(detector: LanguageDetector, settings: Settings) -> SpanDetector {
-        SpanDetector::restricted(detector, settings, |_| true)
+    pub fn new(model: NgramModel, settings: Settings) -> SpanDetector {
+        SpanDetector::restricted(model, settings, |_| true)
     }
 
     /// A detector that answers only languages `keep` accepts, for a
     /// collection known to hold only some of the model's languages. A
     /// script none of the kept languages is written in is `und`.
-    pub fn restricted(detector: LanguageDetector, settings: Settings, keep: impl Fn(&str) -> bool) -> SpanDetector {
-        let model = detector.model();
-        assert!(model.maxent().num_outcomes() < usize::from(u16::MAX), "more languages than a tag can hold");
+    pub fn restricted(model: NgramModel, settings: Settings, keep: impl Fn(&str) -> bool) -> SpanDetector {
+        assert!(model.num_languages() < usize::from(u16::MAX), "more languages than a tag can hold");
         let candidates = Candidates::new(model.supported_languages(), keep);
         let mut codes: Vec<&str> = model.supported_languages().collect();
         let undetermined = match codes.iter().position(|&c| c == UNDETERMINED) {
@@ -127,11 +127,11 @@ impl SpanDetector {
             }
         };
         let languages = TagSet::new("languages", &codes);
-        SpanDetector { detector, settings, candidates, languages, undetermined }
+        SpanDetector { model, settings, candidates, languages, undetermined }
     }
 
-    pub fn detector(&self) -> &LanguageDetector {
-        &self.detector
+    pub fn model(&self) -> &NgramModel {
+        &self.model
     }
 
     pub fn settings(&self) -> &Settings {
@@ -153,16 +153,12 @@ impl SpanDetector {
     /// The language code of a run.
     pub fn code(&self, run: &Run) -> &str {
         match run.outcome {
-            Some(o) => self.detector.model().code(o as usize),
+            Some(o) => self.model.language(o as usize),
             None => UNDETERMINED,
         }
     }
 
     /// The runs of `text`, in text order, into `out` (cleared first).
-    /// `sentence_starts` are the starts of a sentence layer over the same
-    /// text, in text order; `tokens` the start and end columns of a token
-    /// layer. Either may be absent; see the crate documentation for what
-    /// each changes.
     pub fn detect(
         &self,
         text: &str,
@@ -189,6 +185,18 @@ impl SpanDetector {
 
     pub(crate) fn candidate_hash(&self) -> u64 {
         self.candidates.fingerprint()
+    }
+
+    fn eval_probs(&self, text: &str, probs: &mut Vec<f64>) -> bool {
+        if text.trim().is_empty() {
+            probs.clear();
+            probs.resize(self.model.num_languages(), 0.0);
+            return false;
+        }
+        let scores = self.model.scores(text);
+        probs.clear();
+        probs.extend(scores.into_iter().map(f64::from));
+        true
     }
 
     fn detect_inner(
@@ -234,12 +242,12 @@ impl SpanDetector {
             let letters = units[first..end].iter().map(|u| u.letters).sum();
             let script = dominant_script(text, &units[first..end], &mut scratch.scripts);
             let (confidence, evidence) =
-                self.confidence(text, units[first].start, last, units[first].group, outcome, &mut scratch.detect);
+                self.confidence(text, units[first].start, last, units[first].group, outcome, &mut scratch.probs);
             if let Some(rows) = rows.as_deref_mut() {
                 let candidates = self.candidates.of(units[first].group);
-                let mut row = vec![0.0; self.detector.model().maxent().num_outcomes()];
+                let mut row = vec![0.0; self.model.num_languages()];
                 if outcome.is_some() {
-                    let p = scratch.detect.probabilities();
+                    let p = &scratch.probs;
                     let sum: f64 = if evidence {
                         candidates.iter().map(|&i| p[i as usize]).sum()
                     } else {
@@ -259,8 +267,6 @@ impl SpanDetector {
         scratch.pieces = pieces;
     }
 
-    /// Labels units `[a, b)`, all of one script group, and appends their
-    /// runs to `scratch.pieces`.
     fn segment(&self, text: &str, a: usize, b: usize, scratch: &mut SpanScratch) {
         let all = self.candidates.of(scratch.units[a].group);
         match all {
@@ -268,12 +274,10 @@ impl SpanDetector {
             [only] => return scratch.pieces.push((a, b, Some(*only))),
             _ => {}
         }
-        // The shortlist: the best language of the whole segment and of
-        // each clause long enough to say something.
         let mut shortlist = std::mem::take(&mut scratch.shortlist);
         shortlist.clear();
         if self.settings.shortlist {
-            let whole = self.best(text, scratch.units[a].start, scratch.units[b - 1].end, all, &mut scratch.detect);
+            let whole = self.best(text, scratch.units[a].start, scratch.units[b - 1].end, all, &mut scratch.probs);
             shortlist.extend(whole);
             let mut first = a;
             for u in a + 1..=b {
@@ -281,7 +285,7 @@ impl SpanDetector {
                     let letters: u32 = scratch.units[first..u].iter().map(|x| x.letters).sum();
                     if letters >= self.settings.clause_letters {
                         let (s, e) = (scratch.units[first].start, scratch.units[u - 1].end);
-                        shortlist.extend(self.best(text, s, e, all, &mut scratch.detect));
+                        shortlist.extend(self.best(text, s, e, all, &mut scratch.probs));
                     }
                     first = u;
                 }
@@ -305,10 +309,9 @@ impl SpanDetector {
             scratch.text.push(' ');
             scratch.text.push_str(&text[unit.start as usize..unit.end as usize]);
             scratch.text.push(' ');
-            let evidence = self.detector.predict_language(&scratch.text, &mut scratch.detect).evidence;
-            let p = scratch.detect.probabilities();
+            let evidence = self.eval_probs(&scratch.text, &mut scratch.probs);
             for &c in &shortlist {
-                scratch.emission.push(if evidence { p[c as usize].ln() } else { 0.0 });
+                scratch.emission.push(if evidence { scratch.probs[c as usize].max(1e-30).ln() } else { 0.0 });
             }
         }
         scratch.decoder.decode(
@@ -325,7 +328,7 @@ impl SpanDetector {
             if u == b || scratch.labels[u - a] != scratch.labels[first - a] {
                 let labelled = shortlist[scratch.labels[first - a] as usize];
                 let (s, e) = (scratch.units[first].start, scratch.units[u - 1].end);
-                let label = self.rescore(text, s, e, labelled, &shortlist, &mut scratch.detect);
+                let label = self.rescore(text, s, e, labelled, &shortlist, &mut scratch.probs);
                 match scratch.pieces[from..].last_mut() {
                     Some(last) if last.2 == Some(label) => last.1 = u,
                     _ => scratch.pieces.push((first, u, Some(label))),
@@ -336,36 +339,33 @@ impl SpanDetector {
         scratch.shortlist = shortlist;
     }
 
-    /// The language of a run the labelling gave `labelled`: the best of
-    /// `among` for the run's whole text when it beats `labelled` by more
-    /// than [`Settings::rescore_margin`], else `labelled`.
-    fn rescore(&self, text: &str, start: u32, end: u32, labelled: u32, among: &[u32], scratch: &mut Scratch) -> u32 {
+    fn rescore(&self, text: &str, start: u32, end: u32, labelled: u32, among: &[u32], probs: &mut Vec<f64>) -> u32 {
         if self.settings.rescore_margin == f64::INFINITY {
             return labelled;
         }
-        let Some(best) = self.best(text, start, end, among, scratch) else { return labelled };
-        let p = scratch.probabilities();
-        if p[best as usize].ln() - p[labelled as usize].ln() > self.settings.rescore_margin { best } else { labelled }
+        let Some(best) = self.best(text, start, end, among, probs) else { return labelled };
+        if probs[best as usize].max(1e-30).ln() - probs[labelled as usize].max(1e-30).ln()
+            > self.settings.rescore_margin
+        {
+            best
+        } else {
+            labelled
+        }
     }
 
-    /// The most probable of `among` for `text[start..end]`, the first in
-    /// outcome order on a tie; `None` when the text gives no evidence.
-    fn best(&self, text: &str, start: u32, end: u32, among: &[u32], scratch: &mut Scratch) -> Option<u32> {
-        if !self.detector.predict_language(&text[start as usize..end as usize], scratch).evidence {
+    fn best(&self, text: &str, start: u32, end: u32, among: &[u32], probs: &mut Vec<f64>) -> Option<u32> {
+        if !self.eval_probs(&text[start as usize..end as usize], probs) {
             return None;
         }
-        let p = scratch.probabilities();
         let mut best = *among.first()?;
         for &c in among {
-            if p[c as usize] > p[best as usize] {
+            if probs[c as usize] > probs[best as usize] {
                 best = c;
             }
         }
         Some(best)
     }
 
-    /// The probability of `outcome` for `text[start..end]` over the
-    /// languages of script group `group`.
     fn confidence(
         &self,
         text: &str,
@@ -373,19 +373,21 @@ impl SpanDetector {
         end: u32,
         group: Script,
         outcome: Option<u32>,
-        scratch: &mut Scratch,
+        probs: &mut Vec<f64>,
     ) -> (f64, bool) {
         let Some(outcome) = outcome else { return (0.0, false) };
         let candidates = self.candidates.of(group);
         if candidates.len() == 1 {
             return (1.0, false);
         }
-        let evidence = self.detector.predict_language(&text[start as usize..end as usize], scratch).evidence;
+        let evidence = self.eval_probs(&text[start as usize..end as usize], probs);
         if !evidence {
             return (1.0 / candidates.len() as f64, false);
         }
-        let p = scratch.probabilities();
-        let total: f64 = candidates.iter().map(|&c| p[c as usize]).sum();
-        ((p[outcome as usize] / total).clamp(0.0, 1.0), true)
+        let total: f64 = candidates.iter().map(|&c| probs[c as usize]).sum();
+        if total <= 0.0 {
+            return (1.0 / candidates.len() as f64, false);
+        }
+        ((probs[outcome as usize] / total).clamp(0.0, 1.0), true)
     }
 }

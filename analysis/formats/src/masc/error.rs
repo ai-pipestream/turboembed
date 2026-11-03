@@ -1,5 +1,4 @@
-//! What the MASC readers refuse, with the exception OpenNLP throws in the
-//! same place.
+//! Errors produced while reading MASC text and stand-off annotations.
 
 use std::fmt;
 use std::path::PathBuf;
@@ -65,14 +64,13 @@ pub enum MascStream {
 
 /// An error of the MASC readers.
 ///
-/// [`MascError::java_class`] is the class of the exception OpenNLP throws
-/// in the same place, and `Display` is its message; the messages of
-/// `NullPointerException` are the JDK's helpful messages as JDK 21 writes
-/// them for OpenNLP's classes. A `MascDocumentStream` constructor skips a
-/// document whose parse throws an `IOException` and fails on anything
-/// else ([`MascError::skips_document`]).
+/// Corpus walking skips annotation errors that are local to one document and
+/// reports them through [`MascCorpus::skipped`](super::MascCorpus::skipped).
 #[derive(Debug)]
 pub enum MascError {
+    /// A sentence-only consumer cannot represent an incomplete entity.
+    /// Offsets identify the refused piece in source UTF-16 units.
+    CutEntity { path: PathBuf, entity: i32, start: i32, end: i32 },
     /// The corpus path is not a directory.
     NotADirectory { path: PathBuf },
     /// A file could not be read. Java names no class here: OpenNLP checks
@@ -82,7 +80,7 @@ pub enum MascError {
     /// such a corpus until it runs out of memory.
     DirectoryCycle { path: PathBuf },
     /// A document header is not well-formed XML.
-    Header { path: PathBuf, cause: turbo_maxent::Error },
+    Header { path: PathBuf, cause: crate::xml::Error },
     /// A document header has no `annotation` or `primaryData` element.
     NoAnnotations,
     /// An `annotation` or `primaryData` element has no `loc`.
@@ -98,7 +96,7 @@ pub enum MascError {
     /// attributes the readers refuse, or a link the Penn or named entity
     /// file breaks. `cause` says which; Java's message does not. For a
     /// chunk file, which OpenNLP does not read, there is no Java class.
-    Annotation { file: AnnotationFile, cause: turbo_maxent::Error },
+    Annotation { file: AnnotationFile, cause: crate::xml::Error },
     /// The quarks end inside a sentence that is not the last.
     QuarksEndInSentence { end: i32 },
     /// `List.get` past the end of a list: of the sentence regions when
@@ -165,7 +163,8 @@ impl MascError {
             Substring { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             NegativeTokenStart { .. } | TokenOutOfBounds { .. } | NullTag => Some("java.lang.IllegalArgumentException"),
             Sample(e) => e.java_class(),
-            Io { .. }
+            CutEntity { .. }
+            | Io { .. }
             | DirectoryCycle { .. }
             | SplitsSurrogatePair { .. }
             | TooLong { .. }
@@ -192,6 +191,9 @@ impl fmt::Display for MascError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use MascError::*;
         match self {
+            CutEntity { path, entity, start, end } => {
+                write!(f, "{}: entity ne-n{entity} is incomplete at UTF-16 offsets {start}..{end}", path.display())
+            }
             NotADirectory { .. } => {
                 f.write_str("Input corpus directory must be a directory according to File.isDirectory()!")
             }

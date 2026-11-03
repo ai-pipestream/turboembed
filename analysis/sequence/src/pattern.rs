@@ -29,7 +29,6 @@
 //! [`StringPattern::recognize_utf16`] takes units that may hold lone
 //! surrogates (a piece of a token cut by `SimpleTokenizer`, say).
 
-use turbo_jvm::chars::Utf16Units;
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::Script;
 use turbo_unicode::java::code_point::{general_category, is_upper_case, script};
@@ -88,7 +87,7 @@ pub struct StringPattern {
 impl StringPattern {
     /// Classifies `token`.
     pub fn recognize(token: &str, mode: PatternMode) -> StringPattern {
-        StringPattern::recognize_iter(Utf16Units::new(token).map(|u| u.unit), mode)
+        StringPattern::recognize_iter(token.encode_utf16(), mode)
     }
 
     /// Classifies a token given as UTF-16 code units.

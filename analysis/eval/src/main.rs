@@ -2,7 +2,6 @@
 //! record per set, or compare two directories of records with the gate
 //! (docs/analysis.md, "Evaluation").
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -13,6 +12,9 @@ use turbo_analysis_layers::VectorKind;
 use turbo_chunker::terms::Bm25;
 use turbo_chunker::{Budget, Cohesion, Costs, Drift, WeighBoundaries};
 use turbo_eval::Result;
+
+mod opts;
+use opts::Opts;
 use turbo_eval::analysis::{Analysis, Sentencer};
 use turbo_eval::chunkers::{
     Chunker, FixedTokens, LevelChunker, Retrieve, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument,
@@ -25,6 +27,7 @@ use turbo_eval::pipeline::{Pipeline, Titles};
 use turbo_eval::run::{gate_dirs, run_sets};
 use turbo_eval::set::LoadedSet;
 use turbo_eval::sets;
+use turbo_sat::SatOptions;
 use turbo_structure::Syntax;
 
 const USAGE: &str = "\
@@ -42,10 +45,17 @@ usage:
   turbo-eval gate <candidate-dir> <baseline-dir>
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
+  turbo-eval chunk-gate <candidate-dir> <windows-dir> [<baseline-dir> ...]
+      the chunker gate on evidence with an nDCG@10 floor (chunk_gate.rs)
+  turbo-eval cuts <a-dir> <b-dir>
+      compare two directories of cut dumps (run --dump-cuts), one per set;
+      exit status 1 when any cut differs, 2 on an error
+  turbo-eval analysis --gold <f.conllu>|--lang-gold <f.tsv>|--ner-gold <f.tsv>
+      --sha256 <hex> --out <file>: peer/language/entity scores (#1521)
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
-conteb-squad, gutenqa, hicbench, qasper (docs/analysis.md, \"The sets\").
+conteb-squad, gutenqa, hicbench, qasper, cuad, contract-nli (docs/analysis.md, \"The sets\").
 
 run options:
   --bundle <dir>          the embedder's bundle; the reference embedder is
@@ -53,11 +63,8 @@ run options:
   --device <d>            cpu, select, a device index or a backend name
                           (default cpu)
   --precision <p>         model, fastest or exact (default model)
-  --sentences <s>         newline, or an OpenNLP sentence model file
-                          (default: the English UD EWT model in the
-                          directory $TURBO_GOLDENS_MODELS names, or
-                          target/turbo-goldens/models, where
-                          turbo-goldens-tool fetch-models puts it)
+  --sentences <s>         rules (English, the default), rules:<tag>,
+                          newline, or sat (with --sat-bundle <dir>)
   --structure <s>         plain, markdown or none (default plain)
   --titles <t>            ignore, or prefix each chunk with the document's
                           title (default ignore)
@@ -69,7 +76,8 @@ run options:
                           --static-bundle) (default dense)
   --static-bundle <dir>   with cascade: the static embedder's bundle
   --candidates <n>        with cascade: per-signal stage-1 shortlist
-                          size (default 64)
+                          size (default 100, the margin-stable depth
+                          of the trained cascade record, #879)
   --k1 <f>, --b <f>       BM25's parameters (default 1.2 and 0.75, Lucene's)
   --terms <t>             BM25's terms: folded (lowercased word tokens) or
                           english (also Lucene's English stop words,
@@ -83,6 +91,8 @@ run options:
                           (default 60)
   --dump-terms <dir>      with bm25, also write each set's chunk and query
                           terms there, for a reference BM25
+  --dump-cuts <dir>       with turbo-chunker (no --level), also write each
+                          set's cuts to <dir>/<set>.cuts for turbo-eval cuts
   --repo <dir>            the clean, pushed working tree this tool was
                           built from (default: the one it was built in)
 
@@ -97,9 +107,11 @@ chunkers:
                   [--min-sentences <n>] [--max-sentences <n>]
       the sandbox's semantic chunker; unset values take its defaults
   --chunker turbo-chunker --max <n> --target <n> [--size-weight <n>]
-                  [--drift] [--cohesion <weight>]
+                  [--drift] [--cohesion <weight>] [--clauses]
       turbo-chunker's optimizer on the structure's costs (size weight
       default 1000), with drift weighed in and a cohesion term when given
+      and, with --clauses, sentences over --max split at clause
+      punctuation and then by token windows
     [--level <l>] [--level-vectors <v>]
       retrieve the units of one level of the chunker's levels: chunk,
       section (each section, and each chunk outside every section) or
@@ -123,6 +135,13 @@ fn run(args: &[String]) -> Result<ExitCode> {
         Some("fetch") => fetch_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("run") => run_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("squad") => turbo_eval::squad::command(&args[1..]).map(|()| ExitCode::SUCCESS),
+        Some("cuts") if args.len() == 3 => {
+            let sets = turbo_eval::cuts::compare_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
+            sets.iter().for_each(|s| print!("{s}"));
+            Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+        }
+        Some("chunk-gate") => turbo_eval::chunk_gate::command(&args[1..]),
+        Some("analysis") => turbo_eval::analysis_bench::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
             println!("{report}");
@@ -152,52 +171,6 @@ fn fetch_cmd(args: &[String]) -> Result<()> {
         println!("{name}: fetched and checked in {}", cache.join(name).display());
     }
     Ok(())
-}
-
-/// `--name value` pairs and bare `--flag`s.
-struct Opts(BTreeMap<String, Option<String>>);
-
-const FLAGS: [&str; 1] = ["--drift"];
-
-impl Opts {
-    fn parse(args: &[String]) -> Result<Opts> {
-        let mut m = BTreeMap::new();
-        let mut it = args.iter();
-        while let Some(a) = it.next() {
-            if !a.starts_with("--") {
-                return Err(format!("{a}: not an option\n{USAGE}"));
-            }
-            let v = if FLAGS.contains(&a.as_str()) {
-                None
-            } else {
-                Some(it.next().ok_or_else(|| format!("{a} needs a value"))?.clone())
-            };
-            if m.insert(a.clone(), v).is_some() {
-                return Err(format!("{a} is given twice"));
-            }
-        }
-        Ok(Opts(m))
-    }
-
-    fn take(&mut self, name: &str) -> Option<String> {
-        self.0.remove(name).flatten()
-    }
-
-    fn need(&mut self, name: &str) -> Result<String> {
-        self.take(name).ok_or_else(|| format!("{name} is required\n{USAGE}"))
-    }
-
-    fn flag(&mut self, name: &str) -> bool {
-        self.0.remove(name).is_some()
-    }
-
-    fn parsed<T: std::str::FromStr>(&mut self, name: &str) -> Result<Option<T>> {
-        self.take(name).map(|v| v.parse().map_err(|_| format!("{name} {v}: not a valid value"))).transpose()
-    }
-
-    fn required<T: std::str::FromStr>(&mut self, name: &str) -> Result<T> {
-        self.parsed(name)?.ok_or_else(|| format!("{name} is required\n{USAGE}"))
-    }
 }
 
 fn device(s: &str) -> Device {
@@ -267,7 +240,8 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder, model: (&Path, &Device, Precis
                 Signals::Structure
             };
             let cohesion = o.parsed("--cohesion")?.map(|weight| Cohesion { weight });
-            let chunker = TurboChunker { budget, costs: Costs::default(), signals, cohesion };
+            let clauses = o.flag("--clauses");
+            let chunker = TurboChunker { budget, costs: Costs::default(), signals, cohesion, clauses };
             let level = match o.take("--level").as_deref() {
                 None => None,
                 Some("chunk") => Some(Retrieve::Chunk),
@@ -306,6 +280,24 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder, model: (&Path, &Device, Precis
         other => return Err(format!("--chunker {other}: not a chunker\n{USAGE}")),
     })
 }
+fn sentencer(o: &mut Opts, device: &Device, precision: Precision) -> Result<Sentencer> {
+    let requested = o.take("--sentences");
+    let sat_bundle = o.take("--sat-bundle");
+    if sat_bundle.is_some() && requested.as_deref() != Some("sat") {
+        return Err("--sat-bundle needs --sentences sat".into());
+    }
+    match requested.as_deref() {
+        None | Some("rule") | Some("rules") => Ok(Sentencer::rules("en")),
+        Some(s) if s.starts_with("rules:") => Ok(Sentencer::rules(&s["rules:".len()..])),
+        Some("newline") => Ok(Sentencer::Newline),
+        Some("sat") => {
+            let path = sat_bundle.ok_or("--sentences sat needs --sat-bundle <dir>")?;
+            let encoder = EncoderOptions { device: device.clone(), precision, ..EncoderOptions::default() };
+            Sentencer::sat(Path::new(&path), &SatOptions { encoder, ..SatOptions::default() })
+        }
+        Some(other) => Err(format!("--sentences {other}: rules, rules:<tag>, newline or sat")),
+    }
+}
 
 fn run_cmd(args: &[String]) -> Result<()> {
     let mut o = Opts::parse(args)?;
@@ -314,33 +306,15 @@ fn run_cmd(args: &[String]) -> Result<()> {
     let cache = cache_root(o.take("--cache").as_deref().map(Path::new))?;
     let out = PathBuf::from(o.need("--out")?);
     let device = device(&o.take("--device").unwrap_or_else(|| "cpu".into()));
-    let precision = match o.take("--precision").as_deref().unwrap_or("model") {
+    let precision_name = o.take("--precision").unwrap_or_else(|| "model".into());
+    let precision = match precision_name.as_str() {
         "model" => Precision::Model,
         "fastest" => Precision::Fastest,
         "exact" => Precision::Exact,
         p => return Err(format!("--precision {p}: model, fastest or exact")),
     };
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let sentences = match o.take("--sentences") {
-        Some(s) if s == "newline" => Sentencer::Newline,
-        Some(path) => Sentencer::maxent(Path::new(&path))?,
-        None => {
-            let dir = match std::env::var_os("TURBO_GOLDENS_MODELS") {
-                Some(d) => PathBuf::from(d),
-                None => workspace.join("target/turbo-goldens/models"),
-            };
-            let path = dir.join("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
-            if !path.is_file() {
-                return Err(format!(
-                    "{}: not found; download it with `cargo run -p turbo-goldens-tool -- fetch-models \
-                     target/turbo-goldens/models` (or into the directory TURBO_GOLDENS_MODELS names), \
-                     or give --sentences",
-                    path.display()
-                ));
-            }
-            Sentencer::maxent(&path)?
-        }
-    };
+    let sentences = sentencer(&mut o, &device, precision)?;
     let structure = match o.take("--structure").as_deref().unwrap_or("plain") {
         "plain" => Some(Syntax::Plain),
         "markdown" => Some(Syntax::Markdown),
@@ -358,7 +332,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         "dense" => (None, None),
         "cascade" => {
             let (model, terms) = bm25_opts(&mut o)?;
-            let candidates: usize = o.parsed("--candidates")?.unwrap_or(64);
+            let candidates: usize = o.parsed("--candidates")?.unwrap_or(100);
             static_bundle = Some(PathBuf::from(o.need("--static-bundle")?));
             cascade = Some(turbo_eval::cascade::Cascade { candidates, model, terms });
             (None, None)
@@ -386,6 +360,10 @@ fn run_cmd(args: &[String]) -> Result<()> {
         }
         r => return Err(format!("--retrieval {r}: dense, bm25, hybrid or cascade")),
     };
+    let dump_cuts = o.take("--dump-cuts").map(|d| turbo_eval::cuts::DumpConfig {
+        store: Box::new(turbo_eval::artifact::TemporaryFileStore::new(d)),
+        precision,
+    });
     let repo = o.take("--repo").map_or(workspace, PathBuf::from);
     if sets.is_empty() {
         return Err("--sets names no set".into());
@@ -413,11 +391,10 @@ fn run_cmd(args: &[String]) -> Result<()> {
         hybrid,
         cascade,
         static_embedder,
+        dump_cuts,
     };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
-    if turbo_eval::source::source(&repo)? != source {
-        return Err("the working tree moved during the run; the records written name the commit it started at".into());
-    }
+    turbo_eval::source::check_unchanged(&repo, &source)?;
     for p in written {
         println!("{}", p.display());
     }
@@ -452,6 +429,26 @@ mod tests {
         let config = built(&["--level", "section", "--level-vectors", "contextual"]).unwrap().config();
         assert!(config.iter().any(|s| s.name == "level" && s.value == "section"));
         assert!(config.iter().any(|s| s.name == "level_vectors" && s.value.starts_with("contextual")));
+    }
+
+    #[test]
+    fn the_sentence_tier_defaults_to_rules_and_sat_needs_a_bundle() {
+        let built = |args: &[&str]| {
+            let a = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+            let mut o = Opts::parse(&a).unwrap();
+            sentencer(&mut o, &Device::Cpu, Precision::Model)
+        };
+        for args in [&[][..], &["--sentences", "rule"][..]] {
+            assert!(matches!(built(args).unwrap(), Sentencer::Rules(..)));
+        }
+        assert!(matches!(built(&["--sentences", "newline"]).unwrap(), Sentencer::Newline));
+        let err = |args: &[&str]| match built(args) {
+            Ok(_) => panic!("sentence options unexpectedly accepted: {args:?}"),
+            Err(e) => e,
+        };
+        assert!(err(&["--sentences", "sat"]).contains("--sat-bundle"));
+        assert!(err(&["--sat-bundle", "some-bundle"]).contains("--sentences sat"));
+        assert!(err(&["--sentences", "model.bin"]).contains("rules, rules:<tag>, newline or sat"));
     }
 
     #[test]

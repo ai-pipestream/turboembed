@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
 model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
 annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
-layer	opennlp:tokens	text	25	start:u32	end:u32
+layer	turbo:tokens	text	25	start:u32	end:u32
 0	16
 17	27
 27	28
@@ -32,8 +32,8 @@ layer	opennlp:tokens	text	25	start:u32	end:u32
 179	180
 181	189
 189	190
-end	opennlp:tokens
-layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	25	value:f64
+end	turbo:tokens
+layer	turbo:confidence<turbo:tokens>	aligned:turbo:tokens	25	value:f64
 3fe534ebfe311437 0.6627101864511421
 3fe2d00d629c2dbb 0.5878970075586304
 3ff0000000000000 1.0
@@ -59,4 +59,4 @@ layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	25	value:f64
 3ff0000000000000 1.0
 3fe03ddc1438e6bc 0.5075512309042192
 3ff0000000000000 1.0
-end	turbo:confidence<opennlp:tokens>
+end	turbo:confidence<turbo:tokens>

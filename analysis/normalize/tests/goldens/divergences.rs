@@ -8,7 +8,8 @@ pub(super) const SECTION_DEHYPHENATION: &str = "docs/normalizers.md, \"Dehyphena
 pub(super) const SECTION_URLS: &str = "docs/normalizers.md, \"URLs and e-mail addresses (`url/`)\"";
 pub(super) const SECTION_CONTRACTIONS: &str = "docs/normalizers.md, \"English contractions (`contractions/`)\"";
 pub(super) const SECTION_SYMBOLS: &str = "docs/normalizers.md, \"Symbols (`symbols/`)\"";
-pub(super) const SECTION_CONFUSABLES: &str = "docs/normalizers.md, \"Confusable skeleton (`confusables.rs`)\"";
+pub(super) const SECTION_CONFUSABLES: &str =
+    "docs/normalizers.md, \"Confusable skeleton (`analysis/normalize/src/confusables.rs`)\"";
 pub(super) const SECTION_CASEFOLD: &str = "docs/normalizers.md, \"Case folding (`case_fold.rs`)\"";
 pub(super) const SECTION_CHAIN_QUOTES: &str = SECTION_QUOTES;
 pub(super) const SECTION_CHAIN: &str = SECTION_INVISIBLE;

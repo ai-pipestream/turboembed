@@ -55,7 +55,6 @@ use crate::monitor::{
     TrainingMeasure,
 };
 use crate::params::{DEFAULT_CUTOFF, DEFAULT_ITERATIONS, DEFAULT_TOLERANCE, Key, TrainerType, TrainingParameters};
-use turbo_jvm::strict_math;
 
 #[path = "perceptron_sequence.rs"]
 mod sequence;
@@ -214,7 +213,7 @@ impl PerceptronModel {
         }
         let mut normal = 0.0;
         for x in out.iter_mut() {
-            *x = strict_math::exp(*x / max_prior);
+            *x = (*x / max_prior).exp();
             normal += *x;
         }
         for x in out.iter_mut() {

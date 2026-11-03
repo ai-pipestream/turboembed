@@ -7,6 +7,8 @@ use std::fs::{self, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::source::compare_utf16;
+
 /// What listing a corpus directory can fail with.
 #[derive(Debug)]
 pub enum DirectoryError {
@@ -107,7 +109,7 @@ pub fn directory_files(
                 entries.push((path, meta));
             }
         }
-        entries.sort_by(|a, b| turbo_jvm::chars::compare(&a.0.to_string_lossy(), &b.0.to_string_lossy()));
+        entries.sort_by(|a, b| compare_utf16(&a.0.to_string_lossy(), &b.0.to_string_lossy()));
         let mut files = Vec::new();
         for (path, meta) in entries {
             if meta.is_file() {

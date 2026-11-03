@@ -1,11 +1,14 @@
 //! turbo-chunker's optimizer as a pipeline chunker.
 
-use turbo_analysis::{Analyzer, Bound, Document, Ix, Key, Provenance, View};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Ix, Key, Provenance, View};
 use turbo_analysis_layers::{Aspects, Categories, Chunks, Incivility, Sentences, Structure, Subwords, Tokens, Vectors};
 use turbo_chunker::{
-    Budget, Chunker as Optimizer, Cohesion, CohesiveChunker, Costs, Drift, DriftBoundaries, STRUCTURE, Score,
-    SentimentBoundaries, SentimentShift, StructureBoundaries, WeighAllBoundaries, WeighBoundaries, Weight,
+    Budget, Chunker as Optimizer, ClauseBoundaries, Cohesion, CohesiveChunker, Costs, Drift, DriftBoundaries,
+    STRUCTURE, Score, SentimentBoundaries, SentimentShift, StructureBoundaries, WeighAllBoundaries, WeighBoundaries,
+    Weight,
 };
+
+use turbo_tokenize::uax29::UntypedWordTokenizer;
 
 use super::{Chunker, chunk_span, need, setting};
 use crate::Result;
@@ -46,6 +49,11 @@ pub struct TurboChunker {
     pub costs: Costs,
     pub signals: Signals,
     pub cohesion: Option<Cohesion>,
+    /// Whether a sentence over the budget's maximum is split, at clause
+    /// punctuation and coordinators (`ClauseBoundaries` over UAX #29 word
+    /// tokens) and else by token windows; without it such a sentence is
+    /// one chunk, which the embedder truncates (#172).
+    pub clauses: bool,
 }
 
 impl TurboChunker {
@@ -141,6 +149,9 @@ impl Chunker for TurboChunker {
                 ]);
             }
         }
+        if self.clauses {
+            out.push(setting("clauses", "over-budget sentences split at clause punctuation, then token windows"));
+        }
         out.push(setting("cohesion.weight", self.cohesion.map_or_else(|| "none".into(), |c| c.weight.to_string())));
         if self.needs_vectors() {
             out.push(setting("sentence_vectors", "each sentence embedded alone, document role"));
@@ -149,9 +160,23 @@ impl Chunker for TurboChunker {
     }
 
     fn chunk(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<Vec<Span>> {
+        Ok(self.chunk_cut(doc, embedder)?.0)
+    }
+
+    fn cut_budget(&self) -> Option<Budget> {
+        Some(self.budget)
+    }
+
+    fn chunk_cut(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<(Vec<Span>, Document)> {
         let doc = self.chunked(doc, embedder)?;
         let chunks = need::<Chunks>(&doc, self.name())?;
-        Ok(chunks.spans.iter().filter(|(i, _)| chunks.level[i.get()] == 0).filter_map(|(_, s)| chunk_span(s)).collect())
+        let spans = chunks
+            .spans
+            .iter()
+            .filter(|(i, _)| chunks.level[i.get()] == 0)
+            .filter_map(|(_, s)| chunk_span(s))
+            .collect();
+        Ok((spans, doc))
     }
 }
 
@@ -164,6 +189,15 @@ impl TurboChunker {
         let mut b = Analyzer::builder().given(Key::<Sentences>::DEFAULT).given(Key::<Subwords>::DEFAULT);
         if doc.get::<Structure>().is_some() {
             b = b.given(Key::<Structure>::DEFAULT);
+        }
+        if self.clauses {
+            if doc.get::<Tokens>().is_none() {
+                let view = doc.get::<View>().ok_or("turbo-chunker: the document has no view")?.clone();
+                let (tokens,) =
+                    UntypedWordTokenizer::default().annotate((&view, doc.get::<Sentences>())).map_err(fail)?;
+                doc.add(&Key::DEFAULT, tokens, Provenance::by("turbo-eval")).map_err(fail)?;
+            }
+            b = b.given(Key::<View>::DEFAULT).given(Key::<Tokens>::DEFAULT).add(ClauseBoundaries::default());
         }
         if self.needs_vectors() {
             let v = TurboChunker::sentence_vectors(&doc, embedder)?;
@@ -230,6 +264,7 @@ mod tests {
             costs: Costs::default(),
             signals: Signals::Structure,
             cohesion: None,
+            clauses: false,
         }
     }
 
@@ -335,5 +370,27 @@ mod tests {
         let config = c.config();
         assert!(config.contains(&setting("signals", "structure+sentiment")));
         assert!(config.contains(&setting("weigh.sentiment", 3000)));
+    }
+
+    #[test]
+    fn clauses_split_a_sentence_over_the_budget() {
+        // One "sentence" of 30 words, no punctuation, as an unpunctuated
+        // stretch of a book reads: over a budget of 12 tokens.
+        let text = format!("{}\n", (0..30).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" "));
+        let mut e = Stub::new(&["w1"]);
+        let doc = analyzed(&text, &e, None);
+        let mut c =
+            TurboChunker { budget: Budget { max: 12, target: 10, size_weight: 1000, overhead: 2 }, ..plain(0, 0) };
+        assert_eq!(c.chunk(&doc, &mut e).unwrap().len(), 1);
+        c.clauses = true;
+        let chunks = c.chunk(&doc, &mut e).unwrap();
+        assert!(chunks.len() >= 3, "{chunks:?}");
+        // Every chunk now fits the budget, and together they cover the text.
+        for s in &chunks {
+            assert!(e.count(&text[s.start..s.end], Role::Document) <= 12, "{:?}", &text[s.start..s.end]);
+        }
+        assert_eq!(chunks.first().unwrap().start, 0);
+        assert_eq!(chunks.last().unwrap().end, text.trim_end().len());
+        assert!(c.config().iter().any(|s| s.name == "clauses"));
     }
 }

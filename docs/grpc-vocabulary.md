@@ -1,11 +1,11 @@
 # The vocabulary store over gRPC
 
-`turbo.vocabulary.TurboVocabularyService`
+`turbo.vocabulary.v1.TurboVocabularyService`
 (`server/proto/turbo_vocabulary.proto`) is served by `turbo-kserve` on the
 same port as the inference and analysis services (docs/grpc.md). It keeps
 two kinds of artifact in a directory on the server:
 
-- **dictionaries** a client uploads: glossaries, word lists, OpenNLP
+- **dictionaries** a client uploads: glossaries, word lists, XML token
   dictionaries, WordNet lexicons. Each upload is parsed whole by the
   analysis crate that owns its format before it is stored, so a stored
   dictionary is one the analysis readers accept.

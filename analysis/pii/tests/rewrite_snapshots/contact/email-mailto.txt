@@ -1,0 +1,12 @@
+MASKED	Link: mailto:*******@*******.***?subject=hi
+
+MASK_ALL	Link: mailto:###################?subject=hi
+
+REWRITE	pseudonymize	OK	Link: mailto:EMAIL-1?subject=hi
+
+LABEL	pseudonymize	13	32	13	20	EMAIL-1
+REWRITE	hmac	OK	Link: mailto:EMAIL-588c7c91efd5db2d?subject=hi
+
+LABEL	hmac	13	32	13	35	EMAIL-588c7c91efd5db2d
+AUDIT	email	1	1	EMAIL-588c7c91efd5db2d
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-588c7c91efd5db2d]

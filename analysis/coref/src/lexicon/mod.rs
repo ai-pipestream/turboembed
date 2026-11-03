@@ -11,6 +11,8 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use turbo_unicode::GeneralCategory;
+
 use crate::layer::{Animacy, Gender, Number, Person};
 
 mod animate;
@@ -125,9 +127,15 @@ fn parse_first_names(text: &'static str) -> HashMap<&'static str, Gender> {
 }
 
 /// Whether a word carries no name content: a stop word, or a token with
-/// no letter or digit (`Character.isLetterOrDigit`).
+/// no letter (general category L) or decimal digit (Nd).
 pub fn stop_word(word: &str) -> bool {
-    has(words::STOP_WORDS, word) || !word.chars().any(turbo_unicode::java::is_letter_or_digit)
+    has(words::STOP_WORDS, word) || !word.chars().any(letter_or_digit)
+}
+
+/// Whether `c` is a letter (general category L) or a decimal digit (Nd).
+pub(crate) fn letter_or_digit(c: char) -> bool {
+    let category = turbo_unicode::category::general_category(c);
+    category.is_letter() || category == GeneralCategory::Nd
 }
 
 /// Whether a word is a verb of speech or thought.

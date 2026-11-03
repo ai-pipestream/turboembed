@@ -1,6 +1,25 @@
 //! Shared FFI error, text, and array-boundary checks.
 
+use std::cell::UnsafeCell;
+
 use super::*;
+
+thread_local! {
+    static LAST_ERROR: UnsafeCell<[c_char; TURBO_ERROR_MESSAGE_LEN]> = const {
+        UnsafeCell::new([0; TURBO_ERROR_MESSAGE_LEN])
+    };
+}
+
+pub(crate) fn set_last_error(msg: &str) {
+    LAST_ERROR.with(|slot| {
+        let buf = unsafe { &mut *slot.get() };
+        if msg.is_empty() {
+            buf[0] = 0;
+        } else {
+            write_str(buf, msg);
+        }
+    });
+}
 
 // ---- Calling convention ----------------------------------------------------
 
@@ -11,26 +30,32 @@ pub(super) unsafe fn call(err: *mut turbo_error, f: impl FnOnce() -> Result<()>)
     if let Some(e) = unsafe { err.as_ref() }
         && e.struct_size as usize != size_of::<turbo_error>()
     {
+        set_last_error("turbo_error.struct_size does not match this library");
         return INVALID_STRUCT_SIZE;
     }
-    let outcome = catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|p| {
-        let why = p
-            .downcast_ref::<&str>()
-            .map(|s| s.to_string())
-            .or_else(|| p.downcast_ref::<String>().cloned())
-            .unwrap_or_default();
-        Err(Error::new(PANIC, format!("panic in libturbo: {why}")))
-    });
+    let outcome = catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|p| Err(panic_error(p)));
     let e = match outcome {
         Ok(()) => Error::new(status::OK, ""),
         Err(e) => e,
     };
+    set_last_error(&e.message);
     if let Some(out) = unsafe { err.as_mut() } {
         out.code = e.code;
         out.field = e.field;
         write_str(&mut out.message, &e.message);
     }
     e.code
+}
+
+/// The error a panic caught at a language boundary becomes: the C ABI's
+/// and the Java entry points' alike.
+pub(crate) fn panic_error(p: Box<dyn std::any::Any + Send>) -> Error {
+    let why = p
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| p.downcast_ref::<String>().cloned())
+        .unwrap_or_default();
+    Error::new(PANIC, format!("panic in libturbo: {why}"))
 }
 
 /// Copy `s` into a NUL-terminated buffer, cut at a character boundary.
@@ -102,6 +127,11 @@ pub(crate) fn new_error() -> turbo_error {
 #[unsafe(no_mangle)]
 pub extern "C" fn turbo_status_name(code: i32) -> *const c_char {
     status::name(code).as_ptr()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn turbo_last_error_message() -> *const c_char {
+    LAST_ERROR.with(|slot| unsafe { (*slot.get()).as_ptr() })
 }
 
 // ---- Runtime -------------------------------------------------------------------

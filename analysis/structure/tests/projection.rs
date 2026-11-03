@@ -1,7 +1,7 @@
 use turbo_analysis::*;
-use turbo_analysis_layers::{Block, Structure};
+use turbo_analysis_layers::{Block, LayoutBoxes, PageBoundingBox, Structure};
 use turbo_normalize::{NormalizeStep, Whitespace};
-use turbo_structure::{StructureAnnotator, StructureProjector, Syntax};
+use turbo_structure::{LayoutProjector, StructureAnnotator, StructureProjector, Syntax};
 
 const TEXT: &str = "SUMMARY\n\nCafé and trees.\n\nDETAILS\n\nMore text.\n";
 
@@ -195,4 +195,47 @@ fn discontinuous_fragments_coalesce_when_normalization_deletes_the_gap() {
     let clean_text = docs[0].text(projected.spans.view());
     assert!(!projected.spans.is_discontinuous(Ix::new(0)));
     assert_eq!(&clean_text[projected.spans.get(Ix::new(0)).range()], "Start here.Resume.");
+}
+
+#[test]
+fn layout_boxes_project_across_normalized_views_and_preserve_citations() {
+    let mut doc = Document::new(TEXT);
+    let mut layout = LayoutBoxes::new(ViewId::SOURCE);
+    let first = TEXT.find("Café and trees.").unwrap();
+    let second = TEXT.find("More text.").unwrap();
+    layout.push(Span::new(0, 7), 1, 50.0, 20.0, 200.0, 40.0);
+    layout.push(Span::new(first as u32, (first + "Café and trees.".len()) as u32), 1, 50.0, 50.0, 320.0, 75.0);
+    layout.push(Span::new(second as u32, (second + "More text.".len()) as u32), 2, 50.0, 30.0, 250.0, 55.0);
+    doc.add(&Key::<LayoutBoxes>::named("source"), layout, Provenance::by("test")).unwrap();
+
+    let pipeline = Analyzer::builder()
+        .given(Key::<LayoutBoxes>::named("source"))
+        .step(Bound::new(NormalizeStep::new(Whitespace::collapse())).write(0, "clean"))
+        .step(Bound::new(LayoutProjector).read(0, "clean").read(1, "source"))
+        .build()
+        .unwrap();
+    let mut docs = [doc];
+    assert_eq!(pipeline.run(&mut docs)[0], Ok(()));
+    let doc = &docs[0];
+    let original = doc.get_key(&Key::<LayoutBoxes>::named("source")).unwrap();
+    let projected = doc.get::<LayoutBoxes>().unwrap();
+    let clean = doc.get_key(&Key::<View>::named("clean")).unwrap();
+    assert_eq!(projected.spans.view(), clean.id());
+    assert_eq!(projected.page, original.page);
+    assert_eq!(projected.x0, original.x0);
+    assert_eq!(projected.y0, original.y0);
+    assert_eq!(projected.x1, original.x1);
+    assert_eq!(projected.y1, original.y1);
+    for ((_, a), (_, b)) in original.spans.iter().zip(projected.spans.iter()) {
+        assert_eq!(doc.to_source(projected.spans.view(), b), a);
+    }
+
+    // Also verify ProjectableLayer::project_view matches LayoutProjector.
+    let via_trait = doc.project_layer(original, clean.id()).unwrap();
+    assert_eq!(via_trait.iter().collect::<Vec<_>>(), projected.iter().collect::<Vec<_>>());
+    assert_eq!(projected.page_span(Span::new(0, clean.text().len() as u32)), Some((1, 2)));
+    assert_eq!(
+        projected.union_boxes_by_page(Span::new(0, clean.text().len() as u32)),
+        vec![PageBoundingBox::new(1, 50.0, 20.0, 320.0, 75.0), PageBoundingBox::new(2, 50.0, 30.0, 250.0, 55.0),]
+    );
 }

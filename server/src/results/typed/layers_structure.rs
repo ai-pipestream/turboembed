@@ -65,7 +65,7 @@ fn boilerplate_kind_name(k: BoilerplateKind) -> &'static str {
     }
 }
 
-fn aligned_spans<L: Layer>(
+pub(super) fn aligned_spans<L: Layer>(
     cx: &ProjectionCx<'_>,
     key: KeyId,
     index: usize,
@@ -278,6 +278,7 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
                 .map(|i| {
                     let ix = Ix::new(i as u32);
                     let r = l.sentences[i];
+                    let (page_start, page_end, page_boxes) = super::layers_context::chunk_citation_fields(cx.doc, l, i);
                     TypedAnnotation {
                         spans: cx.project_spans(&l.spans, ix),
                         probability: None,
@@ -291,6 +292,9 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
                             cost: l.cost[i],
                             model_tokens: l.model_tokens[i],
                             over_budget: l.over_budget[i],
+                            page_start,
+                            page_end,
+                            page_boxes,
                         })),
                     }
                 })

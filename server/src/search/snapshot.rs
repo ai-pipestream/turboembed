@@ -237,7 +237,8 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
     let mut seen_terms = BTreeSet::new();
     let mut term_df = BTreeMap::new();
 
-    for _ in 0..n_chunks {
+    let doc_chunks: Vec<&ChunkInput> = docs.iter().flat_map(|d| d.chunks.iter()).collect();
+    for (ci, _) in (0..n_chunks).enumerate() {
         let chunk_id = r.str()?;
         let doc_id = r.str()?;
         let level_kind = r.str()?;
@@ -321,6 +322,9 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
                 .push(TokenVectorInput::decode(tvb).map_err(|e| corrupt_snapshot(format!("decode TokenVec: {e}")))?);
         }
         let attributes = r.map()?;
+        let dc = doc_chunks.get(ci).copied();
+        let page_span = dc.filter(|c| c.has_page_span).map(|c| (c.page_start, c.page_end));
+        let page_boxes = dc.map(|c| c.page_boxes.clone()).unwrap_or_default();
         chunks.push(StoredChunk {
             chunk_id,
             doc_id,
@@ -334,6 +338,8 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
             sparse_terms,
             token_vectors,
             attributes,
+            page_span,
+            page_boxes,
         });
     }
 

@@ -1,7 +1,7 @@
 mod initialize;
 mod optimize;
 use super::{Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel};
-use crate::{ArcStandardOracle, ArcStandardState, DependencySample, Result, error};
+use crate::{ArcStandardState, DependencySample, Result, error};
 use turbo_analysis_layers::WordOrTokenAnchor;
 
 #[derive(Clone, Debug)]
@@ -70,17 +70,37 @@ impl FeedforwardDependencyTrainer {
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
     ) -> Result<FeedforwardDependencyModel> {
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::PseudoProjective)
+    }
+    /// Train plain arc-standard labels from projective samples only.
+    /// Non-projective or already encoded trees produce an error.
+    pub fn train_projective<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        settings: &FeedforwardSettings,
+    ) -> Result<FeedforwardDependencyModel> {
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Projective)
+    }
+    /// Train native SWAP transitions with ordinary labels and no tree filtering.
+    pub fn train_swap<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        settings: &FeedforwardSettings,
+    ) -> Result<FeedforwardDependencyModel> {
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Swap)
+    }
+    fn train_with_mode<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        settings: &FeedforwardSettings,
+        mode: crate::training::TrainingMode,
+    ) -> Result<FeedforwardDependencyModel> {
         settings.check()?;
-        let mut model = initialize::initialize(samples, settings)?;
+        let mut model = initialize::initialize(samples, settings, mode)?;
         let mut examples = Vec::new();
         for sample in samples {
-            if !sample.graph().is_projective() {
-                continue;
-            }
+            let graph = mode.graph(sample.graph())?;
             let mut state = ArcStandardState::<A>::new(sample.tokens().len())?;
             let words: Vec<_> = sample.tokens().iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags().iter().map(String::as_str).collect();
-            for transition in ArcStandardOracle::transitions(sample.graph())? {
+            for transition in mode.transitions(&graph)? {
                 let context = FeedforwardContext::extract(&state, &words, &tags, settings.layout)?;
                 let outcome = model
                     .transitions
@@ -96,7 +116,7 @@ impl FeedforwardDependencyTrainer {
         }
         optimize::optimize(&mut model, &examples, settings)?;
         let mut counts = std::collections::BTreeMap::<String, usize>::new();
-        for sample in samples.iter().filter(|s| s.graph().is_projective()) {
+        for sample in samples {
             for word in sample.tokens() {
                 *counts.entry(super::normalize::normalize(word)).or_default() += 1;
             }
@@ -104,6 +124,32 @@ impl FeedforwardDependencyTrainer {
         // Cache only after the final update so no stale weights can be used.
         // One million doubles bounds the returned model's cache at 8 MB of values.
         model.precompute_words(&counts.into_iter().collect::<Vec<_>>(), 1_000_000);
+        model.label_encoding = mode.encoding();
         Ok(model)
+    }
+}
+
+pub(super) struct DeterministicRng {
+    state: u64,
+}
+impl DeterministicRng {
+    pub(super) fn new(seed: i64) -> Self {
+        Self { state: (seed as u64) ^ 0x5deece66d }
+    }
+    fn next_u64(&mut self) -> u64 {
+        self.state = self.state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = self.state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    }
+    pub(super) fn next_double(&mut self) -> f64 {
+        ((self.next_u64() >> 11) as f64) * (1.0 / ((1u64 << 53) as f64))
+    }
+    pub(super) fn shuffle<T>(&mut self, slice: &mut [T]) {
+        for i in (1..slice.len()).rev() {
+            let j = (self.next_u64() as usize) % (i + 1);
+            slice.swap(i, j);
+        }
     }
 }

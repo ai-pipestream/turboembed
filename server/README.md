@@ -2,8 +2,8 @@
 
 A gRPC server for the Open Inference Protocol (KServe v2,
 `inference.GRPCInferenceService`) that serves turboembed bundles through
-the library's C interface, `turbo.result.AnalysisService`, the shared
-analysis result layer beside it, and `turbo.vocabulary.TurboVocabularyService`,
+the library's C interface, `turbo.result.v1.AnalysisService`, the shared
+analysis result layer beside it, and `turbo.vocabulary.v1.TurboVocabularyService`,
 the dictionary and corpus vocabulary store.
 
 - [docs/grpc.md](../docs/grpc.md): building, starting and calling it.

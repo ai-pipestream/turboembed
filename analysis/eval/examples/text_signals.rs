@@ -1,5 +1,5 @@
 //! Four-way Qasper boundary/retrieval ablation. No training or tuning.
-//! Usage: text_signals QASPER_ARCHIVE SENTENCE_MODEL OUTPUT_JSON
+//! Usage: text_signals QASPER_ARCHIVE OUTPUT_JSON
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Instant;
@@ -14,14 +14,12 @@ use turbo_chunker::{
     WeighTextBoundaries, Weight, segment,
 };
 use turbo_eval::lexical::{Lexical, Search, TermRule};
+use turbo_eval::sha::{sha256, to_hex};
 use turbo_eval::{metrics, read, spans};
-use turbo_goldens::{hex::to_hex, sha256};
-use turbo_maxent::ModelFile;
-use turbo_sentdetect::{SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::RuleSentenceDetector;
 use turbo_stem::{TermAnalyzer, TermAnnotator};
 
 const CORPUS_SHA: &str = "72a52a41193e2838b8074f80ac074b94f956b84886c36a61c58a7df4171bdd72";
-const MODEL_SHA: &str = "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8";
 const BUDGET: Budget = Budget { max: 254, target: 200, size_weight: 1000, overhead: 0 };
 
 #[derive(Default)]
@@ -67,12 +65,12 @@ fn layout(paper: &Value) -> (String, Vec<Span>, Vec<usize>) {
     (text, units, sections)
 }
 
-fn analyze(text: &str, units: &[Span], detector: &SentenceDetector) -> (Sentences, Tokens, Lengths) {
+fn analyze(text: &str, units: &[Span], detector: &RuleSentenceDetector) -> (Sentences, Tokens, Lengths) {
     let mut sentences = Spans::new(ViewId::SOURCE);
     for u in units {
         let mut detected = Vec::new();
-        detector.detect(&text[u.range()], &mut detected);
-        for (s, _) in detected {
+        detector.splitter.try_split(&text[u.range()], &mut detected).expect("rule sentence split");
+        for s in detected {
             sentences.push(Span::new(s.start + u.start, s.end + u.start));
         }
     }
@@ -94,10 +92,10 @@ fn analyze(text: &str, units: &[Span], detector: &SentenceDetector) -> (Sentence
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args.len() != 3 {
-        return Err("usage: text_signals QASPER_ARCHIVE SENTENCE_MODEL OUTPUT_JSON".into());
+    if args.len() != 2 {
+        return Err("usage: text_signals QASPER_ARCHIVE OUTPUT_JSON".into());
     }
-    if Path::new(&args[2]).exists() {
+    if Path::new(&args[1]).exists() {
         return Err("output already exists".into());
     }
     let archive = std::fs::read(&args[0])?;
@@ -108,11 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let papers: BTreeMap<String, Value> = serde_json::from_slice(&raw)?;
     let set =
         read::qasper::read_json("qasper", "qasper-test-v0.3.json", std::str::from_utf8(&raw)?, CORPUS_SHA.into())?;
-    let file = ModelFile::read(Path::new(&args[1]))?;
-    if file.sha256().to_hex() != MODEL_SHA {
-        return Err("sentence model checksum differs".into());
-    }
-    let detector = SentenceDetector::new(SentenceModel::open(file)?, WhitespaceMode::Unicode);
+    let detector = RuleSentenceDetector::new("en");
     let term_step = TermAnnotator::for_language("en").unwrap();
     let lexical = LexicalBoundaries::default();
     let discourse = DiscourseBoundaries { language: DiscourseLanguage::English, discount: 1000 };
@@ -196,16 +190,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "boundary_documents":arm.boundary}));
     }
     let report = json!({"schema":1,"corpus":"Qasper v0.3 test, CC BY 4.0","corpus_archive_sha256":CORPUS_SHA,
-        "corpus_member_sha256":to_hex(&sha256(&raw)),"sentence_model_sha256":MODEL_SHA,
-        "sentence_abbreviations_hash":format!("{:016x}",detector.abbreviations().config_hash()),
+        "corpus_member_sha256":to_hex(&sha256(&raw)),
+        "sentence_config_hash":format!("{:016x}",detector.config_hash()),
         "term_analyzer_hash":format!("{:016x}",term_step.config_hash()),
         "lexical_hash":format!("{:016x}",lexical.config_hash()),"discourse_hash":format!("{:016x}",discourse.config_hash()),
         "budget":{"unit":"word tokens","max":254,"target":200,"size_weight":1000,"overhead":0},
         "boundary_reference":"section starts, abstract separate; silver proxy, not human topic labels",
-        "sentencing":"pinned maxent detector per paragraph or heading; no sentence crosses a layout unit",
+        "sentencing":"English rule splitter per paragraph or heading; no sentence crosses a layout unit",
         "retrieval":"corpus-wide BM25 English, k1=1.2 b=0.75; all official questions and evidence",
         "documents":set.docs.len(),"queries":queries.len(),"sentences":sentence_count,"tokens":token_count,
         "section_boundaries":section_count,"marker_gaps":marker_gaps,"unplaced_evidence":set.unplaced.len(),"arms":records});
-    std::fs::write(&args[2], serde_json::to_vec_pretty(&report)?)?;
+    std::fs::write(&args[1], serde_json::to_vec_pretty(&report)?)?;
     Ok(())
 }

@@ -8,19 +8,17 @@ import opennlp.tools.tokenize.SimpleTokenizer;
 import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.WhitespaceTokenizer;
 import opennlp.tools.util.Span;
-import opennlp.tools.util.WhitespaceMode;
 
 /**
  * The golden of a tokenizer without a model, {@link SimpleTokenizer} or {@link WhitespaceTokenizer}:
- * {@code opennlp:tokens} from {@code tokenizePos} over the whole input, then
- * {@code turbo:utf16<opennlp:tokens>} when a token starts or ends inside a surrogate pair
+ * {@code turbo:tokens} from {@code tokenizePos} over the whole input, then
+ * {@code turbo:utf16<turbo:tokens>} when a token starts or ends inside a surrogate pair
  * ({@link SpanLayers}). The simple tokenizer classifies UTF-16 units, so it cuts every character
  * outside the Basic Multilingual Plane in two.
  *
- * <p>Each runs in one whitespace mode, with line breaks kept as tokens or not. The directory is
- * the tokenizer's name ({@code simple} or {@code whitespace}), then {@code +keep-new-lines} and
- * {@code +legacy} when those apply; the {@code config} records are {@code keepNewLines true} and
- * {@code whitespace legacy}, each only when it applies.</p>
+ * <p>Each runs with line breaks kept as tokens or not. The directory is the tokenizer's name
+ * ({@code simple} or {@code whitespace}), then {@code +keep-new-lines} when line breaks are kept,
+ * with the {@code config} record {@code keepNewLines true}.</p>
  */
 final class PlainTokenGolden implements AnnotatorGolden {
 
@@ -43,13 +41,11 @@ final class PlainTokenGolden implements AnnotatorGolden {
 
   private final Kind kind;
   private final boolean keepNewLines;
-  private final WhitespaceMode whitespace;
   private final Set<String> inputSets;
 
-  PlainTokenGolden(Kind kind, boolean keepNewLines, WhitespaceMode whitespace, Set<String> inputSets) {
+  PlainTokenGolden(Kind kind, boolean keepNewLines, Set<String> inputSets) {
     this.kind = kind;
     this.keepNewLines = keepNewLines;
-    this.whitespace = whitespace;
     this.inputSets = Set.copyOf(inputSets);
   }
 
@@ -65,7 +61,7 @@ final class PlainTokenGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return kind.dir + (keepNewLines ? "+keep-new-lines" : "") + Whitespace.dirSuffix(whitespace);
+    return kind.dir + (keepNewLines ? "+keep-new-lines" : "");
   }
 
   @Override
@@ -80,7 +76,7 @@ final class PlainTokenGolden implements AnnotatorGolden {
 
   @Override
   public Map<String, String> config() {
-    Map<String, String> config = new HashMap<>(Whitespace.config(whitespace));
+    Map<String, String> config = new HashMap<>();
     if (keepNewLines) {
       config.put(KEEP_NEW_LINES_KEY, "true");
     }
@@ -94,8 +90,8 @@ final class PlainTokenGolden implements AnnotatorGolden {
 
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
-    Span[] spans = Whitespace.in(whitespace, () -> AnnotatorException.call(() -> tokenize(input.text())));
-    return SpanLayers.of("opennlp:tokens", input.offsets(), spans);
+    Span[] spans = AnnotatorException.call(() -> tokenize(input.text()));
+    return SpanLayers.of("turbo:tokens", input.offsets(), spans);
   }
 
   /**

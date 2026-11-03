@@ -7,7 +7,7 @@
 //! sequences with the same probabilities and bit-identical scores (for
 //! GIS and perceptron models; QN uses an explicit [`OpenNlpBeamSearch`] session):
 //!
-//! - A partial sequence's score is the sum of the `StrictMath.log` of its
+//! - A partial sequence's score is the sum of the natural logarithms of its
 //!   outcome probabilities, added in sequence order from zero.
 //! - At each step the best `size` partial sequences are extended, best
 //!   first. For each, the model is evaluated on the context the
@@ -19,8 +19,7 @@
 //!   valid outcome of the current one is tried instead.
 //! - Partial sequences are ordered by score, highest first, with
 //!   `Double.compare`; equal scores are ordered by their outcomes, compared
-//!   one by one with `String.compareTo`, which orders by UTF-16 code unit
-//!   (not by code point, as `str` does), and then by length.
+//!   one by one in lexicographical order, and then by length.
 //!
 //! Java keeps the candidates in a `PriorityQueue`; here they are sorted,
 //! which removes them in the same order. OpenNLP's optional cache of
@@ -45,8 +44,6 @@ use paths::{PathSlots, assign_beam_ranks, compare_step_nodes};
 use std::convert::Infallible;
 
 use std::cmp::Ordering;
-use turbo_jvm::chars::compare as compare_java_strings;
-use turbo_jvm::strict_math;
 use turbo_maxent::{JavaString, MaxentModel, ModelFile};
 
 use crate::error::{Error, Result};
@@ -92,7 +89,7 @@ impl OutcomeLabel for str {
     }
 
     fn compare(a: &str, b: &str) -> Ordering {
-        compare_java_strings(a, b)
+        a.cmp(b)
     }
 }
 
@@ -160,7 +157,7 @@ impl<'m, L: ?Sized> Sequence<'m, L> {
         &self.probs
     }
 
-    /// The sum of the `StrictMath.log` of the probabilities, in order.
+    /// The sum of the natural logarithms of the probabilities, in order.
     pub fn score(&self) -> f64 {
         self.score
     }
@@ -290,7 +287,7 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                     if top == ROOT { (0.0, 0) } else { (nodes[top as usize].score, nodes[top as usize].len) };
                 let extend = |p: usize, nodes: &mut Vec<Node>, next: &mut Vec<u32>| {
                     if validator.valid_sequence(i, sequence, prior, outcomes[p]) {
-                        let score = top_score + strict_math::log(probs[p]);
+                        let score = top_score + probs[p].ln();
                         if score > min_score {
                             let id = u32::try_from(nodes.len()).expect("fewer than 2^32 nodes");
                             nodes.push(Node {

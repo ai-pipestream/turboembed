@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "gold_file": "MASC-3.0.0",
+  "gold_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
+  "sentences": 6384,
+  "tokens": 85292,
+  "resamples": 1000,
+  "seed": 42,
+  "conditioning": [
+    "gold: the MASC 3.0.0 held-out documents of the trainer recipes' split (every tenth document in corpus order, the Twitter genre left out), at the recorded corpus digest",
+    "tokens (tokenizer tiers): UAX #29 segments of each document's gold sentence texts joined with one space, whitespace-only segments dropped, or Unicode White_Space runs for the whitespace baseline; no gold segmentation reaches a tier",
+    "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted",
+    "bootstrap: per-document pooled resampling for token-aligned metrics"
+  ],
+  "systems": [
+    {
+      "system": "turbo-uax29",
+      "sentences": null,
+      "tokens": {
+        "correct": 80367,
+        "selected": 85034,
+        "target": 85292,
+        "score": 94.36844639103835,
+        "low": 93.44488927043454,
+        "high": 95.47548168415187
+      },
+      "upos": null,
+      "xpos": null,
+      "feats": null,
+      "lemma": null,
+      "uas": null,
+      "las": null,
+      "entities": null,
+      "language": null,
+      "not_run": [
+        "sentences/fields: a tokenizer tier writes no sentence or field predictions"
+      ],
+      "token_mismatch_sentences": 2010,
+      "throughput_sentences_per_second": 1077915.3481874256
+    },
+    {
+      "system": "turbo-whitespace",
+      "sentences": null,
+      "tokens": {
+        "correct": 57016,
+        "selected": 70907,
+        "target": 85292,
+        "score": 73.0043086063291,
+        "low": 70.58366727178361,
+        "high": 76.53640291267563
+      },
+      "upos": null,
+      "xpos": null,
+      "feats": null,
+      "lemma": null,
+      "uas": null,
+      "las": null,
+      "entities": null,
+      "language": null,
+      "not_run": [
+        "sentences/fields: a tokenizer tier writes no sentence or field predictions"
+      ],
+      "token_mismatch_sentences": 6000,
+      "throughput_sentences_per_second": 1798216.1492992619
+    }
+  ]
+}

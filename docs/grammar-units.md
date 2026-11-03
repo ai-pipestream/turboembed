@@ -21,9 +21,11 @@ Units are enums grouped by what they measure, in
 or money over a time (`10 Mb/s`, `$5 per hour`), written by
 `write_symbol` as `Mbit/s` and, on the money layer, stated in the
 currency with the span covering the `per hour`. The grammar's short time
-denominators use `wk`, `mo` and `yr` for week, month and year. Money keeps
-the amount and currency without a separate period column; its source span
-retains that wording. `Unit::measure` gives the
+denominators use `wk`, `mo` and `yr` for week, month and year. `Money`
+records the rate denominator symbol (`h`, `d`, `s`, `min`, `wk`, `mo`,
+`yr`, `ms`, or empty for a plain amount) in `Money::per` (exposed by
+`Money::per(ix)` and `turbo_query::MoneyFilter::per`), and its source
+span covers the rate phrase. `Unit::measure` gives the
 Recognizers-Text type (currency, dimension, temperature, age) and
 `Unit::dimension` the subtype. `Display` writes the Recognizers-Text
 unit name (`Square meter`, `Kilometer per hour`, `C`) and is used only to
@@ -152,6 +154,168 @@ for that name.
 
 Every eligible case of the four files passes.
 
+## Spanish
+
+`SPANISH_UNITS` composes the Spanish number grammar with quantities,
+ages, temperatures and currencies. `GrammarAnnotator::spanish()` runs this
+unit grammar and writes the same Money and Quantities instances as English.
+Its provenance name is `es-units`, distinct from the number-only `es` grammar.
+The existing lexer keeps the original byte spans, including accent folding,
+decimal commas, grouped thousands and decomposed accents.
+
+Rules include `veintidós kilómetros`, `metros cuadrados`, `pies cúbicos`,
+`188 millas por hora`, `10 Mb/s`, `6 pies y 3 pulgadas`, `5 libras y 8 onzas`,
+`37ºC`, `trece euros y cuarenta y cinco céntimos`, `15 USD 50`,
+`2,38 mil millones de dólares`, `C$ 16,4 millones` and `20 dólares por hora`.
+`Mb` and `MB` remain distinct. `º` requires a temperature scale or temperature
+context, so ordinary ordinal indicators such as `3º` are not quantities.
+Currency country qualifiers follow the name, as in `dólares canadienses` or
+`francos suizos`. Generic dollars retain the existing USD convention; the
+rules do not infer a national currency from the language alone. Bare minor
+unit names with no conventional currency remain parser readings and are
+not forced into the Money layer. Money rate spans retain the denominator
+and record its canonical symbol in `Money::per`.
+
+All 240 unchanged Spanish Recognizers-Text NumberWithUnit cases at the pinned
+revision pass: 19 ages, 122 currencies, 54 dimensions and 45 temperatures.
+`spanish_unit_specs.rs` uses the shared exact-span comparator, translating
+only localized expected unit names and decimal commas. It compares every
+expected result, value, type, subtype and explicit ISO code, with no pass-list
+exclusions. Additional tests run the real Analyzer pipeline, source-offset
+round trips, Unicode whitespace, compound bounds and ambiguous ordinal marks.
+
+## Dutch units and currencies
+
+`DUTCH_UNITS` composes the Dutch number grammar with lengths, areas, volumes,
+weights, information units, angles, temperatures, ages and currencies.
+`GrammarAnnotator::dutch()` writes the same source-aligned layers as the English
+entry point. Compound number words, decimal commas, Unicode whitespace and
+case-sensitive bit/byte abbreviations preserve the original byte spans.
+Examples include `tweeëntwintig kilometer`, `6-jarige leeftijd`, `3 euro en
+50 cent`, `een kuai en vijf mao vijf`, `500 Mb per seconde`, `20 euro per uur`
+and `1,5 kubieke meter`. Prefix currencies require a symbol or code; ordinary
+currency nouns do not consume a following article as an amount.
+
+A standalone Dutch `cent`, `kwartje`, `dubbeltje` or `stuiver` does not identify
+a major currency. These become `CurrencyUnit::Generic(Generic::Cent)` with
+values 1, 25, 10 and 5 cents respectively, and no inferred ISO code. Their
+quantity readings remain available through the parser; the Money layer omits
+unresolved currencies. An explicit major amount, such as `3 euro en 50 cent`,
+resolves the cents against that currency. `penni` is expressed in Finnish
+markka at 1/100. This avoids assuming that a historical Dutch coin name means
+EUR rather than NLG. The existing `$`/`dollar` USD convention is unchanged.
+
+The 157 unchanged pinned Recognizers-Text cases contain 156 eligible cases:
+17 age, 31 currency, 74 dimension and 34 temperature. Currency case 12,
+`Hij is me nog een tientje schuldig.`, has upstream `NotSupported: dotnet`;
+it is the only excluded oracle case. A separate negative regression verifies
+that `tientje` does not receive an assumed major currency. Strict agreement
+with the original expected values is **143/156** (17, 27, 65, 34 respectively).
+All **156/156** pass the separately asserted documented policy. The harness
+asserts both counts and preserves every original expected result on disk.
+
+Differences below use zero-based case indices in each upstream model file:
+
+| Model and cases | Upstream expectation | Dutch reading and reason |
+|---|---|---|
+| Dimension 7 | `ons` is an ounce | Modern Dutch `ons` is 100 grams. |
+| Dimension 13, 14, 44 | `pond` is an imperial pound | Modern Dutch `pond` is 500 grams; historical pound values are not inferred. |
+| Dimension 62 | `are` is an acre | An are is 100 square metres, represented as one square decametre. |
+| Dimension 8, 61 | `Hectare` label | The same area uses the shared `Square hectometer` label; amount and span are unchanged. |
+| Dimension 5 | Barrel has Weight subtype | A barrel has Volume subtype. |
+| Dimension 48 | `500 Mb`, omitting `per seconde` | The complete rate retains `500 Mb per seconde` and Megabit per second. |
+| Currency 13, 14, 15 | Count of named coins | Counts become 25, 10 or 5 unspecified cents per coin, with the original span. |
+| Currency 21 | Count of penni | Convert to Finnish markka at 1/100, retaining the original span. |
+
+The [Kadaster definition of are](https://catalogus.kadaster.nl/tr/nl/page/Are)
+records 100 square metres. [Schooltv's Dutch units lesson](https://schooltv.nl/video-item/snapje-kilo-pond-en-ons-1)
+explains the modern 100-gram ons and 500-gram pond. These colloquial modern
+values are distinct from historical local pounds and English imperial units.
+The policy intentionally does not reproduce mistranslated physical values
+from the upstream corpus. Original cases remain available for comparison.
+## Italian
+
+`ITALIAN_UNITS` and `GrammarAnnotator::italian()` add Italian quantities,
+ages, temperatures and currencies with provenance name `it-units`.
+A cardinal vocabulary and bounded compound splitter recognize forms such
+as `ventidue`, `centoventitré`, `centottanta` and `duemilacento` without
+rewriting source text or allocating temporary joined words. The splitter
+uses stack scratch space and accepts only complete number compounds.
+`miliardi`, `bilioni` and `trilioni` use the Italian long scale (10^9,
+10^12 and 10^18). Full Italian ordinal/percentage and spelled-decimal
+support is outside this unit-oriented grammar.
+
+A proper fraction after a million-or-larger scale uses that scale:
+`un milione e mezzo` is 1500000 and `3 milioni e mezzo` is 3500000.
+An explicit smaller scale attaches to the fraction first:
+`un miliardo e mezzo milione` is 1000500000. Ordinary mixed numbers
+such as `trecento e mezzo` remain 300.5. Native regressions include these
+[upstream NumberModel cases 147-149](https://github.com/microsoft/Recognizers-Text/blob/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/Number/Italian/NumberModel.json),
+plus real Analyzer values and source-offset round trips.
+
+Rules include `3 metri quadrati`, `6 piedi e 3 pollici`, `5 libbre e 8 once`,
+`188 miglia all'ora`, `10 Mb/s`, `tredici euro e quarantacinque centesimi`,
+`20 euro per ora`, country-qualified currencies and the age suffix `di età`.
+The preposition `in` is not an inch alias in Italian, and weight `libbre`
+stays distinct from currency `sterline`. Currency nouns do not consume
+following articles. Generic currencies and minor units retain the shared
+conventions, and the Money schema retains a rate's full span and records
+its denominator symbol in `Money::per`.
+
+All **210 unchanged Italian NumberWithUnit cases** pass: **15 Age,
+106 Currency, 55 Dimension and 34 Temperature**. This includes Age cases
+3 and 7 and Currency cases 64 and 67 that upstream marks
+`NotSupported: dotnet`; none is excluded.
+The shared exact-span/value/type/subtype/ISO comparator checks **207 cases**.
+Temperature cases **25, 26 and 27 omit Start/End coordinates upstream**:
+those three check the complete expected text/value/unit multiset instead,
+without supplying missing oracle offsets. Localized unit labels and
+comma decimals are translated; the shared Ton/gallon conventions remain.
+The original files are unchanged. Native regressions additionally check
+real Analyzer output, fused/decomposed source spans, Unicode whitespace,
+UTF-16/codepoint round trips, malformed compounds and boundary ambiguity.
+
+## Portuguese
+
+The scale-fraction rule also applies to `2 milhões e meio` (2500000) and
+`três milhões e meio` (3500000), while `um trilhão e meio milhão` is
+1000000500000. These match
+[upstream NumberModel cases 169-171](https://github.com/microsoft/Recognizers-Text/blob/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/Number/Portuguese/NumberModel.json).
+Ordinary mixed numbers retain simple addition. Native tests include
+negatives, decomposed accents, Money/Quantities output and source offsets.
+
+`PORTUGUESE_UNITS` and `GrammarAnnotator::portuguese()` add Portuguese
+quantities, ages, temperatures and currencies. The provenance name is
+`pt-units`. Portuguese cardinal forms supply the unit amounts, including
+`vinte e dois quilômetros`, gendered hundreds, `mil`, `milhões`, Brazilian
+`bilhões` (10^9), Portuguese `biliões` (10^12), digit fractions and halves.
+This unit-oriented number grammar does not claim full Portuguese ordinal,
+percentage or spelled-decimal coverage.
+
+Rules include `6 pés e 3 polegadas`, `5 libras e 8 onças`,
+`3 metros quadrados`, `2,5 quilômetros por hora`, `10 Mb/s`, `37ºC`,
+`R$25,50`, `três reais e cinquenta centavos` and `20 reais por hora`.
+The original source spans survive accented and decomposed text and Unicode
+whitespace; `Mb` and `MB` remain distinct. `um` is also a number/article, so
+its micrometer abbreviation is accepted only after a digit amount; the
+unambiguous `micrômetros` name accepts spelled amounts as well. Currency
+nouns do not consume following articles. Explicit `real`, `reais` and `R$`
+mean BRL, while generic dollars and unqualified minor units retain the
+shared currency conventions described above. Money rate spans retain the
+denominator and record its canonical symbol in `Money::per`.
+
+All **253 unchanged Portuguese NumberWithUnit cases** at the same pinned
+Recognizers-Text revision pass: **18 Age, 123 Currency, 65 Dimension and
+47 Temperature**. No cases are excluded. The comparator translates only
+localized resolution labels and decimal commas, then checks exact spans,
+values, types, subtypes and explicit currency codes. It retains the shared
+comparison conventions for `Ton` and the upstream gallon subtype. Several
+upstream Portuguese fixtures contain Spanish prose or unaccented aliases
+(`yenes`, `oncas`); those original fixtures are retained, and separate native
+Portuguese regressions cover `ienes`, `onças` and BRL compounds. The suite
+also runs the real Analyzer, layer checks, UTF-16/codepoint offset round
+trips, negative boundaries and the distinct `cem`/`cento` forms.
+
 ## Speed
 
 `cargo run --release -p turbo-grammar --example grammar_bench` prints
@@ -168,5 +332,17 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Spanish and Dutch unit rules (#929): the unit rules are English only,
-  over the Spanish and Dutch number grammars.
+
+## Japanese
+
+`JAPANESE_UNITS` adds source-preserving Japanese measures, temperatures, ages
+and money. [Japanese units](grammar-units-japanese.md) documents supported
+combinations, the shared CJK arithmetic, all 188 unchanged upstream cases,
+186 exact matches, and two separately tested upstream label corrections.
+
+## Chinese
+
+`CHINESE_UNITS` runs through `GrammarAnnotator::new(&CHINESE_UNITS)` with source
+spans intact. Its 91-case pinned corpus, currency composition, CJK boundaries,
+modern mainland conversion conventions and explicit limits are documented in
+[Chinese unit conventions](grammar-units-chinese.md).

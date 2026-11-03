@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+use turbo_analysis::Span;
 use turbo_doccat::{DoccatFactory, DoccatTrainer, FeatureSelection, SelectionMetric};
-use turbo_formats::native::DocumentReader;
+use turbo_formats::{DocumentSample, Field};
 use turbo_train::{Event, JavaString};
 #[test]
 fn informative_features_beat_noise_and_ties_are_deterministic() {
@@ -47,11 +49,18 @@ fn duplicates_affect_training_values_but_not_presence_ranking() {
 #[test]
 fn trainer_prepares_selected_bow_and_ngram_events() {
     use turbo_doccat::{BuiltinFeatureGenerator, NGramFeatureGenerator};
-    let samples: Vec<_> =
-        DocumentReader::new("a\tred fox\na\tred fox\nb\tblue bird\nb\tblue bird\n", Default::default())
-            .unwrap()
-            .map(Result::unwrap)
-            .collect();
+    let field = |text: &'static str| Field { text: Cow::Borrowed(text), span: Span::new(0, text.len() as u32) };
+    let sample = |cat: &'static str, t0: &'static str, t1: &'static str| DocumentSample {
+        category: field(cat),
+        tokens: vec![field(t0), field(t1)],
+        source: Span::new(0, 9),
+    };
+    let samples = vec![
+        sample("a", "red", "fox"),
+        sample("a", "red", "fox"),
+        sample("b", "blue", "bird"),
+        sample("b", "blue", "bird"),
+    ];
     let factory =
         DoccatFactory::with_feature_generators(vec![BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::default())]);
     let trainer = DoccatTrainer::new(factory)

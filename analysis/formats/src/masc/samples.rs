@@ -276,7 +276,7 @@ impl<'c> MascTokenReader<'c> {
     ///
     /// [`MascError::NoDocuments`] when no document has Penn tags.
     pub fn new(corpus: &'c MascCorpus) -> Result<MascTokenReader<'c>, MascError> {
-        MascTokenReader::with_empty_sentences(corpus, EmptySentence::EndsCorpus)
+        MascTokenReader::with_empty_sentences(corpus, EmptySentence::Skipped)
     }
 
     /// A reader that treats a sentence without a sample as `empty` says.

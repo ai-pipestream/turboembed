@@ -1,0 +1,156 @@
+### commit 60128d6ee299ffb3a2432628782e07fe573c4839; TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test metal_f16 -- --nocapture; 2026-10-27T06:23:03Z; load { 2.77 3.93 4.98 }
+running 10 tests
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+test a_tuned_session_runs_one_of_the_choices_and_forces_back ... ok
+test attn_auto_switches_past_512_packed_tokens ... ok
+linear=h32, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+linear=h32, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+linear=h32, largest: 1 - lowest cosine with the cpu 2.588e-11
+linear=h64, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+linear=h64, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+linear=h64, largest: 1 - lowest cosine with the cpu 2.588e-11
+linear=h128, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+linear=h128, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+linear=h128, largest: 1 - lowest cosine with the cpu 2.588e-11
+linear=h32n32, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+linear=h32n32, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+linear=h32n32, largest: 1 - lowest cosine with the cpu 2.588e-11
+linear=h64n32, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+linear=h64n32, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+linear=h64n32, largest: 1 - lowest cosine with the cpu 2.588e-11
+linear=auto, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+linear=auto, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+linear=auto, largest: 1 - lowest cosine with the cpu 2.588e-11
+attn=staged, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+attn=staged, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+attn=staged, largest: 1 - lowest cosine with the cpu 2.588e-11
+attn=registers, few tokens: 1 - lowest cosine with the cpu 2.837e-11
+attn=registers, 160 tokens: 1 - lowest cosine with the cpu 2.190e-11
+attn=registers, largest: 1 - lowest cosine with the cpu 2.588e-11
+linear=f32, few tokens: 1 - lowest cosine with the cpu 3.109e-15
+linear=f32, 160 tokens: 1 - lowest cosine with the cpu 3.997e-15
+linear=f32, largest: 1 - lowest cosine with the cpu 7.438e-15
+test each_f16_choice_matches_the_cpu_within_fastest_s_floor ... ok
+test fastest_computes_in_f16_and_says_so ... ok
+1 layers past the range, None, few tokens: 1 - lowest cosine with the cpu 3.625e-8
+1 layers past the range, None, 160 tokens: 1 - lowest cosine with the cpu 1.235e-7
+1 layers past the range, None, largest: 1 - lowest cosine with the cpu 1.713e-7
+1 layers past the range, Some("linear=h64"), few tokens: 1 - lowest cosine with the cpu 3.625e-8
+1 layers past the range, Some("linear=h64"), 160 tokens: 1 - lowest cosine with the cpu 1.235e-7
+1 layers past the range, Some("linear=h64"), largest: 1 - lowest cosine with the cpu 1.713e-7
+2 layers past the range, None, few tokens: 1 - lowest cosine with the cpu 4.441e-16
+2 layers past the range, None, 160 tokens: 1 - lowest cosine with the cpu 0.000e0
+2 layers past the range, None, largest: 1 - lowest cosine with the cpu 1.599e-14
+test a_weight_past_f16_s_range_computes_its_layer_in_f32 ... ok
+heads of 80, attn=staged, few tokens: 1 - lowest cosine with the cpu 1.546e-7
+heads of 80, attn=staged, 160 tokens: 1 - lowest cosine with the cpu 5.309e-8
+heads of 80, attn=staged, largest: 1 - lowest cosine with the cpu 2.162e-7
+heads of 80, attn=registers, few tokens: 1 - lowest cosine with the cpu 1.546e-7
+heads of 80, attn=registers, 160 tokens: 1 - lowest cosine with the cpu 5.309e-8
+heads of 80, attn=registers, largest: 1 - lowest cosine with the cpu 2.162e-7
+heads of 80, linear=auto, few tokens: 1 - lowest cosine with the cpu 1.546e-7
+heads of 80, linear=auto, 160 tokens: 1 - lowest cosine with the cpu 5.309e-8
+heads of 80, linear=auto, largest: 1 - lowest cosine with the cpu 2.162e-7
+heads of 80, EXACT, few tokens: 1 - lowest cosine with the cpu 9.714e-14
+heads of 80, EXACT, 160 tokens: 1 - lowest cosine with the cpu 8.216e-15
+heads of 80, EXACT, largest: 1 - lowest cosine with the cpu 8.882e-15
+heads of 36, attn=staged, few tokens: 1 - lowest cosine with the cpu 1.619e-7
+heads of 36, attn=staged, 160 tokens: 1 - lowest cosine with the cpu 5.348e-8
+heads of 36, attn=staged, largest: 1 - lowest cosine with the cpu 8.687e-8
+heads of 36, attn=registers, few tokens: 1 - lowest cosine with the cpu 1.619e-7
+heads of 36, attn=registers, 160 tokens: 1 - lowest cosine with the cpu 5.348e-8
+heads of 36, attn=registers, largest: 1 - lowest cosine with the cpu 8.702e-8
+heads of 36, linear=auto, few tokens: 1 - lowest cosine with the cpu 1.619e-7
+heads of 36, linear=auto, 160 tokens: 1 - lowest cosine with the cpu 5.348e-8
+heads of 36, linear=auto, largest: 1 - lowest cosine with the cpu 8.702e-8
+heads of 36, EXACT, few tokens: 1 - lowest cosine with the cpu 1.492e-13
+heads of 36, EXACT, 160 tokens: 1 - lowest cosine with the cpu 5.551e-15
+heads of 36, EXACT, largest: 1 - lowest cosine with the cpu 1.488e-14
+heads of 26, attn=staged, few tokens: 1 - lowest cosine with the cpu 4.411e-8
+heads of 26, attn=staged, 160 tokens: 1 - lowest cosine with the cpu 3.663e-8
+heads of 26, attn=staged, largest: 1 - lowest cosine with the cpu 5.967e-8
+heads of 26, attn=registers, few tokens: 1 - lowest cosine with the cpu 4.411e-8
+heads of 26, attn=registers, 160 tokens: 1 - lowest cosine with the cpu 3.663e-8
+heads of 26, attn=registers, largest: 1 - lowest cosine with the cpu 5.967e-8
+heads of 26, linear=auto, few tokens: 1 - lowest cosine with the cpu 4.411e-8
+heads of 26, linear=auto, 160 tokens: 1 - lowest cosine with the cpu 3.663e-8
+heads of 26, linear=auto, largest: 1 - lowest cosine with the cpu 5.967e-8
+heads of 26, EXACT, few tokens: 1 - lowest cosine with the cpu 4.086e-14
+heads of 26, EXACT, 160 tokens: 1 - lowest cosine with the cpu 9.548e-15
+heads of 26, EXACT, largest: 1 - lowest cosine with the cpu 7.105e-15
+heads of 128, attn=staged, few tokens: 1 - lowest cosine with the cpu 9.064e-8
+heads of 128, attn=staged, 160 tokens: 1 - lowest cosine with the cpu 6.752e-8
+heads of 128, attn=staged, largest: 1 - lowest cosine with the cpu 1.227e-7
+heads of 128, attn=registers, few tokens: 1 - lowest cosine with the cpu 9.064e-8
+heads of 128, attn=registers, 160 tokens: 1 - lowest cosine with the cpu 6.752e-8
+heads of 128, attn=registers, largest: 1 - lowest cosine with the cpu 1.227e-7
+heads of 128, linear=auto, few tokens: 1 - lowest cosine with the cpu 9.064e-8
+heads of 128, linear=auto, 160 tokens: 1 - lowest cosine with the cpu 6.752e-8
+heads of 128, linear=auto, largest: 1 - lowest cosine with the cpu 1.227e-7
+heads of 128, EXACT, few tokens: 1 - lowest cosine with the cpu 2.962e-13
+heads of 128, EXACT, 160 tokens: 1 - lowest cosine with the cpu 1.046e-13
+heads of 128, EXACT, largest: 1 - lowest cosine with the cpu 1.443e-14
+heads of 136, linear=auto, few tokens: 1 - lowest cosine with the cpu 4.782e-7
+heads of 136, linear=auto, 160 tokens: 1 - lowest cosine with the cpu 4.515e-7
+heads of 136, linear=auto, largest: 1 - lowest cosine with the cpu 6.117e-7
+heads of 136, EXACT, few tokens: 1 - lowest cosine with the cpu 1.246e-13
+heads of 136, EXACT, 160 tokens: 1 - lowest cosine with the cpu 8.771e-15
+heads of 136, EXACT, largest: 1 - lowest cosine with the cpu 7.438e-15
+test heads_past_64_or_not_a_multiple_of_8_run_f16_attention ... ok
+linear=h32, partial tiles: 1 - lowest cosine with the cpu 9.738e-11
+linear=h64, partial tiles: 1 - lowest cosine with the cpu 9.738e-11
+linear=h128, partial tiles: 1 - lowest cosine with the cpu 9.738e-11
+linear=h32n32, partial tiles: 1 - lowest cosine with the cpu 9.738e-11
+linear=h64n32, partial tiles: 1 - lowest cosine with the cpu 9.738e-11
+test each_f16_tile_matches_the_cpu_on_partial_tiles ... ok
+linear=h32, masked keys inside rows: 1 - lowest cosine with the cpu 2.693e-11
+linear=h32, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+linear=h64, masked keys inside rows: 1 - lowest cosine with the cpu 2.693e-11
+linear=h64, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+linear=h128, masked keys inside rows: 1 - lowest cosine with the cpu 2.693e-11
+linear=h128, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+linear=h32n32, masked keys inside rows: 1 - lowest cosine with the cpu 2.693e-11
+linear=h32n32, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+linear=h64n32, masked keys inside rows: 1 - lowest cosine with the cpu 2.693e-11
+linear=h64n32, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+linear=auto, masked keys inside rows: 1 - lowest cosine with the cpu 2.693e-11
+linear=auto, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+attn=staged, masked keys inside rows: 1 - lowest cosine with the cpu 2.693e-11
+attn=staged, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+attn=registers, masked keys inside rows: 1 - lowest cosine with the cpu 2.725e-11
+attn=registers, awkward rows: 1 - lowest cosine with the cpu 6.420e-11
+test masked_keys_inside_a_row_are_left_out_at_fastest ... ok
+test the_choices_line_forces_back_and_refuses_what_it_cannot_run ... ok
+test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 7.20s
+### commit 60128d6ee299ffb3a2432628782e07fe573c4839; TURBO_TEST_BUNDLE=<all-minilm-l6-v2> TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test metal_f16 -- --ignored --nocapture a_real_bundle; 2026-10-27T06:23:24Z; load { 4.28 4.21 5.06 }
+running 1 test
+<bundles>/all-minilm-l6-v2: 8 rows of up to 256 tokens, 1 - lowest cosine with the cpu 1.965e-6
+  Q: largest magnitude 11.9, 0.0% of F16's range
+  K: largest magnitude 11.9, 0.0% of F16's range
+  V: largest magnitude 5.3, 0.0% of F16's range
+  attention context: largest magnitude 3.3, 0.0% of F16's range
+  GELU output: largest magnitude 25.3, 0.0% of F16's range
+  residual stream: largest magnitude 30.3, 0.0% of F16's range
+  linear=h32: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h64: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h128: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h32n32: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h64n32: 1 - lowest cosine with the cpu 1.965e-6
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 2.20s
+### commit 60128d6ee299ffb3a2432628782e07fe573c4839; TURBO_TEST_BUNDLE=<bge-base-en-v1.5-r1> TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test metal_f16 -- --ignored --nocapture a_real_bundle; 2026-10-27T06:23:27Z; load { 6.90 4.75 5.24 }
+running 1 test
+<bundles>/bge-base-en-v1.5-r1: 8 rows of up to 512 tokens, 1 - lowest cosine with the cpu 4.635e-6
+  Q: largest magnitude 22.5, 0.0% of F16's range
+  K: largest magnitude 12.4, 0.0% of F16's range
+  V: largest magnitude 10.3, 0.0% of F16's range
+  attention context: largest magnitude 3.3, 0.0% of F16's range
+  GELU output: largest magnitude 51.8, 0.1% of F16's range
+  residual stream: largest magnitude 102.6, 0.2% of F16's range
+  linear=h32: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h64: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h128: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h32n32: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h64n32: 1 - lowest cosine with the cpu 4.635e-6
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 31.33s

@@ -6,11 +6,10 @@
 //! `dict.txt`), which is ignored. The rules follow the Java:
 //!
 //! - Lines end at `\n`, `\r` or `\r\n`, as `BufferedReader.readLine`
-//!   splits them. A line is trimmed of Unicode `White_Space` at both ends
-//!   whatever the whitespace mode (`StringUtil.trimUnicodeWhitespace`),
+//!   splits them. A line is trimmed of Unicode `White_Space` at both ends,
 //!   and an empty line is skipped.
-//! - The word ends at the first whitespace character of the line in the
-//!   configured mode; a line without one has no count and is refused.
+//! - The word ends at the first Unicode `White_Space` character of the
+//!   line; a line without one has no count and is refused.
 //! - The count is the run of non-whitespace after it, read as
 //!   `Long.parseLong` reads it: an optional `+` or `-`, then decimal
 //!   digits of any script in the Basic Multilingual Plane
@@ -34,8 +33,8 @@ use std::hash::BuildHasherDefault;
 use std::path::Path;
 
 use turbo_maxent::{Digest, sha256};
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java;
+use turbo_unicode::whitespace::is_whitespace;
 
 use super::trie::{TrieBuilder, WordTrie};
 use crate::detok::dictionary::Fnv;
@@ -100,31 +99,26 @@ pub struct UnigramLexicon {
     trie: WordTrie,
     unknown: f64,
     total: i64,
-    whitespace: WhitespaceMode,
     sha256: Digest,
 }
 
 impl UnigramLexicon {
-    /// Reads the lexicon file at `path`, splitting each line in
-    /// `whitespace` mode, with the default limit on distinct words.
-    pub fn read(path: impl AsRef<Path>, whitespace: WhitespaceMode) -> Result<UnigramLexicon, LexiconError> {
+    /// Reads the lexicon file at `path`, splitting each line at Unicode
+    /// whitespace, with the default limit on distinct words.
+    pub fn read(path: impl AsRef<Path>) -> Result<UnigramLexicon, LexiconError> {
         let bytes = std::fs::read(path).map_err(LexiconError::Io)?;
-        UnigramLexicon::parse(&bytes, whitespace)
+        UnigramLexicon::parse(&bytes)
     }
 
     /// Reads a lexicon from its bytes with the default limit on distinct
     /// words.
-    pub fn parse(bytes: &[u8], whitespace: WhitespaceMode) -> Result<UnigramLexicon, LexiconError> {
-        UnigramLexicon::parse_with_limit(bytes, whitespace, DEFAULT_MAX_ENTRIES)
+    pub fn parse(bytes: &[u8]) -> Result<UnigramLexicon, LexiconError> {
+        UnigramLexicon::parse_with_limit(bytes, DEFAULT_MAX_ENTRIES)
     }
 
     /// Reads a lexicon from its bytes, refusing more than `max_entries`
     /// distinct words.
-    pub fn parse_with_limit(
-        bytes: &[u8],
-        whitespace: WhitespaceMode,
-        max_entries: usize,
-    ) -> Result<UnigramLexicon, LexiconError> {
+    pub fn parse_with_limit(bytes: &[u8], max_entries: usize) -> Result<UnigramLexicon, LexiconError> {
         let text = std::str::from_utf8(bytes).map_err(|e| LexiconError::Utf8 { offset: e.valid_up_to() })?;
         // About one line per word, and a word line of a Chinese lexicon is
         // about 15 bytes.
@@ -136,12 +130,12 @@ impl UnigramLexicon {
             if line.is_empty() {
                 continue;
             }
-            let Some(word_end) = line.find(|c: char| whitespace.is_whitespace(c as u32)) else {
+            let Some(word_end) = line.find(|c: char| is_whitespace(c as u32)) else {
                 return Err(LexiconError::NoCount { line: line_number });
             };
             let word = &line[..word_end];
-            let rest = line[word_end..].trim_start_matches(|c: char| whitespace.is_whitespace(c as u32));
-            let count_end = rest.find(|c: char| whitespace.is_whitespace(c as u32)).unwrap_or(rest.len());
+            let rest = line[word_end..].trim_start_matches(|c: char| is_whitespace(c as u32));
+            let count_end = rest.find(|c: char| is_whitespace(c as u32)).unwrap_or(rest.len());
             let count =
                 parse_java_long(&rest[..count_end]).ok_or(LexiconError::MalformedCount { line: line_number })?;
             if count <= 0 {
@@ -166,7 +160,7 @@ impl UnigramLexicon {
         // so each distinct count's logarithm is computed once.
         let mut logs: HashMap<i64, f64, BuildHasherDefault<Fnv>> = HashMap::default();
         let trie = builder.finish(|count| *logs.entry(count).or_insert_with(|| java_log(count as f64)) - log_total);
-        Ok(UnigramLexicon { trie, unknown: java_log(0.5) - log_total, total, whitespace, sha256: sha256(bytes) })
+        Ok(UnigramLexicon { trie, unknown: java_log(0.5) - log_total, total, sha256: sha256(bytes) })
     }
 
     /// The score of one character the lexicon does not list.
@@ -194,11 +188,6 @@ impl UnigramLexicon {
         self.total
     }
 
-    /// The whitespace mode the lines were split in.
-    pub fn whitespace(&self) -> WhitespaceMode {
-        self.whitespace
-    }
-
     /// The SHA-256 of the file's bytes.
     pub fn sha256(&self) -> Digest {
         self.sha256
@@ -209,15 +198,10 @@ impl UnigramLexicon {
     }
 }
 
-/// `Math.log`, which OpenNLP calls for the scores: a correctly rounded
-/// logarithm, which matched the `Math.log` of the JVM build the goldens
-/// are made with on the integers compared (`turbo_jvm::math` says which,
-/// and the one where they differ). fdlibm, `StrictMath.log`, differs from
-/// that JVM on about one integer in 150, which would change which of two
-/// paths with equal exact sums wins.
+/// Natural logarithm (`f64::ln`) used for lexicon word scores.
 #[inline]
 pub(crate) fn java_log(x: f64) -> f64 {
-    turbo_jvm::math::log(x)
+    x.ln()
 }
 
 /// `Long.parseLong(s)`: an optional sign (not alone), then one or more
@@ -252,7 +236,7 @@ mod tests {
     use super::*;
 
     fn parse(text: &str) -> Result<UnigramLexicon, LexiconError> {
-        UnigramLexicon::parse(text.as_bytes(), WhitespaceMode::Unicode)
+        UnigramLexicon::parse(text.as_bytes())
     }
 
     fn message(text: &str) -> String {
@@ -306,71 +290,39 @@ mod tests {
         assert_eq!(message("a 1\n\nb -3\n"), "count must be positive at lexicon line 3");
         let max = i64::MAX;
         assert_eq!(message(&format!("first {max}\nsecond 1\n")), "lexicon count total overflows at line 2");
-        let e = UnigramLexicon::parse_with_limit(b"first 1\nsecond 1\n", WhitespaceMode::Unicode, 1).err().unwrap();
+        let e = UnigramLexicon::parse_with_limit(b"first 1\nsecond 1\n", 1).err().unwrap();
         assert_eq!(e.to_string(), "lexicon entry count exceeds safe limit of 1");
         // A word already listed does not count against the limit.
-        let lexicon = UnigramLexicon::parse_with_limit(b"first 1\nfirst 2\n", WhitespaceMode::Unicode, 1).unwrap();
+        let lexicon = UnigramLexicon::parse_with_limit(b"first 1\nfirst 2\n", 1).unwrap();
         assert_eq!(lexicon.total(), 3);
     }
 
     #[test]
     fn invalid_utf8_is_refused() {
-        let e = UnigramLexicon::parse(b"w\xC3 1\n", WhitespaceMode::Unicode).err().unwrap();
+        let e = UnigramLexicon::parse(b"w\xC3 1\n").err().unwrap();
         assert!(matches!(e, LexiconError::Utf8 { offset: 1 }), "{e:?}");
     }
 
     #[test]
-    fn lines_are_trimmed_of_unicode_whitespace_in_both_modes() {
-        // OpenNLP's testLeadingIdeographicSpaceIsTrimmed, and U+0085, which
-        // only the Unicode mode calls whitespace, trimmed in legacy mode too.
-        for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-            let lexicon = UnigramLexicon::parse("\u{3000}\u{6211} 5000 r\n\u{85}b 2\u{85}\n".as_bytes(), mode).unwrap();
-            assert!(lexicon.log_probability("\u{6211}").is_some(), "{mode:?}");
-            assert!(lexicon.log_probability("b").is_some(), "{mode:?}");
-        }
+    fn lines_are_trimmed_of_unicode_whitespace() {
+        // OpenNLP's testLeadingIdeographicSpaceIsTrimmed, and U+0085.
+        let lexicon = parse("\u{3000}\u{6211} 5000 r\n\u{85}b 2\u{85}\n").unwrap();
+        assert!(lexicon.log_probability("\u{6211}").is_some());
+        assert!(lexicon.log_probability("b").is_some());
     }
 
     #[test]
-    fn the_mode_decides_where_the_word_ends() {
-        // U+001C separates in legacy mode only, and is not trimmed.
-        let text = "a\u{1c}7 3\n";
-        let unicode = UnigramLexicon::parse(text.as_bytes(), WhitespaceMode::Unicode).unwrap();
-        assert_eq!(unicode.len(), 1);
-        assert!(unicode.log_probability("a\u{1c}7").is_some());
-        let legacy = UnigramLexicon::parse(text.as_bytes(), WhitespaceMode::Legacy).unwrap();
-        assert!(legacy.log_probability("a").is_some());
-        assert_eq!(legacy.total(), 7);
-        // U+0085 inside a line separates in Unicode mode only.
-        let text = "x\u{85}5 2\n";
-        assert_eq!(UnigramLexicon::parse(text.as_bytes(), WhitespaceMode::Unicode).unwrap().total(), 5);
-        assert_eq!(UnigramLexicon::parse(text.as_bytes(), WhitespaceMode::Legacy).unwrap().total(), 2);
-        // In legacy mode a trailing U+001C is not trimmed, so the count is
-        // empty.
-        let e = UnigramLexicon::parse("w\u{1c}\n".as_bytes(), WhitespaceMode::Legacy).err().unwrap();
-        assert_eq!(e.to_string(), "malformed count at lexicon line 1");
-    }
-
-    #[test]
-    fn a_line_starting_with_a_legacy_separator_lists_the_empty_word() {
-        // U+001C is not trimmed (it is not Unicode White_Space) but ends the
-        // word in legacy mode, so the word is empty. Java stores it on the
-        // trie's root, where no walk scores it; it still counts in the total
-        // and as an entry.
-        let lexicon = UnigramLexicon::parse("\u{1c}5 3\nb 1\n".as_bytes(), WhitespaceMode::Legacy).unwrap();
-        assert_eq!((lexicon.total(), lexicon.len()), (6, 2));
-        assert_eq!(lexicon.log_probability(""), None);
-        let e =
-            UnigramLexicon::parse_with_limit("\u{1c}5 3\nb 1\n".as_bytes(), WhitespaceMode::Legacy, 1).err().unwrap();
-        assert_eq!(e.to_string(), "lexicon entry count exceeds safe limit of 1");
-        let s = super::super::UnigramSegmenter::new(lexicon, WhitespaceMode::Legacy)
-            .with_mode(super::super::UnigramMode::OpenNlp);
-        let mut out = Vec::new();
-        s.segment("ab", &mut out);
-        assert_eq!(out.len(), 2);
-        // In Unicode mode the same line lists the word U+001C 5 with count 3.
-        let unicode = UnigramLexicon::parse("\u{1c}5 3\nb 1\n".as_bytes(), WhitespaceMode::Unicode).unwrap();
-        assert_eq!((unicode.total(), unicode.len()), (4, 2));
-        assert!(unicode.log_probability("\u{1c}5").is_some());
+    fn next_line_ends_the_word_and_information_separators_do_not() {
+        // U+001C is not whitespace: it neither ends the word nor is trimmed.
+        let lexicon = parse("a\u{1c}7 3\n").unwrap();
+        assert_eq!(lexicon.len(), 1);
+        assert!(lexicon.log_probability("a\u{1c}7").is_some());
+        let lexicon = parse("\u{1c}5 3\nb 1\n").unwrap();
+        assert_eq!((lexicon.total(), lexicon.len()), (4, 2));
+        assert!(lexicon.log_probability("\u{1c}5").is_some());
+        assert_eq!(message("w\u{1f}\n"), "lexicon line 1 has no count");
+        // U+0085 inside a line separates the word from its count.
+        assert_eq!(parse("x\u{85}5 2\n").unwrap().total(), 5);
     }
 
     #[test]
@@ -426,7 +378,7 @@ mod tests {
 
     #[test]
     fn hostile_bytes() {
-        let utf8 = |bytes: &[u8]| match UnigramLexicon::parse(bytes, WhitespaceMode::Unicode) {
+        let utf8 = |bytes: &[u8]| match UnigramLexicon::parse(bytes) {
             Err(LexiconError::Utf8 { offset }) => offset,
             other => panic!("{other:?}"),
         };

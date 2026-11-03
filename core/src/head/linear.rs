@@ -1,8 +1,10 @@
 //! Lazy, coherent packed linear projections.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use crate::cpu::{Matrix, Mode};
+use crate::head::tanh;
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
 /// A host-side linear layer `y = x * W^T + b`, with `weight` stored row-major
@@ -20,6 +22,13 @@ pub struct Linear {
     bias: Vec<f32>,
     matrix: OnceLock<Matrix>,
     initialize: Mutex<()>,
+    /// The finiteness scan over weight and bias has passed for their
+    /// current contents. Cleared by every mutation route, so warm
+    /// `validate` calls cost only the shape checks instead of a pass
+    /// over what can be tens of millions of weights (the MLM decoder)
+    /// on every query. Shape is still checked on every call, since
+    /// the dims are public fields.
+    finite_checked: AtomicBool,
 }
 
 impl Clone for Linear {
@@ -31,6 +40,7 @@ impl Clone for Linear {
             bias: self.bias.clone(),
             matrix: OnceLock::new(),
             initialize: Mutex::new(()),
+            finite_checked: AtomicBool::new(self.finite_checked.load(Ordering::Acquire)),
         }
     }
 }
@@ -57,7 +67,7 @@ impl core::fmt::Debug for Linear {
     }
 }
 
-fn validate_linear_parts(what: &str, in_dim: usize, out_dim: usize, weight: &[f32], bias: &[f32]) -> Result<()> {
+fn check_linear_shape(what: &str, in_dim: usize, out_dim: usize, weight: &[f32], bias: &[f32]) -> Result<()> {
     if in_dim == 0 || out_dim == 0 {
         return Err(Error::new(INVALID_ARGUMENT, format!("{what} dimensions [{out_dim}, {in_dim}] must be positive")));
     }
@@ -73,6 +83,11 @@ fn validate_linear_parts(what: &str, in_dim: usize, out_dim: usize, weight: &[f3
     if bias.len() != out_dim {
         return Err(Error::new(INVALID_SHAPE, format!("{what} bias has {} values, expected {out_dim}", bias.len())));
     }
+    Ok(())
+}
+
+fn validate_linear_parts(what: &str, in_dim: usize, out_dim: usize, weight: &[f32], bias: &[f32]) -> Result<()> {
+    check_linear_shape(what, in_dim, out_dim, weight, bias)?;
     if !weight.iter().all(|v| v.is_finite()) || !bias.iter().all(|v| v.is_finite()) {
         return Err(Error::new(INVALID_ARGUMENT, format!("{what} contains non-finite weights or biases")));
     }
@@ -84,7 +99,15 @@ impl Linear {
     /// and `bias` (`[out_dim]`).
     pub fn new(in_dim: usize, out_dim: usize, weight: Vec<f32>, bias: Vec<f32>) -> Result<Self> {
         validate_linear_parts("linear layer", in_dim, out_dim, &weight, &bias)?;
-        Ok(Self { in_dim, out_dim, weight, bias, matrix: OnceLock::new(), initialize: Mutex::new(()) })
+        Ok(Self {
+            in_dim,
+            out_dim,
+            weight,
+            bias,
+            matrix: OnceLock::new(),
+            initialize: Mutex::new(()),
+            finite_checked: AtomicBool::new(true),
+        })
     }
 
     /// The plain row-major weights, without creating a packed copy.
@@ -97,6 +120,7 @@ impl Linear {
     /// Call [`Linear::validate`] after editing to check shape and finiteness.
     pub fn weight_mut(&mut self) -> &mut Vec<f32> {
         self.matrix.take();
+        self.finite_checked.store(false, Ordering::Release);
         &mut self.weight
     }
 
@@ -110,6 +134,7 @@ impl Linear {
     /// Call [`Linear::validate`] after editing to check shape and finiteness.
     pub fn bias_mut(&mut self) -> &mut Vec<f32> {
         self.matrix.take();
+        self.finite_checked.store(false, Ordering::Release);
         &mut self.bias
     }
 
@@ -138,9 +163,17 @@ impl Linear {
     }
 
     /// Validate that dimensions, `weight` cardinality, `bias` length, and
-    /// finiteness hold on this layer.
+    /// finiteness hold on this layer. The finiteness scan runs once per
+    /// contents (see `finite_checked`); the shape checks run every call.
     pub fn validate(&self, what: &str) -> Result<()> {
-        validate_linear_parts(what, self.in_dim, self.out_dim, &self.weight, &self.bias)
+        check_linear_shape(what, self.in_dim, self.out_dim, &self.weight, &self.bias)?;
+        if !self.finite_checked.load(Ordering::Acquire) {
+            if !self.weight.iter().all(|v| v.is_finite()) || !self.bias.iter().all(|v| v.is_finite()) {
+                return Err(Error::new(INVALID_ARGUMENT, format!("{what} contains non-finite weights or biases")));
+            }
+            self.finite_checked.store(true, Ordering::Release);
+        }
+        Ok(())
     }
 
     /// Compute `out = x * W^T + b` for a single vector `x` of length `in_dim`.
@@ -172,7 +205,7 @@ impl Linear {
     pub fn apply_tanh(&self, x: &[f32], out: &mut [f32]) {
         self.apply(x, out);
         for v in out.iter_mut() {
-            *v = v.tanh();
+            *v = tanh(*v);
         }
     }
 }

@@ -1,6 +1,6 @@
 //! Lemmatization, ported from OpenNLP 3.x onto the analysis API: the
 //! maxent lemmatizer `LemmatizerME` and the lookup `DictionaryLemmatizer`.
-//! Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`,
+//! Both read `turbo:tokens` and `turbo:pos` and write `turbo:lemmas`,
 //! a lemma per token.
 //!
 //! [`LemmatizerModel`] opens a `LemmatizerModel` file and
@@ -9,16 +9,14 @@
 //! edit scripts from a word to its lemma ([`edit_script`]), which are
 //! decoded with the model's format. Native models preserve case; published
 //! OpenNLP models keep their lowercase decoder. It also writes
-//! `turbo:confidence<opennlp:lemmas>`, the probability of each token's
+//! `turbo:confidence<turbo:lemmas>`, the probability of each token's
 //! class. [`DictionaryLemmatizer`] reads a `word<tab>tag<tab>lemma`
 //! dictionary and writes the first lemma listed for each lowercased token
 //! and its tag, or `O`. The beam search and the feature buffer are
 //! `turbo-sequence`'s.
 //!
-//! For OpenNLP models, lemma text and probability bits match the JVM,
-//! bit for bit; the tests compare both with files the JVM wrote
-//! (`analysis/goldens/data/lemmatize` and `lemmatize-dictionary`, see
-//! `README.md` here).
+//! Native behaviour is covered by crate-local unit and snapshot tests;
+//! no JVM golden files are read.
 //!
 //! # Where OpenNLP's behaviour is surprising
 //!

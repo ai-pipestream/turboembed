@@ -11,7 +11,7 @@ syntax = "proto3";
 // (docs/grpc-training.md): each is sealed into the training directory,
 // every file listed in its manifest by size and SHA-256, and served under
 // its name as soon as it is sealed.
-package turbo.training;
+package turbo.training.v1;
 
 service TurboCatalogService {
   // Every artifact the index lists. Refused artifacts are never listed.
@@ -24,6 +24,143 @@ service TurboCatalogService {
   // Admin. Fetches and verifies an artifact into the cache, one install at
   // a time, after the licence and free disk checks.
   rpc InstallModel(InstallModelRequest) returns (stream InstallModelUpdate);
+  // One artifact the index lists, as ListModelCatalog gives it.
+  rpc DescribeModel(DescribeModelRequest) returns (DescribeModelResponse);
+  // The artifact and file the index pins at a SHA-256.
+  rpc ResolveModel(ResolveModelRequest) returns (ResolveModelResponse);
+  // An installed file's bytes, for a user who accepted every term the
+  // artifact needs: its catalog file first, then the bytes.
+  rpc ReadModelFile(ReadModelFileRequest) returns (stream ModelFileChunk);
+  // Admin. Withdraws a user's acceptance of a licence's terms. Files
+  // already installed stay, but none is served to that user again until
+  // the terms are accepted again.
+  rpc RevokeLicenceAcceptance(RevokeLicenceAcceptanceRequest) returns (RevokeLicenceAcceptanceResponse);
+  // The terms a user accepted, in the order accepted, and whether the
+  // server serves the admin calls.
+  rpc ListLicenceAcceptances(ListLicenceAcceptancesRequest) returns (ListLicenceAcceptancesResponse);
+  // The model sources a user registered (docs/zoo.md, "Holders"), in the
+  // order an install for that user tries them, before the catalog's own.
+  // No secret is ever returned.
+  rpc ListModelSources(ListModelSourcesRequest) returns (ListModelSourcesResponse);
+  // Admin. Registers a source for a user, or replaces theirs of the same
+  // name where it was. In zoo mode without the admin flag only gdrive://
+  // sources are taken.
+  rpc RegisterModelSource(RegisterModelSourceRequest) returns (RegisterModelSourceResponse);
+  // Admin. Removes a user's source by name.
+  rpc RemoveModelSource(RemoveModelSourceRequest) returns (RemoveModelSourceResponse);
+  // Admin. Starts a user's Google sign-in for a gdrive:// source: the
+  // consent page to send the user to, and the state it comes back with.
+  rpc StartDriveSignIn(StartDriveSignInRequest) returns (StartDriveSignInResponse);
+  // Admin. Finishes that sign-in with the code and state the consent page
+  // redirected back with, and registers the source with the grant.
+  rpc FinishDriveSignIn(FinishDriveSignInRequest) returns (FinishDriveSignInResponse);
+}
+
+// How a registered source signs in.
+enum SourceSignIn {
+  SOURCE_SIGN_IN_UNSPECIFIED = 0;
+  // From the server's environment, or not at all.
+  SOURCE_SIGN_IN_ENVIRONMENT = 1;
+  // A Google grant from FinishDriveSignIn.
+  SOURCE_SIGN_IN_GOOGLE = 2;
+  // An API key, for a Drive folder shared by link.
+  SOURCE_SIGN_IN_API_KEY = 3;
+  // The source's own S3 access key pair.
+  SOURCE_SIGN_IN_S3_KEYS = 4;
+}
+
+// One registered source, without its secrets.
+message ModelSource {
+  string name = 1;
+  // file:///dir, s3://bucket/prefix or gdrive://<folder-id>[/name/...].
+  string address = 2;
+  SourceSignIn sign_in = 3;
+}
+
+message ListModelSourcesRequest {
+  // Empty lists nothing.
+  string user = 1;
+}
+
+message ListModelSourcesResponse {
+  string user = 1;
+  repeated ModelSource sources = 2;
+  // Whether the server serves the calls that change them.
+  bool admin = 3;
+  // Whether the server was configured for Google sign-in.
+  bool drive_sign_in = 4;
+}
+
+message RegisterModelSourceRequest {
+  string user = 1;
+  // 1 to 64 characters, no comma or control character.
+  string name = 2;
+  string address = 3;
+  // For a gdrive:// source shared by link; empty signs in from the
+  // server's environment.
+  string api_key = 4;
+  // For an s3:// source that signs in with its own keys; unset signs in
+  // from the server's environment.
+  S3Keys s3_keys = 5;
+}
+
+// An S3 access key pair an s3:// source signs its requests with, in place
+// of the server's AWS_* environment. Never returned by any call.
+message S3Keys {
+  string access_key_id = 1;
+  string secret_access_key = 2;
+  // For temporary keys; empty for none.
+  string session_token = 3;
+  // The bucket's AWS region; empty is us-east-1.
+  string region = 4;
+  // An S3-compatible store, http://host:port or https://host; empty is
+  // AWS.
+  string endpoint = 5;
+}
+
+message RegisterModelSourceResponse {
+  string user = 1;
+  ModelSource source = 2;
+}
+
+message RemoveModelSourceRequest {
+  string user = 1;
+  string name = 2;
+}
+
+message RemoveModelSourceResponse {
+  string user = 1;
+  // Whether there was a source of that name to remove.
+  bool was_registered = 2;
+}
+
+message StartDriveSignInRequest {
+  string user = 1;
+  // The source to register once signed in, as RegisterModelSourceRequest
+  // names it; the address is a gdrive:// one.
+  string name = 2;
+  string address = 3;
+}
+
+message StartDriveSignInResponse {
+  // Google's consent page, which redirects to the address the server was
+  // configured with.
+  string authorize_url = 1;
+  // What the redirect brings back; FinishDriveSignIn takes it.
+  string state = 2;
+  // Seconds the sign-in may take before it is forgotten.
+  uint32 expires_in = 3;
+}
+
+message FinishDriveSignInRequest {
+  string user = 1;
+  string state = 2;
+  string code = 3;
+}
+
+message FinishDriveSignInResponse {
+  string user = 1;
+  ModelSource source = 2;
 }
 
 // A licence and the address of the text a user accepts for it.
@@ -113,13 +250,58 @@ message RecordLicenceAcceptanceRequest {
   // The terms address, only for a licence without a text of its own
   // (LicenseRef-RestrictedPublic): the entry's LicenceTerms.text.
   string terms = 3;
+  // The artifact whose page showed the terms, recorded for audit. When
+  // set, it is an artifact the index lists that needs these terms.
+  string artifact_id = 4;
+  // The SHA-256, as 64 lowercase hex digits, of the LicenceTerms.text the
+  // page displayed. When set, it must be the digest of the text the
+  // server serves for these terms, so the acceptance names that text.
+  string text_sha256 = 5;
 }
 
 message RecordLicenceAcceptanceResponse {
   string user = 1;
   LicenceTerms accepted = 2;
-  // Seconds since the Unix epoch.
+  // Seconds since the Unix epoch. Accepting again keeps the first time.
   uint64 accepted_at = 3;
+}
+
+message RevokeLicenceAcceptanceRequest {
+  string user = 1;
+  // As RecordLicenceAcceptanceRequest names them.
+  string licence = 2;
+  string terms = 3;
+}
+
+message RevokeLicenceAcceptanceResponse {
+  string user = 1;
+  LicenceTerms revoked = 2;
+  // Whether there was an acceptance to withdraw.
+  bool was_accepted = 3;
+}
+
+// One acceptance as the zoo's acceptances.json records it (docs/zoo.md).
+message LicenceAcceptance {
+  LicenceTerms terms = 1;
+  // Seconds since the Unix epoch.
+  uint64 accepted_at = 2;
+  // The artifact whose page showed the terms, when one was recorded.
+  string artifact_id = 3;
+  // The SHA-256 of the text as the page displayed it, when recorded.
+  string text_sha256 = 4;
+}
+
+message ListLicenceAcceptancesRequest {
+  // Empty lists nothing.
+  string user = 1;
+}
+
+message ListLicenceAcceptancesResponse {
+  string user = 1;
+  repeated LicenceAcceptance accepted = 2;
+  // Whether the server serves RecordLicenceAcceptance,
+  // RevokeLicenceAcceptance and InstallModel (its admin flag, or zoo mode).
+  bool admin = 3;
 }
 
 message InstallModelRequest {
@@ -155,6 +337,50 @@ message InstallModelUpdate {
   oneof update {
     InstallProgress progress = 1;
     InstalledModel installed = 2;
+  }
+}
+
+message DescribeModelRequest {
+  // With a user, the entry's missing_terms are the ones that user has not
+  // accepted.
+  string user = 1;
+  string artifact_id = 2;
+}
+
+message DescribeModelResponse {
+  CatalogEntry entry = 1;
+}
+
+message ResolveModelRequest {
+  // The unpacked file's SHA-256, 64 lowercase hexadecimal digits.
+  string sha256 = 1;
+  // When set, only that artifact's files are searched.
+  string artifact_id = 2;
+  string user = 3;
+}
+
+message ResolveModelResponse {
+  CatalogEntry entry = 1;
+  // The file's path inside the artifact's directory.
+  string path = 2;
+}
+
+message ReadModelFileRequest {
+  string user = 1;
+  string artifact_id = 2;
+  // The file's path inside the artifact's directory.
+  string path = 3;
+  // When set, the SHA-256 the caller's own index pins: a file the server's
+  // index pins at another is refused.
+  string sha256 = 4;
+}
+
+message ModelFileChunk {
+  oneof frame {
+    // The first frame: the file as the index records it.
+    CatalogFile file = 1;
+    // Every later frame: the next bytes, at most 64 KiB.
+    bytes data = 2;
   }
 }
 

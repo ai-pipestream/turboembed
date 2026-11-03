@@ -1,6 +1,4 @@
-//! The language detector trained on Tatoeba's sentences and on web text
-//! from FineWeb-2 and FineWeb (issue #429), gated against OpenNLP's
-//! `langdetect-183.bin` on held-out sentences and on held-out web text.
+//! Web data planning for native language identification (#1525).
 //!
 //! - Data: the training sentences of [`crate::langdetect::LANGDETECT`],
 //!   read, checked and split exactly as that recipe does, and the
@@ -12,26 +10,13 @@
 //!   sentence ([`fineweb::Avoid`]). One event each, the sentences first,
 //!   then the windows, each language by language in the order of
 //!   [`crate::langdetect::LANGUAGES`].
-//! - Training: the Tatoeba recipe's parameters (`MAXENT`, 100
-//!   iterations, cutoff 5, one thread, the `OnePass` indexer) and its
-//!   fixed manifest `Timestamp`, so a run gives the same bytes.
-//! - Gates: the Tatoeba recipe's held-out sentences, the set its model
-//!   was gated on ([`GATE_FILE`](crate::card::GATE_FILE)), and the held-out
-//!   web windows ([`WEB_GATE_FILE`]). A unit is right when the model's best
-//!   language is its language, as written for the trained model and through
-//!   [`crate::langdetect::LANGUAGES`] for the reference. The model is a
-//!   release only when it passes both.
-//! - Comparison: the held-out sentences, and the held-out windows of the
-//!   languages it has, scored again with the Tatoeba recipe's model as the
-//!   zoo lists it ([`COMPARED`]) in the reference's place
-//!   ([`COMPARE_TATOEBA_FILE`], [`COMPARE_WEB_FILE`]), so the card says
-//!   what the web text changed. It is reported, not a gate.
+//! - Native model: `langid` trains on the checked sentences and windows
+//!   and scores exact accuracy on their held-out samples. The classical
+//!   model comparisons are retired (#1648).
 //!
 //! The web windows' languages are the labels FineWeb-2's and FineWeb's
-//! classifiers gave their documents, so the web gate measures agreement
-//! with those classifiers, on text much like the text trained on. The
-//! reference was trained on other text (the Leipzig corpora) and is
-//! scored against the same labels.
+//! classifiers gave their documents, so web evaluation measures agreement
+//! with those classifiers on text much like the text trained on.
 
 mod card;
 mod score;
@@ -51,7 +36,7 @@ pub use card::{
 use crate::Reference;
 use crate::card::GATE_FILE;
 use crate::error::{Error, Result, io};
-use crate::fineweb::{self, Avoid, Overlap, Store, WEB, WebFile, WebRange, WebRecipe};
+use crate::fineweb::{self, Store, WEB, WebFile, WebRange, WebRecipe};
 use crate::langdetect::{self, CARD_FILE, LANGDETECT, LanguageRecipe};
 use crate::tatoeba::Export;
 
@@ -203,34 +188,14 @@ impl<'a> WebInput<'a> {
 /// checked for another web recipe, or what reading, training or scoring
 /// fail on.
 pub fn run(
-    recipe: &WebLanguageRecipe,
-    export: &Export,
-    recorded_export: bool,
-    web: &WebInput<'_>,
-    reference: &[u8],
-    compared: &[u8],
+    _recipe: &WebLanguageRecipe,
+    _export: &Export,
+    _recorded_export: bool,
+    _web: &WebInput<'_>,
+    _reference: &[u8],
+    _compared: &[u8],
 ) -> Result<WebOutcome> {
-    recipe.tatoeba.reference.check(reference)?;
-    recipe.compared.check(compared)?;
-    recipe.check_languages()?;
-    if web.web != recipe.web {
-        return Err(Error::Model(format!("{}: the web data was checked for another web recipe", recipe.model_id)));
-    }
-    let mut plan = recipe.tatoeba.plan(recipe.tatoeba.sentences(export)?)?;
-    let web_plan = {
-        let (n, min) = (recipe.web.languages.len(), recipe.web.split.overlap_min_chars);
-        let avoid = Avoid {
-            training: Overlap::new(n, min, plan.held_out.iter().map(|s| (s.language, s.text.as_ref()))),
-            held_out: Overlap::new(n, min, plan.training.iter().map(|s| (s.language, s.text.as_ref()))),
-        };
-        fineweb::plan_web(web.files, &recipe.web, web.store, &avoid)?
-    };
-    let trained = recipe.train(&plan, &web_plan, web.files)?;
-    let digest = export.digest();
-    let lists = fineweb::lists_digest(web.files, web.ranges);
-    let scored = recipe.score(&trained.bytes, reference, compared, &mut plan, &web_plan, &digest, &lists)?;
-    let card = WebLanguageCard::new(recipe, export, recorded_export, web, &lists, &plan, &web_plan, &trained, &scored);
-    Ok(WebOutcome { trained, scored, card })
+    Err(Error::Model("classical web language detector training and gating is retired (#1648); use native n-gram language identification (#1525)".into()))
 }
 
 /// Writes the model's directory `dir/<model id>/`: the model file,

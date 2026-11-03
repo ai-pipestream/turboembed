@@ -1,8 +1,6 @@
 //! The verdict on one full stop: the token around it, the entries it
 //! matches and the word after it.
 
-use turbo_unicode::whitespace::WhitespaceMode;
-
 use super::index::{Entry, keys, probe};
 use super::{AbbreviationInventory, ContextRule, Verdict};
 
@@ -50,13 +48,13 @@ fn token_at(text: &str, at: usize) -> Option<Token> {
     while start > 0 {
         let c = b[start - 1];
         let i = if c < 0x80 {
-            if WhitespaceMode::Unicode.is_ascii_whitespace(c) {
+            if turbo_unicode::whitespace::is_ascii_whitespace(c) {
                 break;
             }
             start - 1
         } else {
             let (i, ch) = text[..start].char_indices().next_back()?;
-            if WhitespaceMode::Unicode.is_whitespace(ch as u32) {
+            if turbo_unicode::whitespace::is_whitespace(ch as u32) {
                 break;
             }
             i
@@ -70,13 +68,13 @@ fn token_at(text: &str, at: usize) -> Option<Token> {
     while raw_end < b.len() {
         let c = b[raw_end];
         raw_end += if c < 0x80 {
-            if WhitespaceMode::Unicode.is_ascii_whitespace(c) {
+            if turbo_unicode::whitespace::is_ascii_whitespace(c) {
                 break;
             }
             1
         } else {
             let ch = text[raw_end..].chars().next()?;
-            if WhitespaceMode::Unicode.is_whitespace(ch as u32) {
+            if turbo_unicode::whitespace::is_whitespace(ch as u32) {
                 break;
             }
             ch.len_utf8()
@@ -120,7 +118,7 @@ fn token_at(text: &str, at: usize) -> Option<Token> {
 
 /// The token before byte `at`, past the whitespace there.
 fn prev_token(text: &str, at: usize) -> Option<Token> {
-    let (i, _) = text[..at].char_indices().rev().find(|(_, c)| !WhitespaceMode::Unicode.is_whitespace(*c as u32))?;
+    let (i, _) = text[..at].char_indices().rev().find(|(_, c)| !turbo_unicode::whitespace::is_whitespace(*c as u32))?;
     if at - i > MAX_TOKEN {
         return None;
     }
@@ -129,7 +127,7 @@ fn prev_token(text: &str, at: usize) -> Option<Token> {
 
 /// The token after byte `at`, past the whitespace there.
 fn next_token(text: &str, at: usize) -> Option<Token> {
-    let (i, _) = text[at..].char_indices().find(|(_, c)| !WhitespaceMode::Unicode.is_whitespace(*c as u32))?;
+    let (i, _) = text[at..].char_indices().find(|(_, c)| !turbo_unicode::whitespace::is_whitespace(*c as u32))?;
     if i > MAX_TOKEN {
         return None;
     }
@@ -235,7 +233,7 @@ fn apply(rule: ContextRule, rest: &str) -> Verdict {
         Some(_) => {}
     }
     let word =
-        rest.trim_start_matches(|c: char| WhitespaceMode::Unicode.is_whitespace(c as u32) || OPENERS.contains(&c));
+        rest.trim_start_matches(|c: char| turbo_unicode::whitespace::is_whitespace(c as u32) || OPENERS.contains(&c));
     let Some(c) = word.chars().next() else { return Verdict::Neutral };
     let suppress = match rule {
         ContextRule::Prepositive => c.is_alphanumeric(),

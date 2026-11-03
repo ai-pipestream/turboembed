@@ -1,6 +1,6 @@
 use std::ops::AddAssign;
 
-use turbo_jvm::random::JavaRandom;
+use crate::random::JavaRandom;
 
 use super::{Counts, Measure, PairedUnit};
 

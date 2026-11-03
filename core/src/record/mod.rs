@@ -83,12 +83,14 @@ pub const NO_RECORD: &str = "no benchmark record for this cell";
 
 /// The reference programs a record may name, each with its role: the
 /// vendors' fastest kernel paths (TensorRT for NVIDIA GPUs, OpenVINO for
-/// Intel GPUs and for the NPU, HailoRT for Hailo) and the embedding server.
-pub const REFERENCES: [(&str, &str); 4] = [
+/// Intel GPUs and for the NPU, HailoRT for Hailo, MLX for Apple GPUs) and
+/// the embedding server.
+pub const REFERENCES: [(&str, &str); 5] = [
     ("text-embeddings-inference", "end_to_end"),
     ("tensorrt", "kernel"),
     ("openvino", "kernel"),
     ("hailort", "kernel"),
+    ("mlx", "kernel"),
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -257,6 +259,31 @@ pub struct ReferenceRun {
     pub measured: Option<Measured>,
     /// Why it was not measured; null when it was.
     pub not_run: Option<String>,
+    /// text-embeddings-inference on a GPU, profiled: its requests' time
+    /// in GPU kernels, which no header of its gives. Absent when it was
+    /// not profiled, and in a record made before the field was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kernel_time: Option<KernelTime>,
+}
+
+/// The GPU time of a reference's requests, as a profiler traced them.
+/// Each profiled request is sent alone, with the GPU left idle before the
+/// next, so a request's kernels are the trace's activity between two
+/// idle gaps.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KernelTime {
+    /// The profiler as it named itself (`nsys --version`).
+    pub profiler: String,
+    /// Requests profiled.
+    pub requests: u64,
+    /// Per request, the kernels' durations summed.
+    pub p50_ms: f64,
+    pub p99_ms: f64,
+    /// Per request, the memory copies' and sets' durations summed.
+    pub copy_p50_ms: f64,
+    /// Per request, the kernels launched (p50).
+    pub kernels_p50: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

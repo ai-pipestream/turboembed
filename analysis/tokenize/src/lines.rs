@@ -1,8 +1,6 @@
 //! Reading text files line by line as the Java readers do: the lines
 //! `BufferedReader.readLine` returns, and `StringUtil.trimUnicodeWhitespace`.
 
-use turbo_unicode::WhitespaceMode;
-
 /// The lines of `text` as `BufferedReader.readLine` returns them: ended by
 /// `\n`, `\r` or `\r\n`, the end itself left out, and no empty last line
 /// after a final line end.
@@ -41,13 +39,12 @@ impl<'a> Iterator for Lines<'a> {
     }
 }
 
-pub(crate) use turbo_unicode::whitespace::trim_unicode_whitespace;
+pub(crate) use turbo_unicode::whitespace::trim as trim_unicode_whitespace;
 
-/// The fields of `line` separated by whitespace in `mode`, as OpenNLP's
-/// dictionary readers split them (`splitWhitespace` over
-/// `StringUtil.isWhitespace`): the runs of non-whitespace, in order.
-pub(crate) fn whitespace_fields(line: &str, mode: WhitespaceMode) -> impl Iterator<Item = &str> {
-    line.split(move |c: char| mode.is_whitespace(c as u32)).filter(|f| !f.is_empty())
+/// The fields of `line` separated by Unicode whitespace: the runs of
+/// non-whitespace, in order.
+pub(crate) fn whitespace_fields(line: &str) -> impl Iterator<Item = &str> {
+    line.split(|c: char| turbo_unicode::whitespace::is_whitespace(c as u32)).filter(|f| !f.is_empty())
 }
 
 #[cfg(test)]
@@ -69,17 +66,16 @@ mod tests {
     }
 
     #[test]
-    fn fields_split_in_the_mode() {
-        let f = |s, m| whitespace_fields(s, m).collect::<Vec<_>>();
-        assert_eq!(f("  a\tb  c ", WhitespaceMode::Unicode), ["a", "b", "c"]);
-        assert_eq!(f("a\u{85}b", WhitespaceMode::Unicode), ["a", "b"]);
-        assert_eq!(f("a\u{85}b", WhitespaceMode::Legacy), ["a\u{85}b"]);
-        assert_eq!(f("a\u{1c}b", WhitespaceMode::Legacy), ["a", "b"]);
-        assert_eq!(f("   ", WhitespaceMode::Unicode), Vec::<&str>::new());
+    fn fields_split_at_unicode_whitespace() {
+        let f = |s| whitespace_fields(s).collect::<Vec<_>>();
+        assert_eq!(f("  a\tb  c "), ["a", "b", "c"]);
+        assert_eq!(f("a\u{85}b"), ["a", "b"]);
+        assert_eq!(f("a\u{1c}b"), ["a\u{1c}b"]);
+        assert_eq!(f("   "), Vec::<&str>::new());
     }
 
     #[test]
-    fn trimming_is_unicode_in_every_mode() {
+    fn trimming_is_unicode() {
         assert_eq!(trim_unicode_whitespace("\u{3000} a b\u{85}"), "a b");
         assert_eq!(trim_unicode_whitespace("\u{1c}a"), "\u{1c}a");
     }

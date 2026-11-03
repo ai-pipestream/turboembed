@@ -23,15 +23,15 @@
 mod tests;
 
 use turbo_unicode::GeneralCategory;
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::category::general_category;
 use turbo_unicode::java::code_point::{is_alphabetic, is_digit};
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
+use turbo_unicode::whitespace::is_whitespace;
 
 use crate::format::Golden;
 
-/// One span as the JVM returned it, read from a golden's `opennlp:tokens`
-/// (or `opennlp:sentences`) block with its `turbo:utf16<L>` block, its
+/// One span as the JVM returned it, read from a golden's `turbo:tokens`
+/// (or `turbo:sentences`) block with its `turbo:utf16<L>` block, its
 /// confidence and its word type when the golden has them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JvmSpan {
@@ -83,7 +83,7 @@ pub fn jvm_spans(golden: &Golden, text: &str, id: &str) -> Result<Vec<JvmSpan>, 
         }
         None => None,
     };
-    let kind = match (id == "opennlp:tokens").then(|| golden.layer("turbo:word-types")).flatten() {
+    let kind = match (id == "turbo:tokens").then(|| golden.layer("turbo:word-types")).flatten() {
         Some(wt) => {
             let k = wt.strs("kind").ok_or("a kind column")?;
             if k.len() != n {
@@ -111,9 +111,9 @@ pub fn jvm_spans(golden: &Golden, text: &str, id: &str) -> Result<Vec<JvmSpan>, 
         .collect()
 }
 
-/// The JVM's token spans (`opennlp:tokens`).
+/// The JVM's token spans (`turbo:tokens`).
 pub fn jvm_token_spans(golden: &Golden, text: &str) -> Result<Vec<JvmSpan>, String> {
-    jvm_spans(golden, text, "opennlp:tokens")
+    jvm_spans(golden, text, "turbo:tokens")
 }
 
 /// What the Rust maxent tokenizer produces for the spans the JVM wrote: a
@@ -220,9 +220,9 @@ pub fn simple_newline_spans(text: &str, plain: &[(u32, u32)]) -> Vec<(u32, u32)>
 /// the span that starts where the last token or line break ended, which
 /// is not the line break's; and a line break before the first token asks
 /// for a span from -1, which `Span` refuses: the result is
-/// `Err("java.lang.IllegalArgumentException")`. `mode` is the whitespace
-/// table of `StringUtil.isWhitespace`.
-pub fn jvm_simple_newline_spans(text: &str, mode: WhitespaceMode) -> Result<Vec<(u32, u32)>, String> {
+/// `Err("java.lang.IllegalArgumentException")`. Whitespace is Unicode
+/// `White_Space`.
+pub fn jvm_simple_newline_spans(text: &str) -> Result<Vec<(u32, u32)>, String> {
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum Class {
         Whitespace,
@@ -239,7 +239,7 @@ pub fn jvm_simple_newline_spans(text: &str, mode: WhitespaceMode) -> Result<Vec<
     for (ci, c) in text.encode_utf16().enumerate() {
         let (ci, cp) = (ci as u32, u32::from(c));
         length = ci + 1;
-        class = if mode.is_whitespace(cp) {
+        class = if is_whitespace(cp) {
             Class::Whitespace
         } else if is_alphabetic(cp) {
             Class::Alphabetic

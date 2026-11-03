@@ -2,6 +2,55 @@
 
 use super::*;
 
+const MODEL_MAGIC: u64 = 0x7475_7262_6f6d_6431; // "turbomd1"
+
+/// A bundle loaded on a context's device. It holds its context, so the
+/// backend's model is released before the backend's context.
+pub(super) struct Model {
+    pub(super) context: Arc<Context>,
+    pub(super) raw: *mut c_void,
+    pub(super) release: unsafe extern "C" fn(*mut c_void),
+    /// The core's one verified host copy of the weights, and of a compiled
+    /// artifact's bytes. A backend with its own memory copied them there at
+    /// load; the CPU backend reads them here, in place, so they live exactly
+    /// as long as the backend's model.
+    pub(super) weights: model::Weights,
+    /// The bundle's tokenizer, checked against its reference at load, for
+    /// turbo_embed_write_text.
+    pub(super) tokenizer: Tokenizer,
+    pub(super) info: turbo_model_info,
+    /// The widths embed.output_dims allows besides dim.
+    pub(super) output_dims: Vec<u32>,
+    pub(super) rerank_head: Option<head::Head>,
+    /// An extractive QA model's span head, on a backend that applies it
+    /// as it pools ranges; it holds the tensors model_load was handed.
+    pub(super) span_head: Option<head::Head>,
+}
+
+// As for Context: the backend's model may be used from any thread.
+unsafe impl Send for Model {}
+unsafe impl Sync for Model {}
+
+impl Drop for Model {
+    fn drop(&mut self) {
+        // The weights and the context are dropped after this, with the
+        // struct's fields.
+        unsafe { (self.release)(self.raw) };
+    }
+}
+
+pub struct turbo_model {
+    pub(super) magic: u64,
+    pub(super) inner: Arc<Model>,
+}
+
+pub(super) unsafe fn model_handle<'a>(m: *mut turbo_model) -> Result<&'a turbo_model> {
+    match unsafe { m.as_ref() } {
+        Some(r) if r.magic == MODEL_MAGIC => Ok(r),
+        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_model")),
+    }
+}
+
 /// docs/bundle.md's loader rules, in order, for the context's device.
 pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let c = &ctx.inner;
@@ -12,7 +61,7 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     if bundle.manifest.rerank.is_some() && !b.runs_rerank() {
         return Err(Error::new(
             status::UNSUPPORTED_TASK,
-            format!("rerank has run on the CPU and CUDA only, not the {} backend", b.name()),
+            format!("rerank has run on the CPU, CUDA, Level Zero and Metal only, not the {} backend", b.name()),
         ));
     }
     if bundle.manifest.qa.is_some() && backend::offered!(b, embed_write_ranges).is_err() {
@@ -24,9 +73,11 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let tokenizer = Tokenizer::load(&bundle)?; // rule 5
     let m = &bundle.manifest;
     let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
+    // Rule 6 skips an artifact whose backend has no encoder for the family
+    // or no attention for the band, so nothing is hashed for a model the
+    // device cannot run.
     let index = model::choose(m, b.name(), b.formats(), &arch)?; // rule 6
     let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
-    model::runs_band(b.name(), weights.lookahead)?;
     let art = &m.artifacts[index];
 
     let e = m.encoder();

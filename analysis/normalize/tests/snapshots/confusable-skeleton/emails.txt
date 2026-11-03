@@ -1,0 +1,19 @@
+===OUT===
+Write to alice@exarnple.corn or bob.srnith+tag@rnail.exarnple.org, or (carol_d@exarnple.co.uk).
+Not an address: user@, @exarnple.corn and a@b. Ends with dave@exarnple.corn.
+Two in a row: erin@exarnple.corn,frank@exarnple.org.
+
+===EDITS===
+18	19	rn
+25	26	rn
+35	36	rn
+44	45	rn
+52	53	rn
+77	78	rn
+117	118	rn
+124	125	rn
+153	154	rn
+160	161	rn
+185	186	rn
+192	193	rn
+203	204	rn

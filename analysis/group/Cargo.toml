@@ -13,5 +13,7 @@ turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 
 [dev-dependencies]
+# CoNLL-U fixtures read into word, tag and dependency layers for the syntax sketcher's tests.
+turbo-formats = { path = "../formats" }
 turbo-normalize = { path = "../normalize" }
 turbo-structure = { path = "../structure" }

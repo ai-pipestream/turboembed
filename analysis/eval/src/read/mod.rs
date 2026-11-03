@@ -12,6 +12,8 @@
 
 pub mod beir;
 pub mod conteb;
+pub mod contract_nli;
+pub mod cuad;
 pub mod gutenqa;
 pub mod hicbench;
 pub mod legalbench_rag;
@@ -25,9 +27,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::sha::{Sha256, sha256, to_hex};
 use serde::de::DeserializeOwned;
-use turbo_goldens::hex::to_hex;
-use turbo_goldens::sha::{Sha256, sha256};
 
 use crate::Result;
 

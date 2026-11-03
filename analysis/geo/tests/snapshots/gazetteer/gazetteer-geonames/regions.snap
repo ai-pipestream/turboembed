@@ -1,0 +1,816 @@
+# turbo:gazetteer-alternates
+0	Sao Paulo
+0	San Pablo
+0	Сан-Паулу
+0	サンパウロ
+2	Zurich
+2	Zuerich
+2	Zurigo
+2	Цюрих
+2	Zurych
+3	Bavaria
+3	Baviera
+3	Bavière
+3	Freistaat Bayern
+3	Бавария
+4	Kobenhavn
+4	Copenhagen
+4	Kopenhagen
+4	Copenhague
+4	Köpenhamn
+5	Al Qahirah
+5	القاهرة
+5	Le Caire
+5	Kairo
+6	Madri
+6	マドリード
+8	Londres
+8	Londra
+8	Londýn
+8	Лондон
+8	伦敦
+8	ロンドン
+8	LON
+9	Athina
+9	Athens
+9	Athen
+9	Athènes
+9	Afiny
+9	Атина
+10	Bombay
+10	मुंबई
+10	Bombaim
+11	Reykjavik
+11	Reikiavik
+11	Рейкьявик
+12	Tokyo
+12	Tokio
+12	Tōkyō
+12	Токио
+12	도쿄
+13	Ciudad de Mexico
+13	Mexico City
+13	Mexiko-Stadt
+13	CDMX
+13	Мехико
+14	Krakow
+14	Cracow
+14	Krakau
+14	Cracovia
+15	Istanbul
+15	Stamboul
+15	Constantinople
+15	Κωνσταντινούπολη
+15	ISTANBUL
+16	Washington DC
+16	DC
+16	Washington
+17	Da Nang
+17	Danang
+17	Tourane
+# turbo:gazetteer-attributes
+# turbo:gazetteer-candidates
+43	0
+52	1
+59	2
+82	3
+88	4
+110	5
+122	6
+147	7
+157	8
+173	9
+221	10
+226	11
+249	12
+335	13
+401	14
+511	15
+538	16
+559	17
+676	3
+677	3
+678	3
+679	16
+680	7
+681	8
+695	12
+# turbo:gazetteer-containment
+# turbo:gazetteer-entries
+geonames	3448439	São Paulo	c0378c28f5c28f5c	c047516c0d6f544c	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	BR	10021295	1	CITY
+geonames	6058560	London	40457ddfb9389b52	c0544eea209aaa3b	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	CA	346765	1	CITY
+geonames	2657896	Zürich	4047aeef0ae53650	402119999999999a	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	CH	341730	1	CITY
+geonames	2951839	Bayern	4048800000000000	4027000000000000	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	DE	12520000	1	ADMIN
+geonames	2618425	København	404bd68533b10774	4029218d25edd053	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	DK	1153615	1	CITY
+geonames	360630	Cairo	403e10088509bf9c	403f3fea5f84cad5	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	EG	9606916	1	CITY
+geonames	3117735	Madrid	4044354fdf3b645a	c00d9ed7c6fbd274	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	ES	3255944	1	CITY
+geonames	6942553	Paris	40486d3c89f40a28	4002ca57a786c227	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	FR	2138551	1	CITY
+geonames	2643743	London	4049c11782d38477	bfc0183f91e646f1	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	GB	8961989	1	CITY
+geonames	264371	Αθήνα	4042fdebd9018e75	4037ba53b8e4b87c	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	GR	664046	1	CITY
+geonames	1275339	Mumbai	403312a4fca42aed	4052387caea747d8	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	IN	12691836	1	CITY
+geonames	102	Reykjavík	405008abb44e50c6	c035e53996fa82e8	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	IS	118918	1	CITY
+geonames	1850147	東京	4041d84189374bc7	406176227d028a1e	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	JP	8336599	1	CITY
+geonames	107	Ciudad de México	40336db035bd512f	c058c82b94d94079	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	MX	12294193	1	CITY
+geonames	105	Kraków	404907dcf0307f24	4033efc3b4f61672	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	PL	755050	1	CITY
+geonames	745044	İstanbul	404481c58255b036	403cf31ceaf251c2	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	TR	14804116	1	CITY
+geonames	106	Washington, D.C.	40437292f6e8294a	c0534253e2d6238e	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	US	689545	1	CITY
+geonames	104	Đà Nẵng	4030115a07b352a8	405b0e221426fe72	0	0000000000000000	0000000000000000	0000000000000000	0000000000000000	1	VN	752493	1	CITY
+# turbo:gazetteer-queries
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+0		
+1		
+1		
+1		
+1		
+1		
+1		
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: D
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: DEU
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: 
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got:  DE
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: DE 
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: Ä1
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: 1A
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: ÄÖ
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: ＤＥ
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: D́
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: ǅE
+0	java.lang.IllegalArgumentException	isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: 	
+0		
+1		
+# turbo:gazetteer-sources
+geonames

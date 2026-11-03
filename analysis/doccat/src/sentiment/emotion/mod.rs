@@ -1,5 +1,5 @@
 //! Multi-label emotion annotator (`#855`, part of `#318`): the 28 GoEmotions
-//! labels of `turbo:emotion` ([`EmotionLayer`]) for each sentence or chunk.
+//! labels of `turbo:emotion` ([`crate::scorers::EmotionLayer`]) for each sentence or chunk.
 //!
 //! [`EmotionAnnotator`] (`turbo-doccat:emotion`) scores a unit in one of
 //! three stages ([`EmotionStage`]):
@@ -23,7 +23,9 @@
 use std::sync::Arc;
 
 use turbo_analysis::{IxRange, ModelRef};
-use turbo_analysis_layers::{EmotionDimension, EmotionScores, Tokens};
+#[cfg(test)]
+use turbo_analysis_layers::Tokens;
+use turbo_analysis_layers::{EMOTION_DIMENSIONS, EmotionDimension, EmotionScores};
 
 mod annotate;
 mod head;
@@ -32,30 +34,15 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-pub use head::{EmotionHeadError, EmotionVectorHead, EmotionVectorScorer};
-pub use metrics::{EmotionMetrics, GoldEmotionUnit, evaluate_emotion_corpus};
+pub use crate::scorers::{EmotionEvidence, EmotionStage, EmotionUnit, EmotionVectorScorer};
+pub use head::{
+    EmotionFitOptions, EmotionHeadError, EmotionVectorHead, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD,
+    GOEMOTIONS_MINILM_HEAD, GOEMOTIONS_MODERNBERT_HEAD,
+};
+pub use metrics::{EmotionMetrics, GoldEmotionUnit, evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds};
 
 /// The score at or above which a label is active (`0.5`).
 pub const DEFAULT_EMOTION_THRESHOLD: f64 = 0.5;
-
-/// Which signals [`EmotionAnnotator`] scores with.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-#[repr(u8)]
-pub enum EmotionStage {
-    #[default]
-    Lexicon = 0,
-    Learned = 1,
-    Hybrid = 2,
-}
-
-/// Which unit layer [`EmotionAnnotator`] scores.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-#[repr(u8)]
-pub enum EmotionUnit {
-    #[default]
-    Sentences = 0,
-    Chunks = 1,
-}
 
 /// See the module comment.
 #[derive(Clone)]
@@ -66,6 +53,9 @@ pub struct EmotionAnnotator {
     /// The score at or above which a label is active and, for an emotion,
     /// carries evidence.
     pub threshold: f64,
+    /// Optional per-label thresholds in [`EmotionDimension::ALL`] order;
+    /// when `Some`, overrides `threshold` for each label (`#926`).
+    pub thresholds: Option<[f64; EMOTION_DIMENSIONS]>,
 }
 
 impl Default for EmotionAnnotator {
@@ -73,9 +63,6 @@ impl Default for EmotionAnnotator {
         Self::new()
     }
 }
-
-/// One `(label, token range)` evidence pair.
-pub type EmotionEvidence = (EmotionDimension, IxRange<Tokens>);
 
 impl EmotionAnnotator {
     /// The lexicon stage over sentences at the default threshold.
@@ -85,6 +72,7 @@ impl EmotionAnnotator {
             stage: EmotionStage::Lexicon,
             vector_scorer: None,
             threshold: DEFAULT_EMOTION_THRESHOLD,
+            thresholds: None,
         }
     }
 
@@ -103,11 +91,25 @@ impl EmotionAnnotator {
         self
     }
 
-    /// Sets the threshold; scoring fails unless it is finite and in
-    /// `0.05..=0.99`.
+    /// Sets the uniform threshold; scoring fails unless it is finite and in
+    /// `0.05..=0.99`. Clears any per-label thresholds set by
+    /// [`EmotionAnnotator::with_thresholds`].
     pub fn with_threshold(mut self, threshold: f64) -> Self {
         self.threshold = threshold;
+        self.thresholds = None;
         self
+    }
+
+    /// Sets per-label thresholds in [`EmotionDimension::ALL`] order; scoring
+    /// fails unless every threshold is finite and in `0.05..=0.99`.
+    pub fn with_thresholds(mut self, thresholds: [f64; EMOTION_DIMENSIONS]) -> Self {
+        self.thresholds = Some(thresholds);
+        self
+    }
+
+    /// The active threshold for `d`.
+    pub fn threshold_for(&self, d: EmotionDimension) -> f64 {
+        self.thresholds.as_ref().map_or(self.threshold, |ts| ts[d.index()])
     }
 
     /// Scores the unit of tokens `start..end`, `keys` being every token's
@@ -119,7 +121,10 @@ impl EmotionAnnotator {
         end: usize,
         vector: Option<&[f32]>,
     ) -> Result<(EmotionScores, Vec<EmotionEvidence>), String> {
-        if !(self.threshold.is_finite() && (0.05..=0.99).contains(&self.threshold)) {
+        let valid_threshold = |t: f64| t.is_finite() && (0.05..=0.99).contains(&t);
+        if !valid_threshold(self.threshold)
+            || self.thresholds.as_ref().is_some_and(|ts| ts.iter().any(|&t| !valid_threshold(t)))
+        {
             return Err("emotion threshold must be finite and in 0.05..=0.99".into());
         }
         if start > end || end > keys.len() || end >= u32::MAX as usize {
@@ -173,13 +178,16 @@ impl EmotionAnnotator {
         }
         // A positive emotion with no cue in the unit points at the unit.
         if start < end {
-            for d in scores.active(self.threshold) {
-                if d != EmotionDimension::Neutral && !evidence.iter().any(|&(l, _)| l == d) {
+            for d in EmotionDimension::ALL {
+                if d != EmotionDimension::Neutral
+                    && scores.get(d) >= self.threshold_for(d)
+                    && !evidence.iter().any(|&(l, _)| l == d)
+                {
                     evidence.push((d, IxRange::new(start as u32, end as u32)));
                 }
             }
         }
-        evidence.retain(|&(d, _)| scores.get(d) >= self.threshold);
+        evidence.retain(|&(d, _)| scores.get(d) >= self.threshold_for(d));
         evidence.sort_unstable_by_key(|&(l, r)| (l, r.start, r.end));
         evidence.dedup();
         Ok((scores, evidence))
@@ -203,7 +211,7 @@ impl EmotionAnnotator {
             None => ModelRef {
                 id: format!("goemotions-seed:{stage}"),
                 revision: "1".into(),
-                sha256: turbo_maxent::sha256(&self.config().to_le_bytes()).to_hex(),
+                sha256: turbo_sha256::sha256(&self.config().to_le_bytes()).to_hex(),
             },
         }
     }
@@ -217,6 +225,11 @@ impl EmotionAnnotator {
             h.bytes(w).u8(d).u64(x);
         }
         h.u64(self.unit as u64).u64(self.stage as u64).u64(self.threshold.to_bits());
+        if let Some(ts) = &self.thresholds {
+            for t in ts {
+                h.u64(t.to_bits());
+            }
+        }
         h.u64(head.map_or(0, |s| s.config_hash()));
         h.finish()
     }

@@ -87,6 +87,20 @@ impl Features {
         }
         self.push(&digits[i..]);
     }
+
+    pub(crate) fn release_large(&mut self, max: usize) {
+        if self.bytes.capacity() > max {
+            self.bytes = Vec::new();
+        }
+        if self.ends.capacity() > max {
+            self.ends = Vec::new();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn largest_capacity(&self) -> usize {
+        self.bytes.capacity().max(self.ends.capacity())
+    }
 }
 
 #[cfg(test)]

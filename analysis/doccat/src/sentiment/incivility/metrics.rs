@@ -45,6 +45,16 @@ pub fn evaluate_incivility_corpus(
     predicted: &Incivility,
     threshold: f64,
 ) -> IncivilityMetrics {
+    evaluate_incivility_corpus_with_thresholds(gold, predicted, &[threshold; INCIVILITY_DIMENSIONS])
+}
+
+/// Evaluates predicted [`Incivility`] items against `gold` using per-label
+/// `thresholds` in [`IncivilityLabel::ALL`] order (`#888`, `#963`).
+pub fn evaluate_incivility_corpus_with_thresholds(
+    gold: &[GoldIncivilityUnit],
+    predicted: &Incivility,
+    thresholds: &[f64; INCIVILITY_DIMENSIONS],
+) -> IncivilityMetrics {
     assert_eq!(gold.len(), predicted.len(), "gold and predicted unit counts must match");
     let mut per_label = IncivilityLabel::ALL.map(|l| (l, LabelMetrics::default()));
     let mut positive_with_evidence = 0usize;
@@ -57,7 +67,7 @@ pub fn evaluate_incivility_corpus(
 
         for (l_idx, &label) in IncivilityLabel::ALL.iter().enumerate() {
             let want = g.positive_labels.contains(&label);
-            let got = scores.get(label) >= threshold;
+            let got = scores.get(label) >= thresholds[l_idx];
             if got {
                 total_positive_predictions += 1;
                 if ev.iter().any(|&(el, r)| el == label && !r.is_empty()) {

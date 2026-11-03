@@ -3,9 +3,9 @@ use turbo_analysis_layers::WordOrTokenAnchor;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FeatureLayout {
-    /// The pinned OpenNLP implementation: 14 words, 14 POS, 8 labels.
+    /// 14 words, 14 POS, 8 labels (36 features).
     OpenNlp14,
-    /// Chen and Manning: 18 words, 18 POS, 12 labels.
+    /// Chen and Manning (2014): 18 words, 18 POS, 12 labels (48 features).
     ChenManning18,
 }
 impl FeatureLayout {

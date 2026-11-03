@@ -13,13 +13,18 @@ name = "turbo_postag"
 turbo = { path = "../../core" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
-turbo-jvm = { path = "../jvm" }
 # The model archive and the classifier.
 turbo-maxent = { path = "../maxent" }
 # The beam search, the part-of-speech context generators, the tag
 # dictionary and the tag format conversion.
 turbo-sequence = { path = "../sequence" }
 turbo-unicode = { path = "../unicode" }
+
+[features]
+# The BiLSTM tagger's recurrences on NVIDIA GPUs (BilstmPosTagger::on_device).
+cuda = ["turbo/cuda"]
+# The same on Intel GPUs through Level Zero.
+levelzero = ["turbo/levelzero"]
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }

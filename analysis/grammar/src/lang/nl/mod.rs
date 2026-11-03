@@ -13,6 +13,8 @@ mod lexicon;
 mod rules;
 mod split;
 pub(crate) mod time;
+pub(crate) mod unit;
+pub use unit::{DUTCH_UNITS, DutchUnits};
 
 pub use time::{DUTCH_TIMES, DutchTimes};
 

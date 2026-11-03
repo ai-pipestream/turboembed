@@ -1,0 +1,16 @@
+===OUT===
+happy :)   sad :(   wink ;)   love <3 ❤️ cool 8)  
+laugh :D   tongue :P   surprised :o   cry :'(   kiss :*  
+mixed :-) and   together, http://example.com:80/path is not an emoticon.
+
+===EDITS===
+9	13	 
+21	25	 
+34	38	 
+62	66	 
+76	80	 
+91	95	 
+109	113	 
+122	126	 
+135	139	 
+154	158	 

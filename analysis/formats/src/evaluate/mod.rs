@@ -7,12 +7,17 @@
 //!   against a reference sample.
 //! - [`partition`]: `CrossValidationPartitioner`'s folds.
 //!
+//! # Scoring
+//!
+//! [`FMeasure`] and the static [`precision`] and [`recall`] count true
+//! positives as a multiset intersection ([`count_true_positives`]): a
+//! prediction matches at most one equal reference, so both scores stay
+//! within 0 and 1. OpenNLP's `FMeasure.countTruePositives`, which counts
+//! a repeated prediction once per equal reference and so can score a
+//! recall above 1, is not reproduced.
+//!
 //! # What OpenNLP does here
 //!
-//! - `FMeasure` counts, for each reference, every prediction equal to it,
-//!   so repeated predictions all count and recall can exceed 1; and it
-//!   removes a match of the previous reference when a reference matches
-//!   nothing ([`measure::count_true_positives`]).
 //! - The F-measure is -1, not 0 or NaN, when precision and recall are 0;
 //!   the static `precision` and `recall` are NaN on no predictions or no
 //!   references, while the running scores are 0.

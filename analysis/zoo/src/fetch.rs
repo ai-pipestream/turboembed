@@ -11,76 +11,34 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::accept::{Acceptances, UserId};
 use crate::digest::{Sha256, Sha512};
 use crate::error::{Check, ZooError};
-use crate::index::{Artifact, File, Index, Url};
+use crate::index::{Artifact, File, Index};
 use crate::licence::Policy;
 
+#[cfg(feature = "http")]
+mod drive;
+#[cfg(feature = "http")]
+mod oauth;
+#[cfg(feature = "http")]
+mod s3;
+#[cfg(feature = "http")]
+pub mod sigv4;
+mod sources;
 mod status;
+mod transport;
 
+#[cfg(feature = "http")]
+pub use drive::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive};
+#[cfg(feature = "http")]
+pub use oauth::{DRIVE_READONLY, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleOAuth, Grant, Pkce, Renewing};
+#[cfg(feature = "http")]
+pub use s3::S3Bucket;
+pub use sources::{Blobs, Directory, Keep, Sources};
 pub use status::CacheStatus;
+#[cfg(feature = "http")]
+pub use transport::Http;
+pub use transport::{Mirror, Offline, Transport, most_bytes};
+
 use status::{Local, local_file};
-
-/// Fetches the bytes at an address. The zoo verifies whatever it returns,
-/// so a transport needs no checks of its own; `size` is the most the zoo
-/// takes from the address, so a transport can stop reading once more than
-/// that arrives. For a file served compressed it is the larger of the
-/// wire size and the unpacked size: a transport that decodes a
-/// `Content-Encoding` hands over the file itself.
-pub trait Transport {
-    fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String>;
-}
-
-/// A transport that fetches nothing: the zoo hands out only what is
-/// already in its cache, still checking the licence and every digest.
-pub struct Offline;
-
-impl Transport for Offline {
-    fn get(&self, _url: &Url, _size: u64) -> Result<Vec<u8>, String> {
-        Err("offline: the file is not in the zoo's cache".into())
-    }
-}
-
-/// HTTPS through `ureq`. Redirects the server issues are followed, up to
-/// 10, over HTTPS only: a redirect to a plain `http://` address is an
-/// error. Where a redirect leads is not checked against the index (a
-/// GitHub release, for one, redirects to another host). The zoo checks
-/// the bytes by size, SHA-256 and SHA-512 ([`verify`]), so a file it keeps
-/// holds the bytes the index records wherever a redirect led. Reads at most one byte more
-/// than the index expects, enough for the size check to fail on a longer
-/// body without holding all of it. Asks for the bytes unencoded
-/// (`Accept-Encoding: identity`); a server that encodes them anyway may
-/// have them decoded on the way, and the zoo keeps those when they verify
-/// as the file ([`unpack`]).
-#[cfg(feature = "http")]
-pub struct Http;
-
-#[cfg(feature = "http")]
-impl Transport for Http {
-    fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
-        read(agent(), url.as_str(), size)
-    }
-}
-
-/// One GET through `agent`, reading at most `size` and one byte more.
-#[cfg(feature = "http")]
-fn read(agent: &ureq::Agent, url: &str, size: u64) -> Result<Vec<u8>, String> {
-    let mut resp = agent.get(url).call().map_err(|e| e.to_string())?;
-    resp.body_mut().with_config().limit(size.saturating_add(1)).read_to_vec().map_err(|e| e.to_string())
-}
-
-/// `ureq`'s defaults with at most 10 redirects followed and the bytes
-/// asked for unencoded.
-#[cfg(feature = "http")]
-fn config() -> ureq::config::ConfigBuilder<ureq::typestate::AgentScope> {
-    ureq::Agent::config_builder().max_redirects(10).accept_encoding("identity")
-}
-
-/// The agent [`Http`] fetches through: [`config`], with every request and
-/// every redirect restricted to HTTPS.
-#[cfg(feature = "http")]
-fn agent() -> &'static ureq::Agent {
-    static AGENT: std::sync::OnceLock<ureq::Agent> = std::sync::OnceLock::new();
-    AGENT.get_or_init(|| config().https_only(true).build().into())
-}
 
 /// An artifact whose files are all on disk and verified.
 #[derive(Debug)]
@@ -151,6 +109,29 @@ impl<'t> Zoo<'t> {
         Ok(a)
     }
 
+    /// Ensures the redistributable artifact `id`'s files are on disk and
+    /// verified: enforces `Acceptances` for `CLASS_LGPL`,
+    /// `CLASS_SHARE_ALIKE` and `CLASS_GPL`, and refuses `CLASS_LOCAL_ONLY`
+    /// with [`ZooError::LocalOnly`] before touching the transport.
+    pub fn ensure(&self, id: &str, user: &UserId, acceptances: &Acceptances) -> Result<Fetched<'_>, ZooError> {
+        self.ensure_with(id, user, || Ok(acceptances.clone()))
+    }
+
+    /// [`Zoo::ensure`], reading the acceptances through `load` only when
+    /// the artifact needs some ([`Zoo::permit_with`]).
+    pub fn ensure_with(
+        &self,
+        id: &str,
+        user: &UserId,
+        load: impl FnOnce() -> Result<Acceptances, ZooError>,
+    ) -> Result<Fetched<'_>, ZooError> {
+        let a = self.index.get(id)?;
+        if !a.class.may_redistribute() {
+            return Err(ZooError::LocalOnly { id: a.id.clone() });
+        }
+        self.fetch_with(id, user, load)
+    }
+
     /// The artifact `id`'s files on disk, after [`Zoo::permit`]. A file in
     /// the cache is read and verified on every call; one that is absent,
     /// or does not verify, is fetched again. Fetched bytes are verified
@@ -176,10 +157,9 @@ impl<'t> Zoo<'t> {
             make_dirs(&self.cache, a.id.as_str(), f.path.as_str())?;
             let cached = matches!(local_file(a, f, &local)?, Local::Verified);
             if !cached {
-                let most = f.download.as_ref().map_or(f.size, |d| d.download_bytes.max(f.size));
                 let bytes = self
                     .transport
-                    .get(&f.url, most)
+                    .get_file(a, f)
                     .map_err(|message| ZooError::Transport { url: f.url.to_string(), message })?;
                 let bytes = unpack(a, f, bytes)?;
                 verify(a, f, &bytes)?;
@@ -296,6 +276,12 @@ fn make_dirs(cache: &Path, id: &str, path: &str) -> Result<(), ZooError> {
 /// puts a whole file in place. The temporary file is removed when a write
 /// fails. The rename replaces `dest` itself, also when `dest` is a symlink.
 pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
+    write_atomic_as(dest, bytes, false)
+}
+
+/// [`write_atomic`]; with `private`, the file is made readable and
+/// writable by its owner alone on Unix, before any byte is written.
+pub(crate) fn write_atomic_as(dest: &Path, bytes: &[u8], private: bool) -> Result<(), ZooError> {
     static WRITES: AtomicU64 = AtomicU64::new(0);
     let io = |p: &Path, e: std::io::Error| ZooError::Io { path: p.to_path_buf(), message: e.to_string() };
     let parent = dest
@@ -312,7 +298,15 @@ pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
         let mut name = base.clone();
         name.push(format!(".partial.{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
         let tmp = dest.with_file_name(name);
-        match fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        if private {
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        }
+        #[cfg(not(unix))]
+        let _ = private;
+        match options.open(&tmp) {
             Ok(f) => break (tmp, f),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(e) => return Err(io(&tmp, e)),
@@ -340,96 +334,6 @@ pub(super) fn denied_again<T>(mut op: impl FnMut() -> std::io::Result<T>) -> std
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
             done => return done,
-        }
-    }
-}
-
-#[cfg(all(test, feature = "http"))]
-mod tests {
-    use std::io::{BufRead, BufReader, Write};
-    use std::net::TcpListener;
-
-    use super::{Transport, Zoo, agent, config, read};
-    use crate::{Acceptances, Index, Policy, Sha256, Sha512, Url, UserId};
-
-    const HELLO: &[u8] = b"hello hello hello\n";
-
-    /// HELLO as Python's `gzip.compress(..., mtime=0)` writes it.
-    const HELLO_GZ: [u8; 29] = [
-        0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcb, 0x48, 0xcd, 0xc9, 0xc9, 0x57, 0xc8, 0x40,
-        0x90, 0x5c, 0x00, 0x3b, 0x7c, 0x8a, 0xdf, 0x12, 0x00, 0x00, 0x00,
-    ];
-
-    /// The production agent's settings over plain HTTP to a local server,
-    /// whatever address the index gives.
-    struct Local(ureq::Agent, String);
-
-    impl Transport for Local {
-        fn get(&self, _url: &Url, size: u64) -> Result<Vec<u8>, String> {
-            read(&self.0, &self.1, size)
-        }
-    }
-
-    #[test]
-    fn a_file_a_server_gzip_encodes_anyway_is_kept_whether_or_not_the_transport_decodes_it() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = format!("http://{}/hello.txt.gz", listener.local_addr().unwrap());
-        let server = std::thread::spawn(move || {
-            let (mut conn, _) = listener.accept().unwrap();
-            let mut head = Vec::new();
-            for line in BufReader::new(conn.try_clone().unwrap()).lines() {
-                let line = line.unwrap();
-                if line.is_empty() {
-                    break;
-                }
-                head.push(line.to_ascii_lowercase());
-            }
-            let reply = format!(
-                "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                HELLO_GZ.len()
-            );
-            conn.write_all(reply.as_bytes()).unwrap();
-            conn.write_all(&HELLO_GZ).unwrap();
-            head
-        });
-        let json = format!(
-            r#"{{"zoo_version": 1, "artifacts": [{{"id": "hello", "kind": "KIND_LEXICON", "format": "FORMAT_TEXT",
-              "version": "1", "license": "Apache-2.0", "license_terms": "https://example.org/LICENSE",
-              "trained_on": [], "class": "CLASS_PERMISSIVE", "attribution": "Example attribution.",
-              "files": [{{"path": "hello.txt", "url": "https://example.org/hello.txt.gz", "size": {}, "sha256": "{}",
-                "sha512": "{}", "download": {{"compression": "gzip", "download_bytes": {}, "download_sha256": "{}"}}}}]}}]}}"#,
-            HELLO.len(),
-            Sha256::of(HELLO),
-            Sha512::of(HELLO),
-            HELLO_GZ.len(),
-            Sha256::of(&HELLO_GZ),
-        );
-        let dir = std::env::temp_dir().join(format!("turbo-zoo-encoded-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let local = Local(config().build().into(), addr);
-        let zoo = Zoo::new(Index::parse(json.as_bytes()).unwrap(), dir.clone(), Policy::default(), &local);
-        let user: UserId = "alice".parse().unwrap();
-        let got = zoo.fetch("hello", &user, &Acceptances::default()).map(|f| std::fs::read(&f.files[0]).unwrap());
-        let head = server.join().unwrap();
-        let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(got.unwrap(), HELLO);
-        assert!(head.contains(&"accept-encoding: identity".to_string()), "{head:?}");
-    }
-
-    #[test]
-    fn the_http_agent_is_https_only_and_follows_at_most_10_redirects() {
-        assert!(agent().config().https_only());
-        assert_eq!(agent().config().max_redirects(), 10);
-        assert!(format!("{:?}", agent().config().accept_encoding()).contains("identity"));
-    }
-
-    #[test]
-    fn the_http_agent_refuses_a_plain_http_address_before_connecting() {
-        // The check runs before any connection is made, so the test needs
-        // no network.
-        match agent().get("http://127.0.0.1:9/x").call() {
-            Err(ureq::Error::RequireHttpsOnly(_)) => {}
-            other => panic!("expected the https-only refusal, got {other:?}"),
         }
     }
 }

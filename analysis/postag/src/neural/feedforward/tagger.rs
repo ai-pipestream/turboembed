@@ -101,7 +101,7 @@ impl FeedforwardPosTagger {
             let max = scores[best];
             let mut sum_exp = 0.0f64;
             for &s in &scores {
-                sum_exp += turbo_jvm::strict_math::exp(s - max);
+                sum_exp += (s - max).exp();
             }
             probs.push(1.0 / sum_exp);
         }

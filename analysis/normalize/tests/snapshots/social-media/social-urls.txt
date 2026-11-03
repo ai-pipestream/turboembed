@@ -1,0 +1,18 @@
+===OUT===
+   check https://example.com/a?b=c  and     post http://t.co/Xy9Z
+    email me at me  or visit example.com.
+  "quoted"   (see    
+
+===EDITS===
+0	3	 
+3	10	 
+42	44	 
+49	60	 
+61	73	 
+96	113	 
+114	118	 
+133	145	 
+168	174	 
+184	189	 
+195	200	 
+201	208	 

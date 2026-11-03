@@ -49,6 +49,12 @@ impl Layer for Structure {
     const ID: &'static str = "turbo:structure";
     const OVERLAP: Overlap = Overlap::Nesting;
     positional!(Structure);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
         if self.kind.len() != n || self.parent.len() != n || self.depth.len() != n {
@@ -98,8 +104,14 @@ impl Sentences {
 }
 
 impl Layer for Sentences {
-    const ID: &'static str = "opennlp:sentences";
+    const ID: &'static str = turbo_analysis::ids::SENTENCES;
     positional!(Sentences);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.spans.len() as u64)
+    }
     fn check(&self) -> Result<(), String> {
         self.spans.check(Self::OVERLAP).map_err(|e| {
             if e == "spans in text order, not overlapping" {
@@ -192,15 +204,21 @@ impl Tokens {
 }
 
 impl Layer for Tokens {
-    const ID: &'static str = "opennlp:tokens";
+    const ID: &'static str = turbo_analysis::ids::TOKENS;
     /// A character outside the Basic Multilingual Plane split between two
     /// UTF-16 tokens (`Utf16Spans`) widens both UTF-8 spans to that 4-byte
     /// character.
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Tokens);
+    fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
+        Some(turbo_analysis::Splicer::<Self>::boxed())
+    }
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let Some(s) = &self.sentence else { return Vec::new() };
         vec![(Key::<Sentences>::DEFAULT.id(), s.last().map_or(0, |i| i.get() + 1))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         match &self.sentence {
@@ -248,12 +266,15 @@ impl Subwords {
 }
 
 impl Layer for Subwords {
-    const ID: &'static str = "opennlp:subwords";
+    const ID: &'static str = turbo_analysis::ids::SUBWORDS;
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Subwords);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let Some(t) = &self.token else { return Vec::new() };
         vec![(Key::<Tokens>::DEFAULT.id(), t.last().map_or(0, |i| i.get() + 1))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let (start, end) = self.spans.columns();
@@ -331,6 +352,9 @@ impl Layer for Boundaries {
     fn len(&self) -> usize {
         self.cost.len()
     }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
+    }
     fn check(&self) -> Result<(), String> {
         if self.reason.len() != self.cost.len() {
             return Err("a reason for every boundary".into());
@@ -379,6 +403,9 @@ impl Layer for Chunks {
     positional!(Chunks);
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Sentences>::DEFAULT.id(), self.sentences.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn content_hash(&self) -> Option<u64> {
+        Some(self.payload_hash())
     }
     fn check(&self) -> Result<(), String> {
         let columns = [

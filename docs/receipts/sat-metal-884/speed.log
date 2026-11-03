@@ -1,0 +1,58 @@
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:09:37Z; load { 2.91 3.91 4.81 }; GPU utilization before 57%
+running 1 test
+testdata/tiny-sat-bundle on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 15.6 ms a pass (fastest 15.2, slowest 16.7), 1057540 tokens/s, 3.14 MB/s, 9220 sentences
+testdata/tiny-sat-bundle on Some(Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 8.3 ms a pass (fastest 7.9, slowest 8.5), 1988466 tokens/s, 5.90 MB/s, 9220 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### after: 2026-10-27T06:09:37Z; load { 2.91 3.91 4.81 }; GPU utilization 11%
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_SAT_BUNDLE=<sat-1l-sm> TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:09:37Z; load { 2.91 3.91 4.81 }; GPU utilization before 0%
+running 1 test
+<sat-1l-sm> on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 1988.2 ms a pass (fastest 1812.8, slowest 2591.4), 5841 tokens/s, 0.02 MB/s, 676 sentences
+<sat-1l-sm> on Some(Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 472.3 ms a pass (fastest 459.8, slowest 502.1), 24586 tokens/s, 0.10 MB/s, 676 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.37s
+### after: 2026-10-27T06:10:15Z; load { 5.86 4.49 4.98 }; GPU utilization 71%
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:10:15Z; load { 5.86 4.49 4.98 }; GPU utilization before 0%
+running 1 test
+testdata/tiny-sat-bundle on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 17.6 ms a pass (fastest 16.5, slowest 18.7), 935304 tokens/s, 2.77 MB/s, 9220 sentences
+testdata/tiny-sat-bundle on Some(Execution { backend: "metal", device: "Apple M2", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 8.8 ms a pass (fastest 8.1, slowest 13.5), 1869254 tokens/s, 5.54 MB/s, 9220 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+### after: 2026-10-27T06:10:15Z; load { 5.55 4.44 4.96 }; GPU utilization 17%
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_SAT_BUNDLE=<sat-1l-sm> TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:10:15Z; load { 5.55 4.44 4.96 }; GPU utilization before 0%
+running 1 test
+test sat_speed has been running for over 60 seconds
+<sat-1l-sm> on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 5344.0 ms a pass (fastest 4564.6, slowest 9575.7), 2173 tokens/s, 0.01 MB/s, 676 sentences
+<sat-1l-sm> on Some(Execution { backend: "metal", device: "Apple M2", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 384.9 ms a pass (fastest 379.7, slowest 484.4), 30166 tokens/s, 0.13 MB/s, 676 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 83.57s
+### after: 2026-10-27T06:11:39Z; load { 20.34 9.05 6.64 }; GPU utilization 40%
+### round 2, started once the one-minute load was under 6
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:13:27Z; load { 5.54 7.09 6.16 }; GPU utilization before 14%
+running 1 test
+testdata/tiny-sat-bundle on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 16.1 ms a pass (fastest 15.0, slowest 16.5), 1022143 tokens/s, 3.03 MB/s, 9220 sentences
+testdata/tiny-sat-bundle on Some(Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 8.5 ms a pass (fastest 6.9, slowest 11.8), 1928330 tokens/s, 5.72 MB/s, 9220 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+### after: 2026-10-27T06:13:27Z; load { 5.54 7.09 6.16 }; GPU utilization 21%
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_SAT_BUNDLE=<sat-1l-sm> TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:13:27Z; load { 5.54 7.09 6.16 }; GPU utilization before 0%
+running 1 test
+<sat-1l-sm> on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 1891.4 ms a pass (fastest 1820.5, slowest 2013.1), 6139 tokens/s, 0.03 MB/s, 676 sentences
+<sat-1l-sm> on Some(Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 468.2 ms a pass (fastest 461.2, slowest 472.8), 24803 tokens/s, 0.10 MB/s, 676 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 36.09s
+### after: 2026-10-27T06:14:04Z; load { 6.17 7.05 6.18 }; GPU utilization 69%
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:14:04Z; load { 6.17 7.05 6.18 }; GPU utilization before 0%
+running 1 test
+testdata/tiny-sat-bundle on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 17.1 ms a pass (fastest 16.6, slowest 19.1), 961870 tokens/s, 2.85 MB/s, 9220 sentences
+testdata/tiny-sat-bundle on Some(Execution { backend: "metal", device: "Apple M2", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 8.3 ms a pass (fastest 7.0, slowest 14.8), 1984651 tokens/s, 5.89 MB/s, 9220 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+### after: 2026-10-27T06:14:04Z; load { 6.17 7.05 6.18 }; GPU utilization 24%
+### commit f32709e7bd11f12840f2aebdbce46b1e6ebc639b; TURBO_SAT_BUNDLE=<sat-1l-sm> TURBO_TEST_DEVICE=metal TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release -p turbo-sat --features turbo/metal --test speed -- --ignored --nocapture; 2026-10-27T06:14:04Z; load { 6.17 7.05 6.18 }; GPU utilization before 0%
+running 1 test
+<sat-1l-sm> on Some(Execution { backend: "cpu", device: "Apple M2", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 2161.2 ms a pass (fastest 2043.8, slowest 2519.1), 5373 tokens/s, 0.02 MB/s, 676 sentences
+<sat-1l-sm> on Some(Execution { backend: "metal", device: "Apple M2", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 333.5 ms a pass (fastest 328.3, slowest 341.5), 34813 tokens/s, 0.15 MB/s, 676 sentences
+test sat_speed ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.25s
+### after: 2026-10-27T06:14:42Z; load { 10.05 7.77 6.47 }; GPU utilization 52%

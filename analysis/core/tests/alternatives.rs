@@ -4,7 +4,7 @@ use turbo_analysis::{
 
 struct Tok;
 impl Layer for Tok {
-    const ID: &'static str = "opennlp:tokens";
+    const ID: &'static str = "turbo:tokens";
     fn len(&self) -> usize {
         5
     }

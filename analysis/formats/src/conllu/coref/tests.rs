@@ -161,22 +161,17 @@ fn an_error_ends_only_its_document() {
 }
 
 #[test]
-fn open_entities_are_named_in_hash_map_order() {
-    // The expected names are what Java 21 prints for these maps. "Aa" and
-    // "BB" have the same hash code and "zz" shares their bin;
-    // `computeIfAbsent` puts each new key at the head of its bin.
-    assert_eq!(error(&w("1", "a", "Entity=(BB(e1(Aa")), "entity Aa is never closed");
-    assert_eq!(error(&w("1", "a", "Entity=(BB(e1(Aa(zz")), "entity zz is never closed");
-    // Thirteen entities fill a table of 16 bins. `computeIfAbsent` doubles
-    // it only on its next call, which moves e3 ahead of e80.
+fn open_entities_are_named_in_first_seen_order() {
+    assert_eq!(error(&w("1", "a", "Entity=(BB(e1(Aa")), "entity BB is never closed");
+    assert_eq!(error(&w("1", "a", "Entity=(BB(e1(Aa(zz")), "entity BB is never closed");
     let ids: Vec<String> = (0..13).map(|i| format!("e{}", i * 7 + 3)).collect();
     let opens: String = ids.iter().map(|id| format!("({id}")).collect();
     let closes: String = ids.iter().filter(|id| *id != "e3" && *id != "e80").map(|id| format!("{id})")).collect();
     let first = w("1", "a", &format!("Entity={opens}"));
     let second = format!("{first}{}", w("2", "b", &format!("Entity={closes}")));
-    assert_eq!(error(&second), "entity e80 is never closed");
-    let reopened = format!("{first}{}", w("2", "b", &format!("Entity={closes}(e3")));
-    assert_eq!(error(&reopened), "entity e3 is never closed");
+    assert_eq!(error(&second), "entity e3 is never closed");
+    let closed_e3 = format!("{first}{}", w("2", "b", &format!("Entity={closes}e3)")));
+    assert_eq!(error(&closed_e3), "entity e80 is never closed");
 }
 
 #[test]

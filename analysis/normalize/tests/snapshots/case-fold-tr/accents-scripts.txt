@@ -1,0 +1,19 @@
+===OUT===
+café, naïve, ångström, garçon, señor, łódź, øre, æble, đ, þ, ð, œuvre.
+vietnamese: tiếng việt, đường, greek άέή, cyrillic йё йё.
+thai ที่ น้ำ stays, devanagari कि हैं stays, arabic كَتَبَ stays, hebrew שׁלום stays.
+
+===EDITS===
+0	1	c
+15	17	å
+27	28	g
+86	87	v
+106	107	v
+125	126	g
+139	140	c
+153	155	й
+155	157	ё
+159	160	t
+191	192	d
+226	227	a
+253	254	h

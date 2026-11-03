@@ -152,6 +152,21 @@ the Creative Commons Attribution 4.0 License. No GeoNames data is
 bundled with the gazetteers; callers supply GeoNames tables themselves.
 
 ------------------------------------------------------------------------
+Apache Commons Codec
+------------------------------------------------------------------------
+
+The Double Metaphone implementation in analysis/matcher/src/phonetic.rs and
+analysis/matcher/src/phonetic/metaphone.rs is adapted from Apache Commons
+Codec's DoubleMetaphone under the Apache License, Version 2.0 (LICENSE).
+The module documentation records its Unicode dialect.
+
+Apache Commons Codec
+Copyright 2002-2026 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+------------------------------------------------------------------------
 spaCy
 ------------------------------------------------------------------------
 
@@ -221,16 +236,10 @@ Copyright (c) Microsoft Corporation. The full license text is in
 analysis/grammar/tests/data/recognizers-text/LICENSE.
 
 ------------------------------------------------------------------------
-Dependency parser and UD reference fixtures
+Dependency parser UD reference fixtures
 ------------------------------------------------------------------------
 
-The transition system and context features in analysis/depparse are
-reimplemented from Apache OpenNLP 3.x under Apache-2.0. English EWT and
-Spanish GSD excerpts and derived fixtures retain upstream attribution and
-CC BY-SA 4.0 licensing in analysis/depparse/tests/data/README.md and the
+English EWT, Spanish GSD, and Finnish FTB CoNLL-U excerpts in
+analysis/depparse/tests/data/ retain upstream attribution and licensing
+as documented in analysis/depparse/tests/data/README.md and the
 accompanying license files.
-
-The feedforward dependency context, model scoring, beam decoding and AdaGrad
-training behavior in analysis/depparse/src/feedforward are reimplemented
-from Apache OpenNLP under Apache-2.0. Pinned source and generated fixture
-provenance are documented in analysis/depparse/tests/feedforward/data/README.md.

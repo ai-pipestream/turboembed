@@ -1,20 +1,20 @@
 """Reference outputs for the native GLiNER2 relation scorer.
 
-Usage: build_fixture.py <gliner2-base-v1 checkout> <output directory>
+Usage: build_fixture.py <output directory> [<gliner2-base-v1 checkout>]
 
-The checkout is fastino/gliner2-base-v1 at REVISION (Apache-2.0). Two
-fixtures are written:
+Two fixtures are written:
 
-- reduced.safetensors and reduced.json: the encoder sliced as
-  core/tests/fixtures/deberta slices it (hidden 32, 2 layers, vocabulary
-  rows 1000..1015, relative rows 248..263) and the relation heads sliced
-  to that width, saved under the checkpoint's own tensor names, with the
-  outputs of GLiNER2's own layer classes on fixed token sequences. This is
-  a numerical fixture, not a usable model.
-- real.json: what the full checkpoint gives through GLiNER2's own
-  extract_relations on fixed texts: the input ids, each relation's
-  instance count and the extracted relations with their confidences and
-  byte offsets. Only outputs are written, no weights.
+- reduced.safetensors and reduced.json: seeded random weights in the
+  shapes and under the tensor names of a GLiNER2 checkpoint, the encoder
+  the one core/tests/fixtures/deberta holds (hidden 32, 2 layers) and the
+  relation heads at that width, with the outputs of GLiNER2's own layer
+  classes on fixed token sequences. No value comes from a checkpoint
+  (GLiNER2 is accept-first since 2026-10-28, docs/licences.md).
+- real.json, only when the checkout is given: what fastino/gliner2-base-v1
+  at REVISION gives through GLiNER2's own extract_relations on fixed
+  texts: the input ids, each relation's instance count and the extracted
+  relations with their confidences and byte offsets. Only outputs are
+  written, no weights.
 
 Only fixture production uses Python; the tests are native Rust.
 """
@@ -24,22 +24,22 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from safetensors.numpy import load_file
-from safetensors.torch import save_file
+from safetensors.torch import load_file, save_file
 from transformers import DebertaV2Config, DebertaV2Model
 
 from gliner2 import GLiNER2
 from gliner2.layers import CountLSTMv2, SpanMarkerV0, create_mlp
 
 REVISION = 'f9634218e53580c56edf0de97ca1a7d3f1c2354e'
-SRC = Path(sys.argv[1])
-OUT = Path(sys.argv[2])
+SEED = 20261028
+OUT = Path(sys.argv[1])
+SRC = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 OUT.mkdir(parents=True, exist_ok=True)
 torch.set_num_threads(1)
-full = load_file(str(SRC / 'model.safetensors'))
-D, BIG = 32, 768
+D = 32
+ROOT = Path(__file__).resolve().parents[4]
 
-# ---- reduced encoder, sliced as the core encoder fixture slices it ----
+# ---- the reduced encoder: core/tests/fixtures/deberta's seeded weights ----
 config = DebertaV2Config(vocab_size=16, hidden_size=D, intermediate_size=48,
     num_hidden_layers=2, num_attention_heads=2, max_position_embeddings=32,
     relative_attention=True, position_buckets=8, max_relative_positions=32,
@@ -47,67 +47,33 @@ config = DebertaV2Config(vocab_size=16, hidden_size=D, intermediate_size=48,
     position_biased_input=False, type_vocab_size=0, layer_norm_eps=1e-7,
     hidden_dropout_prob=0, attention_probs_dropout_prob=0)
 encoder = DebertaV2Model(config).eval()
-state = {}
-for key, value in encoder.state_dict().items():
-    src = full['encoder.' + key]
-    offset = 1000 if key == 'embeddings.word_embeddings.weight' else 248 if key == 'encoder.rel_embeddings.weight' else 0
-    if src.ndim == 2:
-        part = src[offset:offset + value.shape[0], :value.shape[1]]
-    else:
-        part = src[:value.shape[0]]
-    state[key] = torch.from_numpy(np.ascontiguousarray(part))
+state = load_file(str(ROOT / 'core/tests/fixtures/deberta/weights.safetensors'))
 encoder.load_state_dict(state, strict=True)
 
-
-def rows_cols(name, rows, cols):
-    """A 2-D tensor's rows and columns, each a list of index ranges."""
-    a = full[name]
-    r = np.concatenate([np.arange(s, e) for s, e in rows])
-    c = np.concatenate([np.arange(s, e) for s, e in cols])
-    return np.ascontiguousarray(a[np.ix_(r, c)])
-
-
-def vec(name, ranges):
-    a = full[name]
-    return np.ascontiguousarray(np.concatenate([a[s:e] for s, e in ranges]))
-
-
-heads = {}
-def lin(name, rows, cols):
-    heads[name + '.weight'] = rows_cols(name + '.weight', rows, cols)
-    heads[name + '.bias'] = vec(name + '.bias', rows)
-
-span = 'span_rep.span_rep_layer'
-for side in ('project_start', 'project_end'):
-    lin(f'{span}.{side}.0', [(0, 4 * D)], [(0, D)])
-    lin(f'{span}.{side}.3', [(0, D)], [(0, 4 * D)])
-lin(f'{span}.out_project.0', [(0, 4 * D)], [(0, D), (BIG, BIG + D)])
-lin(f'{span}.out_project.3', [(0, D)], [(0, 4 * D)])
-lin('count_pred.0', [(0, 2 * D)], [(0, D)])
-lin('count_pred.2', [(0, 20)], [(0, 2 * D)])
-heads['count_embed.pos_embedding.weight'] = rows_cols('count_embed.pos_embedding.weight', [(0, 20)], [(0, D)])
-gates = [(g * BIG, g * BIG + D) for g in range(3)]
-for side in ('ih', 'hh'):
-    heads[f'count_embed.gru.weight_{side}_l0'] = rows_cols(f'count_embed.gru.weight_{side}_l0', gates, [(0, D)])
-    heads[f'count_embed.gru.bias_{side}_l0'] = vec(f'count_embed.gru.bias_{side}_l0', gates)
-t = 'count_embed.transformer'
-lin(f'{t}.in_projector', [(0, 128)], [(0, D)])
-for name in full:
-    if name.startswith(f'{t}.transformer.layers.'):
-        heads[name] = np.ascontiguousarray(full[name])
-lin(f'{t}.out_projector.0', [(0, D)], [(0, 128), (128, 128 + D)])
-lin(f'{t}.out_projector.2', [(0, D)], [(0, D)])
-lin(f'{t}.out_projector.4', [(0, D)], [(0, D)])
-
+# ---- the relation heads at width D, seeded random ----
+generator = torch.Generator().manual_seed(SEED)
 count_pred = create_mlp(D, [2 * D], 20, dropout=0., activation='relu').eval()
-count_pred.load_state_dict({k[len('count_pred.'):]: torch.from_numpy(v) for k, v in heads.items() if k.startswith('count_pred.')})
 count_embed = CountLSTMv2(hidden_size=D).eval()
-count_embed.load_state_dict({k[len('count_embed.'):]: torch.from_numpy(v) for k, v in heads.items() if k.startswith('count_embed.')})
 marker = SpanMarkerV0(D, 8, 0.1).eval()
-marker.load_state_dict({k[len(span) + 1:]: torch.from_numpy(v) for k, v in heads.items() if k.startswith(span)})
+span = 'span_rep.span_rep_layer'
+heads = {}
+for prefix, module in [('count_pred', count_pred), ('count_embed', count_embed), (span, marker)]:
+    local = {}
+    for key, value in module.state_dict().items():
+        noise = torch.randn(value.shape, generator=generator, dtype=torch.float32)
+        if key.endswith(('norm1.weight', 'norm2.weight')):
+            local[key] = 1 + 0.1 * noise
+        elif value.ndim == 2:
+            # Fan-in scaling keeps every layer's outputs near unit size, so
+            # counts and span choices vary as a trained model's do.
+            local[key] = noise / value.shape[1] ** 0.5
+        else:
+            local[key] = 0.02 * noise
+        heads[f'{prefix}.{key}'] = local[key]
+    module.load_state_dict(local, strict=True)
 
 tensors = {'encoder.' + k: v.contiguous() for k, v in state.items()}
-tensors.update({k: torch.from_numpy(v) for k, v in heads.items()})
+tensors.update({k: v.contiguous() for k, v in heads.items()})
 save_file(tensors, OUT / 'reduced.safetensors')
 
 FIXED_COUNT = 3
@@ -142,10 +108,13 @@ for ids, markers, words in [
                                crossed_queries=crossed.flatten().tolist()))
     cases.append(dict(ids=ids, markers=markers, words=words, labels=labels))
 (OUT / 'reduced.json').write_text(json.dumps(dict(
-    source=f'fastino/gliner2-base-v1@{REVISION}', license='Apache-2.0', fixed_count=FIXED_COUNT,
+    weights='seeded random', seed=SEED, fixed_count=FIXED_COUNT,
     torch=torch.__version__, cases=cases), separators=(',', ':')) + '\n')
 
 # ---- the full checkpoint through GLiNER2 itself ----
+if SRC is None:
+    print('fixtures complete (reduced only)', OUT)
+    sys.exit(0)
 model = GLiNER2.from_pretrained(str(SRC))
 model.eval()
 seen = {}

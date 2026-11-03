@@ -3,15 +3,13 @@
 
 use std::sync::OnceLock;
 
-use turbo_jvm::text::parse_double;
-
 use crate::entry::GeoPoint;
 use crate::error::{LoadError, NumberFormat, RowProblem, TableKind};
 use crate::gazetteer::indexed_gazetteer;
 use crate::index::{Alternates, GazetteerIndex};
 use crate::load::{RowParser, Scratch, TableFormat, load_bytes};
 use crate::store::{Row, RowAttribute};
-use crate::text::parse_long;
+use crate::text::{parse_decimal, parse_long};
 
 /// The bundled table, OpenNLP's `naturalearth-populated-places.txt` byte for
 /// byte (`data/README.md`).
@@ -81,8 +79,8 @@ impl<'t> RowParser<'t> for BundledRows {
         }
         let f = &s.fields;
         let number = |cell: &str| NumberFormat(cell.to_string());
-        let latitude = parse_double(f[4]).map_err(|_| number(f[4]))?;
-        let longitude = parse_double(f[5]).map_err(|_| number(f[5]))?;
+        let latitude = parse_decimal(f[4]).ok_or_else(|| number(f[4]))?;
+        let longitude = parse_decimal(f[5]).ok_or_else(|| number(f[5]))?;
         let population = parse_long(f[8]).map_err(|_| number(f[8]))?;
         s.names.clear();
         push_list(f[3], &mut s.names);

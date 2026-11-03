@@ -1,4 +1,4 @@
-//! One MASC document: `MascDocument.parseDocument` and what it builds.
+//! One MASC document and its aligned annotations.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -7,8 +7,8 @@ use turbo_analysis::Span;
 
 use super::chunks::{MascChunk, MascChunkKind};
 use super::error::{AnnotationFile, MascError};
-use super::java::decode_utf8;
 use super::logical::MascLogical;
+use super::text::decode_utf8;
 
 mod align;
 #[cfg(test)]
@@ -66,9 +66,7 @@ pub struct MascToken {
     pub quarks: Vec<usize>,
 }
 
-/// A named entity of a sentence: tokens `start..end` of the sentence's
-/// Penn tokens, as OpenNLP computes them (see the module documentation),
-/// and the entity's label.
+/// A named entity span over a sentence's Penn tokens.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascName {
     pub start: u32,
@@ -76,15 +74,9 @@ pub struct MascName {
     pub kind: Option<String>,
 }
 
-/// A named entity of a sentence as the named entity file gives it, which
-/// OpenNLP does not compute: the sentence's Penn tokens the entity links
-/// to (places in the sentence's tokens, ascending, each once), the span
-/// from its first token to one past its last, and its label.
-///
-/// This is the reading a corpus user would expect where OpenNLP's names
-/// ([`MascSentence::names`]) lose tokens and whole names (see the module
-/// documentation). An entity that links to tokens of several sentences
-/// is an entity of each, with the tokens in that sentence.
+/// The complete original token membership of a named entity within one
+/// sentence. Token places are sorted and deduplicated; `start..end` covers
+/// the first through last token without dropping interior or trailing tokens.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascEntity {
     /// The first token.
@@ -105,8 +97,21 @@ impl MascEntity {
     }
 }
 
-/// Why an entity of the named entity file is in no sentence of its
-/// document ([`MascDocument::unplaced_entities`]).
+/// A sentence-local piece of an original named entity. Pieces with the same
+/// `id` belong to one entity in this document, never independent BIO spans.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MascEntityPiece {
+    /// Numeric suffix of the original `ne-n` identifier.
+    pub id: i32,
+    /// True when this sentence lacks any of the original entity's tokens.
+    /// This marks every piece, including the first and last.
+    pub continues: bool,
+    /// Membership in this sentence, including discontinuous membership.
+    pub entity: MascEntity,
+}
+
+/// Why an entity of the named entity file has no complete sentence sample
+/// ([`MascDocument::unplaced_entities`]).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Unplaced {
     /// None of its tokens is in a region of the sentence file: MASC marks
@@ -119,11 +124,14 @@ pub enum Unplaced {
     /// `MascDocument` does. (A token of a kept region that the reader left
     /// out of its sentence would count here too; MASC 3.0.0 has none.)
     DroppedSentence,
+    /// Every token is in a kept sentence, but no one sentence contains the
+    /// whole entity. Its fragments are not complete gold entities.
+    CrossesSentences,
 }
 
-/// An entity of the named entity file that is in no sentence, so that
-/// neither OpenNLP's names nor [`MascSentence::entities`] hold it: its
-/// label and why. OpenNLP computes no such thing.
+/// An entity of the named entity file that has no complete sentence sample,
+/// so that neither OpenNLP's names nor [`MascSentence::entities`] hold it:
+/// its label and why. OpenNLP computes no such thing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MascUnplacedEntity {
     pub kind: Option<String>,
@@ -146,6 +154,7 @@ pub struct MascSentence {
     pub(super) token_places: HashMap<i32, usize>,
     names: Vec<MascName>,
     entities: Vec<MascEntity>,
+    entity_pieces: Vec<MascEntityPiece>,
     /// The noun and verb chunks, when they were read.
     pub(super) chunks: Vec<MascChunk>,
     /// The chunks of which the sentence has some tokens but not all.
@@ -164,6 +173,7 @@ impl MascSentence {
             token_places: HashMap::new(),
             names: Vec::new(),
             entities: Vec::new(),
+            entity_pieces: Vec::new(),
             chunks: Vec::new(),
             partial_chunks: Vec::new(),
         }
@@ -180,16 +190,20 @@ impl MascSentence {
         self.tokens.as_deref()
     }
 
-    /// The named entities as OpenNLP computes them, which is what
-    /// [`MascNameReader`](super::MascNameReader) reads.
+    /// Nonoverlapping entity spans used by [`MascNameReader`](super::MascNameReader).
     pub fn names(&self) -> &[MascName] {
         &self.names
     }
 
-    /// The named entities as the named entity file gives them, in the
-    /// order of their first edge in the file; see [`MascEntity`].
+    /// Original entity token memberships in file order; see [`MascEntity`].
     pub fn entities(&self) -> &[MascEntity] {
         &self.entities
+    }
+
+    /// Original entities including incomplete pieces, with stable document-local
+    /// identity. A sentence-only trainer must refuse `continues` pieces.
+    pub fn entity_pieces(&self) -> &[MascEntityPiece] {
+        &self.entity_pieces
     }
 
     /// The noun and verb chunks whose tokens are all tokens of this
@@ -207,7 +221,7 @@ impl MascSentence {
     }
 }
 
-/// Something OpenNLP logs as a warning and reads on.
+/// A nonfatal annotation inconsistency found while reading.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MascWarning {
     /// A quark is in more than one Penn token.
@@ -284,6 +298,8 @@ pub struct MascDocument {
     index: TextIndex,
     quarks: Vec<Quark>,
     pub(super) sentences: Vec<MascSentence>,
+    document_tokens: Option<MascSentence>,
+    entity_count: usize,
     pub(super) has_penn_tags: bool,
     has_named_entities: bool,
     pub(super) has_chunks: bool,
@@ -295,16 +311,13 @@ pub struct MascDocument {
 }
 
 impl MascDocument {
-    /// `MascDocument.parseDocument`: reads the text (UTF-8, each malformed
-    /// sequence replaced with U+FFFD where Java's decoder replaces it), the
-    /// quarks and the sentence regions, gives each sentence the quarks
-    /// that overlap it, then adds the Penn tokens and the named entities
-    /// when there are files for them. `path` is the document's header,
-    /// which only names it.
+    /// Reads UTF-8 text with Unicode replacement for malformed sequences,
+    /// segmentation quarks, sentence regions, Penn tokens and named entities.
+    /// `path` identifies the source header in diagnostics.
     ///
     /// # Errors
     ///
-    /// What `parseDocument` throws: see [`MascError`].
+    /// Returns a typed [`MascError`] for malformed or inconsistent input.
     pub fn parse(path: impl Into<PathBuf>, files: MascFiles<'_>) -> Result<MascDocument, MascError> {
         let text = decode_utf8(files.text);
         if u32::try_from(text.len()).is_err() {
@@ -323,6 +336,8 @@ impl MascDocument {
             index,
             quarks,
             sentences,
+            document_tokens: None,
+            entity_count: 0,
             has_penn_tags: false,
             has_named_entities: false,
             has_chunks: false,
@@ -337,8 +352,9 @@ impl MascDocument {
         }
         if let Some(ne) = files.named_entities {
             let ne = parse_named_entities(ne)?;
+            doc.entity_count = ne.entities.len();
             doc.warnings.extend(ne.warnings.iter().cloned());
-            doc.add_named_entities(&ne);
+            doc.add_named_entities_with(&ne);
             if let (true, Some(penn)) = (doc.has_named_entities, &penn) {
                 doc.unplaced = doc.unplaced(&ne, penn, &dropped);
             }
@@ -372,6 +388,20 @@ impl MascDocument {
         &self.sentences
     }
 
+    /// Number of original NE memberships, including those unresolved to tokens.
+    pub fn entity_count(&self) -> usize {
+        self.entity_count
+    }
+
+    /// All original Penn tokens and entities in source order, independent of
+    /// sentence regions. Cross-sentence entities are whole here. The region is
+    /// the entire original text; no joined or normalized text is constructed.
+    /// Consumers must still reject incomplete, overlapping or discontinuous
+    /// annotations that their model cannot express.
+    pub fn document_tokens(&self) -> Option<&MascSentence> {
+        self.document_tokens.as_ref()
+    }
+
     /// Whether the Penn tokens were added (`hasPennTags`).
     pub fn has_penn_tags(&self) -> bool {
         self.has_penn_tags
@@ -382,12 +412,34 @@ impl MascDocument {
         self.has_named_entities
     }
 
-    /// The entities of the named entity file that are in no sentence, in
-    /// the order of their first edge in the file, with why; empty for a
-    /// document without named entities. An entity is in a sentence when
-    /// one of its tokens is one of the sentence's tokens.
+    /// The entities of the named entity file that have no complete sentence
+    /// sample, in the order of their first edge in the file, with why; empty
+    /// for a document without named entities. An entity is complete in a
+    /// sentence when every one of its tokens is one of the sentence's tokens.
     pub fn unplaced_entities(&self) -> &[MascUnplacedEntity] {
         &self.unplaced
+    }
+
+    /// Refuse incomplete entity pieces before constructing sentence-local gold.
+    ///
+    /// # Errors
+    ///
+    /// [`MascError::CutEntity`] identifies the document, original entity and
+    /// exact UTF-16 offsets of the first incomplete piece.
+    pub fn require_complete_entities(&self) -> Result<(), MascError> {
+        for sentence in &self.sentences {
+            for piece in sentence.entity_pieces().iter().filter(|p| p.continues) {
+                if let Some(tokens) = sentence.tokens() {
+                    return Err(MascError::CutEntity {
+                        path: self.path.clone(),
+                        entity: piece.id,
+                        start: tokens[piece.entity.start as usize].start,
+                        end: tokens[piece.entity.end as usize - 1].end,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     /// What OpenNLP logged while reading the document.

@@ -16,7 +16,7 @@ mod tests;
 
 use std::collections::HashMap;
 
-use turbo_maxent::xml::{Attribute, Handler};
+use crate::xml::{Attribute, Handler};
 
 use super::corpus::MascCorpus;
 use super::document::{MascDocument, MascWarning, attr, bad, parse_id, read_xml};
@@ -153,7 +153,7 @@ impl ChunkFile {
 }
 
 impl Handler for ChunkFile {
-    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> turbo_maxent::Result<()> {
+    fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         let prefix = self.kind.node_prefix();
         match name {
             "node" => {
@@ -180,7 +180,7 @@ impl Handler for ChunkFile {
         Ok(())
     }
 
-    fn end_element(&mut self, _: &str, _: usize) -> turbo_maxent::Result<()> {
+    fn end_element(&mut self, _: &str, _: usize) -> crate::xml::Result<()> {
         Ok(())
     }
 

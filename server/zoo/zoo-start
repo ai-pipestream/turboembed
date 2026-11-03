@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# The zoo image's entrypoint (server/Dockerfile.zoo, docs/zoo-container.md):
+# turbo-kserve with the arguments given, in zoo mode by the image's
+# environment, and the demo page in front of it. The page forwards the
+# catalog's writes, so off loopback it needs a token: TURBO_DEMO_TOKEN or
+# TURBO_DEMO_TOKEN_FILE, else one is made for this run and logged once.
+# When either process ends, the other is stopped and the container exits
+# with the first one's status.
+set -euo pipefail
+# These settings must also be visible to Docker's independent health process.
+for arg in "$@"; do
+    case "$arg" in
+        --listen|--listen=*|--tls-*)
+            echo 'zoo-start: configure listener and TLS through TURBO_KSERVE_* environment variables' >&2
+            exit 2 ;;
+    esac
+done
+source "$(dirname "${BASH_SOURCE[0]}")/zoo-env"
+
+# The page acts for one user (docs/demo.md, The user); a library reading
+# from this zoo names the same user to read what that user accepted.
+export TURBO_DEMO_USER="${TURBO_DEMO_USER:-zoo}"
+
+if [[ -z "${TURBO_DEMO_TOKEN:-}" && -z "${TURBO_DEMO_TOKEN_FILE:-}" ]]; then
+    TURBO_DEMO_TOKEN=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+    export TURBO_DEMO_TOKEN
+    echo "zoo-start: the page's token for this run is $TURBO_DEMO_TOKEN (set TURBO_DEMO_TOKEN to choose one)" >&2
+fi
+
+turbo-kserve "$@" &
+server=$!
+turbo-kserve-demo &
+demo=$!
+trap 'kill -TERM "$server" "$demo" 2>/dev/null || true' TERM INT
+status=0
+wait -n "$server" "$demo" || status=$?
+kill -TERM "$server" "$demo" 2>/dev/null || true
+wait "$server" "$demo" 2>/dev/null || true
+exit "$status"

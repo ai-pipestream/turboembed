@@ -1,0 +1,305 @@
+{{Short description|Card identifier found on payment cards}}
+{{Distinguish|Permanent account number}}
+{{More citations needed|date=September 2022}}
+{{Use dmy dates|date=December 2023}}
+A '''payment card number''', '''primary account number''' ('''PAN'''), or simply a '''card number''', is the card identifier found on [[payment card]]s, such as [[credit card]]s and [[debit card]]s, as well as [[stored-value card]]s, [[gift card]]s and other similar cards. In some situations the card number is referred to as a '''bank card number'''.  The card number is primarily a card identifier and may not directly identify the bank account number(s) to which the card is/are linked by the issuing entity. The card number prefix identifies the issuer of the card, and the digits that follow are used by the issuing entity to identify the cardholder as a customer and which is then associated by the issuing entity with the customer's designated bank accounts. In the case of stored-value type cards, the association with a particular customer is only made if the prepaid card is reloadable. Card numbers are allocated in accordance with [[ISO/IEC 7812]]. The card number is typically embossed on the front of a payment card, and is encoded on the magnetic stripe and chip, but may also be imprinted on the back of the card.
+
+The payment card number differs from the [[ISO 9362|Business Identifier Code]] (BIC/ISO 9362, a normalized code—also known as Business Identifier Code, Bank International Code or [[Society for Worldwide Interbank Financial Telecommunication|SWIFT]] code). It also differs from [[Universal Payment Identification Code]], another identifier for a bank account in the United States.
+
+==Structure==
+Payment card numbers are composed of 8 to 19 digits,<ref>{{cite web|url=https://www.ansi.org/news_publications/news_story?articleid=da7bcb04-0654-4e03-af54-0e55d50b93a8|title=Announcing Major Changes to the Issuer Identification Number (IIN) Standard|website=www.ansi.org|access-date=22 August 2017|archive-date=9 August 2020|archive-url=https://web.archive.org/web/20200809173021/https://www.ansi.org/news_publications/news_story?articleid=da7bcb04-0654-4e03-af54-0e55d50b93a8|url-status=dead}}</ref> The leading six or eight digits are the '''issuer identification number''' ('''IIN''') sometimes referred to as the '''bank identification number''' ('''BIN''').{{Ref RFC|4949|notes=no|rp=33}}<ref>{{cite web|url=https://www.iso.org/standard/70484.html |title=ISO/IEC 7812-1:2017 Identification cards – Identification of issuers – Part 1: Numbering system |publisher=ISO.org |date=January 2017 |access-date=2017-06-12}}</ref> The remaining numbers, except the last digit, are the individual account identification number. The last digit is the Luhn check digit. IINs and PANs have a certain level of internal structure and share a common numbering scheme set by ISO/IEC 7812. The parts of the number are as follows:
+
+* a six or eight-digit Issuer Identification Number (IIN),{{efn|IIN length has been extended to 10-digits in fifth edition of ISO/IEC 7812 published in 2017<ref>{{Cite web|url=https://www.iso.org/obp/ui/#iso:std:iso-iec:7812:-1:ed-5:v1:en|title=ISO/IEC 7812-1:2017}}</ref>  and PAN will continue to remain variable length, ranging from 10 to 19 digits.}} the first digit of which is the [[ISO/IEC 7812#Major industry identifier|major industry identifier]] (MII)
+* a variable length (up to 12 digits) individual account identifier
+* a single [[check digit]] calculated using the [[Luhn algorithm]]<ref>{{cite web|url=http://www.iso.org/cms/render/live/en/sites/isoorg/contents/data/standard/03/96/39698.html|title=ISO/IEC 7812-1:2006|website=ISO}}</ref>
+
+{{notelist}}
+
+== Issuer identification number (IIN) ==
+[[Image:Credit card-first 4 digits.jpg|thumb|Partial IIN on a credit card (both printed and embossed)]]
+
+The first six or eight digits of a card number (including the initial MII digit) are known as the issuer identification number (IIN). These identify the card issuing institution that issued the card to the card holder. The rest of the number is allocated by the card issuer. The card number's ''length'' is its number of digits. Many card issuers print the entire IIN and account number on their card.
+
+In some circumstances, the issuer identification number (IIN) or bank identification number (BIN) may not be licensed directly from the issuing network (such as [[Mastercard]] or [[Visa Inc.|Visa]]). Obtaining a BIN/IIN number can be costly, time-consuming and demand intensive operational burdens on in-house regulatory and compliance teams. For this reason, some new card programs may use a 'BIN sponsor', in which case the IIN/BIN number is effectively sub-licensed from a scheme regulated entity. This is known as BIN sponsorship, and is a popular way for financial institutions to fast-track access to market.<ref>{{cite web |title=What is issuing BIN sponsorship? |url=https://www.monavate.com/blog/what-is-issuing-bin-sponsorship/ |website=Monavate.com |date=29 March 2021 |access-date=2 July 2021 |last1=Boyes |first1=Chris |archive-date=9 July 2021 |archive-url=https://web.archive.org/web/20210709184945/https://www.monavate.com/blog/what-is-issuing-bin-sponsorship/ |url-status=dead }}</ref>
+
+In the United States, IINs are also used in [[National Council for Prescription Drug Programs|NCPDP]] pharmacy claims to identify processors, and are printed on all pharmacy insurance cards. IINs are the primary routing mechanism for real-time claims.
+
+The ISO Register of Issuer Identification Numbers [[Database theory|database]] is managed by the [[American Bankers Association]]. ABA is the Registration Authority for this standard and is responsible for allocating IINs to issuers.
+
+Online merchants may use IIN lookups to help validate transactions. For example, if a card's IIN indicates a bank in one country, while the customer's billing address is in another, the transaction may call for extra scrutiny.
+
+{| class="wikitable mw-collapsible sortable"
+|-
+!Issuing network
+!IIN ranges
+!Active
+!Length
+!Validation
+|-
+|[[American Express]]
+| data-sort-value="340000"|34, 37<ref name="GenCardFeatures">{{cite web |title=Card Security Features |url=http://www125.americanexpress.com/merchant/oam/resources/POS499.pdf |access-date=2006-04-05 |date=January 2001 |publisher=American Express |archive-url=https://web.archive.org/web/20060305144448/http://www125.americanexpress.com/merchant/oam/resources/POS499.pdf |archive-date=5 March 2006 |url-status=dead }}</ref>
+| style="color:green" |Yes
+|15<ref name="AmExSecFeatures">{{cite web | title = American Express Card security features | url = https://www.americanexpress.com/content/dam/amex/hk/en/staticassets/merchant/pdf/support-and-services/useful-information-and-downloads/GuidetoCheckingCardFaces.pdf | access-date = 2021-10-25 | archive-url=https://web.archive.org/web/20210504163517/https://www.americanexpress.com/content/dam/amex/hk/en/staticassets/merchant/pdf/support-and-services/useful-information-and-downloads/GuidetoCheckingCardFaces.pdf | archive-date=2021-05-04}}</ref>
+| rowspan="4" | [[Luhn algorithm]]
+|-
+|[[Bankcard]]<ref name="NoMoreBankCard">{{cite web |title=Bankcard Association of Australia |url=http://bankcard.com.au/ |access-date=2017-02-03 |archive-url=https://web.archive.org/web/20060406112409/http://bankcard.com.au/ |archive-date=6 April 2006 <!--DASHBot-->|url-status=dead}}</ref>
+| data-sort-value="561000"|5610, 560221–560225
+|style="color:red" |No
+|16
+|-
+|[[China T-Union]]
+| data-sort-value="310000"|31
+|style="color:green" |Yes
+|19
+|-
+|[[China UnionPay]]
+| data-sort-value="620000"|62
+|style="color:green" |Yes
+|16–19<ref name="Discover 2017 Compliance"/>
+|-
+|[[Diners Club International|Diners Club]] [[EnRoute (credit card)|enRoute]]
+| data-sort-value="000000"|
+|style="color:green" |Yes
+|15
+|No Validation
+|-
+| [[Diners Club International]]<ref name="MC DC Ref">{{cite web | title=Mastercard Diners Club Alliance | url=http://www.mastercard.com/in/merchant/en/solutions_resources/dinersclub.html | archive-url=https://web.archive.org/web/20081204135437/http://www.mastercard.com/in/merchant/en/solutions_resources/dinersclub.html | archive-date=2008-12-04 | url-status=unfit | access-date=2022-08-11}}</ref>
+| data-sort-value="360000"|30, 36, 38, 39
+| style="color:green" |Yes
+|14–19<ref name="Discover 2017 Compliance">{{Cite web|url=https://www.discovernetwork.com/downloads/IPP_VAR_Compliance.pdf|title=February 2017 Compliance Update|archive-url=https://web.archive.org/web/20170822221741/https://www.discovernetwork.com/downloads/IPP_VAR_Compliance.pdf|archive-date=2017-08-22|url-status=dead|access-date=2017-08-22}}</ref>
+| rowspan="33" | [[Luhn algorithm]]
+|-
+|[[Diners Club International|Diners Club]] United States & Canada<ref name="DinerUS">{{cite web | title=Diners Club - Fraud Management |url=http://www.dinersclubus.com/dce_content/us/merchants |archive-url=https://web.archive.org/web/20071229064548/http://www.dinersclubus.com/dce_content/us/merchants |archive-date=2007-12-29 |url-status=unfit |access-date=2022-08-11}}</ref>
+| data-sort-value="550000"|55
+|style="color:green" |Yes
+|16
+|-
+|rowspan="2" |[[Discover Card]]
+| data-sort-value="601100"|6011, 644-649, 65
+|style="color:green" |Yes
+|16–19<ref name="Discover 2017 Compliance" />
+|-
+| data-sort-value="622126"|622126–622925 (China UnionPay co-branded)
+|style="color:green" |Yes
+|16–19<ref name="Discover 2017 Compliance" />
+|-
+|{{ill|UkrCart|uk|УкрКарт}}
+| data-sort-value="604001"|60400100–60420099
+|style="color:green" |Yes
+|16–19
+|-
+| rowspan="2" |[[RuPay]]
+| data-sort-value="600000"|60, 65, 81, 82, 508
+|style="color:green" |Yes
+|16
+|-
+| data-sort-value="353000"|353, 356 (RuPay-JCB co-branded)
+| style="color:green" |Yes
+|16
+|-
+|[[Decoupled debit card|InterPayment]]
+| data-sort-value="636000"|636
+|style="color:green" |Yes
+|16–19
+|-
+|[[InstaPayment prepaid card|InstaPayment]]
+| data-sort-value="637000"|637–639
+|style="color:green" |Yes
+|16
+|-
+|[[Japan Credit Bureau|JCB]]
+| data-sort-value="352800"|3528–3589
+|style="color:green" |Yes
+|16–19<ref name="Discover 2017 Compliance" />
+|-
+|[[LankaPay]]
+| data-sort-value="357111"|357111 (JCB co-branded)
+|style="color:green" |Yes
+|16
+|-
+|[[Laser (debit card)|Laser]]
+| data-sort-value="630400"|6304, 6706, 6771, 6709
+|style="color:red" |No
+|16–19
+|-
+|[[Maestro (debit card)|Maestro]] UK
+| data-sort-value="675900"|6759, 676770, 676774<ref name="Barclaycard">{{cite web |url=https://www.barclaycard.co.uk/business/files/BIN-Rules-UK.pdf |archive-url=https://web.archive.org/web/20190217030145/https://www.barclaycard.co.uk/business/files/BIN-Rules-UK.pdf |archive-date=2019-02-17 |url-status=unfit |title=Barclaycard BIN Ranges and Rules - UK |access-date=2022-08-11}}</ref>
+|style="color:green" |Yes
+|12–19
+|-
+|[[Maestro (debit card)|Maestro]]
+| data-sort-value="501800"|5018, 5020, 5038, 5893, 6304, 6759, 6761, 6762, 6763
+|style="color:green" |Yes
+|12–19
+|-
+| rowspan="2" |[[Dankort]]
+| data-sort-value="501900"|5019
+|style="color:green" |Yes
+|16
+|-
+| data-sort-value="457100"|4571 (Visa co-branded)<ref name=":0">{{Cite web|url=https://www.nets.eu/dk-da/kundeservice/Verifikation%20af%20betalingsl%C3%B8sninger/Documents/ct-trg-otrs-en.pdf|title=Nets Technical Reference Guide|at=1-14.3.2 Building the MSC Selection Table}}</ref>
+| style="color:green" |Yes
+|16
+|-
+|[[Mir (payment system)|Mir]]
+| data-sort-value="220000"|2200–2204
+|style="color:green" |Yes
+|16–19
+|-
+|{{ill|BORICA|bg|БОРИКА}}
+| data-sort-value="220500"|2205
+|style="color:green" |Yes
+|16
+|-
+|{{ill|NPS Pridnestrovie|ru|Приднестровье (платёжная система)}}
+| data-sort-value="605474"|6054740–6054744
+|style="color:red" |No<ref>{{Cite web |title=Об отмене Указа Президента Приднестровской Молдавской Республики от 22 мая 2015 года № 202 «Об общих условиях организации и функционирования в Приднестровской Молдавской Республике Национальной платежной системы» |trans-title=On the cancellation of the Decree of the President of the Pridnestrovian Moldavian Republic dated 22 May 2015 No. 202 "On the general conditions for the organization and functioning of the National Payment System in the Pridnestrovian Moldavian Republic" |url=https://president.gospmr.org/pravovye-akty/ukazi/ob-otmene-ukaza-prezidenta-pridnestrovskoy-moldavskoy-respubliki-ot-22-maya-2015-goda-202-ob-obschih-usloviyah-organizatsii-i-funktsionirovaniya-v-pridnestrovskoy-moldavskoy-respublike-natsionaljnoy-platejnoy-sistemi-.html}}</ref>
+|16
+|-
+| rowspan="2" | [[Mastercard]]
+| data-sort-value="222100"|2221–2720<ref name="mastercard-rules">{{Cite web |url=https://www.mastercard.us/content/dam/mccom/global/documents/mastercard-rules.pdf |archive-url=https://web.archive.org/web/20180514224309/https://www.mastercard.us/content/dam/mccom/global/documents/mastercard-rules.pdf |archive-date=2018-05-14 |url-status=dead |title=Mastercard Rules |date=21 December 2017 |publisher=[[Mastercard]] }}</ref>
+|style="color:green" |Yes (since 2017)<ref>{{cite web|url=https://www.mastercard.us/content/dam/mccom/en-us/documents/merchant-2-series-BIN-impact-checklist-aug-2016.pdf|title=Mastercard 2-Series BIN Implementation for Merchants|website=www.mastercard.us}}</ref>
+|16
+|-
+| data-sort-value="510000"|51–55<ref name="mastercard-rules" />
+|style="color:green" |Yes
+|16
+|-
+|[[Solo (debit card)|Solo]]
+| data-sort-value="633400"|6334, 6767
+|style="color:red" |No
+|16, 18, 19
+|-
+|[[Switch (debit card)|Switch]]
+| data-sort-value="490300"|4903, 4905, 4911, 4936, 564182, 633110, 6333, 6759
+|style="color:red" |No
+|16, 18, 19
+|-
+| rowspan="2" | [[Troy (card scheme)|Troy]]
+| data-sort-value="650000"|65 (Discover co-branded<ref>{{cite news |title=Turkey's Troy moves overseas with Discover deal |url=https://www.finextra.com/pressarticle/71533/turkeys-troy-moves-overseas-with-discover-deal |access-date=19 February 2022 |issue=9 November 2017 |date=9 November 2017}}</ref>)
+|style="color:green" |Yes
+|16
+|-
+| data-sort-value="979200"|9792<ref>{{Cite web|last=Elçiboğa|first=Ibrahim Kudret|title=TROY Bin Listesi|url=https://www.fraudandchargeback.com/tr/troy-bin-listesi/|access-date=2020-08-31|website=Fraud and Chargeback|language=tr-TR|archive-date=23 October 2020|archive-url=https://web.archive.org/web/20201023120232/https://www.fraudandchargeback.com/tr/troy-bin-listesi/|url-status=dead}}</ref>
+|style="color:green" |Yes
+|16
+|-
+|[[Visa Inc|Visa]]
+| data-sort-value="400000"|4 
+|style="color:green" |Yes
+|13, 16, 19
+|-
+|[[Visa Electron]]
+| data-sort-value="402600"|4026, 417500, 4844, 4913, 4917
+|style="color:red" |No<ref>[https://www.aibms.com/wp-content/uploads/2018/10/AI08053-Visa-Electron-Will-Be-Discontinued-Globally.pdf "Visa Electron will be discontinued globally"] {{Webarchive|url=https://web.archive.org/web/20230308013757/https://www.aibms.com/wp-content/uploads/2018/10/AI08053-Visa-Electron-Will-Be-Discontinued-Globally.pdf |date=8 March 2023 }} {{emdash}} Visa U.S.A. Inc. via [http://aibms.com AIB Merchant Services]</ref>
+|16
+|-
+|[[UATP]]
+| data-sort-value="100000"|1
+|style="color:green" |Yes
+|15
+|-
+|[[Verve Card|Verve]]
+|506099–506198, 650002–650027, 507865–507964
+|style="color:green" |Yes
+| data-sort-value="160000"|16, 18, 19
+|-
+|{{ill|Uzcard|ru}}
+| data-sort-value="860000"|8600, 5614
+|style="color:green" |Yes
+|16
+|-
+|{{ill|HUMO (Payment system)|lt=HUMO|ru|HUMO_(платёжная_система)}}
+| data-sort-value="986000"|9860
+|style="color:green" |Yes
+|16
+|-
+| rowspan="2" | [[Gerbang Pembayaran Nasional|GPN]]
+| data-sort-value="194600"|1946 ([[Bank Negara Indonesia|BNI]] cards)
+|style="color:green" |Yes
+|16, 18, 19
+|-
+| data-sort-value="500000"|50, 56, 58, 60–63
+|style="color:green" |Yes
+|16, 18, 19
+|-
+|{{ill|Napas|vi}}
+| data-sort-value="970400"|9704
+|style="color:green" |Yes
+|16, 19
+|Unknown
+|-
+|{{ill|WEX Inc.|vi}}
+| data-sort-value="960046"|960046
+|style="color:green" |Yes
+|19
+|Unknown
+|}
+
+On 8 November 2004, Mastercard and Diners Club formed an alliance. Diners Club cards issued in Canada and the United States start with 54 or 55 and are treated as Mastercards worldwide. International cards use the 36 prefix and are treated as Mastercards in Canada and the United States, but are treated as Diners Club cards elsewhere. Diners Club International's website makes no reference to old 38 prefix numbers, and they can be presumed reissued under the 55 or 36 IIN prefix. Effective 16 October 2009, Diners Club cards beginning with 30, 36, 38 or 39 have been processed by Discover Card.<ref name="DisCard9.1">{{cite web |title=Diners Club International Ranges Available for Development Purposes Only |date=October 2008 |url=https://www.discovernetworkvar.com/common/pdf/var/VAR_Alert_Release_9.1_Expanded_Ranges_10-08.pdf |url-status=unfit |archive-url=https://web.archive.org/web/20111006144647/https://www.discovernetworkvar.com/common/pdf/var/VAR_Alert_Release_9.1_Expanded_Ranges_10-08.pdf |archive-date=2011-10-06 |access-date=2023-08-27}}</ref>
+
+On 3 November 2014, Mastercard announced that they were introducing a new series of BIN ranges that begin with a "2" (222100–272099). The "2" series BINs will be processed the same as the "51–55" series BINs are today. They became active 14 October 2016.
+
+On 23 July 2014 JSC NSPK was established in the Russian Federation. The joint stock company National System of Payment Cards (NSPK) is the operator of the Mir National Payment System. The main initiatives of NSPK are to create the national payment system infrastructure and to issue a national payment card, Mir.
+
+Effective 1 October 2006, Discover began using the entire 65 prefix, not just 650. Also, similar to the Mastercard/Diners agreement, China UnionPay cards are now treated as Discover cards and accepted on the Discover network.
+
+While the vast majority of Visa's account ranges describe 16 digit card numbers there are still a few account ranges (forty as of 11 December 2013) 
+dedicated to 13 digit PANs and several (439 as of 11 December2013) account ranges where the issuer can mix 13 and 16 digit card numbers. Visa's VPay brand can specify PAN lengths from 13 to 19 digits and so card numbers of more than 16 digits are now being seen.
+
+Switch was re-branded as Maestro in mid-2007.<ref>{{cite web | title=Switch to Maestro | access-date=2010-08-20 | url=http://www.maestrocard.com/uk/about/switch_to_maestro.html | archive-url=https://web.archive.org/web/20100808000653/http://www.maestrocard.com/uk/about/switch_to_maestro.html | archive-date=8 August 2010 | url-status=dead }}</ref> In 2011, UK domestic Maestro (formerly Switch) was aligned with the standard international Maestro proposition with the retention of a few residual country specific rules.
+
+EMV Certification requires acceptance of a 19-digit Visa card (ADVT 6.1.1 Test Case 2) and Discover Card (E2E Test Plan v1.3, Test Case 06).
+
+===Canadian bank card numbering===
+Bank card numbers issued by Canadian banks also follow a pattern for their systems:
+
+{| class="wikitable sortable"
+!Issuing network
+!Ranges
+!Length
+|-
+|[[Canadian Imperial Bank of Commerce]] Advantage Debit Card
+| 4506 ([[Interac]] and [[Visa Debit]])
+| 16 digits
+|-
+|[[Royal Bank of Canada]] Client Card
+| 4519
+| 16 digits
+|-
+|[[TD Canada Trust]] Access Card
+| 4724 ([[Interac]] and [[Visa Debit]])
+| 16 digits
+|-
+|[[Scotiabank]] Scotia Card
+| 4536
+| 16 digits
+|-
+|[[Bank of Montreal|BMO]] ABM Card
+| 500, 5510
+| 16 digits
+|-
+|[[Conexus Credit Union]] Member Card
+| 629449
+| 16 digits
+|}
+
+== Security measures ==
+[[File:Example of PAN truncation in digital receipt.webp|thumb|Example of PAN truncation on a banking [[online banking|mobile application]] for an album bought at [[Bandcamp]]]]
+To reduce the risk of [[credit card fraud]], various techniques are used to prevent the dissemination of bank card numbers. These include:
+
+* [[Format-preserving encryption]]: in which the account number is replaced with a strongly encrypted version which retains the format of the card data including non sensitive parts of the field such as first six and last four digits. This permits data field protection without changing payment IT systems and applications. A common use is for protecting card data from the point of capture in a secure reader to the payment processing host end-to-end to mitigate risk of data compromise in systems such as the Point of Sale (POS). AES-FF1 Format-Preserving Encryption is defined in NIST Specification SP800-38G.
+* [[PAN truncation]]: in which only some of the digits on a card are displayed or printed on receipts.  The [[Payment Card Industry Data Security Standard|PCI DSS standard]] dictates that only the first six and last four digits of the PAN may be printed on a receipt or displayed in cases other than where a business need requires the full PAN. US federal law ([[Fair and Accurate Credit Transactions Act|FACTA]]) allows only the display of the last 5 digits. In order to comply with both PCI DSS requirements and US federal law, generally only the last four digits are provided elsewhere to allow an individual to identify the card used.
+* [[Tokenization (data security)|Tokenization]]: in which an artificial account number (token) is printed, stored or transmitted in place of the true account number.
+
+== References ==
+{{Portal|Banks}}
+{{Reflist|30em}}
+
+{{Credit cards}}
+
+[[Category:Payment cards]]
+[[Category:Financial routing standards]]
+[[Category:Financial metadata]]
+[[Category:Identifiers]]
+[[Category:Bank codes]]

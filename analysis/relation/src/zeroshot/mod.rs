@@ -7,7 +7,7 @@
 //! allows at each end) and the limits, refused by name when exceeded.
 //!
 //! The annotator ([`ZeroShotRelationAnnotator`]) writes the existing
-//! relation layers, `opennlp:relations` and `Edges<Entities, Entities>`,
+//! relation layers, `turbo:relations` and `Edges<Entities, Entities>`,
 //! so its output reads like the dependency-path extractor's, and
 //! `Relations` implements `Evidenced`, so an evidence step can record
 //! each relation's head and tail spans, score and model.

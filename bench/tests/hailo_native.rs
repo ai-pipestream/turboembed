@@ -9,7 +9,8 @@ use turbo_bench::measure::{self, Plan, RowKind};
 #[test]
 #[ignore = "requires a physical Hailo board, TURBO_HAILO_BUNDLE and TURBO_HAILO_RECEIPT"]
 fn native_receipt_matches_the_real_library_and_rejects_changed_inputs() {
-    let bundle = PathBuf::from(std::env::var("TURBO_HAILO_BUNDLE").expect("set the deployment bundle"));
+    let bundle =
+        turbo_pins::require(PathBuf::from(std::env::var("TURBO_HAILO_BUNDLE").expect("set the deployment bundle")));
     let receipt = std::fs::read(std::env::var("TURBO_HAILO_RECEIPT").expect("set the native CLI receipt")).unwrap();
     let m = measure::measure(&Plan {
         bundle,

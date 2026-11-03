@@ -1,0 +1,10 @@
+MASKED	Bitte überweisen Sie an **** **** **** **** **** ** und schreiben Sie an büro@example.de oder ****@*******.**.
+
+MASK_ALL	Bitte überweisen Sie an ########################### und schreiben Sie an büro@example.de oder ###############.
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	email	1	1	EMAIL-d0d506bf4ae9f414
+AUDIT	iban	1	1	IBAN-12d2a2b8c32b1193
+AUDIT	phone	1	1	PHONE-d93b376c99f48a80
+AUDIT_REPORT	email: 1 mentions, 1 distinct [EMAIL-d0d506bf4ae9f414]\niban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]\nphone: 1 mentions, 1 distinct [PHONE-d93b376c99f48a80]

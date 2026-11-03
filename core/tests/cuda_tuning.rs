@@ -381,7 +381,8 @@ fn the_budget_holds() {
 }
 
 /// What a process's first tuned session of a real bundle costs, at the
-/// benchmark's shape of 32 rows of 256 tokens, FASTEST and EXACT, with
+/// benchmark's shape of 32 rows of 256 tokens (fewer rows where the
+/// bundle's max_batch is under 32), FASTEST and EXACT, with
 /// the default budget and no disk cache: the log's line and tune_ms,
 /// printed for docs/cuda.md.
 #[test]
@@ -399,7 +400,8 @@ fn the_first_tuned_session_s_cost() {
         let cache = keep.dir.clone();
         std::fs::create_dir_all(&cache).unwrap();
         let s = caching(Some(&cache), || {
-            Session::create(g.m, Some(&tuned_desc(32, 256, precision, TURBO_AUTOTUNE_ON, 0))).unwrap()
+            let batch = g.info().max_batch.min(32);
+            Session::create(g.m, Some(&tuned_desc(batch, 256, precision, TURBO_AUTOTUNE_ON, 0))).unwrap()
         });
         let info = s.info();
         println!("precision {precision}: tuned {} in {} ms", info.tuned, info.tune_ms);

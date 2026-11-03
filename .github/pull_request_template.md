@@ -46,6 +46,9 @@ Gates:
 - [ ] No silent fallback to another device, and no relaxed tolerance or
       refusal to make a test pass.
 - [ ] Hardware proof is from the real device named in the issue.
+- [ ] A change to the training recipes, the trainers or the zoo's index
+      carries the label `ci:models`, so the model training runs on it
+      (off by default; .github/runner/README.md, "Model training runs").
 
 Issue labels:
 

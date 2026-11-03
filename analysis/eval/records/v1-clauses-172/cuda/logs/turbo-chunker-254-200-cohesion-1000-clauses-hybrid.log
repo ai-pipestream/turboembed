@@ -1,0 +1,17 @@
+== turbo-chunker-254-200-cohesion-1000-clauses-hybrid 2026-10-28T12:07:47Z 8051f4d7ff378735f130eadfd41ae08034a93d99 load 161.19 135.14 125.46
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper,conteb-squad,gutenqa --cache <cache> --device cuda --retrieval hybrid --out <records>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid --dump-cuts <dumps>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid --chunker turbo-chunker --max 254 --target 200 --cohesion 1000 --clauses
+set scifact: the cuts of 5183 documents in artifact scifact.cuts
+set nfcorpus: the cuts of 3633 documents in artifact nfcorpus.cuts
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set arguana: the cuts of 8674 documents in artifact arguana.cuts
+set qasper: 21 judgements could not be placed in their document and are left out
+set qasper: the cuts of 416 documents in artifact qasper.cuts
+set conteb-squad: the cuts of 2067 documents in artifact conteb-squad.cuts
+set gutenqa: 112 judgements could not be placed in their document and are left out
+set gutenqa: the cuts of 100 documents in artifact gutenqa.cuts
+<records>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/scifact.json
+<records>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/nfcorpus.json
+<records>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/arguana.json
+<records>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/qasper.json
+<records>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/conteb-squad.json
+<records>/cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/gutenqa.json

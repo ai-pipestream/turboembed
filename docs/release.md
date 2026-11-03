@@ -1,6 +1,7 @@
 # Releases
 
-A tag `v<version>` on `main` makes four archives through
+A tag `v<version>` on `main` makes five binary archives, a proto archive,
+and generated Java and Python client stub artifacts through
 `.github/workflows/release.yml` and publishes them as one GitHub release,
 each with its SHA-256:
 
@@ -10,15 +11,72 @@ each with its SHA-256:
 - `turboembed-v<version>-linux-aarch64.tar.gz`: the cpu backend.
 - `turboembed-v<version>-windows-x86_64.zip`: the cpu backend, built with
   MSVC.
+- `turboembed-v<version>-android.tar.gz`: the cpu backend as
+  `jniLibs/arm64-v8a/libturbo.so` and `jniLibs/x86_64/libturbo.so`, built
+  with the Android NDK at API level 26, for the JNI binding
+  (`clients/java-jni/README.md`, "Android").
+- `turboembed-proto-v<version>.tar.gz`: the versioned `server/proto/*.proto`
+  definitions and `buf.yaml`.
+- `turboembed-grpc-<version>.jar`, `turboembed-grpc-<version>-sources.jar`,
+  and `turboembed-grpc-<version>.pom`: the generated Java Maven stub artifact
+  (`ai.pipestream:turboembed-grpc:<version>`, built with pinned `protoc 4.36.2`
+  and `protoc-gen-grpc-java 1.85.1`, depending on `protobuf-java 4.36.2` and
+  `grpc-protobuf` and `grpc-stub` 1.85.1, Java 17 or newer).
+- `turboembed_proto-<version>-py3-none-any.whl`: the generated Python wheel
+  stub package (`turboembed-proto`, built with pinned `grpcio-tools 1.85.0`
+  and `protobuf 7.36.2` on uv-managed Python). It requires Python 3.10 or
+  newer, `grpcio>=1.85.0` and `protobuf>=7.35.1,<8`. `build_wheel.py` reads
+  those floors from the generated code (`GRPC_GENERATED_VERSION` and the
+  protobuf gencode version that grpcio-tools 1.85.0 bundles), and the
+  smoke test installs the wheel on Python 3.10 with its dependencies
+  resolved to exactly those floors before calling the server.
+
+The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
+`grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
+in-process bindings share `clients/java-api/pom.xml`
+(`ai.pipestream:turboembed-api:<version>`, pure Java 21+, no native or bridge
+dependency). Callers add that API plus a matching-version implementation:
+`ai.pipestream:turboembed-panama:<version>` from `clients/java-panama` for
+Java 25+ FFM, or `ai.pipestream:turboembed-jni:<version>` from
+`clients/java-jni` for Java 21+ and Android. Both use the platform's
+`libturbo` from the binary archive; JNI entry points remain in that same
+library, and Android uses the archive's `jniLibs`. Panama requires
+`--enable-native-access=ALL-UNNAMED`.
+
+The shared runtime chooses Panama on supported Java 25+ runtimes and JNI
+on older supported runtimes or Android. `turbo.bridge=jni|panama` or the
+typed `TurboRuntime.load(TurboBridge)` override selects one explicitly.
+Public callers import `ai.pipestream.turboembed` and its compatibility adapter
+package; concrete bridge packages expose implementation-specific access.
+The `clients/pom.xml` reactor builds API, conformance and JNI on Java 21,
+and also Panama on Java 25+. `clients/java-conformance` tests the shared
+interfaces directly against actual native results. These in-process jars
+are built from source; this change does not add published release assets.
+The Rust server builds its own stubs with
+tonic 0.14.6 and prost 0.14.4 (`Cargo.lock`).
+
+The demo page's TypeScript code is not a release artifact: it is
+generated into `demo/web/src/gen` by `scripts/generate-web-stubs.sh`
+from `server/proto/buf.gen.yaml`, committed, and checked against the
+protos by the `proto` CI job. Its pins are exact, in
+`demo/web/package.json` and its lockfile: the `buf` CLI 1.70.0
+(`@bufbuild/buf`, the version the `proto` job lints with),
+`@bufbuild/protoc-gen-es` 2.16.0, `@bufbuild/protobuf` 2.16.0, and
+`@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0. The page
+itself is bundled into `demo/static/app.js` by `scripts/build-web.sh`
+with TypeScript 7.0.2 and esbuild 0.28.2, pinned the same way and
+checked by the same job.
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
-builds and checks the four and keeps them, with their sums, as the run's
-artifacts, and publishes nothing. What changed in each release is in
-`CHANGELOG.md`; what a release may change is under Versions and
-compatibility, below.
+builds and checks the release archives and client stubs and keeps them,
+with their sums, as the run's artifacts, and publishes nothing. What
+changed in each release is in `CHANGELOG.md`; what a release may change
+is under Versions and compatibility, below.
 
 The same tag pushes two images of the gRPC server to GHCR (Images,
-below). Nothing else is published: no crate.
+below), alongside the proto archive and generated Java and Python client
+stub artifacts in the GitHub release (docs/grpc.md). The Rust crates are
+not published.
 
 ## What the Linux archive holds
 
@@ -243,16 +301,22 @@ on an Intel Mac (docs/metal.md).
 ## Making one
 
 ```
-git tag v0.1.0 <commit on main>
-git push origin v0.1.0
+git tag v0.2.0 <commit on main>
+git push origin v0.2.0
 ```
 
-The version is the `turbo` crate's (`core/Cargo.toml`). A tag on a
+The version is the `turbo` crate's (`core/Cargo.toml`). The tagged
+commit sets it, and `turbo-kserve`'s (`server/Cargo.toml`), to the
+tag's version, so `turbo_version()` and the server report the version
+the tag names. A tag on a
 commit whose records are not on `main` publishes a library that carries
 fewer records than it could; tag after the records land.
 
 Tag only after `CHANGELOG.md`'s top heading is the version being tagged
 and holds every change since the last tag.
+Once the tag is pushed, the next pull request that changes a promised
+surface adds a new top heading to `CHANGELOG.md`, `## v<next> (not yet
+tagged)`, above the tagged one, and the tagged heading gets its date.
 
 ## Versions and compatibility
 
@@ -288,6 +352,16 @@ signature; reusing a task, status or enumeration number; changing what
 an existing value or call means. A program must treat a status code it
 does not know as a failure (`turbo_status_name` names it
 `TURBO_E_UNKNOWN`) and must not assume a list of devices or backends.
+
+A field that stops meaning anything is retired, not removed: it keeps
+its name, type and offset, the header marks it retired, and a non-empty
+or non-zero value fails with `TURBO_E_INVALID_ARGUMENT` naming the field
+in `turbo_error.field`. A program that left the field empty runs as
+before. The model path fields of `turbo_analyzer_desc` are retired this
+way: learned components load from its `bundle_path`, and the struct's
+earlier `struct_size` (104) stays accepted and names no bundle, decoded
+from that 104-byte prefix alone without reading or requiring memory
+past it.
 
 ### The gRPC services and the server's configuration
 

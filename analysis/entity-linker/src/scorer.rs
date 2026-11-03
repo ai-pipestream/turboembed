@@ -6,6 +6,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use turbo_matcher::FuzzyMatchPolicy;
+
 use crate::layer::CandidateLink;
 use crate::providers::{KbProvider, RawCandidate};
 
@@ -71,6 +73,11 @@ pub struct LinkerConfig {
     pub max_candidates_per_provider: usize,
     /// Minimum alias similarity in `[0.0, 1.0]` for fuzzy candidate generation (`1.0` disables fuzzy).
     pub fuzzy_threshold: f64,
+    /// Optional fuzzy match policy gating typo and phonetic candidate recovery. The default
+    /// policy is disabled, leaving candidate generation exactly as `fuzzy_threshold` describes.
+    /// `FuzzyMatchPolicy::new` validates its parameters, so an existing policy needs no further
+    /// validation here.
+    pub fuzzy_policy: FuzzyMatchPolicy,
     /// Whether to propagate candidates and evidence across coreference clusters.
     pub coref_propagation: bool,
     /// Token window radius around a mention when sentence boundaries are unavailable.
@@ -103,6 +110,7 @@ impl Default for LinkerConfig {
             top_k: 5,
             max_candidates_per_provider: 16,
             fuzzy_threshold: 0.88,
+            fuzzy_policy: FuzzyMatchPolicy::default(),
             coref_propagation: true,
             context_window_tokens: 24,
         }

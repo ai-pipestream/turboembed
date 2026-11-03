@@ -1,0 +1,29 @@
+load_error	
+unsupported	0
+words	26
+ház	ház	ház	st:ház
+háztető	ház	háztető	pa:ház st:ház pa:tető
+tetőház	tető	tetőház	pa:tető st:tető pa:ház
+házkert	ház	házkert	pa:ház st:ház pa:kert
+kertház	kert	kertház	pa:kert st:kert pa:ház
+házban	ház	ház	st:ház fl:c
+kertházban	kert	kertház	pa:kert st:kert pa:házban st:ház fl:c
+házi	ház	ház	st:ház fl:J
+házit	ház	ház	st:ház fl:J fl:K
+háztetőkert	ház	háztetőkert	pa:ház st:ház pa:tető st:tető pa:kert
+ajtó	ajtó	ajtó	st:ajtó
+ajtóház	ajtó	ajtóház	pa:ajtó st:ajtó pa:ház
+házajtó	ház	házajtó	pa:ház st:ház pa:ajtó
+városház	város	városház	pa:város st:város pa:ház
+városháza	városháza	városháza	
+házváros	ház	házváros	pa:ház st:ház pa:város
+városi	város	város	st:város fl:J
+épitész	épitész	épitész	
+építészház	építész	építészház	pa:építész st:építész pa:ház
+tető-	tető	tető	st:tető
+tető-ház	tető	tetőház	pa:tető st:tető pa:ház st:ház
+ház-tető	ház	háztető	pa:ház st:ház pa:tető st:tető
+legeslegház	legeslegház	legeslegház	
+legesleghaz	legesleghaz	legesleghaz	
+kert-ház	kert	kertház	pa:kert st:kert pa:ház st:ház
+kertajtó	kert	kertajtó	pa:kert st:kert pa:ajtó

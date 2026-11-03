@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dictionary case_sensitive="true">
+  <entry><token>John</token><token>Smith</token></entry>
+  <entry><token>john</token><token>smith</token></entry>
+  <entry><token>Smith</token></entry>
+  <entry><token>Dr.</token><token>Who</token></entry>
+  <entry><token>JOHN</token></entry>
+</dictionary>

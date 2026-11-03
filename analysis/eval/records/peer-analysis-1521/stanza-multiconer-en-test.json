@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "gold_file": "multiconer-en-test.tsv",
+  "gold_sha256": "200c831eebb31201c19894149a3b4a1bb0a1f3a2651af67811970c485822a498",
+  "sentences": 249980,
+  "tokens": 3773671,
+  "resamples": 1000,
+  "seed": 42,
+  "conditioning": [
+    "entities: exact-span F1 from BIO labels; lenient decoding (an I- with no open span of its type starts one); paired bootstrap resampling sentences",
+    "tokenization: gold tokens are given to every system; a prediction must label every gold token",
+    "label mapping: each peer runner maps its label set to the gold labels and documents the map beside its record"
+  ],
+  "systems": [
+    {
+      "system": "stanza-en-ner",
+      "entities": {
+        "correct": 41233,
+        "selected": 72170,
+        "target": 377805,
+        "score": 18.326795933107395,
+        "low": 18.171096310284355,
+        "high": 18.47617385951397
+      },
+      "per_type": [
+        {
+          "kind": "CW",
+          "correct": 94,
+          "selected": 263,
+          "target": 53164,
+          "score": 0.3518820072248114
+        },
+        {
+          "kind": "GRP",
+          "correct": 944,
+          "selected": 5997,
+          "target": 60026,
+          "score": 2.859609530012268
+        },
+        {
+          "kind": "LOC",
+          "correct": 10702,
+          "selected": 23086,
+          "target": 67901,
+          "score": 23.524239726554345
+        },
+        {
+          "kind": "MED",
+          "correct": 0,
+          "selected": 0,
+          "target": 22491,
+          "score": 0.0
+        },
+        {
+          "kind": "PER",
+          "correct": 29453,
+          "selected": 42328,
+          "target": 137681,
+          "score": 32.723919359587576
+        },
+        {
+          "kind": "PROD",
+          "correct": 40,
+          "selected": 496,
+          "target": 36542,
+          "score": 0.21599438414601219
+        }
+      ]
+    }
+  ]
+}

@@ -8,10 +8,9 @@
 //! `Parameter` has its own, seeded with zero, and the weight vectors of a
 //! multi-class model draw from it in turn.
 
-use turbo_jvm::random::JavaRandom;
-
 use super::log;
 use super::problem::{Rows, axpy, dot, java_max, java_min, nrm2_sq};
+use super::rng::Lcg;
 
 /// Runs at most `max_iter` outer iterations and returns how many ran;
 /// `w` holds the primal solution on return. `y` is `+1` or `-1` per
@@ -26,7 +25,7 @@ pub(crate) fn solve(
     cn: f64,
     eps: f64,
     max_iter: usize,
-    random: &mut JavaRandom,
+    random: &mut Lcg,
 ) -> usize {
     const MAX_INNER_ITER: usize = 100;
     const ETA: f64 = 0.1;

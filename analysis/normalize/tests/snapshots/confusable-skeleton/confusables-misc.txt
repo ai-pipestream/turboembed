@@ -1,0 +1,43 @@
+===OUT===
+llllll lc, l o ᴀ i j, coʍ, paypal.
+Math: ABC abc and AB. Hebrew l vs ASCll l, l vs l.
+Arrnenian o u and Cherokee A R S look like Latin letters.
+
+===EDITS===
+0	3	l
+3	6	ll
+6	9	lll
+10	13	l
+13	16	c
+18	21	l
+22	25	o
+30	32	i
+33	35	j
+37	40	c
+40	43	o
+43	46	ʍ
+48	51	p
+51	54	a
+54	57	y
+57	60	p
+60	63	a
+63	66	l
+74	78	A
+78	82	B
+82	86	C
+87	91	a
+91	95	b
+95	99	c
+104	108	A
+108	112	B
+121	123	l
+130	131	l
+131	132	l
+133	134	l
+136	138	l
+147	148	rn
+154	156	o
+157	159	u
+173	176	A
+177	180	R
+181	184	S

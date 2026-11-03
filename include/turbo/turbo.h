@@ -18,12 +18,13 @@
  *   - Strings are UTF-8 views (turbo_text), valid for the call. Bad UTF-8 is
  *     TURBO_E_INVALID_UTF8.
  *   - Every function returns a status code. Details go to the caller-owned
- *     turbo_error, which may be NULL. There is no global error state.
+ *     turbo_error, which may be NULL. There is no error state shared between
+ *     threads; turbo_last_error_message is a separate per-thread diagnostic.
  *   - Handles are opaque and reference counted. A child keeps its parent
  *     alive. Release functions accept NULL.
- *   - Runtime, context, model and tokenizer may be used from any thread.
- *     A session and its results have one owner at a time; a second call on
- *     a busy session returns TURBO_E_BUSY.
+ *   - Runtime, context, model, tokenizer, analyzer and analysis_result may be
+ *     used from any thread. A session and its results have one owner at a
+ *     time; a second call on a busy session returns TURBO_E_BUSY.
  *   - An option the backend cannot honor for this model on this device
  *     fails the call with TURBO_E_UNSUPPORTED_OPTION and turbo_error.field
  *     naming the field (1-based). Nothing is ignored, clamped or replaced.
@@ -87,9 +88,11 @@ typedef struct turbo_runtime   turbo_runtime;   /* the library, its devices */
 typedef struct turbo_context   turbo_context;   /* one device, its memory   */
 typedef struct turbo_buffer    turbo_buffer;    /* memory on host or device */
 typedef struct turbo_model     turbo_model;     /* a bundle loaded on a context */
-typedef struct turbo_session   turbo_session;   /* inputs, one run at a time */
-typedef struct turbo_result    turbo_result;    /* outputs of one run       */
-typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
+typedef struct turbo_session         turbo_session;         /* inputs, one run at a time */
+typedef struct turbo_result          turbo_result;          /* outputs of one run       */
+typedef struct turbo_tokenizer       turbo_tokenizer;       /* the bundle's tokenizer   */
+typedef struct turbo_analyzer        turbo_analyzer;        /* in-process text analysis */
+typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans and graph */
 
 /* ---- Status codes ------------------------------------------------------ */
 
@@ -144,8 +147,10 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
                                       benchmark record named in the cell exists; the rule
                                       is in docs/benchmarks.md */
 
-#define TURBO_DTYPE_I8    6   /* a compute dtype (a session's or a capability's) or a static
-                                  model's stored table, never a buffer's */
+#define TURBO_DTYPE_I8    6   /* a compute dtype (a session's or a capability's), a static
+                                  model's stored table, or an embed result's int8 codes
+                                  (TURBO_QUANTIZE_INT8) */
+#define TURBO_DTYPE_U8    7   /* an embed result's packed sign bits (TURBO_QUANTIZE_UBINARY) */
 #define TURBO_DTYPE_I32   8
 #define TURBO_DTYPE_I64   9   /* a static model's stored token mapping, never a buffer's */
 #define TURBO_DTYPE_F16  10
@@ -200,6 +205,18 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_POOLING_MEAN  1   /* the mean over the tokens whose mask is 1 */
 #define TURBO_POOLING_CLS   2   /* the row's first column, whatever its mask */
 #define TURBO_POOLING_LAST  3   /* the last token whose mask is 1 */
+
+/* What an embed result's vectors are returned as. The codes are
+ * sentence-transformers' quantize_embeddings layout (docs/embeddings.md),
+ * made by the core on the host from the cut, normalized f32 vectors. */
+#define TURBO_QUANTIZE_MODEL   0   /* the bundle's: F32 */
+#define TURBO_QUANTIZE_NONE    1   /* F32 */
+#define TURBO_QUANTIZE_INT8    2   /* I8, a byte a dimension: with step = (max - min) / 255,
+                                      or 1 where that is 0, a value's code is
+                                      clamp(floor((x - min) / step), 0, 255) - 128 */
+#define TURBO_QUANTIZE_UBINARY 3   /* U8, (dim + 7) / 8 bytes a row: bit x > 0, eight to a
+                                      byte, the first dimension in the top bit, a last
+                                      byte padded with 0 bits */
 
 /* How a session computes. The artifact is chosen at load, in manifest
  * order; precision chooses how that artifact computes, never another one. */
@@ -285,7 +302,11 @@ typedef struct turbo_capability {
     uint32_t status;              /* TURBO_CAP_* */
     uint32_t dtype;               /* compute dtype used, TURBO_DTYPE_*; 0 when UNSUPPORTED */
     uint32_t options_honored;     /* bit (i-1) set: field i of the task's options struct is
-                                   * honored; 0 when UNSUPPORTED */
+                                   * honored; 0 when UNSUPPORTED. For embed's field 9
+                                   * (layers), whose 0 and 1 every device takes, the bit
+                                   * says the device reads the earlier layers of the
+                                   * encoder families turbo_embed_write_layer_ranges
+                                   * names; a static model has its table alone there */
     float    cosine_floor;        /* lowest cosine against the fp32 reference in the record, 0 if none */
     float    speed_ratio;         /* our p50 latency over the fastest reference program's, from the
                                    * record, 0 if none */
@@ -303,6 +324,10 @@ const char *turbo_version(void);
  * "TURBO_E_CAPACITY" for 771, and "TURBO_E_UNKNOWN" for a code this file
  * does not define. The string is static. */
 const char *turbo_status_name(int32_t code);
+/* The message written by the most recent failing C ABI call on the calling
+ * thread, or "" when the most recent call on this thread succeeded. Valid
+ * until the next C ABI call on the same thread. */
+const char *turbo_last_error_message(void);
 
 int32_t turbo_runtime_device_count(turbo_runtime *rt, uint32_t *out, turbo_error *err);
 int32_t turbo_runtime_device_info(turbo_runtime *rt, uint32_t index, turbo_device_info *out, turbo_error *err);
@@ -395,7 +420,11 @@ typedef struct turbo_model_info {
 
 /* Load a bundle directory on the context's device. Every file is checked
  * against the manifest's hash before use. A device whose backend loads no
- * models is TURBO_E_UNSUPPORTED before the bundle is read. */
+ * models is TURBO_E_UNSUPPORTED before the bundle is read. A bundle with
+ * no artifact the backend loads and runs, by its format, the model's
+ * family and a limited-lookahead model's band (docs/bundle.md, loader rule
+ * 6), is TURBO_E_BUNDLE_NO_ARTIFACT, saying why each was skipped, before
+ * any artifact's file is read. */
 int32_t turbo_model_load(turbo_context *ctx, turbo_text bundle_path, turbo_model **out, turbo_error *err);
 void    turbo_model_release(turbo_model *m);
 int32_t turbo_model_get_info(turbo_model *m, turbo_model_info *out, turbo_error *err);
@@ -527,6 +556,23 @@ typedef struct turbo_embed_options {
                                output_dim. Above turbo_model_info.dim is
                                TURBO_E_INVALID_ARGUMENT; neither dim nor one of
                                turbo_model_info.output_dims is TURBO_E_UNSUPPORTED_OPTION */
+    /* A struct_size of 28 ends here; the fields below are then 0. */
+    uint32_t quantization;  /* 7: TURBO_QUANTIZE_*, applied after the cut and normalize */
+    const float *int8_ranges;  /* 8: for TURBO_QUANTIZE_INT8 alone, and then required:
+                               [2, output_dim] f32, each dimension's minimum, then each
+                               one's maximum, over the caller's calibration vectors at
+                               the same model, output_dim and normalize; read during the
+                               write call only. NULL with INT8, a value that is not
+                               finite, a minimum over its maximum, or ranges given with
+                               another quantization is TURBO_E_INVALID_ARGUMENT */
+    /* A struct_size of 40 ends here; the fields below are then 0. */
+    uint32_t layers;        /* 9: on range writes (turbo_embed_write_ranges), 0 or 1 for
+                               the final layer alone, or K to pool each range from each of
+                               the encoder's last K layers in one pass ([K, count, dim],
+                               see turbo_embed_write_layer_ranges, which says what is
+                               refused and in what order); refused above 1 on row
+                               writes */
+    uint32_t reserved;      /* must be 0 */
 } turbo_embed_options;
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
@@ -553,9 +599,15 @@ typedef struct turbo_token_batch {
 /* A range of one row's tokens, for turbo_embed_write_ranges: the columns
  * [start, end) of row row of the batch written with it, with row under
  * batch and start < end <= seq. The range's vector is pooled over the
- * tokens in it whose mask is 1, so it may cover padding; it must hold at
- * least one live token. Ranges may overlap, come in any order, and leave
- * rows out, and the same range may appear twice. */
+ * tokens in it whose mask is 1, so it may cover padding. A range holding
+ * no live token is pooled over all its columns instead: those columns'
+ * states are computed, attending only to the row's live tokens, which is
+ * what a caller that reads mask-0 positions' vectors (ColBERT's query
+ * augmentation) needs. Only the cpu backend's BERT and RoBERTa encoders
+ * compute mask-0 columns; on another backend or family such a range is
+ * TURBO_E_UNSUPPORTED_OPTION naming the range by its index. Ranges may
+ * overlap, come in any order, and leave rows out, and the same range may
+ * appear twice. */
 typedef struct turbo_token_range {
     uint32_t row;
     uint32_t start;
@@ -606,9 +658,10 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * special token is pooled when a range covers it, so a caller that wants
  * the text alone leaves it out. count of 0 is TURBO_E_INVALID_ARGUMENT;
  * count over the session's max_ranges is TURBO_E_CAPACITY; a range whose
- * row is not under batch, whose start is not under its end, whose end is
- * over seq, or that holds no token with mask 1 is TURBO_E_INVALID_ARGUMENT
- * naming the range by its index. opts may be NULL.
+ * row is not under batch, whose start is not under its end, or whose end
+ * is over seq is TURBO_E_INVALID_ARGUMENT naming the range by its index,
+ * and a range holding no token with mask 1 is as turbo_token_range says.
+ * opts may be NULL.
  *
  * On an extractive QA model (TURBO_TASK_EXTRACTIVE_QA) whose device applies
  * the span head (the cuda backend), each range's vector goes through the
@@ -618,11 +671,35 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * TURBO_NORMALIZE_NONE (the bundle's included, with opts NULL) is
  * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim that
  * resolves to other than the model's dim the same naming field 6.
+ * A quantization other than F32 is TURBO_E_UNSUPPORTED_OPTION naming
+ * field 7 there: the rows are logits.
  * Elsewhere a QA model's range rows are the vectors, as for any model,
  * and the caller applies the head. */
 int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batch,
                                  const turbo_token_range *ranges, uint32_t count,
                                  const turbo_embed_options *opts, turbo_error *err);
+
+/* turbo_embed_write_ranges, each range pooled from each of the encoder's
+ * last `layers` layers in one pass (equivalent to turbo_embed_write_ranges
+ * with opts->layers = layers): the run's rows are [layers, count,
+ * dim], block k from layer L - layers + k + 1 of the model's L, so the
+ * last block is what turbo_embed_write_ranges writes, bit for bit. A
+ * ModernBERT's final_norm is applied to every layer read, as to the
+ * last, so each block is on the scale of the final states. layers of 1
+ * is turbo_embed_write_ranges. 0, or over an encoder's layers, is
+ * TURBO_E_INVALID_ARGUMENT naming field 9 on every device: the count is
+ * checked against the model before the device. Only then is above 1 on a
+ * device whose turbo_capability.options_honored lacks field 9's bit, on a
+ * static model (its table is its one layer), or on a model whose device
+ * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu
+ * backend sets the bit and reads the earlier layers of its BERT, RoBERTa,
+ * ModernBERT, nomic-bert and DeBERTa-v2 encoders. count times layers
+ * over the session's max_ranges is TURBO_E_CAPACITY. Everything else is as
+ * for turbo_embed_write_ranges, each row cut and normalized as there. */
+int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
+                                       const turbo_token_range *ranges, uint32_t count,
+                                       uint32_t layers, const turbo_embed_options *opts,
+                                       turbo_error *err);
 
 /* Run what was written. A write replaces what an earlier write left, and
  * a run takes it, even when the run fails: a run with nothing written
@@ -680,8 +757,9 @@ typedef struct turbo_result_info {
     uint32_t task;                             /* TURBO_TASK_* */
     uint32_t batch;
     uint32_t dim;                              /* values per row: the vector width for embed */
-    uint32_t dtype;                            /* TURBO_DTYPE_* of the output: F32 in this cut,
-                                                  whatever the compute dtype */
+    uint32_t dtype;                            /* TURBO_DTYPE_* of the output: F32 whatever the
+                                                  compute dtype, or I8 or U8 as the write's
+                                                  quantization says */
     uint32_t compute_dtype;                    /* TURBO_DTYPE_* the session's precision ran in */
     uint32_t placement;                        /* TURBO_PLACE_* where they are now */
     uint32_t device;                           /* runtime device index */
@@ -706,6 +784,14 @@ int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_err
 
 /* The output of a run is one block, the vectors: [batch, dim] values of
  * turbo_result_info.dtype, packed row-major, turbo_result_info.bytes long.
+ * Packed bits (U8) are [batch, (dim + 7) / 8] bytes, and dim still counts
+ * dimensions. A quantized result is in host memory. When the backend
+ * offers buffer_quantize, the codes are made on the device and only those
+ * bytes are counted in d2h_bytes, the device memory that takes in
+ * device_allocs, and the int8 ranges sent to a device with its own memory
+ * in h2d_bytes; otherwise the core copies the vectors
+ * back as F32 first (counted in d2h_bytes, and the first such run's
+ * host_allocs) and quantizes them on the host.
  * After turbo_embed_write_ranges, batch is the count of ranges written and
  * a row is a range's vector. */
 
@@ -716,6 +802,190 @@ int32_t turbo_result_read(turbo_result *r, void *dst, uint64_t capacity, uint64_
 int32_t turbo_result_buffer(turbo_result *r, turbo_buffer **out, turbo_error *err);
 
 void    turbo_result_release(turbo_result *r);
+
+/* ---- Analysis ---------------------------------------------------------- */
+
+#define TURBO_ANALYSIS_LAYER_SENTENCES 1
+#define TURBO_ANALYSIS_LAYER_TOKENS    2
+#define TURBO_ANALYSIS_LAYER_POS       3
+#define TURBO_ANALYSIS_LAYER_LEMMAS    4
+#define TURBO_ANALYSIS_LAYER_ENTITIES  5
+#define TURBO_ANALYSIS_LAYER_PII       6
+#define TURBO_ANALYSIS_LAYER_DEPENDENCIES 7
+#define TURBO_ANALYSIS_LAYER_MORPHOLOGY 8
+
+#define TURBO_SPAN_VIEW_RANGE   (1u << 0)
+#define TURBO_SPAN_SOURCE_RANGE (1u << 1)
+#define TURBO_SPAN_TOKEN_RANGE  (1u << 2)
+#define TURBO_SPAN_LABEL        (1u << 3)
+#define TURBO_SPAN_VALUE        (1u << 4)
+#define TURBO_SPAN_PROBABILITY  (1u << 5)
+
+#define TURBO_PII_CONFIDENCE_FORMAT   1
+#define TURBO_PII_CONFIDENCE_CHECKSUM 2
+#define TURBO_PII_CONFIDENCE_LABELLED 3
+
+/* Configuration of an in-process analysis pipeline. desc may be NULL for
+ * English with the rule sentence splitter and rule tokenizer only. The
+ * learned components come from a bundle (docs/bundle.md) named by
+ * bundle_path: its heads write the part-of-speech, morphology, lemma,
+ * dependency and entity layers, each from the one head of the bundle whose
+ * layer it is, in one encoder pass a sentence on the cpu backend. Without a
+ * bundle, or with a bundle lacking a layer's head, that layer's tasks fail
+ * with TURBO_E_UNSUPPORTED_TASK naming what is missing. The rule sentence
+ * and tokenizer paths report no probability.
+ *
+ * The five model path fields are retired: they keep their place so a
+ * program built against an earlier header still runs, and a non-empty
+ * value fails with TURBO_E_INVALID_ARGUMENT naming its field. Fields are
+ * numbered from 1 for turbo_error.field. */
+typedef struct turbo_analyzer_desc {
+    uint32_t   struct_size;
+    uint32_t   flags;
+    turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
+    turbo_text sent_model_path;   /*2: retired; must be empty */
+    turbo_text tok_model_path;    /*3: retired; must be empty */
+    turbo_text pos_model_path;    /*4: retired; must be empty */
+    turbo_text lemma_model_path;  /*5: retired; must be empty */
+    turbo_text ner_model_path;    /*6: retired; must be empty */
+    /* A struct_size of 104 ends here; no bundle is then named. */
+    turbo_text bundle_path;       /*7: a bundle directory; empty names no bundle */
+} turbo_analyzer_desc;
+
+/* One typed row in an analysis result. The row identifies its layer kind,
+ * full layer id and instance (pool slices), item and fragment. Its view
+ * range is in view_id's coordinate space; its source range is the checked
+ * projection to the source view. Ranges carry UTF-8 byte, UTF-16 code-unit
+ * and Unicode scalar bounds. Fields are meaningful only under their
+ * TURBO_SPAN_* flag: token-only rows have no text range, absent numeric
+ * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
+ * Discontinuous items emit one row per fragment. For a morphology row,
+ * there is one row per token and label is the feature string as the
+ * MorphFeatures layer writes it. classification is layer-specific:
+ * TURBO_PII_CONFIDENCE_* for PII; for a dependency row, whose label is the
+ * relation, the head token's index plus one, 0 under the root; otherwise
+ * zero. */
+typedef struct turbo_span {
+    uint32_t layer_kind;
+    uint32_t flags;
+    uint32_t item_index;
+    uint32_t fragment_index;
+    uint32_t view_id;
+    uint32_t classification;
+    uint32_t view_byte_start;
+    uint32_t view_byte_end;
+    uint32_t view_utf16_start;
+    uint32_t view_utf16_end;
+    uint32_t view_codepoint_start;
+    uint32_t view_codepoint_end;
+    uint32_t source_byte_start;
+    uint32_t source_byte_end;
+    uint32_t source_utf16_start;
+    uint32_t source_utf16_end;
+    uint32_t source_codepoint_start;
+    uint32_t source_codepoint_end;
+    uint32_t token_start;
+    uint32_t token_end;
+    uint32_t layer_offset;
+    uint32_t layer_len;
+    uint32_t instance_offset;
+    uint32_t instance_len;
+    uint32_t label_offset;
+    uint32_t label_len;
+    uint32_t value_offset;
+    uint32_t value_len;
+    double   prob;
+} turbo_span;
+
+/* Create, retain or release an analyzer handle. Both turbo_analyzer and
+ * turbo_analysis_result are thread-safe (Send + Sync): an analyzer may be
+ * called concurrently from multiple threads, and a result may be read or
+ * retained/released across threads while at least one reference remains. */
+int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **out, turbo_error *err);
+turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *a);
+void    turbo_analyzer_release(turbo_analyzer *a);
+
+/* Detect sentence spans in UTF-8 text. Sentence text is read from the
+ * row's source range; no covered-text copy is put in the string pool. */
+int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text text,
+                                        turbo_analysis_result **out, turbo_error *err);
+
+/* Tokenize UTF-8 text. Token text is read from each row's source range;
+ * its token range is the one-token range at its item index. */
+int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
+                                turbo_analysis_result **out, turbo_error *err);
+
+/* Tag one independent, pre-tokenized sequence with the configured model.
+ * Rows are token-only: a label and probability are present only when the
+ * model finds a sequence. Without a POS model this is unsupported. */
+int32_t turbo_analyzer_pos_tag(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                               turbo_analysis_result **out, turbo_error *err);
+
+/* Tag one independent, pre-tokenized sequence with the bundle's morphology
+ * head. Rows are token-only: one row per token, with the feature string as
+ * the label. Without a morphology head this is unsupported. */
+int32_t turbo_analyzer_morphology(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                                  turbo_analysis_result **out, turbo_error *err);
+
+/* Lemmatize count (token, pos_tag) pairs with the configured dictionary or
+ * model. A dictionary miss has no label and no probability; it is never
+ * replaced by a lowercased form. Without a lemma path this is unsupported. */
+int32_t turbo_analyzer_lemmatize(turbo_analyzer *a, const turbo_text *tokens,
+                                 const turbo_text *tags, uint32_t count,
+                                 turbo_analysis_result **out, turbo_error *err);
+
+/* Find named entities over one independent pre-tokenized sequence with the
+ * configured TokenNameFinder model only. No dictionary, regex or other
+ * recognizer is merged in. Each call starts with fresh model context; no
+ * adaptive data is retained between calls. */
+int32_t turbo_analyzer_find_tokens(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
+                                   turbo_analysis_result **out, turbo_error *err);
+
+/* Find named entities directly in UTF-8 text with the configured model,
+ * after tokenizing it with this analyzer's selected tokenizer. */
+int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
+                                 turbo_analysis_result **out, turbo_error *err);
+
+/* Detect structured PII directly in UTF-8 text. This is a separate task
+ * from named-entity recognition; its rows carry the kind as label, the
+ * normalized value as value, and TURBO_PII_CONFIDENCE_* as classification. */
+int32_t turbo_analyzer_detect_pii(turbo_analyzer *a, turbo_text text,
+                                  turbo_analysis_result **out, turbo_error *err);
+
+/* Run the configured analysis layers over UTF-8 text, serialize the binary
+ * DocumentGraph ("TGRF" wire format) into the result's graph buffer, and
+ * expose every supported layer instance as typed rows. A layer whose model
+ * is not configured is absent, never replaced by a fallback layer. */
+int32_t turbo_analyzer_analyze_graph(turbo_analyzer *a, turbo_text text,
+                                     turbo_analysis_result **out, turbo_error *err);
+
+/* Validate a binary DocumentGraph ("TGRF") buffer using the source text
+ * stored in the graph itself, and decode every supported layer instance.
+ * View coordinates and their checked source projections are both reported. */
+int32_t turbo_analyzer_inspect_graph(turbo_analyzer *a,
+                                     const uint8_t *graph_bytes, uint64_t graph_len,
+                                     turbo_analysis_result **out, turbo_error *err);
+
+/* Borrow the result's span array (*spans may be NULL when *count is 0). */
+int32_t turbo_analysis_result_spans(const turbo_analysis_result *r,
+                                    const turbo_span **spans, uint32_t *count,
+                                    turbo_error *err);
+
+/* Borrow the result's contiguous UTF-8 string pool (*pool may be NULL when
+ * *bytes is 0). Layer, instance, label and value offset/length pairs slice
+ * this pool. */
+int32_t turbo_analysis_result_strings(const turbo_analysis_result *r,
+                                      const char **pool, uint64_t *bytes,
+                                      turbo_error *err);
+
+/* Borrow the result's serialized DocumentGraph ("TGRF") wire buffer (*data
+ * may be NULL when *bytes is 0). */
+int32_t turbo_analysis_result_graph(const turbo_analysis_result *r,
+                                    const uint8_t **data, uint64_t *bytes,
+                                    turbo_error *err);
+
+turbo_analysis_result *turbo_analysis_result_retain(turbo_analysis_result *r);
+void    turbo_analysis_result_release(turbo_analysis_result *r);
 
 #ifdef __cplusplus
 }

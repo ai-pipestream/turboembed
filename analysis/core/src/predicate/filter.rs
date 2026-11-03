@@ -127,6 +127,7 @@ pub struct FilterAnnotator<L: FilterableLayer> {
     source: Key<L>,
     target: Key<L>,
     predicate_name: &'static str,
+    has_explicit_name: bool,
     extra_reads: Vec<KeyId>,
     keep: ItemPredicate<L>,
 }
@@ -160,13 +161,29 @@ impl<L: FilterableLayer> FilterAnnotator<L> {
         if source.id() == target.id() {
             return Err(Error::Pipeline("target must differ from source".into()));
         }
-        Ok(FilterAnnotator { source, target, predicate_name: "default", extra_reads: Vec::new(), keep: Box::new(keep) })
+        Ok(FilterAnnotator {
+            source,
+            target,
+            predicate_name: "default",
+            has_explicit_name: false,
+            extra_reads: Vec::new(),
+            keep: Box::new(keep),
+        })
     }
 
-    /// Sets a stable predicate identifier incorporated into [`Self::config_hash`].
+    /// Sets a stable predicate identifier incorporated into [`Self::config_hash`],
+    /// enabling incremental provenance-skip caching when `predicate_name` is
+    /// non-empty and not `"default"`.
     pub fn named(mut self, predicate_name: &'static str) -> Self {
         self.predicate_name = predicate_name;
+        self.has_explicit_name = !predicate_name.is_empty() && predicate_name != "default";
         self
+    }
+
+    /// Whether this filter carries an explicit predicate name suitable for
+    /// incremental provenance-skip caching.
+    pub fn is_cacheable(&self) -> bool {
+        self.has_explicit_name
     }
 
     /// Declares an additional input layer that a document-aware predicate reads.
@@ -301,6 +318,14 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
         FilterAnnotator::config_hash(self)
     }
 
+    fn is_cacheable(&self) -> bool {
+        self.has_explicit_name
+    }
+
+    fn expected_provenance(&self, doc: &Document) -> Provenance {
+        self.provenance(doc)
+    }
+
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
         let reads = self.all_reads();
         let req = vec![true; reads.len()];
@@ -362,14 +387,18 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
                 }
                 Err(e) => Some(e),
             };
-            let Some(e) = failure else { continue };
-            for &k in &writes {
-                if !docs[i].has(k) {
-                    let _ = docs[i].fail(k, e.clone(), p.clone());
+            if let Some(e) = failure {
+                for &k in &writes {
+                    if !docs[i].has(k) {
+                        let _ = docs[i].fail(k, e.clone(), p.clone());
+                    }
+                }
+                if status[i].is_ok() {
+                    status[i] = Err(e);
                 }
             }
-            if status[i].is_ok() {
-                status[i] = Err(e);
+            for &k in &writes {
+                docs[i].mark_pipeline_stored(k);
             }
         }
     }

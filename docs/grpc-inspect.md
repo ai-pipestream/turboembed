@@ -1,6 +1,6 @@
 # Document inspection, projection and export over gRPC
 
-`turbo.result.AnalysisService` exposes four unary RPCs for an existing
+`turbo.result.v1.AnalysisService` exposes four unary RPCs for an existing
 document graph. Generate clients from
 [`turbo_analysis.proto`](../server/proto/turbo_analysis.proto); the service
 runs on the [analysis service](grpc-analysis.md) port. These calls inspect

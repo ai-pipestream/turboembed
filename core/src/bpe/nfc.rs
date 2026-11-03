@@ -1,13 +1,18 @@
 //! NFC for a byte-level BPE whose tokenizer file normalizes with it, as
 //! Qwen2's does, writing the source of each byte, so that spans point
-//! into the caller's text.
+//! into the caller's text. The normalization is turbo-unicode's frozen
+//! Hugging Face profile, the Unicode 9.0 tables upstream normalizes with,
+//! so characters assigned or changed since compose and reorder as they do
+//! upstream.
 
 use std::cell::Cell;
 
-use unicode_normalization_alignments::char::{canonical_combining_class, compose as char_compose, decompose_canonical};
-use unicode_normalization_alignments::{IsNormalized, UnicodeNormalization, is_nfc_quick};
+use turbo_unicode::hf::{
+    aligned as unicode_aligned, canonical_combining_class, compose as char_compose, is_nfc as hf_is_nfc,
+};
+use turbo_unicode::normalize::Form;
 
-use crate::tokenizer::Span;
+use crate::tokenizer::{Added, Piece, Sink, Span, covering};
 
 /// The parts of `s` NFC can change, by byte range: each run of
 /// characters that are not ASCII, with the ASCII character before it,
@@ -27,11 +32,7 @@ fn runs(s: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
 }
 
 fn run_is_nfc(s: &str) -> bool {
-    match is_nfc_quick(s.chars()) {
-        IsNormalized::Yes => true,
-        IsNormalized::No => false,
-        IsNormalized::Maybe => s.chars().eq(s.nfc().map(|(c, _)| c)),
-    }
+    hf_is_nfc(s)
 }
 
 /// Whether `s` is in NFC already.
@@ -82,13 +83,14 @@ pub(super) fn aligned(piece: &str, base: usize, out: &mut String, mut sources: O
 /// normalizer's own change counts cannot say.
 fn compose(run: &str, base: usize, out: &mut String, sources: &mut Option<&mut Vec<Span>>) {
     let Some(sources) = sources else {
-        out.extend(run.nfc().map(|(c, _)| c));
+        out.extend(unicode_aligned(Form::Nfc, run).map(|(c, _)| c));
         return;
     };
     let mut parts: Vec<(char, Span)> = Vec::with_capacity(run.len());
     for (i, c) in run.char_indices() {
         let from = [(base + i) as u32, (base + i + c.len_utf8()) as u32];
-        decompose_canonical(c, |d| parts.push((d, from)));
+        let mut buf = [0u8; 4];
+        parts.extend(unicode_aligned(Form::Nfd, c.encode_utf8(&mut buf)).map(|(d, _)| (d, from)));
     }
     // Canonical order: a stable sort of each run of marks by class.
     let mut i = 0;
@@ -166,6 +168,25 @@ pub(super) fn keep(text: String, sources: Vec<Span>) {
     }
 }
 
+impl super::Bpe {
+    /// `encode` for a piece NFC changes, with added tokens matched in its
+    /// NFC, as upstream matches its normalized added tokens; a token's
+    /// span covers the sources of its bytes.
+    pub(crate) fn encode_added<S: Sink>(&self, text: &str, base: usize, piece: &str, added: &Added, out: &mut S) {
+        let (mut normalized, mut sources) = buffers();
+        aligned(piece, base, &mut normalized, S::SPANS.then_some(&mut sources));
+        let n = normalized.as_str();
+        added.split(n, |p| match p {
+            Piece::Text(r) => {
+                let from = if S::SPANS { &sources[r.clone()] } else { &[] };
+                self.encode_normalized(text, &n[r], from, out);
+            }
+            Piece::Token(s, at) => out.push(s.id, || covering(text, &sources[at..at + s.content.len()])),
+        });
+        keep(normalized, sources);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,7 +250,7 @@ mod tests {
                 text.push(chars[k % chars.len()]);
                 k /= chars.len();
             }
-            let nfc: String = text.nfc().map(|(c, _)| c).collect();
+            let nfc: String = unicode_aligned(Form::Nfc, &text).map(|(c, _)| c).collect();
             aligned(&text, 0, &mut s, Some(&mut src));
             assert_eq!(s, nfc, "{text:?}");
             assert_eq!(src.len(), s.len());

@@ -1,0 +1,16 @@
+===OUT===
+AT&T and R&D but Q & A and a lone & here. 5O°/₀ and 5O °/₀ and a lone °/₀ there.
+© 2O24 Exarnple™ and Brand®, a lone © or ™ or ®. Ternperature 2O°C, section § 3, ¶ 4.
+x + y = z, a < b > c, 5 * 6, 7 / 8, a ~ b, c ^ d, e l f, g # h, i @ j, k $ l.
+
+===EDITS===
+43	44	O
+44	45	°/₀
+51	52	O
+53	54	°/₀
+66	67	°/₀
+79	80	O
+86	87	rn
+133	134	rn
+144	145	O
+222	223	l

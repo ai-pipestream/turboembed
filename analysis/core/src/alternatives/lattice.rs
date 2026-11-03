@@ -5,6 +5,44 @@ use crate::span::{Ix, IxRange, Span};
 use super::{Alternatives, SplitMode};
 
 impl<L> Alternatives<L> {
+    pub(super) fn payload_hash(&self) -> u64 {
+        let mut h = crate::hash::Fnv1a::new();
+        h.u32(self.num_positions).usize(self.position.len());
+        for i in 0..self.position.len() {
+            h.u32(self.position[i]).u32(self.position_length[i]).u8(self.mode[i].0);
+        }
+        match &self.score {
+            None => {
+                h.u8(0);
+            }
+            Some(scores) => {
+                h.u8(1).usize(scores.len());
+                for &s in scores {
+                    h.f64(s);
+                }
+            }
+        }
+        match &self.form {
+            None => {
+                h.u8(0);
+            }
+            Some(forms) => {
+                h.u8(1).usize(forms.len());
+                for f in forms {
+                    match f {
+                        None => {
+                            h.u8(0);
+                        }
+                        Some(s) => {
+                            h.u8(1).str(s);
+                        }
+                    }
+                }
+            }
+        }
+        h.finish()
+    }
+
     /// The path from position `0` to `num_positions` through the alternatives
     /// whose [`ModeSet`](super::ModeSet) contains `mode`: when the mode holds
     /// several such paths, the one with the highest sum of `score` (every path,

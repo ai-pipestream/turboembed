@@ -97,15 +97,31 @@ fn a_negated_cue_does_not_count() {
 
 #[test]
 fn typographic_punctuation_and_case_do_not_hide_a_cue() {
-    // A curly apostrophe still negates.
-    let (s, ev) = one("I don\u{2019}t feel happy.");
-    assert!(s.get(D::Joy) < 0.5 && ev.is_empty(), "{s:?}");
-    // Ellipsis, curly quotes, inverted and fullwidth marks around a cue.
-    for text in ["I am happy\u{2026}", "I am \u{201C}happy\u{201D}", "\u{00BF}Happy?", "I am happy\u{3002}"] {
+    // A curly apostrophe still negates, including when the cue is in single quotes.
+    for text in [
+        "I don\u{2019}t feel happy.",
+        "I don't feel 'happy'.",
+        "I don\u{2019}t feel \u{2018}happy\u{2019}.",
+        "I do n't feel 'happy'.",
+    ] {
+        let (s, ev) = one(text);
+        assert!(s.get(D::Joy) < 0.5 && ev.is_empty(), "{text}: {s:?}");
+    }
+    // Ellipsis, ASCII/curly single and double quotes, inverted and fullwidth marks around a cue.
+    for text in [
+        "I am happy\u{2026}",
+        "I am 'happy'",
+        "I am \u{2018}happy\u{2019}",
+        "I am \u{201C}happy\u{201D}",
+        "\u{00BF}Happy?",
+        "I am happy\u{3002}",
+    ] {
         assert!(one(text).0.get(D::Joy) >= 0.5, "{text}");
     }
     // The lookup form on its own, where a tokenizer left the marks on.
     assert_eq!(annotate::key("\u{201C}Happy\u{2026}\u{201D}"), "happy");
+    assert_eq!(annotate::key("'Happy'"), "happy");
+    assert_eq!(annotate::key("\u{2018}Happy\u{2019}"), "happy");
     assert_eq!(annotate::key("Don\u{2019}t"), "don't");
     assert_eq!(annotate::key("n\u{02BC}t"), "n't");
     assert_eq!(annotate::key("\u{1F602}"), "\u{1F602}");
@@ -254,4 +270,17 @@ fn the_evaluation_counts_each_label() {
     assert_eq!((neutral.tp, neutral.fp), (1, 1));
     assert_eq!((m.active, m.active_with_evidence), (1, 1));
     assert!(evaluate_emotion_corpus(&gold[..2], layer, 0.5).is_err());
+
+    let mut per_label = [0.5f64; 28];
+    per_label[D::Joy.index()] = 0.99;
+    let m_high = evaluate_emotion_corpus_with_thresholds(&gold, layer, &per_label).unwrap();
+    assert_eq!(m_high.per_label[D::Joy.index()].1.tp, 0);
+
+    let mut d_thresh = doc("I am happy.", &[(0, 11)]);
+    let res = run(EmotionAnnotator::new().with_thresholds(per_label), &mut d_thresh).unwrap();
+    assert!(res[0].1.is_empty());
+    let mut bad_thresh = [0.5f64; 28];
+    bad_thresh[0] = f64::NAN;
+    assert!(run(EmotionAnnotator::new().with_thresholds(bad_thresh), &mut d_thresh).is_err());
+    assert!(evaluate_emotion_corpus_with_thresholds(&gold, layer, &bad_thresh).is_err());
 }
