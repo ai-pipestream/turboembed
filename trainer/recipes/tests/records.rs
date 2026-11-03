@@ -199,8 +199,9 @@ fn the_1825_rows_are_receipts_of_the_recorded_releases() {
     for entry in std::fs::read_dir(&dir).unwrap() {
         let name = entry.unwrap().file_name().into_string().unwrap();
         if name.ends_with(".json") {
+            let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join(&name)).unwrap()).unwrap();
+            assert!(raw.get("host").is_none(), "{name}: host field present");
             let r = read(&name);
-            assert_eq!(r.host, "cpu-32-core-machine", "{name}: host {}", r.host);
             assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
             let text = serde_json::to_string(&r).unwrap().to_lowercase();
             assert!(!text.contains("opennlp"), "{name}: no OpenNLP row (#1509)");
@@ -224,6 +225,7 @@ fn the_head_row_clears_the_gate_on_the_recorded_release() {
     let spec = head.head.as_ref().unwrap();
     assert_eq!(spec.kind, HeadKind::TokenTagger);
     assert_eq!(spec.license_class, Some(LicenseClass::Permissive));
+    assert_eq!(head.training.as_ref().unwrap().best_epoch, 32);
     let encoder = head.encoder.as_ref().unwrap();
     assert_eq!(encoder.model, "answerdotai/ModernBERT-base");
     assert_eq!(encoder.manifest_sha256, "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8");
@@ -242,8 +244,9 @@ fn committed_receipts_name_no_machine() {
     for entry in std::fs::read_dir(&dir).unwrap() {
         let name = entry.unwrap().file_name().into_string().unwrap();
         if name.ends_with(".json") {
+            let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join(&name)).unwrap()).unwrap();
+            assert!(raw.get("host").is_none(), "{name}: host field present");
             let r = receipt(&name);
-            assert!(["cloud-container", "rtx-4080-machine"].contains(&r.host.as_str()), "{name}: host {}", r.host);
             assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
         }
     }
@@ -280,8 +283,10 @@ fn the_markit_split_sweep_records_are_receipts_of_the_recorded_release() {
     for entry in std::fs::read_dir(&dir).unwrap() {
         let name = entry.unwrap().file_name().into_string().unwrap();
         if name.ends_with(".json") {
+            let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join(&name)).unwrap()).unwrap();
+            assert!(raw.get("host").is_none(), "{name}: host field present");
             let r = read(&name);
-            assert_eq!(r.host, "cpu-32-core-machine", "{name}: host {}", r.host);
+            assert!((1..=r.training.as_ref().unwrap().dev.len()).contains(&r.training.as_ref().unwrap().best_epoch));
             assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
             let text = serde_json::to_string(&r).unwrap().to_lowercase();
             assert!(!text.contains("opennlp"), "{name}: no OpenNLP row (#1509)");

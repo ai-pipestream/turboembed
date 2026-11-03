@@ -20,7 +20,7 @@ use turbo_tagger::WordEncoder;
 
 use crate::cli::{Args, OutDir, commit, encoder_args};
 use crate::corpus::{Corpus, CorpusRecord, Sentence, Splits};
-use crate::receipt::{EncoderRecord, host, unix_time};
+use crate::receipt::{EncoderRecord, unix_time};
 use crate::run::{PREDICT_CHUNK, write as write_file};
 use crate::{Error, Result};
 
@@ -28,12 +28,11 @@ pub const SCHEMA: &str = "turboembed.layer-cache.v1";
 
 /// What a cache holds and how it was made.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(from = "CacheInput")]
 pub struct CacheRecord {
     pub schema: String,
     pub command: Vec<String>,
     pub commit: String,
-    pub host: String,
     pub unix_time: u64,
     pub corpus: CorpusRecord,
     pub encoder: EncoderRecord,
@@ -43,6 +42,42 @@ pub struct CacheRecord {
     pub splits: Vec<SplitRecord>,
     /// Seconds spent reading features.
     pub features_s: f64,
+}
+
+// Version 1 caches once recorded a machine name. Consume it without storing
+// it or emitting it again; keep rejecting all other unknown fields.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CacheInput {
+    schema: String,
+    command: Vec<String>,
+    commit: String,
+    unix_time: u64,
+    corpus: CorpusRecord,
+    encoder: EncoderRecord,
+    pooling: WordPooling,
+    layers: Vec<u32>,
+    splits: Vec<SplitRecord>,
+    features_s: f64,
+    #[serde(default, rename = "host")]
+    _retired_host: Option<serde::de::IgnoredAny>,
+}
+
+impl From<CacheInput> for CacheRecord {
+    fn from(input: CacheInput) -> Self {
+        Self {
+            schema: input.schema,
+            command: input.command,
+            commit: input.commit,
+            unix_time: input.unix_time,
+            corpus: input.corpus,
+            encoder: input.encoder,
+            pooling: input.pooling,
+            layers: input.layers,
+            splits: input.splits,
+            features_s: input.features_s,
+        }
+    }
 }
 
 /// One split's sentences and words, and its file per layer.
@@ -292,7 +327,6 @@ pub fn command(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, m
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus: corpus.record.clone(),
         encoder,

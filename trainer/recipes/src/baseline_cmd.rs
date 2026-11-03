@@ -38,7 +38,6 @@ pub(super) fn baseline_cmd(argv: &[String], corpus_id: &str, dir: &Path, unrecor
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus: record,
         encoder: None,

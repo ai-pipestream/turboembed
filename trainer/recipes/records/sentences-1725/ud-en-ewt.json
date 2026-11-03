@@ -29,7 +29,6 @@
     "out-ud-en-ewt-bilstm"
   ],
   "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
-  "host": "rtx-4080-machine",
   "unix_time": 1793426699,
   "corpus": {
     "id": "ud-en-ewt-sentences",
@@ -164,7 +163,7 @@
       0.9849120542197838,
       0.9849523963208003
     ],
-    "best_epoch": 9,
+    "best_epoch": 10,
     "epoch_seconds": [
       6.822896974,
       8.635150598,

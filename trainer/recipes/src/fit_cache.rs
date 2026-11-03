@@ -18,9 +18,7 @@ use crate::cache::{CacheRecord, layer_mix_for, read_layer, same_corpus_release};
 use crate::cached_ud::{CachedParams, eval_cached_tagger, run_split, run_ud};
 use crate::cli::{Args, HeadArgs, OutDir, commit, head_args};
 use crate::corpus::{CorpusRecord, Sentence};
-use crate::receipt::{
-    ConfigRecord, EvalRecord, Receipt, SCHEMA as RECEIPT_SCHEMA, Timing, TrainingRecord, host, unix_time,
-};
+use crate::receipt::{ConfigRecord, EvalRecord, Receipt, SCHEMA as RECEIPT_SCHEMA, Timing, TrainingRecord, unix_time};
 use crate::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, named as named_tag, spec, write};
 use crate::ud_heads::{UdHead, named as named_ud};
 use crate::{Error, Result, read_corpus, safetensors};
@@ -88,7 +86,6 @@ pub struct FitRecord {
     pub schema: String,
     pub command: Vec<String>,
     pub commit: String,
-    pub host: String,
     pub unix_time: u64,
     /// The cache's record, as read.
     pub cache: CacheRecord,
@@ -280,7 +277,7 @@ pub fn command_with_task(
         out.path.display(),
         record.layers,
         record.best_dev,
-        record.best_epoch + 1,
+        record.best_epoch,
         record.mix.as_ref().map_or(String::new(), |m| format!(", mix {:.3?} gain {:.3}", m.weights, m.gain))
     );
     Ok(())
@@ -377,7 +374,7 @@ pub fn finish_cached(
 ) -> Result<CachedOutcome> {
     let hidden = cache.encoder.hidden;
     let best = report.best_epoch;
-    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
+    let at = [(CHECKPOINT_EPOCH, (best + 1).to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
     let named = match head.kind {
         turbo::manifest::HeadKind::EditTreeLemmatizer => named_ud(UdHead::Lemma, &head, hidden, tensors),
         turbo::manifest::HeadKind::BiaffineParser => named_ud(UdHead::Deps, &head, hidden, tensors),
@@ -390,7 +387,6 @@ pub fn finish_cached(
         schema: SCHEMA.into(),
         command: p.argv.clone(),
         commit: p.commit.clone(),
-        host: host(),
         unix_time: unix_time(),
         cache: cache.clone(),
         layers: p.layers.clone(),
@@ -407,7 +403,7 @@ pub fn finish_cached(
         best_dev: report.dev[report.best_epoch],
         train_loss: report.train_loss.clone(),
         dev: report.dev.clone(),
-        best_epoch: report.best_epoch,
+        best_epoch: report.best_epoch + 1,
         read_s,
         train_s,
     };
@@ -418,7 +414,6 @@ pub fn finish_cached(
                 schema: RECEIPT_SCHEMA.into(),
                 command: p.argv.clone(),
                 commit: p.commit.clone(),
-                host: fit.host.clone(),
                 unix_time: fit.unix_time,
                 corpus,
                 encoder: Some(cache.encoder),
@@ -441,7 +436,7 @@ pub fn finish_cached(
                 training: Some(TrainingRecord {
                     train_loss: report.train_loss,
                     dev: report.dev,
-                    best_epoch: report.best_epoch,
+                    best_epoch: report.best_epoch + 1,
                     epoch_seconds: report.epoch_seconds,
                 }),
                 eval,
