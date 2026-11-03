@@ -16,4 +16,6 @@ RUN python -c "import stanza; stanza.download('${STANZA_LANG}', model_dir='/stan
 
 COPY predict.py /predict.py
 COPY ner_predict.py /ner_predict.py
+COPY pretokenized_predict.py /pretokenized_predict.py
+COPY coref_predict.py /coref_predict.py
 ENTRYPOINT ["python", "/predict.py"]

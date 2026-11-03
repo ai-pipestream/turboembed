@@ -38,4 +38,5 @@ RUN python -c "from trankit import Pipeline; Pipeline('${TRANKIT_LANG}', cache_d
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 
 COPY predict.py /predict.py
+COPY pretokenized_predict.py /pretokenized_predict.py
 ENTRYPOINT ["python", "/predict.py"]

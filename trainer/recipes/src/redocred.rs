@@ -63,12 +63,15 @@ pub const LICENSE: Pin =
 /// A gold relation: head entity, tail entity, and its property id.
 pub type Triple = (u32, u32, String);
 
-/// One document: its words (the sentences joined), its entities' mentions
-/// by word, each entity's type, and its gold relations.
+/// One document: its words (the sentences joined), each sentence's word
+/// count, its entities' mentions by word, each entity's type, and its
+/// gold relations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Document {
     pub title: String,
     pub words: Vec<String>,
+    /// Each sentence's word count, in order; `words` is them joined.
+    pub sentences: Vec<usize>,
     pub mentions: Vec<Mention>,
     /// Each entity's type, its first mention's: the release gives a few
     /// entities mentions of two types.
@@ -150,12 +153,13 @@ pub fn parse(file: &str, bytes: &[u8]) -> Result<Vec<Document>> {
 
 fn document(d: RawDoc) -> std::result::Result<Document, String> {
     let mut starts = Vec::with_capacity(d.sents.len());
-    let mut words = Vec::new();
+    let (mut words, mut sentences) = (Vec::new(), Vec::new());
     for s in d.sents {
         starts.push(words.len());
         if s.iter().any(String::is_empty) {
             return Err(format!("sentence {} has an empty word", starts.len() - 1));
         }
+        sentences.push(s.len());
         words.extend(s);
     }
     let len = |s: usize| starts.get(s + 1).copied().unwrap_or(words.len()) - starts[s];
@@ -183,7 +187,7 @@ fn document(d: RawDoc) -> std::result::Result<Document, String> {
         }
         relations.push(r);
     }
-    Ok(Document { title: d.title, words, mentions, types, relations })
+    Ok(Document { title: d.title, words, sentences, mentions, types, relations })
 }
 
 fn counts(docs: &[Document]) -> Counts {
