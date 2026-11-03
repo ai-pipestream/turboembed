@@ -416,7 +416,11 @@ typedef struct turbo_model_info {
 
 /* Load a bundle directory on the context's device. Every file is checked
  * against the manifest's hash before use. A device whose backend loads no
- * models is TURBO_E_UNSUPPORTED before the bundle is read. */
+ * models is TURBO_E_UNSUPPORTED before the bundle is read. A bundle with
+ * no artifact the backend loads and runs, by its format, the model's
+ * family and a limited-lookahead model's band (docs/bundle.md, loader rule
+ * 6), is TURBO_E_BUNDLE_NO_ARTIFACT, saying why each was skipped, before
+ * any artifact's file is read. */
 int32_t turbo_model_load(turbo_context *ctx, turbo_text bundle_path, turbo_model **out, turbo_error *err);
 void    turbo_model_release(turbo_model *m);
 int32_t turbo_model_get_info(turbo_model *m, turbo_model_info *out, turbo_error *err);
