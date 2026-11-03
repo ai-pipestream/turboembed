@@ -12,9 +12,10 @@ Every variant (48 training runs at commit `2a05cf523424b06981f8281c819f4e54189a0
 the 4 majority baseline receipts (`<treebank>/majority.json`, generated with
 `turbo-train-head baseline --corpus ud-<bank>-lemma` at commit
 `4873eb828a13345e1a41ab6a23c0b71103d89c63`), and the 4 Stanza peer receipts
-(`<treebank>/stanza.json`, generated at `bc426f41b7ef3714d36e2f24d4f1ca8ef1c0c56b`
-and `f48a400a21417d9a712fa2de765e54e84c5d7b11`) are committed beside this README
-under `en-ewt/`, `it-markit/`, `de-gsd/`, and `es-ancora/`.
+(`<treebank>/stanza.json`, generated at commits `befdc5b370379308049008ca008f12f98b3dd1b0`,
+`056f2854b4e015fb51e4708480d2b30635aa8f90`, and `5c57fdd764d6bf5779c081fc8f18f8cb34178afd`)
+are committed beside this README under `en-ewt/`, `it-markit/`, `de-gsd/`, and
+`es-ancora/`.
 
 ## Dev-selected winning configurations vs majority baseline and Stanza
 
