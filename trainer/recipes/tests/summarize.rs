@@ -115,7 +115,9 @@ fn summarize_json_out_scrubs_host() {
     assert_eq!(v["corpora"].as_array().unwrap().len(), 1);
     let rows = v["corpora"][0]["rows"].as_array().unwrap();
     assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0]["label"], serde_json::Value::String("masc-pos-B".into()));
+    let head_name = head.file_name().unwrap().to_str().unwrap();
+    assert!(head_name.ends_with("masc-pos-B"), "{head_name}");
+    assert_eq!(rows[0]["label"], serde_json::Value::String(head_name.into()));
     assert_eq!(round4(rows[0]["model"].as_f64().unwrap()), 0.9581);
     assert_eq!(round4(rows[0]["baseline"].as_f64().unwrap()), 0.8964);
     assert_eq!(rows[0]["epochs_run"].as_u64().unwrap(), 32);
