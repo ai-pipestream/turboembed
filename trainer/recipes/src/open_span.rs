@@ -118,6 +118,7 @@ pub fn spec(
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         span: Some(SpanShape { max_words, width_dim }),
         coref: None,
