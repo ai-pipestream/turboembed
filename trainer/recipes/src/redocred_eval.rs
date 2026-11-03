@@ -17,7 +17,9 @@ use turbo_trainer::RelationExample;
 use turbo_trainer::relation::GoldRelation;
 use turbo_trainer::rng::Rng;
 
+use crate::corpus::FileRecord;
 use crate::eval::{Comparison, Metrics, SpanScore};
+use crate::receipt::{EncoderRecord, Receipt};
 use crate::redocred::{Document, ENTITY_TYPES, HEAD, LAYER, RelationCorpus, Triple};
 use crate::{Error, Result};
 
@@ -59,28 +61,75 @@ pub fn decode_named(name: &str) -> Result<Decode> {
     }
 }
 
-/// The relation head written to `dir` (`head.json` and
-/// `head.safetensors`, as `train-relation` writes them), to score beside
-/// a new one: it must be a relation classifier over `labels` and an
-/// encoder `hidden` wide.
+/// A head an earlier `train-relation` wrote, to score beside a new one:
+/// the classifier, a name for it, and the files it was read from with
+/// their digests.
+pub struct PriorHead {
+    pub head: RelationClassifier,
+    pub name: String,
+    pub files: Vec<FileRecord>,
+}
+
+/// The relation head written to `dir` (`head.json`, `head.safetensors`
+/// and `receipt.json`, as `train-relation` writes them), to score on the
+/// features the run computes for `spec`. It must read those features as
+/// `spec` does: the same labels, word pooling and entity type table, on
+/// the same encoder (`encoder`'s model, revision, manifest digest,
+/// width, layers and hidden size; backend, device and precision may
+/// differ).
 ///
 /// # Errors
 ///
-/// A file missing or malformed, another kind of head, other labels, or
-/// what the core refuses of its tensors.
-pub fn load_head(dir: &Path, labels: &[String], hidden: usize) -> Result<RelationClassifier> {
-    let read =
-        |name: &str| std::fs::read(dir.join(name)).map_err(|e| Error(format!("{}: {e}", dir.join(name).display())));
-    let spec: HeadSpec = serde_json::from_slice(&read("head.json")?)
-        .map_err(|e| Error(format!("{}: {e}", dir.join("head.json").display())))?;
-    if spec.kind != HeadKind::RelationClassifier || spec.labels != labels {
-        return Err(Error(format!("{}: not a relation head over this corpus's labels", dir.display())));
+/// A file missing or malformed, another kind of head, any of the above
+/// differing, or what the core refuses of its tensors.
+pub fn load_head(dir: &Path, spec: &HeadSpec, encoder: &EncoderRecord) -> Result<PriorHead> {
+    let at = |name: &str| dir.join(name).display().to_string();
+    let read = |name: &str| std::fs::read(dir.join(name)).map_err(|e| Error(format!("{}: {e}", at(name))));
+    let (head_json, weights, receipt_json) = (read("head.json")?, read("head.safetensors")?, read("receipt.json")?);
+    let prior: HeadSpec = serde_json::from_slice(&head_json).map_err(|e| Error(format!("{}: {e}", at("head.json"))))?;
+    let receipt: Receipt =
+        serde_json::from_slice(&receipt_json).map_err(|e| Error(format!("{}: {e}", at("receipt.json"))))?;
+    let refuse = |what: &str| Err(Error(format!("{}: {what} differs from this run's", dir.display())));
+    if prior.kind != HeadKind::RelationClassifier || prior.labels != spec.labels {
+        return refuse("the head's kind or labels");
     }
-    let bytes = read("head.safetensors")?;
-    let file = safetensors::File::parse("head.safetensors", &bytes).map_err(|e| Error(e.message))?;
-    let get = |s: &str| file.tensor(&format!("{}.{s}", spec.tensor_prefix)).map(|t| t.f32s());
-    RelationClassifier::from_tensors(&spec, hidden, &get)
-        .map_err(|e| Error(format!("{}: {}", dir.display(), e.message)))
+    if prior.word_pooling != spec.word_pooling {
+        return refuse("word pooling (--pooling)");
+    }
+    let types = |s: &HeadSpec| s.relation.as_ref().map(|r| r.entity_labels.clone());
+    if types(&prior) != types(spec) {
+        return refuse("the entity type table");
+    }
+    let same = |e: &EncoderRecord| {
+        (&e.model, &e.revision, &e.manifest_sha256, e.hidden, e.layers, e.width)
+            == (
+                &encoder.model,
+                &encoder.revision,
+                &encoder.manifest_sha256,
+                encoder.hidden,
+                encoder.layers,
+                encoder.width,
+            )
+    };
+    if !receipt.encoder.as_ref().is_some_and(same) {
+        return refuse("the encoder");
+    }
+    let file = safetensors::File::parse("head.safetensors", &weights).map_err(|e| Error(e.message))?;
+    let get = |s: &str| file.tensor(&format!("{}.{s}", prior.tensor_prefix)).map(|t| t.f32s());
+    let head = RelationClassifier::from_tensors(&prior, encoder.hidden, &get)
+        .map_err(|e| Error(format!("{}: {}", dir.display(), e.message)))?;
+    let record = |path: &str, bytes: &[u8]| FileRecord {
+        path: path.into(),
+        size: bytes.len() as u64,
+        sha256: turbo::bundle::sha256_hex(bytes),
+    };
+    let files = vec![
+        record("head.json", &head_json),
+        record("head.safetensors", &weights),
+        record("receipt.json", &receipt_json),
+    ];
+    let dir_name = dir.file_name().map_or("head".into(), |n| n.to_string_lossy());
+    Ok(PriorHead { name: format!("{dir_name} ({:?})", prior.decode), head, files })
 }
 
 /// The `top` labels with the most gold relations in `m` (ties by name),

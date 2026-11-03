@@ -65,14 +65,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let hidden = enc.hidden();
     // The head to score against, read before training so a bad one fails
     // first.
-    let prior = match &against {
-        Some(dir) => {
-            let head = load_head(dir, &spec.labels, hidden)?;
-            let dir_name = dir.file_name().map_or("head".into(), |n| n.to_string_lossy());
-            Some((format!("{dir_name} ({:?})", head.spec().decode), head))
-        }
-        None => None,
-    };
+    let prior = against.as_deref().map(|dir| load_head(dir, &spec, &encoder)).transpose()?;
 
     let t = Instant::now();
     let s = &corpus.splits;
@@ -109,11 +102,11 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let (test_ex, _) = examples(&mut enc, test, &spec.labels, pooling)?;
     let predicted = predict(&head, &test_ex)?;
     let base = baseline(test);
-    let against = match &prior {
-        Some((name, prior)) => {
-            let theirs = predict(prior, &test_ex)?;
+    let against = match prior {
+        Some(PriorHead { head: prior, name, files }) => {
+            let theirs = predict(&prior, &test_ex)?;
             let comparison = bootstrap(test, &predicted, &theirs, RESAMPLES, c.seed);
-            Some(BaselineEval { name: name.clone(), baseline: evaluate(test, &theirs), comparison })
+            Some(BaselineEval { name, baseline: evaluate(test, &theirs), comparison, files })
         }
         None => None,
     };

@@ -161,6 +161,10 @@ pub struct BaselineEval {
     pub name: String,
     pub baseline: Metrics,
     pub comparison: Comparison,
+    /// For a baseline read from files (`--against`), each file and its
+    /// digest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<FileRecord>,
 }
 
 /// Seen-type and zero-shot held-out-type evaluation slices for an open-span run.

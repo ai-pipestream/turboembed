@@ -255,11 +255,15 @@ turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --
 `DECODE_RELATION`, a softmax cross-entropy over the labels and `none`
 for each pair, and at most one label a pair kept. `--decode relations`
 is the default. `--against <head dir>` reads a head an earlier
-`train-relation` wrote (its `head.json` and `head.safetensors`, over
-the same labels and encoder width) before training starts. It then
-scores that head on the same test documents and records it in the
-receipt's `eval.against`: its metrics, and the new head's paired
-bootstrap over documents against it. Every run prints the per-label
+`train-relation` wrote (its `head.json`, `head.safetensors` and
+`receipt.json`) before training starts. It refuses the head unless it
+reads the features this run computes: the same labels, `--pooling` and
+entity type table, on the same encoder (model, revision, manifest
+digest, width and layers; backend, device and precision may differ).
+It then scores that head on the same test documents and records it in
+the receipt's `eval.against`: its metrics, the new head's paired
+bootstrap over documents against it, and the three files with their
+digests. Every run prints the per-label
 table of the ten labels with the most gold test relations.
 
 ```text
