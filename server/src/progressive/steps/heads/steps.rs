@@ -48,9 +48,12 @@ fn failed(id: &'static str) -> impl Fn(String) -> Error {
     move |detail| Error::Annotator { annotator: id, detail }
 }
 
+/// A step's configuration: its head, the encoder width, and the group's
+/// read plan, since a head reads other features over the whole view than
+/// a sentence at a time and a cached layer of one is not the other's.
 fn config(group: &HeadGroup, step: HeadStep) -> u64 {
     let name = group.head(step).map_or(String::new(), |h| h.spec_name());
-    Fnv1a::new().str(&name).u64(group.width as u64).finish()
+    Fnv1a::new().str(&name).u64(group.width as u64).u64(u64::from(group.reads_whole_view())).finish()
 }
 
 impl GroupHead {

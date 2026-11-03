@@ -321,3 +321,31 @@ fn one_encoder_pass_serves_every_head_step_of_a_request() {
     assert_eq!(rows_read(&dir, &all, DOC), one);
     assert_eq!(rows_read(&dir, &[HeadStep::Entities, HeadStep::Lemmas], DOC), one);
 }
+
+/// The rule and token steps and the part of speech step over a group
+/// opened for `steps`.
+fn pos_analyzer(dir: &Path, steps: &[HeadStep]) -> Analyzer {
+    let o = EncoderOptions { max_seq: 8, max_batch: 3, ..encoder_options() };
+    let group = HeadGroup::open(dir, steps, &o).unwrap();
+    let builder = Analyzer::builder().add(RuleSentenceDetector::new("eng")).add(UntypedWordTokenizer::default());
+    builder.add(GroupStep::<PosTags>::new(group)).build().unwrap()
+}
+
+#[test]
+fn a_whole_view_read_is_not_served_from_a_sentence_read_cache() {
+    let dir = bundle("cache", |m| m["heads"].as_array_mut().unwrap().push(coref_head()));
+    // With a coreference head the group reads the whole view, which gives
+    // the part of speech head other features than a sentence at a time.
+    let (local, whole) = (pos_analyzer(&dir, &[HeadStep::Pos]), pos_analyzer(&dir, &[HeadStep::Pos, HeadStep::Coref]));
+    let prob = |d: &Document| d.get::<PosTags>().unwrap().prob.clone().unwrap();
+    let mut fresh = Document::new(DOC);
+    whole.analyze_incremental(&mut fresh).unwrap();
+    let mut doc = Document::new(DOC);
+    local.analyze_incremental(&mut doc).unwrap();
+    assert_ne!(prob(&doc), prob(&fresh), "the two reads differ");
+    let report = whole.analyze_incremental(&mut doc).unwrap();
+    assert!(report.was_executed("turbo-tagger:pos"), "{report:?}");
+    assert_eq!(prob(&doc), prob(&fresh));
+    // The same plan again is a cache hit.
+    assert!(whole.analyze_incremental(&mut doc).unwrap().was_skipped("turbo-tagger:pos"));
+}
