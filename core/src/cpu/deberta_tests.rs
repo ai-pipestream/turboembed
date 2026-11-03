@@ -66,6 +66,10 @@ fn error() -> turbo_error {
 /// Run `rows` (each padded to the longest) through a model loaded from
 /// the fixture: one vector per row, or per range when `ranges` has any.
 fn run(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_range]) -> Vec<f32> {
+    run_taps(cases, pooling, normalize, ranges, 0)
+}
+
+fn run_taps(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_range], taps: u32) -> Vec<f32> {
     let data = table();
     let tensors: Vec<_> = data
         .iter()
@@ -106,6 +110,7 @@ fn run(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_range
         ids[r * seq..][..c.ids.len()].copy_from_slice(&c.ids);
         mask[r * seq..][..c.mask.len()].copy_from_slice(&c.mask);
     }
+    let k = (taps as usize).max(1);
     let sd = turbo_backend_session_desc {
         struct_size: size_of::<turbo_backend_session_desc>() as u32,
         task: TURBO_TASK_EMBED,
@@ -113,7 +118,7 @@ fn run(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_range
         max_seq: seq as u32,
         precision: TURBO_PRECISION_EXACT,
         cpu_threads: 2,
-        max_ranges: ranges.len().max(1) as u32,
+        max_ranges: (ranges.len() * k).max(1) as u32,
         reserved: 0,
     };
     let (mut dtype, mut s) = (0u32, std::ptr::null_mut());
@@ -131,7 +136,7 @@ fn run(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_range
         normalize,
         output_dim: HIDDEN as u32,
         head: 0,
-        taps: 0,
+        taps,
         reserved: 0,
     };
     let rc = if ranges.is_empty() {
@@ -143,7 +148,7 @@ fn run(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_range
     assert_eq!(rc, 0);
     let mut out: turbo_backend_run = unsafe { std::mem::zeroed() };
     assert_eq!(unsafe { (BACKEND.session_run.unwrap())(s, &mut out, &mut err) }, 0);
-    let n = ranges.len().max(if ranges.is_empty() { cases.len() } else { 0 });
+    let n = (ranges.len() * k).max(if ranges.is_empty() { cases.len() } else { 0 });
     let v = unsafe { std::slice::from_raw_parts(out.host as *const f32, n * HIDDEN) }.to_vec();
     unsafe { (BACKEND.session_release.unwrap())(s) };
     unsafe { (BACKEND.model_release.unwrap())(model) };
@@ -199,4 +204,29 @@ fn pooled_rows_are_the_reference_pooled_states() {
     }
     let error = largest(&run(&cases, TURBO_POOLING_MEAN, TURBO_NORMALIZE_L2, &[]), &mean);
     assert!(error < 2e-5, "MEAN, L2: largest difference {error}");
+}
+
+#[test]
+fn tapped_ranges_are_each_layers_reference_states_and_the_last_matches_one_tap() {
+    let cases = cases();
+    let mut ranges = Vec::new();
+    let mut want = vec![Vec::new(); LAYERS];
+    for (r, c) in cases.iter().enumerate() {
+        for p in (0..c.ids.len()).filter(|&p| c.mask[p] != 0) {
+            ranges.push(turbo_token_range { row: r as u32, start: p as u32, end: p as u32 + 1 });
+            for (l, dst) in want.iter_mut().enumerate() {
+                dst.extend_from_slice(&c.layers[l + 1][p * HIDDEN..][..HIDDEN]);
+            }
+        }
+    }
+    let one = run_taps(&cases, TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE, &ranges, 1);
+    let both = run_taps(&cases, TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE, &ranges, LAYERS as u32);
+    let block = ranges.len() * HIDDEN;
+    for (l, expected) in want.iter().enumerate() {
+        let error = largest(&both[l * block..(l + 1) * block], expected);
+        assert!(error < 2e-5, "tap {l}: largest difference {error}");
+    }
+    let last_bits: Vec<u32> = both[(LAYERS - 1) * block..].iter().map(|v| v.to_bits()).collect();
+    let one_bits: Vec<u32> = one.iter().map(|v| v.to_bits()).collect();
+    assert_eq!(last_bits, one_bits);
 }

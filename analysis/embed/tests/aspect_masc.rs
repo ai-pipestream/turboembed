@@ -12,3 +12,9 @@ mod aspect_masc_support;
 fn trained_aspect_sentiment_matches_the_recorded_metrics() {
     aspect_masc_support::run();
 }
+
+#[test]
+#[ignore = "external MASC and ModernBERT receipt; run explicitly with release optimizations"]
+fn trained_aspect_sentiment_modernbert_receipt() {
+    aspect_masc_support::run_modernbert();
+}

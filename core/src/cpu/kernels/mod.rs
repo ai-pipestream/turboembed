@@ -36,8 +36,8 @@ pub(super) use micro::Neon;
 pub(super) use micro::{Avx2, Avx512};
 pub(super) use micro::{Micro, Portable};
 pub(super) use pairs::{Act, Rope};
-pub(crate) use rowwise::gelu;
 pub(super) use rowwise::layer_norm;
+pub(crate) use rowwise::{exp, gelu};
 
 use crate::backend::turbo_backend_model;
 

@@ -1,0 +1,306 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-31T11:47:31Z",
+  "provenance": {
+    "commit": "cee65da41953c054a1d142a1da63afe9daeb0c07",
+    "pushed_to": [
+      "origin/codex/astra-1486-long-document-gates"
+    ],
+    "machine": {
+      "arch": "x86_64",
+      "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+      "os": "linux"
+    },
+    "device": {
+      "backend": "cpu",
+      "kind": "DEVICE_CPU",
+      "name": "AMD Ryzen 9 9950X 16-Core Processor",
+      "vendor": "AuthenticAMD",
+      "driver_version": "",
+      "runtime_version": "",
+      "memory_total": 65923371008
+    },
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1",
+      "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+      "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+      "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    }
+  },
+  "set": {
+    "name": "contract-nli",
+    "sha256": "4709f5fc3ec80601d0656c009e15eb72ffd06e145cb5cd6576e50a936c41a7cd"
+  },
+  "pipeline": {
+    "analyzer": [
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
+      "turbo:structure plain",
+      "opennlp:subwords"
+    ],
+    "chunker": {
+      "name": "opennlp-sandbox-semantic",
+      "config": [
+        {
+          "name": "similarity_threshold",
+          "value": "0.5"
+        },
+        {
+          "name": "min_chunk_sentences",
+          "value": "1"
+        },
+        {
+          "name": "max_chunk_sentences",
+          "value": "none"
+        },
+        {
+          "name": "sentence_vectors",
+          "value": "each sentence embedded alone, document role"
+        }
+      ]
+    },
+    "retrieval": {
+      "name": "hybrid",
+      "config": [
+        {
+          "name": "fusion",
+          "value": "weighted"
+        },
+        {
+          "name": "bm25_weight",
+          "value": "0.35"
+        },
+        {
+          "name": "k1",
+          "value": "1.2"
+        },
+        {
+          "name": "b",
+          "value": "0.75"
+        },
+        {
+          "name": "terms",
+          "value": "folded"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "queries": 17,
+    "ndcg_at_10": 0.7931105221018808,
+    "recall": {
+      "at_1": 0.014650065716219733,
+      "at_5": 0.06975407116681853,
+      "at_10": 0.12651679407191757,
+      "at_100": 0.8927075593922557
+    },
+    "span": {
+      "queries": 17,
+      "mean": {
+        "at_1": {
+          "precision": 0.5996123214343659,
+          "recall": 0.011158281177211076,
+          "contained": 0.008096181422076935
+        },
+        "at_5": {
+          "precision": 0.3890692167748531,
+          "recall": 0.044915021726225406,
+          "contained": 0.038509024587433355
+        },
+        "at_10": {
+          "precision": 0.33503954512520334,
+          "recall": 0.0865027097655793,
+          "contained": 0.06722569981130577
+        },
+        "at_100": {
+          "precision": 0.1263023653111841,
+          "recall": 0.3739047807902611,
+          "contained": 0.3103337920028036
+        }
+      },
+      "integrity": {
+        "split": 0.13643926788685523,
+        "short_documents": 0.0
+      },
+      "per_query": [
+        {
+          "query": "nda-1",
+          "recall": 0.04621050130672369,
+          "contained": 0.03875968992248062
+        },
+        {
+          "query": "nda-10",
+          "recall": 0.07662120682286203,
+          "contained": 0.06315789473684211
+        },
+        {
+          "query": "nda-11",
+          "recall": 0.4598101265822785,
+          "contained": 0.25
+        },
+        {
+          "query": "nda-12",
+          "recall": 0.05446136671716769,
+          "contained": 0.02824858757062147
+        },
+        {
+          "query": "nda-13",
+          "recall": 0.036742605129357564,
+          "contained": 0.01762114537444934
+        },
+        {
+          "query": "nda-15",
+          "recall": 0.04791965566714491,
+          "contained": 0.02857142857142857
+        },
+        {
+          "query": "nda-16",
+          "recall": 0.11750572082379862,
+          "contained": 0.12307692307692308
+        },
+        {
+          "query": "nda-17",
+          "recall": 0.06460305396255096,
+          "contained": 0.05333333333333334
+        },
+        {
+          "query": "nda-18",
+          "recall": 0.0,
+          "contained": 0.0
+        },
+        {
+          "query": "nda-19",
+          "recall": 0.05781297184847163,
+          "contained": 0.06
+        },
+        {
+          "query": "nda-2",
+          "recall": 0.043819713180059186,
+          "contained": 0.028037383177570093
+        },
+        {
+          "query": "nda-20",
+          "recall": 0.06307669485239578,
+          "contained": 0.056910569105691054
+        },
+        {
+          "query": "nda-3",
+          "recall": 0.08612190190599514,
+          "contained": 0.12096774193548387
+        },
+        {
+          "query": "nda-4",
+          "recall": 0.05592179471111668,
+          "contained": 0.04608294930875576
+        },
+        {
+          "query": "nda-5",
+          "recall": 0.05352468634353281,
+          "contained": 0.045
+        },
+        {
+          "query": "nda-7",
+          "recall": 0.06463515605313366,
+          "contained": 0.04608294930875576
+        },
+        {
+          "query": "nda-8",
+          "recall": 0.14175891010825933,
+          "contained": 0.136986301369863
+        }
+      ]
+    },
+    "per_query": [
+      {
+        "query": "nda-1",
+        "ndcg_at_10": 0.6429235234036081
+      },
+      {
+        "query": "nda-10",
+        "ndcg_at_10": 0.6719377023185354
+      },
+      {
+        "query": "nda-11",
+        "ndcg_at_10": 0.5771493379489847
+      },
+      {
+        "query": "nda-12",
+        "ndcg_at_10": 0.8603818544462509
+      },
+      {
+        "query": "nda-13",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-15",
+        "ndcg_at_10": 0.8643145546088337
+      },
+      {
+        "query": "nda-16",
+        "ndcg_at_10": 0.491526182307598
+      },
+      {
+        "query": "nda-17",
+        "ndcg_at_10": 0.636658712740428
+      },
+      {
+        "query": "nda-18",
+        "ndcg_at_10": 0.17993148201117176
+      },
+      {
+        "query": "nda-19",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-2",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-20",
+        "ndcg_at_10": 0.835780413693672
+      },
+      {
+        "query": "nda-3",
+        "ndcg_at_10": 0.8611375561264454
+      },
+      {
+        "query": "nda-4",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-5",
+        "ndcg_at_10": 0.8611375561264454
+      },
+      {
+        "query": "nda-7",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "nda-8",
+        "ndcg_at_10": 1.0
+      }
+    ]
+  },
+  "cost": {
+    "wall": {
+      "analysis_ms": 43.873560999999995,
+      "chunking_ms": 16133.492245,
+      "embedding_ms": 14521.605131,
+      "retrieval_ms": 57.266874
+    },
+    "tokens_embedded": 543774,
+    "chunks": 3642,
+    "chunk_bytes": {
+      "min": 2,
+      "p50": 200,
+      "p90": 940,
+      "max": 13729
+    },
+    "chunk_tokens": {
+      "min": 3,
+      "p50": 44,
+      "p90": 190,
+      "max": 2748
+    }
+  }
+}

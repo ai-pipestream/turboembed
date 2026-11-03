@@ -6,7 +6,7 @@ unicode	15.0
 input	zh/news	394	132	113658bd8868a05595c3b9ad793eb8d33c601a6ce47f799482d5ce382069db5d
 model	jieba-dict-subset.txt	365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	71	start:u32	end:u32
+layer	turbo:tokens	text	71	start:u32	end:u32
 0	3
 3	9
 9	15
@@ -78,4 +78,4 @@ layer	opennlp:tokens	text	71	start:u32	end:u32
 378	384
 384	390
 390	393
-end	opennlp:tokens
+end	turbo:tokens

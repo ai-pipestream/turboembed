@@ -5,11 +5,11 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/long-word	301	301	16c71221108fb1f1660472af2242b80ca0565891ad284bc8d0f24df7e548fc9e
 annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
-layer	opennlp:tokens	text	2	start:u32	end:u32
+layer	turbo:tokens	text	2	start:u32	end:u32
 0	255
 255	300
-end	opennlp:tokens
-layer	turbo:word-types	aligned:opennlp:tokens	2	kind:str
+end	turbo:tokens
+layer	turbo:word-types	aligned:turbo:tokens	2	kind:str
 ALPHANUMERIC
 ALPHANUMERIC
 end	turbo:word-types

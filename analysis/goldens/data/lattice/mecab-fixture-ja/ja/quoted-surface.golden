@@ -6,7 +6,7 @@ unicode	15.0
 input	ja/quoted-surface	53	19	5a8922403d7c81d679959f174c96e121ebd475779d501595edc0e22716fd1608
 model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	10	start:u32	end:u32
+layer	turbo:tokens	text	10	start:u32	end:u32
 0	13
 13	16
 16	22
@@ -17,8 +17,8 @@ layer	opennlp:tokens	text	10	start:u32	end:u32
 40	43
 43	49
 49	52
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	10	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	10	unknown:u32	features:str
 0	名詞,固有名詞,一般,引用,トウキョウオオサカ
 0	助詞,格助詞,*,ニ
 0	動詞,自立,*,イク

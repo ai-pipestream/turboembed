@@ -1,5 +1,5 @@
 //! The lookup as an analysis step: it reads a text view, its tokens and,
-//! when the document has it, `opennlp:language`, and writes
+//! when the document has it, `turbo:language`, and writes
 //! `turbo:stopwords`, a flag per token.
 
 use turbo_analysis::{Annotator, Error, Refs, View};
@@ -11,12 +11,12 @@ use crate::list::StopwordList;
 /// Which bundled list the step uses.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ListChoice {
-    /// The same list for every document; `opennlp:language` is not
+    /// The same list for every document; `turbo:language` is not
     /// consulted. The step still declares it as an optional input, so a
     /// pipeline runs language detection first and the provenance lists
     /// the language layer whenever the document has one.
     Fixed(StopwordLanguage),
-    /// The list for the document's best language in `opennlp:language`,
+    /// The list for the document's best language in `turbo:language`,
     /// with its code resolved as `StopwordLists.forLanguage` resolves it.
     /// Where the document has no language layer, or its best language has
     /// no list, the fallback is used, and with no fallback the document is

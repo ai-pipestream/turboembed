@@ -5,38 +5,41 @@
 //!
 //! A token's gold label is `_` when it is one word of the same form, as
 //! the core's head keeps it whole ([`turbo::manifest::KEEP_TOKEN`]);
-//! any other token's is one edit tree a word
-//! ([`turbo::head::edit_tree::EditTree::mine`]), joined by single
-//! spaces, as `turbo::head::split::parse` reads. The head's labels are
-//! the ones that come up often enough in training, mined as the
-//! lemmatizer mines its trees (`turbo_trainer::mine_trees`): a label
-//! whose trees do not give the token's own words back is no label of
-//! the head's, and a training or dev sentence holding one the head
-//! lacks is left out by [`crate::run::examples`], as everywhere. The
-//! test split keeps every token's gold label, the head's or not, so a
-//! split it never learned counts against it.
+//! any other token's is its words, joined by tabs, which no word holds.
+//! The head's labels are splits, one edit tree a word joined by single
+//! spaces as `turbo::head::split::parse` reads, each training token's
+//! chosen by [`crate::split_labels`] among the trees that give its
+//! words, and kept when it comes up often enough in training, as the
+//! lemmatizer keeps its trees (`turbo_trainer::mine_trees`). A training
+//! or dev token whose split the head lacks is left out by
+//! [`crate::run::examples`], as everywhere. The test split keeps every
+//! token's gold words, so a split the head never learned counts
+//! against it.
 //!
-//! The score is a token's label being right, as the trainer's
-//! `score_split` counts it on dev; the words a decoded label gives are
-//! the core's (`TokenSplitter::words`).
+//! The score is a token's words being right: a decoded label's words
+//! are the core's (`TokenSplitter::words`), the baseline's a lookup,
+//! and both are scored as tags against the gold words, as the trainer's
+//! `score_split` counts a label on dev.
+//!
+//! With `--seen-lookup`, the head also carries [`seen_lookup`]: the
+//! tokens whose training split was unambiguous take it without the
+//! scorer (the baseline's strong suit), and the scorer decides the
+//! rest, which is where it leads the baseline.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use turbo::head::TokenSplitter;
-use turbo::head::edit_tree::EditTree;
-use turbo::head::split::{MAX_SPLIT_WORDS, parse as parse_split};
-use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, KEEP_TOKEN, MAX_LABELS, Scheme, WordPooling};
+use turbo::manifest::{
+    Adapter, Bilstm, Decode, HeadKind, HeadSpec, KEEP_TOKEN, MAX_LABELS, Scheme, SeenLookup, SeenToken, WordPooling,
+};
 use turbo_tagger::WordEncoder;
 
 use crate::corpus::{CorpusRecord, Counts, FileRecord, Sentence, Task, check_pin, read_file};
 use crate::run::PREDICT_CHUNK;
+use crate::split_labels;
 use crate::ud::Treebank;
 use crate::{Error, Result};
-
-/// The longest tree label a head carries (manifest rule), as the
-/// trainer's `mine_trees` keeps.
-const MAX_LABEL: usize = 128;
 
 /// One sentence's surface tokens and each one's syntactic words:
 /// `words[i]` splits `tokens[i]`, and holds the token itself when the
@@ -161,56 +164,79 @@ pub fn read_tokens(bank: &Treebank, dir: &Path, unrecorded: bool) -> Result<(Tok
     Ok((TokenSplits { train, dev, test }, files, mismatches.is_empty()))
 }
 
-/// A token's gold label: `_` for a token of one word of the same form,
-/// else one mined edit tree a word, joined by single spaces. A token
-/// of one word of another form, which a treebank should not hold,
-/// gives the one tree's label: no label of any head's, so it only ever
-/// counts wrong.
+/// A token's gold label as the head is scored: `_` for a token of one
+/// word of the same form, else its words joined by tabs. A token of
+/// one word of another form, which a treebank should not hold, gives
+/// that word: no label the head could give, so it only ever counts
+/// wrong.
 pub fn gold_label(token: &str, words: &[String]) -> String {
     match words {
         [one] if one == token => KEEP_TOKEN.to_owned(),
-        _ => words.iter().map(|w| EditTree::mine(token, w).label()).collect::<Vec<_>>().join(" "),
+        _ => words.join("\t"),
     }
 }
 
-/// A token's label as the head may carry it: two to
-/// [`MAX_SPLIT_WORDS`] words, each mined tree giving its word back on
-/// this token, the joined label no longer than a label may be and one
-/// the core's split parser takes. `_` is added by [`mine_labels`]
-/// itself, never mined.
-fn head_label(token: &str, words: &[String]) -> Option<String> {
-    if words.len() < 2 || words.len() > MAX_SPLIT_WORDS {
-        return None;
-    }
-    let trees: Vec<EditTree> = words.iter().map(|w| EditTree::mine(token, w)).collect();
-    if trees.iter().zip(words).any(|(t, w)| t.apply(token).as_deref() != Some(w.as_str())) {
-        return None;
-    }
-    let label = trees.iter().map(EditTree::label).collect::<Vec<_>>().join(" ");
-    if label.len() > MAX_LABEL || parse_split(&label).is_err() {
-        return None;
-    }
-    Some(label)
-}
+/// The label each distinct training split takes, as
+/// [`split_labels::choose`] picks it.
+pub type Chosen = BTreeMap<(String, Vec<String>), String>;
 
 /// The head's labels: `_` first, then the training splits that come up
 /// at least `min_freq` times, most frequent first, then by label, at
-/// most the labels a head holds.
-pub fn mine_labels(train: &[TokenSentence], min_freq: usize) -> Vec<String> {
-    let mut counts: HashMap<String, usize> = HashMap::new();
+/// most the labels a head holds. Each token's split is the label
+/// `chosen` gives it; a token with none (one word, or more than a split
+/// holds) is no label's.
+pub fn mine_labels(train: &[TokenSentence], chosen: &Chosen, min_freq: usize) -> Vec<String> {
+    let mut counts: HashMap<&str, usize> = HashMap::new();
     for s in train {
         for (t, ws) in s.tokens.iter().zip(&s.words) {
-            if let Some(l) = head_label(t, ws) {
+            if let Some(l) = chosen.get(&(t.clone(), ws.clone())) {
                 *counts.entry(l).or_default() += 1;
             }
         }
     }
-    let mut kept: Vec<(String, usize)> = counts.into_iter().filter(|(_, c)| *c >= min_freq.max(1)).collect();
-    kept.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    let mut kept: Vec<(&str, usize)> = counts.into_iter().filter(|(_, c)| *c >= min_freq.max(1)).collect();
+    kept.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
     kept.truncate(MAX_LABELS - 1);
     let mut labels = vec![KEEP_TOKEN.to_owned()];
-    labels.extend(kept.into_iter().map(|(l, _)| l));
+    labels.extend(kept.into_iter().map(|(l, _)| l.to_owned()));
     labels
+}
+
+/// The seen-token lookup of a training split (#1803), built from `train`
+/// alone: each token whose every training occurrence splits the same
+/// way, seen at least `min_count` times, with that split's label. A
+/// token training saw split two ways or fewer than `min_count` times is
+/// the head's to decide, as is one whose split's label the head does
+/// not carry, or whose one word is not itself (which no head label
+/// gives). Sorted by token, so one training split writes one table.
+pub fn seen_lookup(train: &[TokenSentence], chosen: &Chosen, labels: &[String], min_count: u32) -> SeenLookup {
+    let mut ways: BTreeMap<&str, BTreeMap<&[String], usize>> = BTreeMap::new();
+    for s in train {
+        for (t, ws) in s.tokens.iter().zip(&s.words) {
+            *ways.entry(t.as_str()).or_default().entry(ws.as_slice()).or_default() += 1;
+        }
+    }
+    let mut tokens = Vec::new();
+    for (&token, splits) in &ways {
+        if splits.len() != 1 {
+            continue;
+        }
+        let (words, n) = splits.iter().next().expect("one split");
+        if *n < min_count as usize {
+            continue;
+        }
+        let label = match &words[..] {
+            [] => continue,
+            [one] if one.as_str() == token => KEEP_TOKEN.to_owned(),
+            [_] => continue,
+            _ => match chosen.get(&(token.to_owned(), words.to_vec())).filter(|l| labels.contains(l)) {
+                Some(l) => l.clone(),
+                None => continue,
+            },
+        };
+        tokens.push(SeenToken { token: token.to_owned(), label });
+    }
+    SeenLookup { min_count, tokens }
 }
 
 /// The sentences of `part`, each token with its gold label, as the
@@ -220,6 +246,30 @@ pub fn sentences(part: &[TokenSentence]) -> Vec<Sentence> {
         .map(|s| Sentence {
             words: s.tokens.clone(),
             labels: s.tokens.iter().zip(&s.words).map(|(t, ws)| gold_label(t, ws)).collect(),
+        })
+        .collect()
+}
+
+/// The sentences of `part` as the head trains on them: each split
+/// token's label is the one `chosen` gives its split, or, for a split
+/// training never saw or whose label the head dropped, the first of
+/// `labels` that gives its words, or its gold words, which no head
+/// label matches, so [`crate::run::examples`] leaves the sentence out.
+pub fn labelled(part: &[TokenSentence], chosen: &Chosen, labels: &[String]) -> Vec<Sentence> {
+    let label = |t: &String, ws: &Vec<String>| -> String {
+        if ws.len() < 2 {
+            return gold_label(t, ws);
+        }
+        if let Some(l) = chosen.get(&(t.clone(), ws.clone())).filter(|l| labels.contains(l)) {
+            return l.clone();
+        }
+        let c = split_labels::candidates(t, ws);
+        labels.iter().find(|l| c.contains(l)).cloned().unwrap_or_else(|| gold_label(t, ws))
+    };
+    part.iter()
+        .map(|s| Sentence {
+            words: s.tokens.clone(),
+            labels: s.tokens.iter().zip(&s.words).map(|(t, ws)| label(t, ws)).collect(),
         })
         .collect()
 }
@@ -249,7 +299,8 @@ pub fn record(bank: &Treebank, splits: &TokenSplits, files: Vec<FileRecord>, rec
 }
 
 /// The token split head, `words` on `turboembed:words`, over `labels`,
-/// carrying the class of the corpus's licence.
+/// carrying the class of the corpus's licence and, with one, the
+/// seen-token lookup [`seen_lookup`] mines from the training split.
 ///
 /// # Errors
 ///
@@ -259,6 +310,7 @@ pub fn spec(
     corpus: &CorpusRecord,
     pooling: WordPooling,
     bilstm: Option<(u32, u32)>,
+    seen: Option<SeenLookup>,
 ) -> Result<HeadSpec> {
     let spec = HeadSpec {
         name: "words".into(),
@@ -272,7 +324,11 @@ pub fn spec(
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        seen,
+        layer_mix: None,
         span: None,
+        relation: None,
+        coref: None,
         license_class: Some(corpus.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.words".into(),
@@ -296,8 +352,9 @@ pub fn features(enc: &mut WordEncoder, part: &[TokenSentence], pooling: WordPool
     Ok(out)
 }
 
-/// The labels `head` gives each sentence, decoded as at inference: the
-/// best-scoring label that fits each token's form.
+/// The words `head` gives each sentence's tokens, decoded as at
+/// inference (the best-scoring label that fits each token's form) and
+/// written as [`gold_label`] writes the gold.
 ///
 /// # Errors
 ///
@@ -311,7 +368,8 @@ pub fn predict(head: &TokenSplitter, part: &[TokenSentence], features: &[Vec<f32
         let read = head.reads_forms().then_some(forms.as_slice());
         head.scores(f, &words, read, &mut scores, &mut w).map_err(|e| Error(e.message))?;
         head.decode(&scores, &forms, &mut labels).map_err(|e| Error(e.message))?;
-        out.push(labels.iter().map(|&l| head.spec().labels[l as usize].clone()).collect());
+        let split = head.words(&labels, &forms).map_err(|e| Error(e.message))?;
+        out.push(forms.iter().zip(&split).map(|(t, ws)| gold_label(t, ws)).collect());
     }
     Ok(out)
 }

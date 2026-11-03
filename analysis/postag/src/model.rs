@@ -110,7 +110,7 @@ impl PosModel {
         }
         let dictionary = TagDictionary::for_model(&file)?.map(Arc::new);
         let model_ref = ModelRef {
-            id: format!("opennlp:{COMPONENT_NAME}:{}", file.language()),
+            id: format!("turbo:{COMPONENT_NAME}:{}", file.language()),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };

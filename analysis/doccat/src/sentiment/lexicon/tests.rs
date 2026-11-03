@@ -247,7 +247,7 @@ fn dependency_negation_scope_handles_long_distance_and_clause_boundaries() {
     let cats = doc.get::<Categories<Sentences>>().unwrap();
     assert_eq!(cats.best_category(0), "negative");
 
-    // Provenance records that `opennlp:dependencies` was read.
+    // Provenance records that `turbo:dependencies` was read.
     let prov = doc.provenance(Key::<Opinions>::DEFAULT.id()).unwrap();
     assert!(prov.reads.contains(&Key::<Dependencies>::DEFAULT.id()));
 }

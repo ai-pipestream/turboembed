@@ -23,7 +23,7 @@ import opennlp.tools.tokenize.WordpieceTokenizer;
  * the line number being the id. Its file is the golden's {@code model} record and names the
  * directory.</p>
  *
- * <p>The layer is {@code opennlp:subwords}: one row per piece of the text, with its UTF-8 byte
+ * <p>The layer is {@code turbo:subwords}: one row per piece of the text, with its UTF-8 byte
  * span and its id. {@code encode} also returns {@code [CLS]} first and {@code [SEP]} last, with
  * empty spans at the two ends of the text; they are not pieces of the text, so they are checked
  * and left out, as the Rust layer leaves out a model's special tokens. A piece's UTF-16 span
@@ -116,7 +116,7 @@ final class WordpieceGolden implements AnnotatorGolden {
       ends[i] = b.end();
       ids[i] = p.id();
     }
-    return List.of(new Layer("opennlp:subwords", "text", new Column.U32("start", starts),
+    return List.of(new Layer("turbo:subwords", "text", new Column.U32("start", starts),
         new Column.U32("end", ends), new Column.U32("id", ids)));
   }
 

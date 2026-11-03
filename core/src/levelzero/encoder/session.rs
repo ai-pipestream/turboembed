@@ -189,9 +189,6 @@ pub(super) unsafe fn create(
             if is_deberta {
                 deberta::check_precision(precision)?;
             }
-            if is_rotary {
-                super::rotary::check_precision(d.family, precision)?;
-            }
             if precision == TURBO_PRECISION_MODEL && d.dtype != TURBO_DTYPE_F32 {
                 return Err(fail_field(
                     UNSUPPORTED_OPTION,
@@ -220,14 +217,16 @@ pub(super) unsafe fn create(
             // 2D reads take whole steps of DPAS_K terms and tiles of
             // DPAS_TN outputs, from F16 activations: the attention kernels
             // write an F16 context.
-            let xmx = precision == TURBO_PRECISION_FASTEST
-                && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
-                && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
+            let xmx = precision == TURBO_PRECISION_FASTEST && is_rotary && super::rotary::xmx(d)
+                || precision == TURBO_PRECISION_FASTEST
+                    && !is_rotary
+                    && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
+                    && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
             let mut kernels =
                 Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta.then_some((d, max_seq)))?;
             if is_rotary {
-                let rk = super::rotary::RotaryKernels::new(c)?;
-                let local = super::rotary::attention_local(max_seq, head_dim);
+                let rk = super::rotary::RotaryKernels::new(c, head_dim)?;
+                let local = rk.attention_local(max_seq, head_dim);
                 let room = (c.max_local as u64).saturating_sub(rk.attention_local_bytes()? as u64);
                 if local > room {
                     return Err(fail_field(
@@ -287,7 +286,10 @@ pub(super) unsafe fn create(
             let ints = round_up(tokens * 4, DEVICE_ALIGN);
             let table = round_up(max_batch as usize * 8, DEVICE_ALIGN);
             let wide = round_up(tokens * d.hidden as usize * 4, DEVICE_ALIGN);
-            let narrow = if xmx { round_up(tokens * d.hidden as usize * 2, DEVICE_ALIGN) } else { 0 };
+            // A rotary model narrows each linear layer's input, up to the
+            // intermediate width, into xh.
+            let narrow_width = if is_rotary { d.hidden.max(d.intermediate) } else { d.hidden };
+            let narrow = if xmx { round_up(tokens * narrow_width as usize * 2, DEVICE_ALIGN) } else { 0 };
             let ffn = round_up(tokens * ffn_width as usize * 4, DEVICE_ALIGN);
             let rotary = if is_rotary {
                 ints + if d.family == crate::backend::TURBO_FAMILY_MODERNBERT { wide } else { 0 }

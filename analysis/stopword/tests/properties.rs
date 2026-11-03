@@ -1,6 +1,6 @@
 //! Property tests: flag alignment, kept tokens, and offset invariants.
 //!
-//! Every `turbo:stopwords` layer is aligned to `opennlp:tokens`: one flag
+//! Every `turbo:stopwords` layer is aligned to `turbo:tokens`: one flag
 //! per token. Offsets live on the tokens; the flags must match that length
 //! so a round trip through the document keeps every span.
 

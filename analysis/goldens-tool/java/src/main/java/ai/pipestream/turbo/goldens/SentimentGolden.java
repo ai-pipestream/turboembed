@@ -57,7 +57,7 @@ import opennlp.tools.util.model.ModelUtil;
  *   {@code Timestamp} and the zip entries (name and length) of the serialized model.</li>
  * </ul>
  *
- * <p>The golden of a document (method {@code probabilities}) holds {@code opennlp:tokens} (the
+ * <p>The golden of a document (method {@code probabilities}) holds {@code turbo:tokens} (the
  * {@link WhitespaceTokenizer} tokens the detector is given) and, anchored on the document:</p>
  * <ul>
  *   <li>{@code turbo:sentiment-context}: the {@code feature}s the factory's context generator
@@ -256,7 +256,7 @@ final class SentimentGolden implements AnnotatorGolden {
   public List<Layer> layers(Input input) throws AnnotatorException {
     Span[] spans = WhitespaceTokenizer.INSTANCE.tokenizePos(input.text());
     String[] tokens = Span.spansToStrings(spans, input.text());
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:tokens", input.offsets(), spans));
 
     String[] context = trained.run.factory().createContextGenerator().getContext(tokens).clone();
     for (int i = 0; i < context.length; i++) {

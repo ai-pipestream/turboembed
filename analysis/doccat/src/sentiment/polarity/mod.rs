@@ -9,7 +9,7 @@
 //!   [`PolarityAnnotator::bound`]) and implements [`CalibratableCategorizer`](crate::calibrated::CalibratableCategorizer).
 //! - [`SentencePolarityAnnotator`] (`turbo-doccat:sentence-polarity`) scores
 //!   sentence-level polarity into `turbo:opinions` and
-//!   `turbo:categories<opennlp:sentences>` (bound to [`SENTENCE_SENTIMENT`]
+//!   `turbo:categories<turbo:sentences>` (bound to [`SENTENCE_SENTIMENT`]
 //!   via [`SentencePolarityAnnotator::bound`]).
 
 use std::fmt;
@@ -28,6 +28,7 @@ pub mod head;
 pub mod metrics;
 #[cfg(test)]
 mod tests;
+pub mod zoo;
 
 pub use annotate::{blend_polarity_scores, vader_to_polarity_scores};
 pub use fit::{PolarityExample, PolarityFitConfig, PolarityFitReport, parse_polarity_label, parse_polarity_tsv};
@@ -36,6 +37,7 @@ pub use head::{
     validate_polarity_scores,
 };
 pub use metrics::{PolarityClassMetrics, PolarityMetrics, evaluate_polarity, evaluate_predictions, majority_baseline};
+pub use zoo::{MASC_MODERNBERT_POLARITY_HEAD, PolarityZooError};
 
 /// Named instance of `Categories` for document-level sentiment polarity.
 pub const SENTIMENT: Key<Categories> = Key::named("sentiment");

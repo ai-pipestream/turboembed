@@ -6,7 +6,7 @@
 
 use serde_json::{Value, json};
 
-use crate::common::{Fixture, Tensor, model_manifest};
+use crate::common::{Fixture, PARAGRAPH, Tensor, model_manifest};
 
 pub const VOCAB: u64 = 30522;
 pub const HIDDEN: u64 = 8;
@@ -35,7 +35,10 @@ fn tensors(shapes: Vec<(String, Vec<u64>)>) -> Vec<Tensor> {
 /// A ModernBERT's tensors; `first_norm` also writes layer 0's attention
 /// norm, which the upstream model does not have.
 pub fn modernbert_weights(first_norm: bool) -> Vec<Tensor> {
-    let (h, i) = (HIDDEN, INTERMEDIATE);
+    tensors(modernbert_shapes(HIDDEN, INTERMEDIATE, first_norm))
+}
+
+fn modernbert_shapes(h: u64, i: u64, first_norm: bool) -> Vec<(String, Vec<u64>)> {
     let mut shapes: Vec<(String, Vec<u64>)> = vec![
         ("model.embeddings.tok_embeddings.weight".into(), vec![VOCAB, h]),
         ("model.embeddings.norm.weight".into(), vec![h]),
@@ -55,7 +58,7 @@ pub fn modernbert_weights(first_norm: bool) -> Vec<Tensor> {
             shapes.push((format!("model.layers.{l}.{stem}"), shape));
         }
     }
-    tensors(shapes)
+    shapes
 }
 
 pub fn nomic_weights() -> Vec<Tensor> {
@@ -127,6 +130,29 @@ fn modernbert_manifest(h: u64, i: u64) -> Value {
 pub fn modernbert(name: &str) -> Fixture {
     let mut f = Fixture::new(name, modernbert_manifest(HIDDEN, INTERMEDIATE));
     f.weights("weights/model.safetensors", &modernbert_weights(false));
+    f
+}
+
+/// A ModernBERT bundle named `name` of `heads` heads at width `h`, window
+/// `window`, whose values are tensors' scaled by `1 / sqrt(h)` so that
+/// rows of hundreds of tokens (max_seq 1024) keep their softmax spread: the long rows of
+/// the tiled attention at head widths 32, 64 and 128.
+pub fn wide_modernbert(name: &str, h: u64, heads: u64, window: u64) -> Fixture {
+    let mut m = modernbert_manifest(h, 2 * h);
+    m["architecture"]["heads"] = heads.into();
+    m["architecture"]["attention"] = json!({ "window": window, "global_every": 3 });
+    m["embed"]["max_seq"] = 1024.into();
+    m["architecture"]["max_positions"] = 1024.into();
+    m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 32].join(" "));
+    let mut f = Fixture::new(name, m);
+    let scale = 1.0 / (h as f32).sqrt();
+    let mut w = tensors(modernbert_shapes(h, 2 * h, false));
+    for t in &mut w {
+        for c in t.data.as_chunks_mut::<4>().0 {
+            *c = (f32::from_le_bytes(*c) * scale).to_le_bytes();
+        }
+    }
+    f.weights("weights/model.safetensors", &w);
     f
 }
 

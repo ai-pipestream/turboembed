@@ -1,8 +1,8 @@
 //! Unit and pipeline integration tests for `DocumentCategorizerDL` (`#208`),
 //! porting OpenNLP's `DocumentCategorizerConfigTest`,
 //! `AverageClassificationScoringStrategyTest`, and `DocumentCategorizerDLTest`
-//! plus `Annotator` pipeline tests over `opennlp:subwords`, `turbo:chunks`,
-//! `turbo:structure`, and `opennlp:sentences`.
+//! plus `Annotator` pipeline tests over `turbo:subwords`, `turbo:chunks`,
+//! `turbo:structure`, and `turbo:sentences`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -361,7 +361,7 @@ fn annotator_pipeline_writes_document_and_span_categories_in_both_chunking_modes
         assert_eq!(docs[0].get::<Categories<Structure>>().unwrap().best_category(0), "pos");
         assert_eq!(docs[0].get::<Categories<Structure>>().unwrap().best_category(1), "neg");
         let prov = docs[0].provenance(Key::<Categories<Chunks>>::DEFAULT.id()).unwrap();
-        assert_eq!(prov.annotator, "opennlp:doccat-dl-spans");
+        assert_eq!(prov.annotator, "turbo-doccat:dl-spans");
         assert_eq!(prov.model.as_ref(), Some(&model_ref));
     }
 

@@ -1,7 +1,8 @@
 //! Model-free script evidence and query lexical helpers.
 
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
-use turbo_analysis_layers::{Language, LanguageSpans, Sentences, Tokens};
+use turbo_analysis::{Annotator, Bound, Error, ModelRef, Refs, View};
+use turbo_analysis_layers::{Language, LanguageSpans, Money, Numbers, Ordinals, Quantities, Sentences, Tokens};
+use turbo_grammar::{GRAMMAR, GrammarAnnotator};
 use turbo_langspan::{NgramDetector, ScriptDetector};
 
 /// Script-only evidence until the trained language head in #1525 is available.
@@ -92,13 +93,15 @@ pub(crate) fn is_non_place_word(lower: &str) -> bool {
 pub(crate) fn is_grammar_trigger(lower: &str) -> bool {
     matches!(
         lower,
-        "a" | "an" | "billion" | "couple" | "dozen" | "eight" | "eighteen" | "eighth" | "eighty"
-            | "eleven" | "fifteen" | "fifth" | "fifty" | "first" | "five" | "forty" | "four"
-            | "fourteen" | "fourth" | "half" | "hundred" | "million" | "minus" | "nine"
-            | "nineteen" | "ninety" | "once" | "one" | "pair" | "quarter" | "second" | "seven"
-            | "seventeen" | "seventy" | "six" | "sixteen" | "sixty" | "ten" | "tenth" | "third"
-            | "thirteen" | "thirty" | "thousand" | "three" | "trillion" | "twelve" | "twentieth"
-            | "twenty" | "twice" | "two" | "zero"
+        "a" | "an" | "billion" | "cent" | "centavo" | "centavos" | "cents" | "couple" | "céntimo"
+            | "céntimos" | "dolar" | "dolares" | "dozen" | "dólar" | "dólares" | "eight" | "eighteen"
+            | "eighth" | "eighty" | "eleven" | "fifteen" | "fifth" | "fifty" | "first" | "five"
+            | "forty" | "four" | "fourteen" | "fourth" | "gulden" | "guldens" | "half" | "hundred"
+            | "million" | "minus" | "nine" | "nineteen" | "ninety" | "once" | "one" | "pair" | "per"
+            | "por" | "quarter" | "second" | "seven" | "seventeen" | "seventy" | "six" | "sixteen"
+            | "sixty" | "ten" | "tenth" | "third" | "thirteen" | "thirty" | "thousand" | "three"
+            | "trillion" | "twelve" | "twentieth" | "twenty" | "twice" | "two" | "uren" | "uur"
+            | "zero"
     )
 }
 
@@ -248,4 +251,75 @@ pub(crate) fn is_time_ctx(text: &str, s: usize, e: usize, trig: bool) -> bool {
                 | "until" | "within" | "y"
         ) || is_grammar_trigger(lower)
     })
+}
+
+/// Query wrapper around [`GrammarAnnotator`] with pre-warmed parser state and
+/// forwarded configuration hash.
+pub struct QueryGrammarAnnotator {
+    inner: GrammarAnnotator,
+    config_hash: u64,
+}
+
+impl QueryGrammarAnnotator {
+    pub fn english() -> Self {
+        Self::from_inner(GrammarAnnotator::english())
+    }
+
+    pub fn spanish() -> Self {
+        Self::from_inner(GrammarAnnotator::spanish())
+    }
+
+    pub fn dutch() -> Self {
+        Self::from_inner(GrammarAnnotator::dutch())
+    }
+
+    pub fn italian() -> Self {
+        Self::from_inner(GrammarAnnotator::italian())
+    }
+
+    pub fn portuguese() -> Self {
+        Self::from_inner(GrammarAnnotator::portuguese())
+    }
+
+    pub fn for_language(lang: &str) -> Self {
+        match lang {
+            "spa" | "es" => Self::spanish(),
+            "nld" | "nl" => Self::dutch(),
+            "ita" | "it" => Self::italian(),
+            "por" | "pt" => Self::portuguese(),
+            _ => Self::english(),
+        }
+    }
+
+    fn from_inner(inner: GrammarAnnotator) -> Self {
+        let _ = inner.find("", turbo_analysis::ViewId::SOURCE);
+        let config_hash = inner.config_hash();
+        Self { inner, config_hash }
+    }
+
+    pub fn bound(self) -> Bound<Self> {
+        Bound::new(self).write(0, GRAMMAR).write(1, GRAMMAR).write(3, GRAMMAR)
+    }
+}
+
+impl Annotator for QueryGrammarAnnotator {
+    const ID: &'static str = "turbo-query:grammar";
+    type Reads = (View, Tokens);
+    type Writes = (Numbers, Quantities, Ordinals, Money);
+
+    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        if !crate::model::has_grammar_trigger(view.text(), tokens) {
+            return Ok((
+                Numbers::new(view.id()),
+                Quantities::new(view.id()),
+                Ordinals::new(view.id()),
+                Money::new(view.id()),
+            ));
+        }
+        self.inner.annotate((view,))
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.config_hash
+    }
 }

@@ -210,6 +210,12 @@ impl PolarityVectorHead {
                 dw.fill(0.0);
                 db.fill(0.0);
                 linear::backward(&params[0], &x_batch, &d_logits, dim, POLARITY_COUNT, dw, db, None);
+                if config.weight_decay > 0.0 {
+                    let l2 = config.weight_decay as f32;
+                    for (g, &w) in dw.iter_mut().zip(&params[0]) {
+                        *g += l2 * w;
+                    }
+                }
 
                 opt.step(&mut params, &mut grads, &decay).map_err(|e| e.to_string())?;
                 steps_run += 1;
@@ -218,8 +224,8 @@ impl PolarityVectorHead {
             final_train_loss = if epoch_items > 0 { epoch_loss_sum / (epoch_items as f64) } else { 0.0 };
 
             if !dev.is_empty() {
-                let b_arr: [f32; POLARITY_COUNT] = params[1].as_slice().try_into().unwrap();
-                let candidate = Self::new(dim, params[0].clone(), b_arr, encoder.clone())?;
+                let cand_b: [f32; POLARITY_COUNT] = params[1].as_slice().try_into().unwrap();
+                let candidate = Self::new(dim, params[0].clone(), cand_b, encoder.clone())?;
                 let dev_metrics = evaluate_polarity(&candidate, dev)?;
                 let improved = match (best_dev_f1, best_dev_acc) {
                     (None, _) => true,
@@ -234,7 +240,7 @@ impl PolarityVectorHead {
                     best_dev_f1 = Some(dev_metrics.macro_f1);
                     best_dev_acc = Some(dev_metrics.accuracy);
                     best_weights.clone_from(&params[0]);
-                    best_biases = b_arr;
+                    best_biases = cand_b;
                     epochs_without_improvement = 0;
                 } else {
                     epochs_without_improvement += 1;

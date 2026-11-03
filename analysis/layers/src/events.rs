@@ -64,7 +64,7 @@ pub enum AnchoredLayerKind {
     Money = 2,
     /// `turbo:quantities`.
     Quantities = 3,
-    /// Named entities (`opennlp:entities`).
+    /// Named entities (`turbo:entities`).
     Names = 4,
 }
 

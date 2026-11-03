@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::real::Real;
+use crate::rng::Rng;
 
 /// A training example: text and its language index.
 #[derive(Clone, Debug)]
@@ -22,11 +23,15 @@ pub struct Config {
     pub epochs: usize,
     /// Learning rate.
     pub learning_rate: f32,
+    /// Seed of the order examples are visited in, reshuffled every epoch.
+    /// Corpora arrive grouped by language, and stochastic gradient descent
+    /// in that order forgets the earlier languages.
+    pub seed: u64,
 }
 
 impl Default for Config {
     fn default() -> Config {
-        Config { ngram_range: (1, 3), buckets: 1 << 16, epochs: 5, learning_rate: 0.1 }
+        Config { ngram_range: (1, 3), buckets: 1 << 16, epochs: 5, learning_rate: 0.1, seed: 1 }
     }
 }
 
@@ -59,8 +64,11 @@ pub fn train<R: Real>(examples: &[Example], languages: usize, config: &Config) -
     let mut bias = vec![R::ZERO; languages];
     let lr = R::from_f64(config.learning_rate as f64);
 
+    let mut order: Vec<usize> = (0..examples.len()).collect();
+    let mut rng = Rng::new(config.seed);
     for _ in 0..config.epochs {
-        for example in examples {
+        rng.shuffle(&mut order);
+        for example in order.iter().map(|&i| &examples[i]) {
             let feats = features(example.text, config.ngram_range, config.buckets);
             let mut scores = bias.clone();
             for (&bucket, &count) in &feats {
@@ -119,6 +127,35 @@ mod tests {
         assert_eq!(predict("hello", &weights, &bias, &config), 0);
         assert_eq!(predict("hallo", &weights, &bias, &config), 1);
         assert_eq!(train::<f32>(&examples, 2, &config), (weights, bias));
+    }
+
+    #[test]
+    fn learns_every_language_when_examples_arrive_grouped_by_language() {
+        // Ten made-up languages over one alphabet, each sentence drawn from
+        // its language's own words, in language order as corpora arrive.
+        let mut rng = Rng::new(7);
+        let vocab: Vec<Vec<String>> = (0..10)
+            .map(|_| {
+                (0..50).map(|_| (0..3 + rng.below(5)).map(|_| (b'a' + rng.below(26) as u8) as char).collect()).collect()
+            })
+            .collect();
+        let mut texts = Vec::new();
+        for (language, words) in vocab.iter().enumerate() {
+            for _ in 0..60 {
+                let text: Vec<&str> = (0..4).map(|_| words[rng.below(50)].as_str()).collect();
+                texts.push((text.join(" "), language));
+            }
+        }
+        let (held_out, training): (Vec<_>, Vec<_>) = texts.iter().enumerate().partition(|(i, _)| i % 5 == 0);
+        let examples: Vec<Example> =
+            training.iter().map(|(_, (text, language))| Example { text, language: *language }).collect();
+        let config = Config { buckets: 1 << 12, ..Config::default() };
+        let (weights, bias) = train::<f32>(&examples, 10, &config);
+        let correct = held_out
+            .iter()
+            .filter(|(_, (text, language))| predict(text, &weights, &bias, &config) == *language)
+            .count();
+        assert!(correct * 100 >= held_out.len() * 95, "{correct} of {} held out", held_out.len());
     }
 
     #[test]

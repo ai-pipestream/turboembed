@@ -54,14 +54,18 @@ also identifies web-scraped and IBM-internal text with no auditable grant.
 The exception permits this named local download after user acceptance;
 it grants no rights to training text and approves no other model.
 
-`turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
-inputs. `turbo-fetch.json` saves the notice and acceptance. For a model
-whose licence itself needs acceptance, the tool also reads and writes the
-zoo's acceptance file (`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`):
-a licence that user accepted before, with the tool, `turbo-zoo accept` or
-the catalog service, needs no flag, and the flag records the acceptance
-there. A recipe notice is the project's own condition and has no single
-terms address, so it is never recorded and always needs the flag. API clients
+`turbo-bundle fetch` and `make` require acceptance of the notice, even for
+cached inputs. `turbo-fetch.json` saves the notice and acceptance. For a
+model whose licence itself needs acceptance or whose recipe carries
+`notice_terms` (Granite's model card README, MS MARCO's terms page), the
+tool reads and writes the zoo's acceptance file
+(`$TURBO_ZOO_HOME/acceptances.json`, for `$USER`): `notice_terms` is
+recorded under `LicenseRef-RestrictedPublic` with that address as
+`license_text`, so a requirement the user accepted before, with the tool,
+`turbo-zoo accept` or the catalog service on the page, needs no
+`--accept-terms` flag, and `--accept-terms` records the acceptance there. A
+recipe notice with no single `notice_terms` address stays a per-run
+`--accept-terms` decision. API clients
 must set `accept_terms=true` only after an explicit user decision through
 configuration or a prompt. The manifest identifies the weight licence;
 the notice adds the project download restriction. The existing handling
@@ -211,7 +215,7 @@ is in that form and a test keeps it there.
 | `zoo_version` | uint32 | yes | 1. Anything else is rejected. |
 | `artifacts[].id` | string | yes | Unique. Lowercase ASCII letters, digits, `.`, `_`, `-`, starting with a letter or digit, at most 128 bytes. It names the artifact's cache directory. For a published file it is the file name without its extension. |
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
-| `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
+| `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_COREFERENCE_RESOLVER` (mentions grouped into chains by an antecedent-ranking head), `COMPONENT_DENSE_ENCODER` (one pooled vector per text, the BGE v1.5 encoders), `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
 | `.format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`), or a packaged `.bin` archive. |
 | `.version` | string | yes | The publisher's version. Not empty. |
@@ -347,6 +351,17 @@ For `fetch(id, user)`:
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.
 
+`Zoo::ensure` (and `Zoo::ensure_with`) wraps `Zoo::fetch_with` for
+redistributable models and heads (#1726): it enforces `Acceptances` for
+`CLASS_LGPL`, `CLASS_SHARE_ALIKE`, and `CLASS_GPL` and refuses
+`CLASS_LOCAL_ONLY` with `ZooError::LocalOnly` before touching the
+transport. `Index::find(language, component)` orders matching entries
+from least to most restrictive licence class (`CLASS_PERMISSIVE` first,
+in index order within a class) so callers default to a permissive model
+or head when several serve the same language and component. Beside
+`Blobs` and `Http`, `Directory` serves verified bundle files from a
+local directory root (`<root>/<id>/<path>` or `<root>/<path>`).
+
 ## Self-hosted mirrors
 
 An artifact file's `url` is any `https://` address that serves the
@@ -430,12 +445,38 @@ another way overrides it (#1613).
   tools are: `AWS_ENDPOINT_URL_S3` or `AWS_ENDPOINT_URL` for a store
   other than AWS (addressed path-style), `AWS_REGION` or
   `AWS_DEFAULT_REGION` (else `us-east-1`), and `AWS_ACCESS_KEY_ID`,
-  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. Redirects are not
-  followed, so a signed request is not replayed elsewhere.
+  `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`.
+  `S3Bucket::signed_in(address, &sign_in)` opens a holder's bucket: from
+  that environment for `SignIn::Environment`, or with the holder's own
+  `SignIn::S3Keys`, which read nothing from the environment. Redirects
+  are not followed, so a signed request is not replayed elsewhere.
   `analysis/zoo/tests/s3.rs` runs it against an in-process stand-in that checks each
   signature; `analysis/zoo/src/fetch/sigv4.rs` checks HMAC-SHA-256 against RFC 4231
   and the signatures against the S3 documentation's GET and PUT Object
   examples.
+
+- `GoogleDrive` (the `http` feature) is a Google Drive folder, read
+  through the Drive API v3 over the same HTTPS stack (no SDK), shared
+  drives included. `GoogleDrive::new("gdrive://<folder-id>[/name/...]")`
+  names the folder by its Drive id (`root` is My Drive), and the names
+  after the id walk down from it. A file is looked for at
+  `blobs/sha256/<hex>`, the layout the other stores share, and when it
+  is not there at `<artifact-id>/<path>`, the zoo cache's own layout,
+  so a store or a cache copied to Drive serves as is. Each folder on the
+  way is found with one `files.list` query and remembered; the file is
+  the first of its name whose size is the index's (read page by page),
+  so a file of another size is never downloaded, and is read with one
+  `files.get?alt=media`, at most its size and one byte more. Sign-in comes from `GOOGLE_OAUTH_ACCESS_TOKEN`, sent as a bearer
+  token (one from `gcloud auth print-access-token`, or any OAuth flow
+  the caller runs), or else `GOOGLE_API_KEY`, enough for a folder
+  shared with anyone who has the link (sent as `X-Goog-Api-Key`); one
+  of them is required. Neither ever travels in a URL, and a redirect is
+  followed over HTTPS only and unsigned. `GoogleDrive::with` takes
+  another endpoint; a plain `http://` one sends the token in clear text
+  and is only for a stand-in on loopback in tests. It
+  reads and does not keep: a library puts its own `file://` store first
+  to keep what Drive serves. `analysis/zoo/tests/drive.rs` runs it
+  against an in-process stand-in that answers the Drive API calls.
 
 A zoo server keeps its files in such a store with
 `--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
@@ -444,8 +485,89 @@ its first read, so a library pointed at it with `grpc(s)://` needs no
 separate install step. docs/zoo-container.md packs that server, the
 page and a RustFS store into one `docker compose`. `turbo-zoo-remote`
 (top-level `zoo-remote/`) adds the library's remote sources: a zoo
-server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, and the
+server over `grpc://` or `grpcs://`, an S3 bucket over `s3://`, a
+Google Drive folder over `gdrive://` (the `gdrive` feature), and the
 `TURBO_ZOO_SOURCE` list that names them.
+
+### Holders: sources a user registers
+
+An application that lets each user bring a store keeps the user's
+sources as holders (#1744) rather than in one process-wide
+`TURBO_ZOO_SOURCE`. A holder (`turbo_zoo::Holder`) is a name the user
+picks (1 to 64 characters, no comma or control character, unique per
+user), a source address, and how it signs in (`SignIn`):
+
+- `environment`: from the process environment, as `TURBO_ZOO_SOURCE`
+  does, or not at all for a source that needs none;
+- `google_oauth`: a Google grant, kept as the OAuth client id (and
+  secret, for a client type that has one) and the grant's refresh token;
+- `api_key`: a key, for a Drive folder shared by link;
+- `s3_keys`: an S3 access key pair (`access_key_id`,
+  `secret_access_key`, and `session_token` for temporary keys) that an
+  `s3://` holder signs its requests with in place of the process
+  `AWS_*` environment, with the bucket's `region` (else `us-east-1`)
+  and, for an S3-compatible store, its `endpoint` (`http://host:port`
+  or `https://host`, addressed path-style).
+
+`Holders` keeps every user's holders, in the order they are tried, in
+one strict JSON file (`Home::holders()`, `holders.json` beside the
+acceptance file), one canonical form, unknown fields refused:
+
+```json
+{
+  "holders_version": 1,
+  "users": [
+    {
+      "user": "alice",
+      "holders": [
+        { "name": "laptop", "address": "file:///srv/zoo" },
+        {
+          "name": "team drive",
+          "address": "gdrive://<folder-id>",
+          "sign_in": { "kind": "google_oauth", "client_id": "...", "refresh_token": "..." }
+        }
+      ]
+    }
+  ]
+}
+```
+
+The file holds sign-in secrets, so it is written through a temporary
+name readable and writable by its owner alone on Unix. `register` adds a
+holder last or replaces the one of the same name where it was; `remove`
+and `move_to` change the list.
+
+Signing a user in to Drive is `turbo_zoo::GoogleOAuth` (the `http`
+feature): OAuth 2.0 authorization code with PKCE (RFC 7636, S256), scope
+`drive.readonly`, offline so the grant carries a refresh token, over the
+zoo's HTTPS stack. A web application sends the user to
+`authorize_url(redirect, &pkce)` and calls `exchange(code, redirect,
+&pkce)` from its redirect, after checking the `state` it got back; a
+command line or desktop calls `sign_in_loopback`, which listens once on
+`127.0.0.1`, hands the consent page's address to a callback that opens
+a browser, and checks the `state` itself. Only the refresh token is
+kept. `DriveAuth::Refresh(Renewing)` gets an access token from it on
+first use, again a minute before each runs out, and once more when Drive
+answers 401. `analysis/zoo/tests/oauth.rs` runs all of it against an
+in-process server that answers both the token endpoint and the Drive
+API.
+
+Holders open into sources through `turbo_zoo_remote::Registry`, the
+kinds of source by scheme. `Registry::builtin()` has `file`, `grpc` and
+`grpcs`, `s3` and `gdrive` (a scheme whose feature the build leaves out
+is still known, and refused when opened); an application adds a kind of
+its own by implementing `Kind` (the schemes it claims, and how it opens
+a holder into a transport or a keeping store) and calling `register`,
+which also lets it take a built-in scheme over.
+`Registry::sources(holders.list(&user), &user, Some(origin))` is the
+user's list, in order, then the index's own addresses; the first store in it keeps what the
+sources after it serve, as the first `file://` store of
+`TURBO_ZOO_SOURCE` does. `TURBO_ZOO_SOURCE` itself is parsed through
+the same registry (`Registry::spec`), each entry a holder that signs in
+from the environment. A `file` or `grpc` holder signs in from the
+environment only; an `s3` holder from the environment or with its own
+`s3_keys`; a `gdrive` holder from the environment, with an API key or
+with a Google grant.
 
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.

@@ -9,7 +9,7 @@ use turbo_stem_layers::Stems;
 use crate::algorithm::Algorithm;
 use crate::stemmer::Stemmer;
 
-/// Reads a text view and its `opennlp:tokens` and writes `turbo:stems`,
+/// Reads a text view and its `turbo:tokens` and writes `turbo:stems`,
 /// the stem of each token's text.
 ///
 /// Each distinct token text is stemmed once per document; a repeat

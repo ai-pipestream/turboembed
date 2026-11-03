@@ -54,7 +54,7 @@ impl Default for NameFinderDlOptions {
     }
 }
 
-/// Writes `opennlp:entities` from a token-classification bundle. See the
+/// Writes `turbo:entities` from a token-classification bundle. See the
 /// module comment.
 pub struct NameFinderDl {
     run: Mutex<Run>,

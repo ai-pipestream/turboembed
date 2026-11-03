@@ -54,7 +54,8 @@ frameworks and libc++, which every macOS has.
   against (`Metal, macOS SDK 27.0`); `driver_version` is the macOS
   version and build, since Metal ships with it (`macOS 27.0 (26A428)`).
 - **Capability.** Embed runs at every precision, honoring every field
-  of `turbo_embed_options`: in F32 at EXACT and MODEL, and in F16 at
+  of `turbo_embed_options` but `layers` (field 9), which it takes as 0
+  or 1 alone (its bit is clear): in F32 at EXACT and MODEL, and in F16 at
   FASTEST, whose linear layers take F16 operands (Numerics). A model
   stored in F16 or BF16 computes from an F32 copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),

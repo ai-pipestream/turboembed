@@ -7,14 +7,14 @@ input	detokenizer/quotes-flags	10	10	56353a71739448d4ff324ebb88514ddbdfe837a0682
 model	quotes-detokenizer.xml	d8444302db26d336e30283fa9caf62250b55c671e775629137499b16615e0d2b6686379cff4d1baa34157deebe61170ebbf9a28d9e0f09622f1aefd7bcf285f0
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	5	start:u32	end:u32
+layer	turbo:tokens	text	5	start:u32	end:u32
 0	1
 2	3
 4	5
 6	7
 8	9
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	5	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	5	operation:str
 MERGE_TO_RIGHT
 MERGE_TO_RIGHT
 NO_OPERATION

@@ -116,7 +116,7 @@ impl RuleAspectSentiment {
             }
         }
 
-        // 1c. Extract NP candidates from `PhraseChunks` (`opennlp:chunks`) when present.
+        // 1c. Extract NP candidates from `PhraseChunks` (`turbo:phrase-chunks`) when present.
         if let Some(chunks) = phrase_chunks {
             for (c_idx, range) in chunks.tokens.iter().enumerate() {
                 let c_start = range.start.get();

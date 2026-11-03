@@ -63,7 +63,8 @@ users. It needs `--catalog-dir`, and the server may start with no
 - A `ReadModelFile` of an artifact the user is permitted, whose file is
   not installed yet, installs the whole artifact first, with the same
   licence check, free disk check and verified fetch `InstallModel`
-  makes, through `--catalog-store` when one is set. The first reader
+  makes: through the reading user's model sources first, then
+  `--catalog-store` when one is set and the index's addresses. The first reader
   waits for the fetch; readers of the same artifact that arrive while it
   runs wait for it too and fetch nothing. A read the licence check, the
   path or the pin refuses fetches nothing.
@@ -198,6 +199,70 @@ expects, and the bytes asked for unencoded (`Accept-Encoding:
 identity`). A file served compressed reaches the wire check as sent;
 if a server encodes it anyway and the transport decodes that, the bytes
 that arrive are the file itself, kept when they verify as it.
+
+## Model sources
+
+A user may name stores of their own for installs to read before the
+catalog's: a directory, an S3 bucket or a Google Drive folder, kept as
+holders in `holders.json` beside the catalog's cache (docs/zoo.md,
+Holders). The calls that change them are admin calls, refused
+`UNIMPLEMENTED` (`TURBO_E_UNSUPPORTED`) without `--admin` or `--zoo`;
+`ListModelSources` is served to every client.
+
+| Call | What it does |
+|---|---|
+| `ListModelSources` | The user's sources in the order installs try them: name, address and how each signs in. No key, token or secret is ever returned. `admin` says whether this server takes changes, `drive_sign_in` whether it can sign a user in to Google. |
+| `RegisterModelSource` | Adds a source, or replaces the user's source of the same name: a `name`, an `address`, for a `gdrive://` source an optional `api_key` (field 4), and for an `s3://` source optional `s3_keys` (field 5): the access key id, the secret, a session token for temporary keys, the bucket's region (empty is `us-east-1`) and the endpoint of an S3-compatible store (empty is AWS). Either is refused on any other scheme, and the two together are refused, field 5. |
+| `RemoveModelSource` | Removes the user's source `name`; `was_registered` says whether there was one. |
+| `StartDriveSignIn` | Starts signing the user in to Google for a Drive source `name` at a `gdrive://` address: the consent page to send the user to, the `state` Google sends back, and how many seconds it waits (600). |
+| `FinishDriveSignIn` | Takes the `state` and `code` Google sent back, exchanges the code and registers the source with the refresh token it got. |
+
+What a source may be depends on how the server runs:
+
+- With `--admin` the operator runs the server for its users: a source
+  is a `file://` absolute directory, an `s3://` bucket signing in from
+  the server's environment or with its own keys at any endpoint, or a
+  `gdrive://` folder signing in from the environment, with an API key or
+  with Google.
+- In zoo mode without `--admin` any caller names a user, so a source
+  must bring its own credentials and may reach only its service's own
+  hosts: a `gdrive://` folder signing in with an API key or with Google,
+  or an `s3://` bucket on AWS signing in with its own keys. A `file://`
+  source, an `s3://` source signing in from the server's environment or
+  naming an endpoint, and a Drive source that would use the server's
+  own credentials are refused `UNIMPLEMENTED` (`TURBO_E_UNSUPPORTED`)
+  naming field 3.
+- Any other scheme, a relative directory, a malformed bucket or Drive
+  address is `INVALID_ARGUMENT` naming field 3; a bad name, field 2; a
+  bad API key, field 4; S3 keys with an empty or spaced secret, a bad
+  region or an endpoint that is not `http://host:port` or
+  `https://host`, field 5.
+
+Google sign-in is served when the server starts with a registered OAuth
+client:
+
+| Variable | What it holds |
+|---|---|
+| `TURBO_KSERVE_DRIVE_CLIENT_ID` | The OAuth client id. |
+| `TURBO_KSERVE_DRIVE_CLIENT_SECRET` | Its secret, for a client type that has one. Optional. |
+| `TURBO_KSERVE_DRIVE_REDIRECT` | Where Google sends the user back: an `https://` address, or `http://127.0.0.1:` for a page on the same machine. |
+
+A client id without a redirect, or a redirect of another kind, stops
+the server at startup. Without them both sign-in calls are refused
+`UNIMPLEMENTED` (`TURBO_E_UNSUPPORTED`). The sign-in asks for read-only
+Drive access with PKCE. A `state` is used once, belongs to the user who
+started it (another user's finish is `INVALID_ARGUMENT`, field 2, as
+is one that ran out), and at most 256 sign-ins wait at a time, the
+oldest dropped first. The refresh token is stored; the client secret
+is not, so the server renews the token with its own client while its
+client id matches the holder's.
+
+`InstallModel` reads the user's sources in order, then the catalog's
+own transport; the first `file://` source keeps what the later ones
+serve. A source that cannot be opened is skipped with its reason in
+the error if nothing else serves the file, and each file is verified
+as any other. The read-through of zoo mode reads the same way: the
+reading user's sources in order, then the catalog's own.
 
 ## Describing, resolving and reading
 

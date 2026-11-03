@@ -30,6 +30,11 @@ impl Embedder {
         Ok(Embedder { encoder, tokenizer, model, dim })
     }
 
+    #[allow(dead_code)]
+    pub fn max_seq(&self) -> u32 {
+        self.encoder.info().max_seq
+    }
+
     /// The vectors of `texts`, `dim` values each, each text cut to the
     /// model's longest row; from `cache` when it holds them.
     pub fn embed(&mut self, texts: &[&str], cache: &Path) -> Result<Vec<f32>, String> {

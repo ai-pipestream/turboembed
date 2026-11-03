@@ -43,10 +43,10 @@ async fn inspect_includes_named_positional_instances() {
     let out = c.inspect_document_window(window(graph(&d), OffsetMode::Utf8)).await.unwrap().into_inner();
     drop(c);
     srv.stop().await;
-    assert!(out.summary.unwrap().layers.iter().any(|l| l.layer == "opennlp:tokens" && l.instance == "gold"));
+    assert!(out.summary.unwrap().layers.iter().any(|l| l.layer == "turbo:tokens" && l.instance == "gold"));
     assert!(out.heatmap_lanes.iter().any(|lane| lane.id == "tokens@gold"));
     assert!(
-        out.segments.iter().flat_map(|s| &s.annotations).any(|a| a.layer == "opennlp:tokens" && a.instance == "gold"),
+        out.segments.iter().flat_map(|s| &s.annotations).any(|a| a.layer == "turbo:tokens" && a.instance == "gold"),
         "empty filter promises all positional layers; named tokens vanished"
     );
 }
@@ -101,14 +101,14 @@ async fn named_instances_keep_their_views_filters_and_pos_bindings() {
     assert_eq!(sentiment.buckets.len(), 1);
     assert_eq!((sentiment.buckets[0].start, sentiment.buckets[0].end), (0, 7));
     let annotations: Vec<_> =
-        out.segments.iter().flat_map(|s| &s.annotations).filter(|a| a.layer == "opennlp:tokens").collect();
+        out.segments.iter().flat_map(|s| &s.annotations).filter(|a| a.layer == "turbo:tokens").collect();
     assert!(annotations.iter().any(|a| a.instance == "gold" && a.label == "GOLD"));
     assert!(annotations.iter().any(|a| a.instance.is_empty() && a.label == "token"));
     assert!(!annotations.iter().any(|a| a.instance == "normalized"));
     for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
         let mut req = window(bytes.clone(), mode);
         req.view = u32::from(view.0);
-        req.filter_layers = vec!["opennlp:tokens".into()];
+        req.filter_layers = vec!["turbo:tokens".into()];
         let out = c.inspect_document_window(req).await.unwrap().into_inner();
         assert!(out.heatmap_lanes.iter().any(|lane| lane.id == "tokens@normalized"));
         assert!(!out.heatmap_lanes.iter().any(|lane| lane.id == "tokens" || lane.id == "tokens@gold"));
@@ -116,7 +116,7 @@ async fn named_instances_keep_their_views_filters_and_pos_bindings() {
             out.segments
                 .iter()
                 .flat_map(|s| &s.annotations)
-                .all(|a| a.layer == "opennlp:tokens" && a.instance == "normalized")
+                .all(|a| a.layer == "turbo:tokens" && a.instance == "normalized")
         );
         assert!(out.segments.iter().flat_map(|s| &s.annotations).any(|a| a.instance == "normalized"));
     }

@@ -12,6 +12,8 @@
 
 pub mod beir;
 pub mod conteb;
+pub mod contract_nli;
+pub mod cuad;
 pub mod gutenqa;
 pub mod hicbench;
 pub mod legalbench_rag;

@@ -3,12 +3,10 @@
 //! own layers live in a small schema crate beside it, so another add-on
 //! reads them without depending on the code that makes them.
 //!
-//! A layer the OpenNLP gRPC standard defines (the layer ids in
-//! opennlp_document.proto) has the standard's id, so Java, Rust and the
-//! wire call it one thing. A layer the standard lacks is "turbo:" until
-//! the standard adds it. `Chunks` is one of those: the standard's
-//! "opennlp:chunks" are phrase chunks (noun and verb groups), not
-//! retrieval chunks, so `Chunks` is "turbo:chunks".
+//! Every shared layer's id is in the `turbo:` namespace, from the one
+//! table in `turbo_analysis::ids`, so Java, Rust and the wire call it one
+//! thing. Phrase chunks (noun and verb groups) are
+//! "turbo:phrase-chunks"; retrieval chunks are `Chunks`, "turbo:chunks".
 
 use turbo_analysis::Ix;
 pub use turbo_analysis::{
@@ -42,8 +40,9 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quality::{
-    QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, lexical_quality_gate,
-    lexical_quality_gate_on, quality_gate, quality_gate_on,
+    GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
+    MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
+    lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on,
 };
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
@@ -58,7 +57,8 @@ pub use sentiment::{
 };
 pub use sparse::SparseTerms;
 pub use syntax::{
-    ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
+    ChunkTags, Dependencies, DependencyGraph, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms,
+    WordDependencies,
 };
 pub use tables::{
     ChunkTableContext, ChunkTableHeaders, ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables,

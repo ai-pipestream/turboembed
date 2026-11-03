@@ -30,6 +30,19 @@ impl<R: Real> Table<R> {
         Ok(Table { positions, pairs, data: data.into_iter().map(|v| R::from_f64(v as f64)).collect() })
     }
 
+    pub fn positions(&self) -> usize {
+        self.positions
+    }
+
+    pub fn pairs(&self) -> usize {
+        self.pairs
+    }
+
+    /// The table's values, `[2 (global, local)][2 (cos, sin)][positions][pairs]`.
+    pub fn data(&self) -> &[R] {
+        &self.data
+    }
+
     /// cos and sin at position `p`, pair `i`, under the global or local base.
     fn at(&self, global: bool, p: usize, i: usize) -> (R, R) {
         let half = self.positions * self.pairs;

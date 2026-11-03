@@ -47,7 +47,7 @@ class UnigramGoldenTest {
     List<Layer> layers = load(dir).layers(input("北京大学。 大学"));
     assertEquals(1, layers.size());
     Layer l = layers.get(0);
-    assertEquals("opennlp:tokens", l.id());
+    assertEquals("turbo:tokens", l.id());
     assertArrayEquals(new long[] {0, 6, 12, 16}, u32(l, 0));
     assertArrayEquals(new long[] {6, 12, 15, 22}, u32(l, 1));
   }

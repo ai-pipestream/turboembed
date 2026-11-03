@@ -36,7 +36,7 @@ STEPS = [
     "turbo:chunk-vectors",
 ]
 HEAT_BUCKETS = 16
-ENTITIES = "opennlp:entities"
+ENTITIES = "turbo:entities"
 TIMEOUT = 60.0
 
 

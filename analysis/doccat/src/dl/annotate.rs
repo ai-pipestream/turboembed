@@ -90,7 +90,7 @@ where
     S: DlSequenceScorer + 'static,
     C: ClassificationScoringStrategy + 'static,
 {
-    const ID: &'static str = "opennlp:doccat-dl";
+    const ID: &'static str = "turbo-doccat:dl";
     const VERSION: &'static str = "1";
     type Reads = (View, Option<Subwords>);
     type Writes = (Categories,);
@@ -109,7 +109,7 @@ where
                 let unit = match self.options().chunking_mode {
                     DlChunkingMode::Subwords => {
                         let sw = subwords.ok_or_else(|| {
-                            failure(Self::ID, "DlChunkingMode::Subwords requires the opennlp:subwords layer")
+                            failure(Self::ID, "DlChunkingMode::Subwords requires the turbo:subwords layer")
                         })?;
                         if sw.ids.is_empty() || view.text().trim().is_empty() {
                             Unit::Empty
@@ -187,7 +187,7 @@ where
     L: SpanCategorizable,
     C: ClassificationScoringStrategy + 'static,
 {
-    const ID: &'static str = "opennlp:doccat-dl-spans";
+    const ID: &'static str = "turbo-doccat:dl-spans";
     const VERSION: &'static str = "1";
     type Reads = (View, Option<Subwords>, L);
     type Writes = (Categories<L>,);
@@ -213,7 +213,7 @@ where
                     prepared.push(match self.categorizer.options().chunking_mode {
                         DlChunkingMode::Subwords => {
                             let sw = subwords.ok_or_else(|| {
-                                failure(Self::ID, "DlChunkingMode::Subwords requires the opennlp:subwords layer")
+                                failure(Self::ID, "DlChunkingMode::Subwords requires the turbo:subwords layer")
                             })?;
                             let ids = subword_ids_in_unit(sw, units.layer_spans(), ix);
                             if ids.is_empty() { Unit::Empty } else { Unit::Pieces(ids) }
@@ -230,7 +230,7 @@ where
                     });
                 }
                 if subwords.is_none() && self.categorizer.options().chunking_mode == DlChunkingMode::Subwords {
-                    return Err(failure(Self::ID, "DlChunkingMode::Subwords requires the opennlp:subwords layer"));
+                    return Err(failure(Self::ID, "DlChunkingMode::Subwords requires the turbo:subwords layer"));
                 }
                 Ok(prepared)
             })

@@ -7,7 +7,7 @@ input	multi/pt	191	184	699a006ea30a073970f33c421ff9ea82f271df4e609177456a4272ff3
 model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
 model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	45	start:u32	end:u32
+layer	turbo:tokens	text	45	start:u32	end:u32
 0	1
 2	9
 10	12
@@ -53,8 +53,8 @@ layer	opennlp:tokens	text	45	start:u32	end:u32
 177	178
 179	189
 189	190
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	45	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	45	unknown:u32	features:str
 1	名詞,固有名詞,組織,*,*,*,*
 1	名詞,固有名詞,組織,*,*,*,*
 1	名詞,固有名詞,組織,*,*,*,*

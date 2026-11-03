@@ -34,7 +34,7 @@ pub(in crate::cpu) fn layer_norm(y: &mut [f32], w: &[f32], b: &[f32], eps: f32) 
 /// value that reached the subnormal range would send every later multiply
 /// of it down the processor's slow path.
 #[inline(always)]
-pub(super) fn exp(x: f32) -> f32 {
+pub(crate) fn exp(x: f32) -> f32 {
     const LO: f32 = -80.0;
     let c = x.clamp(LO, 88.0);
     let n = (c * std::f32::consts::LOG2_E + 0.5).floor();

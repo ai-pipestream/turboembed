@@ -22,6 +22,7 @@ use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_analysis_layers::{Entities, PosTags};
 use turbo_tagger::{
     DependencyParser, EntityTagger, HeadRunner, Lemmatizer, PosTagger, SentenceTagger, SpanTagger, WordEncoder,
+    WordTagger,
 };
 
 const BOUND: f32 = 1e-4;
@@ -245,7 +246,17 @@ fn the_device_segments_as_the_cpu() {
         "adapter": {"bilstm": {"hidden": 4, "layers": 1}}, "decode": "DECODE_SPANS_NESTED",
         "span": {"max_words": 4, "width_dim": 3}, "artifact": "weights-f32", "tensor_prefix": "heads.mentions"
     });
-    let dir = bundle("device-segment", |m| m["heads"] = serde_json::json!([sents, spans]));
+    let and_split = ["an", "d"]
+        .iter()
+        .map(|w| turbo::head::edit_tree::EditTree::mine("and", w).label())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let words = serde_json::json!({
+        "name": "words", "layer": "turboembed:words", "kind": "HEAD_TOKEN_SPLIT",
+        "labels": ["_", and_split], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+        "decode": "DECODE_EDIT_TREE", "artifact": "weights-f32", "tensor_prefix": "heads.words"
+    });
+    let dir = bundle("device-segment", |m| m["heads"] = serde_json::json!([sents, spans, words]));
     let mut device = WordEncoder::open(&dir, &o).unwrap();
     let execution = device.execution().clone();
     if let Some(b) = required() {
@@ -254,8 +265,9 @@ fn the_device_segments_as_the_cpu() {
     let mut cpu = WordEncoder::open(&dir, &EncoderOptions::default()).unwrap();
     let st = SentenceTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
     let sp = SpanTagger::open(&dir, Some("mentions"), &EncoderOptions::default()).unwrap();
+    let wt = WordTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
     let seqs = sequences();
-    let (mut worst_boundary, mut worst_span) = (0f32, 0f32);
+    let (mut worst_boundary, mut worst_span, mut worst_split) = (0f32, 0f32, 0f32);
     let (first, mean) = (turbo::manifest::WordPooling::First, turbo::manifest::WordPooling::Mean);
     let pairs = |enc: &mut WordEncoder, p| enc.features(&seqs, p).unwrap();
     let (bd, bc, sd, sc) =
@@ -278,12 +290,22 @@ fn the_device_segments_as_the_cpu() {
         sp.head().decode(&b, s.len(), &mut kb).unwrap();
         let key = |v: &[turbo::head::span::Span]| v.iter().map(|s| (s.first, s.last, s.label)).collect::<Vec<_>>();
         assert_eq!(key(&ka), key(&kb), "spans: {s:?}");
+        let (mut la, mut lb) = (Vec::new(), Vec::new());
+        wt.head().scores(&bd[k], &ids, None, &mut a, &mut Work::default()).unwrap();
+        wt.head().scores(&bc[k], &ids, None, &mut b, &mut Work::default()).unwrap();
+        worst_split = worst_split.max(max_diff(&a, &b));
+        wt.head().decode(&a, s, &mut la).unwrap();
+        wt.head().decode(&b, s, &mut lb).unwrap();
+        assert_eq!(la, lb, "splits: {s:?}");
     }
     eprintln!(
-        "segment device {} ({}): max boundary score diff {worst_boundary:e}, max span score diff {worst_span:e}",
+        "segment device {} ({}): max boundary score diff {worst_boundary:e}, max span score diff {worst_span:e}, max split score diff {worst_split:e}",
         execution.backend, execution.device
     );
-    assert!(worst_boundary <= BOUND && worst_span <= BOUND, "{worst_boundary} {worst_span}");
+    assert!(
+        worst_boundary <= BOUND && worst_span <= BOUND && worst_split <= BOUND,
+        "{worst_boundary} {worst_span} {worst_split}"
+    );
 
     let doc = Document::new(TEXT);
     let view = doc.require(&Key::<View>::DEFAULT).unwrap();
@@ -300,4 +322,13 @@ fn the_device_segments_as_the_cpu() {
     let (a,) = on.annotate((view, &toks, None, None)).unwrap();
     let (b,) = sp.annotate((view, &toks, None, None)).unwrap();
     assert_eq!((a.tokens, a.kind), (b.tokens, b.kind));
+    let on = WordTagger::open(&dir, None, &o).unwrap();
+    assert_eq!(on.execution().unwrap().backend, execution.backend);
+    let words_of = |l: &turbo_analysis_layers::Words| {
+        l.iter(TEXT, &toks).map(|w| (w.tokens, w.subspan, w.form.to_owned())).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        words_of(&on.annotate((view, &toks, None, None)).unwrap().0),
+        words_of(&wt.annotate((view, &toks, None, None)).unwrap().0)
+    );
 }

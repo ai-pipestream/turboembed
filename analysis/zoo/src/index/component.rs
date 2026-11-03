@@ -34,6 +34,12 @@ constant_enum! {
         ZeroShotCategorizer => "COMPONENT_ZERO_SHOT_CATEGORIZER",
         /// Typed dependency arcs between tokens.
         DependencyParser => "COMPONENT_DEPENDENCY_PARSER",
+        /// Mentions grouped into coreference chains by an antecedent-ranking
+        /// head (`HEAD_COREF_RANKER`).
+        CoreferenceResolver => "COMPONENT_COREFERENCE_RESOLVER",
+        /// One pooled, normalized vector per text (a BGE dense retrieval
+        /// encoder).
+        DenseEncoder => "COMPONENT_DENSE_ENCODER",
         /// A vocabulary-sized sparse term-weight vector per text (SPLADE).
         SparseEncoder => "COMPONENT_SPARSE_ENCODER",
         /// One vector per token, scored by late interaction (ColBERT).
@@ -44,12 +50,17 @@ constant_enum! {
 }
 
 impl Index {
-    /// The listed artifacts for `component` in `language`, in index order.
+    /// The listed artifacts for `component` in `language`, the least
+    /// restrictive licence class first (`CLASS_PERMISSIVE` before any class
+    /// needing acceptance or kept local) and in index order within a class.
     pub fn find(&self, language: &str, component: Component) -> impl Iterator<Item = &Artifact> + '_ {
-        let language = language.to_owned();
-        self.artifacts.iter().filter(move |a| {
-            a.component == Some(component) && a.language.as_ref().is_some_and(|l| l.as_str() == language)
-        })
+        let mut found: Vec<&Artifact> = self
+            .artifacts
+            .iter()
+            .filter(|a| a.component == Some(component) && a.language.as_ref().is_some_and(|l| l.as_str() == language))
+            .collect();
+        found.sort_by_key(|a| a.class);
+        found.into_iter()
     }
 
     /// [`Index::find`]'s models whose class is `at_most` or less

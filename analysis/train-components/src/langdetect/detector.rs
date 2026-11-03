@@ -1,6 +1,6 @@
 //! The detector, OpenNLP's `LanguageDetectorME`: `predictLanguages`,
 //! `predictLanguage`, `probingPredictLanguages`, and the annotator that
-//! writes `opennlp:language`.
+//! writes `turbo:language`.
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -263,7 +263,7 @@ thread_local! {
     static SCRATCH: RefCell<(Scratch, Ranking)> = RefCell::new((Scratch::new(), Ranking::new()));
 }
 
-/// Reads a view and writes `opennlp:language`: every language of the
+/// Reads a view and writes `turbo:language`: every language of the
 /// model, best first, with its probability.
 ///
 /// A text none of whose n-grams the model knows (an empty text, or one the

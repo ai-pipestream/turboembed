@@ -6,7 +6,7 @@ unicode	15.0
 input	multi/zh	157	53	fec0f4f268aec5fb5b5f03e7a5d7e9bc8b5fd848d6ca3ce10c19d64a587fd7cc
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	38	start:u32	end:u32
+layer	turbo:tokens	text	38	start:u32	end:u32
 0	3
 3	9
 9	12
@@ -45,8 +45,8 @@ layer	opennlp:tokens	text	38	start:u32	end:u32
 147	150
 150	153
 153	156
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	38	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	38	unknown:u32	features:str
 0	連体詞,*,*,*,*,*,ワガ,我が,我,ワガ,我,ワガ,和,*,*,*,*
 1	名詞,普通名詞,一般,*,*,*
 0	接尾辞,名詞的,副詞可能,*,*,*,マツ,末,末,マツ,末,マツ,漢,*,*,*,*

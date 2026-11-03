@@ -38,6 +38,7 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
         out.push(("crf.start".into(), vec![labels]));
         out.push(("crf.end".into(), vec![labels]));
     }
+    words::push_mix(spec, &mut out);
     out
 }
 
@@ -112,6 +113,11 @@ impl TokenTagger {
     /// The encoder width the tagger reads.
     pub fn hidden(&self) -> usize {
         self.hidden
+    }
+
+    /// The number of encoder layers each word vector mixes.
+    pub fn taps(&self) -> usize {
+        self.reader.taps()
     }
 
     /// The label scores [words, labels] of one sequence into `out`, from

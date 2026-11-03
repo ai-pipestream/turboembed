@@ -52,6 +52,9 @@ impl Document {
                 _ => {}
             }
         }
+        if other.entries.iter().any(|e| !self.has(e.key)) {
+            other.materialize_digests();
+        }
         for e in &other.entries {
             if !self.has(e.key) {
                 self.entries.push(e.clone());
@@ -104,6 +107,7 @@ impl Document {
         let mut adopted: Vec<Arc<Entry>> = Vec::new();
         let mut adopted_keys: HashSet<_> = HashSet::new();
         let mut dropped: HashSet<_> = HashSet::new();
+        let mut materialized = false;
         for e in &other.entries {
             if self.entries.iter().chain(&adopted).any(|m| m.key.ty != e.key.ty && m.key.layer == e.key.layer) {
                 return Err(Error::Clash(e.key));
@@ -155,6 +159,10 @@ impl Document {
                     "{} was made on {}, which the merge does not bring over",
                     e.key, missing
                 )));
+            }
+            if !materialized {
+                other.materialize_digests();
+                materialized = true;
             }
             let entry = if e.key.ty == view_ty
                 && let Some(view) = e.value.as_deref().and_then(|v| v.downcast_ref::<View>())

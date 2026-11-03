@@ -154,6 +154,8 @@ pub struct Serve {
     pub prefetch: bool,
     pub vocabulary: Option<PathBuf>,
     pub catalog: Option<catalog::Catalog>,
+    /// Google sign-in for users' Drive sources (docs/grpc-catalog.md).
+    pub drive: Option<catalog::DriveSignIn>,
     pub training: Option<PathBuf>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
@@ -254,6 +256,7 @@ impl Server {
             serve.admin,
             serve.zoo,
             serve.prefetch,
+            serve.drive,
         ))
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);
@@ -347,6 +350,23 @@ impl Server {
     /// without a sink.
     pub fn sink_stats(&self) -> Option<SinkStats> {
         self.sink.as_ref().map(|s| s.stats())
+    }
+
+    /// Forwards one document graph to the sink without waiting for it, as
+    /// an item carrying the graph re-exported, its layers and views, and
+    /// the typed projection when `SinkConfig::typed` asks for one. Answers
+    /// whether the queue took it; a full queue drops and counts it. A graph
+    /// that does not import, or a projection it cannot give (a view it
+    /// does not have), is refused, not offered and counted refused; a graph
+    /// for a server without a sink is refused too.
+    pub async fn forward_document(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, api::Failure> {
+        let sink = self.sink.clone().ok_or_else(sink::no_sink)?;
+        let doc_id = doc_id.to_owned();
+        // Importing the graph walks the whole document; keep the async
+        // runtime free of it.
+        tokio::task::spawn_blocking(move || sink.offer_graph(&doc_id, graph))
+            .await
+            .map_err(|e| api::Failure::new(api::TURBO_E_INTERNAL, 0, format!("the sink forwarding task failed: {e}")))?
     }
 
     /// Stops forwarding to the sink: no answer is offered after this, and

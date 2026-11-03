@@ -16,9 +16,9 @@ import opennlp.tools.util.Span;
 
 /**
  * The maxent lemmatizer's golden: the sentences, tokens and part-of-speech tags of the models of
- * the same language ({@link PosGolden}'s layers), then {@code opennlp:lemmas} aligned to the
+ * the same language ({@link PosGolden}'s layers), then {@code turbo:lemmas} aligned to the
  * tokens, the lemma {@link LemmatizerME#lemmatize(String[], String[])} gave each token of its
- * sentence, and {@code turbo:confidence<opennlp:lemmas>}, the probability
+ * sentence, and {@code turbo:confidence<turbo:lemmas>}, the probability
  * {@link LemmatizerME#probs()} reports for it. The Rust port is run on the JVM's own tokens and
  * tags from the golden, so what is compared is the lemmatization alone.
  *
@@ -173,14 +173,14 @@ final class LemmaGolden implements AnnotatorGolden {
       sentenceTokens.add(words);
       tokenStarts.add(starts);
     }
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:sentences", input.offsets(), sentences));
-    layers.addAll(SpanLayers.of("opennlp:tokens", input.offsets(), tokenSpans.toArray(new Span[0])));
-    layers.add(new Layer("opennlp:pos", "aligned:opennlp:tokens", new Column.Str("tag", tags.toArray(new String[0])),
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:sentences", input.offsets(), sentences));
+    layers.addAll(SpanLayers.of("turbo:tokens", input.offsets(), tokenSpans.toArray(new Span[0])));
+    layers.add(new Layer("turbo:pos", "aligned:turbo:tokens", new Column.Str("tag", tags.toArray(new String[0])),
         new Column.F64("prob", doubles(tagProbs))));
-    layers.add(new Layer("opennlp:lemmas", "aligned:opennlp:tokens",
+    layers.add(new Layer("turbo:lemmas", "aligned:turbo:tokens",
         new Column.Str("lemma", lemmas.toArray(new String[0]))));
     if (confidence) {
-      layers.add(new Layer("turbo:confidence<opennlp:lemmas>", "aligned:opennlp:lemmas",
+      layers.add(new Layer("turbo:confidence<turbo:lemmas>", "aligned:turbo:lemmas",
           new Column.F64("value", doubles(probs))));
     }
     return new Run(layers, sentenceTokens, tokenStarts);

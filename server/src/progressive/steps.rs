@@ -35,6 +35,7 @@ use super::normalize::{
 };
 
 mod block5;
+pub mod heads;
 
 use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_ARGUMENT};
 use crate::state::{Loaded, State};
@@ -100,11 +101,11 @@ pub(super) fn step_needs_sparse(name: &str) -> bool {
 
 pub(super) fn step_needs_embed(name: &str) -> bool {
     block5::is_sat_step(name)
+        || heads::is_head_step(name)
         || step_needs_sparse(name)
         || matches!(
             name,
             "turbo:subwords"
-                | "opennlp:subwords"
                 | "subwords"
                 | "turbo:sentence-vectors"
                 | "sentence_vectors"
@@ -129,39 +130,14 @@ fn is_structure_blocks_step(name: &str) -> bool {
 
 /// Registers any layers already present on `initial_doc` as `given` on `builder`.
 pub(super) fn register_given_layers(mut builder: Builder, initial_doc: &Document) -> Builder {
-    if initial_doc.present(Key::<Structure>::DEFAULT.id()) {
-        builder = builder.given(Key::<Structure>::DEFAULT);
+    macro_rules! given {
+        ($($L:ty),+) => {
+            $(if initial_doc.present(Key::<$L>::DEFAULT.id()) {
+                builder = builder.given(Key::<$L>::DEFAULT);
+            })+
+        };
     }
-    if initial_doc.present(Key::<Sentences>::DEFAULT.id()) {
-        builder = builder.given(Key::<Sentences>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Tokens>::DEFAULT.id()) {
-        builder = builder.given(Key::<Tokens>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Entities>::DEFAULT.id()) {
-        builder = builder.given(Key::<Entities>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Subwords>::DEFAULT.id()) {
-        builder = builder.given(Key::<Subwords>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Terms>::DEFAULT.id()) {
-        builder = builder.given(Key::<Terms>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Stems>::DEFAULT.id()) {
-        builder = builder.given(Key::<Stems>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Stopwords>::DEFAULT.id()) {
-        builder = builder.given(Key::<Stopwords>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Boundaries>::DEFAULT.id()) {
-        builder = builder.given(Key::<Boundaries>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Chunks>::DEFAULT.id()) {
-        builder = builder.given(Key::<Chunks>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Levels>::DEFAULT.id()) {
-        builder = builder.given(Key::<Levels>::DEFAULT);
-    }
+    given!(Structure, Sentences, Tokens, Entities, Subwords, Terms, Stems, Stopwords, Boundaries, Chunks, Levels);
     builder
 }
 
@@ -185,6 +161,7 @@ impl EmbedContext {
             max_seq: slot.info.max_seq,
             max_ranges: 0,
             cpu_threads: 0,
+            layers: 0,
         }
     }
 
@@ -233,6 +210,8 @@ fn resolve_embed_context(
     }
 
     let who = if profile_name.is_empty() { "pipeline".to_string() } else { format!("profile '{profile_name}'") };
+    let needed_heads = heads::needed(step_names, required_bundles);
+    let any_head = required_bundles.contains(&heads::ANY_HEAD);
     let Some(st) = state else {
         return Err(Failure::new(
             TURBO_E_BUNDLE_NOT_FOUND,
@@ -265,6 +244,7 @@ fn resolve_embed_context(
                 ));
             }
         }
+        heads::check_model(&loaded, &who, trimmed, &needed_heads, any_head)?;
         return Ok(Some(EmbedContext { loaded, vectors: None }));
     }
 
@@ -281,6 +261,7 @@ fn resolve_embed_context(
             format!("{who} requires bundle 'TASK_EMBED', which is not loaded"),
         ));
     }
+    let embed_models = heads::select(embed_models, &who, &needed_heads, any_head)?;
 
     if needs_sparse {
         for loaded in embed_models {
@@ -318,7 +299,14 @@ pub(crate) fn compile_analyzer_with_state(
     profile_name: &str,
     required_bundles: &[&str],
 ) -> Result<Analyzer, Failure> {
+    // A step named by a legacy layer id runs as the step its current id names.
+    let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
+    let step_names: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    let step_names = step_names.as_slice();
     let mut embed_cx = resolve_embed_context(state, model_name, profile_name, required_bundles, step_names)?;
+    let step_names = &heads::expand(step_names, embed_cx.as_ref())?[..];
+    let who = if profile_name.is_empty() { "pipeline".to_string() } else { format!("profile '{profile_name}'") };
+    let head_plan = heads::plan(embed_cx.as_ref(), step_names, &who)?;
     let total_norms = step_names.iter().copied().filter(|&s| is_normalizer_step(s)).count();
     if total_norms > NORM_VIEWS.len() {
         return Err(bad(format!("pipeline exceeds maximum chained normalizer steps ({})", NORM_VIEWS.len())));
@@ -361,6 +349,10 @@ pub(crate) fn compile_analyzer_with_state(
         }
 
         let (next_builder, handled) = block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names)?;
+        let (next_builder, handled) = match handled {
+            true => (next_builder, true),
+            false => heads::add_step(next_builder, name, head_plan.as_ref()),
+        };
         builder = next_builder;
         if handled {
             continue;
@@ -388,7 +380,7 @@ pub(crate) fn compile_analyzer_with_state(
                     target_name: dst_name,
                 })
             }
-            "turbo-sentdetect:rules" | "turbo:sentences" | "opennlp:sentences" => {
+            "turbo-sentdetect:rules" | "turbo:sentences" => {
                 let ann = RuleSentenceDetector::new("eng");
                 if let Some(nv) = active_norm_view {
                     builder.step(NormalizedSourceStep { annotator: ann, norm_view: nv, _marker: PhantomData })
@@ -396,15 +388,18 @@ pub(crate) fn compile_analyzer_with_state(
                     builder.add(ann)
                 }
             }
-            "turbo-tokenize:uax29-untyped" | "turbo:tokens" | "opennlp:tokens" => {
+            "turbo-tokenize:uax29-untyped" | "turbo:tokens" => {
                 let ann = UntypedWordTokenizer::default();
-                if let Some(nv) = active_norm_view {
+                if head_plan.as_ref().is_some_and(|p| p.learned_sentences) {
+                    // The learned sentences read the tokens, not the other way.
+                    builder.step(Bound::new(ann).read(1, heads::UNREAD_SENTENCES))
+                } else if let Some(nv) = active_norm_view {
                     builder.step(NormalizedTokensStep { annotator: ann, norm_view: nv })
                 } else {
                     builder.add(ann)
                 }
             }
-            "turbo-geo:names" | "turbo:entities" | "opennlp:entities" => {
+            "turbo-geo:names" | "turbo:entities" => {
                 let ann = NameAnnotator::new(bundled_name_finder());
                 if let Some(nv) = active_norm_view {
                     builder.step(NormalizedNameStep { annotator: ann, norm_view: nv })
@@ -412,7 +407,7 @@ pub(crate) fn compile_analyzer_with_state(
                     builder.add(ann)
                 }
             }
-            "turbo:subwords" | "opennlp:subwords" | "subwords" => {
+            "turbo:subwords" | "subwords" => {
                 let cx = embed_cx.as_ref().expect("embed context resolved");
                 let ann = cx.subword_annotator()?;
                 if let Some(nv) = active_norm_view {

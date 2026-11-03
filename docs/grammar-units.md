@@ -21,9 +21,11 @@ Units are enums grouped by what they measure, in
 or money over a time (`10 Mb/s`, `$5 per hour`), written by
 `write_symbol` as `Mbit/s` and, on the money layer, stated in the
 currency with the span covering the `per hour`. The grammar's short time
-denominators use `wk`, `mo` and `yr` for week, month and year. Money keeps
-the amount and currency without a separate period column; its source span
-retains that wording. `Unit::measure` gives the
+denominators use `wk`, `mo` and `yr` for week, month and year. `Money`
+records the rate denominator symbol (`h`, `d`, `s`, `min`, `wk`, `mo`,
+`yr`, `ms`, or empty for a plain amount) in `Money::per` (exposed by
+`Money::per(ix)` and `turbo_query::MoneyFilter::per`), and its source
+span covers the rate phrase. `Unit::measure` gives the
 Recognizers-Text type (currency, dimension, temperature, age) and
 `Unit::dimension` the subtype. `Display` writes the Recognizers-Text
 unit name (`Square meter`, `Kilometer per hour`, `C`) and is used only to
@@ -171,8 +173,8 @@ Currency country qualifiers follow the name, as in `dólares canadienses` or
 `francos suizos`. Generic dollars retain the existing USD convention; the
 rules do not infer a national currency from the language alone. Bare minor
 unit names with no conventional currency remain parser readings and are
-not forced into the Money layer. Money rate spans retain the denominator;
-the Money schema still stores the amount and currency, not a period column.
+not forced into the Money layer. Money rate spans retain the denominator
+and record its canonical symbol in `Money::per`.
 
 All 240 unchanged Spanish Recognizers-Text NumberWithUnit cases at the pinned
 revision pass: 19 ages, 122 currencies, 54 dimensions and 45 temperatures.
@@ -257,8 +259,8 @@ Rules include `3 metri quadrati`, `6 piedi e 3 pollici`, `5 libbre e 8 once`,
 The preposition `in` is not an inch alias in Italian, and weight `libbre`
 stays distinct from currency `sterline`. Currency nouns do not consume
 following articles. Generic currencies and minor units retain the shared
-conventions, and the Money schema retains a rate's full span without a
-separate period column.
+conventions, and the Money schema retains a rate's full span and records
+its denominator symbol in `Money::per`.
 
 All **210 unchanged Italian NumberWithUnit cases** pass: **15 Age,
 106 Currency, 55 Dimension and 34 Temperature**. This includes Age cases
@@ -300,7 +302,7 @@ unambiguous `micrômetros` name accepts spelled amounts as well. Currency
 nouns do not consume following articles. Explicit `real`, `reais` and `R$`
 mean BRL, while generic dollars and unqualified minor units retain the
 shared currency conventions described above. Money rate spans retain the
-denominator; the existing Money layer stores no separate period column.
+denominator and record its canonical symbol in `Money::per`.
 
 All **253 unchanged Portuguese NumberWithUnit cases** at the same pinned
 Recognizers-Text revision pass: **18 Age, 123 Currency, 65 Dimension and

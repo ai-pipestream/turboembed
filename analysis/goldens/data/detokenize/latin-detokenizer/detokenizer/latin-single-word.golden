@@ -7,10 +7,10 @@ input	detokenizer/latin-single-word	5	5	5aacc8534b465aea630b759f2becac7ae3a8c1bf
 model	latin-detokenizer.xml	8de094b90fd1856620ddb7c0d361833055c58d945b13f8263d027797de9510f6e1cd4b73fffaa6693dab807a11b618ffe8d6ec060d2d4fc40cdc83a91afaa32f
 annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
 config	splitMarker	<SPLIT>
-layer	opennlp:tokens	text	1	start:u32	end:u32
+layer	turbo:tokens	text	1	start:u32	end:u32
 0	4
-end	opennlp:tokens
-layer	turbo:detokenization	aligned:opennlp:tokens	1	operation:str
+end	turbo:tokens
+layer	turbo:detokenization	aligned:turbo:tokens	1	operation:str
 NO_OPERATION
 end	turbo:detokenization
 layer	turbo:detokenized	document	1	text:str	marked:str

@@ -5,5 +5,5 @@ jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	edge/whitespace-only	13	10	36e3661dabb7a6a46243e01b3a1027d4430815f84fdca05b6d4f0bc326842f5d
 annotator	opennlp.tools.tokenize.WhitespaceTokenizer	tokenizePos
-layer	opennlp:tokens	text	0	start:u32	end:u32
-end	opennlp:tokens
+layer	turbo:tokens	text	0	start:u32	end:u32
+end	turbo:tokens

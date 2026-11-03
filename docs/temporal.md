@@ -121,6 +121,47 @@ writes `turbo:document-date`:
 - Relative mentions, months, quarters, durations and times of day never
   date a document.
 
+## Named entities (`date` and `time`)
+
+The `"date"` and `"time"` named entity types in `Entities` come from
+deterministic rules in `turbo-numeric` and `turbo-grammar`, projected by
+`turbo-namefind` (`analysis/namefind/src/rules/mod.rs`):
+
+- `temporals_to_entities` and `RuleEntityProjector::temporals` project every
+  mention in `Temporals` (`turbo:temporal`: `Day`, `Week`, `Month`, `Quarter`
+  and `Year`, whether `Absolute` or `Relative`) to `"date"`, aligned to
+  `Tokens`.
+- `times_to_entities`, `times_to_entities_with`, `times_to_entities_in_text`
+  and `RuleEntityProjector::times` project `Times` (`turbo:times`, written by
+  `TimeAnnotator` in `analysis/grammar/src/times.rs`) according to
+  `TimeEntityFilter`:
+  - `TimeEntityFilter::DatesAndTimes` (default) maps `TimeKind::Date` and
+    `TimeKind::DateRange` to `"date"`, `TimeKind::Time` and
+    `TimeKind::TimeRange` to `"time"`, and `TimeKind::DateTime` and
+    `TimeKind::DateTimeRange` to `"time"` (or `"date"` / skipped via
+    `DateTimeEntityKind`), while skipping `TimeKind::Duration` and
+    `TimeKind::Set`. When source text is available (`times_to_entities_in_text`
+    and `RuleEntityProjector::times`), composite `<date> at <time>`
+    `DateTime` / `DateTimeRange` spans (`2026-07-14 at 9:30am`) are split at
+    `" at "` into a `"date"` prefix and a `"time"` suffix.
+  - `TimeEntityFilter::TimesOnly` and `TimeEntityFilter::ClockTimesOnly`
+    project only time-of-day mentions to `"time"` when `"date"` spans are
+    already supplied by `Temporals`.
+  - `TimeEntityFilter::DatesOnly` projects only `TimeKind::Date` and
+    `TimeKind::DateRange` to `"date"`.
+- `RuleEntityProjector` preserves the upstream layer's provenance
+  (`"turbo-numeric:temporal"` or `"turbo-grammar:times"`) and records both the
+  source layer and `Tokens` in `reads`.
+- When a learned NER head (such as the MASC `date` head) and the deterministic
+  rule both produce `"date"`, placing the rule layer ahead of the learned head
+  in `ConsensusEntityMerger` (`analysis/namefind/src/consensus.rs`) under
+  `EntityMergePolicy::PriorityFallback` keeps the rule's exact byte and token
+  boundaries and attributes `Evidence<Entities>` to the rule producer, while
+  absorbing the overlapping learned `"date"` prediction as a corroborating
+  vote that supplies the merged entity's model confidence and raw score.
+  Disjoint `"date"` spans predicted only by the learned head (such as named
+  holidays not in `Temporals`) are retained as fallback entities.
+
 ## Edge cases and testing
 
 Default extraction behavior:
@@ -157,3 +198,8 @@ Default extraction behavior:
 `analysis/numeric/tests/temporal_annotate.rs` test absolute and relative
 mentions, timestamps, dateline selection, `DocumentDateSelector`, and the
 `temporal` snapshot suite in both `dateline` and `fixed` reference modes.
+`analysis/namefind/tests/rule_entities.rs`,
+`analysis/namefind/tests/rule_entities_eval.rs`, and
+`analysis/query/tests/rule_entities_gold.rs` test `"date"` and `"time"`
+projection into `Entities`, MASC `"date"` consensus merging, and exact-span
+gold F1.

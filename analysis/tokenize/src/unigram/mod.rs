@@ -35,11 +35,11 @@ impl Annotator for UnigramSegmenter {
         Ok((tokens,))
     }
 
-    /// The lexicon file: `opennlp:UnigramSegmenter` as the id, no
+    /// The lexicon file: `turbo:UnigramSegmenter` as the id, no
     /// revision (a lexicon file carries none), and the file's SHA-256.
     fn model(&self) -> Option<ModelRef> {
         Some(ModelRef {
-            id: format!("opennlp:{COMPONENT_NAME}"),
+            id: format!("turbo:{COMPONENT_NAME}"),
             revision: String::new(),
             sha256: self.lexicon.sha256().to_hex(),
         })
@@ -114,7 +114,7 @@ mod tests {
     fn the_model_is_the_lexicon_file() {
         let s = segmenter();
         let m = s.model().unwrap();
-        assert_eq!(m.id, "opennlp:UnigramSegmenter");
+        assert_eq!(m.id, "turbo:UnigramSegmenter");
         assert_eq!(m.sha256, turbo_maxent::sha256("\u{5317}\u{4eac} 3\n\u{5927}\u{5b66} 2\n".as_bytes()).to_hex());
     }
 

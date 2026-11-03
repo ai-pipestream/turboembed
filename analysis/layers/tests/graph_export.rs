@@ -26,6 +26,8 @@ const TEXT: &str = "Hello world. Bye now.";
 mod alternatives;
 #[path = "graph_export/core_layers.rs"]
 mod core_layers;
+#[path = "graph_export/legacy_ids.rs"]
+mod legacy_ids;
 #[path = "graph_export/refusals.rs"]
 mod refusals;
 #[path = "graph_export/sentiment.rs"]

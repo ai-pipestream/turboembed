@@ -1,5 +1,5 @@
 //! The finders and the merge as analysis steps: a dictionary finder and the
-//! factory's patterns each write a named instance of `opennlp:entities`,
+//! factory's patterns each write a named instance of `turbo:entities`,
 //! and the merge writes the default one.
 
 use turbo_analysis::{Analyzer, Bound, Document, Ix, Key, Provenance, Span, Spans, ViewId};

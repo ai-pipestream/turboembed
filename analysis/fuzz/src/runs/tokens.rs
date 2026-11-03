@@ -83,7 +83,7 @@ impl Run for Maxent {
     /// and multiplies on, so the JVM spans are joined as
     /// `joined_me_spans` says before comparing.
     fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
-        if !has_cut(golden, "opennlp:tokens") {
+        if !has_cut(golden, "turbo:tokens") {
             let spans = outcome(matches_golden::<Tokens>(doc, golden, Tolerance::exact()));
             if spans != Outcome::Match {
                 return spans;
@@ -242,7 +242,7 @@ impl Run for Plain {
 /// The spans the JVM wrote, with the two halves of a cut character
 /// joined into one span, against the port's.
 fn compare_whole_characters(doc: &Document, golden: &Golden) -> Outcome {
-    if !has_cut(golden, "opennlp:tokens") {
+    if !has_cut(golden, "turbo:tokens") {
         return outcome(matches_golden::<Tokens>(doc, golden, Tolerance::exact()));
     }
     let text = doc.source();
@@ -346,7 +346,7 @@ impl Run for Unigram {
     }
 
     fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
-        if has_cut(golden, "opennlp:tokens") {
+        if has_cut(golden, "turbo:tokens") {
             return Outcome::Skipped("a JVM token starts or ends inside a surrogate pair".into());
         }
         outcome(matches_golden::<Tokens>(doc, golden, Tolerance::exact()))
@@ -405,7 +405,7 @@ impl Run for Lattice {
     }
 
     fn compare(&self, doc: &Document, golden: &Golden) -> Outcome {
-        if has_cut(golden, "opennlp:tokens") {
+        if has_cut(golden, "turbo:tokens") {
             return Outcome::Skipped("a JVM token starts or ends inside a surrogate pair".into());
         }
         outcome(matches_golden::<Tokens>(doc, golden, Tolerance::exact()))

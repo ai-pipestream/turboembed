@@ -6,7 +6,7 @@ unicode	15.0
 input	ko/whitespace	64	26	201719092c1100dceef410be0002f5859da6624638dc3f41f692c28fa5a4564b
 model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	9	start:u32	end:u32
+layer	turbo:tokens	text	9	start:u32	end:u32
 0	6
 7	10
 13	22
@@ -16,8 +16,8 @@ layer	opennlp:tokens	text	9	start:u32	end:u32
 36	42
 44	53
 56	62
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	9	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	9	unknown:u32	features:str
 0	NNG,*,F,학교,*,*,*,*
 0	IC,*,F,에,*,*,*,*
 0	VV+EC,*,F,갑니다,Inflect,VV,EC,가/VV/*+ᄇ니다/EC/*

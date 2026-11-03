@@ -7,8 +7,8 @@
 //! the beam-sized cache), the tag dictionary as the sequence validator,
 //! the beam size from the manifest and the tag format mapper.
 //! [`PosTagger`] runs the beam search over the tokens of each sentence
-//! and is the annotator that reads `opennlp:tokens` and writes
-//! `opennlp:pos`: a tag and its probability per token, with the tag set
+//! and is the annotator that reads `turbo:tokens` and writes
+//! `turbo:pos`: a tag and its probability per token, with the tag set
 //! the tags are in. The beam search, the feature generators, the tag
 //! dictionary and the Penn Treebank and Universal Dependencies mapping are
 //! `turbo-sequence`'s, whose documentation lists the OpenNLP behaviour

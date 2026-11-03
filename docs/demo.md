@@ -199,7 +199,9 @@ the clear; the demo says so when it starts.
 Every catalog method that names a user (`ListModelCatalog`,
 `RecordLicenceAcceptance`, `RevokeLicenceAcceptance`,
 `ListLicenceAcceptances`, `InstallModel`, `DescribeModel`,
-`ResolveModel`, `ReadModelFile`) acts for the user the demo was started
+`ResolveModel`, `ReadModelFile`, `ListModelSources`,
+`RegisterModelSource`, `RemoveModelSource`, `StartDriveSignIn`,
+`FinishDriveSignIn`) acts for the user the demo was started
 with, `--user`, never for a name the page sends: the demo drops the
 message's user field and writes its own (`demo/src/user.rs`, the one
 place it looks inside a message). Without `--user` the field is
@@ -406,6 +408,17 @@ for any refused call.
   file only when its size and SHA-256 are the ones the catalog lists
   (demo/web/src/tabs/download.ts). The file is held in the page's
   memory until it is saved.
+  A Model sources card lists `ListModelSources` for the demo's user,
+  the stores installs read before the catalog's, each with a Remove
+  control (`RemoveModelSource`, write). A form adds one by name and
+  address, with an API key for a Drive folder
+  (`RegisterModelSource`, write), and when the server has Google
+  sign-in configured (docs/grpc-catalog.md, Model sources), Connect
+  Google Drive starts `StartDriveSignIn` (write) and sends the browser
+  to Google's consent page. Google sends it back to the demo's page
+  with a code, which the page hands to `FinishDriveSignIn` (write) and
+  then clears from the address bar, so `TURBO_KSERVE_DRIVE_REDIRECT`
+  names the demo's own address.
   Without `--user`, or on a server without `--admin`, the tab says it
   is read-only and shows no controls. `ListInstalledModels`.
   `ListTeachers`, `TrainStaticModel` (write) streaming each stage with

@@ -10,6 +10,8 @@ use turbo_analysis::*;
 use turbo_analysis_embed::*;
 use turbo_analysis_layers::{Sentences, Vectors};
 
+pub mod masc_polarity;
+
 pub fn testdata() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata")
 }

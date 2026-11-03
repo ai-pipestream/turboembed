@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
 model	jieba-dict-subset.txt	365d5a67c098b362ec12c166a9b438031fd9ffa5947113bc04e2fad1d623918a4303cb0f9657e28f4e619fae502f3bf4c412285cfe5d6a128439a614ea60e80c
 annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
-layer	opennlp:tokens	text	107	start:u32	end:u32
+layer	turbo:tokens	text	107	start:u32	end:u32
 0	1
 1	2
 3	4
@@ -114,4 +114,4 @@ layer	opennlp:tokens	text	107	start:u32	end:u32
 135	136
 136	137
 137	138
-end	opennlp:tokens
+end	turbo:tokens

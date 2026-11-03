@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/emoji-single	43	31	0f0e6ac72c443230d882bc1f0284daf265454349b1625c3151cf8b971e92cee6
 model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
 annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
-layer	opennlp:tokens	text	9	start:u32	end:u32
+layer	turbo:tokens	text	9	start:u32	end:u32
 0	5
 6	10
 11	13
@@ -16,8 +16,8 @@ layer	opennlp:tokens	text	9	start:u32	end:u32
 28	34
 35	38
 39	42
-end	opennlp:tokens
-layer	turbo:utf16<opennlp:tokens>	aligned:opennlp:tokens	9	start16:u32	end16:u32	cut:u32
+end	turbo:tokens
+layer	turbo:utf16<turbo:tokens>	aligned:turbo:tokens	9	start16:u32	end16:u32	cut:u32
 0	5	0
 6	8	0
 9	11	0
@@ -27,8 +27,8 @@ layer	turbo:utf16<opennlp:tokens>	aligned:opennlp:tokens	9	start16:u32	end16:u32
 22	24	0
 25	26	0
 27	30	0
-end	turbo:utf16<opennlp:tokens>
-layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	9	value:f64
+end	turbo:utf16<turbo:tokens>
+layer	turbo:confidence<turbo:tokens>	aligned:turbo:tokens	9	value:f64
 3feb5c37ca31f3d5 0.8550070714114734
 3fe2c0c256d5702b 0.5860301681491412
 3feefacee133a7bf 0.9681162260505899
@@ -38,4 +38,4 @@ layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	9	value:f64
 3fe2c0c256d5702b 0.5860301681491412
 3ff0000000000000 1.0
 3febe2b3b75e1658 0.8714235860249557
-end	turbo:confidence<opennlp:tokens>
+end	turbo:confidence<turbo:tokens>

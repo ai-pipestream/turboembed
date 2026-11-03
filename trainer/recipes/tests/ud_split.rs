@@ -12,8 +12,11 @@ use serde_json::Value;
 use turbo::head::TokenSplitter;
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo_trainer_recipes::receipt::Receipt;
+use turbo_trainer_recipes::split_labels::{candidates, choose};
 use turbo_trainer_recipes::ud::EN_EWT;
-use turbo_trainer_recipes::ud_split::{TokenSentence, baseline, gold_label, mine_labels, parse_tokens, sentences};
+use turbo_trainer_recipes::ud_split::{
+    TokenSentence, baseline, gold_label, labelled, mine_labels, parse_tokens, seen_lookup, sentences,
+};
 
 fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -86,14 +89,54 @@ fn labels_are_mined_by_frequency_and_give_the_words_back() {
         token_sentence(&[("del", &["de", "el"]), ("della", &["di", "la"])]),
         token_sentence(&[("del", &["de", "el"]), ("al", &["a", "el"])]),
     ];
-    let labels = mine_labels(&train, 2);
+    let labels = mine_labels(&train, &choose(&train), 2);
     assert_eq!(labels.len(), 3, "`della` comes up once, under the frequency: {labels:?}");
     assert_eq!(labels[0], "_");
     assert_eq!(applied(&labels[1], "del"), ["de", "el"], "the commonest split first");
     assert_eq!(applied(&labels[2], "al"), ["a", "el"]);
-    assert_eq!(labels[1], gold_label("del", &["de".to_owned(), "el".to_owned()]));
-    // A tree serves every token cut the same way.
-    assert_eq!(applied(&labels[2], "al"), applied(&gold_label("al", &["a".to_owned(), "el".to_owned()]), "al"));
+    assert_eq!(gold_label("del", &["de".to_owned(), "el".to_owned()]), "de\tel", "the gold is the words");
+}
+
+/// A clitic is cut from its verb by its own length, so the verbs that
+/// take it share one label, which serves a verb training never saw;
+/// `del` and `al`, which rewrite, keep named trees.
+#[test]
+fn a_clitic_split_takes_the_label_that_serves_the_most_tokens() {
+    let w = |ws: &[&str]| ws.iter().map(|w| (*w).to_owned()).collect::<Vec<_>>();
+    let c = candidates("hacerse", &w(&["hacer", "se"]));
+    assert!(c.contains(&"(h 5 ()) (t 2 ())".to_owned()), "{c:?}");
+    assert!(c.contains(&"(m 0 2 () (s 'se' '')) (t 2 ())".to_owned()), "{c:?}");
+    assert!(c.contains(&"(m 0 2 () (s 'se' '')) (m 5 0 (s 'hacer' '') ())".to_owned()), "{c:?}");
+    assert!(candidates("mar", &w(&["mar"])).is_empty());
+    assert!(candidates("x", &w(&["a"; 9])).is_empty());
+    let train = [
+        token_sentence(&[("hacerse", &["hacer", "se"]), ("ponerse", &["poner", "se"]), ("del", &["de", "el"])]),
+        token_sentence(&[("irse", &["ir", "se"]), ("quedarse", &["quedar", "se"]), ("al", &["a", "el"])]),
+        token_sentence(&[("darle", &["dar", "le"]), ("verle", &["ver", "le"]), ("del", &["de", "el"])]),
+    ];
+    let chosen = choose(&train);
+    let se = "(m 0 2 () (s 'se' '')) (t 2 ())";
+    for t in ["hacerse", "ponerse", "irse", "quedarse"] {
+        assert_eq!(chosen[&(t.to_owned(), w(&[&t[..t.len() - 2], "se"]))], se, "{t}");
+    }
+    // `del` shares its cuts with `irse` (two first, two last); `al`
+    // rewrites, so its mined tree stands, over a cut that serves no
+    // other token.
+    assert_eq!(chosen[&("del".to_owned(), w(&["de", "el"]))], "(h 2 ()) (t 2 ())");
+    assert_eq!(chosen[&("al".to_owned(), w(&["a", "el"]))], "(m 0 1 () (s 'l' '')) (m 1 0 (s 'a' 'e') ())");
+    let labels = mine_labels(&train, &chosen, 2);
+    let le = "(m 0 2 () (s 'le' '')) (t 2 ())";
+    assert_eq!(labels[..2], ["_", se], "four tokens take the `se` label: {labels:?}");
+    assert_eq!(labels.len(), 4, "`del` twice, `le` twice, `al` once: {labels:?}");
+    assert!(labels.contains(&le.to_owned()) && labels.contains(&"(h 2 ()) (t 2 ())".to_owned()), "{labels:?}");
+    assert_eq!(applied(se, "verse"), ["ver", "se"], "a verb training never saw");
+    assert_eq!(applied(se, "sentirse"), ["sentir", "se"]);
+    // Dev sentences take the head's labels: a split training never saw
+    // takes the head label that gives its words, one the head lacks
+    // stays its gold words.
+    let dev = [token_sentence(&[("verse", &["ver", "se"]), ("al", &["a", "el"]), ("della", &["di", "la"])])];
+    let got = labelled(&dev, &chosen, &labels);
+    assert_eq!(got[0].labels, [se, "a\tel", "di\tla"], "`al` came up once, under the frequency");
 }
 
 #[test]
@@ -104,14 +147,87 @@ fn the_baseline_keeps_an_unseen_token_whole() {
     ];
     let test = [token_sentence(&[("del", &["de", "el"]), ("never", &["never"]), ("x", &["x", "a"])])];
     let got = baseline(&train, &test);
-    assert_eq!(applied(&got[0][0], "del"), ["de", "el"]);
+    assert_eq!(got[0][0], "de\tel");
     assert_eq!(got[0][1], "_", "an unseen token keeps whole");
-    let (a, b) =
-        (gold_label("x", &["x".to_owned(), "a".to_owned()]), gold_label("x", &["x".to_owned(), "b".to_owned()]));
-    assert_eq!(got[0][2], a.min(b), "a tie goes to the smaller label");
+    assert_eq!(got[0][2], "x\ta", "a tie goes to the smaller label");
     let gold = sentences(&test);
     assert_eq!(gold[0].words, ["del", "never", "x"]);
     assert_eq!(gold[0].labels[1], "_");
+}
+
+/// The seen lookup holds the unambiguous training tokens at the count:
+/// a token split two ways or seen too rarely is the head's, a one-word
+/// token maps to `_`, and a token only the test split saw is never in
+/// it (#1803, no test leakage).
+#[test]
+fn the_seen_lookup_is_mined_from_the_training_split_alone() {
+    let w = |ws: &[&str]| ws.iter().map(|w| (*w).to_owned()).collect::<Vec<_>>();
+    let train = [
+        token_sentence(&[("del", &["de", "el"]), ("casa", &["casa"]), ("al", &["a", "el"]), ("raro", &["raro"])]),
+        token_sentence(&[("del", &["de", "el"]), ("casa", &["casa"]), ("al", &["a", "l"])]),
+    ];
+    // A token only the test split saw is never in the table: the lookup is
+    // mined from `train` alone, so it cannot leak one.
+    let chosen = choose(&train);
+    let labels = mine_labels(&train, &chosen, 2);
+    let table = seen_lookup(&train, &chosen, &labels, 2);
+    assert_eq!(table.min_count, 2);
+    let got: std::collections::BTreeMap<_, _> =
+        table.tokens.iter().map(|e| (e.token.as_str(), e.label.as_str())).collect();
+    let del = chosen[&("del".to_owned(), w(&["de", "el"]))].clone();
+    assert!(labels.contains(&del), "del's split comes up twice: {labels:?}");
+    assert_eq!(got.get("del"), Some(&del.as_str()), "unambiguous, seen twice");
+    assert_eq!(got.get("casa"), Some(&"_"), "a one-word token keeps whole");
+    assert!(!got.contains_key("al"), "split two ways in training: the head decides");
+    assert!(!got.contains_key("raro"), "seen once, under the count");
+    assert!(!got.contains_key("solo-test"), "test tokens are not training tokens");
+    assert_eq!(got.len(), 2, "del and casa alone: {got:?}");
+
+    // At k=1 the hapax `raro` and the one-off `al` forms enter: `al` saw
+    // two splits so it stays out whatever the count, and a split whose
+    // label the head dropped is never looked up.
+    let one = seen_lookup(&train, &chosen, &labels, 1);
+    let got1: std::collections::BTreeMap<_, _> =
+        one.tokens.iter().map(|e| (e.token.as_str(), e.label.as_str())).collect();
+    assert_eq!(got1.get("raro"), Some(&"_"));
+    assert!(!got1.contains_key("al"));
+    let thin = mine_labels(&train, &chosen, 3);
+    assert_eq!(thin, ["_"], "no split comes up three times");
+    let none = seen_lookup(&train, &chosen, &thin, 1);
+    assert_eq!(none.tokens.len(), 2, "one-word tokens alone have a label in {thin:?}");
+    assert!(none.tokens.iter().all(|e| e.label == "_"));
+
+    // The looked-up words come out through the core's trees exactly as
+    // gold writes them, byte for byte.
+    let s = turbo_trainer_recipes::ud_split::spec(
+        labels.clone(),
+        &corpus_record(),
+        turbo::manifest::WordPooling::First,
+        None,
+        Some(table),
+    )
+    .unwrap();
+    let get = |suffix: &str| Some(vec![0.0; if suffix == "out.bias" { labels.len() } else { 32 * labels.len() }]);
+    let splitter = TokenSplitter::from_tensors(&s, 32, &get).unwrap();
+    let mut out = Vec::new();
+    // Scores that keep both tokens whole: the lookup still splits `del`,
+    // and `del`'s words are its trees' own.
+    splitter.decode(&[9.0, 1.0, 9.0, 1.0], &["del", "casa"], &mut out).unwrap();
+    assert_eq!(out, [1, 0]);
+    let words = splitter.words(&out, &["del", "casa"]).unwrap();
+    assert_eq!(words, [vec!["de".to_owned(), "el".to_owned()], vec!["casa".to_owned()]]);
+}
+
+/// A minimal corpus record for `ud_split::spec`.
+fn corpus_record() -> turbo_trainer_recipes::corpus::CorpusRecord {
+    serde_json::from_value(serde_json::json!({
+        "id": "t-split", "name": "t", "task": "tags", "licence": "x", "spdx": "CC-BY-4.0",
+        "terms": "", "attribution": "", "recorded": true, "corpus_sha256": "",
+        "files": [], "split": "s",
+        "train": {"sentences": 0, "words": 0}, "dev": {"sentences": 0, "words": 0},
+        "test": {"sentences": 0, "words": 0}, "skipped": 0
+    }))
+    .unwrap()
 }
 
 /// 48 sentences of one shape: a verb, a multiword token (`al` or
@@ -143,8 +259,12 @@ fn run(args: &[&str]) -> std::process::Output {
 }
 
 fn train(data: &Path, out: &Path) -> Receipt {
+    train_with(data, out, &[])
+}
+
+fn train_with(data: &Path, out: &Path, extra: &[&str]) -> Receipt {
     let bundle = tiny();
-    let args = [
+    let mut args: Vec<&str> = vec![
         "train-split",
         "--corpus",
         "ud-en-ewt",
@@ -164,6 +284,7 @@ fn train(data: &Path, out: &Path) -> Receipt {
         "--commit",
         "test",
     ];
+    args.extend_from_slice(extra);
     let o = run(&args);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap()
@@ -236,6 +357,45 @@ fn train_split_writes_a_splitter_the_core_loads() {
     for d in [data, out, again] {
         fs::remove_dir_all(d).unwrap();
     }
+}
+
+#[test]
+fn train_split_with_a_seen_lookup_carries_it_and_decodes_by_it() {
+    let data = scratch("data-seen");
+    write_treebank(&data);
+    let out = scratch("out-seen");
+    let r = train_with(&data, &out, &["--seen-lookup", "2"]);
+    let head = r.head.clone().unwrap();
+    let seen = head.seen.as_ref().expect("the head carries its lookup");
+    assert_eq!(seen.min_count, 2);
+    let got: std::collections::BTreeMap<_, _> =
+        seen.tokens.iter().map(|e| (e.token.as_str(), e.label.as_str())).collect();
+    // Every training token is unambiguous here: `al` and `del` take their
+    // splits, the verbs, nouns and `.` keep whole.
+    assert_eq!(got.len(), 9, "{got:?}");
+    assert_eq!(got.get("vamos"), Some(&"_"));
+    assert_eq!(got.get("."), Some(&"_"));
+    assert_eq!(got.get("mar"), Some(&"_"));
+    assert_ne!(got.get("al"), Some(&"_"), "al's entry is its split's label");
+    // head.json on disk is the receipt's head, lookup included.
+    let stored: HeadSpec = serde_json::from_slice(&fs::read(out.join("head.json")).unwrap()).unwrap();
+    assert_eq!(stored, head);
+    // The core loads it and the lookup decides its tokens whatever the scores.
+    let t = read_safetensors(&fs::read(out.join("head.safetensors")).unwrap());
+    let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.words.{s}")).map(|(_, _, v)| v.clone());
+    let splitter = TokenSplitter::from_tensors(&head, 32, &get).unwrap();
+    let k = head.labels.len();
+    let keep = |n: usize| -> Vec<f32> { (0..n * k).map(|i| if i % k == 0 { 9.0 } else { 0.0 }).collect() };
+    let forms = ["al", "del", "mar"];
+    let mut labels = Vec::new();
+    splitter.decode(&keep(forms.len()), &forms, &mut labels).unwrap();
+    let words = splitter.words(&labels, &forms).unwrap();
+    assert_eq!(words[0], vec!["a".to_owned(), "el".to_owned()], "the lookup, not the top score");
+    assert_eq!(words[1], vec!["de".to_owned(), "el".to_owned()]);
+    assert_eq!(words[2], vec!["mar".to_owned()]);
+    assert_eq!(r.eval.model.as_ref().unwrap().score(), 1.0);
+    fs::remove_dir_all(&data).unwrap();
+    fs::remove_dir_all(&out).unwrap();
 }
 
 #[test]

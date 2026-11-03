@@ -168,3 +168,44 @@ fn only_canonical_lower_labels_parse() {
     assert_eq!(t.apply("WAS").as_deref(), Some("be"));
     assert_eq!(t.apply("is"), None);
 }
+
+#[test]
+fn cuts_keep_a_word_by_its_own_length_and_serve_every_stem() {
+    let labels =
+        |form: &str, word: &str| -> Vec<String> { EditTree::cuts(form, word).iter().map(EditTree::label).collect() };
+    assert_eq!(labels("hacerse", "se"), ["(t 2 ())", "(m 5 0 (s 'hacer' '') ())"]);
+    assert_eq!(labels("hacerse", "hacer"), ["(h 5 ())", "(m 0 2 () (s 'se' ''))"]);
+    assert_eq!(
+        labels("dárselo", "se"),
+        [
+            "(t 4 (h 2 ()))",
+            "(t 4 (m 0 2 () (s 'lo' '')))",
+            "(h 5 (m 3 0 (s 'dár' '') ()))",
+            "(m 3 2 (s 'dár' '') (s 'lo' ''))"
+        ]
+    );
+    // Every place the word sits gives its cuts, in order.
+    assert_eq!(labels("sese", "se"), ["(h 2 ())", "(m 0 2 () (s 'se' ''))", "(t 2 ())", "(m 2 0 (s 'se' '') ())"]);
+    assert!(labels("se", "se").is_empty(), "the whole form is no cut");
+    assert!(labels("hacer", "se").is_empty(), "nor a word not in it");
+    assert!(labels("x", "").is_empty());
+    for (form, word) in [("hacerse", "se"), ("hacerse", "hacer"), ("dárselo", "se"), ("dárselo", "lo"), ("ünï's", "ï'")]
+    {
+        for t in EditTree::cuts(form, word) {
+            assert_eq!(t.apply(form).as_deref(), Some(word), "{}", t.label());
+            assert_eq!(EditTree::parse(&t.label()).unwrap(), t);
+        }
+    }
+    let se = EditTree::parse("(t 2 ())").unwrap();
+    assert_eq!(se.apply("ponerse").as_deref(), Some("se"));
+    assert_eq!(se.apply("se"), None, "a cut drops at least one character");
+    assert_eq!(se.apply("s"), None);
+    let middle = EditTree::parse("(t 4 (h 2 ()))").unwrap();
+    assert_eq!(middle.apply("decírselo").as_deref(), Some("se"));
+    assert_eq!(middle.apply("selo"), None);
+    let lower = EditTree::parse("(l (h 3 (s 'dir' 'ir')))").unwrap();
+    assert_eq!(lower.apply("DIRLO").as_deref(), Some("ir"));
+    for bad in ["(h 0 ())", "(t 2)", "(t 2 () ())", "(h 2 (l (l (s '' ''))))", "(t 02 ())"] {
+        assert!(EditTree::parse(bad).is_err(), "{bad:?}");
+    }
+}

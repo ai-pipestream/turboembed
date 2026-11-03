@@ -81,6 +81,10 @@ pub struct Money {
     /// `BigDecimal.scale()` of the amount.
     pub scale: Vec<i32>,
     pub currency: Vec<Currency>,
+    /// The rate denominator unit symbol (`"h"`, `"d"`, `"s"`) when the
+    /// mention is a currency rate (`$5 per hour`, `$5/day`); empty for a
+    /// plain amount.
+    pub per: Strs,
 }
 
 /// One mention, as handed to [`Money::push`].
@@ -102,15 +106,23 @@ impl Money {
             coefficient: Strs::default(),
             scale: Vec::new(),
             currency: Vec::new(),
+            per: Strs::default(),
         }
     }
 
-    /// Appends one mention to every column.
+    /// Appends one plain (non-rate) mention to every column.
     pub fn push(&mut self, m: MoneyMention<'_>) -> Ix<Money> {
+        self.push_with_per(m, "")
+    }
+
+    /// Appends one mention and its rate denominator unit symbol (`""` for a
+    /// plain amount, `"h"` for per hour, `"d"` for per day).
+    pub fn push_with_per(&mut self, m: MoneyMention<'_>, per: &str) -> Ix<Money> {
         self.negative.push(m.negative);
         self.coefficient.push(m.coefficient);
         self.scale.push(m.scale);
         self.currency.push(m.currency);
+        self.per.push(per);
         self.spans.push(m.span)
     }
 
@@ -121,6 +133,13 @@ impl Money {
             digits: self.coefficient.get(i.get()),
             scale: self.scale[i.get()].into(),
         }
+    }
+
+    /// The rate denominator unit symbol of mention `i` (`Some("h")` for
+    /// `$5 per hour`, `Some("d")` for `$5 per day`, `None` for plain `$5`).
+    pub fn per(&self, i: Ix<Money>) -> Option<&str> {
+        let s = self.per.get(i.get());
+        (!s.is_empty()).then_some(s)
     }
 
     /// Mention `i`, column by column.
@@ -137,11 +156,13 @@ impl Money {
 
 impl Layer for Money {
     const ID: &'static str = "turbo:money";
+    const SCHEMA: u16 = 2;
     positional!(Money);
 
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
-        let columns = [self.negative.len(), self.coefficient.len(), self.scale.len(), self.currency.len()];
+        let columns =
+            [self.negative.len(), self.coefficient.len(), self.scale.len(), self.currency.len(), self.per.len()];
         if columns.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
@@ -160,6 +181,10 @@ impl Layer for Money {
             }
             if digits == "0" && self.negative[i] {
                 return Err(format!("money mention {i} is a negative zero"));
+            }
+            let per = self.per.get(i);
+            if !per.is_empty() && per.chars().all(char::is_whitespace) {
+                return Err(format!("money mention {i} has a blank rate unit: {per:?}"));
             }
         }
         Ok(())
@@ -249,6 +274,21 @@ mod tests {
         let mut m = Money::new(ViewId::SOURCE);
         m.push(mention(2, 2, "1"));
         assert!(m.check().unwrap_err().contains("empty"));
+        let mut m = Money::new(ViewId::SOURCE);
+        m.push_with_per(mention(0, 2, "5"), " ");
+        assert!(m.check().unwrap_err().contains("blank rate unit"));
+    }
+
+    #[test]
+    fn rate_mentions_keep_their_denominator() {
+        let mut m = Money::new(ViewId::SOURCE);
+        let i0 = m.push(mention(0, 5, "5"));
+        let i1 = m.push_with_per(mention(6, 17, "5"), "h");
+        let i2 = m.push_with_per(mention(18, 28, "5"), "d");
+        assert_eq!(m.check(), Ok(()));
+        assert_eq!(m.per(i0), None);
+        assert_eq!(m.per(i1), Some("h"));
+        assert_eq!(m.per(i2), Some("d"));
     }
 
     #[test]

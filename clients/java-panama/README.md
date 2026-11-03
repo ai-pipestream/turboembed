@@ -1,24 +1,30 @@
 # Java Panama binding
 
-This module binds the `libturbo` C ABI from Java 22 or newer through the
-Panama Foreign Function and Memory API. It contains:
+This module binds the `libturbo` C ABI from Java 25 or newer through the
+Panama Foreign Function and Memory API. Add both
+`ai.pipestream:turboembed-api` and `ai.pipestream:turboembed-panama` at the
+same version. The public interfaces, values, exceptions and adapters live
+once in `clients/java-api`; `ai.pipestream.turboembed.panama` contains the
+FFM implementation and its native-buffer callbacks. The shared
+`ai.pipestream.turboembed.opennlp` adapters are not Apache classes or
+source/binary replacements for `opennlp.tools`.
 
-- `ai.pipestream.turboembed.panama`: the typed primary API.
-- `ai.pipestream.turboembed.opennlp`: OpenNLP-style adapters in this
-  project's namespace. These are not Apache OpenNLP classes and are not
-  source- or binary-compatible drop-in replacements for `opennlp.tools`.
+Import `ai.pipestream.turboembed` for portable callers. `TurboRuntime.load()`
+selects this bridge on Java 25+ with the foreign API. Use
+`TurboRuntime.load(TurboBridge.PANAMA)` or `-Dturbo.bridge=panama` to require
+it explicitly. A missing selected jar is an error; see `clients/java-api/README.md`.
 
 No accuracy or speed comparison with Apache OpenNLP is claimed by this
-binding. The checked-in model files used by tests are small fixtures for
-correctness and lifecycle coverage, not production accuracy benchmarks.
+binding. The tests run over the sealed small bundles in `testdata`, whose
+seeded heads cover correctness and lifecycle, not accuracy.
 
 ## Requirements
 
-Build the native library first, then run Maven with a Java 22+ JDK:
+Build the native library first, then run Maven with a Java 25 or newer JDK:
 
 ```sh
 cargo build -p turbo --locked
-mvn -f clients/java-panama/pom.xml test
+mvn -f clients/pom.xml -pl java-panama -am test
 ```
 
 Applications must run with:
@@ -45,6 +51,8 @@ Primary operations return `TurboAnalysisResult`, which owns one native
 result reference:
 
 ```java
+import ai.pipestream.turboembed.*;
+
 try (TurboAnalyzer analyzer = TurboAnalyzer.create();
      TurboAnalysisResult result = analyzer.tokenize(text)) {
     for (TurboSpanView token : result.spans(TurboLayerKind.TOKENS)) {
@@ -89,42 +97,51 @@ scalar bounds. They are never interchanged. Covered sentence and token text
 is read through `coveredSourceText` or `coveredViewText`; it is not copied
 into the label field.
 
-Token-only POS, lemma, and token-sequence NER rows have token ranges and no
-text ranges. PII rows carry their kind as the label, their normalized form
-as the value, and a `TurboPiiConfidence` evidence classification. PII
-classification is not represented as a probability.
+Token-only POS, lemma, morphology, and token-sequence NER rows have token
+ranges and no text ranges. Dependency rows are aligned to tokens: the
+relation is the label and the head token is read through `dependencyHead()`,
+which is empty for the root of a sentence. PII rows carry their kind as the
+label, their normalized form as the value, and a `TurboPiiConfidence`
+evidence classification. PII classification is not represented as a
+probability.
 
-## Models and explicit unknowns
+## Bundles and explicit unknowns
 
 The default analyzer contains the rule sentence splitter, rule tokenizer,
-and the separate PII task. It does not contain hidden POS, lemma, or NER
-fallbacks. Without the corresponding configured model path, those tasks
-throw `TurboException` with `TURBO_E_UNSUPPORTED_TASK`.
+and the separate PII task. It does not contain hidden POS, lemma,
+morphology, or NER fallbacks. The learned layers come from the heads of a
+bundle directory: its encoder runs once per sentence and every head reads
+that pass, so the part-of-speech, lemma, morphology, dependency and entity
+layers of `analyzeGraph` cost one encoder pass together. Without a bundle,
+or with a bundle that has no head for a layer, that layer's tasks throw
+`TurboException` with `TURBO_E_UNSUPPORTED_TASK` naming what is missing.
 
-Configure model files explicitly:
+Name the bundle explicitly:
 
 ```java
-TurboAnalyzer.Config config = new TurboAnalyzer.Config(
-        "en",
-        sentenceModel,
-        tokenizerModel,
-        posModel,
-        lemmaDictionaryOrModel,
-        nerModel);
+TurboAnalyzer.Config config = TurboAnalyzer.Config.forBundle(bundleDir);
+TurboAnalyzer.Config french = new TurboAnalyzer.Config("fr", bundleDir);
 ```
 
-NER uses only the configured statistical model and fresh context for each
+The five per-component model path fields of the native descriptor are
+retired. The binding never writes them; a program writing the raw layout
+gets `TURBO_E_INVALID_ARGUMENT` naming the field for a non-empty value.
+
+NER uses only the bundle's entity head and fresh context for each
 sequence. No dictionary, pattern, or PII recognizer output is merged into
 NER. `detectPii` remains a separate operation and layer.
 
-A lemma dictionary miss produces a row with no label. It is never replaced
-by a lowercased token. Rule sentence and token rows have no probability;
-the binding does not invent one.
+`lemmatize` takes the tags the bundle's lemmatizer head reads: they must
+be labels of that head's tag head, and a lemmatizer reading no tags
+ignores them. A row with no label is an explicit miss. It is never
+replaced by a lowercased token. Rule sentence and token rows have no
+probability; the binding does not invent one.
 
 ## Graphs
 
 `analyzeGraph` returns typed rows plus the serialized binary graph in the
-same `TurboAnalysisResult`. Use the read-only `withSpansSegment`,
+same `TurboAnalysisResult`. On the concrete
+`ai.pipestream.turboembed.panama.TurboAnalysisResult`, use the read-only `withSpansSegment`,
 `withStringPoolSegment`, and `withGraphSegment` callbacks to inspect native
 buffers without copying them, or `copyGraphBytes` for explicit copy-out.
 

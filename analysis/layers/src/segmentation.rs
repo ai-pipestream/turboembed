@@ -104,7 +104,7 @@ impl Sentences {
 }
 
 impl Layer for Sentences {
-    const ID: &'static str = "opennlp:sentences";
+    const ID: &'static str = turbo_analysis::ids::SENTENCES;
     positional!(Sentences);
     fn splicer() -> Option<Box<dyn turbo_analysis::LayerSplicer>> {
         Some(turbo_analysis::Splicer::<Self>::boxed())
@@ -204,7 +204,7 @@ impl Tokens {
 }
 
 impl Layer for Tokens {
-    const ID: &'static str = "opennlp:tokens";
+    const ID: &'static str = turbo_analysis::ids::TOKENS;
     /// A character outside the Basic Multilingual Plane split between two
     /// UTF-16 tokens (`Utf16Spans`) widens both UTF-8 spans to that 4-byte
     /// character.
@@ -266,7 +266,7 @@ impl Subwords {
 }
 
 impl Layer for Subwords {
-    const ID: &'static str = "opennlp:subwords";
+    const ID: &'static str = turbo_analysis::ids::SUBWORDS;
     const OVERLAP: Overlap = Overlap::Any;
     positional!(Subwords);
     fn indexes(&self) -> Vec<(KeyId, usize)> {

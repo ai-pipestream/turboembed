@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
 model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	11	start:u32	end:u32
+layer	turbo:tokens	text	11	start:u32	end:u32
 0	10
 11	25
 25	26
@@ -18,8 +18,8 @@ layer	opennlp:tokens	text	11	start:u32	end:u32
 62	63
 64	70
 71	81
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	11	unknown:u32	features:str
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	11	unknown:u32	features:str
 1	記号,一般,*,*
 1	記号,一般,*,*
 1	記号,一般,*,*

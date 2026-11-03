@@ -69,7 +69,7 @@ import opennlp.tools.util.model.ModelUtil;
  *   {@code Timestamp} and the zip entries (name and length) of the serialized model.</li>
  * </ul>
  *
- * <p>The golden of a document (method {@code categorize}) holds {@code opennlp:tokens} (the
+ * <p>The golden of a document (method {@code categorize}) holds {@code turbo:tokens} (the
  * {@link WhitespaceTokenizer} tokens the categorizer is given) and, anchored on the document:</p>
  * <ul>
  *   <li>{@code turbo:doccat-features}: the {@code feature}s the model's generators give for the
@@ -301,7 +301,7 @@ final class DoccatGolden implements AnnotatorGolden {
   public List<Layer> layers(Input input) throws AnnotatorException {
     Span[] spans = WhitespaceTokenizer.INSTANCE.tokenizePos(input.text());
     String[] tokens = Span.spansToStrings(spans, input.text());
-    List<Layer> layers = new ArrayList<>(SpanLayers.of("opennlp:tokens", input.offsets(), spans));
+    List<Layer> layers = new ArrayList<>(SpanLayers.of("turbo:tokens", input.offsets(), spans));
 
     String[] context = trained.context(tokens).clone();
     for (int i = 0; i < context.length; i++) {

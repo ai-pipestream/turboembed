@@ -110,6 +110,12 @@ pub struct EvalRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<Metrics>,
     pub baseline: Metrics,
+    /// Case-insensitive label-name dictionary matcher (`train-open-span`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dictionary: Option<Metrics>,
+    /// Seen and zero-shot held-out evaluation slices (`train-open-span`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub open_span: Option<OpenSpanEvalRecord>,
     /// The model against the baseline, by paired bootstrap.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comparison: Option<Comparison>,
@@ -117,6 +123,39 @@ pub struct EvalRecord {
     /// attachment is the tag accuracy above.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uas: Option<Uas>,
+    /// For `train-sentences`, the rule-based sentence splitter baseline
+    /// (`analysis/sentdetect`) and its paired bootstrap comparison with
+    /// the model, beside the newline baseline in `baseline`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rules: Option<BaselineEval>,
+}
+
+/// A named deterministic baseline on the test split and its paired
+/// bootstrap comparison with the model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BaselineEval {
+    pub name: String,
+    pub baseline: Metrics,
+    pub comparison: Comparison,
+}
+
+/// Seen-type and zero-shot held-out-type evaluation slices for an open-span run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenSpanEvalRecord {
+    pub seen_types: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub held_out_types: Vec<String>,
+    pub seen_model: Metrics,
+    pub seen_baseline: Metrics,
+    pub seen_dictionary: Metrics,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_model: Option<Metrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_baseline: Option<Metrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_dictionary: Option<Metrics>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

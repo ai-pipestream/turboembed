@@ -1,8 +1,12 @@
 package ai.pipestream.turboembed.panama;
 
+import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboPiiConfidence;
+import ai.pipestream.turboembed.TurboSpanData;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalLong;
 
 /**
  * A lightweight, lifetime-bound view of one row in a {@link TurboAnalysisResult}.
@@ -12,7 +16,7 @@ import java.util.OptionalDouble;
  * The native span array, pool, and graph are not copied. All accessors fail after the owning
  * result closes. Call {@link #materialize()} for an explicit copied snapshot.
  */
-public final class TurboSpanView {
+public final class TurboSpanView implements ai.pipestream.turboembed.TurboSpanView {
     private final TurboAnalysisResult owner;
     private final int index;
 
@@ -46,9 +50,20 @@ public final class TurboSpanView {
         return owner.viewId(index);
     }
 
-    /** Returns the raw layer-specific classification. For PII use {@link #piiConfidence()}. */
+    /**
+     * Returns the raw layer-specific classification. For PII use {@link #piiConfidence()}; for a
+     * dependency row use {@link #dependencyHead()}.
+     */
     public long classification() {
         return owner.classification(index);
+    }
+
+    /**
+     * Returns the head token index of a dependency row, or empty for the root of its sentence and
+     * for another layer kind. The relation is the row's label.
+     */
+    public OptionalLong dependencyHead() {
+        return TurboSpanData.dependencyHead(layerKind(), classification());
     }
 
     /** Returns the PII evidence classification, or empty for another layer kind. */

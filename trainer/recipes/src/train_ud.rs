@@ -34,6 +34,13 @@ pub(super) fn train(
     unrecorded: bool,
     mut a: Args,
 ) -> Result<()> {
+    if a.rest.iter().any(|x| x == "--cache") {
+        let task = match head {
+            UdHead::Lemma => turbo_trainer_recipes::fit_cache::CacheTask::Lemma,
+            UdHead::Deps => turbo_trainer_recipes::fit_cache::CacheTask::Parse,
+        };
+        return turbo_trainer_recipes::fit_cache::command_with_task(argv, bank, dir, unrecorded, Some(task), a);
+    }
     let bank = *TREEBANKS
         .iter()
         .find(|b| b.id == bank)
@@ -124,8 +131,11 @@ pub(super) fn train(
         split: "test".into(),
         model: Some(evaluate(Task::Tags, &test, &predicted, &seen, None)),
         baseline: evaluate(Task::Tags, &test, &base, &seen, None),
+        dictionary: None,
+        open_span: None,
         comparison: Some(bootstrap(Task::Tags, &test, &predicted, &base, RESAMPLES, c.seed)),
         uas: (head == UdHead::Deps).then(|| Uas { model: uas(&test, &predicted), baseline: uas(&test, &base) }),
+        rules: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

@@ -149,6 +149,33 @@ fn extract_language(doc: &Document) -> Option<LanguageEvidence> {
     Some(LanguageEvidence { best_code: best_code.to_owned(), best_score, rankings, spans, evidence })
 }
 
+fn is_subspan_of_money_or_quantity(doc: &Document, span: Span) -> bool {
+    let span_len = span.end.saturating_sub(span.start);
+    for key in [Key::<Money>::DEFAULT, GRAMMAR_MONEY] {
+        if let Some(m) = doc.get_key(&key) {
+            let view = m.spans.view();
+            if m.spans.iter().any(|(_, raw)| {
+                let s = doc.to_source(view, raw);
+                s.overlaps(span) && s.end.saturating_sub(s.start) > span_len
+            }) {
+                return true;
+            }
+        }
+    }
+    for key in [Key::<Quantities>::DEFAULT, GRAMMAR_PERCENTS] {
+        if let Some(q) = doc.get_key(&key) {
+            let view = q.spans.view();
+            if q.spans.iter().any(|(_, raw)| {
+                let s = doc.to_source(view, raw);
+                s.overlaps(span) && s.end.saturating_sub(s.start) > span_len
+            }) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn extract_temporals(doc: &Document) -> Vec<QueryFilter> {
     let mut candidates: Vec<(u8, QueryFilter)> = Vec::new();
 
@@ -161,6 +188,9 @@ fn extract_temporals(doc: &Document) -> Vec<QueryFilter> {
         for (ix, raw_span) in temporals.spans.iter() {
             let mention = temporals.get(ix);
             let (span, surface) = source_span_and_surface(doc, view, raw_span);
+            if is_subspan_of_money_or_quantity(doc, span) {
+                continue;
+            }
             let (start_epoch_seconds, end_epoch_seconds, grain) = resolve_temporal_value_range(mention.value);
             let duration_ms =
                 start_epoch_seconds.zip(end_epoch_seconds).map(|(s, e)| e.saturating_sub(s).saturating_mul(1_000));
@@ -195,6 +225,9 @@ fn extract_temporals(doc: &Document) -> Vec<QueryFilter> {
             for (ix, raw_span) in times.spans.iter() {
                 let m = times.get(ix);
                 let (span, surface) = source_span_and_surface(doc, view, raw_span);
+                if is_subspan_of_money_or_quantity(doc, span) {
+                    continue;
+                }
                 let start_epoch_seconds = m.start;
                 let end_epoch_seconds = match (m.start, m.end) {
                     (_, Some(e)) => Some(e),
@@ -274,6 +307,7 @@ fn extract_money(doc: &Document, existing: &[QueryFilter]) -> Vec<QueryFilter> {
                             coefficient: m.coefficient.to_owned(),
                             scale: m.scale,
                             currency: m.currency,
+                            per: money.per(ix).map(str::to_owned),
                         }),
                     },
                 ));

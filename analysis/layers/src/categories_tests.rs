@@ -41,7 +41,7 @@ fn the_document_has_one_item_and_ranks_its_categories() {
 fn names_and_anchors() {
     assert_eq!(<Categories>::NAME.to_string(), "turbo:categories");
     assert_eq!(<Categories>::anchor(), Anchor::Document);
-    assert_eq!(Categories::<Sentences>::NAME.to_string(), "turbo:categories<opennlp:sentences>");
+    assert_eq!(Categories::<Sentences>::NAME.to_string(), "turbo:categories<turbo:sentences>");
     assert_eq!(Categories::<Sentences>::anchor(), Anchor::aligned::<Sentences>());
     assert_eq!(Categories::<Structure>::NAME.to_string(), "turbo:categories<turbo:structure>");
     assert_eq!(Categories::<Chunks>::NAME.to_string(), "turbo:categories<turbo:chunks>");

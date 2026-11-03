@@ -13,7 +13,7 @@ in CI on every change.
 |---|---|---|
 | What it is | gRPC: the Open Inference Protocol for vectors, `turbo.result.AnalysisService` for analysis | The analysis crates under `analysis/`, run by an `Analyzer` |
 | Language | Any with gRPC: clients are generated from `server/proto` | Rust (the C interface embeds; see docs/grpc.md for the server's view of it) |
-| Structure from a converter (docling) | Imported by the client into a seed graph, sent as `initial_graph` to `AnalyzeDocumentProgressive` | Imported as a `Structure` layer, as below |
+| Structure from a converter (docling) | Sent to `AnalyzeDocumentProgressive` as a `structure_seed` message (any language) or as an `initial_graph` seed graph (docs/grpc-analysis.md, Seeding structure from a parser) | Imported as a `Structure` layer, as below |
 | Offsets | `OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, `OFFSET_MODE_CODE_POINT` per request | Every view's `OffsetTable`: bytes, UTF-16 units, code points |
 | Runs on | The backends linked into the binary | The same |
 
@@ -29,7 +29,8 @@ Getting the binary, its flags and how it stops are in
 [grpc.md](grpc.md); release archives and what each carries are in
 [release.md](release.md), which also holds the versioning and
 compatibility policy (what a minor or patch release may change on the
-wire and in a bundle). Container images are tracked in issue #1298.
+wire and in a bundle). The same release pushes the server's container
+images to GHCR ([release.md](release.md), Images).
 
 ```
 turbo-kserve --listen 0.0.0.0:8081 \
@@ -61,8 +62,11 @@ grpcurl -plaintext localhost:8081 grpc.health.v1.Health/Check
 | What is loaded, and every limit | `AnalysisService/Capabilities` | [grpc-analysis.md](grpc-analysis.md) |
 | Vectors for one batch | `GRPCInferenceService/ModelInfer` | [kserve.md](kserve.md) |
 | Vectors, sparse terms or token vectors for many documents | `AnalysisService/AnalyzeStream` | [grpc-analysis.md](grpc-analysis.md) |
-| One document through a named pipeline, seeded with a converter's structure | `AnalyzeDocumentProgressive` | [The docling example on the server](#on-the-server) |
+| One document through a named profile or step list, from text or seeded with a converter's structure | `AnalyzeDocumentProgressive` | [A document, end to end](#a-document-end-to-end), [grpc-analysis.md](grpc-analysis.md) |
+| Every annotation of one document, with offsets in the client's string unit | `InspectDocumentGraph` | [A document, end to end](#a-document-end-to-end), [grpc-analysis.md](grpc-analysis.md) |
 | Inspecting one document: segments, heatmaps, chunk projections | `InspectDocumentWindow`, `ProjectChunks` | [grpc-inspect.md](grpc-inspect.md) |
+| Handing analysed documents to the next stage | `turbo.sink.v1.TurboSinkService/StreamDocuments` | [grpc-sink.md](grpc-sink.md) |
+| Listing, accepting and installing models | `turbo.training.v1.TurboCatalogService` | [grpc-catalog.md](grpc-catalog.md) |
 | Exporting an analyzed document | `ListOutputFormats`, `FormatDocument` | [grpc-inspect.md](grpc-inspect.md) |
 | Loading or unloading a bundle at run time (`--admin`) | `LoadBundle`, `UnloadBundle` | [grpc-analysis.md](grpc-analysis.md) |
 
@@ -93,13 +97,74 @@ in the message) as the request's fault.
 
 Java, Python, Go and other clients are generated from the protos in
 `server/proto` with each language's gRPC tooling, for example
-`grpcio-tools` for Python or `protoc-gen-grpc-java` for Java. The
-release workflow packages them as a Maven artifact (`clients/java`) and
-a wheel (`clients/python`), built by `scripts/package-proto-stubs.sh`;
-publishing them is tracked in issue #1297. Until then, build them with
-that script or pin the proto files of the release the server runs. The
-docling example has a Java and a Python client written against those
-stubs, below.
+`grpcio-tools` for Python or `protoc-gen-grpc-java` for Java. Every
+tagged release attaches them, built by `scripts/package-proto-stubs.sh`:
+the proto archive, a Maven artifact (`ai.pipestream:turboembed-grpc`,
+from `clients/java`) and a wheel (`turboembed-proto`, from
+`clients/python`), listed in [release.md](release.md). They are release
+assets, not in Maven Central or PyPI: a build takes the jar or wheel
+from the release, or runs the script itself against the proto files of
+the release the server runs. The clients below are written against those
+stubs alone.
+
+## A document, end to end
+
+The path most integrations take: text in, a named profile, every
+annotation out with offsets the client's own strings index, and the
+analysed document handed downstream.
+
+1. **Choose a profile.** `Capabilities` lists the profiles under
+   `profiles`, each with its steps, the layers it produces and the
+   bundle capabilities it needs. `minimal-v1` is structure, sentences
+   and tokens and needs no model; `default-v1` adds place names,
+   subwords, the chunker, levels and a vector per chunk; `retrieval-v1`
+   adds learned sparse terms; `annotate-v1` adds part-of-speech tags,
+   entities, dependencies and lemmas from the bundle's heads in one
+   encoder pass. A bundle lists the head steps it serves under
+   `BundleCapabilities.head_steps`, and an explicit `steps` list can
+   name any of them. A profile's layer set never changes within its
+   version. The table is in [grpc-analysis.md](grpc-analysis.md).
+2. **Analyse.** `AnalyzeDocumentProgressive` with `text`, `profile`,
+   `model` (the bundle) and `doc_id` streams an event per finished step
+   and ends with `complete`, which carries the document graph. A step
+   that fails is a `step_failed` event naming it; a bundle the profile
+   needs and the server lacks refuses the call before it streams.
+3. **Read the annotations.** `InspectDocumentGraph` with that graph and
+   an offset mode answers a `TypedDocumentResult`: the text, the
+   provenance of every model, and one `TypedLayer` per layer, each
+   annotation with its spans and a typed value (sentence, token,
+   entity, part of speech, dependency, lemma and the rest). Layers are
+   found by id: `turbo:sentences`, `turbo:tokens`, `turbo:entities`,
+   `turbo:pos`, `turbo:dependencies`, `turbo:lemmas`, `turbo:chunks` and
+   the others a profile lists. A Java client asks for
+   `OFFSET_MODE_UTF16` and calls `String.substring` with the spans as
+   they come; a Python client asks for `OFFSET_MODE_CODE_POINT` and
+   slices the `str`.
+4. **Hand it on.** A server started with `--sink-endpoint` and
+   `--sink-documents` forwards every completed document graph to a
+   `TurboSinkService`, and with `--sink-typed-offsets` each item also
+   carries the same `TypedDocumentResult`, so the next stage (an
+   indexer, another server) reads the annotations without calling back
+   ([grpc-sink.md](grpc-sink.md)).
+
+Two clients do steps 1 to 3 with the `default-v1` profile over a text
+that mixes accented Latin, CJK and emoji outside the Basic Multilingual
+Plane, and check every span of every layer against their own string
+type: each lies on character boundaries, every token's slice is its
+surface, every sentence's slice is its text, every layer the profile
+lists is there under its id, and the place name in the text comes back
+as an entity:
+
+| Client | Offsets asked for |
+|---|---|
+| `clients/java/src/test/java/ai/pipestream/turboembed/DocumentSmoke.java` | `OFFSET_MODE_UTF16` |
+| `clients/python/document_smoke.py` | `OFFSET_MODE_CODE_POINT` |
+
+Both run in CI on every change, against a server with the test bundle,
+compiled or installed from the packaged stubs only
+(`scripts/package-proto-stubs.sh`, the `proto` job). A converter that
+already has a document's structure seeds the request with it instead of
+plain text, as the docling example below does.
 
 ## The docling example
 
@@ -230,8 +295,8 @@ Three clients do this and print the same summary, held to
 | Client | Where | Offsets asked for | Runs in CI |
 |---|---|---|---|
 | Rust | `examples/docling/src/bin/docling-client.rs` | `OFFSET_MODE_UTF8` | `examples/docling/tests/server.rs`, a server started in process on a free port, every call over gRPC |
-| Java | `examples/docling/clients/java/DoclingClient.java` | `OFFSET_MODE_UTF16` | the release workflow's `proto-and-stubs` job, against the release binary |
-| Python | `examples/docling/clients/python/docling_client.py` | `OFFSET_MODE_CODE_POINT` | the same job, on the oldest Python the wheel declares |
+| Java | `examples/docling/clients/java/DoclingClient.java` | `OFFSET_MODE_UTF16` | the CI `proto` job on every change, and the release workflow against the release binary |
+| Python | `examples/docling/clients/python/docling_client.py` | `OFFSET_MODE_CODE_POINT` | the same jobs, on the oldest Python the wheel declares |
 
 Each slices the window's text by the offsets it asked for, in its own
 string type, so the three agree only if every offset mode is right. The
@@ -281,5 +346,6 @@ both expected files, to be reviewed.
   the example's dictionary, and a chunk budget from the model's width
   (64 subwords) instead of 48.
 - The Java and Python clients run where the stub packages are built,
-  the release workflow, not in the per-change `cargo test` run.
+  the CI `proto` job and the release workflow, not in the per-change
+  `cargo test` run.
 - Tables and pictures from docling are refused rather than converted.

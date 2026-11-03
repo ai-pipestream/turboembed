@@ -27,7 +27,7 @@ body:
     id: layers
     attributes:
       label: Layers read and written
-      description: Layer ids it reads (for example opennlp:sentences) and writes, and which crate each new layer type lives in.
+      description: Layer ids it reads (for example turbo:sentences) and writes, and which crate each new layer type lives in.
     validations:
       required: true
   - type: textarea

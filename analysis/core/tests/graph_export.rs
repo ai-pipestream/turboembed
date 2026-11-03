@@ -381,6 +381,25 @@ fn tag_sets_longer_than_a_u16_can_index_are_refused_on_import() {
 }
 
 #[test]
+fn a_legacy_model_id_in_stored_provenance_reads_as_the_current_id() {
+    // Graphs written before the model ids moved to the turbo: namespace
+    // carry the old id; the bytes decode to the current one, and a
+    // re-export of the import writes only the current one.
+    let mut graph = export(&document(), &codecs()).unwrap();
+    let model = graph.layers[0].provenance.model.as_mut().unwrap();
+    let (old, new) = turbo_analysis::ids::legacy_model_ids().next().unwrap();
+    model.id = format!("{old}:en");
+    let bytes = graph.to_bytes().unwrap();
+    let decoded = DocumentGraph::from_bytes(&bytes).unwrap();
+    let decoded_model = decoded.layers[0].provenance.model.as_ref().unwrap();
+    assert_eq!(decoded_model.id, format!("{new}:en"));
+    assert_eq!((decoded_model.revision.as_str(), decoded_model.sha256.as_str()), ("r1", "abc123"));
+    let back = import(&decoded, &codecs()).unwrap();
+    let again = export(&back, &codecs()).unwrap();
+    assert_eq!(again.layers[0].provenance.model.as_ref().unwrap().id, format!("{new}:en"));
+}
+
+#[test]
 fn source_view_provenance_is_fixed_by_the_format() {
     let mut graph = export(&document(), &codecs()).unwrap();
     graph.views[0].provenance.annotator = "source:decoder".into();

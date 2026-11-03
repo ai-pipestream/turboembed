@@ -6,7 +6,7 @@ unicode	15.0
 input	edge/whitespace-only	13	10	36e3661dabb7a6a46243e01b3a1027d4430815f84fdca05b6d4f0bc326842f5d
 model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
 annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
-layer	opennlp:tokens	text	0	start:u32	end:u32
-end	opennlp:tokens
-layer	turbo:morphemes	aligned:opennlp:tokens	0	unknown:u32	features:str
+layer	turbo:tokens	text	0	start:u32	end:u32
+end	turbo:tokens
+layer	turbo:morphemes	aligned:turbo:tokens	0	unknown:u32	features:str
 end	turbo:morphemes
