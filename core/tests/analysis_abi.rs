@@ -448,7 +448,7 @@ int main(void) {
     retired.struct_size = (uint32_t)sizeof(turbo_analyzer_desc);
     retired.lemma_model_path = T("en-lemma.bin");
     if (turbo_analyzer_create(&retired, &a, &err) != TURBO_E_INVALID_ARGUMENT || err.field != 5) return 1;
-    uint32_t bad_size = 112;
+    _Alignas(turbo_analyzer_desc) uint32_t bad_size = 112;
     if (turbo_analyzer_create((const turbo_analyzer_desc *)&bad_size, &a, &err) != TURBO_E_INVALID_STRUCT_SIZE) return 1;
     printf("size=%zu sentences=%u tokens=%u\n", sizeof(turbo_analyzer_desc), sent_count, tok_count);
     return 0;

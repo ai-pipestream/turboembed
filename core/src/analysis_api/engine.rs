@@ -95,7 +95,6 @@ fn sequences(tokens: &[Span], sentences: &[Span]) -> Vec<Vec<usize>> {
 impl AnalyzerEngine {
     /// The engine `cfg` configures.
     pub(crate) fn from_desc(cfg: AnalyzerConfig<'_>) -> Result<Self> {
-        let lang = if cfg.language.is_empty() { "en" } else { cfg.language };
         let heads = match cfg.bundle_path {
             "" => None,
             path => Some(BundleHeads::open(path).map_err(|e| Error {
@@ -107,7 +106,7 @@ impl AnalyzerEngine {
         let mut codecs = Codecs::new();
         register_codecs(&mut codecs);
         Ok(Self {
-            rule_splitter: RuleSplitter::new(lang),
+            rule_splitter: RuleSplitter::new(cfg.language),
             heads,
             pii_detector: PiiDetector::pack(Pack::AllStructured),
             codecs,
