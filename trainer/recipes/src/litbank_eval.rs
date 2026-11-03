@@ -79,6 +79,7 @@ pub fn spec(corpus: &CorpusRecord, o: &CorefOptions) -> Result<HeadSpec> {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        seen: None,
         span: Some(o.span),
         coref: Some(o.coref),
         relation: None,

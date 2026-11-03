@@ -162,6 +162,7 @@ pub fn spec_with_lookup(
         pos_input: None,
         seen_lookup,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         license_class: Some(corpus.class()?),
         span: None,

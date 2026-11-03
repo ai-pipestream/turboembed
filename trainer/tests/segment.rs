@@ -26,6 +26,7 @@ fn spec(kind: HeadKind, labels: &[&str], decode: Decode) -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         span: None,
         relation: None,

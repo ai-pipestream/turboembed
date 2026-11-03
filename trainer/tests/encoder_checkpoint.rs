@@ -125,6 +125,7 @@ fn spec() -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         license_class: None,
         span: None,

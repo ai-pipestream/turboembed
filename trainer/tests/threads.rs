@@ -28,6 +28,7 @@ fn spec() -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: Some(HashEmbed { dim: 8, rows: [1024, 256, 512, 256] }),
+        seen: None,
         layer_mix: None,
         span: None,
         relation: None,

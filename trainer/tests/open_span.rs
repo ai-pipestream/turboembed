@@ -27,6 +27,7 @@ fn spec(decode: Decode, adapter: u32) -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         span: Some(SpanShape { max_words: 3, width_dim: 3 }),
         coref: None,
