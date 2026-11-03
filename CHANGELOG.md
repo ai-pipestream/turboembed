@@ -122,6 +122,15 @@ for the release after it goes above it.
 
 ### Fixed
 
+- `turbo_analyzer_inspect_graph` refuses a caller's graph holding a
+  part-of-speech probability or entity score outside 0..=1, which graph
+  import takes, with `TURBO_E_INVALID_ARGUMENT` where it answered
+  `TURBO_E_CAPACITY`; every other refusal of what a caller's graph holds
+  is `TURBO_E_INVALID_ARGUMENT` too. turbo.h's analyzer comments describe
+  the bundle heads in place of the retired model paths, and state the
+  rules the calls apply: no input is no rows whatever the bundle,
+  `turbo_analyzer_desc.flags` must be 0, a bundle that does not open
+  names field 7, and which rows are `TURBO_E_CAPACITY` (#1852).
 - `turbo_analyzer_create` decodes `turbo_analyzer_desc` through raw
   field reads after validating `struct_size`, without forming a
   reference to the 120-byte struct over a legacy 104-byte allocation
