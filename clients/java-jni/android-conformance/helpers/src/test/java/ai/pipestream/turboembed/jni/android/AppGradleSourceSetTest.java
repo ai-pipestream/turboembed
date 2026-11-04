@@ -39,6 +39,13 @@ final class AppGradleSourceSetTest {
         // android.jar lacks MatchException; keep the Android compile at language level 17.
         assertTrue(text.contains("JavaVersion.VERSION_17"), text);
         assertFalse(text.contains("JavaVersion.VERSION_21"), text);
+        // Explicit Jupiter bridge runner and suite class list prevent 0-test connected runs.
+        assertTrue(
+                text.contains("ai.pipestream.turboembed.jni.android.AndroidJupiterRunnerBuilder"),
+                text);
+        for (String requiredSuite : AndroidTestReportVerifier.REQUIRED_SUITES.keySet()) {
+            assertTrue(text.contains(requiredSuite), "missing suite in app/build.gradle.kts: " + requiredSuite);
+        }
     }
 
     /** Returns the brace-delimited block that starts at the first '{' after {@code marker}. */

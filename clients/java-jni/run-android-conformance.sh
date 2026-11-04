@@ -75,6 +75,7 @@ for abi in arm64-v8a x86_64; do
 done
 
 cd "$module"
-./gradlew --no-daemon :helpers:test :app:connectedDebugAndroidTest
+rm -rf "$app/build/outputs/androidTest-results/connected"
+./gradlew --no-daemon :helpers:test :app:connectedDebugAndroidTest :helpers:verifyAndroidTestResults
 
 echo "android conformance finished"

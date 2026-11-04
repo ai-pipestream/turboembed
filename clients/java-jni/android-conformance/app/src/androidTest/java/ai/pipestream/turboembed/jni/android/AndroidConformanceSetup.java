@@ -2,43 +2,41 @@ package ai.pipestream.turboembed.jni.android;
 
 import android.content.Context;
 import androidx.test.platform.app.InstrumentationRegistry;
-import ai.pipestream.turboembed.jni.TurboLibrary;
+import java.io.IOException;
 import java.nio.file.Path;
-import org.junit.jupiter.api.extension.BeforeAllCallback;
-import org.junit.jupiter.api.extension.ExtensionContext;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Stages the sealed testdata bundles from APK assets into the application files directory,
- * points {@code turbo.repo.root} at that layout, selects the JNI bridge, and loads
- * {@code libturbo} through {@link System#loadLibrary(String)} (the Android {@code jniLibs}
- * path). No {@code turbo.library.path} or {@code turbo.library.dir} is set, so a host-JVM
- * fallback cannot satisfy the load.
+ * Unpacks the APK's {@code testdata/} assets into the application files directory once per process
+ * and sets {@code turbo.repo.root} so {@code Testdata.repoRoot()} and {@code TestPaths.repoRoot()}
+ * resolve on Android without a host checkout.
  */
-public final class AndroidConformanceSetup implements BeforeAllCallback {
-    private static final Object LOCK = new Object();
-    private static boolean ready;
+final class AndroidConformanceSetup {
+    private static final AtomicReference<Path> STAGED_ROOT = new AtomicReference<>();
 
-    @Override
-    public void beforeAll(ExtensionContext context) throws Exception {
-        ensureReady();
-    }
+    private AndroidConformanceSetup() {}
 
-    /** Stages once per process for every instrumented suite that registers this extension. */
-    public static void ensureReady() throws Exception {
-        synchronized (LOCK) {
-            if (ready) {
-                return;
+    static Path ensureReady() {
+        Path existing = STAGED_ROOT.get();
+        if (existing != null) {
+            return existing;
+        }
+        synchronized (AndroidConformanceSetup.class) {
+            existing = STAGED_ROOT.get();
+            if (existing != null) {
+                return existing;
             }
-            Context app = InstrumentationRegistry.getInstrumentation().getTargetContext();
-            Path destination = app.getFilesDir().toPath().resolve("turbo-repo");
-            RepoRootStaging.stage(destination, new AssetFileSource(app.getAssets()));
-            System.setProperty("turbo.repo.root", destination.toString());
-            System.setProperty("turbo.bridge", "jni");
-            // Refuse a host-style library path so System.loadLibrary("turbo") is what runs.
-            System.clearProperty("turbo.library.path");
-            System.clearProperty("turbo.library.dir");
-            TurboLibrary.load();
-            ready = true;
+            Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
+            Path dest = target.getFilesDir().toPath().resolve("turboembed-repo");
+            try {
+                Path staged =
+                        RepoRootStaging.stage(dest, new AssetFileSource(target.getAssets()));
+                System.setProperty("turbo.repo.root", staged.toString());
+                STAGED_ROOT.set(staged);
+                return staged;
+            } catch (IOException ex) {
+                throw new IllegalStateException("failed to stage testdata into " + dest, ex);
+            }
         }
     }
 }

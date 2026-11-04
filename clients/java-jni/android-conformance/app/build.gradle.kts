@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("de.mannodermaus.android-junit5")
 }
 
 android {
@@ -14,7 +13,15 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        testInstrumentationRunnerArguments["runnerBuilder"] = "de.mannodermaus.junit5.AndroidJUnit5Builder"
+        testInstrumentationRunnerArguments["runnerBuilder"] =
+            "ai.pipestream.turboembed.jni.android.AndroidJupiterRunnerBuilder"
+        testInstrumentationRunnerArguments["class"] =
+            listOf(
+                "ai.pipestream.turboembed.jni.android.AndroidAnalyzerConformanceTest",
+                "ai.pipestream.turboembed.jni.android.AndroidSessionConformanceTest",
+                "ai.pipestream.turboembed.jni.android.AndroidTurboJniBridgeTest",
+                "ai.pipestream.turboembed.jni.TurboJniTest",
+            ).joinToString(",")
         // Pack both ABIs when present under jniLibs; the emulator job ships x86_64 only.
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -97,7 +104,4 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
-    androidTestImplementation("de.mannodermaus.junit5:android-test-core:1.6.0")
-    androidTestRuntimeOnly("de.mannodermaus.junit5:android-test-runner:1.6.0")
-    androidTestRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
 }

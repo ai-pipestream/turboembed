@@ -3,11 +3,15 @@ package ai.pipestream.turboembed.jni.android;
 import ai.pipestream.turboembed.TurboRuntime;
 import ai.pipestream.turboembed.conformance.SessionConformance;
 import ai.pipestream.turboembed.jni.JniRuntime;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.runner.RunWith;
 
-/** Session conformance on ART through the JNI binding and {@code System.loadLibrary("turbo")}. */
-@ExtendWith(AndroidConformanceSetup.class)
-final class AndroidSessionConformanceTest extends SessionConformance {
+/** Runs every shared {@link SessionConformance} assertion on ART. */
+@RunWith(AndroidJupiterRunner.class)
+public final class AndroidSessionConformanceTest extends SessionConformance {
+    static {
+        AndroidConformanceSetup.ensureReady();
+    }
+
     @Override
     protected TurboRuntime binding() {
         return new JniRuntime();
