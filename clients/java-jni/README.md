@@ -87,21 +87,37 @@ ANDROID_NDK_HOME=/path/to/ndk ANDROID_HOME=/path/to/sdk \
 an emulator. The opt-in CI job `.github/workflows/android-conformance.yml`
 runs the same script on an `x86_64` emulator at API 26 (and 35 on labeled
 pull requests) via `workflow_dispatch` or the `ci:android-emulator` label.
-The host-only `:helpers:test` target checks the asset-staging layout without
-talking to ART. The Gradle wrapper jar under `android-conformance/gradle/wrapper/`
-is the stock Gradle 8.11.1 wrapper (`distributionSha256Sum` is set in
-`gradle-wrapper.properties`).
+The host-only `:helpers:test` target checks the asset-staging layout, the
+JUnit Jupiter instrumentation bridge (`JupiterTestRunner`), and the XML
+report verifier (`AndroidTestReportVerifier`) without talking to ART.
+During `run-android-conformance.sh`, `AndroidJupiterRunnerBuilder` runs the
+five JUnit Jupiter suites under `AndroidJUnitRunner`, and
+`:helpers:verifyAndroidTestResults` parses the generated `TEST-*.xml` report
+so a zero-test run or a missing suite fails the build. The Gradle wrapper
+jar under `android-conformance/gradle/wrapper/` is the stock Gradle 8.11.1
+wrapper (`distributionSha256Sum` is set in `gradle-wrapper.properties`).
 
-ART results are recorded from that opt-in CI job (API 26 and API 35 on
-`x86_64`), not from a host JVM stand-in. After a green emulator run, paste
-the job URL and the instrumented-test summary into the pull request that
-carried the harness change.
+ART results recorded from `.github/workflows/android-conformance.yml` run
+`41936972550` (`06f8248787266589e4be2fc271b959a2ff25408e`):
 
-The first labeled emulator run on this harness failed compiling
-`clients/java-api` against `android.jar`: `RuntimeLoader` called
-`Runtime.version()`, which that jar does not declare. Selection now reads
-`java.specification.version` instead so the shared source compiles on
-Android and on the host.
+- `emulator (26)` (`emulator-5554 - 8.0.0`, job `126947771882`, https://github.com/ai-pipestream/turboembed/actions/runs/41936972550/job/126947771882): `34 passed, 0 failed, 0 errors, 0 skipped`
+  - `ai.pipestream.turboembed.jni.android.AndroidAnalyzerConformanceTest`: 13 passed
+  - `ai.pipestream.turboembed.jni.android.AndroidSessionConformanceTest`: 2 passed
+  - `ai.pipestream.turboembed.jni.android.AndroidTurboJniBridgeTest`: 3 passed
+  - `ai.pipestream.turboembed.jni.TurboJniTest`: 10 passed
+  - `ai.pipestream.turboembed.opennlp.TurboAdaptersTest`: 6 passed
+- `emulator (35)` (`emulator-5554 - 15`, job `126947771828`, https://github.com/ai-pipestream/turboembed/actions/runs/41936972550/job/126947771828): `34 passed, 0 failed, 0 errors, 0 skipped` across the same 5 suites.
+- `helpers-host` (job `126947771645`, https://github.com/ai-pipestream/turboembed/actions/runs/41936972550/job/126947771645): host unit tests for `RepoRootStaging`, `JupiterTestRunner`, `AndroidTestReportVerifier`, and `AppGradleSourceSetTest` passed.
+
+Earlier emulator runs surfaced two Android compatibility constraints that
+the shared sources now enforce:
+
+1. `RuntimeLoader` previously called `Runtime.version()`, which `android.jar`
+   does not declare; selection now reads `java.specification.version`.
+2. Android API 26 (`core-oj.jar`) + `desugar_jdk_libs:2.1.4` does not provide
+   Java 9+/11 `InputStream.transferTo`, `Files.writeString`, or `Path.of`;
+   shared and staging code uses `Paths.get`, `Files.write(Path, byte[])`, and
+   buffered stream copies so API 26 executes without `NoSuchMethodError`.
 
 ## Primary typed API
 
