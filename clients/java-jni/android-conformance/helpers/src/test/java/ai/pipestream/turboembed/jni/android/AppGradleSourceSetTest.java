@@ -46,6 +46,9 @@ final class AppGradleSourceSetTest {
         for (String requiredSuite : AndroidTestReportVerifier.REQUIRED_SUITES.keySet()) {
             assertTrue(text.contains(requiredSuite), "missing suite in app/build.gradle.kts: " + requiredSuite);
         }
+        // JUnit 5 jars ship duplicate META-INF/LICENSE*.md entries; packaging.resources must exclude them.
+        assertTrue(text.contains("META-INF/LICENSE.md"), text);
+        assertTrue(text.contains("META-INF/LICENSE-notice.md"), text);
     }
 
     /** Returns the brace-delimited block that starts at the first '{' after {@code marker}. */

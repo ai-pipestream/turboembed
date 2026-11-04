@@ -4,6 +4,5 @@
         android:name=".ConformanceApp"
         android:allowBackup="false"
         android:label="turboembed-android-conformance"
-        android:supportsRtl="true"
-        android:extractNativeLibs="true" />
+        android:supportsRtl="true" />
 </manifest>

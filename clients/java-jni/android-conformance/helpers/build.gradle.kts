@@ -27,8 +27,9 @@ tasks.register<JavaExec>("verifyAndroidTestResults") {
 }
 
 dependencies {
-    api("junit:junit:4.13.2")
-    api("org.junit.jupiter:junit-jupiter-api:5.11.4")
+    compileOnly("junit:junit:4.13.2")
+    compileOnly("org.junit.jupiter:junit-jupiter-api:5.11.4")
+    testImplementation("junit:junit:4.13.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
 }
