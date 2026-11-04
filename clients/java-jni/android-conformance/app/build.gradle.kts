@@ -21,6 +21,7 @@ android {
                 "ai.pipestream.turboembed.jni.android.AndroidSessionConformanceTest",
                 "ai.pipestream.turboembed.jni.android.AndroidTurboJniBridgeTest",
                 "ai.pipestream.turboembed.jni.TurboJniTest",
+                "ai.pipestream.turboembed.opennlp.TurboAdaptersTest",
             ).joinToString(",")
         // Pack both ABIs when present under jniLibs; the emulator job ships x86_64 only.
         ndk {

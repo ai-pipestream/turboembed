@@ -101,9 +101,10 @@ public class JupiterTestRunner extends Runner implements Filterable {
                 || candidate.isAnnotation()
                 || candidate.isEnum()
                 || Modifier.isAbstract(candidate.getModifiers())) {
-            return List.of();
+            return Collections.emptyList();
         }
-        return List.copyOf(discoverAnnotatedMethods(candidate, Test.class, false, true));
+        return Collections.unmodifiableList(
+                new ArrayList<>(discoverAnnotatedMethods(candidate, Test.class, false, true)));
     }
 
     @Override

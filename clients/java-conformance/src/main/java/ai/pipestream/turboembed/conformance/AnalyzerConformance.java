@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -258,7 +259,9 @@ public abstract class AnalyzerConformance {
             assertEquals(0L, deps.get(1).classification(), "met is the first sentence's root");
 
             List<Row> entities = ofKind(graph.rows(), ENTITIES);
-            assertEquals(List.of("Bob", "dog"), entities.stream().map(row -> row.coveredSourceText(TEXT)).toList());
+            assertEquals(
+                    List.of("Bob", "dog"),
+                    entities.stream().map(row -> row.coveredSourceText(TEXT)).collect(Collectors.toList()));
             assertEquals(new Row.Tokens(20, 21), entities.get(1).tokenRange());
 
             assertEquals(graph.rows(), Row.copy(analyzer.inspectGraph(graph.bytes())));
@@ -345,7 +348,10 @@ public abstract class AnalyzerConformance {
             List<Row> rows = Row.copy(analyzer.detectPii(text));
             assertFalse(rows.isEmpty());
             assertTrue(rows.stream().allMatch(row -> row.layerKind() == PII));
-            Row email = rows.stream().filter(row -> "email".equals(row.label())).findFirst().orElseThrow();
+            Row email = rows.stream()
+                    .filter(row -> "email".equals(row.label()))
+                    .findFirst()
+                    .orElseThrow(AssertionError::new);
             assertEquals("alice@example.com", email.coveredSourceText(text));
             assertEquals("alice@example.com", email.value());
             assertEquals(PII_FORMAT, email.classification());

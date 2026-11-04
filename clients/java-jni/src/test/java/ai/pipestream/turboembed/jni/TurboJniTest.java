@@ -177,7 +177,9 @@ final class TurboJniTest {
             assertThrows(IndexOutOfBoundsException.class, () -> result.span(result.spanCount()));
             assertThrows(IndexOutOfBoundsException.class, () -> result.copySpan(result.spanCount()));
             assertEquals(result.spanCount(), result.spans().size());
-            assertEquals(result.copySpans(), result.spans().stream().map(TurboSpanView::materialize).toList());
+            assertEquals(
+                    result.copySpans(),
+                    result.spans().stream().map(TurboSpanView::materialize).collect(Collectors.toList()));
         }
     }
 

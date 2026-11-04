@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,18 +22,22 @@ import java.util.Objects;
  */
 public final class RepoRootStaging {
     /** Relative paths of every file the sealed tiny BERT bundle carries. */
-    public static final List<String> TINY_BERT_FILES = List.of(
-            "manifest.json",
-            "tokenizer.json",
-            "weights/model.safetensors",
-            "reference/reference.safetensors");
+    public static final List<String> TINY_BERT_FILES =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "manifest.json",
+                            "tokenizer.json",
+                            "weights/model.safetensors",
+                            "reference/reference.safetensors"));
 
     /** Relative paths of every file the sealed tiny BERT heads bundle carries. */
-    public static final List<String> TINY_BERT_HEADS_FILES = List.of(
-            "manifest.json",
-            "tokenizer.json",
-            "weights/model.safetensors",
-            "reference/reference.safetensors");
+    public static final List<String> TINY_BERT_HEADS_FILES =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "manifest.json",
+                            "tokenizer.json",
+                            "weights/model.safetensors",
+                            "reference/reference.safetensors"));
 
     /** Marker file {@code Testdata.looksLikeRepoRoot} requires beside the bundles. */
     public static final String CONFORMANCE_POM = "clients/java-conformance/pom.xml";
@@ -80,7 +86,7 @@ public final class RepoRootStaging {
         copyBundle(root, source, TINY_BERT_HEADS, TINY_BERT_HEADS_FILES);
         Path pom = root.resolve(CONFORMANCE_POM);
         Files.createDirectories(pom.getParent());
-        Files.writeString(pom, STUB_POM, StandardCharsets.UTF_8);
+        Files.write(pom, STUB_POM.getBytes(StandardCharsets.UTF_8));
         if (!looksLikeRepoRoot(root)) {
             throw new IOException("staged root is incomplete: " + root);
         }
@@ -128,7 +134,11 @@ public final class RepoRootStaging {
             String sourcePath = "testdata/" + bundle + "/" + relative;
             try (InputStream in = source.open(sourcePath);
                     OutputStream outStream = Files.newOutputStream(out)) {
-                in.transferTo(outStream);
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = in.read(buffer)) >= 0) {
+                    outStream.write(buffer, 0, read);
+                }
             }
             if (Files.size(out) == 0 && !relative.endsWith(".json")) {
                 // Empty weights would never be a sealed bundle; keep the check narrow.

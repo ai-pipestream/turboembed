@@ -69,7 +69,7 @@ final class AndroidTestReportVerifierTest {
     void acceptsCompletePassingReportAcrossAllRequiredSuites() throws Exception {
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version='1.0' encoding='UTF-8' ?>\n");
-        xml.append("<testsuite tests=\"28\" failures=\"0\" errors=\"0\" skipped=\"0\">\n");
+        xml.append("<testsuite tests=\"34\" failures=\"0\" errors=\"0\" skipped=\"0\">\n");
         for (Map.Entry<String, Integer> entry : AndroidTestReportVerifier.REQUIRED_SUITES.entrySet()) {
             for (int i = 0; i < entry.getValue(); i++) {
                 xml.append("  <testcase name=\"test_")
@@ -85,7 +85,7 @@ final class AndroidTestReportVerifierTest {
         Files.writeString(file, xml.toString(), StandardCharsets.UTF_8);
 
         AndroidTestReportVerifier.Summary summary = AndroidTestReportVerifier.verify(temp);
-        assertEquals(28, summary.totalPassed());
+        assertEquals(34, summary.totalPassed());
         assertEquals(0, summary.totalFailed());
         assertEquals(0, summary.totalErrors());
         assertEquals(0, summary.totalSkipped());
@@ -107,5 +107,8 @@ final class AndroidTestReportVerifierTest {
         assertEquals(
                 10,
                 summary.suites().get("ai.pipestream.turboembed.jni.TurboJniTest").passed());
+        assertEquals(
+                6,
+                summary.suites().get("ai.pipestream.turboembed.opennlp.TurboAdaptersTest").passed());
     }
 }

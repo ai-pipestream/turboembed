@@ -36,6 +36,7 @@ public final class AndroidTestReportVerifier {
         suites.put("ai.pipestream.turboembed.jni.android.AndroidSessionConformanceTest", 2);
         suites.put("ai.pipestream.turboembed.jni.android.AndroidTurboJniBridgeTest", 3);
         suites.put("ai.pipestream.turboembed.jni.TurboJniTest", 10);
+        suites.put("ai.pipestream.turboembed.opennlp.TurboAdaptersTest", 6);
         REQUIRED_SUITES = Collections.unmodifiableMap(suites);
     }
 
