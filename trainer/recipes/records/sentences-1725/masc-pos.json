@@ -29,7 +29,6 @@
     "out-masc-pos-bilstm"
   ],
   "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
-  "host": "rtx-4080-machine",
   "unix_time": 1793426900,
   "corpus": {
     "id": "masc-sentences",
@@ -140,7 +139,7 @@
       0.9917986857521267,
       0.991170427724857
     ],
-    "best_epoch": 4,
+    "best_epoch": 5,
     "epoch_seconds": [
       8.894481277,
       9.221969872,

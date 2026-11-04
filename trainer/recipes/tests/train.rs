@@ -114,6 +114,8 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     corpus(&data);
     let out = scratch("out-a");
     let r = train(&data, &out);
+    let raw: Value = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert!(raw.get("host").is_none(), "no host field in receipt.json");
     assert_eq!(r.schema, SCHEMA);
     assert_eq!(r.commit, "test");
     assert!(!r.corpus.recorded);
@@ -126,7 +128,7 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     assert_eq!(head.layer, "turboembed:entities");
     assert_eq!(head.labels, ["O", "B-HumanSettlement", "B-OtherPER"]);
     let training = r.training.as_ref().unwrap();
-    assert!(!training.dev.is_empty() && training.best_epoch < training.dev.len());
+    assert!((1..=training.dev.len()).contains(&training.best_epoch));
     let model = r.eval.model.as_ref().unwrap().score();
     let cmp = r.eval.comparison.as_ref().unwrap();
     assert_eq!((cmp.model, cmp.baseline), (model, r.eval.baseline.score()));
@@ -151,7 +153,7 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     let m = metadata(&bytes);
     let best = training.best_epoch;
     assert_eq!(m["best_epoch"].as_str(), Some(best.to_string().as_str()));
-    assert_eq!(m["dev"].as_str().unwrap().parse::<f64>().unwrap(), training.dev[best]);
+    assert_eq!(m["dev"].as_str().unwrap().parse::<f64>().unwrap(), training.dev[best - 1]);
 
     let again = scratch("out-b");
     let r2 = train(&data, &again);
@@ -432,6 +434,7 @@ fn the_baseline_learns_from_the_sentences_the_model_is_given() {
     };
     let one = scratch("max-train-1");
     let r = train_out(&one, "1");
+    assert_eq!(r.training.as_ref().unwrap().best_epoch, 1, "epochs are counted from 1");
     // Given only "a O", the baseline can only say O: no span is found.
     assert_eq!(r.eval.baseline.score(), 0.0);
     let cmp = r.eval.comparison.as_ref().unwrap();

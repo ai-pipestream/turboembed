@@ -17,7 +17,6 @@
     "2"
   ],
   "commit": "e97a161b5f1c8f903e2a64d5cf199952dda308ea",
-  "host": "cpu-32-core-machine",
   "unix_time": 1793675856,
   "corpus": {
     "id": "ud-it-markit-split",
@@ -282,7 +281,7 @@
           "label": "_"
         },
         {
-          "token": "Ciò",
+          "token": "Ci\u00f2",
           "label": "_"
         },
         {
@@ -402,7 +401,7 @@
           "label": "_"
         },
         {
-          "token": "Già",
+          "token": "Gi\u00e0",
           "label": "_"
         },
         {
@@ -574,7 +573,7 @@
           "label": "_"
         },
         {
-          "token": "Perché",
+          "token": "Perch\u00e9",
           "label": "_"
         },
         {
@@ -1090,7 +1089,7 @@
           "label": "_"
         },
         {
-          "token": "attività",
+          "token": "attivit\u00e0",
           "label": "_"
         },
         {
@@ -1214,7 +1213,7 @@
           "label": "_"
         },
         {
-          "token": "bensì",
+          "token": "bens\u00ec",
           "label": "_"
         },
         {
@@ -1286,7 +1285,7 @@
           "label": "_"
         },
         {
-          "token": "capacità",
+          "token": "capacit\u00e0",
           "label": "_"
         },
         {
@@ -1418,7 +1417,7 @@
           "label": "_"
         },
         {
-          "token": "cioè",
+          "token": "cio\u00e8",
           "label": "_"
         },
         {
@@ -1442,11 +1441,11 @@
           "label": "_"
         },
         {
-          "token": "città",
+          "token": "citt\u00e0",
           "label": "_"
         },
         {
-          "token": "ciò",
+          "token": "ci\u00f2",
           "label": "_"
         },
         {
@@ -1546,7 +1545,7 @@
           "label": "_"
         },
         {
-          "token": "comunità",
+          "token": "comunit\u00e0",
           "label": "_"
         },
         {
@@ -1762,7 +1761,7 @@
           "label": "_"
         },
         {
-          "token": "così",
+          "token": "cos\u00ec",
           "label": "_"
         },
         {
@@ -2050,7 +2049,7 @@
           "label": "_"
         },
         {
-          "token": "difficoltà",
+          "token": "difficolt\u00e0",
           "label": "_"
         },
         {
@@ -2138,7 +2137,7 @@
           "label": "_"
         },
         {
-          "token": "diversità",
+          "token": "diversit\u00e0",
           "label": "_"
         },
         {
@@ -2234,7 +2233,7 @@
           "label": "_"
         },
         {
-          "token": "dà",
+          "token": "d\u00e0",
           "label": "_"
         },
         {
@@ -2302,7 +2301,7 @@
           "label": "_"
         },
         {
-          "token": "entità",
+          "token": "entit\u00e0",
           "label": "_"
         },
         {
@@ -2422,11 +2421,11 @@
           "label": "_"
         },
         {
-          "token": "eternità",
+          "token": "eternit\u00e0",
           "label": "_"
         },
         {
-          "token": "età",
+          "token": "et\u00e0",
           "label": "_"
         },
         {
@@ -2482,7 +2481,7 @@
           "label": "_"
         },
         {
-          "token": "facoltà",
+          "token": "facolt\u00e0",
           "label": "_"
         },
         {
@@ -2554,7 +2553,7 @@
           "label": "_"
         },
         {
-          "token": "felicità",
+          "token": "felicit\u00e0",
           "label": "_"
         },
         {
@@ -2778,7 +2777,7 @@
           "label": "_"
         },
         {
-          "token": "già",
+          "token": "gi\u00e0",
           "label": "_"
         },
         {
@@ -2902,7 +2901,7 @@
           "label": "_"
         },
         {
-          "token": "immensità",
+          "token": "immensit\u00e0",
           "label": "_"
         },
         {
@@ -2962,7 +2961,7 @@
           "label": "_"
         },
         {
-          "token": "individualità",
+          "token": "individualit\u00e0",
           "label": "_"
         },
         {
@@ -2994,7 +2993,7 @@
           "label": "_"
         },
         {
-          "token": "infinità",
+          "token": "infinit\u00e0",
           "label": "_"
         },
         {
@@ -3118,7 +3117,7 @@
           "label": "_"
         },
         {
-          "token": "inviolabilità",
+          "token": "inviolabilit\u00e0",
           "label": "_"
         },
         {
@@ -3190,7 +3189,7 @@
           "label": "_"
         },
         {
-          "token": "lealtà",
+          "token": "lealt\u00e0",
           "label": "_"
         },
         {
@@ -3258,7 +3257,7 @@
           "label": "_"
         },
         {
-          "token": "libertà",
+          "token": "libert\u00e0",
           "label": "_"
         },
         {
@@ -3514,7 +3513,7 @@
           "label": "_"
         },
         {
-          "token": "metà",
+          "token": "met\u00e0",
           "label": "_"
         },
         {
@@ -3730,7 +3729,7 @@
           "label": "_"
         },
         {
-          "token": "necessità",
+          "token": "necessit\u00e0",
           "label": "_"
         },
         {
@@ -3790,7 +3789,7 @@
           "label": "_"
         },
         {
-          "token": "nonché",
+          "token": "nonch\u00e9",
           "label": "_"
         },
         {
@@ -3854,7 +3853,7 @@
           "label": "_"
         },
         {
-          "token": "né",
+          "token": "n\u00e9",
           "label": "_"
         },
         {
@@ -3922,7 +3921,7 @@
           "label": "_"
         },
         {
-          "token": "opportunità",
+          "token": "opportunit\u00e0",
           "label": "_"
         },
         {
@@ -4118,11 +4117,11 @@
           "label": "_"
         },
         {
-          "token": "perché",
+          "token": "perch\u00e9",
           "label": "_"
         },
         {
-          "token": "perciò",
+          "token": "perci\u00f2",
           "label": "_"
         },
         {
@@ -4170,7 +4169,7 @@
           "label": "_"
         },
         {
-          "token": "però",
+          "token": "per\u00f2",
           "label": "_"
         },
         {
@@ -4226,7 +4225,7 @@
           "label": "_"
         },
         {
-          "token": "più",
+          "token": "pi\u00f9",
           "label": "_"
         },
         {
@@ -4266,7 +4265,7 @@
           "label": "_"
         },
         {
-          "token": "poiché",
+          "token": "poich\u00e9",
           "label": "_"
         },
         {
@@ -4314,11 +4313,11 @@
           "label": "_"
         },
         {
-          "token": "porterà",
+          "token": "porter\u00e0",
           "label": "_"
         },
         {
-          "token": "portò",
+          "token": "port\u00f2",
           "label": "_"
         },
         {
@@ -4346,7 +4345,7 @@
           "label": "_"
         },
         {
-          "token": "possibilità",
+          "token": "possibilit\u00e0",
           "label": "_"
         },
         {
@@ -4566,7 +4565,7 @@
           "label": "_"
         },
         {
-          "token": "prosperità",
+          "token": "prosperit\u00e0",
           "label": "_"
         },
         {
@@ -4634,7 +4633,7 @@
           "label": "_"
         },
         {
-          "token": "può",
+          "token": "pu\u00f2",
           "label": "_"
         },
         {
@@ -4662,7 +4661,7 @@
           "label": "_"
         },
         {
-          "token": "qualità",
+          "token": "qualit\u00e0",
           "label": "_"
         },
         {
@@ -4678,7 +4677,7 @@
           "label": "_"
         },
         {
-          "token": "quantità",
+          "token": "quantit\u00e0",
           "label": "_"
         },
         {
@@ -4806,7 +4805,7 @@
           "label": "_"
         },
         {
-          "token": "realizzò",
+          "token": "realizz\u00f2",
           "label": "_"
         },
         {
@@ -4814,7 +4813,7 @@
           "label": "_"
         },
         {
-          "token": "realtà",
+          "token": "realt\u00e0",
           "label": "_"
         },
         {
@@ -4842,7 +4841,7 @@
           "label": "_"
         },
         {
-          "token": "responsabilità",
+          "token": "responsabilit\u00e0",
           "label": "_"
         },
         {
@@ -5046,7 +5045,7 @@
           "label": "_"
         },
         {
-          "token": "sarà",
+          "token": "sar\u00e0",
           "label": "_"
         },
         {
@@ -5302,7 +5301,7 @@
           "label": "_"
         },
         {
-          "token": "società",
+          "token": "societ\u00e0",
           "label": "_"
         },
         {
@@ -5610,7 +5609,7 @@
           "label": "_"
         },
         {
-          "token": "sé",
+          "token": "s\u00e9",
           "label": "_"
         },
         {
@@ -5858,7 +5857,7 @@
           "label": "_"
         },
         {
-          "token": "umanità",
+          "token": "umanit\u00e0",
           "label": "_"
         },
         {
@@ -5902,7 +5901,7 @@
           "label": "_"
         },
         {
-          "token": "unità",
+          "token": "unit\u00e0",
           "label": "_"
         },
         {
@@ -5990,7 +5989,7 @@
           "label": "_"
         },
         {
-          "token": "verità",
+          "token": "verit\u00e0",
           "label": "_"
         },
         {
@@ -6022,7 +6021,7 @@
           "label": "_"
         },
         {
-          "token": "virtù",
+          "token": "virt\u00f9",
           "label": "_"
         },
         {
@@ -6074,7 +6073,7 @@
           "label": "_"
         },
         {
-          "token": "volontà",
+          "token": "volont\u00e0",
           "label": "_"
         },
         {
@@ -6102,19 +6101,19 @@
           "label": "_"
         },
         {
-          "token": "È",
+          "token": "\u00c8",
           "label": "_"
         },
         {
-          "token": "è",
+          "token": "\u00e8",
           "label": "_"
         },
         {
-          "token": "–",
+          "token": "\u2013",
           "label": "_"
         },
         {
-          "token": "…",
+          "token": "\u2026",
           "label": "_"
         }
       ]
@@ -6180,7 +6179,7 @@
       0.9934519262250354,
       0.9934519262250354
     ],
-    "best_epoch": 16,
+    "best_epoch": 17,
     "epoch_seconds": [
       0.038856438,
       0.037210504,

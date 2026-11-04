@@ -438,7 +438,9 @@ fn committed_sentence_receipts_verify_and_name_no_machine() {
         assert_eq!(r.corpus.id, corpus_id);
         assert!(r.corpus.recorded, "{file}: unrecorded corpus");
         assert_eq!(r.corpus.class().unwrap(), class);
-        assert!(["cloud-container", "rtx-4080-machine"].contains(&r.host.as_str()), "{file}: host {}", r.host);
+        let raw_val: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert!(raw_val.get("host").is_none(), "{file} contains host field");
+        assert!((1..=r.training.as_ref().unwrap().dev.len()).contains(&r.training.as_ref().unwrap().best_epoch));
         assert!(r.command.iter().all(|c| !c.starts_with('/')), "{file}: absolute path in command");
         let lower = raw.to_lowercase();
         assert!(!lower.contains("opennlp") && !lower.contains("/work/"), "{file}: forbidden text");
