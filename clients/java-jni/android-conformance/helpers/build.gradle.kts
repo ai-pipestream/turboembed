@@ -21,6 +21,7 @@ tasks.test {
 tasks.register<JavaExec>("verifyAndroidTestResults") {
     group = "verification"
     description = "Verifies connectedDebugAndroidTest XML reports have non-zero passing tests across all suites."
+    mustRunAfter(":app:connectedDebugAndroidTest")
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("ai.pipestream.turboembed.jni.android.AndroidTestReportVerifier")
     args(layout.projectDirectory.dir("../app/build/outputs/androidTest-results/connected").asFile.absolutePath)

@@ -76,6 +76,7 @@ done
 
 cd "$module"
 rm -rf "$app/build/outputs/androidTest-results/connected"
-./gradlew --no-daemon :helpers:test :app:connectedDebugAndroidTest :helpers:verifyAndroidTestResults
+./gradlew --no-daemon :helpers:test :app:connectedDebugAndroidTest
+./gradlew --no-daemon :helpers:verifyAndroidTestResults
 
 echo "android conformance finished"
