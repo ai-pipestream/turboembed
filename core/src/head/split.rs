@@ -156,6 +156,19 @@ impl TokenSplitter {
         self.scorer.scores_forms(states, words, forms, out, w)
     }
 
+    /// As [`scores`](Self::scores), selecting a language embedding by name.
+    pub fn scores_language(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        forms: Option<&[&str]>,
+        language: Option<&str>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<usize> {
+        self.scorer.scores_language(states, words, forms, language, out, w)
+    }
+
     /// Each token's label: a looked-up token's own label, else the
     /// best-scoring one that fits `forms[i]` (a tie to the lower index).
     /// `_` always fits. A looked-up token's scores are not read, so a

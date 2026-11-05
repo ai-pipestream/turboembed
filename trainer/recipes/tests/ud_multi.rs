@@ -15,7 +15,12 @@ fn scratch(name: &str) -> PathBuf {
 
 fn sentence(bank: &str, index: usize) -> String {
     let word = format!("{bank}{index}");
-    format!("# sent_id = {bank}-{index}\n1\t{word}\t{word}\tNOUN\tNN\tNumber=Sing\t0\troot\t_\t_\n\n")
+    format!(
+        "# sent_id = {bank}-{index}\n1\t{word}\t{word}\tNOUN\tNN\tNumber=Sing\t0\troot\t_\t_\n\
+         2-3\tal\t_\t_\t_\t_\t_\t_\t_\t_\n\
+         2\ta\ta\tADP\tIN\t_\t1\tcase\t_\t_\n\
+         3\tel\tel\tDET\tDT\t_\t1\tdet\t_\t_\n\n"
+    )
 }
 
 fn write_bank(dir: &Path, bank: &Treebank, train: usize) {
@@ -69,7 +74,17 @@ fn multi_treebank_read_prefixes_xpos_and_only_resamples_training() {
     assert_eq!(corpus.splits.test[1].labels[0], "ud-ca-ancora:NN");
     let head = spec(&corpus, &HeadOptions::default()).unwrap();
     assert_eq!(head.name, "xpos");
-    assert_eq!(head.labels, ["ud-ca-ancora:NN", "ud-es-ancora:NN"]);
+    assert_eq!(
+        head.labels,
+        [
+            "ud-ca-ancora:DT",
+            "ud-ca-ancora:IN",
+            "ud-ca-ancora:NN",
+            "ud-es-ancora:DT",
+            "ud-es-ancora:IN",
+            "ud-es-ancora:NN"
+        ]
+    );
     let error = read("ud-es-ancora,ud-es-ancora", Column::Upos, &dir, true, 1.0).unwrap_err();
     assert!(error.0.contains("listed twice"), "{error}");
     fs::remove_dir_all(dir).unwrap();
@@ -116,7 +131,17 @@ fn the_cli_trains_a_multi_treebank_head_and_records_sampling() {
     assert_eq!(receipt.corpus.test.sentences, 2);
     let head = receipt.head.unwrap();
     assert_eq!(head.name, "xpos");
-    assert_eq!(head.labels, ["ud-ca-ancora:NN", "ud-es-ancora:NN"]);
+    assert_eq!(
+        head.labels,
+        [
+            "ud-ca-ancora:DT",
+            "ud-ca-ancora:IN",
+            "ud-ca-ancora:NN",
+            "ud-es-ancora:DT",
+            "ud-es-ancora:IN",
+            "ud-es-ancora:NN"
+        ]
+    );
     let language = head.language.unwrap();
     assert_eq!(language.languages, ["es", "ca"]);
     assert_eq!(language.dim, 16);
@@ -211,6 +236,54 @@ fn the_cli_trains_a_multi_treebank_lemmatizer() {
     let head = receipt.head.unwrap();
     assert_eq!(head.name, "lemma");
     assert_eq!(head.kind, turbo::manifest::HeadKind::EditTreeLemmatizer);
+    let language = head.language.unwrap();
+    assert_eq!(language.languages, ["es", "ca"]);
+    assert_eq!(language.dim, 16);
+    fs::remove_dir_all(dir).unwrap();
+    fs::remove_dir_all(out).unwrap();
+}
+
+#[test]
+fn the_cli_trains_a_multi_treebank_token_splitter() {
+    let dir = scratch("split-data");
+    let out = scratch("split-out");
+    corpora(&dir);
+    let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+    let output = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args([
+            "train-split",
+            "--corpus",
+            "ud-es-ancora,ud-ca-ancora",
+            "--dir",
+            dir.to_str().unwrap(),
+            "--bundle",
+            bundle.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--unrecorded-corpus",
+            "--sample",
+            "0",
+            "--epochs",
+            "1",
+            "--batch",
+            "2",
+            "--threads",
+            "1",
+            "--commit",
+            "test",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let receipt: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(receipt.config.unwrap().sample, Some(0.0));
+    assert_eq!(receipt.corpus.train.sentences, 4);
+    assert_eq!(receipt.corpus.dev.sentences, 2);
+    assert_eq!(receipt.corpus.test.sentences, 2);
+    let head = receipt.head.unwrap();
+    assert_eq!(head.name, "words");
+    assert_eq!(head.kind, turbo::manifest::HeadKind::TokenSplit);
+    assert!(head.labels.len() > 1, "{:?}", head.labels);
     let language = head.language.unwrap();
     assert_eq!(language.languages, ["es", "ca"]);
     assert_eq!(language.dim, 16);
