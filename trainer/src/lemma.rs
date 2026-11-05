@@ -34,6 +34,8 @@ pub struct Lemmatizer<R> {
 /// The activations of one sentence, kept for backward.
 #[derive(Debug, Default)]
 pub struct Work<R> {
+    input: Vec<R>,
+    language: Option<u32>,
     adapter: adapter::Work<R>,
     joined: Vec<R>,
     scores: Vec<R>,
@@ -54,7 +56,9 @@ impl<R: Real> Lemmatizer<R> {
         let mut params = Vec::with_capacity(shapes.len());
         for ((suffix, shape), n) in &shapes {
             let n = *n;
-            let v = if shape.len() == 2 {
+            let v = if suffix == "language.embedding" {
+                (0..n).map(|_| R::from_f64(rng.uniform(0.05))).collect()
+            } else if shape.len() == 2 {
                 let limit = (6.0 / (shape[0] + shape[1]) as f64).sqrt();
                 (0..n).map(|_| R::from_f64(rng.uniform(limit))).collect()
             } else if suffix.starts_with("lstm.") {
@@ -119,42 +123,97 @@ impl<R: Real> Lemmatizer<R> {
     /// Whether tensor i takes weight decay: matrices do; biases and the
     /// tag embeddings do not.
     pub fn decays(&self) -> Vec<bool> {
-        self.names.iter().map(|n| n.ends_with(".w") || n.ends_with(".u") || n == "out.weight").collect()
+        self.names
+            .iter()
+            .map(|n| n.ends_with(".w") || n.ends_with(".u") || n == "out.weight" || n == "language.embedding")
+            .collect()
     }
 
     pub fn zero_grads(&self) -> Vec<Vec<R>> {
         self.params.iter().map(|p| vec![R::ZERO; p.len()]).collect()
     }
 
+    fn language(&self) -> usize {
+        self.spec.language.as_ref().map_or(0, |language| language.dim as usize)
+    }
+
+    fn adapter_at(&self) -> usize {
+        usize::from(self.spec.language.is_some())
+    }
+
     fn shape(&self) -> Shape {
         let (layers, h) = self.spec.adapter.map_or((0, 0), |a| (a.bilstm.layers as usize, a.bilstm.hidden as usize));
-        Shape { hidden: self.hidden, layers, h }
+        Shape { hidden: self.hidden + self.language(), layers, h }
     }
 
     /// (tag embedding width, index of `pos.embedding`), 0 and None
     /// without a tag input.
     fn pos(&self) -> (usize, Option<usize>) {
         match &self.spec.pos_input {
-            Some(p) => (p.dim as usize, Some(6 * self.shape().layers)),
+            Some(p) => (p.dim as usize, Some(self.adapter_at() + 6 * self.shape().layers)),
             None => (0, None),
+        }
+    }
+
+    fn language_row(&self, row: Option<u32>) -> Result<Option<usize>> {
+        let Some(language) = &self.spec.language else {
+            return match row {
+                Some(_) => Err(invalid("trainer: a language given to a head without a language input")),
+                None => Ok(None),
+            };
+        };
+        let row = match row {
+            Some(row) => row as usize,
+            None if language.languages.len() == 1 => 0,
+            None => return Err(invalid("trainer: a multilingual example needs a language")),
+        };
+        if row >= language.languages.len() {
+            return Err(invalid(format!("trainer: language row {row} is out of range")));
+        }
+        Ok(Some(row))
+    }
+
+    fn join_language(&self, features: &[R], language: Option<usize>, n: usize, w: &mut Work<R>) {
+        let Some(row) = language else { return };
+        let (hidden, d) = (self.hidden, self.language());
+        w.input.clear();
+        w.input.resize(n * (hidden + d), R::ZERO);
+        for i in 0..n {
+            let out = &mut w.input[i * (hidden + d)..][..hidden + d];
+            out[..hidden].copy_from_slice(&features[i * hidden..][..hidden]);
+            out[hidden..].copy_from_slice(&self.params[0][row * d..][..d]);
         }
     }
 
     /// The tree scores [n, trees] of features [n, hidden] and, with a tag
     /// input, each word's tag; kept in `w`.
     pub fn forward(&self, features: &[R], tags: &[u32], w: &mut Work<R>) -> Result<usize> {
+        self.forward_language(features, tags, None, w)
+    }
+
+    /// As [`forward`](Self::forward), with the language-table row.
+    pub fn forward_language(
+        &self,
+        features: &[R],
+        tags: &[u32],
+        language: Option<u32>,
+        w: &mut Work<R>,
+    ) -> Result<usize> {
         if self.hidden == 0 || !features.len().is_multiple_of(self.hidden) {
             return Err(invalid(format!("trainer: {} features are not rows of {}", features.len(), self.hidden)));
         }
         let n = features.len() / self.hidden;
+        let language = self.language_row(language)?;
+        self.join_language(features, language, n, w);
         let (dim, emb) = self.pos();
         let wanted = if emb.is_some() { n } else { 0 };
         if tags.len() != wanted {
             return Err(invalid(format!("trainer: {} tags for {n} words, {wanted} wanted", tags.len())));
         }
         let shape = self.shape();
-        adapter::forward(shape, &self.params, features, &mut w.adapter);
-        let x = adapter::output(features, &w.adapter);
+        let x0: &[R] = if self.spec.language.is_some() { &w.input } else { features };
+        adapter::forward(shape, &self.params[self.adapter_at()..], x0, &mut w.adapter);
+        let x = adapter::output(x0, &w.adapter);
         let width = shape.width();
         w.joined.clear();
         for i in 0..n {
@@ -190,6 +249,20 @@ impl<R: Real> Lemmatizer<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        self.loss_language(features, tags, None, gold, grads, w)
+    }
+
+    /// As [`loss`](Self::loss), with the language-table row.
+    pub fn loss_language(
+        &self,
+        features: &[R],
+        tags: &[u32],
+        language: Option<u32>,
+        gold: &[Option<u32>],
+        grads: &mut [Vec<R>],
+        w: &mut Work<R>,
+    ) -> Result<f64> {
+        w.language = language;
         self.loss_and_input(features, tags, gold, grads, w, None)
     }
 
@@ -204,6 +277,7 @@ impl<R: Real> Lemmatizer<R> {
         w: &mut Work<R>,
         dfeatures: &mut Vec<R>,
     ) -> Result<f64> {
+        w.language = None;
         self.loss_and_input(features, tags, gold, grads, w, Some(dfeatures))
     }
 
@@ -222,7 +296,7 @@ impl<R: Real> Lemmatizer<R> {
         if features.iter().any(|v| !v.to_f64().is_finite()) {
             return Err(invalid("trainer: a lemmatizer feature is not finite"));
         }
-        let n = self.forward(features, tags, w)?;
+        let n = self.forward_language(features, tags, w.language, w)?;
         if gold.len() != n {
             return Err(invalid(format!("trainer: {} gold trees for {n} words", gold.len())));
         }
@@ -256,18 +330,36 @@ impl<R: Real> Lemmatizer<R> {
             }
         }
         let input = dfeatures.is_some();
-        let dx0 = if shape.layers > 0 || input {
+        let joined = self.spec.language.is_some();
+        let x0: &[R] = if joined { &w.input } else { features };
+        let adapter_at = self.adapter_at();
+        let dx0 = if shape.layers > 0 || input || joined {
             let dx: Vec<R> = (0..n).flat_map(|i| djoined[i * joined_width..][..width].iter().copied()).collect();
-            adapter::backward(shape, &self.params, features, dx, &mut local, &w.adapter, input)
+            adapter::backward(
+                shape,
+                &self.params[adapter_at..],
+                x0,
+                dx,
+                &mut local[adapter_at..],
+                &w.adapter,
+                input || joined,
+            )
         } else {
             Vec::new()
         };
+        if let Some(row) = self.language_row(w.language)? {
+            let (hidden, d) = (self.hidden, self.language());
+            for i in 0..n {
+                let src = &dx0[i * (hidden + d) + hidden..][..d];
+                local[0][row * d..][..d].iter_mut().zip(src).for_each(|(a, &b)| *a += b);
+            }
+        }
         if !total.is_finite() || !local.iter().flatten().all(|v| v.to_f64().is_finite()) {
             return Err(invalid("trainer: the lemmatizer's loss or a gradient is not finite"));
         }
         if let Some(d) = dfeatures {
             d.clear();
-            d.extend_from_slice(&dx0);
+            d.extend((0..n).flat_map(|i| dx0[i * (self.hidden + self.language())..][..self.hidden].iter().copied()));
         }
         for (g, l) in grads.iter_mut().zip(local) {
             for (a, b) in g.iter_mut().zip(l) {

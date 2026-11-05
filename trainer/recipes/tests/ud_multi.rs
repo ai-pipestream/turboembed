@@ -170,3 +170,50 @@ fn the_cli_trains_a_multi_treebank_parser() {
     fs::remove_dir_all(dir).unwrap();
     fs::remove_dir_all(out).unwrap();
 }
+
+#[test]
+fn the_cli_trains_a_multi_treebank_lemmatizer() {
+    let dir = scratch("lemma-data");
+    let out = scratch("lemma-out");
+    corpora(&dir);
+    let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+    let output = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args([
+            "train-lemma",
+            "--corpus",
+            "ud-es-ancora,ud-ca-ancora",
+            "--dir",
+            dir.to_str().unwrap(),
+            "--bundle",
+            bundle.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--unrecorded-corpus",
+            "--sample",
+            "0",
+            "--epochs",
+            "1",
+            "--batch",
+            "2",
+            "--threads",
+            "1",
+            "--commit",
+            "test",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let receipt: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(receipt.config.unwrap().sample, Some(0.0));
+    assert_eq!(receipt.corpus.train.sentences, 4);
+    assert_eq!(receipt.corpus.dev.sentences, 2);
+    assert_eq!(receipt.corpus.test.sentences, 2);
+    let head = receipt.head.unwrap();
+    assert_eq!(head.name, "lemma");
+    assert_eq!(head.kind, turbo::manifest::HeadKind::EditTreeLemmatizer);
+    let language = head.language.unwrap();
+    assert_eq!(language.languages, ["es", "ca"]);
+    assert_eq!(language.dim, 16);
+    fs::remove_dir_all(dir).unwrap();
+    fs::remove_dir_all(out).unwrap();
+}
