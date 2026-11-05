@@ -65,7 +65,7 @@ fn check(dir: &Path, layers: usize, hidden: usize) {
 fn bert_states_match_the_core_and_export_reproduces_every_tensor() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
     check(&dir, 2, 32);
-    if let Some(dir) = std::env::var_os("TURBO_TEST_XLM_BUNDLE") {
+    if let Some(dir) = std::env::var_os("TURBO_TEST_XLM_BUNDLE").map(turbo_pins::require) {
         check(Path::new(&dir), 12, 768);
     }
 }

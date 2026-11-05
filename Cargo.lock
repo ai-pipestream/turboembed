@@ -2899,6 +2899,7 @@ name = "turbo-trainer"
 version = "0.1.0"
 dependencies = [
  "turbo",
+ "turbo-pins",
 ]
 
 [[package]]
@@ -2912,6 +2913,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-pins",
  "turbo-sentdetect",
  "turbo-tagger",
  "turbo-train-recipes",

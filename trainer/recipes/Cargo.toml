@@ -36,3 +36,4 @@ cuda-shim = ["turbo-trainer/cuda-shim"]
 
 [dev-dependencies]
 turbo-analysis-layers = { path = "../../analysis/layers" }
+turbo-pins = { path = "../../analysis/pins" }
