@@ -12,8 +12,18 @@ use turbo_tagger::WordEncoder;
 use turbo_trainer_recipes::assemble::assemble_bundle;
 use turbo_trainer_recipes::corpus::Sentence;
 use turbo_trainer_recipes::open_span::{dictionary_baseline, entity_types, filter_sentences, predict};
-use turbo_trainer_recipes::open_span_mix::align_train_features;
+use turbo_trainer_recipes::open_span_mix::{align_train_features, corpus_active_types};
 use turbo_trainer_recipes::{eval, read_corpus, receipt::Receipt};
+
+#[test]
+fn corpus_schema_limits_supervision_without_reordering_global_labels() {
+    let active = vec!["person".to_owned(), "group".to_owned(), "VisualWork".to_owned(), "location".to_owned()];
+    let wnut = vec!["location".to_owned(), "person".to_owned()];
+    let multi = vec!["VisualWork".to_owned()];
+    assert_eq!(corpus_active_types(&wnut, &active), ["person", "location"]);
+    assert_eq!(corpus_active_types(&multi, &active), ["VisualWork"]);
+    assert!(corpus_active_types(&["location".to_owned()], &active[..1]).is_empty());
+}
 
 #[test]
 fn balanced_training_features_repeat_with_their_sentences() {

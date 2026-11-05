@@ -9,7 +9,21 @@ use turbo_trainer::fit_open_span::open_span_f1;
 use turbo_trainer::open_span::{OpenSpans, Work};
 use turbo_trainer::rng::Rng;
 use turbo_trainer::span::GoldSpan;
-use turbo_trainer::{Config, OpenSpanExample, fit_open_spans};
+use turbo_trainer::{Config, OpenSpanExample, fit_open_spans, fit_open_spans_with_label_center};
+
+#[test]
+fn an_explicit_label_center_preserves_single_schema_training() {
+    let s = spec(Decode::SpansFlat, 4);
+    let dirs: [[f32; HIDDEN]; 2] = [[0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]];
+    let train = data(8, 8, &dirs);
+    let dev = data(9, 4, &dirs);
+    let c = Config { epochs: 2, batch: 4, patience: 0, threads: 1, ..Config::default() };
+    let (old, _) = fit_open_spans(&s, HIDDEN, &train, &dev, &c).unwrap();
+    let labels = train[0].label_features.clone();
+    let (new, _) = fit_open_spans_with_label_center(&s, HIDDEN, &train, &dev, &c, &labels, |_, _, _| Ok(())).unwrap();
+    assert_eq!(new.params(), old.params());
+    assert!(fit_open_spans_with_label_center(&s, HIDDEN, &train, &dev, &c, &[], |_, _, _| Ok(())).is_err());
+}
 
 const HIDDEN: usize = 4;
 

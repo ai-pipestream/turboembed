@@ -51,6 +51,12 @@ pub fn align_train_features(features: &[Vec<f32>], sentences: usize, period: usi
     Ok((0..sentences).map(|i| features[i % period].clone()).collect())
 }
 
+/// Keeps the global label order while restricting supervision to the types
+/// declared by one corpus. Types absent from that corpus are not outside.
+pub fn corpus_active_types(declared: &[String], active: &[String]) -> Vec<String> {
+    active.iter().filter(|kind| declared.contains(*kind)).cloned().collect()
+}
+
 pub fn combine(corpora: &[Corpus]) -> Result<Corpus> {
     let Some(first) = corpora.first() else { return Err(Error("open-span needs at least one corpus".into())) };
     if corpora.len() == 1 {
