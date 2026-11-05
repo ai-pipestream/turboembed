@@ -326,7 +326,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             train_set,
             test,
             &predicted,
-            train_rows,
+            &train_rows[..train_set.len()],
             test_rows,
             names,
             turbo_trainer_recipes::eval::LanguageEvalOptions {

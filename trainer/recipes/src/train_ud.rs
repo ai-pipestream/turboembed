@@ -192,7 +192,7 @@ pub(super) fn train(
             &train_s,
             &test,
             &predicted,
-            train_rows,
+            &train_rows[..train_s.len()],
             test_rows,
             names,
             turbo_trainer_recipes::eval::LanguageEvalOptions {

@@ -137,7 +137,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
             &train_s,
             &test,
             &predicted,
-            train_rows,
+            &train_rows[..train_s.len()],
             test_rows,
             names,
             turbo_trainer_recipes::eval::LanguageEvalOptions {
