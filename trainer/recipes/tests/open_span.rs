@@ -211,6 +211,24 @@ fn multi_corpus_training_scores_each_held_out_dataset_and_both_baselines() {
     assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
     let balanced: Receipt = serde_json::from_slice(&fs::read(balanced_out.join("receipt.json")).unwrap()).unwrap();
     assert_eq!(balanced.corpus.train.sentences, 8);
+    let empty_out = dir.join("empty-balanced");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(format!("{},{}", wnut.display(), dir.join("multi").display()))
+        .args(["--hold-out", "location,VisualWork,Scientist,Clothing", "--balance", "--max-train", "1", "--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&empty_out)
+        .arg("--unrecorded-corpus")
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(
+        String::from_utf8_lossy(&result.stderr).contains("nonempty training split in every corpus"),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(!empty_out.exists());
 
     let bad = dir.join("bad");
     let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
