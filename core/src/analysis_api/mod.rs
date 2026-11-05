@@ -347,3 +347,90 @@ pub(crate) unsafe fn analysis_result_handle<'a>(r: *const turbo_analysis_result)
         _ => Err(Error::new(INVALID_HANDLE, "not a turbo_analysis_result")),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::alloc::{Layout, alloc_zeroed, dealloc};
+
+    use super::*;
+    use crate::status::{self, INVALID_ARGUMENT, INVALID_STRUCT_SIZE};
+
+    #[repr(C)]
+    struct LegacyAnalyzerDescV1 {
+        struct_size: u32,
+        flags: u32,
+        language: turbo_text,
+        sent_model_path: turbo_text,
+        tok_model_path: turbo_text,
+        pos_model_path: turbo_text,
+        lemma_model_path: turbo_text,
+        ner_model_path: turbo_text,
+    }
+
+    const _: () = assert!(size_of::<LegacyAnalyzerDescV1>() == TURBO_ANALYZER_DESC_SIZE_V1);
+    const _: () = assert!(align_of::<LegacyAnalyzerDescV1>() == align_of::<turbo_analyzer_desc>());
+
+    fn view(s: &str) -> turbo_text {
+        turbo_text { ptr: s.as_ptr().cast(), len: s.len() as u64 }
+    }
+
+    #[test]
+    fn legacy_and_short_descriptor_allocations_are_decoded_without_oversized_references() {
+        unsafe {
+            assert_eq!(decode_analyzer_desc(std::ptr::null()).unwrap(), AnalyzerConfig::default());
+
+            let aligned = [0u64; 16];
+            let misaligned = aligned.as_ptr().cast::<u8>().add(1).cast::<turbo_analyzer_desc>();
+            assert_eq!(decode_analyzer_desc(misaligned).unwrap_err().code, INVALID_ARGUMENT);
+
+            // Exact legacy-sized heap allocation (104 bytes on 64-bit): no
+            // trailing bundle_path bytes exist in the allocation.
+            let layout =
+                Layout::from_size_align(TURBO_ANALYZER_DESC_SIZE_V1, align_of::<turbo_analyzer_desc>()).unwrap();
+            let raw = alloc_zeroed(layout).cast::<LegacyAnalyzerDescV1>();
+            assert!(!raw.is_null());
+            (*raw).struct_size = TURBO_ANALYZER_DESC_SIZE_V1 as u32;
+            (*raw).language = view("de");
+            let cfg = decode_analyzer_desc(raw.cast::<turbo_analyzer_desc>()).unwrap();
+            assert_eq!(cfg, AnalyzerConfig { language: "de", bundle_path: "" });
+
+            (*raw).language = view("");
+            let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();
+            assert_eq!(
+                turbo_analyzer_create(raw.cast::<turbo_analyzer_desc>(), &mut analyzer, std::ptr::null_mut()),
+                status::OK
+            );
+            assert!(!analyzer.is_null());
+            let mut tok_res: *mut turbo_analysis_result = std::ptr::null_mut();
+            assert_eq!(
+                turbo_analyzer_tokenize(analyzer, view("Legacy size works."), &mut tok_res, std::ptr::null_mut()),
+                status::OK
+            );
+            let mut spans_ptr: *const turbo_span = std::ptr::null();
+            let mut count = 0u32;
+            assert_eq!(
+                turbo_analysis_result_spans(tok_res, &mut spans_ptr, &mut count, std::ptr::null_mut()),
+                status::OK
+            );
+            assert_eq!(count, 4);
+            turbo_analysis_result_release(tok_res);
+            turbo_analyzer_release(analyzer);
+
+            (*raw).pos_model_path = view("en-pos.bin");
+            let retired_err = decode_analyzer_desc(raw.cast::<turbo_analyzer_desc>()).unwrap_err();
+            assert_eq!((retired_err.code, retired_err.field), (INVALID_ARGUMENT, 4));
+            dealloc(raw.cast::<u8>(), layout);
+
+            // A 4-byte allocation holding only an unsupported struct_size is
+            // rejected before any field past struct_size is read.
+            let short_layout = Layout::from_size_align(size_of::<u32>(), align_of::<turbo_analyzer_desc>()).unwrap();
+            let short = alloc_zeroed(short_layout).cast::<u32>();
+            for bad_size in [0u32, 4, 112, 128] {
+                *short = bad_size;
+                let err = decode_analyzer_desc(short.cast::<turbo_analyzer_desc>()).unwrap_err();
+                assert_eq!(err.code, INVALID_STRUCT_SIZE);
+            }
+            dealloc(short.cast::<u8>(), short_layout);
+        }
+    }
+}

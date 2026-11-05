@@ -6,16 +6,20 @@
 //! documents.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use turbo::head::RelationClassifier;
 use turbo::head::relation::RelationWork;
 use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, RelationShape, Scheme, WordPooling};
+use turbo::safetensors;
 use turbo_tagger::WordEncoder;
 use turbo_trainer::RelationExample;
 use turbo_trainer::relation::GoldRelation;
 use turbo_trainer::rng::Rng;
 
+use crate::corpus::FileRecord;
 use crate::eval::{Comparison, Metrics, SpanScore};
+use crate::receipt::{EncoderRecord, Receipt};
 use crate::redocred::{Document, ENTITY_TYPES, HEAD, LAYER, RelationCorpus, Triple};
 use crate::{Error, Result};
 
@@ -32,12 +36,115 @@ pub struct RelationOptions {
     pub type_dim: u32,
     /// BiLSTM adapter (hidden, layers), or none.
     pub bilstm: Option<(u32, u32)>,
+    /// `Decode::Relations` (adaptive threshold, several labels a pair) or
+    /// `Decode::Relation` (the single-label softmax variant).
+    pub decode: Decode,
 }
 
 impl Default for RelationOptions {
     fn default() -> Self {
-        RelationOptions { pooling: WordPooling::First, mlp: 256, type_dim: 32, bilstm: None }
+        RelationOptions { pooling: WordPooling::First, mlp: 256, type_dim: 32, bilstm: None, decode: Decode::Relations }
     }
+}
+
+/// The decode `--decode` names: `relations` (the adaptive threshold) or
+/// `relation` (the single-label variant), or either's manifest name.
+///
+/// # Errors
+///
+/// Any other name.
+pub fn decode_named(name: &str) -> Result<Decode> {
+    match name {
+        "relations" | "DECODE_RELATIONS" => Ok(Decode::Relations),
+        "relation" | "DECODE_RELATION" => Ok(Decode::Relation),
+        _ => Err(Error(format!("--decode {name:?}: relations (adaptive threshold) or relation (single label)"))),
+    }
+}
+
+/// A head an earlier `train-relation` wrote, to score beside a new one:
+/// the classifier, a name for it, and the files it was read from with
+/// their digests.
+pub struct PriorHead {
+    pub head: RelationClassifier,
+    pub name: String,
+    pub files: Vec<FileRecord>,
+}
+
+/// The relation head written to `dir` (`head.json`, `head.safetensors`
+/// and `receipt.json`, as `train-relation` writes them), to score on the
+/// features the run computes for `spec`. It must read those features as
+/// `spec` does: the same labels, word pooling and entity type table, on
+/// the same encoder (`encoder`'s model, revision, manifest digest,
+/// width, layers and hidden size; backend, device and precision may
+/// differ).
+///
+/// # Errors
+///
+/// A file missing or malformed, another kind of head, any of the above
+/// differing, or what the core refuses of its tensors.
+pub fn load_head(dir: &Path, spec: &HeadSpec, encoder: &EncoderRecord) -> Result<PriorHead> {
+    let at = |name: &str| dir.join(name).display().to_string();
+    let read = |name: &str| std::fs::read(dir.join(name)).map_err(|e| Error(format!("{}: {e}", at(name))));
+    let (head_json, weights, receipt_json) = (read("head.json")?, read("head.safetensors")?, read("receipt.json")?);
+    let prior: HeadSpec = serde_json::from_slice(&head_json).map_err(|e| Error(format!("{}: {e}", at("head.json"))))?;
+    let receipt: Receipt =
+        serde_json::from_slice(&receipt_json).map_err(|e| Error(format!("{}: {e}", at("receipt.json"))))?;
+    let refuse = |what: &str| Err(Error(format!("{}: {what} differs from this run's", dir.display())));
+    if prior.kind != HeadKind::RelationClassifier || prior.labels != spec.labels {
+        return refuse("the head's kind or labels");
+    }
+    if prior.word_pooling != spec.word_pooling {
+        return refuse("word pooling (--pooling)");
+    }
+    let types = |s: &HeadSpec| s.relation.as_ref().map(|r| r.entity_labels.clone());
+    if types(&prior) != types(spec) {
+        return refuse("the entity type table");
+    }
+    let same = |e: &EncoderRecord| {
+        (&e.model, &e.revision, &e.manifest_sha256, e.hidden, e.layers, e.width)
+            == (
+                &encoder.model,
+                &encoder.revision,
+                &encoder.manifest_sha256,
+                encoder.hidden,
+                encoder.layers,
+                encoder.width,
+            )
+    };
+    if !receipt.encoder.as_ref().is_some_and(same) {
+        return refuse("the encoder");
+    }
+    let file = safetensors::File::parse("head.safetensors", &weights).map_err(|e| Error(e.message))?;
+    let get = |s: &str| file.tensor(&format!("{}.{s}", prior.tensor_prefix)).map(|t| t.f32s());
+    let head = RelationClassifier::from_tensors(&prior, encoder.hidden, &get)
+        .map_err(|e| Error(format!("{}: {}", dir.display(), e.message)))?;
+    let record = |path: &str, bytes: &[u8]| FileRecord {
+        path: path.into(),
+        size: bytes.len() as u64,
+        sha256: turbo::bundle::sha256_hex(bytes),
+    };
+    let files = vec![
+        record("head.json", &head_json),
+        record("head.safetensors", &weights),
+        record("receipt.json", &receipt_json),
+    ];
+    let dir_name = dir.file_name().map_or("head".into(), |n| n.to_string_lossy());
+    Ok(PriorHead { name: format!("{dir_name} ({:?})", prior.decode), head, files })
+}
+
+/// The `top` labels with the most gold relations in `m` (ties by name),
+/// as a markdown table of gold, found, precision, recall and F1.
+pub fn label_table(m: &Metrics, top: usize) -> String {
+    let Metrics::Relations { per_type, .. } = m else { return String::new() };
+    let mut rows: Vec<(&String, &SpanScore)> = per_type.iter().collect();
+    rows.sort_by(|a, b| b.1.gold.cmp(&a.1.gold).then(a.0.cmp(b.0)));
+    let mut out = String::from("| label | gold | found | P | R | F1 |\n|---|---|---|---|---|---|\n");
+    for (label, s) in rows.into_iter().take(top) {
+        let line =
+            format!("| {label} | {} | {} | {:.4} | {:.4} | {:.4} |\n", s.gold, s.found, s.precision, s.recall, s.f1);
+        out.push_str(&line);
+    }
+    out
 }
 
 /// The relation head for `corpus`, over its labels and entity types,
@@ -56,10 +163,12 @@ pub fn spec(corpus: &RelationCorpus, o: &RelationOptions) -> Result<HeadSpec> {
         scheme: Scheme::Tags,
         word_pooling: o.pooling,
         adapter: o.bilstm.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
-        decode: Decode::Relations,
+        decode: o.decode,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         span: None,
         coref: None,

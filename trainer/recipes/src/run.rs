@@ -16,7 +16,7 @@ use crate::corpus::{Corpus, FileRecord, Sentence, Task};
 use crate::{Error, Result};
 
 /// The metadata keys of a checkpoint's `head.safetensors`: the epoch the
-/// weights are from (counted from 0) and its dev score, as decimal text.
+/// weights are from (counted from 1) and its dev score, as decimal text.
 pub const CHECKPOINT_EPOCH: &str = "best_epoch";
 /// See [`CHECKPOINT_EPOCH`].
 pub const CHECKPOINT_DEV: &str = "dev";
@@ -74,7 +74,9 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         decode: if o.crf { Decode::Crf } else { Decode::Argmax },
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: o.hash,
+        seen: None,
         layer_mix: None,
         span: None,
         relation: None,
@@ -154,6 +156,8 @@ pub fn named(spec: &HeadSpec, hidden: usize, values: Vec<(String, Vec<f32>)>) ->
     let expected = match spec.kind {
         HeadKind::OpenSpan => turbo::head::open_span::tensors(spec, hidden),
         HeadKind::SpanClassifier => turbo::head::span::tensors(spec, hidden),
+        HeadKind::EditTreeLemmatizer => turbo::head::lemmatizer::tensors(spec, hidden),
+        HeadKind::BiaffineParser => turbo::head::parser::tensors(spec, hidden),
         _ => tensors(spec, hidden),
     };
     let shapes: BTreeMap<String, Vec<u64>> = expected.into_iter().collect();

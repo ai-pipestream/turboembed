@@ -5,11 +5,15 @@
 
 use turbo::head::edit_tree::EditTree;
 use turbo::head::lemmatizer::Work as CoreWork;
-use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, PosInput, Scheme, WordPooling};
+use turbo::manifest::{
+    Adapter, Bilstm, Decode, HeadKind, HeadSpec, MAX_SEEN_LEMMAS, PosInput, Scheme, SeenLemma, WordPooling,
+};
 use turbo_trainer::fit_lemma::accuracy;
 use turbo_trainer::lemma::Work;
 use turbo_trainer::rng::Rng;
-use turbo_trainer::{Config, LemmaExample, Lemmatizer, fit_lemmatizer, mine_trees};
+use turbo_trainer::{
+    Config, LemmaExample, Lemmatizer, fit_lemmatizer, mine_seen_lookup, mine_seen_lookup_tagged, mine_trees,
+};
 
 const EPS: f64 = 1e-6;
 
@@ -25,7 +29,9 @@ fn spec(labels: Vec<String>, adapter: Option<(u32, u32)>, tags: Option<u32>) -> 
         decode: Decode::EditTree,
         biaffine: None,
         pos_input: tags.map(|labels| PosInput { head: "pos".into(), labels, dim: 3 }),
+        seen_lookup: None,
         hash_embed: None,
+        seen: None,
         layer_mix: None,
         span: None,
         relation: None,
@@ -299,4 +305,69 @@ fn a_cased_fixture_lemmatizes_sentence_initial_capitals_with_eight_trees() {
     assert!(first.iter().all(|f| f.as_bytes()[0].is_ascii_uppercase()), "every sentence starts with a capital");
     let lemmas: Vec<&str> = dev.iter().flat_map(|e| e.lemmas.first().map(String::as_str)).collect();
     assert!(lemmas.iter().all(|l| l.as_bytes()[0].is_ascii_lowercase()), "and its lemma is lowercase");
+}
+
+#[test]
+fn mine_seen_lookup_keeps_unambiguous_forms_and_tag_specific_entries() {
+    let pairs =
+        [("walked", "walk"), ("walked", "walk"), ("went", "go"), ("saw", "see"), ("saw", "saw"), ("dogs", "dog")];
+    let k1 = mine_seen_lookup(pairs.iter().copied(), 1);
+    assert_eq!(k1.min_freq, 1);
+    assert_eq!(
+        k1.entries,
+        vec![
+            SeenLemma { form: "dogs".into(), tag: None, lemma: "dog".into() },
+            SeenLemma { form: "walked".into(), tag: None, lemma: "walk".into() },
+            SeenLemma { form: "went".into(), tag: None, lemma: "go".into() },
+        ]
+    );
+    let k2 = mine_seen_lookup(pairs.iter().copied(), 2);
+    assert_eq!(k2.min_freq, 2);
+    assert_eq!(k2.entries, vec![SeenLemma { form: "walked".into(), tag: None, lemma: "walk".into() }]);
+
+    let tagged = [
+        ("walked", Some(1), "walk"),
+        ("saw", Some(0), "saw"),
+        ("saw", Some(1), "see"),
+        ("left", Some(1), "leave"),
+        ("left", Some(1), "left"),
+    ];
+    let tk1 = mine_seen_lookup_tagged(tagged.iter().copied(), 1);
+    assert_eq!(
+        tk1.entries,
+        vec![
+            SeenLemma { form: "saw".into(), tag: Some(0), lemma: "saw".into() },
+            SeenLemma { form: "saw".into(), tag: Some(1), lemma: "see".into() },
+            SeenLemma { form: "walked".into(), tag: None, lemma: "walk".into() },
+        ]
+    );
+
+    // A head with `seen_lookup` answers irregular forms whose trees were pruned by `min_tree_freq`.
+    let hidden = 4;
+    let ex = LemmaExample {
+        features: vec![1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        tags: Vec::new(),
+        forms: vec!["walked".into(), "went".into()],
+        lemmas: vec!["walk".into(), "go".into()],
+    };
+    let train_pairs = [("walked", "walk"), ("walked", "walk"), ("walked", "walk"), ("went", "go")];
+    let labels = mine_trees(train_pairs.iter().copied(), 3);
+    assert_eq!(labels.len(), 1, "only walked's tree survives min_tree_freq=3");
+    let c = Config { epochs: 5, lr: 5e-2, ..Config::default() };
+    let without = spec(labels.clone(), None, None);
+    let (_, r_without) = fit_lemmatizer(&without, hidden, vec![ex.clone()], vec![ex.clone()], &c).unwrap();
+    assert_eq!(r_without.dev[r_without.best_epoch], 0.5, "went cannot be produced without its tree or lookup");
+
+    let mut with_lookup = spec(labels, None, None);
+    with_lookup.seen_lookup = Some(mine_seen_lookup(train_pairs.iter().copied(), 1));
+    let (model, r_with) = fit_lemmatizer(&with_lookup, hidden, vec![ex.clone()], vec![ex], &c).unwrap();
+    assert_eq!(r_with.dev[r_with.best_epoch], 1.0, "seen_lookup supplies went -> go during dev scoring");
+    drop(model);
+
+    // Oversized tables are not silently truncated; HeadSpec::validate refuses them.
+    let forms: Vec<String> = (0..=MAX_SEEN_LEMMAS).map(|i| format!("w{i:06}")).collect();
+    let oversized = mine_seen_lookup(forms.iter().map(|s| (s.as_str(), "w")), 1);
+    assert_eq!(oversized.entries.len(), MAX_SEEN_LEMMAS + 1);
+    with_lookup.seen_lookup = Some(oversized);
+    assert!(with_lookup.validate("head").is_err());
 }

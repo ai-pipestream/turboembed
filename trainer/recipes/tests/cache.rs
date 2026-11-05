@@ -166,10 +166,11 @@ fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
     assert_eq!(Some(one.head.clone()), receipt.head);
     let below = fit("fit-below", &["--layer", "1"]);
     assert_eq!(below.layers, [1]);
+    assert_eq!(below.head.layer_mix, Some(LayerMix { layers: 2, layer: Some(1) }));
 
     let mix = fit("fit-mix", &["--mix"]);
     assert_eq!(mix.layers, [1, 2]);
-    assert_eq!(mix.head.layer_mix, Some(LayerMix { layers: 2 }));
+    assert_eq!(mix.head.layer_mix, Some(LayerMix { layers: 2, layer: None }));
     let m = mix.mix.as_ref().unwrap();
     assert_eq!(m.weights.len(), 2);
     assert!((m.weights.iter().sum::<f64>() - 1.0).abs() < 1e-6 && m.gain.is_finite(), "{m:?}");
@@ -201,7 +202,63 @@ fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
         fs::write(other.join(format!("EN-English/{f}.conll")), "# id 0\tdomain=en\nx _ _ O\n\n").unwrap();
     }
     refused("r4", &["--layer", "2"], other.to_str().unwrap(), "another corpus");
+    assert!(
+        turbo_trainer_recipes::cache::layer_mix_for(&[1], false, None)
+            .unwrap_err()
+            .0
+            .contains("requires encoder.layers")
+    );
     for p in [data, cache, enc_out, other] {
         fs::remove_dir_all(p).unwrap();
+    }
+}
+
+#[test]
+fn legacy_cache_host_is_discarded_and_cached_features_still_train() {
+    let data = scratch("legacy-data");
+    corpus(&data);
+    let cache = scratch("legacy-cache");
+    let fit = scratch("legacy-fit");
+    let b = tiny();
+    let common = ["--corpus", "multiconer2-en", "--dir", data.to_str().unwrap(), "--unrecorded-corpus"];
+    let result = run(&[
+        &["cache"][..],
+        &common,
+        &["--bundle", b.to_str().unwrap(), "--out", cache.to_str().unwrap(), "--layers", "1"],
+    ]
+    .concat());
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let path = cache.join("cache.json");
+    let mut record: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert!(record.get("host").is_none());
+    record["host"] = serde_json::json!("legacy value");
+    fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+    let result = run(&[
+        &["fit-cache"][..],
+        &common,
+        &[
+            "--cache",
+            cache.to_str().unwrap(),
+            "--out",
+            fit.to_str().unwrap(),
+            "--layer",
+            "2",
+            "--epochs",
+            "2",
+            "--batch",
+            "8",
+        ],
+    ]
+    .concat());
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let fitted: serde_json::Value = serde_json::from_slice(&fs::read(fit.join("fit.json")).unwrap()).unwrap();
+    assert!(fitted.get("host").is_none());
+    assert!(fitted["cache"].get("host").is_none());
+    let parsed: CacheRecord = serde_json::from_value(record.clone()).unwrap();
+    assert!(serde_json::to_value(parsed).unwrap().get("host").is_none());
+    record["unexpected"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<CacheRecord>(record).is_err(), "other unknown fields remain refused");
+    for dir in [data, cache, fit] {
+        fs::remove_dir_all(dir).unwrap();
     }
 }

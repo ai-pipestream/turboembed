@@ -50,6 +50,15 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
 | `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
 | `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas` | `turbo:structure`, `Sentences`, `Tokens`, `PosTags`, `Entities`, `Dependencies`, `Lemmas` | `TASK_EMBED`, `head.pos`, `head.entities`, `head.dependencies`, `head.lemmas` |
+| `annotate-v2` | `"2"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:heads` | `turbo:structure`, `Sentences`, `Tokens`, then the layers of every head step the bundle lists | `TASK_EMBED`, `head.any` |
+
+`annotate-v1` keeps its fixed four heads. `annotate-v2` (#1832) is
+capability driven: it runs every head step the selected bundle lists in
+`head_steps`, so a partial bundle (a span-classifier-only entity bundle,
+say) runs what it carries, and `head.any` is met by any bundle with a
+head. When the bundle has a learned sentence head, `turbo-tagger:sentences`
+replaces `turbo-sentdetect:rules` in the run. Its `layers` entry lists
+what every run writes; the rest follow the bundle's `head_steps`.
 
 A profile's output set never changes within a version. When a profile or
 explicit step requires a bundle capability (`TASK_EMBED`, `embed.sparse` or
@@ -74,24 +83,79 @@ for the layer it writes, and `Capabilities` lists a bundle's steps under
 | `turbo-tagger:lemmas` | `HEAD_EDIT_TREE_LEMMATIZER`, layer `lemmas` | `Lemmas` | `head.lemmas` |
 | `turbo-tagger:spans` | `HEAD_SPAN_CLASSIFIER`, layer `entities` | `Entities` | `head.spans` |
 | `turbo-tagger:relations` | `HEAD_RELATION_CLASSIFIER`, layer `relations` | `Relations` and `Edges<Entities, Entities>` | `head.relations` |
+| `turbo-tagger:sentences` | `HEAD_SENTENCE_BOUNDARY`, layer `sentences` | `Sentences` | `head.sentences` |
+| `turbo-tagger:words` | `HEAD_TOKEN_SPLIT`, layer `words` | `Words` (`turbo:words`) | `head.words` |
+| `turbo-tagger:coref` | `HEAD_COREF_RANKER`, layer `coref` | `Groups<Entities>` and `Edges<Entities, Entities>` instance `coref` | `head.coref` |
 
-A step runs the one head of the bundle of that kind writing that layer; a
-bundle with two such heads, or none, serves no such step. The steps read
-the source view's `Tokens` and `Sentences` (and the bundle's `Subwords`
-when `turbo:subwords` ran on the same bundle), a sentence at a time, and
-write each layer exactly as the `turbo-tagger` crate's annotators write
-it. The first five share one encoder pass: whichever runs first reads
-every window of the document once, pooling the states each head asks for,
-and the others decode from the same states, so a request naming all of
-them costs one forward per window. The span step and the relation step
-read on their own; the relation step needs the `Entities` layer, so it
-runs after the entity or span step. `turbo-tagger:heads` in an explicit
-step list stands for every head step the chosen bundle provides (the
-entity step over the span step when it has both), and is refused when the
-bundle carries no head. A head step over a bundle lacking the head, or
-`req.model` naming such a bundle, refuses with `TURBO_E_BUNDLE_NOT_FOUND`
-naming the `head.*` requirement; with no `req.model`, the pipeline runs
-on the first loaded embed bundle providing every head it needs.
+Each layer is the one the `turbo-tagger` crate's annotator writes
+(`MultiTask`, `SentenceTagger`, `WordTagger`, `SpanTagger`,
+`RelationTagger`, `CorefTagger`) from the same features; only the step id
+differs. Offsets are the tokens' own, so every head layer converts among
+UTF-8 bytes, UTF-16 code units and code points through the view's
+offset table; a split word is a byte subspan of its token when the
+pieces tile it, or an explicit form over the token otherwise.
+
+#### Selection
+
+A step resolves to one head of the bundle by kind, label scheme and
+layer: tags for part of speech and morphology, BIO or BILOU for
+entities. `step@head` (`turbo-tagger:pos@upos`) selects a head by name.
+`head_steps` lists a step when the bundle has at least one head it takes.
+The refusals are named in the message:
+
+| Refusal | When | Code |
+|---|---|---|
+| `requires bundle 'head.*'` | the bundle has no head the step takes | `TURBO_E_BUNDLE_NOT_FOUND` |
+| `missing head` | the selected name is no head of the bundle | `TURBO_E_BUNDLE_NOT_FOUND` |
+| `ambiguous head` | several heads fit and none is selected (also under `turbo-tagger:heads` and `annotate-v2`) | `TURBO_E_INVALID_ARGUMENT` |
+| `unsupported head` | the selected head is of another kind, layer or scheme | `TURBO_E_UNSUPPORTED_TASK` |
+| `ambiguous output` | two steps write one output: a step named twice, `turbo-tagger:sentences` beside `turbo-sentdetect:rules`, or `turbo-tagger:entities` beside `turbo-geo:names` | `TURBO_E_INVALID_ARGUMENT` |
+
+No head is skipped and no output overwritten. Where two head steps write
+one layer type the output keys are fixed: `turbo-tagger:entities` (or
+`turbo-geo:names`) writes the default `Entities`, and `turbo-tagger:spans`
+then writes instance `spans`, otherwise the default; relations and
+coreference read the default `Entities`. Coreference links are instance
+`coref`, so they sit beside the relation step's edges.
+
+#### One encoder read
+
+Every head step of a request decodes from one read of the document by
+the bundle's encoder (`HeadGroup`), pooling the states each head asks for
+and the most layer taps any head reads. The windows follow one plan:
+
+- With no whole-view head among the steps, the source view's `Tokens` are
+  read a sentence at a time (the `Sentences` layer, or the tokens'
+  sentence column), each sentence in windows of whole words when it is
+  longer than a row. This is the `annotate-v1` read.
+- With `turbo-tagger:sentences` or `turbo-tagger:coref`, the view's
+  tokens are read once as one sequence, in windows of whole words. Those
+  heads decode from it, and every sentence-scoped head decodes from its
+  slice for each sentence, as `MultiTask` slices it under a sentence head.
+  The tokenizer then reads no sentences, so the learned sentences, which
+  read the tokens, run after it; normalization steps are refused beside
+  a learned sentence step.
+
+The span, relation and coreference steps decode through the tagger
+crate's decoders (`SpanHead`, `RelationHead`, `CorefHead`) and open no
+encoder of their own, so adding a compatible head adds no encoder
+forward: `server/tests/progressive_heads_rows.rs` counts every row the
+process's encoders forward over a whole request
+(`turbo_analysis_embed::forwarded_rows`) and finds one head and every
+head equal. Steps run after the tokens they read; the relation and
+coreference steps after the entities.
+
+`turbo-tagger:heads` in an explicit step list stands for every head step
+the chosen bundle provides, and is refused when the bundle carries no
+head. A head step over a bundle lacking the head, or `req.model` naming
+such a bundle, refuses with `TURBO_E_BUNDLE_NOT_FOUND` naming the
+`head.*` requirement; with no `req.model`, the pipeline runs on the
+first loaded embed bundle providing every head it needs.
+
+Remaining limits: a step runs over the source view only; under
+`annotate-v2` a bundle with two heads for one step is refused as
+ambiguous rather than run twice; a learned sentence step cannot follow a
+normalizer.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
@@ -288,7 +352,7 @@ request, per loaded bundle:
 | `context_limit` | Tokens per row; a longer row is `TURBO_E_CAPACITY` naming `max_seq`. |
 | `batch_limit` | Rows per run; a larger batch is `TURBO_E_CAPACITY` naming `max_batch`. |
 | `schema` | The limits an extraction schema may carry, the schema-extract crate's `Limits` (`max_entity_types`, `max_classification_tasks`, `max_labels_per_task`, `max_structures`, `max_fields_per_structure`, `max_text_bytes`, `max_prompt_subwords`, `max_words`); unset until the server loads a bundle whose task reads a schema. |
-| `head_steps` | The `AnalyzeDocumentProgressive` head steps the bundle's heads serve (`turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`, `turbo-tagger:relations`), in that order; empty for a bundle without heads. |
+| `head_steps` | The `AnalyzeDocumentProgressive` head steps the bundle's heads serve (`turbo-tagger:pos`, `turbo-tagger:morphology`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas`, `turbo-tagger:spans`, `turbo-tagger:relations`, `turbo-tagger:sentences`, `turbo-tagger:words`, `turbo-tagger:coref`), in that order; empty for a bundle without heads. |
 
 The limits are the session's: what a request is actually held to, where a
 server started below the model's limits. The response's `limits` field
@@ -510,6 +574,14 @@ load and refuses the over-length new one, never batched together.
 and `ANALYZE_OUTPUT_TOKEN_VECTORS` over `AnalyzeStream` against in-process
 `SparseAnnotator` and `VectorAnnotator` across `SPLADE`, unprojected, and
 `ColBERT` projection bundles in all three `OffsetMode`s.
+`server/tests/progressive_heads.rs`, `progressive_heads_all.rs` and
+`progressive_heads_rows.rs` prove the head steps on sealed tiny bundles:
+`annotate-v1` and `annotate-v2` layers field for field against the
+tagger crate's annotators (partial bundles, morphology, BIO and span
+entities, relations, learned sentences, word splits, coreference) on
+Unicode text read in several windows, every head layer's offsets in all
+three `OffsetMode`s, the named selection refusals, and encoder forwards
+over whole requests.
 `cargo test --release -p turbo-kserve --test speed --
 --ignored` measures the encoding and decoding speed bar against the
 current vector and span messages (docs/receipts/server-723/README.md).

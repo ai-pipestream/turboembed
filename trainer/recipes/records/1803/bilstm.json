@@ -1,0 +1,266 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train-split",
+    "--corpus",
+    "ud-it-markit",
+    "--dir",
+    "UD_Italian-MarkIT-r2.16",
+    "--bundle",
+    "xlm-roberta-base",
+    "--out",
+    "bilstm",
+    "--commit",
+    "e97a161b5f1c8f903e2a64d5cf199952dda308ea",
+    "--bilstm",
+    "256x1"
+  ],
+  "commit": "e97a161b5f1c8f903e2a64d5cf199952dda308ea",
+  "unix_time": 1793675784,
+  "corpus": {
+    "id": "ud-it-markit-split",
+    "name": "Universal Dependencies Italian MarkIT r2.16, token split",
+    "task": "tags",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Italian MarkIT r2.16, published at https://github.com/UniversalDependencies/UD_Italian-MarkIT; used under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "it_markit-ud-train.conllu",
+        "size": 1266080,
+        "sha256": "4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6"
+      },
+      {
+        "path": "it_markit-ud-dev.conllu",
+        "size": 665430,
+        "sha256": "633b6186f47ecfebfcff4ff9c7e19a0cbffd1f655f14fc1e9265b12bda597f97"
+      },
+      {
+        "path": "it_markit-ud-test.conllu",
+        "size": 658412,
+        "sha256": "9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (fa54dc64d616cd9fc42bd2c4a0d8003f8ef47b4d)",
+    "train": {
+      "sentences": 611,
+      "words": 18759
+    },
+    "dev": {
+      "sentences": 341,
+      "words": 9824
+    },
+    "test": {
+      "sentences": 340,
+      "words": 9654
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cpu",
+    "device": "AMD Ryzen 9 9950X 16-Core Processor",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "words",
+    "layer": "turboembed:words",
+    "kind": "HEAD_TOKEN_SPLIT",
+    "labels": [
+      "_",
+      "(m 0 4 () (s 'ella' 'i')) (t 2 ())",
+      "(h 1 ()) (t 2 ())",
+      "(m 0 2 () (s 'el' 'i')) (m 2 0 (s 'de' 'i') ())",
+      "(m 0 4 () (s 'ell\\'' 'i')) (m 3 0 (s 'del' '') ())",
+      "(m 0 2 (s '' 'i') (s 'el' '')) (m 2 0 (s 'ne' 'i') ())",
+      "(m 0 1 () (s 'l' '')) (m 1 0 (s 'a' 'i') ())",
+      "(m 0 4 (s '' 'i') (s 'ella' '')) (m 3 0 (s 'nel' '') ())",
+      "(h 2 ()) (t 2 ())",
+      "(m 0 2 () (s 'si' '')) (t 2 ())",
+      "(m 0 2 () (m 1 0 (s 'e' '') ())) (m 2 0 (s 'de' '') ())",
+      "(m 0 4 () (s 'elle' 'i')) (m 3 0 (s 'del' '') ())",
+      "(m 0 1 () (s 'l' '')) (m 2 0 (s 'da' 'i') ())",
+      "(m 0 1 () (s 'i' '')) (t 1 ())",
+      "(m 0 4 () (m 3 0 (s 'egl' '') ())) (m 2 0 (s 'de' '') ())",
+      "(m 0 4 (s '' 'i') (s 'ell\\'' '')) (m 3 0 (s 'nel' '') ())",
+      "(m 0 2 () (s 'lo' '')) (t 2 ())",
+      "(m 0 2 () (s 'la' '')) (t 2 ())",
+      "(m 0 2 (s '' 'i') (s 'ei' '')) (m 2 0 (s 'ne' '') ())",
+      "(m 0 1 () (s 'l' '')) (m 2 0 (s 'su' 'i') ())",
+      "(m 0 3 () (s 'gli' '')) (t 3 ())",
+      "(m 0 2 () (s 'ci' '')) (t 2 ())",
+      "(m 0 4 (s '' 'i') (s 'egli' '')) (m 2 0 (s 'ne' '') ())",
+      "(m 0 4 () (s 'ello' 'i')) (m 3 0 (s 'del' '') ())",
+      "(m 0 4 (s '' 'i') (s 'elle' '')) (m 3 0 (s 'nel' '') ())",
+      "(m 0 4 (s '' 'i') (s 'ello' '')) (m 3 0 (s 'nel' '') ())",
+      "(h 8 ()) (t 2 ())",
+      "(s 'Nel' 'In') (m 2 0 (s 'Ne' 'i') ())",
+      "(h 11 ()) (t 2 ())",
+      "(h 7 ()) (t 2 ())",
+      "(m 0 1 () (s 'l' 'n')) (m 2 0 (s 'co' 'i') ())",
+      "(m 0 4 (s '' 'I') (s 'ell\\'' '')) (m 3 0 (s 'nel' '') ())",
+      "(m 1 1 (s 'd' 'D') (s 'l' '')) (m 2 0 (s 'da' 'i') ())",
+      "(s 'all\\'' 'A') (m 2 0 (s 'al' '') ())"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_EDIT_TREE",
+    "license_class": "CLASS_PERMISSIVE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.words"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 0,
+    "max_train": 0,
+    "dev_left_out": 17
+  },
+  "training": {
+    "train_loss": [
+      1.5538592652694205,
+      0.38511902498963263,
+      0.26112042351449477,
+      0.14485125216793543,
+      0.08102794126030072,
+      0.051200131246832654,
+      0.0355688988679838,
+      0.025036961052797495,
+      0.017432019043889597,
+      0.011244916283131914,
+      0.007398347137443692,
+      0.00534139240656128,
+      0.0033254118561489693,
+      0.0022835385230560367,
+      0.0016585036461259153,
+      0.0012569187038362958,
+      0.0010447599210218939,
+      0.0008913299353660016,
+      0.0007751087708469816,
+      0.0006898213202985502,
+      0.0006199219626286174,
+      0.0005654464921924473
+    ],
+    "dev": [
+      0.9433591618465568,
+      0.9433591618465568,
+      0.9542726181381643,
+      0.9803557786751064,
+      0.9894139473971407,
+      0.9905052930263014,
+      0.9947615409800283,
+      0.9951980792316927,
+      0.995634617483357,
+      0.9953072137946087,
+      0.9955254829204409,
+      0.9941067336025319,
+      0.9949798101058606,
+      0.9950889446687766,
+      0.9947615409800283,
+      0.9949798101058606,
+      0.9949798101058606,
+      0.9948706755429445,
+      0.9948706755429445,
+      0.9949798101058606,
+      0.9949798101058606,
+      0.9948706755429445
+    ],
+    "best_epoch": 9,
+    "epoch_seconds": [
+      2.032047747,
+      2.051413357,
+      2.027593324,
+      2.02478285,
+      2.019962172,
+      2.011146053,
+      2.006996498,
+      1.9955181560000002,
+      2.005422721,
+      1.9943252519999999,
+      1.980117038,
+      2.020790534,
+      2.026494178,
+      2.013681364,
+      2.03343997,
+      1.9986862269999999,
+      2.0529534,
+      2.014747947,
+      1.983765523,
+      2.022775161,
+      2.030698367,
+      2.049674327
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 9654,
+        "correct": 9588,
+        "accuracy": 0.9931634555624611,
+        "unseen_words": 1335,
+        "unseen_correct": 1291,
+        "unseen_labels": 54
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 9654,
+        "correct": 9582,
+        "accuracy": 0.9925419515226849,
+        "unseen_words": 1335,
+        "unseen_correct": 1280,
+        "unseen_labels": 54
+      }
+    },
+    "comparison": {
+      "model": 0.9931634555624611,
+      "baseline": 0.9925419515226849,
+      "delta": 0.0006215040397762328,
+      "low": -0.0006273525721455231,
+      "high": 0.0019267822736031004,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.012317555,
+    "features": 2.576130218,
+    "train": 44.660805998,
+    "eval": 1.3955161569999999,
+    "feature_words": 26875
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 8467368,
+      "sha256": "e537870ff79b32a24e0dcad58ce7ecabaf7c336f60d06badd7a25abf3def559f"
+    },
+    {
+      "path": "head.json",
+      "size": 2026,
+      "sha256": "aebd8f9a804d8a69beb4c085c8e64e5e52846d520e5d1397f94c487ba1f56ac6"
+    }
+  ]
+}

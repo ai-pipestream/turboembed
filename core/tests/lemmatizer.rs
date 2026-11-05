@@ -148,6 +148,45 @@ fn manifest_refuses_a_lemmatizer_whose_tags_no_head_gives() {
     );
     refused("bad-tree", |m| m["heads"][1]["labels"][1] = json!("(m 0 2 () (s 'ed' '')"), "labels[1]");
     refused("decode", |m| m["heads"][1]["decode"] = json!("DECODE_ARGMAX"), "HEAD_EDIT_TREE_LEMMATIZER takes");
+    refused(
+        "lookup-on-tagger",
+        |m| m["heads"][0]["seen_lookup"] = json!({"min_freq": 1, "entries": [{"form": "a", "lemma": "a"}]}),
+        "heads[0].seen_lookup",
+    );
+    refused(
+        "lookup-unsorted",
+        |m| {
+            m["heads"][1]["seen_lookup"] =
+                json!({"min_freq": 1, "entries": [{"form": "b", "lemma": "b"}, {"form": "a", "lemma": "a"}]})
+        },
+        "heads[1].seen_lookup.entries[1]",
+    );
+    refused(
+        "lookup-bad-tag",
+        |m| m["heads"][1]["seen_lookup"] = json!({"min_freq": 1, "entries": [{"form": "a", "tag": 3, "lemma": "a"}]}),
+        "heads[1].seen_lookup.entries[0].tag",
+    );
+}
+
+#[test]
+fn loaded_lemmatizer_applies_seen_lookup_entries_from_manifest() {
+    let dir = bundle("seen-lookup", |m| {
+        m["heads"][1]["seen_lookup"] = json!({
+            "min_freq": 2,
+            "entries": [
+                {"form": "saw", "tag": 0, "lemma": "saw"},
+                {"form": "saw", "tag": 1, "lemma": "see"},
+                {"form": "went", "lemma": "go"}
+            ]
+        });
+    });
+    let b = Bundle::open(&dir).unwrap();
+    let loaded = EditTreeLemmatizer::load(&b, "lemma").unwrap();
+    assert_eq!(
+        loaded.lemmas_tagged(&[Some(0), Some(0), Some(0)], &["went", "saw", "saw"], Some(&[1, 0, 1])).unwrap(),
+        ["go", "saw", "see"]
+    );
+    let _ = fs::remove_dir_all(dir);
 }
 
 #[test]

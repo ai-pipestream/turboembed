@@ -20,12 +20,19 @@
 //! are the core's (`TokenSplitter::words`), the baseline's a lookup,
 //! and both are scored as tags against the gold words, as the trainer's
 //! `score_split` counts a label on dev.
+//!
+//! With `--seen-lookup`, the head also carries [`seen_lookup`]: the
+//! tokens whose training split was unambiguous take it without the
+//! scorer (the baseline's strong suit), and the scorer decides the
+//! rest, which is where it leads the baseline.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use turbo::head::TokenSplitter;
-use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, KEEP_TOKEN, MAX_LABELS, Scheme, WordPooling};
+use turbo::manifest::{
+    Adapter, Bilstm, Decode, HeadKind, HeadSpec, KEEP_TOKEN, MAX_LABELS, Scheme, SeenLookup, SeenToken, WordPooling,
+};
 use turbo_tagger::WordEncoder;
 
 use crate::corpus::{CorpusRecord, Counts, FileRecord, Sentence, Task, check_pin, read_file};
@@ -195,6 +202,43 @@ pub fn mine_labels(train: &[TokenSentence], chosen: &Chosen, min_freq: usize) ->
     labels
 }
 
+/// The seen-token lookup of a training split (#1803), built from `train`
+/// alone: each token whose every training occurrence splits the same
+/// way, seen at least `min_count` times, with that split's label. A
+/// token training saw split two ways or fewer than `min_count` times is
+/// the head's to decide, as is one whose split's label the head does
+/// not carry, or whose one word is not itself (which no head label
+/// gives). Sorted by token, so one training split writes one table.
+pub fn seen_lookup(train: &[TokenSentence], chosen: &Chosen, labels: &[String], min_count: u32) -> SeenLookup {
+    let mut ways: BTreeMap<&str, BTreeMap<&[String], usize>> = BTreeMap::new();
+    for s in train {
+        for (t, ws) in s.tokens.iter().zip(&s.words) {
+            *ways.entry(t.as_str()).or_default().entry(ws.as_slice()).or_default() += 1;
+        }
+    }
+    let mut tokens = Vec::new();
+    for (&token, splits) in &ways {
+        if splits.len() != 1 {
+            continue;
+        }
+        let (words, n) = splits.iter().next().expect("one split");
+        if *n < min_count as usize {
+            continue;
+        }
+        let label = match &words[..] {
+            [] => continue,
+            [one] if one.as_str() == token => KEEP_TOKEN.to_owned(),
+            [_] => continue,
+            _ => match chosen.get(&(token.to_owned(), words.to_vec())).filter(|l| labels.contains(l)) {
+                Some(l) => l.clone(),
+                None => continue,
+            },
+        };
+        tokens.push(SeenToken { token: token.to_owned(), label });
+    }
+    SeenLookup { min_count, tokens }
+}
+
 /// The sentences of `part`, each token with its gold label, as the
 /// receipt's tag metrics score them.
 pub fn sentences(part: &[TokenSentence]) -> Vec<Sentence> {
@@ -255,7 +299,8 @@ pub fn record(bank: &Treebank, splits: &TokenSplits, files: Vec<FileRecord>, rec
 }
 
 /// The token split head, `words` on `turboembed:words`, over `labels`,
-/// carrying the class of the corpus's licence.
+/// carrying the class of the corpus's licence and, with one, the
+/// seen-token lookup [`seen_lookup`] mines from the training split.
 ///
 /// # Errors
 ///
@@ -265,6 +310,7 @@ pub fn spec(
     corpus: &CorpusRecord,
     pooling: WordPooling,
     bilstm: Option<(u32, u32)>,
+    seen: Option<SeenLookup>,
 ) -> Result<HeadSpec> {
     let spec = HeadSpec {
         name: "words".into(),
@@ -277,7 +323,9 @@ pub fn spec(
         decode: Decode::EditTree,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
+        seen,
         layer_mix: None,
         span: None,
         relation: None,

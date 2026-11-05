@@ -23,7 +23,6 @@
     "out-ud-es-ancora"
   ],
   "commit": "f59cb5ba49be9963503caaa54bd3fa7f31bbdc46",
-  "host": "rtx-4080-machine",
   "unix_time": 1793425761,
   "corpus": {
     "id": "ud-es-ancora-sentences",
@@ -144,7 +143,7 @@
       0.9991572818509155,
       0.9991572818509155
     ],
-    "best_epoch": 1,
+    "best_epoch": 2,
     "epoch_seconds": [
       1.411795451,
       1.4203712849999999,

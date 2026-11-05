@@ -14,14 +14,14 @@
 //! turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <dir>
 //!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
 //! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N])
+//!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--arc N] [--rel N])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N])
+//!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735)
@@ -47,10 +47,11 @@ use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
-use turbo_trainer_recipes::cache::{self, CacheRecord};
+use turbo_trainer_recipes::cache;
 use turbo_trainer_recipes::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
 use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
+use turbo_trainer_recipes::fit_cache::CacheTask;
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{
     CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, examples, named, predict, replace, spec, write,
@@ -58,6 +59,7 @@ use turbo_trainer_recipes::run::{
 use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
+mod baseline_cmd;
 mod peer_cmd;
 mod train_coref;
 mod train_open_span;
@@ -95,80 +97,14 @@ fn run(argv: Vec<String>) -> Result<()> {
             println!("labels: {}", c.labels().len());
             Ok(())
         }
-        "check" => {
-            a.done()?;
-            let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-            println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
-            println!("labels: {}", c.labels().len());
-            Ok(())
-        }
-        "baseline" => {
-            let out = OutDir::claim(&a.required("--out")?)?;
-            let commit = commit(a.value("--commit")?);
-            a.done()?;
-            let t = Instant::now();
-            let (record, eval, read) = if corpus_id == turbo_trainer_recipes::litbank::ID {
-                let coref = turbo_trainer_recipes::litbank::read_coref(&dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
-                let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
-                (
-                    coref.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            } else {
-                let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-                let read = t.elapsed().as_secs_f64();
-                let base = baseline(&c.splits.train, &c.splits.test);
-                let baseline =
-                    evaluate(c.record.task, &c.splits.test, &base, &Seen::of(&c.splits.train), coarse(&corpus_id));
-                (
-                    c.record,
-                    EvalRecord {
-                        split: "test".into(),
-                        model: None,
-                        baseline,
-                        dictionary: None,
-                        open_span: None,
-                        comparison: None,
-                        uas: None,
-                        rules: None,
-                    },
-                    read,
-                )
-            };
-            let t = Instant::now();
-            let receipt = Receipt {
-                schema: SCHEMA.into(),
-                command: argv.clone(),
-                commit,
-                host: host(),
-                unix_time: unix_time(),
-                corpus: record,
-                encoder: None,
-                head: None,
-                peer: None,
-                config: None,
-                training: None,
-                eval,
-                timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
-                outputs: Vec::new(),
-            };
-            finish(out, receipt)
-        }
+        "check" => peer_cmd::check(&corpus_id, &dir, unrecorded, a),
+        "baseline" => baseline_cmd::baseline_cmd(&argv, &corpus_id, &dir, unrecorded, a),
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
-        "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
-        "fit-cache" => turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "cache" => cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "fit-cache" | "train-cached" => {
+            turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a)
+        }
+        "sweep" => turbo_trainer_recipes::sweep::command(&argv, &corpus_id, &dir, unrecorded, a),
         "distill-head" => turbo_trainer_recipes::distill::command(&argv, &corpus_id, &dir, unrecorded, a),
         "predict-ner" => turbo_trainer_recipes::ner_cmd::predict(&corpus_id, &dir, unrecorded, a),
         "compare-ner" => turbo_trainer_recipes::ner_cmd::compare(&corpus_id, &dir, unrecorded, a),
@@ -184,7 +120,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
@@ -254,59 +190,6 @@ fn assemble_cmd(mut a: Args) -> Result<()> {
     Ok(())
 }
 
-/// Writes the word features of every split at the encoder's last
-/// `--layers` layers, and `cache.json` last.
-fn cache(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
-    let bundle = PathBuf::from(a.required("--bundle")?);
-    let mut out = OutDir::claim(&a.required("--out")?)?;
-    let (device, precision, pooling) = encoder_args(&mut a)?;
-    let taps: u32 = a.parsed("--layers", 0)?;
-    let max_batch: u32 = a.parsed("--max-batch", 32)?;
-    let wanted = a.value("--splits")?.unwrap_or_else(|| "train,dev,test".into());
-    let commit = commit(a.value("--commit")?);
-    a.done()?;
-    let wanted: Vec<&str> = wanted.split(',').collect();
-    if wanted.is_empty() || wanted.iter().any(|w| !["train", "dev", "test"].contains(w)) {
-        return Err(Error(format!("--splits {wanted:?}: train, dev and test, comma separated")));
-    }
-    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
-    let o = EncoderOptions { device, precision, max_batch: max_batch.max(taps), ..EncoderOptions::default() };
-    let mut enc = WordEncoder::open(&bundle, &o).map_err(|e| Error(e.message))?;
-    let encoder = encoder_record(&bundle, &enc)?;
-    let model_layers = encoder.layers.ok_or_else(|| Error(format!("{}: no architecture.layers", bundle.display())))?;
-    let t = Instant::now();
-    let s = &corpus.splits;
-    let splits: Vec<(&str, &[_])> = [("train", &s.train[..]), ("dev", &s.dev[..]), ("test", &s.test[..])]
-        .into_iter()
-        .filter(|(n, _)| wanted.contains(n))
-        .collect();
-    let (layers, splits) = cache::write(&mut enc, &splits, pooling, taps, model_layers, &out.path)?;
-    let record = CacheRecord {
-        schema: cache::SCHEMA.into(),
-        command: argv.to_vec(),
-        commit,
-        host: host(),
-        unix_time: unix_time(),
-        corpus: corpus.record.clone(),
-        encoder,
-        pooling,
-        layers,
-        splits,
-        features_s: t.elapsed().as_secs_f64(),
-    };
-    write(&out.path, "cache.json", serde_json::to_string_pretty(&record).expect("serializes").as_bytes())?;
-    out.keep = true;
-    let words: u64 = record.splits.iter().map(|s| s.words).sum();
-    println!(
-        "{}: layers {:?} of {words} words in {:.1} s, {:.0} words/s",
-        out.path.display(),
-        record.layers,
-        record.features_s,
-        words as f64 / record.features_s.max(1e-9)
-    );
-    Ok(())
-}
-
 /// The settings `train` and the UD commands share.
 struct Opts {
     bundle: PathBuf,
@@ -333,6 +216,16 @@ fn options(a: &mut Args) -> Result<Opts> {
 }
 
 fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    if a.rest.iter().any(|x| x == "--cache") {
+        return turbo_trainer_recipes::fit_cache::command_with_task(
+            argv,
+            corpus_id,
+            dir,
+            unrecorded,
+            Some(CacheTask::Tag),
+            a,
+        );
+    }
     let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
@@ -370,7 +263,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
                 replace(&dir, "head.json", &spec_json)?;
                 saved = true;
             }
-            let at = [(CHECKPOINT_EPOCH, epoch.to_string()), (CHECKPOINT_DEV, dev.to_string())];
+            let at = [(CHECKPOINT_EPOCH, (epoch + 1).to_string()), (CHECKPOINT_DEV, dev.to_string())];
             replace(&dir, "head.safetensors", &safetensors::write_with(&named(&head, hidden, m.tensors()), &at))?;
             Ok(())
         };
@@ -399,6 +292,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
+        against: None,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
@@ -406,14 +300,13 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     // epoch and dev score, so no moment of finishing leaves weights
     // without the record of where they are from.
     let best = report.best_epoch;
-    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
+    let at = [(CHECKPOINT_EPOCH, (best + 1).to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
     let weights = safetensors::write_with(&named(&head, enc.hidden(), model.tensors()), &at);
     let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
         commit,
-        host: host(),
         unix_time: unix_time(),
         corpus: corpus.record.clone(),
         encoder: Some(encoder),
@@ -436,7 +329,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         training: Some(TrainingRecord {
             train_loss: report.train_loss,
             dev: report.dev,
-            best_epoch: report.best_epoch,
+            best_epoch: best + 1,
             epoch_seconds: report.epoch_seconds,
         }),
         eval,

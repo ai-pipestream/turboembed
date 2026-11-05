@@ -1,5 +1,6 @@
 //! Named, versioned analysis profiles (`default-v1`, `retrieval-v1`,
-//! `minimal-v1`, issue `#1302`; `annotate-v1`, `#1775`) for
+//! `minimal-v1`, issue `#1302`; `annotate-v1`, `#1775`; `annotate-v2`,
+//! `#1832`) for
 //! `AnalyzeDocumentProgressive` (`#1218`).
 //!
 //! Every profile defines its immutable step list, the exact set of standard
@@ -120,8 +121,22 @@ pub const ANNOTATE_V1: AnalysisProfile = AnalysisProfile {
     required_bundles: &["TASK_EMBED", "head.pos", "head.entities", "head.dependencies", "head.lemmas"],
 };
 
+/// `annotate-v2`: structure, sentences and tokens, then every head step
+/// the selected bundle provides (`turbo-tagger:heads`), from one encoder
+/// read (`steps/heads.rs`). The bundle needs some head, not a fixed set:
+/// a partial bundle runs what it carries, and a learned sentence head
+/// replaces the rule sentence step. `layers` lists what every run writes;
+/// the head layers follow the bundle's `head_steps` in `Capabilities`.
+pub const ANNOTATE_V2: AnalysisProfile = AnalysisProfile {
+    name: "annotate-v2",
+    version: "2",
+    steps: &["turbo-structure:blocks", "turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped", "turbo-tagger:heads"],
+    layers: &["turbo:structure", "turbo:sentences", "turbo:tokens"],
+    required_bundles: &["TASK_EMBED", "head.any"],
+};
+
 /// All versioned profiles served by `AnalysisService`.
-pub const PROFILES: &[AnalysisProfile] = &[DEFAULT_V1, RETRIEVAL_V1, MINIMAL_V1, ANNOTATE_V1];
+pub const PROFILES: &[AnalysisProfile] = &[DEFAULT_V1, RETRIEVAL_V1, MINIMAL_V1, ANNOTATE_V1, ANNOTATE_V2];
 
 /// Looks up a named, versioned profile by its canonical identifier.
 pub fn find_profile(name: &str) -> Option<&'static AnalysisProfile> {

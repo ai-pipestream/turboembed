@@ -148,7 +148,7 @@ pub fn lemmatize_sequences(
         };
         lem.scores(f, &ids, tagged, &mut scores, &mut lw)?;
         lem.decode(&scores, words, &mut trees)?;
-        let mut lemmas = lem.lemmas(&trees, words)?;
+        let mut lemmas = lem.lemmas_tagged(&trees, words, tagged)?;
         if let Some(d) = dictionary {
             let labels = tags.pos_tagger.map(TokenTagger::labels);
             for (k, lemma) in lemmas.iter_mut().enumerate() {

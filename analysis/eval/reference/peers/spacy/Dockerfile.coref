@@ -1,0 +1,21 @@
+# Pinned spaCy experimental coreference peer (#1825). The base image is
+# pinned by digest (Python 3.11, the newest the model's spaCy range
+# serves), spaCy, spacy-experimental and the model wheel by exact
+# version; torch is the CPU build.
+FROM python@sha256:db20d8506e2f15b6db39b40b6015ca46bae855dec6dd326d462cfe79ae972893
+
+ARG SPACY_VERSION=3.4.4
+ARG SPACY_EXPERIMENTAL_VERSION=0.6.1
+ARG MODEL=en_coreference_web_trf
+ARG MODEL_VERSION=3.4.0a2
+ARG TORCH_VERSION=2.6.0
+
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+    "torch==${TORCH_VERSION}"
+RUN pip install --no-cache-dir \
+    "numpy==1.26.4" \
+    "spacy==${SPACY_VERSION}" "spacy-experimental==${SPACY_EXPERIMENTAL_VERSION}" "click==8.1.8" \
+    "https://github.com/explosion/spacy-experimental/releases/download/v${SPACY_EXPERIMENTAL_VERSION}/${MODEL}-${MODEL_VERSION}-py3-none-any.whl"
+
+COPY coref_predict.py /coref_predict.py
+ENTRYPOINT ["python", "/coref_predict.py"]

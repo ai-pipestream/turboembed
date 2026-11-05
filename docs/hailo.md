@@ -56,7 +56,8 @@ device.
   starts, and restart it after a device that failed to answer is
   brought back.
 - **Capability.** Embed is EXPERIMENTAL at `MODEL` and `FASTEST`,
-  computing in I8, honoring every field of `turbo_embed_options`. `EXACT`
+  computing in I8, honoring every field of `turbo_embed_options` but
+  `layers` (field 9), which it takes as 0 or 1 alone (its bit is clear). `EXACT`
   is UNSUPPORTED: a HEF computes in the dtype it was compiled in, never
   F32.
 - **Contexts.** A context is the device's HailoRT vdevice. HailoRT opens a

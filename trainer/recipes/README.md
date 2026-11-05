@@ -71,15 +71,19 @@ turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bun
     [--crf] [--bilstm <hidden>x<layers>] [--seed N] [--epochs N] [--batch N] [--lr X]
     [--patience N] [--max-train N] [--commit <sha>]
 turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
-    --layers N [--device ..] [--precision ..] [--pooling first|mean] [--max-batch N]
-    [--splits train,dev,test] [--commit <sha>]
+    --layers N [--task tag|lemma|parse|split] [--device ..] [--precision ..] [--pooling first|mean]
+    [--max-batch N] [--splits train,dev,test] [--commit <sha>]
 turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
-    (--layer N | --mix [--from-layer N]) [--crf] [--bilstm ..] [--hash-embed ..] [training settings]
-turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
-    [as train, without --crf and --hash-embed] [--min-tree-freq N]
-turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+    (--layer N | --mix [--from-layer N]) [--task tag|lemma|parse|split] [--crf] [--bilstm ..]
+    [--hash-embed ..] [--min-tree-freq N] [--seen-lookup K] [--arc N] [--rel N] [training settings]
+turbo-train-head sweep    --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
+    [--task tag|lemma|parse|split] [--from-layer N] [--peer-receipt <receipt.json>]
+    [--bilstm ..] [--min-tree-freq N] [--seen-lookup K] [--arc N] [--rel N] [training settings]
+turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
+    [as train, without --crf and --hash-embed] [--min-tree-freq N] [--seen-lookup K]
+turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
-turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> --bundle <encoder bundle> --out <new dir>
+turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
 turbo-train-head train-open-span --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
     [--cache <cache dir>] [--layer N] [--max-words N] [--width-dim N]
@@ -125,21 +129,36 @@ every layer, so `--max-batch` is raised to N when lower. A cache is
 and its 249,980-sentence test split many times that, so `--splits`
 names the splits to read (all three by default).
 
-`fit-cache` trains a head on a cache's train split and scores it on its
-dev split, without the encoder: on one layer (`--layer N`; on the last
-layer it is the run `train` makes, epoch for epoch), or on a learned mix
-of the cached layers from `--from-layer` on (`--mix`: ELMo's scalar
-mix, `turbo_trainer::mix`, a softmax weight a layer and a gain, trained
-with the head). It writes `head.safetensors`, `head.json` and
-`fit.json` (`fit_cache::FitRecord`: the cache's record, the layers, the
-mix's weights and gain, the head, the settings, and the loss and dev
-score each epoch). Comparing the best single layer's dev score with the
-mix's is #1616's step 2; the winner is then scored on test through the
-encoder.
+`fit-cache` (and alias `train-cached`, `#1616`, `#1822`), or `--cache` on
+`train`, `train-lemma`, `train-parse`, and `train-split`, trains a head
+on a cache's train split and scores it on its dev split (and test split
+when `"test"` is cached), without the encoder: on one layer (`--layer N`;
+on the last layer it is the run `train` makes, epoch for epoch, and on a
+lower layer `k` it records `layer_mix: { layers: L - k + 1, layer: k }` in
+`head.json`), or on a learned mix of the cached layers from `--from-layer`
+on (`--mix`: ELMo's scalar mix, `turbo_trainer::mix`, `fit_lemmatizer_mix`,
+and `fit_parser_mix`, a softmax weight a layer and a gain, trained with
+the head). One syntactic-word cache (`cache --corpus ud-<lang>-<bank>`)
+feeds `upos`, `xpos`, `feats`, `lemma` and `parse`; `train-split` uses a
+surface-token cache (`cache --corpus ud-<lang>-<bank> --task split`). It
+writes `head.safetensors`, `head.json`, `fit.json` (`fit_cache::FitRecord`),
+and (when `"test"` is cached) `receipt.json`. `sweep` runs every layer
+from `--from-layer` to the top cached layer plus `--mix`, writes each
+run's `fit.json` and `receipt.json`, and writes `sweep.json` and
+`sweep.md` with paired bootstrap against the last layer and an optional
+`--peer-receipt`. The peer must identify its prediction file and match the
+same gold test corpus, release hashes, task and score column; incompatible
+receipts are refused before training. `--max-train N` selects the original
+first N training sentences before unsupported-label filtering, including
+when training from a cache. Later sentences never backfill the prefix.
 
 `train-lemma` trains the edit-tree lemmatizer (`lemma` on
 `turboembed:lemmas`) over the trees that come up at least
-`--min-tree-freq` times in training (3, spaCy's default);
+`--min-tree-freq` times in training (3, spaCy's default), and with
+`--seen-lookup K` records an unambiguous seen-form lookup table
+(`seen_lookup` in `head.json`, forms seen at least `K` times with a
+single training lemma) applied in front of the edit-tree classifier at
+decode during dev and test evaluation and at runtime;
 `train-parse` trains the biaffine parser (`deps` on
 `turboembed:dependencies`, MST decoding, arc and relation widths 256
 and 64 by default) over the training relations. Both take the
@@ -216,7 +235,13 @@ it, where CoNLL 2018 and published Stanza tables count the universal
 part alone. The words are syntactic words, multiword tokens already
 split, so a peer runs pretokenized with no multiword expansion (Stanza
 `tokenize_pretokenized=True` and no `mwt` processor), or `peer` refuses
-its file for words other than the split's.
+its file for words other than the split's. For `litbank`, `export`
+writes the ten test works as one CoNLL coreference file each under the
+output directory (the gold words and sentence framing, the coreference
+column blank) and `peer --column coref` reads a peer's prediction file
+of one document a work, matched by document id, scored with the CoNLL
+coreference metrics against the same works beside the singleton
+baseline (#1825).
 
 `train-relation` trains the relation classifier head (`relation` on
 `turboembed:relations`, #1734) on `re-docred`: each document is one
@@ -236,6 +261,40 @@ over documents:
 turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --bundle <encoder bundle> --out <new dir>
 ```
 
+`baseline --corpus re-docred --dependency-path` writes the deterministic
+dependency-path rule row (#1825): the documents' own sentences parsed by
+our dependency head (`--parser`, a `train-parse` run directory, over
+`--bundle`), an ordered entity pair labelled by the most frequent
+training relation on the shortest path between the two entities' first
+mentions' head words, no relation when the path is one training never
+gave (`redocred_path`). The receipt's `baseline` is the rule's score,
+its `encoder` and `head` name the parser, and `outputs` digests the
+rule's predictions:
+
+```text
+turbo-train-head baseline --corpus re-docred --dir <Re-DocRED checkout> \
+  --dependency-path --parser <train-parse run dir> --bundle <encoder bundle> --out <new dir>
+```
+
+`--decode relation` trains the single-label variant instead (#1826):
+`DECODE_RELATION`, a softmax cross-entropy over the labels and `none`
+for each pair, and at most one label a pair kept. `--decode relations`
+is the default. `--against <head dir>` reads a head an earlier
+`train-relation` wrote (its `head.json`, `head.safetensors` and
+`receipt.json`) before training starts. It refuses the head unless it
+reads the features this run computes: the same labels, `--pooling` and
+entity type table, on the same encoder (model, revision, manifest
+digest, width and layers; backend, device and precision may differ).
+It then scores that head on the same test documents and records it in
+the receipt's `eval.against`: its metrics, the new head's paired
+bootstrap over documents against it, and the three files with their
+digests. Every run prints the per-label
+table of the ten labels with the most gold test relations.
+
+```text
+turbo-train-head train-relation --corpus re-docred --dir <Re-DocRED checkout> --bundle <encoder bundle> --out <new dir> --decode relation --against <threshold head dir>
+```
+
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for
 many epochs, and each better epoch is saved as it comes.
@@ -245,10 +304,11 @@ many epochs, and each better epoch is saved as it comes.
 `turbo_trainer::fit`, predicts the test split through the core's
 `TokenTagger`, and writes `head.safetensors` (the head's F32 tensors
 under `heads.<name>.`), `head.json` (its `HeadSpec`) and `receipt.json`
-(`receipt::Receipt`: command, commit, host, corpus record with digests
-and counts, encoder model and manifest digest, backend and device, head,
-settings, per-epoch loss and dev score, test scores of model and
-baseline, the bootstrap, timings, and the outputs' digests).
+(`receipt::Receipt`: command, commit, corpus record with digests and
+counts, encoder model and manifest digest, backend and device, head,
+settings, per-epoch loss and dev score with `best_epoch` counted from 1
+as in the training log, test scores of model and baseline, the
+bootstrap, timings, and the outputs' digests).
 
 Majority baselines on the test splits (CPU, 2026-10-28, at the recorded
 releases): MASC Penn POS accuracy 0.8964 (85,292 words), MultiCoNER v2
