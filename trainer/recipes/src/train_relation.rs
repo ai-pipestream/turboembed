@@ -129,6 +129,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         uas: None,
         rules: None,
         against,
+        by_language: Vec::new(),
     };
     if let Some(m) = &eval.model {
         println!("{}", label_table(m, TABLE));

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use turbo_trainer::rng::Rng;
 
 use crate::corpus::{Sentence, Task};
+use crate::receipt::LanguageEval;
 
 /// A span of words `start..end` of one type.
 pub type Span = (usize, usize, String);
@@ -334,4 +335,57 @@ pub fn bootstrap(
     deltas.sort_by(f64::total_cmp);
     let at = |q: f64| if deltas.is_empty() { 0.0 } else { deltas[((deltas.len() - 1) as f64 * q).round() as usize] };
     Comparison { model: ms, baseline: bs, delta: ms - bs, low: at(0.025), high: at(0.975), resamples, seed }
+}
+
+pub type UasScore = fn(&[Sentence], &[Vec<String>]) -> f64;
+
+pub struct LanguageEvalOptions<F> {
+    pub task: Task,
+    pub baseline: F,
+    pub resamples: usize,
+    pub seed: u64,
+    pub attachment: Option<UasScore>,
+}
+
+/// Scores a multi-treebank run independently for each language. Baselines
+/// and unseen-word sets are rebuilt from that language's training rows.
+pub fn language_evals<F>(
+    train: &[Sentence],
+    test: &[Sentence],
+    predicted: &[Vec<String>],
+    train_languages: &[Option<u32>],
+    test_languages: &[Option<u32>],
+    language_names: &[String],
+    options: LanguageEvalOptions<F>,
+) -> crate::Result<Vec<LanguageEval>>
+where
+    F: Fn(&[usize], &[usize]) -> Vec<Vec<String>>,
+{
+    let LanguageEvalOptions { task, baseline, resamples, seed, attachment } = options;
+    if predicted.len() != test.len() || train_languages.len() != train.len() || test_languages.len() != test.len() {
+        return Err(crate::Error("language evaluation rows do not match the sentences".into()));
+    }
+    let mut out = Vec::with_capacity(language_names.len());
+    for (row, language) in language_names.iter().enumerate() {
+        let train_rows: Vec<usize> =
+            train_languages.iter().enumerate().filter_map(|(i, &r)| (r == Some(row as u32)).then_some(i)).collect();
+        let test_rows: Vec<usize> =
+            test_languages.iter().enumerate().filter_map(|(i, &r)| (r == Some(row as u32)).then_some(i)).collect();
+        let train_part: Vec<Sentence> = train_rows.iter().map(|&i| train[i].clone()).collect();
+        let test_part: Vec<Sentence> = test_rows.iter().map(|&i| test[i].clone()).collect();
+        let model_part: Vec<Vec<String>> = test_rows.iter().map(|&i| predicted[i].clone()).collect();
+        let base_part = baseline(&train_rows, &test_rows);
+        let seen = Seen::of(&train_part);
+        out.push(LanguageEval {
+            language: language.clone(),
+            model: Some(evaluate(task, &test_part, &model_part, &seen, None)),
+            baseline: evaluate(task, &test_part, &base_part, &seen, None),
+            comparison: Some(bootstrap(task, &test_part, &model_part, &base_part, resamples, seed)),
+            uas: attachment.map(|uas| crate::receipt::Uas {
+                model: uas(&test_part, &model_part),
+                baseline: uas(&test_part, &base_part),
+            }),
+        });
+    }
+    Ok(out)
 }
