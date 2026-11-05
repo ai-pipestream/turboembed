@@ -212,7 +212,7 @@ fn the_cli_trains_a_multi_treebank_lemmatizer() {
     assert_eq!(head.name, "lemma");
     assert_eq!(head.kind, turbo::manifest::HeadKind::EditTreeLemmatizer);
     let language = head.language.unwrap();
-    assert_eq!(language.languages, ["ud-es-ancora", "ud-ca-ancora"]);
+    assert_eq!(language.languages, ["es", "ca"]);
     assert_eq!(language.dim, 16);
     fs::remove_dir_all(dir).unwrap();
     fs::remove_dir_all(out).unwrap();
