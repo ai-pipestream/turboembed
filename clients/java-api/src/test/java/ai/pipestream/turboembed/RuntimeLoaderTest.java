@@ -59,4 +59,27 @@ final class RuntimeLoaderTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new TurboSpanData.CoordinateRange(4, 0, 0, 2, 0, 1));
     }
+
+    @Test
+    void jvmFeatureParsesSpecificationVersions() {
+        assertEquals(21, RuntimeLoader.jvmFeature("21"));
+        assertEquals(25, RuntimeLoader.jvmFeature("25"));
+        assertEquals(8, RuntimeLoader.jvmFeature("1.8"));
+        assertEquals(11, RuntimeLoader.jvmFeature("11.0.2"));
+        assertEquals(0, RuntimeLoader.jvmFeature(""));
+        assertEquals(0, RuntimeLoader.jvmFeature(null));
+        assertEquals(0, RuntimeLoader.jvmFeature("x"));
+    }
+
+    @Test
+    void selectedDoesNotReferenceRuntimeVersionSymbol() throws Exception {
+        // android.jar does not declare the Runtime version API; keep the call out of this shared source.
+        java.nio.file.Path source = java.nio.file.Path.of("src/main/java/ai/pipestream/turboembed/RuntimeLoader.java");
+        if (!java.nio.file.Files.isRegularFile(source)) {
+            source = java.nio.file.Path.of("../src/main/java/ai/pipestream/turboembed/RuntimeLoader.java");
+        }
+        String body = java.nio.file.Files.readString(source);
+        assertFalse(body.contains("Runtime.version("), body);
+        assertTrue(body.contains("java.specification.version"), body);
+    }
 }

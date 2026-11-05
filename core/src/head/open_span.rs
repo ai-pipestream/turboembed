@@ -47,13 +47,25 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
     out
 }
 
-/// Splits a label name (such as `"creative-work"` or `"person_name"`) into
+/// Splits a label name (such as `"creative-work"` or `"VisualWork"`) into
 /// the words a tokenizer and encoder embed to represent the label.
 pub fn label_words(label: &str) -> Vec<&str> {
-    let parts: Vec<&str> = label
-        .split(|c: char| c.is_whitespace() || c == '-' || c == '_' || c == '/')
-        .filter(|s| !s.is_empty())
-        .collect();
+    let mut parts = Vec::new();
+    let (mut start, mut previous) = (0, None);
+    for (i, c) in label.char_indices() {
+        let separator = c.is_whitespace() || c == '-' || c == '_' || c == '/';
+        let camel = previous.is_some_and(char::is_lowercase) && c.is_uppercase();
+        if separator || camel {
+            if i > start {
+                parts.push(&label[start..i]);
+            }
+            start = if separator { i + c.len_utf8() } else { i };
+        }
+        previous = Some(c);
+    }
+    if start < label.len() {
+        parts.push(&label[start..]);
+    }
     if parts.is_empty() { vec![label] } else { parts }
 }
 

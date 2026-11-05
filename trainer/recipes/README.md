@@ -87,7 +87,7 @@ turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> (--bundle <
     [as train, without --crf and --hash-embed] [--min-tree-freq N]
 turbo-train-head train-open-span --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
     [--cache <cache dir>] [--layer N] [--max-words N] [--width-dim N]
-    [--hold-out <type> ...] [training settings]
+    [--hold-out <type> ...] [--balance] [training settings]
 turbo-train-head train-coref --corpus litbank --dir <litbank dir> --bundle <encoder bundle> --out <new dir>
     [as train, without --crf and --hash-embed] [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N]
 turbo-train-head assemble --bundle <encoder bundle> --run <run dir> [--run <run dir> ...] --out <new dir>
@@ -211,7 +211,11 @@ up to `--max-words` (8 by default). Passing `--hold-out <type>` drops
 that entity type from training and dev and evaluates test span F1 on
 all types, seen types, and held-out (zero-shot unseen) types alongside
 the majority baseline and the case-insensitive label-name dictionary
-matcher.
+matcher. Comma-separated corpus ids and directories train one shared head,
+with per-dataset and combined metrics plus paired bootstrap against both
+baselines. `--balance` repeats each smaller training corpus to the largest
+split, without changing dev or test. Single-corpus cache input is supported;
+mixed-corpus cache input is refused.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
@@ -326,3 +330,5 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
 Not yet here: a core head that reads a mix of layers (only if the mix
 wins, #1616), full NER training and peer records (WNUT-17, GermEval and
 MASC), and a lemmatizer that reads the tagger's UPOS (`pos_input`).
+
+Native NER bundle prediction and paired peer comparison: [ner-release.md](ner-release.md).

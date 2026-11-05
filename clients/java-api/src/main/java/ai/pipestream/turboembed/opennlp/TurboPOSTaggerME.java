@@ -63,7 +63,7 @@ public final class TurboPOSTaggerME extends TurboAdapterSupport implements POSTa
         for (int i = 0; i < rows.size(); i++) {
             TurboSpanView row = rows.get(i);
             if (row.itemIndex() != i
-                    || row.tokenRange().isEmpty()
+                    || !row.tokenRange().isPresent()
                     || row.tokenRange().get().start() != i
                     || row.tokenRange().get().end() != i + 1L) {
                 throw new IllegalStateException(task + " row " + i + " is not aligned to token " + i);

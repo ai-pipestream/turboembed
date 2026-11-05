@@ -34,3 +34,10 @@ zig-out/
 /demo/web/node_modules/
 # HotSpot crash dumps a failing JNI test leaves in the module directory.
 hs_err_pid*.log
+# Android conformance harness build trees and staged native/assets copies.
+/clients/java-jni/android-conformance/.gradle/
+/clients/java-jni/android-conformance/**/build/
+/clients/java-jni/android-conformance/app/src/main/jniLibs/
+/clients/java-jni/android-conformance/app/src/main/assets/testdata/tiny-bert-bundle/
+/clients/java-jni/android-conformance/app/src/main/assets/testdata/tiny-bert-heads-bundle/
+/clients/java-jni/jniLibs/
