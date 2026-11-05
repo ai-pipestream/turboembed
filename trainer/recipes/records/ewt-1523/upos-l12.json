@@ -1,0 +1,263 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-en-ewt-upos",
+    "--dir",
+    "ud-en-ewt-r2.18",
+    "--bundle",
+    "modernbert-base-l12",
+    "--hash-embed",
+    "64",
+    "--commit",
+    "75b4af00f356de08da1593b6e4a87f56daf3110f",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "ewt-upos-l12"
+  ],
+  "commit": "75b4af00f356de08da1593b6e4a87f56daf3110f",
+  "unix_time": 1793879438,
+  "corpus": {
+    "id": "ud-en-ewt-upos",
+    "name": "Universal Dependencies English Web Treebank r2.18, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.18/README.md",
+    "attribution": "Trained on the Universal Dependencies English Web Treebank (Silveira et al., 2014), annotations by The Board of Trustees of The Leland Stanford Junior University, published at https://github.com/UniversalDependencies/UD_English-EWT; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "en_ewt-ud-train.conllu",
+        "size": 15034493,
+        "sha256": "d68e06122a702464c613076523d56740f047e5bbe89dd90ec32737e04d952143"
+      },
+      {
+        "path": "en_ewt-ud-dev.conllu",
+        "size": 1898574,
+        "sha256": "39239e0a60db3ae68f4b7036189f11b6692741d10ff8240dd91f74f2760d90f8"
+      },
+      {
+        "path": "en_ewt-ud-test.conllu",
+        "size": 1900101,
+        "sha256": "fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.18 (b7711cce01cdd4f5fcc0a8199b8a50d951b16c0c)",
+    "train": {
+      "sentences": 12544,
+      "words": 204578
+    },
+    "dev": {
+      "sentences": 2001,
+      "words": 25148
+    },
+    "test": {
+      "sentences": 2077,
+      "words": 25094
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "answerdotai/ModernBERT-base",
+    "revision": "1",
+    "manifest_sha256": "3c520dec8d833a3594b15567d1de0c8c039a571c728fbf2a6247d4fa885a64b4",
+    "hidden": 768,
+    "layers": 12,
+    "width": 8190,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "DET",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.7951709297622974,
+      0.14512425122962944,
+      0.100562834281667,
+      0.08003896511556104,
+      0.072498442479819,
+      0.07030640431885912,
+      0.06681884272813439,
+      0.056521864443716034,
+      0.04652970306474798,
+      0.041445827565981946,
+      0.03708048111388197,
+      0.03174129865926983,
+      0.02689021518091362,
+      0.02450608780437545,
+      0.021417972970651927,
+      0.01920887702121618,
+      0.015655188594705386,
+      0.013159259122429115,
+      0.012961083474048488,
+      0.011965155489617258,
+      0.010102740324098558
+    ],
+    "dev": [
+      0.9331557181485606,
+      0.943335454111659,
+      0.944687450294258,
+      0.9432161603308414,
+      0.941426753618578,
+      0.9413074598377604,
+      0.9426992206139653,
+      0.9421027517098776,
+      0.9421822808970892,
+      0.9406712263400668,
+      0.94198345792906,
+      0.9442898043581994,
+      0.9418243995546366,
+      0.9437331000477175,
+      0.9440114522029585,
+      0.9408302847144903,
+      0.9428582789883887,
+      0.9441705105773819,
+      0.942778749801177,
+      0.9431366311436297,
+      0.9446079211070463
+    ],
+    "best_epoch": 3,
+    "epoch_seconds": [
+      142.734038507,
+      131.603317502,
+      115.709339882,
+      114.001560894,
+      118.01418682,
+      95.342257772,
+      123.679750971,
+      169.23251801,
+      100.776791904,
+      121.643140807,
+      108.603199815,
+      164.656287405,
+      148.395354325,
+      103.873715455,
+      116.486932542,
+      145.150107439,
+      68.187182598,
+      93.081562991,
+      74.927472312,
+      60.330993707,
+      75.713398289
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 25094,
+        "correct": 23657,
+        "accuracy": 0.9427353152147924,
+        "unseen_words": 2292,
+        "unseen_correct": 1800,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 25094,
+        "correct": 21623,
+        "accuracy": 0.8616800828883399,
+        "unseen_words": 2292,
+        "unseen_correct": 706,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9427353152147924,
+      "baseline": 0.8616800828883399,
+      "delta": 0.08105523232645251,
+      "low": 0.07620497616090383,
+      "high": 0.08594804988482008,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.406063226,
+    "features": 4.413116836,
+    "train": 2392.327093681,
+    "eval": 2.637960327,
+    "feature_words": 229726
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13346004,
+      "sha256": "2a1e51aea91951c2b2a271febf084b06790ac2189d49fffcfd86a9187575383f"
+    },
+    {
+      "path": "head.json",
+      "size": 680,
+      "sha256": "8b85806dd83a0a1b5d310764489cfdfdb9d7af1829d242acc3c22736757b82af"
+    }
+  ]
+}

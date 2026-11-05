@@ -1,0 +1,263 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-de-gsd-upos",
+    "--dir",
+    "ud-german-gsd-r2.16",
+    "--bundle",
+    "xlm-roberta-base",
+    "--hash-embed",
+    "64",
+    "--commit",
+    "75b4af00f356de08da1593b6e4a87f56daf3110f",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "de-gsd-upos"
+  ],
+  "commit": "75b4af00f356de08da1593b6e4a87f56daf3110f",
+  "unix_time": 1793861344,
+  "corpus": {
+    "id": "ud-de-gsd-upos",
+    "name": "Universal Dependencies German GSD r2.16, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies German GSD r2.16, published at https://github.com/UniversalDependencies/UD_German-GSD; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "de_gsd-ud-train.conllu",
+        "size": 19627297,
+        "sha256": "b01561c37fafa1b505630f69d173ca0c015a91e444a2cfe7aeca67288b1c77f2"
+      },
+      {
+        "path": "de_gsd-ud-dev.conllu",
+        "size": 904804,
+        "sha256": "00431f2624cbbf66796c097a9303bbc8f8e8ca88ef35c4c5664aa396b2d674c9"
+      },
+      {
+        "path": "de_gsd-ud-test.conllu",
+        "size": 1207783,
+        "sha256": "bceb8e867ba3ee7f1449d44fb31538d63a514f07e6763e7d9a5ffe794407bed4"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (0726bb0c7e7328d5ef1a5d65c70d184882eacd95)",
+    "train": {
+      "sentences": 13813,
+      "words": 263777
+    },
+    "dev": {
+      "sentences": 799,
+      "words": 12480
+    },
+    "test": {
+      "sentences": 977,
+      "words": 16499
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "DET",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.8766284367550236,
+      0.0995093402625901,
+      0.07685981151729931,
+      0.06357802295421698,
+      0.052155116950849824,
+      0.04164151294201047,
+      0.02958308314687626,
+      0.019445513824638844,
+      0.014067576383679876,
+      0.010826183330491266,
+      0.009849284229599534,
+      0.0076144258033738164,
+      0.007657685071869322,
+      0.005971558231619493,
+      0.005095300888519976,
+      0.004176141199355093,
+      0.004605562619182964,
+      0.004023795518208816,
+      0.003891470117632483,
+      0.0035580629095529133,
+      0.003400271331951532
+    ],
+    "dev": [
+      0.953926282051282,
+      0.9641025641025641,
+      0.966025641025641,
+      0.9639423076923077,
+      0.9637820512820513,
+      0.9650641025641026,
+      0.9637820512820513,
+      0.9632211538461538,
+      0.9633814102564102,
+      0.9620993589743589,
+      0.9643429487179487,
+      0.963701923076923,
+      0.9620993589743589,
+      0.9646634615384615,
+      0.9633012820512821,
+      0.9653846153846154,
+      0.9625801282051282,
+      0.9633012820512821,
+      0.9645032051282051,
+      0.9651442307692307,
+      0.9627403846153846
+    ],
+    "best_epoch": 3,
+    "epoch_seconds": [
+      163.091644476,
+      102.839081702,
+      102.088142838,
+      107.692133054,
+      108.505174388,
+      169.293170595,
+      323.987828624,
+      77.653706313,
+      63.386721376,
+      122.622511487,
+      100.288904669,
+      77.153013204,
+      64.599942815,
+      71.554494414,
+      69.591983817,
+      74.76760045,
+      79.212772285,
+      92.834343006,
+      63.388556631,
+      58.990602445,
+      60.327920449
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 16499,
+        "correct": 15872,
+        "accuracy": 0.9619976968301109,
+        "unseen_words": 1932,
+        "unseen_correct": 1756,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 16499,
+        "correct": 14627,
+        "accuracy": 0.8865385780956422,
+        "unseen_words": 1932,
+        "unseen_correct": 883,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9619976968301109,
+      "baseline": 0.8865385780956422,
+      "delta": 0.07545911873446876,
+      "low": 0.07075354389455368,
+      "high": 0.08070428459828138,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.388216598,
+    "features": 4.249103425,
+    "train": 2154.067139624,
+    "eval": 1.133183229,
+    "feature_words": 276257
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13346004,
+      "sha256": "d22b7d7c710e92f9fcdb2dadc5839bf7f99c49cf44495423f59cb67bd0d69948"
+    },
+    {
+      "path": "head.json",
+      "size": 680,
+      "sha256": "8b85806dd83a0a1b5d310764489cfdfdb9d7af1829d242acc3c22736757b82af"
+    }
+  ]
+}

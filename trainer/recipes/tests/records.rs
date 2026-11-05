@@ -325,3 +325,62 @@ fn the_builtin_english_pos_entry_is_the_head_b_bundle() {
     let head_file = head.outputs.iter().find(|o| o.path == "head.safetensors").unwrap();
     assert!(weights.size > head_file.size);
 }
+
+/// The UD head records of #1523 (EWT, share-alike), #1522 (the CC BY
+/// treebanks, default tier) and #1651 (the CC BY-SA ones, share-alike): receipts of the recorded releases, each head's
+/// licence class, the gate cleared with the whole interval above zero,
+/// the scores the READMEs give, and no machine or path in a receipt.
+#[test]
+fn the_ud_head_records_are_receipts_of_the_recorded_releases() {
+    let rows = [
+        ("ewt-1523", "deps.json", "ud-en-ewt-deps", LicenseClass::ShareAlike, 0.7901, 0.3322),
+        ("ewt-1523", "feats.json", "ud-en-ewt-feats", LicenseClass::ShareAlike, 0.9531, 0.8292),
+        ("ewt-1523", "lemma.json", "ud-en-ewt-lemma", LicenseClass::ShareAlike, 0.9543, 0.9503),
+        ("ewt-1523", "upos-l12.json", "ud-en-ewt-upos", LicenseClass::ShareAlike, 0.9427, 0.8617),
+        ("ewt-1523", "upos.json", "ud-en-ewt-upos", LicenseClass::ShareAlike, 0.9457, 0.8617),
+        ("ewt-1523", "xpos.json", "ud-en-ewt-xpos", LicenseClass::ShareAlike, 0.9408, 0.8381),
+        ("ud-1522", "ca-ancora-deps.json", "ud-ca-ancora-deps", LicenseClass::Permissive, 0.9128, 0.4087),
+        ("ud-1522", "ca-ancora-lemma.json", "ud-ca-ancora-lemma", LicenseClass::Permissive, 0.9861, 0.9701),
+        ("ud-1522", "ca-ancora-upos.json", "ud-ca-ancora-upos", LicenseClass::Permissive, 0.9882, 0.9198),
+        ("ud-1522", "es-ancora-deps.json", "ud-es-ancora-deps", LicenseClass::Permissive, 0.8993, 0.3873),
+        ("ud-1522", "es-ancora-lemma.json", "ud-es-ancora-lemma", LicenseClass::Permissive, 0.9864, 0.9677),
+        ("ud-1522", "es-ancora-upos.json", "ud-es-ancora-upos", LicenseClass::Permissive, 0.9878, 0.9176),
+        ("ud-1522", "fi-ftb-deps.json", "ud-fi-ftb-deps", LicenseClass::Permissive, 0.8537, 0.3849),
+        ("ud-1522", "fi-ftb-lemma.json", "ud-fi-ftb-lemma", LicenseClass::Permissive, 0.8208, 0.7928),
+        ("ud-1522", "fi-ftb-upos.json", "ud-fi-ftb-upos", LicenseClass::Permissive, 0.9463, 0.82),
+        ("ud-1522", "it-markit-deps.json", "ud-it-markit-deps", LicenseClass::Permissive, 0.7733, 0.3305),
+        ("ud-1522", "it-markit-lemma.json", "ud-it-markit-lemma", LicenseClass::Permissive, 0.831, 0.8172),
+        ("ud-1522", "it-markit-upos.json", "ud-it-markit-upos", LicenseClass::Permissive, 0.9555, 0.8441),
+        ("ud-1651", "de-gsd-lemma.json", "ud-de-gsd-lemma", LicenseClass::ShareAlike, 0.9516, 0.9424),
+        ("ud-1651", "de-gsd-upos.json", "ud-de-gsd-upos", LicenseClass::ShareAlike, 0.962, 0.8865),
+        ("ud-1651", "fr-gsd-lemma.json", "ud-fr-gsd-lemma", LicenseClass::ShareAlike, 0.9741, 0.9593),
+        ("ud-1651", "fr-gsd-upos.json", "ud-fr-gsd-upos", LicenseClass::ShareAlike, 0.9803, 0.9132),
+        ("ud-1651", "nl-alpino-lemma.json", "ud-nl-alpino-lemma", LicenseClass::ShareAlike, 0.916, 0.9076),
+        ("ud-1651", "nl-alpino-upos.json", "ud-nl-alpino-upos", LicenseClass::ShareAlike, 0.9624, 0.8806),
+        ("ud-1651", "pt-gsd-lemma.json", "ud-pt-gsd-lemma", LicenseClass::ShareAlike, 0.9033, 0.8761),
+        ("ud-1651", "pt-gsd-upos.json", "ud-pt-gsd-upos", LicenseClass::ShareAlike, 0.9738, 0.8803),
+        ("ud-1651", "ru-gsd-lemma.json", "ud-ru-gsd-lemma", LicenseClass::ShareAlike, 0.8996, 0.7969),
+        ("ud-1651", "ru-gsd-upos.json", "ud-ru-gsd-upos", LicenseClass::ShareAlike, 0.9721, 0.8072),
+    ];
+    for (dir, name, corpus, class, model, baseline) in rows {
+        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("records").join(dir).join(name);
+        let bytes = std::fs::read(&p).unwrap();
+        let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(raw.get("host").is_none(), "{name}: host field present");
+        let r: Receipt = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+        assert_eq!(r.schema, SCHEMA, "{name}");
+        assert_eq!(r.corpus.id, corpus, "{name}");
+        assert!(r.corpus.recorded, "{name}: not the recorded release");
+        assert_eq!(r.command[0], "turbo-train-head", "{name}");
+        assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
+        assert_eq!(r.head.as_ref().unwrap().license_class, Some(class), "{name}");
+        let t = r.training.as_ref().unwrap();
+        assert!((1..=t.dev.len()).contains(&t.best_epoch), "{name}: best epoch {}", t.best_epoch);
+        let c = r.eval.comparison.as_ref().unwrap();
+        assert!(c.delta > 0.0 && c.low > 0.0, "{name}: the gate, the whole interval above zero");
+        assert_eq!(round(r.eval.model.as_ref().unwrap().score()), model, "{name}");
+        assert_eq!(round(r.eval.baseline.score()), baseline, "{name}");
+        let text = String::from_utf8(bytes).unwrap().to_lowercase();
+        assert!(!text.contains("opennlp") && !text.contains("/work/"), "{name}: no OpenNLP row, no host paths");
+    }
+}
