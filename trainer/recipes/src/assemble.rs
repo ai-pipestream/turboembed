@@ -19,7 +19,6 @@ use crate::receipt::{Receipt, SCHEMA};
 use crate::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH};
 use crate::{Error, Result};
 
-/// A verified training run ready to be merged into an encoder bundle.
 #[derive(Debug, Clone)]
 pub struct VerifiedRun {
     pub dir: PathBuf,
@@ -28,8 +27,6 @@ pub struct VerifiedRun {
     pub license_class: LicenseClass,
     pub weights_bytes: Vec<u8>,
 }
-
-/// The result of assembling one or more [`VerifiedRun`]s into a bundle directory.
 #[derive(Debug)]
 pub struct AssembledBundle {
     pub dir: PathBuf,
@@ -38,9 +35,6 @@ pub struct AssembledBundle {
     pub license_tier: LicenseClass,
     pub runs: Vec<VerifiedRun>,
 }
-
-/// Verifies a single run directory against its `receipt.json`, `head.json`, and
-/// `head.safetensors`.
 pub fn verify_run(run_dir: &Path) -> Result<VerifiedRun> {
     let at = |msg: String| Error(format!("{}: {msg}", run_dir.display()));
     let receipt_bytes = fs::read(run_dir.join("receipt.json")).map_err(|e| at(format!("receipt.json: {e}")))?;
@@ -205,10 +199,13 @@ fn verify_head_tensors(
     Ok(())
 }
 
-/// Verifies every run in `run_dirs` against `encoder_bundle`, writes the
-/// assembled single-head or multi-task bundle to `out_dir`, and verifies it
-/// with [`Bundle::open`].
-pub fn assemble_bundle(encoder_bundle: &Path, run_dirs: &[&Path], out_dir: &Path) -> Result<AssembledBundle> {
+pub use crate::assemble_tuned::{assemble_bundle, assemble_tuned_bundle};
+pub(crate) fn assemble_with_tuned(
+    encoder_bundle: &Path,
+    run_dirs: &[&Path],
+    tuned_run: Option<&Path>,
+    out_dir: &Path,
+) -> Result<AssembledBundle> {
     if run_dirs.is_empty() {
         return Err(Error("assemble: at least one run directory is required".into()));
     }
@@ -282,8 +279,17 @@ pub fn assemble_bundle(encoder_bundle: &Path, run_dirs: &[&Path], out_dir: &Path
         runs.push(run);
     }
 
-    let base_weights = fs::read(encoder_bundle.join(&weights_path))
-        .map_err(|e| Error(format!("{}: {e}", encoder_bundle.join(&weights_path).display())))?;
+    let base_weights = match tuned_run {
+        Some(dir) => {
+            let run = runs
+                .iter()
+                .find(|r| r.dir == dir)
+                .ok_or_else(|| Error("assemble: --tuned-encoder must also be a --run directory".into()))?;
+            verify_output(dir, &run.receipt, "encoder.safetensors")?
+        }
+        None => fs::read(encoder_bundle.join(&weights_path))
+            .map_err(|e| Error(format!("{}: {e}", encoder_bundle.join(&weights_path).display())))?,
+    };
     let merged_weights = merge_safetensors(&base_weights, &runs)?;
 
     for f in &manifest.files {
@@ -447,10 +453,6 @@ fn parse_safetensors_header(bytes: &[u8]) -> std::result::Result<SafetensorsHead
     Ok((meta, out))
 }
 
-/// Appends every verified head's tensors onto `base`'s safetensors table.
-/// Any `__metadata__` map on `base` or the head checkpoints is omitted in the
-/// merged file; per-head checkpoint and corpus provenance live in
-/// `manifest.json` (`head_provenance`).
 fn merge_safetensors(base: &[u8], runs: &[VerifiedRun]) -> Result<Vec<u8>> {
     let base_n = u64::from_le_bytes(base[..8].try_into().unwrap()) as usize;
     let (_, base_header) = parse_safetensors_header(base).map_err(Error)?;

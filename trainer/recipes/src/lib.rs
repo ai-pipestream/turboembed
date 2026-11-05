@@ -23,6 +23,7 @@
 //! | `safetensors` | Writing the head's F32 tensors |
 
 pub mod assemble;
+mod assemble_tuned;
 pub mod assemble_zoo;
 pub mod cache;
 pub mod cached_ud;

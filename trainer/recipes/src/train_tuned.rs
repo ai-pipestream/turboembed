@@ -26,6 +26,8 @@ use turbo_trainer_recipes::{Error, Result, safetensors};
 
 use super::{Args, Opts, RESAMPLES, encoder_record, finish, options, saved_any};
 
+type Fitted = (Encoder<f32>, Parser<f32>, turbo_trainer::Report, Vec<Vec<f32>>);
+
 pub(super) fn train(
     argv: &[String],
     bank: &str,
@@ -37,6 +39,7 @@ pub(super) fn train(
 ) -> Result<()> {
     let bank = *TREEBANKS.iter().find(|b| b.id == bank).ok_or_else(|| Error(format!("unknown treebank {bank:?}")))?;
     let biaffine = Biaffine { arc: a.parsed("--arc", 256)?, rel: a.parsed("--rel", 64)? };
+    let max_test: usize = a.parsed("--max-test", 0)?;
     let Opts { bundle, mut out, device, precision: _, pooling, crf, bilstm, hash, mut c, max_train, commit } =
         options(&mut a)?;
     a.done()?;
@@ -55,6 +58,9 @@ pub(super) fn train(
     let (mut splits, files, recorded) = read_treebank(&bank, dir, unrecorded)?;
     if max_train > 0 {
         splits.train.truncate(max_train);
+    }
+    if max_test > 0 {
+        splits.test.truncate(max_test);
     }
     let record = record(&bank, UdHead::Deps, &splits, files, recorded);
     let read = t.elapsed().as_secs_f64();
@@ -86,6 +92,7 @@ pub(super) fn train(
     let feature_words = splits.train.iter().chain(&splits.dev).map(|s| s.words.len() as u64).sum();
     let names = tensor_names(&bundle)?;
     let spec_json = serde_json::to_vec_pretty(&spec).expect("a head spec serializes");
+    let test = examples(&mut words, &bundle, &splits.test, &spec.labels, false)?;
 
     let t = Instant::now();
     let base = Encoder::load(&bundle).map_err(|e| Error(e.message))?;
@@ -97,8 +104,8 @@ pub(super) fn train(
     };
     let base = if bf16 { base.with_bf16() } else { base };
     let dir = out.path.clone();
-    let (encoder, head, report) = if cuda {
-        fit_cuda(base, &spec, &train, &dev, &c, &dir, &spec_json, &names)?
+    let (encoder, head, report, test_f) = if cuda {
+        fit_cuda(base, &spec, &train, &dev, &test, pooling, &c, &dir, &spec_json, &names)?
     } else {
         let (model, report) = fit_tuned_parser_with(base, &spec, &train, &dev, &c, &mut |m, epoch, dev| {
             let encoder = m.encoder().named(&names)?;
@@ -106,14 +113,13 @@ pub(super) fn train(
         })
         .map_err(|e| Error(e.message))?;
         let (encoder, head) = model.into_parts();
-        (encoder, head, report)
+        let test_f = self::features(&encoder, &test, pooling)?;
+        (encoder, head, report, test_f)
     };
     out.keep = out.keep || saved_any(&dir);
     let trained = t.elapsed().as_secs_f64();
 
     let t = Instant::now();
-    let test = examples(&mut words, &bundle, &splits.test, &spec.labels, false)?;
-    let test_f = self::features(&encoder, &test, pooling)?;
     let parser = head.to_core().map_err(|e| Error(e.message))?;
     let predicted = predict_parses(&parser, &splits.test, &test_f)?;
     let base = deps_baseline(&splits.train, &splits.test);
@@ -262,17 +268,37 @@ fn checkpoint(
 }
 
 #[cfg(any(feature = "cuda", feature = "cuda-shim"))]
+fn cuda_features(
+    encoder: &mut turbo_trainer::encoder::cuda::CudaEncoder,
+    examples: &[TunedParseExample],
+    pooling: turbo::manifest::WordPooling,
+) -> Result<Vec<Vec<f32>>> {
+    let mut states = Vec::new();
+    let mut out = Vec::with_capacity(examples.len());
+    for e in examples {
+        encoder.forward(&e.ids, &mut states).map_err(|e| Error(e.message))?;
+        let (mut features, mut count) = (Vec::new(), Vec::new());
+        pool::forward(&states, &e.words, encoder.geometry().hidden, pooling, &mut features, &mut count)
+            .map_err(|e| Error(e.message))?;
+        out.push(features);
+    }
+    Ok(out)
+}
+
+#[cfg(any(feature = "cuda", feature = "cuda-shim"))]
 #[allow(clippy::too_many_arguments)]
 fn fit_cuda(
     base: Encoder<f32>,
     spec: &turbo::manifest::HeadSpec,
     train: &[TunedParseExample],
     dev: &[TunedParseExample],
+    test: &[TunedParseExample],
+    pooling: turbo::manifest::WordPooling,
     c: &turbo_trainer::Config,
     dir: &Path,
     spec_json: &[u8],
     names: &BTreeMap<TensorRole, String>,
-) -> Result<(Encoder<f32>, Parser<f32>, turbo_trainer::Report)> {
+) -> Result<Fitted> {
     use turbo_trainer::encoder::cuda::CudaEncoder;
     use turbo_trainer::fit_tuned_cuda_parser_with;
 
@@ -283,8 +309,9 @@ fn fit_cuda(
         checkpoint(dir, spec, spec_json, hidden, m.head(), &encoder, epoch, dev)
     })
     .map_err(|e| Error(e.message))?;
-    let (encoder, head) = model.into_parts().map_err(|e| Error(e.message))?;
-    Ok((encoder.to_cpu().map_err(|e| Error(e.message))?, head, report))
+    let (mut encoder, head) = model.into_parts().map_err(|e| Error(e.message))?;
+    let test_f = cuda_features(&mut encoder, test, pooling)?;
+    Ok((encoder.to_cpu().map_err(|e| Error(e.message))?, head, report, test_f))
 }
 
 #[cfg(not(any(feature = "cuda", feature = "cuda-shim")))]
@@ -294,10 +321,12 @@ fn fit_cuda(
     _: &turbo::manifest::HeadSpec,
     _: &[TunedParseExample],
     _: &[TunedParseExample],
+    _: &[TunedParseExample],
+    _: turbo::manifest::WordPooling,
     _: &turbo_trainer::Config,
     _: &Path,
     _: &[u8],
     _: &BTreeMap<TensorRole, String>,
-) -> Result<(Encoder<f32>, Parser<f32>, turbo_trainer::Report)> {
+) -> Result<Fitted> {
     Err(Error("this binary was built without the cuda feature".into()))
 }

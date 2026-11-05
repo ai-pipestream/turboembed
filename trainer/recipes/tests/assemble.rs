@@ -282,6 +282,21 @@ fn single_head_and_multitask_bundles_load_through_zoo_and_match_receipt_predicti
         assert_eq!(&sample_text[got.range()], sample_words[w.start as usize]);
     }
     assert!(ner_receipt.eval.model.as_ref().unwrap().score() >= 0.0);
+    let mut tuned = fs::read(tiny().join("weights/model.safetensors")).unwrap();
+    let last = tuned.len() - 4;
+    tuned[last..].copy_from_slice(&42.0f32.to_le_bytes());
+    fs::write(ner_run.join("encoder.safetensors"), &tuned).unwrap();
+    let mut receipt: Receipt = serde_json::from_slice(&fs::read(ner_run.join("receipt.json")).unwrap()).unwrap();
+    receipt.outputs.push(FileRecord {
+        path: "encoder.safetensors".into(),
+        size: tuned.len() as u64,
+        sha256: sha256_hex(&tuned),
+    });
+    fs::write(ner_run.join("receipt.json"), serde_json::to_vec_pretty(&receipt).unwrap()).unwrap();
+    let tuned_out = scratch("e2e-tuned-bundle");
+    turbo_trainer_recipes::assemble::assemble_tuned_bundle(&tiny(), &[&ner_run], &ner_run, &tuned_out).unwrap();
+    let merged = fs::read(tuned_out.join("weights/model.safetensors")).unwrap();
+    assert!(merged.windows(4).any(|bytes| bytes == 42.0f32.to_le_bytes()));
 
     let (pos_run, split_run, sent_run, lang_run) =
         (scratch("e2e-pos-run"), scratch("e2e-split-run"), scratch("e2e-sent-run"), scratch("e2e-lang-run"));

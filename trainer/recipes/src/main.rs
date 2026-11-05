@@ -20,7 +20,7 @@
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16]])
+//!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16] [--max-test N]])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
@@ -134,6 +134,7 @@ fn assemble_cmd(mut a: Args) -> Result<()> {
         return Err(Error("--run is required at least once".into()));
     }
     let out_arg = a.required("--out")?;
+    let tuned_encoder = a.value("--tuned-encoder")?.map(PathBuf::from);
     let zoo_id = a.value("--zoo-id")?;
     let component = match a.value("--component")? {
         Some(c) => Some(c.parse().map_err(Error)?),
@@ -158,7 +159,10 @@ fn assemble_cmd(mut a: Args) -> Result<()> {
     let mut out = OutDir::claim(&out_arg)?;
 
     let run_refs: Vec<&Path> = runs.iter().map(PathBuf::as_path).collect();
-    let assembled = turbo_trainer_recipes::assemble::assemble_bundle(&bundle, &run_refs, &out.path)?;
+    let assembled = match tuned_encoder {
+        Some(tuned) => turbo_trainer_recipes::assemble::assemble_tuned_bundle(&bundle, &run_refs, &tuned, &out.path)?,
+        None => turbo_trainer_recipes::assemble::assemble_bundle(&bundle, &run_refs, &out.path)?,
+    };
     out.keep = true;
     println!(
         "{}: assembled {} head(s), tier {:?}, manifest {}",
