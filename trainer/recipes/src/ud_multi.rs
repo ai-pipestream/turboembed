@@ -107,7 +107,8 @@ pub fn read(ids: &str, column: Column, dir: &str, unrecorded: bool, sample: f64)
             .iter()
             .find(|bank| bank.id == id)
             .ok_or_else(|| Error(format!("unknown treebank {id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
-        let mut corpus = crate::ud::read(bank, column, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
+        let mut corpus =
+            crate::ud::read(bank, column, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
         if column == Column::Xpos {
             for sentence in corpora_sentences_mut(&mut corpus.splits) {
                 for label in &mut sentence.labels {
@@ -192,7 +193,8 @@ pub fn read_ud(ids: &str, head: UdHead, dir: &str, unrecorded: bool, sample: f64
             .iter()
             .find(|bank| bank.id == id)
             .ok_or_else(|| Error(format!("unknown treebank {id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
-        let (splits, files, recorded) = crate::ud::read_treebank(bank, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
+        let (splits, files, recorded) =
+            crate::ud::read_treebank(bank, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
         let record = crate::ud_heads::record(bank, head, &splits, files, recorded);
         corpora.push((splits, record));
     }
@@ -273,7 +275,8 @@ pub fn read_tokens(ids: &str, dir: &str, unrecorded: bool, sample: f64) -> Resul
             .iter()
             .find(|bank| bank.id == id)
             .ok_or_else(|| Error(format!("unknown treebank {id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
-        let (splits, files, recorded) = crate::ud_split::read_tokens(bank, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
+        let (splits, files, recorded) =
+            crate::ud_split::read_tokens(bank, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
         let record = crate::ud_split::record(bank, &splits, files, recorded);
         corpora.push((splits, record));
     }
