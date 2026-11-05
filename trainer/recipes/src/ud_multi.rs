@@ -196,7 +196,7 @@ pub fn read_ud(ids: &str, head: UdHead, dir: &Path, unrecorded: bool, sample: f6
         "each release's own train, dev and test files; --sample {sample} training sentence targets {:?}",
         targets
     );
-    let languages = ids.iter().map(|id| (*id).to_owned()).collect();
+    let languages = language_names(&ids)?;
     let mut splits = UdSplits::default();
     let (mut train_languages, mut dev_languages, mut test_languages) = (Vec::new(), Vec::new(), Vec::new());
     for (row, (mut part, _)) in corpora.into_iter().enumerate() {
