@@ -27,6 +27,7 @@ fn spec(adapter: u32, types: &[&str], type_dim: u32) -> HeadSpec {
         decode: Decode::Relations,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         seen: None,
         layer_mix: None,

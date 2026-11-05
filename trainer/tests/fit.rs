@@ -23,6 +23,7 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         decode,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         seen: None,
         layer_mix: None,

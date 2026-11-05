@@ -42,6 +42,7 @@ fn spec(
         decode,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         seen: None,
         layer_mix: None,

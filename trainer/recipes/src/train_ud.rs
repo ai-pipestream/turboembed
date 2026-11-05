@@ -8,7 +8,7 @@ use std::time::Instant;
 use turbo::manifest::Biaffine;
 use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::WordEncoder;
-use turbo_trainer::{fit_lemmatizer_with, fit_parser_with, mine_trees};
+use turbo_trainer::{fit_lemmatizer_with, fit_parser_with, mine_seen_lookup, mine_trees};
 use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::eval::{Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
@@ -46,12 +46,24 @@ pub(super) fn train(
         .find(|b| b.id == bank)
         .ok_or_else(|| Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
     let min_freq: usize = a.parsed("--min-tree-freq", MIN_TREE_FREQ)?;
+    let seen_lookup: Option<usize> = match a.value("--seen-lookup")? {
+        None => None,
+        Some(v) => Some(
+            v.parse::<usize>()
+                .ok()
+                .filter(|&k| k > 0)
+                .ok_or_else(|| Error(format!("--seen-lookup {v:?}: a positive count")))?,
+        ),
+    };
     let biaffine = Biaffine { arc: a.parsed("--arc", ARC)?, rel: a.parsed("--rel", REL)? };
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
         options(&mut a)?;
     a.done()?;
     if crf || hash.is_some() {
         return Err(Error(format!("{} heads take neither --crf nor --hash-embed", head.suffix())));
+    }
+    if head != UdHead::Lemma && seen_lookup.is_some() {
+        return Err(Error("--seen-lookup is a lemma head option".into()));
     }
 
     let t = Instant::now();
@@ -61,14 +73,14 @@ pub(super) fn train(
     }
     let record = record(&bank, head, &splits, files, recorded);
     let read = t.elapsed().as_secs_f64();
+    let pairs =
+        || splits.train.iter().flat_map(|s| s.words.iter().zip(&s.lemmas).map(|(w, l)| (w.as_str(), l.as_str())));
     let labels = match head {
-        UdHead::Lemma => mine_trees(
-            splits.train.iter().flat_map(|s| s.words.iter().zip(&s.lemmas).map(|(w, l)| (w.as_str(), l.as_str()))),
-            min_freq,
-        ),
+        UdHead::Lemma => mine_trees(pairs(), min_freq),
         UdHead::Deps => relations(&splits.train),
     };
-    let spec = spec(head, labels, &record, &UdOptions { pooling, bilstm, biaffine })?;
+    let lookup = seen_lookup.map(|k| mine_seen_lookup(pairs(), k));
+    let spec = spec_with_lookup(head, labels, lookup, &record, &UdOptions { pooling, bilstm, biaffine })?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;

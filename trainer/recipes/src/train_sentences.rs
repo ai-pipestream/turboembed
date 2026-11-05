@@ -52,6 +52,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         span: None,
         relation: None,
         coref: None,
+        seen_lookup: None,
         license_class: Some(class),
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.sentences".into(),

@@ -75,12 +75,12 @@ turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bun
     [--max-batch N] [--splits train,dev,test] [--commit <sha>]
 turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
     (--layer N | --mix [--from-layer N]) [--task tag|lemma|parse|split] [--crf] [--bilstm ..]
-    [--hash-embed ..] [--min-tree-freq N] [--arc N] [--rel N] [training settings]
+    [--hash-embed ..] [--min-tree-freq N] [--seen-lookup K] [--arc N] [--rel N] [training settings]
 turbo-train-head sweep    --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
     [--task tag|lemma|parse|split] [--from-layer N] [--peer-receipt <receipt.json>]
-    [--bilstm ..] [--min-tree-freq N] [--arc N] [--rel N] [training settings]
+    [--bilstm ..] [--min-tree-freq N] [--seen-lookup K] [--arc N] [--rel N] [training settings]
 turbo-train-head train-lemma --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
-    [as train, without --crf and --hash-embed] [--min-tree-freq N]
+    [as train, without --crf and --hash-embed] [--min-tree-freq N] [--seen-lookup K]
 turbo-train-head train-parse --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
     [as train, without --crf and --hash-embed] [--arc N] [--rel N]
 turbo-train-head train-split --corpus ud-en-ewt --dir <treebank dir> (--bundle <encoder bundle> | --cache <cache dir> (--layer N | --mix [--from-layer N])) --out <new dir>
@@ -154,7 +154,11 @@ when training from a cache. Later sentences never backfill the prefix.
 
 `train-lemma` trains the edit-tree lemmatizer (`lemma` on
 `turboembed:lemmas`) over the trees that come up at least
-`--min-tree-freq` times in training (3, spaCy's default);
+`--min-tree-freq` times in training (3, spaCy's default), and with
+`--seen-lookup K` records an unambiguous seen-form lookup table
+(`seen_lookup` in `head.json`, forms seen at least `K` times with a
+single training lemma) applied in front of the edit-tree classifier at
+decode during dev and test evaluation and at runtime;
 `train-parse` trains the biaffine parser (`deps` on
 `turboembed:dependencies`, MST decoding, arc and relation widths 256
 and 64 by default) over the training relations. Both take the

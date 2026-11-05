@@ -74,6 +74,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         decode: if o.crf { Decode::Crf } else { Decode::Argmax },
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: o.hash,
         seen: None,
         layer_mix: None,

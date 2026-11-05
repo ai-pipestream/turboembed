@@ -117,6 +117,7 @@ pub fn spec(
         decode: if nested { Decode::SpansNested } else { Decode::SpansFlat },
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         seen: None,
         layer_mix: None,

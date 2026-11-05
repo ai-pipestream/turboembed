@@ -12,7 +12,7 @@ use turbo::manifest::{Biaffine, HeadSpec};
 use turbo_trainer::mix::{MixExample, fit_mix};
 use turbo_trainer::{
     Config, Example, LemmaExample, MixLemmaExample, MixParseExample, ParseExample, Report, fit_lemmatizer_mix,
-    fit_lemmatizer_with, fit_parser_mix, fit_parser_with, mine_trees,
+    fit_lemmatizer_with, fit_parser_mix, fit_parser_with, mine_seen_lookup, mine_trees,
 };
 
 use crate::cache::{CacheRecord, layer_mix_for, read_layer, same_corpus_release, stack_layers};
@@ -23,7 +23,7 @@ use crate::receipt::{EvalRecord, Uas};
 use crate::ud::{TREEBANKS, Treebank, UdSentence, read_treebank};
 use crate::ud_heads::{
     UdHead, UdOptions, deps_baseline, lemma_baseline, predict_lemmas, predict_parses, record as ud_record, relations,
-    spec as ud_spec, uas,
+    spec_with_lookup, uas,
 };
 use crate::ud_split as split;
 use crate::{Error, Result, coarse};
@@ -73,6 +73,9 @@ pub fn run_ud(p: &CachedParams, head_kind: UdHead, cache: CacheRecord) -> Result
     if p.crf || p.hash.is_some() {
         return Err(Error(format!("{} heads take neither --crf nor --hash-embed", head_kind.suffix())));
     }
+    if head_kind != UdHead::Lemma && p.seen_lookup > 0 {
+        return Err(Error("--seen-lookup is a lemma head option".into()));
+    }
     let bank = resolve_bank(&p.corpus_id)?;
     let t_read = Instant::now();
     let (full_splits, files, recorded) = read_treebank(&bank, &p.corpus_dir, p.unrecorded)?;
@@ -88,16 +91,18 @@ pub fn run_ud(p: &CachedParams, head_kind: UdHead, cache: CacheRecord) -> Result
         splits.train.truncate(p.max_train);
     }
     let record = ud_record(&bank, head_kind, &splits, files, recorded);
+    let pairs =
+        || splits.train.iter().flat_map(|s| s.words.iter().zip(&s.lemmas).map(|(w, l)| (w.as_str(), l.as_str())));
     let labels = match head_kind {
-        UdHead::Lemma => mine_trees(
-            splits.train.iter().flat_map(|s| s.words.iter().zip(&s.lemmas).map(|(w, l)| (w.as_str(), l.as_str()))),
-            p.min_tree_freq,
-        ),
+        UdHead::Lemma => mine_trees(pairs(), p.min_tree_freq),
         UdHead::Deps => relations(&splits.train),
     };
-    let mut head = ud_spec(
+    let lookup =
+        (head_kind == UdHead::Lemma && p.seen_lookup > 0).then(|| mine_seen_lookup(pairs(), p.seen_lookup as usize));
+    let mut head = spec_with_lookup(
         head_kind,
         labels,
+        lookup,
         &record,
         &UdOptions { pooling: cache.pooling, bilstm: p.bilstm, biaffine: p.biaffine },
     )?;

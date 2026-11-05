@@ -15,7 +15,7 @@
 //! turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <dir>
 //!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
 //! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N])
+//!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
@@ -100,13 +100,7 @@ fn run(argv: Vec<String>) -> Result<()> {
             println!("labels: {}", c.labels().len());
             Ok(())
         }
-        "check" => {
-            a.done()?;
-            let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-            println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
-            println!("labels: {}", c.labels().len());
-            Ok(())
-        }
+        "check" => peer_cmd::check(&corpus_id, &dir, unrecorded, a),
         "baseline" => baseline_cmd::baseline_cmd(&argv, &corpus_id, &dir, unrecorded, a),
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache::command(&argv, &corpus_id, &dir, unrecorded, a),

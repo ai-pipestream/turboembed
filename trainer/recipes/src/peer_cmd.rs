@@ -17,6 +17,17 @@ use turbo_trainer_recipes::{Error, Result, read_corpus};
 
 use super::{Args, OutDir, RESAMPLES, baseline, commit, finish};
 
+pub(super) fn check(corpus_id: &str, dir: &Path, unrecorded: bool, a: Args) -> Result<()> {
+    a.done()?;
+    let c = match ud_head_corpus(corpus_id) {
+        Some((bank, head)) => treebank(bank, dir, unrecorded, head)?.0,
+        None => read_corpus(corpus_id, dir, unrecorded)?,
+    };
+    println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
+    println!("labels: {}", c.labels().len());
+    Ok(())
+}
+
 pub(super) fn export(corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
     if corpus_id == turbo_trainer_recipes::litbank::ID {
         let out = OutDir::claim(&a.required("--out")?)?;
@@ -27,6 +38,8 @@ pub(super) fn export(corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args)
     a.done()?;
     let c = if TREEBANKS.iter().any(|b| b.id == corpus_id) {
         treebank(corpus_id, dir, unrecorded, UdHead::Lemma)?.0
+    } else if let Some((bank, head)) = ud_head_corpus(corpus_id) {
+        treebank(bank, dir, unrecorded, head)?.0
     } else {
         read_corpus(corpus_id, dir, unrecorded)?
     };
@@ -134,6 +147,14 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
         outputs: Vec::new(),
     };
     finish(out, receipt)
+}
+
+pub(super) fn ud_head_corpus(corpus_id: &str) -> Option<(&str, UdHead)> {
+    let (bank, head) = corpus_id
+        .strip_suffix("-lemma")
+        .map(|b| (b, UdHead::Lemma))
+        .or_else(|| corpus_id.strip_suffix("-deps").map(|b| (b, UdHead::Deps)))?;
+    TREEBANKS.iter().any(|t| t.id == bank).then_some((bank, head))
 }
 
 /// `export --corpus litbank`: the ten test works as one CoNLL file each
@@ -251,8 +272,9 @@ fn peer_coref(
 /// A treebank read for `head`: its sentences labelled as the head scores
 /// them, and the head's baseline on test. Refuses an id that names no
 /// treebank, as a column of `peer` it is the treebank's (`ud-es-ancora`).
-fn treebank(id: &str, dir: &Path, unrecorded: bool, head: UdHead) -> Result<(Corpus, Vec<Vec<String>>)> {
-    let bank = TREEBANKS.iter().find(|b| b.id == id).ok_or_else(|| {
+pub(super) fn treebank(id: &str, dir: &Path, unrecorded: bool, head: UdHead) -> Result<(Corpus, Vec<Vec<String>>)> {
+    let bank_id = ud_head_corpus(id).filter(|(_, h)| *h == head).map_or(id, |(b, _)| b);
+    let bank = TREEBANKS.iter().find(|b| b.id == bank_id).ok_or_else(|| {
         Error(format!(
             "{id}: --column lemma and deps take a treebank id, one of {}",
             TREEBANKS.map(|b| b.id).join(", ")
