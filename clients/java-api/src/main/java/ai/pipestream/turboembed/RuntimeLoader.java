@@ -11,14 +11,45 @@ final class RuntimeLoader {
     static TurboBridge selected(String override) {
         boolean android = isAndroid(System.getProperty("java.vm.name", ""),
                 System.getProperty("java.runtime.name", ""));
-        // Android need not provide Runtime.version(), nor the foreign-memory API.
-        int version = android ? 0 : Runtime.version().feature();
+        // Avoid java.lang.Runtime's version API: android.jar (compileSdk) does not declare it,
+        // so Android javac fails on this shared source even behind an isAndroid() guard.
+        int version = android ? 0 : jvmFeature(System.getProperty("java.specification.version", "0"));
         return select(override, version, android, !android && foreignAvailable());
     }
 
     static boolean isAndroid(String vm, String runtime) {
         return vm.equalsIgnoreCase("Dalvik") || vm.equalsIgnoreCase("ART")
                 || runtime.toLowerCase(Locale.ROOT).contains("android");
+    }
+
+    /**
+     * Parses the major feature from {@code java.specification.version} ({@code "21"},
+     * {@code "25"}, or the legacy {@code "1.8"} form). Returns 0 when the value is absent or
+     * not a number.
+     */
+    static int jvmFeature(String specificationVersion) {
+        if (specificationVersion == null) {
+            return 0;
+        }
+        String spec = specificationVersion.trim();
+        if (spec.isEmpty()) {
+            return 0;
+        }
+        if (spec.startsWith("1.")) {
+            spec = spec.substring(2);
+        }
+        int end = 0;
+        while (end < spec.length() && Character.isDigit(spec.charAt(end))) {
+            end++;
+        }
+        if (end == 0) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(spec.substring(0, end));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     static TurboBridge select(String override, int version, boolean android, boolean foreign) {

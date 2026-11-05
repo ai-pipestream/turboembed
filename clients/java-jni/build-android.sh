@@ -7,12 +7,14 @@
 #
 # out-dir defaults to clients/java-jni/jniLibs. The Rust targets are added
 # with rustup when missing. The API level is 26, the lowest the binding
-# supports; TURBO_ANDROID_API overrides it.
+# supports; TURBO_ANDROID_API overrides it. CARGO_TARGET_DIR is honored
+# when set.
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${1:-$repo/clients/java-jni/jniLibs}"
 api="${TURBO_ANDROID_API:-26}"
+target_dir="${CARGO_TARGET_DIR:-$repo/target}"
 ndk="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_ROOT:-}}}"
 if [ -z "$ndk" ] || [ ! -d "$ndk/toolchains/llvm/prebuilt" ]; then
   echo "ANDROID_NDK_HOME must name an Android NDK with an llvm toolchain" >&2
@@ -31,11 +33,13 @@ build() {
   rustup target add "$target" >/dev/null
   local linker="$bin/${triple}${api}-clang"
   [ -x "$linker" ] || { echo "missing $linker" >&2; exit 2; }
-  local var="CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_LINKER"
+  local var
+  var="CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_LINKER"
   env "$var=$linker" "CC_$target=$linker" "AR_$target=$bin/llvm-ar" \
+    CARGO_TARGET_DIR="$target_dir" \
     cargo build --locked --release -p turbo --target "$target" --manifest-path "$repo/Cargo.toml"
   mkdir -p "$out/$abi"
-  cp "$repo/target/$target/release/libturbo.so" "$out/$abi/libturbo.so"
+  cp "$target_dir/$target/release/libturbo.so" "$out/$abi/libturbo.so"
   echo "$out/$abi/libturbo.so"
 }
 

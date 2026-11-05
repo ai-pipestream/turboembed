@@ -3,6 +3,7 @@ package ai.pipestream.turboembed.jni;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -109,7 +110,7 @@ public final class TurboLibrary {
         String libFile = System.mapLibraryName(LIBRARY_NAME);
         String explicitPath = System.getProperty("turbo.library.path", System.getenv("TURBO_LIBRARY_PATH"));
         if (explicitPath != null && !explicitPath.trim().isEmpty()) {
-            Path candidate = Path.of(explicitPath);
+            Path candidate = Paths.get(explicitPath);
             if (Files.isDirectory(candidate)) {
                 candidate = candidate.resolve(libFile);
             }
@@ -127,11 +128,11 @@ public final class TurboLibrary {
         if (searchDirsConfigured) {
             for (String part : searchDirs.split(File.pathSeparator)) {
                 if (!part.trim().isEmpty()) {
-                    candidates.add(Path.of(part, libFile));
+                    candidates.add(Paths.get(part, libFile));
                 }
             }
         } else {
-            for (Path dir = Path.of("").toAbsolutePath().normalize(); dir != null; dir = dir.getParent()) {
+            for (Path dir = Paths.get("").toAbsolutePath().normalize(); dir != null; dir = dir.getParent()) {
                 candidates.add(dir.resolve("target/debug").resolve(libFile));
                 candidates.add(dir.resolve("target/release").resolve(libFile));
             }
