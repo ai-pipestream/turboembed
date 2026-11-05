@@ -113,6 +113,10 @@ unsafe extern "C" {
     ) -> i32;
     pub fn tt_geglu(pre: *const f32, rows: i32, inter: i32, act: *mut f32) -> i32;
     pub fn tt_geglu_back(pre: *const f32, dact: *const f32, rows: i32, inter: i32, dpre: *mut f32) -> i32;
+    pub fn tt_gelu(pre: *const f32, rows: i32, inter: i32, act: *mut f32) -> i32;
+    pub fn tt_gelu_back(pre: *const f32, dact: *const f32, rows: i32, inter: i32, dpre: *mut f32) -> i32;
+    pub fn tt_bias(y: *mut f32, bias: *const f32, rows: i32, width: i32) -> i32;
+    pub fn tt_bias_back(dy: *const f32, rows: i32, width: i32, db: *mut f32) -> i32;
     pub fn tt_dropout(x: *mut f32, count: usize, p: f64, key: u64) -> i32;
     pub fn tt_axpy(y: *mut f32, x: *const f32, count: usize, alpha: f32) -> i32;
     pub fn tt_round_bf16(x: *mut f32, count: usize) -> i32;

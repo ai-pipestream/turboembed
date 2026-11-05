@@ -224,6 +224,60 @@ fn bf16_compute_rounds_where_the_cpu_emulation_does() {
 }
 
 #[test]
+fn bert_states_and_gradients_match_cpu_with_dropout_and_lora() {
+    let Some(device) = device("BERT full and LoRA") else { return };
+    let geo = Geometry { layers: 2, max_positions: 64, ..geometry() };
+    let mut rng = Rng::new(89);
+    let e = Encoder::random_bert(geo, 64, 66, 2, 1, &mut rng)
+        .unwrap()
+        .with_dropout(Dropout { embedding: 0.2, attention: 0.3, mlp: 0.25, seed: 5 })
+        .unwrap();
+    let dout = random(&mut rng, IDS.len() * 32);
+    let mut d = CudaEncoder::new(&e, device).unwrap();
+    compare("BERT dropout", &gpu(&mut d, Some(11), &dout, 1), &cpu(&e, Some(11), &dout), 1e-4);
+
+    let mut adapted = e.with_lora_top(Lora { rank: 3, alpha: 6.0 }, 1, &mut rng).unwrap();
+    let params: Vec<Vec<f32>> =
+        adapted.params().iter().map(|p| p.iter().map(|_| rng.uniform(0.5) as f32).collect()).collect();
+    adapted.set_params(params).unwrap();
+    let mut d = CudaEncoder::new(&adapted, device).unwrap();
+    let got = gpu(&mut d, None, &dout, 1);
+    compare("BERT adapters", &got, &cpu(&adapted, None, &dout), 1e-4);
+    assert!(got.1[..3 + 6 * 2].iter().all(Vec::is_empty), "the BERT base stays frozen");
+    assert_eq!(d.to_cpu().unwrap().params(), adapted.params());
+}
+
+#[test]
+fn bert_bf16_matches_cpu_with_dropout() {
+    let Some(device) = device("BERT bf16") else { return };
+    let geo = Geometry { layers: 2, max_positions: 64, ..geometry() };
+    let mut rng = Rng::new(97);
+    let e = Encoder::random_bert(geo, 64, 66, 2, 1, &mut rng)
+        .unwrap()
+        .with_dropout(Dropout { embedding: 0.2, attention: 0.3, mlp: 0.25, seed: 5 })
+        .unwrap()
+        .with_bf16();
+    let dout = random(&mut rng, IDS.len() * 32);
+    let mut d = CudaEncoder::new(&e, device).unwrap();
+    let got = gpu(&mut d, Some(11), &dout, 1);
+    assert!(got.0.iter().all(|v| v.bf16() == *v));
+    compare("BERT bf16", &got, &cpu(&e, Some(11), &dout), 3e-2);
+}
+
+#[test]
+fn xlm_roberta_matches_cpu_when_a_bundle_is_supplied() {
+    let Some(dir) = std::env::var_os("TURBO_TEST_XLM_BUNDLE").map(turbo_pins::require) else { return };
+    let Some(device) = device("XLM-RoBERTa") else { return };
+    let e = Encoder::load(std::path::Path::new(&dir)).unwrap();
+    let mut rng = Rng::new(101);
+    let dout = random(&mut rng, IDS.len() * 768);
+    let want = cpu(&e, None, &dout);
+    let mut d = CudaEncoder::new(&e, device).unwrap();
+    let got = gpu(&mut d, None, &dout, 1);
+    compare("XLM-RoBERTa", &got, &want, 1e-4);
+}
+
+#[test]
 fn put_slot_moves_the_weights_and_keeps_their_length() {
     let Some(device) = device("put_slot") else { return };
     let mut rng = Rng::new(79);

@@ -336,6 +336,27 @@ __global__ void geglu_back_kernel(const float *pre, const float *dact, int rows,
     }
 }
 
+__global__ void gelu_kernel(const float *pre, int rows, int inter, float *act) {
+    size_t total = (size_t)rows * inter;
+    for (size_t idx = first(); idx < total; idx += stride()) act[idx] = gelu(pre[idx]);
+}
+
+__global__ void gelu_back_kernel(const float *pre, const float *dact, int rows, int inter, float *dpre) {
+    size_t total = (size_t)rows * inter;
+    for (size_t idx = first(); idx < total; idx += stride()) dpre[idx] += dact[idx] * gelu_grad(pre[idx]);
+}
+
+__global__ void bias_kernel(float *y, const float *bias, int rows, int width) {
+    size_t total = (size_t)rows * width;
+    for (size_t idx = first(); idx < total; idx += stride()) y[idx] += bias[idx % width];
+}
+
+__global__ void bias_back_kernel(const float *dy, int rows, int width, float *db) {
+    for (int col = first(); col < width; col += stride()) {
+        for (int row = 0; row < rows; row++) db[col] += dy[(size_t)row * width + col];
+    }
+}
+
 /* ---- Dropout from the trainer's SplitMix64, the i-th draw directly. ---- */
 
 __device__ __forceinline__ uint64_t splitmix(uint64_t state) {
@@ -464,6 +485,26 @@ int tt_geglu(const float *pre, int rows, int inter, float *act) {
 
 int tt_geglu_back(const float *pre, const float *dact, int rows, int inter, float *dpre) {
     TT_LAUNCH(geglu_back_kernel, grid_for((size_t)rows * inter), BLOCK, pre, dact, rows, inter, dpre);
+    return launched();
+}
+
+int tt_gelu(const float *pre, int rows, int inter, float *act) {
+    TT_LAUNCH(gelu_kernel, grid_for((size_t)rows * inter), BLOCK, pre, rows, inter, act);
+    return launched();
+}
+
+int tt_gelu_back(const float *pre, const float *dact, int rows, int inter, float *dpre) {
+    TT_LAUNCH(gelu_back_kernel, grid_for((size_t)rows * inter), BLOCK, pre, dact, rows, inter, dpre);
+    return launched();
+}
+
+int tt_bias(float *y, const float *bias, int rows, int width) {
+    TT_LAUNCH(bias_kernel, grid_for((size_t)rows * width), BLOCK, y, bias, rows, width);
+    return launched();
+}
+
+int tt_bias_back(const float *dy, int rows, int width, float *db) {
+    TT_LAUNCH(bias_back_kernel, grid_for(width), BLOCK, dy, rows, width, db);
     return launched();
 }
 
