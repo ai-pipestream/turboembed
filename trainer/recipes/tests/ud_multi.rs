@@ -132,8 +132,8 @@ fn the_cli_trains_a_multi_treebank_head_and_records_sampling() {
     assert_eq!(receipt.corpus.dev.sentences, 2);
     assert_eq!(receipt.corpus.test.sentences, 2);
     assert_eq!(receipt.eval.by_language.len(), 2);
-    assert_eq!(receipt.eval.by_language[0].language, "ud-es-ancora");
-    assert_eq!(receipt.eval.by_language[1].language, "ud-ca-ancora");
+    assert_eq!(receipt.eval.by_language[0].language, "es");
+    assert_eq!(receipt.eval.by_language[1].language, "ca");
     let head = receipt.head.unwrap();
     assert_eq!(head.name, "xpos");
     assert_eq!(
@@ -194,8 +194,8 @@ fn the_cli_trains_a_multi_treebank_parser() {
     assert_eq!(receipt.corpus.dev.sentences, 2);
     assert_eq!(receipt.corpus.test.sentences, 2);
     assert_eq!(receipt.eval.by_language.len(), 2);
-    assert_eq!(receipt.eval.by_language[0].language, "ud-es-ancora");
-    assert_eq!(receipt.eval.by_language[1].language, "ud-ca-ancora");
+    assert_eq!(receipt.eval.by_language[0].language, "es");
+    assert_eq!(receipt.eval.by_language[1].language, "ca");
     let head = receipt.head.unwrap();
     assert_eq!(head.name, "deps");
     assert_eq!(head.kind, turbo::manifest::HeadKind::BiaffineParser);
@@ -246,8 +246,8 @@ fn the_cli_trains_a_multi_treebank_lemmatizer() {
     assert_eq!(receipt.corpus.dev.sentences, 2);
     assert_eq!(receipt.corpus.test.sentences, 2);
     assert_eq!(receipt.eval.by_language.len(), 2);
-    assert_eq!(receipt.eval.by_language[0].language, "ud-es-ancora");
-    assert_eq!(receipt.eval.by_language[1].language, "ud-ca-ancora");
+    assert_eq!(receipt.eval.by_language[0].language, "es");
+    assert_eq!(receipt.eval.by_language[1].language, "ca");
     let head = receipt.head.unwrap();
     assert_eq!(head.name, "lemma");
     assert_eq!(head.kind, turbo::manifest::HeadKind::EditTreeLemmatizer);
@@ -300,8 +300,8 @@ fn the_cli_trains_a_multi_treebank_token_splitter() {
     assert_eq!(receipt.corpus.dev.sentences, 2);
     assert_eq!(receipt.corpus.test.sentences, 2);
     assert_eq!(receipt.eval.by_language.len(), 2);
-    assert_eq!(receipt.eval.by_language[0].language, "ud-es-ancora");
-    assert_eq!(receipt.eval.by_language[1].language, "ud-ca-ancora");
+    assert_eq!(receipt.eval.by_language[0].language, "es");
+    assert_eq!(receipt.eval.by_language[1].language, "ca");
     let head = receipt.head.unwrap();
     assert_eq!(head.name, "words");
     assert_eq!(head.kind, turbo::manifest::HeadKind::TokenSplit);
