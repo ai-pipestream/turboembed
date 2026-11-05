@@ -43,9 +43,11 @@ pub fn path(parse: &Parse, a: usize, b: usize) -> Option<String> {
     if a == b || a >= parse.len() || b >= parse.len() {
         return None;
     }
-    let parent = |i: usize| -> Option<usize> {
+    // Distinguish a real root from a malformed head: both used to end
+    // a's walk, allowing a bogus common ancestor to produce a path.
+    let parent = |i: usize| -> Option<Option<usize>> {
         let h = parse.get(i)?.0 as usize;
-        if h == 0 { None } else { h.checked_sub(1).filter(|&p| p != i) }
+        if h == 0 { Some(None) } else { h.checked_sub(1).filter(|&p| p < parse.len() && p != i).map(Some) }
     };
     // a's ancestors, itself first, the root last.
     let mut up = Vec::new();
@@ -56,7 +58,7 @@ pub fn path(parse: &Parse, a: usize, b: usize) -> Option<String> {
             return None; // a cycle
         }
         up.push(i);
-        at = parent(i);
+        at = parent(i)?;
     }
     // b's ancestors until one is a's; then the steps a up to it, it down to b.
     let mut down = Vec::new();
@@ -70,7 +72,7 @@ pub fn path(parse: &Parse, a: usize, b: usize) -> Option<String> {
         if down.len() > parse.len() {
             return None; // b's chain cycles without meeting a's
         }
-        at = Some(parent(i)?);
+        at = parent(i)?;
     };
     let mut steps: Vec<String> = up[..up_to].iter().map(|&i| format!("<{}", parse[i].1)).collect();
     steps.extend(down.iter().rev().map(|&i| format!(">{}", parse[i].1)));

@@ -1,40 +1,27 @@
 # Self-hosted CI runner
 
-ci.yml's Linux lanes and the training jobs of the models-* workflows run
-on the hosted `ubuntu-24.04` runner unless the repository variable
-`TURBO_CI_LINUX` names runner labels as JSON:
+ci.yml's Linux lanes run on the hosted `ubuntu-24.04` runner unless the
+repository variable `TURBO_CI_LINUX` names runner labels as JSON:
 
     gh variable set TURBO_CI_LINUX --body '["self-hosted", "turbo-ci"]'
 
-The training jobs read `TURBO_TRAIN_LINUX` instead, so a training run of
-up to three hours never holds a runner the ci lanes are waiting for:
-
-    gh variable set TURBO_TRAIN_LINUX --body '["self-hosted", "turbo-train"]'
-
-Deleting a variable sends its jobs back to the hosted runner. The Windows
-lanes and the publishing jobs are hosted whatever they say.
+Deleting that variable sends its jobs back to the hosted runner. The Windows
+lanes are hosted regardless of its value.
 
 ## Model training runs
 
-The models, models-ud, models-tatoeba and models-fineweb workflows train
-and gate models for up to three hours each. They are an opt-in
-integration test on pull requests, off by default:
+The classical `models`, `models-ud`, `models-tatoeba`, `models-fineweb`
+and `models-publish` workflows were retired by #1511. Their absence is
+checked by `analysis/train-recipes/tests/retired_commands.rs`. The
+`ci:models` label no longer starts training, and `TURBO_TRAIN_LINUX`
+does not select runners for any current workflow.
 
-- A pull request that changes their paths trains only while it carries
-  the label `ci:models`. Adding the label starts a run; each push after
-  that runs again and cancels the run on the older head. Adding any
-  other label starts nothing.
-- A push to main that changes their paths always trains and checks. The
-  run going on main is never cancelled; only the newest push waits
-  behind it.
-- Running a workflow by hand (Actions, the workflow, "Run workflow", or
-  `gh workflow run models-ud.yml --ref <branch>`) trains any branch.
-  Only a run by hand on main publishes.
-
-They are not in the merge queue: the required check `check` comes from
-ci.yml (lint, the test shards, parity and the other fast lanes), runs on
-every pull request and merge group, and does not wait on the training
-workflows, so a pull request without the label merges as before.
+The required check `check` comes from ci.yml (lint, the test shards,
+parity and the other fast lanes), and runs on pull requests and merge
+groups. It is not evidence of a full model-training or benchmark run.
+Changes requiring that evidence must record the actual commands, data,
+device and results separately; do not count the retired label or a
+missing workflow as a model pass.
 
 ## What keeps outside code off these runners
 
