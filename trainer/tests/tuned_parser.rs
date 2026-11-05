@@ -1,3 +1,4 @@
+use turbo::head::tagger::NO_WORD;
 use turbo::manifest::{Biaffine, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
 use turbo_trainer::encoder::{Encoder, Geometry};
 use turbo_trainer::rng::Rng;
@@ -29,7 +30,12 @@ fn spec() -> HeadSpec {
 }
 
 fn example() -> TunedParseExample {
-    TunedParseExample { ids: vec![1, 2, 3], words: vec![0, 1, 2], heads: vec![0, 1, 0], rels: vec![0, 1, 0] }
+    TunedParseExample {
+        ids: vec![0, 1, 2, 3, 4, 5],
+        words: vec![NO_WORD, 0, 0, 1, 2, NO_WORD],
+        heads: vec![0, 1, 0],
+        rels: vec![0, 1, 0],
+    }
 }
 
 fn encoder() -> Encoder<f32> {
