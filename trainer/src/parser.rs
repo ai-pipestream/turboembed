@@ -21,6 +21,8 @@ use crate::real::Real;
 use crate::rng::Rng;
 use crate::shapes::{checked_shapes, fits};
 
+mod language;
+
 /// The weights of one head, `params[i]` named `names[i]`.
 #[derive(Debug, Clone)]
 pub struct Parser<R> {
@@ -159,7 +161,7 @@ impl<R: Real> Parser<R> {
     }
 
     fn language(&self) -> usize {
-        self.spec.language.as_ref().map_or(0, |language| language.dim as usize)
+        language::dim(&self.spec)
     }
 
     fn adapter_at(&self) -> usize {
@@ -182,33 +184,11 @@ impl<R: Real> Parser<R> {
     }
 
     fn language_row(&self, row: Option<u32>) -> Result<Option<usize>> {
-        let Some(language) = &self.spec.language else {
-            return match row {
-                Some(_) => Err(invalid("trainer: a language given to a head without a language input")),
-                None => Ok(None),
-            };
-        };
-        let row = match row {
-            Some(row) => row as usize,
-            None if language.languages.len() == 1 => 0,
-            None => return Err(invalid("trainer: a multilingual example needs a language")),
-        };
-        if row >= language.languages.len() {
-            return Err(invalid(format!("trainer: language row {row} is out of range")));
-        }
-        Ok(Some(row))
+        language::row(&self.spec, row)
     }
 
     fn join(&self, features: &[R], language: Option<usize>, n: usize, w: &mut Work<R>) {
-        let Some(row) = language else { return };
-        let (hidden, d) = (self.hidden, self.language());
-        w.input.clear();
-        w.input.resize(n * (hidden + d), R::ZERO);
-        for i in 0..n {
-            let row_out = &mut w.input[i * (hidden + d)..][..hidden + d];
-            row_out[..hidden].copy_from_slice(&features[i * hidden..][..hidden]);
-            row_out[hidden..].copy_from_slice(&self.params[0][row * d..][..d]);
-        }
+        language::join(&self.spec, features, language, n, &self.params[0], self.hidden, &mut w.input);
     }
 
     /// The arc scores [n, n + 1] of features [n, hidden], kept in `w`.
