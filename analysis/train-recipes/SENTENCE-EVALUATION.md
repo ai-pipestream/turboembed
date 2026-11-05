@@ -3,8 +3,7 @@
 Sentence recipes use `Reference::GoldSentences`. It identifies the versioned
 newline baseline, not a downloadable model. Asking it for a file or supplying
 model bytes fails. The old sentence `SegmentationRecipe::gate` byte interface
-also fails before reading either model. Token and other legacy recipes are
-being retired separately.
+also fails before reading either model. This command does not load any reference-model bytes.
 
 Use `sentence_gold::gate` with a candidate `ModelId`, a `HeldOut::Sentences`
 collection, one native predicted span vector per sample, the corpus/split name,
@@ -32,9 +31,9 @@ gold samples, not treated as gold labels or used as a teacher.
 ## Completion evidence still required for #1644
 
 The project-authored tests validate gate arithmetic and input rejection. They
-are not corpus accuracy measurements. Recorded sentence F1 for rules and SaT
-on EWT test, AnCora test and held-out MASC, plus matching spaCy and Stanza peer
-records, remain outstanding. The native sentence head must be added when
+are not corpus accuracy measurements. Executed rule records for EWT test, Spanish AnCora test and held-out MASC
+are in [records/sentences-1644](records/sentences-1644/README.md). SaT and matching
+spaCy and Stanza peer records remain outstanding. The native sentence head must be added when
 available. Do not close #1644 based on these unit tests or the tiny encoder
 snapshot alone.
 
