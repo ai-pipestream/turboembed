@@ -1,7 +1,7 @@
 # UD heads on CC BY-SA treebanks, download after acceptance (#1651)
 
-Heads trained by `turbo-train-head` on the UD r2.16 treebanks the
-retired OpenNLP UD models used (`ud_banks`): German, French and
+Heads trained by `turbo-train-head` on the UD r2.16 treebanks
+docs/licences.md lists for these languages (`ud_banks`): German, French and
 Portuguese GSD, Dutch Alpino, Russian GSD. Each is over frozen
 xlm-roberta-base (bundle manifest `4c5a35e4`, 12 layers), first-piece
 pooling and a BiLSTM 256x1 adapter (UPOS heads also a 64-wide hashed word
