@@ -41,7 +41,7 @@ pub struct Receipt {
     pub outputs: Vec<FileRecord>,
 }
 
-/// The frozen encoder the head was trained on.
+/// The encoder the head was trained on, frozen or tuned by the recipe.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EncoderRecord {

@@ -20,7 +20,7 @@
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--arc N] [--rel N])
+//!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16]])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
@@ -69,6 +69,7 @@ mod train_open_span;
 mod train_relation;
 mod train_sentences;
 mod train_split;
+mod train_tuned;
 mod train_ud;
 
 const RESAMPLES: usize = 1000;
