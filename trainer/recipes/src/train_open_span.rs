@@ -12,7 +12,7 @@ use turbo_trainer_recipes::cache::{CacheRecord, read_layer};
 use turbo_trainer_recipes::corpus::{Corpus, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, evaluate};
 use turbo_trainer_recipes::open_span::{
-    self, DEFAULT_MAX_WORDS, DEFAULT_WIDTH_DIM, dictionary_baseline, embed_label_names, encode_sentences, entity_types,
+    self, DEFAULT_MAX_WORDS, DEFAULT_WIDTH_DIM, dictionary_baseline, embed_label_names, encode_sentences,
     examples_from_features, filter_sentences, predict_from_features,
 };
 use turbo_trainer_recipes::open_span_mix::{combine, evaluate_dataset, read_corpora};
@@ -54,14 +54,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     }
     let full_train: Vec<Vec<turbo_trainer_recipes::corpus::Sentence>> =
         corpora.iter().map(|c| c.splits.train.clone()).collect();
-    let mut all_types = Vec::new();
-    for corpus in &corpora {
-        for kind in entity_types(corpus)? {
-            if !all_types.contains(&kind) {
-                all_types.push(kind);
-            }
-        }
-    }
+    let (all_types, declared_types) = turbo_trainer_recipes::open_span_mix::type_schema(&corpora)?;
     if max_train > 0 {
         let mut remaining = max_train;
         for c in &mut corpora {
@@ -110,10 +103,9 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let seen_lf = embed_label_names(&mut enc, &seen_types, pooling)?;
     let (mut train_ex, mut dev_ex, mut test_wf) = (Vec::new(), Vec::new(), Vec::new());
     let mut dev_left_out = 0;
-    for ((corpus, f), period) in corpora.iter().zip(&extracted).zip(&train_periods) {
+    for (((corpus, f), period), declared) in corpora.iter().zip(&extracted).zip(&train_periods).zip(&declared_types) {
         test_wf.extend(f.test.clone());
-        let local_types =
-            turbo_trainer_recipes::open_span_mix::corpus_active_types(&entity_types(corpus)?, &seen_types);
+        let local_types = turbo_trainer_recipes::open_span_mix::corpus_active_types(declared, &seen_types);
         if local_types.is_empty() {
             continue;
         }

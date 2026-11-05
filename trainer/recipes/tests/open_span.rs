@@ -12,8 +12,30 @@ use turbo_tagger::WordEncoder;
 use turbo_trainer_recipes::assemble::assemble_bundle;
 use turbo_trainer_recipes::corpus::Sentence;
 use turbo_trainer_recipes::open_span::{dictionary_baseline, entity_types, filter_sentences, predict};
-use turbo_trainer_recipes::open_span_mix::{align_train_features, corpus_active_types};
+use turbo_trainer_recipes::open_span_mix::{align_train_features, corpus_active_types, type_schema};
 use turbo_trainer_recipes::{eval, read_corpus, receipt::Receipt};
+
+#[test]
+fn corpus_schema_is_captured_before_training_truncation() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("open-span-schema-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    let multi = dir.join("EN-English");
+    fs::create_dir_all(&multi).unwrap();
+    fs::write(
+        multi.join("en_train.conll"),
+        "# id 1\tdomain=en\nann _ _ B-OtherPER\n\n# id 2\tdomain=en\npicasso _ _ B-Artist\n\n",
+    )
+    .unwrap();
+    fs::write(multi.join("en_dev.conll"), "# id 3\tdomain=en\nbob _ _ B-OtherPER\n\n").unwrap();
+    fs::write(multi.join("en_test.conll"), "# id 4\tdomain=en\neve _ _ B-OtherPER\n\n").unwrap();
+    let mut corpus = turbo_trainer_recipes::open_span::read_open_span_corpus("multiconer2-en", &dir, true).unwrap();
+    let (all, declared) = type_schema(std::slice::from_ref(&corpus)).unwrap();
+    assert!(all.iter().any(|kind| kind == "Artist"));
+    corpus.splits.train.truncate(1);
+    assert!(!entity_types(&corpus).unwrap().iter().any(|kind| kind == "Artist"));
+    assert!(corpus_active_types(&declared[0], &all).iter().any(|kind| kind == "Artist"));
+    fs::remove_dir_all(dir).unwrap();
+}
 
 #[test]
 fn corpus_schema_limits_supervision_without_reordering_global_labels() {
