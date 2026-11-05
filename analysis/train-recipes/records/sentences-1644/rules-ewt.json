@@ -1,0 +1,2538 @@
+{
+  "record_version": 3,
+  "task": "sentence_detector",
+  "measure": "f_measure",
+  "set": {
+    "name": "UD-EWT-r2.18/test",
+    "corpus_sha256": "fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a",
+    "samples_sha256": "8091a1f2c4771605d56d38366f2a883c57902d0ca6894f4401a7a5b284cc4a9b",
+    "skipped_sentences": 0,
+    "scoring": "spans"
+  },
+  "candidate": {
+    "id": "turbo-sentdetect:rules:v3:en:config-5533cc9561ce8998:group-10",
+    "sha256": "3555b182c473712d69ee3c34079ba2cdb4dd58b59a7083b957b8afb3ce24bbf2"
+  },
+  "reference": {
+    "id": "sentence-newline-v1",
+    "sha256": "f399333b6b07c64fad6e3e2214cc4b29d7be8c964bf96210df3caf34640ebcb5"
+  },
+  "resamples": 10000,
+  "seed": 154,
+  "result": {
+    "candidate": {
+      "score": 56.12788632326821,
+      "low": 52.31706861351125,
+      "high": 59.808969459902364
+    },
+    "reference": {
+      "score": 0.0,
+      "low": 0.0,
+      "high": 0.0
+    },
+    "difference": {
+      "mean": 56.12788632326821,
+      "low": 52.31706861351125,
+      "high": 59.808969459902364
+    },
+    "pass": true
+  },
+  "units": [
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 2,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 2,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 2,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 2,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 2,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 9,
+        "selected": 11,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 2,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 2,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 6,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 1,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 0,
+        "selected": 3,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 4,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 3,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 4,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 7,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 5,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 10,
+        "selected": 10,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 8,
+        "selected": 9,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 5,
+        "selected": 7,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 6,
+        "selected": 8,
+        "target": 10
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 10
+      }
+    },
+    {
+      "candidate": {
+        "true_positives": 2,
+        "selected": 3,
+        "target": 7
+      },
+      "reference": {
+        "true_positives": 0,
+        "selected": 1,
+        "target": 7
+      }
+    }
+  ]
+}
