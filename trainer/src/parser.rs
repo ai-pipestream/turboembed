@@ -103,6 +103,12 @@ impl<R: Real> Parser<R> {
         &mut self.params[i]
     }
 
+    /// Every tensor, to step in place: each keeps its length, as
+    /// [`set_params`](Self::set_params) checks.
+    pub fn params_mut(&mut self) -> &mut [Vec<R>] {
+        &mut self.params
+    }
+
     /// Replaces every weight, refused unless each tensor keeps its length.
     pub fn set_params(&mut self, params: Vec<Vec<R>>) -> Result<()> {
         if params.len() != self.params.len() || params.iter().zip(&self.params).any(|(a, b)| a.len() != b.len()) {

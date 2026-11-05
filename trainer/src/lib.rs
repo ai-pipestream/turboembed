@@ -52,6 +52,7 @@ pub use distill::{
     feature_align_loss, make_distill_examples, measure_throughput, score_tagger, tagger_distill_loss,
 };
 pub use encoder::tuned::{Tuned, TunedExample, fit_tuned, fit_tuned_with, tuned_gradients};
+pub use encoder::tuned_parser::{TunedParseExample, TunedParser, fit_tuned_parser, fit_tuned_parser_with};
 pub use fit::{Config, Draw, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
 pub use fit_coref::{CorefExample, fit_coref, fit_coref_with};
 pub use fit_lemma::{
