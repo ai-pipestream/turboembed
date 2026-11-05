@@ -41,6 +41,18 @@ pub(super) fn train(
         };
         return turbo_trainer_recipes::fit_cache::command_with_task(argv, bank, dir, unrecorded, Some(task), a);
     }
+    let tune = a.flag("--tune-encoder");
+    let lora = a.parsed("--lora", 0)?;
+    let bf16 = a.flag("--bf16");
+    if tune {
+        if head != UdHead::Deps {
+            return Err(Error("--tune-encoder is a train-parse option".into()));
+        }
+        return super::train_tuned::train(argv, bank, dir, unrecorded, (lora > 0).then_some(lora), bf16, a);
+    }
+    if lora > 0 || bf16 {
+        return Err(Error("--lora and --bf16 require --tune-encoder".into()));
+    }
     let bank = *TREEBANKS
         .iter()
         .find(|b| b.id == bank)
