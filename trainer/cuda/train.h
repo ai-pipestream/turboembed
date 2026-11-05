@@ -83,6 +83,12 @@ int tt_attention_dkv(const float *qkv, const float *p, const float *ds, const fl
  * adds to dpre. */
 int tt_geglu(const float *pre, int rows, int inter, float *act);
 int tt_geglu_back(const float *pre, const float *dact, int rows, int inter, float *dpre);
+int tt_gelu(const float *pre, int rows, int inter, float *act);
+int tt_gelu_back(const float *pre, const float *dact, int rows, int inter, float *dpre);
+
+/* Add one bias per output column, and sum each column's gradient in row order. */
+int tt_bias(float *y, const float *bias, int rows, int width);
+int tt_bias_back(const float *dy, int rows, int width, float *db);
 
 /* Inverted dropout in place: element i is dropped when the i-th draw of
  * SplitMix64 from key, as the trainer's Rng draws a unit, is below p, the

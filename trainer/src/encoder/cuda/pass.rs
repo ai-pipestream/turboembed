@@ -4,6 +4,7 @@
 
 use std::time::Instant;
 
+use turbo::manifest::Family;
 use turbo::status::{Result, invalid};
 
 use super::super::layer::PROJECTIONS;
@@ -13,55 +14,55 @@ use super::{Buf, CudaEncoder, check, ffi};
 
 /// What one layer's forward keeps for its backward.
 pub(super) struct Layer {
-    xn1: Buf,
-    qkv: Buf,
-    ctx: Buf,
-    x_mid: Buf,
-    xn2: Buf,
-    pre: Buf,
-    act: Buf,
+    pub(super) xn1: Buf,
+    pub(super) qkv: Buf,
+    pub(super) ctx: Buf,
+    pub(super) x_mid: Buf,
+    pub(super) xn2: Buf,
+    pub(super) pre: Buf,
+    pub(super) act: Buf,
     /// Each adapter's low-rank product, in `PROJECTIONS` order.
-    h: [Buf; 4],
-    n1: (Buf, Buf),
-    n2: (Buf, Buf),
+    pub(super) h: [Buf; 4],
+    pub(super) n1: (Buf, Buf),
+    pub(super) n2: (Buf, Buf),
 }
 
 /// The buffers of a forward and its backward, for `cap` tokens.
 #[derive(Default)]
 pub(super) struct Workspace {
-    cap: usize,
+    pub(super) cap: usize,
     /// The last forward's length and place.
-    n: usize,
-    at: Option<u64>,
-    bufs: Option<Bufs>,
+    pub(super) n: usize,
+    pub(super) at: Option<u64>,
+    pub(super) bufs: Option<Bufs>,
 }
 
 pub(super) struct Bufs {
-    ids: Buf,
-    emb_in: Buf,
-    x0: Buf,
-    out: Buf,
-    emb: (Buf, Buf),
-    fin: (Buf, Buf),
+    pub(super) ids: Buf,
+    pub(super) emb_in: Buf,
+    pub(super) x0: Buf,
+    pub(super) out: Buf,
+    pub(super) emb: (Buf, Buf),
+    pub(super) fin: (Buf, Buf),
     /// Each layer's output [n, hidden], kept across the forward pass.
-    x_out: Vec<Buf>,
+    pub(super) x_out: Vec<Buf>,
     /// One per layer, or one shared workspace when checkpointed.
-    layers: Vec<Layer>,
+    pub(super) layers: Vec<Layer>,
     /// The probabilities and the score gradients, [heads, n, n].
-    p: Buf,
-    ds: Buf,
+    pub(super) p: Buf,
+    pub(super) ds: Buf,
     /// The residual stream's gradient, two to alternate between layers.
-    dx: [Buf; 2],
-    dy: Buf,
-    dsrc: Buf,
-    dqkv: Buf,
-    dctx: Buf,
-    dproj: Buf,
-    dxn2: Buf,
-    dpre: Buf,
-    dact: Buf,
-    demb: Buf,
-    dh: Buf,
+    pub(super) dx: [Buf; 2],
+    pub(super) dy: Buf,
+    pub(super) dsrc: Buf,
+    pub(super) dqkv: Buf,
+    pub(super) dctx: Buf,
+    pub(super) dproj: Buf,
+    pub(super) dxn2: Buf,
+    pub(super) dpre: Buf,
+    pub(super) dact: Buf,
+    pub(super) demb: Buf,
+    pub(super) dh: Buf,
 }
 
 /// Seconds a forward and a backward took, launch to completion.
@@ -143,7 +144,7 @@ impl CudaEncoder {
         self.run(ids, Some(at), out)
     }
 
-    fn run(&mut self, ids: &[u32], at: Option<u64>, out: &mut Vec<f32>) -> Result<Timing> {
+    pub(super) fn run(&mut self, ids: &[u32], at: Option<u64>, out: &mut Vec<f32>) -> Result<Timing> {
         self.check_ids(ids)?;
         let n = ids.len();
         let h = self.geo.hidden;
@@ -155,8 +156,12 @@ impl CudaEncoder {
         let ids32: Vec<i32> = ids.iter().map(|&id| id as i32).collect();
         w.ids.upload(&ids32)?;
         let (nn, hh) = (n as i32, h as i32);
-        check(unsafe { ffi::tt_gather(self.weights[WORD].f32(), w.ids.ptr.cast(), nn, hh, w.emb_in.f32()) })?;
-        self.layernorm(&w.emb_in, EMB_NORM, n, &w.x0, &w.emb)?;
+        if self.family == Family::Modernbert {
+            check(unsafe { ffi::tt_gather(self.weights[WORD].f32(), w.ids.ptr.cast(), nn, hh, w.emb_in.f32()) })?;
+            self.layernorm(&w.emb_in, EMB_NORM, n, &w.x0, &w.emb)?;
+        } else {
+            super::bert::embedding_forward(self, n, w)?;
+        }
         if let Some(key) = self.mask(u32::MAX, 0) {
             self.drop(&w.x0, n * h, self.dropout.map_or(0.0, |d| d.embedding), key)?;
         }
@@ -166,7 +171,11 @@ impl CudaEncoder {
             self.layer_forward(l, x, lw, &w.x_out[l], w)?;
         }
         let last = w.x_out.last().unwrap_or(&w.x0);
-        self.layernorm(last, FINAL_NORM, n, &w.out, &w.fin)?;
+        if self.family == Family::Modernbert {
+            self.layernorm(last, FINAL_NORM, n, &w.out, &w.fin)?;
+        } else {
+            w.out.copy_from(last, n * h)?;
+        }
         self.sync()?;
         out.resize(n * h, 0.0);
         w.out.download(out)?;
@@ -186,7 +195,11 @@ impl CudaEncoder {
         self.store(&w.dy, n * h)?;
         let last = w.x_out.last().unwrap_or(&w.x0);
         w.dx[0].zero(n * h)?;
-        self.layernorm_back(last, FINAL_NORM, n, &w.dy, &w.fin, &w.dx[0])?;
+        if self.family == Family::Modernbert {
+            self.layernorm_back(last, FINAL_NORM, n, &w.dy, &w.fin, &w.dx[0])?;
+        } else {
+            w.dx[0].copy_from(&w.dy, n * h)?;
+        }
         let mut cur = 0;
         let stop = if self.frozen { self.lora_from } else { 0 };
         for l in (stop..self.geo.layers).rev() {
@@ -205,10 +218,14 @@ impl CudaEncoder {
             if let Some(key) = self.mask(u32::MAX, 0) {
                 self.drop(&w.dx[cur], n * h, self.dropout.map_or(0.0, |d| d.embedding), key)?;
             }
-            w.demb.zero(n * h)?;
-            self.layernorm_back(&w.emb_in, EMB_NORM, n, &w.dx[cur], &w.emb, &w.demb)?;
-            let (nn, hh) = (n as i32, h as i32);
-            check(unsafe { ffi::tt_scatter_add(w.demb.f32(), w.ids.ptr.cast(), nn, hh, self.grads[WORD].f32()) })?;
+            if self.family == Family::Modernbert {
+                w.demb.zero(n * h)?;
+                self.layernorm_back(&w.emb_in, EMB_NORM, n, &w.dx[cur], &w.emb, &w.demb)?;
+                let (nn, hh) = (n as i32, h as i32);
+                check(unsafe { ffi::tt_scatter_add(w.demb.f32(), w.ids.ptr.cast(), nn, hh, self.grads[WORD].f32()) })?;
+            } else {
+                super::bert::embedding_backward(self, n, &w.dx[cur], w)?;
+            }
         }
         self.sync()?;
         Ok(Timing { forward: 0.0, backward: started.elapsed().as_secs_f64() })
@@ -216,19 +233,19 @@ impl CudaEncoder {
 
     /// The mask key of branch `branch` of layer `l` in the last forward,
     /// when it trained with dropout.
-    fn mask(&self, l: u32, branch: u32) -> Option<u64> {
+    pub(super) fn mask(&self, l: u32, branch: u32) -> Option<u64> {
         let d = self.dropout?;
         let at = self.work.at?;
         Some(dropout::key(d.seed, at, l, branch))
     }
 
-    fn drop(&self, b: &Buf, count: usize, p: f64, key: u64) -> Result<()> {
+    pub(super) fn drop(&self, b: &Buf, count: usize, p: f64, key: u64) -> Result<()> {
         check(unsafe { ffi::tt_dropout(b.f32(), count, p, key) })?;
         self.store(b, count)
     }
 
     /// y = norm(x) over slot `s`'s weight, the statistics into `c`.
-    fn layernorm(&self, x: &Buf, s: usize, n: usize, y: &Buf, c: &(Buf, Buf)) -> Result<()> {
+    pub(super) fn layernorm(&self, x: &Buf, s: usize, n: usize, y: &Buf, c: &(Buf, Buf)) -> Result<()> {
         let h = self.geo.hidden;
         let w = self.weights[s].f32();
         check(unsafe {
@@ -239,7 +256,7 @@ impl CudaEncoder {
 
     /// dx += the gradient of `layernorm` from dy; the weight's gradient
     /// unless the base is frozen.
-    fn layernorm_back(&self, x: &Buf, s: usize, n: usize, dy: &Buf, c: &(Buf, Buf), dx: &Buf) -> Result<()> {
+    pub(super) fn layernorm_back(&self, x: &Buf, s: usize, n: usize, dy: &Buf, c: &(Buf, Buf), dx: &Buf) -> Result<()> {
         let h = self.geo.hidden;
         let dw = if self.frozen { std::ptr::null_mut() } else { self.grads[s].f32() };
         let w = self.weights[s].f32();
@@ -250,7 +267,7 @@ impl CudaEncoder {
 
     /// c = alpha op(a) op(b) + beta c, with the shapes as `tt_gemm` takes.
     #[allow(clippy::too_many_arguments)]
-    fn gemm(
+    pub(super) fn gemm(
         &self,
         a: *const f32,
         b: *const f32,
@@ -266,27 +283,31 @@ impl CudaEncoder {
     }
 
     /// The width of the input and the output of projection `which`.
-    fn widths(&self, which: usize) -> (usize, usize) {
+    pub(super) fn widths(&self, which: usize) -> (usize, usize) {
         let (h, i) = (self.geo.hidden, self.geo.intermediate);
         match which {
             QKV => (h, 3 * h),
             OUT => (h, h),
-            FFN_IN => (h, 2 * i),
+            FFN_IN => (h, if self.family == Family::Modernbert { 2 * i } else { i }),
             _ => (i, h),
         }
     }
 
     /// The slots of adapter A and B of projection `which` of layer `l`.
-    fn lora_slots(&self, l: usize, which: usize) -> (usize, usize) {
+    pub(super) fn lora_slots(&self, l: usize, which: usize) -> (usize, usize) {
         let p = PROJECTIONS.iter().position(|&w| w == which).expect("a projection");
         let a = 3 + 6 * self.geo.layers + 8 * (l - self.lora_from) + 2 * p;
         (a, a + 1)
     }
 
     /// y [n, out] = x W^T (plus the adapter) for projection `which` of layer `l`.
-    fn project(&self, l: usize, which: usize, n: usize, x: &Buf, y: &Buf, hb: &Buf) -> Result<()> {
+    pub(super) fn project(&self, l: usize, which: usize, n: usize, x: &Buf, y: &Buf, hb: &Buf) -> Result<()> {
         let (inp, out) = self.widths(which);
         self.gemm(x.f32(), self.weights[slot(l, which)].f32(), y.f32(), n, out, inp, (false, true), (1.0, 0.0))?;
+        if self.family != Family::Modernbert {
+            let bias = unsafe { self.weights[slot(l, which)].f32().add(inp * out) };
+            check(unsafe { ffi::tt_bias(y.f32(), bias, n as i32, out as i32) })?;
+        }
         self.store(y, n * out)?;
         if let Some(a) = self.adapter(l) {
             let (sa, sb) = self.lora_slots(l, which);
@@ -302,7 +323,7 @@ impl CudaEncoder {
     /// The gradients of `project` from dy: the weight's unless the base is
     /// frozen, the adapter's, and the input's into dx (zero on entry).
     #[allow(clippy::too_many_arguments)]
-    fn project_back(
+    pub(super) fn project_back(
         &self,
         l: usize,
         which: usize,
@@ -318,6 +339,10 @@ impl CudaEncoder {
         if !self.frozen {
             let g = self.grads[slot(l, which)].f32();
             self.gemm(dy.f32(), x.f32(), g, out, inp, n, (true, false), (1.0, 1.0))?;
+            if self.family != Family::Modernbert {
+                let db = unsafe { g.add(inp * out) };
+                check(unsafe { ffi::tt_bias_back(dy.f32(), n as i32, out as i32, db) })?;
+            }
         }
         self.gemm(dy.f32(), w, dx.f32(), n, inp, out, (false, false), (1.0, 1.0))?;
         if let Some(a) = self.adapter(l) {
@@ -334,13 +359,16 @@ impl CudaEncoder {
     }
 
     /// The rotary table's cos and sin for layer `l`.
-    fn rope(&self, l: usize) -> (*const f32, *const f32) {
+    pub(super) fn rope(&self, l: usize) -> (*const f32, *const f32) {
         let half = self.positions * self.pairs;
         let base = if self.geo.global(l) { 0 } else { 2 * half };
         unsafe { (self.table.f32().add(base), self.table.f32().add(base + half)) }
     }
 
-    fn layer_forward(&self, l: usize, x: &Buf, lw: &Layer, x_out: &Buf, w: &Bufs) -> Result<()> {
+    pub(super) fn layer_forward(&self, l: usize, x: &Buf, lw: &Layer, x_out: &Buf, w: &Bufs) -> Result<()> {
+        if self.family != Family::Modernbert {
+            return super::bert::layer_forward(self, l, x, lw, x_out, w);
+        }
         let (n, h, i) = (self.work.n, self.geo.hidden, self.geo.intermediate);
         let (nn, hh, heads) = (n as i32, h as i32, self.geo.heads as i32);
         let round = (self.compute == Compute::Bf16) as i32;
@@ -379,7 +407,10 @@ impl CudaEncoder {
 
     /// The gradient of layer `l`'s input from that of its output in
     /// `w.dx[cur]`, into the other buffer, whose index it returns.
-    fn layer_backward(&self, l: usize, cur: usize, x_in: &Buf, lw: &Layer, w: &Bufs) -> Result<usize> {
+    pub(super) fn layer_backward(&self, l: usize, cur: usize, x_in: &Buf, lw: &Layer, w: &Bufs) -> Result<usize> {
+        if self.family != Family::Modernbert {
+            return super::bert::layer_backward(self, l, cur, x_in, lw, w);
+        }
         let (n, h, i) = (self.work.n, self.geo.hidden, self.geo.intermediate);
         let (nn, hh, heads) = (n as i32, h as i32, self.geo.heads as i32);
         let round = (self.compute == Compute::Bf16) as i32;

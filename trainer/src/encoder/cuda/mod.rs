@@ -15,10 +15,12 @@
 use std::ffi::{CStr, c_void};
 use std::ptr;
 
+use turbo::manifest::Family;
 use turbo::status::{Result, invalid};
 
 use super::{BASE, Compute, Dropout, Encoder, Geometry, Lora};
 
+mod bert;
 mod ffi;
 mod pass;
 pub mod tuned_parser;
@@ -110,6 +112,10 @@ impl Drop for Buf {
 pub struct CudaEncoder {
     geo: Geometry,
     vocab: usize,
+    family: Family,
+    position_rows: usize,
+    position_offset: usize,
+    token_types: usize,
     lora: Option<Lora>,
     lora_from: usize,
     frozen: bool,
@@ -138,9 +144,6 @@ impl CudaEncoder {
     /// `e` on device `device`: its weights as its forward reads them, its
     /// adapters, dropout and compute, and zero gradients.
     pub fn new(e: &Encoder<f32>, device: i32) -> Result<CudaEncoder> {
-        if !e.is_modern() {
-            return Err(invalid("cuda: BERT-family training kernels are not implemented"));
-        }
         check(unsafe { ffi::tt_set_device(device) })?;
         let weights = e
             .weights()
@@ -165,6 +168,10 @@ impl CudaEncoder {
         let mut out = CudaEncoder {
             geo: e.geo,
             vocab: e.vocab,
+            family: e.family,
+            position_rows: e.position_rows,
+            position_offset: e.position_offset,
+            token_types: e.token_types,
             lora: e.lora,
             lora_from: e.lora_from,
             frozen: e.frozen,
@@ -280,10 +287,10 @@ impl CudaEncoder {
         let mut out = Encoder {
             geo: self.geo,
             vocab: self.vocab,
-            family: turbo::manifest::Family::Modernbert,
-            position_rows: 0,
-            position_offset: 0,
-            token_types: 0,
+            family: self.family,
+            position_rows: self.position_rows,
+            position_offset: self.position_offset,
+            token_types: self.token_types,
             lens: self.lens.clone(),
             params,
             compute: Compute::F32,
