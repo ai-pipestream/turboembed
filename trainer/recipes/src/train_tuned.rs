@@ -135,6 +135,7 @@ pub(super) fn train(
         uas: Some(Uas { model: uas(&gold, &predicted), baseline: uas(&gold, &base) }),
         rules: None,
         against: None,
+        by_language: Vec::new(),
     };
     let eval_s = t.elapsed().as_secs_f64();
     let best = report.best_epoch;

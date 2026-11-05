@@ -130,7 +130,32 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     let predicted = split::predict_with_languages(&splitter, &splits.test, &test_f, test_languages)?;
     let base = split::baseline(&splits.train, &splits.test);
     let test = split::sentences(&splits.test);
-    let seen = Seen::of(&split::sentences(&splits.train));
+    let train_s = split::sentences(&splits.train);
+    let seen = Seen::of(&train_s);
+    let by_language = match &languages {
+        Some((names, train_rows, _, test_rows)) => turbo_trainer_recipes::eval::language_evals(
+            &train_s,
+            &test,
+            &predicted,
+            &train_rows[..train_s.len()],
+            test_rows,
+            names,
+            turbo_trainer_recipes::eval::LanguageEvalOptions {
+                task: Task::Tags,
+                baseline: |train_rows: &[usize], test_rows: &[usize]| {
+                    let train_part: Vec<split::TokenSentence> =
+                        train_rows.iter().map(|&i| splits.train[i].clone()).collect();
+                    let test_part: Vec<split::TokenSentence> =
+                        test_rows.iter().map(|&i| splits.test[i].clone()).collect();
+                    split::baseline(&train_part, &test_part)
+                },
+                resamples: RESAMPLES,
+                seed: c.seed,
+                attachment: None,
+            },
+        )?,
+        None => Vec::new(),
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate(Task::Tags, &test, &predicted, &seen, None)),
@@ -141,6 +166,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
         uas: None,
         rules: None,
         against: None,
+        by_language,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

@@ -242,6 +242,7 @@ fn fit_cached_lemma(
             baseline: evaluate(Task::Tags, &test_gold, &base, &seen, None),
             rules: None,
             against: None,
+            by_language: Vec::new(),
             dictionary: None,
             open_span: None,
             comparison: Some(bootstrap(Task::Tags, &test_gold, &predicted, &base, RESAMPLES, p.config.seed)),
@@ -323,6 +324,7 @@ fn fit_cached_parse(
             baseline: evaluate(Task::Tags, &test_gold, &base, &seen, None),
             rules: None,
             against: None,
+            by_language: Vec::new(),
             dictionary: None,
             open_span: None,
             comparison: Some(bootstrap(Task::Tags, &test_gold, &predicted, &base, RESAMPLES, p.config.seed)),
@@ -407,6 +409,7 @@ pub fn run_split(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> 
             baseline: evaluate(Task::Tags, &test_gold, &base, &seen, None),
             rules: None,
             against: None,
+            by_language: Vec::new(),
             dictionary: None,
             open_span: None,
             comparison: Some(bootstrap(Task::Tags, &test_gold, &predicted, &base, RESAMPLES, p.config.seed)),
@@ -470,6 +473,7 @@ pub fn eval_cached_tagger(
         open_span: None,
         comparison: Some(bootstrap(task, test_sents, &predicted, &base, RESAMPLES, p.config.seed)),
         uas: None,
+        by_language: Vec::new(),
     };
     Ok(Some((eval, t_eval.elapsed().as_secs_f64(), test_sents.to_vec(), predicted)))
 }

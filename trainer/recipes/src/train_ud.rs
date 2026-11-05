@@ -187,6 +187,33 @@ pub(super) fn train(
     };
     let (train_s, test) = (head.sentences(&splits.train), head.sentences(&splits.test));
     let seen = Seen::of(&train_s);
+    let by_language = match &languages {
+        Some((names, train_rows, _, test_rows)) => turbo_trainer_recipes::eval::language_evals(
+            &train_s,
+            &test,
+            &predicted,
+            &train_rows[..train_s.len()],
+            test_rows,
+            names,
+            turbo_trainer_recipes::eval::LanguageEvalOptions {
+                task: Task::Tags,
+                baseline: |train_rows: &[usize], test_rows: &[usize]| {
+                    let train_part: Vec<turbo_trainer_recipes::ud::UdSentence> =
+                        train_rows.iter().map(|&i| splits.train[i].clone()).collect();
+                    let test_part: Vec<turbo_trainer_recipes::ud::UdSentence> =
+                        test_rows.iter().map(|&i| splits.test[i].clone()).collect();
+                    match head {
+                        UdHead::Lemma => lemma_baseline(&train_part, &test_part),
+                        UdHead::Deps => deps_baseline(&train_part, &test_part),
+                    }
+                },
+                resamples: RESAMPLES,
+                seed: c.seed,
+                attachment: (head == UdHead::Deps).then_some(uas),
+            },
+        )?,
+        None => Vec::new(),
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate(Task::Tags, &test, &predicted, &seen, None)),
@@ -197,6 +224,7 @@ pub(super) fn train(
         uas: (head == UdHead::Deps).then(|| Uas { model: uas(&test, &predicted), baseline: uas(&test, &base) }),
         rules: None,
         against: None,
+        by_language,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
