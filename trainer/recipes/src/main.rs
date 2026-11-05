@@ -1,6 +1,5 @@
 //! `turbo-train-head`: checks a corpus, scores its majority baseline, or
 //! trains a head on a frozen encoder, writing a receipt each time.
-//!
 //! ```text
 //! turbo-train-head check    --corpus <id> --dir <corpus dir> [--unrecorded-corpus]
 //! turbo-train-head baseline --corpus <id> --dir <corpus dir> --out <dir> [--unrecorded-corpus]
@@ -35,10 +34,8 @@
 //!     [--student-bundle <student bundle>] [--teacher <teacher dir>] [--temperature T] [--alpha A]
 //!     [--max-accuracy-drop X] [--min-speedup X] [--allow-gate-failure] [head and training settings]
 //! ```
-//!
 //! `cache` writes every split's word features at the encoder's last N
 //! layers, for heads on one layer or a mix of them (`cache` module).
-//!
 //! Exit status 2 on any error. `--out` must not exist yet. A run claims
 //! it before anything else, by making it, which fails when it exists, so
 //! of two runs given one `--out` exactly one goes on; a run that fails
@@ -111,6 +108,8 @@ fn run(argv: Vec<String>) -> Result<()> {
         }
         "sweep" => turbo_trainer_recipes::sweep::command(&argv, &corpus_id, &dir, unrecorded, a),
         "distill-head" => turbo_trainer_recipes::distill::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "predict-ner" => turbo_trainer_recipes::ner_cmd::predict(&corpus_id, &dir, unrecorded, a),
+        "compare-ner" => turbo_trainer_recipes::ner_cmd::compare(&corpus_id, &dir, unrecorded, a),
         "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
         "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
         "train-lemma" | "train-parse" => {
@@ -123,7 +122,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, train-cached, sweep, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
