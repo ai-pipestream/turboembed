@@ -325,3 +325,38 @@ fn the_builtin_english_pos_entry_is_the_head_b_bundle() {
     let head_file = head.outputs.iter().find(|o| o.path == "head.safetensors").unwrap();
     assert!(weights.size > head_file.size);
 }
+
+/// The UD head records of #1523 (EWT, share-alike) and #1522 (AnCora
+/// Spanish, default tier): receipts of the recorded releases, each head's
+/// licence class, the gate cleared with the whole interval above zero,
+/// the scores the READMEs give, and no machine or path in a receipt.
+#[test]
+fn the_ud_head_records_are_receipts_of_the_recorded_releases() {
+    let rows = [
+        ("ewt-1523", "upos.json", "ud-en-ewt-upos", LicenseClass::ShareAlike, 0.9457, 0.8617),
+        ("ewt-1523", "xpos.json", "ud-en-ewt-xpos", LicenseClass::ShareAlike, 0.9408, 0.8381),
+        ("ewt-1523", "feats.json", "ud-en-ewt-feats", LicenseClass::ShareAlike, 0.9531, 0.8292),
+        ("ud-1522", "es-ancora-upos.json", "ud-es-ancora-upos", LicenseClass::Permissive, 0.9878, 0.9176),
+    ];
+    for (dir, name, corpus, class, model, baseline) in rows {
+        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("records").join(dir).join(name);
+        let bytes = std::fs::read(&p).unwrap();
+        let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(raw.get("host").is_none(), "{name}: host field present");
+        let r: Receipt = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+        assert_eq!(r.schema, SCHEMA, "{name}");
+        assert_eq!(r.corpus.id, corpus, "{name}");
+        assert!(r.corpus.recorded, "{name}: not the recorded release");
+        assert_eq!(r.command[0], "turbo-train-head", "{name}");
+        assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
+        assert_eq!(r.head.as_ref().unwrap().license_class, Some(class), "{name}");
+        let t = r.training.as_ref().unwrap();
+        assert!((1..=t.dev.len()).contains(&t.best_epoch), "{name}: best epoch {}", t.best_epoch);
+        let c = r.eval.comparison.as_ref().unwrap();
+        assert!(c.delta > 0.0 && c.low > 0.0, "{name}: the gate, the whole interval above zero");
+        assert_eq!(round(r.eval.model.as_ref().unwrap().score()), model, "{name}");
+        assert_eq!(round(r.eval.baseline.score()), baseline, "{name}");
+        let text = String::from_utf8(bytes).unwrap().to_lowercase();
+        assert!(!text.contains("opennlp") && !text.contains("/work/"), "{name}: no OpenNLP row, no host paths");
+    }
+}

@@ -1,7 +1,7 @@
 {
   "schema": "turboembed.trainer.receipt/1",
   "command": [
-    "target/release/turbo-train-head",
+    "turbo-train-head",
     "train",
     "--corpus",
     "ud-en-ewt-upos",
@@ -25,7 +25,6 @@
     "ewt-upos"
   ],
   "commit": "aeab6c0c648f3c5a648aa9ac85f5379da2a0c993",
-  "host": null,
   "unix_time": 1793233840,
   "corpus": {
     "id": "ud-en-ewt-upos",
