@@ -178,6 +178,7 @@ pub(super) fn train(
             threads: c.threads,
             max_train,
             dev_left_out,
+            sample: None,
         }),
         training: Some(TrainingRecord {
             train_loss: report.train_loss,

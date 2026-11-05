@@ -9,6 +9,7 @@
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
 //!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//!     Multiple UD treebanks: --corpus <bank,bank,...> [--column upos|xpos|feats] [--sample 0..1]
 //! turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir> --layers N
 //!     [--device ..] [--precision ..] [--pooling ..] [--max-batch N] [--splits train,dev,test]
 //!     [--commit <sha>] [--unrecorded-corpus]
@@ -227,11 +228,21 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             a,
         );
     }
+    let column = if corpus_id.contains(',') {
+        let name = a.value("--column")?.unwrap_or_else(|| "upos".into());
+        Some(turbo_trainer_recipes::ud_multi::column(&name)?)
+    } else {
+        None
+    };
+    let sample = if column.is_some() { a.parsed("--sample", 1.0)? } else { 1.0 };
     let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
     let t = Instant::now();
-    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
+    let corpus = match column {
+        Some(column) => turbo_trainer_recipes::ud_multi::read(corpus_id, column, dir, unrecorded, sample)?,
+        None => read_corpus(corpus_id, dir, unrecorded)?,
+    };
     let read = t.elapsed().as_secs_f64();
     let head = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
@@ -326,6 +337,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             threads: c.threads,
             max_train,
             dev_left_out,
+            sample: column.map(|_| sample),
         }),
         training: Some(TrainingRecord {
             train_loss: report.train_loss,

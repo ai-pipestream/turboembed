@@ -132,6 +132,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             threads: c.threads,
             max_train,
             dev_left_out,
+            sample: None,
         }),
         training: Some(TrainingRecord {
             train_loss: report.train_loss,

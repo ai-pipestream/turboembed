@@ -55,6 +55,7 @@ pub mod ud_banks;
 pub mod ud_banks_sa;
 pub mod ud_banks_sa2;
 pub mod ud_heads;
+pub mod ud_multi;
 pub mod ud_split;
 pub mod wnut17;
 
@@ -115,6 +116,9 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
         germeval::OUTER => return ("ner_outer", "turboembed:entities"),
         germeval::INNER => return ("ner_inner", "turboembed:entities"),
         _ => (),
+    }
+    if let Some(column) = ud_multi::find_column(id) {
+        return column.head();
     }
     match (ud::find(id), task) {
         (Some((_, column)), _) => column.head(),
