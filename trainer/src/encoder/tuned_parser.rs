@@ -235,12 +235,14 @@ impl TunedParser<f32> {
     pub fn score(&self, dev: &[TunedParseExample]) -> Result<Attachment> {
         let parser = self.head.to_core()?;
         let mut encoder_work = EncoderWork::default();
+        let (mut features, mut count) = (Vec::new(), Vec::new());
         let mut total = Attachment::default();
         for e in dev {
             self.check(e)?;
             self.encoder.forward(&e.ids, &mut encoder_work)?;
-            let example =
-                ParseExample { features: encoder_work.out.clone(), heads: e.heads.clone(), rels: e.rels.clone() };
+            let (h, pooling) = (self.encoder.geometry().hidden, self.head.spec().word_pooling);
+            pool::forward(&encoder_work.out, &e.words, h, pooling, &mut features, &mut count)?;
+            let example = ParseExample { features: features.clone(), heads: e.heads.clone(), rels: e.rels.clone() };
             let score = attachment(&parser, std::slice::from_ref(&example))?;
             total.words += score.words;
             total.heads += score.heads;
