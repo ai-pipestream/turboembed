@@ -145,7 +145,8 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
                 baseline: |train_rows: &[usize], test_rows: &[usize]| {
                     let train_part: Vec<split::TokenSentence> =
                         train_rows.iter().map(|&i| splits.train[i].clone()).collect();
-                    let test_part: Vec<split::TokenSentence> = test_rows.iter().map(|&i| splits.test[i].clone()).collect();
+                    let test_part: Vec<split::TokenSentence> =
+                        test_rows.iter().map(|&i| splits.test[i].clone()).collect();
                     split::baseline(&train_part, &test_part)
                 },
                 resamples: RESAMPLES,
