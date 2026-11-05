@@ -59,12 +59,65 @@ ANDROID_NDK_HOME=/path/to/ndk clients/java-jni/build-android.sh app/src/main/jni
 ```
 
 The release workflow publishes the same two libraries as
-`turboembed-v<version>-android.tar.gz` (docs/release.md). The Java side is
-compiled for Java 21 and uses no platform API above Android API 26, so an
-application module with `minSdk 26` and a toolchain that accepts Java 21
-class files consumes the API and JNI jars with the required record/desugaring support. On Android, bundles live where the
+`turboembed-v<version>-android.tar.gz` (docs/release.md). The Maven jars target Java 21. The Android conformance harness compiles
+the same sources at language level 17 against `android.jar` (exhaustive
+enum switches would otherwise require `java.lang.MatchException`, which
+that jar does not declare) and uses no platform API above Android API 26,
+so an application module with `minSdk 26` and desugaring for records
+consumes the API and JNI code on ART. On Android, bundles live where the
 application can read them as directories, such as the application's files
 directory, and are named by their absolute path.
+
+### Conformance on an emulator or device
+
+`android-conformance/` is a Gradle harness kept apart from the Maven build. It
+packs the sealed `testdata` bundles as APK assets, copies them into the
+application files directory at test start, and runs `AnalyzerConformance`,
+`SessionConformance`, and the JNI bridge tests as instrumented tests. The
+loader path under test is `System.loadLibrary("turbo")` from the packaged
+`jniLibs`; the harness clears `turbo.library.path` and `turbo.library.dir`
+so a host-JVM library cannot satisfy the load.
+
+```sh
+ANDROID_NDK_HOME=/path/to/ndk ANDROID_HOME=/path/to/sdk \
+  clients/java-jni/run-android-conformance.sh
+```
+
+`TURBO_ANDROID_ABI` defaults to `x86_64,arm64-v8a`. Use `x86_64` alone for
+an emulator. The opt-in CI job `.github/workflows/android-conformance.yml`
+runs the same script on an `x86_64` emulator at API 26 (and 35 on labeled
+pull requests) via `workflow_dispatch` or the `ci:android-emulator` label.
+The host-only `:helpers:test` target checks the asset-staging layout, the
+JUnit Jupiter instrumentation bridge (`JupiterTestRunner`), and the XML
+report verifier (`AndroidTestReportVerifier`) without talking to ART.
+During `run-android-conformance.sh`, `AndroidJupiterRunnerBuilder` runs the
+five JUnit Jupiter suites under `AndroidJUnitRunner`, and
+`:helpers:verifyAndroidTestResults` parses the generated `TEST-*.xml` report
+so a zero-test run or a missing suite fails the build. The Gradle wrapper
+jar under `android-conformance/gradle/wrapper/` is the stock Gradle 8.11.1
+wrapper (`distributionSha256Sum` is set in `gradle-wrapper.properties`).
+
+ART results recorded from `.github/workflows/android-conformance.yml` run
+`41936972550` (`06f8248787266589e4be2fc271b959a2ff25408e`):
+
+- `emulator (26)` (`emulator-5554 - 8.0.0`, job `126947771882`, https://github.com/ai-pipestream/turboembed/actions/runs/41936972550/job/126947771882): `34 passed, 0 failed, 0 errors, 0 skipped`
+  - `ai.pipestream.turboembed.jni.android.AndroidAnalyzerConformanceTest`: 13 passed
+  - `ai.pipestream.turboembed.jni.android.AndroidSessionConformanceTest`: 2 passed
+  - `ai.pipestream.turboembed.jni.android.AndroidTurboJniBridgeTest`: 3 passed
+  - `ai.pipestream.turboembed.jni.TurboJniTest`: 10 passed
+  - `ai.pipestream.turboembed.opennlp.TurboAdaptersTest`: 6 passed
+- `emulator (35)` (`emulator-5554 - 15`, job `126947771828`, https://github.com/ai-pipestream/turboembed/actions/runs/41936972550/job/126947771828): `34 passed, 0 failed, 0 errors, 0 skipped` across the same 5 suites.
+- `helpers-host` (job `126947771645`, https://github.com/ai-pipestream/turboembed/actions/runs/41936972550/job/126947771645): host unit tests for `RepoRootStaging`, `JupiterTestRunner`, `AndroidTestReportVerifier`, and `AppGradleSourceSetTest` passed.
+
+Earlier emulator runs surfaced two Android compatibility constraints that
+the shared sources now enforce:
+
+1. `RuntimeLoader` previously called `Runtime.version()`, which `android.jar`
+   does not declare; selection now reads `java.specification.version`.
+2. Android API 26 (`core-oj.jar`) + `desugar_jdk_libs:2.1.4` does not provide
+   Java 9+/11 `InputStream.transferTo`, `Files.writeString`, or `Path.of`;
+   shared and staging code uses `Paths.get`, `Files.write(Path, byte[])`, and
+   buffered stream copies so API 26 executes without `NoSuchMethodError`.
 
 ## Primary typed API
 

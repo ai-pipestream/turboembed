@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -65,6 +66,12 @@ public abstract class AnalyzerConformance {
             ".");
     static final double FIRST_POS_PROBABILITY = 0.7409762693307227;
     static final double BOB_PROBABILITY = 0.23651067881995255;
+    /**
+     * The BERT encoder forward pass computes activations in IEEE-754 {@code f32} before head
+     * probabilities are promoted to {@code f64}; {@code glibc} and Android {@code bionic}
+     * {@code libm} differ by up to ~5.2e-9 on these inputs, well below one {@code f32} ULP.
+     */
+    static final double HEAD_PROBABILITY_DELTA = 1.0e-7;
 
     /** The binding under test. */
     protected abstract TurboRuntime binding();
@@ -156,7 +163,7 @@ public abstract class AnalyzerConformance {
                 assertNotNull(row.probability());
                 assertTrue(row.probability() > 0.0 && row.probability() <= 1.0);
             }
-            assertEquals(FIRST_POS_PROBABILITY, rows.get(0).probability(), 1.0e-12);
+            assertEquals(FIRST_POS_PROBABILITY, rows.get(0).probability(), HEAD_PROBABILITY_DELTA);
         }
     }
 
@@ -182,7 +189,7 @@ public abstract class AnalyzerConformance {
             assertEquals(ENTITIES, bob.layerKind());
             assertEquals(new Row.Tokens(2, 3), bob.tokenRange());
             assertEquals("PER", bob.label());
-            assertEquals(BOB_PROBABILITY, bob.probability(), 1.0e-12);
+            assertEquals(BOB_PROBABILITY, bob.probability(), HEAD_PROBABILITY_DELTA);
             assertNull(bob.viewRange());
             assertNull(bob.sourceRange());
 
@@ -258,7 +265,9 @@ public abstract class AnalyzerConformance {
             assertEquals(0L, deps.get(1).classification(), "met is the first sentence's root");
 
             List<Row> entities = ofKind(graph.rows(), ENTITIES);
-            assertEquals(List.of("Bob", "dog"), entities.stream().map(row -> row.coveredSourceText(TEXT)).toList());
+            assertEquals(
+                    List.of("Bob", "dog"),
+                    entities.stream().map(row -> row.coveredSourceText(TEXT)).collect(Collectors.toList()));
             assertEquals(new Row.Tokens(20, 21), entities.get(1).tokenRange());
 
             assertEquals(graph.rows(), Row.copy(analyzer.inspectGraph(graph.bytes())));
@@ -345,7 +354,10 @@ public abstract class AnalyzerConformance {
             List<Row> rows = Row.copy(analyzer.detectPii(text));
             assertFalse(rows.isEmpty());
             assertTrue(rows.stream().allMatch(row -> row.layerKind() == PII));
-            Row email = rows.stream().filter(row -> "email".equals(row.label())).findFirst().orElseThrow();
+            Row email = rows.stream()
+                    .filter(row -> "email".equals(row.label()))
+                    .findFirst()
+                    .orElseThrow(AssertionError::new);
             assertEquals("alice@example.com", email.coveredSourceText(text));
             assertEquals("alice@example.com", email.value());
             assertEquals(PII_FORMAT, email.classification());
