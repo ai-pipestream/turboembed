@@ -25,7 +25,8 @@
 //!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
-//! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735)
+//! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
+//!     [--balance] to repeat smaller training corpora to the largest split)
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N])
 //! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)

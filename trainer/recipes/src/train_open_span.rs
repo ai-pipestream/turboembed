@@ -32,6 +32,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let max_words: u32 = a.parsed("--max-words", DEFAULT_MAX_WORDS)?;
     let width_dim: u32 = a.parsed("--width-dim", DEFAULT_WIDTH_DIM)?;
     let nested = a.flag("--nested");
+    let balance = a.flag("--balance");
     let hold_out_arg = a.value("--hold-out")?;
     let cache_dir = a.value("--cache")?.map(PathBuf::from);
     let layer_arg: Option<u32> =
@@ -67,6 +68,16 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             let keep = remaining.min(c.splits.train.len());
             c.splits.train.truncate(keep);
             remaining = remaining.saturating_sub(keep);
+        }
+    }
+    if balance && corpora.len() > 1 {
+        let target = corpora.iter().map(|c| c.splits.train.len()).max().unwrap_or(0);
+        for c in &mut corpora {
+            if c.splits.train.is_empty() {
+                return Err(Error("--balance needs a nonempty training split in every corpus".into()));
+            }
+            let original = std::mem::take(&mut c.splits.train);
+            c.splits.train = (0..target).map(|i| original[i % original.len()].clone()).collect();
         }
     }
     let hold_out: Vec<String> = match hold_out_arg {

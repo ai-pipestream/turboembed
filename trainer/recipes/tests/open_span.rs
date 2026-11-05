@@ -197,6 +197,21 @@ fn multi_corpus_training_scores_each_held_out_dataset_and_both_baselines() {
         assert_eq!(dataset.held_out_comparison.as_ref().unwrap().resamples, 1000);
         assert_eq!(dataset.held_out_dictionary_comparison.as_ref().unwrap().resamples, 1000);
     }
+    let balanced_out = dir.join("balanced");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(format!("{},{}", wnut.display(), dir.join("multi").display()))
+        .args(["--hold-out", "location,VisualWork,Scientist,Clothing", "--balance", "--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&balanced_out)
+        .args(["--unrecorded-corpus", "--epochs", "1", "--batch", "4", "--commit", "balance-test"])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let balanced: Receipt = serde_json::from_slice(&fs::read(balanced_out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(balanced.corpus.train.sentences, 8);
+
     let bad = dir.join("bad");
     let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
         .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
