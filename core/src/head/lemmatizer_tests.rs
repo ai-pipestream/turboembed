@@ -32,6 +32,7 @@ fn spec(pos: Option<PosInput>) -> HeadSpec {
         pos_input: pos,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         span: None,

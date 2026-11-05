@@ -119,6 +119,7 @@ pub fn spec(
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         span: Some(SpanShape { max_words, width_dim }),

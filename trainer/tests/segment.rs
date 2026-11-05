@@ -26,6 +26,7 @@ fn spec(kind: HeadKind, labels: &[&str], decode: Decode) -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         span: None,
@@ -51,7 +52,7 @@ fn stops(seed: u64, n: usize) -> Vec<Example> {
                 }
                 labels.push(c as u32);
             }
-            Example { features, labels, forms: Vec::new() }
+            Example { features, labels, forms: Vec::new(), language: None }
         })
         .collect()
 }
@@ -131,7 +132,9 @@ fn a_span_classifier_is_not_a_word_tagger() {
 fn ones(n: usize, label: u32, form: &str) -> Vec<Example> {
     let mut features = vec![0.0f32; HIDDEN];
     features[0] = 1.0;
-    (0..n).map(|_| Example { features: features.clone(), labels: vec![label], forms: vec![form.into()] }).collect()
+    (0..n)
+        .map(|_| Example { features: features.clone(), labels: vec![label], forms: vec![form.into()], language: None })
+        .collect()
 }
 
 #[test]

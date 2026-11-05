@@ -9,7 +9,7 @@ use turbo::head::{SentenceBoundary, TokenSplitter, TokenTagger};
 use turbo::manifest::{HeadSpec, Scheme};
 use turbo::status::Result;
 
-use crate::fit::{Example, check_examples};
+use crate::fit::{Example, check_examples, check_languages};
 
 /// Accuracy (SCHEME_TAGS) or exact span F1 (BIO, BILOU) of `tagger` on
 /// `examples`, decoded by the core exactly as at inference. Refuses an
@@ -18,13 +18,18 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     let spec = tagger.spec();
     let hidden = tagger.hidden();
     check_examples(examples, hidden, spec.labels.len(), tagger.reads_forms())?;
+    check_languages(examples, spec)?;
     let mut tally = Tally::new(spec);
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
         let n = e.features.len() / hidden;
         let words: Vec<u32> = (0..n as u32).collect();
         debug_assert!(!words.contains(&NO_WORD));
-        tagger.scores_forms(&e.features, &words, e.forms().as_deref(), &mut scores, &mut work)?;
+        let language = match (&spec.language, e.language) {
+            (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+            _ => None,
+        };
+        tagger.scores_language(&e.features, &words, e.forms().as_deref(), language, &mut scores, &mut work)?;
         tagger.decode(&scores, n, &mut tags)?;
         tally.add(&tags, &e.labels)?;
     }

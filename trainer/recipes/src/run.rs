@@ -76,6 +76,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         pos_input: None,
         seen_lookup: None,
         hash_embed: o.hash,
+        language: None,
         seen: None,
         layer_mix: None,
         span: None,
@@ -102,27 +103,44 @@ pub fn examples(
     labels: &[String],
     pooling: WordPooling,
 ) -> Result<(Vec<Example>, usize)> {
+    examples_with_languages(enc, sentences, labels, pooling, None)
+}
+
+/// As [`examples`], preserving each kept sentence's language-table row.
+pub fn examples_with_languages(
+    enc: &mut WordEncoder,
+    sentences: &[Sentence],
+    labels: &[String],
+    pooling: WordPooling,
+    languages: Option<&[Option<u32>]>,
+) -> Result<(Vec<Example>, usize)> {
+    if languages.is_some_and(|rows| rows.len() != sentences.len()) {
+        return Err(Error("language rows do not match the sentences".into()));
+    }
     let index: BTreeMap<&str, u32> = labels.iter().enumerate().map(|(i, l)| (l.as_str(), i as u32)).collect();
     let mut out = Vec::with_capacity(sentences.len());
     let mut left_out = 0;
-    for chunk in sentences.chunks(PREDICT_CHUNK) {
-        let kept: Vec<(&Sentence, Vec<u32>)> = chunk
+    for (chunk_at, chunk) in sentences.chunks(PREDICT_CHUNK).enumerate() {
+        let base = chunk_at * PREDICT_CHUNK;
+        let kept: Vec<(&Sentence, Vec<u32>, Option<u32>)> = chunk
             .iter()
-            .filter_map(|s| {
+            .enumerate()
+            .filter_map(|(i, s)| {
                 s.labels
                     .iter()
                     .map(|l| index.get(l.as_str()).copied())
                     .collect::<Option<Vec<u32>>>()
-                    .map(|ids| (s, ids))
+                    .map(|ids| (s, ids, languages.and_then(|rows| rows[base + i])))
             })
             .collect();
         left_out += chunk.len() - kept.len();
-        let words: Vec<Vec<&str>> = kept.iter().map(|(s, _)| s.words.iter().map(String::as_str).collect()).collect();
+        let words: Vec<Vec<&str>> = kept.iter().map(|(s, _, _)| s.words.iter().map(String::as_str).collect()).collect();
         let features = enc.features(&words, pooling).map_err(|e| Error(e.message))?;
-        out.extend(features.into_iter().zip(kept).map(|(features, (s, labels))| Example {
+        out.extend(features.into_iter().zip(kept).map(|(features, (s, labels, language))| Example {
             features,
             labels,
             forms: s.words.clone(),
+            language,
         }));
     }
     Ok((out, left_out))
@@ -135,14 +153,37 @@ pub fn examples(
 ///
 /// What the encoder or the head fails on.
 pub fn predict(enc: &mut WordEncoder, tagger: &TokenTagger, sentences: &[Sentence]) -> Result<Vec<Vec<String>>> {
+    predict_with_languages(enc, tagger, sentences, None)
+}
+
+/// As [`predict`], selecting each sentence's language-table row.
+pub fn predict_with_languages(
+    enc: &mut WordEncoder,
+    tagger: &TokenTagger,
+    sentences: &[Sentence],
+    languages: Option<&[Option<u32>]>,
+) -> Result<Vec<Vec<String>>> {
+    if languages.is_some_and(|rows| rows.len() != sentences.len()) {
+        return Err(Error("language rows do not match the sentences".into()));
+    }
     let pooling = tagger.spec().word_pooling;
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), Work::default());
     let mut out = Vec::with_capacity(sentences.len());
-    for chunk in sentences.chunks(PREDICT_CHUNK) {
+    for (chunk_at, chunk) in sentences.chunks(PREDICT_CHUNK).enumerate() {
+        let base = chunk_at * PREDICT_CHUNK;
         let words: Vec<Vec<&str>> = chunk.iter().map(|s| s.words.iter().map(String::as_str).collect()).collect();
-        for (f, forms) in enc.features(&words, pooling).map_err(|e| Error(e.message))?.iter().zip(&words) {
+        for (i, (f, forms)) in
+            enc.features(&words, pooling).map_err(|e| Error(e.message))?.iter().zip(&words).enumerate()
+        {
             let ids: Vec<u32> = (0..forms.len() as u32).collect();
-            tagger.scores_forms(f, &ids, Some(forms), &mut scores, &mut work).map_err(|e| Error(e.message))?;
+            let row = languages.and_then(|rows| rows[base + i]);
+            let language = match (&tagger.spec().language, row) {
+                (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+                _ => None,
+            };
+            tagger
+                .scores_language(f, &ids, Some(forms), language, &mut scores, &mut work)
+                .map_err(|e| Error(e.message))?;
             tagger.decode(&scores, forms.len(), &mut tags).map_err(|e| Error(e.message))?;
             out.push(tags.iter().map(|&t| tagger.labels()[t as usize].clone()).collect());
         }

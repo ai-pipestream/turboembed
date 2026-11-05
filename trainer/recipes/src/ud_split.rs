@@ -325,6 +325,7 @@ pub fn spec(
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen,
         layer_mix: None,
         span: None,

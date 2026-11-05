@@ -27,6 +27,7 @@ fn spec(pooling: WordPooling, hash: Option<HashEmbed>) -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: hash,
+        language: None,
         seen: None,
         layer_mix: None,
         license_class: None,

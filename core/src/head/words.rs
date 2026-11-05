@@ -19,7 +19,11 @@ pub const NO_WORD: u32 = u32::MAX;
 /// (`hidden`, and the hashed width, without an adapter).
 pub(crate) fn tensors(spec: &HeadSpec, hidden: usize) -> (Vec<(String, Vec<u64>)>, u64) {
     let mut out = Vec::new();
-    let mut width = hidden as u64 + spec.hash_embed.map_or(0, |h| 4 * h.dim as u64);
+    if let Some(language) = &spec.language {
+        out.push(("language.embedding".into(), vec![language.languages.len() as u64, language.dim as u64]));
+    }
+    let language_width = spec.language.as_ref().map_or(0, |language| language.dim as u64);
+    let mut width = hidden as u64 + language_width + spec.hash_embed.map_or(0, |h| 4 * h.dim as u64);
     if let Some(a) = &spec.adapter {
         let h = a.bilstm.hidden as u64;
         for k in 0..a.bilstm.layers {
@@ -97,6 +101,13 @@ impl std::fmt::Debug for AdapterLayer {
     }
 }
 
+#[derive(Debug)]
+struct Language {
+    names: Vec<String>,
+    table: Vec<f32>,
+    dim: usize,
+}
+
 /// Pools words and runs the adapter.
 #[derive(Debug)]
 pub(crate) struct WordReader {
@@ -105,6 +116,7 @@ pub(crate) struct WordReader {
     taps: usize,
     /// `gamma * softmax(mix.weight)` per tapped layer, when `spec.layer_mix` mixes layers.
     mix: Option<Vec<f32>>,
+    language: Option<Language>,
     hash: Option<Tables>,
     adapter: Vec<AdapterLayer>,
     width: usize,
@@ -138,6 +150,19 @@ impl WordReader {
             }
             None => (1, None),
         };
+        let language = match &spec.language {
+            Some(language) => {
+                let table = t.take("language.embedding")?;
+                if table.iter().any(|value| !value.is_finite()) {
+                    return Err(invalid(format!(
+                        "head {:?}: language.embedding holds a value that is not finite",
+                        spec.name
+                    )));
+                }
+                Some(Language { names: language.languages.clone(), table, dim: language.dim as usize })
+            }
+            None => None,
+        };
         let hash = match spec.hash_embed {
             Some(h) => {
                 let take = |k| t.take(&hash_embed::suffix(k));
@@ -146,7 +171,8 @@ impl WordReader {
             None => None,
         };
         let mut adapter = Vec::new();
-        let mut width = hidden + hash.as_ref().map_or(0, Tables::width);
+        let language_width = language.as_ref().map_or(0, |language| language.dim);
+        let mut width = hidden + language_width + hash.as_ref().map_or(0, Tables::width);
         if let Some(a) = &spec.adapter {
             let h = a.bilstm.hidden as usize;
             for k in 0..a.bilstm.layers {
@@ -161,7 +187,7 @@ impl WordReader {
                 width = 2 * h;
             }
         }
-        Ok(WordReader { pooling: spec.word_pooling, hidden, taps, mix, hash, adapter, width })
+        Ok(WordReader { pooling: spec.word_pooling, hidden, taps, mix, language, hash, adapter, width })
     }
 
     /// The width of the word vectors `read` gives.
@@ -189,6 +215,21 @@ impl WordReader {
     /// word map out of order, a non-finite state, or no forms for a head
     /// that reads them (INVALID_ARGUMENT).
     pub(crate) fn read(&self, states: &[f32], words: &[u32], forms: Option<&[&str]>, w: &mut Work) -> Result<usize> {
+        self.read_language(states, words, forms, None, w)
+    }
+
+    /// As [`read`](Self::read), selecting the language embedding by name.
+    /// A one-language head defaults to its only row; a multilingual head
+    /// requires a name and refuses names its manifest does not list.
+    pub(crate) fn read_language(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        forms: Option<&[&str]>,
+        language: Option<&str>,
+        w: &mut Work,
+    ) -> Result<usize> {
+        let language = self.language_index(language)?;
         let rows = words.len();
         let taps = self.taps();
         let one = rows.checked_mul(self.hidden);
@@ -220,12 +261,24 @@ impl WordReader {
             return Ok(0);
         }
         self.pool(states, words, n, w);
+        if let (Some(table), Some(index)) = (&self.language, language) {
+            let (h, d, width) = (self.hidden, table.dim, self.hidden + table.dim);
+            w.adapted.clear();
+            w.adapted.resize(n * width, 0.0);
+            for i in 0..n {
+                let row = &mut w.adapted[i * width..][..width];
+                row[..h].copy_from_slice(&w.pooled[i * h..][..h]);
+                row[h..].copy_from_slice(&table.table[index * d..][..d]);
+            }
+            std::mem::swap(&mut w.pooled, &mut w.adapted);
+        }
         if let Some(t) = &self.hash {
             let forms = forms.ok_or_else(|| Error::new(INVALID_ARGUMENT, "the head reads each word's text"))?;
             if forms.len() != n {
                 return Err(Error::new(INVALID_SHAPE, format!("{} forms for {n} words", forms.len())));
             }
-            let (h, width) = (self.hidden, self.hidden + t.width());
+            let h = self.hidden + self.language.as_ref().map_or(0, |language| language.dim);
+            let width = h + t.width();
             w.adapted.clear();
             w.adapted.resize(n * width, 0.0);
             for (i, form) in forms.iter().enumerate() {
@@ -244,6 +297,26 @@ impl WordReader {
         }
         w.pooled.truncate(n * self.width);
         Ok(n)
+    }
+
+    fn language_index(&self, name: Option<&str>) -> Result<Option<usize>> {
+        let Some(language) = &self.language else {
+            return match name {
+                Some(name) => Err(invalid(format!("language {name:?} given to a head without a language input"))),
+                None => Ok(None),
+            };
+        };
+        let name = match name {
+            Some(name) => name,
+            None if language.names.len() == 1 => &language.names[0],
+            None => return Err(invalid("a multilingual head needs a language")),
+        };
+        language
+            .names
+            .iter()
+            .position(|candidate| candidate == name)
+            .map(Some)
+            .ok_or_else(|| invalid(format!("unknown language {name:?}: one of {}", language.names.join(", "))))
     }
 
     fn pool(&self, states: &[f32], words: &[u32], n: usize, w: &mut Work) {

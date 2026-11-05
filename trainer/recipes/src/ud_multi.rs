@@ -9,6 +9,16 @@ use crate::corpus::{Corpus, CorpusRecord, Counts, Splits, Task};
 use crate::ud::{Column, TREEBANKS};
 use crate::{Error, Result};
 
+/// A combined corpus and the language-table row of every sentence.
+#[derive(Debug)]
+pub struct MultiCorpus {
+    pub corpus: Corpus,
+    pub languages: Vec<String>,
+    pub train_languages: Vec<Option<u32>>,
+    pub dev_languages: Vec<Option<u32>>,
+    pub test_languages: Vec<Option<u32>>,
+}
+
 /// A UD tag column's command-line name.
 pub fn column(name: &str) -> Result<Column> {
     match name {
@@ -26,12 +36,28 @@ pub fn find_column(id: &str) -> Option<Column> {
     columns.all(|column| column == Some(first)).then_some(first)
 }
 
+fn language_names(ids: &[&str]) -> Result<Vec<String>> {
+    let mut languages = Vec::with_capacity(ids.len());
+    for id in ids {
+        let language = id
+            .strip_prefix("ud-")
+            .and_then(|rest| rest.split('-').next())
+            .filter(|language| !language.is_empty())
+            .ok_or_else(|| Error(format!("treebank {id:?} has no language code")))?;
+        if languages.iter().any(|known| known == language) {
+            return Err(Error(format!("language {language:?} is listed twice; use one treebank per language")));
+        }
+        languages.push(language.to_owned());
+    }
+    Ok(languages)
+}
+
 /// Reads a comma-separated list of treebank ids as one tag corpus.
 /// `sample` is the temperature exponent: 1 keeps each split unchanged,
 /// 0 gives every treebank the same training sentence count, and values
 /// between interpolate by `count.powf(sample)`. Resampling repeats each
 /// bank's own training sentences cyclically and never touches dev or test.
-pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64) -> Result<Corpus> {
+pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64) -> Result<MultiCorpus> {
     let ids: Vec<&str> = ids.split(',').collect();
     if ids.len() < 2 || ids.iter().any(|id| id.is_empty()) {
         return Err(Error("a multi-treebank corpus needs at least two comma-separated treebank ids".into()));
@@ -82,8 +108,13 @@ pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64
         "each release's own train, dev and test files; --sample {sample} training sentence targets {:?}",
         targets
     );
+    let languages = language_names(&ids)?;
     let mut splits = Splits::default();
-    for mut corpus in corpora {
+    let (mut train_languages, mut dev_languages, mut test_languages) = (Vec::new(), Vec::new(), Vec::new());
+    for (row, mut corpus) in corpora.into_iter().enumerate() {
+        train_languages.extend(std::iter::repeat_n(Some(row as u32), corpus.splits.train.len()));
+        dev_languages.extend(std::iter::repeat_n(Some(row as u32), corpus.splits.dev.len()));
+        test_languages.extend(std::iter::repeat_n(Some(row as u32), corpus.splits.test.len()));
         splits.train.append(&mut corpus.splits.train);
         splits.dev.append(&mut corpus.splits.dev);
         splits.test.append(&mut corpus.splits.test);
@@ -106,7 +137,7 @@ pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64
         skipped,
         recipe_only,
     };
-    Ok(Corpus { record, splits })
+    Ok(MultiCorpus { corpus: Corpus { record, splits }, languages, train_languages, dev_languages, test_languages })
 }
 
 fn corpora_sentences_mut(splits: &mut Splits) -> impl Iterator<Item = &mut crate::corpus::Sentence> {

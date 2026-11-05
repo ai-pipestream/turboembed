@@ -150,8 +150,22 @@ impl TokenTagger {
         out: &mut Vec<f32>,
         w: &mut Work,
     ) -> Result<usize> {
+        self.scores_language(states, words, forms, None, out, w)
+    }
+
+    /// As [`scores_forms`](Self::scores_forms), selecting a language
+    /// embedding by name. A multilingual head requires it.
+    pub fn scores_language(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        forms: Option<&[&str]>,
+        language: Option<&str>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<usize> {
         out.clear();
-        let n = self.reader.read(states, words, forms, w)?;
+        let n = self.reader.read_language(states, words, forms, language, w)?;
         out.resize(n * self.out.out_dim, 0.0);
         if n > 0 {
             self.out.apply_rows(&w.pooled, n, out);

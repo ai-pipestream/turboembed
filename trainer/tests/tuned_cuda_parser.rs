@@ -23,6 +23,7 @@ fn spec() -> HeadSpec {
         biaffine: Some(Biaffine { arc: 2, rel: 2 }),
         pos_input: None,
         hash_embed: None,
+        language: None,
         seen: None,
         span: None,
         coref: None,

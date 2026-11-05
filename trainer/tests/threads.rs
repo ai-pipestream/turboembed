@@ -28,6 +28,7 @@ fn spec() -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: Some(HashEmbed { dim: 8, rows: [1024, 256, 512, 256] }),
+        language: None,
         seen: None,
         layer_mix: None,
         span: None,
@@ -57,7 +58,7 @@ fn data(seed: u64, n: usize) -> Vec<Example> {
                 });
                 forms.push(WORDS[rng.below(WORDS.len())].to_string());
             }
-            Example { features, labels, forms }
+            Example { features, labels, forms, language: None }
         })
         .collect()
 }
