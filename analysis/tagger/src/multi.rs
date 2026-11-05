@@ -136,6 +136,7 @@ pub struct Input<'a> {
     poolings: Vec<WordPooling>,
     features: Arc<Vec<Vec<Vec<f32>>>>,
     taps: usize,
+    language: Option<&'a str>,
     whole: Option<Whole<'a>>,
 }
 
@@ -149,7 +150,7 @@ impl<'a> Input<'a> {
         features: Arc<Vec<Vec<Vec<f32>>>>,
     ) -> Input<'a> {
         let forms = forms_of(view, tokens, &seqs);
-        Input { view, tokens, seqs, forms, poolings, features, taps: 1, whole: None }
+        Input { view, tokens, seqs, forms, poolings, features, taps: 1, language: None, whole: None }
     }
 
     /// Sets the number of encoder layer taps present in `features`.
@@ -179,6 +180,10 @@ pub(crate) fn wrong_head<T>() -> Result<T, String> {
     Err("the head is of another kind than its layer".into())
 }
 
+fn language_of<'a>(spec: &HeadSpec, input: &Input<'a>) -> Option<&'a str> {
+    spec.language.as_ref().and(input.language)
+}
+
 fn open_tags(bundle: &Bundle, spec: &HeadSpec, role: &str) -> Result<Head, CoreError> {
     if spec.scheme != Scheme::Tags {
         return Err(refuse(format!("head {:?}: a {role} head reads SCHEME_TAGS labels", spec.name)));
@@ -196,7 +201,8 @@ impl HeadLayer for PosTags {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
         let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
-        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
+        let decoded =
+            decode_with(tagger, &f, &input.forms, language_of(tagger.spec(), input)).map_err(|e| e.to_string())?;
         pos_layer(input.tokens, &input.seqs, &decoded, set)
     }
 }
@@ -217,7 +223,8 @@ impl HeadLayer for Entities {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
         let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
-        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
+        let decoded =
+            decode_with(tagger, &f, &input.forms, language_of(tagger.spec(), input)).map_err(|e| e.to_string())?;
         entity_layer(tagger, input.view, input.tokens, &input.seqs, &decoded, set)
     }
 }
@@ -231,7 +238,8 @@ impl HeadLayer for MorphFeatures<Tokens> {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
         let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
-        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
+        let decoded =
+            decode_with(tagger, &f, &input.forms, language_of(tagger.spec(), input)).map_err(|e| e.to_string())?;
         let tags = pos_layer(input.tokens, &input.seqs, &decoded, set)?;
         let mut feats = Strs::default();
         for &t in &tags.tags {
@@ -251,7 +259,7 @@ impl HeadLayer for Dependencies<Tokens> {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Parser { parser, relations } = head else { return wrong_head() };
         let f = input.tapped(parser.spec().word_pooling, parser.taps())?;
-        let parses = parse_with(parser, &f).map_err(|e| e.to_string())?;
+        let parses = parse_with(parser, &f, language_of(parser.spec(), input)).map_err(|e| e.to_string())?;
         dep_layer(input.tokens, &input.seqs, &parses, relations)
     }
 }
@@ -273,8 +281,16 @@ impl HeadLayer for Lemmas {
             }
             _ => None,
         };
-        let lemmas =
-            lemmas_with(lemmatizer, pos.as_ref(), None, &f, pf.as_deref(), &input.forms).map_err(|e| e.to_string())?;
+        let lemmas = lemmas_with(
+            lemmatizer,
+            pos.as_ref(),
+            None,
+            &f,
+            pf.as_deref(),
+            &input.forms,
+            language_of(lemmatizer.spec(), input),
+        )
+        .map_err(|e| e.to_string())?;
         lemma_layer(input.tokens, &input.seqs, lemmas)
     }
 }
@@ -314,7 +330,8 @@ impl HeadLayer for Words {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Split { splitter } = head else { return wrong_head() };
         let f = input.tapped(splitter.spec().word_pooling, spec_taps(splitter.spec()))?;
-        let split = split_with(splitter, &f, &input.forms).map_err(|e| e.to_string())?;
+        let split =
+            split_with(splitter, &f, &input.forms, language_of(splitter.spec(), input)).map_err(|e| e.to_string())?;
         word_layer(input.view, input.tokens, &input.seqs, split)
     }
 }
@@ -364,12 +381,32 @@ pub struct MultiTask<W: Outputs> {
     execution: Execution,
     width: usize,
     tier: Option<LicenseClass>,
+    language: Option<String>,
     out: PhantomData<fn() -> W>,
 }
 
 impl<W: Outputs> MultiTask<W> {
     /// The heads of the bundle at `dir` for each output of `W`.
     pub fn open(dir: &Path, names: &[Option<&str>], o: &EncoderOptions) -> Result<MultiTask<W>, CoreError> {
+        Self::open_with_language(dir, names, o, None)
+    }
+
+    /// As [`open`](Self::open), selecting a language for every head.
+    pub fn open_language(
+        dir: &Path,
+        names: &[Option<&str>],
+        o: &EncoderOptions,
+        language: &str,
+    ) -> Result<MultiTask<W>, CoreError> {
+        Self::open_with_language(dir, names, o, Some(language.to_owned()))
+    }
+
+    fn open_with_language(
+        dir: &Path,
+        names: &[Option<&str>],
+        o: &EncoderOptions,
+        language: Option<String>,
+    ) -> Result<MultiTask<W>, CoreError> {
         if names.len() != W::N {
             return Err(refuse(format!("{} head names for {} outputs", names.len(), W::N)));
         }
@@ -405,6 +442,7 @@ impl<W: Outputs> MultiTask<W> {
             words: Mutex::new(words),
             heads,
             poolings,
+            language,
             out: PhantomData,
         })
     }
@@ -444,7 +482,10 @@ impl<W: Outputs> MultiTask<W> {
             let (taps, features) =
                 (words.taps(), words.token_features_pooled(view, tokens, &seqs, subwords, &self.poolings)?);
             drop(words);
-            let input = Input::new(view, tokens, seqs, self.poolings.clone(), Arc::new(features)).with_taps(taps);
+            let input = Input {
+                language: self.language.as_deref(),
+                ..Input::new(view, tokens, seqs, self.poolings.clone(), Arc::new(features)).with_taps(taps)
+            };
             return W::write(&self.heads, &input);
         };
         let all = Tokens { spans: tokens.spans.clone(), sentence: None };
@@ -466,7 +507,17 @@ impl<W: Outputs> MultiTask<W> {
                 .collect(),
         );
         let whole = Some(Whole { seqs: whole_seqs, forms: whole_forms, features: whole_features });
-        let input = Input { view, tokens, seqs, forms, poolings: self.poolings.clone(), features, taps, whole };
+        let input = Input {
+            view,
+            tokens,
+            seqs,
+            forms,
+            poolings: self.poolings.clone(),
+            features,
+            taps,
+            language: self.language.as_deref(),
+            whole,
+        };
         W::write(&self.heads, &input)
     }
 }
@@ -493,6 +544,9 @@ impl<W: Outputs> Annotator for MultiTask<W> {
         let mut h = Fnv1a::new();
         for head in &self.heads {
             h.str(&head.spec().name);
+        }
+        if let Some(language) = &self.language {
+            h.str(language);
         }
         h.u64(self.width as u64).finish()
     }

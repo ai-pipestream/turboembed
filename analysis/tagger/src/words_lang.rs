@@ -316,7 +316,7 @@ impl HeadLayer for LanguageSpans {
     fn write(head: &Head, input: &Input<'_>) -> Result<Self, String> {
         let Head::Tagger { tagger, set } = head else { return wrong_head() };
         let f = input.tapped(tagger.spec().word_pooling, tagger.taps())?;
-        let decoded = decode_with(tagger, &f, &input.forms).map_err(|e| e.to_string())?;
+        let decoded = decode_with(tagger, &f, &input.forms, None).map_err(|e| e.to_string())?;
         language_layer(tagger, input.view, input.tokens, &input.seqs, &decoded, set)
     }
 }
