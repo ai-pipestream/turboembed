@@ -136,6 +136,81 @@ fn open_span_hold_out_round_trip_and_bundle_assembly() {
 }
 
 #[test]
+fn multi_corpus_training_scores_each_held_out_dataset_and_both_baselines() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("open-span-mix-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    let wnut = dir.join("wnut");
+    let multi = dir.join("multi/EN-English");
+    fs::create_dir_all(&wnut).unwrap();
+    fs::create_dir_all(&multi).unwrap();
+    fs::write(wnut.join("wnut17train.conll"), "ann\tB-person\n\t\nparis\tB-location\n\t\n").unwrap();
+    fs::write(wnut.join("emerging.dev.conll"), "bob\tB-person\n\n").unwrap();
+    fs::write(wnut.join("emerging.test.annotated"), "eve\tB-person\nparis\tB-location\n\n").unwrap();
+    for (file, text) in [
+        (
+            "en_train.conll",
+            concat!(
+                "# id 1\tdomain=en\nalice _ _ B-OtherPER\n\n",
+                "# id 2\tdomain=en\nart _ _ B-VisualWork\n\n",
+                "# id 3\tdomain=en\nscience _ _ B-Scientist\n\n",
+                "# id 4\tdomain=en\ncoat _ _ B-Clothing\n\n"
+            ),
+        ),
+        ("en_dev.conll", "# id 2\tdomain=en\nbob _ _ B-OtherPER\n\n"),
+        (
+            "en_test.conll",
+            "# id 3\tdomain=en\nalice _ _ B-OtherPER\nart _ _ B-VisualWork\nscience _ _ B-Scientist\ncoat _ _ B-Clothing\n\n",
+        ),
+    ] {
+        fs::write(multi.join(file), text).unwrap();
+    }
+    let out = dir.join("out");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(format!("{},{}", wnut.display(), dir.join("multi").display()))
+        .args(["--hold-out", "location,VisualWork,Scientist,Clothing", "--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&out)
+        .args(["--unrecorded-corpus", "--epochs", "1", "--batch", "4", "--commit", "mix-test"])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let receipt: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(receipt.corpus.id, "wnut17,multiconer2-en");
+    assert_eq!(receipt.corpus.class().unwrap(), LicenseClass::ShareAlike);
+    assert!(
+        receipt.corpus.files.iter().all(|f| f.path.starts_with("wnut17/") || f.path.starts_with("multiconer2-en/"))
+    );
+    let os = receipt.eval.open_span.as_ref().unwrap();
+    assert_eq!(os.held_out_types, ["location", "VisualWork", "Scientist", "Clothing"]);
+    assert_eq!(os.datasets.len(), 2);
+    assert!(os.dictionary_comparison.is_some());
+    assert!(os.held_out_comparison.is_some());
+    assert!(os.held_out_dictionary_comparison.is_some());
+    for dataset in &os.datasets {
+        assert!(dataset.held_out_model.is_some());
+        assert_eq!(dataset.comparison.resamples, 1000);
+        assert_eq!(dataset.dictionary_comparison.resamples, 1000);
+        assert_eq!(dataset.held_out_comparison.as_ref().unwrap().resamples, 1000);
+        assert_eq!(dataset.held_out_dictionary_comparison.as_ref().unwrap().resamples, 1000);
+    }
+    let bad = dir.join("bad");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(&wnut)
+        .args(["--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&bad)
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("equal, non-empty comma-separated lists"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn dictionary_baseline_matches_multi_word_and_hyphenated_labels() {
     let sents = vec![Sentence {
         words: vec!["the".into(), "creative".into(), "work".into(), "and".into(), "person".into()],
