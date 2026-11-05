@@ -17,10 +17,11 @@ use std::ptr;
 
 use turbo::status::{Result, invalid};
 
-use super::{Compute, Dropout, Encoder, Geometry, Lora};
+use super::{BASE, Compute, Dropout, Encoder, Geometry, Lora};
 
 mod ffi;
 mod pass;
+pub mod tuned_parser;
 
 pub use pass::Timing;
 
@@ -38,6 +39,10 @@ pub(super) struct Buf {
     ptr: *mut c_void,
     bytes: usize,
 }
+
+// The buffer exclusively owns its device allocation; CUDA copies and kernels
+// accept it from any thread, with synchronization at the encoder boundary.
+unsafe impl Send for Buf {}
 
 impl Buf {
     fn new(bytes: usize) -> Result<Buf> {
@@ -200,6 +205,16 @@ impl CudaEncoder {
         self.work.buffered_layers()
     }
 
+    /// Downloads slot `s`'s weights for a checkpoint or best-epoch restore.
+    pub fn slot(&self, s: usize) -> Result<Vec<f32>> {
+        if s >= self.lens.len() {
+            return Err(invalid("cuda: no such weight slot"));
+        }
+        let mut out = vec![0.0; self.lens[s]];
+        self.weights[s].download(&mut out)?;
+        Ok(out)
+    }
+
     /// Replaces slot `s`'s weights with `p`, which must keep the length,
     /// rounded under bfloat16 as the CPU's shadow is.
     pub fn put_slot(&mut self, s: usize, p: &[f32]) -> Result<()> {
@@ -208,6 +223,20 @@ impl CudaEncoder {
         }
         self.weights[s].upload(p)?;
         self.store(&self.weights[s], p.len())
+    }
+
+    /// Which slots the optimizer moves, as the CPU encoder reports them.
+    pub fn trainable(&self) -> Vec<bool> {
+        let base = BASE + 6 * self.geo.layers;
+        (0..self.weights.len()).map(|s| !self.frozen || s >= base).collect()
+    }
+
+    /// Which slots take weight decay, as the CPU encoder reports them.
+    pub fn decay(&self) -> Vec<bool> {
+        let base = BASE + 6 * self.geo.layers;
+        (0..self.weights.len())
+            .map(|s| s == 0 || s >= base || (s >= BASE && !matches!((s - BASE) % 6, 0 | 3)))
+            .collect()
     }
 
     /// Zeroes the gradients.
@@ -221,7 +250,9 @@ impl CudaEncoder {
     /// The gradients, into `g` shaped as [`Encoder::grads`] gives them.
     pub fn grads(&self, g: &mut [Vec<f32>]) -> Result<()> {
         if g.len() != self.grads.len() || g.iter().zip(&self.grads).any(|(a, b)| a.len() != b.len()) {
-            return Err(invalid("cuda: the gradients are not shaped as the weights"));
+            let got: Vec<usize> = g.iter().map(Vec::len).collect();
+            let want: Vec<usize> = self.grads.iter().map(Buf::len).collect();
+            return Err(invalid(format!("cuda: gradient lengths {got:?} do not match {want:?}")));
         }
         self.sync()?;
         for (dst, src) in g.iter_mut().zip(&self.grads) {
