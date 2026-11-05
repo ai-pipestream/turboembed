@@ -37,7 +37,8 @@ pub const MAX_MIX_LAYERS: u32 = 128;
 /// The most entries a token split head's seen lookup holds.
 pub const MAX_SEEN_TOKENS: usize = 1 << 16;
 
-/// The languages a word head conditions on, and the embedding width.
+/// The language codes a word head conditions on, and the embedding width.
+/// Codes use lowercase ASCII letters, digits and hyphens, start with a letter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LanguageInput {
@@ -55,12 +56,23 @@ pub(super) fn validate_language(kind: HeadKind, language: &LanguageInput, at: &d
             language.dim
         )));
     }
-    if kind != HeadKind::TokenTagger {
+    if !matches!(
+        kind,
+        HeadKind::TokenTagger | HeadKind::BiaffineParser | HeadKind::EditTreeLemmatizer | HeadKind::TokenSplit
+    ) {
         return Err(invalid(format!("manifest.json: {}: {kind:?} does not take a language input", at("language"))));
     }
     for (i, name) in language.languages.iter().enumerate() {
         required(&at(&format!("language.languages[{i}]")), name)?;
         fits(&at(&format!("language.languages[{i}]")), name, 64)?;
+        if !name.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+            || !name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        {
+            return Err(invalid(format!(
+                "manifest.json: {}: {name:?} is not a lowercase language code",
+                at("language.languages")
+            )));
+        }
         if language.languages[..i].contains(name) {
             return Err(invalid(format!("manifest.json: {}: {name:?} is listed twice", at("language.languages"))));
         }

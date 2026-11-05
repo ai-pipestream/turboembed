@@ -49,7 +49,7 @@ fn multi_treebank_read_prefixes_xpos_and_only_resamples_training() {
     let dir = scratch("read");
     corpora(&dir);
     let multi = read("ud-es-ancora,ud-ca-ancora", Column::Xpos, &dir, true, 0.0).unwrap();
-    assert_eq!(multi.languages, ["ud-es-ancora", "ud-ca-ancora"]);
+    assert_eq!(multi.languages, ["es", "ca"]);
     assert_eq!(multi.train_languages, [Some(0), Some(0), Some(1), Some(1)]);
     assert_eq!(multi.dev_languages, [Some(0), Some(1)]);
     assert_eq!(multi.test_languages, [Some(0), Some(1)]);
@@ -118,7 +118,7 @@ fn the_cli_trains_a_multi_treebank_head_and_records_sampling() {
     assert_eq!(head.name, "xpos");
     assert_eq!(head.labels, ["ud-ca-ancora:NN", "ud-es-ancora:NN"]);
     let language = head.language.unwrap();
-    assert_eq!(language.languages, ["ud-es-ancora", "ud-ca-ancora"]);
+    assert_eq!(language.languages, ["es", "ca"]);
     assert_eq!(language.dim, 16);
     fs::remove_dir_all(dir).unwrap();
     fs::remove_dir_all(out).unwrap();

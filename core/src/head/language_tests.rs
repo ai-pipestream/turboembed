@@ -86,8 +86,12 @@ fn one_language_defaults_and_absent_input_refuses_a_selector() {
 
 #[test]
 fn language_specs_require_unique_nonempty_names() {
-    let mut spec = spec(&["es", "es"]);
-    assert!(spec.validate("head").is_err());
-    spec.language.as_mut().unwrap().languages.clear();
-    assert!(spec.validate("head").is_err());
+    let mut head = spec(&["es", "es"]);
+    assert!(head.validate("head").is_err());
+    head.language.as_mut().unwrap().languages.clear();
+    assert!(head.validate("head").is_err());
+    for invalid in ["Spanish", "1es", "pt_BR", "es!"] {
+        let spec = spec(&[invalid]);
+        assert!(spec.validate("head").is_err(), "{invalid}");
+    }
 }

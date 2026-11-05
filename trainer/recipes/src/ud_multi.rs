@@ -36,6 +36,22 @@ pub fn find_column(id: &str) -> Option<Column> {
     columns.all(|column| column == Some(first)).then_some(first)
 }
 
+fn language_names(ids: &[&str]) -> Result<Vec<String>> {
+    let mut languages = Vec::with_capacity(ids.len());
+    for id in ids {
+        let language = id
+            .strip_prefix("ud-")
+            .and_then(|rest| rest.split('-').next())
+            .filter(|language| !language.is_empty())
+            .ok_or_else(|| Error(format!("treebank {id:?} has no language code")))?;
+        if languages.iter().any(|known| known == language) {
+            return Err(Error(format!("language {language:?} is listed twice; use one treebank per language")));
+        }
+        languages.push(language.to_owned());
+    }
+    Ok(languages)
+}
+
 /// Reads a comma-separated list of treebank ids as one tag corpus.
 /// `sample` is the temperature exponent: 1 keeps each split unchanged,
 /// 0 gives every treebank the same training sentence count, and values
@@ -92,7 +108,7 @@ pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64
         "each release's own train, dev and test files; --sample {sample} training sentence targets {:?}",
         targets
     );
-    let languages = ids.iter().map(|id| (*id).to_owned()).collect();
+    let languages = language_names(&ids)?;
     let mut splits = Splits::default();
     let (mut train_languages, mut dev_languages, mut test_languages) = (Vec::new(), Vec::new(), Vec::new());
     for (row, mut corpus) in corpora.into_iter().enumerate() {
