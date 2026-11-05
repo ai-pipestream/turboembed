@@ -105,8 +105,8 @@ impl Drop for Buf {
     }
 }
 
-/// An encoder on the device: the master weights' copy (rounded under
-/// bfloat16), the gradients, and the workspace of the last forward.
+/// An encoder on the device: f32 master weights on the host, their
+/// compute copy (rounded under bfloat16), gradients and forward workspace.
 pub struct CudaEncoder {
     geo: Geometry,
     vocab: usize,
@@ -117,6 +117,7 @@ pub struct CudaEncoder {
     dropout: Option<Dropout>,
     compute: Compute,
     lens: Vec<usize>,
+    masters: Vec<Vec<f32>>,
     weights: Vec<Buf>,
     /// One a slot; a frozen base slot's holds nothing.
     grads: Vec<Buf>,
@@ -169,6 +170,7 @@ impl CudaEncoder {
             dropout: e.dropout,
             compute: e.compute,
             lens: e.lens.clone(),
+            masters: e.params().to_vec(),
             weights,
             grads,
             table,
@@ -205,24 +207,21 @@ impl CudaEncoder {
         self.work.buffered_layers()
     }
 
-    /// Downloads slot `s`'s weights for a checkpoint or best-epoch restore.
+    /// Clones slot `s`'s f32 optimizer master weights.
     pub fn slot(&self, s: usize) -> Result<Vec<f32>> {
-        if s >= self.lens.len() {
-            return Err(invalid("cuda: no such weight slot"));
-        }
-        let mut out = vec![0.0; self.lens[s]];
-        self.weights[s].download(&mut out)?;
-        Ok(out)
+        self.masters.get(s).cloned().ok_or_else(|| invalid("cuda: no such weight slot"))
     }
 
-    /// Replaces slot `s`'s weights with `p`, which must keep the length,
-    /// rounded under bfloat16 as the CPU's shadow is.
+    /// Replaces slot `s`'s master with `p` and its device copy with the
+    /// same values rounded to the compute precision.
     pub fn put_slot(&mut self, s: usize, p: &[f32]) -> Result<()> {
         if s >= self.lens.len() || p.len() != self.lens[s] {
             return Err(invalid("cuda: the weights do not match the slot's"));
         }
         self.weights[s].upload(p)?;
-        self.store(&self.weights[s], p.len())
+        self.store(&self.weights[s], p.len())?;
+        self.masters[s].copy_from_slice(p);
+        Ok(())
     }
 
     /// Which slots the optimizer moves, as the CPU encoder reports them.
