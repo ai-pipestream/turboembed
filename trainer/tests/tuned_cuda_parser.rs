@@ -4,6 +4,7 @@
 #![cfg(any(feature = "cuda", feature = "cuda-shim"))]
 
 use turbo::manifest::{Biaffine, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
+use turbo_trainer::adamw::{AdamW, Settings};
 use turbo_trainer::encoder::cuda::CudaEncoder;
 use turbo_trainer::encoder::{Dropout, Encoder, Geometry, Lora};
 use turbo_trainer::rng::Rng;
@@ -116,6 +117,31 @@ fn bf16_gradients_match_cpu_with_loss_scaling() {
     let Some(_) = device("bf16 gradients") else { return };
     let e = encoder().with_dropout(Dropout { embedding: 0.2, attention: 0.3, mlp: 0.25, seed: 5 }).unwrap().with_bf16();
     compare_gradients(e, "bf16", 5e-2);
+}
+
+#[test]
+fn bf16_optimizer_steps_keep_the_cpu_f32_masters() {
+    let Some(device) = device("bf16 optimizer masters") else { return };
+    let spec = spec();
+    let e = encoder().with_bf16();
+    let mut cpu = TunedParser::new(e.clone(), &spec, &mut Rng::new(11)).unwrap();
+    let cuda = CudaEncoder::new(&e, device).unwrap();
+    let mut gpu = TunedCudaParser::new(cuda, &spec, &mut Rng::new(11)).unwrap();
+    let settings = Settings { lr: 2e-5, weight_decay: 0.0, ..Settings::default() };
+    let shapes: Vec<usize> = cpu.params().iter().map(Vec::len).collect();
+    let (mut co, mut go) = (AdamW::new(settings, &shapes).unwrap(), AdamW::new(settings, &shapes).unwrap());
+    let (mut cg, mut gg) = (cpu.zero_grads(), gpu.zero_grads());
+    for (step, (c, g)) in cg.iter_mut().zip(&mut gg).enumerate() {
+        for (i, (c, g)) in c.iter_mut().zip(g).enumerate() {
+            *c = 1e-3 * (1 + (i + step) % 7) as f32;
+            *g = *c;
+        }
+    }
+    for _ in 0..20 {
+        cpu.step(&mut co, &mut cg, &cpu.decays()).unwrap();
+        gpu.step(&mut go, &mut gg, &gpu.decays()).unwrap();
+    }
+    assert_eq!(gpu.params().unwrap(), cpu.params());
 }
 
 #[test]
