@@ -218,6 +218,18 @@ impl<W: Outputs> MultiTask<W> {
                 return Err(refuse(format!("head {:?} is named for two outputs", h.spec().name)));
             }
         }
+        if let Some(selected) = language.as_deref() {
+            for head in heads.iter().filter(|head| head.spec().language.is_some()) {
+                let input = head.spec().language.as_ref().expect("filtered language input");
+                if !input.languages.iter().any(|known| known == selected) {
+                    return Err(refuse(format!(
+                        "unknown language {selected:?} for head {:?}: one of {}",
+                        head.spec().name,
+                        input.languages.join(", ")
+                    )));
+                }
+            }
+        }
         let taps = heads.iter().flat_map(Head::taps).max().unwrap_or(1);
         let words = open_words(dir, o, taps)?;
         for h in &heads {

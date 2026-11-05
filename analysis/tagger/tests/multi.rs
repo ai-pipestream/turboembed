@@ -365,7 +365,6 @@ fn a_language_is_selected_for_every_head() {
     let ca = MultiTask::<All>::open_language(&dir, &[None; 4], &o, "ca").unwrap();
     let (other, _, _, _) = ca.annotate((view, &toks, None, None)).unwrap();
     assert_ne!(pos.prob, other.prob, "the selected language changes the scores");
-    let unknown = MultiTask::<All>::open_language(&dir, &[None; 4], &o, "it").unwrap();
-    let error = unknown.annotate((view, &toks, None, None)).err().unwrap();
+    let error = MultiTask::<All>::open_language(&dir, &[None; 4], &o, "it").err().unwrap();
     assert!(error.to_string().contains("unknown language"), "{error}");
 }
