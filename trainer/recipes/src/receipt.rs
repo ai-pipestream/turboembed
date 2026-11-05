@@ -88,6 +88,9 @@ pub struct ConfigRecord {
     /// Dev sentences left out of early stopping because training never
     /// gave one of their labels.
     pub dev_left_out: usize,
+    /// Temperature used to resample a multi-treebank training split.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
