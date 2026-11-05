@@ -1,5 +1,6 @@
-//! An encoder read from a bundle: the manifest's architecture as the
-//! geometry, and the raw F32 weights artifact's tensors by their roles.
+//! An encoder read from a bundle: the manifest's architecture selects
+//! ModernBERT here or BERT/RoBERTa in `load_bert`, with raw F32 tensors
+//! read by their manifest roles.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -50,6 +51,9 @@ impl<R: Real> Encoder<R> {
         let bundle = Bundle::open(dir)?;
         let m = &bundle.manifest;
         let a = m.architecture.as_ref().ok_or_else(|| invalid("encoder: the bundle has no architecture"))?;
+        if matches!(a.family, Family::Bert | Family::Roberta) {
+            return super::load_bert::load(&bundle);
+        }
         if a.family != Family::Modernbert {
             return Err(invalid(format!("encoder: {:?} is not FAMILY_MODERNBERT", a.family)));
         }

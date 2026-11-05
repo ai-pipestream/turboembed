@@ -40,6 +40,9 @@ impl<R: Real> Encoder<R> {
     /// artifact's `tensor_names`, with `{layer}`), shaped as the core
     /// reads them: what a bundle's weights file holds.
     pub fn named(&self, names: &BTreeMap<TensorRole, String>) -> Result<Vec<Named>> {
+        if !self.is_modern() {
+            return super::export_bert::named(self, names);
+        }
         let (h, i) = (self.geo.hidden as u64, self.geo.intermediate as u64);
         let merged = self.merged();
         let mut out = Vec::new();

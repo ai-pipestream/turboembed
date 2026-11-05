@@ -17,3 +17,6 @@ turbo = { path = "../core" }
 # plain C++ on the host, so they run and are tested on any machine.
 cuda = []
 cuda-shim = []
+
+[dev-dependencies]
+turbo-pins = { path = "../analysis/pins" }
