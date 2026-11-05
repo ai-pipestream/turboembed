@@ -34,6 +34,8 @@ pub struct Parser<R> {
 /// The activations of one sentence, kept for backward.
 #[derive(Debug, Default)]
 pub struct Work<R> {
+    input: Vec<R>,
+    language: Option<u32>,
     adapter: adapter::Work<R>,
     /// [n + 1, width]: the root, then the words.
     nodes: Vec<R>,
@@ -67,7 +69,9 @@ impl<R: Real> Parser<R> {
         let mut params = Vec::with_capacity(shapes.len());
         for ((suffix, shape), n) in &shapes {
             let n = *n;
-            let v = if suffix == "root" || (shape.len() == 2 && !suffix.ends_with("arc.weight")) {
+            let v = if suffix == "language.embedding" {
+                (0..n).map(|_| R::from_f64(rng.uniform(0.05))).collect()
+            } else if suffix == "root" || (shape.len() == 2 && !suffix.ends_with("arc.weight")) {
                 let fan = if shape.len() == 2 { shape[0] + shape[1] } else { shape[0] + 1 };
                 let limit = (6.0 / fan as f64).sqrt();
                 (0..n).map(|_| R::from_f64(rng.uniform(limit))).collect()
@@ -145,6 +149,7 @@ impl<R: Real> Parser<R> {
                 n.ends_with(".w")
                     || n.ends_with(".u")
                     || (n.ends_with(".weight") && !n.starts_with("arc.") && !n.starts_with("rel."))
+                    || n == "language.embedding"
             })
             .collect()
     }
@@ -153,9 +158,21 @@ impl<R: Real> Parser<R> {
         self.params.iter().map(|p| vec![R::ZERO; p.len()]).collect()
     }
 
+    fn language(&self) -> usize {
+        self.spec.language.as_ref().map_or(0, |language| language.dim as usize)
+    }
+
+    fn adapter_at(&self) -> usize {
+        usize::from(self.spec.language.is_some())
+    }
+
+    fn out_at(&self) -> usize {
+        self.adapter_at() + 6 * self.shape().layers
+    }
+
     fn shape(&self) -> Shape {
         let (layers, h) = self.spec.adapter.map_or((0, 0), |a| (a.bilstm.layers as usize, a.bilstm.hidden as usize));
-        Shape { hidden: self.hidden, layers, h }
+        Shape { hidden: self.hidden + self.language(), layers, h }
     }
 
     /// (A, R): the arc and relation MLP widths.
@@ -164,19 +181,57 @@ impl<R: Real> Parser<R> {
         (b.arc as usize, b.rel as usize)
     }
 
+    fn language_row(&self, row: Option<u32>) -> Result<Option<usize>> {
+        let Some(language) = &self.spec.language else {
+            return match row {
+                Some(_) => Err(invalid("trainer: a language given to a head without a language input")),
+                None => Ok(None),
+            };
+        };
+        let row = match row {
+            Some(row) => row as usize,
+            None if language.languages.len() == 1 => 0,
+            None => return Err(invalid("trainer: a multilingual example needs a language")),
+        };
+        if row >= language.languages.len() {
+            return Err(invalid(format!("trainer: language row {row} is out of range")));
+        }
+        Ok(Some(row))
+    }
+
+    fn join(&self, features: &[R], language: Option<usize>, n: usize, w: &mut Work<R>) {
+        let Some(row) = language else { return };
+        let (hidden, d) = (self.hidden, self.language());
+        w.input.clear();
+        w.input.resize(n * (hidden + d), R::ZERO);
+        for i in 0..n {
+            let row_out = &mut w.input[i * (hidden + d)..][..hidden + d];
+            row_out[..hidden].copy_from_slice(&features[i * hidden..][..hidden]);
+            row_out[hidden..].copy_from_slice(&self.params[0][row * d..][..d]);
+        }
+    }
+
     /// The arc scores [n, n + 1] of features [n, hidden], kept in `w`.
     pub fn forward(&self, features: &[R], w: &mut Work<R>) -> Result<usize> {
+        self.forward_language(features, None, w)
+    }
+
+    /// As [`forward`](Self::forward), with the language-table row.
+    pub fn forward_language(&self, features: &[R], language: Option<u32>, w: &mut Work<R>) -> Result<usize> {
         if !features.len().is_multiple_of(self.hidden) {
             return Err(invalid(format!("trainer: {} features are not rows of {}", features.len(), self.hidden)));
         }
         let n = features.len() / self.hidden;
+        let language = self.language_row(language)?;
+        self.join(features, language, n, w);
         let shape = self.shape();
-        adapter::forward(shape, &self.params, features, &mut w.adapter);
+        let x0: &[R] = if self.spec.language.is_some() { &w.input } else { features };
+        adapter::forward(shape, &self.params[self.adapter_at()..], x0, &mut w.adapter);
         let width = shape.width();
-        let o = 6 * shape.layers;
+        let o = self.out_at();
         w.nodes.clear();
         w.nodes.extend_from_slice(&self.params[o]);
-        w.nodes.extend_from_slice(adapter::output(features, &w.adapter));
+        w.nodes.extend_from_slice(adapter::output(x0, &w.adapter));
         let (a, r) = self.widths();
         let rows = n + 1;
         for (k, out) in [a, a, r, r].into_iter().enumerate() {
@@ -228,6 +283,20 @@ impl<R: Real> Parser<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        self.loss_language(features, None, heads, rels, grads, w)
+    }
+
+    /// As [`loss`](Self::loss), with the language-table row.
+    pub fn loss_language(
+        &self,
+        features: &[R],
+        language: Option<u32>,
+        heads: &[u32],
+        rels: &[u32],
+        grads: &mut [Vec<R>],
+        w: &mut Work<R>,
+    ) -> Result<f64> {
+        w.language = language;
         self.loss_and_input(features, heads, rels, grads, w, None)
     }
 
@@ -242,6 +311,7 @@ impl<R: Real> Parser<R> {
         w: &mut Work<R>,
         dfeatures: &mut Vec<R>,
     ) -> Result<f64> {
+        w.language = None;
         self.loss_and_input(features, heads, rels, grads, w, Some(dfeatures))
     }
 
@@ -260,7 +330,7 @@ impl<R: Real> Parser<R> {
         if features.iter().any(|v| !v.to_f64().is_finite()) {
             return Err(invalid("trainer: a parser feature is not finite"));
         }
-        let n = self.forward(features, w)?;
+        let n = self.forward_language(features, w.language, w)?;
         let labels = self.spec.labels.len();
         if heads.len() != n || rels.len() != n {
             return Err(invalid(format!("trainer: {} heads and {} relations for {n} words", heads.len(), rels.len())));
@@ -273,7 +343,7 @@ impl<R: Real> Parser<R> {
         let (a, r) = self.widths();
         let rows = n + 1;
         let shape = self.shape();
-        let (width, o) = (shape.width(), 6 * shape.layers);
+        let (width, o) = (shape.width(), self.out_at());
         // Gradients gather here and reach `grads` only when every one,
         // and the loss, is finite, so a refused sentence leaves them as
         // they were.
@@ -381,17 +451,35 @@ impl<R: Real> Parser<R> {
             *g += *d;
         }
         let input = dfeatures.is_some();
-        let dx0 = if shape.layers > 0 || input {
-            adapter::backward(shape, &self.params, features, dnodes[width..].to_vec(), &mut local, &w.adapter, input)
+        let joined = self.spec.language.is_some();
+        let x0: &[R] = if joined { &w.input } else { features };
+        let adapter_at = self.adapter_at();
+        let dx0 = if shape.layers > 0 || input || joined {
+            adapter::backward(
+                shape,
+                &self.params[adapter_at..],
+                x0,
+                dnodes[width..].to_vec(),
+                &mut local[adapter_at..],
+                &w.adapter,
+                input || joined,
+            )
         } else {
             Vec::new()
         };
+        if let Some(row) = self.language_row(w.language)? {
+            let (hidden, d) = (self.hidden, self.language());
+            for i in 0..n {
+                let src = &dx0[i * (hidden + d) + hidden..][..d];
+                local[0][row * d..][..d].iter_mut().zip(src).for_each(|(a, &b)| *a += b);
+            }
+        }
         if !total.is_finite() || !local.iter().flatten().all(|v| v.to_f64().is_finite()) {
             return Err(invalid("trainer: the parser's loss or a gradient is not finite"));
         }
         if let Some(d) = dfeatures {
             d.clear();
-            d.extend_from_slice(&dx0);
+            d.extend((0..n).flat_map(|i| dx0[i * (self.hidden + self.language())..][..self.hidden].iter().copied()));
         }
         for (g, l) in grads.iter_mut().zip(local) {
             for (a, b) in g.iter_mut().zip(l) {
