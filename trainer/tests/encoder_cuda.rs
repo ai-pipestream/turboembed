@@ -266,7 +266,7 @@ fn bert_bf16_matches_cpu_with_dropout() {
 
 #[test]
 fn xlm_roberta_matches_cpu_when_a_bundle_is_supplied() {
-    let Some(dir) = std::env::var_os("TURBO_TEST_XLM_BUNDLE") else { return };
+    let Some(dir) = std::env::var_os("TURBO_TEST_XLM_BUNDLE").map(turbo_pins::require) else { return };
     let Some(device) = device("XLM-RoBERTa") else { return };
     let e = Encoder::load(std::path::Path::new(&dir)).unwrap();
     let mut rng = Rng::new(101);
