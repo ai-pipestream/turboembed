@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 
 use turbo::head::{BiaffineParser, EditTreeLemmatizer};
-use turbo::manifest::{Adapter, Biaffine, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
+use turbo::manifest::{Adapter, Biaffine, Bilstm, Decode, HeadKind, HeadSpec, LemmaLookup, Scheme, WordPooling};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::{LemmaExample, ParseExample};
 
@@ -130,6 +130,21 @@ pub struct UdOptions {
 ///
 /// A head the core would refuse, or a licence the zoo refuses.
 pub fn spec(head: UdHead, labels: Vec<String>, corpus: &CorpusRecord, o: &UdOptions) -> Result<HeadSpec> {
+    spec_with_lookup(head, labels, None, corpus, o)
+}
+
+/// [`spec`], with an optional `seen_lookup` for a lemma head.
+///
+/// # Errors
+///
+/// A head the core would refuse, or a licence the zoo refuses.
+pub fn spec_with_lookup(
+    head: UdHead,
+    labels: Vec<String>,
+    seen_lookup: Option<LemmaLookup>,
+    corpus: &CorpusRecord,
+    o: &UdOptions,
+) -> Result<HeadSpec> {
     let (name, layer, kind, decode, biaffine) = match head {
         UdHead::Lemma => ("lemma", "turboembed:lemmas", HeadKind::EditTreeLemmatizer, Decode::EditTree, None),
         UdHead::Deps => ("deps", "turboembed:dependencies", HeadKind::BiaffineParser, Decode::Mst, Some(o.biaffine)),
@@ -145,6 +160,7 @@ pub fn spec(head: UdHead, labels: Vec<String>, corpus: &CorpusRecord, o: &UdOpti
         decode,
         biaffine,
         pos_input: None,
+        seen_lookup,
         hash_embed: None,
         seen: None,
         layer_mix: None,

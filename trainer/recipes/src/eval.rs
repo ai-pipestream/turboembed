@@ -131,6 +131,28 @@ impl Metrics {
             Metrics::Coref { .. } => "conll_f1",
         }
     }
+
+    /// Accuracy on words seen in the training split, for [`Metrics::Tags`].
+    pub fn seen_accuracy(&self) -> Option<f64> {
+        match self {
+            Metrics::Tags { words, correct, unseen_words, unseen_correct, .. } => {
+                let seen = words.saturating_sub(*unseen_words);
+                let right = correct.saturating_sub(*unseen_correct);
+                Some(if seen == 0 { 0.0 } else { right as f64 / seen as f64 })
+            }
+            _ => None,
+        }
+    }
+
+    /// Accuracy on words not in the training split, for [`Metrics::Tags`].
+    pub fn unseen_accuracy(&self) -> Option<f64> {
+        match self {
+            Metrics::Tags { unseen_words, unseen_correct, .. } => {
+                Some(if *unseen_words == 0 { 0.0 } else { *unseen_correct as f64 / *unseen_words as f64 })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// What training saw: its words and its labels.

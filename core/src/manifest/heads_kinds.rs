@@ -173,6 +173,7 @@ impl HeadSpec {
         if let Some(s) = self.span {
             check_span(at, s)?;
         }
+        self.validate_seen_lookup(at)?;
         match self.kind {
             HeadKind::SentenceBoundary if self.labels != BOUNDARY_LABELS => Err(invalid(format!(
                 "manifest.json: {}: {:?}; a HEAD_SENTENCE_BOUNDARY's labels are {BOUNDARY_LABELS:?}",

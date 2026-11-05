@@ -86,6 +86,7 @@ fn open_span_hold_out_round_trip_and_bundle_assembly() {
     let a = dir.join("a");
     let first = train_open_span(&data, &bundle, &a, Some("location"));
     assert!(!first.corpus.recorded);
+    assert!(first.corpus.files.iter().all(|f| !f.path.contains('/')));
     assert!(first.eval.rules.is_none());
     let raw: serde_json::Value = serde_json::from_slice(&fs::read(a.join("receipt.json")).unwrap()).unwrap();
     assert!(raw["eval"].get("rules").is_none());
@@ -132,6 +133,115 @@ fn open_span_hold_out_round_trip_and_bundle_assembly() {
     assert_eq!(first.training.as_ref().unwrap().dev, second.training.as_ref().unwrap().dev);
     assert_eq!(fs::read(a.join("head.safetensors")).unwrap(), fs::read(b.join("head.safetensors")).unwrap(),);
 
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn multi_corpus_training_scores_each_held_out_dataset_and_both_baselines() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("open-span-mix-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    let wnut = dir.join("wnut");
+    let multi = dir.join("multi/EN-English");
+    fs::create_dir_all(&wnut).unwrap();
+    fs::create_dir_all(&multi).unwrap();
+    fs::write(wnut.join("wnut17train.conll"), "ann\tB-person\n\t\nparis\tB-location\n\t\n").unwrap();
+    fs::write(wnut.join("emerging.dev.conll"), "bob\tB-person\n\n").unwrap();
+    fs::write(wnut.join("emerging.test.annotated"), "eve\tB-person\nparis\tB-location\n\n").unwrap();
+    for (file, text) in [
+        (
+            "en_train.conll",
+            concat!(
+                "# id 1\tdomain=en\nalice _ _ B-OtherPER\n\n",
+                "# id 2\tdomain=en\nart _ _ B-VisualWork\n\n",
+                "# id 3\tdomain=en\nscience _ _ B-Scientist\n\n",
+                "# id 4\tdomain=en\ncoat _ _ B-Clothing\n\n"
+            ),
+        ),
+        ("en_dev.conll", "# id 2\tdomain=en\nbob _ _ B-OtherPER\n\n"),
+        (
+            "en_test.conll",
+            "# id 3\tdomain=en\nalice _ _ B-OtherPER\nart _ _ B-VisualWork\nscience _ _ B-Scientist\ncoat _ _ B-Clothing\n\n",
+        ),
+    ] {
+        fs::write(multi.join(file), text).unwrap();
+    }
+    let out = dir.join("out");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(format!("{},{}", wnut.display(), dir.join("multi").display()))
+        .args(["--hold-out", "location,VisualWork,Scientist,Clothing", "--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&out)
+        .args(["--unrecorded-corpus", "--max-train", "1", "--epochs", "1", "--batch", "4", "--commit", "mix-test"])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let receipt: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(receipt.corpus.id, "wnut17,multiconer2-en");
+    assert_eq!(receipt.corpus.train.sentences, 1);
+    assert_eq!(receipt.corpus.class().unwrap(), LicenseClass::ShareAlike);
+    assert!(
+        receipt.corpus.files.iter().all(|f| f.path.starts_with("wnut17/") || f.path.starts_with("multiconer2-en/"))
+    );
+    let os = receipt.eval.open_span.as_ref().unwrap();
+    assert_eq!(os.held_out_types, ["location", "VisualWork", "Scientist", "Clothing"]);
+    assert_eq!(os.datasets.len(), 2);
+    assert!(os.dictionary_comparison.is_some());
+    assert!(os.held_out_comparison.is_some());
+    assert!(os.held_out_dictionary_comparison.is_some());
+    for dataset in &os.datasets {
+        assert!(dataset.held_out_model.is_some());
+        assert_eq!(dataset.comparison.resamples, 1000);
+        assert_eq!(dataset.dictionary_comparison.resamples, 1000);
+        assert_eq!(dataset.held_out_comparison.as_ref().unwrap().resamples, 1000);
+        assert_eq!(dataset.held_out_dictionary_comparison.as_ref().unwrap().resamples, 1000);
+    }
+    let balanced_out = dir.join("balanced");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(format!("{},{}", wnut.display(), dir.join("multi").display()))
+        .args(["--hold-out", "location,VisualWork,Scientist,Clothing", "--balance", "--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&balanced_out)
+        .args(["--unrecorded-corpus", "--epochs", "1", "--batch", "4", "--commit", "balance-test"])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let balanced: Receipt = serde_json::from_slice(&fs::read(balanced_out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(balanced.corpus.train.sentences, 8);
+    let empty_out = dir.join("empty-balanced");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(format!("{},{}", wnut.display(), dir.join("multi").display()))
+        .args(["--hold-out", "location,VisualWork,Scientist,Clothing", "--balance", "--max-train", "1", "--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&empty_out)
+        .arg("--unrecorded-corpus")
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(
+        String::from_utf8_lossy(&result.stderr).contains("nonempty training split in every corpus"),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(!empty_out.exists());
+
+    let bad = dir.join("bad");
+    let result = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(["train-open-span", "--corpus", "wnut17,multiconer2-en", "--dir"])
+        .arg(&wnut)
+        .args(["--bundle"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
+        .arg("--out")
+        .arg(&bad)
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("equal, non-empty comma-separated lists"));
     fs::remove_dir_all(dir).unwrap();
 }
 
@@ -187,7 +297,7 @@ fn open_span_trains_on_ud_treebank_propn_runs_and_selects_requested_cache_layer(
         "6\tParis\tParis\tPROPN\tNNP\t_\t3\tobl\t_\t_\n\n",
     );
     for f in ["en_ewt-ud-train.conllu", "en_ewt-ud-dev.conllu", "en_ewt-ud-test.conllu"] {
-        fs::write(ud_data.join(f), conllu).unwrap();
+        fs::write(ud_data.join(f), conllu.repeat(2)).unwrap();
     }
     let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
     let ud_out = dir.join("ud-out");
@@ -244,7 +354,19 @@ fn open_span_trains_on_ud_treebank_propn_runs_and_selects_requested_cache_layer(
             .arg(&cache_dir)
             .args(["--layer", layer, "--out"])
             .arg(&out_l)
-            .args(["--unrecorded-corpus", "--max-words", "4", "--width-dim", "16", "--epochs", "2", "--commit", "l"])
+            .args([
+                "--unrecorded-corpus",
+                "--max-train",
+                "1",
+                "--max-words",
+                "4",
+                "--width-dim",
+                "16",
+                "--epochs",
+                "2",
+                "--commit",
+                "l",
+            ])
             .output()
             .unwrap();
         assert!(r.status.success(), "layer {layer}: {}", String::from_utf8_lossy(&r.stderr));

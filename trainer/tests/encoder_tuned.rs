@@ -25,6 +25,7 @@ fn spec(pooling: WordPooling, hash: Option<HashEmbed>) -> HeadSpec {
         decode: Decode::Argmax,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: hash,
         seen: None,
         layer_mix: None,

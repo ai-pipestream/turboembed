@@ -51,11 +51,15 @@ pub use distill::{
     ThroughputComparison, decode_teacher_example, distill_loss, distill_loss_with, distill_multi_head, distill_tagger,
     feature_align_loss, make_distill_examples, measure_throughput, score_tagger, tagger_distill_loss,
 };
+#[cfg(any(feature = "cuda", feature = "cuda-shim"))]
+pub use encoder::cuda::tuned_parser::{TunedCudaParser, fit_tuned_cuda_parser, fit_tuned_cuda_parser_with};
 pub use encoder::tuned::{Tuned, TunedExample, fit_tuned, fit_tuned_with, tuned_gradients};
+pub use encoder::tuned_parser::{TunedParseExample, TunedParser, fit_tuned_parser, fit_tuned_parser_with};
 pub use fit::{Config, Draw, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
 pub use fit_coref::{CorefExample, fit_coref, fit_coref_with};
 pub use fit_lemma::{
-    LemmaExample, MixLemmaExample, MixLemmatizer, fit_lemmatizer, fit_lemmatizer_mix, fit_lemmatizer_with, mine_trees,
+    LemmaExample, MixLemmaExample, MixLemmatizer, fit_lemmatizer, fit_lemmatizer_mix, fit_lemmatizer_with,
+    mine_seen_lookup, mine_seen_lookup_tagged, mine_trees,
 };
 pub use fit_open_span::{OpenSpanExample, fit_open_spans, fit_open_spans_with, open_span_f1};
 pub use fit_parse::{MixParseExample, MixParser, ParseExample, fit_parser, fit_parser_mix, fit_parser_with};

@@ -153,6 +153,8 @@ pub use heads_kinds::{
 mod provenance;
 mod qa;
 pub use qa::Qa;
+mod seen_lemma;
+pub use seen_lemma::{LemmaLookup, MAX_SEEN_FORM_BYTES, MAX_SEEN_LEMMAS, SeenLemma};
 mod tokenizer;
 mod validate;
 mod validate_architecture;

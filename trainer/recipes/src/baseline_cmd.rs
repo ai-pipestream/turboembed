@@ -8,9 +8,10 @@ use std::time::Instant;
 use turbo_trainer_recipes::cli::{Args, OutDir, commit};
 use turbo_trainer_recipes::eval::{Seen, evaluate};
 use turbo_trainer_recipes::receipt::*;
+use turbo_trainer_recipes::ud_heads::{UdHead, uas};
 use turbo_trainer_recipes::{Result, coarse, read_corpus};
 
-use super::{baseline, finish, train_relation};
+use super::{baseline, finish, peer_cmd, train_relation};
 
 pub(super) fn baseline_cmd(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
     if a.flag("--dependency-path") {
@@ -26,6 +27,14 @@ pub(super) fn baseline_cmd(argv: &[String], corpus_id: &str, dir: &Path, unrecor
         let base = turbo_trainer_recipes::litbank_eval::baseline(&coref.test);
         let baseline = turbo_trainer_recipes::litbank_eval::evaluate_coref(&coref.test, &base)?;
         (coref.record, EvalRecord::baseline_only(baseline), read)
+    } else if let Some((bank, head)) = peer_cmd::ud_head_corpus(corpus_id) {
+        let (c, base) = peer_cmd::treebank(bank, dir, unrecorded, head)?;
+        let read = t.elapsed().as_secs_f64();
+        let test = &c.splits.test;
+        let baseline = evaluate(c.record.task, test, &base, &Seen::of(&c.splits.train), None);
+        let mut eval = EvalRecord::baseline_only(baseline);
+        eval.uas = (head == UdHead::Deps).then(|| Uas { model: 0.0, baseline: uas(test, &base) });
+        (c.record, eval, read)
     } else {
         let c = read_corpus(corpus_id, dir, unrecorded)?;
         let read = t.elapsed().as_secs_f64();

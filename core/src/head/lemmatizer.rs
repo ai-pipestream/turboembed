@@ -8,11 +8,16 @@
 //!    head) looked up in the head's tag embedding and joined after its
 //!    vector;
 //! 3. one linear layer scores every tree;
-//! 4. decode: the best-scoring tree that fits the word (a tie to the lower
-//!    index); with none that fits, the word is its own lemma.
+//! 4. decode: a word in `seen_lookup` (unambiguous in training at least
+//!    `min_freq` times, or unambiguous for its tag when `pos_input` is
+//!    present) takes its recorded lemma; otherwise the best-scoring tree
+//!    that fits the word (a tie to the lower index), or the word itself
+//!    when none fits.
 //!
 //! The labels are the trees, so the tree table ships in the manifest
 //! with the head and is checked when the bundle is opened.
+
+use std::collections::HashMap;
 
 use crate::bundle::Bundle;
 use crate::manifest::{HeadKind, HeadSpec};
@@ -50,6 +55,8 @@ pub struct EditTreeLemmatizer {
     pos: Option<(Vec<f32>, usize)>,
     out: Linear,
     trees: Vec<EditTree>,
+    seen_forms: HashMap<String, String>,
+    seen_by_tag: Vec<HashMap<String, String>>,
 }
 
 impl EditTreeLemmatizer {
@@ -88,7 +95,24 @@ impl EditTreeLemmatizer {
         let width = reader.width() + pos.as_ref().map_or(0, |(_, d)| *d);
         let out = Linear::new(width, spec.labels.len(), t.take("out.weight")?, t.take("out.bias")?)?;
         let trees = spec.labels.iter().map(|l| EditTree::parse(l)).collect::<Result<_>>()?;
-        Ok(EditTreeLemmatizer { spec: spec.clone(), hidden, reader, pos, out, trees })
+        let (mut seen_forms, mut seen_by_tag) = (HashMap::new(), Vec::new());
+        if let Some(s) = &spec.seen_lookup {
+            for e in &s.entries {
+                match e.tag {
+                    None => {
+                        seen_forms.insert(e.form.clone(), e.lemma.clone());
+                    }
+                    Some(t) => {
+                        let idx = t as usize;
+                        if seen_by_tag.len() <= idx {
+                            seen_by_tag.resize_with(idx + 1, HashMap::new);
+                        }
+                        seen_by_tag[idx].insert(e.form.clone(), e.lemma.clone());
+                    }
+                }
+            }
+        }
+        Ok(EditTreeLemmatizer { spec: spec.clone(), hidden, reader, pos, out, trees, seen_forms, seen_by_tag })
     }
 
     pub fn spec(&self) -> &HeadSpec {
@@ -188,21 +212,56 @@ impl EditTreeLemmatizer {
         Ok(())
     }
 
-    /// Each word's lemma from its decoded tree, the word itself for None.
+    /// Each word's lemma from its decoded tree, the word itself for None,
+    /// after `spec.seen_lookup` (unambiguous forms seen in training).
     pub fn lemmas(&self, trees: &[Option<u32>], forms: &[&str]) -> Result<Vec<String>> {
+        self.lemmas_tagged(trees, forms, None)
+    }
+
+    /// [`lemmas`](Self::lemmas), reading each word's tag index `tags`
+    /// when the head has a `pos_input` so tag-specific `seen_lookup`
+    /// entries apply.
+    pub fn lemmas_tagged(&self, trees: &[Option<u32>], forms: &[&str], tags: Option<&[u32]>) -> Result<Vec<String>> {
         if trees.len() != forms.len() {
             return Err(Error::new(INVALID_SHAPE, format!("{} trees for {} words", trees.len(), forms.len())));
+        }
+        if let Some(tags) = tags {
+            let Some((table, dim)) = &self.pos else {
+                return Err(invalid(format!(
+                    "head {:?}: tags are given exactly when the head has a pos_input",
+                    self.spec.name
+                )));
+            };
+            if tags.len() != forms.len() {
+                return Err(Error::new(INVALID_SHAPE, format!("{} tags for {} words", tags.len(), forms.len())));
+            }
+            let rows = table.len() / dim;
+            if let Some(&t) = tags.iter().find(|&&t| t as usize >= rows) {
+                return Err(Error::new(INVALID_ARGUMENT, format!("tag {t} past the {rows} tags")));
+            }
         }
         trees
             .iter()
             .zip(forms)
-            .map(|(t, f)| match t {
-                None => Ok((*f).to_owned()),
-                Some(t) => self
-                    .trees
-                    .get(*t as usize)
-                    .and_then(|tree| tree.apply(f))
-                    .ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("tree {t} does not fit {f:?}"))),
+            .enumerate()
+            .map(|(i, (t, f))| {
+                let by_tree = match t {
+                    None => (*f).to_owned(),
+                    Some(t) => self
+                        .trees
+                        .get(*t as usize)
+                        .and_then(|tree| tree.apply(f))
+                        .ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("tree {t} does not fit {f:?}")))?,
+                };
+                if let Some(tags) = tags
+                    && let Some(lemma) = self.seen_by_tag.get(tags[i] as usize).and_then(|m| m.get(*f))
+                {
+                    return Ok(lemma.clone());
+                }
+                if let Some(lemma) = self.seen_forms.get(*f) {
+                    return Ok(lemma.clone());
+                }
+                Ok(by_tree)
             })
             .collect()
     }

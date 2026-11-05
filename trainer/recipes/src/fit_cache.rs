@@ -432,6 +432,7 @@ pub fn finish_cached(
                     threads: p.config.threads,
                     max_train: p.max_train,
                     dev_left_out,
+                    sample: None,
                 }),
                 training: Some(TrainingRecord {
                     train_loss: report.train_loss,

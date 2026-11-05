@@ -1,6 +1,5 @@
 //! `turbo-train-head`: checks a corpus, scores its majority baseline, or
 //! trains a head on a frozen encoder, writing a receipt each time.
-//!
 //! ```text
 //! turbo-train-head check    --corpus <id> --dir <corpus dir> [--unrecorded-corpus]
 //! turbo-train-head baseline --corpus <id> --dir <corpus dir> --out <dir> [--unrecorded-corpus]
@@ -9,13 +8,14 @@
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
 //!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//!     Multiple UD treebanks: --corpus <bank,bank,...> [--column upos|xpos|feats] [--sample 0..1]
 //! turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir> --layers N
 //!     [--device ..] [--precision ..] [--pooling ..] [--max-batch N] [--splits train,dev,test]
 //!     [--commit <sha>] [--unrecorded-corpus]
 //! turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <dir>
 //!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
 //! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N])
+//!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
@@ -25,7 +25,8 @@
 //!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
-//! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735)
+//! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
+//!     [--balance] to repeat smaller training corpora to the largest split)
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N])
 //! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)
@@ -33,10 +34,8 @@
 //!     [--student-bundle <student bundle>] [--teacher <teacher dir>] [--temperature T] [--alpha A]
 //!     [--max-accuracy-drop X] [--min-speedup X] [--allow-gate-failure] [head and training settings]
 //! ```
-//!
 //! `cache` writes every split's word features at the encoder's last N
 //! layers, for heads on one layer or a mix of them (`cache` module).
-//!
 //! Exit status 2 on any error. `--out` must not exist yet. A run claims
 //! it before anything else, by making it, which fails when it exists, so
 //! of two runs given one `--out` exactly one goes on; a run that fails
@@ -103,13 +102,7 @@ fn run(argv: Vec<String>) -> Result<()> {
             println!("labels: {}", c.labels().len());
             Ok(())
         }
-        "check" => {
-            a.done()?;
-            let c = read_corpus(&corpus_id, &dir, unrecorded)?;
-            println!("{}", serde_json::to_string_pretty(&c.record).expect("the record serializes"));
-            println!("labels: {}", c.labels().len());
-            Ok(())
-        }
+        "check" => peer_cmd::check(&corpus_id, &dir, unrecorded, a),
         "baseline" => baseline_cmd::baseline_cmd(&argv, &corpus_id, &dir, unrecorded, a),
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache::command(&argv, &corpus_id, &dir, unrecorded, a),
@@ -118,6 +111,8 @@ fn run(argv: Vec<String>) -> Result<()> {
         }
         "sweep" => turbo_trainer_recipes::sweep::command(&argv, &corpus_id, &dir, unrecorded, a),
         "distill-head" => turbo_trainer_recipes::distill::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "predict-ner" => turbo_trainer_recipes::ner_cmd::predict(&corpus_id, &dir, unrecorded, a),
+        "compare-ner" => turbo_trainer_recipes::ner_cmd::compare(&corpus_id, &dir, unrecorded, a),
         "export" => peer_cmd::export(&corpus_id, &dir, unrecorded, a),
         "peer" => peer_cmd::peer(&argv, &corpus_id, &dir, unrecorded, a),
         "train-lemma" | "train-parse" => {
@@ -130,7 +125,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export or peer"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
@@ -236,11 +231,21 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             a,
         );
     }
+    let column = if corpus_id.contains(',') {
+        let name = a.value("--column")?.unwrap_or_else(|| "upos".into());
+        Some(turbo_trainer_recipes::ud_multi::column(&name)?)
+    } else {
+        None
+    };
+    let sample = if column.is_some() { a.parsed("--sample", 1.0)? } else { 1.0 };
     let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
     let t = Instant::now();
-    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
+    let corpus = match column {
+        Some(column) => turbo_trainer_recipes::ud_multi::read(corpus_id, column, dir, unrecorded, sample)?,
+        None => read_corpus(corpus_id, dir, unrecorded)?,
+    };
     let read = t.elapsed().as_secs_f64();
     let head = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
@@ -333,6 +338,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             threads: c.threads,
             max_train,
             dev_left_out,
+            sample: column.map(|_| sample),
         }),
         training: Some(TrainingRecord {
             train_loss: report.train_loss,

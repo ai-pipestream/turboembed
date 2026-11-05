@@ -168,6 +168,10 @@ fn non_finite_scores_and_label_states_are_refused() {
 fn label_words_and_pool_label_words_normalize_multi_word_labels() {
     assert_eq!(label_words("creative-work"), vec!["creative", "work"]);
     assert_eq!(label_words("person_name"), vec!["person", "name"]);
+    assert_eq!(label_words("VisualWork"), vec!["Visual", "Work"]);
+    assert_eq!(label_words("OtherPER"), vec!["Other", "PER"]);
+    assert_eq!(label_words("AerospaceManufacturer"), vec!["Aerospace", "Manufacturer"]);
+    assert_eq!(label_words("Medication/Vaccine"), vec!["Medication", "Vaccine"]);
     let v = pool_label_words(&[3.0, 0.0, 3.0, 8.0], 2).unwrap();
     // Mean is [3.0, 4.0], norm 5.0 -> [0.6, 0.8].
     assert!((v[0] - 0.6).abs() < 1e-6 && (v[1] - 0.8).abs() < 1e-6);

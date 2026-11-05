@@ -166,6 +166,7 @@ pub fn spec(corpus: &RelationCorpus, o: &RelationOptions) -> Result<HeadSpec> {
         decode: o.decode,
         biaffine: None,
         pos_input: None,
+        seen_lookup: None,
         hash_embed: None,
         seen: None,
         layer_mix: None,
