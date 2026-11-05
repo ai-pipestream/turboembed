@@ -47,6 +47,7 @@ mod pass;
 pub mod pool;
 pub mod rope;
 pub mod tuned;
+pub mod tuned_parser;
 
 pub use dropout::Dropout;
 pub use layer::Work as LayerWork;

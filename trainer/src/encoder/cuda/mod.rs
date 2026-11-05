@@ -17,10 +17,11 @@ use std::ptr;
 
 use turbo::status::{Result, invalid};
 
-use super::{Compute, Dropout, Encoder, Geometry, Lora};
+use super::{BASE, Compute, Dropout, Encoder, Geometry, Lora};
 
 mod ffi;
 mod pass;
+pub mod tuned_parser;
 
 pub use pass::Timing;
 
@@ -38,6 +39,10 @@ pub(super) struct Buf {
     ptr: *mut c_void,
     bytes: usize,
 }
+
+// The buffer exclusively owns its device allocation; CUDA copies and kernels
+// accept it from any thread, with synchronization at the encoder boundary.
+unsafe impl Send for Buf {}
 
 impl Buf {
     fn new(bytes: usize) -> Result<Buf> {
@@ -100,8 +105,8 @@ impl Drop for Buf {
     }
 }
 
-/// An encoder on the device: the master weights' copy (rounded under
-/// bfloat16), the gradients, and the workspace of the last forward.
+/// An encoder on the device: f32 master weights on the host, their
+/// compute copy (rounded under bfloat16), gradients and forward workspace.
 pub struct CudaEncoder {
     geo: Geometry,
     vocab: usize,
@@ -112,6 +117,7 @@ pub struct CudaEncoder {
     dropout: Option<Dropout>,
     compute: Compute,
     lens: Vec<usize>,
+    masters: Vec<Vec<f32>>,
     weights: Vec<Buf>,
     /// One a slot; a frozen base slot's holds nothing.
     grads: Vec<Buf>,
@@ -164,6 +170,7 @@ impl CudaEncoder {
             dropout: e.dropout,
             compute: e.compute,
             lens: e.lens.clone(),
+            masters: e.params().to_vec(),
             weights,
             grads,
             table,
@@ -200,14 +207,35 @@ impl CudaEncoder {
         self.work.buffered_layers()
     }
 
-    /// Replaces slot `s`'s weights with `p`, which must keep the length,
-    /// rounded under bfloat16 as the CPU's shadow is.
+    /// Clones slot `s`'s f32 optimizer master weights.
+    pub fn slot(&self, s: usize) -> Result<Vec<f32>> {
+        self.masters.get(s).cloned().ok_or_else(|| invalid("cuda: no such weight slot"))
+    }
+
+    /// Replaces slot `s`'s master with `p` and its device copy with the
+    /// same values rounded to the compute precision.
     pub fn put_slot(&mut self, s: usize, p: &[f32]) -> Result<()> {
         if s >= self.lens.len() || p.len() != self.lens[s] {
             return Err(invalid("cuda: the weights do not match the slot's"));
         }
         self.weights[s].upload(p)?;
-        self.store(&self.weights[s], p.len())
+        self.store(&self.weights[s], p.len())?;
+        self.masters[s].copy_from_slice(p);
+        Ok(())
+    }
+
+    /// Which slots the optimizer moves, as the CPU encoder reports them.
+    pub fn trainable(&self) -> Vec<bool> {
+        let base = BASE + 6 * self.geo.layers;
+        (0..self.weights.len()).map(|s| !self.frozen || s >= base).collect()
+    }
+
+    /// Which slots take weight decay, as the CPU encoder reports them.
+    pub fn decay(&self) -> Vec<bool> {
+        let base = BASE + 6 * self.geo.layers;
+        (0..self.weights.len())
+            .map(|s| s == 0 || s >= base || (s >= BASE && !matches!((s - BASE) % 6, 0 | 3)))
+            .collect()
     }
 
     /// Zeroes the gradients.
@@ -221,7 +249,9 @@ impl CudaEncoder {
     /// The gradients, into `g` shaped as [`Encoder::grads`] gives them.
     pub fn grads(&self, g: &mut [Vec<f32>]) -> Result<()> {
         if g.len() != self.grads.len() || g.iter().zip(&self.grads).any(|(a, b)| a.len() != b.len()) {
-            return Err(invalid("cuda: the gradients are not shaped as the weights"));
+            let got: Vec<usize> = g.iter().map(Vec::len).collect();
+            let want: Vec<usize> = self.grads.iter().map(Buf::len).collect();
+            return Err(invalid(format!("cuda: gradient lengths {got:?} do not match {want:?}")));
         }
         self.sync()?;
         for (dst, src) in g.iter_mut().zip(&self.grads) {

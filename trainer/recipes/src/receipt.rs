@@ -187,6 +187,36 @@ pub struct OpenSpanEvalRecord {
     pub held_out_baseline: Option<Metrics>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub held_out_dictionary: Option<Metrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dictionary_comparison: Option<Comparison>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_comparison: Option<Comparison>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_dictionary_comparison: Option<Comparison>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub datasets: Vec<OpenSpanDatasetEval>,
+}
+
+/// One corpus's independent metrics within a multi-corpus open-span run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenSpanDatasetEval {
+    pub corpus_id: String,
+    pub model: Metrics,
+    pub baseline: Metrics,
+    pub dictionary: Metrics,
+    pub comparison: Comparison,
+    pub dictionary_comparison: Comparison,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_model: Option<Metrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_baseline: Option<Metrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_dictionary: Option<Metrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_comparison: Option<Comparison>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_out_dictionary_comparison: Option<Comparison>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

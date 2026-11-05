@@ -1,0 +1,106 @@
+# Opt-in Android ART conformance for clients/java-jni.
+# Runs AnalyzerConformance, SessionConformance, and the JNI bridge tests on an
+# x86_64 emulator through System.loadLibrary("turbo"). Trigger with
+# workflow_dispatch, or label a pull request ci:android-emulator.
+name: android-conformance
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_level:
+        description: Emulator API level (26 is the binding minimum)
+        required: true
+        default: "26"
+        type: choice
+        options:
+          - "26"
+          - "34"
+          - "35"
+  pull_request:
+    paths:
+      - "clients/java-jni/**"
+      - "clients/java-conformance/**"
+      - "core/src/jni/**"
+      - ".github/workflows/android-conformance.yml"
+      - "testdata/tiny-bert-bundle/**"
+      - "testdata/tiny-bert-heads-bundle/**"
+
+concurrency:
+  group: android-conformance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  helpers-host:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: host RepoRootStaging test
+        working-directory: clients/java-jni/android-conformance
+        run: ./gradlew --no-daemon :helpers:test
+
+  emulator:
+    # Opt-in on pull requests: require the ci:android-emulator label.
+    # workflow_dispatch always runs.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'ci:android-emulator'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [26, 35]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+
+      # Apache-2.0 (https://github.com/nttld/setup-ndk)
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+          link-to-sdk: true
+
+      - name: enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Skip the matrix cell that does not match a workflow_dispatch API choice.
+      - name: match workflow_dispatch API level
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ matrix.api-level }}" != "${{ inputs.api_level }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # MIT licensed (https://github.com/ReactiveCircus/android-emulator-runner)
+      - name: Android emulator conformance (API ${{ matrix.api-level }})
+        if: steps.gate.outputs.skip != 'true'
+        uses: reactivecircus/android-emulator-runner@v2.33.0
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          TURBO_ANDROID_ABI: x86_64
+          TURBO_ANDROID_API: "26"
+          CARGO_TARGET_DIR: ${{ runner.temp }}/turbo-android-target
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          target: default
+          script: clients/java-jni/run-android-conformance.sh

@@ -40,6 +40,7 @@ pub mod multiconer;
 pub mod ner_documents;
 pub mod ner_peer;
 pub mod open_span;
+pub mod open_span_mix;
 pub mod peer;
 pub mod receipt;
 pub mod redocred;
