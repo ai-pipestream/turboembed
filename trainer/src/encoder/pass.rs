@@ -70,11 +70,21 @@ impl<R: Real> Encoder<R> {
         w.ids.extend_from_slice(ids);
         w.at = at;
         w.emb_in.clear();
-        for &id in ids {
-            w.emb_in.extend_from_slice(&self.weights()[WORD][id as usize * h..][..h]);
+        let word = &self.weights()[WORD];
+        for (t, &id) in ids.iter().enumerate() {
+            w.emb_in.extend_from_slice(&word[id as usize * h..][..h]);
+            if !self.is_modern() {
+                let at = w.emb_in.len() - h;
+                let position = self.vocab * h + (self.position_offset + t) * h;
+                let kind = (self.vocab + self.position_rows) * h;
+                for j in 0..h {
+                    w.emb_in[at + j] += word[position + j] + word[kind + j];
+                }
+            }
         }
         w.x0.resize(n * h, R::ZERO);
-        norm::forward(&w.emb_in, &self.weights()[EMB_NORM], &self.empty, self.geo.eps, &mut w.x0, &mut w.emb);
+        let (nw, nb) = self.norm_parts(EMB_NORM);
+        norm::forward(&w.emb_in, nw, nb, self.geo.eps, &mut w.x0, &mut w.emb);
         self.store(&mut w.x0);
         if let Some((d, key)) = self.mask(at, u32::MAX, 0) {
             dropout::forward(&mut w.x0, d.embedding, key);
@@ -105,7 +115,11 @@ impl<R: Real> Encoder<R> {
             w.layers.last().map_or(&w.x0, |l| &l.x_out)
         };
         w.out.resize(n * h, R::ZERO);
-        norm::forward(last, &self.weights()[FINAL_NORM], &self.empty, self.geo.eps, &mut w.out, &mut w.fin);
+        if self.is_modern() {
+            norm::forward(last, &self.weights()[FINAL_NORM], &self.empty, self.geo.eps, &mut w.out, &mut w.fin);
+        } else {
+            w.out.copy_from_slice(last);
+        }
         self.store(&mut w.out);
         Ok(())
     }
@@ -138,8 +152,12 @@ impl<R: Real> Encoder<R> {
         };
         let dout = self.stored(dout);
         let mut dx = vec![R::ZERO; n * h];
-        let dw = (!self.frozen).then_some(FINAL_NORM);
-        norm::backward(last, &self.weights()[FINAL_NORM], &w.fin, &dout, &mut dx, dw.map(|s| &mut g[s][..]), None);
+        if self.is_modern() {
+            let dw = (!self.frozen).then_some(FINAL_NORM);
+            norm::backward(last, &self.weights()[FINAL_NORM], &w.fin, &dout, &mut dx, dw.map(|s| &mut g[s][..]), None);
+        } else {
+            dx.copy_from_slice(&dout);
+        }
         self.store(&mut dx);
         let stop = if self.frozen { self.lora_from } else { 0 };
         if self.checkpoint {
@@ -168,11 +186,26 @@ impl<R: Real> Encoder<R> {
         }
         let mut demb = vec![R::ZERO; n * h];
         let (gw, gn) = g.split_at_mut(EMB_NORM);
-        norm::backward(&w.emb_in, &self.weights()[EMB_NORM], &w.emb, &dx, &mut demb, Some(&mut gn[0]), None);
+        let (nw, _) = self.norm_parts(EMB_NORM);
+        if self.is_modern() {
+            norm::backward(&w.emb_in, nw, &w.emb, &dx, &mut demb, Some(&mut gn[0]), None);
+        } else {
+            let (gw, gb) = gn[0].split_at_mut(h);
+            norm::backward(&w.emb_in, nw, &w.emb, &dx, &mut demb, Some(gw), Some(gb));
+        }
         self.store(&mut demb);
         for (t, &id) in w.ids.iter().enumerate() {
             for (d, &v) in gw[WORD][id as usize * h..][..h].iter_mut().zip(&demb[t * h..][..h]) {
                 *d += v;
+            }
+            if !self.is_modern() {
+                let position = self.vocab * h + (self.position_offset + t) * h;
+                let kind = (self.vocab + self.position_rows) * h;
+                for j in 0..h {
+                    let d = demb[t * h + j];
+                    gw[WORD][position + j] += d;
+                    gw[WORD][kind + j] += d;
+                }
             }
         }
         Ok(())

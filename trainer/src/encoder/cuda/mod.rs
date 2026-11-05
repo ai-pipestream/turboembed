@@ -138,6 +138,9 @@ impl CudaEncoder {
     /// `e` on device `device`: its weights as its forward reads them, its
     /// adapters, dropout and compute, and zero gradients.
     pub fn new(e: &Encoder<f32>, device: i32) -> Result<CudaEncoder> {
+        if !e.is_modern() {
+            return Err(invalid("cuda: BERT-family training kernels are not implemented"));
+        }
         check(unsafe { ffi::tt_set_device(device) })?;
         let weights = e
             .weights()
@@ -277,6 +280,10 @@ impl CudaEncoder {
         let mut out = Encoder {
             geo: self.geo,
             vocab: self.vocab,
+            family: turbo::manifest::Family::Modernbert,
+            position_rows: 0,
+            position_offset: 0,
+            token_types: 0,
             lens: self.lens.clone(),
             params,
             compute: Compute::F32,

@@ -1,16 +1,14 @@
-//! A ModernBERT encoder in training (stage R2, #1519): forward over one
-//! sequence of token ids with everything backward needs kept, and
-//! backward to every weight, generic over [`Real`] as the R1 ops are.
-//! The numerics are the core's CPU encoder's (`turbo::cpu`): the same
-//! cos/sin table, erf GELU, biased-variance LayerNorm summed in f64, the
-//! window |i - j| <= window / 2 on local layers, 1 / sqrt(d) scores.
+//! ModernBERT and BERT-family encoders in training (stage R2, #1519):
+//! forward over token ids with everything backward needs kept, generic
+//! over [`Real`]. Numerics follow the core: rotary or absolute positions,
+//! erf GELU, LayerNorm sums in f64, and 1 / sqrt(d) attention scores.
 //!
-//! The weights are a list of tensors in a fixed order (`slot`), as the
-//! R1 heads hold theirs, so `AdamW` steps them as it does a head's: the
-//! word table, the embedding norm, the final norm, then six a layer
-//! (attention norm, QKV, output, MLP norm, MLP in, MLP out); with
-//! adapters, eight more a layer that has them (A and B for each
-//! projection) after them. With adapters the base is frozen: its
+//! The weights use fixed slots for AdamW: packed embeddings and norm,
+//! an optional final norm, then six a layer (attention norm, QKV, output,
+//! MLP norm, MLP in, MLP out). BERT biases and position/type tables share
+//! their projection or embedding slot, so adapter indexing is unchanged.
+//! With adapters, eight more a layer that has them (A and B for each
+//! projection) follow. With adapters the base is frozen: its
 //! gradients are neither computed nor stored (`grads` leaves those slots
 //! empty), and `trainable` marks only the adapters. Adapters go on every
 //! layer (`with_lora`) or on the top ones (`with_lora_top`), as #1519
@@ -26,19 +24,23 @@
 
 use std::borrow::Cow;
 
+use turbo::manifest::Family;
 use turbo::status::{Result, invalid};
 
 use crate::real::Real;
 use crate::rng::Rng;
 
 pub mod attention;
+mod bert;
 #[cfg(any(feature = "cuda", feature = "cuda-shim"))]
 pub mod cuda;
 pub mod dropout;
 mod export;
+mod export_bert;
 pub mod gated;
 mod layer;
 mod load;
+mod load_bert;
 pub mod lora;
 pub mod math;
 pub mod matmul;
@@ -46,6 +48,7 @@ pub mod norm;
 mod pass;
 pub mod pool;
 pub mod rope;
+mod shape;
 pub mod tuned;
 pub mod tuned_parser;
 
@@ -151,11 +154,15 @@ pub(super) fn slot(l: usize, which: usize) -> usize {
     BASE + PER_LAYER * l + which
 }
 
-/// A ModernBERT encoder's weights, with or without adapters.
+/// An encoder's packed weights, with or without adapters.
 #[derive(Debug, Clone)]
 pub struct Encoder<R: Real> {
     geo: Geometry,
     vocab: usize,
+    family: Family,
+    position_rows: usize,
+    position_offset: usize,
+    token_types: usize,
     params: Vec<Vec<R>>,
     /// Each slot's length, kept while a slot is taken for a step.
     lens: Vec<usize>,
@@ -206,6 +213,10 @@ impl<R: Real> Encoder<R> {
         let e = Encoder {
             geo,
             vocab,
+            family: Family::Modernbert,
+            position_rows: 0,
+            position_offset: 0,
+            token_types: 0,
             lens: params.iter().map(Vec::len).collect(),
             params,
             compute: Compute::F32,
@@ -218,7 +229,7 @@ impl<R: Real> Encoder<R> {
             table,
             empty: Vec::new(),
         };
-        let want = e.shapes();
+        let want = shape::shapes(&e);
         if e.params.len() != want.len() || e.params.iter().zip(&want).any(|(p, n)| p.len() != *n) {
             return Err(invalid("encoder: the weights do not fit the geometry"));
         }
@@ -352,16 +363,6 @@ impl<R: Real> Encoder<R> {
     /// How many slots the base takes; the adapters follow.
     pub(super) fn base_slots(&self) -> usize {
         BASE + PER_LAYER * self.geo.layers
-    }
-
-    /// Each base slot's element count.
-    fn shapes(&self) -> Vec<usize> {
-        let (h, i) = (self.geo.hidden, self.geo.intermediate);
-        let mut out = vec![self.vocab * h, h, h];
-        for l in 0..self.geo.layers {
-            out.extend([if l == 0 { 0 } else { h }, 3 * h * h, h * h, h, 2 * i * h, h * i]);
-        }
-        out
     }
 
     /// The keys each side of a query on layer `l`.
