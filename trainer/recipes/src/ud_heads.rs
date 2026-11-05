@@ -193,13 +193,24 @@ pub fn features(enc: &mut WordEncoder, part: &[UdSentence], pooling: WordPooling
 
 /// Lemma examples of `part` with its features.
 pub fn lemma_examples(part: &[UdSentence], features: Vec<Vec<f32>>) -> Vec<LemmaExample> {
+    lemma_examples_with_languages(part, features, None)
+}
+
+/// As [`lemma_examples`], preserving each sentence's language row.
+pub fn lemma_examples_with_languages(
+    part: &[UdSentence],
+    features: Vec<Vec<f32>>,
+    languages: Option<&[Option<u32>]>,
+) -> Vec<LemmaExample> {
     part.iter()
         .zip(features)
-        .map(|(s, features)| LemmaExample {
+        .enumerate()
+        .map(|(i, (s, features))| LemmaExample {
             features,
             tags: Vec::new(),
             forms: s.words.clone(),
             lemmas: s.lemmas.clone(),
+            language: languages.and_then(|rows| rows[i]),
         })
         .collect()
 }
@@ -240,12 +251,27 @@ pub fn predict_lemmas(
     part: &[UdSentence],
     features: &[Vec<f32>],
 ) -> Result<Vec<Vec<String>>> {
+    predict_lemmas_with_languages(head, part, features, None)
+}
+
+/// As [`predict_lemmas`], selecting each sentence's language row.
+pub fn predict_lemmas_with_languages(
+    head: &EditTreeLemmatizer,
+    part: &[UdSentence],
+    features: &[Vec<f32>],
+    languages: Option<&[Option<u32>]>,
+) -> Result<Vec<Vec<String>>> {
     let (mut scores, mut trees, mut w) = (Vec::new(), Vec::new(), Default::default());
     let mut out = Vec::with_capacity(part.len());
-    for (s, f) in part.iter().zip(features) {
+    for (i, (s, f)) in part.iter().zip(features).enumerate() {
         let words: Vec<u32> = (0..s.words.len() as u32).collect();
         let forms: Vec<&str> = s.words.iter().map(String::as_str).collect();
-        head.scores(f, &words, None, &mut scores, &mut w).map_err(|e| Error(e.message))?;
+        let row = languages.and_then(|rows| rows[i]);
+        let language = match (&head.spec().language, row) {
+            (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+            _ => None,
+        };
+        head.scores_language(f, &words, None, language, &mut scores, &mut w).map_err(|e| Error(e.message))?;
         head.decode(&scores, &forms, &mut trees).map_err(|e| Error(e.message))?;
         out.push(head.lemmas(&trees, &forms).map_err(|e| Error(e.message))?);
     }
