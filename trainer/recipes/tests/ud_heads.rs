@@ -212,6 +212,56 @@ fn train_parse_writes_a_parser_the_core_loads_and_scores_uas() {
 }
 
 #[test]
+fn train_parse_tunes_lora_and_exports_the_encoder_with_the_head() {
+    let data = scratch("data-tuned-parse");
+    write_treebank(&data);
+    let out = scratch("out-tuned-parse");
+    let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-modernbert-bundle");
+    let o = run(&[
+        "train-parse",
+        "--corpus",
+        "ud-en-ewt",
+        "--dir",
+        data.to_str().unwrap(),
+        "--bundle",
+        bundle.to_str().unwrap(),
+        "--out",
+        out.to_str().unwrap(),
+        "--unrecorded-corpus",
+        "--tune-encoder",
+        "--lora",
+        "2",
+        "--arc",
+        "8",
+        "--rel",
+        "4",
+        "--epochs",
+        "2",
+        "--batch",
+        "8",
+        "--lr",
+        "0.001",
+        "--commit",
+        "test",
+    ]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let r: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    assert_eq!(r.encoder.as_ref().unwrap().backend, "trainer-cpu");
+    assert!(r.outputs.iter().any(|f| f.path == "encoder.safetensors"));
+    let head = r.head.unwrap();
+    check_tensors(&out, &head, turbo::head::parser::tensors(&head, 32));
+    let tuned = fs::read(out.join("encoder.safetensors")).unwrap();
+    let original = fs::read(bundle.join("weights/model.safetensors")).unwrap();
+    assert_ne!(tuned, original, "LoRA changes the exported encoder weights");
+    let names = read_safetensors(&tuned);
+    assert!(names.iter().any(|(name, _, _)| name == "model.layers.1.attn.Wqkv.weight"));
+    assert!(names.iter().all(|(_, _, values)| values.iter().all(|v| v.is_finite())));
+    for d in [data, out] {
+        fs::remove_dir_all(d).unwrap();
+    }
+}
+
+#[test]
 fn ud_commands_refuse_tag_only_settings_and_unknown_treebanks() {
     let o = run(&["train-parse", "--corpus", "ud-xx", "--dir", "x", "--bundle", "x", "--out", "x"]);
     assert!(!o.status.success());

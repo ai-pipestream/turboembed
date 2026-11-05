@@ -23,6 +23,8 @@ pub struct Example {
     pub features: Vec<f32>,
     pub labels: Vec<u32>,
     pub forms: Vec<String>,
+    /// The head's language-table row, required for a multilingual head.
+    pub language: Option<u32>,
 }
 
 impl Example {
@@ -223,7 +225,10 @@ impl Model for Tagger<f32> {
     }
     fn loss(&self, e: &Example, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
         let forms = e.forms();
-        Ok((Tagger::loss_forms(self, &e.features, forms.as_deref(), &e.labels, grads, w)?, e.labels.len()))
+        Ok((
+            Tagger::loss_language(self, &e.features, forms.as_deref(), e.language, &e.labels, grads, w)?,
+            e.labels.len(),
+        ))
     }
     fn score(&self, dev: &[Example]) -> Result<f64> {
         match self.spec().kind {
@@ -283,6 +288,27 @@ pub(crate) fn check_examples(examples: &[Example], hidden: usize, labels: usize,
                 e.forms.len(),
                 e.labels.len()
             )));
+        }
+    }
+    Ok(())
+}
+
+/// Every example names a language-table row exactly when the head needs it.
+pub(crate) fn check_languages(examples: &[Example], spec: &HeadSpec) -> Result<()> {
+    for (i, example) in examples.iter().enumerate() {
+        match (&spec.language, example.language) {
+            (None, None) => {}
+            (None, Some(_)) => {
+                return Err(invalid(format!("trainer: example {i} has a language the head does not read")));
+            }
+            (Some(language), None) if language.languages.len() == 1 => {}
+            (Some(language), None) => {
+                return Err(invalid(format!("trainer: example {i} needs a language, one of {:?}", language.languages)));
+            }
+            (Some(language), Some(row)) if row as usize >= language.languages.len() => {
+                return Err(invalid(format!("trainer: example {i} language row {row} is out of range")));
+            }
+            (Some(_), Some(_)) => {}
         }
     }
     Ok(())
@@ -399,6 +425,7 @@ pub(crate) fn train<M: Model>(
 /// core); the bytes do not depend on `threads`.
 pub fn batch_gradients(model: &Tagger<f32>, examples: &[Example], threads: usize) -> Result<(Vec<Vec<f32>>, f64)> {
     check_examples(examples, model.hidden(), model.spec().labels.len(), model.spec().hash_embed.is_some())?;
+    check_languages(examples, model.spec())?;
     let mut grads = model.zero_grads();
     let refs: Vec<(&Example, Draw)> = examples.iter().zip((0..).map(Draw::at)).collect();
     let (loss, _) = Batch::new(threads, 0).gradients(model, &refs, &mut grads)?;
@@ -432,6 +459,8 @@ pub fn fit_with(
     let forms = spec.hash_embed.is_some();
     check_examples(train, hidden, spec.labels.len(), forms)?;
     check_examples(dev, hidden, spec.labels.len(), forms)?;
+    check_languages(train, spec)?;
+    check_languages(dev, spec)?;
     let mut rng = Rng::new(c.seed);
     let model = Tagger::<f32>::new(spec, hidden, &mut rng)?;
     self::train(model, &mut rng, train, dev, c, on_best)

@@ -244,7 +244,14 @@ impl Model for MixTagger<f32> {
 pub fn mixed(m: &MixTagger<f32>, examples: &[MixExample]) -> Result<Vec<Example>> {
     examples
         .iter()
-        .map(|e| Ok(Example { features: m.mix(&e.layers)?, labels: e.labels.clone(), forms: e.forms.clone() }))
+        .map(|e| {
+            Ok(Example {
+                features: m.mix(&e.layers)?,
+                labels: e.labels.clone(),
+                forms: e.forms.clone(),
+                language: None,
+            })
+        })
         .collect()
 }
 

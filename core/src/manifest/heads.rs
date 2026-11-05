@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::heads_kinds::{CorefShape, SeenLookup, SpanShape};
+use super::heads_kinds::{CorefShape, LanguageInput, SeenLookup, SpanShape};
 use super::helpers::{fits, positive, required};
 use super::seen_lemma::LemmaLookup;
 use super::{Format, LayerMix, LicenseClass, Manifest, RelationShape};
@@ -56,10 +56,12 @@ pub struct HeadSpec {
     /// kind, and optional for a lemmatizer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos_input: Option<PosInput>,
-    /// Hashed embeddings of the word's own text joined after its pooled
-    /// states (head/hash_embed.rs); a HEAD_TOKEN_TAGGER's option.
+    /// Hashed word-text embeddings joined after pooled states; a token tagger's option.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash_embed: Option<HashEmbed>,
+    /// A learned language embedding joined after each word's pooled states.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<LanguageInput>,
     /// A HEAD_TOKEN_SPLIT's seen-token lookup (#1803): tokens whose
     /// training split was unambiguous take it without the scorer;
     /// absent for every other kind.
@@ -375,6 +377,9 @@ impl HeadSpec {
                     p.head
                 )));
             }
+        }
+        if let Some(language) = &self.language {
+            super::heads_kinds::validate_language(self.kind, language, &at)?;
         }
         if let Some(b) = &self.biaffine {
             positive(&at("biaffine.arc"), b.arc)?;

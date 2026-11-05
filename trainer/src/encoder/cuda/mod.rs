@@ -267,6 +267,33 @@ impl CudaEncoder {
         Ok(g)
     }
 
+    /// Downloads the complete trainer encoder, including frozen base and
+    /// adapter slots, for scoring and bundle export on the host.
+    pub fn to_cpu(&self) -> Result<Encoder<f32>> {
+        let params = (0..self.weights.len()).map(|s| self.slot(s)).collect::<Result<Vec<_>>>()?;
+        let table =
+            super::rope::Table::new(self.geo.global_theta, self.geo.local_theta, self.geo.max_positions, self.geo.d())?;
+        let mut out = Encoder {
+            geo: self.geo,
+            vocab: self.vocab,
+            lens: self.lens.clone(),
+            params,
+            compute: Compute::F32,
+            shadow: Vec::new(),
+            lora: self.lora,
+            lora_from: self.lora_from,
+            dropout: self.dropout,
+            frozen: self.frozen,
+            checkpoint: self.checkpoint,
+            table,
+            empty: Vec::new(),
+        };
+        if self.compute == Compute::Bf16 {
+            out = out.with_bf16();
+        }
+        Ok(out)
+    }
+
     /// Waits for every launch so far.
     pub fn sync(&self) -> Result<()> {
         check(unsafe { ffi::tt_sync() })

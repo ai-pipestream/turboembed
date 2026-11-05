@@ -20,7 +20,7 @@
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--arc N] [--rel N])
+//!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16]])
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
@@ -55,9 +55,7 @@ use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::fit_cache::CacheTask;
 use turbo_trainer_recipes::receipt::*;
-use turbo_trainer_recipes::run::{
-    CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, examples, named, predict, replace, spec, write,
-};
+use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, named, replace, spec, write};
 use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
@@ -69,6 +67,7 @@ mod train_open_span;
 mod train_relation;
 mod train_sentences;
 mod train_split;
+mod train_tuned;
 mod train_ud;
 
 const RESAMPLES: usize = 1000;
@@ -242,12 +241,19 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     a.done()?;
 
     let t = Instant::now();
-    let corpus = match column {
-        Some(column) => turbo_trainer_recipes::ud_multi::read(corpus_id, column, dir, unrecorded, sample)?,
-        None => read_corpus(corpus_id, dir, unrecorded)?,
+    let (corpus, languages) = match column {
+        Some(column) => {
+            let multi = turbo_trainer_recipes::ud_multi::read(corpus_id, column, dir, unrecorded, sample)?;
+            (multi.corpus, Some((multi.languages, multi.train_languages, multi.dev_languages, multi.test_languages)))
+        }
+        None => (read_corpus(corpus_id, dir, unrecorded)?, None),
     };
     let read = t.elapsed().as_secs_f64();
-    let head = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
+    let mut head = spec(&corpus, &HeadOptions { pooling, crf, bilstm, hash })?;
+    if let Some((names, _, _, _)) = &languages {
+        head.language = Some(turbo::manifest::LanguageInput { languages: names.clone(), dim: 16 });
+        head.validate("head").map_err(|e| Error(e.message))?;
+    }
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
@@ -255,8 +261,22 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let t = Instant::now();
     let capped = max_train.min(corpus.splits.train.len());
     let train_set = if max_train == 0 { &corpus.splits.train[..] } else { &corpus.splits.train[..capped] };
-    let (train_ex, _) = examples(&mut enc, train_set, &head.labels, pooling)?;
-    let (dev_ex, dev_left_out) = examples(&mut enc, &corpus.splits.dev, &head.labels, pooling)?;
+    let train_languages = languages.as_ref().map(|(_, rows, _, _)| &rows[..train_set.len()]);
+    let dev_languages = languages.as_ref().map(|(_, _, rows, _)| &rows[..]);
+    let (train_ex, _) = turbo_trainer_recipes::run::examples_with_languages(
+        &mut enc,
+        train_set,
+        &head.labels,
+        pooling,
+        train_languages,
+    )?;
+    let (dev_ex, dev_left_out) = turbo_trainer_recipes::run::examples_with_languages(
+        &mut enc,
+        &corpus.splits.dev,
+        &head.labels,
+        pooling,
+        dev_languages,
+    )?;
     let features = t.elapsed().as_secs_f64();
     let feature_words = train_ex.iter().chain(&dev_ex).map(|e| e.labels.len() as u64).sum();
 
@@ -292,7 +312,8 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let t = Instant::now();
     let tagger = model.to_token_tagger().map_err(|e| Error(e.message))?;
     let test = &corpus.splits.test;
-    let predicted = predict(&mut enc, &tagger, test)?;
+    let test_languages = languages.as_ref().map(|(_, _, _, rows)| &rows[..]);
+    let predicted = turbo_trainer_recipes::run::predict_with_languages(&mut enc, &tagger, test, test_languages)?;
     let base = baseline(train_set, test);
     let seen = Seen::of(train_set);
     let task: Task = corpus.record.task;

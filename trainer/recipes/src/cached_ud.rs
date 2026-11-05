@@ -372,7 +372,7 @@ pub fn run_split(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> 
     let (tensors, splitter, report, mix) = if p.layers.len() == 1 && !p.mixed {
         let one = |v: Vec<MixExample>| -> Vec<Example> {
             v.into_iter()
-                .map(|mut e| Example { features: e.layers.remove(0), labels: e.labels, forms: e.forms })
+                .map(|mut e| Example { features: e.layers.remove(0), labels: e.labels, forms: e.forms, language: None })
                 .collect()
         };
         let (tr, dv) = (one(train_ex), one(dev_ex));

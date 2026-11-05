@@ -16,5 +16,7 @@ COPY predict.py /predict.py
 COPY ner_predict.py /ner_predict.py
 COPY tag_predict.py /tag_predict.py
 COPY full_predict.py /full_predict.py
+COPY test_full_predict.py /test_full_predict.py
+RUN python /test_full_predict.py
 COPY coref_predict.py /coref_predict.py
 ENTRYPOINT ["python", "/predict.py"]

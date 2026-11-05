@@ -175,6 +175,16 @@ fn the_rule_walks_the_shortest_path_between_entity_head_words() {
 }
 
 #[test]
+fn the_rule_refuses_broken_ancestor_chains() {
+    for heads in [[3, 3], [1, 1], [2, 2], [2, 3]] {
+        let parse = heads.into_iter().map(|h| (h, "dep".to_owned())).collect();
+        for (a, b) in [(0, 1), (1, 0)] {
+            assert_eq!(rule::path(&parse, a, b), None, "heads {heads:?}, {a} to {b}");
+        }
+    }
+}
+
+#[test]
 fn the_rule_learns_each_paths_commonest_relation_and_rest_is_none() {
     let d = parse("t", &serde_json::to_vec(&[doc(0)]).unwrap()).unwrap().remove(0);
     let parsed = hand_parse();

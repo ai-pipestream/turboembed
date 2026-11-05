@@ -23,6 +23,7 @@ fn spec() -> HeadSpec {
         biaffine: Some(Biaffine { arc: 2, rel: 2 }),
         pos_input: None,
         hash_embed: None,
+        language: None,
         seen: None,
         span: None,
         coref: None,
@@ -163,4 +164,8 @@ fn training_is_deterministic_and_scores_pooled_dev_words() {
     let cuda = CudaEncoder::new(&encoder(), device).unwrap();
     let gpu = TunedCudaParser::new(cuda, &spec, &mut Rng::new(1)).unwrap();
     assert_eq!(cpu.score(&train).unwrap(), gpu.score(&train).unwrap());
+    let expected = a.score(&train).unwrap();
+    let (encoder, head) = a.into_parts().unwrap();
+    let restored = TunedParser::assemble(encoder.to_cpu().unwrap(), head).unwrap();
+    assert_eq!(restored.score(&train).unwrap(), expected);
 }

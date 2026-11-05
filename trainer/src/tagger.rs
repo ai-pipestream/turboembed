@@ -40,6 +40,7 @@ pub struct Work<R> {
     /// Features joined with each word's hashed embedding, with a hash_embed.
     input: Vec<R>,
     rows: Vec<[[u32; SEEDS]; 4]>,
+    language: Option<u32>,
     adapter: adapter::Work<R>,
     scores: Vec<R>,
     dscores: Vec<R>,
@@ -60,7 +61,7 @@ impl<R: Real> Tagger<R> {
         let mut params = Vec::with_capacity(shapes.len());
         for ((suffix, shape), n) in &shapes {
             let n = *n;
-            let v = if suffix.starts_with("hash.") {
+            let v = if suffix.starts_with("hash.") || suffix == "language.embedding" {
                 // Small, so the sum of a word's rows starts near the
                 // scale of one Xavier row.
                 (0..n).map(|_| R::from_f64(rng.uniform(0.05))).collect()
@@ -138,27 +139,39 @@ impl<R: Real> Tagger<R> {
     /// Whether tensor i takes weight decay: matrices do, biases and CRF
     /// scores do not.
     pub fn decays(&self) -> Vec<bool> {
-        self.names.iter().map(|n| n.ends_with(".w") || n.ends_with(".u") || n == "out.weight").collect()
+        self.names
+            .iter()
+            .map(|n| n.ends_with(".w") || n.ends_with(".u") || n == "out.weight" || n == "language.embedding")
+            .collect()
     }
 
     pub fn zero_grads(&self) -> Vec<Vec<R>> {
         self.params.iter().map(|p| vec![R::ZERO; p.len()]).collect()
     }
 
-    /// Values a word's hashed embedding adds (0 without a hash_embed).
     fn hashed(&self) -> usize {
         self.spec.hash_embed.map_or(0, |h| 4 * h.dim as usize)
     }
 
-    fn shape(&self) -> Shape {
-        let (layers, h) = self.spec.adapter.map_or((0, 0), |a| (a.bilstm.layers as usize, a.bilstm.hidden as usize));
-        Shape { hidden: self.hidden + self.hashed(), layers, h }
+    fn language(&self) -> usize {
+        self.spec.language.as_ref().map_or(0, |language| language.dim as usize)
     }
 
-    /// Where the output layer's tensors start: after the adapter's and
-    /// the hash tables'.
+    fn joined(&self) -> bool {
+        self.spec.hash_embed.is_some() || self.spec.language.is_some()
+    }
+
+    fn adapter_at(&self) -> usize {
+        usize::from(self.spec.language.is_some())
+    }
+
+    fn shape(&self) -> Shape {
+        let (layers, h) = self.spec.adapter.map_or((0, 0), |a| (a.bilstm.layers as usize, a.bilstm.hidden as usize));
+        Shape { hidden: self.hidden + self.language() + self.hashed(), layers, h }
+    }
+
     fn out_at(&self) -> usize {
-        6 * self.shape().layers + if self.spec.hash_embed.is_some() { 4 } else { 0 }
+        self.adapter_at() + 6 * self.shape().layers + if self.spec.hash_embed.is_some() { 4 } else { 0 }
     }
 
     /// The label scores [n, labels] of features [n, hidden], kept in `w`;
@@ -170,14 +183,26 @@ impl<R: Real> Tagger<R> {
     /// As [`forward`](Self::forward), with each word's text, which a head
     /// with a `hash_embed` reads and any other head ignores.
     pub fn forward_forms(&self, features: &[R], forms: Option<&[&str]>, w: &mut Work<R>) -> Result<usize> {
+        self.forward_language(features, forms, None, w)
+    }
+
+    /// As [`forward_forms`](Self::forward_forms), with the language-table row.
+    pub fn forward_language(
+        &self,
+        features: &[R],
+        forms: Option<&[&str]>,
+        language: Option<u32>,
+        w: &mut Work<R>,
+    ) -> Result<usize> {
         if !features.len().is_multiple_of(self.hidden) {
             return Err(invalid(format!("trainer: {} features are not rows of {}", features.len(), self.hidden)));
         }
         let n = features.len() / self.hidden;
-        self.join(features, forms, n, w)?;
+        let language = self.language_row(language)?;
+        self.join(features, forms, language, n, w)?;
         let shape = self.shape();
-        let x0: &[R] = if self.spec.hash_embed.is_some() { &w.input } else { features };
-        adapter::forward(shape, &self.params, x0, &mut w.adapter);
+        let x0: &[R] = if self.joined() { &w.input } else { features };
+        adapter::forward(shape, &self.params[self.adapter_at()..], x0, &mut w.adapter);
         let width = shape.width();
         let labels = self.spec.labels.len();
         let o = self.out_at();
@@ -188,32 +213,64 @@ impl<R: Real> Tagger<R> {
         Ok(n)
     }
 
-    /// With a hash_embed, each word's features joined with the sum of
-    /// its hashed rows into `w.input`, and the rows kept for backward. A
-    /// sentence of no words needs no forms, as in the core.
-    fn join(&self, features: &[R], forms: Option<&[&str]>, n: usize, w: &mut Work<R>) -> Result<()> {
-        let Some(h) = self.spec.hash_embed else { return Ok(()) };
+    fn language_row(&self, row: Option<u32>) -> Result<Option<usize>> {
+        let Some(language) = &self.spec.language else {
+            return match row {
+                Some(_) => Err(invalid("trainer: a language given to a head without a language input")),
+                None => Ok(None),
+            };
+        };
+        let row = match row {
+            Some(row) => row as usize,
+            None if language.languages.len() == 1 => 0,
+            None => return Err(invalid("trainer: a multilingual example needs a language")),
+        };
+        if row >= language.languages.len() {
+            return Err(invalid(format!("trainer: language row {row} is out of range")));
+        }
+        Ok(Some(row))
+    }
+
+    /// Joins encoder features, the selected language and hashed word text.
+    fn join(
+        &self,
+        features: &[R],
+        forms: Option<&[&str]>,
+        language: Option<usize>,
+        n: usize,
+        w: &mut Work<R>,
+    ) -> Result<()> {
+        if !self.joined() {
+            return Ok(());
+        }
         if n == 0 {
             w.rows.clear();
             w.input.clear();
             return Ok(());
         }
-        let forms = forms.ok_or_else(|| invalid("trainer: the head reads each word's text"))?;
-        if forms.len() != n {
-            return Err(invalid(format!("trainer: {} forms for {n} words", forms.len())));
+        if let Some(h) = self.spec.hash_embed {
+            let forms = forms.ok_or_else(|| invalid("trainer: the head reads each word's text"))?;
+            if forms.len() != n {
+                return Err(invalid(format!("trainer: {} forms for {n} words", forms.len())));
+            }
+            w.rows.clear();
+            w.rows.extend(forms.iter().map(|form| hash_embed::rows(&h, form)));
         }
-        let (hidden, d) = (self.hidden, h.dim as usize);
-        let width = hidden + 4 * d;
-        let t = 6 * self.shape().layers;
-        w.rows.clear();
-        w.rows.extend(forms.iter().map(|f| hash_embed::rows(&h, f)));
+        let (hidden, language_width, hash_width) = (self.hidden, self.language(), self.hashed());
+        let width = hidden + language_width + hash_width;
+        let t = self.adapter_at() + 6 * self.shape().layers;
         w.input.clear();
         w.input.resize(n * width, R::ZERO);
         for i in 0..n {
             let row = &mut w.input[i * width..][..width];
             row[..hidden].copy_from_slice(&features[i * hidden..][..hidden]);
-            for (k, seeds) in w.rows[i].iter().enumerate() {
-                let dst = &mut row[hidden + k * d..][..d];
+            if let Some(language) = language {
+                let d = language_width;
+                row[hidden..hidden + d].copy_from_slice(&self.params[0][language * d..][..d]);
+            }
+            for (k, seeds) in w.rows.get(i).into_iter().flatten().enumerate() {
+                let d = hash_width / 4;
+                let dst = &mut row[hidden + language_width + k * d..][..d];
                 for &r in seeds {
                     let src = &self.params[t + k][r as usize * d..][..d];
                     dst.iter_mut().zip(src).for_each(|(a, &b)| *a += b);
@@ -240,6 +297,20 @@ impl<R: Real> Tagger<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        self.loss_language(features, forms, None, gold, grads, w)
+    }
+
+    /// As [`loss_forms`](Self::loss_forms), with the language-table row.
+    pub fn loss_language(
+        &self,
+        features: &[R],
+        forms: Option<&[&str]>,
+        language: Option<u32>,
+        gold: &[u32],
+        grads: &mut [Vec<R>],
+        w: &mut Work<R>,
+    ) -> Result<f64> {
+        w.language = language;
         self.loss_inner(features, forms, gold, grads, w, None)
     }
 
@@ -255,6 +326,7 @@ impl<R: Real> Tagger<R> {
         w: &mut Work<R>,
         dfeatures: &mut Vec<R>,
     ) -> Result<f64> {
+        w.language = None;
         self.loss_inner(features, forms, gold, grads, w, Some(dfeatures))
     }
 
@@ -270,7 +342,7 @@ impl<R: Real> Tagger<R> {
         if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
             return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
         }
-        let n = self.forward_forms(features, forms, w)?;
+        let n = self.forward_language(features, forms, w.language, w)?;
         if gold.len() != n {
             return Err(invalid(format!("trainer: {} gold labels for {n} words", gold.len())));
         }
@@ -292,25 +364,40 @@ impl<R: Real> Tagger<R> {
             }
             _ => xent::loss(&w.scores, gold, labels, &mut w.dscores)?,
         };
-        let hashed = self.spec.hash_embed.is_some();
+        let joined = self.joined();
         let (layers, width) = (shape.layers, shape.width());
-        let x0: &[R] = if hashed { &w.input } else { features };
+        let x0: &[R] = if joined { &w.input } else { features };
         let x = adapter::output(x0, &w.adapter);
         let input = dfeatures.is_some();
-        let mut dx = vec![R::ZERO; if layers == 0 && !hashed && !input { 0 } else { n * width }];
+        let mut dx = vec![R::ZERO; if layers == 0 && !joined && !input { 0 } else { n * width }];
         let [dw, db] = grads.get_disjoint_mut([o, o + 1]).expect("distinct");
         let dxo = if dx.is_empty() { None } else { Some(&mut dx[..]) };
         linear::backward(&self.params[o], x, &w.dscores, width, labels, dw, db, dxo);
-        let dx0 = adapter::backward(shape, &self.params, x0, dx, grads, &w.adapter, hashed || input);
+        let adapter_at = self.adapter_at();
+        let dx0 = adapter::backward(
+            shape,
+            &self.params[adapter_at..],
+            x0,
+            dx,
+            &mut grads[adapter_at..],
+            &w.adapter,
+            joined || input,
+        );
         if let Some(d) = dfeatures {
-            // The input's rows are the features, then a hashed head's
-            // embeddings of the word's text.
             let width0 = dx0.len() / n.max(1);
             d.clear();
             d.extend((0..n).flat_map(|i| dx0[i * width0..][..self.hidden].iter().copied()));
         }
+        if let Some(row) = self.language_row(w.language)? {
+            let (hidden, d) = (self.hidden, self.language());
+            let width0 = hidden + d + self.hashed();
+            for i in 0..n {
+                let src = &dx0[i * width0 + hidden..][..d];
+                grads[0][row * d..][..d].iter_mut().zip(src).for_each(|(a, &b)| *a += b);
+            }
+        }
         if let Some(h) = self.spec.hash_embed {
-            let (hidden, d, t) = (self.hidden, h.dim as usize, 6 * layers);
+            let (hidden, d, t) = (self.hidden + self.language(), h.dim as usize, adapter_at + 6 * layers);
             let width0 = hidden + 4 * d;
             for (i, word) in w.rows.iter().enumerate() {
                 for (k, seeds) in word.iter().enumerate() {

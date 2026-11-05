@@ -37,6 +37,7 @@ fn spec(scheme: Scheme, adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: hash.then_some(HashEmbed { dim: 2, rows: [5, 3, 4, 3] }),
+        language: None,
         seen: None,
         layer_mix: None,
         license_class: None,
@@ -146,7 +147,12 @@ fn a_run_weights_the_layer_that_holds_the_labels() {
     // The best single noisy layer does worse.
     let only = |l: usize, v: &[MixExample]| -> Vec<Example> {
         v.iter()
-            .map(|e| Example { features: e.layers[l].clone(), labels: e.labels.clone(), forms: Vec::new() })
+            .map(|e| Example {
+                features: e.layers[l].clone(),
+                labels: e.labels.clone(),
+                forms: Vec::new(),
+                language: None,
+            })
             .collect()
     };
     let (_, r0) = fit(&s, hidden, &only(0, &train), &only(0, &dev), &c).unwrap();
@@ -192,6 +198,7 @@ fn lemmatizer_and_parser_mix_gradients_and_core_equivalence() {
         pos_input: Some(PosInput { head: "upos".into(), labels: 3, dim: 2 }),
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         license_class: None,
@@ -240,6 +247,7 @@ fn lemmatizer_and_parser_mix_gradients_and_core_equivalence() {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         license_class: None,
@@ -319,6 +327,7 @@ fn lemmatizer_and_parser_mix_gradients_and_core_equivalence() {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         license_class: None,
