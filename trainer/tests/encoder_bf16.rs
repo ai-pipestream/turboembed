@@ -28,6 +28,7 @@ fn spec() -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         license_class: None,
@@ -337,7 +338,7 @@ fn loss_scaling_by_a_power_of_two_is_exact() {
     // exact update instead of zeroing it out.
     let mut two = spec();
     two.labels = ["A", "B"].map(String::from).to_vec();
-    let four = [Example { features: vec![0.0; 16], labels: vec![0, 0, 0, 1], forms: Vec::new() }];
+    let four = [Example { features: vec![0.0; 16], labels: vec![0, 0, 0, 1], forms: Vec::new(), language: None }];
     let c = Config { epochs: 1, batch: 4, lr: 0.1, weight_decay: 0.0, warmup: 0.0, ..Config::default() };
     let (plain, rp) = fit(&two, 4, &four, &four, &c).unwrap();
     let high = LossScale { initial: 2.0f32.powi(127), growth: 2.0, backoff: 0.5, interval: 10 };

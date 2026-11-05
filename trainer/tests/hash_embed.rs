@@ -28,6 +28,7 @@ fn spec(adapter: Option<(u32, u32)>, decode: Decode, hash: HashEmbed) -> HeadSpe
         pos_input: None,
         seen_lookup: None,
         hash_embed: Some(hash),
+        language: None,
         seen: None,
         layer_mix: None,
         span: None,
@@ -98,7 +99,7 @@ fn data(seed: u64, n: usize, nouns: &[&str], verbs: &[&str]) -> Vec<Example> {
                 labels.push(tag);
                 forms.push(form.to_string());
             }
-            Example { features, labels, forms }
+            Example { features, labels, forms, language: None }
         })
         .collect()
 }
@@ -193,7 +194,7 @@ fn a_sentence_of_no_words_is_taken_as_the_core_takes_it() {
             // V as a one-word span, the rest outside, which BIO allows.
             train.iter_mut().flat_map(|e| e.labels.iter_mut()).for_each(|l| *l = u32::from(*l == 1));
         }
-        train.insert(2, Example { features: Vec::new(), labels: Vec::new(), forms: Vec::new() });
+        train.insert(2, Example { features: Vec::new(), labels: Vec::new(), forms: Vec::new(), language: None });
         let c = Config { epochs: 2, ..Config::default() };
         let (_, report) = fit(&s, HIDDEN, &train, &train, &c).unwrap();
         assert_eq!(report.dev.len(), 2);

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::heads::{
     Decode, HeadKind, HeadSpec, MAX_ADAPTER_HIDDEN, MAX_ADAPTER_LAYERS, MAX_BIAFFINE, MAX_HASH_DIM, MAX_HASH_ROWS,
-    MAX_LABELS, Scheme,
+    MAX_LABELS, MAX_POS_DIM, Scheme,
 };
 use super::helpers::{fits, positive, required};
 use crate::status::{Result, invalid};
@@ -36,6 +36,37 @@ pub const MAX_TYPE_DIM: u32 = 256;
 pub const MAX_MIX_LAYERS: u32 = 128;
 /// The most entries a token split head's seen lookup holds.
 pub const MAX_SEEN_TOKENS: usize = 1 << 16;
+
+/// The languages a word head conditions on, and the embedding width.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LanguageInput {
+    pub languages: Vec<String>,
+    pub dim: u32,
+}
+
+pub(super) fn validate_language(kind: HeadKind, language: &LanguageInput, at: &dyn Fn(&str) -> String) -> Result<()> {
+    positive(&at("language.dim"), language.dim)?;
+    if language.languages.is_empty() || language.languages.len() > 128 || language.dim > MAX_POS_DIM {
+        return Err(invalid(format!(
+            "manifest.json: {}: {} languages and dim {}, at most 128 and {MAX_POS_DIM}",
+            at("language"),
+            language.languages.len(),
+            language.dim
+        )));
+    }
+    if kind != HeadKind::TokenTagger {
+        return Err(invalid(format!("manifest.json: {}: {kind:?} does not take a language input", at("language"))));
+    }
+    for (i, name) in language.languages.iter().enumerate() {
+        required(&at(&format!("language.languages[{i}]")), name)?;
+        fits(&at(&format!("language.languages[{i}]")), name, 64)?;
+        if language.languages[..i].contains(name) {
+            return Err(invalid(format!("manifest.json: {}: {name:?} is listed twice", at("language.languages"))));
+        }
+    }
+    Ok(())
+}
 
 /// One entry of a token split head's seen lookup: a token whose every
 /// training occurrence split the same way, and the label of that split.

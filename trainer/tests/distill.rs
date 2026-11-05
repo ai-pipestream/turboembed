@@ -44,6 +44,7 @@ fn spec(labels: &[&str], adapter: Option<(u32, u32)>, hash: bool) -> HeadSpec {
         pos_input: None,
         seen_lookup: None,
         hash_embed: hash.then_some(HashEmbed { dim: 2, rows: [8, 4, 4, 4] }),
+        language: None,
         seen: None,
         layer_mix: None,
         span: None,
@@ -208,8 +209,8 @@ fn synthetic_pair(seed: u64, count: usize, d_teacher: usize, d_student: usize) -
                 s_features.push((signal + rng.uniform(0.25)) as f32);
             }
         }
-        teacher_out.push(Example { features: t_features, labels: labels.clone(), forms: Vec::new() });
-        student_out.push(Example { features: s_features, labels, forms: Vec::new() });
+        teacher_out.push(Example { features: t_features, labels: labels.clone(), forms: Vec::new(), language: None });
+        student_out.push(Example { features: s_features, labels, forms: Vec::new(), language: None });
     }
     (teacher_out, student_out)
 }
@@ -308,7 +309,7 @@ fn crf_teachers_with_identical_emissions_and_manual_examples_score_accurately() 
     teacher_b.param_mut(3).copy_from_slice(&[-2.0, 2.0]);
     teacher_b.param_mut(4).copy_from_slice(&[-2.0, 2.0]);
 
-    let ex = Example { features: vec![1.0, 0.0, 0.0, 1.0], labels: vec![1, 1], forms: Vec::new() };
+    let ex = Example { features: vec![1.0, 0.0, 0.0, 1.0], labels: vec![1, 1], forms: Vec::new(), language: None };
     let d_a = make_distill_examples(&teacher_a, std::slice::from_ref(&ex), std::slice::from_ref(&ex)).unwrap();
     let d_b = make_distill_examples(&teacher_b, std::slice::from_ref(&ex), std::slice::from_ref(&ex)).unwrap();
     assert_eq!(d_a[0].teacher_scores, d_b[0].teacher_scores, "identical emission scores");

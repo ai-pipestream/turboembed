@@ -105,7 +105,7 @@ fn examples(sentences: &[Sentence], encoder: &mut WordEncoder) -> Result<Vec<Exa
             if features.iter().any(|x| !x.is_finite()) {
                 return Err(invalid("encoder features are not finite"));
             }
-            Ok(Example { features, labels: sentence.labels().to_vec(), forms: Vec::new() })
+            Ok(Example { features, labels: sentence.labels().to_vec(), forms: Vec::new(), language: None })
         })
         .collect()
 }

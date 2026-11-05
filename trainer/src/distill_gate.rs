@@ -30,7 +30,12 @@ impl DistillExample {
         (!self.forms.is_empty()).then(|| self.forms.iter().map(String::as_str).collect())
     }
     pub fn to_example(&self) -> Example {
-        Example { features: self.features.clone(), labels: self.labels.clone(), forms: self.forms.clone() }
+        Example {
+            features: self.features.clone(),
+            labels: self.labels.clone(),
+            forms: self.forms.clone(),
+            language: None,
+        }
     }
 }
 

@@ -25,6 +25,7 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         pos_input: None,
         seen_lookup: None,
         hash_embed: None,
+        language: None,
         seen: None,
         layer_mix: None,
         span: None,
@@ -60,7 +61,7 @@ fn tags_data(seed: u64, n: usize) -> Vec<Example> {
                 labels.push(if c == 3 && prev == 0 { 0 } else { c as u32 });
                 prev = c;
             }
-            Example { features, labels, forms: Vec::new() }
+            Example { features, labels, forms: Vec::new(), language: None }
         })
         .collect()
 }
@@ -88,7 +89,7 @@ fn bio_data(seed: u64, n: usize) -> Vec<Example> {
                 });
                 prev = c;
             }
-            Example { features, labels, forms: Vec::new() }
+            Example { features, labels, forms: Vec::new(), language: None }
         })
         .collect()
 }
@@ -163,9 +164,9 @@ fn trained_weights_score_the_same_through_the_core() {
 #[test]
 fn ill_fitting_examples_are_refused() {
     let s = spec(&["A", "B"], Scheme::Tags, None, Decode::Argmax);
-    let good = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 1], forms: Vec::new() };
-    let short = Example { features: vec![0.0; HIDDEN], labels: vec![0, 1], forms: Vec::new() };
-    let label = Example { features: vec![0.0; HIDDEN], labels: vec![2], forms: Vec::new() };
+    let good = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 1], forms: Vec::new(), language: None };
+    let short = Example { features: vec![0.0; HIDDEN], labels: vec![0, 1], forms: Vec::new(), language: None };
+    let label = Example { features: vec![0.0; HIDDEN], labels: vec![2], forms: Vec::new(), language: None };
     let c = Config::default();
     assert!(fit(&s, HIDDEN, &[short], &[], &c).is_err());
     assert!(fit(&s, HIDDEN, std::slice::from_ref(&good), &[label], &c).is_err());
@@ -173,7 +174,7 @@ fn ill_fitting_examples_are_refused() {
     assert!(fit(&s, HIDDEN, &[good], &[], &Config { batch: 0, ..c }).is_err());
     // A gold sequence the scheme forbids cannot be a CRF target.
     let bio = spec(&["O", "B-X", "I-X"], Scheme::Bio, None, Decode::Crf);
-    let bad = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 2], forms: Vec::new() };
+    let bad = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 2], forms: Vec::new(), language: None };
     assert!(fit(&bio, HIDDEN, &[bad], &[], &c).is_err());
 }
 

@@ -45,6 +45,8 @@ mod edit_tree_tests;
 #[cfg(test)]
 mod hash_embed_tests;
 #[cfg(test)]
+mod language_tests;
+#[cfg(test)]
 mod lemmatizer_tests;
 #[cfg(test)]
 mod open_span_tests;
