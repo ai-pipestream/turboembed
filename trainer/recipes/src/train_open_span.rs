@@ -1,8 +1,6 @@
-//! `train-open-span`: training an open-label span typing head
-//! (`HEAD_OPEN_SPAN`, #1735) on a BIO NER corpus (`wnut17`, `multiconer`),
-//! with optional `--hold-out <type1,type2>` zero-shot evaluation on types
-//! excluded from training, scored against both the majority baseline and a
-//! dictionary matcher over the label names.
+//! `train-open-span`: one open-label head over one or more BIO corpora,
+//! with genuinely held-out types and independent per-dataset zero-shot
+//! metrics, dictionary baselines and paired bootstrap comparisons.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -11,22 +9,30 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::WordEncoder;
 use turbo_trainer::OpenSpans;
 use turbo_trainer_recipes::cache::{CacheRecord, read_layer};
-use turbo_trainer_recipes::corpus::Task;
-use turbo_trainer_recipes::eval::{Seen, bootstrap, evaluate};
+use turbo_trainer_recipes::corpus::{Corpus, Task};
+use turbo_trainer_recipes::eval::{Majority, Seen, evaluate};
 use turbo_trainer_recipes::open_span::{
     self, DEFAULT_MAX_WORDS, DEFAULT_WIDTH_DIM, dictionary_baseline, embed_label_names, encode_sentences, entity_types,
-    examples_from_features, filter_sentences, predict_from_features, read_open_span_corpus,
+    examples_from_features, filter_sentences, predict_from_features,
 };
+use turbo_trainer_recipes::open_span_mix::{combine, evaluate_dataset, read_corpora};
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, named, replace};
-use turbo_trainer_recipes::{Error, Result, coarse, safetensors};
+use turbo_trainer_recipes::{Error, Result, safetensors};
 
-use super::{Args, Opts, RESAMPLES, baseline, encoder_record, finish, options, saved_any};
+use super::{Args, Opts, RESAMPLES, encoder_record, finish, options, saved_any};
+
+struct Features {
+    train: Vec<Vec<f32>>,
+    dev: Vec<Vec<f32>>,
+    test: Vec<Vec<f32>>,
+}
 
 pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
     let max_words: u32 = a.parsed("--max-words", DEFAULT_MAX_WORDS)?;
     let width_dim: u32 = a.parsed("--width-dim", DEFAULT_WIDTH_DIM)?;
     let nested = a.flag("--nested");
+    let balance = a.flag("--balance");
     let hold_out_arg = a.value("--hold-out")?;
     let cache_dir = a.value("--cache")?.map(PathBuf::from);
     let layer_arg: Option<u32> =
@@ -42,15 +48,44 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     }
 
     let t = Instant::now();
-    let corpus = read_open_span_corpus(corpus_id, dir, unrecorded)?;
-    let read = t.elapsed().as_secs_f64();
-    let all_types = entity_types(&corpus)?;
+    let mut corpora = read_corpora(corpus_id, dir, unrecorded)?;
+    if corpora.len() > 1 && cache_dir.is_some() {
+        return Err(Error("--cache is supported for one open-span corpus at a time".into()));
+    }
+    let full_train: Vec<Vec<turbo_trainer_recipes::corpus::Sentence>> =
+        corpora.iter().map(|c| c.splits.train.clone()).collect();
+    let mut all_types = Vec::new();
+    for corpus in &corpora {
+        for kind in entity_types(corpus)? {
+            if !all_types.contains(&kind) {
+                all_types.push(kind);
+            }
+        }
+    }
+    if max_train > 0 {
+        let mut remaining = max_train;
+        for c in &mut corpora {
+            let keep = remaining.min(c.splits.train.len());
+            c.splits.train.truncate(keep);
+            remaining = remaining.saturating_sub(keep);
+        }
+    }
+    if balance && corpora.len() > 1 {
+        let target = corpora.iter().map(|c| c.splits.train.len()).max().unwrap_or(0);
+        for c in &mut corpora {
+            if c.splits.train.is_empty() {
+                return Err(Error("--balance needs a nonempty training split in every corpus".into()));
+            }
+            let original = std::mem::take(&mut c.splits.train);
+            c.splits.train = (0..target).map(|i| original[i % original.len()].clone()).collect();
+        }
+    }
     let hold_out: Vec<String> = match hold_out_arg {
         Some(s) if !s.trim().is_empty() => s.split(',').map(|x| x.trim().to_owned()).collect(),
         _ => Vec::new(),
     };
     for h in &hold_out {
-        if !all_types.iter().any(|t| t == h) {
+        if !all_types.contains(h) {
             return Err(Error(format!("--hold-out {h:?} is not a type of {corpus_id} ({all_types:?})")));
         }
     }
@@ -58,58 +93,29 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     if seen_types.is_empty() {
         return Err(Error("--hold-out leaves no training entity types".into()));
     }
-
-    let spec = open_span::spec(seen_types.clone(), &corpus.record, pooling, bilstm, max_words, width_dim, nested)?;
+    let combined = combine(&corpora)?;
+    let read = t.elapsed().as_secs_f64();
+    let spec = open_span::spec(seen_types.clone(), &combined.record, pooling, bilstm, max_words, width_dim, nested)?;
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
     let hidden = enc.hidden();
 
     let t = Instant::now();
-    let train_slice = match max_train {
-        0 => &corpus.splits.train[..],
-        n => &corpus.splits.train[..n.min(corpus.splits.train.len())],
-    };
-    let (train_wf, dev_wf, test_wf, encoder) = if let Some(ref cdir) = cache_dir {
-        let p = cdir.join("cache.json");
-        let text = std::fs::read(&p).map_err(|e| Error(format!("{}: {e}", p.display())))?;
-        let cache: CacheRecord = serde_json::from_slice(&text).map_err(|e| Error(format!("{}: {e}", p.display())))?;
-        let corpus_ok = cache.corpus == corpus.record
-            || (cache.corpus.files == corpus.record.files
-                && cache.corpus.recorded == corpus.record.recorded
-                && cache.corpus.id == format!("{}-upos", corpus.record.id));
-        if !corpus_ok
-            || cache.encoder.model != encoder.model
-            || cache.encoder.revision != encoder.revision
-            || cache.encoder.manifest_sha256 != encoder.manifest_sha256
-            || cache.encoder.hidden != encoder.hidden
-            || cache.encoder.layers != encoder.layers
-            || cache.encoder.width != encoder.width
-            || cache.pooling != pooling
-        {
-            return Err(Error(format!("{}: cache does not match corpus, encoder or pooling", cdir.display())));
-        }
-        let layer = match layer_arg {
-            Some(l) if cache.layers.contains(&l) => l,
-            Some(l) => return Err(Error(format!("{}: no layer {l}; it holds {:?}", cdir.display(), cache.layers))),
-            None => *cache.layers.last().ok_or_else(|| Error(format!("{}: cache has no layers", cdir.display())))?,
-        };
-        let full_train = read_layer(cdir, &cache, "train", layer, &corpus.splits.train)?;
-        let dev = read_layer(cdir, &cache, "dev", layer, &corpus.splits.dev)?;
-        let test = read_layer(cdir, &cache, "test", layer, &corpus.splits.test)?;
-        (full_train.into_iter().take(train_slice.len()).collect(), dev, test, cache.encoder)
-    } else {
-        (
-            encode_sentences(&mut enc, train_slice, pooling)?,
-            encode_sentences(&mut enc, &corpus.splits.dev, pooling)?,
-            encode_sentences(&mut enc, &corpus.splits.test, pooling)?,
-            encoder,
-        )
-    };
+    let mut extracted = Vec::with_capacity(corpora.len());
+    for (corpus, full) in corpora.iter().zip(&full_train) {
+        extracted.push(features(&mut enc, corpus, full, pooling, cache_dir.as_deref(), layer_arg, &encoder)?);
+    }
+    let (mut train_wf, mut dev_wf, mut test_wf) = (Vec::new(), Vec::new(), Vec::new());
+    for (corpus, f) in corpora.iter().zip(&extracted) {
+        train_wf.extend(f.train.iter().take(corpus.splits.train.len()).cloned());
+        dev_wf.extend(f.dev.clone());
+        test_wf.extend(f.test.clone());
+    }
     let seen_lf = embed_label_names(&mut enc, &seen_types, pooling)?;
     let all_lf = embed_label_names(&mut enc, &all_types, pooling)?;
     let (train_ex, _) = examples_from_features(
-        train_slice,
+        &combined.splits.train,
         &train_wf,
         &seen_lf,
         &seen_types,
@@ -118,10 +124,19 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         hidden,
         Some(c.seed),
     )?;
-    let (dev_ex, dev_left_out) =
-        examples_from_features(&corpus.splits.dev, &dev_wf, &seen_lf, &seen_types, &hold_out, max_words, hidden, None)?;
+    let (dev_ex, dev_left_out) = examples_from_features(
+        &combined.splits.dev,
+        &dev_wf,
+        &seen_lf,
+        &seen_types,
+        &hold_out,
+        max_words,
+        hidden,
+        None,
+    )?;
     let features_s = t.elapsed().as_secs_f64();
-    let feature_words: u64 = train_slice.iter().chain(&corpus.splits.dev).map(|s| s.words.len() as u64).sum();
+    let feature_words: u64 =
+        combined.splits.train.iter().chain(&combined.splits.dev).map(|s| s.words.len() as u64).sum();
 
     let t = Instant::now();
     let spec_json = serde_json::to_vec_pretty(&spec).expect("a head spec serializes");
@@ -146,79 +161,65 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
 
     let t = Instant::now();
     let matcher = model.to_core().map_err(|e| Error(e.message))?;
-    let test = &corpus.splits.test;
-    let train_filtered = filter_sentences(train_slice, &seen_types);
-    let predicted = predict_from_features(&matcher, test, &test_wf, &all_lf, &all_types)?;
-    let base = baseline(&train_filtered, test);
-    let dict_all = dictionary_baseline(test, &all_types);
+    let overall = evaluate_dataset(
+        &matcher,
+        &mut enc,
+        &combined,
+        &test_wf,
+        &all_lf,
+        &all_types,
+        &seen_types,
+        &hold_out,
+        pooling,
+        RESAMPLES,
+        c.seed,
+    )?;
+    let mut datasets = Vec::with_capacity(corpora.len());
+    for (corpus, features) in corpora.iter().zip(&extracted) {
+        datasets.push(evaluate_dataset(
+            &matcher,
+            &mut enc,
+            corpus,
+            &features.test,
+            &all_lf,
+            &all_types,
+            &seen_types,
+            &hold_out,
+            pooling,
+            RESAMPLES,
+            c.seed,
+        )?);
+    }
+    let train_filtered = filter_sentences(&combined.splits.train, &seen_types);
+    let majority = Majority::train(&train_filtered);
+    let base: Vec<Vec<String>> = combined.splits.test.iter().map(|s| majority.predict(&s.words)).collect();
     let seen = Seen::of(&train_filtered);
-    let model_metrics = evaluate(Task::Bio, test, &predicted, &seen, coarse(corpus_id));
-    let base_metrics = evaluate(Task::Bio, test, &base, &seen, coarse(corpus_id));
-    let dict_metrics = evaluate(Task::Bio, test, &dict_all, &seen, coarse(corpus_id));
-    println!(
-        "{corpus_id} open-span all ({} types): model {:.4}, majority {:.4}, dictionary {:.4}",
-        all_types.len(),
-        model_metrics.score(),
-        base_metrics.score(),
-        dict_metrics.score(),
-    );
-    let test_seen = filter_sentences(test, &seen_types);
+    let test_seen = filter_sentences(&combined.splits.test, &seen_types);
     let pred_seen = predict_from_features(&matcher, &test_seen, &test_wf, &seen_lf, &seen_types)?;
     let dict_seen = dictionary_baseline(&test_seen, &seen_types);
     let seen_m = evaluate(Task::Bio, &test_seen, &pred_seen, &seen, None);
     let seen_b = evaluate(Task::Bio, &test_seen, &base, &seen, None);
     let seen_d = evaluate(Task::Bio, &test_seen, &dict_seen, &seen, None);
-    let (held_out_model, held_out_baseline, held_out_dictionary) = if !hold_out.is_empty() {
-        let held_lf = embed_label_names(&mut enc, &hold_out, pooling)?;
-        let test_held = filter_sentences(test, &hold_out);
-        let pred_held = predict_from_features(&matcher, &test_held, &test_wf, &held_lf, &hold_out)?;
-        let base_held = filter_sentences(
-            &base
-                .iter()
-                .zip(test)
-                .map(|(b, s)| turbo_trainer_recipes::corpus::Sentence { words: s.words.clone(), labels: b.clone() })
-                .collect::<Vec<_>>(),
-            &hold_out,
-        )
-        .into_iter()
-        .map(|s| s.labels)
-        .collect::<Vec<_>>();
-        let dict_held = dictionary_baseline(&test_held, &hold_out);
-        let held_m = evaluate(Task::Bio, &test_held, &pred_held, &seen, None);
-        let held_b = evaluate(Task::Bio, &test_held, &base_held, &seen, None);
-        let held_d = evaluate(Task::Bio, &test_held, &dict_held, &seen, None);
-        println!(
-            "{corpus_id} open-span seen ({seen_types:?}): model {:.4}, majority {:.4}, dictionary {:.4}",
-            seen_m.score(),
-            seen_b.score(),
-            seen_d.score(),
-        );
-        println!(
-            "{corpus_id} open-span zero-shot held-out ({hold_out:?}): model {:.4}, majority {:.4}, dictionary {:.4}",
-            held_m.score(),
-            held_b.score(),
-            held_d.score(),
-        );
-        (Some(held_m), Some(held_b), Some(held_d))
-    } else {
-        (None, None, None)
-    };
     let eval = EvalRecord {
         split: "test".into(),
-        model: Some(model_metrics),
-        baseline: base_metrics,
-        dictionary: Some(dict_metrics),
+        model: Some(overall.model.clone()),
+        baseline: overall.baseline.clone(),
+        dictionary: Some(overall.dictionary.clone()),
         open_span: Some(OpenSpanEvalRecord {
             seen_types,
             held_out_types: hold_out,
             seen_model: seen_m,
             seen_baseline: seen_b,
             seen_dictionary: seen_d,
-            held_out_model,
-            held_out_baseline,
-            held_out_dictionary,
+            held_out_model: overall.held_out_model.clone(),
+            held_out_baseline: overall.held_out_baseline.clone(),
+            held_out_dictionary: overall.held_out_dictionary.clone(),
+            dictionary_comparison: Some(overall.dictionary_comparison.clone()),
+            held_out_comparison: overall.held_out_comparison.clone(),
+            held_out_dictionary_comparison: overall.held_out_dictionary_comparison.clone(),
+            datasets,
         }),
-        comparison: Some(bootstrap(Task::Bio, test, &predicted, &base, RESAMPLES, c.seed)),
+        comparison: Some(overall.comparison.clone()),
         uas: None,
         rules: None,
         against: None,
@@ -234,7 +235,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         command: argv.to_vec(),
         commit,
         unix_time: unix_time(),
-        corpus: corpus.record,
+        corpus: combined.record,
         encoder: Some(encoder),
         head: Some(spec),
         peer: None,
@@ -251,6 +252,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             threads: c.threads,
             max_train,
             dev_left_out,
+            sample: None,
         }),
         training: Some(TrainingRecord {
             train_loss: report.train_loss,
@@ -263,4 +265,50 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         outputs,
     };
     finish(out, receipt)
+}
+
+fn features(
+    enc: &mut WordEncoder,
+    corpus: &Corpus,
+    full_train: &[turbo_trainer_recipes::corpus::Sentence],
+    pooling: turbo::manifest::WordPooling,
+    cache_dir: Option<&Path>,
+    layer_arg: Option<u32>,
+    encoder: &EncoderRecord,
+) -> Result<Features> {
+    let Some(cdir) = cache_dir else {
+        return Ok(Features {
+            train: encode_sentences(enc, &corpus.splits.train, pooling)?,
+            dev: encode_sentences(enc, &corpus.splits.dev, pooling)?,
+            test: encode_sentences(enc, &corpus.splits.test, pooling)?,
+        });
+    };
+    let p = cdir.join("cache.json");
+    let text = std::fs::read(&p).map_err(|e| Error(format!("{}: {e}", p.display())))?;
+    let cache: CacheRecord = serde_json::from_slice(&text).map_err(|e| Error(format!("{}: {e}", p.display())))?;
+    let corpus_ok = cache.corpus == corpus.record
+        || (cache.corpus.files == corpus.record.files
+            && cache.corpus.recorded == corpus.record.recorded
+            && cache.corpus.id == format!("{}-upos", corpus.record.id));
+    if !corpus_ok
+        || cache.encoder.model != encoder.model
+        || cache.encoder.revision != encoder.revision
+        || cache.encoder.manifest_sha256 != encoder.manifest_sha256
+        || cache.encoder.hidden != encoder.hidden
+        || cache.encoder.layers != encoder.layers
+        || cache.encoder.width != encoder.width
+        || cache.pooling != pooling
+    {
+        return Err(Error(format!("{}: cache does not match corpus, encoder or pooling", cdir.display())));
+    }
+    let layer = match layer_arg {
+        Some(l) if cache.layers.contains(&l) => l,
+        Some(l) => return Err(Error(format!("{}: no layer {l}; it holds {:?}", cdir.display(), cache.layers))),
+        None => *cache.layers.last().ok_or_else(|| Error(format!("{}: cache has no layers", cdir.display())))?,
+    };
+    Ok(Features {
+        train: read_layer(cdir, &cache, "train", layer, full_train)?,
+        dev: read_layer(cdir, &cache, "dev", layer, &corpus.splits.dev)?,
+        test: read_layer(cdir, &cache, "test", layer, &corpus.splits.test)?,
+    })
 }
