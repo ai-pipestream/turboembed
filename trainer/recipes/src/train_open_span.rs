@@ -51,18 +51,22 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     if corpora.len() > 1 && cache_dir.is_some() {
         return Err(Error("--cache is supported for one open-span corpus at a time".into()));
     }
-    let mut remaining = max_train;
-    for c in &mut corpora {
-        let keep = if remaining == 0 { c.splits.train.len() } else { remaining.min(c.splits.train.len()) };
-        c.splits.train.truncate(keep);
-        remaining = remaining.saturating_sub(keep);
-    }
+    let full_train: Vec<Vec<turbo_trainer_recipes::corpus::Sentence>> =
+        corpora.iter().map(|c| c.splits.train.clone()).collect();
     let mut all_types = Vec::new();
     for corpus in &corpora {
         for kind in entity_types(corpus)? {
             if !all_types.contains(&kind) {
                 all_types.push(kind);
             }
+        }
+    }
+    if max_train > 0 {
+        let mut remaining = max_train;
+        for c in &mut corpora {
+            let keep = remaining.min(c.splits.train.len());
+            c.splits.train.truncate(keep);
+            remaining = remaining.saturating_sub(keep);
         }
     }
     let hold_out: Vec<String> = match hold_out_arg {
@@ -88,12 +92,12 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
 
     let t = Instant::now();
     let mut extracted = Vec::with_capacity(corpora.len());
-    for corpus in &corpora {
-        extracted.push(features(&mut enc, corpus, pooling, cache_dir.as_deref(), layer_arg, &encoder)?);
+    for (corpus, full) in corpora.iter().zip(&full_train) {
+        extracted.push(features(&mut enc, corpus, full, pooling, cache_dir.as_deref(), layer_arg, &encoder)?);
     }
     let (mut train_wf, mut dev_wf, mut test_wf) = (Vec::new(), Vec::new(), Vec::new());
-    for f in &extracted {
-        train_wf.extend(f.train.clone());
+    for (corpus, f) in corpora.iter().zip(&extracted) {
+        train_wf.extend(f.train.iter().take(corpus.splits.train.len()).cloned());
         dev_wf.extend(f.dev.clone());
         test_wf.extend(f.test.clone());
     }
@@ -254,6 +258,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
 fn features(
     enc: &mut WordEncoder,
     corpus: &Corpus,
+    full_train: &[turbo_trainer_recipes::corpus::Sentence],
     pooling: turbo::manifest::WordPooling,
     cache_dir: Option<&Path>,
     layer_arg: Option<u32>,
@@ -290,7 +295,7 @@ fn features(
         None => *cache.layers.last().ok_or_else(|| Error(format!("{}: cache has no layers", cdir.display())))?,
     };
     Ok(Features {
-        train: read_layer(cdir, &cache, "train", layer, &corpus.splits.train)?,
+        train: read_layer(cdir, &cache, "train", layer, full_train)?,
         dev: read_layer(cdir, &cache, "dev", layer, &corpus.splits.dev)?,
         test: read_layer(cdir, &cache, "test", layer, &corpus.splits.test)?,
     })

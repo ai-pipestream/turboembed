@@ -37,6 +37,9 @@ pub fn read_corpora(ids: &str, dir: &Path, unrecorded: bool) -> Result<Vec<Corpu
 
 pub fn combine(corpora: &[Corpus]) -> Result<Corpus> {
     let Some(first) = corpora.first() else { return Err(Error("open-span needs at least one corpus".into())) };
+    if corpora.len() == 1 {
+        return Ok(first.clone());
+    }
     let rank = |c: LicenseClass| match c {
         LicenseClass::Permissive => 0,
         LicenseClass::Lgpl => 1,

@@ -86,6 +86,7 @@ fn open_span_hold_out_round_trip_and_bundle_assembly() {
     let a = dir.join("a");
     let first = train_open_span(&data, &bundle, &a, Some("location"));
     assert!(!first.corpus.recorded);
+    assert!(first.corpus.files.iter().all(|f| !f.path.contains('/')));
     assert!(first.eval.rules.is_none());
     let raw: serde_json::Value = serde_json::from_slice(&fs::read(a.join("receipt.json")).unwrap()).unwrap();
     assert!(raw["eval"].get("rules").is_none());
@@ -172,12 +173,13 @@ fn multi_corpus_training_scores_each_held_out_dataset_and_both_baselines() {
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle"))
         .arg("--out")
         .arg(&out)
-        .args(["--unrecorded-corpus", "--epochs", "1", "--batch", "4", "--commit", "mix-test"])
+        .args(["--unrecorded-corpus", "--max-train", "1", "--epochs", "1", "--batch", "4", "--commit", "mix-test"])
         .output()
         .unwrap();
     assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
     let receipt: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
     assert_eq!(receipt.corpus.id, "wnut17,multiconer2-en");
+    assert_eq!(receipt.corpus.train.sentences, 1);
     assert_eq!(receipt.corpus.class().unwrap(), LicenseClass::ShareAlike);
     assert!(
         receipt.corpus.files.iter().all(|f| f.path.starts_with("wnut17/") || f.path.starts_with("multiconer2-en/"))
@@ -262,7 +264,7 @@ fn open_span_trains_on_ud_treebank_propn_runs_and_selects_requested_cache_layer(
         "6\tParis\tParis\tPROPN\tNNP\t_\t3\tobl\t_\t_\n\n",
     );
     for f in ["en_ewt-ud-train.conllu", "en_ewt-ud-dev.conllu", "en_ewt-ud-test.conllu"] {
-        fs::write(ud_data.join(f), conllu).unwrap();
+        fs::write(ud_data.join(f), conllu.repeat(2)).unwrap();
     }
     let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
     let ud_out = dir.join("ud-out");
@@ -319,7 +321,19 @@ fn open_span_trains_on_ud_treebank_propn_runs_and_selects_requested_cache_layer(
             .arg(&cache_dir)
             .args(["--layer", layer, "--out"])
             .arg(&out_l)
-            .args(["--unrecorded-corpus", "--max-words", "4", "--width-dim", "16", "--epochs", "2", "--commit", "l"])
+            .args([
+                "--unrecorded-corpus",
+                "--max-train",
+                "1",
+                "--max-words",
+                "4",
+                "--width-dim",
+                "16",
+                "--epochs",
+                "2",
+                "--commit",
+                "l",
+            ])
             .output()
             .unwrap();
         assert!(r.status.success(), "layer {layer}: {}", String::from_utf8_lossy(&r.stderr));
