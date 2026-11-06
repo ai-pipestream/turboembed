@@ -1101,6 +1101,30 @@ on CUDA at MODEL. The earlier records were not kept. A range over a whole row ga
 to the bit, and the lowest cosine of a chunk's range vector to its
 chunk row's was 0.69.
 
+On the Hailo-8 (HailoRT 4.23.0) and the Hailo-10H (HailoRT 5.1.1), each
+on a Raspberry Pi 5, with all-MiniLM-L6-v2 (the bundles of the Hailo I8
+reference records, manifests `f4256cb3` and `e57c4f36`) at commit
+`89e6a6ae`, the HEFs' fixed sequence of 128 sets the shape: 32 rows of
+128 tokens and chunks of 64, two a row, 64 chunks, the chunk rows in
+one frame of 64:
+
+| Device | Precision | Rows p50 | Ranges p50 | One row per chunk p50 | Ranges over rows | One row per chunk over ranges |
+| --- | --- | --- | --- | --- | --- | --- |
+| Hailo-8 | FASTEST (I8) | 94.451 ms | 94.454 ms | 174.086 ms | 1.000 | 1.843 |
+| Hailo-8 | MODEL (I8) | 94.450 ms | 94.458 ms | 174.092 ms | 1.000 | 1.843 |
+| Hailo-10H | FASTEST (I8) | 42.265 ms | 42.267 ms | 68.456 ms | 1.000 | 1.620 |
+| Hailo-10H | MODEL (I8) | 42.160 ms | 42.104 ms | 68.287 ms | 0.999 | 1.622 |
+
+Both precisions run the same I8 HEF, so the two rows of each device
+are the same work measured twice. The ranges are pooled on the host as
+each frame comes back (docs/hailo.md) and cost the same as the rows to
+within 0.02 percent. Embedding each chunk as a row of its own takes 84
+percent (Hailo-8) and 62 percent (Hailo-10H) longer than the ranges:
+the device pays per padded frame, and the chunk rows are twice as many.
+A range over a whole row gave the row's vector to the bit, and the
+lowest cosine of a chunk's range vector to its chunk row's was 0.73
+(Hailo-8) and 0.76 (Hailo-10H).
+
 ## Part-of-speech records
 
 `turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
