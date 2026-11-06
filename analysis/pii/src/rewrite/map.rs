@@ -207,9 +207,20 @@ impl MapReplacer {
         self
     }
 
-    /// Whether overlapping mentions are refused rather than coalesced.
-    pub const fn refuses_overlaps(&self) -> bool {
-        self.refuse_overlaps
+    /// Whether overlapping mentions are refused rather than coalesced
+    /// (either because this replacer or its fallback strategy refuses
+    /// overlaps).
+    pub fn refuses_overlaps(&self) -> bool {
+        self.refuse_overlaps || self.fallback.refuses_overlaps()
+    }
+
+    pub(crate) fn lookup_mention(&self, text: &str, m: &PiiMention<'_>) -> Option<&str> {
+        let surface = &text[m.span.range()];
+        match self.target {
+            MapTarget::NormalizedOrSurface => self.get(m.normalized).or_else(|| self.get(surface)),
+            MapTarget::Normalized => self.get(m.normalized),
+            MapTarget::Surface => self.get(surface),
+        }
     }
 
     pub(crate) fn write_mention<'a>(
@@ -218,31 +229,31 @@ impl MapReplacer {
         text: &str,
         m: &PiiMention<'a>,
         out: &mut String,
-    ) {
-        let surface = &text[m.span.range()];
-        let mapped = match self.target {
-            MapTarget::NormalizedOrSurface => self.get(m.normalized).or_else(|| self.get(surface)),
-            MapTarget::Normalized => self.get(m.normalized),
-            MapTarget::Surface => self.get(surface),
-        };
-        if let Some(replacement) = mapped {
+    ) -> Result<(), RewriteError> {
+        if let Some(replacement) = self.lookup_mention(text, m) {
             out.push_str(replacement);
+            Ok(())
         } else {
-            state.write_strategy(&self.fallback, text, m, out);
+            state.write_strategy(&self.fallback, text, m, out)
         }
     }
 
     /// Replaces every mention of `pii`, a layer over `text`, using the
     /// lookup table or the configured fallback strategy when unmapped.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
-        };
         let mut state = RewriteState::default();
-        PiiRewrite::replace(text, mentions, |m, out| {
-            self.write_mention(&mut state, text, m, out);
+        if self.refuses_overlaps() {
+            return PiiRewrite::try_replace(text, pii.mentions(), |m, out| {
+                self.write_mention(&mut state, text, m, out)
+            });
+        }
+        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let strategy = RewriteStrategy::Map(Box::new(self.clone()));
+        let mut idx = 0;
+        PiiRewrite::try_replace(text, clusters.iter().map(|c| c.merged), |_, out| {
+            let cluster = &clusters[idx];
+            idx += 1;
+            state.write_cluster(|_| &strategy, text, cluster, out)
         })
     }
 }

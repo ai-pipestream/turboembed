@@ -13,6 +13,10 @@ fn is_hyphen(c: char) -> bool {
 /// Reduces each mention to the initials of its words (contiguous runs of
 /// Unicode letters or digits), with configurable punctuation and hyphen
 /// handling.
+///
+/// `Abbreviator` is intended for name or multi-word phrase kinds and should
+/// not be used as a default strategy on numeric kinds (for example,
+/// `123-45-6789` would abbreviate to `1.4.6.`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Abbreviator {
     separator: String,
@@ -109,11 +113,44 @@ impl Abbreviator {
 
     /// Appends the abbreviated form of `value` to `out`.
     pub fn write_abbreviated(&self, value: &str, out: &mut String) {
+        self.write_abbreviated_filtered(value, |_| true, out);
+    }
+
+    /// Whether `target_offset` is the start byte of a word in `value`.
+    pub(crate) fn is_initial_at(value: &str, target_offset: usize) -> bool {
+        let mut in_word = false;
+        for (at, c) in value.char_indices() {
+            if letter_or_digit(c) {
+                if !in_word {
+                    if at == target_offset {
+                        return true;
+                    }
+                    in_word = true;
+                }
+            } else {
+                in_word = false;
+            }
+            if at >= target_offset {
+                break;
+            }
+        }
+        false
+    }
+
+    /// Appends the abbreviated form of `value` to `out`, masking any
+    /// initial at relative byte offset `rel_at` where `allow_at(rel_at)` is
+    /// `false` with `'*'`.
+    pub(crate) fn write_abbreviated_filtered(
+        &self,
+        value: &str,
+        mut allow_at: impl FnMut(usize) -> bool,
+        out: &mut String,
+    ) {
         let mut in_word = false;
         let mut words = 0usize;
         let mut saw_hyphen = false;
         let mut saw_other = false;
-        for c in value.chars() {
+        for (rel_at, c) in value.char_indices() {
             if letter_or_digit(c) {
                 if !in_word {
                     if words > 0 {
@@ -124,7 +161,9 @@ impl Abbreviator {
                             out.push_str(&self.separator);
                         }
                     }
-                    if self.uppercase {
+                    if !allow_at(rel_at) {
+                        out.push('*');
+                    } else if self.uppercase {
                         out.extend(c.to_uppercase());
                     } else {
                         out.push(c);

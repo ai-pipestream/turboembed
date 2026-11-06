@@ -214,18 +214,20 @@ impl Annotator for MaskedView {
     /// FNV-1a over each kind's mask byte and options, fixed so that stored
     /// provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
-        let pack_policy = |p: MaskPolicy| {
-            u64::from(p.mask() as u8)
-                | u64::from(p.keeps_format()) << 8
-                | ((p.trailing() as u64) & 0xffff_ffff) << 16
-                | (p.leading() as u64) << 48
+        let fold_policy = |h: &mut turbo_analysis::Fnv1a, p: MaskPolicy| {
+            let base = u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
+            h.fold_u64(base);
+            if p.leading() != 0 || (p.trailing() as u64) >= (1u64 << 48) {
+                h.u8(0xfe).fold_u64(p.leading() as u64).fold_u64(p.trailing() as u64);
+            }
         };
         let mut h = turbo_analysis::Fnv1a::new();
         for policy in self.policies.iter().copied().chain(std::iter::once(self.default_policy)) {
-            h.fold_u64(pack_policy(policy));
+            fold_policy(&mut h, policy);
         }
         for &(name, policy) in &self.custom {
-            h.bytes(name.as_bytes()).u8(0xff).fold_u64(pack_policy(policy));
+            h.bytes(name.as_bytes()).u8(0xff);
+            fold_policy(&mut h, policy);
         }
         h.finish()
     }

@@ -150,8 +150,8 @@ impl Sha256Tokenizer {
         } else {
             PiiRewrite::coalesce_clusters(text, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
-            let _ = self.write_digest(m.kind, m.normalized, out);
+        PiiRewrite::try_replace(text, mentions, |m, out| {
+            self.write_digest(m.kind, m.normalized, out).map_err(|_| RewriteError::EmptyValue(m.span))
         })
     }
 }

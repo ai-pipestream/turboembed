@@ -202,17 +202,28 @@ offsets and spans from the source text into the rewritten text
   byte-length-preserving in-place masking and `MaskedView`, `MaskPolicy`
   also provides `keeping_leading(n)`, `keeping_trailing(n)`,
   `MaskPolicy::first_n(n, mask)`, `MaskPolicy::last_n(n, mask)` and
-  `MaskPolicy::rewrite`.
+  `MaskPolicy::rewrite`; note that in-place `MaskPolicy` leaves spans with
+  `<= n` letters or digits unmasked (matching `MaskPolicy::last_four`), so
+  callers who need short values masked should use `Truncate::keep_start(n)`
+  or `Truncate::last_n(n)`.
 - **Abbreviate (`Abbreviator`):** reduces a mention to the initials of its
   Unicode words (`"John Fitzgerald Kennedy"` to `"J.F.K."` with
   `Abbreviator::dotted()` or `"JFK"` with `Abbreviator::compact()`, or
   custom punctuation via `Abbreviator::with_punctuation`), with optional
   hyphen preservation (`preserving_hyphens`, turning `"Jean-Luc Picard"`
   into `"J.-L.P."` or `"J-LP"`) and case preservation (`preserving_case`).
+  `Abbreviator` is intended for name or multi-word phrase kinds and should
+  not be used as a default strategy on numeric kinds (for example,
+  `123-45-6789` would abbreviate to `1.4.6.`).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy, sharing per-document pseudonym counters across all
-  mentions in a single `rewrite` call.
+  mentions in a single `rewrite` call. When mentions overlap in a cluster,
+  any strategy in the cluster configured with `refusing_overlaps` (including
+  via a `MapReplacer` fallback) causes `RewritePolicy::rewrite` to return
+  `RewriteError::Overlap`; when coalesced, a source character inside the
+  union span is kept only when every overlapping mention covering that byte
+  permits keeping it under its own strategy.
 
 ### The masked view
 

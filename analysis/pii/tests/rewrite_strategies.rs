@@ -7,7 +7,7 @@
 mod support;
 
 use support::*;
-use turbo_analysis::{Document, Layer, Span, View};
+use turbo_analysis::{Annotator, Document, Layer, Span, View};
 use turbo_pii::checksum::sha256;
 use turbo_pii::rewrite::{
     Abbreviator, FormatError, FormatRedactor, HmacTokenizer, KeepSide, MapError, MapReplacer, MapTarget, MaskPolicy,
@@ -276,6 +276,14 @@ fn truncate_keeps_start_or_end_chars_and_masks_all_when_mention_is_too_short() {
     assert_eq!(mr.text(), "Für Zoë: card 4111-****-****-**** 😀");
     let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
     assert_offset_and_span_maps(text, &sources, &mr);
+
+    // MaskedView::config_hash does not collide for large leading/trailing values (65536, 1 << 48).
+    let base_hash = MaskedView::all(MaskPolicy::new('*').unwrap()).config_hash();
+    let lead_64k = MaskedView::all(MaskPolicy::new('*').unwrap().keeping_leading(65536)).config_hash();
+    let trail_2p48 = MaskedView::all(MaskPolicy::new('*').unwrap().keeping_trailing(1usize << 48)).config_hash();
+    assert_ne!(lead_64k, base_hash);
+    assert_ne!(trail_2p48, base_hash);
+    assert_ne!(lead_64k, trail_2p48);
 }
 
 #[test]
@@ -393,7 +401,58 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
     );
     assert_eq!(
         policy.clone().refusing_overlaps().rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        expected_err.clone()
+    );
+    // Inner strategy refusing_overlaps is honored by RewritePolicy and MapReplacer fallback.
+    assert_eq!(
+        RewritePolicy::new(Truncate::keep_start(5).refusing_overlaps())
+            .rewrite(overlap_text, &overlap_pii)
+            .map(|r| r.into_text()),
+        expected_err.clone()
+    );
+    assert_eq!(
+        RewritePolicy::new(StaticReplacer::default())
+            .with(PiiKind::Email, Truncate::keep_start(5).refusing_overlaps())
+            .rewrite(overlap_text, &overlap_pii)
+            .map(|r| r.into_text()),
+        expected_err.clone()
+    );
+    let map_refusing_fallback = MapReplacer::new([("unmatched", "X")], false)
+        .unwrap()
+        .with_fallback(Truncate::keep_start(5).refusing_overlaps());
+    assert!(map_refusing_fallback.refuses_overlaps());
+    assert_eq!(map_refusing_fallback.rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()), expected_err.clone());
+    assert_eq!(
+        RewritePolicy::new(map_refusing_fallback).rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
         expected_err
+    );
+
+    // Partial rewrite on a higher-ranked mention never exposes a stricter overlapping mention.
+    let nested_text = "Contact alice@example.com today.";
+    let nested_pii = manual(&[(8, 25, PiiKind::Email, "alice@example.com"), (8, 13, PERSON_KIND, "alice")]);
+    for email_strat in [
+        RewriteStrategy::from(Truncate::keep_start(5)),
+        RewriteStrategy::from(MaskPolicy::first_n(5, '*').unwrap()),
+        RewriteStrategy::from(Abbreviator::dotted()),
+        RewriteStrategy::from(
+            MapReplacer::new([("other@example.com", "OTHER")], false).unwrap().with_fallback(Truncate::keep_start(5)),
+        ),
+    ] {
+        let mixed = RewritePolicy::new(StaticReplacer::new("[REDACTED]")).with(PiiKind::Email, email_strat.clone());
+        let out = mixed.rewrite(nested_text, &nested_pii).unwrap();
+        assert!(!out.text().contains("alice") && !out.text().contains("A."), "{email_strat:?} -> {}", out.text());
+        assert_offset_and_span_maps(nested_text, &[Span::new(8, 25)], &out);
+    }
+
+    // EmptyValue is propagated by RewritePolicy for HmacTokenizer and Sha256Tokenizer.
+    let empty_pii = manual(&[(0, 4, PiiKind::Email, "")]);
+    assert_eq!(
+        RewritePolicy::new(HmacTokenizer::new(KEY).unwrap()).rewrite("abcd", &empty_pii).map(|r| r.into_text()),
+        Err(RewriteError::EmptyValue(Span::new(0, 4)))
+    );
+    assert_eq!(
+        RewritePolicy::new(Sha256Tokenizer::new()).rewrite("abcd", &empty_pii).map(|r| r.into_text()),
+        Err(RewriteError::EmptyValue(Span::new(0, 4)))
     );
 
     // Exhaustive multi-byte plan test across all strategies.

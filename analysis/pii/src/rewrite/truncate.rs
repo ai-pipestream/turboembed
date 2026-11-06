@@ -163,16 +163,78 @@ impl Truncate {
         out
     }
 
+    /// Whether this truncation policy keeps the character at byte offset
+    /// `target_offset` inside `value`.
+    pub(crate) fn keeps_char_at(&self, value: &str, target_offset: usize) -> bool {
+        if self.keep_format {
+            let alpha = value.chars().filter(|&c| letter_or_digit(c)).count();
+            if self.count == 0 || alpha <= self.count {
+                return value[target_offset..].chars().next().is_some_and(|c| !letter_or_digit(c));
+            }
+            let tail_start = alpha - self.count;
+            let mut seen = 0;
+            for (at, c) in value.char_indices() {
+                let keep = if letter_or_digit(c) {
+                    let k = match self.side {
+                        KeepSide::Start => seen < self.count,
+                        KeepSide::End => seen >= tail_start,
+                    };
+                    seen += 1;
+                    k
+                } else {
+                    true
+                };
+                if at == target_offset {
+                    return keep;
+                }
+            }
+            false
+        } else {
+            let total = value.chars().count();
+            if self.count == 0 || total <= self.count {
+                return false;
+            }
+            let tail_start = total - self.count;
+            for (i, (at, _)) in value.char_indices().enumerate() {
+                if at == target_offset {
+                    return match self.side {
+                        KeepSide::Start => i < self.count,
+                        KeepSide::End => i >= tail_start,
+                    };
+                }
+            }
+            false
+        }
+    }
+
     /// Replaces every mention of `pii`, a layer over `text`, with its
     /// truncated/masked surface form.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
-        };
-        PiiRewrite::replace(text, mentions, |m, out| {
-            self.write_truncated(&text[m.span.range()], out);
+        if self.refuse_overlaps {
+            return PiiRewrite::replace(text, pii.mentions(), |m, out| {
+                self.write_truncated(&text[m.span.range()], out);
+            });
+        }
+        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let mut idx = 0;
+        PiiRewrite::replace(text, clusters.iter().map(|c| c.merged), |m, out| {
+            let cluster = &clusters[idx];
+            idx += 1;
+            let piece = &text[m.span.range()];
+            if cluster.members.len() == 1 {
+                self.write_truncated(piece, out);
+                return;
+            }
+            for (rel_at, c) in piece.char_indices() {
+                let abs_at = m.span.start + rel_at as u32;
+                let keep = self.keeps_char_at(piece, rel_at)
+                    && cluster
+                        .members
+                        .iter()
+                        .filter(|mem| mem.span.start <= abs_at && abs_at < mem.span.end)
+                        .all(|mem| self.keeps_char_at(&text[mem.span.range()], (abs_at - mem.span.start) as usize));
+                out.push(if keep { c } else { self.mask });
+            }
         })
     }
 }

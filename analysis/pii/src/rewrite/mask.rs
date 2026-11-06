@@ -61,12 +61,20 @@ impl MaskPolicy {
 
     /// A policy keeping the first `count` letters or digits readable and
     /// masking the rest with `mask`.
+    ///
+    /// A span with `<= count` letters or digits stays unmasked (matching
+    /// [`MaskPolicy::keeping_trailing`]); use [`super::Truncate::keep_start`]
+    /// when spans of length `<= count` must be masked whole.
     pub fn first_n(count: usize, mask: char) -> Result<MaskPolicy, MaskError> {
         Ok(MaskPolicy::new(mask)?.keeping_leading(count))
     }
 
     /// A policy keeping the last `count` letters or digits readable and
     /// masking the rest with `mask`.
+    ///
+    /// A span with `<= count` letters or digits stays unmasked (matching
+    /// OpenNLP's `lastFour`); use [`super::Truncate::last_n`] when spans of
+    /// length `<= count` must be masked whole.
     pub fn last_n(count: usize, mask: char) -> Result<MaskPolicy, MaskError> {
         Ok(MaskPolicy::new(mask)?.keeping_trailing(count))
     }
@@ -77,13 +85,15 @@ impl MaskPolicy {
     }
 
     /// This policy, leaving the first `count` letters or digits of each
-    /// span readable.
+    /// span readable. Spans with `<= count` letters or digits stay
+    /// unmasked; see [`super::Truncate::keep_start`] to mask short spans.
     pub const fn keeping_leading(self, count: usize) -> MaskPolicy {
         MaskPolicy { keep_leading: count, ..self }
     }
 
     /// This policy, leaving the last `count` letters or digits of each
-    /// span readable.
+    /// span readable. Spans with `<= count` letters or digits stay
+    /// unmasked; see [`super::Truncate::last_n`] to mask short spans.
     pub const fn keeping_trailing(self, count: usize) -> MaskPolicy {
         MaskPolicy { keep_trailing: count, ..self }
     }
@@ -118,10 +128,49 @@ impl MaskPolicy {
     /// Replaces every mention of `pii`, a layer over `text`, with its
     /// masked surface text, coalescing overlapping mentions.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mentions = PiiRewrite::coalesce_clusters(text, pii.mentions())?;
-        PiiRewrite::replace(text, mentions, |m, out| {
-            out.push_str(&self.masked(&text[m.span.range()]));
+        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let mut idx = 0;
+        PiiRewrite::replace(text, clusters.iter().map(|c| c.merged), |m, out| {
+            let cluster = &clusters[idx];
+            idx += 1;
+            let piece = &text[m.span.range()];
+            for (rel_at, c) in piece.char_indices() {
+                let abs_at = m.span.start + rel_at as u32;
+                let keep = self.keeps_char_at(piece, rel_at)
+                    && cluster
+                        .members
+                        .iter()
+                        .filter(|mem| mem.span.start <= abs_at && abs_at < mem.span.end)
+                        .all(|mem| self.keeps_char_at(&text[mem.span.range()], (abs_at - mem.span.start) as usize));
+                if keep {
+                    out.push(c);
+                } else {
+                    for _ in 0..c.len_utf8() {
+                        out.push(self.mask());
+                    }
+                }
+            }
         })
+    }
+
+    /// Whether this policy keeps the character at byte offset `target_offset`
+    /// inside `piece`.
+    pub(crate) fn keeps_char_at(self, piece: &str, target_offset: usize) -> bool {
+        let alphanumeric = piece.chars().filter(|&c| letter_or_digit(c)).count();
+        let first_kept = alphanumeric.saturating_sub(self.keep_trailing);
+        let mut seen = 0;
+        for (at, c) in piece.char_indices() {
+            let keep = if letter_or_digit(c) {
+                seen += 1;
+                seen <= self.keep_leading || seen > first_kept
+            } else {
+                self.keep_format
+            };
+            if at == target_offset {
+                return keep;
+            }
+        }
+        false
     }
 
     /// `MaskPolicies.forType`: cards and IBANs keep separators and their
