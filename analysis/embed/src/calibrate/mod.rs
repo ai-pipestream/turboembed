@@ -40,7 +40,7 @@ use crate::{SentenceVectors, SubwordAnnotator, VectorAnnotator, VectorOptions};
 mod dispatch;
 mod kept;
 
-pub use dispatch::{Cost, Dispatch, shape_of};
+pub use dispatch::{Cost, DEFAULT_MARGIN, Dispatch, MAX_MARGIN, PREFER_VAR, Preference, PreferenceError, shape_of};
 
 /// The cosine floor of an I8 device, the tier's (docs/hailo.md); the core
 /// gives I8 none of its own.
