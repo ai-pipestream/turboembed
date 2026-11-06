@@ -19,7 +19,7 @@ use turbo_trainer::rng::Rng;
 
 use crate::corpus::FileRecord;
 use crate::eval::{Comparison, Metrics, SpanScore};
-use crate::receipt::{EncoderRecord, Receipt};
+use crate::receipt::EncoderRecord;
 use crate::redocred::{Document, ENTITY_TYPES, HEAD, LAYER, RelationCorpus, Triple};
 use crate::{Error, Result};
 
@@ -87,7 +87,7 @@ pub fn load_head(dir: &Path, spec: &HeadSpec, encoder: &EncoderRecord) -> Result
     let read = |name: &str| std::fs::read(dir.join(name)).map_err(|e| Error(format!("{}: {e}", at(name))));
     let (head_json, weights, receipt_json) = (read("head.json")?, read("head.safetensors")?, read("receipt.json")?);
     let prior: HeadSpec = serde_json::from_slice(&head_json).map_err(|e| Error(format!("{}: {e}", at("head.json"))))?;
-    let receipt: Receipt =
+    let receipt: PriorReceipt =
         serde_json::from_slice(&receipt_json).map_err(|e| Error(format!("{}: {e}", at("receipt.json"))))?;
     let refuse = |what: &str| Err(Error(format!("{}: {what} differs from this run's", dir.display())));
     if prior.kind != HeadKind::RelationClassifier || prior.labels != spec.labels {
@@ -130,6 +130,14 @@ pub fn load_head(dir: &Path, spec: &HeadSpec, encoder: &EncoderRecord) -> Result
     ];
     let dir_name = dir.file_name().map_or("head".into(), |n| n.to_string_lossy());
     Ok(PriorHead { name: format!("{dir_name} ({:?})", prior.decode), head, files })
+}
+
+/// What a prior head's `receipt.json` must say for a comparison: only its
+/// encoder. Read leniently, so a receipt from an older commit (one with
+/// `host`, which #1804 dropped) still names its encoder.
+#[derive(serde::Deserialize)]
+struct PriorReceipt {
+    encoder: Option<EncoderRecord>,
 }
 
 /// The `top` labels with the most gold relations in `m` (ties by name),
