@@ -202,8 +202,22 @@ impl Annotator for MaskedView {
         let pack_policy =
             |p: MaskPolicy| u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
         let mut h = turbo_analysis::Fnv1a::new();
-        for policy in self.policies.iter().copied().chain(std::iter::once(self.default_policy)) {
+        let legacy = self.policies[..17].iter().chain(&self.policies[27..30]).copied();
+        for policy in legacy.chain(std::iter::once(self.default_policy)) {
             h.fold_u64(pack_policy(policy));
+        }
+        let base = if self.policies[PiiKind::Card.rank() as usize].trailing() == 4
+            && self.policies[PiiKind::Jwt.rank() as usize] == self.default_policy
+        {
+            self.default_policy.keeping_format()
+        } else {
+            self.default_policy
+        };
+        for k in &PiiKind::ALL[17..27] {
+            let policy = self.policies[k.rank() as usize];
+            if policy != base {
+                h.fold_u64(u64::from(k.hash_bit())).fold_u64(pack_policy(policy));
+            }
         }
         for &(name, policy) in &self.custom {
             h.bytes(name.as_bytes()).u8(0xff).fold_u64(pack_policy(policy));

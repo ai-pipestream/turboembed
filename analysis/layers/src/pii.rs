@@ -146,9 +146,8 @@ impl PiiKind {
         PiiKind::Phone,
     ];
 
-    /// A caller-defined kind named `name` (1 to
-    /// [`PiiKind::MAX_CUSTOM_NAME_BYTES`] UTF-8 bytes), or the built-in
-    /// [`PiiKind`] when `name` matches one of [`PiiKind::ALL`].
+    /// A caller-defined kind named `name` (1 to [`PiiKind::MAX_CUSTOM_NAME_BYTES`]
+    /// UTF-8 bytes), or the built-in [`PiiKind`] when `name` is in [`PiiKind::ALL`].
     pub const fn custom(name: &'static str) -> PiiKind {
         let mut i = 0;
         while i < Self::ALL.len() {
@@ -168,9 +167,8 @@ impl PiiKind {
     /// Records a valid custom kind's static name so binary layer import can
     /// resolve it without allocating, up to [`PiiKind::MAX_CUSTOM_KINDS`]
     /// entries of at most [`PiiKind::MAX_CUSTOM_NAME_BYTES`] bytes. Returns
-    /// `true` when `kind` is a built-in kind or a valid custom kind that is
-    /// now registered, and `false` when the custom kind is invalid or the
-    /// [`PiiKind::MAX_CUSTOM_KINDS`] registry is full.
+    /// `true` when `kind` is built-in or now registered, and `false` when
+    /// invalid or full.
     pub fn remember_custom(kind: PiiKind) -> bool {
         let PiiKind::Custom(name) = kind else {
             return true;
@@ -287,6 +285,17 @@ impl PiiKind {
     pub const fn bit(self) -> u64 {
         let r = self.rank();
         if (r as usize) < PiiKind::ALL.len() { 1u64 << r } else { 0 }
+    }
+
+    /// Stable bit index for configuration hashing: the original 20 kinds keep
+    /// `0..20` and the 10 kinds added in #1887 occupy `20..30`.
+    pub const fn hash_bit(self) -> u8 {
+        match self.rank() {
+            r @ 0..17 => r,
+            r @ 17..27 => r + 3,
+            r @ 27..30 => r - 10,
+            _ => 30,
+        }
     }
 }
 

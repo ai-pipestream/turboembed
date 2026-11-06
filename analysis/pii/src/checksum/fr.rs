@@ -26,7 +26,7 @@ pub fn nir(chars: &[u8; 15]) -> bool {
         }
         let dept = (chars[5] - b'0') * 10 + (chars[6] - b'0');
         match dept {
-            1..=19 | 21..=95 | 99 => {
+            1..=95 | 99 => {
                 if &chars[7..10] == b"000" {
                     return false;
                 }

@@ -112,7 +112,7 @@ normalized form and the confidence each gets:
 | `fr-siren` | 9 digits without separators | checksum (Luhn) |
 | `fr-siret` | 14 digits without separators | checksum (Luhn or La Poste mod 5) |
 | `br-cpf` | 11 digits without separators | checksum (double mod 11) |
-| `br-cnpj` | 14 characters without separators | checksum (double mod 11, numeric or alphanumeric) |
+| `br-cnpj` | 14 characters without separators | checksum (double mod 11, numeric or compact/punctuated alphanumeric) |
 | `bic` | 8 or 11 uppercase characters after a `BIC`/`SWIFT` label | format (ISO 9362 + ISO 3166-1 alpha-2) |
 | `ca-sin` | the digits | labelled checksum (Luhn) |
 | `aba-routing` | the digits | checksum (3, 7, 1 weights) |

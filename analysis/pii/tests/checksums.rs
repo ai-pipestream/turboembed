@@ -210,10 +210,11 @@ fn spanish_german_french_brazilian_and_bic_validators() {
     assert!(!icao9303::de_personalausweis(b"A220001293"));
     assert!(!icao9303::de_personalausweis(b"T000000004"));
 
-    // INSEE NIR (including Corsica 2A -> 19 and 2B -> 18) and SIRET (including La Poste 356000000 mod-5).
+    // INSEE NIR (including Corsica 2A -> 19, 2B -> 18, and historical 20) and SIRET (including La Poste 356000000 mod-5).
     assert!(fr::nir(b"185057800608491"));
     assert!(fr::nir(b"294032A12345692"));
     assert!(fr::nir(b"194032B12345672"));
+    assert!(fr::nir(b"269042012345645"));
     assert!(!fr::nir(b"185057800608492"));
     assert!(fr::siren(b"732829320"));
     assert!(!fr::siren(b"000000000"));

@@ -76,13 +76,14 @@ fn scan_cnpj(text: &str, hits: &mut Hits) {
             i += 1;
             continue;
         }
-        let end = read_punctuated_cnpj(text, i, &mut norm).or_else(|| {
-            if !b[i].is_ascii_digit() || !on_number_start(text, i) {
-                return None;
-            }
-            read_digit_groups(text, i, &[2, 3, 3, 4, 2], &mut norm)
-                .or_else(|| read_digit_groups(text, i, &[14], &mut norm))
-        });
+        let end = read_punctuated_cnpj(text, i, &mut norm)
+            .or_else(|| {
+                if !b[i].is_ascii_digit() || !on_number_start(text, i) {
+                    return None;
+                }
+                read_digit_groups(text, i, &[2, 3, 3, 4, 2], &mut norm)
+            })
+            .or_else(|| read_compact_cnpj(text, i, &mut norm));
         if let Some(end) = end
             && on_number_end(text, end, BR_JOINERS)
             && mod11::br_cnpj(&norm)
@@ -116,4 +117,23 @@ fn read_punctuated_cnpj(text: &str, start: usize, out: &mut [u8; 14]) -> Option<
     out[8..12].copy_from_slice(body[3]);
     out[12..14].copy_from_slice(&s[16..18]);
     Some(start + 18)
+}
+
+/// Reads a compact 14-character numeric or 2026 alphanumeric CNPJ into `out`.
+fn read_compact_cnpj(text: &str, start: usize, out: &mut [u8; 14]) -> Option<usize> {
+    let b = text.as_bytes();
+    if b[start].is_ascii_digit() && !on_number_start(text, start) {
+        return None;
+    }
+    let s = b.get(start..start + 14)?;
+    if !s[..12].iter().all(|c| c.is_ascii_digit() || c.is_ascii_uppercase())
+        || !s[12..14].iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    if start + 15 < b.len() && matches!(b[start + 14], b'-' | b'/') && b[start + 15].is_ascii_alphanumeric() {
+        return None;
+    }
+    out.copy_from_slice(s);
+    Some(start + 14)
 }

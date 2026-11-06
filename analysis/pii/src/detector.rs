@@ -236,7 +236,7 @@ impl Annotator for PiiDetector {
     fn config_hash(&self) -> u64 {
         let mut h = turbo_analysis::Fnv1a::new();
         for s in &self.scanners {
-            let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1 << k.rank());
+            let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1u64 << k.hash_bit());
             h.fold_u64(s.extractor().tag()).fold_u64(kinds);
             if let Extractor::Custom(name) = s.extractor() {
                 h.bytes(name.as_bytes()).u8(0xff);
