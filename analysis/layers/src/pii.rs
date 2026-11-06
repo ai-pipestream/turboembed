@@ -59,6 +59,26 @@ pub enum PiiKind {
     UkNhs,
     /// A German tax identification number (Steuer-ID), ISO 7064 checked.
     DeSteuerId,
+    /// A Spanish Documento Nacional de Identidad, mod-23 checked.
+    EsDni,
+    /// A Spanish Numero de Identidad de Extranjero, mod-23 checked.
+    EsNie,
+    /// A Spanish Codigo de Identificacion Fiscal, weighted check digit/letter.
+    EsCif,
+    /// A German Personalausweis document number, ICAO 9303 7-3-1 checked.
+    DePersonalausweis,
+    /// A French INSEE NIR (numero de securite sociale), mod-97 key checked.
+    FrNir,
+    /// A French INSEE SIREN identifier, Luhn checked.
+    FrSiren,
+    /// A French INSEE SIRET identifier, Luhn / La Poste checked.
+    FrSiret,
+    /// A Brazilian Cadastro de Pessoas Fisicas number, double mod-11 checked.
+    BrCpf,
+    /// A Brazilian Cadastro Nacional da Pessoa Juridica number, double mod-11 checked.
+    BrCnpj,
+    /// An ISO 9362 Business Identifier Code (BIC / SWIFT) after a label.
+    Bic,
     /// A Canadian Social Insurance Number after a label, Luhn checked.
     CaSin,
     /// An ABA routing transit number, check digit verified.
@@ -70,6 +90,20 @@ pub enum PiiKind {
     Custom(&'static str),
 }
 
+const fn eq_bytes(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 impl PiiKind {
     /// Maximum UTF-8 byte length of a [`PiiKind::Custom`] name.
     pub const MAX_CUSTOM_NAME_BYTES: usize = 64;
@@ -79,7 +113,7 @@ impl PiiKind {
     pub const MAX_CUSTOM_KINDS: usize = 256;
 
     /// Every built-in kind, in rank order.
-    pub const ALL: [PiiKind; 20] = [
+    pub const ALL: [PiiKind; 30] = [
         PiiKind::Jwt,
         PiiKind::AwsAccessKey,
         PiiKind::GithubToken,
@@ -97,6 +131,16 @@ impl PiiKind {
         PiiKind::UsItin,
         PiiKind::UkNhs,
         PiiKind::DeSteuerId,
+        PiiKind::EsDni,
+        PiiKind::EsNie,
+        PiiKind::EsCif,
+        PiiKind::DePersonalausweis,
+        PiiKind::FrNir,
+        PiiKind::FrSiren,
+        PiiKind::FrSiret,
+        PiiKind::BrCpf,
+        PiiKind::BrCnpj,
+        PiiKind::Bic,
         PiiKind::CaSin,
         PiiKind::AbaRouting,
         PiiKind::Phone,
@@ -106,29 +150,14 @@ impl PiiKind {
     /// [`PiiKind::MAX_CUSTOM_NAME_BYTES`] UTF-8 bytes), or the built-in
     /// [`PiiKind`] when `name` matches one of [`PiiKind::ALL`].
     pub const fn custom(name: &'static str) -> PiiKind {
-        match name.as_bytes() {
-            b"jwt" => PiiKind::Jwt,
-            b"aws-access-key" => PiiKind::AwsAccessKey,
-            b"github-token" => PiiKind::GithubToken,
-            b"url-credential" => PiiKind::UrlCredential,
-            b"email" => PiiKind::Email,
-            b"iban" => PiiKind::Iban,
-            b"imei" => PiiKind::Imei,
-            b"card" => PiiKind::Card,
-            b"btc-address" => PiiKind::BtcAddress,
-            b"eth-address" => PiiKind::EthAddress,
-            b"mac" => PiiKind::Mac,
-            b"ipv6" => PiiKind::Ipv6,
-            b"ipv4" => PiiKind::Ipv4,
-            b"us-ssn" => PiiKind::UsSsn,
-            b"us-itin" => PiiKind::UsItin,
-            b"uk-nhs" => PiiKind::UkNhs,
-            b"de-steuer-id" => PiiKind::DeSteuerId,
-            b"ca-sin" => PiiKind::CaSin,
-            b"aba-routing" => PiiKind::AbaRouting,
-            b"phone" => PiiKind::Phone,
-            _ => PiiKind::Custom(name),
+        let mut i = 0;
+        while i < Self::ALL.len() {
+            if eq_bytes(Self::ALL[i].name().as_bytes(), name.as_bytes()) {
+                return Self::ALL[i];
+            }
+            i += 1;
         }
+        PiiKind::Custom(name)
     }
 
     /// Whether this is a caller-defined kind outside [`PiiKind::ALL`].
@@ -215,6 +244,16 @@ impl PiiKind {
             PiiKind::UsItin => "us-itin",
             PiiKind::UkNhs => "uk-nhs",
             PiiKind::DeSteuerId => "de-steuer-id",
+            PiiKind::EsDni => "es-dni",
+            PiiKind::EsNie => "es-nie",
+            PiiKind::EsCif => "es-cif",
+            PiiKind::DePersonalausweis => "de-personalausweis",
+            PiiKind::FrNir => "fr-nir",
+            PiiKind::FrSiren => "fr-siren",
+            PiiKind::FrSiret => "fr-siret",
+            PiiKind::BrCpf => "br-cpf",
+            PiiKind::BrCnpj => "br-cnpj",
+            PiiKind::Bic => "bic",
             PiiKind::CaSin => "ca-sin",
             PiiKind::AbaRouting => "aba-routing",
             PiiKind::Phone => "phone",
@@ -227,38 +266,27 @@ impl PiiKind {
         PiiKind::ALL.into_iter().find(|k| k.name() == name)
     }
 
-    /// `PiiTypePriority.rank`: the position in [`PiiKind::ALL`], or `20`
+    /// `PiiTypePriority.rank`: the position in [`PiiKind::ALL`], or `30`
     /// (`PiiKind::ALL.len()`) for [`PiiKind::Custom`].
     pub const fn rank(self) -> u8 {
-        match self {
-            PiiKind::Jwt => 0,
-            PiiKind::AwsAccessKey => 1,
-            PiiKind::GithubToken => 2,
-            PiiKind::UrlCredential => 3,
-            PiiKind::Email => 4,
-            PiiKind::Iban => 5,
-            PiiKind::Imei => 6,
-            PiiKind::Card => 7,
-            PiiKind::BtcAddress => 8,
-            PiiKind::EthAddress => 9,
-            PiiKind::Mac => 10,
-            PiiKind::Ipv6 => 11,
-            PiiKind::Ipv4 => 12,
-            PiiKind::UsSsn => 13,
-            PiiKind::UsItin => 14,
-            PiiKind::UkNhs => 15,
-            PiiKind::DeSteuerId => 16,
-            PiiKind::CaSin => 17,
-            PiiKind::AbaRouting => 18,
-            PiiKind::Phone => 19,
-            PiiKind::Custom(_) => 20,
+        if self.is_custom() {
+            return Self::ALL.len() as u8;
         }
+        let target = self.name().as_bytes();
+        let mut i = 0;
+        while i < Self::ALL.len() {
+            if eq_bytes(Self::ALL[i].name().as_bytes(), target) {
+                return i as u8;
+            }
+            i += 1;
+        }
+        Self::ALL.len() as u8
     }
 
     /// The bit of this kind in a [`PiiKinds`] set (`0` for [`PiiKind::Custom`]).
-    pub const fn bit(self) -> u32 {
+    pub const fn bit(self) -> u64 {
         let r = self.rank();
-        if (r as usize) < PiiKind::ALL.len() { 1 << r as u32 } else { 0 }
+        if (r as usize) < PiiKind::ALL.len() { 1u64 << r } else { 0 }
     }
 }
 
@@ -270,7 +298,7 @@ impl fmt::Display for PiiKind {
 
 /// A set of kinds, one bit each.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct PiiKinds(u32);
+pub struct PiiKinds(u64);
 
 impl PiiKinds {
     pub const EMPTY: PiiKinds = PiiKinds(0);
@@ -439,15 +467,11 @@ impl Layer for Pii {
             if m.normalized.is_empty() {
                 return Err(format!("pii mention {i} has no normalized form"));
             }
-            if let Some(p) = previous {
-                let order = (p.span.start, std::cmp::Reverse(p.span.end), p.kind).cmp(&(
-                    m.span.start,
-                    std::cmp::Reverse(m.span.end),
-                    m.kind,
-                ));
-                if order.is_gt() {
-                    return Err(format!("pii mention {i} is out of order: by start, longer first, then by kind"));
-                }
+            let key = |x: PiiMention<'_>| (x.span.start, std::cmp::Reverse(x.span.end), x.kind);
+            if let Some(p) = previous
+                && key(p) > key(m)
+            {
+                return Err(format!("pii mention {i} is out of order: by start, longer first, then by kind"));
             }
             // Mentions with one span and kind are adjacent, so a duplicate
             // is among the run of those just before.

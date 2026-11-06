@@ -10,7 +10,7 @@ checksum is validated with it:
 | Type | Role |
 |---|---|
 | `PiiDetector` | Runs one or more `Scanner`s and orders mentions into `Pii` (`turbo:pii`) |
-| `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
+| `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `BrIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
 | `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
 | `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
 | `PiiConfidence` | `Format`, `Checksum`, or `LabelledChecksum` |
@@ -18,7 +18,7 @@ checksum is validated with it:
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
 | `rewrite::PiiAuditReport` | Redacted mention counts and keyed token summaries |
-| `checksum::luhn`, `mod97`, `sha256`, `keccak`, `base58`, `bech32` | Checksum and cryptographic validators |
+| `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
 
 The crate depends on `turbo-analysis`, `turbo-analysis-layers` and
 `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
@@ -59,10 +59,11 @@ not find (`ScannerError`).
 | `Secrets` | `secrets()` | secrets | `aws-access-key`, `github-token`, `jwt`, `url-credential` |
 | `Crypto` | `crypto()` | crypto | `btc-address`, `eth-address` |
 | `UsIdentity` | `usIdentity()` | US identity | `us-ssn`, `us-itin` |
-| `EuIdentity` | `euIdentity()` | EU identity | `uk-nhs`, `de-steuer-id` |
+| `EuIdentity` | `euIdentity()` | EU identity | `uk-nhs`, `de-steuer-id`, `es-dni`, `es-nie`, `es-cif`, `de-personalausweis`, `fr-nir`, `fr-siren`, `fr-siret`, `bic` |
+| `BrIdentity` | `brIdentity()` | BR identity | `br-cpf`, `br-cnpj` |
 | `CaIdentity` | `caIdentity()` | CA identity | `ca-sin` |
 | `Device` | `device()` | device | `imei` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU and CA identity, device, banking | every kind |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking | every kind |
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -103,6 +104,16 @@ normalized form and the confidence each gets:
 | `us-ssn`, `us-itin` | `ddd-dd-dddd` | format |
 | `uk-nhs` | the digits | checksum (mod 11) |
 | `de-steuer-id` | the digits | checksum (ISO 7064 MOD 11,10 and the repetition rules) |
+| `es-dni` | 8 digits and uppercase control letter | checksum (mod 23) |
+| `es-nie` | `X`/`Y`/`Z`, 7 digits, and uppercase control letter | checksum (mod 23) |
+| `es-cif` | organization letter, 7 digits, and control digit/letter | checksum (weighted digit/letter) |
+| `de-personalausweis` | 10-character alphanumeric Ausweisnummer | checksum (ICAO Doc 9303 7, 3, 1 weights) |
+| `fr-nir` | 15 characters without separators (`2A`/`2B` preserved) | checksum (mod 97 key `01..=97`) |
+| `fr-siren` | 9 digits without separators | checksum (Luhn) |
+| `fr-siret` | 14 digits without separators | checksum (Luhn or La Poste mod 5) |
+| `br-cpf` | 11 digits without separators | checksum (double mod 11) |
+| `br-cnpj` | 14 characters without separators | checksum (double mod 11, numeric or alphanumeric) |
+| `bic` | 8 or 11 uppercase characters after a `BIC`/`SWIFT` label | format (ISO 9362 + ISO 3166-1 alpha-2) |
 | `ca-sin` | the digits | labelled checksum (Luhn) |
 | `aba-routing` | the digits | checksum (3, 7, 1 weights) |
 | `phone` | `+` and digits, or the digits | format |
@@ -202,7 +213,7 @@ spans over multi-byte texts, and that the text equals `mask`.
   mentions with `PiiKind::custom("...")`, their own `PiiConfidence`, and
   `checksum` / `text` helpers via `PiiSink`
   (`analysis/pii/tests/custom_extractors.rs`). Built-in kinds rank
-  `0..20` (`PiiKind::ALL`); `PiiKind::Custom` has rank `20` and orders
+  `0..30` (`PiiKind::ALL`); `PiiKind::Custom` has rank `30` and orders
   after built-in kinds on an exact span tie, then by kind name. A custom
   kind name must be 1 to 64 UTF-8 bytes (`PiiKind::MAX_CUSTOM_NAME_BYTES`)
   and not one of the reserved built-in names in `PiiKind::ALL`; the
@@ -259,12 +270,12 @@ synthetic specimens:
 The snapshots are reviewed outputs of this crate, checked in next to its
 tests. No other implementation produces or checks them.
 
-- Inputs: `analysis/pii/tests/inputs/`, 61 texts written for the packs
+- Inputs: `analysis/pii/tests/inputs/`, 63 texts written for the packs
   with only documented test values, example ranges and made up values.
 - Detection snapshots: `analysis/pii/tests/snapshots/<pack>/<id>.tsv`,
   one directory per pack (`payment`, `contact`, `network`, `secrets`,
-  `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`,
-  `all-structured`), one row per `turbo:pii` mention with its `start`
+  `crypto`, `us-identity`, `eu-identity`, `br-identity`, `ca-identity`,
+  `device`, `all-structured`), one row per `turbo:pii` mention with its `start`
   and `end` (UTF-8 byte offsets), kind and TSV-escaped normalized form.
 - Rewrite snapshots: `analysis/pii/tests/rewrite_snapshots/<pack>/<id>.txt`,
   what `MaskedView`, `mask_all`, `Pseudonymizer`, `HmacTokenizer` and
@@ -307,13 +318,13 @@ each in a sentence, and near misses of the checksummed kinds with no
 label) together with the checked-in true and false positive corpora
 (`analysis/pii/tests/data/golden-true-positives.tsv` and
 `analysis/pii/tests/data/golden-false-positives.txt`):
-1112 texts, 720 labels made in the test.
+1912 texts, 1120 labels made in the test.
 
 | | true | false | missed | precision | recall |
 |---|---|---|---|---|---|
-| all kinds | 744 | 40 | 0 | 0.949 | 1.000 |
+| all kinds | 1144 | 40 | 0 | 0.966 | 1.000 |
 | `phone` | 122 | 40 | 0 | 0.753 | 1.000 |
-| every other kind | 622 | 0 | 0 | 1.000 | 1.000 |
+| every other kind | 1022 | 0 | 0 | 1.000 | 1.000 |
 
 The false mentions are a phone in each near miss NHS number (ten grouped
 digits are a phone shape); phones and cards nested inside grouped IBANs

@@ -275,7 +275,7 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     assert_eq!(PiiKind::custom("email"), PiiKind::Email);
     assert!(!PiiKind::Email.is_custom());
     assert!(ACCOUNT_KIND.is_custom());
-    assert_eq!(ACCOUNT_KIND.rank(), 20);
+    assert_eq!(ACCOUNT_KIND.rank(), 30);
     assert_eq!(ACCOUNT_KIND.bit(), 0);
     assert!(PiiKind::Phone < ACCOUNT_KIND);
     assert!(ACCOUNT_KIND < PERSONNUMMER_KIND);
@@ -448,18 +448,18 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
         [
             528282918550767338,
             14695981039346656037,
-            1167021675049562525,
+            590561156056920477,
             14695981039346656037,
-            563074402314603540,
+            15551155452393540628,
             12638152016183539244,
-            15922930802516518628,
-            7989329234783511033,
-            10850096530196813776,
-            17854510877846885541,
-            12419471227701003101,
-            2275885573526886244,
-            17517181143009779942,
-            8950731020175384035
+            13186419974652520164,
+            17823993003174404601,
+            17177689610794063824,
+            5735359884734583973,
+            18337548370121976045,
+            6996046973716048586,
+            17369748114605997142,
+            6084891108017646295
         ]
     );
 }

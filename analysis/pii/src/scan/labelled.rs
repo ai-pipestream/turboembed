@@ -11,7 +11,7 @@
 
 use turbo_analysis_layers::{PiiConfidence, PiiKind};
 
-use crate::checksum::luhn;
+use crate::checksum::{bic, luhn};
 use crate::hits::Hits;
 use crate::text::{before, on_end, on_number_start, on_word_start, whitespace};
 
@@ -19,6 +19,7 @@ const SIN_LABELS: [&[u8]; 3] = [b"social insurance number", b"social insurance n
 const SIN_DIGITS: usize = 9;
 const IMEI_LABEL: &[u8] = b"imei";
 const IMEI_DIGITS: usize = 15;
+const BIC_LABELS: [&[u8]; 6] = [b"bic/swift", b"swift/bic", b"bic code", b"swift code", b"swift", b"bic"];
 
 pub(crate) fn scan_sin(text: &str, hits: &mut Hits) {
     scan(text, PiiKind::CaSin, hits);
@@ -26,6 +27,32 @@ pub(crate) fn scan_sin(text: &str, hits: &mut Hits) {
 
 pub(crate) fn scan_imei(text: &str, hits: &mut Hits) {
     scan(text, PiiKind::Imei, hits);
+}
+
+pub(crate) fn scan_bic(text: &str, hits: &mut Hits) {
+    let b = text.as_bytes();
+    let mut i = 0;
+    while i + 8 <= b.len() {
+        if !b[i].is_ascii_uppercase()
+            || !on_word_start(text, i)
+            || before(text, i).is_some_and(|c| matches!(c, '-' | '/' | '.' | '@'))
+            || !has_any_label(text, i, &BIC_LABELS, true)
+        {
+            i += 1;
+            continue;
+        }
+        let len = [11usize, 8].into_iter().find(|&len| {
+            let end = i + len;
+            end <= b.len() && on_end(text, end) && !matches!(b.get(end), Some(b'-' | b'/')) && bic::check(&b[i..end])
+        });
+        if let Some(len) = len {
+            let end = i + len;
+            hits.add(i, end, PiiKind::Bic, PiiConfidence::Format, |s| s.push_str(&text[i..end]));
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
 }
 
 fn scan(text: &str, kind: PiiKind, hits: &mut Hits) {
@@ -56,15 +83,21 @@ fn scan(text: &str, kind: PiiKind, hits: &mut Hits) {
 /// Whether a label of `kind` ends before `start`, past the separators.
 fn has_label(text: &str, start: usize, kind: PiiKind) -> bool {
     let sin = kind == PiiKind::CaSin;
+    let labels: &[&[u8]] = if sin { &SIN_LABELS } else { &[IMEI_LABEL] };
+    has_any_label(text, start, labels, sin)
+}
+
+/// Whether any label in `labels` ends before `start`, past whitespace and
+/// `:`, `#`, `=` (plus `.` when `allow_dot` is set).
+pub(crate) fn has_any_label(text: &str, start: usize, labels: &[&[u8]], allow_dot: bool) -> bool {
     let mut end = start;
     while let Some(c) = before(text, end) {
-        if !(whitespace(c) || matches!(c, ':' | '#' | '=') || (sin && c == '.')) {
+        if !(whitespace(c) || matches!(c, ':' | '#' | '=') || (allow_dot && c == '.')) {
             break;
         }
         end -= c.len_utf8();
     }
     let b = text.as_bytes();
-    let labels: &[&[u8]] = if sin { &SIN_LABELS } else { &[IMEI_LABEL] };
     labels.iter().any(|label| {
         end >= label.len()
             && b[end - label.len()..end].eq_ignore_ascii_case(label)

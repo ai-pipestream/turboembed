@@ -22,8 +22,10 @@ pub enum Pack {
     Crypto,
     /// United States SSNs and ITINs.
     UsIdentity,
-    /// United Kingdom NHS numbers and German Steuer-IDs.
+    /// European national and business identifiers (UK, DE, ES, FR, BIC).
     EuIdentity,
+    /// Brazilian CPF and CNPJ identifiers.
+    BrIdentity,
     /// Canadian SINs after a label.
     CaIdentity,
     /// IMEIs after a label.
@@ -33,7 +35,7 @@ pub enum Pack {
 }
 
 impl Pack {
-    pub const ALL: [Pack; 10] = [
+    pub const ALL: [Pack; 11] = [
         Pack::Payment,
         Pack::Contact,
         Pack::Network,
@@ -41,6 +43,7 @@ impl Pack {
         Pack::Crypto,
         Pack::UsIdentity,
         Pack::EuIdentity,
+        Pack::BrIdentity,
         Pack::CaIdentity,
         Pack::Device,
         Pack::AllStructured,
@@ -57,6 +60,7 @@ impl Pack {
             Pack::Crypto => "crypto",
             Pack::UsIdentity => "us-identity",
             Pack::EuIdentity => "eu-identity",
+            Pack::BrIdentity => "br-identity",
             Pack::CaIdentity => "ca-identity",
             Pack::Device => "device",
             Pack::AllStructured => "all-structured",
@@ -81,6 +85,7 @@ impl Pack {
             Pack::Crypto => vec![Scanner::all(Extractor::Crypto)],
             Pack::UsIdentity => vec![Scanner::all(Extractor::UsIdentity)],
             Pack::EuIdentity => vec![Scanner::all(Extractor::EuIdentity)],
+            Pack::BrIdentity => vec![Scanner::all(Extractor::BrIdentity)],
             Pack::CaIdentity => vec![Scanner::all(Extractor::CaIdentity)],
             Pack::Device => vec![Scanner::all(Extractor::Device)],
             Pack::AllStructured => [
@@ -90,6 +95,7 @@ impl Pack {
                 Extractor::Network,
                 Extractor::UsIdentity,
                 Extractor::EuIdentity,
+                Extractor::BrIdentity,
                 Extractor::CaIdentity,
                 Extractor::Device,
                 Extractor::Banking,

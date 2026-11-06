@@ -6,13 +6,18 @@ fn m(start: u32, end: u32, kind: PiiKind, normalized: &str) -> PiiMention<'_> {
 
 #[test]
 fn kinds_have_the_java_names_and_ranks() {
-    assert_eq!(PiiKind::ALL.len(), 20);
+    assert_eq!(PiiKind::ALL.len(), 30);
     for (rank, kind) in PiiKind::ALL.into_iter().enumerate() {
         assert_eq!(kind.rank() as usize, rank);
         assert_eq!(PiiKind::parse(kind.name()), Some(kind));
+        assert_eq!(PiiKind::custom(kind.name()), kind);
         assert_eq!(kind.to_string(), kind.name());
     }
     assert_eq!(PiiKind::DeSteuerId.name(), "de-steuer-id");
+    assert_eq!(PiiKind::EsDni.name(), "es-dni");
+    assert_eq!(PiiKind::DePersonalausweis.name(), "de-personalausweis");
+    assert_eq!(PiiKind::BrCnpj.name(), "br-cnpj");
+    assert_eq!(PiiKind::Bic.name(), "bic");
     assert!(PiiKind::Imei < PiiKind::Card);
     assert_eq!(PiiKind::parse("EMAIL"), None);
 }

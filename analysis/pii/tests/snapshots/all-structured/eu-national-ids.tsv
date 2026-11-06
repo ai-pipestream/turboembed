@@ -1,0 +1,8 @@
+4	13	es-dni	checksum	12345678Z
+19	28	es-nie	checksum	X1234567L
+34	43	es-cif	checksum	A58818501
+61	71	de-personalausweis	checksum	T220001293
+77	98	fr-nir	checksum	294032A12345692
+106	117	fr-siren	checksum	732829320
+125	140	fr-siret	checksum	73282932000074
+147	158	bic	format	DEUTDEFF500
