@@ -1,5 +1,6 @@
 <# #1480: chunker v1 gate records on Intel NPU. Non-elevated PowerShell on turboembed-npu.
-   Writes under C:\te\out-1480\<stamp>\ then copies JSON into records\npu\ for packaging.
+   Writes under C:\te\out-1480-<stamp>\ then copies JSON into records\npu\ for packaging.
+   Needs an NPU MiniLM bundle with fixed_seq >= 254 (febfed530b66 is 128 and will fail --max 254).
    Does not push. #>
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
@@ -96,7 +97,13 @@ $Cache = Join-Path $Root "eval-cache"
 $null = New-Item -ItemType Directory -Force $Cache
 $Sets = "scifact,nfcorpus,arguana,qasper"
 
-# Pipelines matching v1-172 metal/cpu
+# NPU-sealed MiniLM (febfed530b66) is fixed_seq 128; #1480 / #172 need max 254.
+# Refuse early unless the loaded bundle reports max_seq >= 254.
+Step "fetch-sets" {
+  cargo run --release -p turbo-eval --features turbo/npu -- fetch --sets $Sets --cache $Cache
+}
+
+# Pipelines matching v1-172 metal/cpu (requires NPU IR fixed_seq >= 254)
 $pipelines = @(
   @{ Name = "turbo-chunker-254-200-hybrid"; Flags = @("--chunker","turbo-chunker","--max","254","--target","200"); Dump = $true },
   @{ Name = "turbo-chunker-254-200-cohesion-1000-hybrid"; Flags = @("--chunker","turbo-chunker","--max","254","--target","200","--cohesion","1000"); Dump = $true },
