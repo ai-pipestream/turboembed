@@ -149,7 +149,7 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
   `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`
   and `imei` and `window::DEFAULT_WINDOW_WORDS` (`4`) for every other
   kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
-  `ca-sin` and `imei` and `LabelPolicy::None` for the other 18 built-in
+  `ca-sin` and `imei` and `LabelPolicy::None` for the other 28 built-in
   kinds and custom kinds, so existing detector outputs stay unchanged
   unless a caller opts in. When no caller override is configured on
   `ca-sin` or `imei`, `PiiDetector` uses

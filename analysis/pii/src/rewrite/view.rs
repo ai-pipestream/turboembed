@@ -136,12 +136,30 @@ pub fn mask_view(src: &View, spans: impl IntoIterator<Item = (Span, MaskPolicy)>
     Ok(View::derived(src, masked, alignment))
 }
 
+/// How a [`MaskedView`] was constructed, so [`MaskedView::config_hash`] knows
+/// each new kind's untouched default policy.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+enum ViewOrigin {
+    All(MaskPolicy),
+    ByKind(char),
+}
+
+impl ViewOrigin {
+    fn default_for(self, kind: PiiKind) -> MaskPolicy {
+        match self {
+            ViewOrigin::All(policy) => policy,
+            ViewOrigin::ByKind(mask) => MaskPolicy::for_kind(kind, mask).expect("validated ASCII mask"),
+        }
+    }
+}
+
 /// Writes the `masked` view: the text it reads with every mention of the
 /// pii layer over it masked with its kind's policy.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MaskedView {
     policies: [MaskPolicy; PiiKind::ALL.len()],
     default_policy: MaskPolicy,
+    origin: ViewOrigin,
     custom: Vec<(&'static str, MaskPolicy)>,
 }
 
@@ -149,13 +167,19 @@ impl MaskedView {
     /// Every mention masked with `policy`: `Masker.mask(document, layer,
     /// policy)`.
     pub fn all(policy: MaskPolicy) -> MaskedView {
-        MaskedView { policies: [policy; PiiKind::ALL.len()], default_policy: policy, custom: Vec::new() }
+        MaskedView {
+            policies: [policy; PiiKind::ALL.len()],
+            default_policy: policy,
+            origin: ViewOrigin::All(policy),
+            custom: Vec::new(),
+        }
     }
 
     /// Each mention masked with its kind's default policy and `mask`:
     /// `Masker.mask` with `MaskPolicies.byType(mask)`.
     pub fn by_kind(mask: char) -> Result<MaskedView, MaskError> {
         let mut view = MaskedView::all(MaskPolicy::new(mask)?);
+        view.origin = ViewOrigin::ByKind(mask);
         for k in PiiKind::ALL {
             view.policies[k.rank() as usize] = MaskPolicy::for_kind(k, mask)?;
         }
@@ -226,16 +250,9 @@ impl Annotator for MaskedView {
         for policy in legacy.chain(std::iter::once(self.default_policy)) {
             fold_policy(&mut h, policy);
         }
-        let base = if self.policies[PiiKind::Card.rank() as usize].trailing() == 4
-            && self.policies[PiiKind::Jwt.rank() as usize] == self.default_policy
-        {
-            self.default_policy.keeping_format()
-        } else {
-            self.default_policy
-        };
-        for k in &PiiKind::ALL[17..27] {
+        for &k in &PiiKind::ALL[17..27] {
             let policy = self.policies[k.rank() as usize];
-            if policy != base {
+            if policy != self.origin.default_for(k) {
                 h.fold_u64(u64::from(k.hash_bit()));
                 fold_policy(&mut h, policy);
             }

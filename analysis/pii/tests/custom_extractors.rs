@@ -426,6 +426,7 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
 fn hash_compat_scanners_custom_names_and_mask_policies() {
     let star = MaskPolicy::new('*').unwrap();
     let dash = MaskPolicy::new('-').unwrap();
+    let last4 = star.keeping_trailing(4);
     let hashes = [
         AccountExtractor { prefix: b"acct" }.config_hash(),
         AccountExtractor { prefix: b"" }.config_hash(),
@@ -441,6 +442,10 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
         MaskedView::all(dash).config_hash(),
         MaskedView::all(star).with(ACCOUNT_KIND, dash).config_hash(),
         MaskedView::all(star).with(ACCOUNT_KIND, dash).with(PiiKind::Email, dash).config_hash(),
+        MaskedView::all(last4).config_hash(),
+        MaskedView::all(star).with(PiiKind::Card, last4).config_hash(),
+        MaskedView::all(star).with(PiiKind::Card, last4.keeping_format()).config_hash(),
+        MaskedView::by_kind('*').unwrap().with(PiiKind::Jwt, last4).config_hash(),
     ];
     // Fixed values from the previous implementation, before migration.
     assert_eq!(
@@ -459,7 +464,11 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
             12419471227701003101,
             2275885573526886244,
             17517181143009779942,
-            8950731020175384035
+            8950731020175384035,
+            14644740826290815837,
+            12185456979147850589,
+            4006691526303427165,
+            15155714095827978077
         ]
     );
 }
