@@ -330,9 +330,14 @@ One cell gave no reading: the Raspberry Pi 5's whole set at window 16
 and cap 1, which ran on the CPU (dispatched 1618.9 ms; CPU 1616.7 ms,
 1610.7 to 1620.5; Hailo-8 2998.7 ms, 2998.6 to 2998.7). Fewer than four
 of its six pairs were quiet in each of three sets, so the test reported
-it inconclusive. That cell is unverified: under
-`TURBO_TEST_REQUIRE_HAILO=1` the test now fails on an inconclusive
-submission, so it needs a quieter run to pass. Every other reading
+it inconclusive. At commit 931116bc, 2026-11-06, with the offload
+preference and the calibration timing each side in blocks, the run
+under `TURBO_TEST_REQUIRE_HAILO=1` on the same board passed with every
+cell read: that cell ran on the CPU (dispatched 1227.1 ms; CPU 1225.3
+ms, 1222.5 to 1230.1; Hailo-8 2998.6 ms, 2998.6 to 2998.7) and dispatch
+added +2.001 ms, 0.164% of the fixed time, on the second set of pairs.
+The next run passed too (+2.221 ms, 0.177%); a third left one cell, one
+sentence at window 64 and cap 8, inconclusive. Every other reading
 was within the planning time and 0.5% of the fixed time, which the test
 requires.
 
