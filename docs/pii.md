@@ -13,16 +13,19 @@ checksum is validated with it:
 | `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
 | `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
 | `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
+| `AllowList`, `DenyList`, `Pattern`, `PatternKind`, `Case`, `ListError` | Global and per-kind ignore lists, regex-free shape/glob patterns, and Aho-Corasick/fuzzy deny lists (`analysis/pii/src/lists/`) |
 | `PiiConfidence` | `Format`, `Labelled`, `Checksum`, or `LabelledChecksum` |
 | `window`, `LabelPolicy`, `window::has_label` | UAX #29 context-word window helper, per-kind label policies, and caller overrides |
-| `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking |
+| `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::PiiAuditReport` | Redacted mention counts and keyed token summaries |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, and initials abbreviation |
+| `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
+| `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `sha256`, `keccak`, `base58`, `bech32` | Checksum and cryptographic validators |
 
-The crate depends on `turbo-analysis`, `turbo-analysis-layers` and
-`turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
+The crate depends on `turbo-analysis`, `turbo-analysis-layers`,
+`turbo-glossary` and `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
 bech32 and bech32m, mod 97 and Luhn are written in the crate, and the
 scanners are hand-written byte scanners with no regular expressions.
 
@@ -202,6 +205,79 @@ copies it and leaves it out of its `Debug` output. Tokens made with one
 key are linkable across texts, so they need the access control of the
 values they stand for.
 
+### Additional rewrite strategies and per-kind composition
+
+Every strategy below works standalone via `.rewrite(text, &pii)` and inside
+a composable per-`PiiKind` `RewritePolicy` (`RewritePolicy::new(default).with(kind, strategy)`),
+producing a `PiiRewrite` whose `map_offset` and `map_span` map UTF-8 byte
+offsets and spans from the source text into the rewritten text
+(`analysis/pii/tests/rewrite_strategies.rs` and
+`analysis/pii/tests/rewrite_audit.rs`):
+
+- **Format-string redaction (`FormatRedactor`, `FormatError`):** expands a
+  caller template supporting `%t` (uppercase kind name, such as `EMAIL` or
+  `US-SSN`, matching `Pseudonymizer`), `%k` (lowercase kind name, such as
+  `email` or `us-ssn`), `%v` (1-based per-kind pseudonym number, reusing
+  the same number for equal `(kind, normalized)` within one rewrite), and
+  `%%` (literal `%`), for example `{{{REDACTED-%t}}}` or `[%t-%v]`.
+- **Static replace (`StaticReplacer`):** replaces mentions with fixed text
+  (default `"[REDACTED]"`, or overridden per `PiiKind` via
+  `StaticReplacer::new(default).with(kind, text)`), producing identical
+  output within a document and across documents.
+- **Unkeyed SHA-256 (`Sha256Tokenizer`, `Sha256Replacer`):** replaces each
+  mention with the 64 lowercase hexadecimal digits of
+  `checksum::sha256::digest` over its normalized UTF-8 value (or a 4-to-64
+  hex digit prefix via `Sha256Tokenizer::with_length`, with optional
+  `with_kind_prefix` or `with_prefix`). **Security warning:** because
+  unkeyed SHA-256 uses no secret key, digests are linkable across all
+  documents and datasets and can be reversed by brute-force search or
+  precomputed tables for low-entropy or bounded-domain identifiers (such
+  as 9-digit US SSNs, phone numbers, or known e-mail lists). Use
+  `HmacTokenizer` whenever a secret key can be held.
+- **Map replace (`MapReplacer`, `MapTarget`, `MapError`):** replaces
+  mentions from a caller-provided lookup table (constructed inline with
+  `MapReplacer::new` or loaded from a caller TSV or delimited file with
+  `from_tsv`, `from_delimited`, `from_tsv_file` or `from_delimited_file`,
+  never bundled), with a `case_sensitive` flag, target selection
+  (`MapTarget::NormalizedOrSurface`, `Normalized`, or `Surface`), and a
+  configurable fallback `RewriteStrategy` (`with_fallback`) for values not
+  present in the table.
+- **Truncate / keep N (`Truncate`, `KeepSide`, and `MaskPolicy`):**
+  `Truncate::keep_start(n)` (`KeepSide::Start`) and
+  `Truncate::keep_end(n)` / `Truncate::last_n(n)` (`KeepSide::End`) keep
+  `n` Unicode scalar values (`char`, preserving multi-byte UTF-8
+  boundaries) at the start or end of a mention and replace the remaining
+  characters with a configurable mask character (`with_mask`, default
+  `'*'`), optionally preserving non-alphanumeric separators
+  (`keeping_format`). When a mention has `<= n` characters (or `<= n`
+  letters or digits with `keeping_format`), all of its characters are
+  masked so that a short secret is never left in the clear. For
+  byte-length-preserving in-place masking and `MaskedView`, `MaskPolicy`
+  also provides `keeping_leading(n)`, `keeping_trailing(n)`,
+  `MaskPolicy::first_n(n, mask)`, `MaskPolicy::last_n(n, mask)` and
+  `MaskPolicy::rewrite`; note that in-place `MaskPolicy` leaves spans with
+  `<= n` letters or digits unmasked (matching `MaskPolicy::last_four`), so
+  callers who need short values masked should use `Truncate::keep_start(n)`
+  or `Truncate::last_n(n)`.
+- **Abbreviate (`Abbreviator`):** reduces a mention to the initials of its
+  Unicode words (`"John Fitzgerald Kennedy"` to `"J.F.K."` with
+  `Abbreviator::dotted()` or `"JFK"` with `Abbreviator::compact()`, or
+  custom punctuation via `Abbreviator::with_punctuation`), with optional
+  hyphen preservation (`preserving_hyphens`, turning `"Jean-Luc Picard"`
+  into `"J.-L.P."` or `"J-LP"`) and case preservation (`preserving_case`).
+  `Abbreviator` is intended for name or multi-word phrase kinds and should
+  not be used as a default strategy on numeric kinds (for example,
+  `123-45-6789` would abbreviate to `1.4.6.`).
+- **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
+  `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
+  fallback strategy, sharing per-document pseudonym counters across all
+  mentions in a single `rewrite` call. When mentions overlap in a cluster,
+  any strategy in the cluster configured with `refusing_overlaps` (including
+  via a `MapReplacer` fallback) causes `RewritePolicy::rewrite` to return
+  `RewriteError::Overlap`; when coalesced, a source character inside the
+  union span is kept only when every overlapping mention covering that byte
+  permits keeping it under its own strategy.
+
 ### The masked view
 
 `MaskedView` is an annotator that reads a `View` and the `turbo:pii`
@@ -271,6 +347,84 @@ spans over multi-byte texts, and that the text equals `mask`.
   also reported as a phone or card and ten digits inside an
   international phone number are not also reported as an NHS number.
   `PiiDetector::keeping_nested` retains strictly nested mentions.
+
+## Allow and deny lists
+
+`AllowList` and `DenyList` (`analysis/pii/src/lists/`, tested in
+`analysis/pii/tests/allow_deny.rs`) let a caller suppress known non-PII
+values or flag domain-specific terms without writing a custom byte scanner:
+
+- **Allow list (`AllowList`)**: applied after detection and nesting
+  resolution. A mention whose covered text (`&text[start..end]`) or
+  normalized form (`mention.normalized`) matches an active allow rule is
+  dropped.
+  - Scope is either global (`PiiDetector::with_allow_list`,
+    `allow_term`, `allow_terms`, `allow_file`, `allow_pattern`,
+    `allow_shape`, `allow_glob`) or scoped to a single `PiiKind`
+    (`PiiDetector::with_kind_allow_list`, `allow_kind_term`,
+    `allow_kind_terms`, `allow_kind_file`, `allow_kind_pattern`,
+    `allow_kind_shape`, `allow_kind_glob`), leaving mentions of other
+    kinds on the same or other spans untouched.
+  - Terms and patterns compare case-sensitively (`Case::Sensitive`) by
+    default, or case-insensitively (`Case::Insensitive`, via
+    `AllowList::case_insensitive` / `AllowList::with_case` /
+    `Pattern::case_insensitive`) using `turbo-unicode`'s per-scalar
+    lowercase mapping. Duplicate terms and patterns are deduplicated on
+    insertion and when changing case mode.
+- **Regex-free pattern language (`Pattern`, `PatternKind`)**: patterns
+  match a whole candidate value from start to end using a deterministic,
+  non-backtracking two-pointer wildcard pass with no regular expressions:
+  - `Pattern::shape(spec)` (`PatternKind::Shape`):
+    - `d`: any ASCII decimal digit (`0..=9`)
+    - `a`: any ASCII letter (`A..=Z`, `a..=z`)
+    - `w`: any ASCII letter or digit (`A..=Z`, `a..=z`, `0..=9`)
+    - `?`: any single Unicode scalar (`char`)
+    - `*`: any sequence of zero or more characters
+    - `\x`: literal character `x` (such as `\d`, `\a`, `\w`, `\?`, `\*`, `\\`)
+    - any other character (including uppercase letters `A..=Z`, digits,
+      and punctuation such as `-`, ` `, `@`, `.`): literal match
+  - `Pattern::glob(spec)` (`PatternKind::Glob`):
+    - `*`: any sequence of zero or more characters
+    - `?`: any single Unicode scalar (`char`)
+    - `\x`: literal character `x` (such as `\*`, `\?`, `\\`)
+    - any other character (including `d`, `a`, `w`): literal match
+- **Deny list (`DenyList`)**: terms that are always reported under a
+  caller-named `PiiKind::Custom` (`DenyList::new`, `DenyList::custom`,
+  `DenyList::from_terms`, `DenyList::from_file`, attached via
+  `PiiDetector::with_deny_list`) with `PiiConfidence::Format`.
+  - Exact terms are matched with `turbo-glossary`'s Aho-Corasick
+    `TextMatcher` (`Case::Sensitive` or `Case::Insensitive`) at word
+    boundaries (`text::on_word_start` and `text::on_end`), with overlaps
+    resolved leftmost-longest by `turbo_glossary::select`. Duplicate terms
+    are deduplicated on insertion and when changing case mode.
+  - Optional fuzzy matching (`DenyList::with_max_edits`) admits word-token
+    candidates within `0`, `1`, or `2` Levenshtein edits (insertions,
+    deletions, or substitutions of one Unicode scalar). Edit distances
+    above `2` are refused (`ListError::InvalidEditDistance`). To prevent
+    short terms from matching arbitrary short words, a term word must have
+    at least `2 * k + 2` characters to allow `k >= 1` edits (`>= 4`
+    characters for `1` edit, `>= 6` characters for `2` edits; words
+    shorter than `4` characters only match at `0` edits).
+  - `DenyList::capitalised_only` (`with_capitalised_only`,
+    `capitalized_only`) requires a candidate in the text to start with an
+    uppercase or titlecase letter (`Lu` or `Lt`), preventing fuzzy matches
+    against common lowercase words.
+- **File loading**: `AllowList::from_file`, `AllowList::with_file`,
+  `AllowList::with_shapes_file`, `AllowList::with_globs_file`,
+  `DenyList::from_file`, and `DenyList::with_file` read caller-supplied
+  UTF-8 files one entry per line, stripping an optional UTF-8 BOM and
+  ignoring blank lines and lines starting with `#`. Lists are loaded only
+  from caller paths and are never bundled.
+- **Configuration hash and audit reporting**:
+  - `PiiDetector::config_hash` folds all global allow rules, per-kind
+    allow rules, and deny lists (target kinds, terms, pattern syntax and
+    tokens, case mode, max edit distance, and `capitalised_only`).
+  - `PiiAuditReport` (`KindReport::suppressed`,
+    `PiiAuditReport::total_suppressed`, `PiiAuditReport::suppressed`,
+    `PiiAuditReport::with_suppressed`, `PiiDetector::audit`,
+    `PiiDetector::detect_and_audit`) counts suppressed mentions by
+    `PiiKind` without ever storing, tokenizing, or displaying the
+    suppressed values (`analysis/pii/tests/rewrite_audit.rs`).
 
 Scanner edge-case rules:
 

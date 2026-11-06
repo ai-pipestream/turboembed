@@ -219,13 +219,8 @@ impl Hits {
         &self.buf[h.normalized.start as usize..h.normalized.end as usize]
     }
 
-    /// Applies `window`'s label policies, orders the remaining candidates
-    /// (a stable sort keeps the finding order of ties) and writes each
-    /// distinct mention to `out`. Equal mentions share a span, so they sit
-    /// in one run of that span. When `keep_nested` is `false`, any candidate
-    /// whose span lies strictly inside an earlier, longer candidate's span
-    /// is dropped.
-    pub(crate) fn resolve(mut self, text: &str, window: &WindowConfig, keep_nested: bool, out: &mut Pii) {
+    /// Applies context label requirements before resolving candidate spans.
+    pub(crate) fn apply_label_policy(&mut self, text: &str, window: &WindowConfig) {
         self.hits.retain_mut(|h| {
             if matches!(h.confidence, PiiConfidence::Labelled | PiiConfidence::LabelledChecksum) {
                 return true;
@@ -237,9 +232,31 @@ impl Hits {
                 false
             }
         });
+    }
+
+    /// Orders the candidates (a stable sort keeps the finding order of
+    /// ties) and writes each distinct mention to `out`. Equal mentions
+    /// share a span, so they sit in one run of that span. When
+    /// `keep_nested` is `false`, any candidate whose span lies strictly
+    /// inside an earlier, longer candidate's span is dropped.
+    #[cfg(test)]
+    pub(crate) fn resolve(self, keep_nested: bool, out: &mut Pii) {
+        let _ = self.resolve_with(keep_nested, |_, _, _, _| false, out);
+    }
+
+    /// Resolves candidates into `out`, dropping any resolved mention for
+    /// which `is_suppressed(kind, start, end, normalized)` returns `true`
+    /// and returning the suppressed mention counts by [`PiiKind`].
+    pub(crate) fn resolve_with(
+        mut self,
+        keep_nested: bool,
+        mut is_suppressed: impl FnMut(PiiKind, u32, u32, &str) -> bool,
+        out: &mut Pii,
+    ) -> Vec<(PiiKind, usize)> {
         self.hits.sort_by_key(|h| (h.start, Reverse(h.end), h.kind));
         let mut run_start = 0;
         let mut outer: Option<(u32, u32)> = None;
+        let mut suppressed: Vec<(PiiKind, usize)> = Vec::new();
         for i in 0..self.hits.len() {
             let h = &self.hits[i];
             if i > 0 {
@@ -253,12 +270,19 @@ impl Hits {
             {
                 continue;
             }
-            if outer.is_none_or(|(_, oe)| h.end > oe) {
-                outer = Some((h.start, h.end));
-            }
             let value = self.normalized(h);
             let repeat = self.hits[run_start..i].iter().any(|e| e.kind == h.kind && self.normalized(e) == value);
             if !repeat {
+                if is_suppressed(h.kind, h.start, h.end, value) {
+                    match suppressed.iter_mut().find(|(k, _)| *k == h.kind) {
+                        Some((_, count)) => *count += 1,
+                        None => suppressed.push((h.kind, 1)),
+                    }
+                    continue;
+                }
+                if outer.is_none_or(|(_, oe)| h.end > oe) {
+                    outer = Some((h.start, h.end));
+                }
                 out.push(PiiMention {
                     span: Span::new(h.start, h.end),
                     kind: h.kind,
@@ -267,16 +291,15 @@ impl Hits {
                 });
             }
         }
+        suppressed.sort_by_key(|(k, _)| k.name());
+        suppressed
     }
 
     /// The resolved mentions as a layer over `view`.
     #[cfg(test)]
     pub(crate) fn into_layer(self, keep_nested: bool, view: turbo_analysis::ViewId) -> Pii {
         let mut out = Pii::new(view);
-        let mut w = WindowConfig::default();
-        w.set_policy(PiiKind::CaSin, crate::window::LabelPolicy::None);
-        w.set_policy(PiiKind::Imei, crate::window::LabelPolicy::None);
-        self.resolve("", &w, keep_nested, &mut out);
+        self.resolve(keep_nested, &mut out);
         out
     }
 }

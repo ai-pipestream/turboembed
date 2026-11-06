@@ -1,12 +1,18 @@
 //! The packs and the detector that runs them, OpenNLP's `PiiPacks`,
 //! `CompositePiiExtractor` and `PiiAnnotator`.
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View, ViewId};
+use std::path::Path;
+
+use turbo_analysis::{Annotator, Error, Refs, View, ViewId};
 use turbo_analysis_layers::{Pii, PiiKind, PiiKinds};
 
 use crate::hits::{Hits, PiiSink};
+use crate::lists::{AllowList, DenyList, ListError, Pattern};
+use crate::rewrite::{HmacTokenizer, PiiAuditReport};
 use crate::scan::{CustomExtractor, Extractor, Scanner};
-use crate::window::{LabelPolicy, WindowConfig};
+use crate::window::WindowConfig;
+
+mod labels;
 
 /// The packs of `PiiPacks`, by kind of data.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -113,12 +119,22 @@ pub struct PiiDetector {
     scanners: Vec<Scanner>,
     keep_nested: bool,
     window: WindowConfig,
+    global_allow: AllowList,
+    kind_allow: Vec<(PiiKind, AllowList)>,
+    deny_lists: Vec<DenyList>,
 }
 
 impl PiiDetector {
     /// The scanners in the order given. An empty list finds nothing.
     pub fn new(scanners: Vec<Scanner>) -> PiiDetector {
-        PiiDetector { scanners, keep_nested: false, window: WindowConfig::default() }
+        PiiDetector {
+            scanners,
+            keep_nested: false,
+            window: WindowConfig::default(),
+            global_allow: AllowList::new(),
+            kind_allow: Vec::new(),
+            deny_lists: Vec::new(),
+        }
     }
 
     /// The scanners of `pack`.
@@ -169,85 +185,199 @@ impl PiiDetector {
         self.keep_nested
     }
 
-    /// This detector with `kind`'s context-window [`LabelPolicy`] set to
-    /// `policy`.
-    pub fn with_label_policy(mut self, kind: PiiKind, policy: LabelPolicy) -> PiiDetector {
-        self.window.set_policy(kind, policy);
+    /// Merges `allow` into this detector's global allow list, suppressing
+    /// matching mentions across all [`PiiKind`]s.
+    pub fn with_allow_list(mut self, allow: AllowList) -> PiiDetector {
+        self.global_allow.merge(allow);
         self
     }
 
-    /// This detector requiring a context label within `kind`'s word window
-    /// to admit a `kind` candidate ([`LabelPolicy::Required`]), raising its
-    /// confidence (`Format -> Labelled`, `Checksum -> LabelledChecksum`).
-    pub fn label_required(self, kind: PiiKind) -> PiiDetector {
-        self.with_label_policy(kind, LabelPolicy::Required)
+    /// Adds an exact term to the global allow list.
+    pub fn allow_term(mut self, term: &str) -> Result<PiiDetector, ListError> {
+        self.global_allow.add_term(term)?;
+        Ok(self)
     }
 
-    /// This detector boosting `kind`'s confidence (`Format -> Labelled`,
-    /// `Checksum -> LabelledChecksum`) when a label appears within `kind`'s
-    /// word window ([`LabelPolicy::Boosts`]) while still admitting
-    /// unlabelled candidates at their base confidence.
-    pub fn label_boosts(self, kind: PiiKind) -> PiiDetector {
-        self.with_label_policy(kind, LabelPolicy::Boosts)
-    }
-
-    /// This detector with `kind`'s context-word window width set to
-    /// `window_words` words on either side of a candidate span.
-    pub fn with_label_window(mut self, kind: PiiKind, window_words: usize) -> PiiDetector {
-        self.window.set_window(kind, window_words);
-        self
-    }
-
-    /// This detector with `label` (a single word or multi-word phrase,
-    /// matched case-insensitively on ASCII) added to `kind`'s context-label
-    /// list.
-    pub fn with_extra_label(mut self, kind: PiiKind, label: impl Into<String>) -> PiiDetector {
-        self.window.add_extra_label(kind, label.into());
-        self
-    }
-
-    /// This detector with every term in `labels` added to `kind`'s
-    /// context-label list.
-    pub fn with_extra_labels<I, S>(mut self, kind: PiiKind, labels: I) -> PiiDetector
+    /// Adds multiple exact terms to the global allow list.
+    pub fn allow_terms<I, S>(mut self, terms: I) -> Result<PiiDetector, ListError>
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
-        for label in labels {
-            self.window.add_extra_label(kind, label.into());
-        }
+        self.global_allow.add_terms(terms)?;
+        Ok(self)
+    }
+
+    /// Loads exact terms from `path` into the global allow list.
+    pub fn allow_file(mut self, path: impl AsRef<Path>) -> Result<PiiDetector, ListError> {
+        self.global_allow.add_file(path)?;
+        Ok(self)
+    }
+
+    /// Adds a compiled [`Pattern`] to the global allow list.
+    pub fn allow_pattern(mut self, pattern: Pattern) -> PiiDetector {
+        self.global_allow.add_pattern(pattern);
         self
     }
 
-    /// The effective [`LabelPolicy`] for `kind` on this detector.
-    pub fn label_policy(&self, kind: PiiKind) -> LabelPolicy {
-        self.window.policy(kind)
+    /// Adds a shape pattern to the global allow list.
+    pub fn allow_shape(mut self, shape: &str) -> Result<PiiDetector, ListError> {
+        self.global_allow.add_shape(shape)?;
+        Ok(self)
     }
 
-    /// The effective context-word window width (`N` words on either side)
-    /// for `kind` on this detector.
-    pub fn label_window(&self, kind: PiiKind) -> usize {
-        self.window.window_words(kind)
+    /// Adds a glob pattern to the global allow list.
+    pub fn allow_glob(mut self, glob: &str) -> Result<PiiDetector, ListError> {
+        self.global_allow.add_glob(glob)?;
+        Ok(self)
     }
 
-    /// Caller-supplied extra label terms configured for `kind`.
-    pub fn extra_labels(&self, kind: PiiKind) -> &[String] {
-        self.window.extra_labels(kind)
+    /// Merges `allow` into the allow list scoped to `kind` only.
+    pub fn with_kind_allow_list(mut self, kind: PiiKind, allow: AllowList) -> PiiDetector {
+        let _ = PiiKind::remember_custom(kind);
+        if allow.is_empty() {
+            return self;
+        }
+        self.kind_entry_mut(kind).merge(allow);
+        self
     }
 
-    /// Whether a label for `kind` (default or caller-added) appears within
-    /// `kind`'s configured word window around `span` in `text`.
-    pub fn has_label(&self, text: &str, span: Span, kind: PiiKind) -> bool {
-        self.window.has_label(text, span, kind)
+    /// Adds an exact term to the allow list scoped to `kind` only.
+    pub fn allow_kind_term(mut self, kind: PiiKind, term: &str) -> Result<PiiDetector, ListError> {
+        let _ = PiiKind::remember_custom(kind);
+        let mut list = AllowList::new();
+        list.add_term(term)?;
+        self.kind_entry_mut(kind).merge(list);
+        Ok(self)
+    }
+
+    /// Adds multiple exact terms to the allow list scoped to `kind` only.
+    pub fn allow_kind_terms<I, S>(mut self, kind: PiiKind, terms: I) -> Result<PiiDetector, ListError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let _ = PiiKind::remember_custom(kind);
+        let mut list = AllowList::new();
+        list.add_terms(terms)?;
+        if !list.is_empty() {
+            self.kind_entry_mut(kind).merge(list);
+        }
+        Ok(self)
+    }
+
+    /// Loads exact terms from `path` into the allow list scoped to `kind` only.
+    pub fn allow_kind_file(mut self, kind: PiiKind, path: impl AsRef<Path>) -> Result<PiiDetector, ListError> {
+        let _ = PiiKind::remember_custom(kind);
+        let list = AllowList::from_file(path)?;
+        if !list.is_empty() {
+            self.kind_entry_mut(kind).merge(list);
+        }
+        Ok(self)
+    }
+
+    /// Adds a compiled [`Pattern`] to the allow list scoped to `kind` only.
+    pub fn allow_kind_pattern(mut self, kind: PiiKind, pattern: Pattern) -> PiiDetector {
+        let _ = PiiKind::remember_custom(kind);
+        self.kind_entry_mut(kind).add_pattern(pattern);
+        self
+    }
+
+    /// Adds a shape pattern to the allow list scoped to `kind` only.
+    pub fn allow_kind_shape(mut self, kind: PiiKind, shape: &str) -> Result<PiiDetector, ListError> {
+        let _ = PiiKind::remember_custom(kind);
+        let pat = Pattern::shape(shape)?;
+        self.kind_entry_mut(kind).add_pattern(pat);
+        Ok(self)
+    }
+
+    /// Adds a glob pattern to the allow list scoped to `kind` only.
+    pub fn allow_kind_glob(mut self, kind: PiiKind, glob: &str) -> Result<PiiDetector, ListError> {
+        let _ = PiiKind::remember_custom(kind);
+        let pat = Pattern::glob(glob)?;
+        self.kind_entry_mut(kind).add_pattern(pat);
+        Ok(self)
+    }
+
+    /// Appends a [`DenyList`] whose matched terms are reported under its
+    /// caller-named [`PiiKind::Custom`].
+    pub fn with_deny_list(mut self, deny: DenyList) -> PiiDetector {
+        self.deny_lists.push(deny);
+        self
+    }
+
+    fn kind_entry_mut(&mut self, kind: PiiKind) -> &mut AllowList {
+        let key = (kind.rank(), kind.name());
+        match self.kind_allow.binary_search_by_key(&key, |(k, _)| (k.rank(), k.name())) {
+            Ok(at) => &mut self.kind_allow[at].1,
+            Err(at) => {
+                self.kind_allow.insert(at, (kind, AllowList::new()));
+                &mut self.kind_allow[at].1
+            }
+        }
+    }
+
+    /// The global allow list applied across all kinds.
+    pub fn global_allow_list(&self) -> &AllowList {
+        &self.global_allow
+    }
+
+    /// The allow list scoped to `kind`, when configured.
+    pub fn kind_allow_list(&self, kind: PiiKind) -> Option<&AllowList> {
+        let key = (kind.rank(), kind.name());
+        self.kind_allow.binary_search_by_key(&key, |(k, _)| (k.rank(), k.name())).ok().map(|at| &self.kind_allow[at].1)
+    }
+
+    /// All per-kind allow lists, ordered by kind rank and name.
+    pub fn kind_allow_lists(&self) -> &[(PiiKind, AllowList)] {
+        &self.kind_allow
+    }
+
+    /// All configured deny lists in composition order.
+    pub fn deny_lists(&self) -> &[DenyList] {
+        &self.deny_lists
     }
 
     pub fn scanners(&self) -> &[Scanner] {
         &self.scanners
     }
 
-    /// The kinds any scanner reports.
+    /// The built-in kinds any scanner reports.
     pub fn kinds(&self) -> PiiKinds {
         self.scanners.iter().fold(PiiKinds::EMPTY, |k, s| k.union(s.kinds()))
+    }
+
+    fn is_suppressed(&self, kind: PiiKind, covered: &str, normalized: &str) -> bool {
+        if self.global_allow.matches(covered, normalized) {
+            return true;
+        }
+        if let Some(allow) = self.kind_allow_list(kind) {
+            return allow.matches(covered, normalized);
+        }
+        false
+    }
+
+    /// Appends every non-suppressed mention in `text` to `out`, returning the
+    /// per-kind counts of mentions suppressed by allow rules.
+    ///
+    /// # Panics
+    ///
+    /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
+    pub fn detect_with_suppressed(&self, text: &str, out: &mut Pii) -> Vec<(PiiKind, usize)> {
+        assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
+        let mut hits = Hits::default();
+        for s in &self.scanners {
+            s.scan(text, &self.window, &mut hits);
+        }
+        for d in &self.deny_lists {
+            d.scan(text, &mut hits);
+        }
+        hits.apply_label_policy(text, &self.window);
+        hits.resolve_with(
+            self.keep_nested,
+            |kind, start, end, normalized| self.is_suppressed(kind, &text[start as usize..end as usize], normalized),
+            out,
+        )
     }
 
     /// Appends every mention in `text` to `out`, with byte offsets into
@@ -257,12 +387,15 @@ impl PiiDetector {
     ///
     /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
     pub fn detect(&self, text: &str, out: &mut Pii) {
-        assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
-        let mut hits = Hits::default();
-        for s in &self.scanners {
-            s.scan(text, &self.window, &mut hits);
-        }
-        hits.resolve(text, &self.window, self.keep_nested, out);
+        let _ = self.detect_with_suppressed(text, out);
+    }
+
+    /// The mentions in `text` as a layer over `view`, together with the
+    /// per-kind counts of mentions suppressed by allow rules.
+    pub fn layer_with_suppressed(&self, text: &str, view: ViewId) -> (Pii, Vec<(PiiKind, usize)>) {
+        let mut out = Pii::new(view);
+        let suppressed = self.detect_with_suppressed(text, &mut out);
+        (out, suppressed)
     }
 
     /// The mentions in `text` as a layer over `view`.
@@ -270,6 +403,26 @@ impl PiiDetector {
         let mut out = Pii::new(view);
         self.detect(text, &mut out);
         out
+    }
+
+    /// Runs detection over `text` for `view` and builds a [`PiiAuditReport`]
+    /// that includes both active mentions and per-kind suppressed counts.
+    pub fn detect_and_audit(
+        &self,
+        text: &str,
+        view: ViewId,
+        tokenizer: &HmacTokenizer,
+        samples: usize,
+    ) -> (Pii, PiiAuditReport) {
+        let (pii, suppressed) = self.layer_with_suppressed(text, view);
+        let report = PiiAuditReport::with_suppressed(&pii, suppressed, tokenizer, samples);
+        (pii, report)
+    }
+
+    /// Runs detection over `text` and returns the [`PiiAuditReport`],
+    /// including per-kind counts of mentions suppressed by allow rules.
+    pub fn audit(&self, text: &str, tokenizer: &HmacTokenizer, samples: usize) -> PiiAuditReport {
+        self.detect_and_audit(text, ViewId::SOURCE, tokenizer, samples).1
     }
 }
 
@@ -299,8 +452,9 @@ impl Annotator for PiiDetector {
         PRODUCES
     }
 
-    /// FNV-1a over each scanner's extractor and kind bits, fixed so that
-    /// stored provenance stays comparable across builds.
+    /// FNV-1a over each scanner's extractor and kind bits, plus any
+    /// configured allow lists and deny lists, fixed so that stored
+    /// provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
         let mut h = turbo_analysis::Fnv1a::new();
         for s in &self.scanners {
@@ -318,6 +472,23 @@ impl Annotator for PiiDetector {
             h.fold_u64(1);
         }
         self.window.fold_hash(&mut h);
+        if !self.global_allow.is_empty() {
+            h.u8(0xa1);
+            self.global_allow.fold_hash(&mut h);
+        }
+        if !self.kind_allow.is_empty() {
+            h.u8(0xa2).usize(self.kind_allow.len());
+            for (kind, allow) in &self.kind_allow {
+                h.str(kind.name());
+                allow.fold_hash(&mut h);
+            }
+        }
+        if !self.deny_lists.is_empty() {
+            h.u8(0xd1).usize(self.deny_lists.len());
+            for deny in &self.deny_lists {
+                deny.fold_hash(&mut h);
+            }
+        }
         h.finish()
     }
 }
