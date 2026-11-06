@@ -1,42 +1,44 @@
 //! Context-word window around candidate spans for label-gated and
 //! confidence-boosted PII detection.
 //!
-//! For a candidate byte span `[start, end)`, the helper inspects up to `N`
-//! word tokens before `start` and up to `N` word tokens after `end`. Word
-//! boundaries follow Unicode Standard Annex #29 (`Word_Break` rules WB1 to
-//! WB999 via `turbo_unicode::word_break`), with one OpenNLP-compatible
-//! refinement: any code point with `Word_Break = Other` or `Katakana` that
-//! satisfies [`crate::text::letter_or_digit`] (such as Han ideographs) is
-//! grouped with adjacent letters so an attached prefix like `中SIN` does not
-//! split off a false word boundary before `SIN`. Segments that contain no
-//! letter or digit (whitespace, colons, `#`, `=`, periods, parentheses, line
-//! breaks, emoji) are skipped as non-words.
+//! For a candidate byte span `[start, end)`, the general window helper
+//! inspects up to `N` word tokens before `start` and up to `N` word tokens
+//! after `end`. Word boundaries follow UAX #29 (`Word_Break` rules WB1 to
+//! WB999 via `turbo_unicode::word_break`), with `Word_Break = Other` or
+//! `Katakana` code points that satisfy [`crate::text::letter_or_digit`]
+//! grouped as `ALetter` so an attached prefix like `中SIN` does not split off
+//! a false word boundary before `SIN`. Segments with no letter or digit are
+//! skipped as non-words. Label terms use ASCII case folding and support
+//! multi-word phrases (`social insurance number`, `social insurance no`).
 //!
-//! Label terms are compared with ASCII case folding (`sin`, `SIN`, `Sin`),
-//! and multi-word phrases (`social insurance number`, `social insurance no`)
-//! match a contiguous sequence of word tokens whose near boundary (last word
-//! before `start`, or first word after `end`) lies within `N` words of the
-//! candidate span.
+//! By default (when no caller override is set for the kind),
+//! [`PiiKind::CaSin`] and [`PiiKind::Imei`] use [`has_strict_prefix_label`] to
+//! preserve OpenNLP's `LabeledPiiExtractor` rule. Configuring
+//! [`crate::PiiDetector::with_label_window`],
+//! [`crate::PiiDetector::with_extra_label`], or
+//! [`crate::PiiDetector::with_label_policy`] on `CaSin` or `Imei` switches
+//! that kind onto the general bidirectional `N`-word UAX #29 window.
 //!
 //! # Known limitation
 //!
-//! The window checks only whether a label for the kind appears within `N`
-//! words of the candidate span; it does not parse clause or field structure.
-//! When a label inside the `N`-word window belongs to a different nearby
-//! number (for example `"Passport 123456789, order 987654321"` with a window
-//! wide enough to reach `"Passport"` from `"987654321"`), the second number
-//! will also see the label. Narrowing the kind's window with
-//! [`crate::PiiDetector::with_label_window`] reduces this cross-talk.
+//! The general window checks word distance only and does not parse clause
+//! structure: a label within `N` words that belongs to a different nearby
+//! number (e.g. `"Passport 123456789, order 987654321"`) still matches the
+//! window. Narrowing the window with [`crate::PiiDetector::with_label_window`]
+//! reduces this cross-talk.
 
 use turbo_analysis::Span;
 use turbo_analysis_layers::{PiiConfidence, PiiKind};
 use turbo_unicode::word_break::{WordBreak, WordBreak::*, is_extended_pictographic, word_break as unicode_word_break};
 
-use crate::text::letter_or_digit;
+use crate::text::{before, letter_or_digit, on_word_start, whitespace};
 
 /// Default context-word window width (`N` words on either side) for kinds
 /// other than [`PiiKind::CaSin`] and [`PiiKind::Imei`].
 pub const DEFAULT_WINDOW_WORDS: usize = 4;
+
+const SIN_STRICT_LABELS: [&[u8]; 3] = [b"social insurance number", b"social insurance no", b"sin"];
+const IMEI_STRICT_LABELS: [&[u8]; 1] = [b"imei"];
 
 /// How a [`PiiKind`] uses context labels within its word window.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -62,8 +64,7 @@ impl LabelPolicy {
     }
 }
 
-/// Default context-label terms for `kind` (lowercase ASCII words or
-/// multi-word phrases).
+/// Default context-label terms for `kind` (lowercase ASCII words or phrases).
 pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
     match kind {
         PiiKind::Email => &["email", "e-mail", "mail"],
@@ -91,12 +92,40 @@ pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
     }
 }
 
+/// Pre-split default label phrases for `kind`, avoiding per-candidate phrase
+/// segmentation during detection.
+const fn default_label_phrases(kind: PiiKind) -> &'static [&'static [&'static str]] {
+    match kind {
+        PiiKind::Email => &[&["email"], &["e", "mail"], &["mail"]],
+        PiiKind::Phone => &[&["phone"], &["tel"], &["telephone"], &["mobile"], &["cell"], &["fax"]],
+        PiiKind::UsSsn => {
+            &[&["ssn"], &["social", "security"], &["social", "security", "number"], &["social", "security", "no"]]
+        }
+        PiiKind::UsItin => {
+            &[&["itin"], &["taxpayer", "identification"], &["taxpayer", "identification", "number"], &["tax", "id"]]
+        }
+        PiiKind::UkNhs => &[&["nhs"], &["nhs", "number"], &["nhs", "no"]],
+        PiiKind::CaSin => &[&["social", "insurance", "number"], &["social", "insurance", "no"], &["sin"]],
+        PiiKind::DeSteuerId => {
+            &[&["steuer", "id"], &["steueridentifikationsnummer"], &["identifikationsnummer"], &["idnr"]]
+        }
+        PiiKind::Iban => &[&["iban"]],
+        PiiKind::AbaRouting => &[&["aba"], &["routing"], &["routing", "number"], &["rtn"]],
+        PiiKind::Card => &[&["card"], &["credit", "card"], &["debit", "card"], &["pan"], &["cc"]],
+        PiiKind::Imei => &[&["imei"]],
+        PiiKind::Ipv4 | PiiKind::Ipv6 => &[&["ip"], &["ip", "address"], &["ipv4"], &["ipv6"]],
+        PiiKind::Mac => &[&["mac"], &["mac", "address"], &["bssid"], &["hwaddr"]],
+        PiiKind::BtcAddress => &[&["btc"], &["bitcoin"], &["bitcoin", "address"]],
+        PiiKind::EthAddress => &[&["eth"], &["ethereum"], &["ethereum", "address"]],
+        PiiKind::AwsAccessKey => &[&["aws"], &["access", "key"], &["aws", "access", "key"]],
+        PiiKind::GithubToken => &[&["github"], &["github", "token"], &["gh", "token"], &["pat"]],
+        PiiKind::Jwt => &[&["jwt"], &["bearer"], &["id", "token"], &["access", "token"]],
+        PiiKind::UrlCredential => &[&["url"], &["uri"], &["dsn"], &["connection", "string"]],
+        PiiKind::Custom(_) => &[],
+    }
+}
+
 /// Default context-word window width (`N` words on either side) for `kind`.
-///
-/// [`PiiKind::CaSin`] and [`PiiKind::Imei`] default to `1` so a label phrase
-/// must immediately precede or follow the number (ignoring punctuation and
-/// whitespace), matching OpenNLP's `LabeledPiiExtractor` precision. All other
-/// kinds default to [`DEFAULT_WINDOW_WORDS`] (`4`).
 pub const fn default_window(kind: PiiKind) -> usize {
     match kind {
         PiiKind::CaSin | PiiKind::Imei => 1,
@@ -114,19 +143,54 @@ pub const fn default_policy(kind: PiiKind) -> LabelPolicy {
     }
 }
 
+/// OpenNLP `LabeledPiiExtractor` strict prefix check used by default for
+/// [`PiiKind::CaSin`] and [`PiiKind::Imei`] when no caller window override is
+/// configured on [`crate::PiiDetector`].
+pub fn has_strict_prefix_label(text: &str, start: usize, kind: PiiKind) -> bool {
+    let sin = match kind {
+        PiiKind::CaSin => true,
+        PiiKind::Imei => false,
+        _ => return false,
+    };
+    if start > text.len() || !text.is_char_boundary(start) {
+        return false;
+    }
+    let mut end = start;
+    while let Some(c) = before(text, end) {
+        if !(whitespace(c) || matches!(c, ':' | '#' | '=') || (sin && c == '.')) {
+            break;
+        }
+        end -= c.len_utf8();
+    }
+    let b = text.as_bytes();
+    let labels: &[&[u8]] = if sin { &SIN_STRICT_LABELS } else { &IMEI_STRICT_LABELS };
+    labels.iter().any(|label| {
+        end >= label.len()
+            && b[end - label.len()..end].eq_ignore_ascii_case(label)
+            && on_word_start(text, end - label.len())
+    })
+}
+
 /// Whether any label in `labels` appears within `window_words` word tokens
 /// before `span.start` or after `span.end` in `text`.
 pub fn has_label(text: &str, span: Span, labels: &[&str], window_words: usize) -> bool {
-    has_label_slices(text, span, labels, &[], window_words)
+    let phrases: Vec<Vec<&str>> = labels.iter().map(|l| words_after(l, usize::MAX)).filter(|p| !p.is_empty()).collect();
+    has_label_pre_split(text, span, &[], &phrases, window_words)
 }
 
 /// Whether any default label for `kind` appears within [`default_window`]`(kind)`
 /// word tokens before `span.start` or after `span.end` in `text`.
 pub fn has_kind_label(text: &str, span: Span, kind: PiiKind) -> bool {
-    has_label(text, span, default_labels(kind), default_window(kind))
+    has_label_pre_split::<String>(text, span, default_label_phrases(kind), &[], default_window(kind))
 }
 
-fn has_label_slices(text: &str, span: Span, defaults: &[&str], extras: &[String], window_words: usize) -> bool {
+fn has_label_pre_split<S: AsRef<str>>(
+    text: &str,
+    span: Span,
+    defaults: &[&[&str]],
+    extras: &[Vec<S>],
+    window_words: usize,
+) -> bool {
     if window_words == 0 || (defaults.is_empty() && extras.is_empty()) {
         return false;
     }
@@ -134,64 +198,32 @@ fn has_label_slices(text: &str, span: Span, defaults: &[&str], extras: &[String]
     if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
         return false;
     }
-    let mut phrases: Vec<Vec<&str>> = Vec::with_capacity(defaults.len() + extras.len());
-    let mut max_len = 0usize;
-    for &label in defaults {
-        let p = words_after(label, usize::MAX);
-        if !p.is_empty() {
-            max_len = max_len.max(p.len());
-            phrases.push(p);
-        }
-    }
-    for label in extras {
-        let p = words_after(label, usize::MAX);
-        if !p.is_empty() {
-            max_len = max_len.max(p.len());
-            phrases.push(p);
-        }
-    }
-    if phrases.is_empty() {
+    let max_len = defaults.iter().map(|p| p.len()).chain(extras.iter().map(Vec::len)).max().unwrap_or(0);
+    if max_len == 0 {
         return false;
     }
     let limit = window_words.saturating_add(max_len).saturating_sub(1);
     let before = words_before(&text[..start], limit);
-    if matches_before(&before, &phrases, window_words) {
+    if defaults.iter().any(|p| phrase_matches(&before, p, window_words, true))
+        || extras.iter().any(|p| phrase_matches(&before, p.as_slice(), window_words, true))
+    {
         return true;
     }
     let after = words_after(&text[end..], limit);
-    matches_after(&after, &phrases, window_words)
+    defaults.iter().any(|p| phrase_matches(&after, p, window_words, false))
+        || extras.iter().any(|p| phrase_matches(&after, p.as_slice(), window_words, false))
 }
 
-/// Checks whether any phrase `p` of length `L` ends at `before[m - d]` for
-/// `1 <= d <= window_words`.
-fn matches_before(before: &[&str], phrases: &[Vec<&str>], window_words: usize) -> bool {
-    let m = before.len();
-    if m == 0 {
-        return false;
-    }
-    phrases.iter().any(|p| {
-        let l = p.len();
-        (1..=window_words.min(m)).any(|d| {
+fn phrase_matches<S: AsRef<str>>(words: &[&str], phrase: &[S], window_words: usize, from_end: bool) -> bool {
+    let (m, l) = (words.len(), phrase.len());
+    m >= l
+        && l > 0
+        && (1..=window_words.min(m)).any(|d| {
             m >= d + l - 1 && {
-                let start = m - d - (l - 1);
-                before[start..start + l].iter().zip(p).all(|(w, lw)| w.eq_ignore_ascii_case(lw))
+                let start = if from_end { m - d - (l - 1) } else { d - 1 };
+                words[start..start + l].iter().zip(phrase).all(|(w, lw)| w.eq_ignore_ascii_case(lw.as_ref()))
             }
         })
-    })
-}
-
-/// Checks whether any phrase `p` of length `L` starts at `after[d - 1]` for
-/// `1 <= d <= window_words`.
-fn matches_after(after: &[&str], phrases: &[Vec<&str>], window_words: usize) -> bool {
-    let m = after.len();
-    if m == 0 {
-        return false;
-    }
-    phrases.iter().any(|p| {
-        let l = p.len();
-        (1..=window_words.min(m))
-            .any(|d| d - 1 + l <= m && after[d - 1..d - 1 + l].iter().zip(p).all(|(w, lw)| w.eq_ignore_ascii_case(lw)))
-    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -200,6 +232,7 @@ struct KindOverride {
     policy: Option<LabelPolicy>,
     window_words: Option<usize>,
     extra_labels: Vec<String>,
+    extra_phrases: Vec<Vec<String>>,
 }
 
 /// Per-detector overrides for context-word policies, window sizes, and extra
@@ -223,7 +256,16 @@ impl WindowConfig {
             .overrides
             .binary_search_by(|o| (o.kind.rank(), o.kind.name()).cmp(&(kind.rank(), kind.name())))
             .unwrap_or_else(|e| e);
-        self.overrides.insert(pos, KindOverride { kind, policy: None, window_words: None, extra_labels: Vec::new() });
+        self.overrides.insert(
+            pos,
+            KindOverride {
+                kind,
+                policy: None,
+                window_words: None,
+                extra_labels: Vec::new(),
+                extra_phrases: Vec::new(),
+            },
+        );
         &mut self.overrides[pos]
     }
 
@@ -238,18 +280,21 @@ impl WindowConfig {
     }
 
     pub(crate) fn set_window(&mut self, kind: PiiKind, window_words: usize) {
-        self.entry_mut(kind).window_words = (window_words != default_window(kind)).then_some(window_words);
+        let is_non_default = matches!(kind, PiiKind::CaSin | PiiKind::Imei) || window_words != default_window(kind);
+        self.entry_mut(kind).window_words = is_non_default.then_some(window_words);
         self.prune(kind);
     }
 
     pub(crate) fn add_extra_label(&mut self, kind: PiiKind, label: String) {
-        if words_after(&label, 1).is_empty() {
+        let canonical = label.to_ascii_lowercase();
+        let phrase: Vec<String> = words_after(&canonical, usize::MAX).into_iter().map(str::to_owned).collect();
+        if phrase.is_empty() {
             return;
         }
-        let canonical = label.to_ascii_lowercase();
         let entry = self.entry_mut(kind);
         if !entry.extra_labels.contains(&canonical) {
             entry.extra_labels.push(canonical);
+            entry.extra_phrases.push(phrase);
         }
     }
 
@@ -266,12 +311,13 @@ impl WindowConfig {
     }
 
     pub(crate) fn has_label(&self, text: &str, span: Span, kind: PiiKind) -> bool {
-        has_label_slices(text, span, default_labels(kind), self.extra_labels(kind), self.window_words(kind))
+        if matches!(kind, PiiKind::CaSin | PiiKind::Imei) && self.find(kind).is_none() {
+            return has_strict_prefix_label(text, span.start as usize, kind);
+        }
+        let extras = self.find(kind).map_or(&[][..], |o| o.extra_phrases.as_slice());
+        has_label_pre_split(text, span, default_label_phrases(kind), extras, self.window_words(kind))
     }
 
-    /// Applies `kind`'s [`LabelPolicy`] to a candidate at `span` with base
-    /// `confidence`. Returns `None` when the policy is [`LabelPolicy::Required`]
-    /// and no label for `kind` appears within its window.
     pub(crate) fn check(
         &self,
         text: &str,
@@ -333,52 +379,40 @@ fn mid_num(w: WordBreak) -> bool {
     matches!(w, MidNum | MidNumLet | SingleQuote)
 }
 
-struct Context {
-    last: WordBreak,
-    second_last: WordBreak,
-    regional_run: usize,
-}
-
-fn context_before(before: &str) -> Context {
+/// Reads at most two non-ignorable characters before the position. Regional
+/// indicator parity (WB15/WB16) is omitted because regional indicators have
+/// `letter_or_digit == false` and never join with word tokens (`O(1)`).
+fn context_before(before: &str) -> (WordBreak, WordBreak) {
     let mut significant = before.chars().rev().map(word_class).filter(|&w| !ignorable(w));
-    let last = significant.next().unwrap_or(Other);
-    let second_last = significant.next().unwrap_or(Other);
-    let regional_run = match (last, second_last) {
-        (RegionalIndicator, RegionalIndicator) => 2 + significant.take_while(|&w| w == RegionalIndicator).count(),
-        (RegionalIndicator, _) => 1,
-        _ => 0,
-    };
-    Context { last, second_last, regional_run }
+    (significant.next().unwrap_or(Other), significant.next().unwrap_or(Other))
 }
 
 fn next_significant(after: &str) -> WordBreak {
     after.chars().map(word_class).find(|&w| !ignorable(w)).unwrap_or(Other)
 }
 
-fn newline_and_attachment_rules(prev: WordBreak, current: WordBreak, c: char) -> Option<bool> {
+fn is_boundary(slice: &str, at: usize) -> bool {
+    if at == 0 || at >= slice.len() {
+        return true;
+    }
+    let (before, after) = slice.split_at(at);
+    let p = before.chars().next_back().expect("char before boundary");
+    let c = after.chars().next().expect("char after boundary");
+    let (prev, current) = (word_class(p), word_class(c));
     if prev == Cr && current == Lf {
-        return Some(false); // WB3
+        return false; // WB3
     }
-    if matches!(prev, Cr | Lf | Newline) {
-        return Some(true); // WB3a
+    if matches!(prev, Cr | Lf | Newline) || matches!(current, Cr | Lf | Newline) {
+        return true; // WB3a, WB3b
     }
-    if matches!(current, Cr | Lf | Newline) {
-        return Some(true); // WB3b
+    if (prev == Zwj && is_extended_pictographic(u32::from(c)))
+        || (prev == WSegSpace && current == WSegSpace)
+        || ignorable(current)
+    {
+        return false; // WB3c, WB3d, WB4
     }
-    if prev == Zwj && is_extended_pictographic(u32::from(c)) {
-        return Some(false); // WB3c
-    }
-    if prev == WSegSpace && current == WSegSpace {
-        return Some(false); // WB3d
-    }
-    if ignorable(current) {
-        return Some(false); // WB4
-    }
-    None
-}
-
-fn letter_and_number_rules(current: WordBreak, ctx: &Context, next: impl Fn() -> WordBreak) -> bool {
-    let Context { last, second_last, regional_run } = *ctx;
+    let (last, second_last) = context_before(before);
+    let next = || next_significant(&after[c.len_utf8()..]);
     let no_break = (ah_letter(last) && ah_letter(current)) // WB5
         || (ah_letter(last) && mid_letter(current) && ah_letter(next())) // WB6
         || (ah_letter(second_last) && mid_letter(last) && ah_letter(current)) // WB7
@@ -392,30 +426,10 @@ fn letter_and_number_rules(current: WordBreak, ctx: &Context, next: impl Fn() ->
         || (last == Numeric && mid_num(current) && next() == Numeric) // WB12
         || (last == Katakana && current == Katakana) // WB13
         || ((ah_letter(last) || matches!(last, Numeric | Katakana | ExtendNumLet)) && current == ExtendNumLet) // WB13a
-        || (last == ExtendNumLet && (ah_letter(current) || matches!(current, Numeric | Katakana))) // WB13b
-        || (last == RegionalIndicator && current == RegionalIndicator && regional_run % 2 == 1); // WB15, WB16
+        || (last == ExtendNumLet && (ah_letter(current) || matches!(current, Numeric | Katakana))); // WB13b
     !no_break // WB999
 }
 
-/// Whether byte `at` of `slice` (a character boundary) is a UAX #29 word
-/// boundary.
-fn is_boundary(slice: &str, at: usize) -> bool {
-    if at == 0 || at >= slice.len() {
-        return true;
-    }
-    let (before, after) = slice.split_at(at);
-    let p = before.chars().next_back().expect("char before boundary");
-    let c = after.chars().next().expect("char after boundary");
-    let (prev, current) = (word_class(p), word_class(c));
-    if let Some(decided) = newline_and_attachment_rules(prev, current, c) {
-        return decided;
-    }
-    let ctx = context_before(before);
-    letter_and_number_rules(current, &ctx, || next_significant(&after[c.len_utf8()..]))
-}
-
-/// Collects up to `limit` word segments from the end of `before`, returned in
-/// left-to-right text order.
 fn words_before(before: &str, limit: usize) -> Vec<&str> {
     if limit == 0 || before.is_empty() {
         return Vec::new();
@@ -440,8 +454,6 @@ fn words_before(before: &str, limit: usize) -> Vec<&str> {
     words
 }
 
-/// Collects up to `limit` word segments from the start of `after`, returned in
-/// left-to-right text order.
 fn words_after(after: &str, limit: usize) -> Vec<&str> {
     if limit == 0 || after.is_empty() {
         return Vec::new();

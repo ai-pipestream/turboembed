@@ -133,13 +133,18 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
 - **Per-kind defaults**: `window::default_labels(kind)` returns the built-in
   label list for each of the 20 built-in kinds (`&[]` for
   `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`
-  and `imei` (the label phrase must immediately precede or follow the
-  span, ignoring punctuation and whitespace) and
-  `window::DEFAULT_WINDOW_WORDS` (`4`) for every other kind.
-  `window::default_policy(kind)` is `LabelPolicy::Required` for `ca-sin`
-  and `imei` and `LabelPolicy::None` for the other 18 built-in kinds and
-  custom kinds, so existing detector outputs stay unchanged unless a
-  caller opts in.
+  and `imei` and `window::DEFAULT_WINDOW_WORDS` (`4`) for every other
+  kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
+  `ca-sin` and `imei` and `LabelPolicy::None` for the other 18 built-in
+  kinds and custom kinds, so existing detector outputs stay unchanged
+  unless a caller opts in. When no caller override is configured on
+  `ca-sin` or `imei`, `PiiDetector` uses
+  `window::has_strict_prefix_label` (the strict prefix rule: a label
+  before `span.start` separated only by whitespace and `:`, `#`, or `=`,
+  plus `.` for `ca-sin`) so default `CaIdentity`, `Device`, and
+  `AllStructured` outputs remain identical; configuring `with_label_window`,
+  `with_extra_label`, or `with_label_policy` on `ca-sin` or `imei` switches
+  that kind onto the general bidirectional `N`-word UAX #29 window.
 - **Policies and caller overrides**: `PiiDetector::label_required(kind)`
   (`LabelPolicy::Required`) drops unlabelled candidates of `kind` and
   raises labelled ones with `PiiConfidence::with_label`;

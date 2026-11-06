@@ -3,6 +3,8 @@
 
 mod support;
 
+use std::time::Instant;
+
 use support::*;
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Annotator, Document, Provenance, Span};
@@ -10,6 +12,7 @@ use turbo_analysis_layers::export::codecs;
 use turbo_pii::text::{on_end, on_number_start};
 use turbo_pii::window::{
     DEFAULT_WINDOW_WORDS, LabelPolicy, default_labels, default_policy, default_window, has_kind_label, has_label,
+    has_strict_prefix_label,
 };
 use turbo_pii::{Extractor, Pack, Pii, PiiConfidence, PiiDetector, PiiKind, PiiSink, Scanner};
 
@@ -100,13 +103,11 @@ fn window_helper_enforces_word_distance_bounds_and_invalid_spans() {
     // Multi-word phrase distance is measured from the near boundary of the phrase.
     let multi_before = "Social Security Number on file is 123-45-6789";
     let span = Span::new(34, 45);
-    // "Number" is at distance 4 ("Number", "on", "file", "is").
     assert!(has_label(multi_before, span, labels, 4));
     assert!(!has_label(multi_before, span, labels, 3));
 
     let multi_after = "123-45-6789 is the applicant Social Security Number";
     let span = Span::new(0, 11);
-    // "Social" is at distance 4 ("is", "the", "applicant", "Social").
     assert!(has_label(multi_after, span, labels, 4));
     assert!(!has_label(multi_after, span, labels, 3));
 
@@ -135,27 +136,82 @@ fn kind_defaults_match_specification() {
 }
 
 #[test]
-fn sin_and_imei_accept_trailing_and_multiline_labels_through_shared_window() {
-    let sin_det = PiiDetector::pack(Pack::CaIdentity);
+fn sin_and_imei_preserve_default_strict_prefix_parity_and_support_opt_in_window() {
+    let sin_default = PiiDetector::pack(Pack::CaIdentity);
+    let imei_default = PiiDetector::pack(Pack::Device);
+
+    // Default CaSin and Imei preserve OpenNLP `LabeledPiiExtractor` parity:
+    // trailing labels, disallowed separators (`.` for IMEI, `/`, `(`, `,`, `-`),
+    // and split multi-word phrases are rejected by default.
+    for imei_probe in [
+        "IMEI. 490154203237518",
+        "490154203237518 IMEI",
+        "IMEI/490154203237518",
+        "IMEI (490154203237518)",
+        "IMEI, 490154203237518",
+        "imei-490154203237518",
+    ] {
+        assert_none(&imei_default, imei_probe);
+    }
+    for sin_probe in [
+        "046-454-286 SIN",
+        "SIN (046-454-286)",
+        "SIN/046-454-286",
+        "Social  insurance\nnumber 046 454 286",
+        "the sin, 046 454 286",
+    ] {
+        assert_none(&sin_default, sin_probe);
+    }
+    assert!(has_strict_prefix_label("SIN. 046-454-286", 5, PiiKind::CaSin));
+    assert!(!has_strict_prefix_label("IMEI. 490154203237518", 6, PiiKind::Imei));
+
+    // Opting into the general UAX #29 window via `with_label_window` accepts
+    // trailing labels, punctuation-separated labels, and multi-line phrases.
+    let sin_window = PiiDetector::pack(Pack::CaIdentity).with_label_window(PiiKind::CaSin, 1);
     for text in [
+        "046-454-286 SIN",
         "046-454-286 (SIN)",
+        "SIN (046-454-286)",
+        "SIN/046-454-286",
+        "Social  insurance\nnumber 046 454 286",
+        "the sin, 046 454 286",
         "046 454 286 - Social Insurance Number",
         "046454286 (social insurance no.)",
-        "SIN:\n046-454-286",
         "Social Insurance Number\r\n046 454 286",
-        "046-454-286\nSIN",
     ] {
-        let pii = layer(&sin_det, text);
+        let pii = layer(&sin_window, text);
         let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
         assert_eq!(items, [(PiiKind::CaSin, PiiConfidence::LabelledChecksum, "046454286")], "{text}");
     }
 
-    let imei_det = PiiDetector::pack(Pack::Device);
-    for text in ["490154203237518 (IMEI)", "IMEI:\n490154203237518", "490154203237518\r\n(imei)"] {
-        let pii = layer(&imei_det, text);
+    let imei_window = PiiDetector::pack(Pack::Device).with_label_window(PiiKind::Imei, 1);
+    for text in [
+        "IMEI. 490154203237518",
+        "490154203237518 IMEI",
+        "IMEI/490154203237518",
+        "IMEI (490154203237518)",
+        "IMEI, 490154203237518",
+        "imei-490154203237518",
+        "490154203237518\r\n(imei)",
+    ] {
+        let pii = layer(&imei_window, text);
         let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
         assert_eq!(items, [(PiiKind::Imei, PiiConfidence::LabelledChecksum, "490154203237518")], "{text}");
     }
+}
+
+#[test]
+fn regional_indicator_runs_scan_in_linear_time() {
+    let flags = "\u{1F1E6}".repeat(4_000);
+    let text = format!("{flags} 490154203237518 {flags}");
+    let start = flags.len() as u32 + 1;
+    let span = Span::new(start, start + 15);
+
+    let t0 = Instant::now();
+    assert!(!has_label(&text, span, &["imei"], 4));
+    let imei_window = PiiDetector::pack(Pack::Device).with_label_window(PiiKind::Imei, 4);
+    assert_none(&imei_window, &text);
+    assert!(t0.elapsed().as_millis() < 50, "4,000 regional indicators took {} ms", t0.elapsed().as_millis());
 }
 
 #[test]
@@ -189,13 +245,16 @@ fn label_required_drops_unlabelled_and_promotes_labelled_candidates() {
 }
 
 #[test]
-fn label_boosts_keeps_unlabelled_and_raises_labelled_confidence() {
-    let det = PiiDetector::new(vec![Scanner::all(Extractor::UsIdentity), Scanner::all(Extractor::EuIdentity)])
-        .label_boosts(PiiKind::UsSsn)
-        .label_boosts(PiiKind::UkNhs);
+fn label_boosts_and_binary_wire_tags_preserve_backwards_compatibility() {
+    let det = PiiDetector::new(vec![
+        Scanner::all(Extractor::UsIdentity),
+        Scanner::all(Extractor::EuIdentity),
+        Scanner::all(Extractor::Device),
+    ])
+    .label_boosts(PiiKind::UsSsn);
 
     let text = "Unlabelled 123-45-6789 and 943 476 5919 stand alone near the start of this paragraph; \
-                labelled SSN: 123-45-6789 and NHS: 943 476 5919.";
+                IMEI: 490154203237518 and labelled SSN: 123-45-6789.";
     let pii = layer(&det, text);
     let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
     assert_eq!(
@@ -203,20 +262,25 @@ fn label_boosts_keeps_unlabelled_and_raises_labelled_confidence() {
         [
             (PiiKind::UsSsn, PiiConfidence::Format, "123-45-6789"),
             (PiiKind::UkNhs, PiiConfidence::Checksum, "9434765919"),
+            (PiiKind::Imei, PiiConfidence::LabelledChecksum, "490154203237518"),
             (PiiKind::UsSsn, PiiConfidence::Labelled, "123-45-6789"),
-            (PiiKind::UkNhs, PiiConfidence::LabelledChecksum, "9434765919"),
         ]
     );
 
-    // Binary graph export/import preserves `PiiConfidence::Labelled` alongside the other three variants.
+    // Binary graph export/import preserves existing wire tags:
+    // Format = 0, Checksum = 1, LabelledChecksum = 2, Labelled = 3.
     let mut doc = Document::new(text);
     doc.add(&turbo_analysis::Key::DEFAULT, pii, Provenance::by("test")).unwrap();
     let bytes = export(&doc, &codecs()).unwrap().to_bytes().unwrap();
+    assert!(
+        bytes.windows(8).any(|w| w == [4, 0, 0, 0, 0, 1, 2, 3]),
+        "expected wire tags [0, 1, 2, 3] for [Format, Checksum, LabelledChecksum, Labelled]"
+    );
     let round_tripped = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs()).unwrap();
     let back_pii = round_tripped.get::<Pii>().unwrap();
     assert_eq!(
         back_pii.confidence,
-        [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::Labelled, PiiConfidence::LabelledChecksum,]
+        [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum, PiiConfidence::Labelled,]
     );
 }
 

@@ -44,7 +44,7 @@ const RELATIONS: [Relation; 8] = [
 const PORTIONS: [Portion; 6] =
     [Portion::Whole, Portion::Start, Portion::Mid, Portion::End, Portion::Approx, Portion::Undefined];
 const PII_CONFIDENCES: [PiiConfidence; 4] =
-    [PiiConfidence::Format, PiiConfidence::Labelled, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum];
+    [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum, PiiConfidence::Labelled];
 
 impl LayerCodec for Numbers {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
