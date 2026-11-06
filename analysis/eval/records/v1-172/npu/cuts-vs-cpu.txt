@@ -1,4 +1,4 @@
 Cut dumps are recorded for the #1480 NPU run.
 NPU dumps: npu/turbo-chunker-254-200-hybrid and npu/turbo-chunker-254-200-cohesion-1000-hybrid (sha256 and sizes in reports/cut-dumps.sha256).
-CPU comparison dumps were regenerated on the same Windows host with --device cpu using the NPU token-ids bundle (the Linux CPU dumps from the earlier records were not available there). Results: reports/cuts-cpu-npu-turbo-chunker-254-200-hybrid.txt and reports/cuts-cpu-npu-turbo-chunker-254-200-cohesion-1000-hybrid.txt.
-Cohesion-as-baseline gates vs fixed-tokens / opennlp / sentence-windows are still to be recorded as gate-npu-turbo-chunker-254-200-cohesion-1000-hybrid-vs-*.txt.
+CPU comparison dumps were regenerated on the same Windows host with --device cpu using the NPU token-ids f16 s256 bundle (the AMD/Linux CPU dumps from the earlier #172 records were not on that host). Results: reports/cuts-cpu-npu-turbo-chunker-254-200-hybrid.txt (0 documents differ on all four sets) and reports/cuts-cpu-npu-turbo-chunker-254-200-cohesion-1000-hybrid.txt (4/10/6/7 documents differ on arguana/nfcorpus/qasper/scifact; margins in the report).
+All six gate-npu-*.txt reports are under reports/.
