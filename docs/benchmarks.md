@@ -663,12 +663,13 @@ Mac's GPU we know of, so it is the metal backend's kernel reference.
 The tool writes its runner, `bench/reference/mlx_reference.py`, and the
 measured rows (ids, mask and types) to a fresh directory under `--work`,
 and runs `python3 -E <mlx-reference> --model <mlx-model> --dtype <float16
-or float32> --rows <work>/rows.json --warmup <n> --iterations <n>
+or float32> --pooling <mean or cls> --rows <work>/rows.json --warmup <n> --iterations <n>
 --version 0.29.3 --out <work>/receipt.json`; the runner refuses an MLX
 of another version (`MLX_VERSION` in `bench/src/mlx.rs`). The runner is `bench/metal-peers/mlx_bench.py`'s
 encoder: every weight cast to the dtype it runs in (float16 at FASTEST,
 float32 otherwise), `mx.fast` LayerNorm and attention, `mx.compile`d,
-mean pooling over the mask and L2 normalization in F32. It runs the rows
+the bundle's pooling (the mean over the mask, or CLS, the first token's
+state) and L2 normalization in F32. It runs the rows
 as a padded batch, so `computed_tokens` is the padded pass. Its time is
 host wall time, each run waited for with `mx.eval`: the encoder and
 pooling, with the rows already on the device and the vectors not read
@@ -682,7 +683,8 @@ just before it ran, the SHA-256 of `mlx/lib/mlx.metallib` and of the
 `mlx.core` module, and the runner's. The Python is the machine's
 `python3`, with its user site packages, where pip puts MLX. `--mlx-model` must hold `config.json` and, as
 `model.safetensors`, the artifact the device loaded, checked by its
-hash; a bundle whose contract is not mean pooling with L2 is refused.
+hash; a bundle whose contract is not mean or CLS pooling with L2 is refused,
+and so is a receipt whose pooling is not the bundle's.
 MLX float16 is F16 throughout, LayerNorm included, a looser contract
 than FASTEST's F32 residual stream and sums (docs/metal.md).
 
