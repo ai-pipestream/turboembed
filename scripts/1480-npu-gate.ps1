@@ -1,6 +1,6 @@
 <# #1480: chunker v1 gate records on Intel NPU. Non-elevated PowerShell on turboembed-npu.
    Writes under C:\te\out-1480-<stamp>\ then copies JSON into records\npu\ for packaging.
-   Needs an NPU MiniLM bundle with fixed_seq >= 254 (febfed530b66 is 128 and will fail --max 254).
+   Uses sealed MiniLM NPU IR fixed_seq 256 (tag minilm-npu-token-ids-f16-s256-605aeb78e).
    Does not push. #>
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
@@ -84,7 +84,7 @@ function Get-Bundle([string]$Tag, [string]$Prefix) {
   return [string]$x
 }
 
-$minilm = [string](Get-Bundle "minilm-npu-token-ids-f16-febfed530b66" "minilm-npu-token-ids-f16-febfed530b66")
+$minilm = [string](Get-Bundle "minilm-npu-token-ids-f16-s256-605aeb78e" "minilm-npu-token-ids-f16-s256-605aeb78e")
 "minilm bundle: $minilm" | Tee-Object -Append "$Out\machine.txt"
 if (-not $minilm) {
   Write-Host "NO NPU BUNDLE; aborting eval" -ForegroundColor Red
@@ -97,8 +97,7 @@ $Cache = Join-Path $Root "eval-cache"
 $null = New-Item -ItemType Directory -Force $Cache
 $Sets = "scifact,nfcorpus,arguana,qasper"
 
-# NPU-sealed MiniLM (febfed530b66) is fixed_seq 128; #1480 / #172 need max 254.
-# Refuse early unless the loaded bundle reports max_seq >= 254.
+# Bundle tag is fixed_seq 256 MiniLM NPU IR for #1480 / #172 --max 254.
 Step "fetch-sets" {
   cargo run --release -p turbo-eval --features turbo/npu -- fetch --sets $Sets --cache $Cache
 }
@@ -163,7 +162,7 @@ if (Test-Path $CpuDumps) {
 # #1480 chunker v1 records: Intel NPU (Arrow Lake)
 
 See head.txt and machine.txt in this out package. provenance.device.backend must be npu on every JSON.
-Bundle: NPU-sealed minilm-npu-token-ids-f16-febfed530b66 under $minilm
+Bundle: NPU-sealed minilm-npu-token-ids-f16-s256-605aeb78e under $minilm
 "@ | Set-Content "$Records\README.md"
 
 Compress-Archive -Path "$Out\*" -DestinationPath "$Out.zip" -Force
