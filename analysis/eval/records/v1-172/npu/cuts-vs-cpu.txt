@@ -1,1 +1,3 @@
-MISSING CPU cut dumps at C:\te\eval-cuts-172-main\cpu (exact path). NPU dumps are under C:\te\out-1480-20261105-1822\dumps. Cut report deferred.
+CPU cut dumps were missing at <dumps>/cpu on the Windows host during the #1480 NPU run.
+NPU dumps exist under the gate out dir; cuts-cpu-npu-*.txt and cut-dumps.sha256 npu entries are still deferred until CPU dumps are available.
+Cohesion-as-baseline gates vs fixed-tokens / opennlp / sentence-windows are still to be recorded as gate-npu-turbo-chunker-254-200-cohesion-1000-hybrid-vs-*.txt.

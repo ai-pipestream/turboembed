@@ -1,4 +1,4 @@
-﻿# #1480 chunker v1 records: Intel NPU (Arrow Lake)
+# #1480 chunker v1 records: Intel NPU (Arrow Lake)
 
 Recordings for the #1480 chunker v1 gate on an Intel NPU (Intel Core Ultra 7 265T, Arrow Lake).
 
