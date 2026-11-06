@@ -3,19 +3,21 @@
 //! CoNLL coreference metrics (MUC, B-cubed, CEAF-e, and CoNLL F1) beside the
 //! deterministic singleton baseline.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use turbo::manifest::{CorefShape, SpanShape};
+use turbo::head::CorefRanker;
+use turbo::manifest::{CorefShape, HeadKind, HeadSpec, SpanShape};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::WordEncoder;
 use turbo_trainer::fit_coref_with;
-use turbo_trainer_recipes::corpus::Counts;
+use turbo_trainer_recipes::corpus::{Counts, FileRecord};
 use turbo_trainer_recipes::litbank::{self, CorefDoc};
 use turbo_trainer_recipes::litbank_eval::{
     CorefOptions, DEFAULT_ANTECEDENTS, DEFAULT_MAX_WORDS, DEFAULT_MENTION_DIM, DEFAULT_WIDTH_DIM, baseline,
     bootstrap_coref, evaluate_coref, examples, features, named, predict, spec,
 };
+use turbo_trainer_recipes::prior;
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, replace};
 use turbo_trainer_recipes::{Error, Result, safetensors};
@@ -31,6 +33,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         parse_alias(&mut a, &["--max-antecedents", "--antecedents", "--rough-top-k"], DEFAULT_ANTECEDENTS)?;
     let max_words: u32 = a.parsed("--max-words", DEFAULT_MAX_WORDS)?;
     let width_dim: u32 = a.parsed("--width-dim", DEFAULT_WIDTH_DIM)?;
+    let against = a.value("--against")?.map(PathBuf::from);
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
         options(&mut a)?;
     a.done()?;
@@ -57,6 +60,9 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
     let hidden = enc.hidden();
+    // The head to score against, read before training so a bad one fails
+    // first.
+    let prior = against.as_deref().map(|dir| prior_ranker(dir, &head, &encoder)).transpose()?;
 
     let t = Instant::now();
     let train_f = features(&mut enc, &splits.train, pooling)?;
@@ -93,6 +99,18 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let test_f = features(&mut enc, &splits.test, pooling)?;
     let predicted = predict(&core_head, &splits.test, &test_f)?;
     let base = baseline(&splits.test);
+    let against = match prior {
+        Some((name, prior, files)) => {
+            let theirs = predict(&prior, &splits.test, &test_f)?;
+            Some(BaselineEval {
+                name,
+                baseline: evaluate_coref(&splits.test, &theirs)?,
+                comparison: bootstrap_coref(&splits.test, &predicted, &theirs, RESAMPLES, c.seed)?,
+                files,
+            })
+        }
+        None => None,
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate_coref(&splits.test, &predicted)?),
@@ -102,7 +120,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         comparison: Some(bootstrap_coref(&splits.test, &predicted, &base, RESAMPLES, c.seed)?),
         uas: None,
         rules: None,
-        against: None,
+        against,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
@@ -145,6 +163,32 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         outputs,
     };
     finish(out, receipt)
+}
+
+/// The ranker an earlier `train-coref` wrote to `dir`, to score beside
+/// this run's `head`: its name with its span and ranking shape, the
+/// ranker, and the files read. It must read the features `head` reads:
+/// the same word pooling, on the same encoder.
+fn prior_ranker(
+    dir: &Path,
+    head: &HeadSpec,
+    encoder: &EncoderRecord,
+) -> Result<(String, CorefRanker, Vec<FileRecord>)> {
+    let p = prior::read(dir, encoder)?;
+    if p.spec.kind != HeadKind::CorefRanker || p.spec.labels != head.labels {
+        return Err(prior::refused(dir, "the head's kind or labels"));
+    }
+    if p.spec.word_pooling != head.word_pooling {
+        return Err(prior::refused(dir, "word pooling (--pooling)"));
+    }
+    let ranker = p.head(|get| CorefRanker::from_tensors(&p.spec, encoder.hidden, get))?;
+    let shape = match (p.spec.span, p.spec.coref) {
+        (Some(s), Some(c)) => {
+            format!(" (max words {}, width {}, mlp {}, antecedents {})", s.max_words, s.width_dim, c.dim, c.antecedents)
+        }
+        _ => String::new(),
+    };
+    Ok((format!("{}{shape}", p.name), ranker, p.files))
 }
 
 fn parse_alias(a: &mut Args, flags: &[&str], default: u32) -> Result<u32> {
