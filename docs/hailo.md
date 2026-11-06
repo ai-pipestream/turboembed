@@ -281,7 +281,11 @@ from everything else: on the Hailo-8 on a Raspberry Pi 5 at commit
 Hailo-8 against 1307, 2208 and 2625 ms on the CPU; beside four busy
 processes, each kept 86% of its idle rate while the Hailo-8 ran the 32
 rows and 52% while the CPU did. The calibration keeps each side's fastest time, since
-another process on the machine can only slow a run, and a call's runs,
+another process on the machine can only slow a run, and times each side
+in blocks of its own runs (device, CPU, CPU, device, each after one
+untimed run), as the dispatch test times them: timed in turns of one
+run each, the calibration put a document's CPU time 7% or more above
+the test's at window 32 and cap 1 on the Hailo-8's host, and a call's runs,
 rows and tokens are planned the way it runs. Each document's layers
 record the side that made its vectors. Through one instance on the
 Hailo-8 on a Raspberry Pi 5 at commit 5f46f682, 2026-10-24, the middle
