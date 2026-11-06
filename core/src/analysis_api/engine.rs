@@ -301,7 +301,7 @@ impl AnalyzerEngine {
             let classification = match mention.confidence {
                 PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
                 PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
-                PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
+                PiiConfidence::Labelled | PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
             };
             builder.push(
                 layer,

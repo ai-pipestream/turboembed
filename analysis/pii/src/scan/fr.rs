@@ -3,11 +3,11 @@
 
 use turbo_analysis_layers::{PiiConfidence, PiiKind};
 
-use super::labelled::has_any_label;
 use super::national::{JOINERS, on_number_end};
 use crate::checksum::fr;
 use crate::hits::Hits;
 use crate::text::{before, on_number_start};
+use crate::window::has_any_label;
 
 const NIR_GROUPS: &[&[usize]] = &[&[1, 2, 2, 2, 3, 3, 2], &[1, 2, 2, 3, 2, 3, 2], &[1, 2, 2, 5, 3, 2], &[13, 2], &[15]];
 

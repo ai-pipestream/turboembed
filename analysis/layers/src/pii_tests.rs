@@ -43,7 +43,17 @@ fn mentions_round_trip_and_may_overlap() {
     assert_eq!(p.get(Ix::new(1)).confidence, PiiConfidence::Checksum);
     assert_eq!(p.get(Ix::new(2)).normalized, "1234567890");
     assert_eq!(Pii::ID, "turbo:pii");
+    assert_eq!(PiiConfidence::Format.name(), "format");
+    assert_eq!(PiiConfidence::Labelled.name(), "labelled");
+    assert_eq!(PiiConfidence::Checksum.name(), "checksum");
     assert_eq!(PiiConfidence::LabelledChecksum.name(), "labelled-checksum");
+    assert_eq!(PiiConfidence::Format.with_label(), PiiConfidence::Labelled);
+    assert_eq!(PiiConfidence::Labelled.with_label(), PiiConfidence::Labelled);
+    assert_eq!(PiiConfidence::Checksum.with_label(), PiiConfidence::LabelledChecksum);
+    assert_eq!(PiiConfidence::LabelledChecksum.with_label(), PiiConfidence::LabelledChecksum);
+    assert!(PiiConfidence::Format < PiiConfidence::Labelled);
+    assert!(PiiConfidence::Labelled < PiiConfidence::Checksum);
+    assert!(PiiConfidence::Checksum < PiiConfidence::LabelledChecksum);
 }
 
 #[test]

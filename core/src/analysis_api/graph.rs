@@ -381,7 +381,7 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
         let classification = match mention.confidence {
             PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
             PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
-            PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
+            PiiConfidence::Labelled | PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
         };
         push_fragments(
             builder,
