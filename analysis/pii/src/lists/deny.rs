@@ -2,6 +2,7 @@
 //! (Aho-Corasick) and optional bounded Levenshtein fuzzy matching over word
 //! tokens, always reported as a caller-named [`PiiKind::Custom`].
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use turbo_analysis::{Fnv1a, Span};
@@ -150,7 +151,9 @@ impl DenyList {
     }
 
     /// Sets the maximum Levenshtein edit distance (`0`, `1`, or `2`) over
-    /// word tokens.
+    /// word tokens. Words shorter than `4` characters only match at `0` edits;
+    /// words of `4..=5` characters allow at most `1` edit; words of `6` or more
+    /// characters allow up to `2` edits.
     pub fn with_max_edits(mut self, max_edits: u8) -> Result<DenyList, ListError> {
         if max_edits > 2 {
             return Err(ListError::InvalidEditDistance(max_edits));
@@ -187,7 +190,7 @@ impl DenyList {
         if trimmed.is_empty() {
             return Err(ListError::EmptyTerm);
         }
-        self.terms.push(trimmed.to_owned());
+        self.insert_term(trimmed.to_owned());
         self.rebuild();
         Ok(self)
     }
@@ -204,12 +207,16 @@ impl DenyList {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        let mut batch = Vec::new();
         for term in terms {
             let trimmed = term.as_ref().trim();
             if trimmed.is_empty() {
                 return Err(ListError::EmptyTerm);
             }
-            self.terms.push(trimmed.to_owned());
+            batch.push(trimmed.to_owned());
+        }
+        for term in batch {
+            self.insert_term(term);
         }
         self.rebuild();
         Ok(self)
@@ -228,8 +235,9 @@ impl DenyList {
     /// Loads terms from `path`, one term per line, ignoring blank lines and
     /// `#` comments.
     pub fn add_file(&mut self, path: impl AsRef<Path>) -> Result<&mut Self, ListError> {
-        let lines = read_file_lines(path.as_ref())?;
-        self.terms.extend(lines);
+        for line in read_file_lines(path.as_ref())? {
+            self.insert_term(line);
+        }
         self.rebuild();
         Ok(self)
     }
@@ -240,7 +248,29 @@ impl DenyList {
         Ok(self)
     }
 
+    fn insert_term(&mut self, term: String) {
+        let exists = match self.case {
+            Case::Sensitive => self.terms.contains(&term),
+            Case::Insensitive => {
+                let key = fold_lower(&term);
+                self.terms.iter().any(|t| fold_lower(t) == key)
+            }
+        };
+        if !exists {
+            self.terms.push(term);
+        }
+    }
+
     fn rebuild(&mut self) {
+        let mut seen = HashSet::with_capacity(self.terms.len());
+        let case = self.case;
+        self.terms.retain(|t| {
+            let key = match case {
+                Case::Sensitive => t.clone(),
+                Case::Insensitive => fold_lower(t),
+            };
+            seen.insert(key)
+        });
         if self.terms.is_empty() {
             self.matcher = None;
             self.fuzzy_terms.clear();
@@ -301,6 +331,8 @@ impl DenyList {
             return;
         }
         let folded_words: Vec<Vec<char>> = words.iter().map(|&(s, e)| fold_chars(&text[s..e], self.case)).collect();
+        let mut prev = Vec::new();
+        let mut curr = Vec::new();
 
         for ft in &self.fuzzy_terms {
             let k = ft.words.len();
@@ -320,8 +352,8 @@ impl DenyList {
                 let mut total_edits = 0u8;
                 let mut ok = true;
                 for m in 0..k {
-                    let rem = self.max_edits - total_edits;
-                    match levenshtein_within(&folded_words[i + m], &ft.words[m], rem) {
+                    let rem = (self.max_edits - total_edits).min(max_word_edits(ft.words[m].len()));
+                    match levenshtein_within(&folded_words[i + m], &ft.words[m], rem, &mut prev, &mut curr) {
                         Some(d) => total_edits += d,
                         None => {
                             ok = false;
@@ -358,11 +390,19 @@ fn is_capitalised(text: &str) -> bool {
         .is_some_and(|c| c.is_uppercase() || matches!(general_category(c), GeneralCategory::Lu | GeneralCategory::Lt))
 }
 
+fn fold_lower(text: &str) -> String {
+    text.chars().map(to_lower_char).collect()
+}
+
 fn fold_chars(text: &str, case: Case) -> Vec<char> {
     match case {
         Case::Sensitive => text.chars().collect(),
         Case::Insensitive => text.chars().map(to_lower_char).collect(),
     }
+}
+
+fn max_word_edits(word_len: usize) -> u8 {
+    ((word_len.saturating_sub(2)) / 2).min(2) as u8
 }
 
 fn word_spans(text: &str) -> Vec<(usize, usize)> {
@@ -389,6 +429,9 @@ fn build_fuzzy_term(entry: EntryIx, term: &str, case: Case) -> Option<FuzzyTerm>
         return None;
     }
     let words: Vec<Vec<char>> = spans.iter().map(|&(s, e)| fold_chars(&term[s..e], case)).collect();
+    if words.iter().all(|w| max_word_edits(w.len()) == 0) {
+        return None;
+    }
     let separators: Vec<String> = spans.windows(2).map(|w| term[w[0].1..w[1].0].to_owned()).collect();
     Some(FuzzyTerm { entry, words, separators })
 }
@@ -407,7 +450,7 @@ fn separators_match(text: &str, window: &[(usize, usize)], term_seps: &[String])
     true
 }
 
-fn levenshtein_within(a: &[char], b: &[char], max: u8) -> Option<u8> {
+fn levenshtein_within(a: &[char], b: &[char], max: u8, prev: &mut Vec<usize>, curr: &mut Vec<usize>) -> Option<u8> {
     let max_usize = usize::from(max);
     if a.len().abs_diff(b.len()) > max_usize {
         return None;
@@ -415,15 +458,27 @@ fn levenshtein_within(a: &[char], b: &[char], max: u8) -> Option<u8> {
     if max == 0 {
         return (a == b).then_some(0);
     }
+    let blen = b.len();
+    if blen == 0 {
+        return Some(a.len() as u8);
+    }
     let inf = max_usize + 1;
-    let mut prev: Vec<usize> = (0..=b.len()).collect();
-    let mut curr = vec![inf; b.len() + 1];
+    if prev.len() <= blen {
+        prev.resize(blen + 1, inf);
+        curr.resize(blen + 1, inf);
+    }
+    for (j, slot) in prev.iter_mut().enumerate().take((max_usize + 1).min(blen) + 1) {
+        *slot = j;
+    }
     for (i, &ca) in a.iter().enumerate() {
-        curr.fill(inf);
-        curr[0] = i + 1;
-        let lo = (i + 1).saturating_sub(max_usize).max(1);
-        let hi = (i + 1 + max_usize).min(b.len());
-        let mut row_min = curr[0];
+        let r = i + 1;
+        let lo = r.saturating_sub(max_usize).max(1);
+        let hi = (r + max_usize).min(blen);
+        curr[lo - 1] = if lo == 1 { r } else { inf };
+        if hi < blen {
+            curr[hi + 1] = inf;
+        }
+        let mut row_min = curr[lo - 1];
         for j in lo..=hi {
             let cost = usize::from(ca != b[j - 1]);
             let v = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
@@ -433,7 +488,7 @@ fn levenshtein_within(a: &[char], b: &[char], max: u8) -> Option<u8> {
         if row_min > max_usize {
             return None;
         }
-        std::mem::swap(&mut prev, &mut curr);
+        std::mem::swap(prev, curr);
     }
-    (prev[b.len()] <= max_usize).then_some(prev[b.len()] as u8)
+    (prev[blen] <= max_usize).then_some(prev[blen] as u8)
 }

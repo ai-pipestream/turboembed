@@ -242,7 +242,8 @@ values or flag domain-specific terms without writing a custom byte scanner:
     default, or case-insensitively (`Case::Insensitive`, via
     `AllowList::case_insensitive` / `AllowList::with_case` /
     `Pattern::case_insensitive`) using `turbo-unicode`'s per-scalar
-    lowercase mapping.
+    lowercase mapping. Duplicate terms and patterns are deduplicated on
+    insertion and when changing case mode.
 - **Regex-free pattern language (`Pattern`, `PatternKind`)**: patterns
   match a whole candidate value from start to end using a deterministic,
   non-backtracking two-pointer wildcard pass with no regular expressions:
@@ -267,11 +268,16 @@ values or flag domain-specific terms without writing a custom byte scanner:
   - Exact terms are matched with `turbo-glossary`'s Aho-Corasick
     `TextMatcher` (`Case::Sensitive` or `Case::Insensitive`) at word
     boundaries (`text::on_word_start` and `text::on_end`), with overlaps
-    resolved leftmost-longest by `turbo_glossary::select`.
+    resolved leftmost-longest by `turbo_glossary::select`. Duplicate terms
+    are deduplicated on insertion and when changing case mode.
   - Optional fuzzy matching (`DenyList::with_max_edits`) admits word-token
     candidates within `0`, `1`, or `2` Levenshtein edits (insertions,
     deletions, or substitutions of one Unicode scalar). Edit distances
-    above `2` are refused (`ListError::InvalidEditDistance`).
+    above `2` are refused (`ListError::InvalidEditDistance`). To prevent
+    short terms from matching arbitrary short words, a term word must have
+    at least `2 * k + 2` characters to allow `k >= 1` edits (`>= 4`
+    characters for `1` edit, `>= 6` characters for `2` edits; words
+    shorter than `4` characters only match at `0` edits).
   - `DenyList::capitalised_only` (`with_capitalised_only`,
     `capitalized_only`) requires a candidate in the text to start with an
     uppercase or titlecase letter (`Lu` or `Lt`), preventing fuzzy matches

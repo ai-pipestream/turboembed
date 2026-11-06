@@ -64,8 +64,8 @@ impl AllowList {
         for (_, term_case) in &mut self.terms {
             *term_case = case;
         }
-        for pat in &mut self.patterns {
-            *pat = pat.clone().with_case(case);
+        for pat in std::mem::take(&mut self.patterns) {
+            self.add_pattern(pat.with_case(case));
         }
         self.rebuild_sets();
         self
@@ -128,8 +128,16 @@ impl AllowList {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        let mut batch = Vec::new();
         for term in terms {
-            self.add_term(term.as_ref())?;
+            let trimmed = term.as_ref().trim();
+            if trimmed.is_empty() {
+                return Err(ListError::EmptyTerm);
+            }
+            batch.push(trimmed.to_owned());
+        }
+        for term in batch {
+            self.insert_term(term, self.case);
         }
         Ok(self)
     }
@@ -161,7 +169,9 @@ impl AllowList {
 
     /// Adds a compiled [`Pattern`].
     pub fn add_pattern(&mut self, pattern: Pattern) -> &mut Self {
-        self.patterns.push(pattern);
+        if !self.patterns.contains(&pattern) {
+            self.patterns.push(pattern);
+        }
         self
     }
 
@@ -175,7 +185,7 @@ impl AllowList {
     /// `?` any char, `*` any sequence, `\x` escaped literal) using this list's [`Case`].
     pub fn add_shape(&mut self, shape: &str) -> Result<&mut Self, ListError> {
         let pat = Pattern::shape(shape)?.with_case(self.case);
-        self.patterns.push(pat);
+        self.add_pattern(pat);
         Ok(self)
     }
 
@@ -188,7 +198,7 @@ impl AllowList {
     /// Compiles and adds a glob pattern (`*`, `?`, `\x`) using this list's [`Case`].
     pub fn add_glob(&mut self, glob: &str) -> Result<&mut Self, ListError> {
         let pat = Pattern::glob(glob)?.with_case(self.case);
-        self.patterns.push(pat);
+        self.add_pattern(pat);
         Ok(self)
     }
 
@@ -201,8 +211,12 @@ impl AllowList {
     /// Loads shape patterns from `path`, one shape pattern per line, ignoring
     /// blank lines and `#` comments.
     pub fn add_shapes_file(&mut self, path: impl AsRef<Path>) -> Result<&mut Self, ListError> {
+        let mut batch = Vec::new();
         for line in read_file_lines(path.as_ref())? {
-            self.add_shape(&line)?;
+            batch.push(Pattern::shape(&line)?.with_case(self.case));
+        }
+        for pat in batch {
+            self.add_pattern(pat);
         }
         Ok(self)
     }
@@ -216,8 +230,12 @@ impl AllowList {
     /// Loads glob patterns from `path`, one glob pattern per line, ignoring
     /// blank lines and `#` comments.
     pub fn add_globs_file(&mut self, path: impl AsRef<Path>) -> Result<&mut Self, ListError> {
+        let mut batch = Vec::new();
         for line in read_file_lines(path.as_ref())? {
-            self.add_glob(&line)?;
+            batch.push(Pattern::glob(&line)?.with_case(self.case));
+        }
+        for pat in batch {
+            self.add_pattern(pat);
         }
         Ok(self)
     }
@@ -234,33 +252,26 @@ impl AllowList {
         for (term, case) in other.terms {
             self.insert_term(term, case);
         }
-        self.patterns.extend(other.patterns);
+        for pat in other.patterns {
+            self.add_pattern(pat);
+        }
     }
 
     fn insert_term(&mut self, term: String, case: Case) {
-        match case {
-            Case::Sensitive => {
-                self.exact_set.insert(term.clone());
-            }
-            Case::Insensitive => {
-                self.folded_set.insert(fold_lower(&term));
-            }
+        let inserted = match case {
+            Case::Sensitive => self.exact_set.insert(term.clone()),
+            Case::Insensitive => self.folded_set.insert(fold_lower(&term)),
+        };
+        if inserted {
+            self.terms.push((term, case));
         }
-        self.terms.push((term, case));
     }
 
     fn rebuild_sets(&mut self) {
         self.exact_set.clear();
         self.folded_set.clear();
-        for (term, case) in &self.terms {
-            match case {
-                Case::Sensitive => {
-                    self.exact_set.insert(term.clone());
-                }
-                Case::Insensitive => {
-                    self.folded_set.insert(fold_lower(term));
-                }
-            }
+        for (term, case) in std::mem::take(&mut self.terms) {
+            self.insert_term(term, case);
         }
     }
 

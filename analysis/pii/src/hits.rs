@@ -253,9 +253,6 @@ impl Hits {
             {
                 continue;
             }
-            if outer.is_none_or(|(_, oe)| h.end > oe) {
-                outer = Some((h.start, h.end));
-            }
             let value = self.normalized(h);
             let repeat = self.hits[run_start..i].iter().any(|e| e.kind == h.kind && self.normalized(e) == value);
             if !repeat {
@@ -265,6 +262,9 @@ impl Hits {
                         None => suppressed.push((h.kind, 1)),
                     }
                     continue;
+                }
+                if outer.is_none_or(|(_, oe)| h.end > oe) {
+                    outer = Some((h.start, h.end));
                 }
                 out.push(PiiMention {
                     span: Span::new(h.start, h.end),

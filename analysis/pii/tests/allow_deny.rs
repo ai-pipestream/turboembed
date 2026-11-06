@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use support::*;
-use turbo_analysis::{Annotator, Layer, ViewId};
+use turbo_analysis::{Annotator, Layer, Span, ViewId};
 use turbo_pii::rewrite::{HmacTokenizer, PiiAuditReport};
 use turbo_pii::{
     AllowList, Case, DenyList, ListError, Pack, Pattern, PatternKind, PiiConfidence, PiiDetector, PiiKind,
@@ -370,4 +370,114 @@ fn audit_report_counts_suppressed_mentions_without_values() {
         assert!(!display.contains(forbidden), "leaked {forbidden:?} in Display:\n{display}");
         assert!(!debug.contains(forbidden), "leaked {forbidden:?} in Debug:\n{debug}");
     }
+}
+
+#[test]
+fn failed_batch_leaves_allow_and_deny_lists_untouched() {
+    let kind = PiiKind::custom("codename");
+    let baseline_deny = DenyList::from_terms(kind, ["Apollo"]).unwrap();
+    let mut deny = baseline_deny.clone();
+    assert_eq!(deny.add_terms(["classified", "   "]), Err(ListError::EmptyTerm));
+    assert_eq!(deny.terms(), ["Apollo"]);
+    assert_eq!(
+        PiiDetector::new(vec![]).with_deny_list(deny.clone()).config_hash(),
+        PiiDetector::new(vec![]).with_deny_list(baseline_deny).config_hash()
+    );
+    let det = PiiDetector::new(vec![]).with_deny_list(deny);
+    assert_eq!(layer(&det, "Apollo and classified").mentions().map(|m| m.normalized).collect::<Vec<_>>(), ["Apollo"]);
+
+    let baseline_allow = AllowList::from_terms(["support@example.com"]).unwrap();
+    let mut allow = baseline_allow.clone();
+    assert_eq!(allow.add_terms(["sales@example.com", " "]), Err(ListError::EmptyTerm));
+    assert_eq!(allow.terms(), baseline_allow.terms());
+    assert!(!allow.matches_value("sales@example.com"));
+}
+
+#[test]
+fn suppressed_outer_mention_does_not_drop_nested_other_kind() {
+    let ticket = PiiKind::custom("ticket");
+    let text = "TICKET alice@example.com";
+    let base = PiiDetector::pack(Pack::Contact).with_custom_fn("ticket", ticket, |text, sink| {
+        if let Some(pos) = text.find("TICKET ") {
+            sink.add_text(Span::new(pos as u32, text.len() as u32), PiiKind::custom("ticket"), PiiConfidence::Format);
+        }
+    });
+    // Without suppression, default nesting drops the inner email inside ticket.
+    assert_eq!(layer(&base, text).mentions().map(|m| (m.kind, m.normalized)).collect::<Vec<_>>(), [(ticket, text)]);
+
+    // When a per-kind allow rule suppresses the outer ticket mention, the
+    // nested email mention is preserved.
+    let suppressed_outer = base.allow_kind_term(ticket, text).unwrap();
+    assert_eq!(
+        layer(&suppressed_outer, text).mentions().map(|m| (m.kind, m.normalized)).collect::<Vec<_>>(),
+        [(PiiKind::Email, "alice@example.com")]
+    );
+    let tokenizer = HmacTokenizer::new(KEY).unwrap();
+    let report = suppressed_outer.audit(text, &tokenizer, PiiAuditReport::DEFAULT_SAMPLES);
+    assert_eq!(report.suppressed(ticket), 1);
+    assert_eq!(report.kind(PiiKind::Email).unwrap().mentions, 1);
+}
+
+#[test]
+fn short_fuzzy_terms_and_linear_long_token_banding() {
+    let kind = PiiKind::custom("codename");
+    // 2-char term "Ed" (< 4 chars) only matches at 0 edits even with max_edits(2);
+    // 4-char term "Vera" (4..=5 chars) allows at most 1 edit ("Vero"), rejecting 2 edits ("Zero").
+    let short_det = PiiDetector::new(vec![]).with_deny_list(
+        DenyList::from_terms(kind, ["Ed", "Vera"]).unwrap().case_insensitive().with_max_edits(2).unwrap(),
+    );
+    assert_eq!(
+        layer(&short_det, "Ed went to a shop in it as we do with Vero and Zero")
+            .mentions()
+            .map(|m| m.normalized)
+            .collect::<Vec<_>>(),
+        ["Ed", "Vero"]
+    );
+
+    // Banded O(n) Levenshtein over 4,096-char tokens.
+    let long_term: String = "A".repeat(4096);
+    let mut one_edit = long_term.clone();
+    one_edit.replace_range(4095..4096, "B");
+    let mut three_edits = long_term.clone();
+    three_edits.replace_range(1000..1003, "XYZ");
+    let long_det = PiiDetector::new(vec![])
+        .with_deny_list(DenyList::from_terms(kind, [&long_term]).unwrap().with_max_edits(2).unwrap());
+    let input = format!("{one_edit} {three_edits}");
+    assert_eq!(layer(&long_det, &input).mentions().map(|m| m.normalized).collect::<Vec<_>>(), [one_edit.as_str()]);
+}
+
+#[test]
+fn duplicate_terms_and_patterns_do_not_change_config_hash() {
+    let kind = PiiKind::custom("codename");
+    let a1 = AllowList::from_terms(["desk@example.com"])
+        .unwrap()
+        .with_shape("ddd-dd-dddd")
+        .unwrap()
+        .with_glob("*@test.example.com")
+        .unwrap();
+    let a2 = AllowList::from_terms(["desk@example.com", "desk@example.com"])
+        .unwrap()
+        .with_shape("ddd-dd-dddd")
+        .unwrap()
+        .with_shape("ddd-dd-dddd")
+        .unwrap()
+        .with_glob("*@test.example.com")
+        .unwrap()
+        .with_glob("*@test.example.com")
+        .unwrap();
+    assert_eq!(a1, a2);
+    assert_eq!(
+        PiiDetector::pack(Pack::Contact).with_allow_list(a1).config_hash(),
+        PiiDetector::pack(Pack::Contact).with_allow_list(a2).config_hash()
+    );
+    let ci_allow = AllowList::from_terms(["Alice@example.com", "alice@example.com"]).unwrap().case_insensitive();
+    assert_eq!(ci_allow.terms().len(), 1);
+
+    let d1 = DenyList::from_terms(kind, ["Apollo"]).unwrap().case_insensitive();
+    let d2 = DenyList::from_terms(kind, ["Apollo", "apollo", "APOLLO"]).unwrap().case_insensitive();
+    assert_eq!(d1, d2);
+    assert_eq!(
+        PiiDetector::new(vec![]).with_deny_list(d1).config_hash(),
+        PiiDetector::new(vec![]).with_deny_list(d2).config_hash()
+    );
 }
