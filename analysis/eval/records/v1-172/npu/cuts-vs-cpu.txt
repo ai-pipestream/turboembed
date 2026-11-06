@@ -1,3 +1,4 @@
-CPU cut dumps were missing at <dumps>/cpu on the Windows host during the #1480 NPU run.
-NPU dumps exist under the gate out dir; cuts-cpu-npu-*.txt and cut-dumps.sha256 npu entries are still deferred until CPU dumps are available.
+Cut dumps are recorded for the #1480 NPU run.
+NPU dumps: npu/turbo-chunker-254-200-hybrid and npu/turbo-chunker-254-200-cohesion-1000-hybrid (sha256 and sizes in reports/cut-dumps.sha256).
+CPU comparison dumps were regenerated on the same Windows host with --device cpu using the NPU token-ids bundle (the Linux CPU dumps from the earlier records were not available there). Results: reports/cuts-cpu-npu-turbo-chunker-254-200-hybrid.txt and reports/cuts-cpu-npu-turbo-chunker-254-200-cohesion-1000-hybrid.txt.
 Cohesion-as-baseline gates vs fixed-tokens / opennlp / sentence-windows are still to be recorded as gate-npu-turbo-chunker-254-200-cohesion-1000-hybrid-vs-*.txt.
