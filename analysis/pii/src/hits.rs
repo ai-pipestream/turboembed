@@ -10,6 +10,8 @@ use std::ops::Range;
 use turbo_analysis::Span;
 use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
 
+use crate::window::WindowConfig;
+
 /// Why a candidate handed to [`PiiSink`] was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SinkError {
@@ -217,12 +219,24 @@ impl Hits {
         &self.buf[h.normalized.start as usize..h.normalized.end as usize]
     }
 
-    /// Orders the candidates (a stable sort keeps the finding order of
-    /// ties) and writes each distinct mention to `out`. Equal mentions
-    /// share a span, so they sit in one run of that span. When
-    /// `keep_nested` is `false`, any candidate whose span lies strictly
-    /// inside an earlier, longer candidate's span is dropped.
-    pub(crate) fn resolve(mut self, keep_nested: bool, out: &mut Pii) {
+    /// Applies `window`'s label policies, orders the remaining candidates
+    /// (a stable sort keeps the finding order of ties) and writes each
+    /// distinct mention to `out`. Equal mentions share a span, so they sit
+    /// in one run of that span. When `keep_nested` is `false`, any candidate
+    /// whose span lies strictly inside an earlier, longer candidate's span
+    /// is dropped.
+    pub(crate) fn resolve(mut self, text: &str, window: &WindowConfig, keep_nested: bool, out: &mut Pii) {
+        self.hits.retain_mut(|h| {
+            if matches!(h.confidence, PiiConfidence::Labelled | PiiConfidence::LabelledChecksum) {
+                return true;
+            }
+            if let Some(conf) = window.check(text, Span::new(h.start, h.end), h.kind, h.confidence) {
+                h.confidence = conf;
+                true
+            } else {
+                false
+            }
+        });
         self.hits.sort_by_key(|h| (h.start, Reverse(h.end), h.kind));
         let mut run_start = 0;
         let mut outer: Option<(u32, u32)> = None;
@@ -259,7 +273,10 @@ impl Hits {
     #[cfg(test)]
     pub(crate) fn into_layer(self, keep_nested: bool, view: turbo_analysis::ViewId) -> Pii {
         let mut out = Pii::new(view);
-        self.resolve(keep_nested, &mut out);
+        let mut w = WindowConfig::default();
+        w.set_policy(PiiKind::CaSin, crate::window::LabelPolicy::None);
+        w.set_policy(PiiKind::Imei, crate::window::LabelPolicy::None);
+        self.resolve("", &w, keep_nested, &mut out);
         out
     }
 }
