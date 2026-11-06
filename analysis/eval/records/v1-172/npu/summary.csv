@@ -1,0 +1,12 @@
+step,exit,minutes
+npu-device-list,0,0.0
+fetch-sets,0,0.2
+eval-turbo-chunker-254-200-hybrid,0,6.0
+eval-turbo-chunker-254-200-cohesion-1000-hybrid,0,36.6
+eval-sentence-windows-5-hybrid,0,7.8
+eval-fixed-tokens-200-hybrid,0,6.8
+eval-opennlp-sandbox-semantic-hybrid,0,51.2
+gate-vs-turbo-chunker-254-200-cohesion-1000-hybrid,1,0.0
+gate-vs-sentence-windows-5-hybrid,1,0.0
+gate-vs-fixed-tokens-200-hybrid,1,0.0
+gate-vs-opennlp-sandbox-semantic-hybrid,1,0.0
