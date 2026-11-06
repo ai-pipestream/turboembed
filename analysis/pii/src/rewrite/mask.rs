@@ -12,6 +12,7 @@ use std::fmt;
 use turbo_analysis::Span;
 use turbo_analysis_layers::{Pii, PiiKind, PiiMention};
 
+use super::{PiiRewrite, RewriteError};
 use crate::text::letter_or_digit;
 
 /// A mask the policy cannot take.
@@ -36,12 +37,13 @@ impl fmt::Display for MaskError {
 impl std::error::Error for MaskError {}
 
 /// How the characters of a span are replaced: all of them, or the
-/// letters and digits only (`keeping_format`), leaving the last
-/// `keep_trailing` letters or digits readable.
+/// letters and digits only (`keeping_format`), leaving the first
+/// `keep_leading` and/or last `keep_trailing` letters or digits readable.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MaskPolicy {
     mask: u8,
     keep_format: bool,
+    keep_leading: usize,
     keep_trailing: usize,
 }
 
@@ -54,12 +56,30 @@ impl MaskPolicy {
         if !mask.is_ascii() {
             return Err(MaskError::NotAscii(mask));
         }
-        Ok(MaskPolicy { mask: mask as u8, keep_format: false, keep_trailing: 0 })
+        Ok(MaskPolicy { mask: mask as u8, keep_format: false, keep_leading: 0, keep_trailing: 0 })
+    }
+
+    /// A policy keeping the first `count` letters or digits readable and
+    /// masking the rest with `mask`.
+    pub fn first_n(count: usize, mask: char) -> Result<MaskPolicy, MaskError> {
+        Ok(MaskPolicy::new(mask)?.keeping_leading(count))
+    }
+
+    /// A policy keeping the last `count` letters or digits readable and
+    /// masking the rest with `mask`.
+    pub fn last_n(count: usize, mask: char) -> Result<MaskPolicy, MaskError> {
+        Ok(MaskPolicy::new(mask)?.keeping_trailing(count))
     }
 
     /// This policy, leaving what is not a letter or digit readable.
     pub const fn keeping_format(self) -> MaskPolicy {
         MaskPolicy { keep_format: true, ..self }
+    }
+
+    /// This policy, leaving the first `count` letters or digits of each
+    /// span readable.
+    pub const fn keeping_leading(self, count: usize) -> MaskPolicy {
+        MaskPolicy { keep_leading: count, ..self }
     }
 
     /// This policy, leaving the last `count` letters or digits of each
@@ -77,6 +97,11 @@ impl MaskPolicy {
         self.keep_format
     }
 
+    /// How many leading letters or digits stay readable.
+    pub const fn leading(self) -> usize {
+        self.keep_leading
+    }
+
     /// How many trailing letters or digits stay readable.
     pub const fn trailing(self) -> usize {
         self.keep_trailing
@@ -88,6 +113,15 @@ impl MaskPolicy {
         let mut out = value.as_bytes().to_vec();
         self.apply(value, Span::new(0, value.len() as u32), &mut out);
         String::from_utf8(out).expect("masking writes whole characters")
+    }
+
+    /// Replaces every mention of `pii`, a layer over `text`, with its
+    /// masked surface text, coalescing overlapping mentions.
+    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let mentions = PiiRewrite::coalesce_clusters(text, pii.mentions())?;
+        PiiRewrite::replace(text, mentions, |m, out| {
+            out.push_str(&self.masked(&text[m.span.range()]));
+        })
     }
 
     /// `MaskPolicies.forType`: cards and IBANs keep separators and their
@@ -132,7 +166,7 @@ impl MaskPolicy {
         for (at, c) in piece.char_indices() {
             let redact = if letter_or_digit(c) {
                 seen += 1;
-                seen <= first_kept
+                seen > self.keep_leading && seen <= first_kept
             } else {
                 !self.keep_format
             };

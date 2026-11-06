@@ -34,7 +34,7 @@ impl fmt::Display for TokenizerError {
 
 impl std::error::Error for TokenizerError {}
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct HmacTokenizer {
     key: Vec<u8>,
     length: usize,
