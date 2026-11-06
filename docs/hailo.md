@@ -222,12 +222,15 @@ build and what was asked, and `Calibration::annotator` opens the step on
 the chosen side. `TURBO_CALIBRATION_FORCE` set to `device` or `cpu`
 overrides the choice; any other value is an error. `Dispatch` (below)
 also reads `TURBO_CALIBRATION_PREFER`, its preference between the two
-sides: `offload` (the default when unset) runs a call on the device
-unless the device's time is at least 1.25 times the CPU's,
-`offload=<margin>` sets that margin to a number from 0 to 1, and
-`latency` (or `offload=0`) runs it on the faster side. Any other value
-is an error naming the variable, before anything is measured. The
-device's cosine must clear the floor under every preference.
+sides, on any device: `offload` runs a call on the device unless the
+device's time is at least 1.25 times the CPU's, `offload=<margin>` sets
+that margin to a number from 0 to 1, and `latency` (or `offload=0`)
+runs it on the faster side. Any other value is an error naming the
+variable, before anything is measured. Unset, the default is per
+backend: `offload` on a Hailo (backend `hailo`), the one device whose
+load measurement (below) backs the margin, and `latency` on every other
+device, which therefore dispatches as it did before the preference.
+The device's cosine must clear the floor under every preference.
 
 Measured on the Hailo-8 (on a Raspberry Pi 5, HailoRT 4.23.0, firmware
 4.23.0) with the `"max"` HEF of the bundle above, against the Pi 5's CPU
@@ -271,8 +274,9 @@ first sentence alone or its first text alone) is judged by its median
 time on each side over every cap it was timed at; any other by each
 side's cost, fitted to the calibration's times as a cost a run, a row
 and a token. The preference in force picks the side from those two
-times: by default the device unless it is 25% or more slower than the
-CPU, under `latency` the faster. The margin is there because a time
+times: on a Hailo by default the device unless it is 25% or more slower
+than the CPU, under `latency` (the default elsewhere) the faster. The
+margin is there because a time
 taken on a quiet machine does not count what a call on the CPU takes
 from everything else: on the Hailo-8 on a Raspberry Pi 5 at commit
 89e6a6ae, with two or four busy processes beside it, a batch of one

@@ -6,8 +6,8 @@
 use std::path::{Path, PathBuf};
 
 use turbo_analysis_embed::calibrate::{
-    Calibration, CalibrationOptions, DEFAULT_MARGIN, MAX_MARGIN, PREFER_VAR, Point, Preference, PreferenceError, Side,
-    Text, shape_of,
+    Calibration, CalibrationOptions, DEFAULT_MARGIN, MAX_MARGIN, OFFLOAD_BACKENDS, PREFER_VAR, Point, Preference,
+    PreferenceError, Side, Text, shape_of,
 };
 use turbo_analysis_embed::{Device, Dispatch, EncoderOptions, Precision, VectorAnnotator, VectorOptions};
 
@@ -25,34 +25,46 @@ fn at(max_seq: u32, max_batch: u32) -> VectorOptions {
 }
 
 #[test]
-fn unset_and_offload_are_the_default_margin() {
-    let default = Preference::Offload { margin: DEFAULT_MARGIN };
+fn unset_is_offload_on_a_hailo_and_latency_on_every_other_backend() {
+    let offload = Preference::Offload { margin: DEFAULT_MARGIN };
     assert_eq!(DEFAULT_MARGIN, 0.25);
-    assert_eq!(Preference::default(), default);
-    assert_eq!(Preference::from_var(None), Ok(default));
-    assert_eq!(Preference::from_var(Some("offload")), Ok(default));
-    assert_eq!(Preference::from_var(Some("latency")), Ok(Preference::Latency));
-    assert_eq!(Preference::from_var(Some("offload=0.1")), Ok(Preference::Offload { margin: 0.1 }));
-    assert_eq!(Preference::from_var(Some("offload=1")), Ok(Preference::Offload { margin: MAX_MARGIN }));
+    assert_eq!(OFFLOAD_BACKENDS, ["hailo"]);
+    assert_eq!(Preference::for_backend("hailo"), offload);
+    assert_eq!(Preference::from_var(None, "hailo"), Ok(offload));
+    for backend in ["cpu", "cuda", "metal", "levelzero", "npu", "vulkan", "", "Hailo", "hailo8"] {
+        assert_eq!(Preference::for_backend(backend), Preference::Latency, "{backend:?}");
+        assert_eq!(Preference::from_var(None, backend), Ok(Preference::Latency), "{backend:?}");
+    }
+}
+
+#[test]
+fn a_named_preference_holds_on_every_backend() {
+    let offload = Preference::Offload { margin: DEFAULT_MARGIN };
+    for backend in ["hailo", "cpu", "cuda"] {
+        assert_eq!(Preference::from_var(Some("offload"), backend), Ok(offload));
+        assert_eq!(Preference::from_var(Some("latency"), backend), Ok(Preference::Latency));
+        assert_eq!(Preference::from_var(Some("offload=0.1"), backend), Ok(Preference::Offload { margin: 0.1 }));
+        assert_eq!(Preference::from_var(Some("offload=1"), backend), Ok(Preference::Offload { margin: MAX_MARGIN }));
+    }
 }
 
 #[test]
 fn a_margin_of_zero_is_latency() {
-    assert_eq!(Preference::from_var(Some("offload=0")), Ok(Preference::Latency));
-    assert_eq!(Preference::from_var(Some("offload=0.0")), Ok(Preference::Latency));
+    assert_eq!(Preference::from_var(Some("offload=0"), "hailo"), Ok(Preference::Latency));
+    assert_eq!(Preference::from_var(Some("offload=0.0"), "hailo"), Ok(Preference::Latency));
     assert_eq!(Preference::Latency.margin(), 0.0);
 }
 
 #[test]
 fn other_values_are_typed_errors_naming_the_variable() {
     for v in ["", "Latency", "fast", "device", "offload:0.1", "latency=0.1"] {
-        let e = Preference::from_var(Some(v)).unwrap_err();
+        let e = Preference::from_var(Some(v), "hailo").unwrap_err();
         assert_eq!(e, PreferenceError::Unknown(v.to_string()), "{v:?}");
         assert!(e.to_string().contains(PREFER_VAR), "{e}");
     }
     for m in ["", "-0.1", "1.01", "2", "nan", "inf", "-inf", "x", "0.25 "] {
         let v = format!("offload={m}");
-        let e = Preference::from_var(Some(&v)).unwrap_err();
+        let e = Preference::from_var(Some(&v), "hailo").unwrap_err();
         assert_eq!(e, PreferenceError::Margin(m.to_string()), "{v:?}");
         assert!(e.to_string().contains(PREFER_VAR), "{e}");
     }
@@ -68,7 +80,7 @@ fn latency_takes_the_device_only_when_it_is_faster() {
 
 #[test]
 fn offload_takes_the_device_inside_its_margin_and_the_cpu_at_or_past_it() {
-    let p = Preference::default();
+    let p = Preference::for_backend("hailo");
     // Faster, equal and up to just under 1.25 times the CPU: the device.
     for device_ms in [5.0, 10.0, 12.0, 12.499] {
         assert!(p.device(device_ms, 10.0), "{device_ms}");
@@ -88,7 +100,7 @@ fn offload_takes_the_device_inside_its_margin_and_the_cpu_at_or_past_it() {
 }
 
 #[test]
-fn a_measured_call_runs_on_the_side_the_default_margin_picks() {
+fn a_measured_call_runs_on_the_side_its_preference_picks() {
     let dir = std::env::temp_dir().join(format!("turbo-dispatch-prefer-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -107,8 +119,8 @@ fn a_measured_call_runs_on_the_side_the_default_margin_picks() {
     let (all, one, doc) = (shape(&texts), shape(&short), shape(&texts[..1]));
     assert!(all != one && all != doc && one != doc, "{all:?} {one:?} {doc:?}");
     // The CPU at 100 ms for each; the device at 1.1 times that for the
-    // whole set (inside the margin), 1.25 times for one sentence (at it)
-    // and 0.9 times for the first text (faster).
+    // whole set (inside the default margin), 1.25 times for one sentence
+    // (at it) and 0.9 times for the first text (faster).
     let point = Point {
         max_seq: 24,
         max_batch: 4,
@@ -123,14 +135,21 @@ fn a_measured_call_runs_on_the_side_the_default_margin_picks() {
     let key = Calibration::key(&bert(), &o, &texts).unwrap();
     let kept = Calibration { key: key.clone(), floor: 0.999, points: vec![point.clone()] };
     std::fs::write(Calibration::file(&dir, &key), kept.to_text()).unwrap();
+    // The CPU backend stands in for the device here, so the default is
+    // the faster side: the device only for the first text.
     let d = Dispatch::open(&dir, &bert(), &o, &texts, &at(24, 4)).unwrap();
-    assert_eq!(d.preference(), Preference::default(), "run without {PREFER_VAR} set");
+    assert_eq!(d.preference(), Preference::Latency, "run without {PREFER_VAR} set");
+    assert_eq!([d.side(all), d.side(one), d.side(doc)], [Side::Cpu, Side::Cpu, Side::Device]);
+    // A Hailo's default: the device inside the margin as well.
+    let d = d.with_preference(Preference::for_backend("hailo"));
     assert_eq!([d.side(all), d.side(one), d.side(doc)], [Side::Device, Side::Cpu, Side::Device]);
     // A device whose vectors miss the floor runs nothing, inside the margin
     // or faster.
     let kept = Calibration { key: key.clone(), floor: 0.999, points: vec![Point { min_cosine: 0.5, ..point }] };
     std::fs::write(Calibration::file(&dir, &key), kept.to_text()).unwrap();
     let d = Dispatch::open(&dir, &bert(), &o, &texts, &at(24, 4)).unwrap();
+    assert_eq!([d.side(all), d.side(one), d.side(doc)], [Side::Cpu, Side::Cpu, Side::Cpu]);
+    let d = d.with_preference(Preference::for_backend("hailo"));
     assert_eq!([d.side(all), d.side(one), d.side(doc)], [Side::Cpu, Side::Cpu, Side::Cpu]);
     std::fs::remove_dir_all(&dir).unwrap();
 }

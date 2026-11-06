@@ -42,7 +42,9 @@ mod timing;
 
 use timing::{fastest, times};
 
-pub use dispatch::{Cost, DEFAULT_MARGIN, Dispatch, MAX_MARGIN, PREFER_VAR, Preference, PreferenceError, shape_of};
+pub use dispatch::{
+    Cost, DEFAULT_MARGIN, Dispatch, MAX_MARGIN, OFFLOAD_BACKENDS, PREFER_VAR, Preference, PreferenceError, shape_of,
+};
 
 /// The cosine floor of an I8 device, the tier's (docs/hailo.md); the core
 /// gives I8 none of its own.

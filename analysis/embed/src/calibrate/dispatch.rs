@@ -2,10 +2,12 @@
 //! for each call from a calibration: a [`Dispatch`] holds the step opened
 //! on both at one window and cap on rows a run, plans each call
 //! (`VectorAnnotator::shape`), and runs all of it on the side the
-//! [`Preference`] in force picks from the two sides' costs for that call:
-//! by default the device unless it is more than [`DEFAULT_MARGIN`] slower
-//! than the CPU, since a call on the device leaves the CPU's cores to the
-//! rest of the machine. Each document's layers record the side
+//! [`Preference`] in force picks from the two sides' costs for that call.
+//! The default is per backend ([`Preference::for_backend`]): on a Hailo
+//! the device unless it is [`DEFAULT_MARGIN`] or more slower than the CPU,
+//! since a call there leaves the CPU's cores to the rest of the machine
+//! (measured in docs/hailo.md), and on any other device the faster side.
+//! Each document's layers record the side
 //! that made them (`Annotator::annotate_batch_placed`), so a document's
 //! vectors are one side's, and which one is in its provenance.
 //!
@@ -30,12 +32,21 @@ use crate::vectors::{Embedder, Input, Output, Shape};
 use crate::window::Which;
 use crate::{SubwordAnnotator, VectorAnnotator, VectorOptions};
 
-/// The variable that sets the [`Preference`]: `latency`, `offload`, or
-/// `offload=<margin>`; unset is `offload` at [`DEFAULT_MARGIN`].
+/// The variable that sets the [`Preference`] on any device: `latency`,
+/// `offload`, or `offload=<margin>`; unset is the backend's default,
+/// [`Preference::for_backend`].
 pub const PREFER_VAR: &str = "TURBO_CALIBRATION_PREFER";
 
-/// The margin `offload` gives the device when the variable names none.
+/// The margin `offload` gives the device when the variable names none,
+/// and the default margin on an [`OFFLOAD_BACKENDS`] device.
 pub const DEFAULT_MARGIN: f64 = 0.25;
+
+/// The backends (`turbo_device_info.backend`) whose default is
+/// `Offload { margin: DEFAULT_MARGIN }`: the Hailo, where a load
+/// measurement showed the CPU's other work keeping most of its rate while
+/// the device ran and the CPU's own calls slowing to half or less beside
+/// it. Every other backend defaults to [`Preference::Latency`].
+pub const OFFLOAD_BACKENDS: [&str; 1] = ["hailo"];
 
 /// The largest margin `offload=<margin>` takes: the device at up to twice
 /// the CPU's time.
@@ -53,13 +64,17 @@ pub enum Preference {
     Offload { margin: f64 },
 }
 
-impl Default for Preference {
-    fn default() -> Preference {
-        Preference::Offload { margin: DEFAULT_MARGIN }
-    }
-}
-
 impl Preference {
+    /// The default on a device of `backend`: `Offload` at
+    /// [`DEFAULT_MARGIN`] on an [`OFFLOAD_BACKENDS`] device, else `Latency`.
+    pub fn for_backend(backend: &str) -> Preference {
+        if OFFLOAD_BACKENDS.contains(&backend) {
+            Preference::Offload { margin: DEFAULT_MARGIN }
+        } else {
+            Preference::Latency
+        }
+    }
+
     /// The device's margin: 0 under [`Preference::Latency`].
     pub fn margin(&self) -> f64 {
         match *self {
@@ -74,9 +89,10 @@ impl Preference {
         device_ms < cpu_ms * (1.0 + self.margin())
     }
 
-    /// The preference [`PREFER_VAR`]'s value names; unset is the default.
-    pub fn from_var(value: Option<&str>) -> Result<Preference, PreferenceError> {
-        value.map_or(Ok(Preference::default()), str::parse)
+    /// The preference [`PREFER_VAR`]'s value names on a device of
+    /// `backend`; unset is [`Preference::for_backend`].
+    pub fn from_var(value: Option<&str>, backend: &str) -> Result<Preference, PreferenceError> {
+        value.map_or(Ok(Preference::for_backend(backend)), str::parse)
     }
 }
 
@@ -111,7 +127,7 @@ impl FromStr for Preference {
     fn from_str(v: &str) -> Result<Preference, PreferenceError> {
         match v.split_once('=') {
             None if v == "latency" => Ok(Preference::Latency),
-            None if v == "offload" => Ok(Preference::default()),
+            None if v == "offload" => Ok(Preference::Offload { margin: DEFAULT_MARGIN }),
             Some(("offload", m)) => match m.parse::<f64>() {
                 Ok(0.0) => Ok(Preference::Latency),
                 Ok(margin) if margin > 0.0 && margin <= MAX_MARGIN => Ok(Preference::Offload { margin }),
@@ -237,8 +253,9 @@ impl Dispatch {
     /// per call from the calibration kept in `dir` (measured first when
     /// there is none, `Calibration::load_or_measure`). `o` must ask for
     /// `base`'s window and cap. The [`FORCE_VAR`] variable sends every call
-    /// to one side, and [`PREFER_VAR`] sets the [`Preference`]. All three
-    /// are checked before anything is measured.
+    /// to one side, and [`PREFER_VAR`] sets the [`Preference`], else the
+    /// device's backend does ([`Preference::for_backend`]). All three are
+    /// checked before anything is measured.
     pub fn open(
         dir: &Path,
         bundle: &Path,
@@ -247,8 +264,11 @@ impl Dispatch {
         base: &VectorOptions,
     ) -> Result<Dispatch, CoreError> {
         let force = forced(std::env::var(FORCE_VAR).ok().as_deref())?;
-        let prefer = Preference::from_var(std::env::var(PREFER_VAR).ok().as_deref())
-            .map_err(|e| CoreError::new(INVALID_ARGUMENT, e.to_string()))?;
+        let named: Option<Preference> = std::env::var(PREFER_VAR)
+            .ok()
+            .map(|v| v.parse())
+            .transpose()
+            .map_err(|e: PreferenceError| CoreError::new(INVALID_ARGUMENT, e.to_string()))?;
         let (max_seq, cap) = (base.encoder.max_seq, base.encoder.max_batch);
         if !o.windows.contains(&max_seq) || !o.batches.contains(&cap) {
             return Err(CoreError::new(
@@ -300,6 +320,7 @@ impl Dispatch {
                 )
             })
         };
+        let prefer = named.unwrap_or_else(|| Preference::for_backend(&device.execution().backend));
         Ok(Dispatch {
             cap,
             eligible,
@@ -331,6 +352,13 @@ impl Dispatch {
     /// The preference this dispatch chooses by.
     pub fn preference(&self) -> Preference {
         self.prefer
+    }
+
+    /// This dispatch choosing by `prefer` instead, whatever [`PREFER_VAR`]
+    /// and the backend gave it.
+    pub fn with_preference(mut self, prefer: Preference) -> Dispatch {
+        self.prefer = prefer;
+        self
     }
 
     /// Each side's fitted cost: the device's, then the CPU's.
