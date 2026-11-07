@@ -241,6 +241,10 @@ fn pii_payloads_and_custom_tables_belong_to_the_pii_layer() {
             other.annotations.clear();
             other.custom_pii_kinds = vec!["badge".to_owned()];
         }
+        // The envelope (#1907) wants one provenance entry per layer.
+        let mut prov = wire.provenance.iter().find(|p| p.layer == "turbo:pii").unwrap().clone();
+        prov.layer = "turbo:entities".to_owned();
+        wire.provenance.push(prov);
         wire.layers.push(other);
         wire
     };

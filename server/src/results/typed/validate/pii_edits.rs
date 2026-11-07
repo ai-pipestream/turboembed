@@ -174,6 +174,8 @@ pub(super) fn edit(ctx: &LayerCtx<'_>, i: usize, e: &PiiEditAnnotation) -> Resul
         return Err(bad(format!("{} is a pii edit outside a {} layer", at(), PiiEdits::ID)));
     }
     let source = e.source.as_ref().ok_or_else(|| bad(format!("{} pii edit has no source span", at())))?;
+    // The source span is never projected: it is exact by definition.
+    outcome::check_fragment(lid, &format!("[{i}] source"), source, true)?;
     if source.start >= source.end {
         return Err(bad(format!("{} pii edit source span is empty or inverted", at())));
     }

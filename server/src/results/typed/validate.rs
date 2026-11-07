@@ -7,6 +7,7 @@
 mod annotation;
 mod envelope;
 mod evidence;
+mod outcome;
 mod pii;
 mod pii_edits;
 mod quality;
@@ -53,19 +54,21 @@ fn check_head_in_range(what: &str, layer: &str, index: usize, head: u32, start: 
     Ok(())
 }
 
+/// The fragments of one span: each in the text, in order, with its
+/// outcome (`own_view` when the layer's spans are natively on the
+/// result's view).
 fn check_spans(
     off: &Offsetter,
     text: &str,
     layer: &str,
     i: usize,
     frags: &[SpanFragment],
+    own_view: bool,
 ) -> Result<Vec<Span>, Failure> {
+    outcome::check_fragments(layer, i, frags, own_view)?;
     let mut out: Vec<Span> = Vec::with_capacity(frags.len());
     for (f_ix, frag) in frags.iter().enumerate() {
         let sp = off.from_wire(text, layer, frag.start, frag.end)?;
-        if frags.len() > 1 && sp.is_empty() {
-            return Err(bad(format!("{layer}[{i}] fragment {f_ix} is empty in a multi-fragment span")));
-        }
         if let Some(&prev) = out.last()
             && sp.start < prev.end
         {
@@ -178,6 +181,20 @@ struct LayerCtx<'a> {
     layer_len: usize,
     lid: &'a str,
     custom_pii_kinds: usize,
+    /// The result's view.
+    view: u32,
+    /// Whether the layer's spans are natively on the result's view, so
+    /// every fragment of it is exact.
+    own_view: bool,
+}
+
+impl LayerCtx<'_> {
+    /// One nested fragment of the layer, in the text and with a valid
+    /// outcome, as a span.
+    fn fragment(&self, what: &str, frag: &SpanFragment) -> Result<Span, Failure> {
+        outcome::check_fragment(self.lid, what, frag, self.own_view)?;
+        self.offsetter.from_wire(self.text, self.lid, frag.start, frag.end)
+    }
 }
 
 fn check_nonneg(what: &str, layer: &str, index: usize, v: f64) -> Result<(), Failure> {
@@ -354,6 +371,8 @@ fn validate_layer(
         layer_len: layer.annotations.len(),
         lid,
         custom_pii_kinds,
+        view: msg.view,
+        own_view: layer.native_view == Some(msg.view),
     };
     for (i, ann) in layer.annotations.iter().enumerate() {
         annotation::validate_annotation(&ctx, i, ann)?;

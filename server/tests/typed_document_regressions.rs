@@ -290,13 +290,12 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
             assert_eq!(out.raw_text, text);
             let start = text.find("北京").unwrap();
             let expected = match mode {
-                OffsetMode::Utf8 => SpanFragment { start: start as u32, end: text.len() as u32 },
-                OffsetMode::Utf16 => SpanFragment {
-                    start: text[..start].encode_utf16().count() as u32,
-                    end: text.encode_utf16().count() as u32,
-                },
+                OffsetMode::Utf8 => SpanFragment::exact(start as u32, text.len() as u32),
+                OffsetMode::Utf16 => {
+                    SpanFragment::exact(text[..start].encode_utf16().count() as u32, text.encode_utf16().count() as u32)
+                }
                 OffsetMode::CodePoint => {
-                    SpanFragment { start: text[..start].chars().count() as u32, end: text.chars().count() as u32 }
+                    SpanFragment::exact(text[..start].chars().count() as u32, text.chars().count() as u32)
                 }
             };
             let tok = out.layers.iter().find(|l| l.id == Tokens::NAME.to_string()).unwrap();
@@ -311,9 +310,9 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
             let mut bad = out.clone();
             // UTF8 interior of é; UTF16 interior of 😀; code point outside the text.
             bad.layers[0].annotations[0].spans[0] = match mode {
-                OffsetMode::Utf8 => SpanFragment { start: if view == 0 { 4 } else { 6 }, end: 8 },
-                OffsetMode::Utf16 => SpanFragment { start: 6, end: 7 },
-                OffsetMode::CodePoint => SpanFragment { start: 100, end: 101 },
+                OffsetMode::Utf8 => SpanFragment::exact(if view == 0 { 4 } else { 6 }, 8),
+                OffsetMode::Utf16 => SpanFragment::exact(6, 7),
+                OffsetMode::CodePoint => SpanFragment::exact(100, 101),
             };
             invalid(&client.round_trip_typed_document(bad).await.unwrap_err());
             let mut bad = out;

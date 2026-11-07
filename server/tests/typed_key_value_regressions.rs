@@ -78,8 +78,8 @@ async fn key_value_component_spans_obey_wire_boundaries_in_both_views() {
                     None
                 } else {
                     Some(match mode {
-                        OffsetMode::Utf8 if view == 0 => SpanFragment { start: 1, end: 2 },
-                        _ => SpanFragment { start: 3, end: 4 },
+                        OffsetMode::Utf8 if view == 0 => SpanFragment::exact(1, 2),
+                        _ => SpanFragment::exact(3, 4),
                     })
                 };
                 match client.round_trip_typed_document(bad).await {

@@ -34,7 +34,7 @@ pub(crate) fn project_pii_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Option
                 probability: None,
                 model_ref: mref.clone(),
                 value: Some(Value::PiiEdit(PiiEditAnnotation {
-                    source: Some(SpanFragment { start: e.source.start, end: e.source.end }),
+                    source: Some(SpanFragment::exact(e.source.start, e.source.end)),
                     members: e.members.iter().map(|m| u32::try_from(m.get()).expect("a u32 row")).collect(),
                     rule: Some(rule(e.rule)),
                     strategy: i32::from(e.strategy.id()),

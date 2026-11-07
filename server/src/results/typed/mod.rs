@@ -17,6 +17,7 @@ mod layers_quotations;
 mod layers_sentiment;
 mod layers_shared;
 mod layers_structure;
+pub mod project;
 pub mod scoped;
 mod validate;
 
@@ -26,8 +27,7 @@ use std::collections::HashMap;
 
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{
-    Anchor, Document, Evidence, Execution, Ix, Key, KeyId, Layer, ModelRef, Provenance, Span, Spans, Status, View,
-    ViewId,
+    Anchor, Document, Evidence, Execution, Key, KeyId, Layer, ModelRef, Provenance, Span, Status, View, ViewId,
 };
 use turbo_analysis_layers::{Categories, Entities, Opinions};
 
@@ -37,8 +37,7 @@ use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
     AnchorKind, ExecutionInfo, InputBinding, InspectDocumentGraphRequest, LayerIndexBound, LayerWireStatus,
-    MappingPayload, ModelProvenance, SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo,
-    mapping_payload,
+    MappingPayload, ModelProvenance, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo, mapping_payload,
 };
 
 pub use validate::validate_typed_document;
@@ -184,48 +183,10 @@ impl<'a> ProjectionCx<'a> {
         })
     }
 
-    pub(crate) fn project_wire_span(&self, layer_view: ViewId, span: Span) -> SpanFragment {
-        let mapped = self.project_span(layer_view, span);
-        let (start, end) = self.offsetter.to_wire(self.target_text, mapped);
-        SpanFragment { start, end }
-    }
-
-    pub(crate) fn project_spans<L>(&self, spans: &Spans<L>, item: Ix<L>) -> Vec<SpanFragment> {
-        let view = spans.view();
-        let frags: Vec<SpanFragment> = spans.fragments(item).map(|frag| self.project_wire_span(view, frag)).collect();
-        // Onto another view a fragment can land on deleted text (empty) or
-        // run into its neighbour; coalesce so the result stays valid input.
-        if view == self.target_view { frags } else { coalesce_wire_spans(frags) }
-    }
-
     pub(crate) fn target_slice(&self, layer_view: ViewId, span: Span) -> &'a str {
         let mapped = self.project_span(layer_view, span);
         self.target_text.get(mapped.range()).unwrap_or_default()
     }
-}
-
-pub(crate) fn coalesce_wire_spans(mut frags: Vec<SpanFragment>) -> Vec<SpanFragment> {
-    if frags.len() <= 1 {
-        return frags;
-    }
-    let first = frags[0];
-    frags.retain(|f| f.start < f.end);
-    if frags.is_empty() {
-        // Every fragment is empty: keep one, so the item keeps its place.
-        return vec![first];
-    }
-    frags.sort_by_key(|f| (f.start, f.end));
-    let mut out: Vec<SpanFragment> = Vec::with_capacity(frags.len());
-    for f in frags {
-        if let Some(last) = out.last_mut()
-            && f.start < last.end
-        {
-            last.end = last.end.max(f.end);
-        } else {
-            out.push(f);
-        }
-    }
-    out
 }
 
 pub(crate) fn find_aligned_to<A: Layer>(doc: &Document, anchor_key: KeyId) -> Option<&A> {

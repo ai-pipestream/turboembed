@@ -9,7 +9,7 @@ use turbo_analysis_layers::{
 use turbo_chunker::ChunkCitations;
 
 use super::layers_structure::aligned_spans;
-use super::{ProjectionCx, build_layer, coalesce_wire_spans};
+use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     ChunkCitationAnnotation, ChunkTableHeaderAnnotation, EntitySalienceAnnotation, LayoutBoxAnnotation,
@@ -66,11 +66,9 @@ pub(crate) fn project_context_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
                 .map(|score| TypedAnnotation {
                     spans: entities
                         .and_then(|e| {
-                            e.entities.get(score.entity_ix as usize).map(|entity| {
-                                coalesce_wire_spans(
-                                    entity.mentions.iter().map(|m| cx.project_wire_span(e.view, m.span)).collect(),
-                                )
-                            })
+                            e.entities
+                                .get(score.entity_ix as usize)
+                                .map(|entity| cx.project_fragments(e.view, entity.mentions.iter().map(|m| m.span)))
                         })
                         .unwrap_or_default(),
                     probability: Some(f64::from(score.salience)),

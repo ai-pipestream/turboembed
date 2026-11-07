@@ -3,7 +3,9 @@ mod common;
 use turbo_analysis::{Document, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId, export::export};
 use turbo_analysis_layers::{Quotation, Quotations, QuoteKind};
 use turbo_kserve::{
-    proto::result::{DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, typed_annotation::Value},
+    proto::result::{
+        DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, SpanOutcome, typed_annotation::Value,
+    },
     results::document::codecs,
 };
 #[tokio::test]
@@ -70,9 +72,11 @@ async fn discontinuous_content_survives_partial_total_and_overlapping_projection
                 (0, OffsetMode::Utf8) => vec![(0, 2), (5, 9)],
                 (0, OffsetMode::Utf16) => vec![(0, 1), (4, 6)],
                 (0, OffsetMode::CodePoint) => vec![(0, 1), (4, 5)],
-                (1, OffsetMode::Utf8) => vec![(3, 7)],
-                (1, OffsetMode::Utf16) => vec![(3, 5)],
-                (1, OffsetMode::CodePoint) => vec![(3, 4)],
+                // The first fragment is on text the folded view deleted:
+                // it stays as an empty deleted anchor (#1907).
+                (1, OffsetMode::Utf8) => vec![(0, 0), (3, 7)],
+                (1, OffsetMode::Utf16) => vec![(0, 0), (3, 5)],
+                (1, OffsetMode::CodePoint) => vec![(0, 0), (3, 4)],
                 (2, _) => vec![(0, 1)],
                 (3, _) => vec![(0, 0)],
                 _ => unreachable!(),
@@ -92,7 +96,11 @@ async fn discontinuous_content_survives_partial_total_and_overlapping_projection
                 };
                 assert_eq!(layer.annotations[1].spans.iter().map(|s| (s.start, s.end)).collect::<Vec<_>>(), [second]);
                 if view == 1 {
-                    assert!(layer.annotations[0].spans[0].start > layer.annotations[1].spans[0].start);
+                    let kept = layer.annotations[0].spans.iter().find(|f| f.start < f.end).unwrap();
+                    assert!(kept.start > layer.annotations[1].spans[0].start);
+                    let anchor = &layer.annotations[0].spans[0];
+                    assert_eq!(anchor.outcome, SpanOutcome::Deleted as i32);
+                    assert_ne!(kept.outcome, SpanOutcome::Deleted as i32);
                 }
                 let Some(Value::Quotation(q)) = &layer.annotations[0].value else { panic!("missing quotation") };
                 assert_eq!(q.speaker_chain, Some(u32::MAX));
