@@ -8,10 +8,10 @@ use turbo_analysis_layers::{Pii, PiiKind, PiiKinds};
 
 use crate::hits::{Hits, PiiSink};
 use crate::lists::{AllowList, DenyList, ListError, Pattern};
-use crate::rewrite::{HmacTokenizer, PiiAuditReport};
 use crate::scan::{CustomExtractor, Extractor, Scanner};
 use crate::window::WindowConfig;
 
+mod audit;
 mod labels;
 
 /// The packs of `PiiPacks`, by kind of data.
@@ -29,8 +29,10 @@ pub enum Pack {
     Crypto,
     /// United States SSNs and ITINs.
     UsIdentity,
-    /// United Kingdom NHS numbers and German Steuer-IDs.
+    /// European national and business identifiers (UK, DE, ES, FR, BIC).
     EuIdentity,
+    /// Brazilian CPF and CNPJ identifiers.
+    BrIdentity,
     /// Canadian SINs after a label.
     CaIdentity,
     /// IMEIs after a label.
@@ -40,7 +42,7 @@ pub enum Pack {
 }
 
 impl Pack {
-    pub const ALL: [Pack; 10] = [
+    pub const ALL: [Pack; 11] = [
         Pack::Payment,
         Pack::Contact,
         Pack::Network,
@@ -48,6 +50,7 @@ impl Pack {
         Pack::Crypto,
         Pack::UsIdentity,
         Pack::EuIdentity,
+        Pack::BrIdentity,
         Pack::CaIdentity,
         Pack::Device,
         Pack::AllStructured,
@@ -64,6 +67,7 @@ impl Pack {
             Pack::Crypto => "crypto",
             Pack::UsIdentity => "us-identity",
             Pack::EuIdentity => "eu-identity",
+            Pack::BrIdentity => "br-identity",
             Pack::CaIdentity => "ca-identity",
             Pack::Device => "device",
             Pack::AllStructured => "all-structured",
@@ -88,6 +92,7 @@ impl Pack {
             Pack::Crypto => vec![Scanner::all(Extractor::Crypto)],
             Pack::UsIdentity => vec![Scanner::all(Extractor::UsIdentity)],
             Pack::EuIdentity => vec![Scanner::all(Extractor::EuIdentity)],
+            Pack::BrIdentity => vec![Scanner::all(Extractor::BrIdentity)],
             Pack::CaIdentity => vec![Scanner::all(Extractor::CaIdentity)],
             Pack::Device => vec![Scanner::all(Extractor::Device)],
             Pack::AllStructured => [
@@ -97,6 +102,7 @@ impl Pack {
                 Extractor::Network,
                 Extractor::UsIdentity,
                 Extractor::EuIdentity,
+                Extractor::BrIdentity,
                 Extractor::CaIdentity,
                 Extractor::Device,
                 Extractor::Banking,
@@ -404,26 +410,6 @@ impl PiiDetector {
         self.detect(text, &mut out);
         out
     }
-
-    /// Runs detection over `text` for `view` and builds a [`PiiAuditReport`]
-    /// that includes both active mentions and per-kind suppressed counts.
-    pub fn detect_and_audit(
-        &self,
-        text: &str,
-        view: ViewId,
-        tokenizer: &HmacTokenizer,
-        samples: usize,
-    ) -> (Pii, PiiAuditReport) {
-        let (pii, suppressed) = self.layer_with_suppressed(text, view);
-        let report = PiiAuditReport::with_suppressed(&pii, suppressed, tokenizer, samples);
-        (pii, report)
-    }
-
-    /// Runs detection over `text` and returns the [`PiiAuditReport`],
-    /// including per-kind counts of mentions suppressed by allow rules.
-    pub fn audit(&self, text: &str, tokenizer: &HmacTokenizer, samples: usize) -> PiiAuditReport {
-        self.detect_and_audit(text, ViewId::SOURCE, tokenizer, samples).1
-    }
 }
 
 impl Annotator for PiiDetector {
@@ -458,7 +444,7 @@ impl Annotator for PiiDetector {
     fn config_hash(&self) -> u64 {
         let mut h = turbo_analysis::Fnv1a::new();
         for s in &self.scanners {
-            let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1 << k.rank());
+            let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1u64 << k.hash_bit());
             h.fold_u64(s.extractor().tag()).fold_u64(kinds);
             if let Extractor::Custom(name) = s.extractor() {
                 h.bytes(name.as_bytes()).u8(0xff);

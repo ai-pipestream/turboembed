@@ -159,7 +159,8 @@ pack_tests! {
     secrets_rewrite_snapshots: Pack::Secrets, 12, 0;
     crypto_rewrite_snapshots: Pack::Crypto, 14, 0;
     us_identity_rewrite_snapshots: Pack::UsIdentity, 8, 0;
-    eu_identity_rewrite_snapshots: Pack::EuIdentity, 10, 0;
+    eu_identity_rewrite_snapshots: Pack::EuIdentity, 26, 0;
+    br_identity_rewrite_snapshots: Pack::BrIdentity, 4, 0;
     ca_identity_rewrite_snapshots: Pack::CaIdentity, 4, 0;
     device_rewrite_snapshots: Pack::Device, 4, 0;
     all_structured_rewrite_snapshots: Pack::AllStructured, 126, 16;

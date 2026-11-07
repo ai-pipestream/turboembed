@@ -11,10 +11,11 @@ use turbo_analysis_layers::{PiiConfidence, PiiKind, PiiKinds};
 
 use crate::hits::Hits;
 use crate::text::{on_end, on_number_start};
+use crate::window::WindowConfig;
 
 /// No letter or digit after `end`, and none of `joiners` going on with a
 /// digit.
-fn on_number_end(text: &str, end: usize, joiners: &[u8]) -> bool {
+pub(crate) fn on_number_end(text: &str, end: usize, joiners: &[u8]) -> bool {
     let b = text.as_bytes();
     on_end(text, end) && (end + 1 >= b.len() || !joiners.contains(&b[end]) || !b[end + 1].is_ascii_digit())
 }
@@ -68,16 +69,39 @@ fn us_at(text: &str, i: usize) -> Option<PiiKind> {
 
 const NHS_GROUPS: &[usize] = &[3, 3, 4];
 const STEUER_GROUPS: &[usize] = &[2, 3, 3, 3];
-const JOINERS: &[u8] = b".,- ";
+pub(crate) const JOINERS: &[u8] = b".,- ";
 
-/// NHS numbers and Steuer-IDs of `kinds`: the Steuer-ID scan first, as
-/// in the Java.
-pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, hits: &mut Hits) {
+/// European national and business identifiers of `kinds`.
+pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, window: &WindowConfig, hits: &mut Hits) {
     if kinds.contains(PiiKind::DeSteuerId) {
         scan_grouped(text, STEUER_GROUPS, PiiKind::DeSteuerId, hits);
     }
     if kinds.contains(PiiKind::UkNhs) {
         scan_grouped(text, NHS_GROUPS, PiiKind::UkNhs, hits);
+    }
+    if kinds.contains(PiiKind::EsDni) {
+        super::es_de::scan_es_dni(text, hits);
+    }
+    if kinds.contains(PiiKind::EsNie) {
+        super::es_de::scan_es_nie(text, hits);
+    }
+    if kinds.contains(PiiKind::EsCif) {
+        super::es_de::scan_es_cif(text, hits);
+    }
+    if kinds.contains(PiiKind::DePersonalausweis) {
+        super::es_de::scan_de_personalausweis(text, hits);
+    }
+    if kinds.contains(PiiKind::FrNir) {
+        super::fr::scan_fr_nir(text, hits);
+    }
+    if kinds.contains(PiiKind::FrSiren) {
+        super::fr::scan_fr_siren(text, hits);
+    }
+    if kinds.contains(PiiKind::FrSiret) {
+        super::fr::scan_fr_siret(text, hits);
+    }
+    if kinds.contains(PiiKind::Bic) {
+        super::labelled::scan_bic(text, window, hits);
     }
 }
 
@@ -150,15 +174,11 @@ fn read_bare(text: &str, start: usize, value: &mut [u8]) -> Option<usize> {
 /// Mod 11 with weights 10 down to 2; a check of 10 is never issued, and
 /// ten equal digits are refused.
 fn valid_nhs(v: &[u8]) -> bool {
-    if v.iter().all(|&d| d == v[0]) {
+    let Ok(raw) = <&[u8; 10]>::try_from(v) else {
         return false;
-    }
-    let sum: u32 = v[..9].iter().enumerate().map(|(i, &d)| u32::from(d) * (10 - i as u32)).sum();
-    let check = match 11 - sum % 11 {
-        11 => 0,
-        c => c,
     };
-    check != 10 && check == u32::from(v[9])
+    let digits = raw.map(|d| b'0' + d);
+    crate::checksum::mod11::uk_nhs(&digits)
 }
 
 /// ISO 7064 MOD 11,10 over the first ten digits, no leading zero, and
