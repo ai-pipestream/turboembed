@@ -270,6 +270,39 @@ fn label_required_drops_unlabelled_and_promotes_labelled_candidates() {
 }
 
 #[test]
+fn label_required_rechecks_prelabelled_custom_candidates() {
+    fn labelled(text: &str, sink: &mut PiiSink<'_>) {
+        scan_nine_with(text, sink, PiiConfidence::Labelled);
+    }
+    fn labelled_checksum(text: &str, sink: &mut PiiSink<'_>) {
+        scan_nine_with(text, sink, PiiConfidence::LabelledChecksum);
+    }
+    type ScanFn = fn(&str, &mut PiiSink<'_>);
+    let scanners: [(PiiConfidence, ScanFn); 2] =
+        [(PiiConfidence::Labelled, labelled), (PiiConfidence::LabelledChecksum, labelled_checksum)];
+    for (confidence, scan) in scanners {
+        let detector = PiiDetector::new(vec![Scanner::custom_fn("Prelabelled", PASSPORT_KIND, scan)])
+            .with_custom_kinds(passport_kinds())
+            .with_extra_label(PASSPORT_KIND, "passport")
+            .with_label_window(PASSPORT_KIND, 1);
+        let required = detector.clone().label_required(PASSPORT_KIND);
+        for text in ["123456789", "passport is 123456789", "123456789 is passport"] {
+            assert_none(&required, text);
+        }
+        for text in ["passport: 123456789", "123456789 (passport)"] {
+            let pii = layer(&required, text);
+            let mentions: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+            assert_eq!(mentions, [(PASSPORT_KIND, confidence, "123456789")], "{text}");
+        }
+        // Optional policies retain scanner evidence even without a context label.
+        for optional in [detector.clone(), detector.label_boosts(PASSPORT_KIND)] {
+            let pii = layer(&optional, "123456789");
+            assert_eq!(pii.mentions().map(|m| m.confidence).collect::<Vec<_>>(), [confidence]);
+        }
+    }
+}
+
+#[test]
 fn label_boosts_and_binary_wire_confidence_ids_are_the_c_codes() {
     let det = PiiDetector::new(vec![
         Scanner::all(Extractor::UsIdentity),
