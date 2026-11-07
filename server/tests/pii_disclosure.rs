@@ -357,3 +357,42 @@ async fn the_started_event_sanitizes_the_views_of_an_initial_graph_holding_pii()
     }
     s.stop().await;
 }
+
+#[tokio::test]
+async fn snapshots_before_the_pii_step_carry_no_graph_either() {
+    // A step that runs before the PII scan: its snapshot holds the text,
+    // and the document holds no findings yet, so the request decides.
+    let s = server(Serve::default()).await;
+    let run = |pii_output: Option<PiiOutputOptions>| {
+        let req = AnalyzePipelineRequest {
+            doc_id: "doc-pii".into(),
+            text: TEXT.into(),
+            offsets: OffsetMode::Utf8 as i32,
+            steps: vec!["turbo-sentdetect:rules".into(), "turbo-pii:pii".into()],
+            pii_output,
+            ..Default::default()
+        };
+        let s = &s;
+        async move {
+            let mut stream = client(s).await.analyze_document_progressive(req).await.unwrap().into_inner();
+            let mut batches = Vec::new();
+            while let Some(ev) = stream.next().await {
+                if let Some(Event::LayersReady(b)) = ev.unwrap().event {
+                    batches.push(b);
+                }
+            }
+            batches
+        }
+    };
+    let batches = run(None).await;
+    let first =
+        batches.iter().find(|b| b.completed_step == "turbo-sentdetect:rules").expect("the sentence step's snapshot");
+    assert!(first.layers.iter().all(|l| l.layer != "turbo:pii"), "positive control: it ran before the PII scan");
+    for b in &batches {
+        assert!(b.graph.is_empty() && !holds(&b.encode_to_vec(), PLANTED), "{} carries the text", b.completed_step);
+    }
+    // Asked for, the text does leave, from the first snapshot on.
+    let full = run(options(true, false)).await;
+    assert!(full.iter().any(|b| b.completed_step == "turbo-sentdetect:rules" && holds(&b.graph, PLANTED)));
+    s.stop().await;
+}

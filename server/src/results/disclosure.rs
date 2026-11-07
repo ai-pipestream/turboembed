@@ -21,7 +21,7 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::{Document, Key, Layer, View, ViewId};
+use turbo_analysis::{Analyzer, Document, Key, Layer, View, ViewId};
 use turbo_analysis_layers::{Pii, PiiEdits};
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
@@ -174,6 +174,12 @@ impl Disclosure {
 /// status.
 pub fn holds_pii(doc: &Document) -> bool {
     doc.layers().any(|k| k.ty == TypeId::of::<Pii>())
+}
+
+/// Whether a step of `analyzer` writes PII findings: a document it runs
+/// over will hold a `turbo:pii` layer instance.
+pub fn plans_pii(analyzer: &Analyzer) -> bool {
+    analyzer.writes().iter().any(|k| k.ty == TypeId::of::<Pii>())
 }
 
 /// Whether `view` is a PII rewrite view: not the source, written by a
