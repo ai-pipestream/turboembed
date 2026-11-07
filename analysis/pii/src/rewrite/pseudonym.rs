@@ -40,6 +40,14 @@ impl Pseudonymizer {
         self.refuse_overlaps
     }
 
+    /// Appends the pseudonym label for `kind` and 1-based `number` to `out`.
+    pub(crate) fn write_label(&self, kind: PiiKind, number: u32, out: &mut String) {
+        out.push_str(&self.prefix);
+        out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase()));
+        let _ = write!(out, "-{number}");
+        out.push_str(&self.suffix);
+    }
+
     /// Replaces every mention of `pii`, a layer over `text`, with its
     /// label.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
@@ -55,10 +63,7 @@ impl Pseudonymizer {
                 let n = counters.entry(m.kind).or_insert(0);
                 *n += 1;
                 let mut l = String::new();
-                l.push_str(&self.prefix);
-                l.extend(m.kind.name().chars().map(|c| c.to_ascii_uppercase()));
-                let _ = write!(l, "-{n}");
-                l.push_str(&self.suffix);
+                self.write_label(m.kind, *n, &mut l);
                 l
             });
             out.push_str(label);

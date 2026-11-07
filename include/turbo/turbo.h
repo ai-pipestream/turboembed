@@ -821,9 +821,12 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_SPAN_VALUE        (1u << 4)
 #define TURBO_SPAN_PROBABILITY  (1u << 5)
 
-#define TURBO_PII_CONFIDENCE_FORMAT   1
-#define TURBO_PII_CONFIDENCE_CHECKSUM 2
-#define TURBO_PII_CONFIDENCE_LABELLED 3
+/* Discrete PII evidence tier codes (not a monotonic numeric scale:
+ * 3 = LABELLED_CHECKSUM is stronger than 4 = LABELLED). */
+#define TURBO_PII_CONFIDENCE_FORMAT            1
+#define TURBO_PII_CONFIDENCE_CHECKSUM          2
+#define TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM 3
+#define TURBO_PII_CONFIDENCE_LABELLED          4
 
 /* Configuration of an in-process analysis pipeline. desc may be NULL for
  * English with the rule sentence splitter and rule tokenizer only. The

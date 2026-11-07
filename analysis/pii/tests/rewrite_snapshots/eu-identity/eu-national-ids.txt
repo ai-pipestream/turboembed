@@ -1,0 +1,33 @@
+MASKED	DNI *********, NIE *********, CIF *********, Personalausweis **********, NIR * ** ** ** *** *** **, SIREN *** *** ***, SIRET *********-*****, BIC: ***********.
+
+MASK_ALL	DNI #########, NIE #########, CIF #########, Personalausweis ##########, NIR #####################, SIREN ###########, SIRET ###############, BIC: ###########.
+
+REWRITE	pseudonymize	OK	DNI ES-DNI-1, NIE ES-NIE-1, CIF ES-CIF-1, Personalausweis DE-PERSONALAUSWEIS-1, NIR FR-NIR-1, SIREN FR-SIREN-1, SIRET FR-SIRET-1, BIC: BIC-1.
+
+LABEL	pseudonymize	4	13	4	12	ES-DNI-1
+LABEL	pseudonymize	19	28	18	26	ES-NIE-1
+LABEL	pseudonymize	34	43	32	40	ES-CIF-1
+LABEL	pseudonymize	61	71	58	78	DE-PERSONALAUSWEIS-1
+LABEL	pseudonymize	77	98	84	92	FR-NIR-1
+LABEL	pseudonymize	106	117	100	110	FR-SIREN-1
+LABEL	pseudonymize	125	140	118	128	FR-SIRET-1
+LABEL	pseudonymize	147	158	135	140	BIC-1
+REWRITE	hmac	OK	DNI ES-DNI-68d531ed519b20f3, NIE ES-NIE-1979989a5facbc06, CIF ES-CIF-275dbe483c35b311, Personalausweis DE-PERSONALAUSWEIS-445a7244f4633f72, NIR FR-NIR-45208593cd61e42c, SIREN FR-SIREN-43884d7927b59f61, SIRET FR-SIRET-6aa88b61e7a6d14b, BIC: BIC-120e1276766aef86.
+
+LABEL	hmac	4	13	4	27	ES-DNI-68d531ed519b20f3
+LABEL	hmac	19	28	33	56	ES-NIE-1979989a5facbc06
+LABEL	hmac	34	43	62	85	ES-CIF-275dbe483c35b311
+LABEL	hmac	61	71	103	138	DE-PERSONALAUSWEIS-445a7244f4633f72
+LABEL	hmac	77	98	144	167	FR-NIR-45208593cd61e42c
+LABEL	hmac	106	117	175	200	FR-SIREN-43884d7927b59f61
+LABEL	hmac	125	140	208	233	FR-SIRET-6aa88b61e7a6d14b
+LABEL	hmac	147	158	240	260	BIC-120e1276766aef86
+AUDIT	bic	1	1	BIC-120e1276766aef86
+AUDIT	de-personalausweis	1	1	DE-PERSONALAUSWEIS-445a7244f4633f72
+AUDIT	es-cif	1	1	ES-CIF-275dbe483c35b311
+AUDIT	es-dni	1	1	ES-DNI-68d531ed519b20f3
+AUDIT	es-nie	1	1	ES-NIE-1979989a5facbc06
+AUDIT	fr-nir	1	1	FR-NIR-45208593cd61e42c
+AUDIT	fr-siren	1	1	FR-SIREN-43884d7927b59f61
+AUDIT	fr-siret	1	1	FR-SIRET-6aa88b61e7a6d14b
+AUDIT_REPORT	bic: 1 mentions, 1 distinct [BIC-120e1276766aef86]\nde-personalausweis: 1 mentions, 1 distinct [DE-PERSONALAUSWEIS-445a7244f4633f72]\nes-cif: 1 mentions, 1 distinct [ES-CIF-275dbe483c35b311]\nes-dni: 1 mentions, 1 distinct [ES-DNI-68d531ed519b20f3]\nes-nie: 1 mentions, 1 distinct [ES-NIE-1979989a5facbc06]\nfr-nir: 1 mentions, 1 distinct [FR-NIR-45208593cd61e42c]\nfr-siren: 1 mentions, 1 distinct [FR-SIREN-43884d7927b59f61]\nfr-siret: 1 mentions, 1 distinct [FR-SIRET-6aa88b61e7a6d14b]

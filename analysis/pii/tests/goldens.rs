@@ -110,7 +110,8 @@ pack_tests! {
     secrets_snapshots: Pack::Secrets, 4;
     crypto_snapshots: Pack::Crypto, 5;
     us_identity_snapshots: Pack::UsIdentity, 3;
-    eu_identity_snapshots: Pack::EuIdentity, 3;
+    eu_identity_snapshots: Pack::EuIdentity, 11;
+    br_identity_snapshots: Pack::BrIdentity, 2;
     ca_identity_snapshots: Pack::CaIdentity, 1;
     device_snapshots: Pack::Device, 1;
     all_structured_snapshots: Pack::AllStructured, 80;

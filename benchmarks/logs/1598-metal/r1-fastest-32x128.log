@@ -1,0 +1,13 @@
+== all-minilm-l6-v2 fastest 32x128 2026-11-04T23:45:46Z head 75b4af00f356de08da1593b6e4a87f56daf3110f
+18:45  up 24 mins, 2 users, load averages: 2.01 2.80 6.10
+"Device Utilization %"=6
+cmd: target/release/turbo-bench record --bundle <bundles>/all-minilm-l6-v2 --device metal --precision fastest --batch 32 --seq 128 --rows dense --warmup 5 --iterations 20 --no-tei --mlx-model <bundles>/upstream-minilm --out <out>/r1-fastest-32x128
+metal Apple M2: p50 44.9883 ms, p99 45.1407 ms over 20 runs of [32, 128] ROWS_DENSE, 4096 live tokens, 4096 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 44.9883 ms, p99 45.1407 ms on [32, 128] ROWS_DENSE: 4096 token positions computed of 4096 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 44.3371 ms, p99 44.4027 ms on [32, 128] ROWS_DENSE: 4096 token positions computed of 4096 live
+$SCRATCH/rec1598/out/r1-fastest-32x128/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.75b4af00f356.json
+exit 0
+== end 2026-11-04T23:45:49Z
+18:45  up 24 mins, 2 users, load averages: 1.93 2.77 6.07
+"Device Utilization %"=98

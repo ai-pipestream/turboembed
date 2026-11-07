@@ -6,13 +6,18 @@ fn m(start: u32, end: u32, kind: PiiKind, normalized: &str) -> PiiMention<'_> {
 
 #[test]
 fn kinds_have_the_java_names_and_ranks() {
-    assert_eq!(PiiKind::ALL.len(), 20);
+    assert_eq!(PiiKind::ALL.len(), 30);
     for (rank, kind) in PiiKind::ALL.into_iter().enumerate() {
         assert_eq!(kind.rank() as usize, rank);
         assert_eq!(PiiKind::parse(kind.name()), Some(kind));
+        assert_eq!(PiiKind::custom(kind.name()), kind);
         assert_eq!(kind.to_string(), kind.name());
     }
     assert_eq!(PiiKind::DeSteuerId.name(), "de-steuer-id");
+    assert_eq!(PiiKind::EsDni.name(), "es-dni");
+    assert_eq!(PiiKind::DePersonalausweis.name(), "de-personalausweis");
+    assert_eq!(PiiKind::BrCnpj.name(), "br-cnpj");
+    assert_eq!(PiiKind::Bic.name(), "bic");
     assert!(PiiKind::Imei < PiiKind::Card);
     assert_eq!(PiiKind::parse("EMAIL"), None);
 }
@@ -38,7 +43,17 @@ fn mentions_round_trip_and_may_overlap() {
     assert_eq!(p.get(Ix::new(1)).confidence, PiiConfidence::Checksum);
     assert_eq!(p.get(Ix::new(2)).normalized, "1234567890");
     assert_eq!(Pii::ID, "turbo:pii");
+    assert_eq!(PiiConfidence::Format.name(), "format");
+    assert_eq!(PiiConfidence::Labelled.name(), "labelled");
+    assert_eq!(PiiConfidence::Checksum.name(), "checksum");
     assert_eq!(PiiConfidence::LabelledChecksum.name(), "labelled-checksum");
+    assert_eq!(PiiConfidence::Format.with_label(), PiiConfidence::Labelled);
+    assert_eq!(PiiConfidence::Labelled.with_label(), PiiConfidence::Labelled);
+    assert_eq!(PiiConfidence::Checksum.with_label(), PiiConfidence::LabelledChecksum);
+    assert_eq!(PiiConfidence::LabelledChecksum.with_label(), PiiConfidence::LabelledChecksum);
+    assert!(PiiConfidence::Format < PiiConfidence::Labelled);
+    assert!(PiiConfidence::Labelled < PiiConfidence::Checksum);
+    assert!(PiiConfidence::Checksum < PiiConfidence::LabelledChecksum);
 }
 
 #[test]

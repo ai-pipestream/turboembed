@@ -1,39 +1,66 @@
-//! Identifiers read only after a label naming them, Luhn checked.
+//! Identifiers gated by a context label in [`crate::window`], Luhn checked.
 //!
 //! - Canadian Social Insurance Numbers, `CaIdentityPiiExtractor`: nine
-//!   digits, bare or as three groups split by one space or hyphen, after
-//!   `social insurance number`, `social insurance no` or `SIN`.
+//!   digits, bare or as three groups split by one space or hyphen, paired
+//!   with `social insurance number`, `social insurance no` or `SIN`.
 //! - IMEIs, `DevicePiiExtractor`: fifteen digits, split by spaces or by
-//!   hyphens (not both), after `IMEI`.
-//!
-//! Labels match in any ASCII case, at a word start, with whitespace and
-//! `:`, `#` or `=` (and `.` for a SIN) between label and number.
+//!   hyphens (not both), paired with `IMEI`.
 
+use turbo_analysis::Span;
 use turbo_analysis_layers::{PiiConfidence, PiiKind};
 
-use crate::checksum::luhn;
+use crate::checksum::{bic, luhn};
 use crate::hits::Hits;
-use crate::text::{before, on_end, on_number_start, on_word_start, whitespace};
+use crate::text::{before, on_end, on_number_start, on_word_start};
+use crate::window::WindowConfig;
 
-const SIN_LABELS: [&[u8]; 3] = [b"social insurance number", b"social insurance no", b"sin"];
 const SIN_DIGITS: usize = 9;
-const IMEI_LABEL: &[u8] = b"imei";
 const IMEI_DIGITS: usize = 15;
 
-pub(crate) fn scan_sin(text: &str, hits: &mut Hits) {
-    scan(text, PiiKind::CaSin, hits);
+pub(crate) fn scan_sin(text: &str, window: &WindowConfig, hits: &mut Hits) {
+    scan(text, PiiKind::CaSin, window, hits);
 }
 
-pub(crate) fn scan_imei(text: &str, hits: &mut Hits) {
-    scan(text, PiiKind::Imei, hits);
+pub(crate) fn scan_imei(text: &str, window: &WindowConfig, hits: &mut Hits) {
+    scan(text, PiiKind::Imei, window, hits);
 }
 
-fn scan(text: &str, kind: PiiKind, hits: &mut Hits) {
+pub(crate) fn scan_bic(text: &str, window: &WindowConfig, hits: &mut Hits) {
+    let b = text.as_bytes();
+    let mut i = 0;
+    while i + 8 <= b.len() {
+        if !b[i].is_ascii_uppercase()
+            || !on_word_start(text, i)
+            || before(text, i).is_some_and(|c| matches!(c, '-' | '/' | '.' | '@'))
+        {
+            i += 1;
+            continue;
+        }
+        let len = [11usize, 8].into_iter().find(|&len| {
+            let end = i + len;
+            end <= b.len() && on_end(text, end) && !matches!(b.get(end), Some(b'-' | b'/')) && bic::check(&b[i..end])
+        });
+        if let Some(len) = len {
+            let end = i + len;
+            let span = Span::new(i as u32, end as u32);
+            if let Some(conf) = window.check(text, span, PiiKind::Bic, PiiConfidence::Format) {
+                hits.add(i, end, PiiKind::Bic, conf, |s| s.push_str(&text[i..end]));
+                i = end;
+            } else {
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+}
+
+fn scan(text: &str, kind: PiiKind, window: &WindowConfig, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut digits = [0u8; IMEI_DIGITS];
     let mut i = 0;
     while i < b.len() {
-        if !b[i].is_ascii_digit() || !on_number_start(text, i) || !has_label(text, i, kind) {
+        if !b[i].is_ascii_digit() || !on_number_start(text, i) {
             i += 1;
             continue;
         }
@@ -43,33 +70,19 @@ fn scan(text: &str, kind: PiiKind, hits: &mut Hits) {
         };
         match end {
             Some(end) if luhn::valid(&digits[..n]) => {
-                hits.add(i, end, kind, PiiConfidence::LabelledChecksum, |s| {
-                    s.extend(digits[..n].iter().map(|&d| d as char));
-                });
-                i = end;
+                let span = Span::new(i as u32, end as u32);
+                if let Some(conf) = window.check(text, span, kind, PiiConfidence::Checksum) {
+                    hits.add(i, end, kind, conf, |s| {
+                        s.extend(digits[..n].iter().map(|&d| d as char));
+                    });
+                    i = end;
+                } else {
+                    i += 1;
+                }
             }
             _ => i += 1,
         }
     }
-}
-
-/// Whether a label of `kind` ends before `start`, past the separators.
-fn has_label(text: &str, start: usize, kind: PiiKind) -> bool {
-    let sin = kind == PiiKind::CaSin;
-    let mut end = start;
-    while let Some(c) = before(text, end) {
-        if !(whitespace(c) || matches!(c, ':' | '#' | '=') || (sin && c == '.')) {
-            break;
-        }
-        end -= c.len_utf8();
-    }
-    let b = text.as_bytes();
-    let labels: &[&[u8]] = if sin { &SIN_LABELS } else { &[IMEI_LABEL] };
-    labels.iter().any(|label| {
-        end >= label.len()
-            && b[end - label.len()..end].eq_ignore_ascii_case(label)
-            && on_word_start(text, end - label.len())
-    })
 }
 
 /// No letter or digit after `end`, and no space or hyphen going on with a

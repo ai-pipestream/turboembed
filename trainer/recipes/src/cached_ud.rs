@@ -287,7 +287,12 @@ fn fit_cached_parse(
     let (tensors, core, report, mix) = if p.layers.len() == 1 && !p.mixed {
         let one = |v: Vec<MixParseExample>| -> Vec<ParseExample> {
             v.into_iter()
-                .map(|mut e| ParseExample { features: e.layers.remove(0), heads: e.heads, rels: e.rels })
+                .map(|mut e| ParseExample {
+                    features: e.layers.remove(0),
+                    heads: e.heads,
+                    rels: e.rels,
+                    language: None,
+                })
                 .collect()
         };
         let (tr, dv) = (one(train_mix), one(dev_mix));

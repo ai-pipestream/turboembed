@@ -2,9 +2,12 @@
 //! of the kinds it can find.
 
 mod aba;
+mod br;
 mod card;
 mod crypto;
 mod email;
+mod es_de;
+mod fr;
 mod iban;
 mod jws;
 mod jwt;
@@ -21,6 +24,7 @@ use std::sync::Arc;
 use turbo_analysis_layers::{PiiKind, PiiKinds};
 
 use crate::hits::{Hits, PiiSink};
+use crate::window::WindowConfig;
 
 /// One OpenNLP extractor class, or a caller-defined extractor named by
 /// the caller.
@@ -39,8 +43,10 @@ pub enum Extractor {
     Crypto,
     /// `UsIdentityPiiExtractor`: SSNs and ITINs.
     UsIdentity,
-    /// `EuIdentityPiiExtractor`: NHS numbers and Steuer-IDs.
+    /// `EuIdentityPiiExtractor`: European national and business identifiers.
     EuIdentity,
+    /// `BrIdentityPiiExtractor`: Brazilian CPF and CNPJ identifiers.
+    BrIdentity,
     /// `CaIdentityPiiExtractor`: labelled SINs.
     CaIdentity,
     /// `DevicePiiExtractor`: labelled IMEIs.
@@ -61,7 +67,10 @@ impl Extractor {
             Extractor::Secrets => PiiKinds::of(&[AwsAccessKey, GithubToken, Jwt, UrlCredential]),
             Extractor::Crypto => PiiKinds::of(&[BtcAddress, EthAddress]),
             Extractor::UsIdentity => PiiKinds::of(&[UsSsn, UsItin]),
-            Extractor::EuIdentity => PiiKinds::of(&[UkNhs, DeSteuerId]),
+            Extractor::EuIdentity => {
+                PiiKinds::of(&[UkNhs, DeSteuerId, EsDni, EsNie, EsCif, DePersonalausweis, FrNir, FrSiren, FrSiret, Bic])
+            }
+            Extractor::BrIdentity => PiiKinds::of(&[BrCpf, BrCnpj]),
             Extractor::CaIdentity => PiiKinds::of(&[CaSin]),
             Extractor::Device => PiiKinds::of(&[Imei]),
             Extractor::Custom(_) => PiiKinds::EMPTY,
@@ -78,6 +87,7 @@ impl Extractor {
             Extractor::Crypto => "CryptoPiiExtractor",
             Extractor::UsIdentity => "UsIdentityPiiExtractor",
             Extractor::EuIdentity => "EuIdentityPiiExtractor",
+            Extractor::BrIdentity => "BrIdentityPiiExtractor",
             Extractor::CaIdentity => "CaIdentityPiiExtractor",
             Extractor::Device => "DevicePiiExtractor",
             Extractor::Custom(name) => name,
@@ -96,6 +106,7 @@ impl Extractor {
             Extractor::CaIdentity => 7,
             Extractor::Device => 8,
             Extractor::Custom(_) => 9,
+            Extractor::BrIdentity => 10,
         }
     }
 }
@@ -283,7 +294,7 @@ impl Scanner {
 
     /// Appends this scanner's candidates in `text`, in the order the Java
     /// extractor's scans run.
-    pub(crate) fn scan(&self, text: &str, hits: &mut Hits) {
+    pub(crate) fn scan(&self, text: &str, window: &WindowConfig, hits: &mut Hits) {
         let ScannerInner::Builtin { extractor, kinds: k } = &self.inner else {
             if let ScannerInner::Custom(c) = &self.inner {
                 let mut sink = PiiSink::new(text, hits);
@@ -325,9 +336,10 @@ impl Scanner {
             }
             Extractor::Crypto => crypto::scan(text, k, hits),
             Extractor::UsIdentity => national::scan_us(text, k, hits),
-            Extractor::EuIdentity => national::scan_eu(text, k, hits),
-            Extractor::CaIdentity => labelled::scan_sin(text, hits),
-            Extractor::Device => labelled::scan_imei(text, hits),
+            Extractor::EuIdentity => national::scan_eu(text, k, window, hits),
+            Extractor::BrIdentity => br::scan_br(text, k, hits),
+            Extractor::CaIdentity => labelled::scan_sin(text, window, hits),
+            Extractor::Device => labelled::scan_imei(text, window, hits),
             Extractor::Custom(_) => {}
         }
     }
