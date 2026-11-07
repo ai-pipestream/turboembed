@@ -17,6 +17,9 @@ use crate::proto::result::pii_kind_ref::Kind;
 use crate::proto::result::pii_value::Form;
 use crate::proto::result::{PiiMention, TypedLayer};
 
+/// The PII layer id: the one layer a findings-only result annotates.
+pub(super) const LAYER: &str = Pii::ID;
+
 /// The number of custom kinds `layer` names: its `custom_pii_kinds`, which
 /// only a `turbo:pii` layer may carry, held to [`CustomKinds::from_names`].
 pub(super) fn custom_kinds(layer: &TypedLayer) -> Result<usize, Failure> {

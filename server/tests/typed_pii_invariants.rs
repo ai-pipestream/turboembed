@@ -5,8 +5,10 @@
 //! reference the layer can resolve and a known confidence tier; and `document_to_typed` refuses to
 //! emit a message its own validator would refuse.
 
-use turbo_analysis::{Alignment, Analyzer, Document, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
-use turbo_analysis_layers::Tokens;
+use turbo_analysis::{
+    Alignment, Analyzer, Document, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewBuilder, ViewId,
+};
+use turbo_analysis_layers::{Categories, QualityMetrics, TextQuality, Tokens};
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::pii_kind_ref::Kind;
@@ -325,4 +327,43 @@ fn document_to_typed_refuses_to_emit_a_message_its_validator_refuses() {
     };
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
     assert!(err.message.contains("empty annotator"), "{}", err.message);
+}
+
+#[test]
+fn a_findings_only_result_lists_other_layers_bare_and_still_validates() {
+    // A text quality summary (one annotation required) and a view-aligned
+    // category layer (one per view) beside the PII layer (#1904).
+    let mut doc = Document::new("mail jane@example.com end");
+    let mut pii = Pii::new(ViewId::SOURCE);
+    pii.push(PiiMention {
+        span: Span::new(5, 21),
+        kind: PiiKind::Email,
+        confidence: PiiConfidence::Format,
+        normalized: "jane@example.com",
+    });
+    doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("turbo-pii:pii")).unwrap();
+    let quality = TextQuality::new(ViewId::SOURCE, doc.text(ViewId::SOURCE).len() as u32, QualityMetrics::default());
+    doc.add(&Key::DEFAULT, quality, Provenance::by("test:quality")).unwrap();
+    let mut cats = Categories::<View>::new(TagSet::new("sentiment", &["positive", "negative"]));
+    cats.push(Tag(0), &[0.9, 0.1]);
+    doc.add(&Key::DEFAULT, cats, Provenance::by("test:doccat")).unwrap();
+
+    let full = document_to_typed_with("pii", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
+    let findings =
+        document_to_typed_with("pii", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FINDINGS).unwrap();
+    validate_typed_document(&findings).unwrap();
+    for id in ["turbo:text_quality", "turbo:categories"] {
+        let listed =
+            |w: &TypedDocumentResult| w.layers.iter().find(|l| l.id.starts_with(id)).map(|l| l.annotations.len());
+        assert!(listed(&full).is_some_and(|n| n > 0), "{id}: positive control");
+        assert_eq!(listed(&findings), Some(0), "{id} is listed bare");
+    }
+    // A withheld result that still carries another layer's annotations is
+    // refused: those annotations are the withheld text's words.
+    let mut leaky = findings.clone();
+    let donor = full.layers.iter().find(|l| l.id.starts_with("turbo:text_quality")).unwrap();
+    let bare = leaky.layers.iter_mut().find(|l| l.id == donor.id).unwrap();
+    bare.annotations = donor.annotations.clone();
+    let message = refused("annotations beside a withheld text", &leaky, &[]);
+    assert!(message.contains("while the text is withheld"), "{message}");
 }

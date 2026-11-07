@@ -169,6 +169,10 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
 
     for layer in &msg.layers {
+        if msg.withheld_text_len.is_some() && layer.id != pii::LAYER {
+            withheld_layer(&known_models, layer)?;
+            continue;
+        }
         validate_layer(msg, text, &offsetter, &known_models, &layer_lengths, layer)?;
     }
 
@@ -260,6 +264,20 @@ impl TargetLen {
             TargetLen::Ambiguous(layer) => Err(bad(format!("{lid} has ambiguous {layer} index targets"))),
         }
     }
+}
+
+/// A layer of a findings-only result (#1904): its annotations carry the
+/// withheld text's words, so it is listed with its status and model refs
+/// and nothing else, and the count checks of its kind do not apply.
+fn withheld_layer(known_models: &HashSet<&str>, layer: &TypedLayer) -> Result<(), Failure> {
+    let lid = layer.id.as_str();
+    if !layer.annotations.is_empty() || !layer.indexes_layer.is_empty() {
+        return Err(bad(format!("layer {lid} carries annotations while the text is withheld")));
+    }
+    for mref in &layer.model_refs {
+        check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
+    }
+    Ok(())
 }
 
 fn validate_layer(
