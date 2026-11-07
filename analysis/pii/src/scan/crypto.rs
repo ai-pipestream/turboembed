@@ -4,7 +4,7 @@
 //! hexadecimal digits, not all zero; in mixed case only when the EIP-55
 //! checksum holds).
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind, PiiKinds};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiKinds};
 
 use crate::checksum::{base58, bech32, keccak};
 use crate::hits::Hits;
@@ -34,7 +34,8 @@ fn scan_bitcoin(text: &str, hits: &mut Hits) {
         };
         match found {
             Some((end, lower)) => {
-                hits.add(i, end, PiiKind::BtcAddress, PiiConfidence::Checksum, |s| {
+                let algorithm = if lower { ChecksumAlgorithm::Bech32 } else { ChecksumAlgorithm::Base58Check };
+                hits.add(i, end, PiiKind::BtcAddress, PiiEvidence::Checksum { algorithm, passed: true }, |s| {
                     if lower {
                         s.extend(b[i..end].iter().map(|c| c.to_ascii_lowercase() as char));
                     } else {
@@ -103,8 +104,12 @@ fn scan_ethereum(text: &str, hits: &mut Hits) {
             i += 1;
             continue;
         }
-        let confidence = if mixed { PiiConfidence::Checksum } else { PiiConfidence::Format };
-        hits.add(i, i + 42, PiiKind::EthAddress, confidence, |s| {
+        let fact = if mixed {
+            PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Eip55, passed: true }
+        } else {
+            PiiEvidence::Shape
+        };
+        hits.add(i, i + 42, PiiKind::EthAddress, fact, |s| {
             s.push_str("0x");
             s.extend(checksummed.iter().map(|&c| c as char));
         });

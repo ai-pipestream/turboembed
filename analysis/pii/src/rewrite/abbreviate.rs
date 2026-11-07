@@ -191,7 +191,7 @@ impl Abbreviator {
         } else {
             PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
+        PiiRewrite::replace(text, pii, mentions, |m, out| {
             self.write_abbreviated(&text[m.span.range()], out);
         })
     }

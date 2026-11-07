@@ -34,9 +34,9 @@ use crate::{
     Abbreviations, Aspects, Block, Boundaries, ChunkTags, Chunks, CodeKind, Confidence, Containment, Currency, Cut,
     Dependencies, Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, LayoutBoxes, Lemmas,
     Levels, Matches, Modifier, Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals,
-    PhraseChunks, Phrases, Pii, PiiConfidence, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation,
-    ScaleMarker, Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows,
-    Tokens, Unit, Utf16Spans, VectorCodes, Vectors,
+    PhraseChunks, Phrases, Pii, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation, ScaleMarker,
+    Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows, Tokens, Unit,
+    Utf16Spans, VectorCodes, Vectors,
 };
 use crate::{CustomKinds, KindError, LexicalExpansions, WordNetSenses};
 
@@ -52,6 +52,7 @@ mod indexes;
 mod lexical;
 mod modality;
 mod numeric;
+mod pii;
 mod quality;
 mod relations;
 mod rhetoric;
@@ -140,6 +141,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Times>()
         .register::<crate::Events>()
         .register::<Pii>()
+        .register::<crate::PiiCandidates>()
         .register::<Regions>()
         .register::<Matches>()
         .register::<Levels>()

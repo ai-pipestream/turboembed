@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use turbo_analysis::export::{export, import};
 use turbo_analysis::{Document, Key, Provenance, Span, ViewId};
 use turbo_analysis_layers::export::codecs;
-use turbo_analysis_layers::{CustomKinds, Pii, PiiConfidence, PiiKind, PiiMention};
+use turbo_analysis_layers::{ChecksumAlgorithm, CustomKinds, Pii, PiiConfidence, PiiEvidence, PiiKind, PiiMention};
 use turbo_kserve::proto::result::{PiiConfidenceTier, PiiKindId};
 
 fn read(rel: &str) -> String {
@@ -95,9 +95,14 @@ fn every_kind_and_tier_has_one_number_everywhere() {
     let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, custom.clone());
     let mut kinds: Vec<PiiKind> = PiiKind::builtins().collect();
     kinds.push(custom.find("account-number").unwrap());
+    let detector = pii.detector("test", "1").unwrap();
+    let label = PiiEvidence::Label { span: Span::new(0, 1), phrase: 0 };
+    let luhn = PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true };
+    let evidence: [&[PiiEvidence]; 4] = [&[PiiEvidence::Shape], &[luhn], &[luhn, label], &[PiiEvidence::Shape, label]];
     for (i, &kind) in kinds.iter().enumerate() {
-        let confidence = PiiConfidence::ALL[i % PiiConfidence::ALL.len()];
-        pii.push(PiiMention { span: Span::new(i as u32, i as u32 + 1), kind, confidence, normalized: "v" });
+        let evidence = evidence[i % evidence.len()];
+        let span = Span::new(i as u32, i as u32 + 1);
+        pii.push(PiiMention { span, kind, detector, evidence, score: None, normalized: "v" });
     }
     let mut doc = Document::new(text);
     doc.add(&Key::DEFAULT, pii, Provenance::by("test:pii")).unwrap();
@@ -106,5 +111,6 @@ fn every_kind_and_tier_has_one_number_everywhere() {
     let back = back.get::<Pii>().unwrap();
     assert_eq!(back.kind, kinds);
     assert_eq!(back.custom_kinds, custom);
-    assert_eq!(back.confidence[3], PiiConfidence::Labelled);
+    assert_eq!(back.get(turbo_analysis::Ix::new(3)).confidence(), PiiConfidence::Labelled);
+    assert_eq!(back.get(turbo_analysis::Ix::new(2)).confidence(), PiiConfidence::LabelledChecksum);
 }

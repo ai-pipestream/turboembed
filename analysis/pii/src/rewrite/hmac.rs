@@ -125,7 +125,7 @@ impl HmacTokenizer {
         } else {
             PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
+        PiiRewrite::replace(text, pii, mentions, |m, out| {
             self.write_token(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
                 .expect("checked non-empty normalized values");
         })
@@ -135,7 +135,7 @@ impl HmacTokenizer {
 #[cfg(test)]
 mod tests {
     use turbo_analysis::{Span, ViewId};
-    use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
+    use turbo_analysis_layers::{Pii, PiiEvidence, PiiKind, PiiMention};
 
     use super::*;
     use crate::rewrite::PiiAuditReport;
@@ -143,10 +143,13 @@ mod tests {
     #[test]
     fn empty_normalized_mention_is_refused_in_hmac_rewrite_and_skipped_in_audit_samples() {
         let mut pii = Pii::new(ViewId::SOURCE);
+        let detector = pii.detector("test", "1").unwrap();
         pii.push(PiiMention {
             span: Span::new(0, 5),
             kind: PiiKind::Email,
-            confidence: PiiConfidence::Format,
+            detector,
+            evidence: &[PiiEvidence::Shape],
+            score: None,
             normalized: "",
         });
         let tokenizer = HmacTokenizer::new(&[0x42; 32]).unwrap();

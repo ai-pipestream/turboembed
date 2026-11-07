@@ -44,7 +44,7 @@ fn render(layer: &Pii) -> String {
             m.span.start,
             m.span.end,
             m.kind.builtin_name().unwrap(),
-            m.confidence.name(),
+            m.confidence().name(),
             escape(m.normalized),
         ));
     }

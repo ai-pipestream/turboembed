@@ -8,7 +8,7 @@ use crate::rewrite::{HmacTokenizer, PiiAuditReport};
 
 impl PiiDetector {
     /// Runs detection over `text` for `view` and builds a [`PiiAuditReport`]
-    /// that includes both active mentions and per-kind suppressed counts.
+    /// from the mentions and the candidate decisions.
     pub fn detect_and_audit(
         &self,
         text: &str,
@@ -16,8 +16,8 @@ impl PiiDetector {
         tokenizer: &HmacTokenizer,
         samples: usize,
     ) -> (Pii, PiiAuditReport) {
-        let (pii, suppressed) = self.layer_with_suppressed(text, view);
-        let report = PiiAuditReport::with_suppressed(&pii, suppressed, tokenizer, samples);
+        let (pii, candidates) = self.layer_with_candidates(text, view);
+        let report = PiiAuditReport::with_candidates(&pii, &candidates, tokenizer, samples);
         (pii, report)
     }
 

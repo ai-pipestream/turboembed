@@ -191,8 +191,8 @@ fn ethereum_normalizes_to_eip_55() {
 fn confidence_follows_the_case() {
     let lower = layer(&crypto(), "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed");
     let mixed = layer(&crypto(), ETH);
-    assert_eq!(lower.mentions().next().unwrap().confidence.name(), "format");
-    assert_eq!(mixed.mentions().next().unwrap().confidence.name(), "checksum");
+    assert_eq!(lower.mentions().next().unwrap().confidence().name(), "format");
+    assert_eq!(mixed.mentions().next().unwrap().confidence().name(), "checksum");
 }
 
 #[test]

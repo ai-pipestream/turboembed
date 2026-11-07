@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis_layers::{Pii, PiiCandidates, PiiKind};
 
 use super::HmacTokenizer;
 
@@ -44,10 +44,22 @@ impl PiiAuditReport {
         Self::with_suppressed(pii, std::iter::empty(), tokenizer, samples)
     }
 
+    /// Reports on every mention of `pii` together with the candidates an
+    /// allow rule suppressed, read from the `turbo:pii-candidates` layer
+    /// of the same run, which carries no values.
+    pub fn with_candidates(
+        pii: &Pii,
+        candidates: &PiiCandidates,
+        tokenizer: &HmacTokenizer,
+        samples: usize,
+    ) -> PiiAuditReport {
+        Self::with_suppressed(pii, candidates.suppressed_by_kind(), tokenizer, samples)
+    }
+
     /// Reports on every mention of `pii` together with per-kind counts of
     /// mentions suppressed by allow rules. Original values of suppressed
     /// mentions are never stored or tokenized.
-    pub fn with_suppressed(
+    fn with_suppressed(
         pii: &Pii,
         suppressed: impl IntoIterator<Item = (PiiKind, usize)>,
         tokenizer: &HmacTokenizer,

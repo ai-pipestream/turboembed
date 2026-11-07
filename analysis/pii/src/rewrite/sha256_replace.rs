@@ -151,7 +151,7 @@ impl Sha256Tokenizer {
         } else {
             PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::try_replace(text, &pii.custom_kinds, mentions, |m, out| {
+        PiiRewrite::try_replace(text, pii, mentions, |m, out| {
             self.write_digest(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
                 .map_err(|_| RewriteError::EmptyValue(m.span))
         })

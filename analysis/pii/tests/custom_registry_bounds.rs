@@ -8,24 +8,27 @@ use turbo_analysis::{Document, Key, Layer, Provenance, Span, ViewId};
 use turbo_analysis_layers::export::codecs;
 use turbo_pii::rewrite::{MaskError, RewriteError, StaticReplacer, mask_all, mask_by_kind};
 use turbo_pii::{
-    CustomKindId, CustomKinds, KindError, Pii, PiiConfidence, PiiDetector, PiiKind, PiiMention, PiiSink, Scanner,
+    CustomKindId, CustomKinds, KindError, Pii, PiiDetector, PiiEvidence, PiiKind, PiiMention, PiiSink, Scanner,
     SinkError,
 };
+
+const SHAPE: &[PiiEvidence] = &[PiiEvidence::Shape];
 
 const FIRST: PiiKind = PiiKind::Custom(CustomKindId::new(0));
 const STRAY: PiiKind = PiiKind::Custom(CustomKindId::new(9));
 
 fn badge(_text: &str, sink: &mut PiiSink<'_>) {
     assert_eq!(
-        sink.try_add(Span::new(0, 7), STRAY, PiiConfidence::Format, "BADGE1"),
+        sink.try_add(Span::new(0, 7), STRAY, SHAPE, "BADGE1"),
         Err(SinkError::Kind(KindError::UnknownCustom(9)))
     );
-    assert_eq!(sink.try_add(Span::new(0, 7), FIRST, PiiConfidence::Format, "BADGE1"), Ok(()));
+    assert_eq!(sink.try_add(Span::new(0, 7), FIRST, SHAPE, "BADGE1"), Ok(()));
 }
 
 fn one(kinds: CustomKinds, kind: PiiKind) -> Pii {
     let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, kinds);
-    pii.push(PiiMention { span: Span::new(0, 7), kind, confidence: PiiConfidence::Format, normalized: "BADGE1" });
+    let detector = pii.detector("test", "1").unwrap();
+    pii.push(PiiMention { span: Span::new(0, 7), kind, detector, evidence: SHAPE, score: None, normalized: "BADGE1" });
     pii
 }
 
@@ -100,10 +103,12 @@ fn unknown_kinds_are_refused_where_they_enter() {
     assert_eq!(mask_by_kind("BADGE-1", &stray, '*'), unknown);
 }
 
-/// The exported body of a one-mention layer of `kind` over "BADGE-1".
-fn graph_of(kind: PiiKind, confidence: PiiConfidence) -> DocumentGraph {
+/// The exported body of a one-mention layer of `kind` with `evidence`
+/// over "BADGE-1".
+fn graph_of(kind: PiiKind, evidence: &[PiiEvidence]) -> DocumentGraph {
     let mut pii = Pii::new(ViewId::SOURCE);
-    pii.push(PiiMention { span: Span::new(0, 7), kind, confidence, normalized: "BADGE1" });
+    let detector = pii.detector("test", "1").unwrap();
+    pii.push(PiiMention { span: Span::new(0, 7), kind, detector, evidence, score: None, normalized: "BADGE1" });
     let mut doc = Document::new("BADGE-1");
     doc.add(&Key::DEFAULT, pii, Provenance::by("test")).unwrap();
     export(&doc, &codecs()).unwrap()
@@ -118,25 +123,26 @@ fn patch(graph: &mut DocumentGraph, from: &[u8], to: &[u8]) {
 }
 
 #[test]
-fn unknown_kind_codes_and_confidence_ids_are_refused_on_import() {
-    // No custom names, one kind code (30, phone), one confidence (2, checksum).
-    let tail = |code: u32, conf: u8| {
-        let mut b = vec![0, 0, 0, 0, 1, 0, 0, 0];
+fn unknown_kind_codes_and_evidence_kinds_are_refused_on_import() {
+    // One kind code (30, phone) found by detector 0, then one evidence
+    // fact with the given tag (1, shape).
+    let tail = |code: u32, tag: u8| {
+        let mut b = vec![1, 0, 0, 0];
         b.extend_from_slice(&code.to_le_bytes());
-        b.extend_from_slice(&[1, 0, 0, 0, conf]);
+        b.extend_from_slice(&[1, 0, 0, 0, 0, 0, 1, 0, 0, 0, tag]);
         b
     };
-    let good = graph_of(PiiKind::Phone, PiiConfidence::Checksum);
+    let good = graph_of(PiiKind::Phone, SHAPE);
     assert_eq!(import(&good, &codecs()).unwrap().get::<Pii>().unwrap().kind, [PiiKind::Phone]);
-    for (code, conf, want) in [
-        (0, 2, "unknown pii kind code 0"),
-        (31, 2, "unknown pii kind code 31"),
-        (65_536, 2, "unknown pii kind code 65536"),
-        (30, 0, "unknown pii confidence id 0"),
-        (30, 5, "unknown pii confidence id 5"),
+    for (code, tag, want) in [
+        (0, 1, "unknown pii kind code 0"),
+        (31, 1, "unknown pii kind code 31"),
+        (65_536, 1, "unknown pii kind code 65536"),
+        (30, 0, "unknown pii evidence kind 0"),
+        (30, 9, "unknown pii evidence kind 9"),
     ] {
         let mut bad = good.clone();
-        patch(&mut bad, &tail(30, 2), &tail(code, conf));
+        patch(&mut bad, &tail(30, 1), &tail(code, tag));
         let err = import(&bad, &codecs()).err().expect("refused").to_string();
         assert!(err.contains(want) && !err.contains("BADGE1"), "{err}");
     }

@@ -5,7 +5,7 @@
 use std::fmt;
 
 use turbo_analysis::{Span, ViewId};
-use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiMention, mention_order};
+use turbo_analysis_layers::{CustomKinds, DetectorError, KindError, Pii, PiiMention, mention_order};
 
 /// Mentions a rewrite cannot replace.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,6 +18,9 @@ pub enum RewriteError {
     EmptyValue(Span),
     /// A mention's kind is a custom kind outside the layer's table.
     Kind(Span, KindError),
+    /// A mention's detector is outside the layer's table, or the label
+    /// layer's table is full.
+    Detector(Span, String),
 }
 
 impl fmt::Display for RewriteError {
@@ -31,6 +34,7 @@ impl fmt::Display for RewriteError {
                 write!(f, "mention at {}..{} has an empty normalized form", s.start, s.end)
             }
             RewriteError::Kind(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
+            RewriteError::Detector(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
         }
     }
 }
@@ -83,7 +87,9 @@ impl PiiRewrite {
                 last.merged.span.end = last.merged.span.end.max(m.span.end);
                 if key < best_key {
                     last.merged.kind = m.kind;
-                    last.merged.confidence = m.confidence;
+                    last.merged.detector = m.detector;
+                    last.merged.evidence = m.evidence;
+                    last.merged.score = m.score;
                     last.merged.normalized = m.normalized;
                     best_key = key;
                 }
@@ -113,26 +119,27 @@ impl PiiRewrite {
     /// overlap; their order does not matter.
     pub(crate) fn replace<'a>(
         text: &str,
-        kinds: &CustomKinds,
+        source: &Pii,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
         mut label: impl FnMut(&PiiMention<'a>, &mut String),
     ) -> Result<PiiRewrite, RewriteError> {
-        Self::try_replace(text, kinds, mentions, |m, buf| {
+        Self::try_replace(text, source, mentions, |m, buf| {
             label(m, buf);
             Ok(())
         })
     }
 
     /// Fallible counterpart to [`PiiRewrite::replace`] propagating a
-    /// [`RewriteError`] from `label`. Every mention's kind must be built-in
-    /// or in `kinds`, the table of the layer it came from, which the label
-    /// layer carries.
+    /// [`RewriteError`] from `label`. Every mention's kind and detector
+    /// must be in the tables of `source`, the layer the mentions came
+    /// from, which the label layer carries on.
     pub(crate) fn try_replace<'a>(
         text: &str,
-        kinds: &CustomKinds,
+        source: &Pii,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
         mut label: impl FnMut(&PiiMention<'a>, &mut String) -> Result<(), RewriteError>,
     ) -> Result<PiiRewrite, RewriteError> {
+        let (kinds, detectors) = (&source.custom_kinds, &source.detectors);
         let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
         for m in &ordered {
             let (start, end) = (m.span.start as usize, m.span.end as usize);
@@ -147,6 +154,13 @@ impl PiiRewrite {
         }
         let mut out = String::with_capacity(text.len());
         let mut labels = Pii::with_custom_kinds(ViewId::SOURCE, kinds.clone());
+        let mut detector_of = Vec::with_capacity(ordered.len());
+        for m in &ordered {
+            let (id, version) = detectors.get(m.detector).ok_or_else(|| {
+                RewriteError::Detector(m.span, DetectorError::Unknown(m.detector.index()).to_string())
+            })?;
+            detector_of.push(labels.detector(id, version).map_err(|e| RewriteError::Detector(m.span, e.to_string()))?);
+        }
         let mut original = Vec::with_capacity(ordered.len());
         let mut shifts = Vec::with_capacity(ordered.len());
         let mut buf = String::new();
@@ -165,7 +179,9 @@ impl PiiRewrite {
             labels.push(PiiMention {
                 span: Span::new(from, to),
                 kind: m.kind,
-                confidence: m.confidence,
+                detector: detector_of[original.len()],
+                evidence: m.evidence,
+                score: m.score,
                 normalized: &buf,
             });
             original.push(m.span);
@@ -231,40 +247,49 @@ impl PiiRewrite {
 mod tests {
     use super::*;
     use turbo_analysis::Layer;
-    use turbo_analysis_layers::{PiiConfidence, PiiKind};
+    use turbo_analysis_layers::{PiiDetectorRef, PiiEvidence, PiiKind};
 
     #[test]
     fn replace_rejects_empty_spans_and_empty_labels_and_keeps_labels_valid() {
-        let empty_span = PiiMention {
-            span: Span::new(3, 3),
-            kind: PiiKind::Email,
-            confidence: PiiConfidence::Format,
-            normalized: "a@b.com",
-        };
+        let source = source();
+        let empty_span = PiiMention { span: Span::new(3, 3), ..mention(0, 0, PiiKind::Email) };
         assert_eq!(
-            PiiRewrite::replace("0123456789", &CustomKinds::new(), [empty_span], |_, buf| buf.push_str("EMAIL-1"))
-                .err(),
+            PiiRewrite::replace("0123456789", &source, [empty_span], |_, buf| buf.push_str("EMAIL-1")).err(),
             Some(RewriteError::Span(Span::new(3, 3)))
         );
 
-        let valid = PiiMention {
-            span: Span::new(3, 6),
-            kind: PiiKind::Email,
-            confidence: PiiConfidence::Format,
-            normalized: "a@b.com",
-        };
+        let valid = mention(3, 6, PiiKind::Email);
         assert_eq!(
-            PiiRewrite::replace("0123456789", &CustomKinds::new(), [valid], |_, _| {}).err(),
+            PiiRewrite::replace("0123456789", &source, [valid], |_, _| {}).err(),
             Some(RewriteError::EmptyValue(Span::new(3, 6)))
         );
 
-        let ok =
-            PiiRewrite::replace("0123456789", &CustomKinds::new(), [valid], |_, buf| buf.push_str("EMAIL-1")).unwrap();
+        let ok = PiiRewrite::replace("0123456789", &source, [valid], |_, buf| buf.push_str("EMAIL-1")).unwrap();
         assert_eq!(ok.labels().check(), Ok(()));
+        assert_eq!(ok.labels().detectors.get(ok.labels().detector[0]), Some(("test", "1")));
+        let foreign = PiiMention { detector: PiiDetectorRef::new(4), ..valid };
+        assert!(matches!(
+            PiiRewrite::replace("0123456789", &source, [foreign], |_, buf| buf.push('x')),
+            Err(RewriteError::Detector(..))
+        ));
+    }
+
+    /// A source layer whose detector table holds the test detector at 0.
+    fn source() -> Pii {
+        let mut pii = Pii::new(ViewId::SOURCE);
+        pii.detector("test", "1").unwrap();
+        pii
     }
 
     fn mention(start: u32, end: u32, kind: PiiKind) -> PiiMention<'static> {
-        PiiMention { span: Span::new(start, end), kind, confidence: PiiConfidence::Format, normalized: "v" }
+        PiiMention {
+            span: Span::new(start, end),
+            kind,
+            detector: PiiDetectorRef::new(0),
+            evidence: &[PiiEvidence::Shape],
+            score: None,
+            normalized: "v",
+        }
     }
 
     #[test]

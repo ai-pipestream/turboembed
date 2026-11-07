@@ -59,7 +59,7 @@ impl Pseudonymizer {
         } else {
             PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
+        PiiRewrite::replace(text, pii, mentions, |m, out| {
             let label = assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
                 let n = counters.entry(m.kind).or_insert(0);
                 *n += 1;

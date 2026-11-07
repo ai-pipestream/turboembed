@@ -6,7 +6,7 @@ use common::*;
 use turbo_analysis::{Document, Ix, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::{
     Block, Categories, Chunks, Cut, DocumentHeatmap, EmotionItem, EmotionLayer, EmotionScores, EmotionTarget, Entities,
-    Incivility, IncivilityItem, IncivilityScores, IncivilityTarget, Pii, PiiConfidence, PiiKind, PiiMention, Sentences,
+    Incivility, IncivilityItem, IncivilityScores, IncivilityTarget, Pii, PiiEvidence, PiiKind, PiiMention, Sentences,
     Structure, Tokens,
 };
 use turbo_kserve::proto::result::OffsetMode;
@@ -85,10 +85,13 @@ fn mixed() -> Document {
     )
     .unwrap();
     let mut pii = Pii::new(ViewId(1));
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(0, 1),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "x",
     });
     d.add(&Key::named("gold"), pii, Provenance::by("test")).unwrap();
