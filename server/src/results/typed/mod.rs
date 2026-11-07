@@ -1,6 +1,11 @@
 //! Strongly-typed `TypedDocumentResult` projection (`proto/turbo_typed_annotations.proto`,
-//! issue #1219) and validation (`RoundTripTypedDocument`, `InspectDocumentGraph`).
+//! issue #1219) and validation (`RoundTripTypedDocument`, `InspectDocumentGraph`),
+//! with the result envelope of issue #1907: input and result identity
+//! (`identity`), per-layer provenance digests, the view edit chain
+//! (`chain`) and scoped references (`scoped`).
 
+pub mod chain;
+pub mod identity;
 mod layers_context;
 mod layers_core;
 mod layers_domain;
@@ -11,13 +16,14 @@ mod layers_quotations;
 mod layers_sentiment;
 mod layers_shared;
 mod layers_structure;
+pub mod scoped;
 mod validate;
 
 use std::any::TypeId;
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use turbo_analysis::export::{DocumentGraph, import};
+use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{
     Anchor, Document, Evidence, Execution, Ix, Key, KeyId, Layer, ModelRef, Provenance, Span, Spans, Status, View,
     ViewId,
@@ -29,8 +35,9 @@ use super::{MAX_GRAPH_BYTES, Wire, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
-    AnchorKind, ExecutionInfo, InspectDocumentGraphRequest, LayerIndexBound, LayerWireStatus, ModelProvenance,
-    SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo,
+    AnchorKind, ExecutionInfo, InputBinding, InspectDocumentGraphRequest, LayerIndexBound, LayerWireStatus,
+    MappingPayload, ModelProvenance, SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo,
+    mapping_payload,
 };
 
 pub use validate::validate_typed_document;
@@ -264,8 +271,10 @@ pub(crate) fn build_layer<L: Layer>(
         Anchor::Document => (AnchorKind::Document, None),
     };
 
+    let mut native_view = None;
     let (annotations, indexes_layer) = match cx.doc.get_key(&Key::<L>::named(key.name)) {
         Some(layer) => {
+            native_view = layer.text_spans().map(|ts| u32::from(ts.view.0));
             let raw_indexes = layer.indexes();
             let mut bounds = Vec::with_capacity(raw_indexes.len());
             for (idx_key, bound) in raw_indexes {
@@ -313,6 +322,7 @@ pub(crate) fn build_layer<L: Layer>(
         annotations,
         indexes_layer,
         custom_pii_kinds: Vec::new(),
+        native_view,
     }
 }
 
@@ -351,7 +361,8 @@ fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
 }
 
 /// Projects all shared layers on `doc` into a strongly-typed [`TypedDocumentResult`]
-/// with spans mapped to `target_view` and converted into `offsets`. With
+/// with spans mapped to `target_view` and converted into `offsets`, with
+/// the envelope of a document the caller did not bind to a source. With
 /// debug assertions on, the result is also put through
 /// [`validate_typed_document`], and a message it refuses is an error.
 pub fn document_to_typed(
@@ -359,6 +370,20 @@ pub fn document_to_typed(
     doc: &Document,
     target_view: ViewId,
     offsets: OffsetMode,
+) -> Result<TypedDocumentResult, Failure> {
+    document_to_typed_bound(doc_id, doc, target_view, offsets, None)
+}
+
+/// [`document_to_typed`] with the caller's `binding` of the input copied
+/// into the result's input identity. The document is exported through
+/// the server's codecs for its result identity: the content digest is of
+/// those TGRF bytes, and a document a codec refuses is refused here.
+pub fn document_to_typed_bound(
+    doc_id: &str,
+    doc: &Document,
+    target_view: ViewId,
+    offsets: OffsetMode,
+    binding: Option<&InputBinding>,
 ) -> Result<TypedDocumentResult, Failure> {
     let (views, view_ids) = collect_views(doc);
     if !view_ids.iter().any(|(id, _)| *id == target_view) {
@@ -398,6 +423,7 @@ pub fn document_to_typed(
                 annotations: Vec::new(),
                 indexes_layer: Vec::new(),
                 custom_pii_kinds: Vec::new(),
+                native_view: None,
             });
         }
     }
@@ -408,6 +434,11 @@ pub fn document_to_typed(
         )));
     }
 
+    let graph = export(doc, codecs()).map_err(|e| bad(format!("document graph export: {e}")))?;
+    let graph_bytes = graph.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
+    let provenance = identity::layer_provenances(&mut cx, &graph);
+    let mapping = Some(MappingPayload { payload: Some(mapping_payload::Payload::Inline(chain::inline_mapping(doc)?)) });
+
     let typed = TypedDocumentResult {
         doc_id: doc_id.to_owned(),
         raw_text: target_text.to_owned(),
@@ -416,6 +447,10 @@ pub fn document_to_typed(
         models: cx.models,
         views,
         layers,
+        input: Some(identity::input_identity(doc, binding)),
+        result: Some(identity::result_identity(&graph_bytes)),
+        provenance,
+        mapping,
     };
     // Debug builds and tests refuse to emit what `RoundTripTypedDocument`
     // would refuse. Release builds skip it: on a 20 KB document the check
@@ -436,7 +471,7 @@ pub fn inspect_document_graph(req: &InspectDocumentGraphRequest) -> Result<Typed
     let view_u16 = u16::try_from(req.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", req.view)))?;
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-    document_to_typed(&req.doc_id, &doc, ViewId(view_u16), offsets)
+    document_to_typed_bound(&req.doc_id, &doc, ViewId(view_u16), offsets, req.binding.as_ref())
 }
 
 /// Validates `msg` and returns a clone for `RoundTripTypedDocument`.
