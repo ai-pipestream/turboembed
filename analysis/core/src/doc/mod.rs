@@ -1,12 +1,16 @@
 //! The document: its text views and its layers.
 
+pub(crate) mod config_digest;
 pub(crate) mod digest;
 mod merge;
 mod project;
 mod source;
 mod view;
 
-pub use digest::{ContentDigest, InputSnapshotDigest, ProvenanceDigest, SourceBytesDigest, ViewTextDigest};
+pub use config_digest::PROCESSING_CONFIG_DIGEST_RULE;
+pub use digest::{
+    ContentDigest, InputSnapshotDigest, ProcessingConfigDigest, ProvenanceDigest, SourceBytesDigest, ViewTextDigest,
+};
 pub use merge::DuplicateLayerPolicy;
 pub use project::{ProjectedFragment, ProjectedSpan, SpanOutcome};
 pub use view::View;

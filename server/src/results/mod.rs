@@ -13,6 +13,7 @@ use crate::proto::result as proto;
 pub mod document;
 pub mod extraction;
 pub mod layers;
+pub mod receipt;
 pub mod records;
 pub mod rerank;
 pub mod sparse;

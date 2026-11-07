@@ -259,6 +259,17 @@ fn two_derived_views_keep_their_outcomes_on_the_right_view() {
                 assert!(a.spans.iter().all(|f| f.outcome == Wire::Exact as i32));
             }
         }
+        // The edits' view is resolved through native_view, so the chain
+        // checks hold with two derived views: a tampered source span is
+        // refused on the redacted view and on the source alike.
+        if target != masked {
+            let mut bad = msg.clone();
+            let l = bad.layers.iter_mut().find(|l| l.id == "turbo:pii-edits").unwrap();
+            let Some(Value::PiiEdit(e)) = &mut l.annotations[0].value else { panic!("an edit") };
+            e.source.as_mut().unwrap().start += 1;
+            let err = validate_typed_document(&bad).unwrap_err().message;
+            assert!(err.contains("disagrees with"), "onto view {}: {err}", msg.view);
+        }
         // The redacted view's own tokens are exact only on the redacted
         // view: its replacements change lengths. The masked view's are
         // exact on the source too, since a mask keeps every byte's width,

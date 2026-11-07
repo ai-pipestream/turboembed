@@ -120,6 +120,7 @@ fn typed(complete: &DocumentGraphResponse, offsets: OffsetMode) -> TypedDocument
         view: 0,
         offsets: offsets as i32,
         binding: None,
+        operation_key: String::new(),
     })
     .unwrap()
 }

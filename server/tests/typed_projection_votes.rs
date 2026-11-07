@@ -64,6 +64,7 @@ async fn verify(fragments: &[Span], collapse: bool, expected: [&[(u32, u32)]; 3]
                         view,
                         offsets: mode as i32,
                         binding: None,
+                        operation_key: String::new(),
                     })
                     .await
                     .unwrap()

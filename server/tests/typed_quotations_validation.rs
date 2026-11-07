@@ -43,6 +43,7 @@ async fn malformed_quotation_payloads_and_nested_offsets_are_refused() {
                 view: 0,
                 offsets: mode as i32,
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
@@ -102,6 +103,7 @@ async fn confidence_bits_optional_presence_and_raw_chain_context_round_trip() {
                 view: 0,
                 offsets: mode as i32,
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
