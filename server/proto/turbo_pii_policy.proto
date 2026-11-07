@@ -141,20 +141,32 @@ message PiiScoreCondition
   bool calibrated = 3;
 }
 
-// How a mention is rewritten: one typed message per strategy.
+// How a mention is rewritten: one typed message per strategy. Each arm
+// maps to exactly one PiiStrategy value, the one a PiiEditAnnotation it
+// writes records (named on each arm).
 message PiiRewriteStrategy
 {
   oneof strategy
   {
+    // PII_STRATEGY_MASK
     PiiMaskStrategy mask = 1;
+    // PII_STRATEGY_FORMAT
     PiiFormatStrategy format = 2;
+    // PII_STRATEGY_MAP
     PiiMapStrategy map = 3;
+    // PII_STRATEGY_TRUNCATE
     PiiTruncateStrategy truncate = 4;
+    // PII_STRATEGY_TRUNCATE (a truncation keeping the end)
     PiiLastNStrategy last_n = 5;
+    // PII_STRATEGY_ABBREVIATE
     PiiAbbreviateStrategy abbreviate = 6;
+    // PII_STRATEGY_HMAC
     PiiKeyedTokenStrategy keyed_token = 7;
+    // PII_STRATEGY_SHA256
     PiiSha256Strategy sha256 = 8;
+    // PII_STRATEGY_STATIC
     PiiStaticStrategy static_text = 9;
+    // PII_STRATEGY_PSEUDONYM
     PiiPseudonymStrategy pseudonym = 10;
   }
 }

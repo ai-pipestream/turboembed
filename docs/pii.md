@@ -370,7 +370,11 @@ the source text into the rewritten text and back
   `123-45-6789` would abbreviate to `1.4.6.`).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
-  fallback strategy, sharing per-document pseudonym counters across all
+  fallback strategy (`RewriteStrategy::default()`, and so
+  `RewritePolicy::default()`, is a whole-value `'*'` mask, never a
+  per-document pseudonym or an unkeyed SHA-256, issue #1882; a
+  `MapReplacer` built without `with_fallback` still falls back to a
+  pseudonym, and the typed redaction policy always sets that fallback), sharing per-document pseudonym counters across all
   mentions in a single `rewrite` call. When mentions overlap in a cluster,
   any strategy in the cluster configured with `refusing_overlaps` (including
   via a `MapReplacer` fallback) causes `RewritePolicy::rewrite` to return

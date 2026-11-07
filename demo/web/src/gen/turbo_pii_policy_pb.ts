@@ -358,7 +358,9 @@ export const PiiScoreConditionSchema: GenMessage<PiiScoreCondition> = /*@__PURE_
   messageDesc(file_turbo_pii_policy, 8);
 
 /**
- * How a mention is rewritten: one typed message per strategy.
+ * How a mention is rewritten: one typed message per strategy. Each arm
+ * maps to exactly one PiiStrategy value, the one a PiiEditAnnotation it
+ * writes records (named on each arm).
  *
  * @generated from message turbo.result.v1.PiiRewriteStrategy
  */
@@ -368,60 +370,80 @@ export type PiiRewriteStrategy = Message<"turbo.result.v1.PiiRewriteStrategy"> &
    */
   strategy: {
     /**
+     * PII_STRATEGY_MASK
+     *
      * @generated from field: turbo.result.v1.PiiMaskStrategy mask = 1;
      */
     value: PiiMaskStrategy;
     case: "mask";
   } | {
     /**
+     * PII_STRATEGY_FORMAT
+     *
      * @generated from field: turbo.result.v1.PiiFormatStrategy format = 2;
      */
     value: PiiFormatStrategy;
     case: "format";
   } | {
     /**
+     * PII_STRATEGY_MAP
+     *
      * @generated from field: turbo.result.v1.PiiMapStrategy map = 3;
      */
     value: PiiMapStrategy;
     case: "map";
   } | {
     /**
+     * PII_STRATEGY_TRUNCATE
+     *
      * @generated from field: turbo.result.v1.PiiTruncateStrategy truncate = 4;
      */
     value: PiiTruncateStrategy;
     case: "truncate";
   } | {
     /**
+     * PII_STRATEGY_TRUNCATE (a truncation keeping the end)
+     *
      * @generated from field: turbo.result.v1.PiiLastNStrategy last_n = 5;
      */
     value: PiiLastNStrategy;
     case: "lastN";
   } | {
     /**
+     * PII_STRATEGY_ABBREVIATE
+     *
      * @generated from field: turbo.result.v1.PiiAbbreviateStrategy abbreviate = 6;
      */
     value: PiiAbbreviateStrategy;
     case: "abbreviate";
   } | {
     /**
+     * PII_STRATEGY_HMAC
+     *
      * @generated from field: turbo.result.v1.PiiKeyedTokenStrategy keyed_token = 7;
      */
     value: PiiKeyedTokenStrategy;
     case: "keyedToken";
   } | {
     /**
+     * PII_STRATEGY_SHA256
+     *
      * @generated from field: turbo.result.v1.PiiSha256Strategy sha256 = 8;
      */
     value: PiiSha256Strategy;
     case: "sha256";
   } | {
     /**
+     * PII_STRATEGY_STATIC
+     *
      * @generated from field: turbo.result.v1.PiiStaticStrategy static_text = 9;
      */
     value: PiiStaticStrategy;
     case: "staticText";
   } | {
     /**
+     * PII_STRATEGY_PSEUDONYM
+     *
      * @generated from field: turbo.result.v1.PiiPseudonymStrategy pseudonym = 10;
      */
     value: PiiPseudonymStrategy;

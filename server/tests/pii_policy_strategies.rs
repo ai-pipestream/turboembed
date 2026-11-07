@@ -179,3 +179,59 @@ fn conditions_choose_the_first_entry_that_holds() {
     assert_eq!(rule, None);
     assert_eq!(p.default_strategy, RewriteStrategy::Mask(MaskPolicy::new('x').unwrap()));
 }
+
+/// One message of every `PiiRewriteStrategy` arm. The match below has no
+/// wildcard, so a new arm fails to compile here until it is listed.
+fn every_arm() -> Vec<Strategy> {
+    let arms = vec![
+        Strategy::Mask(pb::PiiMaskStrategy::default()),
+        Strategy::Format(pb::PiiFormatStrategy { template: "[%t]".to_owned() }),
+        Strategy::Map(Box::new(pb::PiiMapStrategy {
+            table: Some(pb::pii_map_strategy::Table::Entries(map_entries(&[("a", "b")]))),
+            target: pb::PiiMapTarget::Surface as i32,
+            ..Default::default()
+        })),
+        Strategy::Truncate(pb::PiiTruncateStrategy {
+            side: pb::PiiKeepSide::Start as i32,
+            count: 2,
+            ..Default::default()
+        }),
+        Strategy::LastN(pb::PiiLastNStrategy { count: 4, ..Default::default() }),
+        Strategy::Abbreviate(pb::PiiAbbreviateStrategy::default()),
+        keyed("tokens", 1),
+        Strategy::Sha256(pb::PiiSha256Strategy::default()),
+        Strategy::StaticText(pb::PiiStaticStrategy { replacement: "x".to_owned() }),
+        Strategy::Pseudonym(pb::PiiPseudonymStrategy::default()),
+    ];
+    for arm in &arms {
+        match arm {
+            Strategy::Mask(_)
+            | Strategy::Format(_)
+            | Strategy::Map(_)
+            | Strategy::Truncate(_)
+            | Strategy::LastN(_)
+            | Strategy::Abbreviate(_)
+            | Strategy::KeyedToken(_)
+            | Strategy::Sha256(_)
+            | Strategy::StaticText(_)
+            | Strategy::Pseudonym(_) => {}
+        }
+    }
+    arms
+}
+
+#[test]
+fn every_arm_maps_to_exactly_one_pii_strategy_value() {
+    use turbo_kserve::pii_policy::edit_strategy;
+    let mut hit = std::collections::BTreeSet::new();
+    for arm in every_arm() {
+        let value = edit_strategy(&arm);
+        assert_ne!(value, pb::PiiStrategy::Unspecified);
+        let native = native(arm.clone());
+        assert_eq!(i32::from(native.kind().id()), value as i32, "{arm:?} edits record {value:?}");
+        hit.insert(value as i32);
+    }
+    let all: std::collections::BTreeSet<i32> = (1..=9).collect();
+    assert_eq!(hit, all, "every PiiStrategy value but UNSPECIFIED has an arm");
+    assert!(pb::PiiStrategy::try_from(10).is_err(), "a new PiiStrategy value needs an arm here");
+}

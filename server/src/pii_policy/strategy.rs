@@ -9,7 +9,7 @@ use super::error::{At, PolicyError};
 use super::resolve::{PolicyResolver, check_dictionary, check_key_id};
 use crate::proto::result::{
     PiiFormatStrategy, PiiKeepSide, PiiKeyedTokenStrategy, PiiLastNStrategy, PiiMapStrategy, PiiMapTarget,
-    PiiMaskStrategy, PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy,
+    PiiMaskStrategy, PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy, PiiStrategy,
     PiiTruncateStrategy, pii_map_strategy::Table, pii_rewrite_strategy::Strategy,
 };
 
@@ -165,6 +165,23 @@ pub(crate) fn strategy(
             RewriteStrategy::Pseudonym(Pseudonymizer::new(prefix.as_str(), suffix.as_str()))
         }
     }))
+}
+
+/// The `PiiStrategy` value an edit written by arm `s` records: exactly one
+/// per arm, the same as the converted strategy's
+/// [`RewriteStrategy::kind`].
+pub fn edit_strategy(s: &Strategy) -> PiiStrategy {
+    match s {
+        Strategy::Mask(_) => PiiStrategy::Mask,
+        Strategy::Format(_) => PiiStrategy::Format,
+        Strategy::Map(_) => PiiStrategy::Map,
+        Strategy::Truncate(_) | Strategy::LastN(_) => PiiStrategy::Truncate,
+        Strategy::Abbreviate(_) => PiiStrategy::Abbreviate,
+        Strategy::KeyedToken(_) => PiiStrategy::Hmac,
+        Strategy::Sha256(_) => PiiStrategy::Sha256,
+        Strategy::StaticText(_) => PiiStrategy::Static,
+        Strategy::Pseudonym(_) => PiiStrategy::Pseudonym,
+    }
 }
 
 fn char_string(c: char, default: char) -> String {

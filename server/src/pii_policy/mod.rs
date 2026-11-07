@@ -24,7 +24,7 @@ mod strategy;
 
 pub use error::{At, PolicyError};
 pub use resolve::{KEY_MATERIAL_HEX_LEN, MAX_REF_ID_BYTES, NoRegistry, PolicyResolver, ResolveError};
-pub use strategy::{strategy_to_proto, whole_mask};
+pub use strategy::{edit_strategy, strategy_to_proto, whole_mask};
 pub use turbo_analysis::PolicyDigest;
 
 use turbo_pii::rewrite::RewriteStrategy;
