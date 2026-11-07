@@ -2,7 +2,7 @@ use super::*;
 use crate::api::{TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
 
 fn opts(rewritten_text: bool, full_text: bool, detail: bool, values: PiiValueForm) -> PiiOutputOptions {
-    PiiOutputOptions { rewritten_text, full_text, detail, values: values as i32 }
+    PiiOutputOptions { rewritten_text, full_text, detail, values: values as i32, ..Default::default() }
 }
 
 #[test]

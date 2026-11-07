@@ -17,6 +17,10 @@ fn all_turbo_protos_use_versioned_v1_packages_and_service_names() {
     );
     assert_eq!(turbo_kserve::proto::sink::turbo_sink_service_server::SERVICE_NAME, "turbo.sink.v1.TurboSinkService");
     assert_eq!(
+        turbo_kserve::proto::audit::turbo_audit_service_server::SERVICE_NAME,
+        "turbo.audit.v1.TurboAuditService"
+    );
+    assert_eq!(
         turbo_kserve::proto::training::turbo_catalog_service_server::SERVICE_NAME,
         "turbo.training.v1.TurboCatalogService"
     );
@@ -34,6 +38,7 @@ fn all_turbo_protos_use_versioned_v1_packages_and_service_names() {
 
     let expected_packages = BTreeMap::from([
         ("health.proto", "grpc.health.v1"),
+        ("turbo_audit.proto", "turbo.audit.v1"),
         ("open_inference_grpc.proto", "inference"),
         ("turbo_analysis.proto", "turbo.result.v1"),
         ("turbo_search.proto", "turbo.search.v1"),

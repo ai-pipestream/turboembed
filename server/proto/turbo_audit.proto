@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+// The acknowledged audit of PII value release (issue #1909,
+// docs/grpc-analysis.md, PII value release). Before turbo-kserve puts a
+// token or a clear value into any answer, it records one access event
+// with this service and waits for the acknowledgement. A call that fails,
+// times out or acknowledges another event fails the release: the answer
+// is an error and carries no value. The sink (turbo_sink.proto) drops
+// items when its queue is full, so it never carries these events.
+package turbo.audit.v1;
+
+service TurboAuditService {
+  // Records one access event. The service keeps it before it answers, and
+  // answers the event's id. The event id is the same for a retried
+  // release, so a service that already holds the id answers it again without
+  // a second record.
+  rpc RecordPiiAccess(RecordPiiAccessRequest) returns (RecordPiiAccessResponse) {}
+}
+
+message RecordPiiAccessRequest {
+  PiiAccessEvent event = 1;
+}
+
+message RecordPiiAccessResponse {
+  // The id of the event now recorded: PiiAccessEvent.event_id.
+  string event_id = 1;
+}
+
+// What a release grants a calling service: one bit per form a value can
+// leave in. An event lists only the forms it released.
+enum PiiAccessForm {
+  PII_ACCESS_FORM_UNSPECIFIED = 0;
+  // A keyed token (HMAC-SHA-256) standing for the value.
+  PII_ACCESS_FORM_TOKEN = 1;
+  // The value encrypted under a registered key; refused until #1885.
+  PII_ACCESS_FORM_CIPHERTEXT = 2;
+  // The normalized value in clear.
+  PII_ACCESS_FORM_CLEAR = 3;
+}
+
+// One mention whose value the answer carries. It names the mention by its
+// place in the answer, never by its text.
+message PiiAccessMention {
+  // TypedLayer.instance of the turbo:pii layer.
+  string layer_instance = 1;
+  // The mention's index in that layer's annotations.
+  uint32 index = 2;
+  // The kind: a built-in id (PiiKindId), or 0 with `custom_kind` naming a
+  // caller-defined kind.
+  uint32 builtin_kind = 3;
+  string custom_kind = 4;
+  PiiAccessForm form = 5;
+}
+
+// The forms the calling service was granted, effective for this release,
+// for one kind it released.
+message PiiAccessKindGrant {
+  uint32 builtin_kind = 1;
+  string custom_kind = 2;
+  repeated PiiAccessForm forms = 3;
+}
+
+// One access to PII values. It carries no value, token or text.
+message PiiAccessEvent {
+  // 64 lowercase hexadecimal digits: SHA-256 over the operation key, the
+  // attempt and the mention set, so a retried release has the same id.
+  string event_id = 1;
+  // The caller's operation key and attempt, as the request gave them
+  // (PiiOutputOptions.operation_key and attempt).
+  string operation_key = 2;
+  uint32 attempt = 3;
+  // The calling service: the SHA-256 of its verified client
+  // certificate's DER bytes, 32 bytes.
+  bytes service_fingerprint = 4;
+  // The forms in effect, per kind released: requested, allowed by the
+  // policy and granted.
+  repeated PiiAccessKindGrant effective = 5;
+  repeated PiiAccessMention mentions = 6;
+  // The policy that allowed the release and the SHA-256 of its rules.
+  string policy_id = 7;
+  bytes policy_digest = 8;
+  // When the release was decided: nanoseconds since the Unix epoch.
+  uint64 time_unix_nanos = 9;
+  // The request's document id.
+  string doc_id = 10;
+}

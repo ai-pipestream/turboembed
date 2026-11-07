@@ -606,10 +606,11 @@ message PiiMention
 }
 
 // The form a PII mention's value is released in. A finding carries
-// `withheld` unless the request asked for values and the server's policy
-// allowed them; a caller that holds the text slices it with the spans.
-// Only `withheld` is produced today: the other forms need the verified
-// identity and grants of #1909, and a request for them is refused.
+// `withheld` unless the request asked for values, the server's policy
+// allows the form and the calling service is granted it for the
+// mention's kind (#1909); a caller that holds the text slices it with
+// the spans. `token` and `clear` are produced; `ciphertext` waits for
+// #1885.
 message PiiValue
 {
   oneof form
@@ -679,10 +680,21 @@ message PiiOutputOptions
   bool full_text = 2;
   // Candidates and evidence detail (#1903).
   bool detail = 3;
-  // Values in this form; UNSPECIFIED or WITHHELD withholds them. Any other
-  // form is refused with TURBO_E_UNSUPPORTED_OPTION (UNIMPLEMENTED) until
-  // #1909 lands.
+  // Values in this form; UNSPECIFIED or WITHHELD withholds them. TOKEN
+  // and CLEAR are released by InspectDocumentGraph only, on a server with
+  // PII release configured (#1909), and only for the kinds the calling
+  // service's verified client certificate is granted; every other mention
+  // stays withheld. Each release is recorded with the audit service
+  // (turbo_audit.proto) before the answer leaves, and fails when the
+  // record does. CIPHERTEXT, and TOKEN or CLEAR on any other call or on a
+  // server without release, are refused with TURBO_E_UNSUPPORTED_OPTION
+  // (UNIMPLEMENTED).
   PiiValueForm values = 4;
+  // The caller's operation (idempotency) key and attempt for a release.
+  // A request with TOKEN or CLEAR values must set operation_key; a retry
+  // sends the same key and attempt, so its audit event has the same id.
+  string operation_key = 5;
+  uint32 attempt = 6;
 }
 
 message NoiseSpan

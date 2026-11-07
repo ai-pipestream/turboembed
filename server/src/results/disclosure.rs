@@ -11,9 +11,10 @@
 //! column, and the text holds the values themselves), so they leave only
 //! with `full_text`. A PII rewrite view, one a `turbo-pii:` annotator wrote
 //! (the masked view, and the rewrite views of #1902), leaves with
-//! `rewritten_text`. Mention values are always withheld until #1909 gives
-//! verified identities and grants. A document with no `turbo:pii` layer is
-//! answered as before.
+//! `rewritten_text`. Mention values are withheld here; only
+//! InspectDocumentGraph releases them, through `crate::release` (#1909),
+//! to verified services the server grants them to. A document with no
+//! `turbo:pii` layer is answered as before.
 //!
 //! In-process C, JNI and Panama callers hand the library their own text;
 //! these controls govern what the server copies out, not protection from
@@ -27,34 +28,50 @@ use turbo_analysis_layers::Pii;
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
 use crate::proto::result::{PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, TypedLayer, pii_value};
+use crate::release::caps::{Form, Forms};
 
 /// The annotator id prefix of the views a PII rewrite writes.
 pub const REWRITE_ANNOTATOR_PREFIX: &str = "turbo-pii:";
 
-/// What the server lets a request turn on (`--pii-output-allow`). Values
-/// are not here: no policy allows them until #1909.
+/// What the server lets a request turn on (`--pii-output-allow`).
+/// `values` are the forms a release may use; a grant (#1909) must name
+/// the form too, and none is allowed unless listed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PiiOutputPolicy {
     pub rewritten_text: bool,
     pub full_text: bool,
     pub detail: bool,
+    pub values: Forms,
 }
 
 impl PiiOutputPolicy {
     /// Every option but values: a caller of InspectDocumentGraph or
     /// RoundTripDocumentGraph sent the text it gets back.
-    pub const ALL: PiiOutputPolicy = PiiOutputPolicy { rewritten_text: true, full_text: true, detail: true };
+    pub const ALL: PiiOutputPolicy =
+        PiiOutputPolicy { rewritten_text: true, full_text: true, detail: true, values: Forms::NONE };
     /// Findings only.
-    pub const NONE: PiiOutputPolicy = PiiOutputPolicy { rewritten_text: false, full_text: false, detail: false };
+    pub const NONE: PiiOutputPolicy =
+        PiiOutputPolicy { rewritten_text: false, full_text: false, detail: false, values: Forms::NONE };
 
     /// One `--pii-output-allow` value: `none`, or a comma-separated list of
-    /// `rewritten-text`, `full-text` and `detail`, each at most once.
+    /// `rewritten-text`, `full-text`, `detail`, and the value forms
+    /// `token` and `clear`, each at most once. `ciphertext` waits for
+    /// #1885.
     pub fn parse(s: &str) -> Result<PiiOutputPolicy, String> {
-        Disclosure::parse(s).map(|d| PiiOutputPolicy {
-            rewritten_text: d.rewritten_text,
-            full_text: d.full_text,
-            detail: d.detail,
-        })
+        let mut values = Forms::NONE;
+        let mut rest = Vec::new();
+        if s != "none" {
+            for part in s.split(',') {
+                match Form::parse(part) {
+                    Some(Form::Ciphertext) => return Err("ciphertext release waits for #1885".into()),
+                    Some(f) if values.contains(f) => return Err(format!("`{part}` given twice")),
+                    Some(f) => values = values.with(f),
+                    None => rest.push(part),
+                }
+            }
+        }
+        let d = if rest.is_empty() { Disclosure::FINDINGS } else { Disclosure::parse(&rest.join(","))? };
+        Ok(PiiOutputPolicy { rewritten_text: d.rewritten_text, full_text: d.full_text, detail: d.detail, values })
     }
 
     /// Whether `d` asks for nothing this policy refuses.
@@ -97,8 +114,8 @@ impl Disclosure {
                     TURBO_E_UNSUPPORTED_OPTION,
                     0,
                     format!(
-                        "pii_output.values {}: PII values are released only with verified grants (#1909), \
-                         which this server does not have",
+                        "pii_output.values {}: PII values are released only by InspectDocumentGraph \
+                         on a server with PII release configured (#1909)",
                         form.as_str_name()
                     ),
                 ));
@@ -140,7 +157,11 @@ impl Disclosure {
                 "rewritten-text" => &mut d.rewritten_text,
                 "full-text" => &mut d.full_text,
                 "detail" => &mut d.detail,
-                "values" => return Err("PII values are released only with verified grants (#1909)".into()),
+                "values" => {
+                    return Err(
+                        "PII values are released only by InspectDocumentGraph to granted services (#1909)".into()
+                    );
+                }
                 _ => return Err(format!("`{part}` is not none, rewritten-text, full-text or detail")),
             };
             if std::mem::replace(slot, true) {
@@ -157,6 +178,7 @@ impl Disclosure {
             full_text: self.full_text,
             detail: self.detail,
             values: PiiValueForm::Unspecified as i32,
+            ..PiiOutputOptions::default()
         }
     }
 

@@ -113,6 +113,7 @@ async fn main() -> ExitCode {
         training: args.training_dir.map(PathBuf::from),
         sink: args.sink,
         pii_output: args.pii_output,
+        pii_release: args.pii_release,
         max_stream_bytes: Some(args.max_stream_bytes),
         tls: args.tls,
         metrics_listen: args.metrics_listen,

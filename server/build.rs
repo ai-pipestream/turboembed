@@ -2,10 +2,10 @@
 //! proto/open_inference_grpc.proto, proto/health.proto and the crate's own
 //! proto/turbo_typed_annotations.proto, proto/turbo_analysis.proto,
 //! proto/turbo_search.proto, proto/turbo_vocabulary.proto, proto/turbo_training.proto and
-//! proto/turbo_sink.proto with a protobuf compiler written in Rust, so
+//! proto/turbo_sink.proto and proto/turbo_audit.proto with a protobuf compiler written in Rust, so
 //! building needs no protoc.
 
-const PROTOS: [&str; 8] = [
+const PROTOS: [&str; 9] = [
     "proto/open_inference_grpc.proto",
     "proto/turbo_typed_annotations.proto",
     "proto/turbo_analysis.proto",
@@ -13,6 +13,7 @@ const PROTOS: [&str; 8] = [
     "proto/turbo_vocabulary.proto",
     "proto/turbo_training.proto",
     "proto/turbo_sink.proto",
+    "proto/turbo_audit.proto",
     "proto/health.proto",
 ];
 

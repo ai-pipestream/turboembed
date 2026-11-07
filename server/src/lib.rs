@@ -19,6 +19,7 @@ pub mod metrics;
 pub mod offsets;
 pub mod probe;
 pub mod progressive;
+pub mod release;
 pub mod results;
 pub mod search;
 pub mod sink;
@@ -59,6 +60,14 @@ pub mod proto {
     pub mod sink {
         pub mod v1 {
             tonic::include_proto!("turbo.sink.v1");
+        }
+        pub use v1::*;
+    }
+    /// The acknowledged PII access audit (docs/grpc-analysis.md, PII value
+    /// release).
+    pub mod audit {
+        pub mod v1 {
+            tonic::include_proto!("turbo.audit.v1");
         }
         pub use v1::*;
     }
@@ -162,6 +171,9 @@ pub struct Serve {
     /// What a request's PiiOutputOptions may turn on
     /// (`--pii-output-allow`, docs/grpc-analysis.md, PII output).
     pub pii_output: results::disclosure::PiiOutputPolicy,
+    /// PII value release to granted services (`--pii-grant`, #1909); none
+    /// withholds every value.
+    pub pii_release: Option<release::ReleaseConfig>,
     /// The most bytes one call's request may carry in all, frames
     /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
     pub max_stream_bytes: Option<u64>,
@@ -234,6 +246,7 @@ impl Server {
         {
             return Err("the sink's PII output asks for more than the server's PII output policy allows".into());
         }
+        let release = release::Release::start(serve.pii_release.as_ref(), serve.tls.as_ref())?;
         let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
@@ -241,6 +254,7 @@ impl Server {
             sink: sink.clone(),
             catalog: serve.catalog.clone(),
             pii_policy: serve.pii_output,
+            release,
         })
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);
