@@ -34,6 +34,13 @@ impl fmt::Display for RewriteError {
 
 impl std::error::Error for RewriteError {}
 
+/// A coalesced union span and the individual overlapping mentions that
+/// formed it.
+pub(crate) struct MentionCluster<'a> {
+    pub(crate) merged: PiiMention<'a>,
+    pub(crate) members: Vec<PiiMention<'a>>,
+}
+
 /// A text with its mentions replaced by labels.
 pub struct PiiRewrite {
     text: String,
@@ -44,14 +51,13 @@ pub struct PiiRewrite {
 }
 
 impl PiiRewrite {
-    /// Validates every mention's span in `text` and coalesces overlapping
-    /// mentions into disjoint union spans, keeping the top-ranked mention's
-    /// kind, confidence, and normalized form so every covered byte is
-    /// replaced without leaking trailing characters.
-    pub(crate) fn coalesce_clusters<'a>(
+    /// Validates every mention's span in `text` and groups overlapping
+    /// mentions into disjoint union clusters, keeping both the top-ranked
+    /// merged mention and all constituent mentions.
+    pub(crate) fn group_clusters<'a>(
         text: &str,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
-    ) -> Result<Vec<PiiMention<'a>>, RewriteError> {
+    ) -> Result<Vec<MentionCluster<'a>>, RewriteError> {
         let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
         for m in &ordered {
             let (start, end) = (m.span.start as usize, m.span.end as usize);
@@ -60,26 +66,38 @@ impl PiiRewrite {
             }
         }
         ordered.sort_by_key(|m| (m.span.start, std::cmp::Reverse(m.span.end), m.kind));
-        let mut out: Vec<PiiMention<'a>> = Vec::with_capacity(ordered.len());
+        let mut out: Vec<MentionCluster<'a>> = Vec::with_capacity(ordered.len());
         let mut best_key = (turbo_analysis_layers::PiiKind::Phone, 0u32, std::cmp::Reverse(0u32));
         for m in ordered {
             let key = (m.kind, m.span.start, std::cmp::Reverse(m.span.end - m.span.start));
             if let Some(last) = out.last_mut()
-                && m.span.start < last.span.end
+                && m.span.start < last.merged.span.end
             {
-                last.span.end = last.span.end.max(m.span.end);
+                last.merged.span.end = last.merged.span.end.max(m.span.end);
                 if key < best_key {
-                    last.kind = m.kind;
-                    last.confidence = m.confidence;
-                    last.normalized = m.normalized;
+                    last.merged.kind = m.kind;
+                    last.merged.confidence = m.confidence;
+                    last.merged.normalized = m.normalized;
                     best_key = key;
                 }
+                last.members.push(m);
             } else {
                 best_key = key;
-                out.push(m);
+                out.push(MentionCluster { merged: m, members: vec![m] });
             }
         }
         Ok(out)
+    }
+
+    /// Validates every mention's span in `text` and coalesces overlapping
+    /// mentions into disjoint union spans, keeping the top-ranked mention's
+    /// kind, confidence, and normalized form so every covered byte is
+    /// replaced without leaking trailing characters.
+    pub(crate) fn coalesce_clusters<'a>(
+        text: &str,
+        mentions: impl IntoIterator<Item = PiiMention<'a>>,
+    ) -> Result<Vec<PiiMention<'a>>, RewriteError> {
+        Ok(Self::group_clusters(text, mentions)?.into_iter().map(|c| c.merged).collect())
     }
 
     /// Replaces each mention with the label `label` writes for it, in
@@ -89,6 +107,19 @@ impl PiiRewrite {
         text: &str,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
         mut label: impl FnMut(&PiiMention<'a>, &mut String),
+    ) -> Result<PiiRewrite, RewriteError> {
+        Self::try_replace(text, mentions, |m, buf| {
+            label(m, buf);
+            Ok(())
+        })
+    }
+
+    /// Fallible counterpart to [`PiiRewrite::replace`] propagating a
+    /// [`RewriteError`] from `label`.
+    pub(crate) fn try_replace<'a>(
+        text: &str,
+        mentions: impl IntoIterator<Item = PiiMention<'a>>,
+        mut label: impl FnMut(&PiiMention<'a>, &mut String) -> Result<(), RewriteError>,
     ) -> Result<PiiRewrite, RewriteError> {
         let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
         for m in &ordered {
@@ -111,7 +142,7 @@ impl PiiRewrite {
             let (start, end) = (m.span.start as usize, m.span.end as usize);
             out.push_str(&text[copied..start]);
             buf.clear();
-            label(m, &mut buf);
+            label(m, &mut buf)?;
             if buf.is_empty() {
                 return Err(RewriteError::EmptyValue(m.span));
             }
