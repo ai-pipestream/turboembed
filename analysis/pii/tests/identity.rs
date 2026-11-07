@@ -5,6 +5,7 @@
 mod support;
 
 use support::*;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{HmacTokenizer, Pseudonymizer, mask_all};
 use turbo_pii::{Extractor, Pack, PiiDetector, PiiKind};
 
@@ -148,10 +149,10 @@ fn identity_packs_mask_replace_and_tokenize_the_itin() {
         assert_found(&d, text, &[(7, 18, "us-itin", "900-50-0000")]);
         let pii = layer(&d, text);
         assert_eq!(mask_all(text, &pii, '*').unwrap(), "Tax ID ***********.");
-        assert_eq!(Pseudonymizer::new("", "").rewrite(text, &pii).unwrap().text(), "Tax ID US-ITIN-1.");
+        assert_eq!(Pseudonymizer::new("", "").rewrite(&source_view(text), &pii).unwrap().text(), "Tax ID US-ITIN-1.");
         let tokenizer = HmacTokenizer::new(&[0; 32]).unwrap();
-        let token = tokenizer.token(PiiKind::UsItin, "900-50-0000").unwrap();
-        assert_eq!(tokenizer.rewrite(text, &pii).unwrap().text(), format!("Tax ID {token}."));
+        let token = tokenizer.token("us-itin", "900-50-0000").unwrap();
+        assert_eq!(tokenizer.rewrite(&source_view(text), &pii).unwrap().text(), format!("Tax ID {token}."));
     }
 }
 
@@ -299,7 +300,7 @@ impl Family {
             assert_found(
                 &self.detector(),
                 &text,
-                &[(start, start + number.len() as u32, self.kind.name(), self.normalized)],
+                &[(start, start + number.len() as u32, self.kind.builtin_name().unwrap(), self.normalized)],
             );
         } else {
             assert_none(&self.detector(), &text);

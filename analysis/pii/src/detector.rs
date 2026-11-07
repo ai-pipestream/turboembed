@@ -4,14 +4,15 @@
 use std::path::Path;
 
 use turbo_analysis::{Annotator, Error, Refs, View, ViewId};
-use turbo_analysis_layers::{Pii, PiiKind, PiiKinds};
+use turbo_analysis_layers::{CustomKinds, Pii, PiiKind, PiiKinds};
 
-use crate::hits::{Hits, PiiSink};
+use crate::hits::Hits;
 use crate::lists::{AllowList, DenyList, ListError, Pattern};
-use crate::scan::{CustomExtractor, Extractor, Scanner};
+use crate::scan::{Extractor, Scanner};
 use crate::window::WindowConfig;
 
 mod audit;
+mod custom;
 mod labels;
 
 /// The packs of `PiiPacks`, by kind of data.
@@ -123,6 +124,7 @@ impl Pack {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiiDetector {
     scanners: Vec<Scanner>,
+    custom_kinds: CustomKinds,
     keep_nested: bool,
     window: WindowConfig,
     global_allow: AllowList,
@@ -135,6 +137,7 @@ impl PiiDetector {
     pub fn new(scanners: Vec<Scanner>) -> PiiDetector {
         PiiDetector {
             scanners,
+            custom_kinds: CustomKinds::new(),
             keep_nested: false,
             window: WindowConfig::default(),
             global_allow: AllowList::new(),
@@ -154,28 +157,11 @@ impl PiiDetector {
         PiiDetector::new(vec![Scanner::all(Extractor::Cursor)])
     }
 
-    /// This detector with `scanner` appended in composition order.
+    /// This detector with `scanner` appended in composition order. A custom
+    /// scanner's kinds are checked when it reports them; use
+    /// [`PiiDetector::try_with_scanner`] to check them now.
     pub fn with_scanner(mut self, scanner: Scanner) -> PiiDetector {
         self.scanners.push(scanner);
-        self
-    }
-
-    /// This detector with a caller-defined [`CustomExtractor`] appended in
-    /// composition order.
-    pub fn with_custom<E: CustomExtractor + 'static>(mut self, extractor: E) -> PiiDetector {
-        self.scanners.push(Scanner::custom(extractor));
-        self
-    }
-
-    /// This detector with a stateless caller function for `kind` appended
-    /// in composition order.
-    pub fn with_custom_fn(
-        mut self,
-        name: &'static str,
-        kind: PiiKind,
-        scan: fn(&str, &mut PiiSink<'_>),
-    ) -> PiiDetector {
-        self.scanners.push(Scanner::custom_fn(name, kind, scan));
         self
     }
 
@@ -239,18 +225,18 @@ impl PiiDetector {
     }
 
     /// Merges `allow` into the allow list scoped to `kind` only.
-    pub fn with_kind_allow_list(mut self, kind: PiiKind, allow: AllowList) -> PiiDetector {
-        let _ = PiiKind::remember_custom(kind);
+    pub fn with_kind_allow_list(mut self, kind: PiiKind, allow: AllowList) -> Result<PiiDetector, ListError> {
+        self.check_kind(kind)?;
         if allow.is_empty() {
-            return self;
+            return Ok(self);
         }
         self.kind_entry_mut(kind).merge(allow);
-        self
+        Ok(self)
     }
 
     /// Adds an exact term to the allow list scoped to `kind` only.
     pub fn allow_kind_term(mut self, kind: PiiKind, term: &str) -> Result<PiiDetector, ListError> {
-        let _ = PiiKind::remember_custom(kind);
+        self.check_kind(kind)?;
         let mut list = AllowList::new();
         list.add_term(term)?;
         self.kind_entry_mut(kind).merge(list);
@@ -263,7 +249,7 @@ impl PiiDetector {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let _ = PiiKind::remember_custom(kind);
+        self.check_kind(kind)?;
         let mut list = AllowList::new();
         list.add_terms(terms)?;
         if !list.is_empty() {
@@ -274,7 +260,7 @@ impl PiiDetector {
 
     /// Loads exact terms from `path` into the allow list scoped to `kind` only.
     pub fn allow_kind_file(mut self, kind: PiiKind, path: impl AsRef<Path>) -> Result<PiiDetector, ListError> {
-        let _ = PiiKind::remember_custom(kind);
+        self.check_kind(kind)?;
         let list = AllowList::from_file(path)?;
         if !list.is_empty() {
             self.kind_entry_mut(kind).merge(list);
@@ -283,15 +269,15 @@ impl PiiDetector {
     }
 
     /// Adds a compiled [`Pattern`] to the allow list scoped to `kind` only.
-    pub fn allow_kind_pattern(mut self, kind: PiiKind, pattern: Pattern) -> PiiDetector {
-        let _ = PiiKind::remember_custom(kind);
+    pub fn allow_kind_pattern(mut self, kind: PiiKind, pattern: Pattern) -> Result<PiiDetector, ListError> {
+        self.check_kind(kind)?;
         self.kind_entry_mut(kind).add_pattern(pattern);
-        self
+        Ok(self)
     }
 
     /// Adds a shape pattern to the allow list scoped to `kind` only.
     pub fn allow_kind_shape(mut self, kind: PiiKind, shape: &str) -> Result<PiiDetector, ListError> {
-        let _ = PiiKind::remember_custom(kind);
+        self.check_kind(kind)?;
         let pat = Pattern::shape(shape)?;
         self.kind_entry_mut(kind).add_pattern(pat);
         Ok(self)
@@ -299,22 +285,24 @@ impl PiiDetector {
 
     /// Adds a glob pattern to the allow list scoped to `kind` only.
     pub fn allow_kind_glob(mut self, kind: PiiKind, glob: &str) -> Result<PiiDetector, ListError> {
-        let _ = PiiKind::remember_custom(kind);
+        self.check_kind(kind)?;
         let pat = Pattern::glob(glob)?;
         self.kind_entry_mut(kind).add_pattern(pat);
         Ok(self)
     }
 
     /// Appends a [`DenyList`] whose matched terms are reported under its
-    /// caller-named [`PiiKind::Custom`].
-    pub fn with_deny_list(mut self, deny: DenyList) -> PiiDetector {
+    /// [`PiiKind::Custom`], refused when that kind is outside
+    /// [`PiiDetector::custom_kinds`].
+    pub fn with_deny_list(mut self, deny: DenyList) -> Result<PiiDetector, ListError> {
+        self.check_kind(deny.kind())?;
         self.deny_lists.push(deny);
-        self
+        Ok(self)
     }
 
     fn kind_entry_mut(&mut self, kind: PiiKind) -> &mut AllowList {
-        let key = (kind.rank(), kind.name());
-        match self.kind_allow.binary_search_by_key(&key, |(k, _)| (k.rank(), k.name())) {
+        let key = kind.code();
+        match self.kind_allow.binary_search_by_key(&key, |(k, _)| k.code()) {
             Ok(at) => &mut self.kind_allow[at].1,
             Err(at) => {
                 self.kind_allow.insert(at, (kind, AllowList::new()));
@@ -330,11 +318,12 @@ impl PiiDetector {
 
     /// The allow list scoped to `kind`, when configured.
     pub fn kind_allow_list(&self, kind: PiiKind) -> Option<&AllowList> {
-        let key = (kind.rank(), kind.name());
-        self.kind_allow.binary_search_by_key(&key, |(k, _)| (k.rank(), k.name())).ok().map(|at| &self.kind_allow[at].1)
+        let key = kind.code();
+        self.kind_allow.binary_search_by_key(&key, |(k, _)| k.code()).ok().map(|at| &self.kind_allow[at].1)
     }
 
-    /// All per-kind allow lists, ordered by kind rank and name.
+    /// All per-kind allow lists, ordered by kind code (built-in ids first,
+    /// then custom kinds in table order).
     pub fn kind_allow_lists(&self) -> &[(PiiKind, AllowList)] {
         &self.kind_allow
     }
@@ -364,16 +353,22 @@ impl PiiDetector {
     }
 
     /// Appends every non-suppressed mention in `text` to `out`, returning the
-    /// per-kind counts of mentions suppressed by allow rules.
+    /// per-kind counts of mentions suppressed by allow rules. An empty `out`
+    /// takes this detector's custom-kind table.
     ///
     /// # Panics
     ///
-    /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
+    /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`,
+    /// or when `out` holds mentions under a different custom-kind table.
     pub fn detect_with_suppressed(&self, text: &str, out: &mut Pii) -> Vec<(PiiKind, usize)> {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
+        if out.kind.is_empty() {
+            out.custom_kinds.clone_from(&self.custom_kinds);
+        }
+        assert!(out.custom_kinds == self.custom_kinds, "the layer's custom-kind table is the detector's");
         let mut hits = Hits::default();
         for s in &self.scanners {
-            s.scan(text, &self.window, &mut hits);
+            s.scan(text, &self.window, &self.custom_kinds, &mut hits);
         }
         for d in &self.deny_lists {
             d.scan(text, &mut hits);
@@ -399,14 +394,14 @@ impl PiiDetector {
     /// The mentions in `text` as a layer over `view`, together with the
     /// per-kind counts of mentions suppressed by allow rules.
     pub fn layer_with_suppressed(&self, text: &str, view: ViewId) -> (Pii, Vec<(PiiKind, usize)>) {
-        let mut out = Pii::new(view);
+        let mut out = Pii::with_custom_kinds(view, self.custom_kinds.clone());
         let suppressed = self.detect_with_suppressed(text, &mut out);
         (out, suppressed)
     }
 
     /// The mentions in `text` as a layer over `view`.
     pub fn layer(&self, text: &str, view: ViewId) -> Pii {
-        let mut out = Pii::new(view);
+        let mut out = Pii::with_custom_kinds(view, self.custom_kinds.clone());
         self.detect(text, &mut out);
         out
     }
@@ -438,24 +433,34 @@ impl Annotator for PiiDetector {
         PRODUCES
     }
 
-    /// FNV-1a over each scanner's extractor and kind bits, plus any
-    /// configured allow lists and deny lists, fixed so that stored
-    /// provenance stays comparable across builds.
+    /// FNV-1a over each scanner's extractor and kind id bits, plus any
+    /// custom-kind table and configured allow lists and deny lists. Bits are
+    /// keyed on stable kind ids, so adding a kind leaves the hash of every
+    /// existing configuration unchanged.
     fn config_hash(&self) -> u64 {
         let mut h = turbo_analysis::Fnv1a::new();
         for s in &self.scanners {
-            let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1u64 << k.hash_bit());
-            h.fold_u64(s.extractor().tag()).fold_u64(kinds);
+            let bits = s.kinds().bits();
+            h.fold_u64(s.extractor().tag()).fold_u64(bits as u64);
+            if bits >> 64 != 0 {
+                h.u8(0xb1).fold_u64((bits >> 64) as u64);
+            }
             if let Extractor::Custom(name) = s.extractor() {
                 h.bytes(name.as_bytes()).u8(0xff);
-                for k in s.custom_kinds() {
-                    h.bytes(k.name().as_bytes()).u8(0xff);
+                for &k in s.custom_kinds() {
+                    h.u32(k.code()).u8(0xff);
                 }
                 h.fold_u64(s.custom_config_hash());
             }
         }
         if self.keep_nested {
             h.fold_u64(1);
+        }
+        if !self.custom_kinds.is_empty() {
+            h.u8(0xc1).usize(self.custom_kinds.len());
+            for name in self.custom_kinds.names() {
+                h.str(name);
+            }
         }
         self.window.fold_hash(&mut h);
         if !self.global_allow.is_empty() {
@@ -465,7 +470,7 @@ impl Annotator for PiiDetector {
         if !self.kind_allow.is_empty() {
             h.u8(0xa2).usize(self.kind_allow.len());
             for (kind, allow) in &self.kind_allow {
-                h.str(kind.name());
+                h.u32(kind.code());
                 allow.fold_hash(&mut h);
             }
         }

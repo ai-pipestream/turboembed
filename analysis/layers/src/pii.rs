@@ -10,353 +10,27 @@
 //! layer allows any overlap.
 
 mod confidence;
+mod custom;
+mod kind;
 
 pub use confidence::PiiConfidence;
-
-use std::fmt;
-use std::sync::{OnceLock, RwLock};
+pub use custom::{CustomKindId, CustomKinds, KindError};
+pub use kind::{CUSTOM_CODE_BASE, KindRow, PiiKind, PiiKinds, mention_order};
 
 use turbo_analysis::{Ix, Layer, Overlap, Span, Spans, ViewId};
 
 use crate::Strs;
 
-static CUSTOM_KINDS: OnceLock<RwLock<Vec<&'static str>>> = OnceLock::new();
-
-fn custom_registry() -> &'static RwLock<Vec<&'static str>> {
-    CUSTOM_KINDS.get_or_init(|| RwLock::new(Vec::new()))
-}
-
-/// What a mention is. The built-in variants are in OpenNLP's
-/// `PiiTypePriority` order, followed by [`PiiKind::Custom`] for caller
-/// kinds, so the derived order is the rank that sorts mentions with the
-/// same span.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum PiiKind {
-    /// A JSON Web Token in compact serialization.
-    Jwt,
-    /// An AWS access key identifier (`AKIA`, `ASIA`).
-    AwsAccessKey,
-    /// A GitHub access token (`ghp_`, `github_pat_`, `ghs_` and others).
-    GithubToken,
-    /// The `user:password` userinfo of a URL.
-    UrlCredential,
-    Email,
-    /// An International Bank Account Number, mod-97 checked.
-    Iban,
-    /// A mobile device's IMEI after an `IMEI` label, Luhn checked.
-    Imei,
-    /// A payment card number, Luhn checked.
-    Card,
-    /// A Bitcoin address: base58check or bech32/bech32m.
-    BtcAddress,
-    /// An Ethereum address, EIP-55 checked when written in mixed case.
-    EthAddress,
-    /// A 48-bit IEEE 802 MAC address.
-    Mac,
-    Ipv6,
-    Ipv4,
-    /// A United States Social Security number.
-    UsSsn,
-    /// A United States Individual Taxpayer Identification Number.
-    UsItin,
-    /// A United Kingdom NHS number, mod-11 checked.
-    UkNhs,
-    /// A German tax identification number (Steuer-ID), ISO 7064 checked.
-    DeSteuerId,
-    /// A Spanish Documento Nacional de Identidad, mod-23 checked.
-    EsDni,
-    /// A Spanish Numero de Identidad de Extranjero, mod-23 checked.
-    EsNie,
-    /// A Spanish Codigo de Identificacion Fiscal, weighted check digit/letter.
-    EsCif,
-    /// A German Personalausweis document number, ICAO 9303 7-3-1 checked.
-    DePersonalausweis,
-    /// A French INSEE NIR (numero de securite sociale), mod-97 key checked.
-    FrNir,
-    /// A French INSEE SIREN identifier, Luhn checked.
-    FrSiren,
-    /// A French INSEE SIRET identifier, Luhn / La Poste checked.
-    FrSiret,
-    /// A Brazilian Cadastro de Pessoas Fisicas number, double mod-11 checked.
-    BrCpf,
-    /// A Brazilian Cadastro Nacional da Pessoa Juridica number, double mod-11 checked.
-    BrCnpj,
-    /// An ISO 9362 Business Identifier Code (BIC / SWIFT) after a label.
-    Bic,
-    /// A Canadian Social Insurance Number after a label, Luhn checked.
-    CaSin,
-    /// An ABA routing transit number, check digit verified.
-    AbaRouting,
-    Phone,
-    /// A caller-defined identifier kind (`account-number`, `se-personnummer`),
-    /// 1 to [`PiiKind::MAX_CUSTOM_NAME_BYTES`] UTF-8 bytes and not one of the
-    /// reserved built-in names in [`PiiKind::ALL`].
-    Custom(&'static str),
-}
-
-const fn eq_bytes(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut i = 0;
-    while i < a.len() {
-        if a[i] != b[i] {
-            return false;
-        }
-        i += 1;
-    }
-    true
-}
-
-impl PiiKind {
-    /// Maximum UTF-8 byte length of a [`PiiKind::Custom`] name.
-    pub const MAX_CUSTOM_NAME_BYTES: usize = 64;
-
-    /// Maximum number of distinct [`PiiKind::Custom`] names interned in the
-    /// process-wide registry.
-    pub const MAX_CUSTOM_KINDS: usize = 256;
-
-    /// Every built-in kind, in rank order.
-    pub const ALL: [PiiKind; 30] = [
-        PiiKind::Jwt,
-        PiiKind::AwsAccessKey,
-        PiiKind::GithubToken,
-        PiiKind::UrlCredential,
-        PiiKind::Email,
-        PiiKind::Iban,
-        PiiKind::Imei,
-        PiiKind::Card,
-        PiiKind::BtcAddress,
-        PiiKind::EthAddress,
-        PiiKind::Mac,
-        PiiKind::Ipv6,
-        PiiKind::Ipv4,
-        PiiKind::UsSsn,
-        PiiKind::UsItin,
-        PiiKind::UkNhs,
-        PiiKind::DeSteuerId,
-        PiiKind::EsDni,
-        PiiKind::EsNie,
-        PiiKind::EsCif,
-        PiiKind::DePersonalausweis,
-        PiiKind::FrNir,
-        PiiKind::FrSiren,
-        PiiKind::FrSiret,
-        PiiKind::BrCpf,
-        PiiKind::BrCnpj,
-        PiiKind::Bic,
-        PiiKind::CaSin,
-        PiiKind::AbaRouting,
-        PiiKind::Phone,
-    ];
-
-    /// A caller-defined kind named `name` (1 to [`PiiKind::MAX_CUSTOM_NAME_BYTES`]
-    /// UTF-8 bytes), or the built-in [`PiiKind`] when `name` is in [`PiiKind::ALL`].
-    pub const fn custom(name: &'static str) -> PiiKind {
-        let mut i = 0;
-        while i < Self::ALL.len() {
-            if eq_bytes(Self::ALL[i].name().as_bytes(), name.as_bytes()) {
-                return Self::ALL[i];
-            }
-            i += 1;
-        }
-        PiiKind::Custom(name)
-    }
-
-    /// Whether this is a caller-defined kind outside [`PiiKind::ALL`].
-    pub const fn is_custom(self) -> bool {
-        matches!(self, PiiKind::Custom(_))
-    }
-
-    /// Records a valid custom kind's static name so binary layer import can
-    /// resolve it without allocating, up to [`PiiKind::MAX_CUSTOM_KINDS`]
-    /// entries of at most [`PiiKind::MAX_CUSTOM_NAME_BYTES`] bytes. Returns
-    /// `true` when `kind` is built-in or now registered, and `false` when
-    /// invalid or full.
-    pub fn remember_custom(kind: PiiKind) -> bool {
-        let PiiKind::Custom(name) = kind else {
-            return true;
-        };
-        if name.is_empty() || name.len() > Self::MAX_CUSTOM_NAME_BYTES || PiiKind::parse(name).is_some() {
-            return false;
-        }
-        if custom_registry().read().expect("custom pii kinds lock").contains(&name) {
-            return true;
-        }
-        let mut reg = custom_registry().write().expect("custom pii kinds lock");
-        if reg.contains(&name) {
-            return true;
-        }
-        if reg.len() >= Self::MAX_CUSTOM_KINDS {
-            return false;
-        }
-        reg.push(name);
-        true
-    }
-
-    /// Looks up a previously registered custom kind by `name`.
-    pub fn lookup_custom(name: &str) -> Option<PiiKind> {
-        let reg = custom_registry().read().expect("custom pii kinds lock");
-        reg.iter().copied().find(|&k| k == name).map(PiiKind::Custom)
-    }
-
-    /// Looks up or interns a custom kind name during binary layer import,
-    /// bounded to [`PiiKind::MAX_CUSTOM_KINDS`] custom kinds of at most
-    /// [`PiiKind::MAX_CUSTOM_NAME_BYTES`] bytes each.
-    pub fn intern_custom(name: &str) -> Option<PiiKind> {
-        if name.is_empty() || PiiKind::parse(name).is_some() {
-            return None;
-        }
-        if let Some(k) = PiiKind::lookup_custom(name) {
-            return Some(k);
-        }
-        if name.len() > Self::MAX_CUSTOM_NAME_BYTES {
-            return None;
-        }
-        let mut reg = custom_registry().write().expect("custom pii kinds lock");
-        if let Some(&existing) = reg.iter().find(|&&k| k == name) {
-            return Some(PiiKind::Custom(existing));
-        }
-        if reg.len() >= Self::MAX_CUSTOM_KINDS {
-            return None;
-        }
-        let leaked: &'static str = Box::leak(name.to_owned().into_boxed_str());
-        reg.push(leaked);
-        Some(PiiKind::Custom(leaked))
-    }
-
-    /// The name OpenNLP's `PiiMention` uses for the type (`email`,
-    /// `aws-access-key`, `de-steuer-id`, or a caller's custom name).
-    pub const fn name(self) -> &'static str {
-        match self {
-            PiiKind::Jwt => "jwt",
-            PiiKind::AwsAccessKey => "aws-access-key",
-            PiiKind::GithubToken => "github-token",
-            PiiKind::UrlCredential => "url-credential",
-            PiiKind::Email => "email",
-            PiiKind::Iban => "iban",
-            PiiKind::Imei => "imei",
-            PiiKind::Card => "card",
-            PiiKind::BtcAddress => "btc-address",
-            PiiKind::EthAddress => "eth-address",
-            PiiKind::Mac => "mac",
-            PiiKind::Ipv6 => "ipv6",
-            PiiKind::Ipv4 => "ipv4",
-            PiiKind::UsSsn => "us-ssn",
-            PiiKind::UsItin => "us-itin",
-            PiiKind::UkNhs => "uk-nhs",
-            PiiKind::DeSteuerId => "de-steuer-id",
-            PiiKind::EsDni => "es-dni",
-            PiiKind::EsNie => "es-nie",
-            PiiKind::EsCif => "es-cif",
-            PiiKind::DePersonalausweis => "de-personalausweis",
-            PiiKind::FrNir => "fr-nir",
-            PiiKind::FrSiren => "fr-siren",
-            PiiKind::FrSiret => "fr-siret",
-            PiiKind::BrCpf => "br-cpf",
-            PiiKind::BrCnpj => "br-cnpj",
-            PiiKind::Bic => "bic",
-            PiiKind::CaSin => "ca-sin",
-            PiiKind::AbaRouting => "aba-routing",
-            PiiKind::Phone => "phone",
-            PiiKind::Custom(name) => name,
-        }
-    }
-
-    /// The built-in kind OpenNLP names `name`.
-    pub fn parse(name: &str) -> Option<PiiKind> {
-        PiiKind::ALL.into_iter().find(|k| k.name() == name)
-    }
-
-    /// `PiiTypePriority.rank`: the position in [`PiiKind::ALL`], or `30`
-    /// (`PiiKind::ALL.len()`) for [`PiiKind::Custom`].
-    pub const fn rank(self) -> u8 {
-        if self.is_custom() {
-            return Self::ALL.len() as u8;
-        }
-        let target = self.name().as_bytes();
-        let mut i = 0;
-        while i < Self::ALL.len() {
-            if eq_bytes(Self::ALL[i].name().as_bytes(), target) {
-                return i as u8;
-            }
-            i += 1;
-        }
-        Self::ALL.len() as u8
-    }
-
-    /// The bit of this kind in a [`PiiKinds`] set (`0` for [`PiiKind::Custom`]).
-    pub const fn bit(self) -> u64 {
-        let r = self.rank();
-        if (r as usize) < PiiKind::ALL.len() { 1u64 << r } else { 0 }
-    }
-
-    /// Stable bit index for configuration hashing: the original 20 kinds keep
-    /// `0..20` and the 10 kinds added in #1887 occupy `20..30`.
-    pub const fn hash_bit(self) -> u8 {
-        match self.rank() {
-            r @ 0..17 => r,
-            r @ 17..27 => r + 3,
-            r @ 27..30 => r - 10,
-            _ => 30,
-        }
-    }
-}
-
-impl fmt::Display for PiiKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.name())
-    }
-}
-
-/// A set of kinds, one bit each.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct PiiKinds(u64);
-
-impl PiiKinds {
-    pub const EMPTY: PiiKinds = PiiKinds(0);
-
-    /// The set of `kinds`.
-    pub const fn of(kinds: &[PiiKind]) -> PiiKinds {
-        let mut bits = 0;
-        let mut i = 0;
-        while i < kinds.len() {
-            bits |= kinds[i].bit();
-            i += 1;
-        }
-        PiiKinds(bits)
-    }
-
-    pub const fn contains(self, kind: PiiKind) -> bool {
-        self.0 & kind.bit() != 0
-    }
-
-    pub const fn is_empty(self) -> bool {
-        self.0 == 0
-    }
-
-    /// Whether every kind of `self` is in `other`.
-    pub const fn is_subset(self, other: PiiKinds) -> bool {
-        self.0 & !other.0 == 0
-    }
-
-    pub const fn union(self, other: PiiKinds) -> PiiKinds {
-        PiiKinds(self.0 | other.0)
-    }
-
-    /// The kinds in rank order.
-    pub fn iter(self) -> impl Iterator<Item = PiiKind> {
-        PiiKind::ALL.into_iter().filter(move |k| self.contains(*k))
-    }
-}
-
-/// Every PII mention in a view, one item per mention, ordered as OpenNLP
-/// orders them: by start, then longer first, then by kind rank. Equal
+/// Every PII mention in a view, one item per mention, ordered by start,
+/// then longer first, then by kind priority ([`mention_order`]). Equal
 /// mentions (span, kind and normalized form) appear once; mentions of
 /// different kinds, or of one kind with different normalized forms, may
 /// share a span or overlap.
 pub struct Pii {
     pub spans: Spans<Pii>,
+    /// The table every [`PiiKind::Custom`] of [`Pii::kind`] indexes,
+    /// exported with the layer.
+    pub custom_kinds: CustomKinds,
     pub kind: Vec<PiiKind>,
     pub confidence: Vec<PiiConfidence>,
     /// The value as OpenNLP normalizes it: digits without separators, a
@@ -376,12 +50,29 @@ pub struct PiiMention<'a> {
 impl Pii {
     /// An empty layer over `view`.
     pub fn new(view: ViewId) -> Pii {
-        Pii { spans: Spans::new(view), kind: Vec::new(), confidence: Vec::new(), normalized: Strs::default() }
+        Pii::with_custom_kinds(view, CustomKinds::new())
     }
 
-    /// Appends one mention to every column.
+    /// An empty layer over `view` whose custom kinds index `custom_kinds`.
+    pub fn with_custom_kinds(view: ViewId, custom_kinds: CustomKinds) -> Pii {
+        Pii {
+            spans: Spans::new(view),
+            custom_kinds,
+            kind: Vec::new(),
+            confidence: Vec::new(),
+            normalized: Strs::default(),
+        }
+    }
+
+    /// The name of `kind` in this layer: the built-in name or the entry of
+    /// [`Pii::custom_kinds`].
+    pub fn kind_name(&self, kind: PiiKind) -> Option<&str> {
+        self.custom_kinds.name(kind)
+    }
+
+    /// Appends one mention to every column. [`Layer::check`] refuses a
+    /// custom kind outside [`Pii::custom_kinds`].
     pub fn push(&mut self, m: PiiMention<'_>) -> Ix<Pii> {
-        let _ = PiiKind::remember_custom(m.kind);
         self.kind.push(m.kind);
         self.confidence.push(m.confidence);
         self.normalized.push(m.normalized);
@@ -412,8 +103,12 @@ impl Layer for Pii {
     fn content_hash(&self) -> Option<u64> {
         let mut h = turbo_analysis::Fnv1a::new();
         h.usize(self.kind.len()).u64(self.normalized.content_hash());
+        h.usize(self.custom_kinds.len());
+        for name in self.custom_kinds.names() {
+            h.str(name);
+        }
         for (&k, &c) in self.kind.iter().zip(&self.confidence) {
-            h.str(k.name()).str(c.name());
+            h.u32(k.code()).u8(c.id());
         }
         Some(h.finish())
     }
@@ -429,35 +124,17 @@ impl Layer for Pii {
             if m.span.is_empty() {
                 return Err(format!("pii mention {i} is empty at {}", m.span.start));
             }
-            if m.kind.name().is_empty() {
-                return Err(format!("pii mention {i} has no kind name"));
-            }
-            if let PiiKind::Custom(name) = m.kind {
-                if name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES {
-                    return Err(format!(
-                        "pii mention {i} has a custom kind name of {} bytes (max {})",
-                        name.len(),
-                        PiiKind::MAX_CUSTOM_NAME_BYTES
-                    ));
-                }
-                if PiiKind::parse(name).is_some() {
-                    return Err(format!("pii mention {i} uses reserved built-in kind name {name:?} as custom"));
-                }
-                if !PiiKind::remember_custom(m.kind) {
-                    return Err(format!(
-                        "pii mention {i} exceeds custom kind registry capacity ({}) for {name:?}",
-                        PiiKind::MAX_CUSTOM_KINDS
-                    ));
-                }
+            if let Err(e) = self.custom_kinds.check(m.kind) {
+                return Err(format!("pii mention {i}: {e}"));
             }
             if m.normalized.is_empty() {
                 return Err(format!("pii mention {i} has no normalized form"));
             }
-            let key = |x: PiiMention<'_>| (x.span.start, std::cmp::Reverse(x.span.end), x.kind);
+            let key = |x: PiiMention<'_>| mention_order(x.span.start, x.span.end, x.kind);
             if let Some(p) = previous
                 && key(p) > key(m)
             {
-                return Err(format!("pii mention {i} is out of order: by start, longer first, then by kind"));
+                return Err(format!("pii mention {i} is out of order: by start, longer first, then by kind priority"));
             }
             // Mentions with one span and kind are adjacent, so a duplicate
             // is among the run of those just before.

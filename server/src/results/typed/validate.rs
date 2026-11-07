@@ -7,6 +7,8 @@
 mod annotation;
 mod envelope;
 mod evidence;
+mod pii;
+mod pii_edits;
 mod quality;
 mod quotations;
 mod receipt;
@@ -177,6 +179,7 @@ struct LayerCtx<'a> {
     target_bounds: Vec<usize>,
     layer_len: usize,
     lid: &'a str,
+    custom_pii_kinds: usize,
 }
 
 fn check_nonneg(what: &str, layer: &str, index: usize, v: f64) -> Result<(), Failure> {
@@ -262,6 +265,7 @@ fn validate_layer(
     quality::layer(layer)?;
     quotations::layer(layer)?;
     evidence::layer(layer)?;
+    pii_edits::layer(msg, offsetter, layer, layer_lengths)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }
@@ -323,6 +327,7 @@ fn validate_layer(
     };
     let entity_len = TargetLen::of(&target_lengths, "turbo:entities");
 
+    let custom_pii_kinds = pii::custom_kinds(layer)?;
     let ctx = LayerCtx {
         text: &msg.raw_text,
         offsetter,
@@ -350,6 +355,7 @@ fn validate_layer(
         target_bounds,
         layer_len: layer.annotations.len(),
         lid,
+        custom_pii_kinds,
     };
     for (i, ann) in layer.annotations.iter().enumerate() {
         annotation::validate_annotation(&ctx, i, ann)?;

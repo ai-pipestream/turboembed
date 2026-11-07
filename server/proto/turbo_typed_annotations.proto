@@ -487,6 +487,10 @@ message TypedLayer
   optional uint32 native_view = 10;
   // Why the layer is not OK; absent when it is.
   optional LayerError error = 11;
+  // The custom-kind names a turbo:pii layer's PiiKindRef.custom indexes,
+  // and for a turbo:pii-edits layer its covered pii layer's table; empty
+  // for every other layer.
+  repeated string custom_pii_kinds = 12;
 }
 
 // One recognizer vote on an EntityAnnotation, populated from
@@ -877,11 +881,124 @@ message PragmaticsAnnotation
   optional uint32 negative_token_end = 6;
 }
 
+// Stable built-in PII kind ids. Identity only, append-only, never
+// renumbered: the same numbers as the Rust kind registry, the C
+// TURBO_PII_KIND_* constants, Java TurboPiiKind and the binary codec.
+// UNSPECIFIED is never a kind and is refused.
+enum PiiKindId
+{
+  PII_KIND_ID_UNSPECIFIED = 0;
+  PII_KIND_ID_JWT = 1;
+  PII_KIND_ID_AWS_ACCESS_KEY = 2;
+  PII_KIND_ID_GITHUB_TOKEN = 3;
+  PII_KIND_ID_URL_CREDENTIAL = 4;
+  PII_KIND_ID_EMAIL = 5;
+  PII_KIND_ID_IBAN = 6;
+  PII_KIND_ID_IMEI = 7;
+  PII_KIND_ID_CARD = 8;
+  PII_KIND_ID_BTC_ADDRESS = 9;
+  PII_KIND_ID_ETH_ADDRESS = 10;
+  PII_KIND_ID_MAC = 11;
+  PII_KIND_ID_IPV6 = 12;
+  PII_KIND_ID_IPV4 = 13;
+  PII_KIND_ID_US_SSN = 14;
+  PII_KIND_ID_US_ITIN = 15;
+  PII_KIND_ID_UK_NHS = 16;
+  PII_KIND_ID_DE_STEUER_ID = 17;
+  PII_KIND_ID_ES_DNI = 18;
+  PII_KIND_ID_ES_NIE = 19;
+  PII_KIND_ID_ES_CIF = 20;
+  PII_KIND_ID_DE_PERSONALAUSWEIS = 21;
+  PII_KIND_ID_FR_NIR = 22;
+  PII_KIND_ID_FR_SIREN = 23;
+  PII_KIND_ID_FR_SIRET = 24;
+  PII_KIND_ID_BR_CPF = 25;
+  PII_KIND_ID_BR_CNPJ = 26;
+  PII_KIND_ID_BIC = 27;
+  PII_KIND_ID_CA_SIN = 28;
+  PII_KIND_ID_ABA_ROUTING = 29;
+  PII_KIND_ID_PHONE = 30;
+}
+
+// How much the text supports a mention's kind: the same numbers as the C
+// TURBO_PII_CONFIDENCE_* constants, Java TurboPiiConfidence and the binary
+// codec. UNSPECIFIED is never a tier and is refused.
+enum PiiConfidenceTier
+{
+  PII_CONFIDENCE_TIER_UNSPECIFIED = 0;
+  PII_CONFIDENCE_TIER_FORMAT = 1;
+  PII_CONFIDENCE_TIER_CHECKSUM = 2;
+  PII_CONFIDENCE_TIER_LABELLED_CHECKSUM = 3;
+  PII_CONFIDENCE_TIER_LABELLED = 4;
+}
+
+// A mention's kind: a built-in id, or an index into the layer's
+// TypedLayer.custom_pii_kinds.
+message PiiKindRef
+{
+  oneof kind
+  {
+    PiiKindId builtin = 1;
+    uint32 custom = 2;
+  }
+}
+
 message PiiMention
 {
-  string kind = 1;
-  string confidence_tier = 2;
+  // Never populated; use kind_ref.
+  string kind = 1 [deprecated = true];
+  // Never populated; use confidence.
+  string confidence_tier = 2 [deprecated = true];
   string normalized = 3;
+  // Fields 4 to 9 are held for the value, release and decision work.
+  PiiKindRef kind_ref = 10;
+  PiiConfidenceTier confidence = 11;
+}
+
+// How a PII rewrite wrote a replacement: the same numbers as the native
+// PiiStrategyKind ids. UNSPECIFIED is never a strategy and is refused.
+enum PiiStrategy
+{
+  PII_STRATEGY_UNSPECIFIED = 0;
+  PII_STRATEGY_MASK = 1;
+  PII_STRATEGY_PSEUDONYM = 2;
+  PII_STRATEGY_HMAC = 3;
+  PII_STRATEGY_FORMAT = 4;
+  PII_STRATEGY_STATIC = 5;
+  PII_STRATEGY_SHA256 = 6;
+  PII_STRATEGY_MAP = 7;
+  PII_STRATEGY_TRUNCATE = 8;
+  PII_STRATEGY_ABBREVIATE = 9;
+}
+
+// Which rule of the rewrite policy chose an edit's strategy: the default,
+// or the override for one kind, named as the covered turbo:pii layer names
+// it (custom indexes go into this layer's TypedLayer.custom_pii_kinds,
+// which repeats the covered layer's table).
+message PiiEditRule
+{
+  oneof rule
+  {
+    bool default_rule = 1;
+    PiiKindRef kind = 2;
+  }
+}
+
+// One replacement a PII rewrite made (turbo:pii-edits). The annotation's
+// spans are the replacement on the requested view. No original value is
+// carried.
+message PiiEditAnnotation
+{
+  // The replaced bytes on the parent of the layer's native view, in
+  // canonical UTF-8 byte offsets whatever the result's OffsetMode.
+  SpanFragment source = 1;
+  // The covered mentions: row indexes of the covered turbo:pii layer,
+  // ascending. Any subset, so not a range.
+  repeated uint32 members = 2;
+  PiiEditRule rule = 3;
+  PiiStrategy strategy = 4;
+  // The caller's revision of the policy; 0 when none was given.
+  uint64 policy_revision = 5;
 }
 
 message NoiseSpan
@@ -1456,5 +1573,6 @@ message TypedAnnotation
     LayoutBoxAnnotation layout_box = 95;
     ChunkCitationAnnotation chunk_citation = 96;
     GrammarDiagnosticAnnotation grammar_diagnostic = 97;
+    PiiEditAnnotation pii_edit = 98;
   }
 }

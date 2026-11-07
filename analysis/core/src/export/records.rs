@@ -3,7 +3,7 @@ use super::*;
 /// The version of this boundary: the record shapes and byte encoding.
 /// Bumped when either changes meaning; older bytes are refused, not
 /// migrated.
-pub const FORMAT_VERSION: u16 = 1;
+pub const FORMAT_VERSION: u16 = 2;
 
 pub(super) const MAGIC: &[u8] = b"TGRF";
 

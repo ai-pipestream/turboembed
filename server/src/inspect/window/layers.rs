@@ -119,7 +119,7 @@ pub(super) fn collect_fragments(
             && pii.spans.view() == view
         {
             for i in 0..pii.spans.len() {
-                let label = pii.kind[i].name().to_owned();
+                let label = pii.kind_name(pii.kind[i]).unwrap_or("").to_owned();
                 let score = match pii.confidence[i] {
                     PiiConfidence::Format => 0.5,
                     PiiConfidence::Labelled => 0.75,

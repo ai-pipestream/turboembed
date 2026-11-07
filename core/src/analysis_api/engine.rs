@@ -297,7 +297,7 @@ impl AnalyzerEngine {
         let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_PII, Pii::ID, "", SOURCE_VIEW)?;
         for (idx, mention) in pii.mentions().enumerate() {
             let coords = coordinate_range(text, &offsets, (mention.span.start, mention.span.end))?;
-            let label = builder.string_ref(mention.kind.name())?;
+            let label = builder.string_ref(pii.kind_name(mention.kind).unwrap_or(""))?;
             let value = builder.string_ref(mention.normalized)?;
             let classification = match mention.confidence {
                 PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,

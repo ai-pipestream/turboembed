@@ -50,22 +50,12 @@ impl PartialEq for DenyList {
 impl Eq for DenyList {}
 
 impl DenyList {
-    /// Creates an empty deny list reporting matches as `kind`, which must be a
-    /// valid [`PiiKind::Custom`] (1 to [`PiiKind::MAX_CUSTOM_NAME_BYTES`] bytes
-    /// and not a reserved built-in kind name).
+    /// Creates an empty deny list reporting matches as `kind`, which must be
+    /// a [`PiiKind::Custom`]. [`crate::PiiDetector::with_deny_list`] refuses
+    /// it when `kind` is outside the detector's custom-kind table.
     pub fn new(kind: PiiKind) -> Result<DenyList, ListError> {
-        let name = kind.name();
-        if name.is_empty() {
-            return Err(ListError::EmptyKind);
-        }
-        if PiiKind::parse(name).is_some() {
-            return Err(ListError::ReservedKind(name));
-        }
-        if name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES {
-            return Err(ListError::KindTooLong(name));
-        }
-        if !PiiKind::remember_custom(kind) {
-            return Err(ListError::RegistryFull(name));
+        if !kind.is_custom() {
+            return Err(ListError::BuiltinKind(kind));
         }
         Ok(DenyList {
             kind,
@@ -76,11 +66,6 @@ impl DenyList {
             matcher: None,
             fuzzy_terms: Vec::new(),
         })
-    }
-
-    /// Creates an empty deny list reporting matches as `PiiKind::custom(name)`.
-    pub fn custom(name: &'static str) -> Result<DenyList, ListError> {
-        Self::new(PiiKind::custom(name))
     }
 
     /// Creates a deny list for `kind` initialized from `terms`.
@@ -277,9 +262,8 @@ impl DenyList {
             return;
         }
         let mut glossary = Glossary::new();
-        let id = self.kind.name();
         for term in &self.terms {
-            glossary.push(id, term).expect("validated non-blank kind and term");
+            glossary.push("deny", term).expect("validated non-blank kind and term");
         }
         self.matcher = Some(TextMatcher::new(&glossary, self.case).expect("non-empty glossary"));
         self.fuzzy_terms = self
@@ -373,7 +357,7 @@ impl DenyList {
     }
 
     pub(crate) fn fold_hash(&self, h: &mut Fnv1a) {
-        h.str(self.kind.name())
+        h.u32(self.kind.code())
             .u8(case_tag(self.case))
             .u8(self.max_edits)
             .bool(self.capitalised_only)

@@ -9,6 +9,7 @@
 //! operations.
 
 use std::path::PathBuf;
+use turbo_pii::rewrite::source_view;
 
 use turbo_analysis::{Analyzer, Document, Span};
 use turbo_pii::rewrite::{
@@ -47,12 +48,19 @@ fn labels(r: &PiiRewrite, pii: &Pii) -> Vec<(u32, u32, u32, u32, String)> {
     let mut replaced: Vec<Span> = pii.mentions().map(|m| m.span).collect();
     replaced.sort_by_key(|s| s.start);
     assert_eq!(replaced.len(), r.labels().mentions().count());
+    assert_eq!(turbo_analysis::Layer::check(r.edits()), Ok(()));
     replaced
         .iter()
         .zip(r.labels().mentions())
-        .map(|(s, l)| {
-            assert_eq!(r.map_offset(s.start), l.span.start);
-            assert_eq!(r.map_span(*s), l.span);
+        .zip(r.edits().edits())
+        .map(|((s, l), e)| {
+            assert_eq!(r.to_derived(*s), Ok(l.span));
+            assert_eq!(r.to_original(l.span), Ok(*s));
+            // The edit is the label's, and lists exactly the mentions under
+            // its source span.
+            assert_eq!((e.span, e.source), (l.span, *s));
+            let under = pii.spans.iter().filter(|(_, m)| m.start < s.end && s.start < m.end).map(|(i, _)| i);
+            assert_eq!(under.collect::<Vec<_>>(), e.members);
             (s.start, s.end, l.span.start, l.span.end, l.normalized.to_string())
         })
         .collect()
@@ -60,8 +68,8 @@ fn labels(r: &PiiRewrite, pii: &Pii) -> Vec<(u32, u32, u32, u32, String)> {
 
 fn rewrite_line(op: &str, text: &str, pii: &Pii, tokenizer: &HmacTokenizer) -> (String, usize) {
     let rust = match op {
-        "pseudonymize" => Pseudonymizer::default().refusing_overlaps().rewrite(text, pii),
-        "hmac" => tokenizer.rewrite(text, pii),
+        "pseudonymize" => Pseudonymizer::default().refusing_overlaps().rewrite(&source_view(text), pii),
+        "hmac" => tokenizer.rewrite(&source_view(text), pii),
         _ => unreachable!(),
     };
     match rust {
@@ -94,7 +102,7 @@ fn render(text: &str, pii: &Pii, masked_text: &str, tokenizer: &HmacTokenizer) -
     }
     let report = PiiAuditReport::of(pii, tokenizer, PiiAuditReport::DEFAULT_SAMPLES);
     for k in &report.kinds {
-        out.push_str(&format!("AUDIT\t{}\t{}\t{}\t{}\n", k.kind.name(), k.mentions, k.distinct, k.samples.join(", ")));
+        out.push_str(&format!("AUDIT\t{}\t{}\t{}\t{}\n", k.name, k.mentions, k.distinct, k.samples.join(", ")));
     }
     out.push_str(&format!("AUDIT_REPORT\t{}\n", report.to_string().replace('\n', "\\n")));
     (out, label_count, refused)

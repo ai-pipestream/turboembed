@@ -17,9 +17,11 @@
 //! key of at least 32 bytes whenever unkeyed interoperability is not
 //! explicitly required.
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
-use super::{PiiRewrite, RewriteError, TokenizerError};
+use super::replace::EditOrigin;
+use super::{PiiRewrite, RewriteError, TokenizerError, kind_name};
 use crate::checksum::sha256;
 
 const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -48,6 +50,12 @@ impl Default for Sha256Tokenizer {
 }
 
 impl Sha256Tokenizer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.usize(self.length).u8(u8::from(self.kind_prefix)).str(&self.prefix).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// The full SHA-256 digest length in hexadecimal digits (256 bits).
     pub const DEFAULT_LENGTH: usize = 64;
 
@@ -112,15 +120,16 @@ impl Sha256Tokenizer {
         self.refuse_overlaps
     }
 
-    /// Appends the formatted SHA-256 digest of `value` of `kind` to `out`.
-    pub fn write_digest(&self, kind: PiiKind, value: &str, out: &mut String) -> Result<(), TokenizerError> {
+    /// Appends the formatted SHA-256 digest of `value` of the kind named
+    /// `kind` to `out`.
+    pub fn write_digest(&self, kind: &str, value: &str, out: &mut String) -> Result<(), TokenizerError> {
         if value.is_empty() {
             return Err(TokenizerError::EmptyValue);
         }
         let hash = sha256::digest(value.as_bytes());
         out.push_str(&self.prefix);
         if self.kind_prefix {
-            out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase()));
+            out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
             out.push('-');
         }
         out.extend(
@@ -132,26 +141,31 @@ impl Sha256Tokenizer {
         Ok(())
     }
 
-    /// The formatted SHA-256 digest of `value` of `kind`.
-    pub fn digest(&self, kind: PiiKind, value: &str) -> Result<String, TokenizerError> {
+    /// The formatted SHA-256 digest of `value` of the kind named `kind`.
+    pub fn digest(&self, kind: &str, value: &str) -> Result<String, TokenizerError> {
         let mut out = String::new();
         self.write_digest(kind, value, &mut out)?;
         Ok(out)
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with the
-    /// SHA-256 hex digest of its normalized value.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+    /// Replaces every mention of `pii`, a layer over `src`, with the
+    /// SHA-256 hex digest of its normalized value, as a view derived from
+    /// `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         if let Some(m) = pii.mentions().find(|m| m.normalized.is_empty()) {
             return Err(RewriteError::EmptyValue(m.span));
         }
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
-        };
-        PiiRewrite::try_replace(text, mentions, |m, out| {
-            self.write_digest(m.kind, m.normalized, out).map_err(|_| RewriteError::EmptyValue(m.span))
-        })
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |c, out| {
+                let m = c.merged;
+                self.write_digest(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
+                    .map_err(|_| RewriteError::EmptyValue(m.span))?;
+                Ok(EditOrigin::only(PiiStrategyKind::Sha256))
+            },
+        )
     }
 }

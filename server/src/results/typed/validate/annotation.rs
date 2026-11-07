@@ -263,6 +263,8 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::Event(ev) => shared::event(ctx, i, ev)?,
         Value::LexicalExpansion(le) => check_prob("weight", lid, i, le.weight)?,
         Value::RecordValue(rv) => check_prob("score", lid, i, rv.score)?,
+        Value::Pii(m) => pii::mention(ctx, i, ann, m)?,
+        Value::PiiEdit(e) => pii_edits::edit(ctx, i, e)?,
         _ => {}
     }
 

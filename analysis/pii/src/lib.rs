@@ -32,5 +32,8 @@ pub use detector::{Pack, PiiDetector};
 pub use hits::{PiiSink, SinkError};
 pub use lists::{AllowList, Case, DenyList, ListError, Pattern, PatternKind};
 pub use scan::{CustomExtractor, Extractor, Scanner, ScannerError};
-pub use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
+pub use turbo_analysis_layers::{
+    CustomKindId, CustomKinds, KindError, Pii, PiiConfidence, PiiEdit, PiiEdits, PiiKind, PiiKinds, PiiMention,
+    PiiRule, PiiStrategyKind,
+};
 pub use window::LabelPolicy;

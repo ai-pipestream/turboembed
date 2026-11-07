@@ -4,6 +4,7 @@
 mod support;
 
 use support::*;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{Pseudonymizer, mask_all};
 use turbo_pii::{Extractor, Pack, PiiDetector, PiiKind};
 
@@ -21,7 +22,10 @@ fn assert_whole(prefix: &str, suffix: &str) {
     assert_found(&emails(), &text, &[(start, start + ADDRESS.len() as u32, "email", NORMALIZED)]);
     let pii = layer(&emails(), &text);
     assert_eq!(mask_all(&text, &pii, '*').unwrap(), format!("{prefix}{}{suffix}", "*".repeat(ADDRESS.len())));
-    assert_eq!(Pseudonymizer::new("", "").rewrite(&text, &pii).unwrap().text(), format!("{prefix}EMAIL-1{suffix}"));
+    assert_eq!(
+        Pseudonymizer::new("", "").rewrite(&source_view(&text), &pii).unwrap().text(),
+        format!("{prefix}EMAIL-1{suffix}")
+    );
 }
 
 #[test]
@@ -77,7 +81,7 @@ fn the_scan_goes_on_after_a_refused_domain() {
         format!("Skip user@example.com.é; contact {}.", "*".repeat(ADDRESS.len()))
     );
     assert_eq!(
-        Pseudonymizer::new("", "").rewrite(text, &pii).unwrap().text(),
+        Pseudonymizer::new("", "").rewrite(&source_view(text), &pii).unwrap().text(),
         "Skip user@example.com.é; contact EMAIL-1."
     );
 }

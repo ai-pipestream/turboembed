@@ -6,9 +6,11 @@
 
 use std::fmt;
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
-use super::{PiiRewrite, RewriteError};
+use super::replace::EditOrigin;
+use super::{PiiRewrite, RewriteError, kind_name};
 use crate::checksum::sha256;
 
 /// A key or length the tokenizer cannot take.
@@ -52,6 +54,14 @@ impl fmt::Debug for HmacTokenizer {
 }
 
 impl HmacTokenizer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        // The key enters only as an HMAC under a fixed label, never as itself.
+        h.bytes(&sha256::hmac(&self.key, b"turbo-pii:redacted config key"));
+        h.usize(self.length).u8(u8::from(self.refuse_overlaps));
+    }
+
     pub const DEFAULT_LENGTH: usize = 16;
     pub const MIN_KEY_BYTES: usize = 32;
 
@@ -84,17 +94,17 @@ impl HmacTokenizer {
         self.refuse_overlaps
     }
 
-    /// Appends the token of `value` of `kind` to `out`.
-    pub fn write_token(&self, kind: PiiKind, value: &str, out: &mut String) -> Result<(), TokenizerError> {
+    /// Appends the token of `value` of the kind named `kind` to `out`.
+    pub fn write_token(&self, kind: &str, value: &str, out: &mut String) -> Result<(), TokenizerError> {
         if value.is_empty() {
             return Err(TokenizerError::EmptyValue);
         }
-        let mut message = Vec::with_capacity(kind.name().len() + 1 + value.len());
-        message.extend_from_slice(kind.name().as_bytes());
+        let mut message = Vec::with_capacity(kind.len() + 1 + value.len());
+        message.extend_from_slice(kind.as_bytes());
         message.push(0);
         message.extend_from_slice(value.as_bytes());
         let mac = sha256::hmac(&self.key, &message);
-        out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase()));
+        out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
         out.push('-');
         const HEX: &[u8; 16] = b"0123456789abcdef";
         out.extend(
@@ -106,27 +116,32 @@ impl HmacTokenizer {
         Ok(())
     }
 
-    /// The token of `value` of `kind`, such as `EMAIL-3f2a1c9d7e4b6a20`.
-    pub fn token(&self, kind: PiiKind, value: &str) -> Result<String, TokenizerError> {
+    /// The token of `value` of the kind named `kind`, such as
+    /// `EMAIL-3f2a1c9d7e4b6a20`.
+    pub fn token(&self, kind: &str, value: &str) -> Result<String, TokenizerError> {
         let mut out = String::new();
         self.write_token(kind, value, &mut out)?;
         Ok(out)
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// token.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+    /// Replaces every mention of `pii`, a layer over `src`, with its
+    /// token, as a view derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         if let Some(m) = pii.mentions().find(|m| m.normalized.is_empty()) {
             return Err(RewriteError::EmptyValue(m.span));
         }
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
-        };
-        PiiRewrite::replace(text, mentions, |m, out| {
-            self.write_token(m.kind, m.normalized, out).expect("checked non-empty normalized values");
-        })
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |c, out| {
+                let m = c.merged;
+                self.write_token(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
+                    .map_err(|_| RewriteError::EmptyValue(m.span))?;
+                Ok(EditOrigin::only(PiiStrategyKind::Hmac))
+            },
+        )
     }
 }
 
@@ -136,7 +151,7 @@ mod tests {
     use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
 
     use super::*;
-    use crate::rewrite::PiiAuditReport;
+    use crate::rewrite::{PiiAuditReport, source_view};
 
     #[test]
     fn empty_normalized_mention_is_refused_in_hmac_rewrite_and_skipped_in_audit_samples() {
@@ -149,7 +164,7 @@ mod tests {
         });
         let tokenizer = HmacTokenizer::new(&[0x42; 32]).unwrap();
         assert_eq!(
-            tokenizer.rewrite("hello world", &pii).map(|r| r.into_text()),
+            tokenizer.rewrite(&source_view("hello world"), &pii).map(|r| r.into_text()),
             Err(RewriteError::EmptyValue(Span::new(0, 5)))
         );
         let report = PiiAuditReport::of(&pii, &tokenizer, 3);

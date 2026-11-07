@@ -411,6 +411,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         anchor_layer: Some("turbo:tokens@absent".into()),
         annotations: Vec::new(),
         indexes_layer: Vec::new(),
+        custom_pii_kinds: Vec::new(),
         native_view: None,
         error: None,
     });
@@ -440,6 +441,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
             })
             .collect(),
         indexes_layer: Vec::new(),
+        custom_pii_kinds: Vec::new(),
         native_view: None,
         error: None,
     });

@@ -7,9 +7,11 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiKind, PiiStrategyKind};
 
-use super::{PiiRewrite, RewriteError};
+use super::replace::EditOrigin;
+use super::{PiiRewrite, RewriteError, kind_name};
 
 /// Writes `prefix`, the kind's name in capitals, `-`, the number and
 /// `suffix` for each mention. By default, overlapping mentions are
@@ -23,6 +25,12 @@ pub struct Pseudonymizer {
 }
 
 impl Pseudonymizer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.str(&self.prefix).str(&self.suffix).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// Labels such as `[EMAIL-1]` with `prefix` `[` and `suffix` `]`.
     pub fn new(prefix: impl Into<String>, suffix: impl Into<String>) -> Pseudonymizer {
         Pseudonymizer { prefix: prefix.into(), suffix: suffix.into(), refuse_overlaps: false }
@@ -40,33 +48,37 @@ impl Pseudonymizer {
         self.refuse_overlaps
     }
 
-    /// Appends the pseudonym label for `kind` and 1-based `number` to `out`.
-    pub(crate) fn write_label(&self, kind: PiiKind, number: u32, out: &mut String) {
+    /// Appends the pseudonym label for the kind named `kind` and 1-based
+    /// `number` to `out`.
+    pub(crate) fn write_label(&self, kind: &str, number: u32, out: &mut String) {
         out.push_str(&self.prefix);
-        out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase()));
+        out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
         let _ = write!(out, "-{number}");
         out.push_str(&self.suffix);
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// label.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+    /// Replaces every mention of `pii`, a layer over `src`, with its
+    /// label, as a view derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         let mut assigned: HashMap<(PiiKind, &str), String> = HashMap::new();
         let mut counters: HashMap<PiiKind, u32> = HashMap::new();
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
-        };
-        PiiRewrite::replace(text, mentions, |m, out| {
-            let label = assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
-                let n = counters.entry(m.kind).or_insert(0);
-                *n += 1;
-                let mut l = String::new();
-                self.write_label(m.kind, *n, &mut l);
-                l
-            });
-            out.push_str(label);
-        })
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |c, out| {
+                let m = c.merged;
+                let label = assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
+                    let n = counters.entry(m.kind).or_insert(0);
+                    *n += 1;
+                    let mut l = String::new();
+                    self.write_label(kind_name(&pii.custom_kinds, m.kind), *n, &mut l);
+                    l
+                });
+                out.push_str(label);
+                Ok(EditOrigin::only(PiiStrategyKind::Pseudonym))
+            },
+        )
     }
 }

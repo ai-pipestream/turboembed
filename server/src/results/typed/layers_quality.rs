@@ -5,8 +5,8 @@ use std::any::TypeId;
 
 use turbo_analysis::{Ix, KeyId, Layer};
 use turbo_analysis_layers::{
-    ColumnAlign, GrammarDiagnostics, KeyValuePairs, LexicalExpansions, Pii, QualityMetrics, SpanQuality, Tables,
-    TextQuality, WordNetSenses,
+    ColumnAlign, GrammarDiagnostics, KeyValuePairs, LexicalExpansions, Pii, PiiKind, QualityMetrics, SpanQuality,
+    Tables, TextQuality, WordNetSenses,
 };
 use turbo_encoding_layers::{EncodingEvidence, SourceEncoding};
 use turbo_normalize_layers::{
@@ -16,13 +16,24 @@ use turbo_normalize_layers::{
 use turbo_schema_extract::Records;
 
 use super::{ProjectionCx, build_layer};
+use crate::proto::result::pii_kind_ref;
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     EmbeddedAsset, EmojiAnnotation, GrammarDiagnosticAnnotation, KeyValuePairAnnotation, LexicalExpansionAnnotation,
-    NoiseSpan, PiiMention, PlaceholderAnnotation, ProtectedSpanAnnotation, QualityMetricsAnnotation,
+    NoiseSpan, PiiKindRef, PiiMention, PlaceholderAnnotation, ProtectedSpanAnnotation, QualityMetricsAnnotation,
     RecordValueAnnotation, SourceEncodingAnnotation, SpellingCorrection, TableCellAnnotation, TextArtifact,
     TypedAnnotation, TypedLayer, WordNetSenseAnnotation,
 };
+
+/// The wire reference of `kind`: its stable built-in id (the `PiiKindId`
+/// value), or its index in the layer's `custom_pii_kinds`.
+pub(super) fn pii_kind_ref(kind: PiiKind) -> PiiKindRef {
+    let kind = match kind {
+        PiiKind::Custom(c) => pii_kind_ref::Kind::Custom(u32::from(c.index())),
+        builtin => pii_kind_ref::Kind::Builtin(i32::from(builtin.builtin_id().unwrap_or(0))),
+    };
+    PiiKindRef { kind: Some(kind) }
+}
 
 fn placeholder_kind_name(k: PlaceholderKind) -> &'static str {
     match k {
@@ -132,7 +143,7 @@ pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
         }));
     }
     if ty == TypeId::of::<Pii>() {
-        return Some(build_layer::<Pii>(cx, key, |cx, l, mref| {
+        let mut layer = build_layer::<Pii>(cx, key, |cx, l, mref| {
             let mref = mref.map(ToOwned::to_owned);
             (0..l.len())
                 .map(|i| {
@@ -143,14 +154,19 @@ pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
                         probability: None,
                         model_ref: mref.clone(),
                         value: Some(Value::Pii(PiiMention {
-                            kind: m.kind.name().to_owned(),
-                            confidence_tier: m.confidence.name().to_owned(),
+                            kind_ref: Some(pii_kind_ref(m.kind)),
+                            confidence: i32::from(m.confidence.id()),
                             normalized: m.normalized.to_owned(),
+                            ..PiiMention::default()
                         })),
                     }
                 })
                 .collect()
-        }));
+        });
+        if let Some(pii) = cx.doc.get_key(&turbo_analysis::Key::<Pii>::named(key.name)) {
+            layer.custom_pii_kinds = pii.custom_kinds.names().map(str::to_owned).collect();
+        }
+        return Some(layer);
     }
     if ty == TypeId::of::<Noise>() {
         return Some(build_layer::<Noise>(cx, key, |cx, l, mref| {

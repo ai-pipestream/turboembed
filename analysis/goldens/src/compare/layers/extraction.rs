@@ -261,7 +261,7 @@ impl GoldenCompare for Pii {
     fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
         let mut ours = Strs::default();
         for m in self.mentions() {
-            ours.push(&format!("{} {}", m.kind.name(), m.normalized));
+            ours.push(&format!("{} {}", self.kind_name(m.kind).unwrap_or(""), m.normalized));
         }
         let (kind, normalized) = (golden.strs("type"), golden.strs("normalized"));
         let (kind, normalized) = (kind.expect("a str column"), normalized.expect("a str column"));

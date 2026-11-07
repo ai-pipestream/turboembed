@@ -9,13 +9,15 @@
 
 use std::fmt;
 
-use turbo_analysis::Span;
-use turbo_analysis_layers::{Pii, PiiKind, PiiMention};
+use turbo_analysis::{Span, View, ViewId};
+use turbo_analysis_layers::{KindError, Pii, PiiKind, PiiMention, PiiStrategyKind};
 
-use super::{PiiRewrite, RewriteError};
+use super::replace::EditOrigin;
+use super::{PiiRewrite, RewriteError, absolute};
 use crate::text::letter_or_digit;
 
-/// A mask the policy cannot take.
+/// Why a mask cannot be written: a mask the policy cannot take, a span
+/// the text does not have, or a layer over another view.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MaskError {
     /// The mask is not one ASCII byte, so writing it would change byte
@@ -23,6 +25,11 @@ pub enum MaskError {
     NotAscii(char),
     /// A span is past the end of the text or not on character boundaries.
     Span(Span),
+    /// A mention's custom kind is outside its layer's table.
+    Kind(KindError),
+    /// The pii layer is over view `layer`, not over `view`, the view being
+    /// masked, so its spans are offsets of another text.
+    ForeignView { layer: ViewId, view: ViewId },
 }
 
 impl fmt::Display for MaskError {
@@ -30,6 +37,10 @@ impl fmt::Display for MaskError {
         match self {
             MaskError::NotAscii(c) => write!(f, "the mask {c:?} is not an ASCII character"),
             MaskError::Span(s) => write!(f, "the span {}..{} is not a range of the text", s.start, s.end),
+            MaskError::Kind(e) => e.fmt(f),
+            MaskError::ForeignView { layer, view } => {
+                write!(f, "the pii layer is over view {}, not view {}", layer.0, view.0)
+            }
         }
     }
 }
@@ -72,6 +83,12 @@ pub struct MaskPolicy {
 }
 
 impl MaskPolicy {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.u8(self.mask).u8(u8::from(self.keep_format)).usize(self.keep_leading).usize(self.keep_trailing);
+    }
+
     /// The character the defaults mask with.
     pub const DEFAULT_MASK: char = '*';
 
@@ -143,44 +160,50 @@ impl MaskPolicy {
 
     /// `MaskPolicy.apply`: `value` with this policy over all of it.
     pub fn masked(self, value: &str) -> String {
-        assert!(u32::try_from(value.len()).is_ok(), "the value is longer than u32 offsets reach");
+        let len = u32::try_from(value.len()).expect("the value is longer than u32 offsets reach");
         let mut out = value.as_bytes().to_vec();
-        self.apply(value, Span::new(0, value.len() as u32), &mut out);
+        self.apply(value, Span::new(0, len), &mut out);
         String::from_utf8(out).expect("masking writes whole characters")
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// masked surface text, coalescing overlapping mentions.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
-        let mut idx = 0;
-        PiiRewrite::replace(text, clusters.iter().map(|c| c.merged), |m, out| {
-            let cluster = &clusters[idx];
-            idx += 1;
-            let piece = &text[m.span.range()];
-            if cluster.members.len() == 1 {
-                out.push_str(&self.masked(piece));
-                return;
-            }
-            let winner_ret = self.retention(piece);
-            let member_rets: Vec<(Span, CharRetention)> =
-                cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
-            for (rel_at, c) in piece.char_indices() {
-                let abs_at = m.span.start + rel_at as u32;
-                let keep = winner_ret.keeps(rel_at, c)
-                    && member_rets
-                        .iter()
-                        .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
-                        .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
-                if keep {
-                    out.push(c);
-                } else {
-                    for _ in 0..c.len_utf8() {
-                        out.push(self.mask());
+    /// Replaces every mention of `pii`, a layer over `src`, with its
+    /// masked surface text, coalescing overlapping mentions, as a view
+    /// derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let text = src.text();
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| false,
+            0,
+            |cluster, out| {
+                let m = cluster.merged;
+                let piece = &text[m.span.range()];
+                if cluster.members.len() == 1 {
+                    out.push_str(&self.masked(piece));
+                    return Ok(EditOrigin::only(PiiStrategyKind::Mask));
+                }
+                let winner_ret = self.retention(piece);
+                let member_rets: Vec<(Span, CharRetention)> =
+                    cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
+                for (rel_at, c) in piece.char_indices() {
+                    let abs_at = absolute(m.span, rel_at);
+                    let keep = winner_ret.keeps(rel_at, c)
+                        && member_rets
+                            .iter()
+                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                            .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
+                    if keep {
+                        out.push(c);
+                    } else {
+                        for _ in 0..c.len_utf8() {
+                            out.push(self.mask());
+                        }
                     }
                 }
-            }
-        })
+                Ok(EditOrigin::only(PiiStrategyKind::Mask))
+            },
+        )
     }
 
     /// Precomputes byte-offset retention bounds for `piece` in `O(|piece|)`.
@@ -296,6 +319,7 @@ pub fn mask(text: &str, spans: impl IntoIterator<Item = (Span, MaskPolicy)>) -> 
 /// `text`) with `mask`: `Masker.mask(document, layer, mask)`.
 pub fn mask_all(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskError> {
     let policy = MaskPolicy::new(mask_char)?;
+    check_kinds(pii)?;
     mask(text, pii.mentions().map(|m| (m.span, policy)))
 }
 
@@ -304,11 +328,17 @@ pub fn mask_all(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskEr
 /// `MaskPolicies.byType`.
 pub fn mask_by_kind(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskError> {
     let _ = MaskPolicy::new(mask_char)?;
+    check_kinds(pii)?;
     mask(
         text,
         pii.mentions()
             .map(|m: PiiMention<'_>| (m.span, MaskPolicy::for_kind(m.kind, mask_char).expect("validated ASCII mask"))),
     )
+}
+
+/// Refuses a mention whose custom kind is outside its layer's table.
+fn check_kinds(pii: &Pii) -> Result<(), MaskError> {
+    pii.mentions().try_for_each(|m| pii.custom_kinds.check(m.kind).map_err(MaskError::Kind))
 }
 
 #[cfg(test)]

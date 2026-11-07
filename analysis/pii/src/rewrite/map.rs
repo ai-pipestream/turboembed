@@ -9,9 +9,11 @@ use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
 
-use turbo_analysis_layers::{Pii, PiiMention};
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiMention, PiiStrategyKind};
 
 use super::policy::RewriteState;
+use super::replace::EditOrigin;
 use super::{PiiRewrite, Pseudonymizer, RewriteError, RewriteStrategy};
 
 /// The default field delimiter for TSV lookup files.
@@ -75,6 +77,25 @@ pub struct MapReplacer {
 }
 
 impl MapReplacer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        // The table's entries are values a caller chose to replace, so they
+        // enter only through a SHA-256 digest of the sorted table.
+        let mut rows: Vec<(&String, &String)> = self.table.iter().collect();
+        rows.sort_unstable();
+        let mut flat = Vec::new();
+        for (k, v) in rows {
+            for s in [k, v] {
+                flat.extend_from_slice(&(s.len() as u64).to_le_bytes());
+                flat.extend_from_slice(s.as_bytes());
+            }
+        }
+        h.bytes(&crate::checksum::sha256::digest(&flat));
+        h.u8(u8::from(self.case_sensitive)).u8(self.target as u8).u8(u8::from(self.refuse_overlaps));
+        self.fallback.fold_config(h);
+    }
+
     /// Builds a lookup table from `(key, replacement)` pairs.
     ///
     /// Keys and replacements are trimmed of surrounding whitespace; empty
@@ -238,22 +259,27 @@ impl MapReplacer {
         }
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, using the
-    /// lookup table or the configured fallback strategy when unmapped.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mut state = RewriteState::default();
-        if self.refuses_overlaps() {
-            return PiiRewrite::try_replace(text, pii.mentions(), |m, out| {
-                self.write_mention(&mut state, text, m, out)
-            });
-        }
-        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+    /// Replaces every mention of `pii`, a layer over `src`, using the
+    /// lookup table or the configured fallback strategy when unmapped, as
+    /// a view derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let text = src.text();
+        let mut state = RewriteState::new(&pii.custom_kinds);
+        let refuse = self.refuses_overlaps();
         let strategy = RewriteStrategy::Map(Box::new(self.clone()));
-        let mut idx = 0;
-        PiiRewrite::try_replace(text, clusters.iter().map(|c| c.merged), |_, out| {
-            let cluster = &clusters[idx];
-            idx += 1;
-            state.write_cluster(|_| &strategy, text, cluster, out)
-        })
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| refuse,
+            0,
+            |cluster, out| {
+                if refuse {
+                    self.write_mention(&mut state, text, &cluster.merged, out)?;
+                } else {
+                    state.write_cluster(|_| &strategy, text, cluster, out)?;
+                }
+                Ok(EditOrigin::only(PiiStrategyKind::Map))
+            },
+        )
     }
 }
