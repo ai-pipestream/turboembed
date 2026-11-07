@@ -16,6 +16,15 @@ breaking:
   use:
     - FILE
     - WIRE_JSON
+  # Issue #1908, a break Kristian approved (no clients yet): LayerWireStatus
+  # gains UNSPECIFIED = 0 and status_detail is replaced by a typed LayerError
+  # (numbers and names reserved). Remove these entries once it is on main.
+  ignore_only:
+    ENUM_VALUE_SAME_NAME:
+      - turbo_typed_annotations.proto
+    FIELD_NO_DELETE:
+      - turbo_analysis.proto
+      - turbo_typed_annotations.proto
   ignore:
     - open_inference_grpc.proto
     - health.proto

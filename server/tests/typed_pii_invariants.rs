@@ -286,6 +286,10 @@ fn pii_payloads_and_custom_tables_belong_to_the_pii_layer() {
             other.annotations.clear();
             other.custom_pii_kinds = vec!["badge".to_owned()];
         }
+        // The envelope (#1907) wants a provenance entry for every layer.
+        let mut prov = wire.provenance.iter().find(|p| p.layer == "turbo:pii").cloned().unwrap();
+        prov.layer = other.id.clone();
+        wire.provenance.push(prov);
         wire.layers.push(other);
         wire
     };
@@ -372,6 +376,11 @@ fn candidates_carry_their_disposition_and_validate_against_the_pii_layer() {
     let mut other = candidates(&mut bad).clone();
     other.id = "turbo:entities".to_owned();
     other.custom_pii_kinds.clear();
+    // The envelope (#1907) wants a provenance entry for every layer.
+    let mut prov = bad.provenance.iter().find(|p| p.layer == "turbo:pii-candidates").cloned().unwrap();
+    prov.layer = other.id.clone();
+    bad.provenance.push(prov);
     bad.layers.push(other);
-    assert!(refused("a candidate on another layer", &bad, &[]).contains("outside a turbo:pii-candidates layer"));
+    let message = refused("a candidate on another layer", &bad, &[]);
+    assert!(message.contains("outside a turbo:pii-candidates layer"), "{message}");
 }

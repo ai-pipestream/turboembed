@@ -28,12 +28,51 @@ enum OffsetMode
   OFFSET_MODE_CODE_POINT = 2;
 }
 
-// What became of one layer or view on its document.
+// What became of one layer or view on its document. UNSPECIFIED is
+// never written: an absent status is never read as OK (issue #1908).
 enum LayerWireStatus
 {
-  LAYER_WIRE_STATUS_OK = 0;
-  LAYER_WIRE_STATUS_SKIPPED = 1;
-  LAYER_WIRE_STATUS_FAILED = 2;
+  LAYER_WIRE_STATUS_UNSPECIFIED = 0;
+  LAYER_WIRE_STATUS_OK = 1;
+  LAYER_WIRE_STATUS_SKIPPED = 2;
+  LAYER_WIRE_STATUS_FAILED = 3;
+}
+
+// Why a layer or view is not OK, as a kind: no free text, no values, no
+// debug formatting (issue #1908). DECLINED is an annotator declining
+// the document; UPSTREAM is a skip because a layer it reads is not
+// complete; the rest are the analysis error kinds.
+enum LayerErrorKind
+{
+  LAYER_ERROR_KIND_UNSPECIFIED = 0;
+  LAYER_ERROR_KIND_DECLINED = 1;
+  LAYER_ERROR_KIND_UPSTREAM = 2;
+  LAYER_ERROR_KIND_MISSING = 3;
+  LAYER_ERROR_KIND_DUPLICATE = 4;
+  LAYER_ERROR_KIND_CLASH = 5;
+  LAYER_ERROR_KIND_BOUNDS = 6;
+  LAYER_ERROR_KIND_MISALIGNED = 7;
+  LAYER_ERROR_KIND_UNALIGNED = 8;
+  LAYER_ERROR_KIND_INVALID = 9;
+  LAYER_ERROR_KIND_PIPELINE = 10;
+  LAYER_ERROR_KIND_ANNOTATOR = 11;
+  LAYER_ERROR_KIND_PANIC = 12;
+  LAYER_ERROR_KIND_OFFSET = 13;
+  LAYER_ERROR_KIND_SOURCE = 14;
+}
+
+// A sanitized layer error: the kind, the turbo status a client routes
+// it by, and the code names it involves. It never carries document
+// text, PII values, annotator detail strings or a debug rendering.
+message LayerError
+{
+  LayerErrorKind kind = 1;
+  // TURBO_E_* as decimal; 0 for DECLINED and UPSTREAM, which are skips.
+  int32 turbo_code = 2;
+  // The layer instance the error names, when it names one.
+  optional LayerInstanceRef layer = 3;
+  // The annotator's registered name, for ANNOTATOR and PANIC.
+  string annotator = 4;
 }
 
 // One text view of a document graph.
@@ -41,10 +80,13 @@ message ViewInfo
 {
   string instance = 1;
   LayerWireStatus status = 2;
-  string status_detail = 3;
+  reserved 3;
+  reserved "status_detail";
   string annotator = 4;
   // The parent view's instance; empty for the source view.
   string parent = 5;
+  // Why the view is not OK; absent when it is.
+  optional LayerError error = 6;
 }
 
 // Request to project a binary DocumentGraph into a strongly-typed
@@ -55,6 +97,307 @@ message InspectDocumentGraphRequest
   bytes graph = 2;
   uint32 view = 3;
   OffsetMode offsets = 4;
+  // The caller's own identity of the input, copied into the result's
+  // InputIdentity.binding as given; absent when the caller has none.
+  optional InputBinding binding = 5;
+  // The caller's operation (idempotency) key, echoed on the receipt;
+  // empty when the caller has none (issue #1908).
+  string operation_key = 6;
+}
+
+// ---- The result envelope (issue #1907) ----
+//
+// Every digest field holds the raw 32 bytes of a SHA-256, and the
+// field says exactly what the digest is computed over. A digest that
+// is not available is absent, never zero-filled or invented. Offsets
+// inside the envelope's edit chain are UTF-8 bytes whatever the
+// result's OffsetMode is; OffsetMode applies to annotation spans only.
+
+// What the caller knows about where the input came from. The server
+// copies it as given and never invents repository provenance: an
+// absent binding means the caller supplied none.
+message InputBinding
+{
+  // The source repository revision the input was taken at.
+  string source_revision = 1;
+  // The parse artifact the input text is, and its digest, both opaque
+  // to the server.
+  string parse_artifact_id = 2;
+  bytes parse_artifact_digest = 3;
+}
+
+// What the result was computed from, bound to the exact bytes.
+message InputIdentity
+{
+  optional InputBinding binding = 1;
+  // SHA-256 of the document's original bytes: the decoded file bytes
+  // for a document decoded from bytes, else the UTF-8 of the source
+  // view. raw_bytes_len is the length of those bytes.
+  bytes raw_bytes_digest = 2;
+  uint64 raw_bytes_len = 3;
+  // SHA-256 of the source view's UTF-8 text (view 0), and that text's
+  // length in UTF-8 bytes.
+  bytes source_text_digest = 4;
+  uint32 source_text_len = 5;
+}
+
+// The immutable identity of one result.
+message ResultIdentity
+{
+  // The lowercase hexadecimal of content_digest: two results with one
+  // id hold the same graph bytes.
+  string result_id = 1;
+  // SHA-256 of the exact TGRF bytes DocumentGraph::to_bytes writes for
+  // this document, nothing prepended, so `sha256sum` of the graph
+  // bytes reproduces it. Protobuf bytes are not canonical across
+  // languages and are never digested.
+  bytes content_digest = 2;
+  uint64 graph_bytes_len = 3;
+  // The TGRF FORMAT_VERSION the digested bytes are in.
+  uint32 graph_format_version = 4;
+  // The version of this envelope's messages and rules: 1.
+  uint32 envelope_schema_version = 5;
+}
+
+// One layer or view instance, named as the graph names it.
+message LayerInstanceRef
+{
+  string layer = 1;
+  string instance = 2;
+}
+
+// Processing provenance of one layer or view instance. model_ref names
+// the models entry carrying the annotator, its version, the model
+// bundle (weights id, revision and sha256) and the execution
+// environment; config_hash there is the local FNV cache key and never
+// an identity. The digests here are the identities.
+message LayerProvenance
+{
+  string layer = 1;
+  string instance = 2;
+  // Message-local, into TypedDocumentResult.models.
+  string model_ref = 3;
+  // SHA-256 chained provenance digest, rule turbo:provenance-digest:v2,
+  // over: the annotator, its version, the config key, the model (id,
+  // revision, sha256) when there is one, the source text digest, the
+  // source bytes digest when the document was decoded from bytes,
+  // every view read (instance, text digest) sorted by instance, and
+  // every read layer (layer, instance, its own provenance digest)
+  // sorted by layer then instance.
+  bytes provenance_digest = 4;
+  // SHA-256 content digest of the layer's payload, rule
+  // turbo:layer-content:v2 over the layer name, instance, codec
+  // schema, length, the layer's own content hash, its text spans, its
+  // index bounds and, for a view, its text digest and edits. Absent
+  // for a layer type that provides no complete content hash.
+  optional bytes content_digest = 5;
+  // SHA-256 snapshot, rule turbo:upstream-content:v2, of the content
+  // digests of every layer this one read, sorted by layer then
+  // instance. Absent for the source view and when a read layer has no
+  // content digest.
+  optional bytes input_snapshot_digest = 6;
+  // The binary codec schema (Layer::SCHEMA) the layer's graph bytes
+  // are in.
+  uint32 codec_schema = 7;
+  // The layer instances this one read, and the anchor and index
+  // instances it is on, in the order the annotator declared them.
+  repeated LayerInstanceRef reads = 8;
+  repeated LayerInstanceRef on = 9;
+}
+
+// A reference to one annotation that stays meaningful outside its
+// message: the result it is in, the layer instance and item index,
+// and the native view its spans are in, by instance and text digest.
+// TypedDocumentResult.view, ViewChain.view, annotation indexes and
+// model_ref values are message-local and mean nothing elsewhere.
+message ScopedRef
+{
+  string result_id = 1;
+  string layer = 2;
+  string instance = 3;
+  uint32 index = 4;
+  string view_instance = 5;
+  bytes view_text_digest = 6;
+}
+
+// A run of count consecutive edits of one view to its parent, each
+// replacing parent_width parent bytes with child_width child bytes,
+// the first at (parent_start, child_start) and each next one starting
+// where the one before it ends on both sides. count is 1 for a lone
+// edit; a width of 0 on one side is a deletion or an insertion, never
+// on both. Decoding a run gives exactly the native Edit list: edit k
+// is parent [parent_start + k * parent_width, + parent_width) and
+// child [child_start + k * child_width, + child_width).
+message EditRun
+{
+  uint32 parent_start = 1;
+  uint32 parent_width = 2;
+  uint32 child_start = 3;
+  uint32 child_width = 4;
+  uint32 count = 5;
+}
+
+// One view's place in the document's view tree and its native
+// alignment to its parent: the ordered, non-overlapping edit pairs in
+// canonical UTF-8 byte coordinates, exactly the native Alignment, in
+// runs. Outside the edits parent and child are byte for byte the
+// same. Mapping between any two views is the stepwise walk up from
+// the span's own view to their lowest common ancestor and down again,
+// one alignment at a time, a span's start widened to the start of an
+// edit it falls inside and its end to that edit's end (Side::Start
+// and Side::End); an empty span at inserted or deleted bytes stays
+// empty before them. A composed net alignment is never substituted:
+// its empty-span behaviour differs. A consumer of this chain holds
+// byte lengths, not every view's text, so it can refuse only a span
+// outside its view; the server also refuses a span that splits a
+// UTF-8 scalar, and a port need not promise that refusal.
+message ViewChain
+{
+  // Message-local ViewId; the source view is 0.
+  uint32 view = 1;
+  string instance = 2;
+  // The parent's view; absent for the source view, which has no edits.
+  optional uint32 parent = 3;
+  // SHA-256 of this view's UTF-8 text, and its length in UTF-8 bytes.
+  bytes text_digest = 4;
+  uint32 text_len = 5;
+  // The number of native edits: the sum of the runs' counts.
+  uint32 edit_count = 6;
+  repeated EditRun edits = 7;
+}
+
+// The whole view tree, inline. The source view comes first and every
+// view after its parent.
+message InlineMapping
+{
+  // The version of the chain encoding and mapping rules above: 1.
+  uint32 mapping_schema_version = 1;
+  repeated ViewChain views = 2;
+}
+
+// The mapping payload. Inline is the only mode served; it is bounded
+// by max_mapping_edits and a document over it is refused with
+// TURBO_E_CAPACITY, never truncated. Arm 2, artifact, is reserved for
+// an immutable artifact reference and is not implemented: the server
+// keeps no artifacts.
+message MappingPayload
+{
+  oneof payload
+  {
+    InlineMapping inline = 1;
+  }
+  reserved 2;
+  reserved "artifact";
+}
+
+// ---- The processing receipt (issue #1908) ----
+//
+// A receipt says what one attempt at an operation did. It is kept apart
+// from the immutable result it references: a new attempt or receipt
+// never changes the result identity. The server binds and echoes the
+// caller's operation key and keeps no state for it; rejecting a reused
+// key with different input is the caller's job, and nothing here
+// promises exactly-once execution.
+
+// What became of an operation, or of one layer in it. UNSPECIFIED is
+// never written. COMPLETE with zero items is an explicit "assessed,
+// nothing found".
+enum ProcessingStatus
+{
+  PROCESSING_STATUS_UNSPECIFIED = 0;
+  PROCESSING_STATUS_COMPLETE = 1;
+  PROCESSING_STATUS_PARTIAL = 2;
+  PROCESSING_STATUS_NOT_ASSESSED = 3;
+  PROCESSING_STATUS_FAILED = 4;
+  PROCESSING_STATUS_CANCELLED = 5;
+}
+
+// Why a layer assessed less than its whole text.
+enum TruncationReason
+{
+  TRUNCATION_REASON_UNSPECIFIED = 0;
+  // The encoder's longest sequence cut the input.
+  TRUNCATION_REASON_MAX_SEQUENCE = 1;
+  // An item or byte cap stopped the annotator early.
+  TRUNCATION_REASON_MAX_ITEMS = 2;
+  TRUNCATION_REASON_MAX_BYTES = 3;
+  // The operation's deadline stopped the annotator early.
+  TRUNCATION_REASON_DEADLINE = 4;
+}
+
+// A half-open range [start, end) of source view (view 0) UTF-8 bytes.
+message ByteRange
+{
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+// A detector (annotator) by its registered name and version.
+message DetectorRef
+{
+  string id = 1;
+  string version = 2;
+}
+
+// One layer or view instance in a receipt.
+message LayerReceipt
+{
+  string layer = 1;
+  string instance = 2;
+  ProcessingStatus status = 3;
+  // The layer's item count: 0 on a COMPLETE layer means nothing found.
+  uint32 item_count = 4;
+  // What the layer assessed, in source view UTF-8 bytes, sorted and
+  // disjoint; empty when nothing was assessed.
+  repeated ByteRange assessed = 5;
+  // The detector asked to make the layer, and the ones that ran on the
+  // document (empty when it declined or was skipped upstream).
+  repeated DetectorRef requested = 6;
+  repeated DetectorRef executed = 7;
+  repeated TruncationReason truncations = 8;
+  optional LayerError error = 9;
+  // The layer's configuration identity: its LayerProvenance
+  // provenance_digest (rule turbo:provenance-digest:v2, over the
+  // annotator, version, config key and model). Absent for a layer the
+  // graph holds no digest for.
+  optional bytes provenance_digest = 10;
+}
+
+// The receipt of one attempt at one operation.
+message ProcessingReceipt
+{
+  // The version of the receipt's messages and rules: 1.
+  uint32 receipt_schema_version = 1;
+  // The caller's key, as given; empty when the caller supplied none.
+  string operation_key = 2;
+  // This attempt, from the server: 32 lowercase hexadecimal digits,
+  // new on every attempt.
+  string attempt_id = 3;
+  // The exact input the attempt ran on.
+  InputIdentity input = 4;
+  // The result it produced; absent when it produced none (cancelled, or
+  // failed before a result existed).
+  optional ResultIdentity result = 5;
+  ProcessingStatus status = 6;
+  // The sum of the layers' item counts.
+  uint64 item_count = 7;
+  // One entry per layer and view instance, in document order.
+  repeated LayerReceipt layers = 8;
+  // The pipeline steps asked for and the ones that ran; both empty for
+  // an operation that runs no steps, such as InspectDocumentGraph.
+  repeated string requested_steps = 9;
+  repeated string executed_steps = 10;
+  // SHA-256 of the processing configuration, independent of the input
+  // text, rule turbo.processing-config.v1: the domain tag, then the entry
+  // count and, for every view and layer entry sorted by (layer id,
+  // instance), the layer id, instance, annotator and version (each a u64
+  // little-endian length then UTF-8), the config hash as u64
+  // little-endian, the model identity (byte 0 when absent, else byte 1 and
+  // its id, revision and sha256) and the read keys sorted by (layer id,
+  // instance), their count then each layer id and instance. No text, view,
+  // source or content digest takes part, so one operation key reused under
+  // another configuration is detectable; input carries the input digests.
+  bytes config_digest = 11;
 }
 
 // Runtime execution environment for a model-backed layer.
@@ -106,11 +449,23 @@ message TypedDocumentResult
 {
   string doc_id = 1;
   string raw_text = 2;
+  // Message-local ViewId of the view raw_text and every span are in.
   uint32 view = 3;
   OffsetMode offsets = 4;
   repeated ModelProvenance models = 5;
   repeated ViewInfo views = 6;
   repeated TypedLayer layers = 7;
+  // The envelope (issue #1907): what the result was computed from,
+  // what it is, how each layer was made, and the view edit chain.
+  InputIdentity input = 8;
+  ResultIdentity result = 9;
+  // One entry per view and layer instance, in document order.
+  repeated LayerProvenance provenance = 10;
+  MappingPayload mapping = 11;
+  // The processing receipt of the operation that produced this answer
+  // (issue #1908). It is not part of the result: the result identity is
+  // the digest of the graph bytes, so a new receipt never changes it.
+  ProcessingReceipt receipt = 12;
 }
 
 // One typed layer instance on a TypedDocumentResult.
@@ -119,15 +474,22 @@ message TypedLayer
   string id = 1;
   string instance = 2;
   LayerWireStatus status = 3;
-  string status_detail = 4;
+  reserved 4;
+  reserved "status_detail";
   AnchorKind scope = 5;
   repeated string model_refs = 6;
   optional string anchor_layer = 7;
   repeated TypedAnnotation annotations = 8;
   repeated LayerIndexBound indexes_layer = 9;
+  // Message-local ViewId of the view the layer's native spans are in,
+  // before projection into TypedDocumentResult.view; absent for a
+  // layer without text spans.
+  optional uint32 native_view = 10;
+  // Why the layer is not OK; absent when it is.
+  optional LayerError error = 11;
   // The custom-kind names a turbo:pii or turbo:pii-candidates layer's
   // PiiKindRef.custom indexes; empty for every other layer.
-  repeated string custom_pii_kinds = 10;
+  repeated string custom_pii_kinds = 12;
 }
 
 // One recognizer vote on an EntityAnnotation, populated from

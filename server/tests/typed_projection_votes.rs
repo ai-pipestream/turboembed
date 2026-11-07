@@ -63,6 +63,8 @@ async fn verify(fragments: &[Span], collapse: bool, byte_expected: (u32, u32), u
                         graph: graph.clone(),
                         view,
                         offsets: mode as i32,
+                        binding: None,
+                        operation_key: String::new(),
                     })
                     .await
                     .unwrap()

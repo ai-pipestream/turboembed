@@ -119,6 +119,7 @@ async fn rpc_failure_cascade_keeps_every_layer_batch_importable() {
                 );
                 complete = Some(c);
             }
+            Event::Receipt(_) => {}
         }
     }
     server.stop().await;

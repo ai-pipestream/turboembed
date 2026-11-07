@@ -1,4 +1,5 @@
 use super::*;
+use crate::doc::ContentDigest;
 
 pub(super) fn put_status(w: &mut Writer, status: &StatusRecord) -> Result<(), ExportError> {
     match status {
@@ -144,6 +145,14 @@ pub(super) fn get_edits(r: &mut Reader<'_>) -> Result<Vec<Edit>, ExportError> {
         out.push(Edit { parent: r.span()?, child: r.span()? });
     }
     Ok(out)
+}
+
+/// The SHA-256 of `bytes`, exactly as [`DocumentGraph::to_bytes`] wrote
+/// them and nothing else, as the content identity of a whole graph: two
+/// documents with one digest are the same bytes, and `sha256sum` of the
+/// bytes reproduces it (issue #1907).
+pub fn graph_content_digest(bytes: &[u8]) -> ContentDigest {
+    ContentDigest(turbo_sha256::sha256(bytes))
 }
 
 impl DocumentGraph {

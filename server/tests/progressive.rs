@@ -53,6 +53,7 @@ async fn progressive_stream_emits_strict_1_based_sequence_and_matches_analyzer_r
         model: String::new(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        operation_key: String::new(),
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
@@ -61,8 +62,9 @@ async fn progressive_stream_emits_strict_1_based_sequence_and_matches_analyzer_r
         events.push(item.unwrap());
     }
 
-    // Must have `started` (seq 1) + 10 `layers_ready` events (seq 2..=11) + `complete` (seq 12).
-    assert_eq!(events.len(), 12);
+    // Must have `started` (seq 1) + 10 `layers_ready` events (seq 2..=11) + `complete` (seq 12)
+    // + the terminal `receipt` (seq 13).
+    assert_eq!(events.len(), 13);
     for (idx, ev) in events.iter().enumerate() {
         assert_eq!(ev.sequence, (idx + 1) as u64, "strictly increasing 1-based sequence at index {idx}");
     }
@@ -75,7 +77,7 @@ async fn progressive_stream_emits_strict_1_based_sequence_and_matches_analyzer_r
     assert_eq!(started.views.len(), 1);
 
     let mut completed_steps = Vec::new();
-    for ev in &events[1..events.len() - 1] {
+    for ev in &events[1..events.len() - 2] {
         let Some(Event::LayersReady(batch)) = &ev.event else {
             panic!("expected LayersReady event, got {ev:?}");
         };
@@ -95,7 +97,7 @@ async fn progressive_stream_emits_strict_1_based_sequence_and_matches_analyzer_r
     assert!(pos_of("turbo-stem:terms") < pos_of("turbo-keywords:yake"));
     assert!(pos_of("turbo-stem:terms") < pos_of("turbo:lexical-boundaries"));
 
-    let Some(Event::Complete(complete)) = &events.last().unwrap().event else {
+    let Some(Event::Complete(complete)) = &events[events.len() - 2].event else {
         panic!("expected final event to be Complete");
     };
     assert_eq!(complete.source_text, source_text);
@@ -178,6 +180,7 @@ async fn progressive_stream_isolates_real_annotator_failure_and_completes_siblin
         model: String::new(),
         initial_graph,
         structure_seed: None,
+        operation_key: String::new(),
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
@@ -206,19 +209,28 @@ async fn progressive_stream_isolates_real_annotator_failure_and_completes_siblin
     assert_eq!(fail.skipped_dependents, vec!["turbo-keywords:yake".to_string()]);
     let failure_info = fail.failure.as_ref().unwrap();
     assert_eq!(failure_info.turbo_code, TURBO_E_INTERNAL);
-    assert!(failure_info.message.contains("the tokens are in another view"), "got: {}", failure_info.message);
+    // The message names the step and the error kind only; the annotator's
+    // own detail never reaches the wire (issue #1908).
+    assert_eq!(failure_info.message, "step 'turbo-stem:terms' failed: annotator failure");
+    assert!(!failure_info.message.contains("another view"), "got: {}", failure_info.message);
+    let error = fail.error.as_ref().unwrap();
+    assert_eq!(error.kind, LayerErrorKind::Annotator as i32);
+    assert_eq!(error.turbo_code, TURBO_E_INTERNAL);
 
     for sibling in ["turbo-structure:blocks", "turbo:structure-boundaries"] {
         assert!(ready_steps.iter().any(|s| s == sibling), "missing sibling step {sibling}");
     }
 
-    let Some(Event::Complete(complete)) = &events.last().unwrap().event else {
+    let Some(Event::Complete(complete)) = &events[events.len() - 2].event else {
         panic!("expected final Complete event");
     };
     let terms_info = complete.layers.iter().find(|l| l.layer == "turbo:terms").unwrap();
     assert_eq!(terms_info.status, LayerWireStatus::Failed as i32);
     let kw_info = complete.layers.iter().find(|l| l.layer == "turbo:keywords").unwrap();
     assert_eq!(kw_info.status, LayerWireStatus::Skipped as i32);
+    assert_eq!(kw_info.error.as_ref().unwrap().kind, LayerErrorKind::Upstream as i32);
+    let Some(Event::Receipt(receipt)) = &events[events.len() - 1].event else { panic!("no terminal receipt") };
+    assert_eq!(receipt.status, ProcessingStatus::Failed as i32);
 
     // Compare terminal Complete graph byte-for-byte with Analyzer::run on the same failure case.
     let step_refs: Vec<&str> = steps.iter().map(String::as_str).collect();
@@ -244,6 +256,7 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
         model: String::new(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        operation_key: String::new(),
     };
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
     let first = stream.next().await.unwrap().unwrap();
@@ -262,6 +275,7 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
         model: String::new(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        operation_key: String::new(),
     };
     let err = client.analyze_document_progressive(bad_step_req).await.unwrap_err();
     assert_eq!(err.code(), Code::InvalidArgument);
@@ -278,6 +292,7 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
         model: "unknown-bundle".into(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        operation_key: String::new(),
     };
     let err = client.analyze_document_progressive(bad_model_req).await.unwrap_err();
     assert_eq!(err.code(), Code::InvalidArgument);

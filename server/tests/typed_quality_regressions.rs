@@ -63,6 +63,8 @@ async fn project(client: &mut common::Analysis, graph: &[u8], mode: OffsetMode, 
             graph: graph.to_vec(),
             view,
             offsets: mode as i32,
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()

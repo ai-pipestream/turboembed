@@ -75,6 +75,7 @@ pub use decode::import;
 pub use diff::{GraphDiff, LayerDiffSummary};
 pub use encode::export;
 pub use error::ExportError;
+pub use graph::graph_content_digest;
 pub use records::{
     DocumentGraph, ErrorRecord, FORMAT_VERSION, LayerRecord, LayerRef, NodeRef, ProvenanceRecord, SourceRecord,
     StatusRecord, ViewRecord, layer_ref, node_ref,

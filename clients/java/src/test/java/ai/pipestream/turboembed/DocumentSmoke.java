@@ -135,7 +135,7 @@ public final class DocumentSmoke {
             List<String> entities = new ArrayList<>();
             for (TypedLayer layer : doc.getLayersList()) {
                 check(layer.getStatus() == LayerWireStatus.LAYER_WIRE_STATUS_OK,
-                        layer.getId() + ": status " + layer.getStatus() + " " + layer.getStatusDetail());
+                        layer.getId() + ": status " + layer.getStatus() + " " + layer.getError().getKind());
                 check(!layer.getId().startsWith("opennlp:"), "a layer id in the opennlp: namespace: " + layer.getId());
                 for (TypedAnnotation a : layer.getAnnotationsList()) {
                     if (a.getSpansCount() == 0) {
