@@ -325,9 +325,10 @@ What dispatch adds is read from six pairs of the dispatched call and the
 step fixed on the side it chose, timed back to back: the middle
 difference of the quiet pairs, those whose two times are each within
 the board's window of the fastest on their side. The window comes from
-six pairs of the fixed step timed against itself just before: the
+six pairs of the fixed step timed against itself at the start of each
+set: the
 narrowest part of the fastest time that holds four of them, never under
-0.5%, and a cell whose window is over 5% is reported inconclusive. On
+0.5%, and a set whose window is over 5% gives no reading. On
 the Hailo-8 boards it is 0.5%, the value the readings below were taken
 with. Planning a call took 0.001 to
 0.08 ms. The reading was -0.05 to +0.72 ms on the Raspberry Pi 5 and

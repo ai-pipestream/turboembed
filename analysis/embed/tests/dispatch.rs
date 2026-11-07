@@ -315,7 +315,7 @@ fn the_shape_predicted_is_the_shape_run() {
 /// dispatched calls and the step they run on, back to back: what dispatch
 /// adds (see `paired::added`) is no more than the planning (timed on its
 /// own) and the board's own window, from six pairs of the step against
-/// itself (see `paired::window`). Pairs too noisy to read are timed again,
+/// itself timed at the start of each set (see `paired::window`). Pairs too noisy to read are timed again,
 /// up to ATTEMPTS sets, and then reported inconclusive; under
 /// TURBO_TEST_REQUIRE_HAILO=1 an inconclusive submission fails the run.
 /// Prints each side's middle and spread, what dispatch adds, the window,
@@ -423,13 +423,14 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                 // middle of the quiet pairs' differences is what dispatch
                 // adds. Noisy pairs are timed again, up to ATTEMPTS sets.
                 let chosen = if chose_cpu { &on_cpu } else { &on_device };
-                // The step against itself, six pairs: the window within which
-                // this board tells two of its runs apart (see `paired::window`).
-                let own: Vec<(f64, f64)> =
-                    (0..6).map(|_| (timed(chosen, sub, reps), timed(chosen, sub, reps))).collect();
-                let w = window(&own);
                 let mut sets = Vec::new();
-                let reading = loop {
+                let (reading, w) = loop {
+                    // Each set starts with the step against itself, six pairs:
+                    // the window within which the board tells two of its runs
+                    // apart just then (see `paired::window`).
+                    let own: Vec<(f64, f64)> =
+                        (0..6).map(|_| (timed(chosen, sub, reps), timed(chosen, sub, reps))).collect();
+                    let w = window(&own);
                     let pairs: Vec<(f64, f64)> = (0..6)
                         .map(|i| {
                             if i % 2 == 0 {
@@ -443,8 +444,8 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                         .collect();
                     let got = w.and_then(|w| added(&pairs, w));
                     sets.push(pairs);
-                    if got.is_some() || w.is_none() || sets.len() == ATTEMPTS {
-                        break got;
+                    if got.is_some() || sets.len() == ATTEMPTS {
+                        break (got, w);
                     }
                 };
                 let shown: Vec<String> = sets
@@ -456,15 +457,14 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                     Some((d, fixed)) => format!("{d:+.3}\t{:+.3}%", 100.0 * d / fixed),
                     None => "inconclusive\t".to_string(),
                 };
-                let w = w.unwrap_or(f64::NAN);
+                let own = w.map_or("over 5%".to_string(), |w| format!("{:.3}%", 100.0 * w));
                 println!(
-                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{reported}\t{:.3}%",
+                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{reported}\t{own}",
                     spread(&t[0]),
                     spread(&t[1]),
-                    100.0 * w,
                 );
                 println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown.join(" | "));
-                let Some((d, fixed)) = reading else {
+                let (Some((d, fixed)), Some(w)) = (reading, w) else {
                     inconclusive.push(format!("{max_seq}x{cap} {what}"));
                     continue;
                 };
