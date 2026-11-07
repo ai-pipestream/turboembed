@@ -120,6 +120,9 @@ pub fn insertion_and_deletion() -> Document {
         b.keep(1);
         b.replace(t.len(), "");
     });
+    // A token on the deleted dashes: its projection onto the derived
+    // views is an empty deleted anchor (#1907 part 2).
+    tokens_on(&mut doc, ViewId::SOURCE, "dashes", &[(2, 4)]);
     doc
 }
 

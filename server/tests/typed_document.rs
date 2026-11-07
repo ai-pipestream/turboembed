@@ -73,20 +73,17 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
 
         match mode {
             OffsetMode::Utf8 => {
-                assert_eq!(ent0.spans[0], SpanFragment { start: beijing.start, end: beijing.end });
-                assert_eq!(ent1.spans[0], SpanFragment { start: cafe.start, end: cafe.end });
-                assert_eq!(ent1.spans[1], SpanFragment { start: price.start, end: price.end });
+                assert_eq!(ent0.spans[0], SpanFragment::exact(beijing.start, beijing.end));
+                assert_eq!(ent1.spans[0], SpanFragment::exact(cafe.start, cafe.end));
+                assert_eq!(ent1.spans[1], SpanFragment::exact(price.start, price.end));
             }
             OffsetMode::Utf16 => {
-                assert_eq!(
-                    ent0.spans[0],
-                    SpanFragment { start: java_utf16(beijing.start), end: java_utf16(beijing.end) }
-                );
+                assert_eq!(ent0.spans[0], SpanFragment::exact(java_utf16(beijing.start), java_utf16(beijing.end)));
             }
             OffsetMode::CodePoint => {
                 let cp_start = TEXT[..beijing.start as usize].chars().count() as u32;
                 let cp_end = TEXT[..beijing.end as usize].chars().count() as u32;
-                assert_eq!(ent0.spans[0], SpanFragment { start: cp_start, end: cp_end });
+                assert_eq!(ent0.spans[0], SpanFragment::exact(cp_start, cp_end));
             }
         }
 
@@ -206,7 +203,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
 
     let mut bad_inverted = inspected.clone();
     let tok_layer = bad_inverted.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap();
-    tok_layer.annotations[0].spans[0] = SpanFragment { start: 4, end: 2 };
+    tok_layer.annotations[0].spans[0] = SpanFragment::exact(4, 2);
     let err = round_trip_typed_document(&bad_inverted).unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
 
@@ -430,7 +427,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         anchor_layer: Some("turbo:tokens@gold".into()),
         annotations: (0..3)
             .map(|i| TypedAnnotation {
-                spans: vec![SpanFragment { start: i * 2, end: i * 2 + 1 }],
+                spans: vec![SpanFragment::exact(i * 2, i * 2 + 1)],
                 probability: Some(0.9),
                 model_ref: None,
                 value: Some(Value::PosTag(turbo_kserve::proto::result::PosTagAnnotation {

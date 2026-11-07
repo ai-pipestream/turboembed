@@ -13,7 +13,7 @@ use turbo_analysis_layers::{
 use turbo_geo::Locations;
 
 use super::layers_core::token_spans;
-use super::{ProjectionCx, build_layer, coalesce_wire_spans};
+use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     AlternativeAnnotation, ConsolidatedMentionProto, DocumentEntityAnnotation, EdgeAnnotation, EduAnnotation,
@@ -233,8 +233,7 @@ pub(crate) fn project_shared_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
                 .iter()
                 .enumerate()
                 .map(|(i, e)| {
-                    let spans =
-                        coalesce_wire_spans(e.mentions.iter().map(|m| cx.project_wire_span(l.view, m.span)).collect());
+                    let spans = cx.project_fragments(l.view, e.mentions.iter().map(|m| m.span));
                     let mentions = e
                         .mentions
                         .iter()

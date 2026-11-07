@@ -17,10 +17,10 @@ use turbo_kserve::proto::result::pii_evidence::Fact;
 use turbo_kserve::proto::result::pii_kind_ref::Kind;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
-    PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm, PiiChecksumEvidence,
-    PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition, PiiEvidence as WireEvidence, PiiKindRef,
-    PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore, PiiShapeEvidence, SpanFragment,
-    TypedDocumentResult, TypedLayer,
+    FragmentMember, PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm,
+    PiiChecksumEvidence, PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition,
+    PiiEvidence as WireEvidence, PiiKindRef, PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore,
+    PiiShapeEvidence, SpanFragment, SpanOutcome, TypedDocumentResult, TypedLayer,
 };
 use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
 use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiEvidence, PiiKind, PiiMention};
@@ -165,6 +165,33 @@ fn pii_layer(wire: &mut TypedDocumentResult) -> &mut TypedLayer {
     wire.layers.iter_mut().find(|l| l.id == "turbo:pii").expect("a pii layer")
 }
 
+/// A label fact over `span`, whatever the fragment says about itself.
+fn label_fact(span: SpanFragment) -> WireEvidence {
+    WireEvidence { fact: Some(Fact::Label(PiiLabelEvidence { span: Some(span), phrase: 0 })) }
+}
+
+/// Label spans the outcome rules refuse (argon on #1921): no outcome,
+/// widened on the layer's own view, deleted but not empty, and members
+/// on a single projected span.
+fn bad_label_spans() -> [(&'static str, SpanFragment); 4] {
+    let member = |index| FragmentMember { index, outcome: SpanOutcome::Exact as i32 };
+    [
+        ("a label span with no outcome", SpanFragment { outcome: 0, ..SpanFragment::exact(0, 4) }),
+        (
+            "a label span widened on its own view",
+            SpanFragment { outcome: SpanOutcome::Widened as i32, ..SpanFragment::exact(0, 4) },
+        ),
+        (
+            "a deleted label span that is not empty",
+            SpanFragment { outcome: SpanOutcome::Deleted as i32, ..SpanFragment::exact(0, 4) },
+        ),
+        (
+            "a label span with members",
+            SpanFragment { members: vec![member(0), member(1)], ..SpanFragment::exact(0, 4) },
+        ),
+    ]
+}
+
 /// The error of `wire`, held to carry no planted value.
 #[track_caller]
 fn refused(what: &str, wire: &TypedDocumentResult, secrets: &[&str]) -> String {
@@ -198,14 +225,13 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
     let luhn = WireEvidence {
         fact: Some(Fact::Checksum(PiiChecksumEvidence { algorithm: PiiChecksumAlgorithm::Luhn as i32, passed: true })),
     };
-    let label = WireEvidence {
-        fact: Some(Fact::Label(PiiLabelEvidence { span: Some(SpanFragment { start: 0, end: 4 }), phrase: 0 })),
-    };
+    let label =
+        WireEvidence { fact: Some(Fact::Label(PiiLabelEvidence { span: Some(SpanFragment::exact(0, 4)), phrase: 0 })) };
     let shape = WireEvidence { fact: Some(Fact::Shape(PiiShapeEvidence {})) };
     let paired: [(PiiConfidence, Vec<WireEvidence>); 4] = [
-        (PiiConfidence::Format, vec![shape]),
-        (PiiConfidence::Checksum, vec![luhn]),
-        (PiiConfidence::LabelledChecksum, vec![luhn, label]),
+        (PiiConfidence::Format, vec![shape.clone()]),
+        (PiiConfidence::Checksum, vec![luhn.clone()]),
+        (PiiConfidence::LabelledChecksum, vec![luhn, label.clone()]),
         (PiiConfidence::Labelled, vec![shape, label]),
     ];
     for (tier, facts) in paired {
@@ -246,6 +272,11 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
         let message = refused(what, &pii_message(edit), &[]);
         // The error names the layer, the row and its span, never the value.
         assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
+    }
+    for (what, span) in bad_label_spans() {
+        let message = refused(what, &pii_message(|m| m.evidence.push(label_fact(span))), &[]);
+        assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
+        assert!(message.contains("label span"), "{what}: {message}");
     }
 }
 
@@ -370,6 +401,13 @@ fn candidates_carry_their_disposition_and_validate_against_the_pii_layer() {
         edit(c);
         let message = refused(what, &bad, &[]);
         assert!(message.contains("turbo:pii-candidates[0]"), "{what}: {message}");
+    }
+    for (what, span) in bad_label_spans() {
+        let mut bad = wire.clone();
+        let Some(Value::PiiCandidate(c)) = &mut candidates(&mut bad).annotations[0].value else { unreachable!() };
+        c.evidence.push(label_fact(span));
+        let message = refused(what, &bad, &[]);
+        assert!(message.contains("turbo:pii-candidates[0]") && message.contains("label span"), "{what}: {message}");
     }
     // A candidate outside its layer is refused, as a mention is.
     let mut bad = wire.clone();
