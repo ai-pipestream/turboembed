@@ -1118,7 +1118,7 @@ one frame of 64:
 Both precisions run the same I8 HEF, so the two rows of each device
 are the same work measured twice. The ranges are pooled on the host as
 each frame comes back (docs/hailo.md) and cost the same as the rows to
-within 0.02 percent. Embedding each chunk as a row of its own takes 84
+within 0.14 percent. Embedding each chunk as a row of its own takes 84
 percent (Hailo-8) and 62 percent (Hailo-10H) longer than the ranges:
 the device pays per padded frame, and the chunk rows are twice as many.
 A range over a whole row gave the row's vector to the bit, and the
