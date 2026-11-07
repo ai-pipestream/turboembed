@@ -76,7 +76,11 @@ phone, IBAN and card.
 
 `Pii`, in `turbo-analysis-layers`, has one item per mention with the
 columns `spans` (UTF-8 byte offsets into the view, on character
-boundaries), `kind`, `confidence` and `normalized`. Mentions are ordered
+boundaries), `kind`, `confidence` and `normalized`. The `normalized`
+column is the detected value itself, so it is a `Sensitive<Strs>`: its
+`Debug`, like a `PiiMention`'s, prints `<withheld>`, and reading it is
+spelled `expose()`. Outputs copy it only where their disclosure decision
+allows values (docs/grpc-analysis.md, PII output). Mentions are ordered
 by start, then longer first, then by kind priority; equal mentions (span,
 kind and normalized form) appear once, the first found kept. By default,
 a mention strictly nested inside a longer mention (such as a phone or

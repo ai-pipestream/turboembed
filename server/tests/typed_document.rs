@@ -19,9 +19,16 @@ use turbo_kserve::proto::result::{
 };
 use turbo_kserve::results::Wire;
 use turbo_kserve::results::document::codecs;
-use turbo_kserve::results::typed::{document_to_typed, inspect_document_graph, round_trip_typed_document};
+use turbo_kserve::results::typed::{document_to_typed_with, inspect_document_graph, round_trip_typed_document};
 
 use fixture::*;
+
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+use turbo_kserve::results::disclosure::Disclosure;
 
 #[test]
 fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_offset_modes() {
@@ -33,7 +40,7 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
         (OffsetMode::Utf16, ProtoOffsetMode::Utf16),
         (OffsetMode::CodePoint, ProtoOffsetMode::CodePoint),
     ] {
-        let typed = document_to_typed("doc-1", &doc, ViewId::SOURCE, mode).unwrap();
+        let typed = document_to_typed_with("doc-1", &doc, ViewId::SOURCE, mode, &Disclosure::FULL).unwrap();
         assert_eq!(typed.doc_id, "doc-1");
         assert_eq!(typed.raw_text, TEXT);
         assert_eq!(typed.offsets, proto_mode as i32);
@@ -96,7 +103,8 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
         assert_eq!(via_wire.to_msg(), typed);
     }
 
-    let clean_typed = document_to_typed("doc-clean", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
+    let clean_typed =
+        document_to_typed_with("doc-clean", &doc, ViewId(1), OffsetMode::Utf8, &Disclosure::FULL).unwrap();
     assert_eq!(clean_typed.view, 1);
     assert_eq!(round_trip_typed_document(&clean_typed).unwrap(), clean_typed);
 }
@@ -176,6 +184,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
             graph: graph_bytes,
             view: 0,
             offsets: ProtoOffsetMode::Utf16 as i32,
+            pii_output: full_text(),
         })
         .await
         .unwrap()
@@ -254,6 +263,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         graph: vec![0xff, 0x00, 0x01],
         view: 0,
         offsets: ProtoOffsetMode::Utf8 as i32,
+        pii_output: full_text(),
     })
     .unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
@@ -348,7 +358,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
     .unwrap();
 
     for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
-        let typed = document_to_typed("probe-doc", &doc, ViewId::SOURCE, mode).unwrap();
+        let typed = document_to_typed_with("probe-doc", &doc, ViewId::SOURCE, mode, &Disclosure::FULL).unwrap();
         let mod_layer = typed.layers.iter().find(|l| l.id == "turbo:modality").unwrap();
         assert_eq!(mod_layer.annotations.len(), 1);
         let Some(Value::Modality(m)) = &mod_layer.annotations[0].value else {
@@ -375,7 +385,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         assert_eq!(round_trip_typed_document(&typed).unwrap(), typed);
     }
 
-    let base = document_to_typed("probe-doc", &doc, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    let base = document_to_typed_with("probe-doc", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
 
     // Missing default index target is not replaced by named instance ("gold").
     let mut missing_default_tok = base.clone();

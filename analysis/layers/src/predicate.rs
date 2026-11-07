@@ -67,14 +67,14 @@ impl FilterableLayer for Pii {
     fn retain_indices(&self, kept: &[Ix<Self>]) -> Self {
         let mut normalized = Strs::default();
         for &ix in kept {
-            normalized.push(self.normalized.get(ix.get()));
+            normalized.push(self.normalized.expose().get(ix.get()));
         }
         Pii {
             spans: self.spans.retain_indices(kept),
             custom_kinds: self.custom_kinds.clone(),
             kind: kept.iter().map(|&ix| self.kind[ix.get()]).collect(),
             confidence: kept.iter().map(|&ix| self.confidence[ix.get()]).collect(),
-            normalized,
+            normalized: crate::Sensitive::new(normalized),
         }
     }
 }

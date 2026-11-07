@@ -20,7 +20,7 @@ use turbo_kserve::api::{TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT};
 use turbo_kserve::config::{Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::{
-    BudgetSpec, DocumentWindowRequest, FormatDocumentRequest, ListOutputFormatsRequest, OffsetMode,
+    BudgetSpec, DocumentWindowRequest, FormatDocumentRequest, ListOutputFormatsRequest, OffsetMode, PiiOutputOptions,
     ProjectChunksRequest, XrayEditKindProto,
 };
 use turbo_kserve::results::MAX_WINDOWS;
@@ -480,6 +480,8 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
                 graph: graph_bytes.clone(),
                 format_id: fmt_id.into(),
                 offsets: OffsetMode::Utf16 as i32,
+                // The document holds PII; every format carries its text (#1904).
+                pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
             })
             .await
             .unwrap_or_else(|e| panic!("FormatDocument({fmt_id}) failed: {e:?}"))

@@ -263,7 +263,7 @@ impl LayerCodec for Pii {
         for &c in &self.confidence {
             w.u8(c.id());
         }
-        put_strs(&mut w, &self.normalized)?;
+        put_strs(&mut w, self.normalized.expose())?;
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
@@ -295,7 +295,7 @@ impl LayerCodec for Pii {
         want_len(confidence.len(), spans.len(), "confidences")?;
         want_len(normalized.len(), spans.len(), "normalized values")?;
         done(&r, "pii")?;
-        Ok(Pii { spans, custom_kinds, kind, confidence, normalized })
+        Ok(Pii { spans, custom_kinds, kind, confidence, normalized: crate::Sensitive::new(normalized) })
     }
 }
 

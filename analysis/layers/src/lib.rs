@@ -40,7 +40,7 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{
     CUSTOM_CODE_BASE, CustomKindId, CustomKinds, KindError, KindRow, Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention,
-    mention_order,
+    Sensitive, WITHHELD, mention_order,
 };
 pub use quality::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,

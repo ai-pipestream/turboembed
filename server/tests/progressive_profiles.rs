@@ -152,6 +152,7 @@ async fn each_named_profile_runs_from_single_request_and_produces_exact_listed_l
             model: String::new(),
             initial_graph: Vec::new(),
             structure_seed: None,
+            pii_output: None,
         };
         let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
         let mut events = Vec::new();
@@ -214,6 +215,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             model: String::new(),
             initial_graph: Vec::new(),
             structure_seed: None,
+            pii_output: None,
         })
         .await
         .unwrap_err();
@@ -234,6 +236,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             model: String::new(),
             initial_graph: Vec::new(),
             structure_seed: None,
+            pii_output: None,
         })
         .await
         .unwrap_err();
@@ -252,6 +255,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             model: "nonexistent-embed-bundle".into(),
             initial_graph: Vec::new(),
             structure_seed: None,
+            pii_output: None,
         })
         .await
         .unwrap_err();
@@ -306,6 +310,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
         model: "splade-embed".into(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        pii_output: None,
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
@@ -369,6 +374,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
                 graph: complete.graph.clone().into(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: None,
             })
             .await
             .unwrap()

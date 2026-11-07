@@ -141,6 +141,8 @@ pub struct Args {
     /// Where completed analysis documents are forwarded, and the queue's
     /// bounds.
     pub sink: Option<crate::sink::SinkConfig>,
+    /// What a request's PiiOutputOptions may turn on (`--pii-output-allow`).
+    pub pii_output: crate::results::disclosure::PiiOutputPolicy,
     /// The model catalog's zoo home, and the index it serves when not the
     /// built-in one.
     pub catalog_dir: Option<String>,
@@ -209,9 +211,10 @@ pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
 pub const ENV_CATALOG_STORE: &str = "TURBO_KSERVE_CATALOG_STORE";
 pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
+pub use pii::ENV_PII_OUTPUT_ALLOW;
 pub use sink::{
-    ENV_SINK_DOCUMENTS, ENV_SINK_ENDPOINT, ENV_SINK_QUEUE_BYTES, ENV_SINK_QUEUE_ITEMS, ENV_SINK_TYPED_OFFSETS,
-    ENV_SINK_TYPED_VIEW,
+    ENV_SINK_DOCUMENTS, ENV_SINK_ENDPOINT, ENV_SINK_PII_OUTPUT, ENV_SINK_QUEUE_BYTES, ENV_SINK_QUEUE_ITEMS,
+    ENV_SINK_TYPED_OFFSETS, ENV_SINK_TYPED_VIEW,
 };
 pub const ENV_TLS_CERT: &str = "TURBO_KSERVE_TLS_CERT";
 pub const ENV_TLS_KEY: &str = "TURBO_KSERVE_TLS_KEY";
@@ -222,13 +225,14 @@ pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
 [--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL] [--catalog-prefetch permissive] [--zoo]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] \
-[--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]]] \
+[--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]] [--sink-pii-output LIST]] \
+[--pii-output-allow none|rewritten-text,full-text,detail] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
 TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_SINK_DOCUMENTS, TURBO_KSERVE_SINK_TYPED_OFFSETS, \
-TURBO_KSERVE_SINK_TYPED_VIEW, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
+TURBO_KSERVE_SINK_TYPED_VIEW, TURBO_KSERVE_SINK_PII_OUTPUT, TURBO_KSERVE_PII_OUTPUT_ALLOW, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
 TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
 
 /// Sets a path flag's value, given once and not empty.
@@ -271,6 +275,7 @@ impl Args {
         let mut bundle_dir = None;
         let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
         let mut metrics_listen = None;
+        let mut pii_output_allow = None;
         let mut models = Vec::new();
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
@@ -316,6 +321,7 @@ impl Args {
                 "--catalog-store" => once(&flag, value()?, &mut catalog_store)?,
                 "--catalog-prefetch" => once(&flag, value()?, &mut catalog_prefetch)?,
                 "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
+                "--pii-output-allow" => once(&flag, value()?, &mut pii_output_allow)?,
                 "--tls-cert" => path_once(&flag, value()?, &mut tls_cert)?,
                 "--tls-key" => path_once(&flag, value()?, &mut tls_key)?,
                 "--tls-client-ca" => path_once(&flag, value()?, &mut tls_client_ca)?,
@@ -412,6 +418,12 @@ impl Args {
         }
         let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
         let sink = sink_flags.resolve(&env)?;
+        let pii_output = pii::resolve(pii_output_allow, &env)?;
+        if let Some(s) = &sink
+            && !pii_output.allows(&s.pii_output)
+        {
+            return Err("--sink-pii-output asks for more than --pii-output-allow allows".into());
+        }
         tls_cert = from_env(tls_cert, ENV_TLS_CERT);
         tls_key = from_env(tls_key, ENV_TLS_KEY);
         tls_client_ca = from_env(tls_client_ca, ENV_TLS_CLIENT_CA);
@@ -441,6 +453,7 @@ impl Args {
             admin,
             vocabulary_dir,
             sink,
+            pii_output,
             catalog_dir,
             catalog_index,
             catalog_store,
@@ -454,6 +467,7 @@ impl Args {
 }
 
 mod bundles;
+mod pii;
 mod sink;
 
 #[cfg(test)]

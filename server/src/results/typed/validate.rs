@@ -115,7 +115,22 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
     let _ = u16::try_from(msg.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", msg.view)))?;
     let offsets = OffsetMode::from_proto(msg.offsets)?;
-    let offsetter = Offsetter::new(&msg.raw_text, offsets);
+    // A view text withheld for PII (#1904) is stood in for by as many
+    // one-byte characters as it had units, so spans are checked against
+    // its length; every unit is then a boundary.
+    let stand_in;
+    let text = match msg.withheld_text_len {
+        None => msg.raw_text.as_str(),
+        Some(_) if !msg.raw_text.is_empty() => return Err(bad("withheld_text_len is set beside a raw_text")),
+        Some(n) if u64::from(n) > MAX_GRAPH_BYTES => {
+            return Err(over("max_graph_bytes", "typed document withheld text units", u64::from(n)));
+        }
+        Some(n) => {
+            stand_in = " ".repeat(n as usize);
+            stand_in.as_str()
+        }
+    };
+    let offsetter = Offsetter::new(text, offsets);
 
     let mut known_models: HashSet<&str> = HashSet::with_capacity(msg.models.len());
     for (i, m) in msg.models.iter().enumerate() {
@@ -154,7 +169,7 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
 
     for layer in &msg.layers {
-        validate_layer(msg, &offsetter, &known_models, &layer_lengths, layer)?;
+        validate_layer(msg, text, &offsetter, &known_models, &layer_lengths, layer)?;
     }
 
     Ok(())
@@ -249,6 +264,7 @@ impl TargetLen {
 
 fn validate_layer(
     msg: &TypedDocumentResult,
+    text: &str,
     offsetter: &Offsetter,
     known_models: &HashSet<&str>,
     layer_lengths: &HashMap<(&str, &str), usize>,
@@ -321,7 +337,7 @@ fn validate_layer(
 
     let custom_pii_kinds = pii::custom_kinds(layer)?;
     let ctx = LayerCtx {
-        text: &msg.raw_text,
+        text,
         offsetter,
         known_models,
         layer_lengths,

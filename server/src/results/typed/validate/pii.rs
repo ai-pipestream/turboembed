@@ -54,6 +54,11 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
     if !m.kind.is_empty() || !m.confidence_tier.is_empty() {
         return Err(bad(format!("{} pii mention sets a retired string kind or confidence_tier", at())));
     }
+    // The clear value is never on the wire (#1904): `value` says how, if at
+    // all, it was released, and only `withheld` is produced.
+    if !m.normalized.is_empty() {
+        return Err(bad(format!("{} pii mention sets the retired normalized value; use value", at())));
+    }
     match m.kind_ref.as_ref().and_then(|r| r.kind) {
         None => return Err(bad(format!("{} pii kind is missing", at()))),
         Some(Kind::Builtin(id)) => {

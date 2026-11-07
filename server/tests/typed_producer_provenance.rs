@@ -85,7 +85,7 @@ async fn check(entities: bool) {
         }
         let graph = export(&doc, codecs()).unwrap().to_bytes().unwrap();
         let graph = client
-            .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+            .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
             .await
             .unwrap()
             .into_inner()
@@ -97,6 +97,7 @@ async fn check(entities: bool) {
                     graph: graph.to_vec(),
                     view: 0,
                     offsets: mode as i32,
+                    pii_output: None,
                 })
                 .await
                 .unwrap()

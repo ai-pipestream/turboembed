@@ -187,3 +187,17 @@ fn check_refuses_duplicates_empty_values_and_short_columns() {
     p.kind.pop();
     assert_eq!(p.check().unwrap_err(), "every column as long as the spans");
 }
+
+#[test]
+fn debug_of_a_mention_and_of_the_value_column_withholds_the_value() {
+    let planted = "planted-4111111111111111";
+    let mention = m(0, 5, PiiKind::Email, planted);
+    let shown = format!("{mention:?} {mention:#?}");
+    assert!(!shown.contains(planted), "{shown}");
+    assert!(shown.contains(crate::WITHHELD), "{shown}");
+    let mut p = Pii::new(ViewId::SOURCE);
+    p.push(mention);
+    let column = format!("{:?}", p.normalized);
+    assert!(!column.contains(planted), "{column}");
+    assert_eq!(p.get(Ix::new(0)).normalized, planted);
+}

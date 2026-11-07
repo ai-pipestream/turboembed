@@ -53,6 +53,7 @@ async fn completed_stream_documents_reach_the_sink_in_order() {
         max_queue_bytes: 1 << 20,
         documents: false,
         typed: None,
+        pii_output: Default::default(),
     };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
@@ -142,7 +143,14 @@ async fn a_server_without_a_receiver_does_not_serve_the_sink() {
 
 /// A server teeing to `endpoint`, its model loaded.
 async fn teeing(endpoint: String, max_queue_items: usize) -> Server {
-    let config = SinkConfig { endpoint, max_queue_items, max_queue_bytes: 64 << 20, documents: false, typed: None };
+    let config = SinkConfig {
+        endpoint,
+        max_queue_items,
+        max_queue_bytes: 64 << 20,
+        documents: false,
+        typed: None,
+        pii_output: Default::default(),
+    };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
     s.load().await.unwrap();
@@ -324,6 +332,7 @@ async fn a_refused_start_leaves_no_drain_calling_the_sink() {
         max_queue_bytes: 1 << 20,
         documents: false,
         typed: None,
+        pii_output: Default::default(),
     };
     let serve = Serve { sink: Some(config), vocabulary: Some(file.clone()), ..Serve::default() };
     let refused = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await;

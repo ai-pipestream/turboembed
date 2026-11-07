@@ -22,7 +22,7 @@ fn spans<L>(view: ViewId, pairs: &[(u32, u32)]) -> Spans<L> {
 async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode) -> TypedDocumentResult {
     let graph = export(doc, codecs()).unwrap().to_bytes().unwrap();
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -33,6 +33,7 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             graph: graph.to_vec(),
             view: 0,
             offsets: mode as i32,
+            pii_output: None,
         })
         .await
         .unwrap()
