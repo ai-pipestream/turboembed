@@ -12,7 +12,19 @@ use turbo_tagger::WordEncoder;
 use turbo_trainer_recipes::assemble::assemble_bundle;
 use turbo_trainer_recipes::corpus::Sentence;
 use turbo_trainer_recipes::open_span::{dictionary_baseline, entity_types, filter_sentences, predict};
+use turbo_trainer_recipes::open_span_mix::align_train_features;
 use turbo_trainer_recipes::{eval, read_corpus, receipt::Receipt};
+
+#[test]
+fn balanced_training_features_repeat_with_their_sentences() {
+    let features = vec![vec![0.0], vec![1.0], vec![2.0]];
+    let aligned = align_train_features(&features, 7, 3).unwrap();
+    assert_eq!(aligned, vec![vec![0.0], vec![1.0], vec![2.0], vec![0.0], vec![1.0], vec![2.0], vec![0.0]]);
+    assert_eq!(align_train_features(&features, 2, 2).unwrap(), features[..2]);
+    assert!(align_train_features(&features, 1, 0).is_err());
+    assert!(align_train_features(&features[..2], 1, 3).is_err());
+    assert!(align_train_features(&[], 0, 0).unwrap().is_empty());
+}
 
 fn train_open_span(data: &Path, bundle: &Path, out: &Path, hold_out: Option<&str>) -> Receipt {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"));

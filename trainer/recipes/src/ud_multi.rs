@@ -5,14 +5,26 @@
 
 use std::path::Path;
 
-use crate::corpus::{Corpus, CorpusRecord, Counts, Splits, Task};
-use crate::ud::{Column, TREEBANKS};
+use crate::corpus::{Corpus, CorpusRecord, Counts, FileRecord, Splits, Task};
+use crate::ud::{Column, TREEBANKS, UdSplits};
+use crate::ud_heads::UdHead;
 use crate::{Error, Result};
 
 /// A combined corpus and the language-table row of every sentence.
 #[derive(Debug)]
 pub struct MultiCorpus {
     pub corpus: Corpus,
+    pub languages: Vec<String>,
+    pub train_languages: Vec<Option<u32>>,
+    pub dev_languages: Vec<Option<u32>>,
+    pub test_languages: Vec<Option<u32>>,
+}
+
+/// Multi-treebank syntactic words and their aligned language rows.
+#[derive(Debug)]
+pub struct MultiUdCorpus {
+    pub record: CorpusRecord,
+    pub splits: UdSplits,
     pub languages: Vec<String>,
     pub train_languages: Vec<Option<u32>>,
     pub dev_languages: Vec<Option<u32>>,
@@ -138,6 +150,86 @@ pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64
         recipe_only,
     };
     Ok(MultiCorpus { corpus: Corpus { record, splits }, languages, train_languages, dev_languages, test_languages })
+}
+
+/// Reads syntactic words for a multi-treebank lemma or parser run.
+pub fn read_ud(ids: &str, head: UdHead, dir: &Path, unrecorded: bool, sample: f64) -> Result<MultiUdCorpus> {
+    let ids: Vec<&str> = ids.split(',').collect();
+    if ids.len() < 2 || ids.iter().any(|id| id.is_empty()) {
+        return Err(Error("a multi-treebank corpus needs at least two comma-separated treebank ids".into()));
+    }
+    let mut corpora = Vec::with_capacity(ids.len());
+    for id in ids.iter().copied() {
+        if corpora.iter().any(|(_, record): &(UdSplits, CorpusRecord)| record.id == format!("{id}-{}", head.suffix())) {
+            return Err(Error(format!("treebank {id:?} is listed twice")));
+        }
+        let bank = TREEBANKS
+            .iter()
+            .find(|bank| bank.id == id)
+            .ok_or_else(|| Error(format!("unknown treebank {id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
+        let (splits, files, recorded) = crate::ud::read_treebank(bank, dir, unrecorded)?;
+        let record = crate::ud_heads::record(bank, head, &splits, files, recorded);
+        corpora.push((splits, record));
+    }
+    if corpora.windows(2).any(|pair| pair[0].1.spdx != pair[1].1.spdx) {
+        return Err(Error("a multi-treebank run needs one SPDX licence id across its corpora".into()));
+    }
+    let counts: Vec<usize> = corpora.iter().map(|(splits, _)| splits.train.len()).collect();
+    let targets = sample_counts(&counts, sample)?;
+    for ((splits, _), target) in corpora.iter_mut().zip(&targets) {
+        if splits.train.len() != *target {
+            let original = std::mem::take(&mut splits.train);
+            splits.train = (0..*target).map(|i| original[i % original.len()].clone()).collect();
+        }
+    }
+
+    let id = ids.iter().map(|id| format!("{id}-{}", head.suffix())).collect::<Vec<_>>().join(",");
+    let name = corpora.iter().map(|(_, record)| record.name.as_str()).collect::<Vec<_>>().join("; ");
+    let licence = corpora[0].1.licence.clone();
+    let spdx = corpora[0].1.spdx.clone();
+    let terms = corpora.iter().map(|(_, record)| record.terms.as_str()).collect::<Vec<_>>().join("\n");
+    let attribution = corpora.iter().map(|(_, record)| record.attribution.as_str()).collect::<Vec<_>>().join("\n");
+    let recorded = corpora.iter().all(|(_, record)| record.recorded);
+    let files: Vec<FileRecord> = corpora.iter().flat_map(|(_, record)| record.files.clone()).collect();
+    let recipe_only = corpora.iter().any(|(_, record)| record.recipe_only);
+    let split = format!(
+        "each release's own train, dev and test files; --sample {sample} training sentence targets {:?}",
+        targets
+    );
+    let languages = language_names(&ids)?;
+    let mut splits = UdSplits::default();
+    let (mut train_languages, mut dev_languages, mut test_languages) = (Vec::new(), Vec::new(), Vec::new());
+    for (row, (mut part, _)) in corpora.into_iter().enumerate() {
+        train_languages.extend(std::iter::repeat_n(Some(row as u32), part.train.len()));
+        dev_languages.extend(std::iter::repeat_n(Some(row as u32), part.dev.len()));
+        test_languages.extend(std::iter::repeat_n(Some(row as u32), part.test.len()));
+        splits.train.append(&mut part.train);
+        splits.dev.append(&mut part.dev);
+        splits.test.append(&mut part.test);
+    }
+    let counts = |part: &[crate::ud::UdSentence]| Counts {
+        sentences: part.len(),
+        words: part.iter().map(|sentence| sentence.words.len()).sum(),
+    };
+    let record = CorpusRecord {
+        id,
+        name,
+        task: Task::Tags,
+        licence,
+        spdx,
+        terms,
+        attribution,
+        recorded,
+        corpus_sha256: String::new(),
+        files,
+        split,
+        train: counts(&splits.train),
+        dev: counts(&splits.dev),
+        test: counts(&splits.test),
+        skipped: 0,
+        recipe_only,
+    };
+    Ok(MultiUdCorpus { record, splits, languages, train_languages, dev_languages, test_languages })
 }
 
 fn corpora_sentences_mut(splits: &mut Splits) -> impl Iterator<Item = &mut crate::corpus::Sentence> {

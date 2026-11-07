@@ -35,7 +35,7 @@ use crate::proto::result::{
     AnalyzeProgressiveEvent, DocumentGraphResponse,
 };
 use crate::results::MAX_GRAPH_BYTES;
-use crate::results::disclosure::{Disclosure, PiiOutputPolicy};
+use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_pii};
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
 use crate::results::receipt::error::{kind_name, of_error};
 use crate::results::receipt::{self, Operation, check_operation_key};
@@ -259,6 +259,11 @@ fn run_progressive_task(
     mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
     let Answer { doc_id, offsets: proto_offsets, disclosure } = answer;
+    // Whether snapshots may carry graph bytes is decided for the request
+    // before anything streams: a pipeline that will write PII findings
+    // withholds them from the first snapshot on, since the text is the
+    // same before the PII step runs as after (#1904).
+    let snapshot_graphs = disclosure.full_text || !(holds_pii(&doc) || plans_pii(&analyzer));
     if deadline.is_expired() {
         let _ = tx.blocking_send(Err(deadline_status()));
         return None;
@@ -353,9 +358,7 @@ fn run_progressive_task(
                 .map(|r| layer_info(&snap_graph, r))
                 .collect();
             let views = snap_graph.views.iter().map(|r| view_info(&snap_graph, r)).collect();
-            // Once the document holds PII, a snapshot follows the
-            // disclosure: no graph bytes without full_text (#1904).
-            let graph_bytes = if !disclosure.graph(current_doc) {
+            let graph_bytes = if !snapshot_graphs {
                 Vec::new()
             } else {
                 match snap_graph.to_bytes() {

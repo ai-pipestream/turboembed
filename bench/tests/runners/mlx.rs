@@ -13,6 +13,7 @@ fn receipt(m: &turbo_bench::measure::Measurement) -> Value {
         "core_sha256": DIGEST,
         "loadavg": [2.5, 3.0, 3.5],
         "dtype": "float32",
+        "pooling": mlx::pooling(m.pooling()).unwrap(),
         "batch": m.rows.batch,
         "seq": m.rows.seq,
         "times_ms": (0..30).map(|i| 2.0 + i as f64 / 10.0).collect::<Vec<_>>(),
@@ -45,6 +46,8 @@ fn an_mlx_receipt_that_differs_from_the_run_is_refused() {
         ("batch", json!(m.rows.batch + 1)),
         ("seq", json!(m.rows.seq + 1)),
         ("dtype", json!("float16")),
+        ("pooling", json!(if m.pooling() == turbo::manifest::Pooling::Cls { "mean" } else { "cls" })),
+        ("pooling", json!("last")),
         ("version", json!("")),
         ("libmlx_sha256", json!("not-a-hash")),
         ("metallib_sha256", json!("not-a-hash")),
@@ -61,6 +64,14 @@ fn an_mlx_receipt_that_differs_from_the_run_is_refused() {
         assert!(from_receipt(changed.to_string().as_bytes(), m, 30, Vec::new()).is_err(), "accepted changed {key}");
     }
     assert!(from_receipt(source.to_string().as_bytes(), m, 31, Vec::new()).is_err(), "accepted 30 runs for 31");
+}
+
+#[test]
+fn mlx_pools_by_the_mean_or_by_cls_and_refuses_last_token() {
+    use turbo::manifest::Pooling;
+    assert_eq!(mlx::pooling(Pooling::Mean).unwrap(), "mean");
+    assert_eq!(mlx::pooling(Pooling::Cls).unwrap(), "cls");
+    assert!(mlx::pooling(Pooling::Last).is_err());
 }
 
 #[test]

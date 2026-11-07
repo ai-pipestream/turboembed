@@ -5,6 +5,7 @@
 mod support;
 
 use support::*;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{Pseudonymizer, mask_all};
 use turbo_pii::{Extractor, Pack, PiiDetector, PiiKind};
 
@@ -33,7 +34,10 @@ fn assert_whole(d: &PiiDetector, prefix: &str, phone: &str, suffix: &str, norm: 
     assert_found(d, &text, &[(start, start + phone.len() as u32, "phone", norm)]);
     let pii = layer(d, &text);
     assert_eq!(mask_all(&text, &pii, '*').unwrap(), format!("{prefix}{}{suffix}", "*".repeat(phone.len())));
-    assert_eq!(Pseudonymizer::new("", "").rewrite(&text, &pii).unwrap().text(), format!("{prefix}PHONE-1{suffix}"));
+    assert_eq!(
+        Pseudonymizer::new("", "").rewrite(&source_view(&text), &pii).unwrap().text(),
+        format!("{prefix}PHONE-1{suffix}")
+    );
 }
 
 #[test]

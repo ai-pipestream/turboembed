@@ -56,10 +56,7 @@ pub(super) fn validate_language(kind: HeadKind, language: &LanguageInput, at: &d
             language.dim
         )));
     }
-    if !matches!(
-        kind,
-        HeadKind::TokenTagger | HeadKind::BiaffineParser | HeadKind::EditTreeLemmatizer | HeadKind::TokenSplit
-    ) {
+    if !matches!(kind, HeadKind::TokenTagger | HeadKind::BiaffineParser) {
         return Err(invalid(format!("manifest.json: {}: {kind:?} does not take a language input", at("language"))));
     }
     for (i, name) in language.languages.iter().enumerate() {

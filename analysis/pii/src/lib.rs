@@ -33,6 +33,7 @@ pub use hits::{PiiSink, SinkError};
 pub use lists::{AllowList, Case, DenyList, ListError, Pattern, PatternKind};
 pub use scan::{CustomExtractor, Extractor, Scanner, ScannerError};
 pub use turbo_analysis_layers::{
-    CustomKindId, CustomKinds, KindError, Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention,
+    CustomKindId, CustomKinds, KindError, Pii, PiiConfidence, PiiEdit, PiiEdits, PiiKind, PiiKinds, PiiMention,
+    PiiRule, PiiStrategyKind,
 };
 pub use window::LabelPolicy;

@@ -22,8 +22,8 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::{Document, Key, Layer, View, ViewId};
-use turbo_analysis_layers::Pii;
+use turbo_analysis::{Analyzer, Document, Key, Layer, View, ViewId};
+use turbo_analysis_layers::{Pii, PiiEdits};
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
 use crate::proto::result::{PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, TypedLayer, pii_value};
@@ -197,6 +197,12 @@ pub fn holds_pii(doc: &Document) -> bool {
     doc.layers().any(|k| k.ty == TypeId::of::<Pii>())
 }
 
+/// Whether a step of `analyzer` writes PII findings: a document it runs
+/// over will hold a `turbo:pii` layer instance.
+pub fn plans_pii(analyzer: &Analyzer) -> bool {
+    analyzer.writes().iter().any(|k| k.ty == TypeId::of::<Pii>())
+}
+
 /// Whether `view` is a PII rewrite view: not the source, written by a
 /// `turbo-pii:` annotator.
 pub fn is_rewrite_view(doc: &Document, view: ViewId) -> bool {
@@ -213,11 +219,18 @@ pub fn withheld() -> PiiValue {
     PiiValue { form: Some(pii_value::Form::Withheld(PiiValueWithheld {})) }
 }
 
-/// Findings only: every layer but `turbo:pii` carries the view's words
-/// (sentence text, surfaces, lemmas, canonical names), so with the text
-/// withheld those layers are listed with their status and no annotations.
+/// Whether layer `id` is part of the findings: `turbo:pii`, and the
+/// `turbo:pii-edits` of a rewrite (spans, covered mentions, rule and
+/// strategy; never an original value).
+pub fn is_findings_layer(id: &str) -> bool {
+    id == Pii::ID || id == PiiEdits::ID
+}
+
+/// Findings only: every other layer carries the view's words (sentence
+/// text, surfaces, lemmas, canonical names), so with the text withheld
+/// those layers are listed with their status and no annotations.
 pub(crate) fn withhold_annotations(layers: &mut [TypedLayer]) {
-    for l in layers.iter_mut().filter(|l| l.id != Pii::ID) {
+    for l in layers.iter_mut().filter(|l| !is_findings_layer(&l.id)) {
         l.annotations.clear();
         l.indexes_layer.clear();
     }

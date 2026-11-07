@@ -17,8 +17,10 @@
 //! key of at least 32 bytes whenever unkeyed interoperability is not
 //! explicitly required.
 
-use turbo_analysis_layers::Pii;
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
+use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError, TokenizerError, kind_name};
 use crate::checksum::sha256;
 
@@ -48,6 +50,12 @@ impl Default for Sha256Tokenizer {
 }
 
 impl Sha256Tokenizer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.usize(self.length).u8(u8::from(self.kind_prefix)).str(&self.prefix).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// The full SHA-256 digest length in hexadecimal digits (256 bits).
     pub const DEFAULT_LENGTH: usize = 64;
 
@@ -140,20 +148,24 @@ impl Sha256Tokenizer {
         Ok(out)
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with the
-    /// SHA-256 hex digest of its normalized value.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+    /// Replaces every mention of `pii`, a layer over `src`, with the
+    /// SHA-256 hex digest of its normalized value, as a view derived from
+    /// `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         if let Some(m) = pii.mentions().find(|m| m.normalized.is_empty()) {
             return Err(RewriteError::EmptyValue(m.span));
         }
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
-        };
-        PiiRewrite::try_replace(text, &pii.custom_kinds, mentions, |m, out| {
-            self.write_digest(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
-                .map_err(|_| RewriteError::EmptyValue(m.span))
-        })
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |c, out| {
+                let m = c.merged;
+                self.write_digest(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
+                    .map_err(|_| RewriteError::EmptyValue(m.span))?;
+                Ok(EditOrigin::only(PiiStrategyKind::Sha256))
+            },
+        )
     }
 }
