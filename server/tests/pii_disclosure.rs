@@ -144,6 +144,17 @@ async fn inspect_projects_findings_without_text_or_values_on_every_view() {
     assert_eq!(c.round_trip_typed_document(typed.clone()).await.unwrap().into_inner(), typed);
     let short = TypedDocumentResult { withheld_text_len: Some(3), ..typed.clone() };
     assert_eq!(c.round_trip_typed_document(short).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+    // The retired clear field is refused if a producer sets it.
+    let mut leaky = typed.clone();
+    let pii = leaky.layers.iter_mut().find(|l| l.id == "turbo:pii").unwrap();
+    let Some(Value::Pii(m)) = &mut pii.annotations[0].value else { panic!("a pii annotation") };
+    #[allow(deprecated)]
+    {
+        m.normalized = PLANTED.into();
+    }
+    let e = c.round_trip_typed_document(leaky).await.unwrap_err();
+    assert_eq!(e.code(), tonic::Code::InvalidArgument);
+    assert!(e.message().contains("normalized") && !holds(e.message().as_bytes(), PLANTED), "{e:?}");
     let both = TypedDocumentResult { raw_text: TEXT.into(), ..typed };
     assert_eq!(c.round_trip_typed_document(both).await.unwrap_err().code(), tonic::Code::InvalidArgument);
     // rewritten_text gives the masked view's text, never the source's.
