@@ -109,6 +109,7 @@ fn static_replacer_is_consistent_within_and_across_documents() {
     assert_offset_and_span_maps(text1, &s1, &r1);
 
     let by_kind = StaticReplacer::new("<PII>")
+        .with_custom_kinds(test_kinds())
         .with(PiiKind::Email, "<EMAIL>")
         .with(PiiKind::Card, "<CARD>")
         .with(PERSON_KIND, "<NAME>");
