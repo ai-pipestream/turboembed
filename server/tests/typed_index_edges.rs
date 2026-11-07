@@ -7,6 +7,12 @@ use turbo_kserve::proto::result::{InspectDocumentGraphRequest, OffsetMode, typed
 use turbo_kserve::results::document::codecs;
 use turbo_relation::Relations;
 
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+
 #[tokio::test]
 async fn optional_token_ranges_require_both_endpoints() {
     let (server, mut client) = common::serve_no_admin().await;
@@ -19,6 +25,7 @@ async fn optional_token_ranges_require_both_endpoints() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: full_text(),
             })
             .await
             .unwrap()
@@ -88,6 +95,7 @@ async fn group_and_edge_indices_require_a_target_bound() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: full_text(),
             })
             .await
             .unwrap()
@@ -138,6 +146,7 @@ async fn sentence_and_opinion_references_follow_the_declared_bounds() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: full_text(),
             })
             .await
             .unwrap()
@@ -197,6 +206,7 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: full_text(),
             })
             .await
             .unwrap()
@@ -252,6 +262,7 @@ async fn token_ranges_reject_ambiguous_targets_in_either_order() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: full_text(),
             })
             .await
             .unwrap()

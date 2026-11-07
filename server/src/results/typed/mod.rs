@@ -23,6 +23,7 @@ use turbo_analysis::{
 };
 use turbo_analysis_layers::{Categories, Entities, Opinions};
 
+use super::disclosure::{self, Disclosure, PiiOutputPolicy};
 use super::document::codecs;
 use super::{MAX_GRAPH_BYTES, Wire, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
@@ -64,11 +65,14 @@ pub(crate) struct ProjectionCx<'a> {
     pub(crate) offsetter: Offsetter,
     pub(crate) models: Vec<ModelProvenance>,
     model_map: HashMap<ProvenanceKey, String>,
+    /// Status details cut to identities (#1904).
+    sanitize: bool,
 }
 
 impl<'a> ProjectionCx<'a> {
-    fn new(doc: &'a Document, target_view: ViewId, target_text: &'a str, offsets: OffsetMode) -> Self {
+    fn new(doc: &'a Document, target_view: ViewId, target_text: &'a str, offsets: OffsetMode, sanitize: bool) -> Self {
         Self {
+            sanitize,
             doc,
             target_view,
             target_text,
@@ -223,7 +227,11 @@ pub(crate) fn find_aligned_to<A: Layer>(doc: &Document, anchor_key: KeyId) -> Op
     None
 }
 
-pub(crate) fn status_to_wire(status: Option<&Status>) -> (LayerWireStatus, String) {
+pub(crate) fn status_to_wire(status: Option<&Status>, sanitize: bool) -> (LayerWireStatus, String) {
+    if sanitize && let Some(s) = status {
+        let wire = status_to_wire(Some(s), false).0;
+        return (wire, disclosure::sanitized_status(s));
+    }
     match status {
         Some(Status::Complete) | None => (LayerWireStatus::Ok, String::new()),
         Some(Status::Skipped(reason)) => (LayerWireStatus::Skipped, reason.clone()),
@@ -236,7 +244,7 @@ pub(crate) fn build_layer<L: Layer>(
     key: KeyId,
     project: impl FnOnce(&mut ProjectionCx<'_>, &L, Option<&str>) -> Vec<TypedAnnotation>,
 ) -> TypedLayer {
-    let (status, status_detail) = status_to_wire(cx.doc.status(key));
+    let (status, status_detail) = status_to_wire(cx.doc.status(key), cx.sanitize);
     let model_ref = cx.doc.provenance(key).map(|p| cx.register_provenance(p));
     let mut model_refs: Vec<String> = model_ref.iter().cloned().collect();
     let made_on = cx.doc.made_on(key);
@@ -310,7 +318,7 @@ fn is_evidence_layer(ty: TypeId) -> bool {
         || ty == TypeId::of::<Evidence<turbo_schema_extract::Records>>()
 }
 
-fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
+fn collect_views(doc: &Document, sanitize: bool) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
     let mut views = Vec::new();
     let mut id_names = Vec::new();
     for key in doc.layers() {
@@ -324,7 +332,7 @@ fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
         if key.ty != TypeId::of::<View>() {
             continue;
         }
-        let (status, status_detail) = status_to_wire(doc.status(key));
+        let (status, status_detail) = status_to_wire(doc.status(key), sanitize);
         let annotator = doc.provenance(key).map(|p| p.annotator.to_owned()).unwrap_or_default();
         let parent = doc
             .get_key(&Key::<View>::named(key.name))
@@ -337,19 +345,34 @@ fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
 }
 
 /// Projects all shared layers on `doc` into a strongly-typed [`TypedDocumentResult`]
-/// with spans mapped to `target_view` and converted into `offsets`.
+/// with spans mapped to `target_view` and converted into `offsets`, under
+/// [`Disclosure::FINDINGS`].
 pub fn document_to_typed(
     doc_id: &str,
     doc: &Document,
     target_view: ViewId,
     offsets: OffsetMode,
 ) -> Result<TypedDocumentResult, Failure> {
-    let (views, view_ids) = collect_views(doc);
+    document_to_typed_with(doc_id, doc, target_view, offsets, &Disclosure::FINDINGS)
+}
+
+/// [`document_to_typed`] under `disclosure`: on a document holding PII,
+/// `raw_text` is empty unless the disclosure lets the target view's text
+/// leave, and status details are cut to identities without `full_text`.
+pub fn document_to_typed_with(
+    doc_id: &str,
+    doc: &Document,
+    target_view: ViewId,
+    offsets: OffsetMode,
+    disclosure: &Disclosure,
+) -> Result<TypedDocumentResult, Failure> {
+    let sanitize = disclosure.sanitize(doc);
+    let (views, view_ids) = collect_views(doc, sanitize);
     if !view_ids.iter().any(|(id, _)| *id == target_view) {
         return Err(bad(format!("target view {} is outside the document's {} views", target_view.0, view_ids.len())));
     }
     let target_text = doc.text(target_view);
-    let mut cx = ProjectionCx::new(doc, target_view, target_text, offsets);
+    let mut cx = ProjectionCx::new(doc, target_view, target_text, offsets, sanitize);
     let mut layers = Vec::new();
 
     for key in doc.layers() {
@@ -369,7 +392,7 @@ pub fn document_to_typed(
         {
             layers.push(typed);
         } else {
-            let (status, status_detail) = status_to_wire(cx.doc.status(key));
+            let (status, status_detail) = status_to_wire(cx.doc.status(key), cx.sanitize);
             let model_refs = cx.doc.provenance(key).map(|p| vec![cx.register_provenance(p)]).unwrap_or_default();
             layers.push(TypedLayer {
                 id: key.layer.to_string(),
@@ -386,9 +409,12 @@ pub fn document_to_typed(
         }
     }
 
+    let shown = disclosure.view_text(doc, target_view);
     Ok(TypedDocumentResult {
         doc_id: doc_id.to_owned(),
-        raw_text: target_text.to_owned(),
+        raw_text: if shown { target_text.to_owned() } else { String::new() },
+        withheld_text_len: (!shown)
+            .then(|| cx.offsetter.to_wire(target_text, Span::new(0, target_text.len() as u32)).1),
         view: u32::from(target_view.0),
         offsets: offsets.to_proto(),
         models: cx.models,
@@ -398,8 +424,19 @@ pub fn document_to_typed(
 }
 
 /// Imports the binary `DocumentGraph` in `req` and projects it into a
-/// [`TypedDocumentResult`] in the requested view and [`OffsetMode`].
+/// [`TypedDocumentResult`] in the requested view and [`OffsetMode`], under
+/// the disclosure its `pii_output` asks for and [`PiiOutputPolicy::ALL`]
+/// allows.
 pub fn inspect_document_graph(req: &InspectDocumentGraphRequest) -> Result<TypedDocumentResult, Failure> {
+    inspect_document_graph_under(req, PiiOutputPolicy::ALL)
+}
+
+/// [`inspect_document_graph`] under the server's `policy`.
+pub fn inspect_document_graph_under(
+    req: &InspectDocumentGraphRequest,
+    policy: PiiOutputPolicy,
+) -> Result<TypedDocumentResult, Failure> {
+    let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
     }
@@ -407,7 +444,7 @@ pub fn inspect_document_graph(req: &InspectDocumentGraphRequest) -> Result<Typed
     let view_u16 = u16::try_from(req.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", req.view)))?;
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-    document_to_typed(&req.doc_id, &doc, ViewId(view_u16), offsets)
+    document_to_typed_with(&req.doc_id, &doc, ViewId(view_u16), offsets, &disclosure)
 }
 
 /// Validates `msg` and returns a clone for `RoundTripTypedDocument`.

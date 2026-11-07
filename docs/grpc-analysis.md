@@ -465,6 +465,54 @@ event argument spans and checks their offsets and anchor references;
 asset payload spans and outer spans are required, and the payload must
 remain inside its projected outer span, including at an empty boundary.
 
+## PII output (issue #1904)
+
+Detection identifies PII; what a response carries beyond the findings is
+an output option. A document holding PII findings is one with a
+`turbo:pii` layer instance. Its answers from `InspectDocumentGraph`,
+`RoundTripDocumentGraph` and `AnalyzeDocumentProgressive`, and the sink
+items about it, carry by default only the findings: each mention's kind,
+confidence tier and spans, with layer and view provenance. Every
+`PiiMention.value` is `PiiValue.withheld`; a caller that holds the text
+slices it with the spans. There is no value and no token.
+
+Graph bytes and source text hold every detected value in clear (the
+layer codec writes the normalized column, and the text holds the values
+themselves), so a default answer about such a document has no graph
+bytes, no `source_text` and an empty `raw_text`. `DocumentGraphResponse`
+then carries `findings`, the typed projection onto the source view in
+UTF-8 offsets, in place of the graph; progressive step snapshots carry no
+graph once the PII step has run. Status details are cut to the failure
+kind and the layer or annotator it names, without free text.
+
+`PiiOutputOptions` on the request (`pii_output`) turns on more:
+
+- `rewritten_text`: the text of the requested view when that view is a
+  PII rewrite view, one a `turbo-pii:` annotator wrote, such as the masked
+  view. The text of any other view needs `full_text`.
+- `full_text`: source and view texts and graph bytes, as for a document
+  without PII.
+- `detail`: candidates and evidence detail (#1903).
+- `values`: `UNSPECIFIED` or `WITHHELD`. Token, ciphertext and clear
+  values need verified identities and grants (#1909); until then they are
+  refused with `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
+
+The server caps the options with `--pii-output-allow`
+(`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
+`rewritten-text`, `full-text` and `detail`. Unset, all three are allowed,
+since a caller of these calls sent the text it asks back. A request for an
+option the server does not allow is refused with `TURBO_E_INVALID_STATE`
+(`FAILED_PRECONDITION`) naming it; nothing is dropped silently. Sink items
+follow `--sink-pii-output` (docs/grpc-sink.md), which must be within the
+cap.
+
+In-process callers of the C ABI, JNI and Panama bindings hand the library
+their own text. The controls there govern what the library copies out by
+default, not protection from a caller who already holds the input. Native
+`PiiMention` and the `turbo:pii` value column (`Sensitive`) print
+`<withheld>` in place of a value in `Debug`, and Java `TurboSpanData`'s
+`toString` does the same.
+
 ## Streaming bulk document analysis (issue #722)
 
 `AnalyzeStream` is one bidirectional stream for many documents. The

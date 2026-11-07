@@ -19,7 +19,7 @@ async fn registered_quotations_do_not_disappear_in_typed_projection() {
     let bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let (server, mut client) = common::serve_no_admin().await;
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -44,6 +44,7 @@ async fn registered_quotations_do_not_disappear_in_typed_projection() {
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
                 })
                 .await
                 .unwrap()

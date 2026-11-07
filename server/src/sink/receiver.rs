@@ -44,7 +44,7 @@ fn check(item: &DocumentSinkItem, last: Option<u64>) -> Result<(), String> {
     if last.is_some_and(|l| item.sequence <= l) {
         return Err(format!("sequence {} is not over the last, {}", item.sequence, last.unwrap_or(0)));
     }
-    if item.graph.is_empty() && item.analyzed.is_none() {
+    if item.graph.is_empty() && item.analyzed.is_none() && !super::document::pii_withheld(item) {
         return Err("carries neither a graph nor an answer".into());
     }
     if !item.graph.is_empty() {

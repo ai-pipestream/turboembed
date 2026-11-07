@@ -790,14 +790,24 @@ message LayerInfo
 message DocumentGraphRequest
 {
   bytes graph = 1;
+  // What the answer carries for a document holding PII findings; see
+  // PiiOutputOptions. Without `full_text` such a document's answer has no
+  // graph bytes and no source text.
+  PiiOutputOptions pii_output = 2;
 }
 
 message DocumentGraphResponse
 {
+  // Empty for a document holding PII findings unless the request's
+  // PiiOutputOptions.full_text was asked for and allowed.
   bytes graph = 1;
   repeated LayerInfo layers = 2;
   repeated ViewInfo views = 3;
+  // Empty under the same rule as `graph`.
   string source_text = 4;
+  // The findings, projected onto the source view in UTF-8 offsets, when
+  // `graph` was withheld for PII; unset otherwise.
+  TypedDocumentResult findings = 5;
 }
 
 // turbo:chunks, turbo:levels and turbo:embeddings (over the chunks)
@@ -899,6 +909,10 @@ message AnalyzePipelineRequest
   // DocumentGraph writer on the client. Exclusive with `text`,
   // `source_bytes` and `initial_graph`.
   StructureSeed structure_seed = 9;
+
+  // What the step snapshots and the final answer carry once the document
+  // holds PII findings; see PiiOutputOptions. 10 is used by #1908.
+  PiiOutputOptions pii_output = 11;
 }
 
 // The kind of one structure block, the `turbo:structure` block kinds.

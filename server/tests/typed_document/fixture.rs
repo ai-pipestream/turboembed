@@ -372,7 +372,7 @@ pub fn build_rich_document() -> Document {
             spans: spans(&[price]),
             kind: vec![PiiKind::Email],
             confidence: vec![PiiConfidence::Checksum],
-            normalized: strs(&["a@b.c"]),
+            normalized: strs(&["a@b.c"]).into(),
         },
         Provenance::by("test:pii"),
     );

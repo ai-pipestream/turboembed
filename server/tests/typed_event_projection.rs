@@ -75,8 +75,12 @@ fn expected(view: u32, mode: OffsetMode) -> [(u32, u32); 3] {
 async fn projected_event_arguments_survive_text_deletion() {
     let bytes = export(&document(), codecs()).unwrap().to_bytes().unwrap();
     let (server, mut c) = common::serve_no_admin().await;
-    let graph =
-        c.round_trip_document_graph(DocumentGraphRequest { graph: bytes.into() }).await.unwrap().into_inner().graph;
+    let graph = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into(), pii_output: None })
+        .await
+        .unwrap()
+        .into_inner()
+        .graph;
     let mut failures = Vec::new();
     let mut passed = 0;
     for view in [0, 1, 2, 3] {
@@ -87,6 +91,7 @@ async fn projected_event_arguments_survive_text_deletion() {
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
                 })
                 .await
                 .unwrap()
@@ -134,6 +139,7 @@ async fn malformed_projected_arguments_and_anchors_are_refused() {
                     graph: graph.clone(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
                 })
                 .await
                 .unwrap()

@@ -156,7 +156,7 @@ pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
                         value: Some(Value::Pii(PiiMention {
                             kind: Some(pii_kind_ref(m.kind)),
                             confidence_tier: i32::from(m.confidence.id()),
-                            normalized: m.normalized.to_owned(),
+                            value: Some(crate::results::disclosure::withheld()),
                         })),
                     }
                 })

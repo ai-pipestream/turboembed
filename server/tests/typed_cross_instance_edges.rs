@@ -11,6 +11,12 @@ use turbo_analysis_layers::{Entities, Tokens};
 use turbo_kserve::proto::result::{InspectDocumentGraphRequest, OffsetMode, typed_annotation::Value};
 use turbo_kserve::results::document::codecs;
 
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+
 const EDGES: &str = "turbo:edges<turbo:entities, turbo:entities>";
 
 /// The rich fixture plus a two-row `turbo:entities@gold` and one edge
@@ -51,6 +57,7 @@ async fn cross_instance_entity_edges_round_trip_and_stay_bounded() {
                     graph: graph.clone(),
                     view: 0,
                     offsets: mode as i32,
+                    pii_output: full_text(),
                 })
                 .await
                 .unwrap()

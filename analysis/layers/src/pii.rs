@@ -12,10 +12,12 @@
 mod confidence;
 mod custom;
 mod kind;
+mod sensitive;
 
 pub use confidence::PiiConfidence;
 pub use custom::{CustomKindId, CustomKinds, KindError};
 pub use kind::{CUSTOM_CODE_BASE, KindRow, PiiKind, PiiKinds, mention_order};
+pub use sensitive::{Sensitive, WITHHELD};
 
 use turbo_analysis::{Ix, Layer, Overlap, Span, Spans, ViewId};
 
@@ -35,16 +37,30 @@ pub struct Pii {
     pub confidence: Vec<PiiConfidence>,
     /// The value as OpenNLP normalizes it: digits without separators, a
     /// lowercased domain, an RFC 5952 IPv6 address, an EIP-55 address.
-    pub normalized: Strs,
+    /// It is the detected value itself, so it is [`Sensitive`]: outputs
+    /// copy it only where their disclosure decision allows values.
+    pub normalized: Sensitive<Strs>,
 }
 
-/// One mention, as handed to [`Pii::push`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// One mention, as handed to [`Pii::push`]. Its `Debug` prints
+/// [`WITHHELD`] in place of the normalized value.
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct PiiMention<'a> {
     pub span: Span,
     pub kind: PiiKind,
     pub confidence: PiiConfidence,
     pub normalized: &'a str,
+}
+
+impl std::fmt::Debug for PiiMention<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PiiMention")
+            .field("span", &self.span)
+            .field("kind", &self.kind)
+            .field("confidence", &self.confidence)
+            .field("normalized", &Sensitive::new(()))
+            .finish()
+    }
 }
 
 impl Pii {
@@ -60,7 +76,7 @@ impl Pii {
             custom_kinds,
             kind: Vec::new(),
             confidence: Vec::new(),
-            normalized: Strs::default(),
+            normalized: Sensitive::default(),
         }
     }
 
@@ -75,7 +91,7 @@ impl Pii {
     pub fn push(&mut self, m: PiiMention<'_>) -> Ix<Pii> {
         self.kind.push(m.kind);
         self.confidence.push(m.confidence);
-        self.normalized.push(m.normalized);
+        self.normalized.expose_mut().push(m.normalized);
         self.spans.push(m.span)
     }
 
@@ -85,7 +101,7 @@ impl Pii {
             span: self.spans.get(i),
             kind: self.kind[i.get()],
             confidence: self.confidence[i.get()],
-            normalized: self.normalized.get(i.get()),
+            normalized: self.normalized.expose().get(i.get()),
         }
     }
 
@@ -102,7 +118,7 @@ impl Layer for Pii {
 
     fn content_hash(&self) -> Option<u64> {
         let mut h = turbo_analysis::Fnv1a::new();
-        h.usize(self.kind.len()).u64(self.normalized.content_hash());
+        h.usize(self.kind.len()).u64(self.normalized.expose().content_hash());
         h.usize(self.custom_kinds.len());
         for name in self.custom_kinds.names() {
             h.str(name);
@@ -115,7 +131,7 @@ impl Layer for Pii {
 
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
-        if self.kind.len() != n || self.confidence.len() != n || self.normalized.len() != n {
+        if self.kind.len() != n || self.confidence.len() != n || self.normalized.expose().len() != n {
             return Err("every column as long as the spans".into());
         }
         self.spans.check(Self::OVERLAP)?;

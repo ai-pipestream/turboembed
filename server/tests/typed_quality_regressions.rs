@@ -63,6 +63,7 @@ async fn project(client: &mut common::Analysis, graph: &[u8], mode: OffsetMode, 
             graph: graph.to_vec(),
             view,
             offsets: mode as i32,
+            pii_output: None,
         })
         .await
         .unwrap()
@@ -82,7 +83,7 @@ async fn quality_round_trip(layer_id: &str) {
     let (server, mut client) = common::serve_no_admin().await;
     let bytes = export(&fixture(), codecs()).unwrap().to_bytes().unwrap();
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -377,7 +378,7 @@ async fn grammar_diagnostics_survive_views_offset_modes_and_refuse_malformed_pay
 
     let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let echoed_graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()

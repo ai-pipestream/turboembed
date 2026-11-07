@@ -49,8 +49,12 @@ async fn discontinuous_content_survives_partial_total_and_overlapping_projection
     }
     let graph = export(&d, codecs()).unwrap().to_bytes().unwrap();
     let (server, mut c) = common::serve_no_admin().await;
-    let graph =
-        c.round_trip_document_graph(DocumentGraphRequest { graph: graph.into() }).await.unwrap().into_inner().graph;
+    let graph = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
+        .await
+        .unwrap()
+        .into_inner()
+        .graph;
     for view in [0, 1, 2, 3] {
         for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
             let out = c
@@ -59,6 +63,7 @@ async fn discontinuous_content_survives_partial_total_and_overlapping_projection
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
                 })
                 .await
                 .unwrap()

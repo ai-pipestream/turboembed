@@ -159,6 +159,9 @@ pub struct Serve {
     pub training: Option<PathBuf>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
+    /// What a request's PiiOutputOptions may turn on
+    /// (`--pii-output-allow`, docs/grpc-analysis.md, PII output).
+    pub pii_output: results::disclosure::PiiOutputPolicy,
     /// The most bytes one call's request may carry in all, frames
     /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
     pub max_stream_bytes: Option<u64>,
@@ -226,12 +229,18 @@ impl Server {
         };
         // The forwarder spawns its drain, so it starts after every step that
         // can refuse the start: a refused start leaves no task behind.
+        if let Some(s) = &serve.sink
+            && !serve.pii_output.allows(&s.pii_output)
+        {
+            return Err("the sink's PII output asks for more than the server's PII output policy allows".into());
+        }
         let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
             admin: serve.admin,
             sink: sink.clone(),
             catalog: serve.catalog.clone(),
+            pii_policy: serve.pii_output,
         })
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);

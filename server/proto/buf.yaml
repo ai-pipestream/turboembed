@@ -16,6 +16,12 @@ breaking:
   use:
     - FILE
     - WIRE_JSON
+  # Issue #1904, a break Kristian approved (no clients yet): PiiMention's
+  # clear `normalized` (3) is replaced by the typed `value` (4), with the
+  # number and name reserved. Remove this entry once it is on main.
+  ignore_only:
+    FIELD_NO_DELETE:
+      - turbo_typed_annotations.proto
   ignore:
     - open_inference_grpc.proto
     - health.proto

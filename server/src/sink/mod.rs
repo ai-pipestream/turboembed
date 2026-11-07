@@ -55,6 +55,9 @@ pub struct SinkConfig {
     /// The typed projection every item carrying a graph also carries;
     /// `None` sends none, and items are as they were without it.
     pub typed: Option<SinkTyped>,
+    /// What items about a document holding PII carry beyond the findings
+    /// (`--sink-pii-output`, #1904); findings only by default.
+    pub pii_output: crate::results::disclosure::Disclosure,
 }
 
 /// What the forwarder did so far.
@@ -107,6 +110,7 @@ pub(crate) struct SinkForwarder {
     max_bytes: u64,
     documents: bool,
     typed: Option<SinkTyped>,
+    pii_output: crate::results::disclosure::Disclosure,
     counters: Arc<Counters>,
     task: Mutex<Option<JoinHandle<()>>>,
     /// Test-only: one-shot hook taken under the sender lock after offered++
@@ -137,6 +141,7 @@ impl SinkForwarder {
             max_bytes: config.max_queue_bytes,
             documents: config.documents,
             typed: config.typed,
+            pii_output: config.pii_output,
             counters,
             task: Mutex::new(Some(task)),
             #[cfg(test)]
@@ -160,7 +165,7 @@ impl SinkForwarder {
     /// Answers whether the queue took it. Imports the graph: call it off
     /// the async runtime.
     pub(crate) fn offer_graph(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, Failure> {
-        self.offer_item(doc_id, document::graph_item(doc_id, graph, self.typed))
+        self.offer_item(doc_id, document::graph_item(doc_id, graph, self.typed, &self.pii_output))
     }
 
     /// Offers the graph this server exported from `doc` as `exported`,
@@ -172,7 +177,7 @@ impl SinkForwarder {
         exported: DocumentGraphResponse,
         doc: &Document,
     ) -> Result<bool, Failure> {
-        self.offer_item(doc_id, document::exported_item(doc_id, exported, doc, self.typed))
+        self.offer_item(doc_id, document::exported_item(doc_id, exported, doc, self.typed, &self.pii_output))
     }
 
     /// Queues `item`, or counts the refusal that built it.
@@ -358,6 +363,7 @@ mod tests {
             max_queue_bytes: bytes,
             documents: false,
             typed: None,
+            pii_output: Default::default(),
         }
     }
 

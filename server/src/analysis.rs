@@ -42,6 +42,8 @@ pub(crate) struct Analysis {
     /// The model catalog, whose acceptance file LoadBundle checks a
     /// bundle's licence against (catalog/gate.rs); none without one.
     pub(crate) catalog: Option<crate::catalog::Catalog>,
+    /// What a request's PiiOutputOptions may turn on (#1904).
+    pub(crate) pii_policy: crate::results::disclosure::PiiOutputPolicy,
 }
 
 fn plain(f: Failure) -> Status {
@@ -164,17 +166,21 @@ impl AnalysisService for Analysis {
         // Import and re-export can walk a whole document; keep the
         // async runtime free of it.
         let req = req.into_inner();
-        let out = tokio::task::spawn_blocking(move || crate::results::document::round_trip_document(&req))
-            .await
-            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the round trip's task failed: {e}"))))?;
+        let policy = self.pii_policy;
+        let out =
+            tokio::task::spawn_blocking(move || crate::results::document::round_trip_document_under(&req, policy))
+                .await
+                .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the round trip's task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))
     }
 
     async fn inspect_document_graph(&self, req: Request<InspectDocumentGraphRequest>) -> Reply<TypedDocumentResult> {
         let req = req.into_inner();
-        let out = tokio::task::spawn_blocking(move || crate::results::typed::inspect_document_graph(&req))
-            .await
-            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}"))))?;
+        let policy = self.pii_policy;
+        let out =
+            tokio::task::spawn_blocking(move || crate::results::typed::inspect_document_graph_under(&req, policy))
+                .await
+                .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))
     }
 
@@ -195,7 +201,7 @@ impl AnalysisService for Analysis {
         req: Request<AnalyzePipelineRequest>,
     ) -> Reply<Self::AnalyzeDocumentProgressiveStream> {
         let sink = self.sink.clone().filter(|s| s.documents());
-        progressive::start_progressive(&self.state, req, sink).await
+        progressive::start_progressive(&self.state, req, sink, self.pii_policy).await
     }
 
     async fn inspect_document_window(&self, req: Request<DocumentWindowRequest>) -> Reply<DocumentWindowResponse> {

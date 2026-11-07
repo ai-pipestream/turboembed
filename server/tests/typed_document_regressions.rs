@@ -18,6 +18,12 @@ use turbo_kserve::proto::result::{
 };
 use turbo_kserve::results::document::codecs;
 
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+
 fn spans<L>(view: ViewId, pairs: &[(u32, u32)]) -> Spans<L> {
     let mut out = Spans::new(view);
     for &(a, b) in pairs {
@@ -87,7 +93,7 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
     let graph = export(doc, codecs()).unwrap().to_bytes().unwrap();
     // Exercise the existing graph transport before the new typed transport.
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: full_text() })
         .await
         .unwrap()
         .into_inner()
@@ -98,6 +104,7 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             graph: graph.to_vec(),
             view,
             offsets: mode as i32,
+            pii_output: full_text(),
         })
         .await
         .unwrap()
@@ -327,7 +334,13 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
     ] {
         invalid(
             &client
-                .inspect_document_graph(InspectDocumentGraphRequest { doc_id: "bad".into(), graph, view, offsets })
+                .inspect_document_graph(InspectDocumentGraphRequest {
+                    doc_id: "bad".into(),
+                    graph,
+                    view,
+                    offsets,
+                    pii_output: full_text(),
+                })
                 .await
                 .unwrap_err(),
         );
