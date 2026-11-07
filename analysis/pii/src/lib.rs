@@ -2,9 +2,13 @@
 //! `opennlp.tools.pii` package onto the analysis API.
 //!
 //! - [`PiiDetector`] runs [`Scanner`]s, one per OpenNLP extractor class,
-//!   or a [`Pack`] of them, and writes the `turbo:pii` layer ([`Pii`]):
+//!   or a [`Pack`] of them, together with optional [`AllowList`] and
+//!   [`DenyList`] rules, and writes the `turbo:pii` layer ([`Pii`]):
 //!   one item per mention with its kind, its normalized form and a
 //!   [`PiiConfidence`].
+//! - [`lists`] holds caller allow lists (terms, files, and regex-free
+//!   shape/glob patterns, scoped globally or per [`PiiKind`]) and deny
+//!   lists (Aho-Corasick glossary matching and bounded fuzzy matching).
 //! - [`checksum`] has the checks the detectors validate with, written
 //!   here: Luhn, mod 97, SHA-256, HMAC-SHA-256, Keccak-256, base58check
 //!   and bech32.
@@ -17,6 +21,7 @@
 pub mod checksum;
 mod detector;
 mod hits;
+pub mod lists;
 pub mod rewrite;
 mod scan;
 mod tables;
@@ -24,5 +29,6 @@ pub mod text;
 
 pub use detector::{Pack, PiiDetector};
 pub use hits::{PiiSink, SinkError};
+pub use lists::{AllowList, Case, DenyList, ListError, Pattern, PatternKind};
 pub use scan::{CustomExtractor, Extractor, Scanner, ScannerError};
 pub use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};

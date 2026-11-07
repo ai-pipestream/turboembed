@@ -13,17 +13,18 @@ checksum is validated with it:
 | `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
 | `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
 | `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
+| `AllowList`, `DenyList`, `Pattern`, `PatternKind`, `Case`, `ListError` | Global and per-kind ignore lists, regex-free shape/glob patterns, and Aho-Corasick/fuzzy deny lists (`analysis/pii/src/lists/`) |
 | `PiiConfidence` | `Format`, `Checksum`, or `LabelledChecksum` |
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
 | `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, and initials abbreviation |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
-| `rewrite::PiiAuditReport` | Redacted mention counts and keyed token summaries |
+| `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `sha256`, `keccak`, `base58`, `bech32` | Checksum and cryptographic validators |
 
-The crate depends on `turbo-analysis`, `turbo-analysis-layers` and
-`turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
+The crate depends on `turbo-analysis`, `turbo-analysis-layers`,
+`turbo-glossary` and `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
 bech32 and bech32m, mod 97 and Luhn are written in the crate, and the
 scanners are hand-written byte scanners with no regular expressions.
 
@@ -294,6 +295,84 @@ spans over multi-byte texts, and that the text equals `mask`.
   also reported as a phone or card and ten digits inside an
   international phone number are not also reported as an NHS number.
   `PiiDetector::keeping_nested` retains strictly nested mentions.
+
+## Allow and deny lists
+
+`AllowList` and `DenyList` (`analysis/pii/src/lists/`, tested in
+`analysis/pii/tests/allow_deny.rs`) let a caller suppress known non-PII
+values or flag domain-specific terms without writing a custom byte scanner:
+
+- **Allow list (`AllowList`)**: applied after detection and nesting
+  resolution. A mention whose covered text (`&text[start..end]`) or
+  normalized form (`mention.normalized`) matches an active allow rule is
+  dropped.
+  - Scope is either global (`PiiDetector::with_allow_list`,
+    `allow_term`, `allow_terms`, `allow_file`, `allow_pattern`,
+    `allow_shape`, `allow_glob`) or scoped to a single `PiiKind`
+    (`PiiDetector::with_kind_allow_list`, `allow_kind_term`,
+    `allow_kind_terms`, `allow_kind_file`, `allow_kind_pattern`,
+    `allow_kind_shape`, `allow_kind_glob`), leaving mentions of other
+    kinds on the same or other spans untouched.
+  - Terms and patterns compare case-sensitively (`Case::Sensitive`) by
+    default, or case-insensitively (`Case::Insensitive`, via
+    `AllowList::case_insensitive` / `AllowList::with_case` /
+    `Pattern::case_insensitive`) using `turbo-unicode`'s per-scalar
+    lowercase mapping. Duplicate terms and patterns are deduplicated on
+    insertion and when changing case mode.
+- **Regex-free pattern language (`Pattern`, `PatternKind`)**: patterns
+  match a whole candidate value from start to end using a deterministic,
+  non-backtracking two-pointer wildcard pass with no regular expressions:
+  - `Pattern::shape(spec)` (`PatternKind::Shape`):
+    - `d`: any ASCII decimal digit (`0..=9`)
+    - `a`: any ASCII letter (`A..=Z`, `a..=z`)
+    - `w`: any ASCII letter or digit (`A..=Z`, `a..=z`, `0..=9`)
+    - `?`: any single Unicode scalar (`char`)
+    - `*`: any sequence of zero or more characters
+    - `\x`: literal character `x` (such as `\d`, `\a`, `\w`, `\?`, `\*`, `\\`)
+    - any other character (including uppercase letters `A..=Z`, digits,
+      and punctuation such as `-`, ` `, `@`, `.`): literal match
+  - `Pattern::glob(spec)` (`PatternKind::Glob`):
+    - `*`: any sequence of zero or more characters
+    - `?`: any single Unicode scalar (`char`)
+    - `\x`: literal character `x` (such as `\*`, `\?`, `\\`)
+    - any other character (including `d`, `a`, `w`): literal match
+- **Deny list (`DenyList`)**: terms that are always reported under a
+  caller-named `PiiKind::Custom` (`DenyList::new`, `DenyList::custom`,
+  `DenyList::from_terms`, `DenyList::from_file`, attached via
+  `PiiDetector::with_deny_list`) with `PiiConfidence::Format`.
+  - Exact terms are matched with `turbo-glossary`'s Aho-Corasick
+    `TextMatcher` (`Case::Sensitive` or `Case::Insensitive`) at word
+    boundaries (`text::on_word_start` and `text::on_end`), with overlaps
+    resolved leftmost-longest by `turbo_glossary::select`. Duplicate terms
+    are deduplicated on insertion and when changing case mode.
+  - Optional fuzzy matching (`DenyList::with_max_edits`) admits word-token
+    candidates within `0`, `1`, or `2` Levenshtein edits (insertions,
+    deletions, or substitutions of one Unicode scalar). Edit distances
+    above `2` are refused (`ListError::InvalidEditDistance`). To prevent
+    short terms from matching arbitrary short words, a term word must have
+    at least `2 * k + 2` characters to allow `k >= 1` edits (`>= 4`
+    characters for `1` edit, `>= 6` characters for `2` edits; words
+    shorter than `4` characters only match at `0` edits).
+  - `DenyList::capitalised_only` (`with_capitalised_only`,
+    `capitalized_only`) requires a candidate in the text to start with an
+    uppercase or titlecase letter (`Lu` or `Lt`), preventing fuzzy matches
+    against common lowercase words.
+- **File loading**: `AllowList::from_file`, `AllowList::with_file`,
+  `AllowList::with_shapes_file`, `AllowList::with_globs_file`,
+  `DenyList::from_file`, and `DenyList::with_file` read caller-supplied
+  UTF-8 files one entry per line, stripping an optional UTF-8 BOM and
+  ignoring blank lines and lines starting with `#`. Lists are loaded only
+  from caller paths and are never bundled.
+- **Configuration hash and audit reporting**:
+  - `PiiDetector::config_hash` folds all global allow rules, per-kind
+    allow rules, and deny lists (target kinds, terms, pattern syntax and
+    tokens, case mode, max edit distance, and `capitalised_only`).
+  - `PiiAuditReport` (`KindReport::suppressed`,
+    `PiiAuditReport::total_suppressed`, `PiiAuditReport::suppressed`,
+    `PiiAuditReport::with_suppressed`, `PiiDetector::audit`,
+    `PiiDetector::detect_and_audit`) counts suppressed mentions by
+    `PiiKind` without ever storing, tokenizing, or displaying the
+    suppressed values (`analysis/pii/tests/rewrite_audit.rs`).
 
 Scanner edge-case rules:
 
