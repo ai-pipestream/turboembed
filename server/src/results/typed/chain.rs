@@ -259,7 +259,10 @@ impl WireChain {
     }
 
     /// Maps byte span `s` of view `from` into view `to`, stepwise along
-    /// the lowest-common-ancestor path.
+    /// the lowest-common-ancestor path. Only the bounds of `s` are
+    /// checked: the chain holds byte lengths, not every view's text, so
+    /// a span that splits a UTF-8 scalar, which `Document::map_span`
+    /// refuses, is mapped here and refused only where the text is.
     pub fn map_span(&self, from: ViewId, to: ViewId, mut s: Span) -> Result<Span, Failure> {
         if s.start > s.end || s.end > self.view(from)?.text_len {
             return Err(bad(format!("span [{}, {}) is outside view {}", s.start, s.end, from.0)));
