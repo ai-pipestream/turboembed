@@ -128,6 +128,14 @@ pub trait Layer: Any + Send + Sync + Sized {
         Vec::new()
     }
 
+    /// For a text layer over [`crate::ViewId::PENDING`], written by the
+    /// step that writes the view it is over: moves its spans onto `view`,
+    /// the id the document gave that view. Called when a step's outputs are
+    /// stored, for every output after a view. A layer that never sits over
+    /// a pending view keeps the default, which does nothing, and is refused
+    /// by the document if it is over one.
+    fn bind_pending_view(&mut self, _view: crate::ViewId) {}
+
     /// Invariants only the layer knows: tags inside their tag set, heads
     /// inside their sentence, columns of one length.
     fn check(&self) -> Result<(), String> {

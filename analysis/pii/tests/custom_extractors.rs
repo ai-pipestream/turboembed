@@ -11,6 +11,7 @@ use turbo_analysis::text::Side;
 use turbo_analysis::{Analyzer, Annotator, Document, Layer, Provenance, Span, ViewId};
 use turbo_analysis_layers::export::codecs;
 use turbo_pii::checksum::luhn;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{
     HmacTokenizer, MASKED, MaskPolicy, MaskedView, PiiAuditReport, Pseudonymizer, mask_all, mask_by_kind,
 };
@@ -246,7 +247,7 @@ fn caller_kinds_mask_pseudonymize_tokenize_and_audit() {
     assert_eq!(view.alignment().to_child(2, Side::End), 2);
 
     // Pseudonymizer numbers each custom kind independently and reuses the label for equal normalized values.
-    let pseudo = Pseudonymizer::new("[", "]").rewrite(text, &pii).unwrap();
+    let pseudo = Pseudonymizer::new("[", "]").rewrite(&source_view(text), &pii).unwrap();
     assert_eq!(
         pseudo.text(),
         "Åsa ([EMAIL-1]) paid from [ACCOUNT-NUMBER-1] and [ACCOUNT-NUMBER-1] \
@@ -260,7 +261,7 @@ fn caller_kinds_mask_pseudonymize_tokenize_and_audit() {
     let tokenizer = HmacTokenizer::new(KEY).unwrap();
     let acct_token = tokenizer.token("account-number", "ACCT12345674").unwrap();
     assert!(acct_token.starts_with("ACCOUNT-NUMBER-"));
-    let hmac_rewrite = tokenizer.rewrite(text, &pii).unwrap();
+    let hmac_rewrite = tokenizer.rewrite(&source_view(text), &pii).unwrap();
     assert!(hmac_rewrite.text().contains(&acct_token));
 
     let report = PiiAuditReport::of(&pii, &tokenizer, PiiAuditReport::DEFAULT_SAMPLES);

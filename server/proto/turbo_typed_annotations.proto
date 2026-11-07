@@ -488,7 +488,8 @@ message TypedLayer
   // Why the layer is not OK; absent when it is.
   optional LayerError error = 11;
   // The custom-kind names a turbo:pii or turbo:pii-candidates layer's
-  // PiiKindRef.custom indexes; empty for every other layer.
+  // PiiKindRef.custom indexes, and for a turbo:pii-edits layer its covered
+  // pii layer's table; empty for every other layer.
   repeated string custom_pii_kinds = 12;
 }
 
@@ -1117,6 +1118,52 @@ message PiiCandidateAnnotation
   PiiDisposition disposition = 5;
 }
 
+// How a PII rewrite wrote a replacement: the same numbers as the native
+// PiiStrategyKind ids. UNSPECIFIED is never a strategy and is refused.
+enum PiiStrategy
+{
+  PII_STRATEGY_UNSPECIFIED = 0;
+  PII_STRATEGY_MASK = 1;
+  PII_STRATEGY_PSEUDONYM = 2;
+  PII_STRATEGY_HMAC = 3;
+  PII_STRATEGY_FORMAT = 4;
+  PII_STRATEGY_STATIC = 5;
+  PII_STRATEGY_SHA256 = 6;
+  PII_STRATEGY_MAP = 7;
+  PII_STRATEGY_TRUNCATE = 8;
+  PII_STRATEGY_ABBREVIATE = 9;
+}
+
+// Which rule of the rewrite policy chose an edit's strategy: the default,
+// or the override for one kind, named as the covered turbo:pii layer names
+// it (custom indexes go into this layer's TypedLayer.custom_pii_kinds,
+// which repeats the covered layer's table).
+message PiiEditRule
+{
+  oneof rule
+  {
+    bool default_rule = 1;
+    PiiKindRef kind = 2;
+  }
+}
+
+// One replacement a PII rewrite made (turbo:pii-edits). The annotation's
+// spans are the replacement on the requested view. No original value is
+// carried.
+message PiiEditAnnotation
+{
+  // The replaced bytes on the parent of the layer's native view, in
+  // canonical UTF-8 byte offsets whatever the result's OffsetMode.
+  SpanFragment source = 1;
+  // The covered mentions: row indexes of the covered turbo:pii layer,
+  // ascending. Any subset, so not a range.
+  repeated uint32 members = 2;
+  PiiEditRule rule = 3;
+  PiiStrategy strategy = 4;
+  // The caller's revision of the policy; 0 when none was given.
+  uint64 policy_revision = 5;
+}
+
 message NoiseSpan
 {
   string severity = 1;
@@ -1689,6 +1736,7 @@ message TypedAnnotation
     LayoutBoxAnnotation layout_box = 95;
     ChunkCitationAnnotation chunk_citation = 96;
     GrammarDiagnosticAnnotation grammar_diagnostic = 97;
+    PiiEditAnnotation pii_edit = 98;
     PiiCandidateAnnotation pii_candidate = 99;
   }
 }

@@ -13,6 +13,7 @@ pub use digest::{
     ViewTextDigest,
 };
 pub use merge::DuplicateLayerPolicy;
+pub use project::{ProjectedFragment, ProjectedSpan, SpanOutcome};
 pub use view::View;
 
 use std::any::{Any, TypeId};

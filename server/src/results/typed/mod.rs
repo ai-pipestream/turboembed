@@ -12,6 +12,7 @@ mod layers_domain;
 mod layers_entities;
 mod layers_evidence;
 mod layers_pii;
+mod layers_pii_edits;
 mod layers_quality;
 mod layers_quotations;
 mod layers_sentiment;
@@ -399,6 +400,7 @@ pub fn document_to_typed_bound(
             .or_else(|| layers_domain::project_domain_layer(&mut cx, key))
             .or_else(|| layers_sentiment::project_sentiment_layer(&mut cx, key))
             .or_else(|| layers_pii::project_pii_layer(&mut cx, key))
+            .or_else(|| layers_pii_edits::project_pii_edits_layer(&mut cx, key))
             .or_else(|| layers_quality::project_quality_layer(&mut cx, key))
             .or_else(|| layers_quotations::project_quotations(&mut cx, key))
             .or_else(|| layers_structure::project_structure_layer(&mut cx, key))

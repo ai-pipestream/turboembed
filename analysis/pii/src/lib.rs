@@ -37,7 +37,7 @@ pub use lists::{AllowList, Case, DenyList, ListError, Pattern, PatternKind};
 pub use scan::{BUILTIN_VERSION, CustomExtractor, Extractor, Scanner, ScannerError};
 pub use turbo_analysis_layers::{
     AllowRule, AllowScope, ChecksumAlgorithm, CustomKindId, CustomKinds, DetectorError, EvidenceList, KindError, Pii,
-    PiiCandidate, PiiCandidates, PiiConfidence, PiiDetectorRef, PiiDetectors, PiiDisposition, PiiEvidence, PiiKind,
-    PiiKinds, PiiMention, PiiScore, PiiScoreKind, RejectReason,
+    PiiCandidate, PiiCandidates, PiiConfidence, PiiDetectorRef, PiiDetectors, PiiDisposition, PiiEdit, PiiEdits,
+    PiiEvidence, PiiKind, PiiKinds, PiiMention, PiiRule, PiiScore, PiiScoreKind, PiiStrategyKind, RejectReason,
 };
 pub use window::LabelPolicy;
