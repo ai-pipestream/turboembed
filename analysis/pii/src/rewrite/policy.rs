@@ -240,7 +240,7 @@ impl<'a> RewriteState<'a> {
                 Ok(())
             }
             RewriteStrategy::Static(stat) => {
-                out.push_str(stat.replacement(m.kind));
+                out.push_str(stat.replacement_in(self.kinds, m.kind));
                 Ok(())
             }
             RewriteStrategy::Sha256(sha) => sha

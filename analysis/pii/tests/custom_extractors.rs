@@ -425,8 +425,8 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
     ];
     // Pinned under stable kind ids (#1901). Ids and bits never change, so
     // adding a kind leaves the detector and extractor hashes unchanged. The
-    // last eight, the masked views, fold every built-in kind's policy by
-    // id, so adding a kind re-pins them on purpose.
+    // last eight, the masked views, fold their origin and only the kinds
+    // that differ from its default, so an appended kind leaves them as well.
     assert_eq!(
         hashes,
         [
@@ -440,14 +440,14 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
             1502739037705216202,
             9295550086767732159,
             3229853133838355368,
-            8243796215083805424,
-            12811360187700185101,
-            16992802931555587110,
-            17411568028610510125,
-            16095594065391014596,
-            11615795671415121540,
-            15765802278590283477,
-            13037515481100110596
+            11375694726533372055,
+            5613494451240624134,
+            8249729173792754707,
+            7683170987653411467,
+            2158321481895339603,
+            7467347325851982305,
+            10019089294807602088,
+            11751656332501648415
         ]
     );
     let mut b = MaskedView::by_kind('*').unwrap();
@@ -467,6 +467,9 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
     for k in PiiKind::builtins().filter(|&k| !legacy(k)) {
         b = b.with(k, star);
     }
-    assert_eq!(MaskedView::all(star), b);
-    assert_eq!(MaskedView::all(star).config_hash(), b.config_hash());
+    // Now b masks every kind as the all-star view does. Its hash still
+    // names its by-kind origin, the policy a kind added later would get.
+    let all = MaskedView::all(star);
+    assert!(PiiKind::builtins().all(|k| all.policy(k) == b.policy(k)));
+    assert_ne!(all.config_hash(), b.config_hash());
 }

@@ -146,8 +146,29 @@ pub fn mask_view(src: &View, spans: impl IntoIterator<Item = (Span, MaskPolicy)>
 pub struct MaskedView {
     policies: [MaskPolicy; BUILTIN_SLOTS],
     default_policy: MaskPolicy,
+    origin: ViewOrigin,
     custom_kinds: CustomKinds,
     custom: Vec<Option<MaskPolicy>>,
+}
+
+/// The constructor a view came from, which gives every kind, including
+/// one added to the registry later, its policy until a `with` overrides it.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+enum ViewOrigin {
+    /// [`MaskedView::all`]: every kind masked with this policy.
+    All(MaskPolicy),
+    /// [`MaskedView::by_kind`]: every kind masked with its default for this mask.
+    ByKind(char),
+}
+
+impl ViewOrigin {
+    /// The policy `kind` has in a view of this origin before any override.
+    fn default_for(self, kind: PiiKind) -> MaskPolicy {
+        match self {
+            ViewOrigin::All(policy) => policy,
+            ViewOrigin::ByKind(mask) => MaskPolicy::for_kind(kind, mask).expect("a mask by_kind validated"),
+        }
+    }
 }
 
 /// One slot per built-in id; slot 0 (no kind) is unused.
@@ -160,6 +181,7 @@ impl MaskedView {
         MaskedView {
             policies: [policy; BUILTIN_SLOTS],
             default_policy: policy,
+            origin: ViewOrigin::All(policy),
             custom_kinds: CustomKinds::new(),
             custom: Vec::new(),
         }
@@ -169,6 +191,7 @@ impl MaskedView {
     /// `Masker.mask` with `MaskPolicies.byType(mask)`.
     pub fn by_kind(mask: char) -> Result<MaskedView, MaskError> {
         let mut view = MaskedView::all(MaskPolicy::new(mask)?);
+        view.origin = ViewOrigin::ByKind(mask);
         for k in PiiKind::builtins() {
             view.policies[slot(k)] = MaskPolicy::for_kind(k, mask)?;
         }
@@ -262,23 +285,37 @@ impl Annotator for MaskedView {
         Ok((self.view(src, pii).map_err(detail)?,))
     }
 
-    /// FNV-1a over the default policy, then every built-in kind's
-    /// effective policy keyed by its stable id, in id order, then the
-    /// custom table with every custom kind's effective policy. Nothing is
-    /// skipped and nothing about how the view was built is folded, so two
-    /// views hash alike exactly when they mask every kind alike.
+    /// FNV-1a over the view's origin (`all` and its policy, or `by_kind`
+    /// and its mask), then each built-in kind whose policy differs from
+    /// that origin's default for it, by stable id in id order, then the
+    /// custom table with every custom kind's effective policy. Two views of
+    /// one origin hash alike exactly when they mask every kind alike, and a
+    /// kind added to the registry later starts at its origin default and
+    /// folds nothing, so every existing view keeps its hash.
     fn config_hash(&self) -> u64 {
         let fold_policy = |h: &mut turbo_analysis::Fnv1a, p: MaskPolicy| {
             h.u8(p.mask() as u8).u8(u8::from(p.keeps_format()));
             h.fold_u64(p.leading() as u64).fold_u64(p.trailing() as u64);
         };
         let mut h = turbo_analysis::Fnv1a::new();
-        fold_policy(&mut h, self.default_policy);
-        for k in PiiKind::builtins() {
-            h.u16(k.builtin_id().expect("a built-in kind"));
-            fold_policy(&mut h, self.policies[slot(k)]);
+        match self.origin {
+            ViewOrigin::All(policy) => {
+                h.u8(0);
+                fold_policy(&mut h, policy);
+            }
+            ViewOrigin::ByKind(mask) => {
+                h.u8(1).u8(mask as u8);
+            }
         }
-        h.fold_u64(self.custom_kinds.len() as u64);
+        for k in PiiKind::builtins() {
+            let policy = self.policies[slot(k)];
+            if policy != self.origin.default_for(k) {
+                h.u16(k.builtin_id().expect("a built-in kind"));
+                fold_policy(&mut h, policy);
+            }
+        }
+        // Id 0 is no kind: it ends the overrides before the custom table.
+        h.u16(0).fold_u64(self.custom_kinds.len() as u64);
         for (kind, name) in self.custom_kinds.kinds().zip(self.custom_kinds.names()) {
             h.str(name);
             fold_policy(&mut h, self.policy(kind));
