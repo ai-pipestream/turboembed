@@ -172,3 +172,4 @@ blobs/sha256/8ed0496acf19df9b7ba2698f4d8987a309d430d659fd8189ecfb210bc7caab89  b
 blobs/sha256/7b8e5673dc75b38da41f3d842bcc6941dccb4670ce472a915fd2547cfb6c0d03  bundle  minishlab/potion-science-32M static-1024 build (B70 machine)
 blobs/sha256/3d885ff5da3bb79e6b975e421248e810d74bbf63ed4f1af753e36403e34de61a  bundle  minishlab/potion-science-32M static build (B70 machine)
 blobs/sha256/dd3ea37954bdac157b691b2e7157da45f0bf258badb52eb130b25c1df0dcbcba  bundle  minishlab/potion-science-32M static-rust build (B70 machine)
+blobs/sha256/111f32a50017d71e0974139c17903aa95d37a1dc9719ed4782723fcadddc1b97  bundle  sentence-transformers/all-MiniLM-L6-v2 NPU s256 / minilm-npu-token-ids-f16-s256-605aeb78e (first recorded in analysis/eval/records/v1-172/npu/turbo-chunker-254-200-hybrid/arguana.json)

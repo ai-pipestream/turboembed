@@ -1,0 +1,11 @@
+
+    Finished `release` profile [optimized] target(s) in 0.15s
+     Running `target/release/turbo-eval.exe run --bundle <bundle>/minilm-npu-token-ids-f16-s256-605aeb78e
+--sets scifact,nfcorpus,arguana,qasper --cache <cache> --device npu --retrieval hybrid --out
+<records>/scratch/sentence-windows-5-hybrid --chunker sentence-windows --window 5`
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<records>/scratch/sentence-windows-5-hybrid/scifact.json
+<records>/scratch/sentence-windows-5-hybrid/nfcorpus.json
+<records>/scratch/sentence-windows-5-hybrid/arguana.json
+<records>/scratch/sentence-windows-5-hybrid/qasper.json
