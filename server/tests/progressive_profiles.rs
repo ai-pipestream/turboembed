@@ -375,6 +375,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
                 view: 0,
                 offsets: mode as i32,
                 pii_output: None,
+                binding: None,
             })
             .await
             .unwrap()

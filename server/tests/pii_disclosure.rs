@@ -113,6 +113,7 @@ async fn inspect(s: &Server, graph: &[u8], view: u32, pii_output: Option<PiiOutp
         view,
         offsets: OffsetMode::Utf8 as i32,
         pii_output,
+        binding: None,
     };
     client(s).await.inspect_document_graph(req).await.unwrap().into_inner()
 }
@@ -242,6 +243,12 @@ async fn sink_items_carry_findings_and_no_value_by_default() {
     let s = server(Serve { sink: Some(config), ..Serve::default() }).await;
     let graph = pii_graph(&s).await;
     assert!(s.forward_document("doc-fwd", graph).await.unwrap());
+    // The progressive task offers its graph after the stream ends, so wait
+    // for both offers before closing the sink.
+    let start = std::time::Instant::now();
+    while s.sink_stats().unwrap().offered < 2 && start.elapsed() < Duration::from_secs(10) {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
     let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
     let summary = stats.last_summary.unwrap();
     assert_eq!((summary.accepted_count, summary.rejected_count), (2, 0), "{:?}", summary.errors);

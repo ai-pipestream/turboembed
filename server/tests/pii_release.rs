@@ -42,6 +42,7 @@ fn ask(form: PiiValueForm, operation_key: &str, attempt: u32) -> InspectDocument
             attempt,
             ..Default::default()
         }),
+        ..Default::default()
     }
 }
 

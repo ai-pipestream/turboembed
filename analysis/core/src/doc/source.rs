@@ -5,7 +5,7 @@ use crate::offsets::OffsetTable;
 use crate::span::Span;
 use crate::text::{Side, ViewId};
 
-use super::Document;
+use super::{Document, ViewTextDigest};
 
 impl Document {
     pub fn source(&self) -> &str {
@@ -76,6 +76,11 @@ impl Document {
     /// How many views the document has: valid `ViewId`s are `0..view_count()`.
     pub fn view_count(&self) -> usize {
         self.views.len()
+    }
+
+    /// The SHA-256 identity of a view's UTF-8 text: see `View::text_digest`.
+    pub fn text_digest(&self, v: ViewId) -> ViewTextDigest {
+        self.views[v.0 as usize].text_digest()
     }
 
     /// The offset table of a view: see `View::offsets`.

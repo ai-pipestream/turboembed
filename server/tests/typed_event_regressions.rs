@@ -66,6 +66,7 @@ async fn nested_event_references_and_spans_are_validated() {
                 view: 0,
                 offsets: mode as i32,
                 pii_output: None,
+                binding: None,
             })
             .await
             .unwrap()

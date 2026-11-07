@@ -45,6 +45,7 @@ async fn relations_mentions_and_levels_keep_native_reference_bounds() {
                 view: 0,
                 offsets: mode as i32,
                 pii_output: full_text(),
+                binding: None,
             })
             .await
             .unwrap()

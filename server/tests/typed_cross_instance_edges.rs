@@ -58,6 +58,7 @@ async fn cross_instance_entity_edges_round_trip_and_stay_bounded() {
                     view: 0,
                     offsets: mode as i32,
                     pii_output: full_text(),
+                    binding: None,
                 })
                 .await
                 .unwrap()

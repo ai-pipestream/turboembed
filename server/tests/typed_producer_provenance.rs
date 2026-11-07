@@ -98,6 +98,7 @@ async fn check(entities: bool) {
                     view: 0,
                     offsets: mode as i32,
                     pii_output: None,
+                    binding: None,
                 })
                 .await
                 .unwrap()

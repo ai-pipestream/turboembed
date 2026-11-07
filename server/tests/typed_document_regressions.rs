@@ -105,6 +105,7 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             view,
             offsets: mode as i32,
             pii_output: full_text(),
+            binding: None,
         })
         .await
         .unwrap()
@@ -340,6 +341,7 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
                     view,
                     offsets,
                     pii_output: full_text(),
+                    binding: None,
                 })
                 .await
                 .unwrap_err(),
