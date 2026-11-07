@@ -21,6 +21,7 @@ pub struct ParseExample {
     pub features: Vec<f32>,
     pub heads: Vec<u32>,
     pub rels: Vec<u32>,
+    pub language: Option<u32>,
 }
 
 /// Unlabelled and labelled attachment over a set of sentences.
@@ -62,19 +63,47 @@ fn check_parses(examples: &[ParseExample], hidden: usize, labels: usize) -> Resu
     Ok(())
 }
 
+fn check_languages(examples: &[ParseExample], spec: &HeadSpec) -> Result<()> {
+    for (i, example) in examples.iter().enumerate() {
+        match (&spec.language, example.language) {
+            (None, None) => {}
+            (None, Some(_)) => {
+                return Err(invalid(format!("trainer: sentence {i} has a language the parser does not read")));
+            }
+            (Some(language), None) if language.languages.len() == 1 => {}
+            (Some(language), None) => {
+                return Err(invalid(format!(
+                    "trainer: sentence {i} needs a language, one of {:?}",
+                    language.languages
+                )));
+            }
+            (Some(language), Some(row)) if row as usize >= language.languages.len() => {
+                return Err(invalid(format!("trainer: sentence {i} language row {row} is out of range")));
+            }
+            (Some(_), Some(_)) => {}
+        }
+    }
+    Ok(())
+}
+
 /// Attachment of `parser` on `examples`, decoded by the core exactly as
 /// at inference. Refuses a sentence without one gold head and relation
 /// in range per word.
 pub fn attachment(parser: &BiaffineParser, examples: &[ParseExample]) -> Result<Attachment> {
     let hidden = parser.hidden();
     check_parses(examples, hidden, parser.labels().len())?;
+    check_languages(examples, parser.spec())?;
     let mut a = Attachment::default();
     let (mut arcs, mut heads, mut scores, mut rels, mut w) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
         let n = e.features.len() / hidden;
         let words: Vec<u32> = (0..n as u32).collect();
-        parser.arcs(&e.features, &words, &mut arcs, &mut w)?;
+        let language = match (&parser.spec().language, e.language) {
+            (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+            _ => None,
+        };
+        parser.arcs_language(&e.features, &words, language, &mut arcs, &mut w)?;
         parser.decode(&arcs, n, &mut heads)?;
         parser.relations(&heads, &mut scores, &w)?;
         parser.relation_labels(&scores, n, &mut rels)?;
@@ -108,7 +137,7 @@ impl Model for Parser<f32> {
         Parser::decays(self)
     }
     fn loss(&self, e: &ParseExample, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
-        Ok((Parser::loss(self, &e.features, &e.heads, &e.rels, grads, w)?, e.heads.len()))
+        Ok((Parser::loss_language(self, &e.features, e.language, &e.heads, &e.rels, grads, w)?, e.heads.len()))
     }
     fn score(&self, dev: &[ParseExample]) -> Result<f64> {
         Ok(attachment(&self.to_core()?, dev)?.las())
@@ -140,6 +169,8 @@ pub fn fit_parser_with(
     check_config(c, train_set.len())?;
     check_parses(train_set, hidden, spec.labels.len())?;
     check_parses(dev, hidden, spec.labels.len())?;
+    check_languages(train_set, spec)?;
+    check_languages(dev, spec)?;
     let mut rng = Rng::new(c.seed);
     let model = Parser::<f32>::new(spec, hidden, &mut rng)?;
     train(model, &mut rng, train_set, dev, c, on_best)
@@ -289,7 +320,14 @@ impl Model for MixParser<f32> {
     fn score(&self, dev: &[MixParseExample]) -> Result<f64> {
         let mixed: Vec<ParseExample> = dev
             .iter()
-            .map(|e| Ok(ParseExample { features: self.mix(&e.layers)?, heads: e.heads.clone(), rels: e.rels.clone() }))
+            .map(|e| {
+                Ok(ParseExample {
+                    features: self.mix(&e.layers)?,
+                    heads: e.heads.clone(),
+                    rels: e.rels.clone(),
+                    language: None,
+                })
+            })
             .collect::<Result<_>>()?;
         Ok(attachment(&self.head.to_core()?, &mixed)?.las())
     }
