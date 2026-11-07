@@ -11,9 +11,42 @@ impl PiiDetector {
     /// This detector with `kinds` as its custom-kind table, which every
     /// [`PiiKind::Custom`] given to it afterwards indexes and every layer it
     /// writes carries. Replaces any earlier table.
-    pub fn with_custom_kinds(mut self, kinds: CustomKinds) -> PiiDetector {
+    ///
+    /// # Panics
+    ///
+    /// When the replacement would change what a rule already set means;
+    /// see [`PiiDetector::try_with_custom_kinds`].
+    pub fn with_custom_kinds(self, kinds: CustomKinds) -> PiiDetector {
+        self.try_with_custom_kinds(kinds).expect("a custom-kind table every detector rule agrees with")
+    }
+
+    /// This detector with `kinds` as its custom-kind table, refused when a
+    /// custom kind that a scanner, a deny list, a per-kind allow list or a
+    /// label override already uses is missing from `kinds`
+    /// ([`KindError::UnknownCustom`]), or is named in the earlier table and
+    /// named otherwise in `kinds` ([`KindError::Renamed`]). Every rule keeps
+    /// the kind it was set for, so no rule outlives its kind and no layer
+    /// carries a kind outside its table.
+    pub fn try_with_custom_kinds(mut self, kinds: CustomKinds) -> Result<PiiDetector, KindError> {
+        for kind in self.custom_kinds_in_use() {
+            kinds.check(kind)?;
+            if let (PiiKind::Custom(id), Some(was)) = (kind, self.custom_kinds.name(kind))
+                && kinds.name(kind) != Some(was)
+            {
+                return Err(KindError::Renamed(id.index()));
+            }
+        }
         self.custom_kinds = kinds;
-        self
+        Ok(self)
+    }
+
+    /// Every custom kind a rule of this detector names: scanner kinds, deny
+    /// lists, per-kind allow lists and label overrides.
+    fn custom_kinds_in_use(&self) -> impl Iterator<Item = PiiKind> + '_ {
+        let scanners = self.scanners.iter().flat_map(|s| s.custom_kinds().iter().copied());
+        let allow = self.kind_allow.iter().map(|(k, _)| *k);
+        let deny = self.deny_lists.iter().map(|d| d.kind());
+        scanners.chain(allow).chain(deny).chain(self.window.kinds()).filter(|k| k.is_custom())
     }
 
     /// The custom-kind table every layer this detector writes carries.
