@@ -443,4 +443,23 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
             13037515481100110596
         ]
     );
+    let mut b = MaskedView::by_kind('*').unwrap();
+    let mut d = MaskedView::all(star);
+    // Ids 18..=27 are the EU and Brazil kinds; the rest were there before.
+    let legacy = |k: PiiKind| !(18..=27).contains(&k.builtin_id().unwrap());
+    for k in PiiKind::builtins() {
+        if legacy(k) {
+            b = b.with(k, star);
+            d = d.with(k, MaskPolicy::for_kind(k, '*').unwrap());
+        }
+    }
+    assert_ne!(MaskedView::all(star), b);
+    assert_ne!(MaskedView::all(star).config_hash(), b.config_hash());
+    assert_ne!(MaskedView::by_kind('*').unwrap(), d);
+    assert_ne!(MaskedView::by_kind('*').unwrap().config_hash(), d.config_hash());
+    for k in PiiKind::builtins().filter(|&k| !legacy(k)) {
+        b = b.with(k, star);
+    }
+    assert_eq!(MaskedView::all(star), b);
+    assert_eq!(MaskedView::all(star).config_hash(), b.config_hash());
 }

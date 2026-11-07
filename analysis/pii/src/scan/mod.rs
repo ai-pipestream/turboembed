@@ -333,7 +333,7 @@ impl Scanner {
             }
             Extractor::Crypto => crypto::scan(text, k, hits),
             Extractor::UsIdentity => national::scan_us(text, k, hits),
-            Extractor::EuIdentity => national::scan_eu(text, k, hits),
+            Extractor::EuIdentity => national::scan_eu(text, k, window, hits),
             Extractor::BrIdentity => br::scan_br(text, k, hits),
             Extractor::CaIdentity => labelled::scan_sin(text, window, hits),
             Extractor::Device => labelled::scan_imei(text, window, hits),

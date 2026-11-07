@@ -12,11 +12,10 @@ use turbo_analysis_layers::{PiiConfidence, PiiKind};
 use crate::checksum::{bic, luhn};
 use crate::hits::Hits;
 use crate::text::{before, on_end, on_number_start, on_word_start};
-use crate::window::{WindowConfig, has_any_label};
+use crate::window::WindowConfig;
 
 const SIN_DIGITS: usize = 9;
 const IMEI_DIGITS: usize = 15;
-const BIC_LABELS: [&[u8]; 6] = [b"bic/swift", b"swift/bic", b"bic code", b"swift code", b"swift", b"bic"];
 
 pub(crate) fn scan_sin(text: &str, window: &WindowConfig, hits: &mut Hits) {
     scan(text, PiiKind::CaSin, window, hits);
@@ -26,14 +25,13 @@ pub(crate) fn scan_imei(text: &str, window: &WindowConfig, hits: &mut Hits) {
     scan(text, PiiKind::Imei, window, hits);
 }
 
-pub(crate) fn scan_bic(text: &str, hits: &mut Hits) {
+pub(crate) fn scan_bic(text: &str, window: &WindowConfig, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i + 8 <= b.len() {
         if !b[i].is_ascii_uppercase()
             || !on_word_start(text, i)
             || before(text, i).is_some_and(|c| matches!(c, '-' | '/' | '.' | '@'))
-            || !has_any_label(text, i, &BIC_LABELS, true)
         {
             i += 1;
             continue;
@@ -44,8 +42,13 @@ pub(crate) fn scan_bic(text: &str, hits: &mut Hits) {
         });
         if let Some(len) = len {
             let end = i + len;
-            hits.add(i, end, PiiKind::Bic, PiiConfidence::Format, |s| s.push_str(&text[i..end]));
-            i = end;
+            let span = Span::new(i as u32, end as u32);
+            if let Some(conf) = window.check(text, span, PiiKind::Bic, PiiConfidence::Format) {
+                hits.add(i, end, PiiKind::Bic, conf, |s| s.push_str(&text[i..end]));
+                i = end;
+            } else {
+                i += 1;
+            }
         } else {
             i += 1;
         }

@@ -252,7 +252,7 @@ fn labelled_bics() {
         assert_eq!(normalized(&eu, text), [want], "{text}");
         assert_eq!(kinds(&eu, text), ["bic"]);
         let pii = layer(&eu, text);
-        assert_eq!(pii.mentions().next().unwrap().confidence.name(), "format");
+        assert_eq!(pii.mentions().next().unwrap().confidence.name(), "labelled");
     }
     for bad in [
         "DEUTDEFF",

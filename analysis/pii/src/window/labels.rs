@@ -35,7 +35,7 @@ pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
         PiiKind::FrSiret => &["siret"],
         PiiKind::BrCpf => &["cpf"],
         PiiKind::BrCnpj => &["cnpj"],
-        PiiKind::Bic => &["bic", "swift"],
+        PiiKind::Bic => &["bic/swift", "swift/bic", "bic code", "swift code", "swift", "bic"],
         PiiKind::Custom(_) => &[],
     }
 }
@@ -78,7 +78,9 @@ pub(super) const fn default_label_phrases(kind: PiiKind) -> &'static [&'static [
         PiiKind::FrSiret => &[&["siret"]],
         PiiKind::BrCpf => &[&["cpf"]],
         PiiKind::BrCnpj => &[&["cnpj"]],
-        PiiKind::Bic => &[&["bic"], &["swift"]],
+        PiiKind::Bic => {
+            &[&["bic", "swift"], &["swift", "bic"], &["bic", "code"], &["swift", "code"], &["swift"], &["bic"]]
+        }
         PiiKind::Custom(_) => &[],
     }
 }
