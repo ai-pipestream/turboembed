@@ -61,6 +61,7 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod baseline_cmd;
 mod peer_cmd;
+mod summarize;
 mod train_coref;
 mod train_open_span;
 mod train_relation;
@@ -84,8 +85,10 @@ fn main() -> ExitCode {
 fn run(argv: Vec<String>) -> Result<()> {
     let command = argv.get(1).cloned().unwrap_or_default();
     let mut a = Args { rest: argv[2.min(argv.len())..].to_vec() };
-    if command == "assemble" {
-        return assemble_cmd(a);
+    match command.as_str() {
+        "assemble" => return assemble_cmd(a),
+        "summarize" => return summarize::run(&argv[2..]),
+        _ => {}
     }
     let corpus_id = a.required("--corpus")?;
     let dir = PathBuf::from(a.required("--dir")?);
@@ -121,7 +124,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
@@ -260,10 +263,8 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let encoder = encoder_record(&bundle, &enc)?;
 
     let t = Instant::now();
-    let train_set = match max_train {
-        0 => &corpus.splits.train[..],
-        n => &corpus.splits.train[..n.min(corpus.splits.train.len())],
-    };
+    let capped = max_train.min(corpus.splits.train.len());
+    let train_set = if max_train == 0 { &corpus.splits.train[..] } else { &corpus.splits.train[..capped] };
     let train_languages = languages.as_ref().map(|(_, rows, _, _)| &rows[..train_set.len()]);
     let dev_languages = languages.as_ref().map(|(_, _, rows, _)| &rows[..]);
     let (train_ex, _) = turbo_trainer_recipes::run::examples_with_languages(

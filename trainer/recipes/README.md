@@ -99,6 +99,7 @@ turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name and vers
     --out <new dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,..] [--commit <sha>]
 turbo-train-head train-sentences --corpus <masc-pos|ud-*> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
     [as train]
+turbo-train-head summarize <dir> ... [--peer <dir> ...] [--format md|json] [--out <new dir>] [--check]
 ```
 
 `assemble` (#1726) verifies one or more training run directories against
@@ -112,6 +113,18 @@ the assembled bundle with `Bundle::open`, and optionally writes a
 validated `turbo-zoo` artifact entry (`Kind::Head` for one head or
 `Kind::Model` for a multi-task bundle) whose `class` is computed from the
 encoder and every head's `CorpusRecord`.
+
+`summarize` (#1830) reads the `receipt.json` of several run directories
+plus peer receipts, groups them by corpus and task, and prints one table
+per corpus with the head variants as rows and the baseline and peer rows
+beneath them: model and baseline scores, the paired-bootstrap delta and
+interval, epochs run and kept, wall time, and the output digests.
+`--out` writes the tables as `summary.md` with the numbers as
+`summary.json`, with any `host` field scrubbed (#1804), so a run
+directory is self-describing before anything is copied. `--check`
+fails when a receipt's `commit` differs from the others or a digest in
+`summary.json` or a `receipt.json` no longer matches the file on disk,
+which guards the copy to the models folder.
 
 `cache` (#1616) reads every split once and writes each word's features
 at the encoder's last N layers, so heads on any one layer, or on a
