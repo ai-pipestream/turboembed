@@ -244,4 +244,30 @@ fn the_envelope_refusals_of_round_trip() {
     assert!(round(&|m| m.raw_text.push('x')).contains("bytes and the mapping"));
     assert!(round(&|m| m.raw_text = m.raw_text.replacen('H', "h", 1)).contains("text_digest"));
     assert!(round(&|m| m.views.pop().map(|_| ()).unwrap()).contains("not in views"));
+    // The views list and the mapping must agree on every parent.
+    assert!(round(&|m| m.views[2].parent = "ascii".into()).contains("has parent"));
+    assert!(round(&|m| m.views[0].parent = "ascii".into()).contains("has parent"));
+}
+
+#[test]
+fn the_input_identity_is_tied_to_the_source_view_whatever_view_is_shown() {
+    let doc = sibling_views();
+    for view in [0u16, 1, 2, 3] {
+        let typed = document_to_typed("r", &doc, ViewId(view), OffsetMode::Utf8).unwrap();
+        turbo_kserve::results::typed::round_trip_typed_document(&typed).unwrap();
+        let round = |edit: &dyn Fn(&mut turbo_kserve::proto::result::TypedDocumentResult)| {
+            let mut m = typed.clone();
+            edit(&mut m);
+            turbo_kserve::results::typed::round_trip_typed_document(&m).unwrap_err().message
+        };
+        assert!(round(&|m| m.input.as_mut().unwrap().source_text_digest = vec![0; 32]).contains("source_text_digest"));
+        assert!(round(&|m| m.input.as_mut().unwrap().source_text_len = 42).contains("source_text_len"));
+    }
+    let simple = document_to_typed("abc", &Document::new("abc"), ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    let mut zeroed = simple.clone();
+    zeroed.input.as_mut().unwrap().source_text_digest = vec![0; 32];
+    assert!(turbo_kserve::results::typed::round_trip_typed_document(&zeroed).is_err());
+    let mut forty_two = simple;
+    forty_two.input.as_mut().unwrap().source_text_len = 42;
+    assert!(turbo_kserve::results::typed::round_trip_typed_document(&forty_two).is_err());
 }

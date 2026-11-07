@@ -142,7 +142,7 @@ fn a_mapping_over_max_mapping_edits_is_refused_not_cut() {
     let views = (0..3)
         .map(|i| turbo_kserve::proto::result::ViewChain {
             view: i,
-            instance: format!("v{i}"),
+            instance: if i == 0 { String::new() } else { format!("v{i}") },
             parent: if i == 0 { None } else { Some(0) },
             text_digest: vec![0; 32],
             text_len: half,
@@ -205,6 +205,14 @@ fn a_chain_that_is_not_a_view_tree_is_refused() {
     assert!(refused(&|m| m.views[1].edits[0].child_start = 1000).contains("edit 0"));
     assert!(refused(&|m| m.views[1].edits.last_mut().unwrap().child_width = 1000).contains("past"));
     assert!(refused(&|m| m.views.clear()).contains("no views"));
+    // Instance names: the source is the unnamed instance, derived views
+    // are named, and no two views share a name.
+    assert!(refused(&|m| m.views[0].instance = "ascii".into()).contains("source view is instance"));
+    assert!(refused(&|m| m.views[1].instance = String::new()).contains("no instance name"));
+    assert!(refused(&|m| m.views[2].instance = "ascii".into()).contains("duplicate mapping view instance"));
+    let mut dup = inline.clone();
+    dup.views[2].instance = "ascii".into();
+    assert!(WireChain::from_inline(&dup).is_err(), "by_instance cannot be left to pick between two views");
     // The same tampering refuses the whole typed document.
     let mut bad = typed.clone();
     if let Some(mapping_payload::Payload::Inline(i)) = bad.mapping.as_mut().and_then(|m| m.payload.as_mut()) {

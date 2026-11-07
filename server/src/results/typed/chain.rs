@@ -130,7 +130,9 @@ pub struct WireChain {
 impl WireChain {
     /// Rebuilds the chain from `mapping`, refusing an absent or reserved
     /// payload, an unknown schema version, a view out of order or with a
-    /// parent that is not before it, or edits that are not an alignment.
+    /// parent that is not before it, a source view that is named or a
+    /// derived view that is not or shares its name, or edits that are not
+    /// an alignment.
     pub fn from_payload(mapping: Option<&MappingPayload>) -> Result<WireChain, Failure> {
         let Some(mapping_payload::Payload::Inline(inline)) = mapping.and_then(|m| m.payload.as_ref()) else {
             return Err(bad("the typed document carries no inline mapping"));
@@ -192,6 +194,18 @@ impl WireChain {
                 && !lengths_agree(&alignment, pl, child_len)
             {
                 return Err(bad(format!("{what} edits do not turn {pl} parent bytes into {child_len} bytes")));
+            }
+            if i == 0 && !v.instance.is_empty() {
+                return Err(bad(format!(
+                    "the source view is instance {:?}; it is the default, unnamed instance",
+                    v.instance
+                )));
+            }
+            if i > 0 && v.instance.is_empty() {
+                return Err(bad(format!("{what} has no instance name")));
+            }
+            if views.iter().any(|seen| seen.instance == v.instance) {
+                return Err(bad(format!("duplicate mapping view instance {:?}", v.instance)));
             }
             views.push(ChainView {
                 id,

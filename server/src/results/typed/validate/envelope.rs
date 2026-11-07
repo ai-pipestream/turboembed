@@ -98,11 +98,29 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
     }
 
     let chain = WireChain::from_payload(msg.mapping.as_ref())?;
-    let listed: HashSet<&str> = msg.views.iter().map(|v| v.instance.as_str()).collect();
     for v in chain.views() {
-        if !listed.contains(v.instance.as_str()) {
+        let Some(info) = msg.views.iter().find(|i| i.instance == v.instance) else {
             return Err(bad(format!("mapping view {:?} is not in views", v.instance)));
+        };
+        let parent = v.parent.map(|p| chain.views()[p.0 as usize].instance.as_str()).unwrap_or_default();
+        if info.parent != parent {
+            return Err(bad(format!(
+                "views says {:?} has parent {:?} and the mapping says {:?}",
+                v.instance, info.parent, parent
+            )));
         }
+    }
+    // The input identity is the source view's, whatever view is shown.
+    let input = msg.input.as_ref().expect("checked above");
+    let source = &chain.views()[0];
+    if input.source_text_len != source.text_len {
+        return Err(bad(format!(
+            "input.source_text_len is {} and the mapping's source view has {}",
+            input.source_text_len, source.text_len
+        )));
+    }
+    if input.source_text_digest != source.text_digest {
+        return Err(bad("input.source_text_digest is not the mapping's source view text_digest"));
     }
     let view_u16 = u16::try_from(msg.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", msg.view)))?;
     let target = chain.view(turbo_analysis::ViewId(view_u16))?;
