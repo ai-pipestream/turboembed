@@ -244,9 +244,12 @@ impl Hits {
                 PiiDisposition::NestedIn { mention: mention.2 }
             } else {
                 let value = self.normalized(h);
+                // The admitted twin, if any: a rejected or suppressed hit
+                // with the same kind and value became no mention, so the
+                // search goes on past it.
                 let repeat = (run_start..i)
-                    .find(|&j| self.hits[j].kind == h.kind && self.normalized(&self.hits[j]) == value)
-                    .and_then(|j| became[j]);
+                    .filter(|&j| self.hits[j].kind == h.kind && self.normalized(&self.hits[j]) == value)
+                    .find_map(|j| became[j]);
                 if let Some(mention) = repeat {
                     PiiDisposition::Repeats { mention }
                 } else if let Some((scope, rule)) = allow(h.kind, h.start, h.end, value) {

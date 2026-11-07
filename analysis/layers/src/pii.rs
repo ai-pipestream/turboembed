@@ -24,7 +24,7 @@ pub use evidence::{ChecksumAlgorithm, EvidenceList, PiiEvidence};
 pub use kind::{CUSTOM_CODE_BASE, KindRow, PiiKind, PiiKinds, mention_order};
 pub use score::{PiiScore, PiiScoreKind};
 
-use turbo_analysis::{Ix, Layer, Overlap, Span, Spans, ViewId};
+use turbo_analysis::{Document, Ix, KeyId, Layer, Overlap, Span, Spans, ViewId};
 
 use crate::Strs;
 
@@ -217,6 +217,18 @@ impl Layer for Pii {
             previous = Some(m);
         }
         Ok(())
+    }
+
+    fn check_document(&self, doc: &Document, _on: &[KeyId]) -> Result<(), String> {
+        self.check_text(doc)
+    }
+}
+
+impl Pii {
+    /// Label spans lie in the view text; the document checks this on
+    /// [`Layer::check_document`].
+    fn check_text(&self, doc: &Document) -> Result<(), String> {
+        self.evidence.check_text(doc.text(self.spans.view()), "pii mention")
     }
 }
 

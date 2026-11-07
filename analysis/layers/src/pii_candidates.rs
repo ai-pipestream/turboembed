@@ -7,7 +7,9 @@
 //! point at. Candidate locations and evidence are still sensitive and are
 //! released under the same disclosure decision as mentions.
 
-use turbo_analysis::{Fnv1a, Ix, Layer, Overlap, Span, Spans, ViewId};
+use std::any::TypeId;
+
+use turbo_analysis::{Document, Fnv1a, Ix, Key, KeyId, Layer, Overlap, Span, Spans, ViewId};
 
 use crate::pii::{
     CustomKinds, EvidenceList, Pii, PiiDetectorRef, PiiDetectors, PiiEvidence, PiiKind, PiiScore, mention_order,
@@ -244,6 +246,30 @@ impl Layer for PiiCandidates {
     const ID: &'static str = "turbo:pii-candidates";
     const OVERLAP: Overlap = Overlap::Any;
     positional!(PiiCandidates);
+
+    /// The `turbo:pii` layer of the same run, which kept, nested and
+    /// repeated candidates point into; the document bounds every
+    /// reference and binds the instance.
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        let bound = self.disposition.iter().filter_map(|d| d.mention()).map(|m| m.get() + 1).max().unwrap_or(0);
+        vec![(Key::<Pii>::DEFAULT.id(), bound)]
+    }
+
+    /// Label spans lie in the view text, and every mention reference lands
+    /// in the `turbo:pii` instance the document bound this layer to.
+    fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
+        self.evidence.check_text(doc.text(self.spans.view()), "pii candidate")?;
+        let key = on.iter().find(|k| k.ty == TypeId::of::<Pii>()).ok_or("pii candidates need their pii layer")?;
+        let pii = doc.require(&Key::<Pii>::named(key.name)).map_err(|e| e.to_string())?;
+        if pii.spans.view() != self.spans.view() {
+            return Err(format!(
+                "pii candidates over view {} but their pii layer over view {}",
+                self.spans.view().0,
+                pii.spans.view().0
+            ));
+        }
+        self.check_against(pii)
+    }
 
     fn content_hash(&self) -> Option<u64> {
         let mut h = Fnv1a::new();

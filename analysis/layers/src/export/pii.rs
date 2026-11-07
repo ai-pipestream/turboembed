@@ -308,9 +308,13 @@ impl LayerCodec for PiiCandidates {
         want_len(disposition.len(), spans.len(), "dispositions")?;
         done(&r, "pii candidates")?;
         let layer = PiiCandidates { spans, custom_kinds, detectors, kind, detector, evidence, score, disposition };
-        // The default mention layer is restored first when the graph holds
-        // it; every reference must then land inside it.
-        if let Ok(len) = cx.layer_len(&LayerRef { layer: Pii::ID.to_owned(), instance: String::new() }) {
+        // The mention layer this record's provenance binds the references
+        // to is restored first; a reference must land inside it. The
+        // document repeats the check when it takes the layer.
+        if layer.disposition.iter().any(|d| d.mention().is_some()) {
+            let pii = LayerRef { layer: Pii::ID.to_owned(), instance: cx.resolved_instance(Pii::ID).to_owned() };
+            cx.expect_target::<Pii>(&pii)?;
+            let len = cx.layer_len(&pii)?;
             for (i, d) in layer.disposition.iter().enumerate() {
                 if let Some(m) = d.mention()
                     && m.get() >= len

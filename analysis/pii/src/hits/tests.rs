@@ -99,3 +99,34 @@ fn composite_orders() {
         }
     }
 }
+
+#[test]
+fn a_repeat_is_matched_to_the_admitted_twin_past_a_rejected_one() {
+    use turbo_analysis_layers::{PiiDisposition, PiiScore, PiiScoreKind, RejectReason};
+    // Three hits with one span, kind and value: the first is rejected by
+    // the threshold, the second is kept, the third repeats the second.
+    // Matching the third to the first would make it a new mention and a
+    // duplicate `Pii::check` refuses.
+    let mut h = Hits::default();
+    h.begin_detector("test", "1");
+    let model = h.current;
+    let score = |value| Some(PiiScore { value, kind: PiiScoreKind::Probability, model, calibrated: false });
+    for value in [0.1, 0.9, 0.9] {
+        assert!(h.add_candidate(0, 4, PiiKind::Phone, &[PiiEvidence::Shape], score(value), |s| s.push_str("1234")));
+    }
+    h.apply_threshold(0.5);
+    let mut out = Pii::new(ViewId::SOURCE);
+    let mut candidates = PiiCandidates::new(ViewId::SOURCE);
+    h.resolve(true, |_, _, _, _| None, &mut out, &mut candidates);
+    assert_eq!(out.check(), Ok(()));
+    assert_eq!(out.len(), 1);
+    assert_eq!(
+        candidates.disposition,
+        [
+            PiiDisposition::RejectedByRule { reason: RejectReason::Threshold },
+            PiiDisposition::Kept { mention: Ix::new(0) },
+            PiiDisposition::Repeats { mention: Ix::new(0) },
+        ]
+    );
+    assert_eq!(candidates.check_against(&out), Ok(()));
+}

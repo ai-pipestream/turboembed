@@ -257,6 +257,24 @@ impl EvidenceList {
         Ok(EvidenceList { facts, end: self.end.clone() })
     }
 
+    /// Every label span of item `i` is a range of `text` on character
+    /// boundaries; `what` names the item in an error.
+    pub fn check_text(&self, text: &str, what: &str) -> Result<(), String> {
+        for (i, facts) in (0..self.len()).map(|i| (i, self.get(i))) {
+            for fact in facts {
+                if let PiiEvidence::Label { span, .. } = *fact
+                    && text.get(span.start as usize..span.end as usize).is_none()
+                {
+                    return Err(format!(
+                        "{what} {i} label evidence span {}..{} is outside the view text or not on UTF-8 boundaries",
+                        span.start, span.end
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Every item holds at least one fact, runs are contiguous, and every
     /// fact holds on its own.
     pub fn check(&self) -> Result<(), String> {

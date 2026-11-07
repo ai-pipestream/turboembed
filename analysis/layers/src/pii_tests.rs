@@ -329,3 +329,73 @@ fn check_refuses_duplicates_empty_values_and_short_columns() {
     p.kind.pop();
     assert_eq!(p.check().unwrap_err(), "every column as long as the spans");
 }
+
+#[test]
+fn label_spans_are_held_to_the_view_text_and_candidates_to_their_pii_layer() {
+    use crate::pii_candidates::*;
+    use turbo_analysis::{Document, Key, Provenance};
+    let text = "Café card 4111 1111 1111 1111.";
+    let by = Provenance::by("test");
+    // A label span past the text, and one cutting the é, are refused by
+    // the document, which a codec import goes through too.
+    for span in [Span::new(25, 40), Span::new(4, 6)] {
+        let mut doc = Document::new(text);
+        let mut p = layer(CustomKinds::new());
+        let evidence = [PiiEvidence::Shape, PiiEvidence::Label { span, phrase: 0 }];
+        p.push(PiiMention { evidence: &evidence, ..m(10, 29, PiiKind::Card, "4111111111111111") });
+        assert_eq!(p.check(), Ok(()));
+        let err = doc.add(&Key::DEFAULT, p, by.clone()).unwrap_err().to_string();
+        assert!(err.contains("label evidence span") && err.contains("view text"), "{span:?}: {err}");
+        let mut c = PiiCandidates::new(ViewId::SOURCE);
+        let d = c.detectors.add("test", "1").unwrap();
+        let kept = PiiDisposition::RejectedByRule { reason: RejectReason::Threshold };
+        c.push(PiiCandidate {
+            span: Span::new(10, 29),
+            kind: PiiKind::Card,
+            detector: d,
+            evidence: &evidence,
+            score: None,
+            disposition: kept,
+        });
+        let mut p = layer(CustomKinds::new());
+        p.push(m(10, 29, PiiKind::Card, "4111111111111111"));
+        doc.add(&Key::DEFAULT, p, by.clone()).unwrap();
+        let err = doc.add(&Key::DEFAULT, c, by.clone()).unwrap_err().to_string();
+        assert!(err.contains("pii candidate 0 label evidence span"), "{span:?}: {err}");
+    }
+    // A candidate layer indexes its pii layer: without one, or pointing
+    // past it, the document refuses it.
+    let cand = |mention: u32| {
+        let mut c = PiiCandidates::new(ViewId::SOURCE);
+        let d = c.detectors.add("test", "1").unwrap();
+        let disposition = PiiDisposition::Kept { mention: Ix::new(mention) };
+        c.push(PiiCandidate {
+            span: Span::new(10, 29),
+            kind: PiiKind::Card,
+            detector: d,
+            evidence: SHAPE,
+            score: None,
+            disposition,
+        });
+        c
+    };
+    assert_eq!(cand(0).indexes(), vec![(Key::<Pii>::DEFAULT.id(), 1)]);
+    let mut doc = Document::new(text);
+    let err = doc.add(&Key::DEFAULT, cand(0), by.clone()).unwrap_err().to_string();
+    assert!(err.contains("turbo:pii"), "{err}");
+    let mut p = layer(CustomKinds::new());
+    p.push(m(10, 29, PiiKind::Card, "4111111111111111"));
+    doc.add(&Key::DEFAULT, p, by.clone()).unwrap();
+    let err = doc.add(&Key::DEFAULT, cand(1), by.clone()).unwrap_err().to_string();
+    assert!(err.contains("past the end of turbo:pii"), "{err}");
+    doc.add(&Key::DEFAULT, cand(0), by.clone()).unwrap();
+    // And a named pii instance binds the candidates that index it.
+    let mut doc = Document::new(text);
+    let mut p = layer(CustomKinds::new());
+    p.push(m(10, 29, PiiKind::Card, "4111111111111111"));
+    doc.add(&Key::<Pii>::named("second"), p, by.clone()).unwrap();
+    let on = Provenance { on: vec![Key::<Pii>::named("second").id()], ..by.clone() };
+    doc.add(&Key::<PiiCandidates>::named("second"), cand(0), on.clone()).unwrap();
+    let err = doc.add(&Key::<PiiCandidates>::named("third"), cand(1), on).unwrap_err().to_string();
+    assert!(err.contains("past the end of turbo:pii"), "{err}");
+}

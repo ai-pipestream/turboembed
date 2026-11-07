@@ -70,11 +70,13 @@ fn candidates_record_every_decision_with_its_rule_and_no_values() {
     assert_eq!((report.total, report.total_suppressed), (2, 3));
     assert_eq!(report.suppressed(PiiKind::Phone), 1);
 
-    // The candidates layer carries no values: the binary graph of a
-    // document holding only the candidates has none of the suppressed
-    // values in it.
+    // The candidates layer carries no values: its binary graph record has
+    // none of the suppressed values in it (the kept ones sit in the pii
+    // record, which the candidates index).
     let mut doc = turbo_analysis::Document::new(text);
-    doc.add(&turbo_analysis::Key::DEFAULT, candidates, turbo_analysis::Provenance::by("test")).unwrap();
+    let by = turbo_analysis::Provenance::by("test");
+    doc.add(&turbo_analysis::Key::DEFAULT, pii, by.clone()).unwrap();
+    doc.add(&turbo_analysis::Key::DEFAULT, candidates, by).unwrap();
     let graph = turbo_analysis::export::export(&doc, &turbo_analysis_layers::export::codecs()).unwrap();
     let body = graph.layers.iter().find(|l| l.layer == turbo_pii::PiiCandidates::ID).unwrap().body.clone().unwrap();
     for value in ["help@example.com", "4111", "9434765919", "046454286", "Palantir"] {
@@ -103,4 +105,74 @@ fn candidates_record_every_decision_with_its_rule_and_no_values() {
         ]
     );
     assert_eq!(candidates.get(Ix::new(1)).evidence, &[PiiEvidence::Rule { rule: 4 }]);
+}
+
+/// Replaces the one occurrence of `from` in the body of `layer` by `to`.
+fn patch(graph: &mut turbo_analysis::export::DocumentGraph, layer: &str, from: &[u8], to: &[u8]) {
+    let body = graph.layers.iter_mut().find(|l| l.layer == layer).unwrap().body.as_mut().unwrap();
+    let at: Vec<usize> = (0..body.len() - from.len() + 1).filter(|&i| body[i..].starts_with(from)).collect();
+    assert_eq!(at.len(), 1, "one place to patch");
+    body[at[0]..at[0] + to.len()].copy_from_slice(to);
+}
+
+#[test]
+fn imported_label_spans_and_mention_references_are_held_to_the_document() {
+    use turbo_analysis::export::{export, import};
+    use turbo_analysis::{Document, Key, Provenance};
+    use turbo_analysis_layers::export::codecs;
+    use turbo_pii::{Pii, PiiCandidates, PiiMention};
+    use turbo_pii::{PiiCandidate, PiiDisposition};
+    let text = "card 4111 1111 1111 1111.";
+    let label = PiiEvidence::Label { span: Span::new(0, 4), phrase: 0 };
+    let evidence = [PiiEvidence::Shape, label];
+    let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
+    let span = Span::new(5, 24);
+    pii.push(PiiMention { span, kind: PiiKind::Card, detector, evidence: &evidence, score: None, normalized: "x" });
+    let mut candidates = PiiCandidates::new(ViewId::SOURCE);
+    let detector = candidates.detectors.add("test", "1").unwrap();
+    let disposition = PiiDisposition::Kept { mention: turbo_analysis::Ix::new(0) };
+    candidates.push(PiiCandidate {
+        span,
+        kind: PiiKind::Card,
+        detector,
+        evidence: &evidence,
+        score: None,
+        disposition,
+    });
+    let mut doc = Document::new(text);
+    let by = Provenance::by("test");
+    doc.add(&Key::DEFAULT, pii, by.clone()).unwrap();
+    doc.add(&Key::DEFAULT, candidates, by).unwrap();
+    let good = export(&doc, &codecs()).unwrap();
+    import(&good, &codecs()).unwrap();
+
+    // The label fact: tag 3, span 0..4, phrase 0. Moving its end past the
+    // text, or onto no character boundary, is refused on import by the
+    // document the layer is restored into.
+    let label_bytes = |end: u32| {
+        let mut b = vec![3, 0, 0, 0, 0];
+        b.extend_from_slice(&end.to_le_bytes());
+        b.extend_from_slice(&[0, 0, 0, 0]);
+        b
+    };
+    for layer in [Pii::ID, PiiCandidates::ID] {
+        let mut bad = good.clone();
+        patch(&mut bad, layer, &label_bytes(4), &label_bytes(40));
+        let err = import(&bad, &codecs()).err().expect("refused").to_string();
+        assert!(err.contains("label evidence span 0..40"), "{layer}: {err}");
+    }
+    // The dispositions: a count of 1, then tag 1 (kept) and mention 0.
+    // A reference past the one mention is refused before the document
+    // sees it, and the error names no value.
+    let mut bad = good.clone();
+    let dispositions = |mention: u32| {
+        let mut b = vec![1u8, 0, 0, 0, 1];
+        b.extend_from_slice(&mention.to_le_bytes());
+        b
+    };
+    let (kept, past) = (dispositions(0), dispositions(5));
+    patch(&mut bad, PiiCandidates::ID, &kept, &past);
+    let err = import(&bad, &codecs()).err().expect("refused").to_string();
+    assert!(err.contains("refers to mention 5 of 1") && !err.contains("4111"), "{err}");
 }
