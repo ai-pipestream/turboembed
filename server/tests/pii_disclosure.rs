@@ -17,8 +17,8 @@ use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_progressive_event::Event;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
-    AnalyzePipelineRequest, DocumentGraphRequest, DocumentGraphResponse, InspectDocumentGraphRequest, OffsetMode,
-    PiiOutputOptions, PiiValueForm, TypedDocumentResult, pii_value,
+    AnalyzePipelineRequest, DocumentGraphRequest, DocumentGraphResponse, FormatDocumentRequest,
+    InspectDocumentGraphRequest, OffsetMode, PiiOutputOptions, PiiValueForm, TypedDocumentResult, pii_value,
 };
 use turbo_kserve::proto::sink::DocumentSinkItem;
 use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
@@ -241,4 +241,31 @@ async fn sink_items_carry_findings_and_no_value_by_default() {
     }
     s.stop().await;
     sink.stop().await;
+}
+
+#[tokio::test]
+async fn format_document_needs_full_text_and_no_format_writes_a_value() {
+    let s = server(Serve::default()).await;
+    let graph = pii_graph(&s).await;
+    let mut c = client(&s).await;
+    let req = |format_id: &str, pii_output| FormatDocumentRequest {
+        doc_id: "doc-pii".into(),
+        graph: graph.clone(),
+        format_id: format_id.into(),
+        offsets: OffsetMode::Utf8 as i32,
+        pii_output,
+    };
+    let e = c.format_document(req("jsonld", None)).await.unwrap_err();
+    assert_eq!(e.code(), tonic::Code::FailedPrecondition, "{e:?}");
+    assert!(e.message().contains("full_text") && !holds(e.message().as_bytes(), PLANTED), "{e:?}");
+    // With the text asked for, the text holds the value, but no PII
+    // finding repeats it.
+    let jsonld = c.format_document(req("jsonld", options(true, false))).await.unwrap().into_inner().content;
+    let jsonld = String::from_utf8(jsonld).unwrap();
+    assert!(jsonld.contains("turbo:PiiMention") && !jsonld.contains("\"normalized\""), "{jsonld}");
+    let md = c.format_document(req("markdown", options(true, false))).await.unwrap().into_inner().content;
+    let md = String::from_utf8(md).unwrap();
+    let summary = md.split("## PII Summary").nth(1).expect("the PII summary").split("\n## ").next().unwrap();
+    assert!(summary.contains("**email**") && !summary.contains(PLANTED), "{summary}");
+    s.stop().await;
 }

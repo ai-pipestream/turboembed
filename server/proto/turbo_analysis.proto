@@ -1333,6 +1333,11 @@ message FormatDocumentRequest
   bytes graph = 2;
   string format_id = 3;
   OffsetMode offsets = 4;
+  // Every format carries the document text, so formatting a document
+  // holding PII findings (a turbo:pii layer) needs `full_text` here and in
+  // the server's policy; without it the call is refused with
+  // TURBO_E_INVALID_STATE. No format writes a mention's value (#1904).
+  PiiOutputOptions pii_output = 5;
 }
 
 message FormatDocumentResponse

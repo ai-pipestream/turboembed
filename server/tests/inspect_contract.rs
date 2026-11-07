@@ -51,6 +51,7 @@ async fn real_rpc_goldens_offsets_views_and_refusals() {
                     format_id: id.into(),
                     doc_id: "unicode".into(),
                     offsets: mode as i32,
+                    pii_output: None,
                 })
                 .await
                 .unwrap()
@@ -83,6 +84,7 @@ async fn real_rpc_goldens_offsets_views_and_refusals() {
                 format_id: "jsonld".into(),
                 doc_id: "bad".into(),
                 offsets: 0,
+                pii_output: None,
             })
             .await
             .unwrap_err(),
@@ -109,6 +111,7 @@ async fn real_rpc_goldens_offsets_views_and_refusals() {
             format_id: "unknown".into(),
             doc_id: "bad".into(),
             offsets: 0,
+            pii_output: None,
         })
         .await
         .unwrap_err(),
@@ -153,6 +156,7 @@ async fn real_rpc_goldens_offsets_views_and_refusals() {
                 format_id: id.into(),
                 doc_id: "bound".into(),
                 offsets: 0,
+                pii_output: None,
             })
             .await
             .unwrap_err(),

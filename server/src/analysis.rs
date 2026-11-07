@@ -227,7 +227,8 @@ impl AnalysisService for Analysis {
 
     async fn format_document(&self, req: Request<FormatDocumentRequest>) -> Reply<FormatDocumentResponse> {
         let req = req.into_inner();
-        let out = tokio::task::spawn_blocking(move || crate::format::format_document(&req))
+        let policy = self.pii_policy;
+        let out = tokio::task::spawn_blocking(move || crate::format::format_document_under(&req, policy))
             .await
             .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("format_document task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))

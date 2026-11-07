@@ -594,9 +594,9 @@ message PiiMention
 {
   PiiKindRef kind = 1;
   PiiConfidenceTier confidence_tier = 2;
-  // Was the normalized value in clear; replaced by `value`.
-  reserved 3;
-  reserved "normalized";
+  // Deprecated: was the normalized value in clear. Never populated; read
+  // `value` instead (#1904).
+  string normalized = 3 [deprecated = true];
   PiiValue value = 4;
 }
 
